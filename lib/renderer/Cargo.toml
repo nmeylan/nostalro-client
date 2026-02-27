@@ -11,3 +11,4 @@ glam = { workspace = true }
 bytemuck = { workspace = true }
 image = { workspace = true }
 winit = { workspace = true }
+ab_glyph = { workspace = true }

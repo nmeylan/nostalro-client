@@ -1488,6 +1488,7 @@ dependencies = [
  "ragnarok-ui",
  "serde",
  "serde_json",
+ "tokio",
  "tracing",
  "tracing-subscriber",
  "winit",
@@ -1528,6 +1529,7 @@ dependencies = [
 name = "ragnarok-renderer"
 version = "0.1.0"
 dependencies = [
+ "ab_glyph",
  "bytemuck",
  "glam",
  "image",
@@ -1546,6 +1548,8 @@ dependencies = [
  "ragnarok-game",
  "ragnarok-renderer",
  "tracing",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]

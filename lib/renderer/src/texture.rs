@@ -3,6 +3,7 @@ use ragnarok_formats::grf::GrfArchive;
 
 pub struct TextureCache {
     textures: HashMap<String, wgpu::BindGroup>,
+    sizes: HashMap<String, (u32, u32)>,
     pub bind_group_layout: wgpu::BindGroupLayout,
 }
 
@@ -33,6 +34,7 @@ impl TextureCache {
 
         Self {
             textures: HashMap::new(),
+            sizes: HashMap::new(),
             bind_group_layout,
         }
     }
@@ -52,7 +54,7 @@ impl TextureCache {
                     return None;
                 }
             };
-            let img = match image::load_from_memory(&data) {
+            let mut img = match image::load_from_memory(&data) {
                 Ok(i) => i.to_rgba8(),
                 Err(e) => {
                     tracing::warn!("Failed to decode texture {name}: {e}");
@@ -60,15 +62,35 @@ impl TextureCache {
                 }
             };
 
+            // RO BMP convention: magenta (FF00FF) pixels become transparent
+            if name.ends_with(".bmp") {
+                apply_magenta_transparency(&mut img);
+            }
+
+            let w = img.width();
+            let h = img.height();
             let bind_group =
                 create_texture_bind_group(device, queue, &img, &self.bind_group_layout, name);
             self.textures.insert(name.to_string(), bind_group);
+            self.sizes.insert(name.to_string(), (w, h));
         }
         self.textures.get(name)
     }
 
     pub fn get(&self, name: &str) -> Option<&wgpu::BindGroup> {
         self.textures.get(name)
+    }
+
+    pub fn texture_size(&self, name: &str) -> Option<(u32, u32)> {
+        self.sizes.get(name).copied()
+    }
+}
+
+fn apply_magenta_transparency(img: &mut image::RgbaImage) {
+    for pixel in img.pixels_mut() {
+        if pixel[0] >= 0xFE && pixel[1] <= 0x01 && pixel[2] >= 0xFE {
+            pixel[3] = 0;
+        }
     }
 }
 

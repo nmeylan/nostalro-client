@@ -1,19 +1,37 @@
 mod device;
 pub mod camera;
+pub mod font_atlas;
 pub mod global_uniforms;
 pub mod ground;
 pub mod texture;
+pub mod ui_renderer;
 
 pub use device::RenderDevice;
 pub use camera::Camera;
 pub use global_uniforms::{GlobalUniforms, LightUniform};
 pub use ground::GroundRenderer;
 pub use texture::TextureCache;
+pub use font_atlas::FontAtlas;
+pub use ui_renderer::{UiRenderer, UiVertex, UiDrawCommand};
 
 use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::rsw::RswFile;
 use std::sync::Arc;
+
+/// Texture reference used by UI draw calls, resolved to bind groups at render time.
+pub enum UiTextureRef {
+    FontAtlas,
+    White,
+    Named(String),
+}
+
+/// Owned UI draw command produced by the UI layer.
+pub struct UiDrawCall {
+    pub vertices: Vec<UiVertex>,
+    pub indices: Vec<u32>,
+    pub texture: UiTextureRef,
+}
 
 pub struct Renderer {
     pub device: RenderDevice,
@@ -21,6 +39,10 @@ pub struct Renderer {
     pub global_uniforms: GlobalUniforms,
     pub texture_cache: TextureCache,
     pub ground_renderer: Option<GroundRenderer>,
+    pub ui_renderer: UiRenderer,
+    pub font_atlas: FontAtlas,
+    pub font_atlas_bind_group: wgpu::BindGroup,
+    pub white_bind_group: wgpu::BindGroup,
 }
 
 impl Renderer {
@@ -32,12 +54,43 @@ impl Renderer {
         };
         let global_uniforms = GlobalUniforms::new(&device.device);
         let texture_cache = TextureCache::new(&device.device);
+
+        let font_atlas = FontAtlas::from_embedded(16.0);
+        let font_atlas_bind_group = texture::create_texture_bind_group(
+            &device.device,
+            &device.queue,
+            &font_atlas.image,
+            &texture_cache.bind_group_layout,
+            "font_atlas",
+        );
+
+        let white_img = image::RgbaImage::from_pixel(1, 1, image::Rgba([255, 255, 255, 255]));
+        let white_bind_group = texture::create_texture_bind_group(
+            &device.device,
+            &device.queue,
+            &white_img,
+            &texture_cache.bind_group_layout,
+            "ui_white",
+        );
+
+        let ui_renderer = UiRenderer::new(
+            &device.device,
+            device.surface_format,
+            &texture_cache.bind_group_layout,
+            device.surface_config.width,
+            device.surface_config.height,
+        );
+
         Self {
             device,
             camera,
             global_uniforms,
             texture_cache,
             ground_renderer: None,
+            ui_renderer,
+            font_atlas,
+            font_atlas_bind_group,
+            white_bind_group,
         }
     }
 
@@ -89,10 +142,11 @@ impl Renderer {
         self.device.resize(width, height);
         if width > 0 && height > 0 {
             self.camera.aspect = width as f32 / height as f32;
+            self.ui_renderer.resize(&self.device.queue, width, height);
         }
     }
 
-    pub fn render(&mut self) {
+    pub fn render(&mut self, ui_draw_calls: &[UiDrawCall]) {
         self.global_uniforms
             .update_camera(&self.device.queue, &self.camera);
 
@@ -148,9 +202,60 @@ impl Renderer {
             }
         }
 
+        if !ui_draw_calls.is_empty() {
+            // Resolve TextureRef -> &wgpu::BindGroup using field-level borrow splitting
+            let resolved: Vec<UiDrawCommand> = ui_draw_calls
+                .iter()
+                .map(|call| {
+                    let bind_group = match &call.texture {
+                        UiTextureRef::FontAtlas => &self.font_atlas_bind_group,
+                        UiTextureRef::White => &self.white_bind_group,
+                        UiTextureRef::Named(name) => {
+                            self.texture_cache.get(name)
+                                .unwrap_or(&self.white_bind_group)
+                        }
+                    };
+                    UiDrawCommand {
+                        vertices: &call.vertices,
+                        indices: &call.indices,
+                        texture: bind_group,
+                    }
+                })
+                .collect();
+
+            self.ui_renderer.render(
+                &mut encoder,
+                &view,
+                &self.device.device,
+                &self.device.queue,
+                &resolved,
+            );
+        }
+
         self.device
             .queue
             .submit(std::iter::once(encoder.finish()));
         output.present();
+    }
+
+    pub fn try_load_grf_font(&mut self, grf: &GrfArchive) {
+        let font_paths = [
+            "data/Font/NanumBarunGothicBold.ttf",
+            "data/Font/NanumBarunGothic.ttf",
+        ];
+        for path in &font_paths {
+            if let Ok(data) = grf.read_file(path) {
+                self.font_atlas = FontAtlas::build(&data, 16.0);
+                self.font_atlas_bind_group = texture::create_texture_bind_group(
+                    &self.device.device,
+                    &self.device.queue,
+                    &self.font_atlas.image,
+                    &self.texture_cache.bind_group_layout,
+                    "font_atlas",
+                );
+                tracing::info!("Loaded GRF font: {path}");
+                return;
+            }
+        }
     }
 }

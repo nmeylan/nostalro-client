@@ -9,3 +9,5 @@ ragnarok-renderer = { workspace = true }
 ragnarok-formats = { workspace = true }
 models = { workspace = true }
 tracing = { workspace = true }
+wgpu = { workspace = true }
+winit = { workspace = true }
