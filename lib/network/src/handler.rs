@@ -5,84 +5,73 @@ use tracing::debug;
 use crate::helpers::decode_pos;
 
 pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Option<GameEvent> {
-    match packet.name() {
-        "PacketAcAcceptLogin" => {
-            let p = packet.as_any().downcast_ref::<PacketAcAcceptLogin>()?;
-            let servers = p.server_list.iter().map(ServerInfo::from).collect();
-            Some(GameEvent::LoginAccepted {
-                account_id: p.aid,
-                login_id1: p.auth_code,
-                login_id2: p.user_level,
-                sex: p.sex,
-                servers,
-            })
-        }
-        "PacketAcRefuseLogin" => {
-            let p = packet.as_any().downcast_ref::<PacketAcRefuseLogin>()?;
-            Some(GameEvent::LoginRefused {
-                error_code: p.error_code,
-            })
-        }
-        "PacketHcAcceptEnterNeoUnion" => {
-            let p = packet.as_any().downcast_ref::<PacketHcAcceptEnterNeoUnion>()?;
-            let characters = p
-                .char_info
-                .iter()
-                .map(|c| CharacterInfo::from_neo_union(c, packetver))
-                .collect();
-            Some(GameEvent::CharacterListReceived { characters })
-        }
-        "PacketHcAcceptEnterNeoUnionHeader" => {
-            let p = packet
-                .as_any()
-                .downcast_ref::<PacketHcAcceptEnterNeoUnionHeader>()?;
-            let characters = p
-                .char_info
-                .char_info
-                .iter()
-                .map(|c| CharacterInfo::from_neo_union(c, packetver))
-                .collect();
-            Some(GameEvent::CharacterListReceived { characters })
-        }
-        "PacketHcNotifyZonesvr" => {
-            let p = packet.as_any().downcast_ref::<PacketHcNotifyZonesvr>()?;
-            let map_name: String = p.map_name.iter().take_while(|c| **c != '\0').collect();
-            Some(GameEvent::ZoneServerConnectInfo {
-                char_id: p.gid,
-                map_name,
-                ip: p.addr.ip,
-                port: p.addr.port,
-            })
-        }
-        "PacketZcAcceptEnter" => {
-            let p = packet.as_any().downcast_ref::<PacketZcAcceptEnter>()?;
-            let (x, y, dir) = decode_pos(&p.pos_dir);
-            Some(GameEvent::MapEntered {
-                x,
-                y,
-                dir,
-                tick: p.start_time,
-            })
-        }
-        "PacketZcAcceptEnter2" => {
-            let p = packet.as_any().downcast_ref::<PacketZcAcceptEnter2>()?;
-            let (x, y, dir) = decode_pos(&p.pos_dir);
-            Some(GameEvent::MapEntered {
-                x,
-                y,
-                dir,
-                tick: p.start_time,
-            })
-        }
-        "PacketZcNotifyTime" => {
-            let p = packet.as_any().downcast_ref::<PacketZcNotifyTime>()?;
-            Some(GameEvent::ServerTick { tick: p.time })
-        }
-        other => {
-            debug!("unhandled packet: {other}");
-            None
-        }
+    let any = packet.as_any();
+
+    if let Some(p) = any.downcast_ref::<PacketAcAcceptLogin>() {
+        let servers = p.server_list.iter().map(ServerInfo::from).collect();
+        return Some(GameEvent::LoginAccepted {
+            account_id: p.aid,
+            login_id1: p.auth_code,
+            login_id2: p.user_level,
+            sex: p.sex,
+            servers,
+        });
     }
+    if let Some(p) = any.downcast_ref::<PacketAcRefuseLogin>() {
+        return Some(GameEvent::LoginRefused {
+            error_code: p.error_code,
+        });
+    }
+    if let Some(p) = any.downcast_ref::<PacketHcAcceptEnterNeoUnion>() {
+        let characters = p
+            .char_info
+            .iter()
+            .map(|c| CharacterInfo::from_neo_union(c, packetver))
+            .collect();
+        return Some(GameEvent::CharacterListReceived { characters });
+    }
+    if let Some(p) = any.downcast_ref::<PacketHcAcceptEnterNeoUnionHeader>() {
+        let characters = p
+            .char_info
+            .char_info
+            .iter()
+            .map(|c| CharacterInfo::from_neo_union(c, packetver))
+            .collect();
+        return Some(GameEvent::CharacterListReceived { characters });
+    }
+    if let Some(p) = any.downcast_ref::<PacketHcNotifyZonesvr>() {
+        let map_name: String = p.map_name.iter().take_while(|c| **c != '\0').collect();
+        return Some(GameEvent::ZoneServerConnectInfo {
+            char_id: p.gid,
+            map_name,
+            ip: p.addr.ip,
+            port: p.addr.port,
+        });
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAcceptEnter>() {
+        let (x, y, dir) = decode_pos(&p.pos_dir);
+        return Some(GameEvent::MapEntered {
+            x,
+            y,
+            dir,
+            tick: p.start_time,
+        });
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAcceptEnter2>() {
+        let (x, y, dir) = decode_pos(&p.pos_dir);
+        return Some(GameEvent::MapEntered {
+            x,
+            y,
+            dir,
+            tick: p.start_time,
+        });
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyTime>() {
+        return Some(GameEvent::ServerTick { tick: p.time });
+    }
+
+    debug!("unhandled packet: {}", packet.name());
+    None
 }
 
 #[cfg(test)]
