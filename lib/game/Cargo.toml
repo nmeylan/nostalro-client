@@ -1,0 +1,10 @@
+[package]
+name = "ragnarok-game"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ragnarok-formats = { workspace = true }
+models = { workspace = true }
+packets = { workspace = true }
+tracing = { workspace = true }

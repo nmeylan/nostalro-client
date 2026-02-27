@@ -1,0 +1,10 @@
+[package]
+name = "ragnarok-formats"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+byteorder = { workspace = true }
+tracing = { workspace = true }
+flate2 = { workspace = true }
+encoding_rs = { workspace = true }

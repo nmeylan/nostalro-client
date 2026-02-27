@@ -1,0 +1,10 @@
+{
+    "packetver": 20120307,
+    "login_ip": "127.0.0.1",
+    "login_port": 6900,
+    "screen_width": 1024,
+    "screen_height": 768,
+    "bgm_volume": 0.8,
+    "sfx_volume": 0.8,
+    "grf_paths": ["data.grf"]
+}

@@ -1,0 +1,15 @@
+[package]
+name = "ragnarok-client"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ragnarok-formats = { workspace = true }
+ragnarok-renderer = { workspace = true }
+ragnarok-game = { workspace = true }
+ragnarok-network = { workspace = true }
+ragnarok-ui = { workspace = true }
+ragnarok-audio = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

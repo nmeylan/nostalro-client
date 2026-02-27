@@ -1,0 +1,36 @@
+[workspace]
+members = [
+    "client",
+    "lib/formats",
+    "lib/renderer",
+    "lib/game",
+    "lib/network",
+    "lib/ui",
+    "lib/audio",
+]
+resolver = "2"
+
+[workspace.dependencies]
+# Needed by server's models crate (workspace = true)
+
+tracing = "0.1.41"
+# Needed by server's packets crate (workspace = true)
+byteorder = "1.5.0"
+json-flat-parser = "0.1.0"
+flate2 = "1.1"
+encoding_rs = "0.8"
+
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Server crate path dependencies
+models = { path = "../rust-ragnarok-server/lib/models" }
+packets = { path = "../rust-ragnarok-server/lib/packets" }
+
+# Internal crates
+ragnarok-formats = { path = "lib/formats" }
+ragnarok-renderer = { path = "lib/renderer" }
+ragnarok-game = { path = "lib/game" }
+ragnarok-network = { path = "lib/network" }
+ragnarok-ui = { path = "lib/ui" }
+ragnarok-audio = { path = "lib/audio" }

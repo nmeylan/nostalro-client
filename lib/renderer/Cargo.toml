@@ -1,0 +1,8 @@
+[package]
+name = "ragnarok-renderer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ragnarok-formats = { workspace = true }
+tracing = { workspace = true }
