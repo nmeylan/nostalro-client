@@ -8,3 +8,4 @@ ragnarok-game = { workspace = true }
 packets = { workspace = true }
 models = { workspace = true }
 tracing = { workspace = true }
+tokio = { workspace = true }
