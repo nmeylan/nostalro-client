@@ -6,3 +6,8 @@ edition = "2024"
 [dependencies]
 ragnarok-formats = { workspace = true }
 tracing = { workspace = true }
+wgpu = { workspace = true }
+glam = { workspace = true }
+bytemuck = { workspace = true }
+image = { workspace = true }
+winit = { workspace = true }

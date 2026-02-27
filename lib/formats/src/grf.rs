@@ -155,6 +155,14 @@ impl GrfArchive {
             .find(|name| name.ends_with(&ext))
             .map(|s| s.as_str())
     }
+
+    pub fn files_with_extension(&self, extension: &str) -> Vec<&str> {
+        let ext = extension.to_lowercase();
+        self.entries.keys()
+            .filter(|name| name.ends_with(&ext))
+            .map(|s| s.as_str())
+            .collect()
+    }
 }
 
 fn read_u32_le(file: &mut File) -> Result<u32, FormatError> {

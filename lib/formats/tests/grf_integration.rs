@@ -4,24 +4,20 @@ use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::grf::GrfArchive;
+use ragnarok_formats::imf::ImfFile;
 use ragnarok_formats::pal::PalFile;
 use ragnarok_formats::rsm::RsmFile;
 use ragnarok_formats::rsw::RswFile;
 use ragnarok_formats::spr::SprFile;
 use ragnarok_formats::str_effect::StrFile;
 
-fn grf_path() -> std::path::PathBuf {
-    for candidate in ["data/testdata", "../../data/testdata"] {
-        let p = Path::new(candidate);
-        if p.exists() {
-            return p.to_path_buf();
-        }
-    }
-    panic!("Test GRF not found — place a GRF at data/testdata (workspace root)");
-}
-
 fn open_grf() -> GrfArchive {
-    GrfArchive::open(&grf_path()).expect("failed to open GRF")
+    let path = ["data/testdata", "../../data/testdata"]
+        .iter()
+        .map(Path::new)
+        .find(|p| p.exists())
+        .expect("Test GRF not found — place a GRF at data/testdata (workspace root)");
+    GrfArchive::open(path).expect("failed to open GRF")
 }
 
 #[test]
@@ -29,56 +25,58 @@ fn extract_and_parse_all_formats_from_grf() {
     let grf = open_grf();
     assert!(grf.file_count() > 0);
 
-    // GAT
-    let name = grf.find_first_with_extension(".gat").expect("no .gat in GRF").to_string();
-    let gat = GatFile::parse(&grf.read_file(&name).unwrap()).expect("failed to parse .gat");
+    // GAT — morroc ruins walkability grid
+    let data = grf.read_file("data/moc_ruins.gat").unwrap();
+    let gat = GatFile::parse(&data).expect("failed to parse moc_ruins.gat");
     assert!(gat.width > 0 && gat.height > 0);
     assert_eq!(gat.cells.len(), (gat.width * gat.height) as usize);
 
-    // GND
-    let name = grf.find_first_with_extension(".gnd").expect("no .gnd in GRF").to_string();
-    let gnd = GndFile::parse(&grf.read_file(&name).unwrap()).expect("failed to parse .gnd");
+    // GND — morroc ruins ground mesh
+    let data = grf.read_file("data/moc_ruins.gnd").unwrap();
+    let gnd = GndFile::parse(&data).expect("failed to parse moc_ruins.gnd");
     assert!(gnd.width > 0 && gnd.height > 0);
     assert_eq!(gnd.cells.len(), (gnd.width * gnd.height) as usize);
 
-    // RSW — also verify its GND/GAT references are parseable
-    let rsw_name = grf.find_first_with_extension(".rsw").expect("no .rsw in GRF").to_string();
-    let rsw = RswFile::parse(&grf.read_file(&rsw_name).unwrap()).expect("failed to parse .rsw");
+    // RSW — morroc ruins world descriptor, verify its GND/GAT references parse
+    let data = grf.read_file("data/moc_ruins.rsw").unwrap();
+    let rsw = RswFile::parse(&data).expect("failed to parse moc_ruins.rsw");
     assert!(!rsw.gnd_file.is_empty());
     assert!(!rsw.gat_file.is_empty());
 
-    let prefix = rsw_name.rsplit_once('/').map(|(p, _)| format!("{p}/")).unwrap_or_default();
-    let gnd_ref = format!("{prefix}{}", rsw.gnd_file);
-    if grf.file_exists(&gnd_ref) {
-        GndFile::parse(&grf.read_file(&gnd_ref).unwrap()).expect("failed to parse RSW-referenced .gnd");
-    }
-    let gat_ref = format!("{prefix}{}", rsw.gat_file);
-    if grf.file_exists(&gat_ref) {
-        GatFile::parse(&grf.read_file(&gat_ref).unwrap()).expect("failed to parse RSW-referenced .gat");
-    }
+    let gnd_ref = format!("data/{}", rsw.gnd_file);
+    GndFile::parse(&grf.read_file(&gnd_ref).unwrap())
+        .unwrap_or_else(|e| panic!("failed to parse RSW-referenced {gnd_ref}: {e}"));
+    let gat_ref = format!("data/{}", rsw.gat_file);
+    GatFile::parse(&grf.read_file(&gat_ref).unwrap())
+        .unwrap_or_else(|e| panic!("failed to parse RSW-referenced {gat_ref}: {e}"));
 
-    // RSM
-    let name = grf.find_first_with_extension(".rsm").expect("no .rsm in GRF").to_string();
-    let rsm = RsmFile::parse(&grf.read_file(&name).unwrap()).expect("failed to parse .rsm");
+    // RSM — tree model
+    let data = grf.read_file("data/model/나무잡초꽃/나무01.rsm").unwrap();
+    let rsm = RsmFile::parse(&data).expect("failed to parse rsm");
     assert!(!rsm.nodes.is_empty());
     assert!(!rsm.root_node_names.is_empty());
 
-    // SPR
-    let name = grf.find_first_with_extension(".spr").expect("no .spr in GRF").to_string();
-    let spr = SprFile::parse(&grf.read_file(&name).unwrap()).expect("failed to parse .spr");
+    // SPR — mandragora monster sprite
+    let data = grf.read_file("data/sprite/몬스터/mandragora.spr").unwrap();
+    let spr = SprFile::parse(&data).expect("failed to parse mandragora.spr");
     assert!(spr.indexed_sprites.len() + spr.rgba_sprites.len() > 0);
 
-    // ACT
-    let name = grf.find_first_with_extension(".act").expect("no .act in GRF").to_string();
-    let act = ActFile::parse(&grf.read_file(&name).unwrap()).expect("failed to parse .act");
+    // ACT — mandragora animation
+    let data = grf.read_file("data/sprite/몬스터/mandragora.act").unwrap();
+    let act = ActFile::parse(&data).expect("failed to parse mandragora.act");
     assert!(!act.actions.is_empty());
 
-    // STR
-    let name = grf.find_first_with_extension(".str").expect("no .str in GRF").to_string();
-    let str_file = StrFile::parse(&grf.read_file(&name).unwrap()).expect("failed to parse .str");
+    // STR — visual effect
+    let data = grf.read_file("data/sprite/이팩트/jong_mini.str").unwrap();
+    let str_file = StrFile::parse(&data).expect("failed to parse jong_mini.str");
     assert!(!str_file.layers.is_empty());
 
-    // PAL
-    let name = grf.find_first_with_extension(".pal").expect("no .pal in GRF").to_string();
-    PalFile::parse(&grf.read_file(&name).unwrap()).expect("failed to parse .pal");
+    // PAL — swordsman body palette
+    let data = grf.read_file("data/palette/몸/검사_남_0.pal").unwrap();
+    PalFile::parse(&data).expect("failed to parse pal");
+
+    // IMF — swordsman sprite layer metadata
+    let data = grf.read_file("data/imf/검사_남.imf").unwrap();
+    let imf = ImfFile::parse(&data).expect("failed to parse imf");
+    assert!(!imf.layers.is_empty());
 }

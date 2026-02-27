@@ -14,6 +14,7 @@ resolver = "2"
 # Needed by server's models crate (workspace = true)
 
 tracing = "0.1.41"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter"] }
 # Needed by server's packets crate (workspace = true)
 byteorder = "1.5.0"
 json-flat-parser = "0.1.0"
@@ -22,6 +23,13 @@ encoding_rs = "0.8"
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+wgpu = "28"
+winit = "0.30"
+glam = "0.32"
+bytemuck = { version = "1.25", features = ["derive"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tga", "bmp"] }
+pollster = "0.4"
 
 # Server crate path dependencies
 models = { path = "../rust-ragnarok-server/lib/models" }

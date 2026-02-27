@@ -6,5 +6,5 @@
     "screen_height": 768,
     "bgm_volume": 0.8,
     "sfx_volume": 0.8,
-    "grf_paths": ["data.grf"]
+    "grf_paths": ["data/data.grf"]
 }

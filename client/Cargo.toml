@@ -11,5 +11,8 @@ ragnarok-network = { workspace = true }
 ragnarok-ui = { workspace = true }
 ragnarok-audio = { workspace = true }
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+winit = { workspace = true }
+pollster = { workspace = true }

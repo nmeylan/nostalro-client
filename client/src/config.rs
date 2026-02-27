@@ -24,7 +24,7 @@ impl Default for Config {
             screen_height: 768,
             bgm_volume: 0.8,
             sfx_volume: 0.8,
-            grf_paths: vec!["data.grf".to_string()],
+            grf_paths: vec!["data/data.grf".to_string()],
         }
     }
 }
@@ -63,7 +63,7 @@ mod tests {
         assert_eq!(parsed.packetver, 20120307);
         assert_eq!(parsed.login_port, 6900);
         assert_eq!(parsed.screen_width, 1024);
-        assert_eq!(parsed.grf_paths, vec!["data.grf"]);
+        assert_eq!(parsed.grf_paths, vec!["data/data.grf"]);
     }
 
     #[test]
