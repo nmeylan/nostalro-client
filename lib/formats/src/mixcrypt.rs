@@ -9,6 +9,21 @@ pub const GRF_FLAG_HEADER_DES_CRYPT: u8 = 1 << 2;
 const HEADER_BLOCKS_SIZE: usize = 0x14;
 const BLOCK_SIZE: usize = 8;
 
+pub fn nibble_swap(data: &mut [u8]) {
+    for b in data.iter_mut() {
+        *b = (*b >> 4) | (*b << 4);
+    }
+}
+
+pub fn decrypt_filename(data: &mut [u8]) {
+    nibble_swap(data);
+    for block in data.chunks_exact_mut(BLOCK_SIZE) {
+        let mut val = u64::from_be_bytes(block.try_into().unwrap());
+        val = decode_des_block(val);
+        block.copy_from_slice(&val.to_be_bytes());
+    }
+}
+
 pub fn decrypt_file(flags: u8, compressed_size: u32, data: &mut [u8]) {
     if let Some((header_only, cycle)) = determine_scheme(flags, compressed_size) {
         decrypt_data(data, header_only, cycle);
@@ -266,5 +281,15 @@ mod tests {
         let input: u64 = u64::MAX - 123456789;
         let expected: u64 = 12316197016309868543;
         assert_eq!(decode_des_block(input), expected);
+    }
+
+    #[test]
+    fn nibble_swap_roundtrip() {
+        let original = [0x12, 0xAB, 0x00, 0xFF, 0x0F, 0xF0];
+        let mut data = original;
+        nibble_swap(&mut data);
+        assert_eq!(data, [0x21, 0xBA, 0x00, 0xFF, 0xF0, 0x0F]);
+        nibble_swap(&mut data);
+        assert_eq!(data, original);
     }
 }

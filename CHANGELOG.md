@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Add support for opening older GRF archives (version 1.x)
 - Add login screen with username/password fields, connect and exit buttons
 - Add 2D UI rendering pipeline with font atlas and orthographic projection
 - Add network connection from login screen (connect to login server, display errors)

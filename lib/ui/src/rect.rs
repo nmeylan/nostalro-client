@@ -17,8 +17,8 @@ impl Rect {
 
     pub fn centered_in(screen_w: f32, screen_h: f32, w: f32, h: f32) -> Self {
         Self {
-            x: (screen_w - w) / 2.0,
-            y: (screen_h - h) / 2.0,
+            x: ((screen_w - w) / 2.0).floor(),
+            y: ((screen_h - h) / 2.0).floor(),
             w,
             h,
         }

@@ -20,6 +20,14 @@ fn open_grf() -> GrfArchive {
     GrfArchive::open(path).expect("failed to open GRF")
 }
 
+fn open_v1_grf() -> Option<GrfArchive> {
+    let path = ["data/data.grf", "../../data/data.grf"]
+        .iter()
+        .map(Path::new)
+        .find(|p| p.exists())?;
+    Some(GrfArchive::open(path).expect("failed to open v1.x GRF"))
+}
+
 #[test]
 fn extract_and_parse_all_formats_from_grf() {
     let grf = open_grf();
@@ -79,4 +87,16 @@ fn extract_and_parse_all_formats_from_grf() {
     let data = grf.read_file("data/imf/검사_남.imf").unwrap();
     let imf = ImfFile::parse(&data).expect("failed to parse imf");
     assert!(!imf.layers.is_empty());
+}
+
+#[test]
+fn open_v1_grf_and_read_file() {
+    let Some(grf) = open_v1_grf() else { return };
+    assert!(grf.file_count() > 0);
+
+    let gat_file = grf.find_first_with_extension(".gat")
+        .expect("v1 GRF should contain at least one .gat file");
+    let data = grf.read_file(gat_file).expect("failed to read .gat from v1 GRF");
+    let gat = GatFile::parse(&data).expect("failed to parse .gat from v1 GRF");
+    assert!(gat.width > 0 && gat.height > 0);
 }

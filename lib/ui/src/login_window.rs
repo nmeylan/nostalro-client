@@ -17,26 +17,24 @@ pub struct LoginWindow {
     pub focus: LoginFocus,
     pub has_grf_textures: bool,
     win_size: (f32, f32),
-    input_size: (f32, f32),
     btn_size: (f32, f32),
 }
 
 // Fallback layout constants (used when no GRF textures)
 const FALLBACK_WIN_W: f32 = 280.0;
 const FALLBACK_WIN_H: f32 = 120.0;
-const FALLBACK_FIELD_W: f32 = 150.0;
-const FALLBACK_FIELD_H: f32 = 20.0;
-const FALLBACK_BTN_W: f32 = 80.0;
-const FALLBACK_BTN_H: f32 = 22.0;
+const FALLBACK_BTN_W: f32 = 42.0;
+const FALLBACK_BTN_H: f32 = 20.0;
 
-// Position offsets within the window (skin-specific, match win_login.bmp design)
-const LABEL_X: f32 = 10.0;
-const FIELD_X: f32 = 85.0;
-const USERNAME_Y: f32 = 15.0;
-const PASSWORD_Y: f32 = 42.0;
-const BTN_Y: f32 = 75.0;
-const CONNECT_BTN_X: f32 = 45.0;
-const EXIT_BTN_X: f32 = 155.0;
+// Position offsets within the window (from roBrowser reverse engineering of original client)
+const FIELD_X: f32 = 91.0;
+const FIELD_RIGHT_MARGIN: f32 = 62.0;
+const FIELD_H: f32 = 18.0;
+const USERNAME_Y: f32 = 29.0;
+const PASSWORD_Y: f32 = 61.0;
+const CONNECT_BTN_RIGHT: f32 = 50.0;
+const EXIT_BTN_RIGHT: f32 = 5.0;
+const BTN_BOTTOM: f32 = 4.0;
 
 const INPUT_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/name-edit.bmp";
 const WIN_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/win_login.bmp";
@@ -67,7 +65,6 @@ impl LoginWindow {
             focus: LoginFocus::Username,
             has_grf_textures: false,
             win_size: (FALLBACK_WIN_W, FALLBACK_WIN_H),
-            input_size: (FALLBACK_FIELD_W, FALLBACK_FIELD_H),
             btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
         }
     }
@@ -78,9 +75,6 @@ impl LoginWindow {
         if let Some((w, h)) = size_fn(WIN_TEXTURE) {
             self.win_size = (w as f32, h as f32);
         }
-        if let Some((w, h)) = size_fn(INPUT_TEXTURE) {
-            self.input_size = (w as f32, h as f32);
-        }
         if let Some((w, h)) = size_fn(CONNECT_BTN.normal) {
             self.btn_size = (w as f32, h as f32);
         }
@@ -89,7 +83,7 @@ impl LoginWindow {
     pub fn build(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
         let mut events = Vec::new();
         let (win_w, win_h) = self.win_size;
-        let (field_w, field_h) = self.input_size;
+        let field_w = win_w - FIELD_X - FIELD_RIGHT_MARGIN;
         let (btn_w, btn_h) = self.btn_size;
         let win = Rect::centered_in(ui.ctx.screen_width, ui.ctx.screen_height, win_w, win_h);
 
@@ -139,16 +133,10 @@ impl LoginWindow {
             }
         }
 
-        // Labels
-        let label_color = [0.9, 0.9, 0.9, 1.0];
-        let label_y_offset = (field_h - ui.atlas.line_height) / 2.0;
-        ui.text(win.x + LABEL_X, win.y + USERNAME_Y + label_y_offset, "Username", label_color);
-        ui.text(win.x + LABEL_X, win.y + PASSWORD_Y + label_y_offset, "Password", label_color);
-
         // Text inputs
         let input_tex = if self.has_grf_textures { Some(INPUT_TEXTURE) } else { None };
-        let username_rect = Rect::new(win.x + FIELD_X, win.y + USERNAME_Y, field_w, field_h);
-        let password_rect = Rect::new(win.x + FIELD_X, win.y + PASSWORD_Y, field_w, field_h);
+        let username_rect = Rect::new(win.x + FIELD_X, win.y + USERNAME_Y, field_w, FIELD_H);
+        let password_rect = Rect::new(win.x + FIELD_X, win.y + PASSWORD_Y, field_w, FIELD_H);
         ui.text_input(USERNAME_ID, username_rect, &mut self.username, input_tex);
         ui.text_input(PASSWORD_ID, password_rect, &mut self.password, input_tex);
 
@@ -159,9 +147,10 @@ impl LoginWindow {
             _ => {}
         }
 
-        // Buttons
-        let connect_rect = Rect::new(win.x + CONNECT_BTN_X, win.y + BTN_Y, btn_w, btn_h);
-        let exit_rect = Rect::new(win.x + EXIT_BTN_X, win.y + BTN_Y, btn_w, btn_h);
+        // Buttons (positioned from right/bottom edges, matching original client)
+        let btn_y = win.y + win_h - BTN_BOTTOM - btn_h;
+        let connect_rect = Rect::new(win.x + win_w - CONNECT_BTN_RIGHT - btn_w, btn_y, btn_w, btn_h);
+        let exit_rect = Rect::new(win.x + win_w - EXIT_BTN_RIGHT - btn_w, btn_y, btn_w, btn_h);
         let connect = ui.button(CONNECT_ID, connect_rect, &CONNECT_BTN, "Connect");
         let exit = ui.button(EXIT_ID, exit_rect, &EXIT_BTN, "Exit");
 

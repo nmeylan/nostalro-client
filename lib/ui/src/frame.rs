@@ -127,7 +127,8 @@ impl<'a> UiFrame<'a> {
     pub fn text_input(
         &mut self, id: WidgetId, rect: Rect, state: &mut TextInput, bg_texture: Option<&str>,
     ) -> TextInputResponse {
-        if self.ctx.mouse_clicked && rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) {
+        let clicked_inside = self.ctx.mouse_clicked && rect.contains(self.ctx.mouse_x, self.ctx.mouse_y);
+        if clicked_inside {
             self.focus = Some(id);
         }
 
@@ -135,6 +136,26 @@ impl<'a> UiFrame<'a> {
 
         if is_focused {
             state.process_keys(self.ctx);
+        }
+
+        if clicked_inside {
+            let text = state.display_text();
+            let padding = 4.0;
+            let available_w = rect.w - padding * 2.0;
+            let cur_text = &text[..state.display_cursor_offset()];
+            let scroll = (self.atlas.measure_text(cur_text) - available_w).max(0.0);
+            let click_rel = self.ctx.mouse_x - (rect.x + padding) + scroll;
+            let mut acc = 0.0;
+            let mut best_pos = 0;
+            for (i, ch) in text.chars().enumerate() {
+                let advance = self.atlas.glyph(ch).advance;
+                if click_rel < acc + advance * 0.5 {
+                    break;
+                }
+                acc += advance;
+                best_pos = i + 1;
+            }
+            state.cursor_pos = best_pos;
         }
 
         // Background
@@ -181,10 +202,24 @@ impl<'a> UiFrame<'a> {
 
         // Text
         let text = state.display_text();
-        let text_x = rect.x + 4.0;
-        let text_y = rect.y + (rect.h - self.atlas.line_height) / 2.0;
+        let padding = 4.0;
+        let available_w = rect.w - padding * 2.0;
+        let text_y = rect.y + self.atlas.line_height;
+
+        // Compute offset so cursor is always visible within the field
+        let cursor_text = &text[..state.display_cursor_offset()];
+        let cursor_px = self.atlas.measure_text(cursor_text);
+        let scroll = (cursor_px - available_w).max(0.0);
+        let text_x = rect.x + padding - scroll;
+
+        let clip_left = rect.x + padding;
+        let clip_right = rect.x + rect.w - padding;
+
         if !text.is_empty() {
-            let (verts, indices) = draw::text_vertices(&text, text_x, text_y, [1.0, 1.0, 1.0, 1.0], self.atlas);
+            let text_color = if bg_texture.is_some() { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
+            let (verts, indices) = draw::text_vertices_clipped(
+                &text, text_x, text_y, text_color, self.atlas, clip_left, clip_right,
+            );
             if !verts.is_empty() {
                 self.draw_calls.push(DrawCall {
                     vertices: verts,
@@ -196,10 +231,10 @@ impl<'a> UiFrame<'a> {
 
         // Cursor blink
         if is_focused && (self.elapsed_secs % 1.0) < 0.5 {
-            let cursor_text = &text[..state.display_cursor_offset()];
-            let cursor_x = text_x + self.atlas.measure_text(cursor_text);
-            let cursor_h = self.atlas.line_height;
-            let (v, i) = draw::quad_vertices(cursor_x, text_y, 1.0, cursor_h, [1.0, 1.0, 1.0, 1.0]);
+            let cursor_x = (text_x + cursor_px).clamp(clip_left, clip_right);
+            let caret_y = rect.y + (rect.h - self.atlas.ascent) / 2.0;
+            let caret_color = if bg_texture.is_some() { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
+            let (v, i) = draw::quad_vertices(cursor_x, caret_y, 1.0, self.atlas.ascent, caret_color);
             self.draw_calls.push(DrawCall {
                 vertices: v.to_vec(),
                 indices: i.to_vec(),

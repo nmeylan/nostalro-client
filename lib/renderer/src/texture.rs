@@ -69,8 +69,11 @@ impl TextureCache {
 
             let w = img.width();
             let h = img.height();
-            let bind_group =
-                create_texture_bind_group(device, queue, &img, &self.bind_group_layout, name);
+            let bind_group = if name.ends_with(".bmp") {
+                create_texture_bind_group_nearest(device, queue, &img, &self.bind_group_layout, name)
+            } else {
+                create_texture_bind_group(device, queue, &img, &self.bind_group_layout, name)
+            };
             self.textures.insert(name.to_string(), bind_group);
             self.sizes.insert(name.to_string(), (w, h));
         }
@@ -100,6 +103,27 @@ pub fn create_texture_bind_group(
     img: &image::RgbaImage,
     layout: &wgpu::BindGroupLayout,
     label: &str,
+) -> wgpu::BindGroup {
+    create_texture_bind_group_filtered(device, queue, img, layout, label, wgpu::FilterMode::Linear)
+}
+
+pub fn create_texture_bind_group_nearest(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    img: &image::RgbaImage,
+    layout: &wgpu::BindGroupLayout,
+    label: &str,
+) -> wgpu::BindGroup {
+    create_texture_bind_group_filtered(device, queue, img, layout, label, wgpu::FilterMode::Nearest)
+}
+
+fn create_texture_bind_group_filtered(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    img: &image::RgbaImage,
+    layout: &wgpu::BindGroupLayout,
+    label: &str,
+    filter: wgpu::FilterMode,
 ) -> wgpu::BindGroup {
     let size = wgpu::Extent3d {
         width: img.width(),
@@ -138,8 +162,8 @@ pub fn create_texture_bind_group(
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         address_mode_u: wgpu::AddressMode::Repeat,
         address_mode_v: wgpu::AddressMode::Repeat,
-        mag_filter: wgpu::FilterMode::Linear,
-        min_filter: wgpu::FilterMode::Linear,
+        mag_filter: filter,
+        min_filter: filter,
         mipmap_filter: wgpu::MipmapFilterMode::Nearest,
         ..Default::default()
     });

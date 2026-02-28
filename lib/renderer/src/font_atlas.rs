@@ -16,6 +16,7 @@ pub struct FontAtlas {
     pub image: image::RgbaImage,
     pub glyphs: HashMap<char, GlyphInfo>,
     pub line_height: f32,
+    pub ascent: f32,
 }
 
 impl FontAtlas {
@@ -28,6 +29,7 @@ impl FontAtlas {
         let scaled = font.as_scaled(px_height);
 
         let line_height = scaled.height() + scaled.line_gap();
+        let ascent = scaled.ascent();
 
         // Collect glyphs for ASCII printable range
         let chars: Vec<char> = (32u8..127).map(|b| b as char).collect();
@@ -91,7 +93,7 @@ impl FontAtlas {
                     let px = ox + x;
                     let py = oy + y;
                     if px < atlas_size && py < atlas_size {
-                        let v = (c * 255.0) as u8;
+                        let v = (c.sqrt() * 255.0) as u8;
                         image.put_pixel(px, py, image::Rgba([255, 255, 255, v]));
                     }
                 });
@@ -123,6 +125,7 @@ impl FontAtlas {
             image,
             glyphs: glyphs_map,
             line_height,
+            ascent,
         }
     }
 
