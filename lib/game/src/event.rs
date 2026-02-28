@@ -44,6 +44,7 @@ pub enum GameEvent {
     RequestSelectCharacter {
         slot: u8,
     },
+    BackToLogin,
 }
 
 #[derive(Debug, Clone)]

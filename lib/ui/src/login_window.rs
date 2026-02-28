@@ -201,30 +201,32 @@ impl LoginWindow {
 mod tests {
     use super::*;
     use crate::context::UiContext;
+    use crate::state::StateCache;
     use ragnarok_renderer::font_atlas::FontAtlas;
 
     fn make_ctx() -> UiContext {
         UiContext::new(800.0, 600.0)
     }
 
-    fn make_frame(ctx: &UiContext) -> UiFrame<'_> {
+    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0);
         let atlas = Box::leak(Box::new(atlas));
-        UiFrame::new(ctx, atlas, 0.0, false, Some(USERNAME_ID))
+        UiFrame::new(ctx, atlas, state, 0.0, false, Some(USERNAME_ID))
     }
 
     #[test]
     fn tab_cycles_focus() {
         let mut login = LoginWindow::new();
+        let mut state = StateCache::new();
         assert_eq!(login.focus, LoginFocus::Username);
 
         let mut ctx = make_ctx();
         ctx.key_tab = true;
-        let mut ui = make_frame(&ctx);
+        let mut ui = make_frame(&ctx, &mut state);
         login.build(&mut ui);
         assert_eq!(login.focus, LoginFocus::Password);
 
-        let mut ui = make_frame(&ctx);
+        let mut ui = make_frame(&ctx, &mut state);
         login.build(&mut ui);
         assert_eq!(login.focus, LoginFocus::Username);
     }
@@ -232,12 +234,13 @@ mod tests {
     #[test]
     fn enter_with_credentials_emits_request_login() {
         let mut login = LoginWindow::new();
+        let mut state = StateCache::new();
         login.username.text = "admin".to_string();
         login.password.text = "pass123".to_string();
 
         let mut ctx = make_ctx();
         ctx.key_enter = true;
-        let mut ui = make_frame(&ctx);
+        let mut ui = make_frame(&ctx, &mut state);
         let events = login.build(&mut ui);
         assert_eq!(events.len(), 1);
         match &events[0] {
@@ -252,10 +255,11 @@ mod tests {
     #[test]
     fn enter_with_empty_fields_does_nothing() {
         let mut login = LoginWindow::new();
+        let mut state = StateCache::new();
 
         let mut ctx = make_ctx();
         ctx.key_enter = true;
-        let mut ui = make_frame(&ctx);
+        let mut ui = make_frame(&ctx, &mut state);
         let events = login.build(&mut ui);
         assert!(events.is_empty());
     }

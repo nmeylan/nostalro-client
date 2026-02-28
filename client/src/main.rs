@@ -5,11 +5,14 @@ use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::rsw::RswFile;
 use ragnarok_game::event::GameEvent;
-use ragnarok_network::{build_login_packet, network_loop, NetworkCommand};
+use ragnarok_network::{build_char_enter_packet, build_login_packet, ip_u32_to_string, network_loop, NetworkCommand};
+use ragnarok_network::session::Session;
 use ragnarok_renderer::Renderer;
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::login_window::{LoginFocus, LoginWindow};
+use ragnarok_ui::server_list_window::ServerListWindow;
+use ragnarok_ui::state::StateCache;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
@@ -22,6 +25,7 @@ use winit::window::{Window, WindowAttributes, WindowId};
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum AppState {
     Login,
+    ServerSelect,
     InGame,
 }
 
@@ -33,7 +37,10 @@ struct App {
     right_mouse_down: bool,
     last_mouse_pos: Option<(f64, f64)>,
     ui_context: Option<UiContext>,
+    ui_state_cache: StateCache,
     login_window: LoginWindow,
+    server_list_window: Option<ServerListWindow>,
+    login_session: Option<Session>,
     network_cmd_tx: Option<mpsc::UnboundedSender<NetworkCommand>>,
     game_event_rx: Option<mpsc::UnboundedReceiver<GameEvent>>,
     app_state: AppState,
@@ -50,7 +57,10 @@ impl App {
             right_mouse_down: false,
             last_mouse_pos: None,
             ui_context: None,
+            ui_state_cache: StateCache::new(),
             login_window: LoginWindow::new(),
+            server_list_window: None,
+            login_session: None,
             network_cmd_tx: None,
             game_event_rx: None,
             app_state: AppState::Login,
@@ -131,8 +141,30 @@ impl App {
         if let Some(rx) = &mut self.game_event_rx {
             while let Ok(event) = rx.try_recv() {
                 match event {
-                    GameEvent::LoginAccepted { .. } => {
-                        tracing::info!("Login accepted");
+                    GameEvent::LoginAccepted { account_id, login_id1, login_id2, sex, servers } => {
+                        tracing::info!("Login accepted, {} server(s)", servers.len());
+                        let mut session = Session::new(self.config.packetver);
+                        session.store_login(account_id, login_id1, login_id2, sex);
+                        self.login_session = Some(session);
+                        let mut server_win = ServerListWindow::new(servers);
+                        if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
+                            let mut all_loaded = true;
+                            for path in ServerListWindow::grf_texture_paths() {
+                                if renderer.texture_cache.get_or_load(
+                                    path, grf, &renderer.device.device, &renderer.device.queue,
+                                ).is_none() {
+                                    all_loaded = false;
+                                }
+                            }
+                            server_win.has_grf_textures = all_loaded;
+                            if all_loaded {
+                                server_win.set_texture_sizes(|name| {
+                                    renderer.texture_cache.texture_size(name)
+                                });
+                            }
+                        }
+                        self.server_list_window = Some(server_win);
+                        self.app_state = AppState::ServerSelect;
                     }
                     GameEvent::LoginRefused { error_code } => {
                         let msg = match error_code {
@@ -160,7 +192,7 @@ impl App {
         }
     }
 
-    fn handle_login_events(&mut self, events: Vec<GameEvent>) {
+    fn handle_ui_events(&mut self, events: Vec<GameEvent>, event_loop: &ActiveEventLoop) {
         for event in events {
             match event {
                 GameEvent::RequestLogin { username, password } => {
@@ -171,10 +203,34 @@ impl App {
                         let _ = tx.send(NetworkCommand::SendPacket(packet));
                     }
                 }
+                GameEvent::RequestSelectServer { index } => {
+                    if let Some(server_win) = &self.server_list_window {
+                        if let Some(server) = server_win.servers.get(index) {
+                            let addr = format!("{}:{}", ip_u32_to_string(server.ip), server.port);
+                            if let Some(tx) = &self.network_cmd_tx {
+                                let _ = tx.send(NetworkCommand::Disconnect);
+                                let _ = tx.send(NetworkCommand::Connect(addr));
+                                if let Some(session) = &self.login_session {
+                                    let packet = build_char_enter_packet(session);
+                                    let _ = tx.send(NetworkCommand::SendPacket(packet));
+                                }
+                            }
+                        }
+                    }
+                }
+                GameEvent::BackToLogin => {
+                    self.app_state = AppState::Login;
+                    self.server_list_window = None;
+                    self.login_session = None;
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let _ = tx.send(NetworkCommand::Disconnect);
+                    }
+                }
                 GameEvent::Disconnected(ref reason) if reason == "User exit" => {
                     if let Some(tx) = &self.network_cmd_tx {
                         let _ = tx.send(NetworkCommand::Disconnect);
                     }
+                    event_loop.exit();
                 }
                 _ => {}
             }
@@ -295,25 +351,40 @@ impl ApplicationHandler for App {
 
                 self.handle_game_events(event_loop);
 
-                let (ui_draw_calls, login_events) = if self.app_state == AppState::Login {
-                    if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
-                        let initial_focus = match self.login_window.focus {
-                            LoginFocus::Username => Some(WidgetId(0)),
-                            LoginFocus::Password => Some(WidgetId(1)),
-                        };
-                        let mut ui = UiFrame::new(
-                            ui_ctx, &renderer.font_atlas, elapsed,
-                            self.login_window.has_grf_textures, initial_focus,
-                        );
-                        let events = self.login_window.build(&mut ui);
-                        (ui.draw_calls, events)
-                    } else {
-                        (Vec::new(), Vec::new())
+                let (ui_draw_calls, ui_events) = match self.app_state {
+                    AppState::Login => {
+                        if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
+                            let initial_focus = match self.login_window.focus {
+                                LoginFocus::Username => Some(WidgetId(0)),
+                                LoginFocus::Password => Some(WidgetId(1)),
+                            };
+                            let mut ui = UiFrame::new(
+                                ui_ctx, &renderer.font_atlas, &mut self.ui_state_cache, elapsed,
+                                self.login_window.has_grf_textures, initial_focus,
+                            );
+                            let events = self.login_window.build(&mut ui);
+                            (ui.draw_calls, events)
+                        } else {
+                            (Vec::new(), Vec::new())
+                        }
                     }
-                } else {
-                    (Vec::new(), Vec::new())
+                    AppState::ServerSelect => {
+                        if let (Some(ui_ctx), Some(renderer), Some(server_win)) =
+                            (&self.ui_context, &self.renderer, &mut self.server_list_window)
+                        {
+                            let mut ui = UiFrame::new(
+                                ui_ctx, &renderer.font_atlas, &mut self.ui_state_cache, elapsed,
+                                server_win.has_grf_textures, None,
+                            );
+                            let events = server_win.build(&mut ui);
+                            (ui.draw_calls, events)
+                        } else {
+                            (Vec::new(), Vec::new())
+                        }
+                    }
+                    _ => (Vec::new(), Vec::new()),
                 };
-                self.handle_login_events(login_events);
+                self.handle_ui_events(ui_events, event_loop);
 
                 if let Some(renderer) = &mut self.renderer {
                     renderer.render(&ui_draw_calls);

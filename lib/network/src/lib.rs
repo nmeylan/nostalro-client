@@ -5,6 +5,7 @@ pub mod session;
 
 use connection::{Connection, ConnectionError};
 use handler::dispatch_packet;
+pub use helpers::ip_u32_to_string;
 use packets::packets::*;
 use ragnarok_game::event::GameEvent;
 use session::{Session, SessionState};

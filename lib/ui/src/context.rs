@@ -16,6 +16,8 @@ pub struct UiContext {
     pub key_left: bool,
     pub key_right: bool,
     pub key_delete: bool,
+    pub key_up: bool,
+    pub key_down: bool,
 }
 
 impl UiContext {
@@ -35,6 +37,8 @@ impl UiContext {
             key_left: false,
             key_right: false,
             key_delete: false,
+            key_up: false,
+            key_down: false,
         }
     }
 
@@ -48,6 +52,8 @@ impl UiContext {
         self.key_left = false;
         self.key_right = false;
         self.key_delete = false;
+        self.key_up = false;
+        self.key_down = false;
     }
 
     pub fn handle_event(&mut self, event: &WindowEvent) {
@@ -79,6 +85,8 @@ impl UiContext {
                         Key::Named(NamedKey::ArrowLeft) => self.key_left = true,
                         Key::Named(NamedKey::ArrowRight) => self.key_right = true,
                         Key::Named(NamedKey::Delete) => self.key_delete = true,
+                        Key::Named(NamedKey::ArrowUp) => self.key_up = true,
+                        Key::Named(NamedKey::ArrowDown) => self.key_down = true,
                         Key::Character(_) => {
                             if let Some(text) = &event.text {
                                 for ch in text.chars() {

@@ -17,6 +17,12 @@ pub fn decode_pos2(data: &[u8; 6]) -> (u16, u16, u16, u16) {
     (x1, y1, x2, y2)
 }
 
+/// Convert u32 IP (little-endian as sent by server) to dotted-quad string.
+pub fn ip_u32_to_string(ip: u32) -> String {
+    let bytes = ip.to_le_bytes();
+    format!("{}.{}.{}.{}", bytes[0], bytes[1], bytes[2], bytes[3])
+}
+
 pub fn encode_pos(x: u16, y: u16, dir: u8) -> [u8; 3] {
     [
         (x >> 2) as u8,
@@ -28,6 +34,12 @@ pub fn encode_pos(x: u16, y: u16, dir: u8) -> [u8; 3] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ip_u32_to_string_converts_correctly() {
+        assert_eq!(ip_u32_to_string(0x0100007F), "127.0.0.1");
+        assert_eq!(ip_u32_to_string(0x6401A8C0), "192.168.1.100");
+    }
 
     #[test]
     fn encode_decode_pos_roundtrip() {

@@ -1,19 +1,21 @@
 use crate::context::UiContext;
 use crate::draw::{self, DrawCall, TextureRef};
 use crate::rect::Rect;
+use crate::state::StateCache;
 use crate::text_input::TextInput;
 use ragnarok_renderer::font_atlas::FontAtlas;
 
 pub struct UiFrame<'a> {
     pub ctx: &'a UiContext,
     pub atlas: &'a FontAtlas,
+    pub state: &'a mut StateCache,
     pub elapsed_secs: f32,
     pub has_grf_textures: bool,
     pub draw_calls: Vec<DrawCall>,
     focus: Option<WidgetId>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WidgetId(pub u32);
 
 pub struct ButtonTextures {
@@ -46,6 +48,7 @@ impl<'a> UiFrame<'a> {
     pub fn new(
         ctx: &'a UiContext,
         atlas: &'a FontAtlas,
+        state: &'a mut StateCache,
         elapsed_secs: f32,
         has_grf_textures: bool,
         initial_focus: Option<WidgetId>,
@@ -53,6 +56,7 @@ impl<'a> UiFrame<'a> {
         Self {
             ctx,
             atlas,
+            state,
             elapsed_secs,
             has_grf_textures,
             draw_calls: Vec::new(),
