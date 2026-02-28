@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Add character selection screen with character list, stats display, and navigation to game map
 - Add draggable windows — UI windows can now be moved by clicking and dragging their title bar
 - Add server selection screen with GRF textures (win_service.bmp, btn_ok/btn_cancel) and fallback rendering
 - Add support for opening older GRF archives (version 1.x)

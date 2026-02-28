@@ -1,3 +1,4 @@
+pub mod char_select_window;
 pub mod context;
 pub mod draw;
 pub mod frame;

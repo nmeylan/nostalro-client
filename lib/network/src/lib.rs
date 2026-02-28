@@ -21,9 +21,10 @@ pub enum NetworkCommand {
 pub async fn network_loop(
     mut cmd_rx: mpsc::UnboundedReceiver<NetworkCommand>,
     event_tx: mpsc::UnboundedSender<GameEvent>,
+    packetver: u32,
 ) {
     let mut connection: Option<Connection> = None;
-    let mut session = Session::new(0);
+    let mut session = Session::new(packetver);
 
     loop {
         if let Some(conn) = &mut connection {

@@ -5,12 +5,13 @@ use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::rsw::RswFile;
 use ragnarok_game::event::GameEvent;
-use ragnarok_network::{build_char_enter_packet, build_login_packet, ip_u32_to_string, network_loop, NetworkCommand};
+use ragnarok_network::{build_char_enter_packet, build_login_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
 use ragnarok_network::session::Session;
 use ragnarok_renderer::Renderer;
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::login_window::{LoginFocus, LoginWindow};
+use ragnarok_ui::char_select_window::CharSelectWindow;
 use ragnarok_ui::server_list_window::ServerListWindow;
 use ragnarok_ui::state::StateCache;
 use std::path::Path;
@@ -26,6 +27,7 @@ use winit::window::{Window, WindowAttributes, WindowId};
 enum AppState {
     Login,
     ServerSelect,
+    CharacterSelect,
     InGame,
 }
 
@@ -40,6 +42,7 @@ struct App {
     ui_state_cache: StateCache,
     login_window: LoginWindow,
     server_list_window: Option<ServerListWindow>,
+    char_select_window: Option<CharSelectWindow>,
     login_session: Option<Session>,
     network_cmd_tx: Option<mpsc::UnboundedSender<NetworkCommand>>,
     game_event_rx: Option<mpsc::UnboundedReceiver<GameEvent>>,
@@ -60,6 +63,7 @@ impl App {
             ui_state_cache: StateCache::new(),
             login_window: LoginWindow::new(),
             server_list_window: None,
+            char_select_window: None,
             login_session: None,
             network_cmd_tx: None,
             game_event_rx: None,
@@ -126,6 +130,7 @@ impl App {
         self.network_cmd_tx = Some(cmd_tx);
         self.game_event_rx = Some(event_rx);
 
+        let packetver = self.config.packetver;
         // Spawn on dedicated thread with single-threaded runtime
         // because network_loop uses non-Send packet types
         std::thread::spawn(move || {
@@ -133,13 +138,15 @@ impl App {
                 .enable_all()
                 .build()
                 .expect("failed to create network runtime");
-            rt.block_on(network_loop(cmd_rx, event_tx));
+            rt.block_on(network_loop(cmd_rx, event_tx, packetver));
         });
     }
 
     fn handle_game_events(&mut self, event_loop: &ActiveEventLoop) {
-        if let Some(rx) = &mut self.game_event_rx {
-            while let Ok(event) = rx.try_recv() {
+        let events: Vec<_> = self.game_event_rx.as_mut()
+            .map(|rx| std::iter::from_fn(|| rx.try_recv().ok()).collect())
+            .unwrap_or_default();
+        for event in events {
                 match event {
                     GameEvent::LoginAccepted { account_id, login_id1, login_id2, sex, servers } => {
                         tracing::info!("Login accepted, {} server(s)", servers.len());
@@ -179,6 +186,54 @@ impl App {
                         };
                         self.login_window.set_error(msg);
                     }
+                    GameEvent::CharacterListReceived { characters } => {
+                        tracing::info!("Received {} character(s)", characters.len());
+                        let mut char_win = CharSelectWindow::new(characters);
+                        if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
+                            let mut all_loaded = true;
+                            for path in CharSelectWindow::grf_texture_paths() {
+                                if renderer.texture_cache.get_or_load(
+                                    path, grf, &renderer.device.device, &renderer.device.queue,
+                                ).is_none() {
+                                    all_loaded = false;
+                                }
+                            }
+                            char_win.has_grf_textures = all_loaded;
+                            if all_loaded {
+                                char_win.set_texture_sizes(|name| {
+                                    renderer.texture_cache.texture_size(name)
+                                });
+                            }
+                        }
+                        self.char_select_window = Some(char_win);
+                        self.app_state = AppState::CharacterSelect;
+                    }
+                    GameEvent::ZoneServerConnectInfo { char_id, map_name, ip, port } => {
+                        if let Some(session) = &mut self.login_session {
+                            session.store_zone_info(char_id, map_name);
+                        }
+                        let addr = format!("{}:{}", ip_u32_to_string(ip), port);
+                        if let Some(tx) = &self.network_cmd_tx {
+                            let _ = tx.send(NetworkCommand::Disconnect);
+                            let _ = tx.send(NetworkCommand::Connect(addr));
+                            if let Some(session) = &self.login_session {
+                                let packet = build_zone_enter_packet(session);
+                                let _ = tx.send(NetworkCommand::SendPacket(packet));
+                            }
+                        }
+                    }
+                    GameEvent::MapEntered { .. } => {
+                        let map_name = self.login_session.as_ref().map(|s| {
+                            s.map_name.strip_suffix(".gat")
+                                .unwrap_or(&s.map_name).to_string()
+                        });
+                        if let Some(map_name) = &map_name {
+                            tracing::info!("Entering map: {map_name}");
+                            self.load_map(map_name);
+                        }
+                        self.char_select_window = None;
+                        self.app_state = AppState::InGame;
+                    }
                     GameEvent::Disconnected(reason) => {
                         if reason == "User exit" {
                             event_loop.exit();
@@ -188,7 +243,6 @@ impl App {
                     }
                     _ => {}
                 }
-            }
         }
     }
 
@@ -218,9 +272,23 @@ impl App {
                         }
                     }
                 }
+                GameEvent::RequestSelectCharacter { slot } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_select_char_packet(slot, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                GameEvent::BackToServerSelect => {
+                    self.app_state = AppState::ServerSelect;
+                    self.char_select_window = None;
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let _ = tx.send(NetworkCommand::Disconnect);
+                    }
+                }
                 GameEvent::BackToLogin => {
                     self.app_state = AppState::Login;
                     self.server_list_window = None;
+                    self.char_select_window = None;
                     self.login_session = None;
                     if let Some(tx) = &self.network_cmd_tx {
                         let _ = tx.send(NetworkCommand::Disconnect);
@@ -382,7 +450,21 @@ impl ApplicationHandler for App {
                             (Vec::new(), Vec::new())
                         }
                     }
-                    _ => (Vec::new(), Vec::new()),
+                    AppState::CharacterSelect => {
+                        if let (Some(ui_ctx), Some(renderer), Some(char_win)) =
+                            (&self.ui_context, &self.renderer, &mut self.char_select_window)
+                        {
+                            let mut ui = UiFrame::new(
+                                ui_ctx, &renderer.font_atlas, &mut self.ui_state_cache, elapsed,
+                                char_win.has_grf_textures, None,
+                            );
+                            let events = char_win.build(&mut ui);
+                            (ui.draw_calls, events)
+                        } else {
+                            (Vec::new(), Vec::new())
+                        }
+                    }
+                    AppState::InGame => (Vec::new(), Vec::new()),
                 };
                 self.handle_ui_events(ui_events, event_loop);
 
