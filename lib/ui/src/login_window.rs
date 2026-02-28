@@ -39,6 +39,9 @@ const BTN_BOTTOM: f32 = 4.0;
 const INPUT_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/name-edit.bmp";
 const WIN_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/win_login.bmp";
 
+const WINDOW_ID: WidgetId = WidgetId(10);
+const TITLE_BAR_H: f32 = 25.0;
+
 const USERNAME_ID: WidgetId = WidgetId(0);
 const PASSWORD_ID: WidgetId = WidgetId(1);
 const CONNECT_ID: WidgetId = WidgetId(2);
@@ -85,7 +88,7 @@ impl LoginWindow {
         let (win_w, win_h) = self.win_size;
         let field_w = win_w - FIELD_X - FIELD_RIGHT_MARGIN;
         let (btn_w, btn_h) = self.btn_size;
-        let win = Rect::centered_in(ui.ctx.screen_width, ui.ctx.screen_height, win_w, win_h);
+        let win = ui.window(WINDOW_ID, win_w, win_h, TITLE_BAR_H);
 
         // Tab cycles focus
         if ui.ctx.key_tab {

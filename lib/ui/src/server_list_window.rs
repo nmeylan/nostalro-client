@@ -19,6 +19,9 @@ const OK_BTN_RIGHT: f32 = 50.0;
 const CANCEL_BTN_RIGHT: f32 = 5.0;
 const BTN_BOTTOM: f32 = 4.0;
 
+const WINDOW_ID: WidgetId = WidgetId(110);
+const FALLBACK_TITLE_BAR_H: f32 = 30.0;
+
 const OK_ID: WidgetId = WidgetId(100);
 const CANCEL_ID: WidgetId = WidgetId(101);
 
@@ -108,7 +111,7 @@ impl ServerListWindow {
     fn build_grf(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
         let (win_w, win_h) = self.win_size;
         let (btn_w, btn_h) = self.btn_size;
-        let win = Rect::centered_in(ui.ctx.screen_width, ui.ctx.screen_height, win_w, win_h);
+        let win = ui.window(WINDOW_ID, win_w, win_h, HEADER_H);
 
         // Window background texture
         let (v, i) = draw::quad_vertices(win.x, win.y, win_w, win_h, [1.0, 1.0, 1.0, 1.0]);
@@ -183,7 +186,7 @@ impl ServerListWindow {
         let padding = 8.0;
         let title_h = 30.0;
         let win_h = title_h + list_h + padding + FALLBACK_BTN_H + padding;
-        let win = Rect::centered_in(ui.ctx.screen_width, ui.ctx.screen_height, FALLBACK_WIN_W, win_h);
+        let win = ui.window(WINDOW_ID, FALLBACK_WIN_W, win_h, FALLBACK_TITLE_BAR_H);
 
         // Window background
         let (v, i) = draw::quad_vertices(win.x, win.y, win.w, win_h, [0.08, 0.08, 0.12, 0.95]);

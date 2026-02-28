@@ -18,6 +18,16 @@ pub struct UiFrame<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WidgetId(pub u32);
 
+#[derive(Default)]
+pub struct WindowState {
+    pub x: f32,
+    pub y: f32,
+    initialized: bool,
+    dragging: bool,
+    drag_offset_x: f32,
+    drag_offset_y: f32,
+}
+
 pub struct ButtonTextures {
     pub normal: &'static str,
     pub hover: &'static str,
@@ -62,6 +72,34 @@ impl<'a> UiFrame<'a> {
             draw_calls: Vec::new(),
             focus: initial_focus,
         }
+    }
+
+    pub fn window(&mut self, id: WidgetId, w: f32, h: f32, title_bar_h: f32) -> Rect {
+        let state = self.state.get_or_default::<WindowState>(id);
+        if !state.initialized {
+            state.x = ((self.ctx.screen_width - w) / 2.0).floor();
+            state.y = ((self.ctx.screen_height - h) / 2.0).floor();
+            state.initialized = true;
+        }
+
+        let title_bar = Rect::new(state.x, state.y, w, title_bar_h);
+
+        if self.ctx.mouse_clicked && title_bar.contains(self.ctx.mouse_x, self.ctx.mouse_y) {
+            state.dragging = true;
+            state.drag_offset_x = self.ctx.mouse_x - state.x;
+            state.drag_offset_y = self.ctx.mouse_y - state.y;
+        }
+
+        if state.dragging {
+            if self.ctx.mouse_down {
+                state.x = self.ctx.mouse_x - state.drag_offset_x;
+                state.y = self.ctx.mouse_y - state.drag_offset_y;
+            } else {
+                state.dragging = false;
+            }
+        }
+
+        Rect::new(state.x, state.y, w, h)
     }
 
     pub fn button(
@@ -263,5 +301,99 @@ impl<'a> UiFrame<'a> {
 
     pub fn focused(&self) -> Option<WidgetId> {
         self.focus
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::context::UiContext;
+    use crate::state::StateCache;
+    use ragnarok_renderer::font_atlas::FontAtlas;
+
+    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
+        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = Box::leak(Box::new(atlas));
+        UiFrame::new(ctx, atlas, state, 0.0, false, None)
+    }
+
+    #[test]
+    fn window_centers_on_first_call() {
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut state = StateCache::new();
+        let mut ui = make_frame(&ctx, &mut state);
+
+        let rect = ui.window(WidgetId(999), 200.0, 100.0, 25.0);
+        assert_eq!(rect.x, 300.0);
+        assert_eq!(rect.y, 250.0);
+        assert_eq!(rect.w, 200.0);
+        assert_eq!(rect.h, 100.0);
+    }
+
+    #[test]
+    fn window_drag_moves_position() {
+        let mut state = StateCache::new();
+        let id = WidgetId(999);
+
+        // Frame 1: initial centering
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &mut state);
+        let rect = ui.window(id, 200.0, 100.0, 25.0);
+        assert_eq!((rect.x, rect.y), (300.0, 250.0));
+
+        // Frame 2: click inside title bar to start drag
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 350.0;
+        ctx.mouse_y = 260.0;
+        ctx.mouse_clicked = true;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &mut state);
+        ui.window(id, 200.0, 100.0, 25.0);
+
+        // Frame 3: move mouse while held
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 400.0;
+        ctx.mouse_y = 280.0;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &mut state);
+        let rect = ui.window(id, 200.0, 100.0, 25.0);
+        assert_eq!((rect.x, rect.y), (350.0, 270.0));
+
+        // Frame 4: release mouse — position stays
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 400.0;
+        ctx.mouse_y = 280.0;
+        let mut ui = make_frame(&ctx, &mut state);
+        let rect = ui.window(id, 200.0, 100.0, 25.0);
+        assert_eq!((rect.x, rect.y), (350.0, 270.0));
+    }
+
+    #[test]
+    fn window_click_outside_title_bar_does_not_drag() {
+        let mut state = StateCache::new();
+        let id = WidgetId(999);
+
+        // Frame 1: initial centering
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &mut state);
+        ui.window(id, 200.0, 100.0, 25.0);
+
+        // Frame 2: click inside window body but below title bar (y=250+25=275, click at 290)
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 350.0;
+        ctx.mouse_y = 290.0;
+        ctx.mouse_clicked = true;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &mut state);
+        ui.window(id, 200.0, 100.0, 25.0);
+
+        // Frame 3: move mouse — position should not change
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 500.0;
+        ctx.mouse_y = 400.0;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &mut state);
+        let rect = ui.window(id, 200.0, 100.0, 25.0);
+        assert_eq!((rect.x, rect.y), (300.0, 250.0));
     }
 }
