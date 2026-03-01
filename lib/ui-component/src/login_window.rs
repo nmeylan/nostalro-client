@@ -1,7 +1,7 @@
-use crate::draw::{self, DrawCall, TextureRef};
-use crate::frame::{ButtonTextures, UiFrame, WidgetId};
-use crate::rect::Rect;
-use crate::text_input::TextInput;
+use ragnarok_ui::draw::{self, DrawCall, TextureRef};
+use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
+use ragnarok_ui::rect::Rect;
+use ragnarok_ui::text_input::TextInput;
 use ragnarok_game::event::GameEvent;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -203,8 +203,8 @@ impl LoginWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::UiContext;
-    use crate::state::StateCache;
+    use ragnarok_ui::context::UiContext;
+    use ragnarok_ui::state::StateCache;
     use ragnarok_renderer::font_atlas::FontAtlas;
 
     fn make_ctx() -> UiContext {
