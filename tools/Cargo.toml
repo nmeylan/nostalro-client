@@ -1,0 +1,26 @@
+[package]
+name = "ragnarok-tools"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "ragnarok_tools"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sprite-viewer"
+path = "src/bin/sprite_viewer.rs"
+
+[dependencies]
+ragnarok-formats = { workspace = true }
+ragnarok-renderer = { workspace = true }
+ragnarok-ui = { workspace = true }
+wgpu = { workspace = true }
+winit = { workspace = true }
+glam = { workspace = true }
+bytemuck = { workspace = true }
+pollster = { workspace = true }
+image = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+notify = "7"

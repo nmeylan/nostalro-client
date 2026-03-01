@@ -25,6 +25,10 @@ impl Default for Camera {
 }
 
 impl Camera {
+    pub fn set_target(&mut self, x: f32, y: f32, z: f32) {
+        self.target = glam::Vec3::new(x, y, z);
+    }
+
     pub fn eye(&self) -> glam::Vec3 {
         self.target
             + glam::Vec3::new(

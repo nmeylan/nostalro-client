@@ -9,6 +9,7 @@ ragnarok-renderer = { workspace = true }
 ragnarok-game = { workspace = true }
 ragnarok-network = { workspace = true }
 ragnarok-ui = { workspace = true }
+ragnarok-ui-component = { workspace = true }
 ragnarok-audio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

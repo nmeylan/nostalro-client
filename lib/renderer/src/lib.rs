@@ -3,13 +3,18 @@ pub mod camera;
 pub mod font_atlas;
 pub mod global_uniforms;
 pub mod ground;
+pub mod model;
+pub mod sprite;
 pub mod texture;
 pub mod ui_renderer;
+pub mod water;
 
 pub use device::RenderDevice;
 pub use camera::Camera;
 pub use global_uniforms::{GlobalUniforms, LightUniform};
 pub use ground::GroundRenderer;
+pub use model::ModelRenderer;
+pub use water::WaterRenderer;
 pub use texture::TextureCache;
 pub use font_atlas::FontAtlas;
 pub use ui_renderer::{UiRenderer, UiVertex, UiDrawCommand};
@@ -39,6 +44,8 @@ pub struct Renderer {
     pub global_uniforms: GlobalUniforms,
     pub texture_cache: TextureCache,
     pub ground_renderer: Option<GroundRenderer>,
+    pub model_renderer: Option<ModelRenderer>,
+    pub water_renderer: Option<WaterRenderer>,
     pub ui_renderer: UiRenderer,
     pub font_atlas: FontAtlas,
     pub font_atlas_bind_group: wgpu::BindGroup,
@@ -87,6 +94,8 @@ impl Renderer {
             global_uniforms,
             texture_cache,
             ground_renderer: None,
+            model_renderer: None,
+            water_renderer: None,
             ui_renderer,
             font_atlas,
             font_atlas_bind_group,
@@ -136,6 +145,28 @@ impl Renderer {
             self.device.surface_format,
         );
         self.ground_renderer = Some(ground_renderer);
+
+        self.model_renderer = ModelRenderer::from_rsw(
+            rsw,
+            gnd,
+            grf,
+            &self.device.device,
+            &self.device.queue,
+            &self.global_uniforms,
+            &mut self.texture_cache,
+            self.device.surface_format,
+        );
+
+        self.water_renderer = WaterRenderer::from_water_settings(
+            &rsw.water,
+            gnd,
+            grf,
+            &self.device.device,
+            &self.device.queue,
+            &self.global_uniforms,
+            &mut self.texture_cache,
+            self.device.surface_format,
+        );
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -146,9 +177,13 @@ impl Renderer {
         }
     }
 
-    pub fn render(&mut self, ui_draw_calls: &[UiDrawCall]) {
+    pub fn render(&mut self, ui_draw_calls: &[UiDrawCall], elapsed: f32) {
         self.global_uniforms
             .update_camera(&self.device.queue, &self.camera);
+
+        if let Some(water) = &self.water_renderer {
+            water.update(&self.device.queue, elapsed);
+        }
 
         let output = match self.device.surface.get_current_texture() {
             Ok(tex) => tex,
@@ -199,6 +234,12 @@ impl Renderer {
 
             if let Some(ground) = &self.ground_renderer {
                 ground.render(&mut pass, &self.global_uniforms, &self.texture_cache);
+            }
+            if let Some(model) = &self.model_renderer {
+                model.render(&mut pass, &self.global_uniforms, &self.texture_cache);
+            }
+            if let Some(water) = &self.water_renderer {
+                water.render(&mut pass, &self.global_uniforms, &self.texture_cache, elapsed);
             }
         }
 

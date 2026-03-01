@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Add 3D model rendering for map objects (buildings, trees, props) with texture batching
+- Add animated water surfaces with wave displacement and texture cycling
+- Add camera positioning at player spawn point on map entry
+- Add map change support (warp to new map loads terrain, models, and water)
 - Add character selection screen with character list, stats display, and navigation to game map
 - Add draggable windows — UI windows can now be moved by clicking and dragging their title bar
 - Add server selection screen with GRF textures (win_service.bmp, btn_ok/btn_cancel) and fallback rendering

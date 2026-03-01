@@ -28,6 +28,11 @@ pub enum GameEvent {
         dir: u8,
         tick: u32,
     },
+    MapChanged {
+        map_name: String,
+        x: i16,
+        y: i16,
+    },
     ServerTick {
         tick: u32,
     },

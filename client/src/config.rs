@@ -11,6 +11,7 @@ pub struct Config {
     pub screen_height: u32,
     pub bgm_volume: f32,
     pub sfx_volume: f32,
+    pub free_camera: bool,
     pub grf_paths: Vec<String>,
 }
 
@@ -24,6 +25,7 @@ impl Default for Config {
             screen_height: 768,
             bgm_volume: 0.8,
             sfx_volume: 0.8,
+            free_camera: false,
             grf_paths: vec!["data/data.grf".to_string()],
         }
     }

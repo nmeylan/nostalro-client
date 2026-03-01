@@ -1,6 +1,7 @@
 mod config;
 
 use config::Config;
+use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::rsw::RswFile;
@@ -10,9 +11,9 @@ use ragnarok_network::session::Session;
 use ragnarok_renderer::Renderer;
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
-use ragnarok_ui::login_window::{LoginFocus, LoginWindow};
-use ragnarok_ui::char_select_window::CharSelectWindow;
-use ragnarok_ui::server_list_window::ServerListWindow;
+use ragnarok_ui_component::login_window::{LoginFocus, LoginWindow};
+use ragnarok_ui_component::char_select_window::CharSelectWindow;
+use ragnarok_ui_component::server_list_window::ServerListWindow;
 use ragnarok_ui::state::StateCache;
 use std::path::Path;
 use std::sync::Arc;
@@ -47,6 +48,10 @@ struct App {
     network_cmd_tx: Option<mpsc::UnboundedSender<NetworkCommand>>,
     game_event_rx: Option<mpsc::UnboundedReceiver<GameEvent>>,
     app_state: AppState,
+    map_zoom: Option<f32>,
+    gat_dimensions: Option<(i32, i32)>,
+    gnd_dimensions: Option<(i32, i32)>,
+    current_map: Option<String>,
     start_time: Instant,
 }
 
@@ -68,6 +73,10 @@ impl App {
             network_cmd_tx: None,
             game_event_rx: None,
             app_state: AppState::Login,
+            map_zoom: None,
+            gat_dimensions: None,
+            gnd_dimensions: None,
+            current_map: None,
             start_time: Instant::now(),
         }
     }
@@ -119,8 +128,38 @@ impl App {
             gnd.lightmaps.len()
         );
 
+        self.map_zoom = Some(gnd.zoom);
+        self.gnd_dimensions = Some((gnd.width, gnd.height));
+
+        // Load GAT for server→world coordinate mapping
+        let gat_path = format!("data/{map_name}.gat");
+        if let Ok(gat_data) = grf.read_file(&gat_path) {
+            if let Ok(gat) = GatFile::parse(&gat_data) {
+                self.gat_dimensions = Some((gat.width, gat.height));
+            }
+        }
+
         if let Some(renderer) = &mut self.renderer {
             renderer.load_map(&gnd, &rsw, grf);
+        }
+    }
+
+    fn position_camera_at(&mut self, cell_x: f32, cell_y: f32) {
+        if let (Some(zoom), Some(renderer)) = (self.map_zoom, &mut self.renderer) {
+            // Server sends coordinates in GAT space; scale to GND world space
+            let (mut wx, mut wz) = (cell_x * zoom, cell_y * zoom);
+            if let (Some((gat_w, gat_h)), Some((gnd_w, gnd_h))) = (self.gat_dimensions, self.gnd_dimensions) {
+                if gat_w != gnd_w || gat_h != gnd_h {
+                    wx = cell_x * (gnd_w as f32 / gat_w as f32) * zoom;
+                    wz = cell_y * (gnd_h as f32 / gat_h as f32) * zoom;
+                }
+            }
+            // Clamp to GND bounds
+            if let Some((gnd_w, gnd_h)) = self.gnd_dimensions {
+                wx = wx.clamp(0.0, gnd_w as f32 * zoom);
+                wz = wz.clamp(0.0, gnd_h as f32 * zoom);
+            }
+            renderer.camera.set_target(wx, 0.0, wz);
         }
     }
 
@@ -222,7 +261,7 @@ impl App {
                             }
                         }
                     }
-                    GameEvent::MapEntered { .. } => {
+                    GameEvent::MapEntered { x, y, .. } => {
                         let map_name = self.login_session.as_ref().map(|s| {
                             s.map_name.strip_suffix(".gat")
                                 .unwrap_or(&s.map_name).to_string()
@@ -230,9 +269,21 @@ impl App {
                         if let Some(map_name) = &map_name {
                             tracing::info!("Entering map: {map_name}");
                             self.load_map(map_name);
+                            self.current_map = Some(map_name.clone());
                         }
+                        self.position_camera_at(x as f32, y as f32);
                         self.char_select_window = None;
                         self.app_state = AppState::InGame;
+                    }
+                    GameEvent::MapChanged { map_name, x, y } => {
+                        let map_name = map_name.strip_suffix(".gat")
+                            .unwrap_or(&map_name).to_string();
+                        if self.current_map.as_deref() != Some(&map_name) {
+                            tracing::info!("Map change: {map_name}");
+                            self.load_map(&map_name);
+                            self.current_map = Some(map_name);
+                        }
+                        self.position_camera_at(x as f32, y as f32);
                     }
                     GameEvent::Disconnected(reason) => {
                         if reason == "User exit" {
@@ -395,8 +446,10 @@ impl ApplicationHandler for App {
                         let dy = (position.y - ly) as f32;
                         if let Some(renderer) = &mut self.renderer {
                             renderer.camera.yaw += dx * 0.005;
-                            renderer.camera.pitch = (renderer.camera.pitch - dy * 0.005)
-                                .clamp(0.1, std::f32::consts::FRAC_PI_2 - 0.01);
+                            if self.config.free_camera {
+                                renderer.camera.pitch = (renderer.camera.pitch - dy * 0.005)
+                                    .clamp(0.1, std::f32::consts::FRAC_PI_2 - 0.01);
+                            }
                         }
                     }
                     self.last_mouse_pos = Some((position.x, position.y));
@@ -469,7 +522,7 @@ impl ApplicationHandler for App {
                 self.handle_ui_events(ui_events, event_loop);
 
                 if let Some(renderer) = &mut self.renderer {
-                    renderer.render(&ui_draw_calls);
+                    renderer.render(&ui_draw_calls, elapsed);
                 }
 
                 if let Some(ui_ctx) = &mut self.ui_context {

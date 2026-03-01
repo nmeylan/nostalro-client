@@ -5,8 +5,10 @@ members = [
     "lib/renderer",
     "lib/game",
     "lib/network",
-    "lib/ui",
+    "lib/ui-core",
+    "lib/ui-component",
     "lib/audio",
+    "tools",
 ]
 resolver = "2"
 
@@ -42,5 +44,6 @@ ragnarok-formats = { path = "lib/formats" }
 ragnarok-renderer = { path = "lib/renderer" }
 ragnarok-game = { path = "lib/game" }
 ragnarok-network = { path = "lib/network" }
-ragnarok-ui = { path = "lib/ui" }
+ragnarok-ui = { path = "lib/ui-core" }
+ragnarok-ui-component = { path = "lib/ui-component" }
 ragnarok-audio = { path = "lib/audio" }

@@ -66,6 +66,14 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Option<GameEvent>
             tick: p.start_time,
         });
     }
+    if let Some(p) = any.downcast_ref::<PacketZcNpcackMapmove>() {
+        let map_name: String = p.map_name.iter().take_while(|c| **c != '\0').collect();
+        return Some(GameEvent::MapChanged {
+            map_name,
+            x: p.x_pos,
+            y: p.y_pos,
+        });
+    }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyTime>() {
         return Some(GameEvent::ServerTick { tick: p.time });
     }
@@ -110,6 +118,29 @@ mod tests {
         match result {
             Some(GameEvent::LoginRefused { error_code }) => assert_eq!(error_code, 1),
             other => panic!("expected LoginRefused, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_mapmove_returns_map_changed() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcNpcackMapmove::new(packetver);
+        let mut map_name = [0 as char; 16];
+        for (i, c) in "prt_fild08.gat".chars().enumerate() {
+            map_name[i] = c;
+        }
+        pkt.set_map_name(map_name);
+        pkt.set_x_pos(150);
+        pkt.set_y_pos(200);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        match result {
+            Some(GameEvent::MapChanged { map_name, x, y }) => {
+                assert_eq!(map_name, "prt_fild08.gat");
+                assert_eq!(x, 150);
+                assert_eq!(y, 200);
+            }
+            other => panic!("expected MapChanged, got {other:?}"),
         }
     }
 
