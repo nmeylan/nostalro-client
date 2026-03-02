@@ -127,15 +127,15 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                 let color = bgra_to_rgba_f32(surface.color_bgra);
 
                 let wx = x as f32 * gnd.zoom;
-                let wz = y as f32 * gnd.zoom;
+                let wz = (gnd.height as f32 - y as f32) * gnd.zoom;
 
                 // Cell corners: 0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right
                 let h = cell.height;
                 let positions = [
                     [wx, -h[0], wz],
                     [wx + gnd.zoom, -h[1], wz],
-                    [wx, -h[2], wz + gnd.zoom],
-                    [wx + gnd.zoom, -h[3], wz + gnd.zoom],
+                    [wx, -h[2], wz - gnd.zoom],
+                    [wx + gnd.zoom, -h[3], wz - gnd.zoom],
                 ];
 
                 let normal = compute_quad_normal(&positions);
@@ -187,7 +187,7 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                 let color = bgra_to_rgba_f32(surface.color_bgra);
 
                 let wx = x as f32 * gnd.zoom;
-                let wz = (y + 1) as f32 * gnd.zoom;
+                let wz = (gnd.height as f32 - y as f32 - 1.0) * gnd.zoom;
 
                 let positions = [
                     [wx, -cell.height[2], wz],
@@ -220,13 +220,13 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                 let color = bgra_to_rgba_f32(surface.color_bgra);
 
                 let wx = (x + 1) as f32 * gnd.zoom;
-                let wz = y as f32 * gnd.zoom;
+                let wz = (gnd.height as f32 - y as f32) * gnd.zoom;
 
                 let positions = [
                     [wx, -cell.height[1], wz],
                     [wx, -next_cell.height[0], wz],
-                    [wx, -cell.height[3], wz + gnd.zoom],
-                    [wx, -next_cell.height[2], wz + gnd.zoom],
+                    [wx, -cell.height[3], wz - gnd.zoom],
+                    [wx, -next_cell.height[2], wz - gnd.zoom],
                 ];
 
                 let normal = compute_quad_normal(&positions);

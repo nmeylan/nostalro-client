@@ -267,22 +267,24 @@ fn build_instance_matrix(
     let pos = glam::Vec3::new(
         model.position[0] * scale_factor + center_x,
         model.position[1] * scale_factor,
-        model.position[2] * scale_factor + center_z,
+        -model.position[2] * scale_factor + center_z,
     );
 
     let rot_z = model.rotation[2].to_radians();
-    let rot_x = model.rotation[0].to_radians();
-    let rot_y = model.rotation[1].to_radians();
+    // Negate X/Y rotations to account for world Z-axis flip (cell Y maps to
+    // decreasing world Z).  Z rotation is unaffected by the flip.
+    let rot_x = -model.rotation[0].to_radians();
+    let rot_y = -model.rotation[1].to_radians();
 
     // RO files use inverted Y axis (negative = up) — see
     // https://ragnarokresearchlab.github.io/rendering/coordinate-systems/
     // Ground and RSW positions are negated by the parser, but RSM vertex data
     // remains in inverted-Y. Negating scale.y flips model geometry to match
-    // our Y-up world space.
+    // our Y-up world space.  Negating scale.z mirrors models for the Z-axis flip.
     let scale = glam::Vec3::new(
         model.scale[0] * scale_factor,
         -model.scale[1] * scale_factor,
-        model.scale[2] * scale_factor,
+        -model.scale[2] * scale_factor,
     );
 
     // Match robrowser: translate → rotZ → rotX → rotY → scale

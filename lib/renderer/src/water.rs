@@ -206,7 +206,7 @@ pub fn build_water_mesh(gnd: &GndFile, water_y: f32) -> (Vec<WaterVertex>, Vec<u
             }
 
             let wx = x as f32 * zoom;
-            let wz = y as f32 * zoom;
+            let wz = (gnd.height as f32 - y as f32) * zoom;
 
             let u0 = (x as f32 % WATER_TEXTURE_REPEAT) / WATER_TEXTURE_REPEAT;
             let u1 = ((x + 1) as f32 % WATER_TEXTURE_REPEAT) / WATER_TEXTURE_REPEAT;
@@ -216,8 +216,8 @@ pub fn build_water_mesh(gnd: &GndFile, water_y: f32) -> (Vec<WaterVertex>, Vec<u
             let base = vertices.len() as u32;
             vertices.push(WaterVertex { position: [wx,        water_y, wz],        tex_coord: [u0, v0] });
             vertices.push(WaterVertex { position: [wx + zoom, water_y, wz],        tex_coord: [u1, v0] });
-            vertices.push(WaterVertex { position: [wx,        water_y, wz + zoom], tex_coord: [u0, v1] });
-            vertices.push(WaterVertex { position: [wx + zoom, water_y, wz + zoom], tex_coord: [u1, v1] });
+            vertices.push(WaterVertex { position: [wx,        water_y, wz - zoom], tex_coord: [u0, v1] });
+            vertices.push(WaterVertex { position: [wx + zoom, water_y, wz - zoom], tex_coord: [u1, v1] });
 
             indices.extend_from_slice(&[base, base + 1, base + 2, base + 2, base + 1, base + 3]);
         }

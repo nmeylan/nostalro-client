@@ -154,19 +154,17 @@ impl App {
 
     fn position_camera_at(&mut self, cell_x: f32, cell_y: f32) {
         if let (Some(zoom), Some(renderer)) = (self.map_zoom, &mut self.renderer) {
-            // Server sends coordinates in GAT space; scale to GND world space
-            let (mut wx, mut wz) = (cell_x * zoom, cell_y * zoom);
-            if let (Some((gat_w, gat_h)), Some((gnd_w, gnd_h))) = (self.gat_dimensions, self.gnd_dimensions) {
-                if gat_w != gnd_w || gat_h != gnd_h {
-                    wx = cell_x * (gnd_w as f32 / gat_w as f32) * zoom;
-                    wz = cell_y * (gnd_h as f32 / gat_h as f32) * zoom;
-                }
-            }
-            // Clamp to GND bounds
-            if let Some((gnd_w, gnd_h)) = self.gnd_dimensions {
-                wx = wx.clamp(0.0, gnd_w as f32 * zoom);
-                wz = wz.clamp(0.0, gnd_h as f32 * zoom);
-            }
+            let (gat_w, gat_h) = self.gat_dimensions.unwrap_or((0, 0));
+            let (gnd_w, gnd_h) = self.gnd_dimensions.unwrap_or((gat_w, gat_h));
+
+            let gnd_cell_x = cell_x * (gnd_w as f32 / gat_w as f32);
+            let gnd_cell_y = cell_y * (gnd_h as f32 / gat_h as f32);
+
+            let mut wx = gnd_cell_x * zoom;
+            let mut wz = (gnd_h as f32 - gnd_cell_y) * zoom;
+
+            wx = wx.clamp(0.0, gnd_w as f32 * zoom);
+            wz = wz.clamp(0.0, gnd_h as f32 * zoom);
             renderer.camera.set_target(wx, 0.0, wz);
         }
     }
@@ -194,16 +192,10 @@ impl App {
         // World coords to GAT cell
         let (gat_w, gat_h) = self.gat_dimensions.unwrap_or((gat.width, gat.height));
         let (gnd_w, gnd_h) = self.gnd_dimensions.unwrap_or((gat_w, gat_h));
-        let cell_x = if gat_w != gnd_w {
-            hit.x / zoom * (gat_w as f32 / gnd_w as f32)
-        } else {
-            hit.x / zoom
-        };
-        let cell_y = if gat_h != gnd_h {
-            hit.z / zoom * (gat_h as f32 / gnd_h as f32)
-        } else {
-            hit.z / zoom
-        };
+        let gnd_cell_x = hit.x / zoom;
+        let gnd_cell_y = gnd_h as f32 - hit.z / zoom;
+        let cell_x = gnd_cell_x * (gat_w as f32 / gnd_w as f32);
+        let cell_y = gnd_cell_y * (gat_h as f32 / gnd_h as f32);
 
         let dest_x = cell_x as i32;
         let dest_y = cell_y as i32;
