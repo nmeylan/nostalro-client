@@ -6,7 +6,9 @@ use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::rsw::RswFile;
 use ragnarok_game::event::GameEvent;
-use ragnarok_network::{build_char_enter_packet, build_login_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
+use ragnarok_game::movement::MovementState;
+use ragnarok_game::path::path_search;
+use ragnarok_network::{build_char_enter_packet, build_login_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
 use ragnarok_network::session::Session;
 use ragnarok_renderer::Renderer;
 use ragnarok_ui::context::UiContext;
@@ -48,10 +50,13 @@ struct App {
     network_cmd_tx: Option<mpsc::UnboundedSender<NetworkCommand>>,
     game_event_rx: Option<mpsc::UnboundedReceiver<GameEvent>>,
     app_state: AppState,
+    mouse_position: (f64, f64),
     map_zoom: Option<f32>,
+    gat: Option<GatFile>,
     gat_dimensions: Option<(i32, i32)>,
     gnd_dimensions: Option<(i32, i32)>,
     current_map: Option<String>,
+    movement: Option<MovementState>,
     start_time: Instant,
 }
 
@@ -73,10 +78,13 @@ impl App {
             network_cmd_tx: None,
             game_event_rx: None,
             app_state: AppState::Login,
+            mouse_position: (0.0, 0.0),
             map_zoom: None,
+            gat: None,
             gat_dimensions: None,
             gnd_dimensions: None,
             current_map: None,
+            movement: None,
             start_time: Instant::now(),
         }
     }
@@ -131,11 +139,11 @@ impl App {
         self.map_zoom = Some(gnd.zoom);
         self.gnd_dimensions = Some((gnd.width, gnd.height));
 
-        // Load GAT for server→world coordinate mapping
         let gat_path = format!("data/{map_name}.gat");
         if let Ok(gat_data) = grf.read_file(&gat_path) {
             if let Ok(gat) = GatFile::parse(&gat_data) {
                 self.gat_dimensions = Some((gat.width, gat.height));
+                self.gat = Some(gat);
             }
         }
 
@@ -160,6 +168,68 @@ impl App {
                 wz = wz.clamp(0.0, gnd_h as f32 * zoom);
             }
             renderer.camera.set_target(wx, 0.0, wz);
+        }
+    }
+
+    fn handle_left_click(&mut self) {
+        let (gat, renderer, zoom) = match (&self.gat, &self.renderer, self.map_zoom) {
+            (Some(g), Some(r), Some(z)) => (g, r, z),
+            _ => return,
+        };
+        let (mx, my) = self.mouse_position;
+        let size = renderer.device.surface_config.width as f32;
+        let size_h = renderer.device.surface_config.height as f32;
+        let (origin, dir) = renderer.camera.screen_to_ray(mx as f32, my as f32, size, size_h);
+
+        // Intersect ray with y=0 ground plane
+        if dir.y.abs() < 1e-6 {
+            return;
+        }
+        let t = -origin.y / dir.y;
+        if t < 0.0 {
+            return;
+        }
+        let hit = origin + dir * t;
+
+        // World coords to GAT cell
+        let (gat_w, gat_h) = self.gat_dimensions.unwrap_or((gat.width, gat.height));
+        let (gnd_w, gnd_h) = self.gnd_dimensions.unwrap_or((gat_w, gat_h));
+        let cell_x = if gat_w != gnd_w {
+            hit.x / zoom * (gat_w as f32 / gnd_w as f32)
+        } else {
+            hit.x / zoom
+        };
+        let cell_y = if gat_h != gnd_h {
+            hit.z / zoom * (gat_h as f32 / gnd_h as f32)
+        } else {
+            hit.z / zoom
+        };
+
+        let dest_x = cell_x as i32;
+        let dest_y = cell_y as i32;
+        if !gat.is_walkable(dest_x, dest_y) {
+            return;
+        }
+
+        let (src_x, src_y) = self.movement.as_ref()
+            .map(|m| m.cell_position())
+            .unwrap_or((0, 0));
+
+        let path = path_search(gat, src_x, src_y, dest_x as u16, dest_y as u16);
+        if path.is_empty() {
+            return;
+        }
+
+        // Send move request to server
+        if let Some(tx) = &self.network_cmd_tx {
+            let packet = build_request_move_packet(dest_x as u16, dest_y as u16, self.config.packetver);
+            let _ = tx.send(NetworkCommand::SendPacket(packet));
+        }
+
+        // Start client-side prediction
+        let elapsed = self.start_time.elapsed().as_secs_f32();
+        if let Some(movement) = &mut self.movement {
+            movement.start_move(path, elapsed);
         }
     }
 
@@ -271,9 +341,22 @@ impl App {
                             self.load_map(map_name);
                             self.current_map = Some(map_name.clone());
                         }
+                        self.movement = Some(MovementState::new(x, y));
                         self.position_camera_at(x as f32, y as f32);
                         self.char_select_window = None;
                         self.app_state = AppState::InGame;
+                    }
+                    GameEvent::PlayerMoved { start_x, start_y, dest_x, dest_y, .. } => {
+                        if let Some(gat) = &self.gat {
+                            let path = path_search(gat, start_x, start_y, dest_x, dest_y);
+                            if !path.is_empty() {
+                                let elapsed = self.start_time.elapsed().as_secs_f32();
+                                if let Some(movement) = &mut self.movement {
+                                    movement.set_position(start_x as f32, start_y as f32);
+                                    movement.start_move(path, elapsed);
+                                }
+                            }
+                        }
                     }
                     GameEvent::MapChanged { map_name, x, y } => {
                         let map_name = map_name.strip_suffix(".gat")
@@ -432,14 +515,23 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
-                if self.app_state == AppState::InGame && button == MouseButton::Right {
-                    self.right_mouse_down = state == ElementState::Pressed;
-                    if !self.right_mouse_down {
-                        self.last_mouse_pos = None;
+                if self.app_state == AppState::InGame {
+                    match button {
+                        MouseButton::Right => {
+                            self.right_mouse_down = state == ElementState::Pressed;
+                            if !self.right_mouse_down {
+                                self.last_mouse_pos = None;
+                            }
+                        }
+                        MouseButton::Left if state == ElementState::Pressed => {
+                            self.handle_left_click();
+                        }
+                        _ => {}
                     }
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
+                self.mouse_position = (position.x, position.y);
                 if self.app_state == AppState::InGame && self.right_mouse_down {
                     if let Some((lx, ly)) = self.last_mouse_pos {
                         let dx = (position.x - lx) as f32;
@@ -520,6 +612,14 @@ impl ApplicationHandler for App {
                     AppState::InGame => (Vec::new(), Vec::new()),
                 };
                 self.handle_ui_events(ui_events, event_loop);
+
+                // Movement tick: interpolate position and update camera
+                let move_pos = self.movement.as_mut()
+                    .filter(|m| m.is_moving())
+                    .map(|m| m.update(elapsed));
+                if let Some((px, py)) = move_pos {
+                    self.position_camera_at(px, py);
+                }
 
                 if let Some(renderer) = &mut self.renderer {
                     renderer.render(&ui_draw_calls, elapsed);

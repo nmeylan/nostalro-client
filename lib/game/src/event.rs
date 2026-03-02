@@ -49,6 +49,17 @@ pub enum GameEvent {
     RequestSelectCharacter {
         slot: u8,
     },
+    RequestMove {
+        x: u16,
+        y: u16,
+    },
+    PlayerMoved {
+        start_x: u16,
+        start_y: u16,
+        dest_x: u16,
+        dest_y: u16,
+        start_time: u32,
+    },
     BackToLogin,
     BackToServerSelect,
 }

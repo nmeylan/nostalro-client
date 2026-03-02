@@ -5,7 +5,7 @@ pub mod session;
 
 use connection::{Connection, ConnectionError};
 use handler::dispatch_packet;
-pub use helpers::ip_u32_to_string;
+pub use helpers::{encode_pos, ip_u32_to_string};
 use packets::packets::*;
 use ragnarok_game::event::GameEvent;
 use session::{Session, SessionState};
@@ -149,6 +149,14 @@ pub fn build_char_enter_packet(session: &Session) -> Vec<u8> {
 pub fn build_select_char_packet(slot: u8, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketChSelectChar::new(packetver);
     pkt.set_char_num(slot);
+    pkt.fill_raw();
+    pkt.raw().clone()
+}
+
+/// Build a move request packet.
+pub fn build_request_move_packet(dest_x: u16, dest_y: u16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzRequestMove::new(packetver);
+    pkt.set_dest(helpers::encode_pos(dest_x, dest_y, 0));
     pkt.fill_raw();
     pkt.raw().clone()
 }

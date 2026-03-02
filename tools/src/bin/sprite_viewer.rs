@@ -478,6 +478,12 @@ impl ApplicationHandler for App {
         self.font_atlas_bind_group = Some(font_atlas_bind_group);
         self.white_bind_group = Some(white_bind_group);
         self.ui_renderer = Some(ui_renderer);
+        #[cfg(feature = "hot-reload")]
+        {
+            let win = window.clone();
+            subsecond::register_handler(std::sync::Arc::new(move || win.request_redraw()));
+        }
+
         self.device = Some(device);
         self.window = Some(window);
 
@@ -612,6 +618,9 @@ impl ApplicationHandler for App {
                     }
                 }
 
+                #[cfg(feature = "hot-reload")]
+                subsecond::call(|| self.render_frame());
+                #[cfg(not(feature = "hot-reload"))]
                 self.render_frame();
 
                 if let Some(window) = &self.window {
@@ -647,6 +656,9 @@ fn main() {
         println!("\n{} sprite files found", sprites.len());
         return;
     }
+
+    #[cfg(feature = "hot-reload")]
+    dioxus_devtools::connect_subsecond();
 
     let event_loop = EventLoop::new().unwrap();
     let mut app = App::new(args.grf_path, args.sprite_path);

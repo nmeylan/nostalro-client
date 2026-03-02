@@ -11,6 +11,9 @@ path = "src/lib.rs"
 name = "sprite-viewer"
 path = "src/bin/sprite_viewer.rs"
 
+[features]
+hot-reload = ["subsecond", "dioxus-devtools"]
+
 [dependencies]
 ragnarok-formats = { workspace = true }
 ragnarok-renderer = { workspace = true }
@@ -24,3 +27,5 @@ image = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 notify = "7"
+subsecond = { version = "0.7", optional = true }
+dioxus-devtools = { version = "0.7", optional = true }

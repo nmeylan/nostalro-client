@@ -49,6 +49,20 @@ impl Camera {
     pub fn view_projection(&self) -> glam::Mat4 {
         self.projection_matrix() * self.view_matrix()
     }
+
+    /// Unproject screen coordinates to a world-space ray (origin, direction).
+    pub fn screen_to_ray(&self, screen_x: f32, screen_y: f32, screen_w: f32, screen_h: f32) -> (glam::Vec3, glam::Vec3) {
+        let ndc_x = (2.0 * screen_x / screen_w) - 1.0;
+        let ndc_y = 1.0 - (2.0 * screen_y / screen_h);
+        let inv_vp = self.view_projection().inverse();
+
+        let near = inv_vp * glam::Vec4::new(ndc_x, ndc_y, -1.0, 1.0);
+        let far = inv_vp * glam::Vec4::new(ndc_x, ndc_y, 1.0, 1.0);
+        let near = near.truncate() / near.w;
+        let far = far.truncate() / far.w;
+        let dir = (far - near).normalize();
+        (near, dir)
+    }
 }
 
 #[repr(C)]
@@ -112,6 +126,22 @@ mod tests {
         assert!((eye90.x - eye0.x).abs() > 50.0);
         // Y stays the same (yaw only changes horizontal angle)
         assert!((eye90.y - eye0.y).abs() < 0.01);
+    }
+
+    #[test]
+    fn screen_center_ray_hits_near_target() {
+        let camera = Camera::default();
+        let (origin, dir) = camera.screen_to_ray(400.0, 300.0, 800.0, 600.0);
+        // Ray should point downward (toward target) since camera is above
+        assert!(dir.y < 0.0, "dir.y = {}", dir.y);
+        // Intersect with y=0 plane
+        if dir.y.abs() > 1e-6 {
+            let t = -origin.y / dir.y;
+            let hit = origin + dir * t;
+            // Should hit near the camera target (0,0,0)
+            assert!(hit.x.abs() < 5.0, "hit.x = {}", hit.x);
+            assert!(hit.z.abs() < 5.0, "hit.z = {}", hit.z);
+        }
     }
 
     #[test]
