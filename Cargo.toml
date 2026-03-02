@@ -35,9 +35,9 @@ ab_glyph = "0.2"
 pollster = "0.4"
 tokio = { version = "1", features = ["net", "rt-multi-thread", "sync", "macros", "time", "io-util"] }
 
-# Server crate path dependencies
-models = { path = "../rust-ragnarok-server/lib/models" }
-packets = { path = "../rust-ragnarok-server/lib/packets" }
+# Server crate git dependencies
+models = { git = "https://github.com/nmeylan/rust-ro.git" }
+packets = { git = "https://github.com/nmeylan/rust-ro.git" }
 
 # Internal crates
 ragnarok-formats = { path = "lib/formats" }

@@ -21,6 +21,7 @@ checksum = "366ffbaa4442f4684d91e2cd7c5ea7c4ed8add41959a31447066e279e432b618"
 [[package]]
 name = "accessor"
 version = "0.1.0"
+source = "git+https://github.com/nmeylan/rust-ro.git#95fa7c085ce5235c46c0c3c7a856cd80468c36d5"
 dependencies = [
  "quote",
  "syn",
@@ -592,6 +593,7 @@ dependencies = [
 [[package]]
 name = "enum_macro"
 version = "0.1.0"
+source = "git+https://github.com/nmeylan/rust-ro.git#95fa7c085ce5235c46c0c3c7a856cd80468c36d5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1210,6 +1212,7 @@ dependencies = [
 [[package]]
 name = "models"
 version = "0.1.0"
+source = "git+https://github.com/nmeylan/rust-ro.git#95fa7c085ce5235c46c0c3c7a856cd80468c36d5"
 dependencies = [
  "accessor",
  "enum_macro",
@@ -1591,6 +1594,7 @@ dependencies = [
 [[package]]
 name = "packets"
 version = "0.1.0"
+source = "git+https://github.com/nmeylan/rust-ro.git#95fa7c085ce5235c46c0c3c7a856cd80468c36d5"
 dependencies = [
  "byteorder",
  "json-flat-parser",
