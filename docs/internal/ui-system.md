@@ -112,13 +112,17 @@ Every widget is a method on `UiFrame` that:
 3. Generates vertices and appends `DrawCall`s to `self.draw_calls`
 4. Returns a response struct
 
-### Response structs
+### Response struct
 
-Widgets return small structs with private fields and public getter methods (e.g. `ButtonResponse::clicked()`). Callers check responses immediately after the widget call. Private fields leave room to add fields later without breaking callers.
+All widgets return a unified `Response` struct with `clicked()`, `hovered()`, and `has_focus()` getters. Callers check responses immediately after the widget call. Private fields leave room to add fields later without breaking callers.
+
+### `interact()` — the fundamental interaction primitive
+
+`UiFrame::interact(id, rect)` performs hit testing and focus management for any rectangular area. It returns a `Response` and is the building block for all interactive widgets. Use it directly for custom interactive regions (e.g., list rows) instead of duplicating hover/click logic.
 
 ### Widget IDs
 
-`WidgetId(u32)` identifies widgets for focus tracking and state cache lookups. IDs must be unique within a screen/window. Define them as constants. Currently `text_input` uses IDs for focus management; buttons receive an ID for future use.
+`WidgetId(u32)` identifies widgets for focus tracking and state cache lookups. IDs must be unique within a screen/window. Define them as constants. All interactive widgets (`button`, `text_input`, `interact`) use IDs for focus management.
 
 ### Dual rendering: textured + fallback
 

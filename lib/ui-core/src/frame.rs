@@ -34,24 +34,16 @@ pub struct ButtonTextures {
     pub pressed: &'static str,
 }
 
-pub struct ButtonResponse {
+pub struct Response {
     clicked: bool,
+    hovered: bool,
+    has_focus: bool,
 }
 
-impl ButtonResponse {
-    pub fn clicked(&self) -> bool {
-        self.clicked
-    }
-}
-
-pub struct TextInputResponse {
-    submitted: bool,
-}
-
-impl TextInputResponse {
-    pub fn submitted(&self) -> bool {
-        self.submitted
-    }
+impl Response {
+    pub fn clicked(&self) -> bool { self.clicked }
+    pub fn hovered(&self) -> bool { self.hovered }
+    pub fn has_focus(&self) -> bool { self.has_focus }
 }
 
 impl<'a> UiFrame<'a> {
@@ -102,17 +94,26 @@ impl<'a> UiFrame<'a> {
         Rect::new(state.x, state.y, w, h)
     }
 
-    pub fn button(
-        &mut self, _id: WidgetId, rect: Rect, textures: &ButtonTextures, fallback_label: &str,
-    ) -> ButtonResponse {
+    pub fn interact(&mut self, id: WidgetId, rect: Rect) -> Response {
         let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y);
-        let pressed = hovered && (self.ctx.mouse_clicked || self.ctx.mouse_down);
         let clicked = hovered && self.ctx.mouse_clicked;
+        if clicked {
+            self.focus = Some(id);
+        }
+        let has_focus = self.focus == Some(id);
+        Response { clicked, hovered, has_focus }
+    }
+
+    pub fn button(
+        &mut self, id: WidgetId, rect: Rect, textures: &ButtonTextures, fallback_label: &str,
+    ) -> Response {
+        let response = self.interact(id, rect);
+        let pressed = response.hovered && (self.ctx.mouse_clicked || self.ctx.mouse_down);
 
         if self.has_grf_textures {
             let tex = if pressed {
                 textures.pressed
-            } else if hovered {
+            } else if response.hovered {
                 textures.hover
             } else {
                 textures.normal
@@ -126,7 +127,7 @@ impl<'a> UiFrame<'a> {
         } else {
             let bg_color = if pressed {
                 [0.15, 0.15, 0.25, 1.0]
-            } else if hovered {
+            } else if response.hovered {
                 [0.35, 0.35, 0.5, 1.0]
             } else {
                 [0.25, 0.25, 0.35, 1.0]
@@ -163,24 +164,19 @@ impl<'a> UiFrame<'a> {
             }
         }
 
-        ButtonResponse { clicked }
+        response
     }
 
     pub fn text_input(
         &mut self, id: WidgetId, rect: Rect, state: &mut TextInput, bg_texture: Option<&str>,
-    ) -> TextInputResponse {
-        let clicked_inside = self.ctx.mouse_clicked && rect.contains(self.ctx.mouse_x, self.ctx.mouse_y);
-        if clicked_inside {
-            self.focus = Some(id);
-        }
+    ) -> Response {
+        let response = self.interact(id, rect);
 
-        let is_focused = self.focus == Some(id);
-
-        if is_focused {
+        if response.has_focus {
             state.process_keys(self.ctx);
         }
 
-        if clicked_inside {
+        if response.clicked {
             let text = state.display_text();
             let padding = 4.0;
             let available_w = rect.w - padding * 2.0;
@@ -209,7 +205,7 @@ impl<'a> UiFrame<'a> {
                 texture: TextureRef::Named(tex_name.to_string()),
             });
         } else {
-            let bg_color = if is_focused {
+            let bg_color = if response.has_focus {
                 [0.15, 0.15, 0.2, 1.0]
             } else {
                 [0.1, 0.1, 0.15, 1.0]
@@ -221,7 +217,7 @@ impl<'a> UiFrame<'a> {
                 texture: TextureRef::White,
             });
 
-            let border_color = if is_focused {
+            let border_color = if response.has_focus {
                 [0.5, 0.5, 0.7, 1.0]
             } else {
                 [0.3, 0.3, 0.4, 1.0]
@@ -272,7 +268,7 @@ impl<'a> UiFrame<'a> {
         }
 
         // Cursor blink
-        if is_focused && (self.elapsed_secs % 1.0) < 0.5 {
+        if response.has_focus && (self.elapsed_secs % 1.0) < 0.5 {
             let cursor_x = (text_x + cursor_px).clamp(clip_left, clip_right);
             let caret_y = rect.y + (rect.h - self.atlas.ascent) / 2.0;
             let caret_color = if bg_texture.is_some() { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
@@ -284,8 +280,7 @@ impl<'a> UiFrame<'a> {
             });
         }
 
-        let submitted = is_focused && self.ctx.key_enter;
-        TextInputResponse { submitted }
+        response
     }
 
     pub fn text(&mut self, x: f32, y: f32, content: &str, color: [f32; 4]) {
@@ -366,6 +361,66 @@ mod tests {
         let mut ui = make_frame(&ctx, &mut state);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (350.0, 270.0));
+    }
+
+    #[test]
+    fn interact_hover_click_and_focus() {
+        let mut state = StateCache::new();
+        let id_a = WidgetId(50);
+        let id_b = WidgetId(51);
+        let rect_a = Rect::new(10.0, 10.0, 100.0, 30.0);
+        let rect_b = Rect::new(10.0, 50.0, 100.0, 30.0);
+
+        // Hover over A without clicking
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 50.0;
+        ctx.mouse_y = 25.0;
+        let mut ui = make_frame(&ctx, &mut state);
+        let r = ui.interact(id_a, rect_a);
+        assert!(r.hovered());
+        assert!(!r.clicked());
+        assert!(!r.has_focus());
+
+        // Click on A — should be clicked + focused
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &mut state);
+        let r = ui.interact(id_a, rect_a);
+        assert!(r.clicked());
+        assert!(r.has_focus());
+
+        // Next frame: no click, mouse on B — A retains focus, B is hovered
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 50.0;
+        ctx.mouse_y = 65.0;
+        let mut ui = make_frame(&ctx, &mut state);
+        let ra = ui.interact(id_a, rect_a);
+        let rb = ui.interact(id_b, rect_b);
+        assert!(!ra.hovered());
+        assert!(!ra.has_focus()); // focus not carried across frames (no initial_focus)
+        assert!(rb.hovered());
+        assert!(!rb.clicked());
+
+        // Click on B — focus moves to B
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &mut state);
+        let ra = ui.interact(id_a, rect_a);
+        let rb = ui.interact(id_b, rect_b);
+        assert!(!ra.has_focus());
+        assert!(rb.has_focus());
+        assert!(rb.clicked());
+
+        // Click outside both rects — no response
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 200.0;
+        ctx.mouse_y = 200.0;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &mut state);
+        let ra = ui.interact(id_a, rect_a);
+        let rb = ui.interact(id_b, rect_b);
+        assert!(!ra.hovered());
+        assert!(!ra.clicked());
+        assert!(!rb.hovered());
+        assert!(!rb.clicked());
     }
 
     #[test]

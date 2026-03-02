@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Unify UI widget responses into a single type with hover, click, and focus tracking
 - Add 3D model rendering for map objects (buildings, trees, props) with texture batching
 - Add animated water surfaces with wave displacement and texture cycling
 - Add camera positioning at player spawn point on map entry

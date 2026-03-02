@@ -147,9 +147,8 @@ impl ServerListWindow {
                 break;
             }
             let row_rect = Rect::new(list_rect.x + 1.0, row_y, list_w - 2.0, ROW_H);
-            let hovered = row_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y);
-
-            if ui.ctx.mouse_clicked && hovered {
+            let row = ui.interact(WidgetId(WINDOW_ID.0 + 10 + idx as u32), row_rect);
+            if row.clicked() {
                 self.selected_index = Some(idx);
             }
 
@@ -217,15 +216,14 @@ impl ServerListWindow {
         for (idx, server) in self.servers.iter().enumerate() {
             let row_y = list_y + idx as f32 * ROW_H;
             let row_rect = Rect::new(win.x + padding, row_y, win.w - padding * 2.0, ROW_H);
-            let hovered = row_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y);
-
-            if ui.ctx.mouse_clicked && hovered {
+            let row = ui.interact(WidgetId(WINDOW_ID.0 + 10 + idx as u32), row_rect);
+            if row.clicked() {
                 self.selected_index = Some(idx);
             }
 
             let bg_color = if self.selected_index == Some(idx) {
                 [0.2, 0.2, 0.4, 1.0]
-            } else if hovered {
+            } else if row.hovered() {
                 [0.15, 0.15, 0.25, 1.0]
             } else {
                 [0.0, 0.0, 0.0, 0.0]
