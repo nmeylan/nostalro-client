@@ -339,13 +339,20 @@ impl App {
                         self.app_state = AppState::InGame;
                     }
                     GameEvent::PlayerMoved { start_x, start_y, dest_x, dest_y, .. } => {
-                        if let Some(gat) = &self.gat {
-                            let path = path_search(gat, start_x, start_y, dest_x, dest_y);
-                            if !path.is_empty() {
-                                let elapsed = self.start_time.elapsed().as_secs_f32();
-                                if let Some(movement) = &mut self.movement {
-                                    movement.set_position(start_x as f32, start_y as f32);
-                                    movement.start_move(path, elapsed);
+                        // If client-side prediction is already moving to the same destination, keep it
+                        let already_moving_to_dest = self.movement.as_ref()
+                            .filter(|m| m.is_moving())
+                            .and_then(|m| m.destination())
+                            .is_some_and(|(dx, dy)| dx == dest_x && dy == dest_y);
+                        if !already_moving_to_dest {
+                            if let Some(gat) = &self.gat {
+                                let path = path_search(gat, start_x, start_y, dest_x, dest_y);
+                                if !path.is_empty() {
+                                    let elapsed = self.start_time.elapsed().as_secs_f32();
+                                    if let Some(movement) = &mut self.movement {
+                                        movement.set_position(start_x as f32, start_y as f32);
+                                        movement.start_move(path, elapsed);
+                                    }
                                 }
                             }
                         }

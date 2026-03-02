@@ -84,7 +84,7 @@ impl MovementState {
     }
 
     pub fn cell_position(&self) -> (u16, u16) {
-        (self.current_x as u16, self.current_y as u16)
+        (self.current_x.round() as u16, self.current_y.round() as u16)
     }
 
     pub fn set_position(&mut self, x: f32, y: f32) {
@@ -94,6 +94,10 @@ impl MovementState {
 
     pub fn position(&self) -> (f32, f32) {
         (self.current_x, self.current_y)
+    }
+
+    pub fn destination(&self) -> Option<(u16, u16)> {
+        self.path.last().map(|node| (node.x, node.y))
     }
 }
 
