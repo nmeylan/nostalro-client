@@ -161,7 +161,7 @@ impl App {
             let gnd_cell_y = cell_y * (gnd_h as f32 / gat_h as f32);
 
             let mut wx = gnd_cell_x * zoom;
-            let mut wz = (gnd_h as f32 - gnd_cell_y) * zoom;
+            let mut wz = gnd_cell_y * zoom;
 
             wx = wx.clamp(0.0, gnd_w as f32 * zoom);
             wz = wz.clamp(0.0, gnd_h as f32 * zoom);
@@ -193,7 +193,7 @@ impl App {
         let (gat_w, gat_h) = self.gat_dimensions.unwrap_or((gat.width, gat.height));
         let (gnd_w, gnd_h) = self.gnd_dimensions.unwrap_or((gat_w, gat_h));
         let gnd_cell_x = hit.x / zoom;
-        let gnd_cell_y = gnd_h as f32 - hit.z / zoom;
+        let gnd_cell_y = hit.z / zoom;
         let cell_x = gnd_cell_x * (gat_w as f32 / gnd_w as f32);
         let cell_y = gnd_cell_y * (gat_h as f32 / gnd_h as f32);
 

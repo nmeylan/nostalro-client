@@ -114,9 +114,9 @@ impl Renderer {
             let lon_rad = (longitude as f32).to_radians();
             let lat_rad = (latitude as f32).to_radians();
             let dir = glam::Vec3::new(
-                lat_rad.cos() * lon_rad.sin(),
-                lat_rad.sin(),
-                lat_rad.cos() * lon_rad.cos(),
+                -lon_rad.cos() * lat_rad.sin(),
+                -lat_rad.cos(),
+                -lon_rad.sin() * lat_rad.sin(),
             )
             .normalize();
 

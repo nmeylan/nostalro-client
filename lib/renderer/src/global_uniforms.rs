@@ -13,7 +13,7 @@ pub struct LightUniform {
 impl Default for LightUniform {
     fn default() -> Self {
         Self {
-            light_dir: [0.0, -1.0, 0.5, 0.0],
+            light_dir: [0.0, -1.0, 0.0, 0.0],
             diffuse_color: [1.0, 1.0, 1.0, 1.0],
             ambient_color: [0.3, 0.3, 0.3, 1.0],
             shadow_strength: 0.5,

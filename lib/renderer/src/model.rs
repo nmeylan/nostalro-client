@@ -262,29 +262,20 @@ fn build_instance_matrix(
     center_x: f32,
     center_z: f32,
 ) -> glam::Mat4 {
-    // RSW position: raw values, Y already negated by parser
-    // Convert to world space: pos * scale_factor + center
     let pos = glam::Vec3::new(
         model.position[0] * scale_factor + center_x,
         model.position[1] * scale_factor,
-        -model.position[2] * scale_factor + center_z,
+        model.position[2] * scale_factor + center_z,
     );
 
+    let rot_x = model.rotation[0].to_radians();
+    let rot_y = model.rotation[1].to_radians();
     let rot_z = model.rotation[2].to_radians();
-    // Negate X/Y rotations to account for world Z-axis flip (cell Y maps to
-    // decreasing world Z).  Z rotation is unaffected by the flip.
-    let rot_x = -model.rotation[0].to_radians();
-    let rot_y = -model.rotation[1].to_radians();
 
-    // RO files use inverted Y axis (negative = up) — see
-    // https://ragnarokresearchlab.github.io/rendering/coordinate-systems/
-    // Ground and RSW positions are negated by the parser, but RSM vertex data
-    // remains in inverted-Y. Negating scale.y flips model geometry to match
-    // our Y-up world space.  Negating scale.z mirrors models for the Z-axis flip.
     let scale = glam::Vec3::new(
         model.scale[0] * scale_factor,
-        -model.scale[1] * scale_factor,
-        -model.scale[2] * scale_factor,
+        model.scale[1] * scale_factor,
+        model.scale[2] * scale_factor,
     );
 
     // Match robrowser: translate → rotZ → rotX → rotY → scale
@@ -618,10 +609,9 @@ mod tests {
         assert!(origin.y.abs() < 0.01, "y={}", origin.y);
         assert!((origin.z - 500.0).abs() < 0.01, "z={}", origin.z);
 
-        // Y flip: local vertex at Y=100 should map to world Y = pos_y + (-scale_y * 100)
-        // With pos_y=0 and scale=10 (negated to -10): world Y = -10 * 100 = -1000
-        let point_up = mat.transform_point3(glam::Vec3::new(0.0, 100.0, 0.0));
-        assert!((point_up.y - (-1000.0)).abs() < 0.01, "y_flip={}", point_up.y);
+        // Native RO coords: local Y=100 maps directly with scale=10 → world Y = 1000
+        let point = mat.transform_point3(glam::Vec3::new(0.0, 100.0, 0.0));
+        assert!((point.y - 1000.0).abs() < 0.01, "y={}", point.y);
     }
 
     #[test]

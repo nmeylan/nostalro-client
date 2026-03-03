@@ -64,7 +64,7 @@ impl WaterRenderer {
         let raw_level = water.level?;
         let zoom = gnd.zoom;
         let scale_factor = zoom / 10.0;
-        let water_y = -raw_level * scale_factor;
+        let water_y = raw_level * scale_factor;
 
         let water_type = water.water_type.unwrap_or(0);
         let wave_height = water.wave_height.unwrap_or(1.0) * scale_factor;
@@ -199,14 +199,14 @@ pub fn build_water_mesh(gnd: &GndFile, water_y: f32) -> (Vec<WaterVertex>, Vec<u
             let cell_idx = (y * gnd.width + x) as usize;
             let cell = &gnd.cells[cell_idx];
 
-            // Check if any corner of the cell is below water
-            let avg_height = -(cell.height[0] + cell.height[1] + cell.height[2] + cell.height[3]) / 4.0;
-            if avg_height > water_y + 5.0 * zoom {
+            let avg_height = (cell.height[0] + cell.height[1] + cell.height[2] + cell.height[3]) / 4.0;
+            // In native RO coords, more negative = higher; skip cells far above water
+            if avg_height < water_y - 5.0 * zoom {
                 continue;
             }
 
             let wx = x as f32 * zoom;
-            let wz = (gnd.height as f32 - y as f32) * zoom;
+            let wz = y as f32 * zoom;
 
             let u0 = (x as f32 % WATER_TEXTURE_REPEAT) / WATER_TEXTURE_REPEAT;
             let u1 = ((x + 1) as f32 % WATER_TEXTURE_REPEAT) / WATER_TEXTURE_REPEAT;
@@ -216,8 +216,8 @@ pub fn build_water_mesh(gnd: &GndFile, water_y: f32) -> (Vec<WaterVertex>, Vec<u
             let base = vertices.len() as u32;
             vertices.push(WaterVertex { position: [wx,        water_y, wz],        tex_coord: [u0, v0] });
             vertices.push(WaterVertex { position: [wx + zoom, water_y, wz],        tex_coord: [u1, v0] });
-            vertices.push(WaterVertex { position: [wx,        water_y, wz - zoom], tex_coord: [u0, v1] });
-            vertices.push(WaterVertex { position: [wx + zoom, water_y, wz - zoom], tex_coord: [u1, v1] });
+            vertices.push(WaterVertex { position: [wx,        water_y, wz + zoom], tex_coord: [u0, v1] });
+            vertices.push(WaterVertex { position: [wx + zoom, water_y, wz + zoom], tex_coord: [u1, v1] });
 
             indices.extend_from_slice(&[base, base + 1, base + 2, base + 2, base + 1, base + 3]);
         }
@@ -325,10 +325,10 @@ mod tests {
 
     #[test]
     fn water_mesh_generates_quads_for_cells_below_water() {
+        // In native RO coords, more negative = higher; cell at -5 is above water at -10
         let gnd = make_gnd(4, 4, -5.0);
         let water_y = -10.0;
         let (vertices, indices) = build_water_mesh(&gnd, water_y);
-        // All 16 cells should generate water quads (cell height=-5 → world y=5 which is above water_y=-10)
         assert_eq!(vertices.len(), 16 * 4);
         assert_eq!(indices.len(), 16 * 6);
     }

@@ -33,13 +33,13 @@ impl Camera {
         self.target
             + glam::Vec3::new(
                 self.distance * self.pitch.cos() * self.yaw.sin(),
-                self.distance * self.pitch.sin(),
-                self.distance * self.pitch.cos() * self.yaw.cos(),
+                -self.distance * self.pitch.sin(),
+                -self.distance * self.pitch.cos() * self.yaw.cos(),
             )
     }
 
     pub fn view_matrix(&self) -> glam::Mat4 {
-        glam::Mat4::look_at_rh(self.eye(), self.target, glam::Vec3::Y)
+        glam::Mat4::look_at_rh(self.eye(), self.target, glam::Vec3::NEG_Y)
     }
 
     pub fn projection_matrix(&self) -> glam::Mat4 {
@@ -94,10 +94,10 @@ mod tests {
     fn camera_eye_at_default_is_above_and_behind_target() {
         let camera = Camera::default();
         let eye = camera.eye();
-        // Pitch ~55 degrees => eye is above target
-        assert!(eye.y > camera.target.y);
-        // Default yaw 0 => eye is behind target on +Z side
-        assert!(eye.z > camera.target.z);
+        // In native RO coords, -Y = above
+        assert!(eye.y < camera.target.y);
+        // Default yaw 0 => eye is behind target on -Z side
+        assert!(eye.z < camera.target.z);
     }
 
     #[test]
@@ -132,8 +132,8 @@ mod tests {
     fn screen_center_ray_hits_near_target() {
         let camera = Camera::default();
         let (origin, dir) = camera.screen_to_ray(400.0, 300.0, 800.0, 600.0);
-        // Ray should point downward (toward target) since camera is above
-        assert!(dir.y < 0.0, "dir.y = {}", dir.y);
+        // Ray should point toward ground (+Y in native RO) since camera is above (-Y)
+        assert!(dir.y > 0.0, "dir.y = {}", dir.y);
         // Intersect with y=0 plane
         if dir.y.abs() > 1e-6 {
             let t = -origin.y / dir.y;

@@ -207,11 +207,9 @@ fn parse_model(r: &mut Cursor<&[u8]>, version: (u8, u8), build_version: Option<u
     let model_name = read_string(r, 80)?;
     let node_name = read_string(r, 80)?;
 
-    // Position, rotation, scale (Korangar reads as Transform with Y flip)
-    let mut position = read_vec3(r)?;
+    let position = read_vec3(r)?;
     let rotation = read_vec3(r)?;
     let scale = read_vec3(r)?;
-    position[1] = -position[1];
 
     Ok(RswModel {
         name, anim_type, anim_speed, block_type,
@@ -221,8 +219,7 @@ fn parse_model(r: &mut Cursor<&[u8]>, version: (u8, u8), build_version: Option<u
 
 fn parse_light(r: &mut Cursor<&[u8]>) -> Result<RswLight, FormatError> {
     let name = read_string(r, 80)?;
-    let mut position = read_vec3(r)?;
-    position[1] = -position[1];
+    let position = read_vec3(r)?;
     let mut color = read_vec3(r)?;
     // Clamp color channels to [0.0, 1.0]
     for c in &mut color {
@@ -235,8 +232,7 @@ fn parse_light(r: &mut Cursor<&[u8]>) -> Result<RswLight, FormatError> {
 fn parse_sound(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RswSound, FormatError> {
     let name = read_string(r, 80)?;
     let file_name = read_string(r, 80)?;
-    let mut position = read_vec3(r)?;
-    position[1] = -position[1];
+    let position = read_vec3(r)?;
     let volume = r.read_f32::<LE>()?;
     let width = r.read_u32::<LE>()?;
     let height = r.read_u32::<LE>()?;
@@ -251,8 +247,7 @@ fn parse_sound(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RswSound, For
 
 fn parse_effect(r: &mut Cursor<&[u8]>) -> Result<RswEffect, FormatError> {
     let name = read_string(r, 80)?;
-    let mut position = read_vec3(r)?;
-    position[1] = -position[1];
+    let position = read_vec3(r)?;
     let effect_type = r.read_u32::<LE>()?;
     let emit_speed = r.read_f32::<LE>()?;
     let param = [

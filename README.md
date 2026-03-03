@@ -26,7 +26,7 @@ cargo run --bin sprite-viewer -- --grf data.grf --list
 
 ### Hot-reload
 
-WGSL shader hot-reload works out of the box — edit `lib/renderer/src/shaders/sprite.wgsl` and changes apply instantly.
+WGSL shader hot-reload works out of the box,  edit `lib/renderer/src/shaders/sprite.wgsl` and changes apply instantly.
 
 For Rust code hot-patching via [subsecond](https://crates.io/crates/subsecond), install the Dioxus CLI and `lld`, then run:
 
