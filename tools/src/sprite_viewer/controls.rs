@@ -1,5 +1,5 @@
 use winit::event::{ElementState, MouseScrollDelta};
-use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::keyboard::{Key, NamedKey};
 
 pub enum ViewerAction {
     NextDirection,
@@ -15,22 +15,25 @@ pub enum ViewerAction {
     ToggleBrowser,
 }
 
-pub fn map_key_press(key: PhysicalKey, state: ElementState) -> Option<ViewerAction> {
+pub fn map_key_press(key: &Key, state: ElementState) -> Option<ViewerAction> {
     if state != ElementState::Pressed {
         return None;
     }
     match key {
-        PhysicalKey::Code(KeyCode::ArrowRight) => Some(ViewerAction::NextDirection),
-        PhysicalKey::Code(KeyCode::ArrowLeft) => Some(ViewerAction::PrevDirection),
-        PhysicalKey::Code(KeyCode::ArrowUp) => Some(ViewerAction::PrevAction),
-        PhysicalKey::Code(KeyCode::ArrowDown) => Some(ViewerAction::NextAction),
-        PhysicalKey::Code(KeyCode::Space) => Some(ViewerAction::TogglePause),
-        PhysicalKey::Code(KeyCode::Period) => Some(ViewerAction::StepForward),
-        PhysicalKey::Code(KeyCode::Comma) => Some(ViewerAction::StepBackward),
-        PhysicalKey::Code(KeyCode::Equal) => Some(ViewerAction::ZoomIn),
-        PhysicalKey::Code(KeyCode::Minus) => Some(ViewerAction::ZoomIn),
-        PhysicalKey::Code(KeyCode::KeyB) => Some(ViewerAction::CycleBackground),
-        PhysicalKey::Code(KeyCode::Tab) => Some(ViewerAction::ToggleBrowser),
+        Key::Named(NamedKey::ArrowRight) => Some(ViewerAction::NextDirection),
+        Key::Named(NamedKey::ArrowLeft) => Some(ViewerAction::PrevDirection),
+        Key::Named(NamedKey::ArrowUp) => Some(ViewerAction::PrevAction),
+        Key::Named(NamedKey::ArrowDown) => Some(ViewerAction::NextAction),
+        Key::Named(NamedKey::Space) => Some(ViewerAction::TogglePause),
+        Key::Named(NamedKey::Tab) => Some(ViewerAction::ToggleBrowser),
+        Key::Character(ch) => match ch.as_str() {
+            "." => Some(ViewerAction::StepForward),
+            "," => Some(ViewerAction::StepBackward),
+            "=" | "+" => Some(ViewerAction::ZoomIn),
+            "-" => Some(ViewerAction::ZoomOut),
+            "b" | "B" => Some(ViewerAction::CycleBackground),
+            _ => None,
+        },
         _ => None,
     }
 }

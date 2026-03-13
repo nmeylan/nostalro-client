@@ -578,7 +578,7 @@ impl ApplicationHandler for App {
                     }
                 } else {
                     if let Some(action) = controls::map_key_press(
-                        event.physical_key,
+                        &event.logical_key,
                         event.state,
                     ) {
                         self.handle_action(action);

@@ -26,7 +26,7 @@ impl AnimationState {
     pub fn current_delay_ms(&self, act: &ActFile) -> f32 {
         let idx = self.action_index(act);
         if idx < act.delays.len() {
-            let d = act.delays[idx];
+            let d = act.delays[idx] * 25.0;
             if d > 0.0 { d } else { 150.0 }
         } else {
             150.0
@@ -106,7 +106,7 @@ mod tests {
             version: (2, 5),
             actions,
             events: Vec::new(),
-            delays: vec![100.0; action_count],
+            delays: vec![4.0; action_count],
         }
     }
 
