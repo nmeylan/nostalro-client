@@ -1,16 +1,20 @@
 mod config;
 
 use config::Config;
+use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::rsw::RswFile;
-use ragnarok_game::event::GameEvent;
-use ragnarok_game::movement::MovementState;
+use ragnarok_formats::spr::SprFile;
+use ragnarok_game::animation::SpriteAnimationState;
+use ragnarok_game::entity::Entity;
+use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::path::path_search;
+use ragnarok_game::sprite_path::body_sprite_path;
 use ragnarok_network::{build_char_enter_packet, build_login_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
 use ragnarok_network::session::Session;
-use ragnarok_renderer::Renderer;
+use ragnarok_renderer::{Renderer, SpriteBatch, SpriteTextures, build_clip_quad, upload_sprite_textures};
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui_component::login_window::{LoginFocus, LoginWindow};
@@ -32,6 +36,12 @@ enum AppState {
     ServerSelect,
     CharacterSelect,
     InGame,
+}
+
+struct EntitySprite {
+    textures: SpriteTextures,
+    act: ActFile,
+    animation: SpriteAnimationState,
 }
 
 struct App {
@@ -56,8 +66,11 @@ struct App {
     gat_dimensions: Option<(i32, i32)>,
     gnd_dimensions: Option<(i32, i32)>,
     current_map: Option<String>,
-    movement: Option<MovementState>,
+    selected_character: Option<CharacterInfo>,
+    player_entity: Option<Entity>,
+    player_sprite: Option<EntitySprite>,
     start_time: Instant,
+    last_render_time: f32,
 }
 
 impl App {
@@ -84,8 +97,11 @@ impl App {
             gat_dimensions: None,
             gnd_dimensions: None,
             current_map: None,
-            movement: None,
+            selected_character: None,
+            player_entity: None,
+            player_sprite: None,
             start_time: Instant::now(),
+            last_render_time: 0.0,
         }
     }
 
@@ -203,8 +219,8 @@ impl App {
             return;
         }
 
-        let (src_x, src_y) = self.movement.as_ref()
-            .map(|m| m.cell_position())
+        let (src_x, src_y) = self.player_entity.as_ref()
+            .map(|e| e.movement.cell_position())
             .unwrap_or((0, 0));
 
         let path = path_search(gat, src_x, src_y, dest_x as u16, dest_y as u16);
@@ -220,8 +236,8 @@ impl App {
 
         // Start client-side prediction
         let elapsed = self.start_time.elapsed().as_secs_f32();
-        if let Some(movement) = &mut self.movement {
-            movement.start_move(path, elapsed);
+        if let Some(entity) = &mut self.player_entity {
+            entity.movement.start_move(path, elapsed);
         }
     }
 
@@ -323,7 +339,7 @@ impl App {
                             }
                         }
                     }
-                    GameEvent::MapEntered { x, y, .. } => {
+                    GameEvent::MapEntered { x, y, dir, .. } => {
                         let map_name = self.login_session.as_ref().map(|s| {
                             s.map_name.strip_suffix(".gat")
                                 .unwrap_or(&s.map_name).to_string()
@@ -333,25 +349,39 @@ impl App {
                             self.load_map(map_name);
                             self.current_map = Some(map_name.clone());
                         }
-                        self.movement = Some(MovementState::new(x, y));
+
+                        let session_sex = self.login_session.as_ref().map(|s| s.sex).unwrap_or(1);
+                        let (job, sex, head, hair_color, char_id) = self.selected_character.as_ref()
+                            .map(|c| {
+                                // Per-character sex only available on packetver >= 20141016;
+                                // older versions default to 0, so use session sex instead
+                                let sex = if self.config.packetver >= 20141016 { c.sex } else { session_sex };
+                                (c.class, sex, c.head, c.hair_color, c.gid)
+                            })
+                            .unwrap_or((0, session_sex, 0, 0, 0));
+
+                        let entity = Entity::new_player(char_id, job, sex, head, hair_color, x, y, dir);
+                        self.player_entity = Some(entity);
+
+                        self.load_player_sprite(job, sex, dir);
+
                         self.position_camera_at(x as f32, y as f32);
                         self.char_select_window = None;
                         self.app_state = AppState::InGame;
                     }
                     GameEvent::PlayerMoved { start_x, start_y, dest_x, dest_y, .. } => {
-                        // If client-side prediction is already moving to the same destination, keep it
-                        let already_moving_to_dest = self.movement.as_ref()
-                            .filter(|m| m.is_moving())
-                            .and_then(|m| m.destination())
+                        let already_moving_to_dest = self.player_entity.as_ref()
+                            .filter(|e| e.movement.is_moving())
+                            .and_then(|e| e.movement.destination())
                             .is_some_and(|(dx, dy)| dx == dest_x && dy == dest_y);
                         if !already_moving_to_dest {
                             if let Some(gat) = &self.gat {
                                 let path = path_search(gat, start_x, start_y, dest_x, dest_y);
                                 if !path.is_empty() {
                                     let elapsed = self.start_time.elapsed().as_secs_f32();
-                                    if let Some(movement) = &mut self.movement {
-                                        movement.set_position(start_x as f32, start_y as f32);
-                                        movement.start_move(path, elapsed);
+                                    if let Some(entity) = &mut self.player_entity {
+                                        entity.movement.set_position(start_x as f32, start_y as f32);
+                                        entity.movement.start_move(path, elapsed);
                                     }
                                 }
                             }
@@ -365,6 +395,9 @@ impl App {
                             self.load_map(&map_name);
                             self.current_map = Some(map_name);
                         }
+                        if let Some(entity) = &mut self.player_entity {
+                            entity.movement.set_position(x as f32, y as f32);
+                        }
                         self.position_camera_at(x as f32, y as f32);
                     }
                     GameEvent::Disconnected(reason) => {
@@ -377,6 +410,77 @@ impl App {
                     _ => {}
                 }
         }
+    }
+
+    fn load_player_sprite(&mut self, job: u16, sex: u8, direction: u8) {
+        let (grf, renderer) = match (&self.grf, &self.renderer) {
+            (Some(g), Some(r)) => (g, r),
+            _ => return,
+        };
+
+        let base_path = body_sprite_path(job, sex);
+        let spr_path = format!("{base_path}.spr");
+        let act_path = format!("{base_path}.act");
+
+        let spr_data = match grf.read_file(&spr_path) {
+            Ok(d) => d,
+            Err(e) => {
+                tracing::warn!("Failed to read SPR {spr_path}: {e}");
+                return;
+            }
+        };
+        let spr = match SprFile::parse(&spr_data) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!("Failed to parse SPR: {e}");
+                return;
+            }
+        };
+
+        let act_data = match grf.read_file(&act_path) {
+            Ok(d) => d,
+            Err(e) => {
+                tracing::warn!("Failed to read ACT {act_path}: {e}");
+                return;
+            }
+        };
+        let act = match ActFile::parse(&act_data) {
+            Ok(a) => a,
+            Err(e) => {
+                tracing::warn!("Failed to parse ACT: {e}");
+                return;
+            }
+        };
+
+        let textures = upload_sprite_textures(
+            &spr,
+            &renderer.device.device,
+            &renderer.device.queue,
+            &renderer.texture_cache.bind_group_layout,
+        );
+
+        tracing::info!("Loaded body sprite: {spr_path} ({} indexed + {} rgba, {} actions)",
+            spr.indexed_sprites.len(), spr.rgba_sprites.len(), act.actions.len());
+
+        self.player_sprite = Some(EntitySprite {
+            textures,
+            act,
+            animation: SpriteAnimationState::new(direction),
+        });
+    }
+
+    /// Convert GAT cell position to world coordinates (wx, wy, wz).
+    fn cell_to_world(&self, cell_x: f32, cell_y: f32) -> Option<(f32, f32, f32)> {
+        let zoom = self.map_zoom?;
+        let (gat_w, gat_h) = self.gat_dimensions?;
+        let (gnd_w, gnd_h) = self.gnd_dimensions.unwrap_or((gat_w, gat_h));
+
+        let gnd_cell_x = cell_x * (gnd_w as f32 / gat_w as f32);
+        let gnd_cell_y = cell_y * (gnd_h as f32 / gat_h as f32);
+
+        let wx = (gnd_cell_x * zoom).clamp(0.0, gnd_w as f32 * zoom);
+        let wz = (gnd_cell_y * zoom).clamp(0.0, gnd_h as f32 * zoom);
+        Some((wx, 0.0, wz))
     }
 
     fn handle_ui_events(&mut self, events: Vec<GameEvent>, event_loop: &ActiveEventLoop) {
@@ -406,6 +510,11 @@ impl App {
                     }
                 }
                 GameEvent::RequestSelectCharacter { slot } => {
+                    if let Some(char_win) = &self.char_select_window {
+                        self.selected_character = char_win.characters.iter()
+                            .find(|c| c.slot == slot as i8)
+                            .cloned();
+                    }
                     if let Some(tx) = &self.network_cmd_tx {
                         let packet = build_select_char_packet(slot, self.config.packetver);
                         let _ = tx.send(NetworkCommand::SendPacket(packet));
@@ -613,15 +722,85 @@ impl ApplicationHandler for App {
                 self.handle_ui_events(ui_events, event_loop);
 
                 // Movement tick: interpolate position and update camera
-                let move_pos = self.movement.as_mut()
-                    .filter(|m| m.is_moving())
-                    .map(|m| m.update(elapsed));
+                let move_pos = self.player_entity.as_mut()
+                    .filter(|e| e.movement.is_moving())
+                    .map(|e| e.movement.update(elapsed));
                 if let Some((px, py)) = move_pos {
                     self.position_camera_at(px, py);
                 }
 
-                if let Some(renderer) = &mut self.renderer {
-                    renderer.render(&ui_draw_calls, elapsed);
+                // Update entity state and animation direction from movement
+                if let Some(entity) = &mut self.player_entity {
+                    entity.update_state();
+                    if let Some(move_dir) = entity.movement.movement_direction() {
+                        entity.direction = move_dir;
+                    }
+                }
+
+                // Update sprite animation
+                let dt = elapsed - self.last_render_time;
+                self.last_render_time = elapsed;
+                if let (Some(entity), Some(sprite), Some(renderer)) =
+                    (&self.player_entity, &mut self.player_sprite, &self.renderer)
+                {
+                    let camera_dir = renderer.camera.direction_index();
+                    sprite.animation.set_action(entity.action_index());
+                    sprite.animation.set_direction(entity.direction);
+                    sprite.animation.update(dt, &sprite.act, camera_dir);
+                }
+
+                // Build owned sprite clip data (vertices, indices, texture index)
+                let mut clip_data: Vec<(Vec<ragnarok_renderer::UiVertex>, Vec<u32>, usize)> = Vec::new();
+                if let (Some(entity), Some(sprite), Some(renderer)) =
+                    (&self.player_entity, &self.player_sprite, &self.renderer)
+                {
+                    let (cell_x, cell_y) = entity.movement.position();
+                    if let Some((wx, wy, wz)) = self.cell_to_world(cell_x, cell_y) {
+                        let screen_w = renderer.device.surface_config.width as f32;
+                        let screen_h = renderer.device.surface_config.height as f32;
+                        if let Some((sx, sy)) = renderer.camera.world_to_screen(wx, wy, wz, screen_w, screen_h) {
+                            let camera_dir = renderer.camera.direction_index();
+                            let action_idx = sprite.animation.action_index(&sprite.act, camera_dir);
+                            let action = &sprite.act.actions[action_idx];
+
+                            // Scale sprite based on perspective: pixels_per_world_unit * ground_zoom
+                            // gives us how many screen pixels one cell occupies.
+                            // Divide by a reference value to get a scale where 1.0 = correct size.
+                            let ppu = renderer.camera.perspective_scale(wx, wy, wz, screen_h);
+                            let ground_zoom = self.map_zoom.unwrap_or(5.0);
+                            let sprite_scale = ppu * ground_zoom / 75.0;
+
+                            if !action.motions.is_empty() {
+                                let motion_idx = sprite.animation.motion_index() % action.motions.len();
+                                let motion = &action.motions[motion_idx];
+                                for clip in &motion.clips {
+                                    if let Some((mut vertices, indices, tex_idx)) = build_clip_quad(clip, &sprite.textures, [sx, sy]) {
+                                        if tex_idx < sprite.textures.bind_groups.len() {
+                                            for v in &mut vertices {
+                                                v.position[0] = sx + (v.position[0] - sx) * sprite_scale;
+                                                v.position[1] = sy + (v.position[1] - sy) * sprite_scale;
+                                            }
+                                            clip_data.push((vertices, indices, tex_idx));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Create SpriteBatch references and render
+                if let (Some(sprite), Some(renderer)) = (&self.player_sprite, &mut self.renderer) {
+                    let sprite_batches: Vec<SpriteBatch> = clip_data.into_iter()
+                        .map(|(vertices, indices, tex_idx)| SpriteBatch {
+                            vertices,
+                            indices,
+                            texture: &sprite.textures.bind_groups[tex_idx],
+                        })
+                        .collect();
+                    renderer.render(&ui_draw_calls, &sprite_batches, elapsed);
+                } else if let Some(renderer) = &mut self.renderer {
+                    renderer.render(&ui_draw_calls, &[], elapsed);
                 }
 
                 if let Some(ui_ctx) = &mut self.ui_context {

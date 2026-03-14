@@ -50,6 +50,37 @@ impl Camera {
         self.projection_matrix() * self.view_matrix()
     }
 
+    /// Project a world position to screen coordinates. Returns None if behind camera.
+    pub fn world_to_screen(&self, wx: f32, wy: f32, wz: f32, screen_w: f32, screen_h: f32) -> Option<(f32, f32)> {
+        let clip = self.view_projection() * glam::Vec4::new(wx, wy, wz, 1.0);
+        if clip.w <= 0.0 {
+            return None;
+        }
+        let ndc = clip.truncate() / clip.w;
+        let sx = (ndc.x + 1.0) * 0.5 * screen_w;
+        let sy = (1.0 - ndc.y) * 0.5 * screen_h;
+        Some((sx, sy))
+    }
+
+    /// Pixels per world unit at a given world position (perspective scale).
+    pub fn perspective_scale(&self, wx: f32, wy: f32, wz: f32, screen_h: f32) -> f32 {
+        let clip = self.view_projection() * glam::Vec4::new(wx, wy, wz, 1.0);
+        if clip.w <= 0.0 {
+            return 1.0;
+        }
+        let proj_y = self.projection_matrix().col(1).y;
+        proj_y / clip.w * screen_h / 2.0
+    }
+
+    /// Convert camera yaw to an 8-direction index (0-7).
+    /// 0=S, 1=SW, 2=W, 3=NW, 4=N, 5=NE, 6=E, 7=SE
+    pub fn direction_index(&self) -> u8 {
+        let angle = self.yaw.rem_euclid(std::f32::consts::TAU);
+        // Each sector is PI/4 (45 degrees), offset by half a sector
+        let sector = ((angle + std::f32::consts::FRAC_PI_8) / std::f32::consts::FRAC_PI_4) as u8;
+        sector % 8
+    }
+
     /// Unproject screen coordinates to a world-space ray (origin, direction).
     pub fn screen_to_ray(&self, screen_x: f32, screen_y: f32, screen_w: f32, screen_h: f32) -> (glam::Vec3, glam::Vec3) {
         let ndc_x = (2.0 * screen_x / screen_w) - 1.0;
@@ -142,6 +173,31 @@ mod tests {
             assert!(hit.x.abs() < 5.0, "hit.x = {}", hit.x);
             assert!(hit.z.abs() < 5.0, "hit.z = {}", hit.z);
         }
+    }
+
+    #[test]
+    fn world_to_screen_target_projects_near_center() {
+        let camera = Camera::default();
+        let t = camera.target;
+        let result = camera.world_to_screen(t.x, t.y, t.z, 800.0, 600.0);
+        let (sx, sy) = result.expect("target should be visible");
+        assert!((sx - 400.0).abs() < 50.0, "sx = {sx}");
+        assert!((sy - 300.0).abs() < 200.0, "sy = {sy}");
+    }
+
+    #[test]
+    fn direction_index_at_yaw_zero() {
+        let camera = Camera::default();
+        assert_eq!(camera.direction_index(), 0);
+    }
+
+    #[test]
+    fn direction_index_rotates_with_yaw() {
+        let mut camera = Camera::default();
+        camera.yaw = std::f32::consts::FRAC_PI_2; // 90 degrees
+        assert_eq!(camera.direction_index(), 2);
+        camera.yaw = std::f32::consts::PI; // 180 degrees
+        assert_eq!(camera.direction_index(), 4);
     }
 
     #[test]

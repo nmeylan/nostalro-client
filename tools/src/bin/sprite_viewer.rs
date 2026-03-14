@@ -351,7 +351,7 @@ impl App {
                 &view,
                 &device.device,
                 &device.queue,
-                self.background.clear_color(),
+                Some(self.background.clear_color()),
                 &batches,
             );
         } else {

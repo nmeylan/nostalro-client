@@ -246,13 +246,26 @@ impl SpriteRenderer {
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[*uniforms]));
     }
 
+    pub fn resize(&self, queue: &wgpu::Queue, width: u32, height: u32) {
+        let uniforms = SpriteUniforms {
+            screen_size: [width as f32, height as f32],
+            zoom: 1.0,
+            _pad: 0.0,
+            pan: [0.0, 0.0],
+            _pad2: [0.0, 0.0],
+        };
+        self.update_uniforms(queue, &uniforms);
+    }
+
+    /// Render sprite batches. If `clear_color` is Some, clears the target first;
+    /// if None, uses LoadOp::Load to overlay on existing content.
     pub fn render(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         target_view: &wgpu::TextureView,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        clear_color: wgpu::Color,
+        clear_color: Option<wgpu::Color>,
         batches: &[SpriteBatch],
     ) {
         let total_verts: usize = batches.iter().map(|b| b.vertices.len()).sum();
@@ -313,7 +326,10 @@ impl SpriteRenderer {
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(clear_color),
+                        load: match clear_color {
+                            Some(color) => wgpu::LoadOp::Clear(color),
+                            None => wgpu::LoadOp::Load,
+                        },
                         store: wgpu::StoreOp::Store,
                     },
                 })],

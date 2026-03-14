@@ -99,6 +99,33 @@ impl MovementState {
     pub fn destination(&self) -> Option<(u16, u16)> {
         self.path.last().map(|node| (node.x, node.y))
     }
+
+    /// RO direction from current position toward next path node.
+    /// Returns 0-7 (S, SW, W, NW, N, NE, E, SE) or None if not moving.
+    pub fn movement_direction(&self) -> Option<u8> {
+        if !self.moving || self.path_index >= self.path.len() {
+            return None;
+        }
+        let target = &self.path[self.path_index];
+        let dx = target.x as f32 - self.current_x;
+        let dy = target.y as f32 - self.current_y;
+        if dx.abs() < 0.01 && dy.abs() < 0.01 {
+            return None;
+        }
+        // RO directions: 0=S, 1=SW, 2=W, 3=NW, 4=N, 5=NE, 6=E, 7=SE
+        let dir = match (dx.partial_cmp(&0.0), dy.partial_cmp(&0.0)) {
+            (Some(std::cmp::Ordering::Equal), Some(std::cmp::Ordering::Greater)) => 0,   // S
+            (Some(std::cmp::Ordering::Less), Some(std::cmp::Ordering::Greater)) => 1,    // SW
+            (Some(std::cmp::Ordering::Less), Some(std::cmp::Ordering::Equal)) => 2,      // W
+            (Some(std::cmp::Ordering::Less), Some(std::cmp::Ordering::Less)) => 3,       // NW
+            (Some(std::cmp::Ordering::Equal), Some(std::cmp::Ordering::Less)) => 4,      // N
+            (Some(std::cmp::Ordering::Greater), Some(std::cmp::Ordering::Less)) => 5,    // NE
+            (Some(std::cmp::Ordering::Greater), Some(std::cmp::Ordering::Equal)) => 6,   // E
+            (Some(std::cmp::Ordering::Greater), Some(std::cmp::Ordering::Greater)) => 7, // SE
+            _ => return None,
+        };
+        Some(dir)
+    }
 }
 
 #[cfg(test)]

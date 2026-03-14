@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Add player character body sprite rendering with idle and walk animations
 - Unify UI widget responses into a single type with hover, click, and focus tracking
 - Add 3D model rendering for map objects (buildings, trees, props) with texture batching
 - Add animated water surfaces with wave displacement and texture cycling

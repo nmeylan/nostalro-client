@@ -17,6 +17,7 @@ pub use model::ModelRenderer;
 pub use water::WaterRenderer;
 pub use texture::TextureCache;
 pub use font_atlas::FontAtlas;
+pub use sprite::{SpriteRenderer, SpriteBatch, SpriteTextures, SpriteUniforms, build_clip_quad, upload_sprite_textures};
 pub use ui_renderer::{UiRenderer, UiVertex, UiDrawCommand};
 
 use ragnarok_formats::gnd::GndFile;
@@ -46,6 +47,7 @@ pub struct Renderer {
     pub ground_renderer: Option<GroundRenderer>,
     pub model_renderer: Option<ModelRenderer>,
     pub water_renderer: Option<WaterRenderer>,
+    pub sprite_renderer: SpriteRenderer,
     pub ui_renderer: UiRenderer,
     pub font_atlas: FontAtlas,
     pub font_atlas_bind_group: wgpu::BindGroup,
@@ -80,6 +82,15 @@ impl Renderer {
             "ui_white",
         );
 
+        let sprite_renderer = SpriteRenderer::new(
+            &device.device,
+            device.surface_format,
+            &texture_cache.bind_group_layout,
+            device.surface_config.width,
+            device.surface_config.height,
+            include_str!("shaders/sprite.wgsl"),
+        );
+
         let ui_renderer = UiRenderer::new(
             &device.device,
             device.surface_format,
@@ -96,6 +107,7 @@ impl Renderer {
             ground_renderer: None,
             model_renderer: None,
             water_renderer: None,
+            sprite_renderer,
             ui_renderer,
             font_atlas,
             font_atlas_bind_group,
@@ -173,11 +185,12 @@ impl Renderer {
         self.device.resize(width, height);
         if width > 0 && height > 0 {
             self.camera.aspect = width as f32 / height as f32;
+            self.sprite_renderer.resize(&self.device.queue, width, height);
             self.ui_renderer.resize(&self.device.queue, width, height);
         }
     }
 
-    pub fn render(&mut self, ui_draw_calls: &[UiDrawCall], elapsed: f32) {
+    pub fn render(&mut self, ui_draw_calls: &[UiDrawCall], sprite_batches: &[SpriteBatch], elapsed: f32) {
         self.global_uniforms
             .update_camera(&self.device.queue, &self.camera);
 
@@ -241,6 +254,17 @@ impl Renderer {
             if let Some(water) = &self.water_renderer {
                 water.render(&mut pass, &self.global_uniforms, &self.texture_cache, elapsed);
             }
+        }
+
+        if !sprite_batches.is_empty() {
+            self.sprite_renderer.render(
+                &mut encoder,
+                &view,
+                &self.device.device,
+                &self.device.queue,
+                None,
+                sprite_batches,
+            );
         }
 
         if !ui_draw_calls.is_empty() {
