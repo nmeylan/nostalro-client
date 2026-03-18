@@ -197,8 +197,8 @@ impl App {
             let (gat_w, gat_h) = self.gat_dimensions.unwrap_or((0, 0));
             let (gnd_w, gnd_h) = self.gnd_dimensions.unwrap_or((gat_w, gat_h));
 
-            let gnd_cell_x = cell_x * (gnd_w as f32 / gat_w as f32);
-            let gnd_cell_y = cell_y * (gnd_h as f32 / gat_h as f32);
+            let gnd_cell_x = (cell_x + 0.5) * (gnd_w as f32 / gat_w as f32);
+            let gnd_cell_y = (cell_y + 0.5) * (gnd_h as f32 / gat_h as f32);
 
             let mut wx = gnd_cell_x * zoom;
             let mut wz = gnd_cell_y * zoom;
@@ -906,7 +906,7 @@ impl ApplicationHandler for App {
                     (&self.player_entity, &self.player_sprite, &self.renderer)
                 {
                     let (cell_x, cell_y) = entity.movement.position();
-                    if let Some((wx, wy, wz)) = self.cell_to_world(cell_x, cell_y) {
+                    if let Some((wx, wy, wz)) = self.cell_to_world(cell_x + 0.5, cell_y + 0.5) {
                         let screen_w = renderer.device.surface_config.width as f32;
                         let screen_h = renderer.device.surface_config.height as f32;
                         if let Some((sx, sy)) = renderer.camera.world_to_screen(wx, wy, wz, screen_w, screen_h) {
