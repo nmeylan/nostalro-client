@@ -5,6 +5,8 @@ const DEFAULT_WALK_SPEED: u16 = 150;
 pub struct MovementState {
     current_x: f32,
     current_y: f32,
+    step_start_x: f32,
+    step_start_y: f32,
     path: Vec<PathNode>,
     path_index: usize,
     move_start_time: f32,
@@ -18,6 +20,8 @@ impl MovementState {
         Self {
             current_x: x as f32,
             current_y: y as f32,
+            step_start_x: x as f32,
+            step_start_y: y as f32,
             path: Vec::new(),
             path_index: 0,
             move_start_time: 0.0,
@@ -31,6 +35,8 @@ impl MovementState {
         if path.is_empty() {
             return;
         }
+        self.step_start_x = self.current_x;
+        self.step_start_y = self.current_y;
         self.path = path;
         self.path_index = 0;
         self.move_start_time = start_time;
@@ -48,17 +54,18 @@ impl MovementState {
             if step_elapsed < self.step_duration {
                 let t = step_elapsed / self.step_duration;
                 let target = &self.path[self.path_index];
-                let start_x = self.current_x;
-                let start_y = self.current_y;
-                let dx = target.x as f32 - start_x;
-                let dy = target.y as f32 - start_y;
-                return (start_x + dx * t, start_y + dy * t);
+                let dx = target.x as f32 - self.step_start_x;
+                let dy = target.y as f32 - self.step_start_y;
+                self.current_x = self.step_start_x + dx * t;
+                self.current_y = self.step_start_y + dy * t;
+                return (self.current_x, self.current_y);
             }
 
-            // Step complete
             let node = &self.path[self.path_index];
             self.current_x = node.x as f32;
             self.current_y = node.y as f32;
+            self.step_start_x = self.current_x;
+            self.step_start_y = self.current_y;
             self.path_index += 1;
 
             if self.path_index >= self.path.len() {
@@ -90,6 +97,8 @@ impl MovementState {
     pub fn set_position(&mut self, x: f32, y: f32) {
         self.current_x = x;
         self.current_y = y;
+        self.step_start_x = x;
+        self.step_start_y = y;
     }
 
     pub fn position(&self) -> (f32, f32) {
@@ -195,5 +204,17 @@ mod tests {
         let movement = MovementState::new(5, 10);
         assert!(!movement.is_moving());
         assert_eq!(movement.cell_position(), (5, 10));
+    }
+
+    #[test]
+    fn position_returns_interpolated_value_during_movement() {
+        let mut movement = MovementState::new(0, 0);
+        let path = vec![make_path_node(1, 0, false)];
+        movement.start_move(path, 0.0);
+
+        movement.update(0.075);
+        let (x, _) = movement.position();
+        assert!((x - 0.5).abs() < 0.01, "position() should return smooth value, got x={x}");
+        assert_eq!(movement.cell_position(), (1, 0));
     }
 }
