@@ -2,6 +2,7 @@ mod device;
 pub mod camera;
 pub mod font_atlas;
 pub mod global_uniforms;
+pub mod grid_selector;
 pub mod ground;
 pub mod model;
 pub mod sprite;
@@ -12,6 +13,7 @@ pub mod water;
 pub use device::RenderDevice;
 pub use camera::Camera;
 pub use global_uniforms::{GlobalUniforms, LightUniform};
+pub use grid_selector::GridSelectorRenderer;
 pub use ground::GroundRenderer;
 pub use model::ModelRenderer;
 pub use water::WaterRenderer;
@@ -47,6 +49,7 @@ pub struct Renderer {
     pub ground_renderer: Option<GroundRenderer>,
     pub model_renderer: Option<ModelRenderer>,
     pub water_renderer: Option<WaterRenderer>,
+    pub grid_selector: Option<GridSelectorRenderer>,
     pub sprite_renderer: SpriteRenderer,
     pub ui_renderer: UiRenderer,
     pub font_atlas: FontAtlas,
@@ -107,6 +110,7 @@ impl Renderer {
             ground_renderer: None,
             model_renderer: None,
             water_renderer: None,
+            grid_selector: None,
             sprite_renderer,
             ui_renderer,
             font_atlas,
@@ -250,6 +254,9 @@ impl Renderer {
             }
             if let Some(model) = &self.model_renderer {
                 model.render(&mut pass, &self.global_uniforms, &self.texture_cache);
+            }
+            if let Some(grid) = &self.grid_selector {
+                grid.render(&mut pass, &self.global_uniforms, &self.texture_cache);
             }
             if let Some(water) = &self.water_renderer {
                 water.render(&mut pass, &self.global_uniforms, &self.texture_cache, elapsed);

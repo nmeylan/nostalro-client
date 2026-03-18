@@ -8,13 +8,14 @@ use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::rsw::RswFile;
 use ragnarok_formats::spr::SprFile;
 use ragnarok_game::animation::SpriteAnimationState;
+use ragnarok_game::cursor::{CursorAnimationState, CursorType};
 use ragnarok_game::entity::Entity;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::path::path_search;
 use ragnarok_game::sprite_path::body_sprite_path;
 use ragnarok_network::{build_char_enter_packet, build_login_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
 use ragnarok_network::session::Session;
-use ragnarok_renderer::{Renderer, SpriteBatch, SpriteTextures, build_clip_quad, upload_sprite_textures};
+use ragnarok_renderer::{GridSelectorRenderer, Renderer, SpriteBatch, SpriteTextures, build_clip_quad, upload_sprite_textures};
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui_component::login_window::{LoginFocus, LoginWindow};
@@ -27,6 +28,7 @@ use std::time::Instant;
 use tokio::sync::mpsc;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -69,6 +71,9 @@ struct App {
     selected_character: Option<CharacterInfo>,
     player_entity: Option<Entity>,
     player_sprite: Option<EntitySprite>,
+    cursor_textures: Option<SpriteTextures>,
+    cursor_act: Option<ActFile>,
+    cursor_animation: CursorAnimationState,
     start_time: Instant,
     last_render_time: f32,
 }
@@ -100,6 +105,9 @@ impl App {
             selected_character: None,
             player_entity: None,
             player_sprite: None,
+            cursor_textures: None,
+            cursor_act: None,
+            cursor_animation: CursorAnimationState::new(),
             start_time: Instant::now(),
             last_render_time: 0.0,
         }
@@ -165,6 +173,22 @@ impl App {
 
         if let Some(renderer) = &mut self.renderer {
             renderer.load_map(&gnd, &rsw, grf);
+
+            if let Some(gat) = &self.gat {
+                let mut grid = GridSelectorRenderer::new(
+                    &renderer.device.device,
+                    &renderer.device.queue,
+                    renderer.device.surface_format,
+                    &renderer.global_uniforms,
+                    &mut renderer.texture_cache,
+                    grf,
+                );
+                grid.build_grid_mesh(
+                    &renderer.device.device, gat,
+                    gnd.width, gnd.height, gnd.zoom,
+                );
+                renderer.grid_selector = Some(grid);
+            }
         }
     }
 
@@ -185,36 +209,48 @@ impl App {
         }
     }
 
-    fn handle_left_click(&mut self) {
+    fn hovered_cell(&self) -> Option<(i32, i32)> {
         let (gat, renderer, zoom) = match (&self.gat, &self.renderer, self.map_zoom) {
             (Some(g), Some(r), Some(z)) => (g, r, z),
-            _ => return,
+            _ => return None,
         };
         let (mx, my) = self.mouse_position;
         let size = renderer.device.surface_config.width as f32;
         let size_h = renderer.device.surface_config.height as f32;
         let (origin, dir) = renderer.camera.screen_to_ray(mx as f32, my as f32, size, size_h);
 
-        // Intersect ray with y=0 ground plane
         if dir.y.abs() < 1e-6 {
-            return;
+            return None;
         }
         let t = -origin.y / dir.y;
         if t < 0.0 {
-            return;
+            return None;
         }
         let hit = origin + dir * t;
 
-        // World coords to GAT cell
         let (gat_w, gat_h) = self.gat_dimensions.unwrap_or((gat.width, gat.height));
         let (gnd_w, gnd_h) = self.gnd_dimensions.unwrap_or((gat_w, gat_h));
         let gnd_cell_x = hit.x / zoom;
         let gnd_cell_y = hit.z / zoom;
-        let cell_x = gnd_cell_x * (gat_w as f32 / gnd_w as f32);
-        let cell_y = gnd_cell_y * (gat_h as f32 / gnd_h as f32);
+        let cell_x = (gnd_cell_x * (gat_w as f32 / gnd_w as f32)) as i32;
+        let cell_y = (gnd_cell_y * (gat_h as f32 / gnd_h as f32)) as i32;
 
-        let dest_x = cell_x as i32;
-        let dest_y = cell_y as i32;
+        if cell_x < 0 || cell_y < 0 || cell_x >= gat_w || cell_y >= gat_h {
+            return None;
+        }
+        Some((cell_x, cell_y))
+    }
+
+    fn handle_left_click(&mut self) {
+        let (dest_x, dest_y) = match self.hovered_cell() {
+            Some(c) => c,
+            None => return,
+        };
+        let gat = match &self.gat {
+            Some(g) => g,
+            None => return,
+        };
+
         if !gat.is_walkable(dest_x, dest_y) {
             return;
         }
@@ -228,13 +264,11 @@ impl App {
             return;
         }
 
-        // Send move request to server
         if let Some(tx) = &self.network_cmd_tx {
             let packet = build_request_move_packet(dest_x as u16, dest_y as u16, self.config.packetver);
             let _ = tx.send(NetworkCommand::SendPacket(packet));
         }
 
-        // Start client-side prediction
         let elapsed = self.start_time.elapsed().as_secs_f32();
         if let Some(entity) = &mut self.player_entity {
             entity.movement.start_move(path, elapsed);
@@ -469,6 +503,63 @@ impl App {
         });
     }
 
+    fn load_cursor_sprite(&mut self, grf: &ragnarok_formats::grf::GrfArchive) {
+        let renderer = match &self.renderer {
+            Some(r) => r,
+            None => return,
+        };
+
+        let spr_path = "data/sprite/cursors.spr";
+        let act_path = "data/sprite/cursors.act";
+
+        let spr_data = match grf.read_file(spr_path) {
+            Ok(d) => d,
+            Err(e) => {
+                tracing::warn!("Failed to read cursor SPR: {e}");
+                return;
+            }
+        };
+        let spr = match SprFile::parse(&spr_data) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!("Failed to parse cursor SPR: {e}");
+                return;
+            }
+        };
+
+        let act_data = match grf.read_file(act_path) {
+            Ok(d) => d,
+            Err(e) => {
+                tracing::warn!("Failed to read cursor ACT: {e}");
+                return;
+            }
+        };
+        let act = match ActFile::parse(&act_data) {
+            Ok(a) => a,
+            Err(e) => {
+                tracing::warn!("Failed to parse cursor ACT: {e}");
+                return;
+            }
+        };
+
+        let textures = upload_sprite_textures(
+            &spr,
+            &renderer.device.device,
+            &renderer.device.queue,
+            &renderer.texture_cache.bind_group_layout,
+        );
+
+        tracing::info!("Loaded cursor sprite ({} indexed + {} rgba, {} actions)",
+            spr.indexed_sprites.len(), spr.rgba_sprites.len(), act.actions.len());
+
+        self.cursor_textures = Some(textures);
+        self.cursor_act = Some(act);
+
+        if let Some(window) = &self.window {
+            window.set_cursor_visible(false);
+        }
+    }
+
     /// Convert GAT cell position to world coordinates (wx, wy, wz).
     fn cell_to_world(&self, cell_x: f32, cell_y: f32) -> Option<(f32, f32, f32)> {
         let zoom = self.map_zoom?;
@@ -597,6 +688,7 @@ impl ApplicationHandler for App {
                         }
                     }
 
+                    self.load_cursor_sprite(&grf);
                     self.grf = Some(grf);
                 }
                 Err(e) => {
@@ -664,6 +756,18 @@ impl ApplicationHandler for App {
                     if let Some(renderer) = &mut self.renderer {
                         renderer.camera.distance =
                             (renderer.camera.distance - scroll * 20.0).clamp(50.0, 1500.0);
+                    }
+                }
+            }
+            WindowEvent::KeyboardInput { event, .. } => {
+                if event.state == ElementState::Pressed
+                    && event.physical_key == PhysicalKey::Code(KeyCode::F11)
+                    && self.app_state == AppState::InGame
+                {
+                    if let Some(renderer) = &mut self.renderer {
+                        if let Some(grid) = &mut renderer.grid_selector {
+                            grid.show_grid = !grid.show_grid;
+                        }
                     }
                 }
             }
@@ -749,6 +853,53 @@ impl ApplicationHandler for App {
                     sprite.animation.update(dt, &sprite.act, camera_dir);
                 }
 
+                // Update grid selector hover
+                let hovered = if self.app_state == AppState::InGame {
+                    self.hovered_cell()
+                } else {
+                    None
+                };
+                let hover_corners = hovered.and_then(|(cx, cy)| {
+                    let c0 = self.cell_to_world(cx as f32, cy as f32)?;
+                    let c1 = self.cell_to_world(cx as f32 + 1.0, cy as f32)?;
+                    let c2 = self.cell_to_world(cx as f32, cy as f32 + 1.0)?;
+                    let c3 = self.cell_to_world(cx as f32 + 1.0, cy as f32 + 1.0)?;
+                    let y = -0.5_f32;
+                    Some([
+                        [c0.0, y, c0.2],
+                        [c1.0, y, c1.2],
+                        [c2.0, y, c2.2],
+                        [c3.0, y, c3.2],
+                    ])
+                });
+                if let Some(renderer) = &mut self.renderer {
+                    if let Some(grid) = &mut renderer.grid_selector {
+                        if let Some(corners) = hover_corners {
+                            grid.update_hover(&renderer.device.queue, corners);
+                            grid.set_hover_visible(true);
+                        } else {
+                            grid.set_hover_visible(false);
+                        }
+                    }
+                }
+
+                // Update cursor type based on hovered cell
+                if self.app_state == AppState::InGame {
+                    let cursor_type = match hovered {
+                        Some((cx, cy)) => {
+                            if self.gat.as_ref().is_some_and(|g| g.is_walkable(cx, cy)) {
+                                CursorType::Default
+                            } else {
+                                CursorType::NoWalk
+                            }
+                        }
+                        None => CursorType::Default,
+                    };
+                    self.cursor_animation.set_cursor_type(cursor_type);
+                } else {
+                    self.cursor_animation.set_cursor_type(CursorType::Default);
+                }
+
                 // Build owned sprite clip data (vertices, indices, texture index)
                 let mut clip_data: Vec<(Vec<ragnarok_renderer::UiVertex>, Vec<u32>, usize)> = Vec::new();
                 if let (Some(entity), Some(sprite), Some(renderer)) =
@@ -789,18 +940,57 @@ impl ApplicationHandler for App {
                     }
                 }
 
+                // Build cursor sprite clip data
+                let mut cursor_clip_data: Vec<(Vec<ragnarok_renderer::UiVertex>, Vec<u32>, usize)> = Vec::new();
+                if let Some(cursor_act) = &self.cursor_act {
+                    self.cursor_animation.update(dt, cursor_act);
+                    let action_idx = self.cursor_animation.action_index();
+                    if action_idx < cursor_act.actions.len() {
+                        let action = &cursor_act.actions[action_idx];
+                        if !action.motions.is_empty() {
+                            let motion_idx = self.cursor_animation.motion_index() % action.motions.len();
+                            let motion = &action.motions[motion_idx];
+                            let (mx, my) = self.mouse_position;
+                            if let Some(cursor_tex) = &self.cursor_textures {
+                                for clip in &motion.clips {
+                                    if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, cursor_tex, [mx as f32, my as f32]) {
+                                        if tex_idx < cursor_tex.bind_groups.len() {
+                                            cursor_clip_data.push((vertices, indices, tex_idx));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Create SpriteBatch references and render
-                if let (Some(sprite), Some(renderer)) = (&self.player_sprite, &mut self.renderer) {
-                    let sprite_batches: Vec<SpriteBatch> = clip_data.into_iter()
-                        .map(|(vertices, indices, tex_idx)| SpriteBatch {
-                            vertices,
-                            indices,
-                            texture: &sprite.textures.bind_groups[tex_idx],
-                        })
-                        .collect();
-                    renderer.render(&ui_draw_calls, &sprite_batches, elapsed);
-                } else if let Some(renderer) = &mut self.renderer {
-                    renderer.render(&ui_draw_calls, &[], elapsed);
+                {
+                    let mut sprite_batches: Vec<SpriteBatch> = Vec::new();
+
+                    if let Some(sprite) = &self.player_sprite {
+                        for (vertices, indices, tex_idx) in clip_data {
+                            sprite_batches.push(SpriteBatch {
+                                vertices,
+                                indices,
+                                texture: &sprite.textures.bind_groups[tex_idx],
+                            });
+                        }
+                    }
+
+                    if let Some(cursor_tex) = &self.cursor_textures {
+                        for (vertices, indices, tex_idx) in cursor_clip_data {
+                            sprite_batches.push(SpriteBatch {
+                                vertices,
+                                indices,
+                                texture: &cursor_tex.bind_groups[tex_idx],
+                            });
+                        }
+                    }
+
+                    if let Some(renderer) = &mut self.renderer {
+                        renderer.render(&ui_draw_calls, &sprite_batches, elapsed);
+                    }
                 }
 
                 if let Some(ui_ctx) = &mut self.ui_context {

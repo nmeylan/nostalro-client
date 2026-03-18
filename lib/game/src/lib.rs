@@ -1,4 +1,5 @@
 pub mod animation;
+pub mod cursor;
 pub mod entity;
 pub mod event;
 pub mod job_class;

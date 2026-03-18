@@ -87,6 +87,11 @@ impl TextureCache {
     pub fn texture_size(&self, name: &str) -> Option<(u32, u32)> {
         self.sizes.get(name).copied()
     }
+
+    pub fn insert(&mut self, name: &str, bind_group: wgpu::BindGroup, width: u32, height: u32) {
+        self.textures.insert(name.to_string(), bind_group);
+        self.sizes.insert(name.to_string(), (width, height));
+    }
 }
 
 fn apply_magenta_transparency(img: &mut image::RgbaImage) {
