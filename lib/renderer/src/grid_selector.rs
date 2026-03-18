@@ -28,7 +28,7 @@ impl GridSelectorVertex {
 const HOVER_COLOR: [f32; 4] = [0.196, 0.941, 0.627, 0.6];
 const GRID_WALKABLE_COLOR: [f32; 4] = [0.196, 0.941, 0.627, 0.4];
 const GRID_WATER_COLOR: [f32; 4] = [0.2, 0.4, 0.9, 0.4];
-const GRID_Y_OFFSET: f32 = -0.3;
+const GRID_Y_OFFSET: f32 = -0.2;
 
 pub struct GridSelectorRenderer {
     pipeline: wgpu::RenderPipeline,
@@ -140,24 +140,25 @@ impl GridSelectorRenderer {
                 let wx = cx as f32 * cell_w;
                 let wz = cy as f32 * cell_h;
 
+                let h = &cell.heights;
                 let base = vertices.len() as u32;
                 vertices.push(GridSelectorVertex {
-                    position: [wx, GRID_Y_OFFSET, wz],
+                    position: [wx, h[0] + GRID_Y_OFFSET, wz],
                     tex_coord: [0.0, 0.0],
                     color,
                 });
                 vertices.push(GridSelectorVertex {
-                    position: [wx + cell_w, GRID_Y_OFFSET, wz],
+                    position: [wx + cell_w, h[1] + GRID_Y_OFFSET, wz],
                     tex_coord: [1.0, 0.0],
                     color,
                 });
                 vertices.push(GridSelectorVertex {
-                    position: [wx, GRID_Y_OFFSET, wz + cell_h],
+                    position: [wx, h[2] + GRID_Y_OFFSET, wz + cell_h],
                     tex_coord: [0.0, 1.0],
                     color,
                 });
                 vertices.push(GridSelectorVertex {
-                    position: [wx + cell_w, GRID_Y_OFFSET, wz + cell_h],
+                    position: [wx + cell_w, h[3] + GRID_Y_OFFSET, wz + cell_h],
                     tex_coord: [1.0, 1.0],
                     color,
                 });
@@ -193,13 +194,10 @@ impl GridSelectorRenderer {
         global_uniforms: &'a GlobalUniforms,
         texture_cache: &'a TextureCache,
     ) {
-        let tex_bg = match texture_cache.get(&self.texture_name) {
-            Some(bg) => bg,
-            None => return,
-        };
-
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &global_uniforms.bind_group, &[]);
+
+        let Some(tex_bg) = texture_cache.get(&self.texture_name) else { return };
         pass.set_bind_group(1, tex_bg, &[]);
 
         if self.show_grid {

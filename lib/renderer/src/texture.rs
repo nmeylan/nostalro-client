@@ -56,10 +56,19 @@ impl TextureCache {
             };
             let mut img = match image::load_from_memory(&data) {
                 Ok(i) => i.to_rgba8(),
-                Err(e) => {
-                    tracing::warn!("Failed to decode texture {name}: {e}");
-                    return None;
-                }
+                Err(_) => match format_from_extension(name) {
+                    Some(fmt) => match image::load_from_memory_with_format(&data, fmt) {
+                        Ok(i) => i.to_rgba8(),
+                        Err(e) => {
+                            tracing::warn!("Failed to decode texture {name}: {e}");
+                            return None;
+                        }
+                    },
+                    None => {
+                        tracing::warn!("Failed to decode texture {name}: unknown format");
+                        return None;
+                    }
+                },
             };
 
             // RO BMP convention: magenta (FF00FF) pixels become transparent
@@ -91,6 +100,17 @@ impl TextureCache {
     pub fn insert(&mut self, name: &str, bind_group: wgpu::BindGroup, width: u32, height: u32) {
         self.textures.insert(name.to_string(), bind_group);
         self.sizes.insert(name.to_string(), (width, height));
+    }
+}
+
+fn format_from_extension(name: &str) -> Option<image::ImageFormat> {
+    let ext = name.rsplit('.').next()?.to_ascii_lowercase();
+    match ext.as_str() {
+        "tga" => Some(image::ImageFormat::Tga),
+        "bmp" => Some(image::ImageFormat::Bmp),
+        "png" => Some(image::ImageFormat::Png),
+        "jpg" | "jpeg" => Some(image::ImageFormat::Jpeg),
+        _ => None,
     }
 }
 
