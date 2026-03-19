@@ -769,7 +769,7 @@ impl ApplicationHandler for App {
                         let dx = (position.x - lx) as f32;
                         let dy = (position.y - ly) as f32;
                         if let Some(renderer) = &mut self.renderer {
-                            renderer.camera.yaw += dx * 0.005;
+                            renderer.camera.yaw += dx * 0.0175;
                             if self.config.free_camera {
                                 renderer.camera.pitch = (renderer.camera.pitch - dy * 0.005)
                                     .clamp(0.1, std::f32::consts::FRAC_PI_2 - 0.01);

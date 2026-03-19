@@ -32,11 +32,10 @@ impl SpriteAnimationState {
 
     /// Computes the flat action index into the ACT file, applying camera direction offset.
     /// RO ACT files store actions in groups of 8 (one per direction).
-    /// Our camera direction_index goes CW (N=0,E=2,S=4,W=6) while RO ACT
-    /// directions go CCW, so we negate camera_dir. The +4 accounts for our
-    /// default camera being north vs the ACT reference frame.
+    /// Formula: (camera_dir - entity_dir + 4) mod 8, with +12 to avoid usize underflow.
+    /// Matches robrowser `(cam + ent + 8) % 8` and dhxj conventions.
     pub fn action_index(&self, act: &ActFile, camera_dir: u8) -> usize {
-        let effective_dir = (12 - self.direction - camera_dir as usize) % 8;
+        let effective_dir = (camera_dir as usize + 12 - self.direction) % 8;
         (self.action * 8 + effective_dir) % act.actions.len()
     }
 
@@ -93,8 +92,8 @@ mod tests {
     fn action_index_combines_action_direction_and_camera() {
         let act = make_act(16, 1);
         let anim = SpriteAnimationState::new(2);
-        // action=0, entity_dir=2, camera_dir=3 => (12-2-3)%8=7
-        assert_eq!(anim.action_index(&act, 3), 7);
+        // action=0, entity_dir=2, camera_dir=3 => (3+12-2)%8=5
+        assert_eq!(anim.action_index(&act, 3), 5);
     }
 
     #[test]
@@ -144,6 +143,14 @@ mod tests {
         anim.set_action(1); // different action, resets
         assert_eq!(anim.motion_index, 0);
         assert_eq!(anim.accumulated_ms, 0.0);
+    }
+
+    #[test]
+    fn max_direction_and_camera_does_not_overflow() {
+        let act = make_act(8, 1);
+        let anim = SpriteAnimationState::new(7);
+        // (7+12-7)%8 = 4
+        assert_eq!(anim.action_index(&act, 7), 4);
     }
 
     #[test]
