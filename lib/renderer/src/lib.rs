@@ -19,7 +19,7 @@ pub use model::ModelRenderer;
 pub use water::WaterRenderer;
 pub use texture::TextureCache;
 pub use font_atlas::FontAtlas;
-pub use sprite::{SpriteRenderer, SpriteBatch, SpriteTextures, SpriteUniforms, build_clip_quad, upload_sprite_textures};
+pub use sprite::{SpriteRenderer, SpriteVertex, SpriteBatch, SpriteTextures, SpriteUniforms, build_clip_quad, upload_sprite_textures};
 pub use ui_renderer::{UiRenderer, UiVertex, UiDrawCommand};
 
 use ragnarok_formats::gnd::GndFile;
@@ -206,7 +206,7 @@ impl Renderer {
         }
     }
 
-    pub fn render(&mut self, ui_draw_calls: &[UiDrawCall], sprite_batches: &[SpriteBatch], elapsed: f32) {
+    pub fn render(&mut self, ui_draw_calls: &[UiDrawCall], sprite_batches: &[SpriteBatch], cursor_batches: &[SpriteBatch], elapsed: f32) {
         self.global_uniforms
             .update_camera(&self.device.queue, &self.camera);
 
@@ -279,12 +279,24 @@ impl Renderer {
             self.sprite_renderer.render(
                 &mut encoder,
                 &view,
+                &self.device.depth_view,
                 &self.device.device,
                 &self.device.queue,
                 None,
                 sprite_batches,
             );
         }
+
+        // Submit 3D + sprites so sprite_renderer's write_buffer is flushed
+        // before cursor reuses the same buffers.
+        self.device
+            .queue
+            .submit(std::iter::once(encoder.finish()));
+
+        let mut encoder = self
+            .device
+            .device
+            .create_command_encoder(&Default::default());
 
         if !ui_draw_calls.is_empty() {
             // Resolve TextureRef -> &wgpu::BindGroup using field-level borrow splitting
@@ -313,6 +325,18 @@ impl Renderer {
                 &self.device.device,
                 &self.device.queue,
                 &resolved,
+            );
+        }
+
+        if !cursor_batches.is_empty() {
+            self.sprite_renderer.render(
+                &mut encoder,
+                &view,
+                &self.device.depth_view,
+                &self.device.device,
+                &self.device.queue,
+                None,
+                cursor_batches,
             );
         }
 

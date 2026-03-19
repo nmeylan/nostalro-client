@@ -1,8 +1,30 @@
 use ragnarok_formats::act::SprClip;
 use ragnarok_formats::spr::RgbaImageData;
 
+use crate::device::DEPTH_FORMAT;
 use crate::texture::create_texture_bind_group_from_rgba;
-use crate::ui_renderer::UiVertex;
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct SpriteVertex {
+    pub position: [f32; 3],
+    pub tex_coord: [f32; 2],
+    pub color: [f32; 4],
+}
+
+impl SpriteVertex {
+    const ATTRIBS: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![
+        0 => Float32x3,
+        1 => Float32x2,
+        2 => Float32x4,
+    ];
+
+    pub const LAYOUT: wgpu::VertexBufferLayout<'static> = wgpu::VertexBufferLayout {
+        array_stride: std::mem::size_of::<Self>() as u64,
+        step_mode: wgpu::VertexStepMode::Vertex,
+        attributes: &Self::ATTRIBS,
+    };
+}
 
 pub struct SpriteTextures {
     pub bind_groups: Vec<wgpu::BindGroup>,
@@ -111,7 +133,7 @@ impl SpriteRenderer {
 
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("sprite_vertices"),
-            size: (INITIAL_VERTEX_CAPACITY * std::mem::size_of::<UiVertex>()) as u64,
+            size: (INITIAL_VERTEX_CAPACITY * std::mem::size_of::<SpriteVertex>()) as u64,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -163,7 +185,7 @@ impl SpriteRenderer {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[UiVertex::LAYOUT],
+                buffers: &[SpriteVertex::LAYOUT],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -180,7 +202,13 @@ impl SpriteRenderer {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 ..Default::default()
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: DEPTH_FORMAT,
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
             multisample: Default::default(),
             multiview_mask: None,
             cache: None,
@@ -221,6 +249,7 @@ impl SpriteRenderer {
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         target_view: &wgpu::TextureView,
+        depth_view: &wgpu::TextureView,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         clear_color: Option<wgpu::Color>,
@@ -236,7 +265,7 @@ impl SpriteRenderer {
             self.vertex_capacity = total_verts.next_power_of_two();
             self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("sprite_vertices"),
-                size: (self.vertex_capacity * std::mem::size_of::<UiVertex>()) as u64,
+                size: (self.vertex_capacity * std::mem::size_of::<SpriteVertex>()) as u64,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
@@ -291,7 +320,17 @@ impl SpriteRenderer {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: match clear_color {
+                            Some(_) => wgpu::LoadOp::Clear(1.0),
+                            None => wgpu::LoadOp::Load,
+                        },
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 ..Default::default()
             });
 
@@ -313,7 +352,7 @@ impl SpriteRenderer {
 }
 
 pub struct SpriteBatch<'a> {
-    pub vertices: Vec<UiVertex>,
+    pub vertices: Vec<SpriteVertex>,
     pub indices: Vec<u32>,
     pub texture: &'a wgpu::BindGroup,
 }
@@ -322,7 +361,8 @@ pub fn build_clip_quad(
     clip: &SprClip,
     textures: &SpriteTextures,
     screen_center: [f32; 2],
-) -> Option<(Vec<UiVertex>, Vec<u32>, usize)> {
+    depth: f32,
+) -> Option<(Vec<SpriteVertex>, Vec<u32>, usize)> {
     if clip.sprite_index < 0 {
         return None;
     }
@@ -381,11 +421,11 @@ pub fn build_clip_quad(
         [u0, v1],
     ];
 
-    let vertices: Vec<UiVertex> = corners.iter().zip(uvs.iter()).map(|(corner, uv)| {
+    let vertices: Vec<SpriteVertex> = corners.iter().zip(uvs.iter()).map(|(corner, uv)| {
         let rx = corner[0] * cos_a - corner[1] * sin_a;
         let ry = corner[0] * sin_a + corner[1] * cos_a;
-        UiVertex {
-            position: [cx + rx, cy + ry],
+        SpriteVertex {
+            position: [cx + rx, cy + ry, depth],
             tex_coord: *uv,
             color,
         }
@@ -418,7 +458,7 @@ mod tests {
             sprite_type: 0, width: None, height: None,
         };
         let textures = dummy_textures();
-        let (verts, indices, tex_idx) = build_clip_quad(&clip, &textures, [100.0, 100.0]).unwrap();
+        let (verts, indices, tex_idx) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.5).unwrap();
 
         assert_eq!(tex_idx, 0);
         assert_eq!(verts.len(), 4);
@@ -428,6 +468,8 @@ mod tests {
         assert!((verts[0].position[1] - 88.0).abs() < 0.01);
         assert!((verts[2].position[0] - 112.0).abs() < 0.01);
         assert!((verts[2].position[1] - 112.0).abs() < 0.01);
+        // Depth should be passed through
+        assert!((verts[0].position[2] - 0.5).abs() < 0.001);
     }
 
     #[test]
@@ -439,7 +481,7 @@ mod tests {
             sprite_type: 1, width: None, height: None,
         };
         let textures = dummy_textures();
-        let (_, _, tex_idx) = build_clip_quad(&clip, &textures, [200.0, 200.0]).unwrap();
+        let (_, _, tex_idx) = build_clip_quad(&clip, &textures, [200.0, 200.0], 0.0).unwrap();
         // sprite_type 1 → indexed_count(2) + 0 = 2
         assert_eq!(tex_idx, 2);
     }
@@ -453,7 +495,7 @@ mod tests {
             sprite_type: 0, width: None, height: None,
         };
         let textures = dummy_textures();
-        let (verts, _, _) = build_clip_quad(&clip, &textures, [100.0, 100.0]).unwrap();
+        let (verts, _, _) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0).unwrap();
         // Top-left UV should be (1,0) when mirrored
         assert!((verts[0].tex_coord[0] - 1.0).abs() < 0.01);
         assert!((verts[1].tex_coord[0] - 0.0).abs() < 0.01);
@@ -468,7 +510,7 @@ mod tests {
             sprite_type: 0, width: None, height: None,
         };
         let textures = dummy_textures();
-        assert!(build_clip_quad(&clip, &textures, [100.0, 100.0]).is_none());
+        assert!(build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0).is_none());
     }
 
     #[test]
@@ -480,12 +522,11 @@ mod tests {
             sprite_type: 0, width: None, height: None,
         };
         let textures = dummy_textures();
-        let (verts, _, _) = build_clip_quad(&clip, &textures, [100.0, 100.0]).unwrap();
+        let (verts, _, _) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0).unwrap();
         // 24 * 2.0 = 48 wide, 24 * 0.5 = 12 tall
         let w = verts[1].position[0] - verts[0].position[0];
         let h = verts[3].position[1] - verts[0].position[1];
         assert!((w - 48.0).abs() < 0.01);
         assert!((h - 12.0).abs() < 0.01);
     }
-
 }

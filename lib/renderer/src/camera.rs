@@ -62,6 +62,18 @@ impl Camera {
         Some((sx, sy))
     }
 
+    /// Project a world position to screen coordinates plus NDC depth for depth testing.
+    pub fn world_to_screen_with_depth(&self, wx: f32, wy: f32, wz: f32, screen_w: f32, screen_h: f32) -> Option<(f32, f32, f32)> {
+        let clip = self.view_projection() * glam::Vec4::new(wx, wy, wz, 1.0);
+        if clip.w <= 0.0 {
+            return None;
+        }
+        let ndc = clip.truncate() / clip.w;
+        let sx = (ndc.x + 1.0) * 0.5 * screen_w;
+        let sy = (1.0 - ndc.y) * 0.5 * screen_h;
+        Some((sx, sy, ndc.z))
+    }
+
     /// Pixels per world unit at a given world position (perspective scale).
     pub fn perspective_scale(&self, wx: f32, wy: f32, wz: f32, screen_h: f32) -> f32 {
         let clip = self.view_projection() * glam::Vec4::new(wx, wy, wz, 1.0);

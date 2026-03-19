@@ -11,7 +11,7 @@ struct SpriteUniforms {
 @group(1) @binding(1) var sprite_sampler: sampler;
 
 struct VertexInput {
-    @location(0) position: vec2<f32>,
+    @location(0) position: vec3<f32>,
     @location(1) tex_coord: vec2<f32>,
     @location(2) color: vec4<f32>,
 };
@@ -25,10 +25,10 @@ struct VertexOutput {
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
-    let pos = (in.position + sprite.pan) * sprite.zoom;
+    let pos = (in.position.xy + sprite.pan) * sprite.zoom;
     let ndc_x = pos.x / sprite.screen_size.x * 2.0 - 1.0;
     let ndc_y = 1.0 - pos.y / sprite.screen_size.y * 2.0;
-    out.clip_position = vec4<f32>(ndc_x, ndc_y, 0.0, 1.0);
+    out.clip_position = vec4<f32>(ndc_x, ndc_y, in.position.z, 1.0);
     out.tex_coord = in.tex_coord;
     out.color = in.color;
     return out;

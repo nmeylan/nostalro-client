@@ -14,7 +14,7 @@ use ragnarok_game::path::{path_search, try_move_to};
 use ragnarok_game::{map_loader, sprite_loader};
 use ragnarok_network::{build_char_enter_packet, build_login_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
 use ragnarok_network::session::Session;
-use ragnarok_renderer::{GridSelectorRenderer, Renderer, SpriteBatch, SpriteTextures, UiDrawCall, UiVertex, build_clip_quad, upload_sprite_textures};
+use ragnarok_renderer::{GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, SpriteTextures, UiDrawCall, build_clip_quad, upload_sprite_textures};
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui_component::login_window::{LoginFocus, LoginWindow};
@@ -31,7 +31,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 
-type ClipData = (Vec<UiVertex>, Vec<u32>, usize);
+type ClipData = (Vec<SpriteVertex>, Vec<u32>, usize);
 
 struct EntitySprite {
     textures: SpriteTextures,
@@ -614,7 +614,7 @@ impl App {
 
         let screen_w = renderer.device.surface_config.width as f32;
         let screen_h = renderer.device.surface_config.height as f32;
-        let Some((sx, sy)) = renderer.camera.world_to_screen(wx, wy, wz, screen_w, screen_h) else {
+        let Some((sx, sy, ndc_z)) = renderer.camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h) else {
             return Vec::new();
         };
 
@@ -633,7 +633,7 @@ impl App {
             let motion_idx = sprite.animation.motion_index() % action.motions.len();
             let motion = &action.motions[motion_idx];
             for clip in &motion.clips {
-                if let Some((mut vertices, indices, tex_idx)) = build_clip_quad(clip, &sprite.textures, [sx, sy]) {
+                if let Some((mut vertices, indices, tex_idx)) = build_clip_quad(clip, &sprite.textures, [sx, sy], ndc_z) {
                     if tex_idx < sprite.textures.bind_groups.len() {
                         for v in &mut vertices {
                             v.position[0] = sx + (v.position[0] - sx) * sprite_scale;
@@ -670,7 +670,7 @@ impl App {
         };
         let mut clips = Vec::new();
         for clip in &motion.clips {
-            if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, cursor_tex, [mx as f32, my as f32]) {
+            if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, cursor_tex, [mx as f32, my as f32], 0.0) {
                 if tex_idx < cursor_tex.bind_groups.len() {
                     clips.push((vertices, indices, tex_idx));
                 }
@@ -827,6 +827,7 @@ impl ApplicationHandler for App {
                 // Assemble SpriteBatch references and render
                 {
                     let mut sprite_batches: Vec<SpriteBatch> = Vec::new();
+                    let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
 
                     if let Some(sprite) = &self.player_sprite {
                         for (vertices, indices, tex_idx) in player_clips {
@@ -840,7 +841,7 @@ impl ApplicationHandler for App {
 
                     if let Some(cursor_tex) = &self.cursor_textures {
                         for (vertices, indices, tex_idx) in cursor_clips {
-                            sprite_batches.push(SpriteBatch {
+                            cursor_batches.push(SpriteBatch {
                                 vertices,
                                 indices,
                                 texture: &cursor_tex.bind_groups[tex_idx],
@@ -849,7 +850,7 @@ impl ApplicationHandler for App {
                     }
 
                     if let Some(renderer) = &mut self.renderer {
-                        renderer.render(&ui_draw_calls, &sprite_batches, elapsed);
+                        renderer.render(&ui_draw_calls, &sprite_batches, &cursor_batches, elapsed);
                     }
                 }
 
