@@ -653,7 +653,7 @@ impl ApplicationHandler for App {
             ));
 
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
-        let renderer = pollster::block_on(Renderer::new(window.clone()));
+        let renderer = block_on(Renderer::new(window.clone()));
 
         self.window = Some(window);
         self.renderer = Some(renderer);
@@ -1005,6 +1005,18 @@ impl ApplicationHandler for App {
                 }
             }
             _ => {}
+        }
+    }
+}
+
+fn block_on<F: std::future::Future>(future: F) -> F::Output {
+    let mut future = std::pin::pin!(future);
+    let waker = std::task::Waker::noop();
+    let mut cx = std::task::Context::from_waker(&waker);
+    loop {
+        match future.as_mut().poll(&mut cx) {
+            std::task::Poll::Ready(val) => return val,
+            std::task::Poll::Pending => std::hint::spin_loop(),
         }
     }
 }

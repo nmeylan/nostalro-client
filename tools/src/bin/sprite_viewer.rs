@@ -423,7 +423,7 @@ impl ApplicationHandler for App {
             .with_inner_size(winit::dpi::PhysicalSize::new(800u32, 600u32));
 
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
-        let device = pollster::block_on(RenderDevice::new(window.clone()));
+        let device = block_on(RenderDevice::new(window.clone()));
 
         let tex_cache = TextureCache::new(&device.device);
 
@@ -628,6 +628,18 @@ impl ApplicationHandler for App {
                 }
             }
             _ => {}
+        }
+    }
+}
+
+fn block_on<F: std::future::Future>(future: F) -> F::Output {
+    let mut future = std::pin::pin!(future);
+    let waker = std::task::Waker::noop();
+    let mut cx = std::task::Context::from_waker(&waker);
+    loop {
+        match future.as_mut().poll(&mut cx) {
+            std::task::Poll::Ready(val) => return val,
+            std::task::Poll::Pending => std::hint::spin_loop(),
         }
     }
 }

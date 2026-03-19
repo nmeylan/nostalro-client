@@ -16,5 +16,4 @@ tracing-subscriber = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 winit = { workspace = true }
-pollster = { workspace = true }
 tokio = { workspace = true }
