@@ -21,6 +21,7 @@ pub struct Entity {
     pub head: u16,
     pub hair_color: u16,
     pub direction: u8,
+    pub head_dir: u8,
     pub state: EntityState,
     pub movement: MovementState,
 }
@@ -35,6 +36,7 @@ impl Entity {
             head,
             hair_color,
             direction,
+            head_dir: direction,
             state: EntityState::Standing,
             movement: MovementState::new(x, y),
         }

@@ -362,6 +362,7 @@ pub fn build_clip_quad(
     textures: &SpriteTextures,
     screen_center: [f32; 2],
     depth: f32,
+    offset: [i32; 2],
 ) -> Option<(Vec<SpriteVertex>, Vec<u32>, usize)> {
     if clip.sprite_index < 0 {
         return None;
@@ -388,8 +389,8 @@ pub fn build_clip_quad(
     let half_w = scaled_w / 2.0;
     let half_h = scaled_h / 2.0;
 
-    let cx = screen_center[0] + clip.x as f32;
-    let cy = screen_center[1] + clip.y as f32;
+    let cx = screen_center[0] + (clip.x + offset[0]) as f32;
+    let cy = screen_center[1] + (clip.y + offset[1]) as f32;
 
     let (mut u0, u1) = if clip.mirror != 0 { (1.0, 0.0) } else { (0.0, 1.0) };
     let (v0, v1) = (0.0f32, 1.0f32);
@@ -458,7 +459,7 @@ mod tests {
             sprite_type: 0, width: None, height: None,
         };
         let textures = dummy_textures();
-        let (verts, indices, tex_idx) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.5).unwrap();
+        let (verts, indices, tex_idx) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.5, [0, 0]).unwrap();
 
         assert_eq!(tex_idx, 0);
         assert_eq!(verts.len(), 4);
@@ -481,7 +482,7 @@ mod tests {
             sprite_type: 1, width: None, height: None,
         };
         let textures = dummy_textures();
-        let (_, _, tex_idx) = build_clip_quad(&clip, &textures, [200.0, 200.0], 0.0).unwrap();
+        let (_, _, tex_idx) = build_clip_quad(&clip, &textures, [200.0, 200.0], 0.0, [0, 0]).unwrap();
         // sprite_type 1 → indexed_count(2) + 0 = 2
         assert_eq!(tex_idx, 2);
     }
@@ -495,7 +496,7 @@ mod tests {
             sprite_type: 0, width: None, height: None,
         };
         let textures = dummy_textures();
-        let (verts, _, _) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0).unwrap();
+        let (verts, _, _) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0, [0, 0]).unwrap();
         // Top-left UV should be (1,0) when mirrored
         assert!((verts[0].tex_coord[0] - 1.0).abs() < 0.01);
         assert!((verts[1].tex_coord[0] - 0.0).abs() < 0.01);
@@ -510,7 +511,7 @@ mod tests {
             sprite_type: 0, width: None, height: None,
         };
         let textures = dummy_textures();
-        assert!(build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0).is_none());
+        assert!(build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0, [0, 0]).is_none());
     }
 
     #[test]
@@ -522,7 +523,7 @@ mod tests {
             sprite_type: 0, width: None, height: None,
         };
         let textures = dummy_textures();
-        let (verts, _, _) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0).unwrap();
+        let (verts, _, _) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0, [0, 0]).unwrap();
         // 24 * 2.0 = 48 wide, 24 * 0.5 = 12 tall
         let w = verts[1].position[0] - verts[0].position[0];
         let h = verts[3].position[1] - verts[0].position[1];

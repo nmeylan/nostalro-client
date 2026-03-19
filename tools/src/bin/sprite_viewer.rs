@@ -338,7 +338,7 @@ impl App {
             let mut batches: Vec<SpriteBatch> = Vec::new();
 
             for clip in &motion.clips {
-                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, textures, screen_center, 0.0) {
+                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, textures, screen_center, 0.0, [0, 0]) {
                     if tex_idx < textures.bind_groups.len() {
                         batches.push(SpriteBatch {
                             vertices,

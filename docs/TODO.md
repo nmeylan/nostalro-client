@@ -35,3 +35,4 @@ TODO:
 - health bar
 - party
 - skill usage
+- slash command

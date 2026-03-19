@@ -59,6 +59,11 @@ pub fn body_sprite_path(job_class: u16, sex: u8) -> String {
     format!("data/sprite/인간족/몸통/{sex_str}/{job}_{sex_str}")
 }
 
+pub fn head_sprite_path(head_id: u16, sex: u8) -> String {
+    let sex_str = sex_kr(sex);
+    format!("data/sprite/인간족/머리통/{sex_str}/{head_id}_{sex_str}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,6 +121,22 @@ mod tests {
         assert_eq!(
             body_sprite_path(9999, 1),
             "data/sprite/인간족/몸통/남/초보자_남"
+        );
+    }
+
+    #[test]
+    fn head_male_path() {
+        assert_eq!(
+            head_sprite_path(1, 1),
+            "data/sprite/인간족/머리통/남/1_남"
+        );
+    }
+
+    #[test]
+    fn head_female_path() {
+        assert_eq!(
+            head_sprite_path(3, 0),
+            "data/sprite/인간족/머리통/여/3_여"
         );
     }
 }

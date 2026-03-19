@@ -1,4 +1,4 @@
-use ragnarok_formats::act::ActFile;
+use ragnarok_formats::act::{ActFile, Motion};
 
 pub struct SpriteAnimationState {
     action: usize,
@@ -65,10 +65,17 @@ impl SpriteAnimationState {
     }
 }
 
+pub fn head_attachment_offset(body_motion: &Motion, head_motion: &Motion) -> (i32, i32) {
+    match (body_motion.attach_points.first(), head_motion.attach_points.first()) {
+        (Some(body), Some(head)) => (body.x - head.x, body.y - head.y),
+        _ => (0, 0),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_formats::act::{ActFile, Action, Motion};
+    use ragnarok_formats::act::{ActFile, Action, AttachPoint, Motion};
 
     fn make_act(action_count: usize, motions_per_action: usize) -> ActFile {
         let actions: Vec<Action> = (0..action_count).map(|_| {
@@ -160,5 +167,32 @@ mod tests {
         // delay = 4.0 * 25 = 100ms, advance by 250ms => 2 frames
         anim.update(0.25, &act, 0);
         assert_eq!(anim.motion_index, 2);
+    }
+
+    fn make_motion_with_attach(x: i32, y: i32) -> Motion {
+        Motion {
+            range1: [0; 4], range2: [0; 4],
+            clips: Vec::new(), event_id: -1,
+            attach_points: vec![AttachPoint { ignored: 0, x, y, attribute: 0 }],
+        }
+    }
+
+    #[test]
+    fn head_offset_from_attach_points() {
+        let body = make_motion_with_attach(10, -20);
+        let head = make_motion_with_attach(3, -5);
+        assert_eq!(head_attachment_offset(&body, &head), (7, -15));
+    }
+
+    #[test]
+    fn head_offset_missing_attach_points() {
+        let with_attach = make_motion_with_attach(10, 20);
+        let without_attach = Motion {
+            range1: [0; 4], range2: [0; 4],
+            clips: Vec::new(), event_id: -1,
+            attach_points: Vec::new(),
+        };
+        assert_eq!(head_attachment_offset(&without_attach, &with_attach), (0, 0));
+        assert_eq!(head_attachment_offset(&with_attach, &without_attach), (0, 0));
     }
 }
