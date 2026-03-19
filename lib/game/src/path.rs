@@ -2,6 +2,33 @@ use ragnarok_formats::gat::GatFile;
 
 pub use movement::path::PathNode;
 
+pub struct MoveAction {
+    pub dest_x: u16,
+    pub dest_y: u16,
+    pub path: Vec<PathNode>,
+}
+
+pub fn try_move_to(
+    gat: &GatFile,
+    src_x: u16,
+    src_y: u16,
+    dest_x: i32,
+    dest_y: i32,
+) -> Option<MoveAction> {
+    if !gat.is_walkable(dest_x, dest_y) {
+        return None;
+    }
+    let path = path_search(gat, src_x, src_y, dest_x as u16, dest_y as u16);
+    if path.is_empty() {
+        return None;
+    }
+    Some(MoveAction {
+        dest_x: dest_x as u16,
+        dest_y: dest_y as u16,
+        path,
+    })
+}
+
 pub fn path_search(
     gat: &GatFile,
     source_x: u16,
@@ -44,6 +71,31 @@ mod tests {
             data.extend_from_slice(&cell_type.to_le_bytes());
         }
         data
+    }
+
+    #[test]
+    fn try_move_to_walkable_returns_path() {
+        let walkable = vec![true; 9];
+        let data = build_gat_bytes(3, 3, &walkable);
+        let gat = GatFile::parse(&data).unwrap();
+        let action = try_move_to(&gat, 0, 0, 2, 2);
+        assert!(action.is_some());
+        let action = action.unwrap();
+        assert_eq!(action.dest_x, 2);
+        assert_eq!(action.dest_y, 2);
+        assert!(!action.path.is_empty());
+    }
+
+    #[test]
+    fn try_move_to_unwalkable_returns_none() {
+        let mut walkable = vec![true; 4];
+        walkable[3] = false; // (1,1) unwalkable
+        let data = build_gat_bytes(2, 2, &walkable);
+        let gat = GatFile::parse(&data).unwrap();
+        // Unwalkable destination
+        assert!(try_move_to(&gat, 0, 0, 1, 1).is_none());
+        // Out of bounds
+        assert!(try_move_to(&gat, 0, 0, 5, 5).is_none());
     }
 
     #[test]

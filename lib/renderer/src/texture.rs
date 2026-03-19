@@ -142,17 +142,19 @@ pub fn create_texture_bind_group_nearest(
     create_texture_bind_group_filtered(device, queue, img, layout, label, wgpu::FilterMode::Nearest)
 }
 
-fn create_texture_bind_group_filtered(
+pub fn create_texture_bind_group_from_rgba(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    img: &image::RgbaImage,
+    rgba_data: &[u8],
+    width: u32,
+    height: u32,
     layout: &wgpu::BindGroupLayout,
     label: &str,
     filter: wgpu::FilterMode,
 ) -> wgpu::BindGroup {
     let size = wgpu::Extent3d {
-        width: img.width(),
-        height: img.height(),
+        width,
+        height,
         depth_or_array_layers: 1,
     };
 
@@ -174,11 +176,11 @@ fn create_texture_bind_group_filtered(
             origin: wgpu::Origin3d::ZERO,
             aspect: wgpu::TextureAspect::All,
         },
-        img.as_raw(),
+        rgba_data,
         wgpu::TexelCopyBufferLayout {
             offset: 0,
-            bytes_per_row: Some(4 * img.width()),
-            rows_per_image: Some(img.height()),
+            bytes_per_row: Some(4 * width),
+            rows_per_image: Some(height),
         },
         size,
     );
@@ -207,4 +209,15 @@ fn create_texture_bind_group_filtered(
             },
         ],
     })
+}
+
+fn create_texture_bind_group_filtered(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    img: &image::RgbaImage,
+    layout: &wgpu::BindGroupLayout,
+    label: &str,
+    filter: wgpu::FilterMode,
+) -> wgpu::BindGroup {
+    create_texture_bind_group_from_rgba(device, queue, img.as_raw(), img.width(), img.height(), layout, label, filter)
 }

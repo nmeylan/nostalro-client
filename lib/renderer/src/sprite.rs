@@ -1,44 +1,8 @@
 use ragnarok_formats::act::SprClip;
-use ragnarok_formats::spr::{SprFile, SprImage};
+use ragnarok_formats::spr::RgbaImageData;
 
-use crate::texture::create_texture_bind_group_nearest;
+use crate::texture::create_texture_bind_group_from_rgba;
 use crate::ui_renderer::UiVertex;
-
-pub fn indexed_to_rgba(sprite: &SprImage, palette: &[[u8; 4]; 256]) -> image::RgbaImage {
-    let w = sprite.width as u32;
-    let h = sprite.height as u32;
-    let mut img = image::RgbaImage::new(w, h);
-    for (i, &index) in sprite.data.iter().enumerate() {
-        let x = (i as u32) % w;
-        let y = (i as u32) / w;
-        if index == 0 {
-            img.put_pixel(x, y, image::Rgba([0, 0, 0, 0]));
-        } else {
-            let c = palette[index as usize];
-            // Palette stores [R, G, B, _], magenta = transparent
-            if c[0] >= 0xFE && c[1] <= 0x01 && c[2] >= 0xFE {
-                img.put_pixel(x, y, image::Rgba([0, 0, 0, 0]));
-            } else {
-                img.put_pixel(x, y, image::Rgba([c[0], c[1], c[2], 255]));
-            }
-        }
-    }
-    img
-}
-
-pub fn rgba_sprite_to_image(sprite: &SprImage) -> image::RgbaImage {
-    let w = sprite.width as u32;
-    let h = sprite.height as u32;
-    let mut img = image::RgbaImage::new(w, h);
-    // SPR RGBA stores ABGR byte order
-    for (i, chunk) in sprite.data.chunks_exact(4).enumerate() {
-        let x = (i as u32) % w;
-        let y = (i as u32) / w;
-        let [a, b, g, r] = [chunk[0], chunk[1], chunk[2], chunk[3]];
-        img.put_pixel(x, y, image::Rgba([r, g, b, a]));
-    }
-    img
-}
 
 pub struct SpriteTextures {
     pub bind_groups: Vec<wgpu::BindGroup>,
@@ -47,32 +11,26 @@ pub struct SpriteTextures {
 }
 
 pub fn upload_sprite_textures(
-    spr: &SprFile,
+    images: &[RgbaImageData],
+    indexed_count: usize,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     layout: &wgpu::BindGroupLayout,
 ) -> SpriteTextures {
-    let palette = spr.palette.as_ref().expect("SPR file has no palette");
-    let mut bind_groups = Vec::with_capacity(spr.indexed_sprites.len() + spr.rgba_sprites.len());
-    let mut sizes = Vec::with_capacity(bind_groups.capacity());
+    let mut bind_groups = Vec::with_capacity(images.len());
+    let mut sizes = Vec::with_capacity(images.len());
 
-    for (i, sprite) in spr.indexed_sprites.iter().enumerate() {
-        let img = indexed_to_rgba(sprite, palette);
-        let bg = create_texture_bind_group_nearest(
-            device, queue, &img, layout, &format!("spr_idx_{i}"),
+    for (i, img) in images.iter().enumerate() {
+        let label = if i < indexed_count {
+            format!("spr_idx_{i}")
+        } else {
+            format!("spr_rgba_{}", i - indexed_count)
+        };
+        let bg = create_texture_bind_group_from_rgba(
+            device, queue, &img.data, img.width, img.height, layout, &label,
+            wgpu::FilterMode::Nearest,
         );
-        sizes.push((sprite.width as u32, sprite.height as u32));
-        bind_groups.push(bg);
-    }
-
-    let indexed_count = spr.indexed_sprites.len();
-
-    for (i, sprite) in spr.rgba_sprites.iter().enumerate() {
-        let img = rgba_sprite_to_image(sprite);
-        let bg = create_texture_bind_group_nearest(
-            device, queue, &img, layout, &format!("spr_rgba_{i}"),
-        );
-        sizes.push((sprite.width as u32, sprite.height as u32));
+        sizes.push((img.width, img.height));
         bind_groups.push(bg);
     }
 
@@ -530,26 +488,4 @@ mod tests {
         assert!((h - 12.0).abs() < 0.01);
     }
 
-    #[test]
-    fn indexed_to_rgba_transparent_index_zero() {
-        let sprite = SprImage {
-            width: 2, height: 1,
-            data: vec![0, 1],
-        };
-        let mut palette = [[0u8; 4]; 256];
-        palette[1] = [255, 0, 0, 0];
-        let img = indexed_to_rgba(&sprite, &palette);
-        assert_eq!(img.get_pixel(0, 0).0, [0, 0, 0, 0]);
-        assert_eq!(img.get_pixel(1, 0).0, [255, 0, 0, 255]);
-    }
-
-    #[test]
-    fn rgba_sprite_swizzles_abgr_to_rgba() {
-        let sprite = SprImage {
-            width: 1, height: 1,
-            data: vec![200, 50, 100, 150], // A=200, B=50, G=100, R=150
-        };
-        let img = rgba_sprite_to_image(&sprite);
-        assert_eq!(img.get_pixel(0, 0).0, [150, 100, 50, 200]);
-    }
 }

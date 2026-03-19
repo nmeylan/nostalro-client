@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::act::ActFile;
-use ragnarok_formats::spr::SprFile;
+use ragnarok_formats::spr::{RgbaImageData, SprFile};
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::sprite::{
     SpriteRenderer, SpriteTextures, SpriteUniforms, SpriteBatch,
@@ -68,7 +68,8 @@ fn scan_grf_files() -> Vec<String> {
 }
 
 struct SpriteData {
-    spr: SprFile,
+    images: Vec<RgbaImageData>,
+    indexed_count: usize,
     act: ActFile,
 }
 
@@ -108,14 +109,15 @@ fn load_sprite_data(grf: &GrfArchive, sprite_path: &str) -> Option<SpriteData> {
         }
     };
 
+    let rgba_count = spr.rgba_sprites.len();
+    let (images, indexed_count) = spr.to_rgba_images();
+
     println!(
-        "Loaded: {} indexed + {} rgba sprites, {} actions",
-        spr.indexed_sprites.len(),
-        spr.rgba_sprites.len(),
+        "Loaded: {indexed_count} indexed + {rgba_count} rgba sprites, {} actions",
         act.actions.len(),
     );
 
-    Some(SpriteData { spr, act })
+    Some(SpriteData { images, indexed_count, act })
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -218,7 +220,8 @@ impl App {
         };
 
         let textures = upload_sprite_textures(
-            &sprite_data.spr,
+            &sprite_data.images,
+            sprite_data.indexed_count,
             &device.device,
             &device.queue,
             &tex_cache.bind_group_layout,

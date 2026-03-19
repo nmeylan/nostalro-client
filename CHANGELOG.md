@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Move sprite format conversion, map loading, and sprite loading out of client into game and formats crates
+- Move walkability check, pathfinding, and cursor logic into game crate for reusability
+- Refactor client main loop into smaller, focused methods for better readability
+- Extract map coordinate system into reusable MapCoordinates module
 - Add player character body sprite rendering with idle and walk animations
 - Unify UI widget responses into a single type with hover, click, and focus tracking
 - Add 3D model rendering for map objects (buildings, trees, props) with texture batching

@@ -185,6 +185,18 @@ impl Renderer {
         );
     }
 
+    pub fn preload_textures(&mut self, paths: &[&str], grf: &GrfArchive) -> bool {
+        let mut all_loaded = true;
+        for path in paths {
+            if self.texture_cache.get_or_load(
+                path, grf, &self.device.device, &self.device.queue,
+            ).is_none() {
+                all_loaded = false;
+            }
+        }
+        all_loaded
+    }
+
     pub fn resize(&mut self, width: u32, height: u32) {
         self.device.resize(width, height);
         if width > 0 && height > 0 {

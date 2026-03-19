@@ -1,4 +1,5 @@
 use ragnarok_formats::act::ActFile;
+use ragnarok_formats::gat::GatFile;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CursorType {
@@ -10,6 +11,19 @@ pub enum CursorType {
     Attack = 5,
     Warp = 7,
     NoWalk = 13,
+}
+
+pub fn cursor_type_for_cell(gat: &GatFile, cell: Option<(i32, i32)>) -> CursorType {
+    match cell {
+        Some((cx, cy)) => {
+            if gat.is_walkable(cx, cy) {
+                CursorType::Default
+            } else {
+                CursorType::NoWalk
+            }
+        }
+        None => CursorType::Default,
+    }
 }
 
 pub struct CursorAnimationState {
@@ -76,6 +90,24 @@ impl CursorAnimationState {
 mod tests {
     use super::*;
     use ragnarok_formats::act::{ActFile, Action, Motion};
+    use ragnarok_formats::gat::GatFile;
+
+    fn build_gat_bytes(width: i32, height: i32, walkable: &[bool]) -> Vec<u8> {
+        let mut data = Vec::new();
+        data.extend_from_slice(b"GRAT");
+        data.push(1);
+        data.push(2);
+        data.extend_from_slice(&width.to_le_bytes());
+        data.extend_from_slice(&height.to_le_bytes());
+        for &w in walkable {
+            for _ in 0..4 {
+                data.extend_from_slice(&0.0_f32.to_le_bytes());
+            }
+            let cell_type: i32 = if w { 0 } else { 1 };
+            data.extend_from_slice(&cell_type.to_le_bytes());
+        }
+        data
+    }
 
     fn make_cursor_act(action_count: usize, motions_per_action: usize) -> ActFile {
         let actions: Vec<Action> = (0..action_count).map(|_| {
@@ -132,5 +164,16 @@ mod tests {
         // delay = 4.0 * 25 = 100ms, advance by 250ms => 2 frames
         anim.update(0.25, &act);
         assert_eq!(anim.motion_index(), 2);
+    }
+
+    #[test]
+    fn cursor_type_for_cell_walkable_and_unwalkable() {
+        let walkable = vec![true, false];
+        let data = build_gat_bytes(2, 1, &walkable);
+        let gat = GatFile::parse(&data).unwrap();
+
+        assert_eq!(cursor_type_for_cell(&gat, Some((0, 0))), CursorType::Default);
+        assert_eq!(cursor_type_for_cell(&gat, Some((1, 0))), CursorType::NoWalk);
+        assert_eq!(cursor_type_for_cell(&gat, None), CursorType::Default);
     }
 }

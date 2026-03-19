@@ -1,8 +1,12 @@
 pub mod animation;
+pub mod app_state;
 pub mod cursor;
 pub mod entity;
 pub mod event;
 pub mod job_class;
+pub mod map_coordinates;
+pub mod map_loader;
 pub mod movement;
 pub mod path;
+pub mod sprite_loader;
 pub mod sprite_path;
