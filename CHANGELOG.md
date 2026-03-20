@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Add shadow under player character, grounding the entity visually on the map
+- Fix character appearing below the ground surface on maps with terrain elevation
 - Move sprite format conversion, map loading, and sprite loading out of client into game and formats crates
 - Move walkability check, pathfinding, and cursor logic into game crate for reusability
 - Refactor client main loop into smaller, focused methods for better readability
