@@ -1,3 +1,5 @@
+pub use models::enums::weapon::WeaponType;
+
 fn job_name_kr(job_class: u16) -> &'static str {
     match job_class {
         0 => "초보자",
@@ -62,6 +64,57 @@ pub fn body_sprite_path(job_class: u16, sex: u8) -> String {
 pub fn head_sprite_path(head_id: u16, sex: u8) -> String {
     let sex_str = sex_kr(sex);
     format!("data/sprite/인간족/머리통/{sex_str}/{head_id}_{sex_str}")
+}
+
+fn weapon_suffix(weapon_type: WeaponType) -> &'static str {
+    match weapon_type {
+        WeaponType::Dagger => "_단검",
+        WeaponType::Sword1H | WeaponType::Sword2H => "_검",
+        WeaponType::Spear1H | WeaponType::Spear2H => "_창",
+        WeaponType::Axe1H | WeaponType::Axe2H => "_도끼",
+        WeaponType::Mace | WeaponType::Mace2H => "_클럽",
+        WeaponType::Staff | WeaponType::Staff2H => "_로드",
+        WeaponType::Bow => "_활",
+        WeaponType::Knuckle => "_너클",
+        WeaponType::Musical => "_악기",
+        WeaponType::Whip => "_채찍",
+        WeaponType::Book => "_책",
+        WeaponType::Katar => "_카타르_카타르",
+        _ => "_검",
+    }
+}
+
+/// Converts a packet weapon view ID to a WeaponType.
+/// Returns None for view_id 0 (unarmed) or unknown values.
+pub fn weapon_view_id_to_type(view_id: u16) -> Option<WeaponType> {
+    match view_id {
+        0 => None,
+        1 => Some(WeaponType::Dagger),
+        2 => Some(WeaponType::Sword1H),
+        3 => Some(WeaponType::Sword2H),
+        4 => Some(WeaponType::Spear1H),
+        5 => Some(WeaponType::Spear2H),
+        6 => Some(WeaponType::Axe1H),
+        7 => Some(WeaponType::Axe2H),
+        8 => Some(WeaponType::Mace),
+        9 => Some(WeaponType::Mace2H),
+        10 => Some(WeaponType::Staff),
+        11 => Some(WeaponType::Bow),
+        12 => Some(WeaponType::Knuckle),
+        13 => Some(WeaponType::Musical),
+        14 => Some(WeaponType::Whip),
+        15 => Some(WeaponType::Book),
+        16 => Some(WeaponType::Katar),
+        17 => Some(WeaponType::Staff2H),
+        _ => None,
+    }
+}
+
+pub fn weapon_sprite_path(job_class: u16, sex: u8, weapon_type: WeaponType) -> String {
+    let job = job_name_kr(job_class);
+    let sex_str = sex_kr(sex);
+    let suffix = weapon_suffix(weapon_type);
+    format!("data/sprite/인간족/{job}/{job}_{sex_str}{suffix}")
 }
 
 #[cfg(test)]
@@ -138,5 +191,42 @@ mod tests {
             head_sprite_path(3, 0),
             "data/sprite/인간족/머리통/여/3_여"
         );
+    }
+
+    #[test]
+    fn knight_dagger_weapon_path() {
+        assert_eq!(
+            weapon_sprite_path(7, 1, WeaponType::Dagger),
+            "data/sprite/인간족/기사/기사_남_단검"
+        );
+    }
+
+    #[test]
+    fn novice_sword_weapon_path() {
+        assert_eq!(
+            weapon_sprite_path(0, 1, WeaponType::Sword1H),
+            "data/sprite/인간족/초보자/초보자_남_검"
+        );
+    }
+
+    #[test]
+    fn female_weapon_path() {
+        assert_eq!(
+            weapon_sprite_path(7, 0, WeaponType::Spear1H),
+            "data/sprite/인간족/기사/기사_여_창"
+        );
+    }
+
+    #[test]
+    fn weapon_view_id_zero_is_none() {
+        assert!(weapon_view_id_to_type(0).is_none());
+    }
+
+    #[test]
+    fn weapon_view_id_maps_correctly() {
+        assert_eq!(weapon_view_id_to_type(1), Some(WeaponType::Dagger));
+        assert_eq!(weapon_view_id_to_type(2), Some(WeaponType::Sword1H));
+        assert_eq!(weapon_view_id_to_type(11), Some(WeaponType::Bow));
+        assert_eq!(weapon_view_id_to_type(16), Some(WeaponType::Katar));
     }
 }

@@ -1,3 +1,6 @@
+use ragnarok_renderer::font_atlas::FontAtlas;
+use ragnarok_renderer::{UiDrawCall, UiTextureRef};
+use ragnarok_ui::draw::{text_vertices, quad_vertices};
 use winit::event::{ElementState, MouseScrollDelta};
 use winit::keyboard::{Key, NamedKey};
 
@@ -13,6 +16,11 @@ pub enum ViewerAction {
     ZoomOut,
     CycleBackground,
     ToggleBrowser,
+    NextWeapon,
+    PrevWeapon,
+    ToggleSex,
+    NextHead,
+    PrevHead,
 }
 
 pub fn map_key_press(key: &Key, state: ElementState) -> Option<ViewerAction> {
@@ -32,6 +40,11 @@ pub fn map_key_press(key: &Key, state: ElementState) -> Option<ViewerAction> {
             "=" | "+" => Some(ViewerAction::ZoomIn),
             "-" => Some(ViewerAction::ZoomOut),
             "b" | "B" => Some(ViewerAction::CycleBackground),
+            "]" => Some(ViewerAction::NextWeapon),
+            "[" => Some(ViewerAction::PrevWeapon),
+            "s" | "S" => Some(ViewerAction::ToggleSex),
+            "h" => Some(ViewerAction::NextHead),
+            "g" => Some(ViewerAction::PrevHead),
             _ => None,
         },
         _ => None,
@@ -75,4 +88,52 @@ impl Background {
             Background::Checkerboard => wgpu::Color { r: 0.5, g: 0.5, b: 0.5, a: 1.0 },
         }
     }
+}
+
+const LEGEND_ENTRIES: &[(&str, &str)] = &[
+    ("Space", "Play/Pause"),
+    (". / ,", "Step Fwd/Back"),
+    ("Left / Right", "Direction"),
+    ("Up / Down", "Action"),
+    ("+ / -", "Zoom"),
+    ("B", "Background"),
+    ("S", "Sex"),
+    ("H / G", "Head"),
+    ("[ / ]", "Weapon"),
+    ("Tab", "Browser"),
+];
+
+const LEGEND_PADDING: f32 = 8.0;
+const LEGEND_LINE_HEIGHT: f32 = 18.0;
+const LEGEND_KEY_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 0.9];
+const LEGEND_DESC_COLOR: [f32; 4] = [0.7, 0.7, 0.7, 0.7];
+const LEGEND_BG_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.5];
+
+pub fn build_legend_draw_calls(atlas: &FontAtlas, screen_h: f32) -> Vec<UiDrawCall> {
+    let mut calls = Vec::new();
+    let line_count = LEGEND_ENTRIES.len() as f32;
+    let box_h = line_count * LEGEND_LINE_HEIGHT + LEGEND_PADDING * 2.0;
+    let box_w = 200.0;
+    let box_x = LEGEND_PADDING;
+    let box_y = screen_h - box_h - LEGEND_PADDING;
+
+    let (bg_verts, bg_idx) = quad_vertices(box_x, box_y, box_w, box_h, LEGEND_BG_COLOR);
+    calls.push(UiDrawCall {
+        vertices: bg_verts.to_vec(),
+        indices: bg_idx.to_vec(),
+        texture: UiTextureRef::White,
+    });
+
+    let key_col_x = box_x + LEGEND_PADDING;
+    let desc_col_x = box_x + 80.0;
+
+    for (i, (key, desc)) in LEGEND_ENTRIES.iter().enumerate() {
+        let y = box_y + LEGEND_PADDING + i as f32 * LEGEND_LINE_HEIGHT;
+        let (kv, ki) = text_vertices(key, key_col_x, y, LEGEND_KEY_COLOR, atlas);
+        calls.push(UiDrawCall { vertices: kv, indices: ki, texture: UiTextureRef::FontAtlas });
+        let (dv, di) = text_vertices(desc, desc_col_x, y, LEGEND_DESC_COLOR, atlas);
+        calls.push(UiDrawCall { vertices: dv, indices: di, texture: UiTextureRef::FontAtlas });
+    }
+
+    calls
 }

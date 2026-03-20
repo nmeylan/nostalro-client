@@ -9,6 +9,7 @@ use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::{CursorAnimationState, CursorType, cursor_type_for_cell};
 use ragnarok_game::entity::Entity;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
+use ragnarok_game::sprite_path::{WeaponType, weapon_view_id_to_type};
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::path::{path_search, try_move_to};
 use ragnarok_game::shadow::shadow_size;
@@ -40,6 +41,8 @@ struct EntitySprite {
     animation: SpriteAnimationState,
     head_textures: Option<SpriteTextures>,
     head_act: Option<ActFile>,
+    weapon_textures: Option<SpriteTextures>,
+    weapon_act: Option<ActFile>,
     shadow_textures: Option<SpriteTextures>,
     shadow_act: Option<ActFile>,
 }
@@ -306,19 +309,20 @@ impl App {
                         }
 
                         let session_sex = self.login_session.as_ref().map(|s| s.sex).unwrap_or(1);
-                        let (job, sex, head, hair_color, char_id) = self.selected_character.as_ref()
+                        let (job, sex, head, hair_color, weapon, char_id) = self.selected_character.as_ref()
                             .map(|c| {
                                 // Per-character sex only available on packetver >= 20141016;
                                 // older versions default to 0, so use session sex instead
                                 let sex = if self.config.packetver >= 20141016 { c.sex } else { session_sex };
-                                (c.class, sex, c.head, c.hair_color, c.gid)
+                                (c.class, sex, c.head, c.hair_color, c.weapon, c.gid)
                             })
-                            .unwrap_or((0, session_sex, 0, 0, 0));
+                            .unwrap_or((0, session_sex, 0, 0, 0, 0));
 
-                        let entity = Entity::new_player(char_id, job, sex, head, hair_color, x, y, dir);
+                        let entity = Entity::new_player(char_id, job, sex, head, hair_color, weapon, x, y, dir);
                         self.player_entity = Some(entity);
 
-                        self.load_player_sprite(job, sex, head, dir);
+                        let weapon_type = weapon_view_id_to_type(weapon);
+                        self.load_player_sprite(job, sex, head, weapon_type, dir);
 
                         self.position_camera_at(x as f32, y as f32);
                         self.char_select_window = None;
@@ -367,7 +371,7 @@ impl App {
         }
     }
 
-    fn load_player_sprite(&mut self, job: u16, sex: u8, head: u16, direction: u8) {
+    fn load_player_sprite(&mut self, job: u16, sex: u8, head: u16, weapon: Option<WeaponType>, direction: u8) {
         let (grf, renderer) = match (&self.grf, &self.renderer) {
             (Some(g), Some(r)) => (g, r),
             _ => return,
@@ -395,6 +399,23 @@ impl App {
                 (None, None)
             };
 
+            let (weapon_textures, weapon_act) = if let Some(weapon_type) = weapon {
+                if let Some(weapon_data) = sprite_loader::load_weapon_sprite(grf, job, sex, weapon_type) {
+                    let wtex = upload_sprite_textures(
+                        &weapon_data.images,
+                        weapon_data.indexed_count,
+                        &renderer.device.device,
+                        &renderer.device.queue,
+                        &renderer.texture_cache.bind_group_layout,
+                    );
+                    (Some(wtex), Some(weapon_data.act))
+                } else {
+                    (None, None)
+                }
+            } else {
+                (None, None)
+            };
+
             let (shadow_textures, shadow_act) = if let Some(shadow_data) = sprite_loader::load_shadow_sprite(grf) {
                 let stex = upload_sprite_textures(
                     &shadow_data.images,
@@ -414,6 +435,8 @@ impl App {
                 animation: SpriteAnimationState::new(direction),
                 head_textures,
                 head_act,
+                weapon_textures,
+                weapon_act,
                 shadow_textures,
                 shadow_act,
             });
@@ -640,12 +663,12 @@ impl App {
         self.cursor_animation.set_cursor_type(cursor);
     }
 
-    fn build_player_sprite_clips(&self) -> (Vec<ClipData>, Vec<ClipData>, Vec<ClipData>) {
+    fn build_player_sprite_clips(&self) -> (Vec<ClipData>, Vec<ClipData>, Vec<ClipData>, Vec<ClipData>) {
         let (entity, sprite, renderer, coords) = match (
             &self.player_entity, &self.player_sprite, &self.renderer, &self.map_coords
         ) {
             (Some(e), Some(s), Some(r), Some(c)) => (e, s, r, c),
-            _ => return (Vec::new(), Vec::new(), Vec::new()),
+            _ => return (Vec::new(), Vec::new(), Vec::new(), Vec::new()),
         };
 
         let (cell_x, cell_y) = entity.movement.position();
@@ -655,7 +678,7 @@ impl App {
         let screen_w = renderer.device.surface_config.width as f32;
         let screen_h = renderer.device.surface_config.height as f32;
         let Some((sx, sy, ndc_z)) = renderer.camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h) else {
-            return (Vec::new(), Vec::new(), Vec::new());
+            return (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         };
         // Bias depth slightly in front of ground to prevent z-fighting
         let ndc_z = ndc_z - 0.0002;
@@ -670,6 +693,7 @@ impl App {
         let mut shadow_clips = Vec::new();
         let mut body_clips = Vec::new();
         let mut head_clips = Vec::new();
+        let mut weapon_clips = Vec::new();
 
         // Shadow: always action 0, motion 0, centered at entity position
         if let (Some(shadow_act), Some(shadow_tex)) = (&sprite.shadow_act, &sprite.shadow_textures) {
@@ -725,8 +749,29 @@ impl App {
                     }
                 }
             }
+
+            if let (Some(weapon_act), Some(weapon_tex)) = (&sprite.weapon_act, &sprite.weapon_textures) {
+                let weapon_action_idx = action_idx % weapon_act.actions.len();
+                let weapon_action = &weapon_act.actions[weapon_action_idx];
+                if !weapon_action.motions.is_empty() {
+                    let weapon_motion_idx = sprite.animation.motion_index() % weapon_action.motions.len();
+                    let weapon_motion = &weapon_action.motions[weapon_motion_idx];
+                    let (off_x, off_y) = head_attachment_offset(body_motion, weapon_motion);
+                    for clip in &weapon_motion.clips {
+                        if let Some((mut vertices, indices, tex_idx)) = build_clip_quad(clip, weapon_tex, [sx, sy], ndc_z, [off_x, off_y]) {
+                            if tex_idx < weapon_tex.bind_groups.len() {
+                                for v in &mut vertices {
+                                    v.position[0] = sx + (v.position[0] - sx) * sprite_scale;
+                                    v.position[1] = sy + (v.position[1] - sy) * sprite_scale;
+                                }
+                                weapon_clips.push((vertices, indices, tex_idx));
+                            }
+                        }
+                    }
+                }
+            }
         }
-        (shadow_clips, body_clips, head_clips)
+        (shadow_clips, body_clips, head_clips, weapon_clips)
     }
 
     fn build_cursor_sprite_clips(&mut self, dt: f32) -> Vec<ClipData> {
@@ -903,7 +948,7 @@ impl ApplicationHandler for App {
                 let hovered = self.update_grid_hover();
                 self.update_cursor_type(hovered);
 
-                let (shadow_clips, body_clips, head_clips) = self.build_player_sprite_clips();
+                let (shadow_clips, body_clips, head_clips, weapon_clips) = self.build_player_sprite_clips();
                 let cursor_clips = self.build_cursor_sprite_clips(delta);
 
                 {
@@ -933,6 +978,15 @@ impl ApplicationHandler for App {
                                     vertices,
                                     indices,
                                     texture: &head_tex.bind_groups[tex_idx],
+                                });
+                            }
+                        }
+                        if let Some(weapon_tex) = &sprite.weapon_textures {
+                            for (vertices, indices, tex_idx) in weapon_clips {
+                                sprite_batches.push(SpriteBatch {
+                                    vertices,
+                                    indices,
+                                    texture: &weapon_tex.bind_groups[tex_idx],
                                 });
                             }
                         }

@@ -17,6 +17,7 @@ hot-reload = ["subsecond", "dioxus-devtools"]
 [dependencies]
 ragnarok-formats = { workspace = true }
 ragnarok-renderer = { workspace = true }
+ragnarok-game = { workspace = true }
 ragnarok-ui = { workspace = true }
 wgpu = { workspace = true }
 winit = { workspace = true }

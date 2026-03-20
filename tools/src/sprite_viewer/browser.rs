@@ -9,8 +9,65 @@ const TEXT_COLOR: [f32; 4] = [0.9, 0.9, 0.9, 1.0];
 const DIM_COLOR: [f32; 4] = [0.5, 0.5, 0.5, 1.0];
 const HIGHLIGHT_COLOR: [f32; 4] = [0.2, 0.4, 0.7, 0.8];
 const CURSOR_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+const TAB_ACTIVE_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+const TAB_INACTIVE_COLOR: [f32; 4] = [0.4, 0.4, 0.4, 1.0];
+const TAB_UNDERLINE_COLOR: [f32; 4] = [0.3, 0.6, 1.0, 1.0];
+const TAB_GAP: f32 = 20.0;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum BrowserTab {
+    Npc,
+    Monster,
+    Character,
+}
+
+const JOB_LIST: &[(u16, &str)] = &[
+    (0, "Novice"),
+    (1, "Swordsman"),
+    (2, "Mage"),
+    (3, "Archer"),
+    (4, "Acolyte"),
+    (5, "Merchant"),
+    (6, "Thief"),
+    (7, "Knight"),
+    (8, "Priest"),
+    (9, "Wizard"),
+    (10, "Blacksmith"),
+    (11, "Hunter"),
+    (12, "Assassin"),
+    (14, "Crusader"),
+    (15, "Monk"),
+    (16, "Sage"),
+    (17, "Rogue"),
+    (18, "Alchemist"),
+    (19, "Bard"),
+    (20, "Dancer"),
+    (23, "Super Novice"),
+    (4008, "Lord Knight"),
+    (4009, "High Priest"),
+    (4010, "High Wizard"),
+    (4011, "Whitesmith"),
+    (4012, "Sniper"),
+    (4013, "Assassin Cross"),
+    (4015, "Paladin"),
+    (4016, "Champion"),
+    (4017, "Professor"),
+    (4018, "Stalker"),
+    (4019, "Creator"),
+    (4020, "Clown"),
+    (4021, "Gypsy"),
+];
+
+struct TabData {
+    active: BrowserTab,
+    npc_sprites: Vec<String>,
+    monster_sprites: Vec<String>,
+    char_names: Vec<String>,
+    char_job_ids: Vec<u16>,
+}
 
 pub struct SpriteBrowser {
+    tabs: Option<TabData>,
     items: Vec<String>,
     filtered: Vec<usize>,
     filter_text: String,
@@ -26,6 +83,7 @@ impl SpriteBrowser {
         items.sort();
         let filtered: Vec<usize> = (0..items.len()).collect();
         Self {
+            tabs: None,
             items,
             filtered,
             filter_text: String::new(),
@@ -33,6 +91,48 @@ impl SpriteBrowser {
             scroll_offset: 0,
             visible_rows: 20,
             label: label.to_string(),
+            open: true,
+        }
+    }
+
+    pub fn new_with_tabs(all_sprites: Vec<String>) -> Self {
+        let mut npc_sprites: Vec<String> = all_sprites.iter()
+            .filter(|s| s.starts_with("data/sprite/npc/"))
+            .cloned()
+            .collect();
+        npc_sprites.sort();
+
+        let mut monster_sprites: Vec<String> = all_sprites.iter()
+            .filter(|s| s.starts_with("data/sprite/몬스터/"))
+            .cloned()
+            .collect();
+        monster_sprites.sort();
+
+        let char_names: Vec<String> = JOB_LIST.iter()
+            .map(|(_, name)| name.to_string())
+            .collect();
+        let char_job_ids: Vec<u16> = JOB_LIST.iter()
+            .map(|(id, _)| *id)
+            .collect();
+
+        let filtered: Vec<usize> = (0..npc_sprites.len()).collect();
+        let items = npc_sprites.clone();
+
+        Self {
+            tabs: Some(TabData {
+                active: BrowserTab::Npc,
+                npc_sprites,
+                monster_sprites,
+                char_names,
+                char_job_ids,
+            }),
+            items,
+            filtered,
+            filter_text: String::new(),
+            selected: 0,
+            scroll_offset: 0,
+            visible_rows: 20,
+            label: "NPC sprites".to_string(),
             open: true,
         }
     }
@@ -45,6 +145,40 @@ impl SpriteBrowser {
         self.filter_text.clear();
         self.selected = 0;
         self.scroll_offset = 0;
+    }
+
+    pub fn has_tabs(&self) -> bool {
+        self.tabs.is_some()
+    }
+
+    pub fn active_tab(&self) -> Option<BrowserTab> {
+        self.tabs.as_ref().map(|t| t.active)
+    }
+
+    pub fn switch_tab(&mut self, tab: BrowserTab) {
+        let Some(tabs) = &mut self.tabs else { return };
+        if tabs.active == tab {
+            return;
+        }
+        tabs.active = tab;
+        let (items, label) = match tab {
+            BrowserTab::Npc => (tabs.npc_sprites.clone(), "NPC sprites"),
+            BrowserTab::Monster => (tabs.monster_sprites.clone(), "monster sprites"),
+            BrowserTab::Character => (tabs.char_names.clone(), "characters"),
+        };
+        self.items = items;
+        self.label = label.to_string();
+        self.filtered = (0..self.items.len()).collect();
+        self.filter_text.clear();
+        self.selected = 0;
+        self.scroll_offset = 0;
+    }
+
+    pub fn selected_job_id(&self) -> Option<u16> {
+        let tabs = self.tabs.as_ref()?;
+        if tabs.active != BrowserTab::Character { return None; }
+        let &idx = self.filtered.get(self.selected)?;
+        tabs.char_job_ids.get(idx).copied()
     }
 
     pub fn handle_char(&mut self, ch: char) {
@@ -102,7 +236,8 @@ impl SpriteBrowser {
     }
 
     pub fn update_visible_rows(&mut self, screen_height: f32) {
-        let available = screen_height - PADDING * 2.0 - LINE_HEIGHT * 2.0;
+        let tab_offset = if self.tabs.is_some() { LINE_HEIGHT } else { 0.0 };
+        let available = screen_height - PADDING * 2.0 - LINE_HEIGHT * 2.0 - tab_offset;
         self.visible_rows = (available / LINE_HEIGHT).max(1.0) as usize;
     }
 
@@ -128,6 +263,29 @@ impl SpriteBrowser {
 
         let x = PADDING;
         let mut y = PADDING;
+
+        if let Some(tabs) = &self.tabs {
+            let tab_labels = [
+                (BrowserTab::Npc, "1:NPC"),
+                (BrowserTab::Monster, "2:MONSTER"),
+                (BrowserTab::Character, "3:CHARACTER"),
+            ];
+            let mut tab_x = x;
+            for (tab, label) in &tab_labels {
+                let color = if *tab == tabs.active { TAB_ACTIVE_COLOR } else { TAB_INACTIVE_COLOR };
+                let (tv, ti) = text_vertices(label, tab_x, y + atlas.ascent, color, atlas);
+                let label_w = atlas.measure_text(label);
+                if *tab == tabs.active {
+                    let (uv, ui) = quad_vertices(tab_x, y + LINE_HEIGHT - 2.0, label_w, 2.0, TAB_UNDERLINE_COLOR);
+                    calls.push(UiDrawCall { vertices: uv.to_vec(), indices: ui.to_vec(), texture: UiTextureRef::White });
+                }
+                if !tv.is_empty() {
+                    calls.push(UiDrawCall { vertices: tv, indices: ti, texture: UiTextureRef::FontAtlas });
+                }
+                tab_x += label_w + TAB_GAP;
+            }
+            y += LINE_HEIGHT;
+        }
 
         let prompt = format!("> {}_", self.filter_text);
         let (tv, ti) = text_vertices(&prompt, x, y + atlas.ascent, CURSOR_COLOR, atlas);
@@ -260,5 +418,60 @@ mod tests {
         assert!(browser.filter_text.is_empty());
         assert_eq!(browser.selected, 0);
         assert_eq!(browser.label, "GRF files");
+    }
+
+    #[test]
+    fn tabs_categorize_sprites() {
+        let sprites = vec![
+            "data/sprite/npc/kafra.spr".to_string(),
+            "data/sprite/npc/merchant.spr".to_string(),
+            "data/sprite/몬스터/poring.spr".to_string(),
+        ];
+        let browser = SpriteBrowser::new_with_tabs(sprites);
+        assert!(browser.has_tabs());
+        assert_eq!(browser.active_tab(), Some(BrowserTab::Npc));
+        assert_eq!(browser.items.len(), 2);
+    }
+
+    #[test]
+    fn tab_switch_changes_items() {
+        let sprites = vec![
+            "data/sprite/npc/kafra.spr".to_string(),
+            "data/sprite/몬스터/poring.spr".to_string(),
+        ];
+        let mut browser = SpriteBrowser::new_with_tabs(sprites);
+        assert_eq!(browser.items.len(), 1); // 1 NPC
+
+        browser.switch_tab(BrowserTab::Monster);
+        assert_eq!(browser.active_tab(), Some(BrowserTab::Monster));
+        assert_eq!(browser.items.len(), 1); // 1 monster
+
+        browser.switch_tab(BrowserTab::Character);
+        assert_eq!(browser.active_tab(), Some(BrowserTab::Character));
+        assert_eq!(browser.items.len(), JOB_LIST.len());
+    }
+
+    #[test]
+    fn character_tab_returns_job_id() {
+        let mut browser = SpriteBrowser::new_with_tabs(Vec::new());
+        browser.switch_tab(BrowserTab::Character);
+        assert_eq!(browser.selected_job_id(), Some(0)); // Novice
+        browser.handle_down();
+        assert_eq!(browser.selected_job_id(), Some(1)); // Swordsman
+    }
+
+    #[test]
+    fn tab_switch_resets_filter() {
+        let sprites = vec![
+            "data/sprite/npc/kafra.spr".to_string(),
+            "data/sprite/npc/merchant.spr".to_string(),
+        ];
+        let mut browser = SpriteBrowser::new_with_tabs(sprites);
+        browser.handle_char('k');
+        assert_eq!(browser.filtered.len(), 1);
+
+        browser.switch_tab(BrowserTab::Monster);
+        assert!(browser.filter_text.is_empty());
+        assert_eq!(browser.selected, 0);
     }
 }

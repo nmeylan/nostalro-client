@@ -1874,6 +1874,7 @@ dependencies = [
  "image",
  "notify",
  "ragnarok-formats",
+ "ragnarok-game",
  "ragnarok-renderer",
  "ragnarok-ui",
  "subsecond",

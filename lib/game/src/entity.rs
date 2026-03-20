@@ -1,4 +1,7 @@
+use models::enums::weapon::WeaponType;
+
 use crate::movement::MovementState;
+use crate::sprite_path::weapon_view_id_to_type;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntityType {
@@ -20,6 +23,7 @@ pub struct Entity {
     pub sex: u8,
     pub head: u16,
     pub hair_color: u16,
+    pub weapon: Option<WeaponType>,
     pub direction: u8,
     pub head_dir: u8,
     pub state: EntityState,
@@ -27,7 +31,7 @@ pub struct Entity {
 }
 
 impl Entity {
-    pub fn new_player(id: u32, job: u16, sex: u8, head: u16, hair_color: u16, x: u16, y: u16, direction: u8) -> Self {
+    pub fn new_player(id: u32, job: u16, sex: u8, head: u16, hair_color: u16, weapon: u16, x: u16, y: u16, direction: u8) -> Self {
         Self {
             id,
             entity_type: EntityType::Player,
@@ -35,6 +39,7 @@ impl Entity {
             sex,
             head,
             hair_color,
+            weapon: weapon_view_id_to_type(weapon),
             direction,
             head_dir: direction,
             state: EntityState::Standing,

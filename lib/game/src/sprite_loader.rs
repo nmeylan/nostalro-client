@@ -2,7 +2,9 @@ use ragnarok_formats::act::ActFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::spr::{RgbaImageData, SprFile};
 
-use crate::sprite_path::{body_sprite_path, head_sprite_path};
+use models::enums::weapon::WeaponType;
+
+use crate::sprite_path::{body_sprite_path, head_sprite_path, weapon_sprite_path};
 
 pub struct SpriteData {
     pub images: Vec<RgbaImageData>,
@@ -56,6 +58,11 @@ pub fn load_body_sprite(grf: &GrfArchive, job: u16, sex: u8) -> Option<SpriteDat
 
 pub fn load_head_sprite(grf: &GrfArchive, head_id: u16, sex: u8) -> Option<SpriteData> {
     let base_path = head_sprite_path(head_id, sex);
+    load_sprite_data(grf, &format!("{base_path}.spr"), &format!("{base_path}.act"))
+}
+
+pub fn load_weapon_sprite(grf: &GrfArchive, job: u16, sex: u8, weapon_type: WeaponType) -> Option<SpriteData> {
+    let base_path = weapon_sprite_path(job, sex, weapon_type);
     load_sprite_data(grf, &format!("{base_path}.spr"), &format!("{base_path}.act"))
 }
 

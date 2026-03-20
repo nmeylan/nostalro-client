@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Add weapon sprite rendering on player character (attached to body, synced animation)
+- Add composite mode to sprite viewer: preview body+head+weapon together with `--job`, `--head`, `--weapon` flags
+- Add weapon cycling in sprite viewer with `[`/`]` keys
 - Add shadow under player character, grounding the entity visually on the map
 - Fix character appearing below the ground surface on maps with terrain elevation
 - Move sprite format conversion, map loading, and sprite loading out of client into game and formats crates
