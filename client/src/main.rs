@@ -11,6 +11,7 @@ use ragnarok_game::entity::Entity;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::path::{path_search, try_move_to};
+use ragnarok_game::shadow::shadow_size;
 use ragnarok_game::{map_loader, sprite_loader};
 use ragnarok_network::{build_char_enter_packet, build_login_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
 use ragnarok_network::session::Session;
@@ -39,6 +40,8 @@ struct EntitySprite {
     animation: SpriteAnimationState,
     head_textures: Option<SpriteTextures>,
     head_act: Option<ActFile>,
+    shadow_textures: Option<SpriteTextures>,
+    shadow_act: Option<ActFile>,
 }
 
 struct InputState {
@@ -147,7 +150,8 @@ impl App {
 
     fn position_camera_at(&mut self, cell_x: f32, cell_y: f32) {
         if let (Some(coords), Some(renderer)) = (&self.map_coords, &mut self.renderer) {
-            let (wx, wy, wz) = coords.cell_to_world(cell_x + 0.5, cell_y + 0.5);
+            let (wx, _, wz) = coords.cell_to_world(cell_x + 0.5, cell_y + 0.5);
+            let wy = self.gat.as_ref().map_or(0.0, |gat| gat.get_height(cell_x + 0.5, cell_y + 0.5));
             renderer.camera.set_target(wx, wy, wz);
         }
     }
@@ -391,12 +395,27 @@ impl App {
                 (None, None)
             };
 
+            let (shadow_textures, shadow_act) = if let Some(shadow_data) = sprite_loader::load_shadow_sprite(grf) {
+                let stex = upload_sprite_textures(
+                    &shadow_data.images,
+                    shadow_data.indexed_count,
+                    &renderer.device.device,
+                    &renderer.device.queue,
+                    &renderer.texture_cache.bind_group_layout,
+                );
+                (Some(stex), Some(shadow_data.act))
+            } else {
+                (None, None)
+            };
+
             self.player_sprite = Some(EntitySprite {
                 textures,
                 act: sprite_data.act,
                 animation: SpriteAnimationState::new(direction),
                 head_textures,
                 head_act,
+                shadow_textures,
+                shadow_act,
             });
         }
     }
@@ -621,22 +640,25 @@ impl App {
         self.cursor_animation.set_cursor_type(cursor);
     }
 
-    fn build_player_sprite_clips(&self) -> (Vec<ClipData>, Vec<ClipData>) {
+    fn build_player_sprite_clips(&self) -> (Vec<ClipData>, Vec<ClipData>, Vec<ClipData>) {
         let (entity, sprite, renderer, coords) = match (
             &self.player_entity, &self.player_sprite, &self.renderer, &self.map_coords
         ) {
             (Some(e), Some(s), Some(r), Some(c)) => (e, s, r, c),
-            _ => return (Vec::new(), Vec::new()),
+            _ => return (Vec::new(), Vec::new(), Vec::new()),
         };
 
         let (cell_x, cell_y) = entity.movement.position();
-        let (wx, wy, wz) = coords.cell_to_world(cell_x + 0.5, cell_y + 0.5);
+        let (wx, _, wz) = coords.cell_to_world(cell_x + 0.5, cell_y + 0.5);
+        let wy = self.gat.as_ref().map_or(0.0, |gat| gat.get_height(cell_x + 0.5, cell_y + 0.5));
 
         let screen_w = renderer.device.surface_config.width as f32;
         let screen_h = renderer.device.surface_config.height as f32;
         let Some((sx, sy, ndc_z)) = renderer.camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h) else {
-            return (Vec::new(), Vec::new());
+            return (Vec::new(), Vec::new(), Vec::new());
         };
+        // Bias depth slightly in front of ground to prevent z-fighting
+        let ndc_z = ndc_z - 0.0002;
 
         let camera_dir = renderer.camera.direction_index();
         let action_idx = sprite.animation.action_index(&sprite.act, camera_dir);
@@ -645,8 +667,28 @@ impl App {
         let ppu = renderer.camera.perspective_scale(wx, wy, wz, screen_h);
         let sprite_scale = ppu * coords.zoom() / 75.0;
 
+        let mut shadow_clips = Vec::new();
         let mut body_clips = Vec::new();
         let mut head_clips = Vec::new();
+
+        // Shadow: always action 0, motion 0, centered at entity position
+        if let (Some(shadow_act), Some(shadow_tex)) = (&sprite.shadow_act, &sprite.shadow_textures) {
+            if !shadow_act.actions.is_empty() && !shadow_act.actions[0].motions.is_empty() {
+                let shadow_motion = &shadow_act.actions[0].motions[0];
+                let shadow_scale = sprite_scale * shadow_size(entity.job);
+                for clip in &shadow_motion.clips {
+                    if let Some((mut vertices, indices, tex_idx)) = build_clip_quad(clip, shadow_tex, [sx, sy], ndc_z, [0, 0]) {
+                        if tex_idx < shadow_tex.bind_groups.len() {
+                            for v in &mut vertices {
+                                v.position[0] = sx + (v.position[0] - sx) * shadow_scale;
+                                v.position[1] = sy + (v.position[1] - sy) * shadow_scale;
+                            }
+                            shadow_clips.push((vertices, indices, tex_idx));
+                        }
+                    }
+                }
+            }
+        }
 
         if !action.motions.is_empty() {
             let motion_idx = sprite.animation.motion_index() % action.motions.len();
@@ -684,7 +726,7 @@ impl App {
                 }
             }
         }
-        (body_clips, head_clips)
+        (shadow_clips, body_clips, head_clips)
     }
 
     fn build_cursor_sprite_clips(&mut self, dt: f32) -> Vec<ClipData> {
@@ -861,7 +903,7 @@ impl ApplicationHandler for App {
                 let hovered = self.update_grid_hover();
                 self.update_cursor_type(hovered);
 
-                let (body_clips, head_clips) = self.build_player_sprite_clips();
+                let (shadow_clips, body_clips, head_clips) = self.build_player_sprite_clips();
                 let cursor_clips = self.build_cursor_sprite_clips(delta);
 
                 {
@@ -869,6 +911,15 @@ impl ApplicationHandler for App {
                     let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
 
                     if let Some(sprite) = &self.player_sprite {
+                        if let Some(shadow_tex) = &sprite.shadow_textures {
+                            for (vertices, indices, tex_idx) in shadow_clips {
+                                sprite_batches.push(SpriteBatch {
+                                    vertices,
+                                    indices,
+                                    texture: &shadow_tex.bind_groups[tex_idx],
+                                });
+                            }
+                        }
                         for (vertices, indices, tex_idx) in body_clips {
                             sprite_batches.push(SpriteBatch {
                                 vertices,

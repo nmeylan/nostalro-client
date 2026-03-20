@@ -8,5 +8,6 @@ pub mod map_coordinates;
 pub mod map_loader;
 pub mod movement;
 pub mod path;
+pub mod shadow;
 pub mod sprite_loader;
 pub mod sprite_path;

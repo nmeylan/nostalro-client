@@ -62,3 +62,7 @@ pub fn load_head_sprite(grf: &GrfArchive, head_id: u16, sex: u8) -> Option<Sprit
 pub fn load_cursor_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     load_sprite_data(grf, "data/sprite/cursors.spr", "data/sprite/cursors.act")
 }
+
+pub fn load_shadow_sprite(grf: &GrfArchive) -> Option<SpriteData> {
+    load_sprite_data(grf, "data/sprite/shadow.spr", "data/sprite/shadow.act")
+}
