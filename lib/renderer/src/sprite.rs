@@ -1,5 +1,5 @@
 use ragnarok_formats::act::{ActFile, SprClip, SpriteAnimationState, attachment_offset};
-use ragnarok_formats::spr::RgbaImageData;
+use ragnarok_formats::spr::{RgbaImageData, SpriteData};
 
 use crate::device::DEPTH_FORMAT;
 use crate::texture::create_texture_bind_group_from_rgba;
@@ -442,22 +442,21 @@ pub type ClipQuad = (Vec<SpriteVertex>, Vec<u32>, usize);
 pub struct CompositeClips {
     pub body: Vec<ClipQuad>,
     pub head: Vec<ClipQuad>,
+    pub headgear_bottom: Vec<ClipQuad>,
+    pub headgear_mid: Vec<ClipQuad>,
+    pub headgear_top: Vec<ClipQuad>,
     pub weapon: Vec<ClipQuad>,
+    pub shield: Vec<ClipQuad>,
 }
 
 pub fn build_composite_clips(
-    body_act: &ActFile,
-    body_textures: &SpriteTextures,
-    head_act: Option<&ActFile>,
-    head_textures: Option<&SpriteTextures>,
-    weapon_act: Option<&ActFile>,
-    weapon_textures: Option<&SpriteTextures>,
+    entity: &EntitySprite,
     action_idx: usize,
     motion_idx: usize,
     screen_center: [f32; 2],
     depth: f32,
 ) -> Option<CompositeClips> {
-    let body_action = &body_act.actions[action_idx];
+    let body_action = &entity.body_act.actions[action_idx];
     if body_action.motions.is_empty() {
         return None;
     }
@@ -465,15 +464,15 @@ pub fn build_composite_clips(
 
     let mut body = Vec::new();
     for clip in &body_motion.clips {
-        if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, body_textures, screen_center, depth, [0, 0]) {
-            if tex_idx < body_textures.bind_groups.len() {
+        if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, &entity.body_textures, screen_center, depth, [0, 0]) {
+            if tex_idx < entity.body_textures.bind_groups.len() {
                 body.push((vertices, indices, tex_idx));
             }
         }
     }
 
     let mut head = Vec::new();
-    if let (Some(head_act), Some(head_tex)) = (head_act, head_textures) {
+    let head_offset = if let (Some(head_act), Some(head_tex)) = (&entity.head_act, &entity.head_textures) {
         let head_action_idx = action_idx % head_act.actions.len();
         let head_action = &head_act.actions[head_action_idx];
         if !head_action.motions.is_empty() {
@@ -486,11 +485,56 @@ pub fn build_composite_clips(
                     }
                 }
             }
+            Some((off_x, off_y))
+        } else {
+            None
         }
+    } else {
+        None
+    };
+
+    fn build_headgear_clips(
+        act: Option<&ActFile>,
+        tex: Option<&SpriteTextures>,
+        action_idx: usize,
+        head_offset: Option<(i32, i32)>,
+        screen_center: [f32; 2],
+        depth: f32,
+    ) -> Vec<ClipQuad> {
+        let mut clips = Vec::new();
+        if let (Some(act), Some(tex)) = (act, tex) {
+            let (off_x, off_y) = head_offset.unwrap_or((0, 0));
+            let hg_action_idx = action_idx % act.actions.len();
+            let hg_action = &act.actions[hg_action_idx];
+            if !hg_action.motions.is_empty() {
+                let hg_motion = &hg_action.motions[0];
+                for clip in &hg_motion.clips {
+                    if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, tex, screen_center, depth, [off_x, off_y]) {
+                        if tex_idx < tex.bind_groups.len() {
+                            clips.push((vertices, indices, tex_idx));
+                        }
+                    }
+                }
+            }
+        }
+        clips
     }
 
+    let headgear_bottom = build_headgear_clips(
+        entity.headgear_bottom_act.as_ref(), entity.headgear_bottom_textures.as_ref(),
+        action_idx, head_offset, screen_center, depth,
+    );
+    let headgear_mid = build_headgear_clips(
+        entity.headgear_mid_act.as_ref(), entity.headgear_mid_textures.as_ref(),
+        action_idx, head_offset, screen_center, depth,
+    );
+    let headgear_top = build_headgear_clips(
+        entity.headgear_top_act.as_ref(), entity.headgear_top_textures.as_ref(),
+        action_idx, head_offset, screen_center, depth,
+    );
+
     let mut weapon = Vec::new();
-    if let (Some(weapon_act), Some(weapon_tex)) = (weapon_act, weapon_textures) {
+    if let (Some(weapon_act), Some(weapon_tex)) = (&entity.weapon_act, &entity.weapon_textures) {
         let weapon_action_idx = action_idx % weapon_act.actions.len();
         let weapon_action = &weapon_act.actions[weapon_action_idx];
         if !weapon_action.motions.is_empty() {
@@ -507,7 +551,25 @@ pub fn build_composite_clips(
         }
     }
 
-    Some(CompositeClips { body, head, weapon })
+    let mut shield = Vec::new();
+    if let (Some(shield_act), Some(shield_tex)) = (&entity.shield_act, &entity.shield_textures) {
+        let shield_action_idx = action_idx % shield_act.actions.len();
+        let shield_action = &shield_act.actions[shield_action_idx];
+        if !shield_action.motions.is_empty() {
+            let shield_motion_idx = motion_idx % shield_action.motions.len();
+            let shield_motion = &shield_action.motions[shield_motion_idx];
+            let (off_x, off_y) = attachment_offset(body_motion, shield_motion);
+            for clip in &shield_motion.clips {
+                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, shield_tex, screen_center, depth, [off_x, off_y]) {
+                    if tex_idx < shield_tex.bind_groups.len() {
+                        shield.push((vertices, indices, tex_idx));
+                    }
+                }
+            }
+        }
+    }
+
+    Some(CompositeClips { body, head, headgear_bottom, headgear_mid, headgear_top, weapon, shield })
 }
 
 pub fn scale_clip_vertices(vertices: &mut [SpriteVertex], center: [f32; 2], scale: f32) {
@@ -524,9 +586,77 @@ pub struct EntitySprite {
     pub head_act: Option<ActFile>,
     pub weapon_textures: Option<SpriteTextures>,
     pub weapon_act: Option<ActFile>,
+    pub headgear_top_textures: Option<SpriteTextures>,
+    pub headgear_top_act: Option<ActFile>,
+    pub headgear_mid_textures: Option<SpriteTextures>,
+    pub headgear_mid_act: Option<ActFile>,
+    pub headgear_bottom_textures: Option<SpriteTextures>,
+    pub headgear_bottom_act: Option<ActFile>,
+    pub shield_textures: Option<SpriteTextures>,
+    pub shield_act: Option<ActFile>,
     pub animation: SpriteAnimationState,
     pub shadow_textures: Option<SpriteTextures>,
     pub shadow_act: Option<ActFile>,
+}
+
+fn upload_optional(
+    data: Option<SpriteData>,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    layout: &wgpu::BindGroupLayout,
+) -> (Option<SpriteTextures>, Option<ActFile>) {
+    match data {
+        Some(d) => {
+            let tex = upload_sprite_textures(&d.images, d.indexed_count, device, queue, layout);
+            (Some(tex), Some(d.act))
+        }
+        None => (None, None),
+    }
+}
+
+pub fn build_entity_sprite(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    layout: &wgpu::BindGroupLayout,
+    body: SpriteData,
+    head: Option<SpriteData>,
+    weapon: Option<SpriteData>,
+    headgear_top: Option<SpriteData>,
+    headgear_mid: Option<SpriteData>,
+    headgear_bottom: Option<SpriteData>,
+    shield: Option<SpriteData>,
+    shadow: Option<SpriteData>,
+    direction: u8,
+) -> EntitySprite {
+    let body_textures = upload_sprite_textures(&body.images, body.indexed_count, device, queue, layout);
+    let body_act = body.act;
+    let (head_textures, head_act) = upload_optional(head, device, queue, layout);
+    let (weapon_textures, weapon_act) = upload_optional(weapon, device, queue, layout);
+    let (headgear_top_textures, headgear_top_act) = upload_optional(headgear_top, device, queue, layout);
+    let (headgear_mid_textures, headgear_mid_act) = upload_optional(headgear_mid, device, queue, layout);
+    let (headgear_bottom_textures, headgear_bottom_act) = upload_optional(headgear_bottom, device, queue, layout);
+    let (shield_textures, shield_act) = upload_optional(shield, device, queue, layout);
+    let (shadow_textures, shadow_act) = upload_optional(shadow, device, queue, layout);
+
+    EntitySprite {
+        body_textures,
+        body_act,
+        head_textures,
+        head_act,
+        weapon_textures,
+        weapon_act,
+        headgear_top_textures,
+        headgear_top_act,
+        headgear_mid_textures,
+        headgear_mid_act,
+        headgear_bottom_textures,
+        headgear_bottom_act,
+        shield_textures,
+        shield_act,
+        animation: SpriteAnimationState::new(direction),
+        shadow_textures,
+        shadow_act,
+    }
 }
 
 impl EntitySprite {
@@ -550,10 +680,7 @@ impl EntitySprite {
         };
 
         let Some(clips) = build_composite_clips(
-            &self.body_act, &self.body_textures,
-            self.head_act.as_ref(), self.head_textures.as_ref(),
-            self.weapon_act.as_ref(), self.weapon_textures.as_ref(),
-            action_idx, self.animation.motion_index(), screen_center, depth,
+            self, action_idx, self.animation.motion_index(), screen_center, depth,
         ) else {
             return Vec::new();
         };
@@ -570,10 +697,34 @@ impl EntitySprite {
                 batches.push(SpriteBatch { vertices, indices, texture: &head_tex.bind_groups[tex_idx] });
             }
         }
+        if let Some(hg_tex) = &self.headgear_bottom_textures {
+            for (mut vertices, indices, tex_idx) in clips.headgear_bottom {
+                scale_clip_vertices(&mut vertices, screen_center, scale);
+                batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx] });
+            }
+        }
+        if let Some(hg_tex) = &self.headgear_mid_textures {
+            for (mut vertices, indices, tex_idx) in clips.headgear_mid {
+                scale_clip_vertices(&mut vertices, screen_center, scale);
+                batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx] });
+            }
+        }
+        if let Some(hg_tex) = &self.headgear_top_textures {
+            for (mut vertices, indices, tex_idx) in clips.headgear_top {
+                scale_clip_vertices(&mut vertices, screen_center, scale);
+                batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx] });
+            }
+        }
         if let Some(weapon_tex) = &self.weapon_textures {
             for (mut vertices, indices, tex_idx) in clips.weapon {
                 scale_clip_vertices(&mut vertices, screen_center, scale);
                 batches.push(SpriteBatch { vertices, indices, texture: &weapon_tex.bind_groups[tex_idx] });
+            }
+        }
+        if let Some(shield_tex) = &self.shield_textures {
+            for (mut vertices, indices, tex_idx) in clips.shield {
+                scale_clip_vertices(&mut vertices, screen_center, scale);
+                batches.push(SpriteBatch { vertices, indices, texture: &shield_tex.bind_groups[tex_idx] });
             }
         }
 

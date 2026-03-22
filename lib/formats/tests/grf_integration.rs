@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
@@ -99,4 +99,129 @@ fn open_v1_grf_and_read_file() {
     let data = grf.read_file(gat_file).expect("failed to read .gat from v1 GRF");
     let gat = GatFile::parse(&data).expect("failed to parse .gat from v1 GRF");
     assert!(gat.width > 0 && gat.height > 0);
+}
+
+fn temp_grf_path(name: &str) -> PathBuf {
+    std::env::temp_dir().join(format!("test_grf_{}_{name}.grf", std::process::id()))
+}
+
+struct CleanupFile(PathBuf);
+impl Drop for CleanupFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+#[test]
+fn create_and_add_files_roundtrip() {
+    let path = temp_grf_path("create_roundtrip");
+    let _cleanup = CleanupFile(path.clone());
+
+    let content_a = b"hello world";
+    let content_b = vec![0u8; 4096];
+    let content_c = b"data in subfolder";
+
+    {
+        let mut grf = GrfArchive::create(&path).unwrap();
+        grf.add_file("readme.txt", content_a).unwrap();
+        grf.add_file("data/bigfile.bin", &content_b).unwrap();
+        grf.add_file("data/sub/nested.txt", content_c).unwrap();
+        grf.save().unwrap();
+    }
+
+    let grf = GrfArchive::open(&path).unwrap();
+    assert_eq!(grf.file_count(), 3);
+    assert!(grf.file_exists("readme.txt"));
+    assert!(grf.file_exists("data/bigfile.bin"));
+    assert!(grf.file_exists("data/sub/nested.txt"));
+    assert_eq!(grf.read_file("readme.txt").unwrap(), content_a);
+    assert_eq!(grf.read_file("data/bigfile.bin").unwrap(), content_b);
+    assert_eq!(grf.read_file("data/sub/nested.txt").unwrap(), content_c);
+}
+
+#[test]
+fn remove_file_and_reopen() {
+    let path = temp_grf_path("remove");
+    let _cleanup = CleanupFile(path.clone());
+
+    {
+        let mut grf = GrfArchive::create(&path).unwrap();
+        grf.add_file("keep.txt", b"keep me").unwrap();
+        grf.add_file("delete.txt", b"delete me").unwrap();
+        grf.save().unwrap();
+    }
+
+    {
+        let mut grf = GrfArchive::open_rw(&path).unwrap();
+        assert_eq!(grf.file_count(), 2);
+        assert!(grf.remove_file("delete.txt").unwrap());
+        grf.save().unwrap();
+    }
+
+    let grf = GrfArchive::open(&path).unwrap();
+    assert_eq!(grf.file_count(), 1);
+    assert!(grf.file_exists("keep.txt"));
+    assert!(!grf.file_exists("delete.txt"));
+    assert_eq!(grf.read_file("keep.txt").unwrap(), b"keep me");
+}
+
+#[test]
+fn repack_reclaims_space() {
+    let path = temp_grf_path("repack");
+    let _cleanup = CleanupFile(path.clone());
+
+    let large_data = vec![42u8; 10_000];
+
+    {
+        let mut grf = GrfArchive::create(&path).unwrap();
+        grf.add_file("large.bin", &large_data).unwrap();
+        grf.save().unwrap();
+    }
+
+    let size_before_remove = std::fs::metadata(&path).unwrap().len();
+
+    {
+        let mut grf = GrfArchive::open_rw(&path).unwrap();
+        grf.remove_file("large.bin").unwrap();
+        grf.add_file("small.txt", b"tiny").unwrap();
+        grf.save().unwrap();
+    }
+
+    let size_after_remove = std::fs::metadata(&path).unwrap().len();
+    // File table shrank but orphaned data remains
+    assert!(size_after_remove > 0);
+
+    {
+        let mut grf = GrfArchive::open_rw(&path).unwrap();
+        grf.repack().unwrap();
+    }
+
+    let size_after_repack = std::fs::metadata(&path).unwrap().len();
+    assert!(size_after_repack < size_before_remove);
+
+    let grf = GrfArchive::open(&path).unwrap();
+    assert_eq!(grf.file_count(), 1);
+    assert_eq!(grf.read_file("small.txt").unwrap(), b"tiny");
+}
+
+#[test]
+fn add_file_overwrites_existing() {
+    let path = temp_grf_path("overwrite");
+    let _cleanup = CleanupFile(path.clone());
+
+    {
+        let mut grf = GrfArchive::create(&path).unwrap();
+        grf.add_file("data/test.txt", b"version A").unwrap();
+        grf.save().unwrap();
+    }
+
+    {
+        let mut grf = GrfArchive::open_rw(&path).unwrap();
+        grf.add_file("data/test.txt", b"version B").unwrap();
+        grf.save().unwrap();
+    }
+
+    let grf = GrfArchive::open(&path).unwrap();
+    assert_eq!(grf.file_count(), 1);
+    assert_eq!(grf.read_file("data/test.txt").unwrap(), b"version B");
 }

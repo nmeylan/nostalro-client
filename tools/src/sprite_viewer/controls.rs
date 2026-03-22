@@ -22,6 +22,10 @@ pub enum ViewerAction {
     ToggleSex,
     NextHead,
     PrevHead,
+    NextHeadgear,
+    PrevHeadgear,
+    NextShield,
+    PrevShield,
 }
 
 pub fn map_key_press(key: &Key, state: ElementState) -> Option<ViewerAction> {
@@ -46,6 +50,10 @@ pub fn map_key_press(key: &Key, state: ElementState) -> Option<ViewerAction> {
             "s" | "S" => Some(ViewerAction::ToggleSex),
             "h" => Some(ViewerAction::NextHead),
             "g" => Some(ViewerAction::PrevHead),
+            "e" => Some(ViewerAction::NextHeadgear),
+            "r" => Some(ViewerAction::PrevHeadgear),
+            "d" => Some(ViewerAction::NextShield),
+            "f" => Some(ViewerAction::PrevShield),
             _ => None,
         },
         _ => None,
@@ -101,6 +109,8 @@ const LEGEND_ENTRIES: &[(&str, &str)] = &[
     ("S", "Sex"),
     ("H / G", "Head"),
     ("q / w", "Weapon"),
+    ("E / R", "Headgear"),
+    ("D / F", "Shield"),
     ("Tab", "Browser"),
 ];
 

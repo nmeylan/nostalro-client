@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Refactor client: extract game state, input/camera controls, and sprite building into dedicated modules
+- Share sprite composition code between client and sprite viewer tool (deduplicate build_entity_sprite)
 - Add weapon sprite rendering on player character (attached to body, synced animation)
 - Add composite mode to sprite viewer: preview body+head+weapon together with `--job`, `--head`, `--weapon` flags
 - Add weapon cycling in sprite viewer with `[`/`]` keys

@@ -1,3 +1,5 @@
+use ragnarok_formats::gat::GatFile;
+
 /// Handles coordinate conversion between GAT cells, GND cells, and world positions.
 /// GAT and GND grids may have different resolutions; this struct encapsulates the ratio.
 pub struct MapCoordinates {
@@ -38,6 +40,23 @@ impl MapCoordinates {
 
     pub fn is_valid_cell(&self, x: i32, y: i32) -> bool {
         x >= 0 && y >= 0 && x < self.gat_width && y < self.gat_height
+    }
+
+    /// Compute world-space corners of a GAT cell, with per-corner heights from GAT.
+    pub fn cell_corners_world(&self, gat: &GatFile, cx: i32, cy: i32) -> [[f32; 3]; 4] {
+        let c0 = self.cell_to_world(cx as f32, cy as f32);
+        let c1 = self.cell_to_world(cx as f32 + 1.0, cy as f32);
+        let c2 = self.cell_to_world(cx as f32, cy as f32 + 1.0);
+        let c3 = self.cell_to_world(cx as f32 + 1.0, cy as f32 + 1.0);
+        let cell = &gat.cells[(cy * gat.width + cx) as usize];
+        let h = &cell.heights;
+        let y_off = -0.2;
+        [
+            [c0.0, h[0] + y_off, c0.2],
+            [c1.0, h[1] + y_off, c1.2],
+            [c2.0, h[2] + y_off, c2.2],
+            [c3.0, h[3] + y_off, c3.2],
+        ]
     }
 }
 

@@ -110,6 +110,28 @@ pub fn weapon_view_id_to_type(view_id: u16) -> Option<WeaponType> {
     }
 }
 
+pub fn headgear_sprite_path(suffix: &str, sex: u8) -> String {
+    let sex_str = sex_kr(sex);
+    format!("data/sprite/악세사리/{sex_str}/{sex_str}{suffix}")
+}
+
+fn shield_name_kr(view_id: u16) -> Option<&'static str> {
+    match view_id {
+        1 => Some("가드"),
+        2 => Some("버클러"),
+        3 => Some("쉴드"),
+        4 => Some("미러쉴드"),
+        _ => None,
+    }
+}
+
+pub fn shield_sprite_path(view_id: u16, job_class: u16, sex: u8) -> Option<String> {
+    let shield = shield_name_kr(view_id)?;
+    let job = job_name_kr(job_class);
+    let sex_str = sex_kr(sex);
+    Some(format!("data/sprite/방패/{job}/{job}_{sex_str}_{shield}"))
+}
+
 pub fn weapon_sprite_path(job_class: u16, sex: u8, weapon_type: WeaponType) -> String {
     let job = job_name_kr(job_class);
     let sex_str = sex_kr(sex);

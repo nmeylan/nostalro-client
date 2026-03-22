@@ -1,22 +1,23 @@
 mod config;
+mod game_state;
+mod input;
 
 use config::Config;
-use ragnarok_formats::act::{ActFile, SpriteActionType};
-use ragnarok_formats::gat::GatFile;
+use game_state::GameState;
+use input::InputState;
+use ragnarok_formats::act::SpriteActionType;
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_game::animation::SpriteAnimationState;
 use ragnarok_game::app_state::AppState;
-use ragnarok_game::cursor::{CursorAnimationState, CursorType, cursor_type_for_cell};
+use ragnarok_game::cursor::{CursorType, cursor_type_for_cell};
 use ragnarok_game::entity::Entity;
-use ragnarok_game::event::{CharacterInfo, GameEvent};
+use ragnarok_game::event::GameEvent;
 use ragnarok_game::sprite_path::{WeaponType, weapon_view_id_to_type};
-use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::path::{path_search, try_move_to};
 use ragnarok_game::shadow::shadow_size;
 use ragnarok_game::{map_loader, sprite_loader};
 use ragnarok_network::{build_char_enter_packet, build_login_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
 use ragnarok_network::session::Session;
-use ragnarok_renderer::{GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, SpriteTextures, UiDrawCall, EntitySprite, build_clip_quad, upload_sprite_textures};
+use ragnarok_renderer::{GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall, build_clip_quad, upload_sprite_textures, build_entity_sprite, block_on};
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui_component::login_window::{LoginFocus, LoginWindow};
@@ -35,12 +36,6 @@ use winit::window::{Window, WindowAttributes, WindowId};
 
 type ClipData = (Vec<SpriteVertex>, Vec<u32>, usize);
 
-struct InputState {
-    right_mouse_down: bool,
-    last_mouse_pos: Option<(f64, f64)>,
-    mouse_position: (f64, f64),
-}
-
 struct App {
     config: Config,
     window: Option<Arc<Window>>,
@@ -52,19 +47,9 @@ struct App {
     login_window: LoginWindow,
     server_list_window: Option<ServerListWindow>,
     char_select_window: Option<CharSelectWindow>,
-    login_session: Option<Session>,
     network_cmd_tx: Option<mpsc::UnboundedSender<NetworkCommand>>,
     game_event_rx: Option<mpsc::UnboundedReceiver<GameEvent>>,
-    app_state: AppState,
-    map_coords: Option<MapCoordinates>,
-    gat: Option<GatFile>,
-    current_map: Option<String>,
-    selected_character: Option<CharacterInfo>,
-    player_entity: Option<Entity>,
-    player_sprite: Option<EntitySprite>,
-    cursor_textures: Option<SpriteTextures>,
-    cursor_act: Option<ActFile>,
-    cursor_animation: CursorAnimationState,
+    game: GameState,
     start_time: Instant,
     last_render_time: f32,
 }
@@ -76,29 +61,15 @@ impl App {
             window: None,
             renderer: None,
             grf: None,
-            input: InputState {
-                right_mouse_down: false,
-                last_mouse_pos: None,
-                mouse_position: (0.0, 0.0),
-            },
+            input: InputState::new(),
             ui_context: None,
             ui_state_cache: StateCache::new(),
             login_window: LoginWindow::new(),
             server_list_window: None,
             char_select_window: None,
-            login_session: None,
             network_cmd_tx: None,
             game_event_rx: None,
-            app_state: AppState::Login,
-            map_coords: None,
-            gat: None,
-            current_map: None,
-            selected_character: None,
-            player_entity: None,
-            player_sprite: None,
-            cursor_textures: None,
-            cursor_act: None,
-            cursor_animation: CursorAnimationState::new(),
+            game: GameState::new(),
             start_time: Instant::now(),
             last_render_time: 0.0,
         }
@@ -115,13 +86,13 @@ impl App {
             None => return,
         };
 
-        self.map_coords = map_data.coordinates;
-        self.gat = map_data.gat;
+        self.game.map_coords = map_data.coordinates;
+        self.game.gat = map_data.gat;
 
         if let Some(renderer) = &mut self.renderer {
             renderer.load_map(&map_data.gnd, &map_data.rsw, grf);
 
-            if let Some(gat) = &self.gat {
+            if let Some(gat) = &self.game.gat {
                 let mut grid = GridSelectorRenderer::new(
                     &renderer.device.device,
                     &renderer.device.queue,
@@ -140,37 +111,23 @@ impl App {
     }
 
     fn position_camera_at(&mut self, cell_x: f32, cell_y: f32) {
-        if let (Some(coords), Some(renderer)) = (&self.map_coords, &mut self.renderer) {
-            let (wx, _, wz) = coords.cell_to_world(cell_x + 0.5, cell_y + 0.5);
-            let wy = self.gat.as_ref().map_or(0.0, |gat| gat.get_height(cell_x + 0.5, cell_y + 0.5));
-            renderer.camera.set_target(wx, wy, wz);
+        if let (Some(coords), Some(renderer)) = (&self.game.map_coords, &mut self.renderer) {
+            input::position_camera_at(&mut renderer.camera, self.game.gat.as_ref(), coords, cell_x, cell_y);
         }
     }
 
     fn hovered_cell(&self) -> Option<(i32, i32)> {
-        let (renderer, coords) = match (&self.renderer, &self.map_coords) {
+        let (renderer, coords) = match (&self.renderer, &self.game.map_coords) {
             (Some(r), Some(c)) => (r, c),
             _ => return None,
         };
-        let (mx, my) = self.input.mouse_position;
-        let size = renderer.device.surface_config.width as f32;
-        let size_h = renderer.device.surface_config.height as f32;
-        let (origin, dir) = renderer.camera.screen_to_ray(mx as f32, my as f32, size, size_h);
-
-        if dir.y.abs() < 1e-6 {
-            return None;
-        }
-        let t = -origin.y / dir.y;
-        if t < 0.0 {
-            return None;
-        }
-        let hit = origin + dir * t;
-
-        let (cell_x, cell_y) = coords.world_to_cell(hit.x, hit.z);
-        if !coords.is_valid_cell(cell_x, cell_y) {
-            return None;
-        }
-        Some((cell_x, cell_y))
+        input::hovered_cell(
+            self.input.mouse_position,
+            &renderer.camera,
+            renderer.device.surface_config.width as f32,
+            renderer.device.surface_config.height as f32,
+            coords,
+        )
     }
 
     fn handle_left_click(&mut self) {
@@ -178,12 +135,12 @@ impl App {
             Some(c) => c,
             None => return,
         };
-        let gat = match &self.gat {
+        let gat = match &self.game.gat {
             Some(g) => g,
             None => return,
         };
 
-        let (src_x, src_y) = self.player_entity.as_ref()
+        let (src_x, src_y) = self.game.player_entity.as_ref()
             .map(|e| e.movement.cell_position())
             .unwrap_or((0, 0));
 
@@ -198,7 +155,7 @@ impl App {
         }
 
         let elapsed = self.start_time.elapsed().as_secs_f32();
-        if let Some(entity) = &mut self.player_entity {
+        if let Some(entity) = &mut self.game.player_entity {
             entity.movement.start_move(move_action.path, elapsed);
         }
     }
@@ -231,7 +188,7 @@ impl App {
                         tracing::info!("Login accepted, {} server(s)", servers.len());
                         let mut session = Session::new(self.config.packetver);
                         session.store_login(account_id, login_id1, login_id2, sex);
-                        self.login_session = Some(session);
+                        self.game.login_session = Some(session);
                         let mut server_win = ServerListWindow::new(servers);
                         if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
                             server_win.has_grf_textures = renderer.preload_textures(&ServerListWindow::grf_texture_paths(), grf);
@@ -242,7 +199,7 @@ impl App {
                             }
                         }
                         self.server_list_window = Some(server_win);
-                        self.app_state = AppState::ServerSelect;
+                        self.game.app_state = AppState::ServerSelect;
                     }
                     GameEvent::LoginRefused { error_code } => {
                         let msg = match error_code {
@@ -269,64 +226,62 @@ impl App {
                             }
                         }
                         self.char_select_window = Some(char_win);
-                        self.app_state = AppState::CharacterSelect;
+                        self.game.app_state = AppState::CharacterSelect;
                     }
                     GameEvent::ZoneServerConnectInfo { char_id, map_name, ip, port } => {
-                        if let Some(session) = &mut self.login_session {
+                        if let Some(session) = &mut self.game.login_session {
                             session.store_zone_info(char_id, map_name);
                         }
                         let addr = format!("{}:{}", ip_u32_to_string(ip), port);
                         if let Some(tx) = &self.network_cmd_tx {
                             let _ = tx.send(NetworkCommand::Disconnect);
                             let _ = tx.send(NetworkCommand::Connect(addr));
-                            if let Some(session) = &self.login_session {
+                            if let Some(session) = &self.game.login_session {
                                 let packet = build_zone_enter_packet(session);
                                 let _ = tx.send(NetworkCommand::SendPacket(packet));
                             }
                         }
                     }
                     GameEvent::MapEntered { x, y, dir, .. } => {
-                        let map_name = self.login_session.as_ref().map(|s| {
+                        let map_name = self.game.login_session.as_ref().map(|s| {
                             s.map_name.strip_suffix(".gat")
                                 .unwrap_or(&s.map_name).to_string()
                         });
                         if let Some(map_name) = &map_name {
                             tracing::info!("Entering map: {map_name}");
                             self.load_map(map_name);
-                            self.current_map = Some(map_name.clone());
+                            self.game.current_map = Some(map_name.clone());
                         }
 
-                        let session_sex = self.login_session.as_ref().map(|s| s.sex).unwrap_or(1);
-                        let (job, sex, head, hair_color, weapon, char_id) = self.selected_character.as_ref()
+                        let session_sex = self.game.login_session.as_ref().map(|s| s.sex).unwrap_or(1);
+                        let (job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom, shield_id, char_id) = self.game.selected_character.as_ref()
                             .map(|c| {
-                                // Per-character sex only available on packetver >= 20141016;
-                                // older versions default to 0, so use session sex instead
                                 let sex = if self.config.packetver >= 20141016 { c.sex } else { session_sex };
-                                (c.class, sex, c.head, c.hair_color, c.weapon, c.gid)
+                                (c.class, sex, c.head, c.hair_color, c.weapon, c.head_top, c.head_mid, c.head_bottom, c.shield, c.gid)
                             })
-                            .unwrap_or((0, session_sex, 0, 0, 0, 0));
+                            .unwrap_or((0, session_sex, 0, 0, 0, 0, 0, 0, 0, 0));
 
-                        let entity = Entity::new_player(char_id, job, sex, head, hair_color, weapon, x, y, dir);
-                        self.player_entity = Some(entity);
+                        let entity = Entity::new_player(char_id, job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom, shield_id, x, y, dir);
+                        self.game.player_entity = Some(entity);
 
                         let weapon_type = weapon_view_id_to_type(weapon);
-                        self.load_player_sprite(job, sex, head, weapon_type, dir);
+                        self.load_player_sprite(job, sex, head, weapon_type, head_top, head_mid, head_bottom, shield_id, dir);
 
                         self.position_camera_at(x as f32, y as f32);
                         self.char_select_window = None;
-                        self.app_state = AppState::InGame;
+                        self.game.app_state = AppState::InGame;
                     }
                     GameEvent::PlayerMoved { start_x, start_y, dest_x, dest_y, .. } => {
-                        let already_moving_to_dest = self.player_entity.as_ref()
+                        let already_moving_to_dest = self.game.player_entity.as_ref()
                             .filter(|e| e.movement.is_moving())
                             .and_then(|e| e.movement.destination())
                             .is_some_and(|(dx, dy)| dx == dest_x && dy == dest_y);
                         if !already_moving_to_dest {
-                            if let Some(gat) = &self.gat {
+                            if let Some(gat) = &self.game.gat {
                                 let path = path_search(gat, start_x, start_y, dest_x, dest_y);
                                 if !path.is_empty() {
                                     let elapsed = self.start_time.elapsed().as_secs_f32();
-                                    if let Some(entity) = &mut self.player_entity {
+                                    if let Some(entity) = &mut self.game.player_entity {
                                         entity.movement.set_position(start_x as f32, start_y as f32);
                                         entity.movement.start_move(path, elapsed);
                                     }
@@ -337,12 +292,12 @@ impl App {
                     GameEvent::MapChanged { map_name, x, y } => {
                         let map_name = map_name.strip_suffix(".gat")
                             .unwrap_or(&map_name).to_string();
-                        if self.current_map.as_deref() != Some(&map_name) {
+                        if self.game.current_map.as_deref() != Some(&map_name) {
                             tracing::info!("Map change: {map_name}");
                             self.load_map(&map_name);
-                            self.current_map = Some(map_name);
+                            self.game.current_map = Some(map_name);
                         }
-                        if let Some(entity) = &mut self.player_entity {
+                        if let Some(entity) = &mut self.game.player_entity {
                             entity.movement.set_position(x as f32, y as f32);
                         }
                         self.position_camera_at(x as f32, y as f32);
@@ -359,76 +314,21 @@ impl App {
         }
     }
 
-    fn load_player_sprite(&mut self, job: u16, sex: u8, head: u16, weapon: Option<WeaponType>, direction: u8) {
+    fn load_player_sprite(&mut self, job: u16, sex: u8, head: u16, weapon: Option<WeaponType>, head_top: u16, head_mid: u16, head_bottom: u16, shield_id: u16, direction: u8) {
         let (grf, renderer) = match (&self.grf, &self.renderer) {
             (Some(g), Some(r)) => (g, r),
             _ => return,
         };
-
-        if let Some(sprite_data) = sprite_loader::load_body_sprite(grf, job, sex) {
-            let textures = upload_sprite_textures(
-                &sprite_data.images,
-                sprite_data.indexed_count,
-                &renderer.device.device,
-                &renderer.device.queue,
-                &renderer.texture_cache.bind_group_layout,
-            );
-
-            let (head_textures, head_act) = if let Some(head_data) = sprite_loader::load_head_sprite(grf, head, sex) {
-                let htex = upload_sprite_textures(
-                    &head_data.images,
-                    head_data.indexed_count,
-                    &renderer.device.device,
-                    &renderer.device.queue,
-                    &renderer.texture_cache.bind_group_layout,
-                );
-                (Some(htex), Some(head_data.act))
-            } else {
-                (None, None)
-            };
-
-            let (weapon_textures, weapon_act) = if let Some(weapon_type) = weapon {
-                if let Some(weapon_data) = sprite_loader::load_weapon_sprite(grf, job, sex, weapon_type) {
-                    let wtex = upload_sprite_textures(
-                        &weapon_data.images,
-                        weapon_data.indexed_count,
-                        &renderer.device.device,
-                        &renderer.device.queue,
-                        &renderer.texture_cache.bind_group_layout,
-                    );
-                    (Some(wtex), Some(weapon_data.act))
-                } else {
-                    (None, None)
-                }
-            } else {
-                (None, None)
-            };
-
-            let (shadow_textures, shadow_act) = if let Some(shadow_data) = sprite_loader::load_shadow_sprite(grf) {
-                let stex = upload_sprite_textures(
-                    &shadow_data.images,
-                    shadow_data.indexed_count,
-                    &renderer.device.device,
-                    &renderer.device.queue,
-                    &renderer.texture_cache.bind_group_layout,
-                );
-                (Some(stex), Some(shadow_data.act))
-            } else {
-                (None, None)
-            };
-
-            self.player_sprite = Some(EntitySprite {
-                body_textures: textures,
-                body_act: sprite_data.act,
-                head_textures,
-                head_act,
-                weapon_textures,
-                weapon_act,
-                animation: SpriteAnimationState::new(direction),
-                shadow_textures,
-                shadow_act,
-            });
-        }
+        let empty_table = ragnarok_game::accessory_table::AccessoryTable::empty();
+        let accessory_table = self.game.accessory_table.as_ref().unwrap_or(&empty_table);
+        let data = match sprite_loader::load_player_sprite_data(grf, accessory_table, job, sex, head, weapon, head_top, head_mid, head_bottom, shield_id) {
+            Some(d) => d,
+            None => return,
+        };
+        self.game.player_sprite = Some(build_entity_sprite(
+            &renderer.device.device, &renderer.device.queue, &renderer.texture_cache.bind_group_layout,
+            data.body, data.head, data.weapon, data.headgear_top, data.headgear_mid, data.headgear_bottom, data.shield, data.shadow, direction,
+        ));
     }
 
     fn load_cursor_sprite(&mut self, grf: &GrfArchive) {
@@ -445,8 +345,8 @@ impl App {
                 &renderer.device.queue,
                 &renderer.texture_cache.bind_group_layout,
             );
-            self.cursor_textures = Some(textures);
-            self.cursor_act = Some(sprite_data.act);
+            self.game.cursor_textures = Some(textures);
+            self.game.cursor_act = Some(sprite_data.act);
 
             if let Some(window) = &self.window {
                 window.set_cursor_visible(false);
@@ -472,7 +372,7 @@ impl App {
                             if let Some(tx) = &self.network_cmd_tx {
                                 let _ = tx.send(NetworkCommand::Disconnect);
                                 let _ = tx.send(NetworkCommand::Connect(addr));
-                                if let Some(session) = &self.login_session {
+                                if let Some(session) = &self.game.login_session {
                                     let packet = build_char_enter_packet(session);
                                     let _ = tx.send(NetworkCommand::SendPacket(packet));
                                 }
@@ -482,7 +382,7 @@ impl App {
                 }
                 GameEvent::RequestSelectCharacter { slot } => {
                     if let Some(char_win) = &self.char_select_window {
-                        self.selected_character = char_win.characters.iter()
+                        self.game.selected_character = char_win.characters.iter()
                             .find(|c| c.slot == slot as i8)
                             .cloned();
                     }
@@ -492,17 +392,17 @@ impl App {
                     }
                 }
                 GameEvent::BackToServerSelect => {
-                    self.app_state = AppState::ServerSelect;
+                    self.game.app_state = AppState::ServerSelect;
                     self.char_select_window = None;
                     if let Some(tx) = &self.network_cmd_tx {
                         let _ = tx.send(NetworkCommand::Disconnect);
                     }
                 }
                 GameEvent::BackToLogin => {
-                    self.app_state = AppState::Login;
+                    self.game.app_state = AppState::Login;
                     self.server_list_window = None;
                     self.char_select_window = None;
-                    self.login_session = None;
+                    self.game.login_session = None;
                     if let Some(tx) = &self.network_cmd_tx {
                         let _ = tx.send(NetworkCommand::Disconnect);
                     }
@@ -519,7 +419,7 @@ impl App {
     }
 
     fn build_ui(&mut self, elapsed: f32) -> (Vec<UiDrawCall>, Vec<GameEvent>) {
-        match self.app_state {
+        match self.game.app_state {
             AppState::Login => {
                 if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
                     let initial_focus = match self.login_window.focus {
@@ -569,7 +469,7 @@ impl App {
     }
 
     fn update_movement(&mut self, elapsed: f32) {
-        let move_pos = self.player_entity.as_mut()
+        let move_pos = self.game.player_entity.as_mut()
             .filter(|e| e.movement.is_moving())
             .map(|e| e.movement.update(elapsed));
         if let Some((px, py)) = move_pos {
@@ -578,7 +478,7 @@ impl App {
     }
 
     fn update_entity_state(&mut self) {
-        if let Some(entity) = &mut self.player_entity {
+        if let Some(entity) = &mut self.game.player_entity {
             entity.update_state();
             if let Some(move_dir) = entity.movement.movement_direction() {
                 entity.direction = move_dir;
@@ -588,7 +488,7 @@ impl App {
 
     fn update_sprite_animation(&mut self, delta: f32) {
         if let (Some(entity), Some(sprite), Some(renderer)) =
-            (&self.player_entity, &mut self.player_sprite, &self.renderer)
+            (&self.game.player_entity, &mut self.game.player_sprite, &self.renderer)
         {
             let camera_dir = renderer.camera.direction_index();
             sprite.animation.set_action(entity.action_index());
@@ -602,28 +502,16 @@ impl App {
     }
 
     fn update_grid_hover(&mut self) -> Option<(i32, i32)> {
-        let hovered = if self.app_state == AppState::InGame {
+        let hovered = if self.game.app_state == AppState::InGame {
             self.hovered_cell()
         } else {
             None
         };
 
         let hover_corners = hovered.and_then(|(cx, cy)| {
-            let coords = self.map_coords.as_ref()?;
-            let c0 = coords.cell_to_world(cx as f32, cy as f32);
-            let c1 = coords.cell_to_world(cx as f32 + 1.0, cy as f32);
-            let c2 = coords.cell_to_world(cx as f32, cy as f32 + 1.0);
-            let c3 = coords.cell_to_world(cx as f32 + 1.0, cy as f32 + 1.0);
-            let gat = self.gat.as_ref()?;
-            let cell = &gat.cells[(cy * gat.width + cx) as usize];
-            let h = &cell.heights;
-            let y_off = -0.2_f32;
-            Some([
-                [c0.0, h[0] + y_off, c0.2],
-                [c1.0, h[1] + y_off, c1.2],
-                [c2.0, h[2] + y_off, c2.2],
-                [c3.0, h[3] + y_off, c3.2],
-            ])
+            let coords = self.game.map_coords.as_ref()?;
+            let gat = self.game.gat.as_ref()?;
+            Some(coords.cell_corners_world(gat, cx, cy))
         });
 
         if let Some(renderer) = &mut self.renderer {
@@ -641,8 +529,8 @@ impl App {
     }
 
     fn update_cursor_type(&mut self, hovered: Option<(i32, i32)>) {
-        let cursor = if self.app_state == AppState::InGame {
-            if let Some(gat) = &self.gat {
+        let cursor = if self.game.app_state == AppState::InGame {
+            if let Some(gat) = &self.game.gat {
                 cursor_type_for_cell(gat, hovered)
             } else {
                 CursorType::Default
@@ -650,40 +538,37 @@ impl App {
         } else {
             CursorType::Default
         };
-        self.cursor_animation.set_cursor_type(cursor);
+        self.game.cursor_animation.set_cursor_type(cursor);
     }
 
     fn player_screen_params(&self) -> Option<([f32; 2], f32, u8, f32)> {
-        let (entity, _sprite, renderer, coords) = match (
-            &self.player_entity, &self.player_sprite, &self.renderer, &self.map_coords
+        let (entity, renderer, coords) = match (
+            &self.game.player_entity, &self.renderer, &self.game.map_coords
         ) {
-            (Some(e), Some(s), Some(r), Some(c)) => (e, s, r, c),
+            (Some(e), Some(r), Some(c)) => (e, r, c),
             _ => return None,
         };
+        if self.game.player_sprite.is_none() {
+            return None;
+        }
 
-        let (cell_x, cell_y) = entity.movement.position();
-        let (wx, _, wz) = coords.cell_to_world(cell_x + 0.5, cell_y + 0.5);
-        let wy = self.gat.as_ref().map_or(0.0, |gat| gat.get_height(cell_x + 0.5, cell_y + 0.5));
-
-        let screen_w = renderer.device.surface_config.width as f32;
-        let screen_h = renderer.device.surface_config.height as f32;
-        let (sx, sy, ndc_z) = renderer.camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h)?;
-        let ndc_z = ndc_z - 0.0002;
-
-        let camera_dir = renderer.camera.direction_index();
-        let ppu = renderer.camera.perspective_scale(wx, wy, wz, screen_h);
-        let sprite_scale = ppu * coords.zoom() / 75.0;
-
-        Some(([sx, sy], ndc_z, camera_dir, sprite_scale))
+        input::entity_screen_params(
+            entity.movement.position(),
+            self.game.gat.as_ref(),
+            coords,
+            &renderer.camera,
+            renderer.device.surface_config.width as f32,
+            renderer.device.surface_config.height as f32,
+        )
     }
 
     fn build_cursor_sprite_clips(&mut self, dt: f32) -> Vec<ClipData> {
-        let cursor_act = match &self.cursor_act {
+        let cursor_act = match &self.game.cursor_act {
             Some(a) => a,
             None => return Vec::new(),
         };
-        self.cursor_animation.update(dt, cursor_act);
-        let action_idx = self.cursor_animation.action_index();
+        self.game.cursor_animation.update(dt, cursor_act);
+        let action_idx = self.game.cursor_animation.action_index();
         if action_idx >= cursor_act.actions.len() {
             return Vec::new();
         }
@@ -691,10 +576,10 @@ impl App {
         if action.motions.is_empty() {
             return Vec::new();
         }
-        let motion_idx = self.cursor_animation.motion_index() % action.motions.len();
+        let motion_idx = self.game.cursor_animation.motion_index() % action.motions.len();
         let motion = &action.motions[motion_idx];
         let (mx, my) = self.input.mouse_position;
-        let cursor_tex = match &self.cursor_textures {
+        let cursor_tex = match &self.game.cursor_textures {
             Some(t) => t,
             None => return Vec::new(),
         };
@@ -751,6 +636,7 @@ impl ApplicationHandler for App {
                     }
 
                     self.load_cursor_sprite(&grf);
+                    self.game.accessory_table = Some(ragnarok_game::accessory_table::AccessoryTable::load_from_grf(&grf));
                     self.grf = Some(grf);
                 }
                 Err(e) => {
@@ -777,7 +663,7 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
-                if self.app_state == AppState::InGame {
+                if self.game.app_state == AppState::InGame {
                     match button {
                         MouseButton::Right => {
                             self.input.right_mouse_down = state == ElementState::Pressed;
@@ -794,37 +680,32 @@ impl ApplicationHandler for App {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.input.mouse_position = (position.x, position.y);
-                if self.app_state == AppState::InGame && self.input.right_mouse_down {
+                if self.game.app_state == AppState::InGame && self.input.right_mouse_down {
                     if let Some((lx, ly)) = self.input.last_mouse_pos {
                         let dx = (position.x - lx) as f32;
                         let dy = (position.y - ly) as f32;
                         if let Some(renderer) = &mut self.renderer {
-                            renderer.camera.yaw += dx * 0.0175;
-                            if self.config.free_camera {
-                                renderer.camera.pitch = (renderer.camera.pitch - dy * 0.005)
-                                    .clamp(0.1, std::f32::consts::FRAC_PI_2 - 0.01);
-                            }
+                            input::handle_camera_drag(&mut renderer.camera, dx, dy, self.config.free_camera);
                         }
                     }
                     self.input.last_mouse_pos = Some((position.x, position.y));
                 }
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                if self.app_state == AppState::InGame {
+                if self.game.app_state == AppState::InGame {
                     let scroll = match delta {
                         MouseScrollDelta::LineDelta(_, y) => y,
                         MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
                     };
                     if let Some(renderer) = &mut self.renderer {
-                        renderer.camera.distance =
-                            (renderer.camera.distance - scroll * 20.0).clamp(50.0, 1500.0);
+                        input::handle_camera_zoom(&mut renderer.camera, scroll);
                     }
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state == ElementState::Pressed
                     && event.physical_key == PhysicalKey::Code(KeyCode::F11)
-                    && self.app_state == AppState::InGame
+                    && self.game.app_state == AppState::InGame
                 {
                     if let Some(renderer) = &mut self.renderer {
                         if let Some(grid) = &mut renderer.grid_selector {
@@ -858,9 +739,9 @@ impl ApplicationHandler for App {
                     let mut sprite_batches: Vec<SpriteBatch> = Vec::new();
                     let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
 
-                    if let Some(sprite) = &self.player_sprite {
+                    if let Some(sprite) = &self.game.player_sprite {
                         if let Some((center, depth, camera_dir, sprite_scale)) = screen_params {
-                            let shadow_scale = sprite_scale * shadow_size(self.player_entity.as_ref().map(|e| e.job).unwrap_or(0));
+                            let shadow_scale = sprite_scale * shadow_size(self.game.player_entity.as_ref().map(|e| e.job).unwrap_or(0));
                             let mut shadow = sprite.build_shadow_batches(center, depth, shadow_scale);
                             sprite_batches.append(&mut shadow);
                             let mut player = sprite.build_batches(Some(camera_dir), center, depth, sprite_scale);
@@ -868,7 +749,7 @@ impl ApplicationHandler for App {
                         }
                     }
 
-                    if let Some(cursor_tex) = &self.cursor_textures {
+                    if let Some(cursor_tex) = &self.game.cursor_textures {
                         for (vertices, indices, tex_idx) in cursor_clips {
                             cursor_batches.push(SpriteBatch {
                                 vertices,
@@ -892,18 +773,6 @@ impl ApplicationHandler for App {
                 }
             }
             _ => {}
-        }
-    }
-}
-
-fn block_on<F: std::future::Future>(future: F) -> F::Output {
-    let mut future = std::pin::pin!(future);
-    let waker = std::task::Waker::noop();
-    let mut cx = std::task::Context::from_waker(&waker);
-    loop {
-        match future.as_mut().poll(&mut cx) {
-            std::task::Poll::Ready(val) => return val,
-            std::task::Poll::Pending => std::hint::spin_loop(),
         }
     }
 }

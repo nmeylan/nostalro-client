@@ -1,3 +1,4 @@
+use ragnarok_game::accessory_table::AccessoryTable;
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
 use ragnarok_ui::draw::{text_vertices, quad_vertices};
@@ -19,6 +20,7 @@ pub enum BrowserTab {
     Npc,
     Monster,
     Character,
+    Headgear,
 }
 
 const JOB_LIST: &[(u16, &str)] = &[
@@ -64,6 +66,8 @@ struct TabData {
     monster_sprites: Vec<String>,
     char_names: Vec<String>,
     char_job_ids: Vec<u16>,
+    headgear_names: Vec<String>,
+    headgear_ids: Vec<u16>,
 }
 
 pub struct SpriteBrowser {
@@ -95,7 +99,7 @@ impl SpriteBrowser {
         }
     }
 
-    pub fn new_with_tabs(all_sprites: Vec<String>) -> Self {
+    pub fn new_with_tabs(all_sprites: Vec<String>, accessory_table: &AccessoryTable) -> Self {
         let mut npc_sprites: Vec<String> = all_sprites.iter()
             .filter(|s| s.starts_with("data/sprite/npc/"))
             .cloned()
@@ -115,6 +119,14 @@ impl SpriteBrowser {
             .map(|(id, _)| *id)
             .collect();
 
+        let sorted_accessories = accessory_table.sorted_entries();
+        let headgear_names: Vec<String> = sorted_accessories.iter()
+            .map(|(id, suffix)| format!("{id}: {suffix}"))
+            .collect();
+        let headgear_ids: Vec<u16> = sorted_accessories.iter()
+            .map(|(id, _)| *id)
+            .collect();
+
         let filtered: Vec<usize> = (0..npc_sprites.len()).collect();
         let items = npc_sprites.clone();
 
@@ -125,6 +137,8 @@ impl SpriteBrowser {
                 monster_sprites,
                 char_names,
                 char_job_ids,
+                headgear_names,
+                headgear_ids,
             }),
             items,
             filtered,
@@ -165,6 +179,7 @@ impl SpriteBrowser {
             BrowserTab::Npc => (tabs.npc_sprites.clone(), "NPC sprites"),
             BrowserTab::Monster => (tabs.monster_sprites.clone(), "monster sprites"),
             BrowserTab::Character => (tabs.char_names.clone(), "characters"),
+            BrowserTab::Headgear => (tabs.headgear_names.clone(), "headgear"),
         };
         self.items = items;
         self.label = label.to_string();
@@ -179,6 +194,13 @@ impl SpriteBrowser {
         if tabs.active != BrowserTab::Character { return None; }
         let &idx = self.filtered.get(self.selected)?;
         tabs.char_job_ids.get(idx).copied()
+    }
+
+    pub fn selected_headgear_id(&self) -> Option<u16> {
+        let tabs = self.tabs.as_ref()?;
+        if tabs.active != BrowserTab::Headgear { return None; }
+        let &idx = self.filtered.get(self.selected)?;
+        tabs.headgear_ids.get(idx).copied()
     }
 
     pub fn handle_char(&mut self, ch: char) {
@@ -269,6 +291,7 @@ impl SpriteBrowser {
                 (BrowserTab::Npc, "1:NPC"),
                 (BrowserTab::Monster, "2:MONSTER"),
                 (BrowserTab::Character, "3:CHARACTER"),
+                (BrowserTab::Headgear, "4:HEADGEAR"),
             ];
             let mut tab_x = x;
             for (tab, label) in &tab_labels {
@@ -427,7 +450,7 @@ mod tests {
             "data/sprite/npc/merchant.spr".to_string(),
             "data/sprite/몬스터/poring.spr".to_string(),
         ];
-        let browser = SpriteBrowser::new_with_tabs(sprites);
+        let browser = SpriteBrowser::new_with_tabs(sprites, &AccessoryTable::empty());
         assert!(browser.has_tabs());
         assert_eq!(browser.active_tab(), Some(BrowserTab::Npc));
         assert_eq!(browser.items.len(), 2);
@@ -439,7 +462,7 @@ mod tests {
             "data/sprite/npc/kafra.spr".to_string(),
             "data/sprite/몬스터/poring.spr".to_string(),
         ];
-        let mut browser = SpriteBrowser::new_with_tabs(sprites);
+        let mut browser = SpriteBrowser::new_with_tabs(sprites, &AccessoryTable::empty());
         assert_eq!(browser.items.len(), 1); // 1 NPC
 
         browser.switch_tab(BrowserTab::Monster);
@@ -453,7 +476,7 @@ mod tests {
 
     #[test]
     fn character_tab_returns_job_id() {
-        let mut browser = SpriteBrowser::new_with_tabs(Vec::new());
+        let mut browser = SpriteBrowser::new_with_tabs(Vec::new(), &AccessoryTable::empty());
         browser.switch_tab(BrowserTab::Character);
         assert_eq!(browser.selected_job_id(), Some(0)); // Novice
         browser.handle_down();
@@ -466,7 +489,7 @@ mod tests {
             "data/sprite/npc/kafra.spr".to_string(),
             "data/sprite/npc/merchant.spr".to_string(),
         ];
-        let mut browser = SpriteBrowser::new_with_tabs(sprites);
+        let mut browser = SpriteBrowser::new_with_tabs(sprites, &AccessoryTable::empty());
         browser.handle_char('k');
         assert_eq!(browser.filtered.len(), 1);
 

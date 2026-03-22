@@ -3,6 +3,13 @@ use std::io::{Cursor, Read};
 use byteorder::{LittleEndian as LE, ReadBytesExt};
 
 use crate::{Color, FormatError, version_at_least};
+use crate::act::ActFile;
+
+pub struct SpriteData {
+    pub images: Vec<RgbaImageData>,
+    pub indexed_count: usize,
+    pub act: ActFile,
+}
 
 pub struct SprImage {
     pub width: u16,

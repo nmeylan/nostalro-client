@@ -4,17 +4,17 @@ use std::time::Instant;
 
 use ragnarok_formats::act::SpriteActionType;
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_game::animation::SpriteAnimationState;
+use ragnarok_game::accessory_table::AccessoryTable;
 use ragnarok_game::sprite_loader::{self as game_sprite_loader};
 use ragnarok_game::sprite_path::weapon_view_id_to_type;
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::sprite::{
     SpriteRenderer, SpriteUniforms, EntitySprite,
-    upload_sprite_textures,
+    upload_sprite_textures, build_entity_sprite,
 };
 use ragnarok_renderer::texture::{self, TextureCache};
 use ragnarok_renderer::ui_renderer::{UiDrawCommand, UiRenderer};
-use ragnarok_renderer::{RenderDevice, UiTextureRef};
+use ragnarok_renderer::{RenderDevice, UiTextureRef, block_on};
 use ragnarok_tools::sprite_viewer::browser::{BrowserTab, SpriteBrowser};
 use ragnarok_tools::sprite_viewer::controls::{self, Background, ViewerAction};
 use ragnarok_tools::sprite_viewer::shader_watcher::ShaderWatcher;
@@ -85,6 +85,9 @@ struct App {
     composite_sex: u8,
     composite_head: u16,
     weapon_view_id: u16,
+    headgear_top_id: u16,
+    shield_view_id: u16,
+    accessory_table: AccessoryTable,
 }
 
 impl App {
@@ -112,6 +115,9 @@ impl App {
             composite_sex: 1,
             composite_head: 1,
             weapon_view_id: 0,
+            headgear_top_id: 0,
+            shield_view_id: 0,
+            accessory_table: AccessoryTable::empty(),
         }
     }
 
@@ -126,9 +132,10 @@ impl App {
 
         let sprites: Vec<String> = grf.files_with_extension(".spr")
             .into_iter().map(|s| s.to_string()).collect();
+        self.accessory_table = AccessoryTable::load_from_grf(&grf);
         self.grf = Some(grf);
 
-        let mut browser = SpriteBrowser::new_with_tabs(sprites);
+        let mut browser = SpriteBrowser::new_with_tabs(sprites, &self.accessory_table);
         if let Some(device) = &self.device {
             browser.update_visible_rows(device.surface_config.height as f32);
         }
@@ -151,99 +158,59 @@ impl App {
             None => return,
         };
 
-        let textures = upload_sprite_textures(
-            &sprite_data.images,
-            sprite_data.indexed_count,
-            &device.device,
-            &device.queue,
-            &tex_cache.bind_group_layout,
-        );
-
-        self.entity_sprite = Some(EntitySprite {
-            body_textures: textures,
-            body_act: sprite_data.act,
-            head_textures: None,
-            head_act: None,
-            weapon_textures: None,
-            weapon_act: None,
-            animation: SpriteAnimationState::new(0),
-            shadow_textures: None,
-            shadow_act: None,
-        });
+        self.entity_sprite = Some(build_entity_sprite(
+            &device.device, &device.queue, &tex_cache.bind_group_layout,
+            sprite_data, None, None, None, None, None, None, None, 0,
+        ));
 
         if let Some(window) = &self.window {
             window.set_title(&format!("Sprite Viewer — {path}"));
         }
     }
 
-    fn load_composite(&mut self, job: u16, sex: u8, head_id: u16, weapon_view_id: u16) {
+    fn load_composite(&mut self, job: u16, sex: u8, head_id: u16, weapon_view_id: u16, headgear_top: u16, shield: u16) {
         let (Some(device), Some(tex_cache), Some(grf)) = (
             &self.device, &self.texture_cache, &self.grf,
         ) else {
             return;
         };
 
-        let body_data = match game_sprite_loader::load_body_sprite(grf, job, sex) {
+        let weapon_type = weapon_view_id_to_type(weapon_view_id);
+        let data = match game_sprite_loader::load_player_sprite_data(grf, &self.accessory_table, job, sex, head_id, weapon_type, headgear_top, 0, 0, shield) {
             Some(d) => d,
             None => {
                 eprintln!("Failed to load body sprite for job={job} sex={sex}");
                 return;
             }
         };
-        let body_textures = upload_sprite_textures(
-            &body_data.images, body_data.indexed_count,
+        self.entity_sprite = Some(build_entity_sprite(
             &device.device, &device.queue, &tex_cache.bind_group_layout,
-        );
-
-        let (head_textures, head_act) = if head_id > 0 {
-            if let Some(hd) = game_sprite_loader::load_head_sprite(grf, head_id, sex) {
-                let htex = upload_sprite_textures(
-                    &hd.images, hd.indexed_count,
-                    &device.device, &device.queue, &tex_cache.bind_group_layout,
-                );
-                (Some(htex), Some(hd.act))
-            } else {
-                (None, None)
-            }
-        } else {
-            (None, None)
-        };
-
-        let (weapon_textures, weapon_act) = if let Some(wt) = weapon_view_id_to_type(weapon_view_id) {
-            if let Some(wd) = game_sprite_loader::load_weapon_sprite(grf, job, sex, wt) {
-                let wtex = upload_sprite_textures(
-                    &wd.images, wd.indexed_count,
-                    &device.device, &device.queue, &tex_cache.bind_group_layout,
-                );
-                (Some(wtex), Some(wd.act))
-            } else {
-                (None, None)
-            }
-        } else {
-            (None, None)
-        };
-
-        self.entity_sprite = Some(EntitySprite {
-            body_act: body_data.act,
-            body_textures,
-            head_textures,
-            head_act,
-            weapon_textures,
-            weapon_act,
-            animation: SpriteAnimationState::new(0),
-            shadow_textures: None,
-            shadow_act: None,
-        });
+            data.body, data.head, data.weapon, data.headgear_top, data.headgear_mid, data.headgear_bottom, data.shield, None, 0,
+        ));
         self.composite_job = job;
         self.composite_sex = sex;
         self.composite_head = head_id;
         self.weapon_view_id = weapon_view_id;
+        self.headgear_top_id = headgear_top;
+        self.shield_view_id = shield;
 
+        self.update_composite_title();
+    }
+
+    fn update_composite_title(&self) {
         if let Some(window) = &self.window {
-            let weapon_str = weapon_view_id_to_type(weapon_view_id)
+            let weapon_str = weapon_view_id_to_type(self.weapon_view_id)
                 .map(|w| format!("{w:?}"))
                 .unwrap_or_else(|| "None".into());
-            window.set_title(&format!("Sprite Viewer — job:{job} sex:{sex} head:{head_id} weapon:{weapon_str}"));
+            let hg_str = if self.headgear_top_id > 0 {
+                self.accessory_table.get_suffix(self.headgear_top_id)
+                    .unwrap_or("?").to_string()
+            } else { "None".into() };
+            let shield_str = if self.shield_view_id > 0 { format!("{}", self.shield_view_id) } else { "None".into() };
+            window.set_title(&format!(
+                "Sprite Viewer — job:{} sex:{} head:{} weapon:{weapon_str} headgear:{hg_str} shield:{shield_str}",
+                self.composite_job, self.composite_sex, self.composite_head,
+            ));
         }
     }
 
@@ -271,16 +238,65 @@ impl App {
 
         entity.weapon_textures = weapon_textures;
         entity.weapon_act = weapon_act;
+        self.update_composite_title();
+    }
 
-        if let Some(window) = &self.window {
-            let weapon_str = weapon_view_id_to_type(self.weapon_view_id)
-                .map(|w| format!("{w:?}"))
-                .unwrap_or_else(|| "None".into());
-            window.set_title(&format!(
-                "Sprite Viewer — job:{} sex:{} head:{} weapon:{weapon_str}",
-                self.composite_job, self.composite_sex, self.composite_head,
-            ));
-        }
+    fn reload_headgear(&mut self) {
+        let (Some(device), Some(tex_cache), Some(grf)) = (
+            &self.device, &self.texture_cache, &self.grf,
+        ) else {
+            return;
+        };
+        let Some(entity) = &mut self.entity_sprite else { return };
+
+        let (hg_textures, hg_act) = if self.headgear_top_id > 0 {
+            if let Some(data) = game_sprite_loader::load_headgear_sprite(
+                grf,
+                self.accessory_table.get_suffix(self.headgear_top_id).unwrap_or(""),
+                self.composite_sex,
+            ) {
+                let tex = upload_sprite_textures(
+                    &data.images, data.indexed_count,
+                    &device.device, &device.queue, &tex_cache.bind_group_layout,
+                );
+                (Some(tex), Some(data.act))
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, None)
+        };
+
+        entity.headgear_top_textures = hg_textures;
+        entity.headgear_top_act = hg_act;
+        self.update_composite_title();
+    }
+
+    fn reload_shield(&mut self) {
+        let (Some(device), Some(tex_cache), Some(grf)) = (
+            &self.device, &self.texture_cache, &self.grf,
+        ) else {
+            return;
+        };
+        let Some(entity) = &mut self.entity_sprite else { return };
+
+        let (shield_textures, shield_act) = if self.shield_view_id > 0 {
+            if let Some(data) = game_sprite_loader::load_shield_sprite(grf, self.shield_view_id, self.composite_job, self.composite_sex) {
+                let tex = upload_sprite_textures(
+                    &data.images, data.indexed_count,
+                    &device.device, &device.queue, &tex_cache.bind_group_layout,
+                );
+                (Some(tex), Some(data.act))
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, None)
+        };
+
+        entity.shield_textures = shield_textures;
+        entity.shield_act = shield_act;
+        self.update_composite_title();
     }
 
     fn handle_browser_select(&mut self) {
@@ -294,7 +310,17 @@ impl App {
                     }
                     self.composite_job = job_id;
                     let (job, sex, head, weapon) = (self.composite_job, self.composite_sex, self.composite_head, self.weapon_view_id);
-                    self.load_composite(job, sex, head, weapon);
+                    self.load_composite(job, sex, head, weapon, self.headgear_top_id, self.shield_view_id);
+                }
+            }
+            Some(BrowserTab::Headgear) => {
+                let hg_id = self.browser.as_ref().and_then(|b| b.selected_headgear_id());
+                if let Some(hg_id) = hg_id {
+                    if let Some(browser) = &mut self.browser {
+                        browser.open = false;
+                    }
+                    self.headgear_top_id = hg_id;
+                    self.reload_headgear();
                 }
             }
             Some(BrowserTab::Npc) | Some(BrowserTab::Monster) => {
@@ -397,21 +423,45 @@ impl App {
                 if self.entity_sprite.is_some() {
                     self.composite_sex = if self.composite_sex == 0 { 1 } else { 0 };
                     let (job, sex, head, weapon) = (self.composite_job, self.composite_sex, self.composite_head, self.weapon_view_id);
-                    self.load_composite(job, sex, head, weapon);
+                    self.load_composite(job, sex, head, weapon, self.headgear_top_id, self.shield_view_id);
                 }
             }
             ViewerAction::NextHead => {
                 if self.entity_sprite.is_some() {
                     self.composite_head = if self.composite_head >= 30 { 1 } else { self.composite_head + 1 };
                     let (job, sex, head, weapon) = (self.composite_job, self.composite_sex, self.composite_head, self.weapon_view_id);
-                    self.load_composite(job, sex, head, weapon);
+                    self.load_composite(job, sex, head, weapon, self.headgear_top_id, self.shield_view_id);
                 }
             }
             ViewerAction::PrevHead => {
                 if self.entity_sprite.is_some() {
                     self.composite_head = if self.composite_head <= 1 { 30 } else { self.composite_head - 1 };
                     let (job, sex, head, weapon) = (self.composite_job, self.composite_sex, self.composite_head, self.weapon_view_id);
-                    self.load_composite(job, sex, head, weapon);
+                    self.load_composite(job, sex, head, weapon, self.headgear_top_id, self.shield_view_id);
+                }
+            }
+            ViewerAction::NextHeadgear => {
+                if self.entity_sprite.is_some() {
+                    self.headgear_top_id = self.accessory_table.next_id(self.headgear_top_id);
+                    self.reload_headgear();
+                }
+            }
+            ViewerAction::PrevHeadgear => {
+                if self.entity_sprite.is_some() {
+                    self.headgear_top_id = self.accessory_table.prev_id(self.headgear_top_id);
+                    self.reload_headgear();
+                }
+            }
+            ViewerAction::NextShield => {
+                if self.entity_sprite.is_some() {
+                    self.shield_view_id = if self.shield_view_id >= 4 { 0 } else { self.shield_view_id + 1 };
+                    self.reload_shield();
+                }
+            }
+            ViewerAction::PrevShield => {
+                if self.entity_sprite.is_some() {
+                    self.shield_view_id = if self.shield_view_id == 0 { 4 } else { self.shield_view_id - 1 };
+                    self.reload_shield();
                 }
             }
         }
@@ -700,6 +750,7 @@ impl ApplicationHandler for App {
                                                 "1" => browser.switch_tab(BrowserTab::Npc),
                                                 "2" => browser.switch_tab(BrowserTab::Monster),
                                                 "3" => browser.switch_tab(BrowserTab::Character),
+                                                "4" => browser.switch_tab(BrowserTab::Headgear),
                                                 _ => {
                                                     for c in ch.chars() {
                                                         if !c.is_control() {
@@ -778,18 +829,6 @@ impl ApplicationHandler for App {
                 }
             }
             _ => {}
-        }
-    }
-}
-
-fn block_on<F: std::future::Future>(future: F) -> F::Output {
-    let mut future = std::pin::pin!(future);
-    let waker = std::task::Waker::noop();
-    let mut cx = std::task::Context::from_waker(&waker);
-    loop {
-        match future.as_mut().poll(&mut cx) {
-            std::task::Poll::Ready(val) => return val,
-            std::task::Poll::Pending => std::hint::spin_loop(),
         }
     }
 }

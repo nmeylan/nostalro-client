@@ -11,6 +11,7 @@ path = "src/lib.rs"
 name = "sprite-viewer"
 path = "src/bin/sprite_viewer.rs"
 
+
 [features]
 hot-reload = ["subsecond", "dioxus-devtools"]
 

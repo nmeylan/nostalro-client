@@ -311,19 +311,22 @@ mod tests {
         vec![
             CharacterInfo {
                 gid: 1, name: "Knight".into(), class: 7, base_level: 50, job_level: 42,
-                map: "prontera".into(), slot: 0, head: 1, hair_color: 0, weapon: 2, sex: 1,
+                map: "prontera".into(), slot: 0, head: 1, hair_color: 0, weapon: 2,
+                head_top: 0, head_mid: 0, head_bottom: 0, shield: 0, sex: 1,
                 hp: 3000, max_hp: 3500, sp: 100, max_sp: 150,
                 str: 50, agi: 30, vit: 40, int: 10, dex: 20, luk: 10,
             },
             CharacterInfo {
                 gid: 2, name: "Wizard".into(), class: 9, base_level: 45, job_level: 38,
-                map: "geffen".into(), slot: 1, head: 2, hair_color: 1, weapon: 10, sex: 0,
+                map: "geffen".into(), slot: 1, head: 2, hair_color: 1, weapon: 10,
+                head_top: 0, head_mid: 0, head_bottom: 0, shield: 0, sex: 0,
                 hp: 1500, max_hp: 1800, sp: 400, max_sp: 500,
                 str: 10, agi: 15, vit: 15, int: 60, dex: 40, luk: 5,
             },
             CharacterInfo {
                 gid: 3, name: "Hunter".into(), class: 11, base_level: 60, job_level: 50,
-                map: "payon".into(), slot: 2, head: 3, hair_color: 2, weapon: 11, sex: 1,
+                map: "payon".into(), slot: 2, head: 3, hair_color: 2, weapon: 11,
+                head_top: 0, head_mid: 0, head_bottom: 0, shield: 0, sex: 1,
                 hp: 2200, max_hp: 2500, sp: 150, max_sp: 200,
                 str: 20, agi: 60, vit: 20, int: 15, dex: 55, luk: 30,
             },

@@ -1,3 +1,4 @@
+pub mod accessory_table;
 pub mod animation;
 pub mod app_state;
 pub mod cursor;

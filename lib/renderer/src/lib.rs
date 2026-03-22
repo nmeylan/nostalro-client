@@ -10,7 +10,7 @@ pub mod texture;
 pub mod ui_renderer;
 pub mod water;
 
-pub use device::RenderDevice;
+pub use device::{RenderDevice, block_on};
 pub use camera::Camera;
 pub use global_uniforms::{GlobalUniforms, LightUniform};
 pub use grid_selector::GridSelectorRenderer;
@@ -19,7 +19,7 @@ pub use model::ModelRenderer;
 pub use water::WaterRenderer;
 pub use texture::TextureCache;
 pub use font_atlas::FontAtlas;
-pub use sprite::{SpriteRenderer, SpriteVertex, SpriteBatch, SpriteTextures, SpriteUniforms, build_clip_quad, upload_sprite_textures, build_composite_clips, CompositeClips, ClipQuad, scale_clip_vertices, EntitySprite};
+pub use sprite::{SpriteRenderer, SpriteVertex, SpriteBatch, SpriteTextures, SpriteUniforms, build_clip_quad, upload_sprite_textures, build_composite_clips, CompositeClips, ClipQuad, scale_clip_vertices, EntitySprite, build_entity_sprite};
 pub use ui_renderer::{UiRenderer, UiVertex, UiDrawCommand};
 
 use ragnarok_formats::gnd::GndFile;

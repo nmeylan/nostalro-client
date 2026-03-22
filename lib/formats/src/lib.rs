@@ -1,4 +1,6 @@
 pub mod act;
+pub mod builtin_accessory_table;
+pub mod lua_table;
 pub mod gat;
 pub mod gnd;
 pub mod grf;
@@ -26,6 +28,7 @@ pub enum FormatError {
     UnexpectedEof,
     DecompressionFailed(String),
     InvalidString,
+    ReadOnly,
     Io(std::io::Error),
 }
 
@@ -37,6 +40,7 @@ impl std::fmt::Display for FormatError {
             FormatError::UnexpectedEof => write!(f, "unexpected end of file"),
             FormatError::DecompressionFailed(msg) => write!(f, "decompression failed: {msg}"),
             FormatError::InvalidString => write!(f, "invalid string encoding"),
+            FormatError::ReadOnly => write!(f, "archive opened as read-only"),
             FormatError::Io(e) => write!(f, "io error: {e}"),
         }
     }

@@ -24,6 +24,10 @@ pub struct Entity {
     pub head: u16,
     pub hair_color: u16,
     pub weapon: Option<WeaponType>,
+    pub head_top: u16,
+    pub head_mid: u16,
+    pub head_bottom: u16,
+    pub shield: u16,
     pub direction: u8,
     pub head_dir: u8,
     pub state: EntityState,
@@ -31,7 +35,7 @@ pub struct Entity {
 }
 
 impl Entity {
-    pub fn new_player(id: u32, job: u16, sex: u8, head: u16, hair_color: u16, weapon: u16, x: u16, y: u16, direction: u8) -> Self {
+    pub fn new_player(id: u32, job: u16, sex: u8, head: u16, hair_color: u16, weapon: u16, head_top: u16, head_mid: u16, head_bottom: u16, shield: u16, x: u16, y: u16, direction: u8) -> Self {
         Self {
             id,
             entity_type: EntityType::Player,
@@ -40,6 +44,10 @@ impl Entity {
             head,
             hair_color,
             weapon: weapon_view_id_to_type(weapon),
+            head_top,
+            head_mid,
+            head_bottom,
+            shield,
             direction,
             head_dir: direction,
             state: EntityState::Standing,
