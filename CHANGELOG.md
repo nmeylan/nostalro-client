@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Add multi-entity support: other players, NPCs and monsters now appear on the map
+- Entities spawn, move, and despawn based on server packets
+- NPC/Monster sprites loaded from GRF with sprite cache for performance
 - Refactor client: extract game state, input/camera controls, and sprite building into dedicated modules
 - Share sprite composition code between client and sprite viewer tool (deduplicate build_entity_sprite)
 - Add weapon sprite rendering on player character (attached to body, synced animation)

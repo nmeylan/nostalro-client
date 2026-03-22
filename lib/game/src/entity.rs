@@ -1,4 +1,5 @@
 use models::enums::weapon::WeaponType;
+use ragnarok_formats::act::SpriteAnimationState;
 
 use crate::movement::MovementState;
 use crate::sprite_path::weapon_view_id_to_type;
@@ -30,29 +31,38 @@ pub struct Entity {
     pub shield: u16,
     pub direction: u8,
     pub head_dir: u8,
+    pub speed: u16,
     pub state: EntityState,
     pub movement: MovementState,
+    pub animation: SpriteAnimationState,
 }
 
 impl Entity {
-    pub fn new_player(id: u32, job: u16, sex: u8, head: u16, hair_color: u16, weapon: u16, head_top: u16, head_mid: u16, head_bottom: u16, shield: u16, x: u16, y: u16, direction: u8) -> Self {
+    pub fn new(
+        id: u32, entity_type: EntityType, job: u16, sex: u8, head: u16,
+        hair_color: u16, weapon: u16, head_top: u16, head_mid: u16,
+        head_bottom: u16, shield: u16, x: u16, y: u16, direction: u8, speed: u16,
+    ) -> Self {
+        let weapon_type = if entity_type == EntityType::Player {
+            weapon_view_id_to_type(weapon)
+        } else {
+            None
+        };
+        let mut movement = MovementState::new(x, y);
+        movement.set_speed(speed);
         Self {
-            id,
-            entity_type: EntityType::Player,
-            job,
-            sex,
-            head,
-            hair_color,
-            weapon: weapon_view_id_to_type(weapon),
-            head_top,
-            head_mid,
-            head_bottom,
-            shield,
-            direction,
-            head_dir: direction,
+            id, entity_type, job, sex, head, hair_color,
+            weapon: weapon_type,
+            head_top, head_mid, head_bottom, shield,
+            direction, head_dir: direction, speed,
             state: EntityState::Standing,
-            movement: MovementState::new(x, y),
+            movement,
+            animation: SpriteAnimationState::new(direction),
         }
+    }
+
+    pub fn new_player(id: u32, job: u16, sex: u8, head: u16, hair_color: u16, weapon: u16, head_top: u16, head_mid: u16, head_bottom: u16, shield: u16, x: u16, y: u16, direction: u8) -> Self {
+        Self::new(id, EntityType::Player, job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom, shield, x, y, direction, 150)
     }
 
     pub fn update_state(&mut self) {

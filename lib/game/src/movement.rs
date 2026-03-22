@@ -105,6 +105,10 @@ impl MovementState {
         (self.current_x, self.current_y)
     }
 
+    pub fn set_speed(&mut self, speed: u16) {
+        self.speed = speed;
+    }
+
     pub fn destination(&self) -> Option<(u16, u16)> {
         self.path.last().map(|node| (node.x, node.y))
     }

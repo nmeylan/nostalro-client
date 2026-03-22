@@ -1,5 +1,35 @@
 pub use models::enums::weapon::WeaponType;
 
+use crate::entity::EntityType;
+use crate::name_table::NameTable;
+
+pub fn entity_type_from_job(job: u16) -> EntityType {
+    match job {
+        0..=44 | 4001..=5999 => EntityType::Player,
+        45 => EntityType::Npc,
+        46..=999 => EntityType::Npc,
+        1000..=3999 => EntityType::Monster,
+        _ => EntityType::Monster,
+    }
+}
+
+pub fn npc_sprite_path(name: &str) -> String {
+    format!("data/sprite/npc/{name}")
+}
+
+pub fn monster_sprite_path(name: &str) -> String {
+    format!("data/sprite/몬스터/{name}")
+}
+
+pub fn entity_sprite_base_path(name_table: &NameTable, job: u16) -> Option<String> {
+    let name = name_table.get_name(job)?;
+    match entity_type_from_job(job) {
+        EntityType::Npc => Some(npc_sprite_path(name)),
+        EntityType::Monster => Some(monster_sprite_path(name)),
+        EntityType::Player => None,
+    }
+}
+
 fn job_name_kr(job_class: u16) -> &'static str {
     match job_class {
         0 => "초보자",
@@ -250,5 +280,26 @@ mod tests {
         assert_eq!(weapon_view_id_to_type(2), Some(WeaponType::Sword1H));
         assert_eq!(weapon_view_id_to_type(11), Some(WeaponType::Bow));
         assert_eq!(weapon_view_id_to_type(16), Some(WeaponType::Katar));
+    }
+
+    #[test]
+    fn entity_type_from_job_boundaries() {
+        use crate::entity::EntityType;
+        assert_eq!(entity_type_from_job(0), EntityType::Player);
+        assert_eq!(entity_type_from_job(44), EntityType::Player);
+        assert_eq!(entity_type_from_job(45), EntityType::Npc);
+        assert_eq!(entity_type_from_job(46), EntityType::Npc);
+        assert_eq!(entity_type_from_job(999), EntityType::Npc);
+        assert_eq!(entity_type_from_job(1000), EntityType::Monster);
+        assert_eq!(entity_type_from_job(1002), EntityType::Monster);
+        assert_eq!(entity_type_from_job(3999), EntityType::Monster);
+        assert_eq!(entity_type_from_job(4001), EntityType::Player);
+        assert_eq!(entity_type_from_job(5999), EntityType::Player);
+    }
+
+    #[test]
+    fn npc_and_monster_sprite_paths() {
+        assert_eq!(npc_sprite_path("1_ETC_01"), "data/sprite/npc/1_ETC_01");
+        assert_eq!(monster_sprite_path("Poring"), "data/sprite/몬스터/Poring");
     }
 }

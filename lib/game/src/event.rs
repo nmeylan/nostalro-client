@@ -62,6 +62,40 @@ pub enum GameEvent {
     },
     BackToLogin,
     BackToServerSelect,
+
+    // Entity lifecycle
+    EntitySpawned {
+        gid: u32,
+        job: u16,
+        speed: u16,
+        sex: u8,
+        head: u16,
+        weapon: u16,
+        shield: u16,
+        head_top: u16,
+        head_mid: u16,
+        head_bottom: u16,
+        hair_color: u16,
+        x: u16,
+        y: u16,
+        direction: u8,
+    },
+    EntityMoved {
+        gid: u32,
+        start_x: u16,
+        start_y: u16,
+        dest_x: u16,
+        dest_y: u16,
+        start_time: u32,
+    },
+    EntityVanished {
+        gid: u32,
+    },
+    EntityStopMove {
+        gid: u32,
+        x: u16,
+        y: u16,
+    },
 }
 
 #[derive(Debug, Clone)]

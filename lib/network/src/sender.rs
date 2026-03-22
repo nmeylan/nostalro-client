@@ -46,6 +46,12 @@ pub fn build_request_move_packet(dest_x: u16, dest_y: u16, packetver: u32) -> Ve
     pkt.raw
 }
 
+pub fn build_map_loaded_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzNotifyActorinit::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_zone_enter_packet(session: &Session) -> Vec<u8> {
     let mut pkt = PacketCzEnter2::new(session.packetver);
     pkt.set_aid(session.account_id);

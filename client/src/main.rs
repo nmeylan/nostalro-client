@@ -9,13 +9,14 @@ use ragnarok_formats::act::SpriteActionType;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::{CursorType, cursor_type_for_cell};
-use ragnarok_game::entity::Entity;
+use ragnarok_game::entity::{Entity, EntityType};
 use ragnarok_game::event::GameEvent;
-use ragnarok_game::sprite_path::{WeaponType, weapon_view_id_to_type};
+use ragnarok_game::name_table::NameTable;
+use ragnarok_game::sprite_path::{WeaponType, weapon_view_id_to_type, entity_type_from_job, entity_sprite_base_path};
 use ragnarok_game::path::{path_search, try_move_to};
 use ragnarok_game::shadow::shadow_size;
 use ragnarok_game::{map_loader, sprite_loader};
-use ragnarok_network::{build_char_enter_packet, build_login_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
+use ragnarok_network::{build_char_enter_packet, build_login_packet, build_map_loaded_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall, build_clip_quad, upload_sprite_textures, build_entity_sprite, block_on};
 use ragnarok_ui::context::UiContext;
@@ -25,6 +26,7 @@ use ragnarok_ui_component::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::server_list_window::ServerListWindow;
 use ragnarok_ui::state::StateCache;
 use std::path::Path;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::mpsc;
@@ -140,7 +142,7 @@ impl App {
             None => return,
         };
 
-        let (src_x, src_y) = self.game.player_entity.as_ref()
+        let (src_x, src_y) = self.game.entities.player()
             .map(|e| e.movement.cell_position())
             .unwrap_or((0, 0));
 
@@ -155,7 +157,7 @@ impl App {
         }
 
         let elapsed = self.start_time.elapsed().as_secs_f32();
-        if let Some(entity) = &mut self.game.player_entity {
+        if let Some(entity) = self.game.entities.player_mut() {
             entity.movement.start_move(move_action.path, elapsed);
         }
     }
@@ -262,17 +264,22 @@ impl App {
                             .unwrap_or((0, session_sex, 0, 0, 0, 0, 0, 0, 0, 0));
 
                         let entity = Entity::new_player(char_id, job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom, shield_id, x, y, dir);
-                        self.game.player_entity = Some(entity);
+                        self.game.entities.set_player_id(char_id);
+                        self.game.entities.insert(entity);
 
                         let weapon_type = weapon_view_id_to_type(weapon);
-                        self.load_player_sprite(job, sex, head, weapon_type, head_top, head_mid, head_bottom, shield_id, dir);
+                        self.load_player_sprite(char_id, job, sex, head, weapon_type, head_top, head_mid, head_bottom, shield_id);
 
                         self.position_camera_at(x as f32, y as f32);
                         self.char_select_window = None;
                         self.game.app_state = AppState::InGame;
+
+                        if let Some(tx) = &self.network_cmd_tx {
+                            let _ = tx.send(NetworkCommand::SendPacket(build_map_loaded_packet(self.config.packetver)));
+                        }
                     }
                     GameEvent::PlayerMoved { start_x, start_y, dest_x, dest_y, .. } => {
-                        let already_moving_to_dest = self.game.player_entity.as_ref()
+                        let already_moving_to_dest = self.game.entities.player()
                             .filter(|e| e.movement.is_moving())
                             .and_then(|e| e.movement.destination())
                             .is_some_and(|(dx, dy)| dx == dest_x && dy == dest_y);
@@ -281,7 +288,7 @@ impl App {
                                 let path = path_search(gat, start_x, start_y, dest_x, dest_y);
                                 if !path.is_empty() {
                                     let elapsed = self.start_time.elapsed().as_secs_f32();
-                                    if let Some(entity) = &mut self.game.player_entity {
+                                    if let Some(entity) = self.game.entities.player_mut() {
                                         entity.movement.set_position(start_x as f32, start_y as f32);
                                         entity.movement.start_move(path, elapsed);
                                     }
@@ -297,10 +304,60 @@ impl App {
                             self.load_map(&map_name);
                             self.game.current_map = Some(map_name);
                         }
-                        if let Some(entity) = &mut self.game.player_entity {
+                        if let Some(entity) = self.game.entities.player_mut() {
                             entity.movement.set_position(x as f32, y as f32);
                         }
+                        // Keep player sprite, clear everything else
+                        let player_sprite = self.game.entities.player_id()
+                            .and_then(|pid| self.game.sprites.remove(&pid));
+                        self.game.sprites.clear();
+                        self.game.sprite_cache.clear();
+                        self.game.entities.clear_non_player();
+                        if let (Some(pid), Some(sprite)) = (self.game.entities.player_id(), player_sprite) {
+                            self.game.sprites.insert(pid, sprite);
+                        }
                         self.position_camera_at(x as f32, y as f32);
+
+                        if let Some(tx) = &self.network_cmd_tx {
+                            let _ = tx.send(NetworkCommand::SendPacket(build_map_loaded_packet(self.config.packetver)));
+                        }
+                    }
+                    GameEvent::EntitySpawned { gid, job, speed, sex, head, weapon, shield,
+                                             head_top, head_mid, head_bottom, hair_color,
+                                             x, y, direction } => {
+                        if self.game.entities.player_id() == Some(gid) {
+                            continue;
+                        }
+                        let entity_type = entity_type_from_job(job);
+                        tracing::debug!("EntitySpawned: gid={gid} job={job} type={entity_type:?} pos=({x},{y})");
+                        let entity = Entity::new(gid, entity_type, job, sex, head, hair_color,
+                                                 weapon, head_top, head_mid, head_bottom, shield,
+                                                 x, y, direction, speed);
+                        self.game.entities.insert(entity);
+                        self.load_entity_sprite(gid, entity_type, job, sex, head, weapon,
+                                                shield, head_top, head_mid, head_bottom,
+                                                hair_color, direction);
+                    }
+                    GameEvent::EntityMoved { gid, start_x, start_y, dest_x, dest_y, .. } => {
+                        if let Some(gat) = &self.game.gat {
+                            let path = path_search(gat, start_x, start_y, dest_x, dest_y);
+                            if !path.is_empty() {
+                                let elapsed = self.start_time.elapsed().as_secs_f32();
+                                if let Some(entity) = self.game.entities.get_mut(gid) {
+                                    entity.movement.set_position(start_x as f32, start_y as f32);
+                                    entity.movement.start_move(path, elapsed);
+                                }
+                            }
+                        }
+                    }
+                    GameEvent::EntityVanished { gid } => {
+                        self.game.entities.remove(gid);
+                        self.game.sprites.remove(&gid);
+                    }
+                    GameEvent::EntityStopMove { gid, x, y } => {
+                        if let Some(entity) = self.game.entities.get_mut(gid) {
+                            entity.movement.set_position(x as f32, y as f32);
+                        }
                     }
                     GameEvent::Disconnected(reason) => {
                         if reason == "User exit" {
@@ -314,7 +371,7 @@ impl App {
         }
     }
 
-    fn load_player_sprite(&mut self, job: u16, sex: u8, head: u16, weapon: Option<WeaponType>, head_top: u16, head_mid: u16, head_bottom: u16, shield_id: u16, direction: u8) {
+    fn load_player_sprite(&mut self, gid: u32, job: u16, sex: u8, head: u16, weapon: Option<WeaponType>, head_top: u16, head_mid: u16, head_bottom: u16, shield_id: u16) {
         let (grf, renderer) = match (&self.grf, &self.renderer) {
             (Some(g), Some(r)) => (g, r),
             _ => return,
@@ -325,10 +382,54 @@ impl App {
             Some(d) => d,
             None => return,
         };
-        self.game.player_sprite = Some(build_entity_sprite(
+        let sprite = Rc::new(build_entity_sprite(
             &renderer.device.device, &renderer.device.queue, &renderer.texture_cache.bind_group_layout,
-            data.body, data.head, data.weapon, data.headgear_top, data.headgear_mid, data.headgear_bottom, data.shield, data.shadow, direction,
+            data.body, data.head, data.weapon, data.headgear_top, data.headgear_mid, data.headgear_bottom, data.shield, data.shadow,
         ));
+        self.game.sprites.insert(gid, sprite);
+    }
+
+    fn load_entity_sprite(&mut self, gid: u32, entity_type: EntityType, job: u16,
+                           sex: u8, head: u16, weapon: u16, shield: u16,
+                           head_top: u16, head_mid: u16, head_bottom: u16,
+                           _hair_color: u16, _direction: u8) {
+        let (grf, renderer) = match (&self.grf, &self.renderer) {
+            (Some(g), Some(r)) => (g, r),
+            _ => return,
+        };
+
+        match entity_type {
+            EntityType::Player => {
+                let weapon_type = weapon_view_id_to_type(weapon);
+                self.load_player_sprite(gid, job, sex, head, weapon_type, head_top, head_mid, head_bottom, shield);
+            }
+            EntityType::Npc | EntityType::Monster => {
+                let name_table = match &self.game.name_table {
+                    Some(t) => t,
+                    None => { tracing::warn!("No name table for job {job}"); return; },
+                };
+                let cache_key = match entity_sprite_base_path(name_table, job) {
+                    Some(p) => p,
+                    None => { tracing::warn!("No sprite path for job {job}"); return; },
+                };
+
+                if let Some(cached) = self.game.sprite_cache.get(&cache_key) {
+                    self.game.sprites.insert(gid, Rc::clone(cached));
+                    return;
+                }
+
+                let data = match sprite_loader::load_entity_sprite_data(grf, name_table, job) {
+                    Some(d) => d,
+                    None => return,
+                };
+                let sprite = Rc::new(build_entity_sprite(
+                    &renderer.device.device, &renderer.device.queue, &renderer.texture_cache.bind_group_layout,
+                    data.body, None, None, None, None, None, None, data.shadow,
+                ));
+                self.game.sprite_cache.insert(cache_key, Rc::clone(&sprite));
+                self.game.sprites.insert(gid, sprite);
+            }
+        }
     }
 
     fn load_cursor_sprite(&mut self, grf: &GrfArchive) {
@@ -469,16 +570,19 @@ impl App {
     }
 
     fn update_movement(&mut self, elapsed: f32) {
-        let move_pos = self.game.player_entity.as_mut()
-            .filter(|e| e.movement.is_moving())
-            .map(|e| e.movement.update(elapsed));
-        if let Some((px, py)) = move_pos {
+        for entity in self.game.entities.iter_mut() {
+            if entity.movement.is_moving() {
+                entity.movement.update(elapsed);
+            }
+        }
+        if let Some(player) = self.game.entities.player() {
+            let (px, py) = player.movement.position();
             self.position_camera_at(px, py);
         }
     }
 
     fn update_entity_state(&mut self) {
-        if let Some(entity) = &mut self.game.player_entity {
+        for entity in self.game.entities.iter_mut() {
             entity.update_state();
             if let Some(move_dir) = entity.movement.movement_direction() {
                 entity.direction = move_dir;
@@ -487,16 +591,18 @@ impl App {
     }
 
     fn update_sprite_animation(&mut self, delta: f32) {
-        if let (Some(entity), Some(sprite), Some(renderer)) =
-            (&self.game.player_entity, &mut self.game.player_sprite, &self.renderer)
-        {
-            let camera_dir = renderer.camera.direction_index();
-            sprite.animation.set_action(entity.action_index());
-            sprite.animation.set_direction(entity.direction);
-            let animated = SpriteActionType::from_index(sprite.animation.action())
-                .is_none_or(|a| a.is_animated());
-            if animated {
-                sprite.update_animation(delta, Some(camera_dir));
+        let camera_dir = self.renderer.as_ref().map(|r| r.camera.direction_index());
+        let sprites = &self.game.sprites;
+        for entity in self.game.entities.iter_mut() {
+            if let Some(sprite) = sprites.get(&entity.id) {
+                let dir = camera_dir.unwrap_or(0);
+                entity.animation.set_action(entity.action_index());
+                entity.animation.set_direction(entity.direction);
+                let animated = SpriteActionType::from_index(entity.animation.action())
+                    .is_none_or(|a| a.is_animated());
+                if animated {
+                    entity.animation.update(delta, &sprite.body_act, dir);
+                }
             }
         }
     }
@@ -539,27 +645,6 @@ impl App {
             CursorType::Default
         };
         self.game.cursor_animation.set_cursor_type(cursor);
-    }
-
-    fn player_screen_params(&self) -> Option<([f32; 2], f32, u8, f32)> {
-        let (entity, renderer, coords) = match (
-            &self.game.player_entity, &self.renderer, &self.game.map_coords
-        ) {
-            (Some(e), Some(r), Some(c)) => (e, r, c),
-            _ => return None,
-        };
-        if self.game.player_sprite.is_none() {
-            return None;
-        }
-
-        input::entity_screen_params(
-            entity.movement.position(),
-            self.game.gat.as_ref(),
-            coords,
-            &renderer.camera,
-            renderer.device.surface_config.width as f32,
-            renderer.device.surface_config.height as f32,
-        )
     }
 
     fn build_cursor_sprite_clips(&mut self, dt: f32) -> Vec<ClipData> {
@@ -637,6 +722,7 @@ impl ApplicationHandler for App {
 
                     self.load_cursor_sprite(&grf);
                     self.game.accessory_table = Some(ragnarok_game::accessory_table::AccessoryTable::load_from_grf(&grf));
+                    self.game.name_table = Some(NameTable::load(&grf));
                     self.grf = Some(grf);
                 }
                 Err(e) => {
@@ -732,20 +818,38 @@ impl ApplicationHandler for App {
                 let hovered = self.update_grid_hover();
                 self.update_cursor_type(hovered);
 
-                let screen_params = self.player_screen_params();
                 let cursor_clips = self.build_cursor_sprite_clips(delta);
 
                 {
                     let mut sprite_batches: Vec<SpriteBatch> = Vec::new();
                     let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
 
-                    if let Some(sprite) = &self.game.player_sprite {
-                        if let Some((center, depth, camera_dir, sprite_scale)) = screen_params {
-                            let shadow_scale = sprite_scale * shadow_size(self.game.player_entity.as_ref().map(|e| e.job).unwrap_or(0));
-                            let mut shadow = sprite.build_shadow_batches(center, depth, shadow_scale);
-                            sprite_batches.append(&mut shadow);
-                            let mut player = sprite.build_batches(Some(camera_dir), center, depth, sprite_scale);
-                            sprite_batches.append(&mut player);
+                    if let Some(renderer) = &self.renderer {
+                        let mut render_list: Vec<(u32, [f32; 2], f32, u8, f32)> = Vec::new();
+                        if let Some(coords) = &self.game.map_coords {
+                            for entity in self.game.entities.iter() {
+                                if let Some(params) = input::entity_screen_params(
+                                    entity.movement.position(),
+                                    self.game.gat.as_ref(),
+                                    coords,
+                                    &renderer.camera,
+                                    renderer.device.surface_config.width as f32,
+                                    renderer.device.surface_config.height as f32,
+                                ) {
+                                    render_list.push((entity.id, params.0, params.1, params.2, params.3));
+                                }
+                            }
+                        }
+                        render_list.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+
+                        for &(id, center, depth, camera_dir, sprite_scale) in &render_list {
+                            if let (Some(sprite), Some(entity)) = (self.game.sprites.get(&id), self.game.entities.get(id)) {
+                                let shadow_scale = sprite_scale * shadow_size(entity.job);
+                                let mut shadow = sprite.build_shadow_batches(center, depth, shadow_scale);
+                                sprite_batches.append(&mut shadow);
+                                let mut batches = sprite.build_batches(&entity.animation, Some(camera_dir), center, depth, sprite_scale);
+                                sprite_batches.append(&mut batches);
+                            }
                         }
                     }
 

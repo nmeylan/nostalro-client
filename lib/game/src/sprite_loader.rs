@@ -7,7 +7,8 @@ pub use ragnarok_formats::spr::SpriteData;
 use models::enums::weapon::WeaponType;
 
 use crate::accessory_table::AccessoryTable;
-use crate::sprite_path::{body_sprite_path, head_sprite_path, weapon_sprite_path};
+use crate::name_table::NameTable;
+use crate::sprite_path::{body_sprite_path, head_sprite_path, weapon_sprite_path, entity_sprite_base_path};
 
 pub fn load_sprite_data(grf: &GrfArchive, spr_path: &str, act_path: &str) -> Option<SpriteData> {
     let spr_data = match grf.read_file(spr_path) {
@@ -124,4 +125,16 @@ pub fn load_cursor_sprite(grf: &GrfArchive) -> Option<SpriteData> {
 
 pub fn load_shadow_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     load_sprite_data(grf, "data/sprite/shadow.spr", "data/sprite/shadow.act")
+}
+
+pub struct SimpleEntitySpriteData {
+    pub body: SpriteData,
+    pub shadow: Option<SpriteData>,
+}
+
+pub fn load_entity_sprite_data(grf: &GrfArchive, name_table: &NameTable, job: u16) -> Option<SimpleEntitySpriteData> {
+    let base_path = entity_sprite_base_path(name_table, job)?;
+    let body = load_sprite_data(grf, &format!("{base_path}.spr"), &format!("{base_path}.act"))?;
+    let shadow = load_shadow_sprite(grf);
+    Some(SimpleEntitySpriteData { body, shadow })
 }

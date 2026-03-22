@@ -2,7 +2,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
-use ragnarok_formats::act::SpriteActionType;
+use ragnarok_formats::act::{SpriteActionType, SpriteAnimationState};
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::accessory_table::AccessoryTable;
 use ragnarok_game::sprite_loader::{self as game_sprite_loader};
@@ -68,6 +68,7 @@ struct App {
     sprite_renderer: Option<SpriteRenderer>,
     texture_cache: Option<TextureCache>,
     entity_sprite: Option<EntitySprite>,
+    animation: SpriteAnimationState,
     paused: bool,
     background: Background,
     zoom: f32,
@@ -98,6 +99,7 @@ impl App {
             sprite_renderer: None,
             texture_cache: None,
             entity_sprite: None,
+            animation: SpriteAnimationState::new(0),
             paused: false,
             background: Background::Black,
             zoom: 2.0,
@@ -158,9 +160,10 @@ impl App {
             None => return,
         };
 
+        self.animation = SpriteAnimationState::new(0);
         self.entity_sprite = Some(build_entity_sprite(
             &device.device, &device.queue, &tex_cache.bind_group_layout,
-            sprite_data, None, None, None, None, None, None, None, 0,
+            sprite_data, None, None, None, None, None, None, None,
         ));
 
         if let Some(window) = &self.window {
@@ -183,9 +186,10 @@ impl App {
                 return;
             }
         };
+        self.animation = SpriteAnimationState::new(0);
         self.entity_sprite = Some(build_entity_sprite(
             &device.device, &device.queue, &tex_cache.bind_group_layout,
-            data.body, data.head, data.weapon, data.headgear_top, data.headgear_mid, data.headgear_bottom, data.shield, None, 0,
+            data.body, data.head, data.weapon, data.headgear_top, data.headgear_mid, data.headgear_bottom, data.shield, None,
         ));
         self.composite_job = job;
         self.composite_sex = sex;
@@ -348,33 +352,29 @@ impl App {
                 }
             }
             ViewerAction::NextDirection => {
-                if let Some(entity) = &mut self.entity_sprite {
-                    let dir = ((entity.animation.direction() + 1) % 8) as u8;
-                    entity.animation.set_direction(dir);
-                    entity.animation.reset_motion();
-                }
+                let dir = ((self.animation.direction() + 1) % 8) as u8;
+                self.animation.set_direction(dir);
+                self.animation.reset_motion();
             }
             ViewerAction::PrevDirection => {
-                if let Some(entity) = &mut self.entity_sprite {
-                    let dir = if entity.animation.direction() == 0 { 7u8 } else { (entity.animation.direction() - 1) as u8 };
-                    entity.animation.set_direction(dir);
-                    entity.animation.reset_motion();
-                }
+                let dir = if self.animation.direction() == 0 { 7u8 } else { (self.animation.direction() - 1) as u8 };
+                self.animation.set_direction(dir);
+                self.animation.reset_motion();
             }
             ViewerAction::NextAction => {
-                if let Some(entity) = &mut self.entity_sprite {
-                    let next = entity.animation.action() + 1;
-                    entity.animation.set_action_clamped(next, &entity.body_act);
+                if let Some(entity) = &self.entity_sprite {
+                    let next = self.animation.action() + 1;
+                    self.animation.set_action_clamped(next, &entity.body_act);
                 }
             }
             ViewerAction::PrevAction => {
-                if let Some(entity) = &mut self.entity_sprite {
-                    let prev = if entity.animation.action() == 0 {
+                if let Some(entity) = &self.entity_sprite {
+                    let prev = if self.animation.action() == 0 {
                         entity.body_act.actions.len() - 1
                     } else {
-                        entity.animation.action() - 1
+                        self.animation.action() - 1
                     };
-                    entity.animation.set_action_clamped(prev, &entity.body_act);
+                    self.animation.set_action_clamped(prev, &entity.body_act);
                 }
             }
             ViewerAction::TogglePause => {
@@ -382,19 +382,19 @@ impl App {
             }
             ViewerAction::StepForward => {
                 if self.paused {
-                    if let Some(entity) = &mut self.entity_sprite {
-                        let action_idx = entity.animation.flat_action_index(&entity.body_act);
+                    if let Some(entity) = &self.entity_sprite {
+                        let action_idx = self.animation.flat_action_index(&entity.body_act);
                         let motion_count = entity.body_act.actions[action_idx].motions.len();
-                        entity.animation.step_forward(motion_count);
+                        self.animation.step_forward(motion_count);
                     }
                 }
             }
             ViewerAction::StepBackward => {
                 if self.paused {
-                    if let Some(entity) = &mut self.entity_sprite {
-                        let action_idx = entity.animation.flat_action_index(&entity.body_act);
+                    if let Some(entity) = &self.entity_sprite {
+                        let action_idx = self.animation.flat_action_index(&entity.body_act);
                         let motion_count = entity.body_act.actions[action_idx].motions.len();
-                        entity.animation.step_backward(motion_count);
+                        self.animation.step_backward(motion_count);
                     }
                 }
             }
@@ -500,7 +500,7 @@ impl App {
                 });
 
                 let screen_center = [width / 2.0 + self.pan[0] * self.zoom, height / 2.0 + self.pan[1] * self.zoom];
-                let batches = entity.build_batches(None, screen_center, 0.0, self.zoom);
+                let batches = entity.build_batches(&self.animation, None, screen_center, 0.0, self.zoom);
 
                 renderer.render(
                     &mut encoder,
@@ -555,13 +555,13 @@ impl App {
         };
 
         if let (Some(entity), Some(atlas)) = (&self.entity_sprite, &self.font_atlas) {
-            let action_idx = entity.animation.flat_action_index(&entity.body_act);
+            let action_idx = self.animation.flat_action_index(&entity.body_act);
             let motion_count = entity.body_act.actions[action_idx].motions.len();
             let status = controls::build_status_draw_calls(
                 atlas, width,
-                entity.animation.action(),
-                entity.animation.direction(),
-                entity.animation.motion_index(),
+                self.animation.action(),
+                self.animation.direction(),
+                self.animation.motion_index(),
                 motion_count,
                 self.paused,
             );
@@ -794,11 +794,11 @@ impl ApplicationHandler for App {
                 self.last_frame = now;
 
                 if !self.paused {
-                    if let Some(entity) = &mut self.entity_sprite {
-                        let animated = SpriteActionType::from_index(entity.animation.action())
+                    if let Some(entity) = &self.entity_sprite {
+                        let animated = SpriteActionType::from_index(self.animation.action())
                             .is_none_or(|a| a.is_animated());
                         if animated {
-                            entity.update_animation(dt, None);
+                            self.animation.update_flat(dt, &entity.body_act);
                         }
                     }
                 }

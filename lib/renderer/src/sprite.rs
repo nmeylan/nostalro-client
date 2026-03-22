@@ -1,4 +1,4 @@
-use ragnarok_formats::act::{ActFile, SprClip, SpriteAnimationState, attachment_offset};
+use ragnarok_formats::act::{ActFile, SprClip, attachment_offset};
 use ragnarok_formats::spr::{RgbaImageData, SpriteData};
 
 use crate::device::DEPTH_FORMAT;
@@ -594,7 +594,6 @@ pub struct EntitySprite {
     pub headgear_bottom_act: Option<ActFile>,
     pub shield_textures: Option<SpriteTextures>,
     pub shield_act: Option<ActFile>,
-    pub animation: SpriteAnimationState,
     pub shadow_textures: Option<SpriteTextures>,
     pub shadow_act: Option<ActFile>,
 }
@@ -626,7 +625,6 @@ pub fn build_entity_sprite(
     headgear_bottom: Option<SpriteData>,
     shield: Option<SpriteData>,
     shadow: Option<SpriteData>,
-    direction: u8,
 ) -> EntitySprite {
     let body_textures = upload_sprite_textures(&body.images, body.indexed_count, device, queue, layout);
     let body_act = body.act;
@@ -653,34 +651,27 @@ pub fn build_entity_sprite(
         headgear_bottom_act,
         shield_textures,
         shield_act,
-        animation: SpriteAnimationState::new(direction),
         shadow_textures,
         shadow_act,
     }
 }
 
 impl EntitySprite {
-    pub fn update_animation(&mut self, dt_secs: f32, camera_dir: Option<u8>) {
-        match camera_dir {
-            Some(dir) => self.animation.update(dt_secs, &self.body_act, dir),
-            None => self.animation.update_flat(dt_secs, &self.body_act),
-        }
-    }
-
     pub fn build_batches(
         &self,
+        animation: &ragnarok_formats::act::SpriteAnimationState,
         camera_dir: Option<u8>,
         screen_center: [f32; 2],
         depth: f32,
         scale: f32,
     ) -> Vec<SpriteBatch<'_>> {
         let action_idx = match camera_dir {
-            Some(dir) => self.animation.action_index(&self.body_act, dir),
-            None => self.animation.flat_action_index(&self.body_act),
+            Some(dir) => animation.action_index(&self.body_act, dir),
+            None => animation.flat_action_index(&self.body_act),
         };
 
         let Some(clips) = build_composite_clips(
-            self, action_idx, self.animation.motion_index(), screen_center, depth,
+            self, action_idx, animation.motion_index(), screen_center, depth,
         ) else {
             return Vec::new();
         };
