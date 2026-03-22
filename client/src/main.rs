@@ -1,10 +1,10 @@
 mod config;
 
 use config::Config;
-use ragnarok_formats::act::ActFile;
+use ragnarok_formats::act::{ActFile, SpriteActionType};
 use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_game::animation::{SpriteAnimationState, head_attachment_offset};
+use ragnarok_game::animation::SpriteAnimationState;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::{CursorAnimationState, CursorType, cursor_type_for_cell};
 use ragnarok_game::entity::Entity;
@@ -16,7 +16,7 @@ use ragnarok_game::shadow::shadow_size;
 use ragnarok_game::{map_loader, sprite_loader};
 use ragnarok_network::{build_char_enter_packet, build_login_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
 use ragnarok_network::session::Session;
-use ragnarok_renderer::{GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, SpriteTextures, UiDrawCall, build_clip_quad, upload_sprite_textures};
+use ragnarok_renderer::{GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, SpriteTextures, UiDrawCall, EntitySprite, build_clip_quad, upload_sprite_textures};
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui_component::login_window::{LoginFocus, LoginWindow};
@@ -34,18 +34,6 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 
 type ClipData = (Vec<SpriteVertex>, Vec<u32>, usize);
-
-struct EntitySprite {
-    textures: SpriteTextures,
-    act: ActFile,
-    animation: SpriteAnimationState,
-    head_textures: Option<SpriteTextures>,
-    head_act: Option<ActFile>,
-    weapon_textures: Option<SpriteTextures>,
-    weapon_act: Option<ActFile>,
-    shadow_textures: Option<SpriteTextures>,
-    shadow_act: Option<ActFile>,
-}
 
 struct InputState {
     right_mouse_down: bool,
@@ -430,13 +418,13 @@ impl App {
             };
 
             self.player_sprite = Some(EntitySprite {
-                textures,
-                act: sprite_data.act,
-                animation: SpriteAnimationState::new(direction),
+                body_textures: textures,
+                body_act: sprite_data.act,
                 head_textures,
                 head_act,
                 weapon_textures,
                 weapon_act,
+                animation: SpriteAnimationState::new(direction),
                 shadow_textures,
                 shadow_act,
             });
@@ -605,8 +593,10 @@ impl App {
             let camera_dir = renderer.camera.direction_index();
             sprite.animation.set_action(entity.action_index());
             sprite.animation.set_direction(entity.direction);
-            if entity.state == ragnarok_game::entity::EntityState::Moving {
-                sprite.animation.update(delta, &sprite.act, camera_dir);
+            let animated = SpriteActionType::from_index(sprite.animation.action())
+                .is_none_or(|a| a.is_animated());
+            if animated {
+                sprite.update_animation(delta, Some(camera_dir));
             }
         }
     }
@@ -663,12 +653,12 @@ impl App {
         self.cursor_animation.set_cursor_type(cursor);
     }
 
-    fn build_player_sprite_clips(&self) -> (Vec<ClipData>, Vec<ClipData>, Vec<ClipData>, Vec<ClipData>) {
-        let (entity, sprite, renderer, coords) = match (
+    fn player_screen_params(&self) -> Option<([f32; 2], f32, u8, f32)> {
+        let (entity, _sprite, renderer, coords) = match (
             &self.player_entity, &self.player_sprite, &self.renderer, &self.map_coords
         ) {
             (Some(e), Some(s), Some(r), Some(c)) => (e, s, r, c),
-            _ => return (Vec::new(), Vec::new(), Vec::new(), Vec::new()),
+            _ => return None,
         };
 
         let (cell_x, cell_y) = entity.movement.position();
@@ -677,101 +667,14 @@ impl App {
 
         let screen_w = renderer.device.surface_config.width as f32;
         let screen_h = renderer.device.surface_config.height as f32;
-        let Some((sx, sy, ndc_z)) = renderer.camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h) else {
-            return (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-        };
-        // Bias depth slightly in front of ground to prevent z-fighting
+        let (sx, sy, ndc_z) = renderer.camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h)?;
         let ndc_z = ndc_z - 0.0002;
 
         let camera_dir = renderer.camera.direction_index();
-        let action_idx = sprite.animation.action_index(&sprite.act, camera_dir);
-        let action = &sprite.act.actions[action_idx];
-
         let ppu = renderer.camera.perspective_scale(wx, wy, wz, screen_h);
         let sprite_scale = ppu * coords.zoom() / 75.0;
 
-        let mut shadow_clips = Vec::new();
-        let mut body_clips = Vec::new();
-        let mut head_clips = Vec::new();
-        let mut weapon_clips = Vec::new();
-
-        // Shadow: always action 0, motion 0, centered at entity position
-        if let (Some(shadow_act), Some(shadow_tex)) = (&sprite.shadow_act, &sprite.shadow_textures) {
-            if !shadow_act.actions.is_empty() && !shadow_act.actions[0].motions.is_empty() {
-                let shadow_motion = &shadow_act.actions[0].motions[0];
-                let shadow_scale = sprite_scale * shadow_size(entity.job);
-                for clip in &shadow_motion.clips {
-                    if let Some((mut vertices, indices, tex_idx)) = build_clip_quad(clip, shadow_tex, [sx, sy], ndc_z, [0, 0]) {
-                        if tex_idx < shadow_tex.bind_groups.len() {
-                            for v in &mut vertices {
-                                v.position[0] = sx + (v.position[0] - sx) * shadow_scale;
-                                v.position[1] = sy + (v.position[1] - sy) * shadow_scale;
-                            }
-                            shadow_clips.push((vertices, indices, tex_idx));
-                        }
-                    }
-                }
-            }
-        }
-
-        if !action.motions.is_empty() {
-            let motion_idx = sprite.animation.motion_index() % action.motions.len();
-            let body_motion = &action.motions[motion_idx];
-            for clip in &body_motion.clips {
-                if let Some((mut vertices, indices, tex_idx)) = build_clip_quad(clip, &sprite.textures, [sx, sy], ndc_z, [0, 0]) {
-                    if tex_idx < sprite.textures.bind_groups.len() {
-                        for v in &mut vertices {
-                            v.position[0] = sx + (v.position[0] - sx) * sprite_scale;
-                            v.position[1] = sy + (v.position[1] - sy) * sprite_scale;
-                        }
-                        body_clips.push((vertices, indices, tex_idx));
-                    }
-                }
-            }
-
-            if let (Some(head_act), Some(head_tex)) = (&sprite.head_act, &sprite.head_textures) {
-                let head_action_idx = action_idx % head_act.actions.len();
-                let head_action = &head_act.actions[head_action_idx];
-                if !head_action.motions.is_empty() {
-                    let head_motion_idx = 0;
-                    let head_motion = &head_action.motions[head_motion_idx];
-                    let (off_x, off_y) = head_attachment_offset(body_motion, head_motion);
-                    for clip in &head_motion.clips {
-                        if let Some((mut vertices, indices, tex_idx)) = build_clip_quad(clip, head_tex, [sx, sy], ndc_z, [off_x, off_y]) {
-                            if tex_idx < head_tex.bind_groups.len() {
-                                for v in &mut vertices {
-                                    v.position[0] = sx + (v.position[0] - sx) * sprite_scale;
-                                    v.position[1] = sy + (v.position[1] - sy) * sprite_scale;
-                                }
-                                head_clips.push((vertices, indices, tex_idx));
-                            }
-                        }
-                    }
-                }
-            }
-
-            if let (Some(weapon_act), Some(weapon_tex)) = (&sprite.weapon_act, &sprite.weapon_textures) {
-                let weapon_action_idx = action_idx % weapon_act.actions.len();
-                let weapon_action = &weapon_act.actions[weapon_action_idx];
-                if !weapon_action.motions.is_empty() {
-                    let weapon_motion_idx = sprite.animation.motion_index() % weapon_action.motions.len();
-                    let weapon_motion = &weapon_action.motions[weapon_motion_idx];
-                    let (off_x, off_y) = head_attachment_offset(body_motion, weapon_motion);
-                    for clip in &weapon_motion.clips {
-                        if let Some((mut vertices, indices, tex_idx)) = build_clip_quad(clip, weapon_tex, [sx, sy], ndc_z, [off_x, off_y]) {
-                            if tex_idx < weapon_tex.bind_groups.len() {
-                                for v in &mut vertices {
-                                    v.position[0] = sx + (v.position[0] - sx) * sprite_scale;
-                                    v.position[1] = sy + (v.position[1] - sy) * sprite_scale;
-                                }
-                                weapon_clips.push((vertices, indices, tex_idx));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        (shadow_clips, body_clips, head_clips, weapon_clips)
+        Some(([sx, sy], ndc_z, camera_dir, sprite_scale))
     }
 
     fn build_cursor_sprite_clips(&mut self, dt: f32) -> Vec<ClipData> {
@@ -948,7 +851,7 @@ impl ApplicationHandler for App {
                 let hovered = self.update_grid_hover();
                 self.update_cursor_type(hovered);
 
-                let (shadow_clips, body_clips, head_clips, weapon_clips) = self.build_player_sprite_clips();
+                let screen_params = self.player_screen_params();
                 let cursor_clips = self.build_cursor_sprite_clips(delta);
 
                 {
@@ -956,39 +859,12 @@ impl ApplicationHandler for App {
                     let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
 
                     if let Some(sprite) = &self.player_sprite {
-                        if let Some(shadow_tex) = &sprite.shadow_textures {
-                            for (vertices, indices, tex_idx) in shadow_clips {
-                                sprite_batches.push(SpriteBatch {
-                                    vertices,
-                                    indices,
-                                    texture: &shadow_tex.bind_groups[tex_idx],
-                                });
-                            }
-                        }
-                        for (vertices, indices, tex_idx) in body_clips {
-                            sprite_batches.push(SpriteBatch {
-                                vertices,
-                                indices,
-                                texture: &sprite.textures.bind_groups[tex_idx],
-                            });
-                        }
-                        if let Some(head_tex) = &sprite.head_textures {
-                            for (vertices, indices, tex_idx) in head_clips {
-                                sprite_batches.push(SpriteBatch {
-                                    vertices,
-                                    indices,
-                                    texture: &head_tex.bind_groups[tex_idx],
-                                });
-                            }
-                        }
-                        if let Some(weapon_tex) = &sprite.weapon_textures {
-                            for (vertices, indices, tex_idx) in weapon_clips {
-                                sprite_batches.push(SpriteBatch {
-                                    vertices,
-                                    indices,
-                                    texture: &weapon_tex.bind_groups[tex_idx],
-                                });
-                            }
+                        if let Some((center, depth, camera_dir, sprite_scale)) = screen_params {
+                            let shadow_scale = sprite_scale * shadow_size(self.player_entity.as_ref().map(|e| e.job).unwrap_or(0));
+                            let mut shadow = sprite.build_shadow_batches(center, depth, shadow_scale);
+                            sprite_batches.append(&mut shadow);
+                            let mut player = sprite.build_batches(Some(camera_dir), center, depth, sprite_scale);
+                            sprite_batches.append(&mut player);
                         }
                     }
 

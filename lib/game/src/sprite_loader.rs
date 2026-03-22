@@ -51,6 +51,11 @@ pub fn load_sprite_data(grf: &GrfArchive, spr_path: &str, act_path: &str) -> Opt
     Some(SpriteData { images, indexed_count, act })
 }
 
+pub fn load_sprite_data_from_spr(grf: &GrfArchive, spr_path: &str) -> Option<SpriteData> {
+    let base = spr_path.strip_suffix(".spr").unwrap_or(spr_path);
+    load_sprite_data(grf, spr_path, &format!("{base}.act"))
+}
+
 pub fn load_body_sprite(grf: &GrfArchive, job: u16, sex: u8) -> Option<SpriteData> {
     let base_path = body_sprite_path(job, sex);
     load_sprite_data(grf, &format!("{base_path}.spr"), &format!("{base_path}.act"))

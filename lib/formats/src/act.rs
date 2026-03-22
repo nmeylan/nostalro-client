@@ -163,6 +163,187 @@ impl ActFile {
     }
 }
 
+pub fn attachment_offset(body_motion: &Motion, head_motion: &Motion) -> (i32, i32) {
+    match (body_motion.attach_points.first(), head_motion.attach_points.first()) {
+        (Some(body), Some(head)) => (body.x - head.x, body.y - head.y),
+        _ => (0, 0),
+    }
+}
+
+/// Standard player sprite action types (from robrowser EntityAction).
+/// Each action has 8 direction variants in the ACT file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum SpriteActionType {
+    Idle = 0,
+    Walk = 1,
+    Sit = 2,
+    Pickup = 3,
+    ReadyFight = 4,
+    Attack1 = 5,
+    Hurt = 6,
+    Freeze = 7,
+    Die = 8,
+    Freeze2 = 9,
+    Attack2 = 10,
+    Attack3 = 11,
+    Skill = 12,
+}
+
+impl SpriteActionType {
+    pub fn is_animated(self) -> bool {
+        !matches!(self, Self::Idle | Self::Sit | Self::ReadyFight)
+    }
+
+    pub fn from_index(index: usize) -> Option<Self> {
+        match index {
+            0 => Some(Self::Idle),
+            1 => Some(Self::Walk),
+            2 => Some(Self::Sit),
+            3 => Some(Self::Pickup),
+            4 => Some(Self::ReadyFight),
+            5 => Some(Self::Attack1),
+            6 => Some(Self::Hurt),
+            7 => Some(Self::Freeze),
+            8 => Some(Self::Die),
+            9 => Some(Self::Freeze2),
+            10 => Some(Self::Attack2),
+            11 => Some(Self::Attack3),
+            12 => Some(Self::Skill),
+            _ => None,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Idle => "Idle",
+            Self::Walk => "Walk",
+            Self::Sit => "Sit",
+            Self::Pickup => "Pickup",
+            Self::ReadyFight => "Ready",
+            Self::Attack1 => "Attack1",
+            Self::Hurt => "Hurt",
+            Self::Freeze => "Freeze",
+            Self::Die => "Die",
+            Self::Freeze2 => "Freeze2",
+            Self::Attack2 => "Attack2",
+            Self::Attack3 => "Attack3",
+            Self::Skill => "Skill",
+        }
+    }
+}
+
+pub struct SpriteAnimationState {
+    action: usize,
+    direction: usize,
+    motion_index: usize,
+    accumulated_ms: f32,
+}
+
+impl SpriteAnimationState {
+    pub fn new(direction: u8) -> Self {
+        Self {
+            action: 0,
+            direction: direction as usize % 8,
+            motion_index: 0,
+            accumulated_ms: 0.0,
+        }
+    }
+
+    pub fn action(&self) -> usize {
+        self.action
+    }
+
+    pub fn direction(&self) -> usize {
+        self.direction
+    }
+
+    pub fn motion_index(&self) -> usize {
+        self.motion_index
+    }
+
+    /// Sets the base action (0=idle, 1=walk, etc). Only resets motion if action changed.
+    pub fn set_action(&mut self, action: usize) {
+        if self.action != action {
+            self.action = action;
+            self.motion_index = 0;
+            self.accumulated_ms = 0.0;
+        }
+    }
+
+    /// Sets the base action, clamping to the number of action types in the ACT file.
+    pub fn set_action_clamped(&mut self, action: usize, act: &ActFile) {
+        let max_action = act.actions.len() / 8;
+        self.set_action(action % max_action.max(1));
+    }
+
+    pub fn set_direction(&mut self, direction: u8) {
+        self.direction = direction as usize % 8;
+    }
+
+    /// Computes the flat action index into the ACT file, applying camera direction offset.
+    pub fn action_index(&self, act: &ActFile, camera_dir: u8) -> usize {
+        let effective_dir = (camera_dir as usize + 12 - self.direction) % 8;
+        (self.action * 8 + effective_dir) % act.actions.len()
+    }
+
+    /// Computes the flat action index without camera offset. Direction maps directly to ACT slot.
+    pub fn flat_action_index(&self, act: &ActFile) -> usize {
+        (self.action * 8 + self.direction) % act.actions.len()
+    }
+
+    pub fn reset_motion(&mut self) {
+        self.motion_index = 0;
+        self.accumulated_ms = 0.0;
+    }
+
+    pub fn step_forward(&mut self, motion_count: usize) {
+        if motion_count > 0 {
+            self.motion_index = (self.motion_index + 1) % motion_count;
+        }
+    }
+
+    pub fn step_backward(&mut self, motion_count: usize) {
+        if motion_count > 0 {
+            self.motion_index = if self.motion_index == 0 {
+                motion_count - 1
+            } else {
+                self.motion_index - 1
+            };
+        }
+    }
+
+    pub fn update(&mut self, dt_secs: f32, act: &ActFile, camera_dir: u8) {
+        let action_idx = self.action_index(act, camera_dir);
+        self.advance(action_idx, act, dt_secs);
+    }
+
+    pub fn update_flat(&mut self, dt_secs: f32, act: &ActFile) {
+        let action_idx = self.flat_action_index(act);
+        self.advance(action_idx, act, dt_secs);
+    }
+
+    fn advance(&mut self, action_idx: usize, act: &ActFile, dt_secs: f32) {
+        let motion_count = act.actions[action_idx].motions.len();
+        if motion_count == 0 {
+            return;
+        }
+
+        let delay_ms = if action_idx < act.delays.len() {
+            let d = act.delays[action_idx] * 25.0;
+            if d > 0.0 { d } else { 150.0 }
+        } else {
+            150.0
+        };
+
+        self.accumulated_ms += dt_secs * 1000.0;
+        while self.accumulated_ms >= delay_ms {
+            self.accumulated_ms -= delay_ms;
+            self.motion_index = (self.motion_index + 1) % motion_count;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,5 +404,93 @@ mod tests {
         assert_eq!(act.events.len(), 1);
         assert_eq!(act.events[0], "atk1");
         assert_eq!(act.delays, [4.0]);
+    }
+
+    fn make_motion_with_attach(x: i32, y: i32) -> Motion {
+        Motion {
+            range1: [0; 4], range2: [0; 4],
+            clips: Vec::new(), event_id: -1,
+            attach_points: vec![AttachPoint { ignored: 0, x, y, attribute: 0 }],
+        }
+    }
+
+    #[test]
+    fn head_offset_from_attach_points() {
+        let body = make_motion_with_attach(10, -20);
+        let head = make_motion_with_attach(3, -5);
+        assert_eq!(attachment_offset(&body, &head), (7, -15));
+    }
+
+    #[test]
+    fn head_offset_missing_attach_points() {
+        let with_attach = make_motion_with_attach(10, 20);
+        let without_attach = Motion {
+            range1: [0; 4], range2: [0; 4],
+            clips: Vec::new(), event_id: -1,
+            attach_points: Vec::new(),
+        };
+        assert_eq!(attachment_offset(&without_attach, &with_attach), (0, 0));
+        assert_eq!(attachment_offset(&with_attach, &without_attach), (0, 0));
+    }
+
+    fn make_act(action_count: usize, motions_per_action: usize) -> ActFile {
+        let actions: Vec<Action> = (0..action_count).map(|_| {
+            Action {
+                motions: (0..motions_per_action).map(|_| Motion {
+                    range1: [0; 4], range2: [0; 4],
+                    clips: Vec::new(), event_id: -1,
+                    attach_points: Vec::new(),
+                }).collect(),
+            }
+        }).collect();
+        ActFile {
+            version: (2, 5),
+            actions,
+            events: Vec::new(),
+            delays: vec![4.0; action_count],
+        }
+    }
+
+    #[test]
+    fn action_index_combines_action_direction_and_camera() {
+        let act = make_act(16, 1);
+        let anim = SpriteAnimationState::new(2);
+        assert_eq!(anim.action_index(&act, 3), 5);
+    }
+
+    #[test]
+    fn flat_action_index_direct_direction_mapping() {
+        let act = make_act(16, 1);
+        let mut anim = SpriteAnimationState::new(0);
+        anim.set_direction(3);
+        assert_eq!(anim.flat_action_index(&act), 3);
+        anim.set_action(1);
+        assert_eq!(anim.flat_action_index(&act), 11);
+    }
+
+    #[test]
+    fn update_advances_motion() {
+        let act = make_act(8, 3);
+        let mut anim = SpriteAnimationState::new(0);
+        anim.update(0.25, &act, 0);
+        assert_eq!(anim.motion_index, 2);
+    }
+
+    #[test]
+    fn step_forward_wraps() {
+        let mut anim = SpriteAnimationState::new(0);
+        anim.step_forward(3);
+        assert_eq!(anim.motion_index(), 1);
+        anim.step_forward(3);
+        assert_eq!(anim.motion_index(), 2);
+        anim.step_forward(3);
+        assert_eq!(anim.motion_index(), 0);
+    }
+
+    #[test]
+    fn step_backward_wraps() {
+        let mut anim = SpriteAnimationState::new(0);
+        anim.step_backward(4);
+        assert_eq!(anim.motion_index(), 3);
     }
 }

@@ -1,3 +1,4 @@
+use ragnarok_formats::act::SpriteActionType;
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
 use ragnarok_ui::draw::{text_vertices, quad_vertices};
@@ -40,8 +41,8 @@ pub fn map_key_press(key: &Key, state: ElementState) -> Option<ViewerAction> {
             "=" | "+" => Some(ViewerAction::ZoomIn),
             "-" => Some(ViewerAction::ZoomOut),
             "b" | "B" => Some(ViewerAction::CycleBackground),
-            "]" => Some(ViewerAction::NextWeapon),
-            "[" => Some(ViewerAction::PrevWeapon),
+            "q" => Some(ViewerAction::NextWeapon),
+            "w" => Some(ViewerAction::PrevWeapon),
             "s" | "S" => Some(ViewerAction::ToggleSex),
             "h" => Some(ViewerAction::NextHead),
             "g" => Some(ViewerAction::PrevHead),
@@ -99,9 +100,44 @@ const LEGEND_ENTRIES: &[(&str, &str)] = &[
     ("B", "Background"),
     ("S", "Sex"),
     ("H / G", "Head"),
-    ("[ / ]", "Weapon"),
+    ("q / w", "Weapon"),
     ("Tab", "Browser"),
 ];
+
+const STATUS_PADDING: f32 = 8.0;
+const STATUS_LINE_HEIGHT: f32 = 18.0;
+const STATUS_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 0.9];
+const STATUS_BG_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.5];
+
+pub fn build_status_draw_calls(
+    atlas: &FontAtlas,
+    screen_w: f32,
+    action: usize,
+    direction: usize,
+    motion: usize,
+    motion_count: usize,
+    paused: bool,
+) -> Vec<UiDrawCall> {
+    let action_name = SpriteActionType::from_index(action)
+        .map(|a| a.name())
+        .unwrap_or("?");
+    let pause_str = if paused { " [paused]" } else { "" };
+    let motion = motion + 1;
+    let text = format!("Act: {action} ({action_name})  Dir: {direction}  Frame: {motion}/{motion_count}{pause_str}");
+
+    let text_w = atlas.measure_text(&text);
+    let box_w = text_w + STATUS_PADDING * 2.0;
+    let box_h = STATUS_LINE_HEIGHT + STATUS_PADDING * 2.0;
+    let box_x = (screen_w - box_w) / 2.0;
+    let box_y = STATUS_PADDING;
+
+    let mut calls = Vec::new();
+    let (bg_verts, bg_idx) = quad_vertices(box_x, box_y, box_w, box_h, STATUS_BG_COLOR);
+    calls.push(UiDrawCall { vertices: bg_verts.to_vec(), indices: bg_idx.to_vec(), texture: UiTextureRef::White });
+    let (tv, ti) = text_vertices(&text, box_x + STATUS_PADDING, box_y + STATUS_PADDING, STATUS_COLOR, atlas);
+    calls.push(UiDrawCall { vertices: tv, indices: ti, texture: UiTextureRef::FontAtlas });
+    calls
+}
 
 const LEGEND_PADDING: f32 = 8.0;
 const LEGEND_LINE_HEIGHT: f32 = 18.0;

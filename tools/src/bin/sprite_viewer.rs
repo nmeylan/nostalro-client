@@ -2,21 +2,19 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
+use ragnarok_formats::act::SpriteActionType;
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_formats::act::ActFile;
-use ragnarok_formats::spr::{RgbaImageData, SprFile};
-use ragnarok_game::animation::head_attachment_offset;
+use ragnarok_game::animation::SpriteAnimationState;
 use ragnarok_game::sprite_loader::{self as game_sprite_loader};
 use ragnarok_game::sprite_path::weapon_view_id_to_type;
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::sprite::{
-    SpriteRenderer, SpriteTextures, SpriteUniforms, SpriteBatch,
-    build_clip_quad, upload_sprite_textures,
+    SpriteRenderer, SpriteUniforms, EntitySprite,
+    upload_sprite_textures,
 };
 use ragnarok_renderer::texture::{self, TextureCache};
 use ragnarok_renderer::ui_renderer::{UiDrawCommand, UiRenderer};
 use ragnarok_renderer::{RenderDevice, UiTextureRef};
-use ragnarok_tools::sprite_viewer::animation::AnimationState;
 use ragnarok_tools::sprite_viewer::browser::{BrowserTab, SpriteBrowser};
 use ragnarok_tools::sprite_viewer::controls::{self, Background, ViewerAction};
 use ragnarok_tools::sprite_viewer::shader_watcher::ShaderWatcher;
@@ -64,76 +62,13 @@ fn scan_grf_files() -> Vec<String> {
     files
 }
 
-struct SpriteData {
-    images: Vec<RgbaImageData>,
-    indexed_count: usize,
-    act: ActFile,
-}
-
-fn load_sprite_data(grf: &GrfArchive, sprite_path: &str) -> Option<SpriteData> {
-    let spr_data = match grf.read_file(sprite_path) {
-        Ok(d) => d,
-        Err(e) => {
-            eprintln!("Failed to read SPR {sprite_path}: {e}");
-            return None;
-        }
-    };
-    let spr = match SprFile::parse(&spr_data) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("Failed to parse SPR: {e}");
-            return None;
-        }
-    };
-
-    let act_path = sprite_path
-        .strip_suffix(".spr")
-        .map(|p| format!("{p}.act"))
-        .unwrap_or_else(|| sprite_path.replace(".spr", ".act"));
-
-    let act_data = match grf.read_file(&act_path) {
-        Ok(d) => d,
-        Err(e) => {
-            eprintln!("Failed to read ACT {act_path}: {e}");
-            return None;
-        }
-    };
-    let act = match ActFile::parse(&act_data) {
-        Ok(a) => a,
-        Err(e) => {
-            eprintln!("Failed to parse ACT: {e}");
-            return None;
-        }
-    };
-
-    let rgba_count = spr.rgba_sprites.len();
-    let (images, indexed_count) = spr.to_rgba_images();
-
-    println!(
-        "Loaded: {indexed_count} indexed + {rgba_count} rgba sprites, {} actions",
-        act.actions.len(),
-    );
-
-    Some(SpriteData { images, indexed_count, act })
-}
-
-struct CompositeSprite {
-    body_textures: SpriteTextures,
-    body_act: ActFile,
-    head_textures: Option<SpriteTextures>,
-    head_act: Option<ActFile>,
-    weapon_textures: Option<SpriteTextures>,
-    weapon_act: Option<ActFile>,
-}
-
 struct App {
     window: Option<Arc<Window>>,
     device: Option<RenderDevice>,
     sprite_renderer: Option<SpriteRenderer>,
-    sprite_textures: Option<SpriteTextures>,
     texture_cache: Option<TextureCache>,
-    sprite_data: Option<SpriteData>,
-    animation: AnimationState,
+    entity_sprite: Option<EntitySprite>,
+    paused: bool,
     background: Background,
     zoom: f32,
     pan: [f32; 2],
@@ -146,7 +81,6 @@ struct App {
     white_bind_group: Option<wgpu::BindGroup>,
     ui_renderer: Option<UiRenderer>,
     browser: Option<SpriteBrowser>,
-    composite: Option<CompositeSprite>,
     composite_job: u16,
     composite_sex: u8,
     composite_head: u16,
@@ -159,10 +93,9 @@ impl App {
             window: None,
             device: None,
             sprite_renderer: None,
-            sprite_textures: None,
             texture_cache: None,
-            sprite_data: None,
-            animation: AnimationState::new(),
+            entity_sprite: None,
+            paused: false,
             background: Background::Black,
             zoom: 2.0,
             pan: [0.0, 0.0],
@@ -175,7 +108,6 @@ impl App {
             white_bind_group: None,
             ui_renderer: None,
             browser: None,
-            composite: None,
             composite_job: 0,
             composite_sex: 1,
             composite_head: 1,
@@ -214,7 +146,7 @@ impl App {
             return;
         };
 
-        let sprite_data = match load_sprite_data(grf, path) {
+        let sprite_data = match game_sprite_loader::load_sprite_data_from_spr(grf, path) {
             Some(d) => d,
             None => return,
         };
@@ -227,9 +159,17 @@ impl App {
             &tex_cache.bind_group_layout,
         );
 
-        self.sprite_textures = Some(textures);
-        self.sprite_data = Some(sprite_data);
-        self.animation = AnimationState::new();
+        self.entity_sprite = Some(EntitySprite {
+            body_textures: textures,
+            body_act: sprite_data.act,
+            head_textures: None,
+            head_act: None,
+            weapon_textures: None,
+            weapon_act: None,
+            animation: SpriteAnimationState::new(0),
+            shadow_textures: None,
+            shadow_act: None,
+        });
 
         if let Some(window) = &self.window {
             window.set_title(&format!("Sprite Viewer — {path}"));
@@ -283,19 +223,21 @@ impl App {
             (None, None)
         };
 
-        self.composite = Some(CompositeSprite {
+        self.entity_sprite = Some(EntitySprite {
             body_act: body_data.act,
             body_textures,
             head_textures,
             head_act,
             weapon_textures,
             weapon_act,
+            animation: SpriteAnimationState::new(0),
+            shadow_textures: None,
+            shadow_act: None,
         });
         self.composite_job = job;
         self.composite_sex = sex;
         self.composite_head = head_id;
         self.weapon_view_id = weapon_view_id;
-        self.animation = AnimationState::new();
 
         if let Some(window) = &self.window {
             let weapon_str = weapon_view_id_to_type(weapon_view_id)
@@ -311,7 +253,7 @@ impl App {
         ) else {
             return;
         };
-        let Some(composite) = &mut self.composite else { return };
+        let Some(entity) = &mut self.entity_sprite else { return };
 
         let (weapon_textures, weapon_act) = if let Some(wt) = weapon_view_id_to_type(self.weapon_view_id) {
             if let Some(wd) = game_sprite_loader::load_weapon_sprite(grf, self.composite_job, self.composite_sex, wt) {
@@ -327,8 +269,8 @@ impl App {
             (None, None)
         };
 
-        composite.weapon_textures = weapon_textures;
-        composite.weapon_act = weapon_act;
+        entity.weapon_textures = weapon_textures;
+        entity.weapon_act = weapon_act;
 
         if let Some(window) = &self.window {
             let weapon_str = weapon_view_id_to_type(self.weapon_view_id)
@@ -362,7 +304,7 @@ impl App {
                     if let Some(browser) = &mut self.browser {
                         browser.open = false;
                     }
-                    self.composite = None;
+                    self.entity_sprite = None;
                     self.load_sprite(&path);
                 }
             }
@@ -380,51 +322,53 @@ impl App {
                 }
             }
             ViewerAction::NextDirection => {
-                let dir = (self.animation.direction + 1) % 8;
-                self.animation.set_direction(dir);
+                if let Some(entity) = &mut self.entity_sprite {
+                    let dir = ((entity.animation.direction() + 1) % 8) as u8;
+                    entity.animation.set_direction(dir);
+                    entity.animation.reset_motion();
+                }
             }
             ViewerAction::PrevDirection => {
-                let dir = if self.animation.direction == 0 { 7 } else { self.animation.direction - 1 };
-                self.animation.set_direction(dir);
+                if let Some(entity) = &mut self.entity_sprite {
+                    let dir = if entity.animation.direction() == 0 { 7u8 } else { (entity.animation.direction() - 1) as u8 };
+                    entity.animation.set_direction(dir);
+                    entity.animation.reset_motion();
+                }
             }
             ViewerAction::NextAction => {
-                let act = self.composite.as_ref().map(|c| &c.body_act)
-                    .or(self.sprite_data.as_ref().map(|d| &d.act));
-                if let Some(act) = act {
-                    let next = self.animation.action + 1;
-                    self.animation.set_action(next, act);
+                if let Some(entity) = &mut self.entity_sprite {
+                    let next = entity.animation.action() + 1;
+                    entity.animation.set_action_clamped(next, &entity.body_act);
                 }
             }
             ViewerAction::PrevAction => {
-                let act = self.composite.as_ref().map(|c| &c.body_act)
-                    .or(self.sprite_data.as_ref().map(|d| &d.act));
-                if let Some(act) = act {
-                    let prev = if self.animation.action == 0 {
-                        act.actions.len() / 8
+                if let Some(entity) = &mut self.entity_sprite {
+                    let prev = if entity.animation.action() == 0 {
+                        entity.body_act.actions.len() - 1
                     } else {
-                        self.animation.action - 1
+                        entity.animation.action() - 1
                     };
-                    self.animation.set_action(prev, act);
+                    entity.animation.set_action_clamped(prev, &entity.body_act);
                 }
             }
             ViewerAction::TogglePause => {
-                self.animation.paused = !self.animation.paused;
+                self.paused = !self.paused;
             }
             ViewerAction::StepForward => {
-                if self.animation.paused {
-                    let act = self.composite.as_ref().map(|c| &c.body_act)
-                        .or(self.sprite_data.as_ref().map(|d| &d.act));
-                    if let Some(act) = act {
-                        self.animation.step_forward(act);
+                if self.paused {
+                    if let Some(entity) = &mut self.entity_sprite {
+                        let action_idx = entity.animation.flat_action_index(&entity.body_act);
+                        let motion_count = entity.body_act.actions[action_idx].motions.len();
+                        entity.animation.step_forward(motion_count);
                     }
                 }
             }
             ViewerAction::StepBackward => {
-                if self.animation.paused {
-                    let act = self.composite.as_ref().map(|c| &c.body_act)
-                        .or(self.sprite_data.as_ref().map(|d| &d.act));
-                    if let Some(act) = act {
-                        self.animation.step_backward(act);
+                if self.paused {
+                    if let Some(entity) = &mut self.entity_sprite {
+                        let action_idx = entity.animation.flat_action_index(&entity.body_act);
+                        let motion_count = entity.body_act.actions[action_idx].motions.len();
+                        entity.animation.step_backward(motion_count);
                     }
                 }
             }
@@ -438,33 +382,33 @@ impl App {
                 self.background = self.background.next();
             }
             ViewerAction::NextWeapon => {
-                if self.composite.is_some() {
+                if self.entity_sprite.is_some() {
                     self.weapon_view_id = if self.weapon_view_id >= 17 { 0 } else { self.weapon_view_id + 1 };
                     self.reload_weapon();
                 }
             }
             ViewerAction::PrevWeapon => {
-                if self.composite.is_some() {
+                if self.entity_sprite.is_some() {
                     self.weapon_view_id = if self.weapon_view_id == 0 { 17 } else { self.weapon_view_id - 1 };
                     self.reload_weapon();
                 }
             }
             ViewerAction::ToggleSex => {
-                if self.composite.is_some() {
+                if self.entity_sprite.is_some() {
                     self.composite_sex = if self.composite_sex == 0 { 1 } else { 0 };
                     let (job, sex, head, weapon) = (self.composite_job, self.composite_sex, self.composite_head, self.weapon_view_id);
                     self.load_composite(job, sex, head, weapon);
                 }
             }
             ViewerAction::NextHead => {
-                if self.composite.is_some() {
+                if self.entity_sprite.is_some() {
                     self.composite_head = if self.composite_head >= 30 { 1 } else { self.composite_head + 1 };
                     let (job, sex, head, weapon) = (self.composite_job, self.composite_sex, self.composite_head, self.weapon_view_id);
                     self.load_composite(job, sex, head, weapon);
                 }
             }
             ViewerAction::PrevHead => {
-                if self.composite.is_some() {
+                if self.entity_sprite.is_some() {
                     self.composite_head = if self.composite_head <= 1 { 30 } else { self.composite_head - 1 };
                     let (job, sex, head, weapon) = (self.composite_job, self.composite_sex, self.composite_head, self.weapon_view_id);
                     self.load_composite(job, sex, head, weapon);
@@ -495,77 +439,18 @@ impl App {
         let view = output.texture.create_view(&Default::default());
         let mut encoder = device.device.create_command_encoder(&Default::default());
 
-        let has_sprite = self.sprite_data.is_some() || self.composite.is_some();
         if let Some(renderer) = &mut self.sprite_renderer {
-            if has_sprite {
+            if let Some(entity) = &self.entity_sprite {
                 renderer.update_uniforms(&device.queue, &SpriteUniforms {
                     screen_size: [width, height],
-                    zoom: self.zoom,
+                    zoom: 1.0,
                     _pad: 0.0,
-                    pan: self.pan,
+                    pan: [0.0, 0.0],
                     _pad2: [0.0, 0.0],
                 });
 
-                let screen_center = [width / (2.0 * self.zoom), height / (2.0 * self.zoom)];
-                let mut batches: Vec<SpriteBatch> = Vec::new();
-
-                if let Some(composite) = &self.composite {
-                    let action_idx = self.animation.action_index(&composite.body_act);
-                    let body_action = &composite.body_act.actions[action_idx];
-                    let motion_idx = self.animation.motion_index % body_action.motions.len().max(1);
-                    let body_motion = &body_action.motions[motion_idx];
-
-                    for clip in &body_motion.clips {
-                        if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, &composite.body_textures, screen_center, 0.0, [0, 0]) {
-                            if tex_idx < composite.body_textures.bind_groups.len() {
-                                batches.push(SpriteBatch { vertices, indices, texture: &composite.body_textures.bind_groups[tex_idx] });
-                            }
-                        }
-                    }
-
-                    if let (Some(head_act), Some(head_tex)) = (&composite.head_act, &composite.head_textures) {
-                        let head_action_idx = action_idx % head_act.actions.len();
-                        let head_action = &head_act.actions[head_action_idx];
-                        if !head_action.motions.is_empty() {
-                            let head_motion = &head_action.motions[0];
-                            let (off_x, off_y) = head_attachment_offset(body_motion, head_motion);
-                            for clip in &head_motion.clips {
-                                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, head_tex, screen_center, 0.0, [off_x, off_y]) {
-                                    if tex_idx < head_tex.bind_groups.len() {
-                                        batches.push(SpriteBatch { vertices, indices, texture: &head_tex.bind_groups[tex_idx] });
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if let (Some(weapon_act), Some(weapon_tex)) = (&composite.weapon_act, &composite.weapon_textures) {
-                        let weapon_action_idx = action_idx % weapon_act.actions.len();
-                        let weapon_action = &weapon_act.actions[weapon_action_idx];
-                        if !weapon_action.motions.is_empty() {
-                            let weapon_motion_idx = self.animation.motion_index % weapon_action.motions.len();
-                            let weapon_motion = &weapon_action.motions[weapon_motion_idx];
-                            let (off_x, off_y) = head_attachment_offset(body_motion, weapon_motion);
-                            for clip in &weapon_motion.clips {
-                                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, weapon_tex, screen_center, 0.0, [off_x, off_y]) {
-                                    if tex_idx < weapon_tex.bind_groups.len() {
-                                        batches.push(SpriteBatch { vertices, indices, texture: &weapon_tex.bind_groups[tex_idx] });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else if let (Some(textures), Some(data)) = (&self.sprite_textures, &self.sprite_data) {
-                    let action_idx = self.animation.action_index(&data.act);
-                    let motion = &data.act.actions[action_idx].motions[self.animation.motion_index % data.act.actions[action_idx].motions.len().max(1)];
-                    for clip in &motion.clips {
-                        if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, textures, screen_center, 0.0, [0, 0]) {
-                            if tex_idx < textures.bind_groups.len() {
-                                batches.push(SpriteBatch { vertices, indices, texture: &textures.bind_groups[tex_idx] });
-                            }
-                        }
-                    }
-                }
+                let screen_center = [width / 2.0 + self.pan[0] * self.zoom, height / 2.0 + self.pan[1] * self.zoom];
+                let batches = entity.build_batches(None, screen_center, 0.0, self.zoom);
 
                 renderer.render(
                     &mut encoder,
@@ -610,7 +495,7 @@ impl App {
         }
 
         let browser_open = self.browser.as_ref().is_some_and(|b| b.open);
-        let ui_draw_calls = if browser_open {
+        let mut ui_draw_calls: Option<Vec<_>> = if browser_open {
             self.browser.as_ref()
                 .zip(self.font_atlas.as_ref())
                 .map(|(browser, atlas)| browser.build_draw_calls(atlas, width, height))
@@ -618,6 +503,20 @@ impl App {
             self.font_atlas.as_ref()
                 .map(|atlas| controls::build_legend_draw_calls(atlas, height))
         };
+
+        if let (Some(entity), Some(atlas)) = (&self.entity_sprite, &self.font_atlas) {
+            let action_idx = entity.animation.flat_action_index(&entity.body_act);
+            let motion_count = entity.body_act.actions[action_idx].motions.len();
+            let status = controls::build_status_draw_calls(
+                atlas, width,
+                entity.animation.action(),
+                entity.animation.direction(),
+                entity.animation.motion_index(),
+                motion_count,
+                self.paused,
+            );
+            ui_draw_calls.get_or_insert_with(Vec::new).extend(status);
+        }
 
         if let (Some(draw_calls), Some(ui_renderer), Some(font_bg), Some(white_bg)) = (
             ui_draw_calls, &mut self.ui_renderer,
@@ -843,10 +742,14 @@ impl ApplicationHandler for App {
                 let dt = (now - self.last_frame).as_secs_f32();
                 self.last_frame = now;
 
-                let act_ref = self.composite.as_ref().map(|c| &c.body_act)
-                    .or(self.sprite_data.as_ref().map(|d| &d.act));
-                if let Some(act) = act_ref {
-                    self.animation.update(dt, act);
+                if !self.paused {
+                    if let Some(entity) = &mut self.entity_sprite {
+                        let animated = SpriteActionType::from_index(entity.animation.action())
+                            .is_none_or(|a| a.is_animated());
+                        if animated {
+                            entity.update_animation(dt, None);
+                        }
+                    }
                 }
 
                 if let (Some(watcher), Some(renderer), Some(device), Some(tc)) = (
