@@ -17,6 +17,7 @@ struct LoadedGrf {
     selected_dir: String,
     selected_file: Option<usize>,
     search_filter: String,
+    dirty: bool,
 }
 
 impl LoadedGrf {
@@ -42,7 +43,17 @@ impl LoadedGrf {
             selected_dir: String::new(),
             selected_file: None,
             search_filter: String::new(),
+            dirty: false,
         }
+    }
+
+    fn refresh(&mut self) {
+        self.file_list = self.archive.file_list();
+        let indexed_names: Vec<(usize, &str)> =
+            self.file_list.iter().enumerate().map(|(i, f)| (i, f.name.as_str())).collect();
+        self.tree = tree::build_tree(&indexed_names);
+        self.selected_file = None;
+        self.update_visible_files();
     }
 
     fn update_visible_files(&mut self) {
@@ -58,6 +69,7 @@ pub struct GrfEditorApp {
     archives: Vec<LoadedGrf>,
     active_tab: usize,
     error_msg: Option<String>,
+    confirm_delete: Option<usize>,
 }
 
 impl Default for GrfEditorApp {
@@ -66,13 +78,14 @@ impl Default for GrfEditorApp {
             archives: Vec::new(),
             active_tab: 0,
             error_msg: None,
+            confirm_delete: None,
         }
     }
 }
 
 impl GrfEditorApp {
     pub fn open_grf(&mut self, path: &Path) {
-        match GrfArchive::open(path) {
+        match GrfArchive::open_rw(path) {
             Ok(archive) => {
                 self.archives.push(LoadedGrf::new(archive));
                 self.active_tab = self.archives.len() - 1;
@@ -84,12 +97,86 @@ impl GrfEditorApp {
         }
     }
 
+    fn action_new(&mut self) {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("GRF files", &["grf"])
+            .save_file()
+        {
+            match GrfArchive::create(&path) {
+                Ok(mut archive) => {
+                    if let Err(e) = archive.save() {
+                        self.error_msg = Some(format!("Failed to save new GRF: {e}"));
+                        return;
+                    }
+                    self.archives.push(LoadedGrf::new(archive));
+                    self.active_tab = self.archives.len() - 1;
+                    self.error_msg = None;
+                }
+                Err(e) => {
+                    self.error_msg = Some(format!("Failed to create GRF: {e}"));
+                }
+            }
+        }
+    }
+
     fn action_open(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
             .add_filter("GRF files", &["grf"])
             .pick_file()
         {
             self.open_grf(&path);
+        }
+    }
+
+    fn action_add_files(&mut self) {
+        if let Some(paths) = rfd::FileDialog::new().pick_files() {
+            let grf = match self.archives.get_mut(self.active_tab) {
+                Some(g) => g,
+                None => return,
+            };
+            let dir_prefix = if grf.selected_dir.is_empty() {
+                String::new()
+            } else {
+                grf.selected_dir.clone()
+            };
+            for path in paths {
+                let basename = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let grf_path = format!("{dir_prefix}{basename}");
+                match std::fs::read(&path) {
+                    Ok(data) => {
+                        if let Err(e) = grf.archive.add_file(&grf_path, &data) {
+                            self.error_msg = Some(format!("Failed to add {basename}: {e}"));
+                            return;
+                        }
+                    }
+                    Err(e) => {
+                        self.error_msg = Some(format!("Failed to read {basename}: {e}"));
+                        return;
+                    }
+                }
+            }
+            grf.dirty = true;
+            grf.refresh();
+            self.error_msg = None;
+        }
+    }
+
+    fn action_save(&mut self) {
+        let grf = match self.archives.get_mut(self.active_tab) {
+            Some(g) => g,
+            None => return,
+        };
+        match grf.archive.save() {
+            Ok(()) => {
+                grf.dirty = false;
+                self.error_msg = None;
+            }
+            Err(e) => {
+                self.error_msg = Some(format!("Save failed: {e}"));
+            }
         }
     }
 
@@ -130,23 +217,123 @@ impl GrfEditorApp {
         }
     }
 
+    fn action_remove(&mut self) {
+        let grf = match self.archives.get_mut(self.active_tab) {
+            Some(g) => g,
+            None => return,
+        };
+        let file_idx = match grf.selected_file {
+            Some(i) => i,
+            None => return,
+        };
+        let filename = grf.file_list[file_idx].name.clone();
+        match grf.archive.remove_file(&filename) {
+            Ok(_) => {
+                if let Err(e) = grf.archive.save() {
+                    self.error_msg = Some(format!("Failed to save after remove: {e}"));
+                    return;
+                }
+                grf.dirty = false;
+                grf.refresh();
+                self.error_msg = None;
+            }
+            Err(e) => {
+                self.error_msg = Some(format!("Failed to remove: {e}"));
+            }
+        }
+        self.confirm_delete = None;
+    }
+
+    fn action_repack(&mut self) {
+        let grf = match self.archives.get_mut(self.active_tab) {
+            Some(g) => g,
+            None => return,
+        };
+        match grf.archive.repack() {
+            Ok(()) => {
+                grf.dirty = false;
+                grf.refresh();
+                self.error_msg = None;
+            }
+            Err(e) => {
+                self.error_msg = Some(format!("Repack failed: {e}"));
+            }
+        }
+    }
+
     fn show_toolbar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
+            if ui.button("New").clicked() {
+                self.action_new();
+            }
             if ui.button("Open").clicked() {
                 self.action_open();
             }
 
-            let has_selection = self
-                .archives
-                .get(self.active_tab)
+            let has_grf = self.archives.get(self.active_tab).is_some();
+            let is_writable = self.archives.get(self.active_tab)
+                .is_some_and(|g| g.archive.is_writable());
+            let is_dirty = self.archives.get(self.active_tab)
+                .is_some_and(|g| g.dirty);
+            let has_selection = self.archives.get(self.active_tab)
                 .is_some_and(|g| g.selected_file.is_some());
-            if ui
-                .add_enabled(has_selection, egui::Button::new("Extract"))
-                .clicked()
-            {
+
+            ui.separator();
+
+            if ui.add_enabled(is_writable, egui::Button::new("Add Files")).clicked() {
+                self.action_add_files();
+            }
+            if ui.add_enabled(has_selection, egui::Button::new("Extract")).clicked() {
                 self.action_extract();
             }
+            if ui.add_enabled(has_selection && is_writable, egui::Button::new("Remove")).clicked() {
+                if let Some(grf) = self.archives.get(self.active_tab) {
+                    if grf.selected_file.is_some() {
+                        self.confirm_delete = grf.selected_file;
+                    }
+                }
+            }
+
+            ui.separator();
+
+            if ui.add_enabled(is_dirty && is_writable, egui::Button::new("Save")).clicked() {
+                self.action_save();
+            }
+            if ui.add_enabled(has_grf && is_writable, egui::Button::new("Repack")).clicked() {
+                self.action_repack();
+            }
         });
+    }
+
+    fn show_delete_confirmation(&mut self, ctx: &egui::Context) {
+        if let Some(idx) = self.confirm_delete {
+            let filename = self
+                .archives
+                .get(self.active_tab)
+                .and_then(|g| g.file_list.get(idx))
+                .map(|f| f.name.clone())
+                .unwrap_or_default();
+
+            let mut open = true;
+            egui::Window::new("Confirm Delete")
+                .collapsible(false)
+                .resizable(false)
+                .open(&mut open)
+                .show(ctx, |ui| {
+                    ui.label(format!("Delete \"{filename}\"?"));
+                    ui.horizontal(|ui| {
+                        if ui.button("Delete").clicked() {
+                            self.action_remove();
+                        }
+                        if ui.button("Cancel").clicked() {
+                            self.confirm_delete = None;
+                        }
+                    });
+                });
+            if !open {
+                self.confirm_delete = None;
+            }
+        }
     }
 
     fn show_tabs(&mut self, ui: &mut egui::Ui) {
@@ -155,11 +342,15 @@ impl GrfEditorApp {
         ui.horizontal(|ui| {
             for (i, grf) in self.archives.iter().enumerate() {
                 let selected = i == self.active_tab;
-                let response = ui.selectable_label(selected, &grf.name);
+                let label = if grf.dirty {
+                    format!("{}*", grf.name)
+                } else {
+                    grf.name.clone()
+                };
+                let response = ui.selectable_label(selected, &label);
                 if response.clicked() {
                     self.active_tab = i;
                 }
-                // Close button
                 if ui.small_button("x").clicked() {
                     close_tab = Some(i);
                 }
@@ -305,6 +496,8 @@ impl GrfEditorApp {
 
 impl eframe::App for GrfEditorApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.show_delete_confirmation(ctx);
+
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             self.show_toolbar(ui);
         });
