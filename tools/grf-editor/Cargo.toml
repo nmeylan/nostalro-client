@@ -1,0 +1,12 @@
+[package]
+name = "ragnarok-grf-editor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ragnarok-formats = { workspace = true }
+eframe = { workspace = true }
+egui_ltreeview = "0.6.1"
+rfd = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
