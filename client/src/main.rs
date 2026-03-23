@@ -16,7 +16,7 @@ use ragnarok_game::sprite_path::{WeaponType, weapon_view_id_to_type, entity_type
 use ragnarok_game::path::{path_search, try_move_to};
 use ragnarok_game::shadow::shadow_size;
 use ragnarok_game::{map_loader, sprite_loader};
-use ragnarok_network::{build_action_request_packet, build_char_enter_packet, build_login_packet, build_map_loaded_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
+use ragnarok_network::{build_action_request_packet, build_char_enter_packet, build_chat_packet, build_login_packet, build_map_loaded_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall, build_clip_quad, upload_sprite_textures, build_entity_sprite, block_on};
 use ragnarok_ui::context::UiContext;
@@ -377,6 +377,12 @@ impl App {
                             entity.direction = dir;
                         }
                     }
+                    GameEvent::ChatMessage { message } => {
+                        self.game.chat_window.add_chat(message);
+                    }
+                    GameEvent::OwnChatMessage { message } => {
+                        self.game.chat_window.add_own_chat(message);
+                    }
                     GameEvent::Disconnected(reason) => {
                         if reason == "User exit" {
                             event_loop.exit();
@@ -526,6 +532,19 @@ impl App {
                         let _ = tx.send(NetworkCommand::Disconnect);
                     }
                 }
+                GameEvent::RequestSendChat { message } => {
+                    if message.starts_with('/') {
+                        self.handle_slash_command(&message);
+                    } else {
+                        let char_name = self.game.selected_character.as_ref()
+                            .map(|c| c.name.as_str()).unwrap_or("Unknown");
+                        let full_msg = format!("{char_name} : {message}");
+                        if let Some(tx) = &self.network_cmd_tx {
+                            let packet = build_chat_packet(&full_msg, self.config.packetver);
+                            let _ = tx.send(NetworkCommand::SendPacket(packet));
+                        }
+                    }
+                }
                 GameEvent::Disconnected(ref reason) if reason == "User exit" => {
                     if let Some(tx) = &self.network_cmd_tx {
                         let _ = tx.send(NetworkCommand::Disconnect);
@@ -533,6 +552,29 @@ impl App {
                     event_loop.exit();
                 }
                 _ => {}
+            }
+        }
+    }
+
+    fn handle_slash_command(&mut self, command: &str) {
+        let cmd = command.split_whitespace().next().unwrap_or("");
+        match cmd {
+            "/sit" => {
+                if let Some(entity) = self.game.entities.player() {
+                    let action = if entity.state == EntityState::Sitting { 3u8 } else { 2u8 };
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_action_request_packet(0, action, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+            }
+            "/doridori" => {
+                if let Some(entity) = self.game.entities.player_mut() {
+                    entity.head_dir = if entity.head_dir == 0 { 1 } else { 0 };
+                }
+            }
+            _ => {
+                self.game.chat_window.add_system(format!("Unknown command: {cmd}"));
             }
         }
     }
@@ -583,7 +625,23 @@ impl App {
                     (Vec::new(), Vec::new())
                 }
             }
-            AppState::InGame => (Vec::new(), Vec::new()),
+            AppState::InGame => {
+                if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
+                    let initial_focus = if self.game.chat_window.is_active() {
+                        Some(WidgetId(200))
+                    } else {
+                        None
+                    };
+                    let mut ui = UiFrame::new(
+                        ui_ctx, &renderer.font_atlas, &mut self.ui_state_cache, elapsed,
+                        false, initial_focus,
+                    );
+                    let events = self.game.chat_window.build(&mut ui);
+                    (ui.draw_calls, events)
+                } else {
+                    (Vec::new(), Vec::new())
+                }
+            }
         }
     }
 
@@ -776,7 +834,9 @@ impl ApplicationHandler for App {
                             }
                         }
                         MouseButton::Left if state == ElementState::Pressed => {
-                            self.handle_left_click();
+                            if !self.game.chat_window.is_active() {
+                                self.handle_left_click();
+                            }
                         }
                         _ => {}
                     }
@@ -807,7 +867,10 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                if event.state == ElementState::Pressed && self.game.app_state == AppState::InGame {
+                if event.state == ElementState::Pressed
+                    && self.game.app_state == AppState::InGame
+                    && !self.game.chat_window.is_active()
+                {
                     match event.physical_key {
                         PhysicalKey::Code(KeyCode::F11) => {
                             if let Some(renderer) = &mut self.renderer {

@@ -52,6 +52,16 @@ pub fn build_map_loaded_packet(packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+/// Build a chat packet. `msg` must be in "CharName : text" format.
+pub fn build_chat_packet(msg: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzPlayerChat::new(packetver);
+    let msg_null = format!("{msg}\0");
+    pkt.set_packet_length((4 + msg_null.len()) as i16);
+    pkt.set_msg(msg_null);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_action_request_packet(target_gid: u32, action: u8, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzRequestAct::new(packetver);
     pkt.set_target_gid(target_gid);

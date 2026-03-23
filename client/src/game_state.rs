@@ -12,6 +12,7 @@ use ragnarok_game::name_table::NameTable;
 use ragnarok_game::event::CharacterInfo;
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
+use ragnarok_ui_component::chat_window::ChatWindow;
 
 pub struct GameState {
     pub app_state: AppState,
@@ -28,6 +29,7 @@ pub struct GameState {
     pub cursor_textures: Option<SpriteTextures>,
     pub cursor_act: Option<ActFile>,
     pub cursor_animation: CursorAnimationState,
+    pub chat_window: ChatWindow,
 }
 
 impl GameState {
@@ -47,6 +49,7 @@ impl GameState {
             cursor_textures: None,
             cursor_act: None,
             cursor_animation: CursorAnimationState::new(),
+            chat_window: ChatWindow::new(),
         }
     }
 }

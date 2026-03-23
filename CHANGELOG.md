@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Add chat box: press Enter to type, send messages to nearby players, receive messages from others
+- Add /sit slash command in chat to toggle sit/stand
+- Game controls suppressed while typing in chat
 - Add sit/stand toggle with Insert key, entities spawned sitting display correctly
 - Add doridori head animation support: head direction changes from server render on head and headgear sprites
 - Fix shield sprite render order: shield now renders behind body when character faces away from camera

@@ -106,6 +106,17 @@ pub enum GameEvent {
         head_dir: u8,
         dir: u8,
     },
+
+    // Chat
+    ChatMessage {
+        message: String,
+    },
+    OwnChatMessage {
+        message: String,
+    },
+    RequestSendChat {
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone)]

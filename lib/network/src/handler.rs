@@ -198,6 +198,16 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Option<GameEvent>
         });
     }
 
+    // Chat messages
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyChat>() {
+        let message: String = p.msg.chars().take_while(|c| *c != '\0').collect();
+        return Some(GameEvent::ChatMessage { message });
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyPlayerchat>() {
+        let message: String = p.msg.chars().take_while(|c| *c != '\0').collect();
+        return Some(GameEvent::OwnChatMessage { message });
+    }
+
     // Entity despawn
     if let Some(p) = any.downcast_ref::<PacketZcNotifyVanish>() {
         return Some(GameEvent::EntityVanished { gid: p.gid });
@@ -408,5 +418,63 @@ mod tests {
             }
             other => panic!("expected EntityDirectionChanged, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn dispatch_notify_chat_returns_chat_message() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcNotifyChat::new(packetver);
+        pkt.set_gid(42);
+        pkt.set_msg("Player : Hello".to_string());
+        pkt.set_msg_raw("Player : Hello".as_bytes().to_vec());
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        match result {
+            Some(GameEvent::ChatMessage { message }) => {
+                assert_eq!(message, "Player : Hello");
+            }
+            other => panic!("expected ChatMessage, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_notify_playerchat_returns_own_chat() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcNotifyPlayerchat::new(packetver);
+        pkt.set_msg("Me : Hi there".to_string());
+        pkt.set_msg_raw("Me : Hi there".as_bytes().to_vec());
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        match result {
+            Some(GameEvent::OwnChatMessage { message }) => {
+                assert_eq!(message, "Me : Hi there");
+            }
+            other => panic!("expected OwnChatMessage, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn build_action_request_packet_has_correct_format() {
+        let raw = crate::sender::build_action_request_packet(0, 2, 20120307);
+        assert_eq!(raw.len(), 7);
+        // PacketCzRequestAct at packetver>=20120307 uses 0x0885
+        assert_eq!(raw[0], 0x85);
+        assert_eq!(raw[1], 0x08);
+        // target_gid = 0 at offset 2
+        assert_eq!(&raw[2..6], &[0, 0, 0, 0]);
+        // action = 2 (sit) at offset 6
+        assert_eq!(raw[6], 2);
+    }
+
+    #[test]
+    fn build_chat_packet_has_correct_format() {
+        let raw = crate::sender::build_chat_packet("Player : hello", 20120307);
+        assert_eq!(raw.len(), 19);
+        // rAthena uses 0x00F3 for CZ_REQUEST_CHAT
+        assert_eq!(raw[0], 0xF3);
+        assert_eq!(raw[1], 0x00);
+        let pkt_len = i16::from_le_bytes([raw[2], raw[3]]);
+        assert_eq!(pkt_len, 19);
+        assert_eq!(&raw[4..], b"Player : hello\0");
     }
 }
