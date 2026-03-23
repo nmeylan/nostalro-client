@@ -9,14 +9,14 @@ use ragnarok_formats::act::SpriteActionType;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::{CursorType, cursor_type_for_cell};
-use ragnarok_game::entity::{Entity, EntityType};
+use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::name_table::NameTable;
 use ragnarok_game::sprite_path::{WeaponType, weapon_view_id_to_type, entity_type_from_job, entity_sprite_base_path};
 use ragnarok_game::path::{path_search, try_move_to};
 use ragnarok_game::shadow::shadow_size;
 use ragnarok_game::{map_loader, sprite_loader};
-use ragnarok_network::{build_char_enter_packet, build_login_packet, build_map_loaded_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
+use ragnarok_network::{build_action_request_packet, build_char_enter_packet, build_login_packet, build_map_loaded_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall, build_clip_quad, upload_sprite_textures, build_entity_sprite, block_on};
 use ragnarok_ui::context::UiContext;
@@ -324,15 +324,18 @@ impl App {
                     }
                     GameEvent::EntitySpawned { gid, job, speed, sex, head, weapon, shield,
                                              head_top, head_mid, head_bottom, hair_color,
-                                             x, y, direction } => {
+                                             x, y, direction, body_state } => {
                         if self.game.entities.player_id() == Some(gid) {
                             continue;
                         }
                         let entity_type = entity_type_from_job(job);
                         tracing::debug!("EntitySpawned: gid={gid} job={job} type={entity_type:?} pos=({x},{y})");
-                        let entity = Entity::new(gid, entity_type, job, sex, head, hair_color,
+                        let mut entity = Entity::new(gid, entity_type, job, sex, head, hair_color,
                                                  weapon, head_top, head_mid, head_bottom, shield,
                                                  x, y, direction, speed);
+                        if body_state == 2 {
+                            entity.state = EntityState::Sitting;
+                        }
                         self.game.entities.insert(entity);
                         self.load_entity_sprite(gid, entity_type, job, sex, head, weapon,
                                                 shield, head_top, head_mid, head_bottom,
@@ -357,6 +360,21 @@ impl App {
                     GameEvent::EntityStopMove { gid, x, y } => {
                         if let Some(entity) = self.game.entities.get_mut(gid) {
                             entity.movement.set_position(x as f32, y as f32);
+                        }
+                    }
+                    GameEvent::EntityAction { gid, action } => {
+                        if let Some(entity) = self.game.entities.get_mut(gid) {
+                            match action {
+                                2 => entity.state = EntityState::Sitting,
+                                3 => entity.state = EntityState::Standing,
+                                _ => {}
+                            }
+                        }
+                    }
+                    GameEvent::EntityDirectionChanged { gid, head_dir, dir } => {
+                        if let Some(entity) = self.game.entities.get_mut(gid) {
+                            entity.head_dir = head_dir;
+                            entity.direction = dir;
                         }
                     }
                     GameEvent::Disconnected(reason) => {
@@ -789,14 +807,25 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                if event.state == ElementState::Pressed
-                    && event.physical_key == PhysicalKey::Code(KeyCode::F11)
-                    && self.game.app_state == AppState::InGame
-                {
-                    if let Some(renderer) = &mut self.renderer {
-                        if let Some(grid) = &mut renderer.grid_selector {
-                            grid.show_grid = !grid.show_grid;
+                if event.state == ElementState::Pressed && self.game.app_state == AppState::InGame {
+                    match event.physical_key {
+                        PhysicalKey::Code(KeyCode::F11) => {
+                            if let Some(renderer) = &mut self.renderer {
+                                if let Some(grid) = &mut renderer.grid_selector {
+                                    grid.show_grid = !grid.show_grid;
+                                }
+                            }
                         }
+                        PhysicalKey::Code(KeyCode::Insert) => {
+                            if let Some(entity) = self.game.entities.player() {
+                                let action = if entity.state == EntityState::Sitting { 3u8 } else { 2u8 };
+                                if let Some(tx) = &self.network_cmd_tx {
+                                    let packet = build_action_request_packet(0, action, self.config.packetver);
+                                    let _ = tx.send(NetworkCommand::SendPacket(packet));
+                                }
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -847,7 +876,7 @@ impl ApplicationHandler for App {
                                 let shadow_scale = sprite_scale * shadow_size(entity.job);
                                 let mut shadow = sprite.build_shadow_batches(center, depth, shadow_scale);
                                 sprite_batches.append(&mut shadow);
-                                let mut batches = sprite.build_batches(&entity.animation, Some(camera_dir), center, depth, sprite_scale);
+                                let mut batches = sprite.build_batches(&entity.animation, Some(camera_dir), entity.head_dir, center, depth, sprite_scale);
                                 sprite_batches.append(&mut batches);
                             }
                         }

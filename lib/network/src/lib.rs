@@ -8,7 +8,7 @@ use connection::{Connection, ConnectionError};
 use handler::dispatch_packet;
 pub use helpers::{encode_pos, ip_u32_to_string};
 use ragnarok_game::event::GameEvent;
-pub use sender::{build_char_enter_packet, build_login_packet, build_map_loaded_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet};
+pub use sender::{build_action_request_packet, build_char_enter_packet, build_login_packet, build_map_loaded_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet};
 use session::{Session, SessionState};
 use tokio::sync::mpsc;
 use tracing::{error, info};

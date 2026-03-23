@@ -2,11 +2,11 @@ TODO:
 
 # Sprite rendering
 - Weapon sprite (attach to body attachInfo[0])
-- Shield sprite (no attachment offset, uses clip positions)
+- ~~Shield sprite~~ (done — render order fix for direction-based layering)
 - Headgear/accessories (chain: body→head→accessory via attachInfo[0])
 - Mount/Peco (costume job swap, loads mounted body sprite)
 - Other players / NPCs / monsters entity sprites
-- Doridori head animation (server packet changes head_dir 0/1/2)
+- ~~Doridori head animation~~ (done — head_dir from server selects head/headgear motion)
 - Divide attachment offset by clip zoom for weapons/accessories (dhxj compensates when sprClip zoom != 1.0)
 - Damage numbers display
 - Emotion/emote bubbles
@@ -69,7 +69,7 @@ TODO:
 - Status effects (buff/debuff icons + visuals: poison, freeze, stun, etc.)
 - HP/SP bars
 - Death + respawn
-- Sit/stand actions
+- ~~Sit/stand actions~~ (done — Insert key toggle, PacketZcNotifyAct handling)
 
 # Items & equipment
 - Inventory management (pickup, drop, use, equip)

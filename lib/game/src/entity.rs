@@ -15,6 +15,7 @@ pub enum EntityType {
 pub enum EntityState {
     Standing,
     Moving,
+    Sitting,
 }
 
 pub struct Entity {
@@ -66,6 +67,9 @@ impl Entity {
     }
 
     pub fn update_state(&mut self) {
+        if self.state == EntityState::Sitting {
+            return;
+        }
         self.state = if self.movement.is_moving() {
             EntityState::Moving
         } else {
@@ -77,6 +81,34 @@ impl Entity {
         match self.state {
             EntityState::Standing => 0,
             EntityState::Moving => 1,
+            EntityState::Sitting => 2,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_entity() -> Entity {
+        Entity::new_player(1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 100, 100, 0)
+    }
+
+    #[test]
+    fn action_index_maps_states_to_sprite_actions() {
+        let mut e = make_entity();
+        assert_eq!(e.action_index(), 0);
+        e.state = EntityState::Moving;
+        assert_eq!(e.action_index(), 1);
+        e.state = EntityState::Sitting;
+        assert_eq!(e.action_index(), 2);
+    }
+
+    #[test]
+    fn update_state_preserves_sitting() {
+        let mut e = make_entity();
+        e.state = EntityState::Sitting;
+        e.update_state();
+        assert_eq!(e.state, EntityState::Sitting);
     }
 }

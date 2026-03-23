@@ -500,7 +500,7 @@ impl App {
                 });
 
                 let screen_center = [width / 2.0 + self.pan[0] * self.zoom, height / 2.0 + self.pan[1] * self.zoom];
-                let batches = entity.build_batches(&self.animation, None, screen_center, 0.0, self.zoom);
+                let batches = entity.build_batches(&self.animation, None, 0, screen_center, 0.0, self.zoom);
 
                 renderer.render(
                     &mut encoder,

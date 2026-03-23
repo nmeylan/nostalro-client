@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Add sit/stand toggle with Insert key, entities spawned sitting display correctly
+- Add doridori head animation support: head direction changes from server render on head and headgear sprites
+- Fix shield sprite render order: shield now renders behind body when character faces away from camera
 - Add multi-entity support: other players, NPCs and monsters now appear on the map
 - Entities spawn, move, and despawn based on server packets
 - NPC/Monster sprites loaded from GRF with sprite cache for performance

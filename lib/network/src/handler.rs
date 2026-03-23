@@ -104,6 +104,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Option<GameEvent>
             head_bottom: p.accessory,
             hair_color: p.headpalette,
             x, y, direction: dir,
+            body_state: p.body_state,
         });
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyStandentry>() {
@@ -121,6 +122,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Option<GameEvent>
             head_bottom: p.accessory as u16,
             hair_color: p.headpalette as u16,
             x, y, direction: dir,
+            body_state: p.body_state,
         });
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyNewentry>() {
@@ -138,6 +140,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Option<GameEvent>
             head_bottom: p.accessory as u16,
             hair_color: p.headpalette as u16,
             x, y, direction: dir,
+            body_state: p.body_state,
         });
     }
     // MoveEntry8: entity entering view while already moving — treat as spawn at pos_dir
@@ -156,6 +159,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Option<GameEvent>
             head_bottom: p.accessory,
             hair_color: p.headpalette,
             x, y, direction: dir,
+            body_state: p.body_state,
         });
     }
 
@@ -174,6 +178,23 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Option<GameEvent>
             gid: p.aid,
             x: p.x_pos as u16,
             y: p.y_pos as u16,
+        });
+    }
+
+    // Entity action (sit, stand, attack, etc.)
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyAct>() {
+        return Some(GameEvent::EntityAction {
+            gid: p.gid,
+            action: p.action,
+        });
+    }
+
+    // Entity direction change (doridori)
+    if let Some(p) = any.downcast_ref::<PacketZcChangeDirection>() {
+        return Some(GameEvent::EntityDirectionChanged {
+            gid: p.aid,
+            head_dir: p.head_dir as u8,
+            dir: p.dir,
         });
     }
 
@@ -350,6 +371,42 @@ mod tests {
                 assert_eq!((x, y), (120, 130));
             }
             other => panic!("expected EntityStopMove, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_notify_act_returns_entity_action() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcNotifyAct::new(packetver);
+        pkt.set_gid(50);
+        pkt.set_action(2);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        match result {
+            Some(GameEvent::EntityAction { gid, action }) => {
+                assert_eq!(gid, 50);
+                assert_eq!(action, 2);
+            }
+            other => panic!("expected EntityAction, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_change_direction_returns_entity_direction_changed() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcChangeDirection::new(packetver);
+        pkt.set_aid(60);
+        pkt.set_head_dir(1);
+        pkt.set_dir(3);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        match result {
+            Some(GameEvent::EntityDirectionChanged { gid, head_dir, dir }) => {
+                assert_eq!(gid, 60);
+                assert_eq!(head_dir, 1);
+                assert_eq!(dir, 3);
+            }
+            other => panic!("expected EntityDirectionChanged, got {other:?}"),
         }
     }
 }

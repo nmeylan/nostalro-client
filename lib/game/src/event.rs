@@ -79,6 +79,7 @@ pub enum GameEvent {
         x: u16,
         y: u16,
         direction: u8,
+        body_state: i16,
     },
     EntityMoved {
         gid: u32,
@@ -95,6 +96,15 @@ pub enum GameEvent {
         gid: u32,
         x: u16,
         y: u16,
+    },
+    EntityAction {
+        gid: u32,
+        action: u8,
+    },
+    EntityDirectionChanged {
+        gid: u32,
+        head_dir: u8,
+        dir: u8,
     },
 }
 

@@ -453,6 +453,7 @@ pub fn build_composite_clips(
     entity: &EntitySprite,
     action_idx: usize,
     motion_idx: usize,
+    head_dir: u8,
     screen_center: [f32; 2],
     depth: f32,
 ) -> Option<CompositeClips> {
@@ -461,6 +462,9 @@ pub fn build_composite_clips(
         return None;
     }
     let body_motion = &body_action.motions[motion_idx % body_action.motions.len()];
+
+    let base_action = action_idx / 8;
+    let is_idle_or_sit = base_action == 0 || base_action == 2;
 
     let mut body = Vec::new();
     for clip in &body_motion.clips {
@@ -476,7 +480,12 @@ pub fn build_composite_clips(
         let head_action_idx = action_idx % head_act.actions.len();
         let head_action = &head_act.actions[head_action_idx];
         if !head_action.motions.is_empty() {
-            let head_motion = &head_action.motions[0];
+            let head_motion_idx = if is_idle_or_sit {
+                head_dir as usize % head_action.motions.len()
+            } else {
+                motion_idx % head_action.motions.len()
+            };
+            let head_motion = &head_action.motions[head_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, head_motion);
             for clip in &head_motion.clips {
                 if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, head_tex, screen_center, depth, [off_x, off_y]) {
@@ -497,6 +506,9 @@ pub fn build_composite_clips(
         act: Option<&ActFile>,
         tex: Option<&SpriteTextures>,
         action_idx: usize,
+        motion_idx: usize,
+        head_dir: u8,
+        is_idle_or_sit: bool,
         head_offset: Option<(i32, i32)>,
         screen_center: [f32; 2],
         depth: f32,
@@ -507,7 +519,12 @@ pub fn build_composite_clips(
             let hg_action_idx = action_idx % act.actions.len();
             let hg_action = &act.actions[hg_action_idx];
             if !hg_action.motions.is_empty() {
-                let hg_motion = &hg_action.motions[0];
+                let hg_motion_idx = if is_idle_or_sit {
+                    head_dir as usize % hg_action.motions.len()
+                } else {
+                    motion_idx % hg_action.motions.len()
+                };
+                let hg_motion = &hg_action.motions[hg_motion_idx];
                 for clip in &hg_motion.clips {
                     if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, tex, screen_center, depth, [off_x, off_y]) {
                         if tex_idx < tex.bind_groups.len() {
@@ -522,15 +539,15 @@ pub fn build_composite_clips(
 
     let headgear_bottom = build_headgear_clips(
         entity.headgear_bottom_act.as_ref(), entity.headgear_bottom_textures.as_ref(),
-        action_idx, head_offset, screen_center, depth,
+        action_idx, motion_idx, head_dir, is_idle_or_sit, head_offset, screen_center, depth,
     );
     let headgear_mid = build_headgear_clips(
         entity.headgear_mid_act.as_ref(), entity.headgear_mid_textures.as_ref(),
-        action_idx, head_offset, screen_center, depth,
+        action_idx, motion_idx, head_dir, is_idle_or_sit, head_offset, screen_center, depth,
     );
     let headgear_top = build_headgear_clips(
         entity.headgear_top_act.as_ref(), entity.headgear_top_textures.as_ref(),
-        action_idx, head_offset, screen_center, depth,
+        action_idx, motion_idx, head_dir, is_idle_or_sit, head_offset, screen_center, depth,
     );
 
     let mut weapon = Vec::new();
@@ -661,6 +678,7 @@ impl EntitySprite {
         &self,
         animation: &ragnarok_formats::act::SpriteAnimationState,
         camera_dir: Option<u8>,
+        head_dir: u8,
         screen_center: [f32; 2],
         depth: f32,
         scale: f32,
@@ -671,12 +689,27 @@ impl EntitySprite {
         };
 
         let Some(clips) = build_composite_clips(
-            self, action_idx, animation.motion_index(), screen_center, depth,
+            self, action_idx, animation.motion_index(), head_dir, screen_center, depth,
         ) else {
             return Vec::new();
         };
 
         let mut batches = Vec::new();
+
+        let effective_dir = action_idx % 8;
+        let shield_behind = effective_dir > 1 && effective_dir < 6;
+
+        let mut shield_batches = Vec::new();
+        if let Some(shield_tex) = &self.shield_textures {
+            for (mut vertices, indices, tex_idx) in clips.shield {
+                scale_clip_vertices(&mut vertices, screen_center, scale);
+                shield_batches.push(SpriteBatch { vertices, indices, texture: &shield_tex.bind_groups[tex_idx] });
+            }
+        }
+
+        if shield_behind {
+            batches.extend(shield_batches.drain(..));
+        }
 
         for (mut vertices, indices, tex_idx) in clips.body {
             scale_clip_vertices(&mut vertices, screen_center, scale);
@@ -712,11 +745,8 @@ impl EntitySprite {
                 batches.push(SpriteBatch { vertices, indices, texture: &weapon_tex.bind_groups[tex_idx] });
             }
         }
-        if let Some(shield_tex) = &self.shield_textures {
-            for (mut vertices, indices, tex_idx) in clips.shield {
-                scale_clip_vertices(&mut vertices, screen_center, scale);
-                batches.push(SpriteBatch { vertices, indices, texture: &shield_tex.bind_groups[tex_idx] });
-            }
+        if !shield_behind {
+            batches.extend(shield_batches);
         }
 
         batches

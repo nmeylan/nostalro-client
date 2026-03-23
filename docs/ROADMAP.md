@@ -1,18 +1,18 @@
 # Roadmap
 
-Current state: login → server select → char select → load map → player (body + head) → walk around.
+Current state: login → server select → char select → load map → player (body + head + weapon + shield + headgear + shadow) → walk, sit/stand, doridori.
 
 ---
 
-## Phase 1 — Complete player character
+## Phase 1 — Complete player character ✓
 Finish all sprite layers so the player looks correct.
 
-- Weapon sprite rendering (body attachment)
-- Shield sprite rendering
-- Headgear/accessories (head attachment chain)
-- Doridori (head_dir packet)
-- Sit/stand toggle
-- Shadow under player
+- ✓ Weapon sprite rendering (body attachment)
+- ✓ Shield sprite rendering (direction-based render order)
+- ✓ Headgear/accessories (head attachment chain)
+- ✓ Doridori (head_dir packet)
+- ✓ Sit/stand toggle (Insert key, PacketZcNotifyAct)
+- ✓ Shadow under player
 
 **Milestone: player character renders fully equipped**
 
