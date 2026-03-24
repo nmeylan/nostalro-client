@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use ragnarok_formats::act::ActFile;
@@ -30,6 +30,7 @@ pub struct GameState {
     pub cursor_act: Option<ActFile>,
     pub cursor_animation: CursorAnimationState,
     pub chat_window: ChatWindow,
+    pub failed_sprite_loads: HashSet<u32>,
 }
 
 impl GameState {
@@ -50,6 +51,7 @@ impl GameState {
             cursor_act: None,
             cursor_animation: CursorAnimationState::new(),
             chat_window: ChatWindow::new(),
+            failed_sprite_loads: HashSet::new(),
         }
     }
 }

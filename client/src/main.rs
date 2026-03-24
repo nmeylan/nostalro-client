@@ -299,22 +299,25 @@ impl App {
                     GameEvent::MapChanged { map_name, x, y } => {
                         let map_name = map_name.strip_suffix(".gat")
                             .unwrap_or(&map_name).to_string();
+                        tracing::info!("MapChanged: {map_name} ({x},{y}) current={:?}", self.game.current_map);
                         if self.game.current_map.as_deref() != Some(&map_name) {
-                            tracing::info!("Map change: {map_name}");
+                            tracing::info!("Different map, clearing entities");
                             self.load_map(&map_name);
                             self.game.current_map = Some(map_name);
+                            // Clear non-player entities only on actual map change;
+                            // same-map warps rely on server FOV updates
+                            let player_sprite = self.game.entities.player_id()
+                                .and_then(|pid| self.game.sprites.remove(&pid));
+                            self.game.sprites.clear();
+                            self.game.sprite_cache.clear();
+                            self.game.entities.clear_non_player();
+                            self.game.failed_sprite_loads.clear();
+                            if let (Some(pid), Some(sprite)) = (self.game.entities.player_id(), player_sprite) {
+                                self.game.sprites.insert(pid, sprite);
+                            }
                         }
                         if let Some(entity) = self.game.entities.player_mut() {
                             entity.movement.set_position(x as f32, y as f32);
-                        }
-                        // Keep player sprite, clear everything else
-                        let player_sprite = self.game.entities.player_id()
-                            .and_then(|pid| self.game.sprites.remove(&pid));
-                        self.game.sprites.clear();
-                        self.game.sprite_cache.clear();
-                        self.game.entities.clear_non_player();
-                        if let (Some(pid), Some(sprite)) = (self.game.entities.player_id(), player_sprite) {
-                            self.game.sprites.insert(pid, sprite);
                         }
                         self.position_camera_at(x as f32, y as f32);
 
@@ -329,7 +332,7 @@ impl App {
                             continue;
                         }
                         let entity_type = entity_type_from_job(job);
-                        tracing::debug!("EntitySpawned: gid={gid} job={job} type={entity_type:?} pos=({x},{y})");
+                        tracing::info!("EntitySpawned: gid={gid} job={job} type={entity_type:?} pos=({x},{y})");
                         let mut entity = Entity::new(gid, entity_type, job, sex, head, hair_color,
                                                  weapon, head_top, head_mid, head_bottom, shield,
                                                  x, y, direction, speed);
@@ -354,8 +357,9 @@ impl App {
                         }
                     }
                     GameEvent::EntityVanished { gid } => {
-                        self.game.entities.remove(gid);
-                        self.game.sprites.remove(&gid);
+                        let r1 = self.game.entities.remove(gid).is_some();
+                        let r2 = self.game.sprites.remove(&gid).is_some();
+                        tracing::info!("EntityVanished: gid={gid} r1={r1} r2={r2}");
                     }
                     GameEvent::EntityStopMove { gid, x, y } => {
                         if let Some(entity) = self.game.entities.get_mut(gid) {
@@ -452,6 +456,24 @@ impl App {
                 ));
                 self.game.sprite_cache.insert(cache_key, Rc::clone(&sprite));
                 self.game.sprites.insert(gid, sprite);
+            }
+        }
+    }
+
+    fn load_missing_entity_sprites(&mut self) {
+        let missing: Vec<_> = self.game.entities.iter()
+            .filter(|e| {
+                self.game.entities.player_id() != Some(e.id)
+                    && !self.game.sprites.contains_key(&e.id)
+                    && !self.game.failed_sprite_loads.contains(&e.id)
+            })
+            .map(|e| (e.id, e.entity_type, e.job, e.sex, e.head, e.head_top, e.head_mid, e.head_bottom, e.shield, e.hair_color, e.direction))
+            .collect();
+        for (gid, entity_type, job, sex, head, head_top, head_mid, head_bottom, shield, hair_color, direction) in &missing {
+            tracing::info!("Retrying sprite load for entity gid={gid} job={job} type={entity_type:?}");
+            self.load_entity_sprite(*gid, *entity_type, *job, *sex, *head, 0, *shield, *head_top, *head_mid, *head_bottom, *hair_color, *direction);
+            if !self.game.sprites.contains_key(gid) {
+                self.game.failed_sprite_loads.insert(*gid);
             }
         }
     }
@@ -902,6 +924,7 @@ impl ApplicationHandler for App {
 
                 self.update_movement(elapsed);
                 self.update_entity_state();
+                self.load_missing_entity_sprites();
 
                 let delta = elapsed - self.last_render_time;
                 self.last_render_time = elapsed;

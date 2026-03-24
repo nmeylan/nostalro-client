@@ -34,7 +34,11 @@ pub async fn network_loop(
                     match result {
                         Ok(packets) => {
                             for packet in &packets {
-                                if let Some(event) = dispatch_packet(packet.as_ref(), session.packetver) {
+                                let event = dispatch_packet(packet.as_ref(), session.packetver);
+                                if event.is_none() {
+                                    info!("unhandled packet: {} (id={})", packet.name(), packet.id(session.packetver));
+                                }
+                                if let Some(event) = event {
                                     let _ = event_tx.send(event);
                                 }
                             }
