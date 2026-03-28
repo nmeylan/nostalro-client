@@ -86,8 +86,9 @@ pub fn entity_screen_params(
     let (wx, _, wz) = coords.cell_to_world(cell_x + 0.5, cell_y + 0.5);
     let wy = gat.map_or(0.0, |gat| gat.get_height(cell_x + 0.5, cell_y + 0.5));
 
-    let (sx, sy, ndc_z) = camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h)?;
-    let ndc_z = ndc_z - 0.0002;
+    let (sx, sy, ndc_z, clip_w) = camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h)?;
+    // Scale bias to a constant view-space offset; fixed NDC bias grew to ~450 world units at max zoom
+    let ndc_z = ndc_z - camera.near * 4.0 / (clip_w * clip_w);
 
     let camera_dir = camera.direction_index();
     let ppu = camera.perspective_scale(wx, wy, wz, screen_h);

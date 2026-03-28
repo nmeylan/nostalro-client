@@ -38,9 +38,9 @@ rfd = "0.15"
 tokio = { version = "1", features = ["net", "rt", "sync", "macros", "io-util", "time"] }
 
 # Server crate git dependencies
-models = { git = "https://github.com/nmeylan/rust-ro.git" }
-movement = { git = "https://github.com/nmeylan/rust-ro.git" }
-packets = { git = "https://github.com/nmeylan/rust-ro.git" }
+models = { git = "https://github.com/nmeylan/rust-ro.git", rev = "bdd4775f" }
+movement = { git = "https://github.com/nmeylan/rust-ro.git", rev = "bdd4775f" }
+packets = { git = "https://github.com/nmeylan/rust-ro.git", rev = "bdd4775f" }
 
 # Internal crates
 ragnarok-formats = { path = "lib/formats" }

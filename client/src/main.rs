@@ -729,6 +729,12 @@ impl App {
         if self.game.chat_window.is_active() {
             return;
         }
+        if self.game.chat_window.contains_point(
+            self.input.mouse_position.0 as f32,
+            self.input.mouse_position.1 as f32,
+        ) {
+            return;
+        }
         self.input.walk_packet_cooldown -= delta;
         if self.input.walk_packet_cooldown > 0.0 && !self.input.walk_server_acked {
             return;
@@ -834,10 +840,7 @@ impl App {
             None => return Vec::new(),
         };
         self.game.cursor_animation.update(dt, cursor_act);
-        let action_idx = self.game.cursor_animation.action_index();
-        if action_idx >= cursor_act.actions.len() {
-            return Vec::new();
-        }
+        let action_idx = self.game.cursor_animation.action_index().min(cursor_act.actions.len() - 1);
         let action = &cursor_act.actions[action_idx];
         if action.motions.is_empty() {
             return Vec::new();

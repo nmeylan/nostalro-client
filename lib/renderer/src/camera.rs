@@ -63,7 +63,7 @@ impl Camera {
     }
 
     /// Project a world position to screen coordinates plus NDC depth for depth testing.
-    pub fn world_to_screen_with_depth(&self, wx: f32, wy: f32, wz: f32, screen_w: f32, screen_h: f32) -> Option<(f32, f32, f32)> {
+    pub fn world_to_screen_with_depth(&self, wx: f32, wy: f32, wz: f32, screen_w: f32, screen_h: f32) -> Option<(f32, f32, f32, f32)> {
         let clip = self.view_projection() * glam::Vec4::new(wx, wy, wz, 1.0);
         if clip.w <= 0.0 {
             return None;
@@ -71,7 +71,7 @@ impl Camera {
         let ndc = clip.truncate() / clip.w;
         let sx = (ndc.x + 1.0) * 0.5 * screen_w;
         let sy = (1.0 - ndc.y) * 0.5 * screen_h;
-        Some((sx, sy, ndc.z))
+        Some((sx, sy, ndc.z, clip.w))
     }
 
     /// Pixels per world unit at a given world position (perspective scale).
@@ -210,6 +210,29 @@ mod tests {
         assert_eq!(camera.direction_index(), 2);
         camera.yaw = std::f32::consts::PI; // 180 degrees
         assert_eq!(camera.direction_index(), 4);
+    }
+
+    #[test]
+    fn depth_bias_stays_bounded_across_zoom_levels() {
+        let mut camera = Camera::default();
+        const VIEW_SPACE_BIAS: f32 = 4.0;
+
+        for &distance in &[50.0, 200.0, 500.0, 1000.0, 1500.0] {
+            camera.distance = distance;
+            let t = camera.target;
+            let (_, _, _, clip_w) = camera
+                .world_to_screen_with_depth(t.x, t.y, t.z, 800.0, 600.0)
+                .expect("target should be visible");
+
+            let ndc_bias = camera.near * VIEW_SPACE_BIAS / (clip_w * clip_w);
+            let approx_world_bias = ndc_bias * clip_w * clip_w / camera.near;
+            assert!(
+                (approx_world_bias - VIEW_SPACE_BIAS).abs() < 0.01,
+                "at distance {distance}: world bias = {approx_world_bias}, expected {VIEW_SPACE_BIAS}"
+            );
+            assert!(ndc_bias > 0.0);
+            assert!(ndc_bias < 0.01, "ndc_bias too large at distance {distance}: {ndc_bias}");
+        }
     }
 
     #[test]

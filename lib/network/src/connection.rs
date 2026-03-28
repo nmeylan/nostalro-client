@@ -89,9 +89,15 @@ impl Connection {
 
         while offset < self.recv_buffer.len() {
             let remaining = self.recv_buffer[offset..].to_vec();
-            // Slice variable-length packets to their declared size so that
-            // greedy parsers (e.g. NormalItemlist3) don't consume trailing data.
-            let parse_buf = Self::slice_to_packet_len(&remaining);
+            // Only slice variable-length packets to their declared size;
+            // fixed-length packets don't store length at bytes [2:3].
+            let parse_buf = if remaining.len() >= 2
+                && packets_parser::is_variable_length([remaining[0], remaining[1]], packetver)
+            {
+                Self::slice_to_packet_len(&remaining)
+            } else {
+                &remaining
+            };
             let result = panic::catch_unwind(|| {
                 packets_parser::parse(parse_buf, packetver)
             });
