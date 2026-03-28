@@ -279,7 +279,7 @@ impl Renderer {
             self.sprite_renderer.render(
                 &mut encoder,
                 &view,
-                &self.device.depth_view,
+                Some(&self.device.depth_view),
                 &self.device.device,
                 &self.device.queue,
                 None,
@@ -332,7 +332,7 @@ impl Renderer {
             self.sprite_renderer.render(
                 &mut encoder,
                 &view,
-                &self.device.depth_view,
+                None,
                 &self.device.device,
                 &self.device.queue,
                 None,

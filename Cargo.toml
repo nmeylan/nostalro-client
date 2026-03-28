@@ -35,7 +35,7 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 ab_glyph = "0.2"
 eframe = "0.33.3"
 rfd = "0.15"
-tokio = { version = "1", features = ["net", "rt", "sync", "macros", "io-util"] }
+tokio = { version = "1", features = ["net", "rt", "sync", "macros", "io-util", "time"] }
 
 # Server crate git dependencies
 models = { git = "https://github.com/nmeylan/rust-ro.git" }

@@ -505,7 +505,7 @@ impl App {
                 renderer.render(
                     &mut encoder,
                     &view,
-                    &device.depth_view,
+                    Some(&device.depth_view),
                     &device.device,
                     &device.queue,
                     Some(self.background.clear_color()),

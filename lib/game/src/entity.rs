@@ -16,6 +16,10 @@ pub enum EntityState {
     Standing,
     Moving,
     Sitting,
+    Attacking,
+    Hurt,
+    Dead,
+    Pickup,
 }
 
 pub struct Entity {
@@ -34,6 +38,7 @@ pub struct Entity {
     pub head_dir: u8,
     pub speed: u16,
     pub state: EntityState,
+    pub state_timer: f32,
     pub movement: MovementState,
     pub animation: SpriteAnimationState,
 }
@@ -57,6 +62,7 @@ impl Entity {
             head_top, head_mid, head_bottom, shield,
             direction, head_dir: direction, speed,
             state: EntityState::Standing,
+            state_timer: 0.0,
             movement,
             animation: SpriteAnimationState::new(direction),
         }
@@ -66,7 +72,18 @@ impl Entity {
         Self::new(id, EntityType::Player, job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom, shield, x, y, direction, 150)
     }
 
-    pub fn update_state(&mut self) {
+    pub fn update_state(&mut self, dt: f32) {
+        if self.state == EntityState::Dead {
+            return;
+        }
+        if self.state_timer > 0.0 {
+            self.state_timer -= dt;
+            if self.state_timer <= 0.0 {
+                self.state_timer = 0.0;
+                self.state = EntityState::Standing;
+            }
+            return;
+        }
         if self.state == EntityState::Sitting {
             return;
         }
@@ -77,11 +94,46 @@ impl Entity {
         };
     }
 
+    pub fn enter_hurt(&mut self, duration_secs: f32) {
+        if self.state == EntityState::Dead || self.state == EntityState::Attacking {
+            return;
+        }
+        self.movement.stop();
+        self.state = EntityState::Hurt;
+        self.state_timer = duration_secs;
+    }
+
+    pub fn enter_attack(&mut self, duration_secs: f32) {
+        if self.state == EntityState::Dead {
+            return;
+        }
+        self.state = EntityState::Attacking;
+        self.state_timer = duration_secs;
+    }
+
+    pub fn enter_dead(&mut self) {
+        self.state = EntityState::Dead;
+        self.state_timer = 0.0;
+        self.movement.stop();
+    }
+
+    pub fn enter_pickup(&mut self, duration_secs: f32) {
+        if self.state == EntityState::Dead {
+            return;
+        }
+        self.state = EntityState::Pickup;
+        self.state_timer = duration_secs;
+    }
+
     pub fn action_index(&self) -> usize {
         match self.state {
             EntityState::Standing => 0,
             EntityState::Moving => 1,
             EntityState::Sitting => 2,
+            EntityState::Pickup => 3,
+            EntityState::Attacking => 5,
+            EntityState::Hurt => 6,
+            EntityState::Dead => 8,
         }
     }
 }
@@ -89,9 +141,14 @@ impl Entity {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::path::PathNode;
 
     fn make_entity() -> Entity {
         Entity::new_player(1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 100, 100, 0)
+    }
+
+    fn make_path_node(x: u16, y: u16, is_diagonal: bool) -> PathNode {
+        PathNode { id: 0, parent_id: 0, x, y, g_cost: 0, f_cost: 0, is_open: false, is_diagonal }
     }
 
     #[test]
@@ -102,13 +159,70 @@ mod tests {
         assert_eq!(e.action_index(), 1);
         e.state = EntityState::Sitting;
         assert_eq!(e.action_index(), 2);
+        e.state = EntityState::Pickup;
+        assert_eq!(e.action_index(), 3);
+        e.state = EntityState::Attacking;
+        assert_eq!(e.action_index(), 5);
+        e.state = EntityState::Hurt;
+        assert_eq!(e.action_index(), 6);
+        e.state = EntityState::Dead;
+        assert_eq!(e.action_index(), 8);
     }
 
     #[test]
     fn update_state_preserves_sitting() {
         let mut e = make_entity();
         e.state = EntityState::Sitting;
-        e.update_state();
+        e.update_state(0.016);
         assert_eq!(e.state, EntityState::Sitting);
+    }
+
+    #[test]
+    fn hurt_cancels_movement_and_recovers_to_standing() {
+        let mut e = make_entity();
+        let path = vec![make_path_node(101, 100, false), make_path_node(102, 100, false)];
+        e.movement.start_move(path, 0.0);
+        assert!(e.movement.is_moving());
+
+        e.enter_hurt(0.5);
+        assert_eq!(e.state, EntityState::Hurt);
+        assert!(!e.movement.is_moving());
+
+        // Still in hurt state after partial tick
+        e.update_state(0.3);
+        assert_eq!(e.state, EntityState::Hurt);
+
+        // Timer expires, returns to standing
+        e.update_state(0.3);
+        assert_eq!(e.state, EntityState::Standing);
+    }
+
+    #[test]
+    fn dead_blocks_all_transitions() {
+        let mut e = make_entity();
+        e.enter_dead();
+        assert_eq!(e.state, EntityState::Dead);
+
+        e.enter_hurt(1.0);
+        assert_eq!(e.state, EntityState::Dead);
+
+        e.enter_attack(1.0);
+        assert_eq!(e.state, EntityState::Dead);
+
+        e.enter_pickup(1.0);
+        assert_eq!(e.state, EntityState::Dead);
+
+        e.update_state(1.0);
+        assert_eq!(e.state, EntityState::Dead);
+    }
+
+    #[test]
+    fn attacking_blocks_hurt() {
+        let mut e = make_entity();
+        e.enter_attack(1.0);
+        assert_eq!(e.state, EntityState::Attacking);
+
+        e.enter_hurt(0.5);
+        assert_eq!(e.state, EntityState::Attacking);
     }
 }

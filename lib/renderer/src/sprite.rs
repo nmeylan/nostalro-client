@@ -74,6 +74,7 @@ const INITIAL_INDEX_CAPACITY: usize = 2048;
 
 pub struct SpriteRenderer {
     pipeline: wgpu::RenderPipeline,
+    pipeline_no_depth: wgpu::RenderPipeline,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     uniform_bind_group_layout: wgpu::BindGroupLayout,
@@ -146,11 +147,16 @@ impl SpriteRenderer {
 
         let pipeline = Self::create_pipeline(
             device, surface_format, &uniform_bind_group_layout,
-            texture_bind_group_layout, shader_source,
+            texture_bind_group_layout, shader_source, true,
+        );
+        let pipeline_no_depth = Self::create_pipeline(
+            device, surface_format, &uniform_bind_group_layout,
+            texture_bind_group_layout, shader_source, false,
         );
 
         Self {
             pipeline,
+            pipeline_no_depth,
             uniform_buffer,
             uniform_bind_group,
             uniform_bind_group_layout,
@@ -167,6 +173,7 @@ impl SpriteRenderer {
         uniform_layout: &wgpu::BindGroupLayout,
         texture_layout: &wgpu::BindGroupLayout,
         shader_source: &str,
+        use_depth: bool,
     ) -> wgpu::RenderPipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("sprite"),
@@ -202,13 +209,17 @@ impl SpriteRenderer {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 ..Default::default()
             },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: DEPTH_FORMAT,
-                depth_write_enabled: false,
-                depth_compare: wgpu::CompareFunction::LessEqual,
-                stencil: Default::default(),
-                bias: Default::default(),
-            }),
+            depth_stencil: if use_depth {
+                Some(wgpu::DepthStencilState {
+                    format: DEPTH_FORMAT,
+                    depth_write_enabled: false,
+                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                })
+            } else {
+                None
+            },
             multisample: Default::default(),
             multiview_mask: None,
             cache: None,
@@ -224,7 +235,11 @@ impl SpriteRenderer {
     ) {
         self.pipeline = Self::create_pipeline(
             device, surface_format, &self.uniform_bind_group_layout,
-            texture_layout, shader_source,
+            texture_layout, shader_source, true,
+        );
+        self.pipeline_no_depth = Self::create_pipeline(
+            device, surface_format, &self.uniform_bind_group_layout,
+            texture_layout, shader_source, false,
         );
     }
 
@@ -249,7 +264,7 @@ impl SpriteRenderer {
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         target_view: &wgpu::TextureView,
-        depth_view: &wgpu::TextureView,
+        depth_view: Option<&wgpu::TextureView>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         clear_color: Option<wgpu::Color>,
@@ -320,8 +335,8 @@ impl SpriteRenderer {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: depth_view,
+                depth_stencil_attachment: depth_view.map(|dv| wgpu::RenderPassDepthStencilAttachment {
+                    view: dv,
                     depth_ops: Some(wgpu::Operations {
                         load: match clear_color {
                             Some(_) => wgpu::LoadOp::Clear(1.0),
@@ -334,7 +349,8 @@ impl SpriteRenderer {
                 ..Default::default()
             });
 
-            pass.set_pipeline(&self.pipeline);
+            let pipeline = if depth_view.is_some() { &self.pipeline } else { &self.pipeline_no_depth };
+            pass.set_pipeline(pipeline);
             pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);

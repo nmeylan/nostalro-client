@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Add network latency compensation: client synchronizes with server time for accurate entity movement timing
+- Add `enhanced_lag_compensation` config option for RTT averaging (off by default)
+- Add `debug_network_delay_ms` config option to simulate network latency for testing
+- Add network keepalive: client now sends periodic ping packets to prevent server timeout during character select and gameplay
 - Add chat box: press Enter to type, send messages to nearby players, receive messages from others
 - Add /sit slash command in chat to toggle sit/stand
 - Game controls suppressed while typing in chat

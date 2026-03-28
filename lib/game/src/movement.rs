@@ -94,7 +94,16 @@ impl MovementState {
         (self.current_x.round() as u16, self.current_y.round() as u16)
     }
 
+    pub fn stop(&mut self) {
+        self.moving = false;
+        self.path.clear();
+        self.path_index = 0;
+    }
+
     pub fn set_position(&mut self, x: f32, y: f32) {
+        self.moving = false;
+        self.path.clear();
+        self.path_index = 0;
         self.current_x = x;
         self.current_y = y;
         self.step_start_x = x;
@@ -208,6 +217,45 @@ mod tests {
         let movement = MovementState::new(5, 10);
         assert!(!movement.is_moving());
         assert_eq!(movement.cell_position(), (5, 10));
+    }
+
+    #[test]
+    fn stop_cancels_movement_mid_path() {
+        let mut movement = MovementState::new(0, 0);
+        let path = vec![
+            make_path_node(1, 0, false),
+            make_path_node(2, 0, false),
+            make_path_node(3, 0, false),
+        ];
+        movement.start_move(path, 0.0);
+        assert!(movement.is_moving());
+
+        movement.update(0.075);
+        movement.stop();
+        assert!(!movement.is_moving());
+
+        let (x, y) = movement.update(1.0);
+        assert!((x - 0.5).abs() < 0.01, "should stay at stopped position, got x={x}");
+        assert!(y.abs() < 0.01);
+        assert!(!movement.is_moving());
+    }
+
+    #[test]
+    fn set_position_clears_movement_state() {
+        let mut movement = MovementState::new(0, 0);
+        let path = vec![
+            make_path_node(1, 0, false),
+            make_path_node(2, 0, false),
+        ];
+        movement.start_move(path, 0.0);
+        assert!(movement.is_moving());
+
+        movement.set_position(50.0, 50.0);
+        assert!(!movement.is_moving());
+
+        let (x, y) = movement.update(1.0);
+        assert!((x - 50.0).abs() < 0.01, "should stay at new position, got x={x}");
+        assert!((y - 50.0).abs() < 0.01, "should stay at new position, got y={y}");
     }
 
     #[test]

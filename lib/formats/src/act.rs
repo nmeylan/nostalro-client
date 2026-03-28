@@ -238,6 +238,8 @@ pub struct SpriteAnimationState {
     direction: usize,
     motion_index: usize,
     accumulated_ms: f32,
+    one_shot: bool,
+    finished: bool,
 }
 
 impl SpriteAnimationState {
@@ -247,6 +249,8 @@ impl SpriteAnimationState {
             direction: direction as usize % 8,
             motion_index: 0,
             accumulated_ms: 0.0,
+            one_shot: false,
+            finished: false,
         }
     }
 
@@ -268,7 +272,27 @@ impl SpriteAnimationState {
             self.action = action;
             self.motion_index = 0;
             self.accumulated_ms = 0.0;
+            self.one_shot = false;
+            self.finished = false;
+        } else if self.one_shot {
+            self.one_shot = false;
+            self.finished = false;
         }
+    }
+
+    /// Sets the base action as one-shot: plays once and holds on last frame.
+    pub fn set_action_one_shot(&mut self, action: usize) {
+        if self.action != action || self.finished {
+            self.action = action;
+            self.motion_index = 0;
+            self.accumulated_ms = 0.0;
+            self.one_shot = true;
+            self.finished = false;
+        }
+    }
+
+    pub fn is_finished(&self) -> bool {
+        self.finished
     }
 
     /// Sets the base action, clamping to the number of action types in the ACT file.
@@ -324,6 +348,9 @@ impl SpriteAnimationState {
     }
 
     fn advance(&mut self, action_idx: usize, act: &ActFile, dt_secs: f32) {
+        if self.finished {
+            return;
+        }
         let motion_count = act.actions[action_idx].motions.len();
         if motion_count == 0 {
             return;
@@ -339,6 +366,11 @@ impl SpriteAnimationState {
         self.accumulated_ms += dt_secs * 1000.0;
         while self.accumulated_ms >= delay_ms {
             self.accumulated_ms -= delay_ms;
+            if self.one_shot && self.motion_index == motion_count - 1 {
+                self.finished = true;
+                self.accumulated_ms = 0.0;
+                return;
+            }
             self.motion_index = (self.motion_index + 1) % motion_count;
         }
     }

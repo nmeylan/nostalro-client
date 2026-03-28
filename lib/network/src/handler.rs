@@ -85,7 +85,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Option<GameEvent>
         });
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyTime>() {
-        return Some(GameEvent::ServerTick { tick: p.time });
+        return Some(GameEvent::ServerTick { server_tick: p.time, local_send_time_ms: 0 });
     }
 
     // Entity spawn packets
@@ -185,7 +185,14 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Option<GameEvent>
     if let Some(p) = any.downcast_ref::<PacketZcNotifyAct>() {
         return Some(GameEvent::EntityAction {
             gid: p.gid,
+            target_gid: p.target_gid,
             action: p.action,
+            damage: p.damage,
+            left_damage: p.left_damage,
+            attack_mt: p.attack_mt,
+            attacked_mt: p.attacked_mt,
+            start_time: p.start_time,
+            count: p.count,
         });
     }
 
@@ -238,7 +245,7 @@ mod tests {
         pkt.fill_raw();
         let result = dispatch_packet(&pkt, packetver);
         match result {
-            Some(GameEvent::ServerTick { tick }) => assert_eq!(tick, 42000),
+            Some(GameEvent::ServerTick { server_tick, .. }) => assert_eq!(server_tick, 42000),
             other => panic!("expected ServerTick, got {other:?}"),
         }
     }
@@ -389,13 +396,21 @@ mod tests {
         let packetver = 20120307;
         let mut pkt = PacketZcNotifyAct::new(packetver);
         pkt.set_gid(50);
-        pkt.set_action(2);
+        pkt.set_target_gid(99);
+        pkt.set_action(8);
+        pkt.set_damage(42);
+        pkt.set_attack_mt(500);
+        pkt.set_attacked_mt(300);
         pkt.fill_raw();
         let result = dispatch_packet(&pkt, packetver);
         match result {
-            Some(GameEvent::EntityAction { gid, action }) => {
+            Some(GameEvent::EntityAction { gid, target_gid, action, damage, attack_mt, attacked_mt, .. }) => {
                 assert_eq!(gid, 50);
-                assert_eq!(action, 2);
+                assert_eq!(target_gid, 99);
+                assert_eq!(action, 8);
+                assert_eq!(damage, 42);
+                assert_eq!(attack_mt, 500);
+                assert_eq!(attacked_mt, 300);
             }
             other => panic!("expected EntityAction, got {other:?}"),
         }
@@ -476,5 +491,21 @@ mod tests {
         let pkt_len = i16::from_le_bytes([raw[2], raw[3]]);
         assert_eq!(pkt_len, 19);
         assert_eq!(&raw[4..], b"Player : hello\0");
+    }
+
+    #[test]
+    fn build_request_time_packet_contains_client_time() {
+        let raw = crate::sender::build_request_time_packet(12345, 20120307);
+        assert_eq!(raw.len(), 6);
+        let client_time = u32::from_le_bytes([raw[2], raw[3], raw[4], raw[5]]);
+        assert_eq!(client_time, 12345);
+    }
+
+    #[test]
+    fn build_char_ping_packet_contains_account_id() {
+        let raw = crate::sender::build_char_ping_packet(200_000, 20120307);
+        assert_eq!(raw.len(), 6);
+        let aid = u32::from_le_bytes([raw[2], raw[3], raw[4], raw[5]]);
+        assert_eq!(aid, 200_000);
     }
 }

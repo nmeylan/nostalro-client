@@ -1,4 +1,4 @@
-use winit::event::{ElementState, MouseButton, WindowEvent};
+use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
 
 pub struct UiContext {
@@ -18,6 +18,8 @@ pub struct UiContext {
     pub key_delete: bool,
     pub key_up: bool,
     pub key_down: bool,
+    pub key_f10: bool,
+    pub scroll_delta: f32,
 }
 
 impl UiContext {
@@ -39,6 +41,8 @@ impl UiContext {
             key_delete: false,
             key_up: false,
             key_down: false,
+            key_f10: false,
+            scroll_delta: 0.0,
         }
     }
 
@@ -54,6 +58,8 @@ impl UiContext {
         self.key_delete = false;
         self.key_up = false;
         self.key_down = false;
+        self.key_f10 = false;
+        self.scroll_delta = 0.0;
     }
 
     pub fn handle_event(&mut self, event: &WindowEvent) {
@@ -87,6 +93,7 @@ impl UiContext {
                         Key::Named(NamedKey::Delete) => self.key_delete = true,
                         Key::Named(NamedKey::ArrowUp) => self.key_up = true,
                         Key::Named(NamedKey::ArrowDown) => self.key_down = true,
+                        Key::Named(NamedKey::F10) => self.key_f10 = true,
                         Key::Character(_) => {
                             if let Some(text) = &event.text {
                                 for ch in text.chars() {
@@ -99,6 +106,12 @@ impl UiContext {
                         _ => {}
                     }
                 }
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                self.scroll_delta += match delta {
+                    MouseScrollDelta::LineDelta(_, y) => *y,
+                    MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
+                };
             }
             WindowEvent::Resized(size) => {
                 self.screen_width = size.width as f32;

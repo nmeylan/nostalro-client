@@ -80,3 +80,17 @@ pub fn build_zone_enter_packet(session: &Session) -> Vec<u8> {
     pkt.fill_raw();
     pkt.raw
 }
+
+pub fn build_request_time_packet(client_time: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzRequestTime::new(packetver);
+    pkt.set_client_time(client_time);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_char_ping_packet(account_id: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzPing::new(packetver);
+    pkt.set_aid(account_id);
+    pkt.fill_raw();
+    pkt.raw
+}

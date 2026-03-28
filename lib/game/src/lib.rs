@@ -11,6 +11,7 @@ pub mod map_loader;
 pub mod movement;
 pub mod name_table;
 pub mod path;
+pub mod server_time;
 pub mod shadow;
 pub mod sprite_loader;
 pub mod sprite_path;

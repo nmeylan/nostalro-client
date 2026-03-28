@@ -10,6 +10,7 @@ use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::name_table::NameTable;
 use ragnarok_game::event::CharacterInfo;
+use ragnarok_game::server_time::ServerTimeClock;
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui_component::chat_window::ChatWindow;
@@ -31,6 +32,7 @@ pub struct GameState {
     pub cursor_animation: CursorAnimationState,
     pub chat_window: ChatWindow,
     pub failed_sprite_loads: HashSet<u32>,
+    pub server_time: ServerTimeClock,
 }
 
 impl GameState {
@@ -52,6 +54,7 @@ impl GameState {
             cursor_animation: CursorAnimationState::new(),
             chat_window: ChatWindow::new(),
             failed_sprite_loads: HashSet::new(),
+            server_time: ServerTimeClock::new(),
         }
     }
 }

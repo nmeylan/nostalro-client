@@ -13,6 +13,8 @@ pub struct Config {
     pub sfx_volume: f32,
     pub free_camera: bool,
     pub grf_paths: Vec<String>,
+    pub enhanced_lag_compensation: bool,
+    pub debug_network_delay_ms: u32,
 }
 
 impl Default for Config {
@@ -27,6 +29,8 @@ impl Default for Config {
             sfx_volume: 0.8,
             free_camera: false,
             grf_paths: vec!["data/data.grf".to_string()],
+            enhanced_lag_compensation: false,
+            debug_network_delay_ms: 0,
         }
     }
 }

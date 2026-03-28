@@ -16,11 +16,12 @@ use ragnarok_game::sprite_path::{WeaponType, weapon_view_id_to_type, entity_type
 use ragnarok_game::path::{path_search, try_move_to};
 use ragnarok_game::shadow::shadow_size;
 use ragnarok_game::{map_loader, sprite_loader};
-use ragnarok_network::{build_action_request_packet, build_char_enter_packet, build_chat_packet, build_login_packet, build_map_loaded_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand};
+use ragnarok_network::{build_action_request_packet, build_char_enter_packet, build_chat_packet, build_login_packet, build_map_loaded_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand, KeepaliveMode};
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall, build_clip_quad, upload_sprite_textures, build_entity_sprite, block_on};
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui_component::chat_window::ChatWindow;
 use ragnarok_ui_component::login_window::{LoginFocus, LoginWindow};
 use ragnarok_ui_component::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::server_list_window::ServerListWindow;
@@ -169,6 +170,7 @@ impl App {
         self.game_event_rx = Some(event_rx);
 
         let packetver = self.config.packetver;
+        let debug_delay_ms = self.config.debug_network_delay_ms;
         // Spawn on dedicated thread with single-threaded runtime
         // because network_loop uses non-Send packet types
         std::thread::spawn(move || {
@@ -176,7 +178,7 @@ impl App {
                 .enable_all()
                 .build()
                 .expect("failed to create network runtime");
-            rt.block_on(network_loop(cmd_rx, event_tx, packetver));
+            rt.block_on(network_loop(cmd_rx, event_tx, packetver, debug_delay_ms));
         });
     }
 
@@ -242,6 +244,7 @@ impl App {
                                 let packet = build_zone_enter_packet(session);
                                 let _ = tx.send(NetworkCommand::SendPacket(packet));
                             }
+                            let _ = tx.send(NetworkCommand::SetKeepalive(KeepaliveMode::MapServer));
                         }
                     }
                     GameEvent::MapEntered { x, y, dir, .. } => {
@@ -272,25 +275,38 @@ impl App {
 
                         self.position_camera_at(x as f32, y as f32);
                         self.char_select_window = None;
+
+                        if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
+                            self.game.chat_window.has_grf_textures = renderer.preload_textures(
+                                &ChatWindow::grf_texture_paths(), grf,
+                            );
+                        }
+
                         self.game.app_state = AppState::InGame;
 
                         if let Some(tx) = &self.network_cmd_tx {
                             let _ = tx.send(NetworkCommand::SendPacket(build_map_loaded_packet(self.config.packetver)));
                         }
                     }
-                    GameEvent::PlayerMoved { start_x, start_y, dest_x, dest_y, .. } => {
+                    GameEvent::PlayerMoved { start_x, start_y, dest_x, dest_y, start_time } => {
+                        self.input.walk_server_acked = true;
                         let already_moving_to_dest = self.game.entities.player()
                             .filter(|e| e.movement.is_moving())
                             .and_then(|e| e.movement.destination())
                             .is_some_and(|(dx, dy)| dx == dest_x && dy == dest_y);
                         if !already_moving_to_dest {
                             if let Some(gat) = &self.game.gat {
-                                let path = path_search(gat, start_x, start_y, dest_x, dest_y);
+                                // Start from rendered position (like original client)
+                                let (sx, sy) = self.game.entities.player()
+                                    .map(|e| e.movement.cell_position())
+                                    .unwrap_or((start_x, start_y));
+                                let path = path_search(gat, sx, sy, dest_x, dest_y);
                                 if !path.is_empty() {
-                                    let elapsed = self.start_time.elapsed().as_secs_f32();
+                                    let local_ms = self.start_time.elapsed().as_millis() as u32;
+                                    let move_start = self.game.server_time.server_to_local_secs(start_time, local_ms);
                                     if let Some(entity) = self.game.entities.player_mut() {
-                                        entity.movement.set_position(start_x as f32, start_y as f32);
-                                        entity.movement.start_move(path, elapsed);
+                                        entity.movement.set_position(sx as f32, sy as f32);
+                                        entity.movement.start_move(path, move_start);
                                     }
                                 }
                             }
@@ -344,14 +360,15 @@ impl App {
                                                 shield, head_top, head_mid, head_bottom,
                                                 hair_color, direction);
                     }
-                    GameEvent::EntityMoved { gid, start_x, start_y, dest_x, dest_y, .. } => {
+                    GameEvent::EntityMoved { gid, start_x, start_y, dest_x, dest_y, start_time } => {
                         if let Some(gat) = &self.game.gat {
                             let path = path_search(gat, start_x, start_y, dest_x, dest_y);
                             if !path.is_empty() {
-                                let elapsed = self.start_time.elapsed().as_secs_f32();
+                                let local_ms = self.start_time.elapsed().as_millis() as u32;
+                                let move_start = self.game.server_time.server_to_local_secs(start_time, local_ms);
                                 if let Some(entity) = self.game.entities.get_mut(gid) {
                                     entity.movement.set_position(start_x as f32, start_y as f32);
-                                    entity.movement.start_move(path, elapsed);
+                                    entity.movement.start_move(path, move_start);
                                 }
                             }
                         }
@@ -364,15 +381,43 @@ impl App {
                     GameEvent::EntityStopMove { gid, x, y } => {
                         if let Some(entity) = self.game.entities.get_mut(gid) {
                             entity.movement.set_position(x as f32, y as f32);
+                            if entity.state == EntityState::Moving {
+                                entity.state = EntityState::Standing;
+                            }
                         }
                     }
-                    GameEvent::EntityAction { gid, action } => {
-                        if let Some(entity) = self.game.entities.get_mut(gid) {
-                            match action {
-                                2 => entity.state = EntityState::Sitting,
-                                3 => entity.state = EntityState::Standing,
-                                _ => {}
+                    GameEvent::EntityAction { gid, target_gid, action, damage, left_damage, attack_mt, attacked_mt, .. } => {
+                        match action {
+                            2 => {
+                                if let Some(entity) = self.game.entities.get_mut(gid) {
+                                    entity.state = EntityState::Sitting;
+                                    entity.state_timer = 0.0;
+                                }
                             }
+                            3 => {
+                                if let Some(entity) = self.game.entities.get_mut(gid) {
+                                    entity.state = EntityState::Standing;
+                                    entity.state_timer = 0.0;
+                                }
+                            }
+                            0 | 8 => {
+                                if let Some(entity) = self.game.entities.get_mut(gid) {
+                                    let duration = (attack_mt as f32 / 1000.0).max(0.5);
+                                    entity.enter_attack(duration);
+                                }
+                                if damage > 0 || left_damage > 0 {
+                                    if let Some(target) = self.game.entities.get_mut(target_gid) {
+                                        let duration = (attacked_mt as f32 / 1000.0).max(0.3);
+                                        target.enter_hurt(duration);
+                                    }
+                                }
+                            }
+                            1 => {
+                                if let Some(entity) = self.game.entities.get_mut(gid) {
+                                    entity.enter_pickup(0.5);
+                                }
+                            }
+                            _ => {}
                         }
                     }
                     GameEvent::EntityDirectionChanged { gid, head_dir, dir } => {
@@ -387,7 +432,16 @@ impl App {
                     GameEvent::OwnChatMessage { message } => {
                         self.game.chat_window.add_own_chat(message);
                     }
+                    GameEvent::ServerTick { server_tick, local_send_time_ms } => {
+                        let local_now_ms = self.start_time.elapsed().as_millis() as u32;
+                        if self.config.enhanced_lag_compensation {
+                            self.game.server_time.on_server_tick_enhanced(server_tick, local_now_ms, local_send_time_ms);
+                        } else {
+                            self.game.server_time.on_server_tick(server_tick, local_now_ms, local_send_time_ms);
+                        }
+                    }
                     GameEvent::Disconnected(reason) => {
+                        self.game.server_time.reset();
                         if reason == "User exit" {
                             event_loop.exit();
                         } else {
@@ -522,6 +576,7 @@ impl App {
                                 if let Some(session) = &self.game.login_session {
                                     let packet = build_char_enter_packet(session);
                                     let _ = tx.send(NetworkCommand::SendPacket(packet));
+                                    let _ = tx.send(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer { account_id: session.account_id }));
                                 }
                             }
                         }
@@ -650,7 +705,7 @@ impl App {
             AppState::InGame => {
                 if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
                     let initial_focus = if self.game.chat_window.is_active() {
-                        Some(WidgetId(200))
+                        Some(self.game.chat_window.focused_input)
                     } else {
                         None
                     };
@@ -667,6 +722,25 @@ impl App {
         }
     }
 
+    fn process_continuous_walk(&mut self, delta: f32) {
+        if !self.input.left_mouse_down || self.game.app_state != AppState::InGame {
+            return;
+        }
+        if self.game.chat_window.is_active() {
+            return;
+        }
+        self.input.walk_packet_cooldown -= delta;
+        if self.input.walk_packet_cooldown > 0.0 && !self.input.walk_server_acked {
+            return;
+        }
+        if self.input.walk_packet_cooldown > 0.0 {
+            return;
+        }
+        self.handle_left_click();
+        self.input.walk_packet_cooldown = 0.5;
+        self.input.walk_server_acked = false;
+    }
+
     fn update_movement(&mut self, elapsed: f32) {
         for entity in self.game.entities.iter_mut() {
             if entity.movement.is_moving() {
@@ -679,9 +753,9 @@ impl App {
         }
     }
 
-    fn update_entity_state(&mut self) {
+    fn update_entity_state(&mut self, delta: f32) {
         for entity in self.game.entities.iter_mut() {
-            entity.update_state();
+            entity.update_state(delta);
             if let Some(move_dir) = entity.movement.movement_direction() {
                 entity.direction = move_dir;
             }
@@ -694,7 +768,16 @@ impl App {
         for entity in self.game.entities.iter_mut() {
             if let Some(sprite) = sprites.get(&entity.id) {
                 let dir = camera_dir.unwrap_or(0);
-                entity.animation.set_action(entity.action_index());
+                let action = entity.action_index();
+                let is_transient = matches!(
+                    entity.state,
+                    EntityState::Hurt | EntityState::Attacking | EntityState::Dead | EntityState::Pickup
+                );
+                if is_transient {
+                    entity.animation.set_action_one_shot(action);
+                } else {
+                    entity.animation.set_action(action);
+                }
                 entity.animation.set_direction(entity.direction);
                 let animated = SpriteActionType::from_index(entity.animation.action())
                     .is_none_or(|a| a.is_animated());
@@ -855,9 +938,19 @@ impl ApplicationHandler for App {
                                 self.input.last_mouse_pos = None;
                             }
                         }
-                        MouseButton::Left if state == ElementState::Pressed => {
-                            if !self.game.chat_window.is_active() {
-                                self.handle_left_click();
+                        MouseButton::Left => {
+                            let pressed = state == ElementState::Pressed;
+                            self.input.left_mouse_down = pressed;
+                            if pressed {
+                                let mouse_on_chat = self.game.chat_window.contains_point(
+                                    self.input.mouse_position.0 as f32,
+                                    self.input.mouse_position.1 as f32,
+                                );
+                                if !mouse_on_chat {
+                                    self.handle_left_click();
+                                    self.input.walk_packet_cooldown = 0.5;
+                                    self.input.walk_server_acked = false;
+                                }
                             }
                         }
                         _ => {}
@@ -879,12 +972,18 @@ impl ApplicationHandler for App {
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 if self.game.app_state == AppState::InGame {
-                    let scroll = match delta {
-                        MouseScrollDelta::LineDelta(_, y) => y,
-                        MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
-                    };
-                    if let Some(renderer) = &mut self.renderer {
-                        input::handle_camera_zoom(&mut renderer.camera, scroll);
+                    let mouse_on_chat = self.game.chat_window.contains_point(
+                        self.input.mouse_position.0 as f32,
+                        self.input.mouse_position.1 as f32,
+                    );
+                    if !mouse_on_chat {
+                        let scroll = match delta {
+                            MouseScrollDelta::LineDelta(_, y) => y,
+                            MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
+                        };
+                        if let Some(renderer) = &mut self.renderer {
+                            input::handle_camera_zoom(&mut renderer.camera, scroll);
+                        }
                     }
                 }
             }
@@ -923,11 +1022,11 @@ impl ApplicationHandler for App {
                 self.handle_ui_events(ui_events, event_loop);
 
                 self.update_movement(elapsed);
-                self.update_entity_state();
-                self.load_missing_entity_sprites();
-
                 let delta = elapsed - self.last_render_time;
                 self.last_render_time = elapsed;
+                self.process_continuous_walk(delta);
+                self.update_entity_state(delta);
+                self.load_missing_entity_sprites();
                 self.update_sprite_animation(delta);
 
                 let hovered = self.update_grid_hover();

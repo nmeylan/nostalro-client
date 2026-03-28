@@ -10,24 +10,49 @@ pub use helpers::{encode_pos, ip_u32_to_string};
 use ragnarok_game::event::GameEvent;
 pub use sender::{build_action_request_packet, build_char_enter_packet, build_chat_packet, build_login_packet, build_map_loaded_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet};
 use session::{Session, SessionState};
+use std::collections::VecDeque;
+use std::time::Instant;
 use tokio::sync::mpsc;
+use tokio::time::{self, Duration};
 use tracing::{error, info};
+
+#[derive(Debug, Clone)]
+pub enum KeepaliveMode {
+    Off,
+    CharServer { account_id: u32 },
+    MapServer,
+}
 
 pub enum NetworkCommand {
     Connect(String),
     SendPacket(Vec<u8>),
     Disconnect,
+    SetKeepalive(KeepaliveMode),
 }
 
 pub async fn network_loop(
     mut cmd_rx: mpsc::UnboundedReceiver<NetworkCommand>,
     event_tx: mpsc::UnboundedSender<GameEvent>,
     packetver: u32,
+    debug_delay_ms: u32,
 ) {
     let mut connection: Option<Connection> = None;
     let mut session = Session::new(packetver);
+    let mut keepalive = KeepaliveMode::Off;
+    let mut keepalive_interval = time::interval(Duration::from_secs(10));
+    keepalive_interval.reset();
+    let start_time = Instant::now();
+    let mut keepalive_send_time_ms: u32 = 0;
+    let delay_duration = Duration::from_millis(debug_delay_ms as u64);
+    let mut delayed_events: VecDeque<(Instant, GameEvent)> = VecDeque::new();
 
     loop {
+        // Drain delayed events that are ready
+        while delayed_events.front().is_some_and(|(t, _)| *t <= Instant::now()) {
+            let (_, event) = delayed_events.pop_front().unwrap();
+            let _ = event_tx.send(event);
+        }
+
         if let Some(conn) = &mut connection {
             tokio::select! {
                 result = conn.recv_packets(session.packetver) => {
@@ -39,7 +64,17 @@ pub async fn network_loop(
                                     info!("unhandled packet: {} (id={})", packet.name(), packet.id(session.packetver));
                                 }
                                 if let Some(event) = event {
-                                    let _ = event_tx.send(event);
+                                    let event = match event {
+                                        GameEvent::ServerTick { server_tick, .. } => {
+                                            GameEvent::ServerTick { server_tick, local_send_time_ms: keepalive_send_time_ms }
+                                        }
+                                        other => other,
+                                    };
+                                    if debug_delay_ms > 0 {
+                                        delayed_events.push_back((Instant::now() + delay_duration, event));
+                                    } else {
+                                        let _ = event_tx.send(event);
+                                    }
                                 }
                             }
                         }
@@ -48,12 +83,38 @@ pub async fn network_loop(
                             let _ = event_tx.send(GameEvent::Disconnected("connection closed".into()));
                             connection = None;
                             session.state = SessionState::Disconnected;
+                            keepalive = KeepaliveMode::Off;
                         }
                         Err(ConnectionError::Io(e)) => {
                             error!("network error: {e}");
                             let _ = event_tx.send(GameEvent::Disconnected(e.to_string()));
                             connection = None;
                             session.state = SessionState::Disconnected;
+                            keepalive = KeepaliveMode::Off;
+                        }
+                    }
+                }
+                _ = keepalive_interval.tick() => {
+                    if let Some(conn) = &mut connection {
+                        let packet = match &keepalive {
+                            KeepaliveMode::Off => None,
+                            KeepaliveMode::CharServer { account_id } => {
+                                Some(sender::build_char_ping_packet(*account_id, session.packetver))
+                            }
+                            KeepaliveMode::MapServer => {
+                                let client_time = start_time.elapsed().as_millis() as u32;
+                                keepalive_send_time_ms = client_time;
+                                Some(sender::build_request_time_packet(client_time, session.packetver))
+                            }
+                        };
+                        if let Some(data) = packet {
+                            if let Err(e) = conn.send_packet(&data).await {
+                                error!("keepalive send error: {e}");
+                                let _ = event_tx.send(GameEvent::Disconnected(e.to_string()));
+                                connection = None;
+                                session.state = SessionState::Disconnected;
+                                keepalive = KeepaliveMode::Off;
+                            }
                         }
                     }
                 }
@@ -85,6 +146,11 @@ pub async fn network_loop(
                             info!("disconnecting");
                             connection = None;
                             session.state = SessionState::Disconnected;
+                            keepalive = KeepaliveMode::Off;
+                        }
+                        Some(NetworkCommand::SetKeepalive(mode)) => {
+                            keepalive = mode;
+                            keepalive_interval.reset();
                         }
                         None => {
                             return;
@@ -111,9 +177,12 @@ pub async fn network_loop(
                 Some(NetworkCommand::SendPacket(_)) => {
                     error!("cannot send packet: not connected");
                 }
+                Some(NetworkCommand::SetKeepalive(mode)) => {
+                    keepalive = mode;
+                    keepalive_interval.reset();
+                }
                 None => return,
             }
         }
     }
 }
-

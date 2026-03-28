@@ -34,7 +34,8 @@ pub enum GameEvent {
         y: i16,
     },
     ServerTick {
-        tick: u32,
+        server_tick: u32,
+        local_send_time_ms: u32,
     },
     Disconnected(String),
 
@@ -99,7 +100,14 @@ pub enum GameEvent {
     },
     EntityAction {
         gid: u32,
+        target_gid: u32,
         action: u8,
+        damage: i16,
+        left_damage: i16,
+        attack_mt: i32,
+        attacked_mt: i32,
+        start_time: u32,
+        count: i16,
     },
     EntityDirectionChanged {
         gid: u32,
