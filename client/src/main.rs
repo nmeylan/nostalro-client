@@ -8,7 +8,7 @@ use input::InputState;
 use ragnarok_formats::act::SpriteActionType;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
-use ragnarok_game::cursor::{CursorType, cursor_type_for_cell};
+use ragnarok_game::cursor::{CursorType, cursor_type_for_cell, hovered_entity_cursor_type};
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::name_table::NameTable;
@@ -656,7 +656,7 @@ impl App {
         }
     }
 
-    fn build_ui(&mut self, elapsed: f32) -> (Vec<UiDrawCall>, Vec<GameEvent>) {
+    fn build_ui(&mut self, elapsed: f32) -> (Vec<UiDrawCall>, Vec<GameEvent>, bool) {
         match self.game.app_state {
             AppState::Login => {
                 if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
@@ -669,9 +669,10 @@ impl App {
                         self.login_window.has_grf_textures, initial_focus,
                     );
                     let events = self.login_window.build(&mut ui);
-                    (ui.draw_calls, events)
+                    let any_hovered = ui.any_hovered;
+                    (ui.draw_calls, events, any_hovered)
                 } else {
-                    (Vec::new(), Vec::new())
+                    (Vec::new(), Vec::new(), false)
                 }
             }
             AppState::ServerSelect => {
@@ -683,9 +684,10 @@ impl App {
                         server_win.has_grf_textures, None,
                     );
                     let events = server_win.build(&mut ui);
-                    (ui.draw_calls, events)
+                    let any_hovered = ui.any_hovered;
+                    (ui.draw_calls, events, any_hovered)
                 } else {
-                    (Vec::new(), Vec::new())
+                    (Vec::new(), Vec::new(), false)
                 }
             }
             AppState::CharacterSelect => {
@@ -697,9 +699,10 @@ impl App {
                         char_win.has_grf_textures, None,
                     );
                     let events = char_win.build(&mut ui);
-                    (ui.draw_calls, events)
+                    let any_hovered = ui.any_hovered;
+                    (ui.draw_calls, events, any_hovered)
                 } else {
-                    (Vec::new(), Vec::new())
+                    (Vec::new(), Vec::new(), false)
                 }
             }
             AppState::InGame => {
@@ -714,9 +717,10 @@ impl App {
                         false, initial_focus,
                     );
                     let events = self.game.chat_window.build(&mut ui);
-                    (ui.draw_calls, events)
+                    let any_hovered = ui.any_hovered;
+                    (ui.draw_calls, events, any_hovered)
                 } else {
-                    (Vec::new(), Vec::new())
+                    (Vec::new(), Vec::new(), false)
                 }
             }
         }
@@ -821,13 +825,50 @@ impl App {
         hovered
     }
 
-    fn update_cursor_type(&mut self, hovered: Option<(i32, i32)>) {
+    fn compute_render_list(&self) -> Vec<(u32, [f32; 2], f32, u8, f32)> {
+        let mut render_list = Vec::new();
+        if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
+            for entity in self.game.entities.iter() {
+                if let Some(params) = input::entity_screen_params(
+                    entity.movement.position(),
+                    self.game.gat.as_ref(),
+                    coords,
+                    &renderer.camera,
+                    renderer.device.surface_config.width as f32,
+                    renderer.device.surface_config.height as f32,
+                ) {
+                    render_list.push((entity.id, params.0, params.1, params.2, params.3));
+                }
+            }
+        }
+        render_list.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+        render_list
+    }
+
+    fn update_cursor_type(
+        &mut self,
+        hovered: Option<(i32, i32)>,
+        ui_any_hovered: bool,
+        render_list: &[(u32, [f32; 2], f32, u8, f32)],
+    ) {
         let cursor = if self.game.app_state == AppState::InGame {
-            if let Some(gat) = &self.game.gat {
+            if self.input.right_mouse_down {
+                CursorType::Rotate
+            } else if ui_any_hovered {
+                CursorType::Click
+            } else if let Some(entity_cursor) = hovered_entity_cursor_type(
+                self.input.mouse_position,
+                &self.game.entities,
+                render_list,
+            ) {
+                entity_cursor
+            } else if let Some(gat) = &self.game.gat {
                 cursor_type_for_cell(gat, hovered)
             } else {
                 CursorType::Default
             }
+        } else if ui_any_hovered {
+            CursorType::Click
         } else {
             CursorType::Default
         };
@@ -839,8 +880,10 @@ impl App {
             Some(a) => a,
             None => return Vec::new(),
         };
+        
         self.game.cursor_animation.update(dt, cursor_act);
-        let action_idx = self.game.cursor_animation.action_index().min(cursor_act.actions.len() - 1);
+        let action_idx = self.game.cursor_animation.action_index();
+        let action_idx = if action_idx < cursor_act.actions.len() { action_idx } else { 0 };
         let action = &cursor_act.actions[action_idx];
         if action.motions.is_empty() {
             return Vec::new();
@@ -1021,7 +1064,7 @@ impl ApplicationHandler for App {
 
                 self.handle_game_events(event_loop);
 
-                let (ui_draw_calls, ui_events) = self.build_ui(elapsed);
+                let (ui_draw_calls, ui_events, ui_any_hovered) = self.build_ui(elapsed);
                 self.handle_ui_events(ui_events, event_loop);
 
                 self.update_movement(elapsed);
@@ -1033,7 +1076,8 @@ impl ApplicationHandler for App {
                 self.update_sprite_animation(delta);
 
                 let hovered = self.update_grid_hover();
-                self.update_cursor_type(hovered);
+                let render_list = self.compute_render_list();
+                self.update_cursor_type(hovered, ui_any_hovered, &render_list);
 
                 let cursor_clips = self.build_cursor_sprite_clips(delta);
 
@@ -1041,32 +1085,13 @@ impl ApplicationHandler for App {
                     let mut sprite_batches: Vec<SpriteBatch> = Vec::new();
                     let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
 
-                    if let Some(renderer) = &self.renderer {
-                        let mut render_list: Vec<(u32, [f32; 2], f32, u8, f32)> = Vec::new();
-                        if let Some(coords) = &self.game.map_coords {
-                            for entity in self.game.entities.iter() {
-                                if let Some(params) = input::entity_screen_params(
-                                    entity.movement.position(),
-                                    self.game.gat.as_ref(),
-                                    coords,
-                                    &renderer.camera,
-                                    renderer.device.surface_config.width as f32,
-                                    renderer.device.surface_config.height as f32,
-                                ) {
-                                    render_list.push((entity.id, params.0, params.1, params.2, params.3));
-                                }
-                            }
-                        }
-                        render_list.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
-
-                        for &(id, center, depth, camera_dir, sprite_scale) in &render_list {
-                            if let (Some(sprite), Some(entity)) = (self.game.sprites.get(&id), self.game.entities.get(id)) {
-                                let shadow_scale = sprite_scale * shadow_size(entity.job);
-                                let mut shadow = sprite.build_shadow_batches(center, depth, shadow_scale);
-                                sprite_batches.append(&mut shadow);
-                                let mut batches = sprite.build_batches(&entity.animation, Some(camera_dir), entity.head_dir, center, depth, sprite_scale);
-                                sprite_batches.append(&mut batches);
-                            }
+                    for &(id, center, depth, camera_dir, sprite_scale) in &render_list {
+                        if let (Some(sprite), Some(entity)) = (self.game.sprites.get(&id), self.game.entities.get(id)) {
+                            let shadow_scale = sprite_scale * shadow_size(entity.job);
+                            let mut shadow = sprite.build_shadow_batches(center, depth, shadow_scale);
+                            sprite_batches.append(&mut shadow);
+                            let mut batches = sprite.build_batches(&entity.animation, Some(camera_dir), entity.head_dir, center, depth, sprite_scale);
+                            sprite_batches.append(&mut batches);
                         }
                     }
 

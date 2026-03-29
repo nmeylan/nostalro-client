@@ -1,5 +1,5 @@
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
 use ragnarok_game::event::GameEvent;
@@ -137,11 +137,11 @@ impl LoginWindow {
         }
 
         // Text inputs
-        let input_tex = if self.has_grf_textures { Some(INPUT_TEXTURE) } else { None };
+        let input_bg = if self.has_grf_textures { TextInputBg::Texture(INPUT_TEXTURE) } else { TextInputBg::Default };
         let username_rect = Rect::new(win.x + FIELD_X, win.y + USERNAME_Y, field_w, FIELD_H);
         let password_rect = Rect::new(win.x + FIELD_X, win.y + PASSWORD_Y, field_w, FIELD_H);
-        ui.text_input(USERNAME_ID, username_rect, &mut self.username, input_tex);
-        ui.text_input(PASSWORD_ID, password_rect, &mut self.password, input_tex);
+        ui.text_input(USERNAME_ID, username_rect, &mut self.username, input_bg);
+        ui.text_input(PASSWORD_ID, password_rect, &mut self.password, input_bg);
 
         // Sync focus back from UiFrame (click-to-focus may have changed it)
         match ui.focused() {

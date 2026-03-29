@@ -1,6 +1,9 @@
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
 
+use crate::entity::EntityType;
+use crate::entity_collection::EntityCollection;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CursorType {
     Default = 0,
@@ -24,6 +27,45 @@ pub fn cursor_type_for_cell(gat: &GatFile, cell: Option<(i32, i32)>) -> CursorTy
         }
         None => CursorType::Default,
     }
+}
+
+const ENTITY_HIT_HALF_WIDTH: f32 = 25.0;
+const ENTITY_HIT_HEIGHT: f32 = 70.0;
+const ENTITY_HIT_MIN_SIZE: f32 = 50.0;
+
+/// Check which entity the mouse hovers and return the matching cursor type.
+/// `render_list` is sorted far-to-near (painter order): iterate in reverse for front-to-back.
+pub fn hovered_entity_cursor_type(
+    mouse_pos: (f64, f64),
+    entities: &EntityCollection,
+    render_list: &[(u32, [f32; 2], f32, u8, f32)],
+) -> Option<CursorType> {
+    let (mx, my) = (mouse_pos.0 as f32, mouse_pos.1 as f32);
+    let player_id = entities.player_id();
+
+    for &(id, center, _depth, _cam_dir, sprite_scale) in render_list.iter().rev() {
+        if player_id == Some(id) {
+            continue;
+        }
+        let half_w = (ENTITY_HIT_HALF_WIDTH * sprite_scale).max(ENTITY_HIT_MIN_SIZE / 2.0);
+        let height = (ENTITY_HIT_HEIGHT * sprite_scale).max(ENTITY_HIT_MIN_SIZE);
+
+        let left = center[0] - half_w;
+        let right = center[0] + half_w;
+        let top = center[1] - height;
+        let bottom = center[1];
+
+        if mx >= left && mx <= right && my >= top && my <= bottom {
+            let entity = entities.get(id)?;
+            return match entity.entity_type {
+                EntityType::Npc if entity.job == 45 => Some(CursorType::Warp),
+                EntityType::Npc => Some(CursorType::Talk),
+                EntityType::Monster => Some(CursorType::Attack),
+                EntityType::Player => None,
+            };
+        }
+    }
+    None
 }
 
 pub struct CursorAnimationState {
@@ -89,6 +131,7 @@ impl CursorAnimationState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::entity::{Entity, EntityType};
     use ragnarok_formats::act::{ActFile, Action, Motion};
     use ragnarok_formats::gat::GatFile;
 
@@ -175,5 +218,85 @@ mod tests {
         assert_eq!(cursor_type_for_cell(&gat, Some((0, 0))), CursorType::Default);
         assert_eq!(cursor_type_for_cell(&gat, Some((1, 0))), CursorType::NoWalk);
         assert_eq!(cursor_type_for_cell(&gat, None), CursorType::Default);
+    }
+
+    fn make_entity(id: u32, entity_type: EntityType, job: u16) -> Entity {
+        Entity::new(id, entity_type, job, 1, 1, 0, 0, 0, 0, 0, 0, 100, 100, 0, 150)
+    }
+
+    // render_list entry: (id, screen_center, depth, camera_dir, sprite_scale)
+    fn entry(id: u32, cx: f32, cy: f32, depth: f32, scale: f32) -> (u32, [f32; 2], f32, u8, f32) {
+        (id, [cx, cy], depth, 0, scale)
+    }
+
+    #[test]
+    fn entity_hover_returns_none_on_empty_list() {
+        let entities = EntityCollection::new();
+        assert_eq!(hovered_entity_cursor_type((400.0, 300.0), &entities, &[]), None);
+    }
+
+    #[test]
+    fn entity_hover_returns_attack_for_monster() {
+        let mut entities = EntityCollection::new();
+        entities.insert(make_entity(10, EntityType::Monster, 1002));
+        let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
+        assert_eq!(
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            Some(CursorType::Attack),
+        );
+    }
+
+    #[test]
+    fn entity_hover_returns_talk_for_npc() {
+        let mut entities = EntityCollection::new();
+        entities.insert(make_entity(20, EntityType::Npc, 100));
+        let list = vec![entry(20, 400.0, 350.0, 0.5, 1.0)];
+        assert_eq!(
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            Some(CursorType::Talk),
+        );
+    }
+
+    #[test]
+    fn entity_hover_returns_warp_for_job_45() {
+        let mut entities = EntityCollection::new();
+        entities.insert(make_entity(30, EntityType::Npc, 45));
+        let list = vec![entry(30, 400.0, 350.0, 0.5, 1.0)];
+        assert_eq!(
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            Some(CursorType::Warp),
+        );
+    }
+
+    #[test]
+    fn entity_hover_skips_local_player() {
+        let mut entities = EntityCollection::new();
+        entities.set_player_id(1);
+        entities.insert(make_entity(1, EntityType::Player, 0));
+        let list = vec![entry(1, 400.0, 350.0, 0.5, 1.0)];
+        assert_eq!(hovered_entity_cursor_type((400.0, 310.0), &entities, &list), None);
+    }
+
+    #[test]
+    fn entity_hover_picks_frontmost() {
+        let mut entities = EntityCollection::new();
+        entities.insert(make_entity(10, EntityType::Monster, 1002));
+        entities.insert(make_entity(20, EntityType::Npc, 100));
+        // Sorted far-to-near: monster further (0.8), NPC closer (0.3)
+        let list = vec![entry(10, 400.0, 350.0, 0.8, 1.0), entry(20, 400.0, 350.0, 0.3, 1.0)];
+        // NPC is last in list (closest), so reverse iteration hits it first
+        assert_eq!(
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            Some(CursorType::Talk),
+        );
+    }
+
+    #[test]
+    fn entity_hover_returns_none_when_outside_bounds() {
+        let mut entities = EntityCollection::new();
+        entities.insert(make_entity(10, EntityType::Monster, 1002));
+        let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
+        // Mouse far from entity center
+        assert_eq!(hovered_entity_cursor_type((100.0, 100.0), &entities, &list), None);
     }
 }

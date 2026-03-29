@@ -5,6 +5,14 @@ use crate::state::StateCache;
 use crate::text_input::TextInput;
 use ragnarok_renderer::font_atlas::FontAtlas;
 
+#[derive(Clone, Copy)]
+pub enum TextInputBg<'a> {
+    Default,
+    Texture(&'a str),
+    /// No background drawn; dark text for use over an externally-drawn light bg
+    Transparent,
+}
+
 pub struct UiFrame<'a> {
     pub ctx: &'a UiContext,
     pub atlas: &'a FontAtlas,
@@ -12,6 +20,7 @@ pub struct UiFrame<'a> {
     pub elapsed_secs: f32,
     pub has_grf_textures: bool,
     pub draw_calls: Vec<DrawCall>,
+    pub any_hovered: bool,
     focus: Option<WidgetId>,
 }
 
@@ -62,6 +71,7 @@ impl<'a> UiFrame<'a> {
             elapsed_secs,
             has_grf_textures,
             draw_calls: Vec::new(),
+            any_hovered: false,
             focus: initial_focus,
         }
     }
@@ -96,6 +106,9 @@ impl<'a> UiFrame<'a> {
 
     pub fn interact(&mut self, id: WidgetId, rect: Rect) -> Response {
         let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y);
+        if hovered {
+            self.any_hovered = true;
+        }
         let clicked = hovered && self.ctx.mouse_clicked;
         if clicked {
             self.focus = Some(id);
@@ -168,7 +181,7 @@ impl<'a> UiFrame<'a> {
     }
 
     pub fn text_input(
-        &mut self, id: WidgetId, rect: Rect, state: &mut TextInput, bg_texture: Option<&str>,
+        &mut self, id: WidgetId, rect: Rect, state: &mut TextInput, bg: TextInputBg,
     ) -> Response {
         let response = self.interact(id, rect);
 
@@ -197,45 +210,50 @@ impl<'a> UiFrame<'a> {
         }
 
         // Background
-        if let Some(tex_name) = bg_texture {
-            let (verts, indices) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, [1.0, 1.0, 1.0, 1.0]);
-            self.draw_calls.push(DrawCall {
-                vertices: verts.to_vec(),
-                indices: indices.to_vec(),
-                texture: TextureRef::Named(tex_name.to_string()),
-            });
-        } else {
-            let bg_color = if response.has_focus {
-                [0.15, 0.15, 0.2, 1.0]
-            } else {
-                [0.1, 0.1, 0.15, 1.0]
-            };
-            let (verts, indices) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, bg_color);
-            self.draw_calls.push(DrawCall {
-                vertices: verts.to_vec(),
-                indices: indices.to_vec(),
-                texture: TextureRef::White,
-            });
-
-            let border_color = if response.has_focus {
-                [0.5, 0.5, 0.7, 1.0]
-            } else {
-                [0.3, 0.3, 0.4, 1.0]
-            };
-            let border = 1.0;
-            for (bx, by, bw, bh) in [
-                (rect.x, rect.y, rect.w, border),
-                (rect.x, rect.y + rect.h - border, rect.w, border),
-                (rect.x, rect.y, border, rect.h),
-                (rect.x + rect.w - border, rect.y, border, rect.h),
-            ] {
-                let (v, i) = draw::quad_vertices(bx, by, bw, bh, border_color);
+        let dark_text = !matches!(bg, TextInputBg::Default);
+        match bg {
+            TextInputBg::Texture(tex_name) => {
+                let (verts, indices) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, [1.0, 1.0, 1.0, 1.0]);
                 self.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(),
-                    indices: i.to_vec(),
-                    texture: TextureRef::White,
+                    vertices: verts.to_vec(),
+                    indices: indices.to_vec(),
+                    texture: TextureRef::Named(tex_name.to_string()),
                 });
             }
+            TextInputBg::Default => {
+                let bg_color = if response.has_focus {
+                    [0.15, 0.15, 0.2, 1.0]
+                } else {
+                    [0.1, 0.1, 0.15, 1.0]
+                };
+                let (verts, indices) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, bg_color);
+                self.draw_calls.push(DrawCall {
+                    vertices: verts.to_vec(),
+                    indices: indices.to_vec(),
+                    texture: TextureRef::White,
+                });
+
+                let border_color = if response.has_focus {
+                    [0.5, 0.5, 0.7, 1.0]
+                } else {
+                    [0.3, 0.3, 0.4, 1.0]
+                };
+                let border = 1.0;
+                for (bx, by, bw, bh) in [
+                    (rect.x, rect.y, rect.w, border),
+                    (rect.x, rect.y + rect.h - border, rect.w, border),
+                    (rect.x, rect.y, border, rect.h),
+                    (rect.x + rect.w - border, rect.y, border, rect.h),
+                ] {
+                    let (v, i) = draw::quad_vertices(bx, by, bw, bh, border_color);
+                    self.draw_calls.push(DrawCall {
+                        vertices: v.to_vec(),
+                        indices: i.to_vec(),
+                        texture: TextureRef::White,
+                    });
+                }
+            }
+            TextInputBg::Transparent => {}
         }
 
         // Text
@@ -254,7 +272,7 @@ impl<'a> UiFrame<'a> {
         let clip_right = rect.x + rect.w - padding;
 
         if !text.is_empty() {
-            let text_color = if bg_texture.is_some() { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
+            let text_color = if dark_text { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
             let (verts, indices) = draw::text_vertices_clipped(
                 &text, text_x, text_y, text_color, self.atlas, clip_left, clip_right,
             );
@@ -271,7 +289,7 @@ impl<'a> UiFrame<'a> {
         if response.has_focus && (self.elapsed_secs % 1.0) < 0.5 {
             let cursor_x = (text_x + cursor_px).clamp(clip_left, clip_right);
             let caret_y = rect.y + (rect.h - self.atlas.ascent) / 2.0;
-            let caret_color = if bg_texture.is_some() { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
+            let caret_color = if dark_text { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
             let (v, i) = draw::quad_vertices(cursor_x, caret_y, 1.0, self.atlas.ascent, caret_color);
             self.draw_calls.push(DrawCall {
                 vertices: v.to_vec(),
@@ -306,17 +324,16 @@ mod tests {
     use crate::state::StateCache;
     use ragnarok_renderer::font_atlas::FontAtlas;
 
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0);
-        let atlas = Box::leak(Box::new(atlas));
+    fn make_frame<'a>(ctx: &'a UiContext, atlas: &'a FontAtlas, state: &'a mut StateCache) -> UiFrame<'a> {
         UiFrame::new(ctx, atlas, state, 0.0, false, None)
     }
 
     #[test]
     fn window_centers_on_first_call() {
+        let atlas = FontAtlas::from_embedded(14.0);
         let ctx = UiContext::new(800.0, 600.0);
         let mut state = StateCache::new();
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
 
         let rect = ui.window(WidgetId(999), 200.0, 100.0, 25.0);
         assert_eq!(rect.x, 300.0);
@@ -327,12 +344,13 @@ mod tests {
 
     #[test]
     fn window_drag_moves_position() {
+        let atlas = FontAtlas::from_embedded(14.0);
         let mut state = StateCache::new();
         let id = WidgetId(999);
 
         // Frame 1: initial centering
         let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (300.0, 250.0));
 
@@ -342,7 +360,7 @@ mod tests {
         ctx.mouse_y = 260.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
         ui.window(id, 200.0, 100.0, 25.0);
 
         // Frame 3: move mouse while held
@@ -350,7 +368,7 @@ mod tests {
         ctx.mouse_x = 400.0;
         ctx.mouse_y = 280.0;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (350.0, 270.0));
 
@@ -358,13 +376,14 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 400.0;
         ctx.mouse_y = 280.0;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (350.0, 270.0));
     }
 
     #[test]
     fn interact_hover_click_and_focus() {
+        let atlas = FontAtlas::from_embedded(14.0);
         let mut state = StateCache::new();
         let id_a = WidgetId(50);
         let id_b = WidgetId(51);
@@ -375,7 +394,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 25.0;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
         let r = ui.interact(id_a, rect_a);
         assert!(r.hovered());
         assert!(!r.clicked());
@@ -383,7 +402,7 @@ mod tests {
 
         // Click on A — should be clicked + focused
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
         let r = ui.interact(id_a, rect_a);
         assert!(r.clicked());
         assert!(r.has_focus());
@@ -392,7 +411,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 65.0;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
         let ra = ui.interact(id_a, rect_a);
         let rb = ui.interact(id_b, rect_b);
         assert!(!ra.hovered());
@@ -402,7 +421,7 @@ mod tests {
 
         // Click on B — focus moves to B
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
         let ra = ui.interact(id_a, rect_a);
         let rb = ui.interact(id_b, rect_b);
         assert!(!ra.has_focus());
@@ -414,7 +433,7 @@ mod tests {
         ctx.mouse_x = 200.0;
         ctx.mouse_y = 200.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
         let ra = ui.interact(id_a, rect_a);
         let rb = ui.interact(id_b, rect_b);
         assert!(!ra.hovered());
@@ -425,12 +444,13 @@ mod tests {
 
     #[test]
     fn window_click_outside_title_bar_does_not_drag() {
+        let atlas = FontAtlas::from_embedded(14.0);
         let mut state = StateCache::new();
         let id = WidgetId(999);
 
         // Frame 1: initial centering
         let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
         ui.window(id, 200.0, 100.0, 25.0);
 
         // Frame 2: click inside window body but below title bar (y=250+25=275, click at 290)
@@ -439,7 +459,7 @@ mod tests {
         ctx.mouse_y = 290.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
         ui.window(id, 200.0, 100.0, 25.0);
 
         // Frame 3: move mouse — position should not change
@@ -447,8 +467,29 @@ mod tests {
         ctx.mouse_x = 500.0;
         ctx.mouse_y = 400.0;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (300.0, 250.0));
+    }
+
+    #[test]
+    fn any_hovered_tracks_widget_hover() {
+        let atlas = FontAtlas::from_embedded(14.0);
+        let mut state = StateCache::new();
+        let rect = Rect::new(10.0, 10.0, 100.0, 30.0);
+
+        // Mouse outside — any_hovered stays false
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        ui.interact(WidgetId(1), rect);
+        assert!(!ui.any_hovered);
+
+        // Mouse inside — any_hovered becomes true
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 50.0;
+        ctx.mouse_y = 25.0;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        ui.interact(WidgetId(1), rect);
+        assert!(ui.any_hovered);
     }
 }

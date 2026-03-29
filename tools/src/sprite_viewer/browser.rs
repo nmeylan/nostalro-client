@@ -21,6 +21,7 @@ pub enum BrowserTab {
     Monster,
     Character,
     Headgear,
+    Other,
 }
 
 const JOB_LIST: &[(u16, &str)] = &[
@@ -68,6 +69,7 @@ struct TabData {
     char_job_ids: Vec<u16>,
     headgear_names: Vec<String>,
     headgear_ids: Vec<u16>,
+    other_sprites: Vec<String>,
 }
 
 pub struct SpriteBrowser {
@@ -119,6 +121,19 @@ impl SpriteBrowser {
             .map(|(id, _)| *id)
             .collect();
 
+        let excluded_prefixes = [
+            "data/sprite/npc/",
+            "data/sprite/몬스터/",
+            "data/sprite/인간족/",
+            "data/sprite/악세사리/",
+            "data/sprite/방패/",
+        ];
+        let mut other_sprites: Vec<String> = all_sprites.iter()
+            .filter(|s| !excluded_prefixes.iter().any(|prefix| s.starts_with(prefix)))
+            .cloned()
+            .collect();
+        other_sprites.sort();
+
         let sorted_accessories = accessory_table.sorted_entries();
         let headgear_names: Vec<String> = sorted_accessories.iter()
             .map(|(id, suffix)| format!("{id}: {suffix}"))
@@ -139,6 +154,7 @@ impl SpriteBrowser {
                 char_job_ids,
                 headgear_names,
                 headgear_ids,
+                other_sprites,
             }),
             items,
             filtered,
@@ -180,6 +196,7 @@ impl SpriteBrowser {
             BrowserTab::Monster => (tabs.monster_sprites.clone(), "monster sprites"),
             BrowserTab::Character => (tabs.char_names.clone(), "characters"),
             BrowserTab::Headgear => (tabs.headgear_names.clone(), "headgear"),
+            BrowserTab::Other => (tabs.other_sprites.clone(), "other sprites"),
         };
         self.items = items;
         self.label = label.to_string();
@@ -292,6 +309,7 @@ impl SpriteBrowser {
                 (BrowserTab::Monster, "2:MONSTER"),
                 (BrowserTab::Character, "3:CHARACTER"),
                 (BrowserTab::Headgear, "4:HEADGEAR"),
+                (BrowserTab::Other, "5:OTHER"),
             ];
             let mut tab_x = x;
             for (tab, label) in &tab_labels {
@@ -496,5 +514,26 @@ mod tests {
         browser.switch_tab(BrowserTab::Monster);
         assert!(browser.filter_text.is_empty());
         assert_eq!(browser.selected, 0);
+    }
+
+    #[test]
+    fn other_tab_captures_uncategorized_sprites() {
+        let sprites = vec![
+            "data/sprite/npc/kafra.spr".to_string(),
+            "data/sprite/몬스터/poring.spr".to_string(),
+            "data/sprite/인간족/몸통/남/초보자_남.spr".to_string(),
+            "data/sprite/악세사리/남/남_1.spr".to_string(),
+            "data/sprite/방패/기사/기사_남_1.spr".to_string(),
+            "data/sprite/cursors.spr".to_string(),
+            "data/sprite/shadow.spr".to_string(),
+            "data/sprite/이팩트/effect.spr".to_string(),
+        ];
+        let mut browser = SpriteBrowser::new_with_tabs(sprites, &AccessoryTable::empty());
+        browser.switch_tab(BrowserTab::Other);
+        assert_eq!(browser.active_tab(), Some(BrowserTab::Other));
+        assert_eq!(browser.items.len(), 3);
+        assert_eq!(browser.items[0], "data/sprite/cursors.spr");
+        assert_eq!(browser.items[1], "data/sprite/shadow.spr");
+        assert_eq!(browser.items[2], "data/sprite/이팩트/effect.spr");
     }
 }

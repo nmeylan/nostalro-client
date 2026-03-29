@@ -115,11 +115,7 @@ fn format_from_extension(name: &str) -> Option<image::ImageFormat> {
 }
 
 fn apply_magenta_transparency(img: &mut image::RgbaImage) {
-    for pixel in img.pixels_mut() {
-        if pixel[0] >= 0xFE && pixel[1] <= 0x01 && pixel[2] >= 0xFE {
-            pixel[3] = 0;
-        }
-    }
+    ragnarok_formats::apply_magenta_transparency(img.as_mut());
 }
 
 pub fn create_texture_bind_group(

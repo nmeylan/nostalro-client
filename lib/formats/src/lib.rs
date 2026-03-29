@@ -59,6 +59,15 @@ impl From<std::io::Error> for FormatError {
     }
 }
 
+/// RO convention: magenta pixels (FF00FF) represent transparency in BMP textures.
+pub fn apply_magenta_transparency(rgba_data: &mut [u8]) {
+    for pixel in rgba_data.chunks_exact_mut(4) {
+        if pixel[0] >= 0xFE && pixel[1] <= 0x01 && pixel[2] >= 0xFE {
+            pixel[3] = 0;
+        }
+    }
+}
+
 pub(crate) fn read_string(cursor: &mut Cursor<&[u8]>, len: usize) -> Result<String, FormatError> {
     let mut buf = vec![0u8; len];
     cursor.read_exact(&mut buf)?;

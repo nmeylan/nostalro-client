@@ -2980,6 +2980,7 @@ version = "0.1.0"
 dependencies = [
  "eframe",
  "egui_ltreeview",
+ "image",
  "ragnarok-formats",
  "rfd",
  "tracing",

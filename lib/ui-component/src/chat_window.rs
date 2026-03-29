@@ -1,5 +1,5 @@
 use ragnarok_game::event::GameEvent;
-use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
 
@@ -22,6 +22,13 @@ const MAX_INPUT_LEN: usize = 100;
 const MAX_WHISPER_NAME_LEN: usize = 24;
 const WHISPER_INPUT_W: f32 = 90.0;
 const INPUT_GAP: f32 = 4.0;
+
+// DIALOG_BG texture layout (600px wide)
+const DIALOG_BG_W: f32 = 600.0;
+const DIALOG_BG_WHISPER_X: f32 = 3.0;
+const DIALOG_BG_WHISPER_W: f32 = 90.0;
+const DIALOG_BG_MSG_X: f32 = 110.0;
+const DIALOG_BG_MSG_W: f32 = 460.0;
 
 const DEFAULT_CHAT_W: f32 = 350.0;
 const MIN_CHAT_W: f32 = 250.0;
@@ -397,12 +404,29 @@ impl ChatWindow {
                 ui.set_focus(self.focused_input);
             }
 
-            // Track click-to-focus: if user clicks on either input, update focused_input
-            let whisper_rect = Rect::new(chat_x, input_y, WHISPER_INPUT_W, INPUT_H);
-            let msg_x = chat_x + WHISPER_INPUT_W + INPUT_GAP;
-            let msg_w = chat_w - WHISPER_INPUT_W - INPUT_GAP;
-            let msg_rect = Rect::new(msg_x, input_y, msg_w, INPUT_H);
+            // Compute input rects — scale to match DIALOG_BG texture layout when available
+            let (whisper_rect, msg_rect, input_bg) = if self.has_grf_textures {
+                let scale = chat_w / DIALOG_BG_W;
+                let wr = Rect::new(chat_x + DIALOG_BG_WHISPER_X * scale, input_y, DIALOG_BG_WHISPER_W * scale, INPUT_H);
+                let mr = Rect::new(chat_x + DIALOG_BG_MSG_X * scale, input_y, DIALOG_BG_MSG_W * scale, INPUT_H);
 
+                let input_row = Rect::new(chat_x, input_y, chat_w, INPUT_H);
+                let (v, i) = ragnarok_ui::draw::quad_vertices(input_row.x, input_row.y, input_row.w, input_row.h, [1.0; 4]);
+                ui.draw_calls.push(ragnarok_ui::draw::DrawCall {
+                    vertices: v.to_vec(),
+                    indices: i.to_vec(),
+                    texture: ragnarok_ui::draw::TextureRef::Named(DIALOG_BG.to_string()),
+                });
+                (wr, mr, TextInputBg::Transparent)
+            } else {
+                let wr = Rect::new(chat_x, input_y, WHISPER_INPUT_W, INPUT_H);
+                let msg_x = chat_x + WHISPER_INPUT_W + INPUT_GAP;
+                let msg_w = chat_w - WHISPER_INPUT_W - INPUT_GAP;
+                let mr = Rect::new(msg_x, input_y, msg_w, INPUT_H);
+                (wr, mr, TextInputBg::Default)
+            };
+
+            // Track click-to-focus
             if ui.ctx.mouse_clicked {
                 if whisper_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
                     self.focused_input = WHISPER_INPUT_ID;
@@ -411,13 +435,11 @@ impl ChatWindow {
                 }
             }
 
-            let bg_tex = if self.has_grf_textures { Some(DIALOG_BG) } else { None };
-
             // Whisper target input (left)
-            ui.text_input(WHISPER_INPUT_ID, whisper_rect, &mut self.whisper_target, bg_tex);
+            ui.text_input(WHISPER_INPUT_ID, whisper_rect, &mut self.whisper_target, input_bg);
 
             // Message input (right)
-            ui.text_input(INPUT_ID, msg_rect, &mut self.input, bg_tex);
+            ui.text_input(INPUT_ID, msg_rect, &mut self.input, input_bg);
         }
 
         self.draw_width_handle(ui, chat_x + chat_w, chat_y, total_h);

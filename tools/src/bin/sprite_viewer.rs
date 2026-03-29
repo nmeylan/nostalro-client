@@ -89,6 +89,7 @@ struct App {
     headgear_top_id: u16,
     shield_view_id: u16,
     accessory_table: AccessoryTable,
+    is_composite: bool,
 }
 
 impl App {
@@ -120,6 +121,7 @@ impl App {
             headgear_top_id: 0,
             shield_view_id: 0,
             accessory_table: AccessoryTable::empty(),
+            is_composite: false,
         }
     }
 
@@ -161,6 +163,7 @@ impl App {
         };
 
         self.animation = SpriteAnimationState::new(0);
+        self.is_composite = false;
         self.entity_sprite = Some(build_entity_sprite(
             &device.device, &device.queue, &tex_cache.bind_group_layout,
             sprite_data, None, None, None, None, None, None, None,
@@ -187,6 +190,7 @@ impl App {
             }
         };
         self.animation = SpriteAnimationState::new(0);
+        self.is_composite = true;
         self.entity_sprite = Some(build_entity_sprite(
             &device.device, &device.queue, &tex_cache.bind_group_layout,
             data.body, data.head, data.weapon, data.headgear_top, data.headgear_mid, data.headgear_bottom, data.shield, None,
@@ -327,7 +331,7 @@ impl App {
                     self.reload_headgear();
                 }
             }
-            Some(BrowserTab::Npc) | Some(BrowserTab::Monster) => {
+            Some(BrowserTab::Npc) | Some(BrowserTab::Monster) | Some(BrowserTab::Other) => {
                 let selected = self.browser.as_ref()
                     .and_then(|b| b.selected_item().map(|s| s.to_string()));
                 if let Some(path) = selected {
@@ -751,6 +755,7 @@ impl ApplicationHandler for App {
                                                 "2" => browser.switch_tab(BrowserTab::Monster),
                                                 "3" => browser.switch_tab(BrowserTab::Character),
                                                 "4" => browser.switch_tab(BrowserTab::Headgear),
+                                                "5" => browser.switch_tab(BrowserTab::Other),
                                                 _ => {
                                                     for c in ch.chars() {
                                                         if !c.is_control() {
@@ -795,7 +800,7 @@ impl ApplicationHandler for App {
 
                 if !self.paused {
                     if let Some(entity) = &self.entity_sprite {
-                        let animated = SpriteActionType::from_index(self.animation.action())
+                        let animated = !self.is_composite || SpriteActionType::from_index(self.animation.action())
                             .is_none_or(|a| a.is_animated());
                         if animated {
                             self.animation.update_flat(dt, &entity.body_act);

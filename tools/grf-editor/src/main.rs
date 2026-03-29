@@ -1,6 +1,7 @@
 mod app;
-mod tree;
 mod file_list;
+mod preview;
+mod tree;
 
 use eframe::egui;
 

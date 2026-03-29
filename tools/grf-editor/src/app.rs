@@ -5,6 +5,7 @@ use egui_ltreeview::{Action, TreeView, TreeViewState};
 use ragnarok_formats::grf::{GrfArchive, GrfFileInfo};
 
 use crate::file_list;
+use crate::preview::BmpPreview;
 use crate::tree::{self, TreeNode};
 
 struct LoadedGrf {
@@ -18,6 +19,7 @@ struct LoadedGrf {
     selected_file: Option<usize>,
     search_filter: String,
     dirty: bool,
+    preview: BmpPreview,
 }
 
 impl LoadedGrf {
@@ -44,6 +46,7 @@ impl LoadedGrf {
             selected_file: None,
             search_filter: String::new(),
             dirty: false,
+            preview: BmpPreview::default(),
         }
     }
 
@@ -469,8 +472,8 @@ impl GrfEditorApp {
         });
     }
 
-    fn show_file_info_panel(&self, ctx: &egui::Context) {
-        let grf = match self.archives.get(self.active_tab) {
+    fn show_file_info_panel(&mut self, ctx: &egui::Context) {
+        let grf = match self.archives.get_mut(self.active_tab) {
             Some(g) => g,
             None => return,
         };
@@ -478,18 +481,27 @@ impl GrfEditorApp {
             Some(i) => i,
             None => return,
         };
-        let file = match grf.file_list.get(file_idx) {
-            Some(f) => f,
-            None => return,
-        };
+        if grf.file_list.get(file_idx).is_none() {
+            return;
+        }
+
+        grf.preview.update(ctx, grf.selected_file, &grf.file_list, &grf.archive);
+        let has_preview = grf.preview.has_preview();
+        let default_height = if has_preview { 300.0 } else { 120.0 };
+        let preview = &grf.preview;
+        let file = &grf.file_list[file_idx];
 
         egui::TopBottomPanel::bottom("file_info")
             .resizable(true)
-            .default_height(120.0)
+            .default_height(default_height)
             .show(ctx, |ui| {
                 ui.heading("File Info");
                 ui.separator();
                 file_list::show_file_info(ui, file);
+                if has_preview {
+                    ui.separator();
+                    preview.show(ui);
+                }
             });
     }
 }
