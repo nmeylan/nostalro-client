@@ -16,7 +16,7 @@ use ragnarok_game::sprite_path::{WeaponType, weapon_view_id_to_type, entity_type
 use ragnarok_game::path::{path_search, try_move_to};
 use ragnarok_game::shadow::shadow_size;
 use ragnarok_game::{map_loader, sprite_loader};
-use ragnarok_network::{build_action_request_packet, build_char_enter_packet, build_chat_packet, build_login_packet, build_map_loaded_packet, build_request_move_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand, KeepaliveMode};
+use ragnarok_network::{build_action_request_packet, build_char_enter_packet, build_chat_packet, build_login_packet, build_map_loaded_packet, build_request_move_packet, build_restart_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand, KeepaliveMode};
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall, build_clip_quad, upload_sprite_textures, build_entity_sprite, block_on};
 use ragnarok_ui::context::UiContext;
@@ -246,6 +246,22 @@ impl App {
                             }
                             let _ = tx.send(NetworkCommand::SetKeepalive(KeepaliveMode::MapServer));
                         }
+                    }
+                    GameEvent::RestartAck => {
+                        self.char_select_window = None;
+                        self.game.entities.clear();
+                        self.game.sprites.clear();
+                        self.game.sprite_cache.clear();
+                        self.game.current_map = None;
+                        self.game.map_coords = None;
+                        self.game.gat = None;
+                        if let Some(renderer) = &mut self.renderer {
+                            renderer.ground_renderer = None;
+                            renderer.model_renderer = None;
+                            renderer.water_renderer = None;
+                            renderer.grid_selector = None;
+                        }
+                        self.reconnect_to_char_server();
                     }
                     GameEvent::MapEntered { x, y, dir, .. } => {
                         let map_name = self.game.login_session.as_ref().map(|s| {
@@ -614,15 +630,9 @@ impl App {
                 }
                 GameEvent::BackToCharacterSelect => {
                     self.game.system_menu.open = false;
-                    self.char_select_window = None;
-                    let reconnected = self.reconnect_to_char_server();
-                    if !reconnected {
-                        self.game.app_state = AppState::Login;
-                        self.server_list_window = None;
-                        self.game.login_session = None;
-                        if let Some(tx) = &self.network_cmd_tx {
-                            let _ = tx.send(NetworkCommand::Disconnect);
-                        }
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_restart_packet(self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
                     }
                 }
                 GameEvent::QuitGame => {
@@ -653,6 +663,21 @@ impl App {
                 _ => {}
             }
         }
+    }
+
+    fn reconnect_to_char_server(&mut self) -> bool {
+        let Some(tx) = &self.network_cmd_tx else { return false };
+        let Some(session) = &self.game.login_session else { return false };
+        let Some(addr) = &session.char_server_addr else { return false };
+        let _ = tx.send(NetworkCommand::Disconnect);
+        let _ = tx.send(NetworkCommand::Connect(addr.clone()));
+        let packet = build_char_enter_packet(session);
+        let _ = tx.send(NetworkCommand::SendPacket(packet));
+        let _ = tx.send(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer { account_id: session.account_id }));
+        // Switch to CharacterSelect immediately; char_select_window is None
+        // until CharacterListReceived arrives, so the screen will be blank briefly
+        self.game.app_state = AppState::CharacterSelect;
+        true
     }
 
     fn handle_slash_command(&mut self, command: &str) {

@@ -81,6 +81,13 @@ pub fn build_zone_enter_packet(session: &Session) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_restart_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzRestart::new(packetver);
+    pkt.set_atype(1);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_request_time_packet(client_time: u32, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzRequestTime::new(packetver);
     pkt.set_client_time(client_time);

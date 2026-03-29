@@ -170,7 +170,7 @@ impl<'a> UiFrame<'a> {
 
             let tw = self.atlas.measure_text(fallback_label);
             let tx = rect.x + (rect.w - tw) / 2.0;
-            let ty = rect.y + (rect.h - self.atlas.line_height) / 2.0;
+            let ty = rect.y + rect.h - (self.atlas.line_height / 2.0);
             let (v, i) = draw::text_vertices(fallback_label, tx, ty, [1.0, 1.0, 1.0, 1.0], self.atlas);
             if !v.is_empty() {
                 self.draw_calls.push(DrawCall { vertices: v, indices: i, texture: TextureRef::FontAtlas });

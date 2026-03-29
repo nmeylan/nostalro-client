@@ -66,6 +66,9 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Option<GameEvent>
             tick: p.start_time,
         });
     }
+    if any.downcast_ref::<PacketZcRestartAck>().is_some() {
+        return Some(GameEvent::RestartAck);
+    }
     if let Some(p) = any.downcast_ref::<PacketZcNpcackMapmove>() {
         let map_name: String = p.map_name.iter().take_while(|c| **c != '\0').collect();
         return Some(GameEvent::MapChanged {
