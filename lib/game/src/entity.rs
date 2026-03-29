@@ -34,6 +34,8 @@ pub struct Entity {
     pub head_mid: u16,
     pub head_bottom: u16,
     pub shield: u16,
+    pub name: Option<String>,
+    pub name_requested: bool,
     pub direction: u8,
     pub head_dir: u8,
     pub speed: u16,
@@ -60,6 +62,8 @@ impl Entity {
             id, entity_type, job, sex, head, hair_color,
             weapon: weapon_type,
             head_top, head_mid, head_bottom, shield,
+            name: None,
+            name_requested: false,
             direction, head_dir: direction, speed,
             state: EntityState::Standing,
             state_timer: 0.0,
@@ -158,6 +162,13 @@ mod tests {
 
     fn make_path_node(x: u16, y: u16, is_diagonal: bool) -> PathNode {
         PathNode { id: 0, parent_id: 0, x, y, g_cost: 0, f_cost: 0, is_open: false, is_diagonal }
+    }
+
+    #[test]
+    fn entity_starts_without_name() {
+        let e = make_entity();
+        assert!(e.name.is_none());
+        assert!(!e.name_requested);
     }
 
     #[test]

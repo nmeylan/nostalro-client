@@ -16,6 +16,17 @@ pub enum CursorType {
     NoWalk = 13,
 }
 
+#[derive(Clone, Copy)]
+pub struct RenderEntry {
+    pub id: u32,
+    pub screen_center: [f32; 2],
+    pub depth: f32,
+    pub camera_dir: u8,
+    pub sprite_scale: f32,
+    /// Pick bounds in screen pixels: [left, top, right, bottom].
+    pub pick_bounds: [f32; 4],
+}
+
 pub fn cursor_type_for_cell(gat: &GatFile, cell: Option<(i32, i32)>) -> CursorType {
     match cell {
         Some((cx, cy)) => {
@@ -29,38 +40,28 @@ pub fn cursor_type_for_cell(gat: &GatFile, cell: Option<(i32, i32)>) -> CursorTy
     }
 }
 
-const ENTITY_HIT_HALF_WIDTH: f32 = 25.0;
-const ENTITY_HIT_HEIGHT: f32 = 70.0;
-const ENTITY_HIT_MIN_SIZE: f32 = 50.0;
-
 /// Check which entity the mouse hovers and return the matching cursor type.
 /// `render_list` is sorted far-to-near (painter order): iterate in reverse for front-to-back.
 pub fn hovered_entity_cursor_type(
     mouse_pos: (f64, f64),
     entities: &EntityCollection,
-    render_list: &[(u32, [f32; 2], f32, u8, f32)],
-) -> Option<CursorType> {
+    render_list: &[RenderEntry],
+) -> Option<(CursorType, u32)> {
     let (mx, my) = (mouse_pos.0 as f32, mouse_pos.1 as f32);
     let player_id = entities.player_id();
 
-    for &(id, center, _depth, _cam_dir, sprite_scale) in render_list.iter().rev() {
-        if player_id == Some(id) {
+    for entry in render_list.iter().rev() {
+        if player_id == Some(entry.id) {
             continue;
         }
-        let half_w = (ENTITY_HIT_HALF_WIDTH * sprite_scale).max(ENTITY_HIT_MIN_SIZE / 2.0);
-        let height = (ENTITY_HIT_HEIGHT * sprite_scale).max(ENTITY_HIT_MIN_SIZE);
-
-        let left = center[0] - half_w;
-        let right = center[0] + half_w;
-        let top = center[1] - height;
-        let bottom = center[1];
+        let [left, top, right, bottom] = entry.pick_bounds;
 
         if mx >= left && mx <= right && my >= top && my <= bottom {
-            let entity = entities.get(id)?;
+            let entity = entities.get(entry.id)?;
             return match entity.entity_type {
-                EntityType::Npc if entity.job == 45 => Some(CursorType::Warp),
-                EntityType::Npc => Some(CursorType::Talk),
-                EntityType::Monster => Some(CursorType::Attack),
+                EntityType::Npc if entity.job == 45 => Some((CursorType::Warp, entry.id)),
+                EntityType::Npc => Some((CursorType::Talk, entry.id)),
+                EntityType::Monster => Some((CursorType::Attack, entry.id)),
                 EntityType::Player => None,
             };
         }
@@ -224,9 +225,19 @@ mod tests {
         Entity::new(id, entity_type, job, 1, 1, 0, 0, 0, 0, 0, 0, 100, 100, 0, 150)
     }
 
-    // render_list entry: (id, screen_center, depth, camera_dir, sprite_scale)
-    fn entry(id: u32, cx: f32, cy: f32, depth: f32, scale: f32) -> (u32, [f32; 2], f32, u8, f32) {
-        (id, [cx, cy], depth, 0, scale)
+    fn default_pick_bounds(cx: f32, cy: f32) -> [f32; 4] {
+        [cx - 50.0, cy - 100.0, cx + 50.0, cy]
+    }
+
+    fn entry(id: u32, cx: f32, cy: f32, depth: f32, scale: f32) -> RenderEntry {
+        RenderEntry {
+            id,
+            screen_center: [cx, cy],
+            depth,
+            camera_dir: 0,
+            sprite_scale: scale,
+            pick_bounds: default_pick_bounds(cx, cy),
+        }
     }
 
     #[test]
@@ -242,7 +253,7 @@ mod tests {
         let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(
             hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
-            Some(CursorType::Attack),
+            Some((CursorType::Attack, 10)),
         );
     }
 
@@ -253,7 +264,7 @@ mod tests {
         let list = vec![entry(20, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(
             hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
-            Some(CursorType::Talk),
+            Some((CursorType::Talk, 20)),
         );
     }
 
@@ -264,7 +275,7 @@ mod tests {
         let list = vec![entry(30, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(
             hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
-            Some(CursorType::Warp),
+            Some((CursorType::Warp, 30)),
         );
     }
 
@@ -287,7 +298,7 @@ mod tests {
         // NPC is last in list (closest), so reverse iteration hits it first
         assert_eq!(
             hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
-            Some(CursorType::Talk),
+            Some((CursorType::Talk, 20)),
         );
     }
 

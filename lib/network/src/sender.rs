@@ -95,6 +95,13 @@ pub fn build_request_time_packet(client_time: u32, packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_reqname_packet(entity_id: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqname::new(packetver);
+    pkt.set_aid(entity_id);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_char_ping_packet(account_id: u32, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzPing::new(packetver);
     pkt.set_aid(account_id);

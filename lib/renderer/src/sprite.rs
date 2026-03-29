@@ -689,7 +689,77 @@ pub fn build_entity_sprite(
     }
 }
 
+const MIN_PICK_SIZE: f32 = 100.0;
+const MAX_PICK_WIDTH: f32 = 200.0;
+const MAX_PICK_HEIGHT: f32 = 250.0;
+
 impl EntitySprite {
+    /// Compute screen-space pick bounding box from the sprite's current animation frame.
+    /// Returns [left, top, right, bottom] clamped to min 100x100, max 200x250.
+    pub fn compute_pick_bounds(
+        &self,
+        animation: &ragnarok_formats::act::SpriteAnimationState,
+        camera_dir: Option<u8>,
+        head_dir: u8,
+        screen_center: [f32; 2],
+        depth: f32,
+        scale: f32,
+    ) -> [f32; 4] {
+        let action_idx = match camera_dir {
+            Some(dir) => animation.action_index(&self.body_act, dir),
+            None => animation.flat_action_index(&self.body_act),
+        };
+
+        let clips = build_composite_clips(self, action_idx, animation.motion_index(), head_dir, screen_center, depth);
+
+        let (mut min_x, mut min_y, mut max_x, mut max_y) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+        let mut has_vertices = false;
+
+        if let Some(clips) = clips {
+            let all_groups: [&Vec<ClipQuad>; 7] = [
+                &clips.body, &clips.head,
+                &clips.headgear_bottom, &clips.headgear_mid, &clips.headgear_top,
+                &clips.weapon, &clips.shield,
+            ];
+            for group in all_groups {
+                for (vertices, _, _) in group {
+                    for v in vertices {
+                        let sx = screen_center[0] + (v.position[0] - screen_center[0]) * scale;
+                        let sy = screen_center[1] + (v.position[1] - screen_center[1]) * scale;
+                        min_x = min_x.min(sx);
+                        min_y = min_y.min(sy);
+                        max_x = max_x.max(sx);
+                        max_y = max_y.max(sy);
+                        has_vertices = true;
+                    }
+                }
+            }
+        }
+
+        if !has_vertices {
+            let half = MIN_PICK_SIZE / 2.0;
+            return [
+                screen_center[0] - half,
+                screen_center[1] - MIN_PICK_SIZE,
+                screen_center[0] + half,
+                screen_center[1],
+            ];
+        }
+
+        let raw_w = max_x - min_x;
+        let raw_h = max_y - min_y;
+        let width = raw_w.max(MIN_PICK_SIZE).min(MAX_PICK_WIDTH);
+        let height = raw_h.max(MIN_PICK_SIZE).min(MAX_PICK_HEIGHT);
+
+        let half_w = width / 2.0;
+        [
+            screen_center[0] - half_w,
+            screen_center[1] - height,
+            screen_center[0] + half_w,
+            screen_center[1],
+        ]
+    }
+
     pub fn build_batches(
         &self,
         animation: &ragnarok_formats::act::SpriteAnimationState,

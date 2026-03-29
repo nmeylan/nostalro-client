@@ -2,6 +2,7 @@ pub mod accessory_table;
 pub mod animation;
 pub mod app_state;
 pub mod cursor;
+pub use cursor::RenderEntry;
 pub mod entity;
 pub mod entity_collection;
 pub mod event;

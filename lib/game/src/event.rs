@@ -117,6 +117,10 @@ pub enum GameEvent {
         head_dir: u8,
         dir: u8,
     },
+    EntityNameReceived {
+        gid: u32,
+        name: String,
+    },
 
     // Chat
     ChatMessage {

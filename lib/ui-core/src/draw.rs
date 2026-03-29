@@ -27,6 +27,38 @@ pub fn text_vertices(
     text_vertices_clipped(text, x, y, color, atlas, f32::NEG_INFINITY, f32::INFINITY)
 }
 
+pub fn text_vertices_scaled(
+    text: &str, x: f32, y: f32, color: [f32; 4], atlas: &FontAtlas, scale: f32,
+) -> (Vec<UiVertex>, Vec<u32>) {
+    let mut vertices = Vec::new();
+    let mut indices = Vec::new();
+    let mut cursor_x = x;
+
+    for ch in text.chars() {
+        let glyph = atlas.glyph(ch);
+
+        if glyph.size[0] > 0.0 && glyph.size[1] > 0.0 {
+            let gx = (cursor_x + glyph.offset[0] * scale).round();
+            let gy = (y + glyph.offset[1] * scale).round();
+            let gw = glyph.size[0] * scale;
+            let gh = glyph.size[1] * scale;
+
+            let base = vertices.len() as u32;
+            let (verts, idxs) = quad_vertices_uv(
+                gx, gy, gw, gh,
+                glyph.uv_min, glyph.uv_max,
+                color,
+            );
+            vertices.extend_from_slice(&verts);
+            indices.extend(idxs.iter().map(|i| i + base));
+        }
+
+        cursor_x += glyph.advance * scale;
+    }
+
+    (vertices, indices)
+}
+
 pub fn text_vertices_clipped(
     text: &str, x: f32, y: f32, color: [f32; 4], atlas: &FontAtlas,
     clip_left: f32, clip_right: f32,

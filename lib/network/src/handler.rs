@@ -245,6 +245,12 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::OwnChatMessage { message }];
     }
 
+    // Entity name
+    if let Some(p) = any.downcast_ref::<PacketZcAckReqname>() {
+        let name: String = p.cname.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::EntityNameReceived { gid: p.aid, name }];
+    }
+
     // Entity despawn
     if let Some(p) = any.downcast_ref::<PacketZcNotifyVanish>() {
         return vec![GameEvent::EntityVanished { gid: p.gid }];
@@ -549,5 +555,35 @@ mod tests {
         assert_eq!(raw.len(), 6);
         let aid = u32::from_le_bytes([raw[2], raw[3], raw[4], raw[5]]);
         assert_eq!(aid, 200_000);
+    }
+
+    #[test]
+    fn build_reqname_packet_has_correct_format() {
+        let raw = crate::sender::build_reqname_packet(12345, 20120307);
+        assert_eq!(raw.len(), 6);
+        let aid = u32::from_le_bytes([raw[2], raw[3], raw[4], raw[5]]);
+        assert_eq!(aid, 12345);
+    }
+
+    #[test]
+    fn dispatch_ack_reqname_returns_entity_name_received() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcAckReqname::new(packetver);
+        pkt.set_aid(42);
+        let mut name = ['\0'; 24];
+        for (i, c) in "Poring".chars().enumerate() {
+            name[i] = c;
+        }
+        pkt.set_cname(name);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::EntityNameReceived { gid, name } => {
+                assert_eq!(*gid, 42);
+                assert_eq!(name, "Poring");
+            }
+            other => panic!("expected EntityNameReceived, got {other:?}"),
+        }
     }
 }
