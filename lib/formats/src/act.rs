@@ -170,7 +170,6 @@ pub fn attachment_offset(body_motion: &Motion, head_motion: &Motion) -> (i32, i3
     }
 }
 
-/// Standard player sprite action types (from robrowser EntityAction).
 /// Each action has 8 direction variants in the ACT file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]

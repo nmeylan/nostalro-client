@@ -38,14 +38,14 @@ TODO:
 - Party window
 - Guild window (members, positions, skills, emblem, notices)
 - Friend/messenger list
-- Option/settings window
+- Game menu: graphic/audio options
 - Emotion selector
 - Quest window
 - Cart window
 - Storage/warehouse window
 - Item tooltips (description, stats, cards, refine level)
 - Context menu (right-click on player/NPC)
-- Escape/system menu
+- ~~Escape/system menu~~
 - Card illustration display
 - Refining UI
 - Mail/Rodex

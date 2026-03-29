@@ -8,7 +8,6 @@ const FALLBACK_WIN_W: f32 = 280.0;
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
 
-// Layout offsets within the window (from roBrowser reverse engineering of original client)
 const HEADER_H: f32 = 22.0;
 const LIST_X: f32 = 12.0;
 const LIST_BOTTOM: f32 = 32.0;

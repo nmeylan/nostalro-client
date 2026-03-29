@@ -278,7 +278,6 @@ fn build_instance_matrix(
         model.scale[2] * scale_factor,
     );
 
-    // Match robrowser: translate → rotZ → rotX → rotY → scale
     glam::Mat4::from_translation(pos)
         * glam::Mat4::from_rotation_z(rot_z)
         * glam::Mat4::from_rotation_x(rot_x)

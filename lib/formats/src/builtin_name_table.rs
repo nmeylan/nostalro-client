@@ -1,4 +1,3 @@
-/// Fallback NPC/Monster name table from robrowser's MonsterTable.js.
 /// Maps job_id to sprite filename used in GRF paths.
 pub const BUILTIN_NAME_TABLE: &[(u16, &str)] = &[
     // NPCs (46-125)

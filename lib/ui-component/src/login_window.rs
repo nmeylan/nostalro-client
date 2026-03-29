@@ -26,7 +26,6 @@ const FALLBACK_WIN_H: f32 = 120.0;
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
 
-// Position offsets within the window (from roBrowser reverse engineering of original client)
 const FIELD_X: f32 = 91.0;
 const FIELD_RIGHT_MARGIN: f32 = 62.0;
 const FIELD_H: f32 = 18.0;

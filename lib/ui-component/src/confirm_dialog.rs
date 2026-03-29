@@ -7,8 +7,8 @@ const OK_BTN_ID: WidgetId = WidgetId(400);
 const CANCEL_BTN_ID: WidgetId = WidgetId(401);
 
 const DIALOG_W: f32 = 220.0;
-const DIALOG_H: f32 = 80.0;
-const PADDING: f32 = 12.0;
+const DIALOG_H: f32 = 40.0;
+const PADDING: f32 = 4.0;
 const BTN_SPACING: f32 = 8.0;
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
@@ -96,17 +96,20 @@ impl ConfirmDialog {
             }
         }
 
-        // Message text
-        let text_w = ui.atlas.measure_text(&self.message);
-        let text_x = dx + (dialog_w - text_w) / 2.0;
-        let text_y = dy + PADDING;
-        ui.text(text_x, text_y, &self.message, [1.0, 1.0, 1.0, 1.0]);
-
         // OK / Cancel buttons centered
         let (btn_w, btn_h) = self.btn_size;
         let total_btn_w = btn_w * 2.0 + BTN_SPACING;
         let btn_x = dx + (dialog_w - total_btn_w) / 2.0;
         let btn_y = dy + dialog_h - PADDING - btn_h;
+
+        // Message text centered vertically between top and buttons
+        let text_w = ui.atlas.measure_text(&self.message);
+        let text_x = dx + (dialog_w - text_w) / 2.0;
+        let text_area_top = dy + PADDING;
+        let text_area_bottom = btn_y;
+        let text_y = text_area_top + (text_area_bottom - text_area_top - ui.atlas.line_height) / 2.0;
+        let text_color = if self.has_grf_textures { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
+        ui.text(text_x, text_y, &self.message, text_color);
 
         let ok_rect = Rect::new(btn_x, btn_y, btn_w, btn_h);
         let cancel_rect = Rect::new(btn_x + btn_w + BTN_SPACING, btn_y, btn_w, btn_h);

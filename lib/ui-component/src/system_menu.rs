@@ -142,23 +142,30 @@ impl SystemMenu {
 
     fn build_grf(&mut self, ui: &mut UiFrame, _events: &mut Vec<GameEvent>) {
         let (btn_w, btn_h) = self.btn_size;
-        let (_win_w, _win_h) = self.win_size;
+        let (titlebar_w, titlebar_h) = self.win_size;
         // 3 buttons in GRF mode (no Option button)
         let grf_btn_spacing = 3.0;
-        let grf_padding_top = 20.0;
-        let grf_padding_bottom = 6.0;
+        let body_padding_top = 6.0;
+        let body_padding_bottom = 6.0;
         let menu_w = btn_w + 60.0;
-        let menu_h = grf_padding_top + 3.0 * btn_h + 2.0 * grf_btn_spacing + grf_padding_bottom;
+        let body_h = body_padding_top + 3.0 * btn_h + 2.0 * grf_btn_spacing + body_padding_bottom;
+        let menu_h = titlebar_h + body_h;
 
         let mx = ((ui.ctx.screen_width - menu_w) / 2.0).floor();
         let my = ((ui.ctx.screen_height - menu_h) / 2.0).floor();
 
-        // Window background using titlebar texture, stretched to menu size
-        let (v, i) = draw::quad_vertices(mx, my, menu_w, menu_h, [1.0, 1.0, 1.0, 1.0]);
+        // Titlebar texture at top (actual size, not stretched)
+        let titlebar_x = mx + (menu_w - titlebar_w) / 2.0;
+        let (v, i) = draw::quad_vertices(titlebar_x, my, titlebar_w, titlebar_h, [1.0, 1.0, 1.0, 1.0]);
         ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(WIN_TEXTURE.to_string()) });
 
+        // White body below titlebar
+        let body_y = my + titlebar_h;
+        let (v, i) = draw::quad_vertices(mx, body_y, menu_w, body_h, [1.0, 1.0, 1.0, 1.0]);
+        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+
         let btn_x = mx + (menu_w - btn_w) / 2.0;
-        let btn_y = |idx: usize| my + grf_padding_top + idx as f32 * (btn_h + grf_btn_spacing);
+        let btn_y = |idx: usize| body_y + body_padding_top + idx as f32 * (btn_h + grf_btn_spacing);
 
         let charselect = ui.button(CHARSELECT_ID, Rect::new(btn_x, btn_y(0), btn_w, btn_h), &CHARSELECT_BTN, "Character Select");
         let quit = ui.button(QUIT_ID, Rect::new(btn_x, btn_y(1), btn_w, btn_h), &QUIT_BTN, "Quit Game");
