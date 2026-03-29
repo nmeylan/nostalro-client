@@ -59,11 +59,11 @@ pub async fn network_loop(
                     match result {
                         Ok(packets) => {
                             for packet in &packets {
-                                let event = dispatch_packet(packet.as_ref(), session.packetver);
-                                if event.is_none() {
+                                let events = dispatch_packet(packet.as_ref(), session.packetver);
+                                if events.is_empty() {
                                     info!("unhandled packet: {} (id={})", packet.name(), packet.id(session.packetver));
                                 }
-                                if let Some(event) = event {
+                                for event in events {
                                     let event = match event {
                                         GameEvent::ServerTick { server_tick, .. } => {
                                             GameEvent::ServerTick { server_tick, local_send_time_ms: keepalive_send_time_ms }

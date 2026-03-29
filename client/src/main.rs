@@ -23,6 +23,7 @@ use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui_component::chat_window::ChatWindow;
 use ragnarok_ui_component::login_window::{LoginFocus, LoginWindow};
+use ragnarok_ui_component::system_menu::SystemMenu;
 use ragnarok_ui_component::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::server_list_window::ServerListWindow;
 use ragnarok_ui::state::StateCache;
@@ -296,6 +297,14 @@ impl App {
                             self.game.chat_window.has_grf_textures = renderer.preload_textures(
                                 &ChatWindow::grf_texture_paths(), grf,
                             );
+                            self.game.system_menu.has_grf_textures = renderer.preload_textures(
+                                &SystemMenu::grf_texture_paths(), grf,
+                            );
+                            if self.game.system_menu.has_grf_textures {
+                                self.game.system_menu.set_texture_sizes(|name| {
+                                    renderer.texture_cache.texture_size(name)
+                                });
+                            }
                         }
 
                         self.game.app_state = AppState::InGame;
@@ -761,7 +770,7 @@ impl App {
                     };
                     let mut ui = UiFrame::new(
                         ui_ctx, &renderer.font_atlas, &mut self.ui_state_cache, elapsed,
-                        false, initial_focus,
+                        self.game.system_menu.has_grf_textures, initial_focus,
                     );
                     let chat_was_active = self.game.chat_window.is_active();
                     let mut events = self.game.chat_window.build(&mut ui);

@@ -1,6 +1,6 @@
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
 use crate::confirm_dialog::{ConfirmDialog, ConfirmResult};
@@ -11,16 +11,34 @@ const OPTION_ID: WidgetId = WidgetId(501);
 const CHARSELECT_ID: WidgetId = WidgetId(502);
 const QUIT_ID: WidgetId = WidgetId(503);
 
+// Fallback layout constants
 const MENU_W: f32 = 140.0;
-const BTN_W: f32 = 120.0;
-const BTN_H: f32 = 24.0;
+const FALLBACK_BTN_W: f32 = 120.0;
+const FALLBACK_BTN_H: f32 = 24.0;
 const BTN_SPACING: f32 = 4.0;
 const PADDING_TOP: f32 = 12.0;
 const PADDING_BOTTOM: f32 = 12.0;
-const MENU_H: f32 = PADDING_TOP + 4.0 * BTN_H + 3.0 * BTN_SPACING + PADDING_BOTTOM;
+const MENU_H: f32 = PADDING_TOP + 4.0 * FALLBACK_BTN_H + 3.0 * BTN_SPACING + PADDING_BOTTOM;
 
-// Fallback button textures (no-op, buttons use fallback labels)
-const DUMMY_BTN: ragnarok_ui::frame::ButtonTextures = ragnarok_ui::frame::ButtonTextures {
+const WIN_TEXTURE: &str = "data/texture/유저인터페이스/basic_interface/titlebar_fix.bmp";
+
+const RESUME_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/esc_02a.bmp",
+    hover: "data/texture/유저인터페이스/esc_02b.bmp",
+    pressed: "data/texture/유저인터페이스/esc_02c.bmp",
+};
+const CHARSELECT_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/esc_01a.bmp",
+    hover: "data/texture/유저인터페이스/esc_01b.bmp",
+    pressed: "data/texture/유저인터페이스/esc_01c.bmp",
+};
+const QUIT_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/esc_03a.bmp",
+    hover: "data/texture/유저인터페이스/esc_03b.bmp",
+    pressed: "data/texture/유저인터페이스/esc_03c.bmp",
+};
+// Fallback-only button (no GRF texture for "Option")
+const DUMMY_BTN: ButtonTextures = ButtonTextures {
     normal: "", hover: "", pressed: "",
 };
 
@@ -36,6 +54,8 @@ pub struct SystemMenu {
     pub has_grf_textures: bool,
     pending_confirm: PendingConfirm,
     confirm_dialog: ConfirmDialog,
+    win_size: (f32, f32),
+    btn_size: (f32, f32),
 }
 
 impl SystemMenu {
@@ -45,7 +65,31 @@ impl SystemMenu {
             has_grf_textures: false,
             pending_confirm: PendingConfirm::None,
             confirm_dialog: ConfirmDialog::new("Are you sure?"),
+            win_size: (MENU_W, MENU_H),
+            btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
         }
+    }
+
+    pub fn grf_texture_paths() -> Vec<&'static str> {
+        let mut paths = vec![
+            WIN_TEXTURE,
+            RESUME_BTN.normal, RESUME_BTN.hover, RESUME_BTN.pressed,
+            CHARSELECT_BTN.normal, CHARSELECT_BTN.hover, CHARSELECT_BTN.pressed,
+            QUIT_BTN.normal, QUIT_BTN.hover, QUIT_BTN.pressed,
+        ];
+        paths.extend(ConfirmDialog::grf_texture_paths());
+        paths
+    }
+
+    pub fn set_texture_sizes(&mut self, size_fn: impl Fn(&str) -> Option<(u32, u32)>) {
+        if let Some((w, h)) = size_fn(RESUME_BTN.normal) {
+            self.btn_size = (w as f32, h as f32);
+        }
+        if let Some((w, h)) = size_fn(WIN_TEXTURE) {
+            self.win_size = (w as f32, h as f32);
+        }
+        self.confirm_dialog.set_texture_sizes(&size_fn);
+        self.confirm_dialog.has_grf_textures = true;
     }
 
     pub fn build(&mut self, ui: &mut UiFrame, allow_escape_toggle: bool) -> Vec<GameEvent> {
@@ -87,7 +131,51 @@ impl SystemMenu {
             return events;
         }
 
-        // Menu panel centered on screen
+        if self.has_grf_textures {
+            self.build_grf(ui, &mut events);
+        } else {
+            self.build_fallback(ui, &mut events);
+        }
+
+        events
+    }
+
+    fn build_grf(&mut self, ui: &mut UiFrame, _events: &mut Vec<GameEvent>) {
+        let (btn_w, btn_h) = self.btn_size;
+        let (_win_w, _win_h) = self.win_size;
+        // 3 buttons in GRF mode (no Option button)
+        let grf_btn_spacing = 3.0;
+        let grf_padding_top = 20.0;
+        let grf_padding_bottom = 6.0;
+        let menu_w = btn_w + 60.0;
+        let menu_h = grf_padding_top + 3.0 * btn_h + 2.0 * grf_btn_spacing + grf_padding_bottom;
+
+        let mx = ((ui.ctx.screen_width - menu_w) / 2.0).floor();
+        let my = ((ui.ctx.screen_height - menu_h) / 2.0).floor();
+
+        // Window background using titlebar texture, stretched to menu size
+        let (v, i) = draw::quad_vertices(mx, my, menu_w, menu_h, [1.0, 1.0, 1.0, 1.0]);
+        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(WIN_TEXTURE.to_string()) });
+
+        let btn_x = mx + (menu_w - btn_w) / 2.0;
+        let btn_y = |idx: usize| my + grf_padding_top + idx as f32 * (btn_h + grf_btn_spacing);
+
+        let charselect = ui.button(CHARSELECT_ID, Rect::new(btn_x, btn_y(0), btn_w, btn_h), &CHARSELECT_BTN, "Character Select");
+        let quit = ui.button(QUIT_ID, Rect::new(btn_x, btn_y(1), btn_w, btn_h), &QUIT_BTN, "Quit Game");
+        let resume = ui.button(RESUME_ID, Rect::new(btn_x, btn_y(2), btn_w, btn_h), &RESUME_BTN, "Resume");
+
+        if resume.clicked() {
+            self.open = false;
+        }
+        if charselect.clicked() {
+            self.pending_confirm = PendingConfirm::CharacterSelect;
+        }
+        if quit.clicked() {
+            self.pending_confirm = PendingConfirm::QuitGame;
+        }
+    }
+
+    fn build_fallback(&mut self, ui: &mut UiFrame, _events: &mut Vec<GameEvent>) {
         let mx = ((ui.ctx.screen_width - MENU_W) / 2.0).floor();
         let my = ((ui.ctx.screen_height - MENU_H) / 2.0).floor();
 
@@ -106,18 +194,17 @@ impl SystemMenu {
         }
 
         // Buttons
-        let btn_x = mx + (MENU_W - BTN_W) / 2.0;
-        let btn_y = |idx: usize| my + PADDING_TOP + idx as f32 * (BTN_H + BTN_SPACING);
+        let btn_x = mx + (MENU_W - FALLBACK_BTN_W) / 2.0;
+        let btn_y = |idx: usize| my + PADDING_TOP + idx as f32 * (FALLBACK_BTN_H + BTN_SPACING);
 
-        let resume = ui.button(RESUME_ID, Rect::new(btn_x, btn_y(0), BTN_W, BTN_H), &DUMMY_BTN, "Resume");
-        let option = ui.button(OPTION_ID, Rect::new(btn_x, btn_y(1), BTN_W, BTN_H), &DUMMY_BTN, "Option");
-        let charselect = ui.button(CHARSELECT_ID, Rect::new(btn_x, btn_y(2), BTN_W, BTN_H), &DUMMY_BTN, "Character Select");
-        let quit = ui.button(QUIT_ID, Rect::new(btn_x, btn_y(3), BTN_W, BTN_H), &DUMMY_BTN, "Quit Game");
+        let resume = ui.button(RESUME_ID, Rect::new(btn_x, btn_y(0), FALLBACK_BTN_W, FALLBACK_BTN_H), &DUMMY_BTN, "Resume");
+        let option = ui.button(OPTION_ID, Rect::new(btn_x, btn_y(1), FALLBACK_BTN_W, FALLBACK_BTN_H), &DUMMY_BTN, "Option");
+        let charselect = ui.button(CHARSELECT_ID, Rect::new(btn_x, btn_y(2), FALLBACK_BTN_W, FALLBACK_BTN_H), &DUMMY_BTN, "Character Select");
+        let quit = ui.button(QUIT_ID, Rect::new(btn_x, btn_y(3), FALLBACK_BTN_W, FALLBACK_BTN_H), &DUMMY_BTN, "Quit Game");
 
         if resume.clicked() {
             self.open = false;
         }
-        // Option is a no-op for now
         let _ = option;
         if charselect.clicked() {
             self.pending_confirm = PendingConfirm::CharacterSelect;
@@ -125,8 +212,6 @@ impl SystemMenu {
         if quit.clicked() {
             self.pending_confirm = PendingConfirm::QuitGame;
         }
-
-        events
     }
 }
 
@@ -183,10 +268,10 @@ mod tests {
         // Click on the Resume button area
         // Menu is centered at (330, 230) for 800x600 screen, resume btn at y=230+12=242
         let mut ctx = UiContext::new(800.0, 600.0);
-        let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - BTN_W) / 2.0;
+        let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - FALLBACK_BTN_W) / 2.0;
         let btn_y = ((600.0 - MENU_H) / 2.0).floor() + PADDING_TOP;
-        ctx.mouse_x = btn_x + BTN_W / 2.0;
-        ctx.mouse_y = btn_y + BTN_H / 2.0;
+        ctx.mouse_x = btn_x + FALLBACK_BTN_W / 2.0;
+        ctx.mouse_y = btn_y + FALLBACK_BTN_H / 2.0;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.build(&mut ui, true);
@@ -201,10 +286,10 @@ mod tests {
 
         // Click Character Select button (index 2)
         let mut ctx = UiContext::new(800.0, 600.0);
-        let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - BTN_W) / 2.0;
-        let btn_y = ((600.0 - MENU_H) / 2.0).floor() + PADDING_TOP + 2.0 * (BTN_H + BTN_SPACING);
-        ctx.mouse_x = btn_x + BTN_W / 2.0;
-        ctx.mouse_y = btn_y + BTN_H / 2.0;
+        let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - FALLBACK_BTN_W) / 2.0;
+        let btn_y = ((600.0 - MENU_H) / 2.0).floor() + PADDING_TOP + 2.0 * (FALLBACK_BTN_H + BTN_SPACING);
+        ctx.mouse_x = btn_x + FALLBACK_BTN_W / 2.0;
+        ctx.mouse_y = btn_y + FALLBACK_BTN_H / 2.0;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         let events = menu.build(&mut ui, true);
@@ -228,10 +313,10 @@ mod tests {
 
         // Click Quit button (index 3)
         let mut ctx = UiContext::new(800.0, 600.0);
-        let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - BTN_W) / 2.0;
-        let btn_y = ((600.0 - MENU_H) / 2.0).floor() + PADDING_TOP + 3.0 * (BTN_H + BTN_SPACING);
-        ctx.mouse_x = btn_x + BTN_W / 2.0;
-        ctx.mouse_y = btn_y + BTN_H / 2.0;
+        let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - FALLBACK_BTN_W) / 2.0;
+        let btn_y = ((600.0 - MENU_H) / 2.0).floor() + PADDING_TOP + 3.0 * (FALLBACK_BTN_H + BTN_SPACING);
+        ctx.mouse_x = btn_x + FALLBACK_BTN_W / 2.0;
+        ctx.mouse_y = btn_y + FALLBACK_BTN_H / 2.0;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         let events = menu.build(&mut ui, true);
