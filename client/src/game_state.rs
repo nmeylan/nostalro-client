@@ -14,6 +14,7 @@ use ragnarok_game::server_time::ServerTimeClock;
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui_component::chat_window::ChatWindow;
+use ragnarok_ui_component::system_menu::SystemMenu;
 
 pub struct GameState {
     pub app_state: AppState,
@@ -31,6 +32,7 @@ pub struct GameState {
     pub cursor_act: Option<ActFile>,
     pub cursor_animation: CursorAnimationState,
     pub chat_window: ChatWindow,
+    pub system_menu: SystemMenu,
     pub failed_sprite_loads: HashSet<u32>,
     pub server_time: ServerTimeClock,
 }
@@ -53,6 +55,7 @@ impl GameState {
             cursor_act: None,
             cursor_animation: CursorAnimationState::new(),
             chat_window: ChatWindow::new(),
+            system_menu: SystemMenu::new(),
             failed_sprite_loads: HashSet::new(),
             server_time: ServerTimeClock::new(),
         }

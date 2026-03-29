@@ -24,7 +24,7 @@ TODO:
 - Skybox
 
 # UI
-- Chat box (normal, whisper, party, guild channels)
+- ~~Chat box (normal, whisper, party, guild channels)~~
 - Status window (base/job level, stats, stat allocation)
 - Inventory window
 - Equipment window

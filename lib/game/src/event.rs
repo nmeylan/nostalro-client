@@ -63,6 +63,8 @@ pub enum GameEvent {
     },
     BackToLogin,
     BackToServerSelect,
+    BackToCharacterSelect,
+    QuitGame,
 
     // Entity lifecycle
     EntitySpawned {

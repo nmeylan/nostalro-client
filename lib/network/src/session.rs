@@ -19,6 +19,7 @@ pub struct Session {
     pub sex: u8,
     pub char_id: u32,
     pub map_name: String,
+    pub char_server_addr: Option<String>,
 }
 
 impl Session {
@@ -32,6 +33,7 @@ impl Session {
             sex: 0,
             char_id: 0,
             map_name: String::new(),
+            char_server_addr: None,
         }
     }
 

@@ -572,8 +572,9 @@ impl App {
                             let addr = format!("{}:{}", ip_u32_to_string(server.ip), server.port);
                             if let Some(tx) = &self.network_cmd_tx {
                                 let _ = tx.send(NetworkCommand::Disconnect);
-                                let _ = tx.send(NetworkCommand::Connect(addr));
-                                if let Some(session) = &self.game.login_session {
+                                let _ = tx.send(NetworkCommand::Connect(addr.clone()));
+                                if let Some(session) = &mut self.game.login_session {
+                                    session.char_server_addr = Some(addr);
                                     let packet = build_char_enter_packet(session);
                                     let _ = tx.send(NetworkCommand::SendPacket(packet));
                                     let _ = tx.send(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer { account_id: session.account_id }));
@@ -596,6 +597,7 @@ impl App {
                 GameEvent::BackToServerSelect => {
                     self.game.app_state = AppState::ServerSelect;
                     self.char_select_window = None;
+                    self.game.system_menu.open = false;
                     if let Some(tx) = &self.network_cmd_tx {
                         let _ = tx.send(NetworkCommand::Disconnect);
                     }
@@ -605,9 +607,29 @@ impl App {
                     self.server_list_window = None;
                     self.char_select_window = None;
                     self.game.login_session = None;
+                    self.game.system_menu.open = false;
                     if let Some(tx) = &self.network_cmd_tx {
                         let _ = tx.send(NetworkCommand::Disconnect);
                     }
+                }
+                GameEvent::BackToCharacterSelect => {
+                    self.game.system_menu.open = false;
+                    self.char_select_window = None;
+                    let reconnected = self.reconnect_to_char_server();
+                    if !reconnected {
+                        self.game.app_state = AppState::Login;
+                        self.server_list_window = None;
+                        self.game.login_session = None;
+                        if let Some(tx) = &self.network_cmd_tx {
+                            let _ = tx.send(NetworkCommand::Disconnect);
+                        }
+                    }
+                }
+                GameEvent::QuitGame => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let _ = tx.send(NetworkCommand::Disconnect);
+                    }
+                    event_loop.exit();
                 }
                 GameEvent::RequestSendChat { message } => {
                     if message.starts_with('/') {
@@ -716,7 +738,13 @@ impl App {
                         ui_ctx, &renderer.font_atlas, &mut self.ui_state_cache, elapsed,
                         false, initial_focus,
                     );
-                    let events = self.game.chat_window.build(&mut ui);
+                    let chat_was_active = self.game.chat_window.is_active();
+                    let mut events = self.game.chat_window.build(&mut ui);
+
+                    let allow_escape = !chat_was_active;
+                    let menu_events = self.game.system_menu.build(&mut ui, allow_escape);
+                    events.extend(menu_events);
+
                     let any_hovered = ui.any_hovered;
                     (ui.draw_calls, events, any_hovered)
                 } else {
@@ -789,7 +817,8 @@ impl App {
                     entity.animation.set_action(action);
                 }
                 entity.animation.set_direction(entity.direction);
-                let animated = SpriteActionType::from_index(entity.animation.action())
+                let is_composite = entity.entity_type == EntityType::Player;
+                let animated = !is_composite || SpriteActionType::from_index(entity.animation.action())
                     .is_none_or(|a| a.is_animated());
                 if animated {
                     entity.animation.update(delta, &sprite.body_act, dir);
@@ -992,7 +1021,7 @@ impl ApplicationHandler for App {
                                     self.input.mouse_position.0 as f32,
                                     self.input.mouse_position.1 as f32,
                                 );
-                                if !mouse_on_chat {
+                                if !mouse_on_chat && !self.game.system_menu.open {
                                     self.handle_left_click();
                                     self.input.walk_packet_cooldown = 0.5;
                                     self.input.walk_server_acked = false;
@@ -1037,6 +1066,7 @@ impl ApplicationHandler for App {
                 if event.state == ElementState::Pressed
                     && self.game.app_state == AppState::InGame
                     && !self.game.chat_window.is_active()
+                    && !self.game.system_menu.open
                 {
                     match event.physical_key {
                         PhysicalKey::Code(KeyCode::F11) => {

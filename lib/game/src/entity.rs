@@ -126,14 +126,23 @@ impl Entity {
     }
 
     pub fn action_index(&self) -> usize {
-        match self.state {
-            EntityState::Standing => 0,
-            EntityState::Moving => 1,
-            EntityState::Sitting => 2,
-            EntityState::Pickup => 3,
-            EntityState::Attacking => 5,
-            EntityState::Hurt => 6,
-            EntityState::Dead => 8,
+        match self.entity_type {
+            EntityType::Player => match self.state {
+                EntityState::Standing => 0,
+                EntityState::Moving => 1,
+                EntityState::Sitting => 2,
+                EntityState::Pickup => 3,
+                EntityState::Attacking => 5,
+                EntityState::Hurt => 6,
+                EntityState::Dead => 8,
+            },
+            EntityType::Monster | EntityType::Npc => match self.state {
+                EntityState::Standing | EntityState::Sitting | EntityState::Pickup => 0,
+                EntityState::Moving => 1,
+                EntityState::Attacking => 2,
+                EntityState::Hurt => 3,
+                EntityState::Dead => 4,
+            },
         }
     }
 }
@@ -152,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn action_index_maps_states_to_sprite_actions() {
+    fn action_index_maps_states_to_player_sprite_actions() {
         let mut e = make_entity();
         assert_eq!(e.action_index(), 0);
         e.state = EntityState::Moving;
@@ -167,6 +176,20 @@ mod tests {
         assert_eq!(e.action_index(), 6);
         e.state = EntityState::Dead;
         assert_eq!(e.action_index(), 8);
+    }
+
+    #[test]
+    fn action_index_maps_states_to_monster_sprite_actions() {
+        let mut e = Entity::new(2, EntityType::Monster, 1002, 0, 0, 0, 0, 0, 0, 0, 0, 100, 100, 0, 200);
+        assert_eq!(e.action_index(), 0);
+        e.state = EntityState::Moving;
+        assert_eq!(e.action_index(), 1);
+        e.state = EntityState::Attacking;
+        assert_eq!(e.action_index(), 2);
+        e.state = EntityState::Hurt;
+        assert_eq!(e.action_index(), 3);
+        e.state = EntityState::Dead;
+        assert_eq!(e.action_index(), 4);
     }
 
     #[test]
