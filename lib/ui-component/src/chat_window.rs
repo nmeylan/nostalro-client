@@ -72,6 +72,7 @@ const BATTLE_OPT_BTN: &str = "data/texture/유저인터페이스/basic_interface
 const STICKY_BTN: &str = "data/texture/유저인터페이스/basic_interface/stickoff.bmp";
 const MINIMIZE_BTN: &str = "data/texture/유저인터페이스/basic_interface/wnd_mini_b.bmp";
 const LOCK_DRAG_BTN: &str = "data/texture/유저인터페이스/basic_interface/lock_dragwnd.bmp";
+const UNLOCK_DRAG_BTN: &str = "data/texture/유저인터페이스/basic_interface/unlock_dragwnd.bmp";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChatChannel {
@@ -123,10 +124,15 @@ struct ChatWindowState {
     size_index: usize,
     msg_area_h: f32,
     chat_w: f32,
+    pos_x: f32,
+    pos_y: f32,
     scroll_offset: usize,
     initialized: bool,
     chat_mode_on: bool,
     locked: bool,
+    dragging: bool,
+    drag_offset_x: f32,
+    drag_offset_y: f32,
     filter: u8, // ChatFilter encoded as u8 for Default
 }
 
@@ -210,6 +216,7 @@ impl ChatWindow {
             STICKY_BTN,
             MINIMIZE_BTN,
             LOCK_DRAG_BTN,
+            UNLOCK_DRAG_BTN,
         ]
     }
 
@@ -243,6 +250,9 @@ impl ChatWindow {
             state.size_index = DEFAULT_SIZE_INDEX;
             state.msg_area_h = SIZE_CYCLE[DEFAULT_SIZE_INDEX];
             state.chat_w = DEFAULT_CHAT_W;
+            state.pos_x = PADDING;
+            let default_h = SIZE_CYCLE[DEFAULT_SIZE_INDEX] + TOOLBAR_H + INPUT_H;
+            state.pos_y = screen_h - default_h - PADDING;
             state.initialized = true;
         }
 
@@ -264,8 +274,8 @@ impl ChatWindow {
 
         let show_messages = size_index >= 2 && msg_area_h > 0.0;
         let total_h = if show_messages { msg_area_h + TOOLBAR_H + INPUT_H } else { TOOLBAR_H + INPUT_H };
-        let chat_x = PADDING;
-        let chat_y = screen_h - total_h - PADDING;
+        let chat_x = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).pos_x;
+        let chat_y = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).pos_y;
 
         // Read lock state for drag gating
         let drag_locked = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).locked;
@@ -328,10 +338,11 @@ impl ChatWindow {
             }
         }
 
-        // Recalculate layout after drag
+        // Recalculate layout after resize drag
         let show_messages = size_index >= 2 && msg_area_h > 0.0;
         let total_h = if show_messages { msg_area_h + TOOLBAR_H + INPUT_H } else { TOOLBAR_H + INPUT_H };
-        let chat_y = screen_h - total_h - PADDING;
+        let chat_x = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).pos_x;
+        let chat_y = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).pos_y;
 
         self.bounding_rect = Some(Rect::new(chat_x, chat_y, chat_w, total_h));
 
@@ -392,6 +403,27 @@ impl ChatWindow {
 
         // Draw toolbar between messages and input
         self.draw_toolbar(ui, chat_x, toolbar_y, chat_w, filter, locked);
+
+        // Toolbar drag to move window (when unlocked)
+        if !drag_locked {
+            let toolbar_rect = Rect::new(chat_x, toolbar_y, chat_w, TOOLBAR_H);
+            let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
+            if toolbar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) && ui.ctx.mouse_clicked && !state.dragging {
+                state.dragging = true;
+                state.drag_offset_x = ui.ctx.mouse_x - state.pos_x;
+                state.drag_offset_y = ui.ctx.mouse_y - state.pos_y;
+            }
+            if state.dragging {
+                if ui.ctx.mouse_down {
+                    state.pos_x = (ui.ctx.mouse_x - state.drag_offset_x)
+                        .clamp(0.0, ui.ctx.screen_width - chat_w);
+                    state.pos_y = (ui.ctx.mouse_y - state.drag_offset_y)
+                        .clamp(0.0, ui.ctx.screen_height - total_h);
+                } else {
+                    state.dragging = false;
+                }
+            }
+        }
 
         if self.active {
             // Tab switches focus between whisper target and message input
@@ -611,10 +643,11 @@ impl ChatWindow {
         let lock_rect = Rect::new(btn_x, y, TOOLBAR_BTN_SIZE, TOOLBAR_H);
         let lock_resp = ui.interact(LOCK_BTN_ID, lock_rect);
         if self.has_grf_textures {
+            let tex = if locked { LOCK_DRAG_BTN } else { UNLOCK_DRAG_BTN };
             let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, TOOLBAR_BTN_SIZE, TOOLBAR_BTN_SIZE, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(draw::DrawCall {
                 vertices: v.to_vec(), indices: i.to_vec(),
-                texture: draw::TextureRef::Named(LOCK_DRAG_BTN.to_string()),
+                texture: draw::TextureRef::Named(tex.to_string()),
             });
         } else {
             let color = if locked { [0.6, 0.3, 0.3, 1.0] } else if lock_resp.hovered() { [0.5, 0.5, 0.6, 1.0] } else { [0.3, 0.3, 0.4, 1.0] };
