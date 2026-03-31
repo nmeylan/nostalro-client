@@ -31,10 +31,13 @@ pub struct GameState {
     pub cursor_textures: Option<SpriteTextures>,
     pub cursor_act: Option<ActFile>,
     pub cursor_animation: CursorAnimationState,
+    pub emotion_textures: Option<SpriteTextures>,
+    pub emotion_act: Option<ActFile>,
     pub chat_window: ChatWindow,
     pub system_menu: SystemMenu,
     pub failed_sprite_loads: HashSet<u32>,
     pub server_time: ServerTimeClock,
+    pub attack_range: i16,
 }
 
 impl GameState {
@@ -54,10 +57,13 @@ impl GameState {
             cursor_textures: None,
             cursor_act: None,
             cursor_animation: CursorAnimationState::new(),
+            emotion_textures: None,
+            emotion_act: None,
             chat_window: ChatWindow::new(),
             system_menu: SystemMenu::new(),
             failed_sprite_loads: HashSet::new(),
             server_time: ServerTimeClock::new(),
+            attack_range: 1,
         }
     }
 }

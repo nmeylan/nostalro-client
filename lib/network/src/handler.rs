@@ -256,6 +256,69 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::EntityVanished { gid: p.gid }];
     }
 
+    // Character stats & parameters
+    if let Some(p) = any.downcast_ref::<PacketZcParChange>() {
+        return vec![GameEvent::ParameterChanged { var_id: p.var_id, value: p.count }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcStatusValues>() {
+        return vec![GameEvent::StatusChanged {
+            status_type: p.status_type,
+            base: p.default_status,
+            bonus: p.plus_status,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAttackRange>() {
+        return vec![GameEvent::AttackRangeChanged { range: p.current_att_range }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcSpriteChange2>() {
+        return vec![GameEvent::EntitySpriteChanged {
+            gid: p.gid,
+            sprite_type: p.atype,
+            value: p.value,
+            value2: p.value2,
+        }];
+    }
+
+    // Skill casting & emotions
+    if let Some(p) = any.downcast_ref::<PacketZcUseskillAck2>() {
+        return vec![GameEvent::SkillCasting {
+            gid: p.aid,
+            target_gid: p.target_id,
+            skill_id: p.skid,
+            delay_ms: p.delay_time,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcEmotion>() {
+        return vec![GameEvent::EntityEmotion {
+            gid: p.gid,
+            emotion_type: p.atype,
+        }];
+    }
+
+    // Acknowledged but not yet used (no UI)
+    if let Some(p) = any.downcast_ref::<PacketZcAid>() {
+        debug!("zone server confirmed AID={}", p.aid);
+        return vec![GameEvent::Acknowledged];
+    }
+    if any.downcast_ref::<PacketHcBlockCharacter>().is_some() {
+        return vec![GameEvent::Acknowledged];
+    }
+    if any.downcast_ref::<PacketPincodeLoginstate>().is_some() {
+        return vec![GameEvent::Acknowledged];
+    }
+    if any.downcast_ref::<PacketZcFriendsList>().is_some() {
+        return vec![GameEvent::Acknowledged];
+    }
+    if any.downcast_ref::<PacketZcSkillinfoList>().is_some() {
+        return vec![GameEvent::Acknowledged];
+    }
+    if any.downcast_ref::<PacketZcShortcutKeyListV2>().is_some() {
+        return vec![GameEvent::Acknowledged];
+    }
+    if any.downcast_ref::<PacketZcNotifyMapproperty>().is_some() {
+        return vec![GameEvent::Acknowledged];
+    }
+
     debug!("unhandled packet: {}", packet.name());
     vec![]
 }
@@ -584,6 +647,119 @@ mod tests {
                 assert_eq!(name, "Poring");
             }
             other => panic!("expected EntityNameReceived, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_par_change_returns_parameter_changed() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcParChange::new(packetver);
+        pkt.set_var_id(5); // HP
+        pkt.set_count(441);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::ParameterChanged { var_id, value } => {
+                assert_eq!(*var_id, 5);
+                assert_eq!(*value, 441);
+            }
+            other => panic!("expected ParameterChanged, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_sprite_change2_returns_entity_sprite_changed() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcSpriteChange2::new(packetver);
+        pkt.set_gid(150000);
+        pkt.set_atype(2); // weapon
+        pkt.set_value(1);
+        pkt.set_value2(0);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::EntitySpriteChanged { gid, sprite_type, value, value2 } => {
+                assert_eq!(*gid, 150000);
+                assert_eq!(*sprite_type, 2);
+                assert_eq!(*value, 1);
+                assert_eq!(*value2, 0);
+            }
+            other => panic!("expected EntitySpriteChanged, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_attack_range_returns_attack_range_changed() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcAttackRange::new(packetver);
+        pkt.set_current_att_range(2);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::AttackRangeChanged { range } => assert_eq!(*range, 2),
+            other => panic!("expected AttackRangeChanged, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_acknowledged_packets_return_acknowledged() {
+        let packetver = 20120307;
+
+        let mut pkt = PacketZcAid::new(packetver);
+        pkt.set_aid(200000);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        assert!(matches!(result[0], GameEvent::Acknowledged));
+
+        let mut pkt = PacketZcNotifyMapproperty::new(packetver);
+        pkt.set_atype(0);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        assert!(matches!(result[0], GameEvent::Acknowledged));
+    }
+
+    #[test]
+    fn dispatch_useskill_ack2_returns_skill_casting() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcUseskillAck2::new(packetver);
+        pkt.set_aid(150000);
+        pkt.set_target_id(200000);
+        pkt.set_skid(10);
+        pkt.set_delay_time(2000);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::SkillCasting { gid, target_gid, skill_id, delay_ms } => {
+                assert_eq!(*gid, 150000);
+                assert_eq!(*target_gid, 200000);
+                assert_eq!(*skill_id, 10);
+                assert_eq!(*delay_ms, 2000);
+            }
+            other => panic!("expected SkillCasting, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_emotion_returns_entity_emotion() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcEmotion::new(packetver);
+        pkt.set_gid(42);
+        pkt.set_atype(1);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::EntityEmotion { gid, emotion_type } => {
+                assert_eq!(*gid, 42);
+                assert_eq!(*emotion_type, 1);
+            }
+            other => panic!("expected EntityEmotion, got {other:?}"),
         }
     }
 }

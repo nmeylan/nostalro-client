@@ -470,6 +470,77 @@ impl App {
                             self.game.server_time.on_server_tick(server_tick, local_now_ms, local_send_time_ms);
                         }
                     }
+                    GameEvent::ParameterChanged { var_id, value } => {
+                        match var_id {
+                            0 => {
+                                if let Some(entity) = self.game.entities.player_mut() {
+                                    entity.speed = value as u16;
+                                    entity.movement.set_speed(value as u16);
+                                }
+                            }
+                            5 => { if let Some(c) = &mut self.game.selected_character { c.hp = value as u32; } }
+                            6 => { if let Some(c) = &mut self.game.selected_character { c.max_hp = value as u32; } }
+                            7 => { if let Some(c) = &mut self.game.selected_character { c.sp = value as u16; } }
+                            8 => { if let Some(c) = &mut self.game.selected_character { c.max_sp = value as u16; } }
+                            11 => { if let Some(c) = &mut self.game.selected_character { c.base_level = value as u16; } }
+                            13 => { if let Some(c) = &mut self.game.selected_character { c.str = value as u8; } }
+                            14 => { if let Some(c) = &mut self.game.selected_character { c.agi = value as u8; } }
+                            15 => { if let Some(c) = &mut self.game.selected_character { c.vit = value as u8; } }
+                            16 => { if let Some(c) = &mut self.game.selected_character { c.int = value as u8; } }
+                            17 => { if let Some(c) = &mut self.game.selected_character { c.dex = value as u8; } }
+                            18 => { if let Some(c) = &mut self.game.selected_character { c.luk = value as u8; } }
+                            41 => { if let Some(c) = &mut self.game.selected_character { c.job_level = value as u32; } }
+                            _ => {}
+                        }
+                    }
+                    GameEvent::StatusChanged { status_type, base, .. } => {
+                        if let Some(c) = &mut self.game.selected_character {
+                            match status_type {
+                                13 => c.str = base as u8,
+                                14 => c.agi = base as u8,
+                                15 => c.vit = base as u8,
+                                16 => c.int = base as u8,
+                                17 => c.dex = base as u8,
+                                18 => c.luk = base as u8,
+                                _ => {}
+                            }
+                        }
+                    }
+                    GameEvent::AttackRangeChanged { range } => {
+                        self.game.attack_range = range;
+                    }
+                    GameEvent::EntitySpriteChanged { gid, sprite_type, value, .. } => {
+                        if let Some(entity) = self.game.entities.get_mut(gid) {
+                            entity.apply_sprite_change(sprite_type, value);
+                            let (job, sex, head, weapon, shield, head_top, head_mid, head_bottom, hair_color) = {
+                                (entity.job, entity.sex, entity.head,
+                                 entity.weapon.map(|w| w as u16).unwrap_or(0),
+                                 entity.shield, entity.head_top, entity.head_mid,
+                                 entity.head_bottom, entity.hair_color)
+                            };
+                            let entity_type = entity.entity_type;
+                            let is_player = self.game.entities.player_id() == Some(gid);
+                            if is_player {
+                                let weapon_type = weapon_view_id_to_type(weapon);
+                                self.load_player_sprite(gid, job, sex, head, weapon_type, head_top, head_mid, head_bottom, shield);
+                            } else {
+                                self.load_entity_sprite(gid, entity_type, job, sex, head, weapon,
+                                                        shield, head_top, head_mid, head_bottom,
+                                                        hair_color, 0);
+                            }
+                        }
+                    }
+                    GameEvent::SkillCasting { gid, delay_ms, .. } => {
+                        if let Some(entity) = self.game.entities.get_mut(gid) {
+                            let duration = (delay_ms as f32 / 1000.0).max(0.3);
+                            entity.enter_attack(duration);
+                        }
+                    }
+                    GameEvent::EntityEmotion { gid, emotion_type } => {
+                        if let Some(entity) = self.game.entities.get_mut(gid) {
+                            entity.emotion = Some(ragnarok_game::entity::EmotionState::new(emotion_type));
+                        }
+                    }
                     GameEvent::Disconnected(reason) => {
                         self.game.server_time.reset();
                         if reason == "User exit" {
@@ -582,6 +653,24 @@ impl App {
             if let Some(window) = &self.window {
                 window.set_cursor_visible(false);
             }
+        }
+    }
+
+    fn load_emotion_sprite(&mut self, grf: &GrfArchive) {
+        let renderer = match &self.renderer {
+            Some(r) => r,
+            None => return,
+        };
+        if let Some(sprite_data) = sprite_loader::load_emotion_sprite(grf) {
+            let textures = upload_sprite_textures(
+                &sprite_data.images,
+                sprite_data.indexed_count,
+                &renderer.device.device,
+                &renderer.device.queue,
+                &renderer.texture_cache.bind_group_layout,
+            );
+            self.game.emotion_textures = Some(textures);
+            self.game.emotion_act = Some(sprite_data.act);
         }
     }
 
@@ -1035,6 +1124,7 @@ impl ApplicationHandler for App {
                     }
 
                     self.load_cursor_sprite(&grf);
+                    self.load_emotion_sprite(&grf);
                     self.game.accessory_table = Some(ragnarok_game::accessory_table::AccessoryTable::load_from_grf(&grf));
                     self.game.name_table = Some(NameTable::load(&grf));
                     self.grf = Some(grf);
@@ -1232,6 +1322,36 @@ impl ApplicationHandler for App {
                             sprite_batches.append(&mut shadow);
                             let mut batches = sprite.build_batches(&entity.animation, Some(entry.camera_dir), entity.head_dir, entry.screen_center, entry.depth, entry.sprite_scale);
                             sprite_batches.append(&mut batches);
+
+                            if let (Some(emo), Some(emo_act), Some(emo_tex)) =
+                                (&entity.emotion, &self.game.emotion_act, &self.game.emotion_textures)
+                            {
+                                let action_idx = emo.emotion_type as usize;
+                                if action_idx < emo_act.actions.len() {
+                                    let delay_ms = emo_act.delays.get(action_idx)
+                                        .map(|d| d * 25.0)
+                                        .filter(|d| *d > 0.0)
+                                        .unwrap_or(150.0);
+                                    let motion_count = emo_act.actions[action_idx].motions.len();
+                                    let motion_idx = if motion_count > 0 {
+                                        ((emo.elapsed * 1000.0) / delay_ms) as usize % motion_count
+                                    } else { 0 };
+                                    if motion_idx < motion_count {
+                                        let motion = &emo_act.actions[action_idx].motions[motion_idx];
+                                        let emo_center = [entry.screen_center[0], entry.screen_center[1] - 100.0];
+                                        for clip in &motion.clips {
+                                            if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, emo_tex, emo_center, entry.depth, [0, 0]) {
+                                                if tex_idx < emo_tex.bind_groups.len() {
+                                                    sprite_batches.push(SpriteBatch {
+                                                        vertices, indices,
+                                                        texture: &emo_tex.bind_groups[tex_idx],
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 

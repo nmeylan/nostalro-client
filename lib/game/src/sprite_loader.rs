@@ -127,6 +127,11 @@ pub fn load_shadow_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     load_sprite_data(grf, "data/sprite/shadow.spr", "data/sprite/shadow.act")
 }
 
+pub fn load_emotion_sprite(grf: &GrfArchive) -> Option<SpriteData> {
+    load_sprite_data(grf, "data/sprite/이팩트/emotion.spr",
+                     "data/sprite/이팩트/emotion.act")
+}
+
 pub struct SimpleEntitySpriteData {
     pub body: SpriteData,
     pub shadow: Option<SpriteData>,

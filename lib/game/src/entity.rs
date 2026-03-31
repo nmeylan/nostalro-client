@@ -22,6 +22,23 @@ pub enum EntityState {
     Pickup,
 }
 
+pub struct EmotionState {
+    pub emotion_type: u8,
+    pub elapsed: f32,
+}
+
+impl EmotionState {
+    pub const DISPLAY_DURATION: f32 = 2.5;
+
+    pub fn new(emotion_type: u8) -> Self {
+        Self { emotion_type, elapsed: 0.0 }
+    }
+
+    pub fn is_expired(&self) -> bool {
+        self.elapsed >= Self::DISPLAY_DURATION
+    }
+}
+
 pub struct Entity {
     pub id: u32,
     pub entity_type: EntityType,
@@ -43,6 +60,7 @@ pub struct Entity {
     pub state_timer: f32,
     pub movement: MovementState,
     pub animation: SpriteAnimationState,
+    pub emotion: Option<EmotionState>,
 }
 
 impl Entity {
@@ -69,6 +87,7 @@ impl Entity {
             state_timer: 0.0,
             movement,
             animation: SpriteAnimationState::new(direction),
+            emotion: None,
         }
     }
 
@@ -77,6 +96,13 @@ impl Entity {
     }
 
     pub fn update_state(&mut self, dt: f32) {
+        if let Some(emo) = &mut self.emotion {
+            emo.elapsed += dt;
+            if emo.is_expired() {
+                self.emotion = None;
+            }
+        }
+
         if self.state == EntityState::Dead {
             return;
         }
@@ -127,6 +153,20 @@ impl Entity {
         }
         self.state = EntityState::Pickup;
         self.state_timer = duration_secs;
+    }
+
+    pub fn apply_sprite_change(&mut self, sprite_type: u8, value: u16) {
+        match sprite_type {
+            0 => self.job = value,
+            1 => self.head = value,
+            2 => self.weapon = weapon_view_id_to_type(value),
+            3 => self.head_bottom = value,
+            4 => self.head_top = value,
+            5 => self.head_mid = value,
+            6 => self.hair_color = value,
+            8 => self.shield = value,
+            _ => {}
+        }
     }
 
     pub fn action_index(&self) -> usize {
@@ -258,5 +298,37 @@ mod tests {
 
         e.enter_hurt(0.5);
         assert_eq!(e.state, EntityState::Attacking);
+    }
+
+    #[test]
+    fn apply_sprite_change_updates_entity_fields() {
+        let mut e = make_entity();
+        e.apply_sprite_change(0, 4001); // job
+        assert_eq!(e.job, 4001);
+        e.apply_sprite_change(1, 5); // head
+        assert_eq!(e.head, 5);
+        e.apply_sprite_change(3, 10); // head_bottom (accessory)
+        assert_eq!(e.head_bottom, 10);
+        e.apply_sprite_change(4, 20); // head_top (accessory2)
+        assert_eq!(e.head_top, 20);
+        e.apply_sprite_change(5, 30); // head_mid (accessory3)
+        assert_eq!(e.head_mid, 30);
+        e.apply_sprite_change(6, 3); // hair_color
+        assert_eq!(e.hair_color, 3);
+        e.apply_sprite_change(8, 2); // shield
+        assert_eq!(e.shield, 2);
+    }
+
+    #[test]
+    fn emotion_expires_after_duration() {
+        let mut e = make_entity();
+        e.emotion = Some(super::EmotionState::new(0));
+        assert!(e.emotion.is_some());
+
+        e.update_state(1.0);
+        assert!(e.emotion.is_some());
+
+        e.update_state(1.6);
+        assert!(e.emotion.is_none());
     }
 }

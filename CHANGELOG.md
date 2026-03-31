@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- Show emotion bubbles above entities (heart, sweat, question mark, etc.)
+- Handle skill casting: entities enter cast animation for the casting duration
+- Handle character stat updates from server (HP, SP, level, base stats)
+- Handle entity appearance changes: equipment and job changes from other players update in real-time
+- Handle attack range updates from server
+- Acknowledge pincode, friends list, skill list, shortcut keys, map property, and blocked character packets
 - Add network latency compensation: client synchronizes with server time for accurate entity movement timing
 - Add `enhanced_lag_compensation` config option for RTT averaging (off by default)
 - Add `debug_network_delay_ms` config option to simulate network latency for testing

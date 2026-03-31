@@ -122,6 +122,16 @@ pub enum GameEvent {
         name: String,
     },
 
+    // Stats & parameters
+    ParameterChanged { var_id: u16, value: i32 },
+    StatusChanged { status_type: u32, base: i32, bonus: i32 },
+    AttackRangeChanged { range: i16 },
+    EntitySpriteChanged { gid: u32, sprite_type: u8, value: u16, value2: u16 },
+
+    // Effects
+    SkillCasting { gid: u32, target_gid: u32, skill_id: u16, delay_ms: u32 },
+    EntityEmotion { gid: u32, emotion_type: u8 },
+
     // Chat
     ChatMessage {
         message: String,
@@ -132,6 +142,9 @@ pub enum GameEvent {
     RequestSendChat {
         message: String,
     },
+
+    // No-op acknowledgement (packet parsed but no action needed yet)
+    Acknowledged,
 }
 
 #[derive(Debug, Clone)]
