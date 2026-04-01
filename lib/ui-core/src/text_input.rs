@@ -94,6 +94,17 @@ mod tests {
     }
 
     #[test]
+    fn space_inserted_in_text() {
+        let mut input = TextInput::new(24, false);
+        let mut ctx = make_ctx();
+        ctx.typed_chars = vec!['h', 'i', ' ', 'y', 'o'];
+
+        input.process_keys(&ctx);
+        assert_eq!(input.text, "hi yo");
+        assert_eq!(input.cursor_pos, 5);
+    }
+
+    #[test]
     fn backspace_removes_before_cursor() {
         let mut input = TextInput::new(24, false);
         input.text = "abc".to_string();

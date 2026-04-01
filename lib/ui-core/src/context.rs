@@ -94,6 +94,7 @@ impl UiContext {
                         Key::Named(NamedKey::ArrowUp) => self.key_up = true,
                         Key::Named(NamedKey::ArrowDown) => self.key_down = true,
                         Key::Named(NamedKey::F10) => self.key_f10 = true,
+                        Key::Named(NamedKey::Space) => self.typed_chars.push(' '),
                         Key::Character(_) => {
                             if let Some(text) = &event.text {
                                 for ch in text.chars() {

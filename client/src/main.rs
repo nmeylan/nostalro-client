@@ -145,7 +145,7 @@ impl App {
         };
 
         let (src_x, src_y) = self.game.entities.player()
-            .map(|e| e.movement.cell_position())
+           .map(|e| e.movement.cell_position())
             .unwrap_or((0, 0));
 
         let move_action = match try_move_to(gat, src_x, src_y, dest_x, dest_y) {

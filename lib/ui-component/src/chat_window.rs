@@ -18,6 +18,7 @@ const MINIMIZE_BTN_ID: WidgetId = WidgetId(315);
 const LOCK_BTN_ID: WidgetId = WidgetId(316);
 
 const MAX_MESSAGES: usize = 100;
+const MAX_HISTORY: usize = 32;
 const MAX_INPUT_LEN: usize = 100;
 const MAX_WHISPER_NAME_LEN: usize = 24;
 const WHISPER_INPUT_W: f32 = 90.0;
@@ -177,6 +178,9 @@ pub struct ChatWindow {
     pub has_grf_textures: bool,
     pub focused_input: WidgetId,
     bounding_rect: Option<Rect>,
+    sent_history: Vec<String>,
+    history_index: Option<usize>,
+    draft: String,
 }
 
 impl ChatWindow {
@@ -189,6 +193,9 @@ impl ChatWindow {
             has_grf_textures: false,
             focused_input: INPUT_ID,
             bounding_rect: None,
+            sent_history: Vec::new(),
+            history_index: None,
+            draft: String::new(),
         }
     }
 
@@ -358,6 +365,14 @@ impl ChatWindow {
             if ui.ctx.key_enter {
                 if !self.input.text.is_empty() {
                     let message = self.input.text.clone();
+                    if self.sent_history.last() != Some(&message) {
+                        self.sent_history.push(message.clone());
+                        if self.sent_history.len() > MAX_HISTORY {
+                            self.sent_history.remove(0);
+                        }
+                    }
+                    self.history_index = None;
+                    self.draft.clear();
                     self.input.text.clear();
                     self.input.cursor_pos = 0;
                     events.push(GameEvent::RequestSendChat { message });
@@ -366,7 +381,48 @@ impl ChatWindow {
             } else if ui.ctx.key_escape {
                 self.input.text.clear();
                 self.input.cursor_pos = 0;
+                self.history_index = None;
+                self.draft.clear();
                 self.active = false;
+            } else {
+                if self.history_index.is_some() && !ui.ctx.typed_chars.is_empty() {
+                    self.history_index = None;
+                }
+
+                if ui.ctx.key_up && !self.sent_history.is_empty() {
+                    match self.history_index {
+                        None => {
+                            self.draft = self.input.text.clone();
+                            self.history_index = Some(0);
+                        }
+                        Some(i) if i + 1 < self.sent_history.len() => {
+                            self.history_index = Some(i + 1);
+                        }
+                        _ => {}
+                    }
+                    if let Some(i) = self.history_index {
+                        let msg = &self.sent_history[self.sent_history.len() - 1 - i];
+                        self.input.text = msg.clone();
+                        self.input.cursor_pos = self.input.text.chars().count();
+                    }
+                }
+
+                if ui.ctx.key_down {
+                    match self.history_index {
+                        Some(0) => {
+                            self.history_index = None;
+                            self.input.text = self.draft.clone();
+                            self.input.cursor_pos = self.input.text.chars().count();
+                        }
+                        Some(i) => {
+                            self.history_index = Some(i - 1);
+                            let msg = &self.sent_history[self.sent_history.len() - 1 - (i - 1)];
+                            self.input.text = msg.clone();
+                            self.input.cursor_pos = self.input.text.chars().count();
+                        }
+                        None => {}
+                    }
+                }
             }
         }
 
@@ -1163,6 +1219,110 @@ mod tests {
 
         let w = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().chat_w;
         assert_eq!(w, initial_w, "Width should not change when locked");
+    }
+
+    #[test]
+    fn chat_input_history_navigation() {
+        let atlas = FontAtlas::from_embedded(14.0);
+        let mut chat = ChatWindow::new();
+        let mut state = StateCache::new();
+
+        // Initialize and activate
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_enter = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui);
+        assert!(chat.active);
+
+        // Send 3 messages
+        let messages = ["hello", "world", "test"];
+        for msg in &messages {
+            chat.active = true;
+            chat.input.text = msg.to_string();
+            chat.input.cursor_pos = msg.len();
+            let mut ctx = UiContext::new(800.0, 600.0);
+            ctx.key_enter = true;
+            let mut ui = make_frame(&ctx, &atlas, &mut state);
+            chat.build(&mut ui);
+        }
+        assert_eq!(chat.sent_history, vec!["hello", "world", "test"]);
+
+        // Activate chat again
+        chat.active = true;
+
+        // Up -> most recent ("test")
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_up = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui);
+        assert_eq!(chat.input.text, "test");
+        assert_eq!(chat.history_index, Some(0));
+
+        // Up -> second most recent ("world")
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_up = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui);
+        assert_eq!(chat.input.text, "world");
+        assert_eq!(chat.history_index, Some(1));
+
+        // Down -> back to most recent ("test")
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui);
+        assert_eq!(chat.input.text, "test");
+        assert_eq!(chat.history_index, Some(0));
+
+        // Down -> back to draft (empty)
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui);
+        assert_eq!(chat.input.text, "");
+        assert!(chat.history_index.is_none());
+
+        // Duplicate suppression: send "test" again
+        chat.active = true;
+        chat.input.text = "test".to_string();
+        chat.input.cursor_pos = 4;
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_enter = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui);
+        assert_eq!(chat.sent_history, vec!["hello", "world", "test"]);
+
+        // Max history cap
+        chat.sent_history.clear();
+        for i in 0..MAX_HISTORY + 5 {
+            chat.active = true;
+            chat.input.text = format!("msg{i}");
+            chat.input.cursor_pos = chat.input.text.len();
+            let mut ctx = UiContext::new(800.0, 600.0);
+            ctx.key_enter = true;
+            let mut ui = make_frame(&ctx, &atlas, &mut state);
+            chat.build(&mut ui);
+        }
+        assert_eq!(chat.sent_history.len(), MAX_HISTORY);
+        assert_eq!(chat.sent_history[0], "msg5");
+
+        // Draft preservation: type something, then browse history
+        chat.active = true;
+        chat.input.text = "draft text".to_string();
+        chat.input.cursor_pos = 10;
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_up = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui);
+        assert_eq!(chat.draft, "draft text");
+        assert_ne!(chat.input.text, "draft text");
+
+        // Down to restore draft
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui);
+        assert_eq!(chat.input.text, "draft text");
     }
 
     #[test]
