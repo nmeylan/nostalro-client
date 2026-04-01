@@ -1,18 +1,19 @@
 TODO:
 
 # Sprite rendering
-- Weapon sprite (attach to body attachInfo[0])
+- ~~Weapon sprite~~ (done — full rendering with ACT animation in sprite.rs)
 - ~~Shield sprite~~ (done — render order fix for direction-based layering)
-- Headgear/accessories (chain: body→head→accessory via attachInfo[0])
+- ~~Headgear/accessories~~ (done — three-layer system: top/mid/bottom)
 - Mount/Peco (costume job swap, loads mounted body sprite)
-- Other players / NPCs / monsters entity sprites
+- ~~Other players / NPCs / monsters entity sprites~~ (done — entity collection manages Player/NPC/Monster types)
 - ~~Doridori head animation~~ (done — head_dir from server selects head/headgear motion)
 - Divide attachment offset by clip zoom for weapons/accessories (dhxj compensates when sprClip zoom != 1.0)
 - Damage numbers display
-- Emotion/emote bubbles
+- ~~Emotion/emote bubbles~~ (done — EmotionState with 2.5s display)
 - Chat bubbles above entities
-- Name / HP bar above entities
-- Shadow under entities
+- ~~Name above entities~~ (done — text with outline rendered above sprites)
+- HP bar above entities
+- ~~Shadow under entities~~ (done — shadow size table for 200+ jobs)
 
 # Rendering
 - STR effects (skill/buff visuals, ~200 effect types)
@@ -51,10 +52,10 @@ TODO:
 - Mail/Rodex
 
 # Entities
-- Multiple entity management (spawn, despawn, update)
+- ~~Multiple entity management (spawn, despawn, update)~~ (done — entity_collection.rs)
 - Other players (full sprite layers)
-- NPCs
-- Monsters
+- ~~NPCs~~ (done — entity type with sprite rendering)
+- ~~Monsters~~ (done — job-based sprites with animation states)
 - Ground items (dropped items with pickup)
 - Skill ground units (AoE, traps)
 - Pet companion rendering
@@ -90,12 +91,12 @@ TODO:
 - Marriage/couples
 
 # Network
-- Chat packets
+- ~~Chat packets~~ (done — multi-channel chat)
 - Combat packets (attack, skill use, damage)
 - Item packets (pickup, drop, use, equip, unequip)
 - Skill packets (cast, execute, ground target)
 - NPC packets (dialog, menu, shop, close)
-- Entity spawn/despawn/update packets
+- ~~Entity spawn/despawn/update packets~~ (done — full spawn/move/vanish/act handling)
 - Status change packets
 - Party/guild packets
 - Trade/vending packets
@@ -109,7 +110,7 @@ TODO:
 - Positional audio (3D sound based on entity distance)
 
 # World
-- Portal/warp transitions
+- ~~Portal/warp transitions~~ (done — MapChanged event with full map reload)
 - Map type properties (PvP zones, no-teleport, no-skill zones)
 - Weather per map
 
