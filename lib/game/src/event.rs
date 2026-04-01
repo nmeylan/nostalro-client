@@ -121,6 +121,11 @@ pub enum GameEvent {
         gid: u32,
         name: String,
     },
+    EntityHpChanged {
+        gid: u32,
+        hp: u32,
+        max_hp: u32,
+    },
 
     // Stats & parameters
     ParameterChanged { var_id: u16, value: i32 },

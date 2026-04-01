@@ -12,7 +12,7 @@ TODO:
 - ~~Emotion/emote bubbles~~ (done — EmotionState with 2.5s display)
 - Chat bubbles above entities
 - ~~Name above entities~~ (done — text with outline rendered above sprites)
-- HP bar above entities
+- ~~HP bar above entities~~ (done — green/yellow/red bar below name, on hover + always for player)
 - ~~Shadow under entities~~ (done — shadow size table for 200+ jobs)
 
 # Rendering

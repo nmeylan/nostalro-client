@@ -456,6 +456,12 @@ impl App {
                             entity.name = Some(name);
                         }
                     }
+                    GameEvent::EntityHpChanged { gid, hp, max_hp } => {
+                        if let Some(entity) = self.game.entities.get_mut(gid) {
+                            entity.hp = Some(hp);
+                            entity.max_hp = Some(max_hp);
+                        }
+                    }
                     GameEvent::ChatMessage { message } => {
                         self.game.chat_window.add_chat(message);
                     }
@@ -478,8 +484,14 @@ impl App {
                                     entity.movement.set_speed(value as u16);
                                 }
                             }
-                            5 => { if let Some(c) = &mut self.game.selected_character { c.hp = value as u32; } }
-                            6 => { if let Some(c) = &mut self.game.selected_character { c.max_hp = value as u32; } }
+                            5 => {
+                                if let Some(c) = &mut self.game.selected_character { c.hp = value as u32; }
+                                if let Some(e) = self.game.entities.player_mut() { e.hp = Some(value as u32); }
+                            }
+                            6 => {
+                                if let Some(c) = &mut self.game.selected_character { c.max_hp = value as u32; }
+                                if let Some(e) = self.game.entities.player_mut() { e.max_hp = Some(value as u32); }
+                            }
                             7 => { if let Some(c) = &mut self.game.selected_character { c.sp = value as u16; } }
                             8 => { if let Some(c) = &mut self.game.selected_character { c.max_sp = value as u16; } }
                             11 => { if let Some(c) = &mut self.game.selected_character { c.base_level = value as u16; } }
@@ -1306,6 +1318,27 @@ impl ApplicationHandler for App {
                                         texture: ragnarok_renderer::UiTextureRef::FontAtlas,
                                     });
                                 }
+                                if let Some(ratio) = entity.hp_percentage() {
+                                    let bar_y = text_y + renderer.font_atlas.line_height * text_scale + 2.0;
+                                    render_hp_bar(entry.screen_center[0], bar_y, entry.sprite_scale, ratio, &mut ui_draw_calls);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Player HP bar (always visible)
+                if let (Some(renderer), Some(player)) = (&self.renderer, self.game.entities.player()) {
+                    if hovered_entity_id != self.game.entities.player_id() {
+                        if let Some(ratio) = player.hp_percentage() {
+                            if let Some(entry) = render_list.iter().find(|e| Some(e.id) == self.game.entities.player_id()) {
+                                let name_y = entry.screen_center[1] + 35.0 * entry.sprite_scale;
+                                let bar_y = if player.name.is_some() {
+                                    name_y + renderer.font_atlas.line_height * entry.sprite_scale + 2.0
+                                } else {
+                                    name_y
+                                };
+                                render_hp_bar(entry.screen_center[0], bar_y, entry.sprite_scale, ratio, &mut ui_draw_calls);
                             }
                         }
                     }
@@ -1381,6 +1414,39 @@ impl ApplicationHandler for App {
             _ => {}
         }
     }
+}
+
+fn hp_bar_color(ratio: f32) -> [f32; 4] {
+    if ratio > 0.5 { [0.2, 0.8, 0.2, 1.0] }
+    else if ratio > 0.25 { [0.9, 0.8, 0.1, 1.0] }
+    else { [0.9, 0.2, 0.2, 1.0] }
+}
+
+fn render_hp_bar(center_x: f32, y: f32, sprite_scale: f32, ratio: f32, draw_calls: &mut Vec<UiDrawCall>) {
+    let bar_w = 60.0 * sprite_scale;
+    let bar_h = 5.0 * sprite_scale;
+    let padding = 1.0 * sprite_scale;
+    let bg_w = bar_w + padding * 2.0;
+    let bg_h = bar_h + padding * 2.0;
+    let bg_x = center_x - bg_w / 2.0;
+
+    let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(bg_x, y, bg_w, bg_h, [0.1, 0.1, 0.1, 0.8]);
+    draw_calls.push(UiDrawCall {
+        vertices: bg_verts.to_vec(),
+        indices: bg_idx.to_vec(),
+        texture: ragnarok_renderer::UiTextureRef::White,
+    });
+
+    let fill_ratio = ratio.clamp(0.0, 1.0);
+    let fill_w = bar_w * fill_ratio;
+    let fill_x = bg_x + padding;
+    let fill_y = y + padding;
+    let (fill_verts, fill_idx) = ragnarok_ui::draw::quad_vertices(fill_x, fill_y, fill_w, bar_h, hp_bar_color(ratio));
+    draw_calls.push(UiDrawCall {
+        vertices: fill_verts.to_vec(),
+        indices: fill_idx.to_vec(),
+        texture: ragnarok_renderer::UiTextureRef::White,
+    });
 }
 
 fn main() {

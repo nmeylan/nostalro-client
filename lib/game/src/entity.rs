@@ -53,6 +53,8 @@ pub struct Entity {
     pub shield: u16,
     pub name: Option<String>,
     pub name_requested: bool,
+    pub hp: Option<u32>,
+    pub max_hp: Option<u32>,
     pub direction: u8,
     pub head_dir: u8,
     pub speed: u16,
@@ -82,6 +84,8 @@ impl Entity {
             head_top, head_mid, head_bottom, shield,
             name: None,
             name_requested: false,
+            hp: None,
+            max_hp: None,
             direction, head_dir: direction, speed,
             state: EntityState::Standing,
             state_timer: 0.0,
@@ -166,6 +170,13 @@ impl Entity {
             6 => self.hair_color = value,
             8 => self.shield = value,
             _ => {}
+        }
+    }
+
+    pub fn hp_percentage(&self) -> Option<f32> {
+        match (self.hp, self.max_hp) {
+            (Some(hp), Some(max_hp)) if max_hp > 0 => Some(hp as f32 / max_hp as f32),
+            _ => None,
         }
     }
 
@@ -317,6 +328,19 @@ mod tests {
         assert_eq!(e.hair_color, 3);
         e.apply_sprite_change(8, 2); // shield
         assert_eq!(e.shield, 2);
+    }
+
+    #[test]
+    fn hp_percentage_returns_ratio_or_none() {
+        let mut e = make_entity();
+        assert!(e.hp_percentage().is_none());
+
+        e.hp = Some(75);
+        e.max_hp = Some(100);
+        assert!((e.hp_percentage().unwrap() - 0.75).abs() < f32::EPSILON);
+
+        e.max_hp = Some(0);
+        assert!(e.hp_percentage().is_none());
     }
 
     #[test]

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Show HP bar above entities (green/yellow/red based on health, visible on hover and always for player)
 - Show emotion bubbles above entities (heart, sweat, question mark, etc.)
 - Handle skill casting: entities enter cast animation for the casting duration
 - Handle character stat updates from server (HP, SP, level, base stats)

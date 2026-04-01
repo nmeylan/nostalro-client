@@ -295,6 +295,22 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
+    // Party member HP notifications
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyHpToGroupm>() {
+        return vec![GameEvent::EntityHpChanged {
+            gid: p.aid,
+            hp: p.hp as u32,
+            max_hp: p.maxhp as u32,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyHpToGroupmR2>() {
+        return vec![GameEvent::EntityHpChanged {
+            gid: p.aid,
+            hp: p.hp as u32,
+            max_hp: p.maxhp as u32,
+        }];
+    }
+
     // Acknowledged but not yet used (no UI)
     if let Some(p) = any.downcast_ref::<PacketZcAid>() {
         debug!("zone server confirmed AID={}", p.aid);
@@ -742,6 +758,26 @@ mod tests {
                 assert_eq!(*delay_ms, 2000);
             }
             other => panic!("expected SkillCasting, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_notify_hp_to_groupm_returns_entity_hp_changed() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcNotifyHpToGroupm::new(packetver);
+        pkt.set_aid(42);
+        pkt.set_hp(350);
+        pkt.set_maxhp(500);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::EntityHpChanged { gid, hp, max_hp } => {
+                assert_eq!(*gid, 42);
+                assert_eq!(*hp, 350);
+                assert_eq!(*max_hp, 500);
+            }
+            other => panic!("expected EntityHpChanged, got {other:?}"),
         }
     }
 
