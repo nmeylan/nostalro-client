@@ -1,0 +1,511 @@
+use ragnarok_game::event::GameEvent;
+use ragnarok_game::npc_dialog::{NpcDialogData, NpcDialogState};
+use ragnarok_ui::draw::{self, strip_color_codes, DrawCall, TextureRef};
+use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
+use ragnarok_ui::rect::Rect;
+use ragnarok_ui::text_input::TextInput;
+
+const OVERLAY_ID: WidgetId = WidgetId(600);
+const NEXT_BTN_ID: WidgetId = WidgetId(601);
+const CLOSE_BTN_ID: WidgetId = WidgetId(602);
+const INPUT_ID: WidgetId = WidgetId(603);
+const OK_BTN_ID: WidgetId = WidgetId(604);
+const CANCEL_BTN_ID: WidgetId = WidgetId(605);
+const MENU_OK_BTN_ID: WidgetId = WidgetId(606);
+const BUY_BTN_ID: WidgetId = WidgetId(607);
+const SELL_BTN_ID: WidgetId = WidgetId(608);
+const DEAL_CANCEL_BTN_ID: WidgetId = WidgetId(609);
+const MENU_BASE_ID: u32 = 620;
+
+const DIALOG_W: f32 = 276.0;
+const DIALOG_H: f32 = 176.0;
+const MENU_W: f32 = 276.0;
+const MENU_MIN_H: f32 = 116.0;
+const PADDING: f32 = 8.0;
+const TEXT_LINE_HEIGHT: f32 = 16.0;
+const MENU_ITEM_HEIGHT: f32 = 18.0;
+const FALLBACK_BTN_W: f32 = 42.0;
+const FALLBACK_BTN_H: f32 = 20.0;
+
+const NEXT_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/btn_next.bmp",
+    hover: "data/texture/유저인터페이스/btn_next_a.bmp",
+    pressed: "data/texture/유저인터페이스/btn_next_b.bmp",
+};
+
+const CLOSE_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/btn_close.bmp",
+    hover: "data/texture/유저인터페이스/btn_close_a.bmp",
+    pressed: "data/texture/유저인터페이스/btn_close_b.bmp",
+};
+
+const OK_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/btn_ok.bmp",
+    hover: "data/texture/유저인터페이스/btn_ok_a.bmp",
+    pressed: "data/texture/유저인터페이스/btn_ok_b.bmp",
+};
+
+const CANCEL_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/btn_cancel.bmp",
+    hover: "data/texture/유저인터페이스/btn_cancel_a.bmp",
+    pressed: "data/texture/유저인터페이스/btn_cancel_b.bmp",
+};
+
+pub struct NpcDialog {
+    pub has_grf_textures: bool,
+    pub dialog: NpcDialogData,
+    pub number_input: TextInput,
+    pub string_input: TextInput,
+    btn_size: (f32, f32),
+}
+
+impl NpcDialog {
+    pub fn new() -> Self {
+        Self {
+            has_grf_textures: false,
+            dialog: NpcDialogData::new(),
+            number_input: TextInput::new(10, false),
+            string_input: TextInput::new(70, false),
+            btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
+        }
+    }
+
+    pub fn set_texture_sizes(&mut self, size_fn: impl Fn(&str) -> Option<(u32, u32)>) {
+        if let Some((w, h)) = size_fn(NEXT_BTN.normal) {
+            self.btn_size = (w as f32, h as f32);
+        }
+    }
+
+    pub fn build(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
+        if !self.dialog.is_open() {
+            return Vec::new();
+        }
+
+        let mut events = Vec::new();
+        let state = self.dialog.state;
+
+        // Keyboard shortcuts
+        match state {
+            NpcDialogState::WaitingForNext => {
+                if ui.ctx.key_enter {
+                    events.push(GameEvent::RequestNpcNext { npc_id: self.dialog.npc_id });
+                    self.dialog.advance_next();
+                    return events;
+                }
+            }
+            NpcDialogState::WaitingForClose => {
+                if ui.ctx.key_enter || ui.ctx.key_escape {
+                    events.push(GameEvent::RequestNpcClose { npc_id: self.dialog.npc_id });
+                    self.dialog.close();
+                    return events;
+                }
+            }
+            NpcDialogState::WaitingForMenu => {
+                if ui.ctx.key_escape {
+                    events.push(GameEvent::RequestNpcMenuSelect { npc_id: self.dialog.npc_id, choice: 255 });
+                    self.dialog.close();
+                    return events;
+                }
+                if ui.ctx.key_up && self.dialog.selected_menu_index > 0 {
+                    self.dialog.selected_menu_index -= 1;
+                }
+                if ui.ctx.key_down && self.dialog.selected_menu_index + 1 < self.dialog.menu_items.len() {
+                    self.dialog.selected_menu_index += 1;
+                }
+                if ui.ctx.key_enter {
+                    let choice = (self.dialog.selected_menu_index + 1) as u8;
+                    events.push(GameEvent::RequestNpcMenuSelect { npc_id: self.dialog.npc_id, choice });
+                    self.dialog.close();
+                    return events;
+                }
+            }
+            NpcDialogState::WaitingForNumberInput => {
+                if ui.ctx.key_enter {
+                    let value: i32 = self.number_input.text.parse().unwrap_or(0);
+                    events.push(GameEvent::RequestNpcInputNumber { npc_id: self.dialog.npc_id, value });
+                    self.number_input.text.clear();
+                    self.number_input.cursor_pos = 0;
+                    self.dialog.close();
+                    return events;
+                }
+            }
+            NpcDialogState::WaitingForStringInput => {
+                if ui.ctx.key_enter {
+                    let text = self.string_input.text.clone();
+                    events.push(GameEvent::RequestNpcInputString { npc_id: self.dialog.npc_id, text });
+                    self.string_input.text.clear();
+                    self.string_input.cursor_pos = 0;
+                    self.dialog.close();
+                    return events;
+                }
+            }
+            NpcDialogState::WaitingForDealType => {
+                if ui.ctx.key_escape {
+                    events.push(GameEvent::RequestNpcDealType { npc_id: self.dialog.npc_id, deal_type: 255 });
+                    self.dialog.close();
+                    return events;
+                }
+            }
+            _ => {}
+        }
+
+        // Override frame's grf texture flag to match the dialog's own state
+        let prev_grf = ui.has_grf_textures;
+        ui.has_grf_textures = self.has_grf_textures;
+
+        // Full-screen overlay
+        let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
+        ui.interact(OVERLAY_ID, screen);
+
+        // Deal type popup is a standalone popup, not part of the dialog box
+        if state == NpcDialogState::WaitingForDealType {
+            let result = self.build_deal_type_popup(ui);
+            ui.has_grf_textures = prev_grf;
+            return result;
+        }
+
+        // Dialog position (reference: robrowser NpcBox)
+        let dx = (ui.ctx.screen_width / 3.0).max(20.0).floor();
+        let dy = (ui.ctx.screen_height / 2.0 - 200.0).max(100.0).floor();
+
+        // Compute dialog height based on content
+        let text_area_w = DIALOG_W - PADDING * 2.0;
+        let wrapped_lines = word_wrap(&self.dialog.text, text_area_w, |s| {
+            ui.atlas.measure_text(&strip_color_codes(s))
+        });
+        let text_h = (wrapped_lines.len().max(1) as f32) * TEXT_LINE_HEIGHT;
+
+        let input_h = if matches!(state, NpcDialogState::WaitingForNumberInput | NpcDialogState::WaitingForStringInput) {
+            30.0
+        } else {
+            0.0
+        };
+
+        let (btn_w, btn_h) = self.btn_size;
+        let has_button = matches!(state,
+            NpcDialogState::WaitingForNext | NpcDialogState::WaitingForClose |
+            NpcDialogState::WaitingForNumberInput | NpcDialogState::WaitingForStringInput
+        );
+        let btn_area_h = if has_button { btn_h + PADDING } else { 0.0 };
+
+        let dialog_h = (PADDING + text_h + input_h + btn_area_h + PADDING).max(DIALOG_H);
+
+        // Dialog background
+        draw_box(ui, dx, dy, DIALOG_W, dialog_h, self.has_grf_textures);
+
+        // Text content
+        let text_color = if self.has_grf_textures { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
+        let mut text_y = dy + PADDING + ui.atlas.line_height;
+        for line in &wrapped_lines {
+            ui.colored_text(dx + PADDING, text_y, line, text_color);
+            text_y += TEXT_LINE_HEIGHT;
+        }
+
+        // Input fields
+        if state == NpcDialogState::WaitingForNumberInput {
+            let input_y = text_y + PADDING;
+            let input_rect = Rect::new(dx + PADDING, input_y, text_area_w - btn_w - PADDING, 22.0);
+            if ui.focused() != Some(INPUT_ID) {
+                ui.set_focus(INPUT_ID);
+            }
+            ui.text_input(INPUT_ID, input_rect, &mut self.number_input, TextInputBg::Default);
+
+            let ok_rect = Rect::new(dx + DIALOG_W - PADDING - btn_w, input_y, btn_w, btn_h);
+            let ok = ui.button(OK_BTN_ID, ok_rect, &OK_BTN, "OK");
+            if ok.clicked() {
+                let value: i32 = self.number_input.text.parse().unwrap_or(0);
+                events.push(GameEvent::RequestNpcInputNumber { npc_id: self.dialog.npc_id, value });
+                self.number_input.text.clear();
+                self.number_input.cursor_pos = 0;
+                self.dialog.close();
+                ui.has_grf_textures = prev_grf;
+                return events;
+            }
+        }
+        if state == NpcDialogState::WaitingForStringInput {
+            let input_y = text_y + PADDING;
+            let input_rect = Rect::new(dx + PADDING, input_y, text_area_w - btn_w - PADDING, 22.0);
+            if ui.focused() != Some(INPUT_ID) {
+                ui.set_focus(INPUT_ID);
+            }
+            ui.text_input(INPUT_ID, input_rect, &mut self.string_input, TextInputBg::Default);
+
+            let ok_rect = Rect::new(dx + DIALOG_W - PADDING - btn_w, input_y, btn_w, btn_h);
+            let ok = ui.button(OK_BTN_ID, ok_rect, &OK_BTN, "OK");
+            if ok.clicked() {
+                let text = self.string_input.text.clone();
+                events.push(GameEvent::RequestNpcInputString { npc_id: self.dialog.npc_id, text });
+                self.string_input.text.clear();
+                self.string_input.cursor_pos = 0;
+                self.dialog.close();
+                ui.has_grf_textures = prev_grf;
+                return events;
+            }
+        }
+
+        // Next/Close buttons (bottom-right)
+        let btn_y = dy + dialog_h - 2.0 - btn_h;
+        let btn_x = dx + DIALOG_W - 8.0 - btn_w;
+
+        if state == NpcDialogState::WaitingForNext {
+            let rect = Rect::new(btn_x, btn_y, btn_w, btn_h);
+            let response = ui.button(NEXT_BTN_ID, rect, &NEXT_BTN, "Next");
+            if response.clicked() {
+                events.push(GameEvent::RequestNpcNext { npc_id: self.dialog.npc_id });
+                self.dialog.advance_next();
+            }
+        }
+        if state == NpcDialogState::WaitingForClose {
+            let rect = Rect::new(btn_x, btn_y, btn_w, btn_h);
+            let response = ui.button(CLOSE_BTN_ID, rect, &CLOSE_BTN, "Close");
+            if response.clicked() {
+                events.push(GameEvent::RequestNpcClose { npc_id: self.dialog.npc_id });
+                self.dialog.close();
+            }
+        }
+
+        // Menu as a separate window below the dialog
+        if state == NpcDialogState::WaitingForMenu {
+            let menu_events = self.build_menu_window(ui, dx);
+            events.extend(menu_events);
+        }
+
+        ui.has_grf_textures = prev_grf;
+        events
+    }
+
+    fn build_menu_window(&mut self, ui: &mut UiFrame, dx: f32) -> Vec<GameEvent> {
+        let mut events = Vec::new();
+        let (btn_w, btn_h) = self.btn_size;
+        let text_area_w = MENU_W - PADDING * 2.0;
+
+        let menu_y = (ui.ctx.screen_height / 2.0 + 76.0).max(376.0).floor();
+        let items_h = self.dialog.menu_items.len() as f32 * MENU_ITEM_HEIGHT;
+        let menu_h = (PADDING + items_h + PADDING + btn_h + PADDING).max(MENU_MIN_H);
+
+        draw_box(ui, dx, menu_y, MENU_W, menu_h, self.has_grf_textures);
+
+        let text_color = if self.has_grf_textures { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
+        let menu_y_start = menu_y + PADDING;
+
+        for (idx, item) in self.dialog.menu_items.iter().enumerate() {
+            let item_y = menu_y_start + idx as f32 * MENU_ITEM_HEIGHT;
+            let item_rect = Rect::new(dx + PADDING, item_y, text_area_w, MENU_ITEM_HEIGHT);
+            let widget_id = WidgetId(MENU_BASE_ID + idx as u32);
+            let response = ui.interact(widget_id, item_rect);
+
+            let is_selected = idx == self.dialog.selected_menu_index;
+            if response.hovered() {
+                self.dialog.selected_menu_index = idx;
+            }
+
+            if is_selected || response.hovered() {
+                let highlight = [0.3, 0.3, 0.5, 0.5];
+                let (v, i) = draw::quad_vertices(item_rect.x, item_rect.y, item_rect.w, item_rect.h, highlight);
+                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            }
+
+            let label = format!("{}. {}", idx + 1, item);
+            ui.colored_text(dx + PADDING + 4.0, item_y + ui.atlas.line_height, &label, text_color);
+
+            if response.clicked() {
+                let choice = (idx + 1) as u8;
+                events.push(GameEvent::RequestNpcMenuSelect { npc_id: self.dialog.npc_id, choice });
+                self.dialog.close();
+                return events;
+            }
+        }
+
+        // OK + Cancel buttons at bottom-right of menu box
+        let btn_y = menu_y + menu_h - 2.0 - btn_h;
+        let cancel_x = dx + MENU_W - 8.0 - btn_w;
+        let ok_x = cancel_x - 4.0 - btn_w;
+
+        let ok = ui.button(MENU_OK_BTN_ID, Rect::new(ok_x, btn_y, btn_w, btn_h), &OK_BTN, "OK");
+        let cancel = ui.button(CANCEL_BTN_ID, Rect::new(cancel_x, btn_y, btn_w, btn_h), &CANCEL_BTN, "Cancel");
+
+        if ok.clicked() {
+            let choice = (self.dialog.selected_menu_index + 1) as u8;
+            events.push(GameEvent::RequestNpcMenuSelect { npc_id: self.dialog.npc_id, choice });
+            self.dialog.close();
+        }
+        if cancel.clicked() {
+            events.push(GameEvent::RequestNpcMenuSelect { npc_id: self.dialog.npc_id, choice: 255 });
+            self.dialog.close();
+        }
+
+        events
+    }
+
+    fn build_deal_type_popup(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
+        let mut events = Vec::new();
+        let (btn_w, btn_h) = self.btn_size;
+
+        let popup_w = 140.0;
+        let popup_h = 3.0 * (btn_h + PADDING) + PADDING;
+        let px = ((ui.ctx.screen_width - popup_w) / 2.0).floor();
+        let py = (ui.ctx.screen_height / 1.5).floor();
+
+        draw_box(ui, px, py, popup_w, popup_h, self.has_grf_textures);
+
+        let center_x = px + (popup_w - btn_w) / 2.0;
+        let mut by = py + PADDING;
+
+        let buy = ui.button(BUY_BTN_ID, Rect::new(center_x, by, btn_w, btn_h), &OK_BTN, "Buy");
+        by += btn_h + PADDING;
+        let sell = ui.button(SELL_BTN_ID, Rect::new(center_x, by, btn_w, btn_h), &OK_BTN, "Sell");
+        by += btn_h + PADDING;
+        let cancel = ui.button(DEAL_CANCEL_BTN_ID, Rect::new(center_x, by, btn_w, btn_h), &CANCEL_BTN, "Cancel");
+
+        if buy.clicked() {
+            events.push(GameEvent::RequestNpcDealType { npc_id: self.dialog.npc_id, deal_type: 0 });
+            self.dialog.close();
+        }
+        if sell.clicked() {
+            events.push(GameEvent::RequestNpcDealType { npc_id: self.dialog.npc_id, deal_type: 1 });
+            self.dialog.close();
+        }
+        if cancel.clicked() {
+            events.push(GameEvent::RequestNpcDealType { npc_id: self.dialog.npc_id, deal_type: 255 });
+            self.dialog.close();
+        }
+
+        events
+    }
+
+    pub fn grf_texture_paths() -> Vec<&'static str> {
+        vec![
+            NEXT_BTN.normal, NEXT_BTN.hover, NEXT_BTN.pressed,
+            CLOSE_BTN.normal, CLOSE_BTN.hover, CLOSE_BTN.pressed,
+            OK_BTN.normal, OK_BTN.hover, OK_BTN.pressed,
+            CANCEL_BTN.normal, CANCEL_BTN.hover, CANCEL_BTN.pressed,
+        ]
+    }
+}
+
+fn draw_box(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bool) {
+    if has_grf {
+        let (v, i) = draw::quad_vertices(x, y, w, h, [1.0, 1.0, 1.0, 0.95]);
+        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+    } else {
+        let (v, i) = draw::quad_vertices(x, y, w, h, [0.15, 0.15, 0.22, 0.95]);
+        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        let border_color = [0.5, 0.5, 0.6, 1.0];
+        for (bx, by, bw, bh) in [
+            (x, y, w, 1.0),
+            (x, y + h - 1.0, w, 1.0),
+            (x, y, 1.0, h),
+            (x + w - 1.0, y, 1.0, h),
+        ] {
+            let (v, i) = draw::quad_vertices(bx, by, bw, bh, border_color);
+            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        }
+    }
+}
+
+fn word_wrap(text: &str, max_width: f32, measure: impl Fn(&str) -> f32) -> Vec<String> {
+    let mut lines = Vec::new();
+    for paragraph in text.split('\n') {
+        if paragraph.is_empty() {
+            lines.push(String::new());
+            continue;
+        }
+        let words: Vec<&str> = paragraph.split(' ').collect();
+        let mut current_line = String::new();
+        for word in words {
+            if current_line.is_empty() {
+                current_line = word.to_string();
+            } else {
+                let candidate = format!("{current_line} {word}");
+                if measure(&candidate) <= max_width {
+                    current_line = candidate;
+                } else {
+                    lines.push(current_line);
+                    current_line = word.to_string();
+                }
+            }
+        }
+        if !current_line.is_empty() {
+            lines.push(current_line);
+        }
+    }
+    if lines.is_empty() {
+        lines.push(String::new());
+    }
+    lines
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ragnarok_ui::context::UiContext;
+    use ragnarok_ui::state::StateCache;
+    use ragnarok_renderer::font_atlas::FontAtlas;
+
+    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
+        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = Box::leak(Box::new(atlas));
+        UiFrame::new(ctx, atlas, state, 0.0, false, None)
+    }
+
+    #[test]
+    fn enter_triggers_next() {
+        let mut npc = NpcDialog::new();
+        npc.dialog.open_text(100, "Hello");
+        npc.dialog.wait_for_next(100);
+
+        let mut state = StateCache::new();
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_enter = true;
+        let mut ui = make_frame(&ctx, &mut state);
+
+        let events = npc.build(&mut ui);
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], GameEvent::RequestNpcNext { npc_id: 100 }));
+        assert_eq!(npc.dialog.state, NpcDialogState::DisplayingText);
+    }
+
+    #[test]
+    fn escape_cancels_menu() {
+        let mut npc = NpcDialog::new();
+        npc.dialog.show_menu(100, vec!["Buy".into(), "Sell".into()]);
+
+        let mut state = StateCache::new();
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_escape = true;
+        let mut ui = make_frame(&ctx, &mut state);
+
+        let events = npc.build(&mut ui);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            GameEvent::RequestNpcMenuSelect { npc_id, choice } => {
+                assert_eq!(*npc_id, 100);
+                assert_eq!(*choice, 255);
+            }
+            other => panic!("expected RequestNpcMenuSelect, got {other:?}"),
+        }
+        assert!(!npc.dialog.is_open());
+    }
+
+    #[test]
+    fn escape_cancels_deal_type() {
+        let mut npc = NpcDialog::new();
+        npc.dialog.show_deal_type(100);
+
+        let mut state = StateCache::new();
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_escape = true;
+        let mut ui = make_frame(&ctx, &mut state);
+
+        let events = npc.build(&mut ui);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            GameEvent::RequestNpcDealType { npc_id, deal_type } => {
+                assert_eq!(*npc_id, 100);
+                assert_eq!(*deal_type, 255);
+            }
+            other => panic!("expected RequestNpcDealType, got {other:?}"),
+        }
+        assert!(!npc.dialog.is_open());
+    }
+}

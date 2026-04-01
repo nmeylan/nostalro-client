@@ -21,6 +21,97 @@ pub fn quad_vertices_uv(
     (verts, indices)
 }
 
+pub struct ColoredSpan<'a> {
+    pub text: &'a str,
+    pub color: [f32; 4],
+}
+
+pub fn parse_color_codes<'a>(text: &'a str, default_color: [f32; 4]) -> Vec<ColoredSpan<'a>> {
+    let mut spans = Vec::new();
+    let mut current_color = default_color;
+    let bytes = text.as_bytes();
+    let mut seg_start = 0;
+    let mut i = 0;
+
+    while i < bytes.len() {
+        if bytes[i] == b'^' && i + 6 < bytes.len() {
+            let hex = &text[i + 1..i + 7];
+            if hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+                if i > seg_start {
+                    spans.push(ColoredSpan { text: &text[seg_start..i], color: current_color });
+                }
+                let r = u8::from_str_radix(&hex[0..2], 16).unwrap();
+                let g = u8::from_str_radix(&hex[2..4], 16).unwrap();
+                let b = u8::from_str_radix(&hex[4..6], 16).unwrap();
+                current_color = [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, default_color[3]];
+                i += 7;
+                seg_start = i;
+                continue;
+            }
+        }
+        i += 1;
+    }
+
+    if seg_start < bytes.len() {
+        spans.push(ColoredSpan { text: &text[seg_start..], color: current_color });
+    }
+
+    spans
+}
+
+pub fn strip_color_codes(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let bytes = text.as_bytes();
+    let mut i = 0;
+
+    while i < bytes.len() {
+        if bytes[i] == b'^' && i + 6 < bytes.len() {
+            let hex = &text[i + 1..i + 7];
+            if hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+                i += 7;
+                continue;
+            }
+        }
+        result.push(bytes[i] as char);
+        i += 1;
+    }
+
+    result
+}
+
+pub fn colored_text_vertices(
+    text: &str, x: f32, y: f32, default_color: [f32; 4], atlas: &FontAtlas,
+) -> (Vec<UiVertex>, Vec<u32>) {
+    let spans = parse_color_codes(text, default_color);
+    let mut vertices = Vec::new();
+    let mut indices = Vec::new();
+    let mut cursor_x = x;
+
+    for span in &spans {
+        for ch in span.text.chars() {
+            let glyph = atlas.glyph(ch);
+
+            if glyph.size[0] > 0.0 && glyph.size[1] > 0.0 {
+                let gx = (cursor_x + glyph.offset[0]).round();
+                let gy = (y + glyph.offset[1]).round();
+
+                let base = vertices.len() as u32;
+                let (verts, idxs) = quad_vertices_uv(
+                    gx, gy, glyph.size[0], glyph.size[1],
+                    glyph.uv_min, glyph.uv_max,
+                    span.color,
+                );
+                vertices.extend_from_slice(&verts);
+                indices.extend(idxs.iter().map(|i| i + base));
+            }
+
+            cursor_x += glyph.advance;
+        }
+    }
+
+    (vertices, indices)
+}
+
 pub fn text_vertices(
     text: &str, x: f32, y: f32, color: [f32; 4], atlas: &FontAtlas,
 ) -> (Vec<UiVertex>, Vec<u32>) {
@@ -113,4 +204,53 @@ pub fn text_vertices_clipped(
     }
 
     (vertices, indices)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+
+    #[test]
+    fn parse_color_codes_single_color() {
+        let spans = parse_color_codes("^FF0000Red text", WHITE);
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].text, "Red text");
+        assert!((spans[0].color[0] - 1.0).abs() < 0.01);
+        assert!(spans[0].color[1].abs() < 0.01);
+    }
+
+    #[test]
+    fn parse_color_codes_multiple_colors() {
+        let spans = parse_color_codes("Hello ^FF0000Red ^00FF00Green", WHITE);
+        assert_eq!(spans.len(), 3);
+        assert_eq!(spans[0].text, "Hello ");
+        assert_eq!(spans[0].color, WHITE);
+        assert_eq!(spans[1].text, "Red ");
+        assert_eq!(spans[2].text, "Green");
+        assert!((spans[2].color[1] - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn parse_color_codes_default_prefix() {
+        let spans = parse_color_codes("No color codes here", WHITE);
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].text, "No color codes here");
+        assert_eq!(spans[0].color, WHITE);
+    }
+
+    #[test]
+    fn parse_color_codes_incomplete_hex_treated_as_literal() {
+        let spans = parse_color_codes("^FF00 not enough", WHITE);
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].text, "^FF00 not enough");
+    }
+
+    #[test]
+    fn strip_color_codes_removes_markers() {
+        assert_eq!(strip_color_codes("^FF0000Red ^000000Black"), "Red Black");
+        assert_eq!(strip_color_codes("No codes"), "No codes");
+        assert_eq!(strip_color_codes("^FF00short"), "^FF00short");
+    }
 }

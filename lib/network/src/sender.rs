@@ -108,3 +108,59 @@ pub fn build_char_ping_packet(account_id: u32, packetver: u32) -> Vec<u8> {
     pkt.fill_raw();
     pkt.raw
 }
+
+pub fn build_contact_npc_packet(npc_id: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzContactnpc::new(packetver);
+    pkt.set_naid(npc_id);
+    pkt.set_atype(1);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_npc_next_packet(npc_id: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqNextScript::new(packetver);
+    pkt.set_naid(npc_id);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_npc_close_packet(npc_id: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzCloseDialog::new(packetver);
+    pkt.set_naid(npc_id);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_npc_menu_select_packet(npc_id: u32, choice: u8, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzChooseMenu::new(packetver);
+    pkt.set_naid(npc_id);
+    pkt.set_num(choice);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_npc_input_number_packet(npc_id: u32, value: i32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzInputEditdlg::new(packetver);
+    pkt.set_naid(npc_id);
+    pkt.set_value(value);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_npc_input_string_packet(npc_id: u32, text: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzInputEditdlgstr::new(packetver);
+    let msg = format!("{text}\0");
+    pkt.set_packet_length((8 + msg.len()) as i16);
+    pkt.set_naid(npc_id);
+    pkt.set_msg(msg);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_npc_deal_type_packet(npc_id: u32, deal_type: u8, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzAckSelectDealtype::new(packetver);
+    pkt.set_naid(npc_id);
+    pkt.set_atype(deal_type);
+    pkt.fill_raw();
+    pkt.raw
+}

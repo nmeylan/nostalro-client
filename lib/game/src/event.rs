@@ -148,6 +148,24 @@ pub enum GameEvent {
         message: String,
     },
 
+    // NPC dialog (server → client)
+    NpcDialogText { npc_id: u32, text: String },
+    NpcDialogNext { npc_id: u32 },
+    NpcDialogClose { npc_id: u32 },
+    NpcDialogMenu { npc_id: u32, items: Vec<String> },
+    NpcInputNumber { npc_id: u32 },
+    NpcInputString { npc_id: u32 },
+    NpcDealTypeSelect { npc_id: u32 },
+
+    // NPC dialog (client → server)
+    RequestNpcContact { npc_id: u32 },
+    RequestNpcNext { npc_id: u32 },
+    RequestNpcClose { npc_id: u32 },
+    RequestNpcMenuSelect { npc_id: u32, choice: u8 },
+    RequestNpcInputNumber { npc_id: u32, value: i32 },
+    RequestNpcInputString { npc_id: u32, text: String },
+    RequestNpcDealType { npc_id: u32, deal_type: u8 },
+
     // No-op acknowledgement (packet parsed but no action needed yet)
     Acknowledged,
 }

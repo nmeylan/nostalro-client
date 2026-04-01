@@ -41,6 +41,16 @@ impl Connection {
         self.writer.write_all(data).await
     }
 
+    /// Check if a packet is variable-length, supplementing the server's
+    /// `is_variable_length` with packets it doesn't list.
+    fn is_variable_length_packet(packet_id: [u8; 2], packetver: u32) -> bool {
+        if packets_parser::is_variable_length(packet_id, packetver) {
+            return true;
+        }
+        // ZC_SAY_DIALOG (0x00b4), ZC_MENU_LIST (0x00b7)
+        matches!(packet_id, [0xb4, 0x00] | [0xb7, 0x00])
+    }
+
     /// Estimate the byte length of an unknown RO packet.
     /// Variable-length packets store their total length at bytes 2-3.
     /// Fixed-length packets need a lookup table we don't have, so we
@@ -92,7 +102,7 @@ impl Connection {
             // Only slice variable-length packets to their declared size;
             // fixed-length packets don't store length at bytes [2:3].
             let parse_buf = if remaining.len() >= 2
-                && packets_parser::is_variable_length([remaining[0], remaining[1]], packetver)
+                && Self::is_variable_length_packet([remaining[0], remaining[1]], packetver)
             {
                 Self::slice_to_packet_len(&remaining)
             } else {

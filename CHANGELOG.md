@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Improve NPC dialog: parse color codes in dialog text, move menu to separate window below dialog, place Next/Close buttons at bottom-right
+- Add shop NPC support: Buy/Sell/Cancel popup when interacting with shop NPCs
+- Add NPC dialog: click NPCs to talk, view dialog text, navigate with Next/Close buttons, select from menu choices, and enter number/string input
 - Show HP bar above entities (green/yellow/red based on health, visible on hover and always for player)
 - Show emotion bubbles above entities (heart, sweat, question mark, etc.)
 - Handle skill casting: entities enter cast animation for the casting duration

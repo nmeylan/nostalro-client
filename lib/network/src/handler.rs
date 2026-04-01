@@ -311,6 +311,35 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
+    // NPC dialog
+    if let Some(p) = any.downcast_ref::<PacketZcSayDialog>() {
+        let text: String = p.msg.chars().take_while(|c| *c != '\0').collect();
+        return vec![GameEvent::NpcDialogText { npc_id: p.naid, text }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcWaitDialog>() {
+        return vec![GameEvent::NpcDialogNext { npc_id: p.naid }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcCloseDialog>() {
+        return vec![GameEvent::NpcDialogClose { npc_id: p.naid }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMenuList>() {
+        let raw_msg: String = p.msg.chars().take_while(|c| *c != '\0').collect();
+        let items: Vec<String> = raw_msg.split(':')
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect();
+        return vec![GameEvent::NpcDialogMenu { npc_id: p.naid, items }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcOpenEditdlg>() {
+        return vec![GameEvent::NpcInputNumber { npc_id: p.naid }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcOpenEditdlgstr>() {
+        return vec![GameEvent::NpcInputString { npc_id: p.naid }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcSelectDealtype>() {
+        return vec![GameEvent::NpcDealTypeSelect { npc_id: p.naid }];
+    }
+
     // Acknowledged but not yet used (no UI)
     if let Some(p) = any.downcast_ref::<PacketZcAid>() {
         debug!("zone server confirmed AID={}", p.aid);
@@ -797,5 +826,65 @@ mod tests {
             }
             other => panic!("expected EntityEmotion, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn dispatch_say_dialog_returns_npc_dialog_text() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcSayDialog::new(packetver);
+        pkt.set_naid(500);
+        pkt.set_msg("Hello traveler!\0".to_string());
+        pkt.set_msg_raw("Hello traveler!\0".as_bytes().to_vec());
+        pkt.set_packet_length((8 + 16) as i16);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::NpcDialogText { npc_id, text } => {
+                assert_eq!(*npc_id, 500);
+                assert_eq!(text, "Hello traveler!");
+            }
+            other => panic!("expected NpcDialogText, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_menu_list_splits_items() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcMenuList::new(packetver);
+        pkt.set_naid(500);
+        let msg = "Buy:Sell:Cancel\0";
+        pkt.set_msg(msg.to_string());
+        pkt.set_msg_raw(msg.as_bytes().to_vec());
+        pkt.set_packet_length((8 + msg.len()) as i16);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::NpcDialogMenu { npc_id, items } => {
+                assert_eq!(*npc_id, 500);
+                assert_eq!(items, &["Buy", "Sell", "Cancel"]);
+            }
+            other => panic!("expected NpcDialogMenu, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_wait_and_close_dialog() {
+        let packetver = 20120307;
+
+        let mut pkt = PacketZcWaitDialog::new(packetver);
+        pkt.set_naid(500);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        assert!(matches!(&result[0], GameEvent::NpcDialogNext { npc_id: 500 }));
+
+        let mut pkt = PacketZcCloseDialog::new(packetver);
+        pkt.set_naid(500);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        assert!(matches!(&result[0], GameEvent::NpcDialogClose { npc_id: 500 }));
     }
 }

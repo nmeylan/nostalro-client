@@ -308,6 +308,13 @@ impl<'a> UiFrame<'a> {
         }
     }
 
+    pub fn colored_text(&mut self, x: f32, y: f32, content: &str, default_color: [f32; 4]) {
+        let (v, i) = draw::colored_text_vertices(content, x, y, default_color, self.atlas);
+        if !v.is_empty() {
+            self.draw_calls.push(DrawCall { vertices: v, indices: i, texture: TextureRef::FontAtlas });
+        }
+    }
+
     pub fn set_focus(&mut self, id: WidgetId) {
         self.focus = Some(id);
     }

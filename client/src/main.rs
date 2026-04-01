@@ -16,13 +16,14 @@ use ragnarok_game::sprite_path::{WeaponType, weapon_view_id_to_type, entity_type
 use ragnarok_game::path::{path_search, try_move_to};
 use ragnarok_game::shadow::shadow_size;
 use ragnarok_game::{map_loader, sprite_loader};
-use ragnarok_network::{build_action_request_packet, build_char_enter_packet, build_chat_packet, build_login_packet, build_map_loaded_packet, build_reqname_packet, build_request_move_packet, build_restart_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand, KeepaliveMode};
+use ragnarok_network::{build_action_request_packet, build_char_enter_packet, build_chat_packet, build_contact_npc_packet, build_login_packet, build_map_loaded_packet, build_npc_close_packet, build_npc_deal_type_packet, build_npc_input_number_packet, build_npc_input_string_packet, build_npc_menu_select_packet, build_npc_next_packet, build_reqname_packet, build_request_move_packet, build_restart_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand, KeepaliveMode};
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall, build_clip_quad, upload_sprite_textures, build_entity_sprite, block_on};
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui_component::chat_window::ChatWindow;
 use ragnarok_ui_component::login_window::{LoginFocus, LoginWindow};
+use ragnarok_ui_component::npc_dialog::NpcDialog;
 use ragnarok_ui_component::system_menu::SystemMenu;
 use ragnarok_ui_component::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::server_list_window::ServerListWindow;
@@ -135,6 +136,21 @@ impl App {
     }
 
     fn handle_left_click(&mut self) {
+        if self.game.npc_dialog.dialog.is_open() {
+            return;
+        }
+        // Click on NPC to talk
+        if let Some(entity_id) = self.game.hovered_entity_id {
+            if let Some(entity) = self.game.entities.get(entity_id) {
+                if entity.entity_type == EntityType::Npc && entity.job != 45 {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_contact_npc_packet(entity_id, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                    return;
+                }
+            }
+        }
         let (dest_x, dest_y) = match self.hovered_cell() {
             Some(c) => c,
             None => return,
@@ -462,6 +478,32 @@ impl App {
                             entity.max_hp = Some(max_hp);
                         }
                     }
+                    GameEvent::NpcDialogText { npc_id, text } => {
+                        self.game.npc_dialog.dialog.open_text(npc_id, &text);
+                        self.preload_npc_dialog_textures();
+                    }
+                    GameEvent::NpcDialogNext { npc_id } => {
+                        self.game.npc_dialog.dialog.wait_for_next(npc_id);
+                    }
+                    GameEvent::NpcDialogClose { npc_id } => {
+                        self.game.npc_dialog.dialog.wait_for_close(npc_id);
+                    }
+                    GameEvent::NpcDialogMenu { npc_id, items } => {
+                        self.game.npc_dialog.dialog.show_menu(npc_id, items);
+                        self.preload_npc_dialog_textures();
+                    }
+                    GameEvent::NpcInputNumber { npc_id } => {
+                        self.game.npc_dialog.dialog.wait_for_number_input(npc_id);
+                        self.preload_npc_dialog_textures();
+                    }
+                    GameEvent::NpcInputString { npc_id } => {
+                        self.game.npc_dialog.dialog.wait_for_string_input(npc_id);
+                        self.preload_npc_dialog_textures();
+                    }
+                    GameEvent::NpcDealTypeSelect { npc_id } => {
+                        self.game.npc_dialog.dialog.show_deal_type(npc_id);
+                        self.preload_npc_dialog_textures();
+                    }
                     GameEvent::ChatMessage { message } => {
                         self.game.chat_window.add_chat(message);
                     }
@@ -686,6 +728,20 @@ impl App {
         }
     }
 
+    fn preload_npc_dialog_textures(&mut self) {
+        if self.game.npc_dialog.has_grf_textures {
+            return;
+        }
+        if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
+            self.game.npc_dialog.has_grf_textures = renderer.preload_textures(&NpcDialog::grf_texture_paths(), grf);
+            if self.game.npc_dialog.has_grf_textures {
+                self.game.npc_dialog.set_texture_sizes(|name| {
+                    renderer.texture_cache.texture_size(name)
+                });
+            }
+        }
+    }
+
     fn handle_ui_events(&mut self, events: Vec<GameEvent>, event_loop: &ActiveEventLoop) {
         for event in events {
             match event {
@@ -755,6 +811,48 @@ impl App {
                         let _ = tx.send(NetworkCommand::Disconnect);
                     }
                     event_loop.exit();
+                }
+                GameEvent::RequestNpcContact { npc_id } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_contact_npc_packet(npc_id, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                GameEvent::RequestNpcNext { npc_id } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_npc_next_packet(npc_id, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                GameEvent::RequestNpcClose { npc_id } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_npc_close_packet(npc_id, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                GameEvent::RequestNpcMenuSelect { npc_id, choice } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_npc_menu_select_packet(npc_id, choice, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                GameEvent::RequestNpcInputNumber { npc_id, value } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_npc_input_number_packet(npc_id, value, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                GameEvent::RequestNpcInputString { npc_id, text } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_npc_input_string_packet(npc_id, &text, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                GameEvent::RequestNpcDealType { npc_id, deal_type } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_npc_deal_type_packet(npc_id, deal_type, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
                 }
                 GameEvent::RequestSendChat { message } => {
                     if message.starts_with('/') {
@@ -881,7 +979,11 @@ impl App {
                     let chat_was_active = self.game.chat_window.is_active();
                     let mut events = self.game.chat_window.build(&mut ui);
 
-                    let allow_escape = !chat_was_active;
+                    let npc_dialog_open = self.game.npc_dialog.dialog.is_open();
+                    let npc_events = self.game.npc_dialog.build(&mut ui);
+                    events.extend(npc_events);
+
+                    let allow_escape = !chat_was_active && !npc_dialog_open;
                     let menu_events = self.game.system_menu.build(&mut ui, allow_escape);
                     events.extend(menu_events);
 
@@ -899,6 +1001,9 @@ impl App {
             return;
         }
         if self.game.chat_window.is_active() {
+            return;
+        }
+        if self.game.npc_dialog.dialog.is_open() {
             return;
         }
         if self.game.chat_window.contains_point(
@@ -1181,7 +1286,7 @@ impl ApplicationHandler for App {
                                     self.input.mouse_position.0 as f32,
                                     self.input.mouse_position.1 as f32,
                                 );
-                                if !mouse_on_chat && !self.game.system_menu.open {
+                                if !mouse_on_chat && !self.game.system_menu.open && !self.game.npc_dialog.dialog.is_open() {
                                     self.handle_left_click();
                                     self.input.walk_packet_cooldown = 0.5;
                                     self.input.walk_server_acked = false;
@@ -1268,6 +1373,7 @@ impl ApplicationHandler for App {
                 let hovered = self.update_grid_hover();
                 let render_list = self.compute_render_list();
                 let hovered_entity_id = self.update_cursor_type(hovered, ui_any_hovered, &render_list);
+                self.game.hovered_entity_id = hovered_entity_id;
                 if let Some(entity_id) = hovered_entity_id {
                     if let Some(entity) = self.game.entities.get_mut(entity_id) {
                         if !entity.name_requested {

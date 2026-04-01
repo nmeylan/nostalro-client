@@ -11,6 +11,7 @@ pub mod map_coordinates;
 pub mod map_loader;
 pub mod movement;
 pub mod name_table;
+pub mod npc_dialog;
 pub mod path;
 pub mod server_time;
 pub mod shadow;
