@@ -168,6 +168,11 @@ impl NpcDialog {
         let dx = (ui.ctx.screen_width / 3.0).max(20.0).floor();
         let dy = (ui.ctx.screen_height / 2.0 - 200.0).max(100.0).floor();
 
+        // Skip dialog box when text is empty and only menu is showing
+        let has_text = !self.dialog.text.is_empty();
+        let menu_only = state == NpcDialogState::WaitingForMenu && !has_text;
+
+        if !menu_only {
         // Compute dialog height based on content
         let text_area_w = DIALOG_W - PADDING * 2.0;
         let wrapped_lines = word_wrap(&self.dialog.text, text_area_w, |s| {
@@ -263,6 +268,7 @@ impl NpcDialog {
                 self.dialog.close();
             }
         }
+        } // !menu_only
 
         // Menu as a separate window below the dialog
         if state == NpcDialogState::WaitingForMenu {

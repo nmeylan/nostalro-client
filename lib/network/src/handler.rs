@@ -1,6 +1,6 @@
 use packets::packets::*;
 use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo};
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::helpers::{decode_pos, decode_pos2};
 

@@ -182,7 +182,7 @@ impl App {
         };
 
         let weapon_type = weapon_view_id_to_type(weapon_view_id);
-        let data = match game_sprite_loader::load_player_sprite_data(grf, &self.accessory_table, job, sex, head_id, weapon_type, headgear_top, 0, 0, shield) {
+        let data = match game_sprite_loader::load_player_sprite_data(grf, &self.accessory_table, job, sex, head_id, 0, 0, weapon_type, headgear_top, 0, 0, shield) {
             Some(d) => d,
             None => {
                 eprintln!("Failed to load body sprite for job={job} sex={sex}");

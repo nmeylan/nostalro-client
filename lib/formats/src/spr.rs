@@ -141,7 +141,11 @@ impl SprFile {
     }
 
     pub fn to_rgba_images(&self) -> (Vec<RgbaImageData>, usize) {
-        let palette = self.palette.as_ref().expect("SPR file has no palette");
+        self.to_rgba_images_with_palette(None)
+    }
+
+    pub fn to_rgba_images_with_palette(&self, override_palette: Option<&[Color; 256]>) -> (Vec<RgbaImageData>, usize) {
+        let palette = override_palette.or(self.palette.as_ref()).expect("SPR file has no palette");
         let mut images = Vec::with_capacity(self.indexed_sprites.len() + self.rgba_sprites.len());
         for sprite in &self.indexed_sprites {
             images.push(sprite.indexed_to_rgba(palette));
@@ -248,6 +252,43 @@ mod tests {
         assert_eq!((images[0].width, images[0].height), (2, 1));
         assert_eq!((images[1].width, images[1].height), (1, 1));
         // rgba image: ABGR [255,50,100,150] → RGBA [150,100,50,255]
+        assert_eq!(&images[1].data, &[150, 100, 50, 255]);
+    }
+
+    #[test]
+    fn override_palette_changes_indexed_sprite_colors() {
+        let mut data = Vec::new();
+        data.extend_from_slice(b"SP");
+        data.push(1); data.push(2); // version 2.1
+        data.extend_from_slice(&1u16.to_le_bytes()); // 1 indexed
+        data.extend_from_slice(&1u16.to_le_bytes()); // 1 rgba
+        // indexed: 1x1, pixel index=1
+        data.extend_from_slice(&1u16.to_le_bytes());
+        data.extend_from_slice(&1u16.to_le_bytes());
+        let encoded: &[u8] = &[1];
+        data.extend_from_slice(&(encoded.len() as u16).to_le_bytes());
+        data.extend_from_slice(encoded);
+        // rgba: 1x1 ABGR
+        data.extend_from_slice(&1u16.to_le_bytes());
+        data.extend_from_slice(&1u16.to_le_bytes());
+        data.extend_from_slice(&[255, 50, 100, 150]);
+        // embedded palette: index 1 = red
+        let mut palette_data = [0u8; 1024];
+        palette_data[4..8].copy_from_slice(&[255, 0, 0, 0]);
+        data.extend_from_slice(&palette_data);
+
+        let spr = SprFile::parse(&data).unwrap();
+
+        // Without override: indexed pixel uses embedded red
+        let (images, _) = spr.to_rgba_images();
+        assert_eq!(&images[0].data[0..4], &[255, 0, 0, 255]);
+
+        // With override: indexed pixel uses override blue, rgba unchanged
+        let mut override_pal = [[0u8; 4]; 256];
+        override_pal[1] = [0, 0, 255, 0];
+        let (images, _) = spr.to_rgba_images_with_palette(Some(&override_pal));
+        assert_eq!(&images[0].data[0..4], &[0, 0, 255, 255]);
+        // RGBA sprite unaffected by palette
         assert_eq!(&images[1].data, &[150, 100, 50, 255]);
     }
 

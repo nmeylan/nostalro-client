@@ -96,6 +96,17 @@ pub fn head_sprite_path(head_id: u16, sex: u8) -> String {
     format!("data/sprite/인간족/머리통/{sex_str}/{head_id}_{sex_str}")
 }
 
+pub fn head_palette_path(head_id: u16, sex: u8, palette_id: u16) -> String {
+    let sex_str = sex_kr(sex);
+    format!("data/palette/머리/머리{head_id}_{sex_str}_{palette_id}.pal")
+}
+
+pub fn body_palette_path(job_class: u16, sex: u8, palette_id: u16) -> String {
+    let job = job_name_kr(job_class);
+    let sex_str = sex_kr(sex);
+    format!("data/palette/몸/{job}_{sex_str}_{palette_id}.pal")
+}
+
 fn weapon_suffix(weapon_type: WeaponType) -> &'static str {
     match weapon_type {
         WeaponType::Dagger => "_단검",
@@ -295,6 +306,30 @@ mod tests {
         assert_eq!(entity_type_from_job(3999), EntityType::Monster);
         assert_eq!(entity_type_from_job(4001), EntityType::Player);
         assert_eq!(entity_type_from_job(5999), EntityType::Player);
+    }
+
+    #[test]
+    fn body_palette_path_formats_correctly() {
+        assert_eq!(
+            body_palette_path(1, 1, 3),
+            "data/palette/몸/검사_남_3.pal"
+        );
+        assert_eq!(
+            body_palette_path(0, 0, 1),
+            "data/palette/몸/초보자_여_1.pal"
+        );
+    }
+
+    #[test]
+    fn head_palette_path_formats_correctly() {
+        assert_eq!(
+            head_palette_path(1, 1, 3),
+            "data/palette/머리/머리1_남_3.pal"
+        );
+        assert_eq!(
+            head_palette_path(5, 0, 7),
+            "data/palette/머리/머리5_여_7.pal"
+        );
     }
 
     #[test]

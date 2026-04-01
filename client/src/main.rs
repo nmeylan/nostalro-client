@@ -33,6 +33,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::mpsc;
+use tracing::info;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::keyboard::{KeyCode, PhysicalKey};
@@ -292,19 +293,20 @@ impl App {
                         }
 
                         let session_sex = self.game.login_session.as_ref().map(|s| s.sex).unwrap_or(1);
-                        let (job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom, shield_id, char_id) = self.game.selected_character.as_ref()
+                        let account_id = self.game.login_session.as_ref().map(|s| s.account_id).unwrap_or(0);
+                        let (job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom, shield_id) = self.game.selected_character.as_ref()
                             .map(|c| {
                                 let sex = if self.config.packetver >= 20141016 { c.sex } else { session_sex };
-                                (c.class, sex, c.head, c.hair_color, c.weapon, c.head_top, c.head_mid, c.head_bottom, c.shield, c.gid)
+                                (c.class, sex, c.head, c.hair_color, c.weapon, c.head_top, c.head_mid, c.head_bottom, c.shield)
                             })
-                            .unwrap_or((0, session_sex, 0, 0, 0, 0, 0, 0, 0, 0));
+                            .unwrap_or((0, session_sex, 0, 0, 0, 0, 0, 0, 0));
 
-                        let entity = Entity::new_player(char_id, job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom, shield_id, x, y, dir);
-                        self.game.entities.set_player_id(char_id);
+                        let entity = Entity::new_player(account_id, job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom, shield_id, x, y, dir);
+                        self.game.entities.set_player_id(account_id);
                         self.game.entities.insert(entity);
 
                         let weapon_type = weapon_view_id_to_type(weapon);
-                        self.load_player_sprite(char_id, job, sex, head, weapon_type, head_top, head_mid, head_bottom, shield_id);
+                        self.load_player_sprite(account_id, job, sex, head, hair_color, 0, weapon_type, head_top, head_mid, head_bottom, shield_id);
 
                         self.position_camera_at(x as f32, y as f32);
                         self.char_select_window = None;
@@ -566,17 +568,17 @@ impl App {
                     GameEvent::EntitySpriteChanged { gid, sprite_type, value, .. } => {
                         if let Some(entity) = self.game.entities.get_mut(gid) {
                             entity.apply_sprite_change(sprite_type, value);
-                            let (job, sex, head, weapon, shield, head_top, head_mid, head_bottom, hair_color) = {
+                            let (job, sex, head, weapon, shield, head_top, head_mid, head_bottom, hair_color, cloth_color) = {
                                 (entity.job, entity.sex, entity.head,
                                  entity.weapon.map(|w| w as u16).unwrap_or(0),
                                  entity.shield, entity.head_top, entity.head_mid,
-                                 entity.head_bottom, entity.hair_color)
+                                 entity.head_bottom, entity.hair_color, entity.cloth_color)
                             };
                             let entity_type = entity.entity_type;
                             let is_player = self.game.entities.player_id() == Some(gid);
                             if is_player {
                                 let weapon_type = weapon_view_id_to_type(weapon);
-                                self.load_player_sprite(gid, job, sex, head, weapon_type, head_top, head_mid, head_bottom, shield);
+                                self.load_player_sprite(gid, job, sex, head, hair_color, cloth_color, weapon_type, head_top, head_mid, head_bottom, shield);
                             } else {
                                 self.load_entity_sprite(gid, entity_type, job, sex, head, weapon,
                                                         shield, head_top, head_mid, head_bottom,
@@ -608,14 +610,14 @@ impl App {
         }
     }
 
-    fn load_player_sprite(&mut self, gid: u32, job: u16, sex: u8, head: u16, weapon: Option<WeaponType>, head_top: u16, head_mid: u16, head_bottom: u16, shield_id: u16) {
+    fn load_player_sprite(&mut self, gid: u32, job: u16, sex: u8, head: u16, hair_color: u16, cloth_color: u16, weapon: Option<WeaponType>, head_top: u16, head_mid: u16, head_bottom: u16, shield_id: u16) {
         let (grf, renderer) = match (&self.grf, &self.renderer) {
             (Some(g), Some(r)) => (g, r),
             _ => return,
         };
         let empty_table = ragnarok_game::accessory_table::AccessoryTable::empty();
         let accessory_table = self.game.accessory_table.as_ref().unwrap_or(&empty_table);
-        let data = match sprite_loader::load_player_sprite_data(grf, accessory_table, job, sex, head, weapon, head_top, head_mid, head_bottom, shield_id) {
+        let data = match sprite_loader::load_player_sprite_data(grf, accessory_table, job, sex, head, hair_color, cloth_color, weapon, head_top, head_mid, head_bottom, shield_id) {
             Some(d) => d,
             None => return,
         };
@@ -629,7 +631,7 @@ impl App {
     fn load_entity_sprite(&mut self, gid: u32, entity_type: EntityType, job: u16,
                            sex: u8, head: u16, weapon: u16, shield: u16,
                            head_top: u16, head_mid: u16, head_bottom: u16,
-                           _hair_color: u16, _direction: u8) {
+                           hair_color: u16, _direction: u8) {
         let (grf, renderer) = match (&self.grf, &self.renderer) {
             (Some(g), Some(r)) => (g, r),
             _ => return,
@@ -638,7 +640,7 @@ impl App {
         match entity_type {
             EntityType::Player => {
                 let weapon_type = weapon_view_id_to_type(weapon);
-                self.load_player_sprite(gid, job, sex, head, weapon_type, head_top, head_mid, head_bottom, shield);
+                self.load_player_sprite(gid, job, sex, head, hair_color, 0, weapon_type, head_top, head_mid, head_bottom, shield);
             }
             EntityType::Npc | EntityType::Monster => {
                 let name_table = match &self.game.name_table {

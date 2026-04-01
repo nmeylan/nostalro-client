@@ -43,12 +43,43 @@ impl Connection {
 
     /// Check if a packet is variable-length, supplementing the server's
     /// `is_variable_length` with packets it doesn't list.
+    /// Packets whose `from()` reads msg/data using `buffer.len()` instead of
+    /// `packet_length` MUST be listed here so we slice the buffer first.
     fn is_variable_length_packet(packet_id: [u8; 2], packetver: u32) -> bool {
         if packets_parser::is_variable_length(packet_id, packetver) {
             return true;
         }
-        // ZC_SAY_DIALOG (0x00b4), ZC_MENU_LIST (0x00b7)
-        matches!(packet_id, [0xb4, 0x00] | [0xb7, 0x00])
+        matches!(packet_id,
+            [0x8d, 0x00] | // ZC_NOTIFY_CHAT
+            [0x8e, 0x00] | // ZC_NOTIFY_PLAYERCHAT
+            [0x92, 0x00] | // ZC_NPCACK_SERVERMOVE
+            [0x97, 0x00] | // ZC_WHISPER
+            [0x9a, 0x00] | // ZC_BROADCAST
+            [0xb4, 0x00] | // ZC_SAY_DIALOG
+            [0xb7, 0x00] | // ZC_MENU_LIST
+            [0xd7, 0x00] | // ZC_ROOM_NEWENTRY
+            [0xdf, 0x00] | // ZC_CHANGE_CHATROOM
+            [0x09, 0x01] | // ZC_NOTIFY_CHAT_PARTY
+            [0x11, 0x01] | // ZC_ADD_SKILL
+            [0x52, 0x01] | // ZC_GUILD_EMBLEM_IMG
+            [0x76, 0x01] | // ZC_ACK_GUILD_MEMBER_INFO
+            [0x7b, 0x01] | // ZC_ITEMCOMPOSITION_LIST
+            [0x77, 0x01] | // ZC_ITEMIDENTIFY_LIST
+            [0x7f, 0x01] | // ZC_GUILD_CHAT
+            [0x82, 0x01] | // ZC_MEMBER_ADD
+            [0x8c, 0x01] | // ZC_MONSTER_INFO
+            [0x8d, 0x01] | // ZC_MAKABLEITEMLIST
+            [0xc1, 0x02] | // ZC_NPC_CHAT
+            [0xc3, 0x01] | // ZC_BROADCAST2
+            [0x1f, 0x02] | // ZC_NOTIFY_PKINFO
+            [0x42, 0x02] | // ZC_MAIL_REQ_OPEN
+            [0x5a, 0x02] | // ZC_MAKINGITEM_LIST
+            [0xdc, 0x02] | // ZC_BATTLEFIELD_CHAT
+            [0xe7, 0x02] | // ZC_MAPPROPERTY
+            [0x47, 0x01] | // ZC_AUTORUN_SKILL
+            [0x3b, 0x0a] | // ZC_HAT_EFFECT
+            [0x1f, 0x08]   // ZC_BROADCAST4
+        )
     }
 
     /// Estimate the byte length of an unknown RO packet.

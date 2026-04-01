@@ -46,6 +46,7 @@ pub struct Entity {
     pub sex: u8,
     pub head: u16,
     pub hair_color: u16,
+    pub cloth_color: u16,
     pub weapon: Option<WeaponType>,
     pub head_top: u16,
     pub head_mid: u16,
@@ -79,7 +80,7 @@ impl Entity {
         let mut movement = MovementState::new(x, y);
         movement.set_speed(speed);
         Self {
-            id, entity_type, job, sex, head, hair_color,
+            id, entity_type, job, sex, head, hair_color, cloth_color: 0,
             weapon: weapon_type,
             head_top, head_mid, head_bottom, shield,
             name: None,
@@ -168,6 +169,7 @@ impl Entity {
             4 => self.head_top = value,
             5 => self.head_mid = value,
             6 => self.hair_color = value,
+            7 => self.cloth_color = value,
             8 => self.shield = value,
             _ => {}
         }
