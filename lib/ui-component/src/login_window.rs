@@ -84,10 +84,19 @@ impl LoginWindow {
 
     pub fn build(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
         let mut events = Vec::new();
-        let (win_w, win_h) = self.win_size;
-        let field_w = win_w - FIELD_X - FIELD_RIGHT_MARGIN;
-        let (btn_w, btn_h) = self.btn_size;
-        let win = ui.window(WINDOW_ID, win_w, win_h, TITLE_BAR_H);
+        let s = |v: f32| ui.ctx.with_ui_scale(v);
+        let (win_w, win_h) = if self.has_grf_textures {
+            self.win_size
+        } else {
+            (s(FALLBACK_WIN_W), s(FALLBACK_WIN_H))
+        };
+        let (btn_w, btn_h) = if self.has_grf_textures {
+            self.btn_size
+        } else {
+            (s(FALLBACK_BTN_W), s(FALLBACK_BTN_H))
+        };
+        let field_w = win_w - s(FIELD_X) - s(FIELD_RIGHT_MARGIN);
+        let win = ui.window(WINDOW_ID, win_w, win_h, s(TITLE_BAR_H));
 
         // Tab cycles focus
         if ui.ctx.key_tab {
@@ -137,8 +146,8 @@ impl LoginWindow {
 
         // Text inputs
         let input_bg = if self.has_grf_textures { TextInputBg::Texture(INPUT_TEXTURE) } else { TextInputBg::Default };
-        let username_rect = Rect::new(win.x + FIELD_X, win.y + USERNAME_Y, field_w, FIELD_H);
-        let password_rect = Rect::new(win.x + FIELD_X, win.y + PASSWORD_Y, field_w, FIELD_H);
+        let username_rect = Rect::new(win.x + s(FIELD_X), win.y + s(USERNAME_Y), field_w, s(FIELD_H));
+        let password_rect = Rect::new(win.x + s(FIELD_X), win.y + s(PASSWORD_Y), field_w, s(FIELD_H));
         ui.text_input(USERNAME_ID, username_rect, &mut self.username, input_bg);
         ui.text_input(PASSWORD_ID, password_rect, &mut self.password, input_bg);
 
@@ -150,9 +159,9 @@ impl LoginWindow {
         }
 
         // Buttons (positioned from right/bottom edges, matching original client)
-        let btn_y = win.y + win_h - BTN_BOTTOM - btn_h;
-        let connect_rect = Rect::new(win.x + win_w - CONNECT_BTN_RIGHT - btn_w, btn_y, btn_w, btn_h);
-        let exit_rect = Rect::new(win.x + win_w - EXIT_BTN_RIGHT - btn_w, btn_y, btn_w, btn_h);
+        let btn_y = win.y + win_h - s(BTN_BOTTOM) - btn_h;
+        let connect_rect = Rect::new(win.x + win_w - s(CONNECT_BTN_RIGHT) - btn_w, btn_y, btn_w, btn_h);
+        let exit_rect = Rect::new(win.x + win_w - s(EXIT_BTN_RIGHT) - btn_w, btn_y, btn_w, btn_h);
         let connect = ui.button(CONNECT_ID, connect_rect, &CONNECT_BTN, "Connect");
         let exit = ui.button(EXIT_ID, exit_rect, &EXIT_BTN, "Exit");
 
@@ -172,7 +181,7 @@ impl LoginWindow {
 
         // Error message
         if let Some(msg) = &self.error_message {
-            let error_y = win.y + win_h + 5.0;
+            let error_y = win.y + win_h + s(5.0);
             let error_w = ui.atlas.measure_text(msg);
             let error_x = win.x + (win_w - error_w) / 2.0;
             ui.text(error_x, error_y, msg, [1.0, 0.3, 0.3, 1.0]);

@@ -139,6 +139,7 @@ pub enum GameEvent {
 
     // Chat
     ChatMessage {
+        gid: u32,
         message: String,
     },
     OwnChatMessage {

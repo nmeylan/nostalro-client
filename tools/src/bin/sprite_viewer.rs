@@ -643,7 +643,7 @@ impl ApplicationHandler for App {
             .ok();
 
         let font_atlas = FontAtlas::from_embedded(16.0);
-        let font_atlas_bind_group = texture::create_texture_bind_group_nearest(
+        let font_atlas_bind_group = texture::create_font_atlas_bind_group(
             &device.device,
             &device.queue,
             &font_atlas.image,

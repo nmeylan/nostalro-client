@@ -110,9 +110,10 @@ impl CharSelectWindow {
     }
 
     fn build_grf(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
+        let s = |v: f32| ui.ctx.with_ui_scale(v);
         let (win_w, win_h) = self.win_size;
         let (btn_w, btn_h) = self.btn_size;
-        let win = ui.window(WINDOW_ID, win_w, win_h, HEADER_H);
+        let win = ui.window(WINDOW_ID, win_w, win_h, s(HEADER_H));
 
         let (v, i) = draw::quad_vertices(win.x, win.y, win_w, win_h, [1.0, 1.0, 1.0, 1.0]);
         ui.draw_calls.push(DrawCall {
@@ -120,9 +121,11 @@ impl CharSelectWindow {
             texture: TextureRef::Named(WIN_TEXTURE.to_string()),
         });
 
-        let list_w = win_w - LIST_X * 2.0;
-        let list_h = win_h - HEADER_H - LIST_BOTTOM;
-        let list_rect = Rect::new(win.x + LIST_X, win.y + HEADER_H, list_w, list_h);
+        let list_x = s(LIST_X);
+        let header_h = s(HEADER_H);
+        let list_w = win_w - list_x * 2.0;
+        let list_h = win_h - header_h - s(LIST_BOTTOM);
+        let list_rect = Rect::new(win.x + list_x, win.y + header_h, list_w, list_h);
         let (v, i) = draw::quad_vertices(list_rect.x, list_rect.y, list_rect.w, list_rect.h, LIST_BG_COLOR);
         ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
 
@@ -137,13 +140,14 @@ impl CharSelectWindow {
             ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
         }
 
+        let row_h = s(ROW_H);
         let text_color = [0.0, 0.0, 0.0, 1.0];
         for (idx, ch) in self.characters.iter().enumerate() {
-            let row_y = list_rect.y + ROW_PAD_TOP + idx as f32 * ROW_H;
-            if row_y + ROW_H > list_rect.y + list_rect.h {
+            let row_y = list_rect.y + s(ROW_PAD_TOP) + idx as f32 * row_h;
+            if row_y + row_h > list_rect.y + list_rect.h {
                 break;
             }
-            let row_rect = Rect::new(list_rect.x + 1.0, row_y, list_w - 2.0, ROW_H);
+            let row_rect = Rect::new(list_rect.x + 1.0, row_y, list_w - 2.0, row_h);
             let row = ui.interact(WidgetId(WINDOW_ID.0 + 10 + idx as u32), row_rect);
             if row.clicked() {
                 self.selected_index = Some(idx);
@@ -154,14 +158,14 @@ impl CharSelectWindow {
                 ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
             }
 
-            let text_y = row_y + ROW_H - 3.0;
+            let text_y = row_y + row_h - s(3.0);
             let label = format!("{}  {}  Lv.{}", ch.name, job_class_name(ch.class), ch.base_level);
-            ui.text(list_rect.x + ROW_PAD_LEFT, text_y, &label, text_color);
+            ui.text(list_rect.x + s(ROW_PAD_LEFT), text_y, &label, text_color);
         }
 
-        let btn_y = win.y + win_h - BTN_BOTTOM - btn_h;
-        let ok_rect = Rect::new(win.x + win_w - OK_BTN_RIGHT - btn_w, btn_y, btn_w, btn_h);
-        let cancel_rect = Rect::new(win.x + win_w - CANCEL_BTN_RIGHT - btn_w, btn_y, btn_w, btn_h);
+        let btn_y = win.y + win_h - s(BTN_BOTTOM) - btn_h;
+        let ok_rect = Rect::new(win.x + win_w - s(OK_BTN_RIGHT) - btn_w, btn_y, btn_w, btn_h);
+        let cancel_rect = Rect::new(win.x + win_w - s(CANCEL_BTN_RIGHT) - btn_w, btn_y, btn_w, btn_h);
         let ok = ui.button(OK_ID, ok_rect, &OK_BTN, "OK");
         let cancel = ui.button(CANCEL_ID, cancel_rect, &CANCEL_BTN, "Cancel");
 
@@ -178,12 +182,17 @@ impl CharSelectWindow {
     }
 
     fn build_fallback(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
-        let list_h = self.characters.len().max(1) as f32 * ROW_H;
-        let padding = 8.0;
-        let title_h = 30.0;
-        let detail_h = if self.selected_index.is_some() { 100.0 } else { 0.0 };
-        let win_h = title_h + list_h + padding + detail_h + padding + FALLBACK_BTN_H + padding;
-        let win = ui.window(WINDOW_ID, FALLBACK_WIN_W, win_h, FALLBACK_TITLE_BAR_H);
+        let s = |v: f32| ui.ctx.with_ui_scale(v);
+        let row_h = s(ROW_H);
+        let list_h = self.characters.len().max(1) as f32 * row_h;
+        let padding = s(8.0);
+        let title_h = s(30.0);
+        let detail_h = if self.selected_index.is_some() { s(100.0) } else { 0.0 };
+        let btn_h = s(FALLBACK_BTN_H);
+        let btn_w = s(FALLBACK_BTN_W);
+        let win_w = s(FALLBACK_WIN_W);
+        let win_h = title_h + list_h + padding + detail_h + padding + btn_h + padding;
+        let win = ui.window(WINDOW_ID, win_w, win_h, s(FALLBACK_TITLE_BAR_H));
 
         // Window background
         let (v, i) = draw::quad_vertices(win.x, win.y, win.w, win_h, [0.08, 0.08, 0.12, 0.95]);
@@ -214,8 +223,8 @@ impl CharSelectWindow {
         let text_color = [1.0, 1.0, 1.0, 1.0];
         let dim_color = [0.7, 0.7, 0.7, 1.0];
         for (idx, ch) in self.characters.iter().enumerate() {
-            let row_y = list_y + idx as f32 * ROW_H;
-            let row_rect = Rect::new(win.x + padding, row_y, win.w - padding * 2.0, ROW_H);
+            let row_y = list_y + idx as f32 * row_h;
+            let row_rect = Rect::new(win.x + padding, row_y, win.w - padding * 2.0, row_h);
             let row = ui.interact(WidgetId(WINDOW_ID.0 + 10 + idx as u32), row_rect);
             if row.clicked() {
                 self.selected_index = Some(idx);
@@ -233,9 +242,9 @@ impl CharSelectWindow {
                 ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
             }
 
-            let text_y = row_y + (ROW_H + ui.atlas.line_height) / 2.0 - 2.0;
+            let text_y = row_y + (row_h + ui.atlas.line_height) / 2.0 - s(2.0);
             let label = format!("{}  {}  Lv.{}", ch.name, job_class_name(ch.class), ch.base_level);
-            ui.text(win.x + padding + 4.0, text_y, &label, text_color);
+            ui.text(win.x + padding + s(4.0), text_y, &label, text_color);
         }
 
         // Detail panel for selected character
@@ -244,9 +253,9 @@ impl CharSelectWindow {
             if let Some(ch) = self.characters.get(idx) {
                 let detail_y = list_y + list_h + padding;
                 detail_bottom = detail_y + detail_h;
-                let line_h = ui.atlas.line_height + 2.0;
-                let col1_x = win.x + padding + 4.0;
-                let col2_x = win.x + win.w / 2.0 + 4.0;
+                let line_h = ui.atlas.line_height + s(2.0);
+                let col1_x = win.x + padding + s(4.0);
+                let col2_x = win.x + win.w / 2.0 + s(4.0);
 
                 let mut y = detail_y + line_h;
                 ui.text(col1_x, y, &format!("Job Lv.{}", ch.job_level), dim_color);
@@ -266,12 +275,12 @@ impl CharSelectWindow {
 
         // OK / Cancel buttons
         let btn_y = detail_bottom + padding;
-        let btn_spacing = 8.0;
-        let total_btn_w = FALLBACK_BTN_W * 2.0 + btn_spacing;
+        let btn_spacing = s(8.0);
+        let total_btn_w = btn_w * 2.0 + btn_spacing;
         let btn_start_x = win.x + (win.w - total_btn_w) / 2.0;
 
-        let ok_rect = Rect::new(btn_start_x, btn_y, FALLBACK_BTN_W, FALLBACK_BTN_H);
-        let cancel_rect = Rect::new(btn_start_x + FALLBACK_BTN_W + btn_spacing, btn_y, FALLBACK_BTN_W, FALLBACK_BTN_H);
+        let ok_rect = Rect::new(btn_start_x, btn_y, btn_w, btn_h);
+        let cancel_rect = Rect::new(btn_start_x + btn_w + btn_spacing, btn_y, btn_w, btn_h);
         let ok = ui.button(OK_ID, ok_rect, &OK_BTN, "OK");
         let cancel = ui.button(CANCEL_ID, cancel_rect, &CANCEL_BTN, "Cancel");
 

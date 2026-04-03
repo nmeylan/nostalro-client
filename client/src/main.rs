@@ -42,6 +42,8 @@ use winit::window::{Window, WindowAttributes, WindowId};
 
 type ClipData = (Vec<SpriteVertex>, Vec<u32>, usize);
 
+pub const FONT_SIZE: f32 = 14.0;
+
 struct App {
     config: Config,
     window: Option<Arc<Window>>,
@@ -215,8 +217,11 @@ impl App {
                         if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
                             server_win.has_grf_textures = renderer.preload_textures(&ServerListWindow::grf_texture_paths(), grf);
                             if server_win.has_grf_textures {
+                                let ui_scale = self.config.ui_scale / 100.0;
                                 server_win.set_texture_sizes(|name| {
-                                    renderer.texture_cache.texture_size(name)
+                                    renderer.texture_cache.texture_size(name).map(|(w, h)| {
+                                        ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
+                                    })
                                 });
                             }
                         }
@@ -242,8 +247,11 @@ impl App {
                         if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
                             char_win.has_grf_textures = renderer.preload_textures(&CharSelectWindow::grf_texture_paths(), grf);
                             if char_win.has_grf_textures {
+                                let ui_scale = self.config.ui_scale / 100.0;
                                 char_win.set_texture_sizes(|name| {
-                                    renderer.texture_cache.texture_size(name)
+                                    renderer.texture_cache.texture_size(name).map(|(w, h)| {
+                                        ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
+                                    })
                                 });
                             }
                         }
@@ -319,8 +327,11 @@ impl App {
                                 &SystemMenu::grf_texture_paths(), grf,
                             );
                             if self.game.system_menu.has_grf_textures {
+                                let ui_scale = self.config.ui_scale / 100.0;
                                 self.game.system_menu.set_texture_sizes(|name| {
-                                    renderer.texture_cache.texture_size(name)
+                                    renderer.texture_cache.texture_size(name).map(|(w, h)| {
+                                        ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
+                                    })
                                 });
                             }
                         }
@@ -506,10 +517,22 @@ impl App {
                         self.game.npc_dialog.dialog.show_deal_type(npc_id);
                         self.preload_npc_dialog_textures();
                     }
-                    GameEvent::ChatMessage { message } => {
+                    GameEvent::ChatMessage { gid, message } => {
+                        if let Some(bubble_text) = message.split(" : ").nth(1) {
+                            if let Some(entity) = self.game.entities.get_mut(gid) {
+                                entity.chat_bubble = Some(ragnarok_game::entity::ChatBubbleState::new(bubble_text.to_string()));
+                            }
+                        }
                         self.game.chat_window.add_chat(message);
                     }
                     GameEvent::OwnChatMessage { message } => {
+                        if let Some(bubble_text) = message.split(" : ").nth(1) {
+                            if let Some(player_id) = self.game.entities.player_id() {
+                                if let Some(entity) = self.game.entities.get_mut(player_id) {
+                                    entity.chat_bubble = Some(ragnarok_game::entity::ChatBubbleState::new(bubble_text.to_string()));
+                                }
+                            }
+                        }
                         self.game.chat_window.add_own_chat(message);
                     }
                     GameEvent::ServerTick { server_tick, local_send_time_ms } => {
@@ -521,6 +544,7 @@ impl App {
                         }
                     }
                     GameEvent::ParameterChanged { var_id, value } => {
+                        // TODO MUSt use rust-ro enum
                         match var_id {
                             0 => {
                                 if let Some(entity) = self.game.entities.player_mut() {
@@ -737,8 +761,11 @@ impl App {
         if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
             self.game.npc_dialog.has_grf_textures = renderer.preload_textures(&NpcDialog::grf_texture_paths(), grf);
             if self.game.npc_dialog.has_grf_textures {
+                let ui_scale = self.config.ui_scale / 100.0;
                 self.game.npc_dialog.set_texture_sizes(|name| {
-                    renderer.texture_cache.texture_size(name)
+                    renderer.texture_cache.texture_size(name).map(|(w, h)| {
+                        ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
+                    })
                 });
             }
         }
@@ -1216,14 +1243,16 @@ impl ApplicationHandler for App {
             ));
 
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
-        let renderer = block_on(Renderer::new(window.clone()));
+        let renderer = block_on(Renderer::new(window.clone(), self.config.font_px_height()));
 
         self.window = Some(window);
         self.renderer = Some(renderer);
-        self.ui_context = Some(UiContext::new(
+        let mut ui_ctx = UiContext::new(
             self.config.screen_width as f32,
             self.config.screen_height as f32,
-        ));
+        );
+        ui_ctx.ui_scale = self.config.ui_scale / 100.0;
+        self.ui_context = Some(ui_ctx);
 
         // Load GRF
         if let Some(grf_path) = self.config.grf_paths.first() {
@@ -1236,8 +1265,11 @@ impl ApplicationHandler for App {
 
                         self.login_window.has_grf_textures = renderer.preload_textures(&LoginWindow::grf_texture_paths(), &grf);
                         if self.login_window.has_grf_textures {
+                            let ui_scale = self.config.ui_scale / 100.0;
                             self.login_window.set_texture_sizes(|name| {
-                                renderer.texture_cache.texture_size(name)
+                                renderer.texture_cache.texture_size(name).map(|(w, h)| {
+                                    ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
+                                })
                             });
                         }
                     }
@@ -1395,7 +1427,8 @@ impl ApplicationHandler for App {
                         if let Some(name) = &entity.name {
                             let hovered_entry = render_list.iter().find(|e| e.id == entity_id);
                             if let Some(entry) = hovered_entry {
-                                let text_scale = entry.sprite_scale;
+                                let world_text_compensation = FONT_SIZE / renderer.font_px_height;
+                                let text_scale = entry.sprite_scale * 0.85 * world_text_compensation;
                                 let text_width = renderer.font_atlas.measure_text(name) * text_scale;
                                 let text_x = entry.screen_center[0] - text_width / 2.0;
                                 let text_y = entry.screen_center[1] + 35.0 * entry.sprite_scale;
@@ -1440,13 +1473,73 @@ impl ApplicationHandler for App {
                     if hovered_entity_id != self.game.entities.player_id() {
                         if let Some(ratio) = player.hp_percentage() {
                             if let Some(entry) = render_list.iter().find(|e| Some(e.id) == self.game.entities.player_id()) {
-                                let name_y = entry.screen_center[1] + 35.0 * entry.sprite_scale;
+                                let wtc = 16.0 / renderer.font_px_height;
+                                let ts = entry.sprite_scale * 0.85 * wtc;
+                                let name_y = entry.screen_center[1] + 35.0 * ts;
                                 let bar_y = if player.name.is_some() {
-                                    name_y + renderer.font_atlas.line_height * entry.sprite_scale + 2.0
+                                    name_y + renderer.font_atlas.line_height * ts + 2.0
                                 } else {
                                     name_y
                                 };
                                 render_hp_bar(entry.screen_center[0], bar_y, entry.sprite_scale, ratio, &mut ui_draw_calls);
+                            }
+                        }
+                    }
+                }
+
+                if let Some(renderer) = &self.renderer {
+                    for entry in &render_list {
+                        if let Some(entity) = self.game.entities.get(entry.id) {
+                            if let Some(bubble) = &entity.chat_bubble {
+                                let world_text_compensation = FONT_SIZE / renderer.font_px_height;
+                                let text_scale = entry.sprite_scale * 0.65 * world_text_compensation;
+                                let padding = 4.0 * text_scale;
+                                let max_width = 150.0 * text_scale;
+                                let char_width = renderer.font_atlas.measure_text("A") * text_scale;
+                                let max_chars = (max_width / char_width).floor() as usize;
+
+                                let lines: Vec<&str> = if bubble.message.len() > max_chars {
+                                    bubble.message.as_bytes()
+                                        .chunks(max_chars)
+                                        .map(|chunk| std::str::from_utf8(chunk).unwrap_or(""))
+                                        .collect()
+                                } else {
+                                    vec![&bubble.message]
+                                };
+
+                                let line_h = renderer.font_atlas.line_height * text_scale;
+                                let total_h = line_h * lines.len() as f32 + padding * 2.0;
+                                let widest = lines.iter()
+                                    .map(|l| renderer.font_atlas.measure_text(l) * text_scale)
+                                    .fold(0.0_f32, f32::max);
+                                let box_w = widest + padding * 2.0;
+                                let box_x = entry.screen_center[0] - box_w / 2.0;
+                                let box_y = entry.screen_center[1] - 60.0 * text_scale - total_h;
+
+                                let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
+                                    box_x, box_y, box_w, total_h, [0.0, 0.0, 0.0, 0.65],
+                                );
+                                ui_draw_calls.push(UiDrawCall {
+                                    vertices: bg_verts.to_vec(),
+                                    indices: bg_idx.to_vec(),
+                                    texture: ragnarok_renderer::UiTextureRef::White,
+                                });
+
+                                for (i, line) in lines.iter().enumerate() {
+                                    let line_w = renderer.font_atlas.measure_text(line) * text_scale;
+                                    let lx = entry.screen_center[0] - line_w / 2.0;
+                                    let ly = box_y + padding + line_h * i as f32;
+                                    let (verts, indices) = ragnarok_ui::draw::text_vertices_scaled(
+                                        line, lx, ly, [1.0, 1.0, 1.0, 1.0], &renderer.font_atlas, text_scale,
+                                    );
+                                    if !verts.is_empty() {
+                                        ui_draw_calls.push(UiDrawCall {
+                                            vertices: verts,
+                                            indices,
+                                            texture: ragnarok_renderer::UiTextureRef::FontAtlas,
+                                        });
+                                    }
+                                }
                             }
                         }
                     }

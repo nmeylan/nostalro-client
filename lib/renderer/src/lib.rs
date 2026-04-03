@@ -55,10 +55,11 @@ pub struct Renderer {
     pub font_atlas: FontAtlas,
     pub font_atlas_bind_group: wgpu::BindGroup,
     pub white_bind_group: wgpu::BindGroup,
+    pub font_px_height: f32,
 }
 
 impl Renderer {
-    pub async fn new(window: Arc<winit::window::Window>) -> Self {
+    pub async fn new(window: Arc<winit::window::Window>, font_px_height: f32) -> Self {
         let device = RenderDevice::new(window).await;
         let camera = Camera {
             aspect: device.surface_config.width as f32 / device.surface_config.height as f32,
@@ -67,8 +68,8 @@ impl Renderer {
         let global_uniforms = GlobalUniforms::new(&device.device);
         let texture_cache = TextureCache::new(&device.device);
 
-        let font_atlas = FontAtlas::from_embedded(16.0);
-        let font_atlas_bind_group = texture::create_texture_bind_group(
+        let font_atlas = FontAtlas::from_embedded(font_px_height);
+        let font_atlas_bind_group = texture::create_font_atlas_bind_group(
             &device.device,
             &device.queue,
             &font_atlas.image,
@@ -116,6 +117,7 @@ impl Renderer {
             font_atlas,
             font_atlas_bind_group,
             white_bind_group,
+            font_px_height,
         }
     }
 
@@ -353,8 +355,8 @@ impl Renderer {
         ];
         for path in &font_paths {
             if let Ok(data) = grf.read_file(path) {
-                self.font_atlas = FontAtlas::build(&data, 16.0);
-                self.font_atlas_bind_group = texture::create_texture_bind_group(
+                self.font_atlas = FontAtlas::build(&data, self.font_px_height);
+                self.font_atlas_bind_group = texture::create_font_atlas_bind_group(
                     &self.device.device,
                     &self.device.queue,
                     &self.font_atlas.image,

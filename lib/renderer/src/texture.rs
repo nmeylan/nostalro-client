@@ -138,6 +138,19 @@ pub fn create_texture_bind_group_nearest(
     create_texture_bind_group_filtered(device, queue, img, layout, label, wgpu::FilterMode::Nearest)
 }
 
+pub fn create_font_atlas_bind_group(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    img: &image::RgbaImage,
+    layout: &wgpu::BindGroupLayout,
+    label: &str,
+) -> wgpu::BindGroup {
+    create_texture_bind_group_from_rgba(
+        device, queue, img.as_raw(), img.width(), img.height(),
+        layout, label, wgpu::FilterMode::Nearest, wgpu::TextureFormat::Rgba8Unorm,
+    )
+}
+
 pub fn create_texture_bind_group_from_rgba(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -147,6 +160,7 @@ pub fn create_texture_bind_group_from_rgba(
     layout: &wgpu::BindGroupLayout,
     label: &str,
     filter: wgpu::FilterMode,
+    format: wgpu::TextureFormat,
 ) -> wgpu::BindGroup {
     let size = wgpu::Extent3d {
         width,
@@ -160,7 +174,7 @@ pub fn create_texture_bind_group_from_rgba(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        format,
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
@@ -215,5 +229,5 @@ fn create_texture_bind_group_filtered(
     label: &str,
     filter: wgpu::FilterMode,
 ) -> wgpu::BindGroup {
-    create_texture_bind_group_from_rgba(device, queue, img.as_raw(), img.width(), img.height(), layout, label, filter)
+    create_texture_bind_group_from_rgba(device, queue, img.as_raw(), img.width(), img.height(), layout, label, filter, wgpu::TextureFormat::Rgba8UnormSrgb)
 }

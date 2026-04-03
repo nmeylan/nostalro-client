@@ -172,16 +172,21 @@ impl NpcDialog {
         let has_text = !self.dialog.text.is_empty();
         let menu_only = state == NpcDialogState::WaitingForMenu && !has_text;
 
+        let s = |v: f32| ui.ctx.with_ui_scale(v);
+        let padding = s(PADDING);
+        let dialog_w = s(DIALOG_W);
+
         if !menu_only {
         // Compute dialog height based on content
-        let text_area_w = DIALOG_W - PADDING * 2.0;
-        let wrapped_lines = word_wrap(&self.dialog.text, text_area_w, |s| {
-            ui.atlas.measure_text(&strip_color_codes(s))
+        let text_area_w = dialog_w - padding * 2.0;
+        let wrapped_lines = word_wrap(&self.dialog.text, text_area_w, |t| {
+            ui.atlas.measure_text(&strip_color_codes(t))
         });
-        let text_h = (wrapped_lines.len().max(1) as f32) * TEXT_LINE_HEIGHT;
+        let text_line_h = s(TEXT_LINE_HEIGHT);
+        let text_h = (wrapped_lines.len().max(1) as f32) * text_line_h;
 
         let input_h = if matches!(state, NpcDialogState::WaitingForNumberInput | NpcDialogState::WaitingForStringInput) {
-            30.0
+            s(30.0)
         } else {
             0.0
         };
@@ -191,31 +196,31 @@ impl NpcDialog {
             NpcDialogState::WaitingForNext | NpcDialogState::WaitingForClose |
             NpcDialogState::WaitingForNumberInput | NpcDialogState::WaitingForStringInput
         );
-        let btn_area_h = if has_button { btn_h + PADDING } else { 0.0 };
+        let btn_area_h = if has_button { btn_h + padding } else { 0.0 };
 
-        let dialog_h = (PADDING + text_h + input_h + btn_area_h + PADDING).max(DIALOG_H);
+        let dialog_h = (padding + text_h + input_h + btn_area_h + padding).max(s(DIALOG_H));
 
         // Dialog background
-        draw_box(ui, dx, dy, DIALOG_W, dialog_h, self.has_grf_textures);
+        draw_box(ui, dx, dy, dialog_w, dialog_h, self.has_grf_textures);
 
         // Text content
         let text_color = if self.has_grf_textures { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
-        let mut text_y = dy + PADDING + ui.atlas.line_height;
+        let mut text_y = dy + padding + ui.atlas.line_height;
         for line in &wrapped_lines {
-            ui.colored_text(dx + PADDING, text_y, line, text_color);
-            text_y += TEXT_LINE_HEIGHT;
+            ui.colored_text(dx + padding, text_y, line, text_color);
+            text_y += text_line_h;
         }
 
         // Input fields
         if state == NpcDialogState::WaitingForNumberInput {
-            let input_y = text_y + PADDING;
-            let input_rect = Rect::new(dx + PADDING, input_y, text_area_w - btn_w - PADDING, 22.0);
+            let input_y = text_y + padding;
+            let input_rect = Rect::new(dx + padding, input_y, text_area_w - btn_w - padding, s(22.0));
             if ui.focused() != Some(INPUT_ID) {
                 ui.set_focus(INPUT_ID);
             }
             ui.text_input(INPUT_ID, input_rect, &mut self.number_input, TextInputBg::Default);
 
-            let ok_rect = Rect::new(dx + DIALOG_W - PADDING - btn_w, input_y, btn_w, btn_h);
+            let ok_rect = Rect::new(dx + dialog_w - padding - btn_w, input_y, btn_w, btn_h);
             let ok = ui.button(OK_BTN_ID, ok_rect, &OK_BTN, "OK");
             if ok.clicked() {
                 let value: i32 = self.number_input.text.parse().unwrap_or(0);
@@ -228,14 +233,14 @@ impl NpcDialog {
             }
         }
         if state == NpcDialogState::WaitingForStringInput {
-            let input_y = text_y + PADDING;
-            let input_rect = Rect::new(dx + PADDING, input_y, text_area_w - btn_w - PADDING, 22.0);
+            let input_y = text_y + padding;
+            let input_rect = Rect::new(dx + padding, input_y, text_area_w - btn_w - padding, s(22.0));
             if ui.focused() != Some(INPUT_ID) {
                 ui.set_focus(INPUT_ID);
             }
             ui.text_input(INPUT_ID, input_rect, &mut self.string_input, TextInputBg::Default);
 
-            let ok_rect = Rect::new(dx + DIALOG_W - PADDING - btn_w, input_y, btn_w, btn_h);
+            let ok_rect = Rect::new(dx + dialog_w - padding - btn_w, input_y, btn_w, btn_h);
             let ok = ui.button(OK_BTN_ID, ok_rect, &OK_BTN, "OK");
             if ok.clicked() {
                 let text = self.string_input.text.clone();
@@ -249,8 +254,8 @@ impl NpcDialog {
         }
 
         // Next/Close buttons (bottom-right)
-        let btn_y = dy + dialog_h - 2.0 - btn_h;
-        let btn_x = dx + DIALOG_W - 8.0 - btn_w;
+        let btn_y = dy + dialog_h - s(2.0) - btn_h;
+        let btn_x = dx + dialog_w - s(8.0) - btn_w;
 
         if state == NpcDialogState::WaitingForNext {
             let rect = Rect::new(btn_x, btn_y, btn_w, btn_h);
@@ -282,21 +287,25 @@ impl NpcDialog {
 
     fn build_menu_window(&mut self, ui: &mut UiFrame, dx: f32) -> Vec<GameEvent> {
         let mut events = Vec::new();
+        let s = |v: f32| ui.ctx.with_ui_scale(v);
         let (btn_w, btn_h) = self.btn_size;
-        let text_area_w = MENU_W - PADDING * 2.0;
+        let menu_w = s(MENU_W);
+        let padding = s(PADDING);
+        let menu_item_h = s(MENU_ITEM_HEIGHT);
+        let text_area_w = menu_w - padding * 2.0;
 
-        let menu_y = (ui.ctx.screen_height / 2.0 + 76.0).max(376.0).floor();
-        let items_h = self.dialog.menu_items.len() as f32 * MENU_ITEM_HEIGHT;
-        let menu_h = (PADDING + items_h + PADDING + btn_h + PADDING).max(MENU_MIN_H);
+        let menu_y = (ui.ctx.screen_height / 2.0 + s(76.0)).max(s(376.0)).floor();
+        let items_h = self.dialog.menu_items.len() as f32 * menu_item_h;
+        let menu_h = (padding + items_h + padding + btn_h + padding).max(s(MENU_MIN_H));
 
-        draw_box(ui, dx, menu_y, MENU_W, menu_h, self.has_grf_textures);
+        draw_box(ui, dx, menu_y, menu_w, menu_h, self.has_grf_textures);
 
         let text_color = if self.has_grf_textures { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
-        let menu_y_start = menu_y + PADDING;
+        let menu_y_start = menu_y + padding;
 
         for (idx, item) in self.dialog.menu_items.iter().enumerate() {
-            let item_y = menu_y_start + idx as f32 * MENU_ITEM_HEIGHT;
-            let item_rect = Rect::new(dx + PADDING, item_y, text_area_w, MENU_ITEM_HEIGHT);
+            let item_y = menu_y_start + idx as f32 * menu_item_h;
+            let item_rect = Rect::new(dx + padding, item_y, text_area_w, menu_item_h);
             let widget_id = WidgetId(MENU_BASE_ID + idx as u32);
             let response = ui.interact(widget_id, item_rect);
 
@@ -312,7 +321,7 @@ impl NpcDialog {
             }
 
             let label = format!("{}. {}", idx + 1, item);
-            ui.colored_text(dx + PADDING + 4.0, item_y + ui.atlas.line_height, &label, text_color);
+            ui.colored_text(dx + padding + s(4.0), item_y + ui.atlas.line_height, &label, text_color);
 
             if response.clicked() {
                 let choice = (idx + 1) as u8;
@@ -323,9 +332,9 @@ impl NpcDialog {
         }
 
         // OK + Cancel buttons at bottom-right of menu box
-        let btn_y = menu_y + menu_h - 2.0 - btn_h;
-        let cancel_x = dx + MENU_W - 8.0 - btn_w;
-        let ok_x = cancel_x - 4.0 - btn_w;
+        let btn_y = menu_y + menu_h - s(2.0) - btn_h;
+        let cancel_x = dx + menu_w - s(8.0) - btn_w;
+        let ok_x = cancel_x - s(4.0) - btn_w;
 
         let ok = ui.button(MENU_OK_BTN_ID, Rect::new(ok_x, btn_y, btn_w, btn_h), &OK_BTN, "OK");
         let cancel = ui.button(CANCEL_BTN_ID, Rect::new(cancel_x, btn_y, btn_w, btn_h), &CANCEL_BTN, "Cancel");
@@ -345,22 +354,24 @@ impl NpcDialog {
 
     fn build_deal_type_popup(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
         let mut events = Vec::new();
+        let s = |v: f32| ui.ctx.with_ui_scale(v);
         let (btn_w, btn_h) = self.btn_size;
+        let padding = s(PADDING);
 
-        let popup_w = 140.0;
-        let popup_h = 3.0 * (btn_h + PADDING) + PADDING;
+        let popup_w = s(140.0);
+        let popup_h = 3.0 * (btn_h + padding) + padding;
         let px = ((ui.ctx.screen_width - popup_w) / 2.0).floor();
         let py = (ui.ctx.screen_height / 1.5).floor();
 
         draw_box(ui, px, py, popup_w, popup_h, self.has_grf_textures);
 
         let center_x = px + (popup_w - btn_w) / 2.0;
-        let mut by = py + PADDING;
+        let mut by = py + padding;
 
         let buy = ui.button(BUY_BTN_ID, Rect::new(center_x, by, btn_w, btn_h), &OK_BTN, "Buy");
-        by += btn_h + PADDING;
+        by += btn_h + padding;
         let sell = ui.button(SELL_BTN_ID, Rect::new(center_x, by, btn_w, btn_h), &OK_BTN, "Sell");
-        by += btn_h + PADDING;
+        by += btn_h + padding;
         let cancel = ui.button(DEAL_CANCEL_BTN_ID, Rect::new(center_x, by, btn_w, btn_h), &CANCEL_BTN, "Cancel");
 
         if buy.clicked() {

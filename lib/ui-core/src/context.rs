@@ -20,6 +20,7 @@ pub struct UiContext {
     pub key_down: bool,
     pub key_f10: bool,
     pub scroll_delta: f32,
+    pub ui_scale: f32,
 }
 
 impl UiContext {
@@ -43,7 +44,12 @@ impl UiContext {
             key_down: false,
             key_f10: false,
             scroll_delta: 0.0,
+            ui_scale: 1.0,
         }
+    }
+
+    pub fn with_ui_scale(&self, v: f32) -> f32 {
+        v * self.ui_scale
     }
 
     pub fn begin_frame(&mut self) {

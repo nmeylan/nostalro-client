@@ -238,7 +238,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     // Chat messages
     if let Some(p) = any.downcast_ref::<PacketZcNotifyChat>() {
         let message: String = p.msg.chars().take_while(|c| *c != '\0').collect();
-        return vec![GameEvent::ChatMessage { message }];
+        return vec![GameEvent::ChatMessage { gid: p.gid, message }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyPlayerchat>() {
         let message: String = p.msg.chars().take_while(|c| *c != '\0').collect();
@@ -600,7 +600,8 @@ mod tests {
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            GameEvent::ChatMessage { message } => {
+            GameEvent::ChatMessage { gid, message } => {
+                assert_eq!(*gid, 42);
                 assert_eq!(message, "Player : Hello");
             }
             other => panic!("expected ChatMessage, got {other:?}"),

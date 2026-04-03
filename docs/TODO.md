@@ -10,7 +10,7 @@ TODO:
 - Divide attachment offset by clip zoom for weapons/accessories (dhxj compensates when sprClip zoom != 1.0)
 - Damage numbers display
 - ~~Emotion/emote bubbles~~ (done — EmotionState with 2.5s display)
-- Chat bubbles above entities
+- ~~Chat bubbles above entities~~ (done — text bubble with background above entity, 5s duration)
 - ~~Name above entities~~ (done — text with outline rendered above sprites)
 - ~~HP bar above entities~~ (done — green/yellow/red bar below name, on hover + always for player)
 - ~~Shadow under entities~~ (done — shadow size table for 200+ jobs)

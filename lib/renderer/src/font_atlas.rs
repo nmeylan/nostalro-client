@@ -56,7 +56,8 @@ impl FontAtlas {
             }))
             .sum();
 
-        let mut atlas_size = ((total_area as f64).sqrt().ceil() as u32).next_power_of_two().max(64);
+        // 1.5x margin accounts for shelf-packing row waste
+        let mut atlas_size = ((total_area as f64 * 1.5).sqrt().ceil() as u32).next_power_of_two().max(64);
         if atlas_size < max_glyph_width + padding {
             atlas_size = (max_glyph_width + padding).next_power_of_two();
         }
@@ -93,7 +94,7 @@ impl FontAtlas {
                     let px = ox + x;
                     let py = oy + y;
                     if px < atlas_size && py < atlas_size {
-                        let v = (c.sqrt() * 255.0) as u8;
+                        let v = (c * 255.0) as u8;
                         image.put_pixel(px, py, image::Rgba([255, 255, 255, v]));
                     }
                 });

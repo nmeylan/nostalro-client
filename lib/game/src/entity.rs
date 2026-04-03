@@ -39,6 +39,23 @@ impl EmotionState {
     }
 }
 
+pub struct ChatBubbleState {
+    pub message: String,
+    pub elapsed: f32,
+}
+
+impl ChatBubbleState {
+    pub const DISPLAY_DURATION: f32 = 5.0;
+
+    pub fn new(message: String) -> Self {
+        Self { message, elapsed: 0.0 }
+    }
+
+    pub fn is_expired(&self) -> bool {
+        self.elapsed >= Self::DISPLAY_DURATION
+    }
+}
+
 pub struct Entity {
     pub id: u32,
     pub entity_type: EntityType,
@@ -64,6 +81,7 @@ pub struct Entity {
     pub movement: MovementState,
     pub animation: SpriteAnimationState,
     pub emotion: Option<EmotionState>,
+    pub chat_bubble: Option<ChatBubbleState>,
 }
 
 impl Entity {
@@ -93,6 +111,7 @@ impl Entity {
             movement,
             animation: SpriteAnimationState::new(direction),
             emotion: None,
+            chat_bubble: None,
         }
     }
 
@@ -105,6 +124,13 @@ impl Entity {
             emo.elapsed += dt;
             if emo.is_expired() {
                 self.emotion = None;
+            }
+        }
+
+        if let Some(bubble) = &mut self.chat_bubble {
+            bubble.elapsed += dt;
+            if bubble.is_expired() {
+                self.chat_bubble = None;
             }
         }
 
@@ -343,6 +369,20 @@ mod tests {
 
         e.max_hp = Some(0);
         assert!(e.hp_percentage().is_none());
+    }
+
+    #[test]
+    fn chat_bubble_expires_after_duration() {
+        let mut e = make_entity();
+        e.chat_bubble = Some(ChatBubbleState::new("Hello!".to_string()));
+        assert!(e.chat_bubble.is_some());
+
+        e.update_state(3.0);
+        assert!(e.chat_bubble.is_some());
+        assert_eq!(e.chat_bubble.as_ref().unwrap().message, "Hello!");
+
+        e.update_state(2.1);
+        assert!(e.chat_bubble.is_none());
     }
 
     #[test]
