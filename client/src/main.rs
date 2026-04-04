@@ -33,6 +33,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::mpsc;
+use models::enums::EnumWithNumberValue;
+use models::enums::status::StatusTypes;
 use tracing::info;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
@@ -542,45 +544,48 @@ impl App {
                         }
                     }
                     GameEvent::ParameterChanged { var_id, value } => {
-                        // TODO MUSt use rust-ro enum
-                        match var_id {
-                            0 => {
-                                if let Some(entity) = self.game.entities.player_mut() {
-                                    entity.speed = value as u16;
-                                    entity.movement.set_speed(value as u16);
+                        if let Ok(status) = StatusTypes::try_from_value(var_id as usize) {
+                            match status {
+                                StatusTypes::Speed => {
+                                    if let Some(entity) = self.game.entities.player_mut() {
+                                        entity.speed = value as u16;
+                                        entity.movement.set_speed(value as u16);
+                                    }
                                 }
+                                StatusTypes::Hp => {
+                                    if let Some(c) = &mut self.game.selected_character { c.hp = value as u32; }
+                                    if let Some(e) = self.game.entities.player_mut() { e.hp = Some(value as u32); }
+                                }
+                                StatusTypes::Maxhp => {
+                                    if let Some(c) = &mut self.game.selected_character { c.max_hp = value as u32; }
+                                    if let Some(e) = self.game.entities.player_mut() { e.max_hp = Some(value as u32); }
+                                }
+                                StatusTypes::Sp => { if let Some(c) = &mut self.game.selected_character { c.sp = value as u16; } }
+                                StatusTypes::Maxsp => { if let Some(c) = &mut self.game.selected_character { c.max_sp = value as u16; } }
+                                StatusTypes::Baselevel => { if let Some(c) = &mut self.game.selected_character { c.base_level = value as u16; } }
+                                StatusTypes::Str => { if let Some(c) = &mut self.game.selected_character { c.str = value as u8; } }
+                                StatusTypes::Agi => { if let Some(c) = &mut self.game.selected_character { c.agi = value as u8; } }
+                                StatusTypes::Vit => { if let Some(c) = &mut self.game.selected_character { c.vit = value as u8; } }
+                                StatusTypes::Int => { if let Some(c) = &mut self.game.selected_character { c.int = value as u8; } }
+                                StatusTypes::Dex => { if let Some(c) = &mut self.game.selected_character { c.dex = value as u8; } }
+                                StatusTypes::Luk => { if let Some(c) = &mut self.game.selected_character { c.luk = value as u8; } }
+                                StatusTypes::Joblevel => { if let Some(c) = &mut self.game.selected_character { c.job_level = value as u32; } }
+                                _ => {}
                             }
-                            5 => {
-                                if let Some(c) = &mut self.game.selected_character { c.hp = value as u32; }
-                                if let Some(e) = self.game.entities.player_mut() { e.hp = Some(value as u32); }
-                            }
-                            6 => {
-                                if let Some(c) = &mut self.game.selected_character { c.max_hp = value as u32; }
-                                if let Some(e) = self.game.entities.player_mut() { e.max_hp = Some(value as u32); }
-                            }
-                            7 => { if let Some(c) = &mut self.game.selected_character { c.sp = value as u16; } }
-                            8 => { if let Some(c) = &mut self.game.selected_character { c.max_sp = value as u16; } }
-                            11 => { if let Some(c) = &mut self.game.selected_character { c.base_level = value as u16; } }
-                            13 => { if let Some(c) = &mut self.game.selected_character { c.str = value as u8; } }
-                            14 => { if let Some(c) = &mut self.game.selected_character { c.agi = value as u8; } }
-                            15 => { if let Some(c) = &mut self.game.selected_character { c.vit = value as u8; } }
-                            16 => { if let Some(c) = &mut self.game.selected_character { c.int = value as u8; } }
-                            17 => { if let Some(c) = &mut self.game.selected_character { c.dex = value as u8; } }
-                            18 => { if let Some(c) = &mut self.game.selected_character { c.luk = value as u8; } }
-                            41 => { if let Some(c) = &mut self.game.selected_character { c.job_level = value as u32; } }
-                            _ => {}
                         }
                     }
                     GameEvent::StatusChanged { status_type, base, .. } => {
                         if let Some(c) = &mut self.game.selected_character {
-                            match status_type {
-                                13 => c.str = base as u8,
-                                14 => c.agi = base as u8,
-                                15 => c.vit = base as u8,
-                                16 => c.int = base as u8,
-                                17 => c.dex = base as u8,
-                                18 => c.luk = base as u8,
-                                _ => {}
+                            if let Ok(status) = StatusTypes::try_from_value(status_type as usize) {
+                                match status {
+                                    StatusTypes::Str => c.str = base as u8,
+                                    StatusTypes::Agi => c.agi = base as u8,
+                                    StatusTypes::Vit => c.vit = base as u8,
+                                    StatusTypes::Int => c.int = base as u8,
+                                    StatusTypes::Dex => c.dex = base as u8,
+                                    StatusTypes::Luk => c.luk = base as u8,
+                                    _ => {}
+                                }
                             }
                         }
                     }

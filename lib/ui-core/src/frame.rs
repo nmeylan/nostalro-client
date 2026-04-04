@@ -260,7 +260,7 @@ impl<'a> UiFrame<'a> {
         let text = state.display_text();
         let padding = 4.0;
         let available_w = rect.w - padding * 2.0;
-        let text_y = rect.y + self.atlas.line_height;
+        let text_y = rect.y - 2.0 + self.atlas.line_height;
 
         // Compute offset so cursor is always visible within the field
         let cursor_text = &text[..state.display_cursor_offset()];

@@ -310,24 +310,18 @@ impl NpcDialog {
             let response = ui.interact(widget_id, item_rect);
 
             let is_selected = idx == self.dialog.selected_menu_index;
-            if response.hovered() {
-                self.dialog.selected_menu_index = idx;
-            }
 
-            if is_selected || response.hovered() {
+            if is_selected {
                 let highlight = [0.3, 0.3, 0.5, 0.5];
                 let (v, i) = draw::quad_vertices(item_rect.x, item_rect.y, item_rect.w, item_rect.h, highlight);
                 ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
             }
 
             let label = format!("{}. {}", idx + 1, item);
-            ui.colored_text(dx + padding + s(4.0), item_y + ui.atlas.line_height, &label, text_color);
+            ui.colored_text(dx + padding + s(4.0), item_y + ui.atlas.line_height - s(4.0), &label, text_color);
 
             if response.clicked() {
-                let choice = (idx + 1) as u8;
-                events.push(GameEvent::RequestNpcMenuSelect { npc_id: self.dialog.npc_id, choice });
-                self.dialog.close();
-                return events;
+                self.dialog.selected_menu_index = idx;
             }
         }
 

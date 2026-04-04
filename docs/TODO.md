@@ -32,7 +32,7 @@ TODO:
 - Skill window (skill tree, skill levels)
 - Hotkey/shortcut bar (F1-F9 skills/items)
 - Minimap
-- NPC dialog box (text, menu choices, number input)
+- ~~NPC dialog box (text, menu choices, number input)~~
 - NPC shop (buy/sell)
 - Trade window (player-to-player)
 - Vending (player shop setup + buying)

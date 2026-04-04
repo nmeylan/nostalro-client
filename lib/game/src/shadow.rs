@@ -1,5 +1,3 @@
-/// Shadow scale factor for a given job ID.
-/// Player jobs default to 1.0. Monster/NPC overrides from robrowser's ShadowTable.
 pub fn shadow_size(job: u16) -> f32 {
     match job {
         111 | 139 => 0.0,
