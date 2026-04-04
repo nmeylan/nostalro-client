@@ -605,10 +605,11 @@ pub fn build_composite_clips(
     Some(CompositeClips { body, head, headgear_bottom, headgear_mid, headgear_top, weapon, shield })
 }
 
-pub fn scale_clip_vertices(vertices: &mut [SpriteVertex], center: [f32; 2], scale: f32) {
+pub fn scale_clip_vertices(vertices: &mut [SpriteVertex], center: [f32; 2], scale: f32, depth_gradient: f32) {
     for v in vertices {
         v.position[0] = center[0] + (v.position[0] - center[0]) * scale;
         v.position[1] = center[1] + (v.position[1] - center[1]) * scale;
+        v.position[2] += depth_gradient * (v.position[1] - center[1]);
     }
 }
 
@@ -764,6 +765,7 @@ impl EntitySprite {
         screen_center: [f32; 2],
         depth: f32,
         scale: f32,
+        depth_gradient: f32,
     ) -> Vec<SpriteBatch<'_>> {
         let action_idx = match camera_dir {
             Some(dir) => animation.action_index(&self.body_act, dir),
@@ -784,7 +786,7 @@ impl EntitySprite {
         let mut shield_batches = Vec::new();
         if let Some(shield_tex) = &self.shield_textures {
             for (mut vertices, indices, tex_idx) in clips.shield {
-                scale_clip_vertices(&mut vertices, screen_center, scale);
+                scale_clip_vertices(&mut vertices, screen_center, scale, depth_gradient);
                 shield_batches.push(SpriteBatch { vertices, indices, texture: &shield_tex.bind_groups[tex_idx] });
             }
         }
@@ -794,36 +796,36 @@ impl EntitySprite {
         }
 
         for (mut vertices, indices, tex_idx) in clips.body {
-            scale_clip_vertices(&mut vertices, screen_center, scale);
+            scale_clip_vertices(&mut vertices, screen_center, scale, depth_gradient);
             batches.push(SpriteBatch { vertices, indices, texture: &self.body_textures.bind_groups[tex_idx] });
         }
         if let Some(head_tex) = &self.head_textures {
             for (mut vertices, indices, tex_idx) in clips.head {
-                scale_clip_vertices(&mut vertices, screen_center, scale);
+                scale_clip_vertices(&mut vertices, screen_center, scale, depth_gradient);
                 batches.push(SpriteBatch { vertices, indices, texture: &head_tex.bind_groups[tex_idx] });
             }
         }
         if let Some(hg_tex) = &self.headgear_bottom_textures {
             for (mut vertices, indices, tex_idx) in clips.headgear_bottom {
-                scale_clip_vertices(&mut vertices, screen_center, scale);
+                scale_clip_vertices(&mut vertices, screen_center, scale, depth_gradient);
                 batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx] });
             }
         }
         if let Some(hg_tex) = &self.headgear_mid_textures {
             for (mut vertices, indices, tex_idx) in clips.headgear_mid {
-                scale_clip_vertices(&mut vertices, screen_center, scale);
+                scale_clip_vertices(&mut vertices, screen_center, scale, depth_gradient);
                 batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx] });
             }
         }
         if let Some(hg_tex) = &self.headgear_top_textures {
             for (mut vertices, indices, tex_idx) in clips.headgear_top {
-                scale_clip_vertices(&mut vertices, screen_center, scale);
+                scale_clip_vertices(&mut vertices, screen_center, scale, depth_gradient);
                 batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx] });
             }
         }
         if let Some(weapon_tex) = &self.weapon_textures {
             for (mut vertices, indices, tex_idx) in clips.weapon {
-                scale_clip_vertices(&mut vertices, screen_center, scale);
+                scale_clip_vertices(&mut vertices, screen_center, scale, depth_gradient);
                 batches.push(SpriteBatch { vertices, indices, texture: &weapon_tex.bind_groups[tex_idx] });
             }
         }
@@ -847,7 +849,7 @@ impl EntitySprite {
                 for clip in &shadow_motion.clips {
                     if let Some((mut vertices, indices, tex_idx)) = build_clip_quad(clip, shadow_tex, screen_center, depth, [0, 0]) {
                         if tex_idx < shadow_tex.bind_groups.len() {
-                            scale_clip_vertices(&mut vertices, screen_center, scale);
+                            scale_clip_vertices(&mut vertices, screen_center, scale, 0.0);
                             batches.push(SpriteBatch { vertices, indices, texture: &shadow_tex.bind_groups[tex_idx] });
                         }
                     }

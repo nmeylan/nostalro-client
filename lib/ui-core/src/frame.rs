@@ -77,10 +77,17 @@ impl<'a> UiFrame<'a> {
     }
 
     pub fn window(&mut self, id: WidgetId, w: f32, h: f32, title_bar_h: f32) -> Rect {
+        self.window_at(id, w, h, title_bar_h,
+            ((self.ctx.screen_width - w) / 2.0).floor(),
+            ((self.ctx.screen_height - h) / 2.0).floor(),
+        )
+    }
+
+    pub fn window_at(&mut self, id: WidgetId, w: f32, h: f32, title_bar_h: f32, default_x: f32, default_y: f32) -> Rect {
         let state = self.state.get_or_default::<WindowState>(id);
         if !state.initialized {
-            state.x = ((self.ctx.screen_width - w) / 2.0).floor();
-            state.y = ((self.ctx.screen_height - h) / 2.0).floor();
+            state.x = default_x;
+            state.y = default_y;
             state.initialized = true;
         }
 
