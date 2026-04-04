@@ -691,7 +691,6 @@ pub fn build_entity_sprite(
 
 const MIN_PICK_SIZE: f32 = 100.0;
 const MAX_PICK_WIDTH: f32 = 200.0;
-const MAX_PICK_HEIGHT: f32 = 250.0;
 
 impl EntitySprite {
     /// Compute screen-space pick bounding box from the sprite's current animation frame.
@@ -747,16 +746,13 @@ impl EntitySprite {
         }
 
         let raw_w = max_x - min_x;
-        let raw_h = max_y - min_y;
-        let width = raw_w.max(MIN_PICK_SIZE).min(MAX_PICK_WIDTH);
-        let height = raw_h.max(MIN_PICK_SIZE).min(MAX_PICK_HEIGHT);
-
-        let half_w = width / 2.0;
+        let half_w = raw_w.max(MIN_PICK_SIZE).min(MAX_PICK_WIDTH) / 2.0;
+        let top = min_y.min(max_y - MIN_PICK_SIZE);
         [
             screen_center[0] - half_w,
-            screen_center[1] - height,
+            top,
             screen_center[0] + half_w,
-            screen_center[1],
+            max_y,
         ]
     }
 

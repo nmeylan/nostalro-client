@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-const BASE_FONT_PX_HEIGHT: f32 = 16.0;
+const BASE_FONT_PX_HEIGHT: f32 = 14.0;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -15,6 +15,7 @@ pub struct Config {
     pub sfx_volume: f32,
     pub free_camera: bool,
     pub ui_scale: f32,
+    pub font_scale: f32,
     pub grf_paths: Vec<String>,
     pub enhanced_lag_compensation: bool,
     pub debug_network_delay_ms: u32,
@@ -32,6 +33,7 @@ impl Default for Config {
             sfx_volume: 0.8,
             free_camera: false,
             ui_scale: 100.0,
+            font_scale: 120.0,
             grf_paths: vec!["data/data.grf".to_string()],
             enhanced_lag_compensation: false,
             debug_network_delay_ms: 0,

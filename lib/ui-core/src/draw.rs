@@ -206,6 +206,38 @@ pub fn text_vertices_clipped(
     (vertices, indices)
 }
 
+pub fn word_wrap(text: &str, max_width: f32, measure: impl Fn(&str) -> f32) -> Vec<String> {
+    let mut lines = Vec::new();
+    for paragraph in text.split('\n') {
+        if paragraph.is_empty() {
+            lines.push(String::new());
+            continue;
+        }
+        let words: Vec<&str> = paragraph.split(' ').collect();
+        let mut current_line = String::new();
+        for word in words {
+            if current_line.is_empty() {
+                current_line = word.to_string();
+            } else {
+                let candidate = format!("{current_line} {word}");
+                if measure(&candidate) <= max_width {
+                    current_line = candidate;
+                } else {
+                    lines.push(current_line);
+                    current_line = word.to_string();
+                }
+            }
+        }
+        if !current_line.is_empty() {
+            lines.push(current_line);
+        }
+    }
+    if lines.is_empty() {
+        lines.push(String::new());
+    }
+    lines
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

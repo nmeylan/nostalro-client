@@ -6,5 +6,7 @@
     "screen_height": 768,
     "bgm_volume": 0.8,
     "sfx_volume": 0.8,
+    "ui_scale": 100,
+    "font_scale": 120,
     "grf_paths": ["data/data.grf"]
 }

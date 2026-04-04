@@ -37,7 +37,7 @@ const MAX_CHAT_W: f32 = 600.0;
 const MIN_MSG_AREA_H: f32 = 0.0;
 const INPUT_H: f32 = 22.0;
 const PADDING: f32 = 4.0;
-const LINE_H: f32 = 16.0;
+const LINE_H: f32 = 14.0;
 const DRAG_HANDLE_VISUAL: f32 = 3.0;
 const DRAG_HIT_AREA: f32 = 6.0;
 const SCROLLBAR_W: f32 = 14.0;
@@ -53,7 +53,7 @@ const SIZE_CYCLE: [f32; 7] = [0.0, 0.0, SIZE_STEP, SIZE_STEP * 2.0, SIZE_STEP * 
 const DEFAULT_SIZE_INDEX: usize = 5;
 
 const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
-const GREEN: [f32; 4] = [0.6, 1.0, 0.6, 1.0];
+const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
 const YELLOW: [f32; 4] = [1.0, 1.0, 0.4, 1.0];
 
 // GRF texture paths
@@ -443,11 +443,23 @@ impl ChatWindow {
             .collect();
 
         if show_messages {
+            // Wrap messages into visual lines
+            let text_area_w = chat_w - padding * 2.0;
+            let atlas = &*ui.atlas;
+            let visual_lines: Vec<(String, [f32; 4])> = filtered.iter()
+                .flat_map(|line| {
+                    let wrapped = ragnarok_ui::draw::word_wrap(&line.text, text_area_w, |t| atlas.measure_text(t));
+                    let color = line.color;
+                    wrapped.into_iter().map(move |w| (w, color))
+                })
+                .collect();
+            let total_visual = visual_lines.len();
+
             // Mouse wheel scroll when hovering message area
             let msg_rect = Rect::new(chat_x, chat_y, chat_w, msg_area_h);
             if msg_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) && ui.ctx.scroll_delta != 0.0 {
                 let max_lines = (msg_area_h / line_h) as usize;
-                let max_scroll = filtered.len().saturating_sub(max_lines);
+                let max_scroll = total_visual.saturating_sub(max_lines);
                 let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
                 let delta = ui.ctx.scroll_delta.round() as isize;
                 let new_offset = (state.scroll_offset as isize + delta).clamp(0, max_scroll as isize);
@@ -455,8 +467,8 @@ impl ChatWindow {
             }
 
             let scroll_offset = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).scroll_offset;
-            self.draw_messages_filtered(ui, chat_x, chat_y, chat_w, msg_area_h, scroll_offset, &filtered);
-            self.draw_scrollbar_filtered(ui, chat_x + chat_w - scrollbar_w, chat_y, msg_area_h, scroll_offset, filtered.len());
+            self.draw_visual_lines(ui, chat_x, chat_y, chat_w, msg_area_h, scroll_offset, &visual_lines);
+            self.draw_scrollbar_filtered(ui, chat_x + chat_w - scrollbar_w, chat_y, msg_area_h, scroll_offset, total_visual);
             self.draw_height_handle(ui, chat_x, chat_y + msg_area_h, chat_w);
         }
 
@@ -541,14 +553,14 @@ impl ChatWindow {
         events
     }
 
-    fn draw_messages_filtered(&self, ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, scroll_offset: usize, filtered: &[&ChatLine]) {
+    fn draw_visual_lines(&self, ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, scroll_offset: usize, visual_lines: &[(String, [f32; 4])]) {
         use ragnarok_ui::draw;
         let s = |v: f32| ui.ctx.with_ui_scale(v);
         let line_h = s(LINE_H);
         let padding = s(PADDING);
 
         // Semi-transparent background
-        let bg_color = [0.0, 0.0, 0.0, 0.4];
+        let bg_color = [0.0, 0.0, 0.0, 0.8];
         let (v, i) = draw::quad_vertices(x, y, w, h, bg_color);
         ui.draw_calls.push(draw::DrawCall {
             vertices: v.to_vec(),
@@ -557,13 +569,13 @@ impl ChatWindow {
         });
 
         let max_lines = (h / line_h) as usize;
-        let end = filtered.len().saturating_sub(scroll_offset);
+        let end = visual_lines.len().saturating_sub(scroll_offset);
         let start = end.saturating_sub(max_lines);
-        let visible = &filtered[start..end];
+        let visible = &visual_lines[start..end];
 
-        for (i, line) in visible.iter().enumerate() {
+        for (i, (text, color)) in visible.iter().enumerate() {
             let text_y = y + padding + (i as f32) * line_h + ui.atlas.line_height;
-            ui.text(x + padding, text_y, &line.text, line.color);
+            ui.text(x + padding, text_y, text, *color);
         }
     }
 

@@ -147,7 +147,7 @@ pub fn create_font_atlas_bind_group(
 ) -> wgpu::BindGroup {
     create_texture_bind_group_from_rgba(
         device, queue, img.as_raw(), img.width(), img.height(),
-        layout, label, wgpu::FilterMode::Nearest, wgpu::TextureFormat::Rgba8Unorm,
+        layout, label, wgpu::FilterMode::Linear, wgpu::TextureFormat::Rgba8Unorm,
     )
 }
 

@@ -94,7 +94,9 @@ impl FontAtlas {
                     let px = ox + x;
                     let py = oy + y;
                     if px < atlas_size && py < atlas_size {
-                        let v = (c * 255.0) as u8;
+                        let c = c.clamp(0.0, 1.0);
+                        let alpha = 2.0 * c - c * c;
+                        let v = (alpha * 255.0) as u8;
                         image.put_pixel(px, py, image::Rgba([255, 255, 255, v]));
                     }
                 });

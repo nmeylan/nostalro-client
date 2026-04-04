@@ -42,8 +42,6 @@ use winit::window::{Window, WindowAttributes, WindowId};
 
 type ClipData = (Vec<SpriteVertex>, Vec<u32>, usize);
 
-pub const FONT_SIZE: f32 = 14.0;
-
 struct App {
     config: Config,
     window: Option<Arc<Window>>,
@@ -1242,8 +1240,11 @@ impl ApplicationHandler for App {
                 self.config.screen_height,
             ));
 
+        let ui_scale = self.config.ui_scale / 100.0;
+        let font_scale = self.config.font_scale / 100.0;
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
-        let renderer = block_on(Renderer::new(window.clone(), self.config.font_px_height()));
+        let scale_factor = window.scale_factor() as f32;
+        let renderer = block_on(Renderer::new(window.clone(), self.config.font_px_height() * scale_factor * font_scale));
 
         self.window = Some(window);
         self.renderer = Some(renderer);
@@ -1251,7 +1252,7 @@ impl ApplicationHandler for App {
             self.config.screen_width as f32,
             self.config.screen_height as f32,
         );
-        ui_ctx.ui_scale = self.config.ui_scale / 100.0;
+        ui_ctx.ui_scale = ui_scale;
         self.ui_context = Some(ui_ctx);
 
         // Load GRF
@@ -1393,8 +1394,9 @@ impl ApplicationHandler for App {
 
                 self.handle_game_events(event_loop);
 
-                let (mut ui_draw_calls, ui_events, ui_any_hovered) = self.build_ui(elapsed);
+                let (ui_draw_calls, ui_events, ui_any_hovered) = self.build_ui(elapsed);
                 self.handle_ui_events(ui_events, event_loop);
+                let mut world_overlay_calls: Vec<UiDrawCall> = Vec::new();
 
                 self.update_movement(elapsed);
                 let delta = elapsed - self.last_render_time;
@@ -1424,44 +1426,41 @@ impl ApplicationHandler for App {
 
                 if let (Some(entity_id), Some(renderer)) = (hovered_entity_id, &self.renderer) {
                     if let Some(entity) = self.game.entities.get(entity_id) {
-                        if let Some(name) = &entity.name {
-                            let hovered_entry = render_list.iter().find(|e| e.id == entity_id);
-                            if let Some(entry) = hovered_entry {
-                                let world_text_compensation = FONT_SIZE / renderer.font_px_height;
-                                let text_scale = entry.sprite_scale * 0.85 * world_text_compensation;
-                                let text_width = renderer.font_atlas.measure_text(name) * text_scale;
+                        let hovered_entry = render_list.iter().find(|e| e.id == entity_id);
+                        if let Some(entry) = hovered_entry {
+                            let bar_y = entry.pick_bounds[3] + 2.0;
+                            if let Some(ratio) = entity.hp_percentage() {
+                                render_hp_bar(entry.screen_center[0], bar_y, ratio, entity.entity_type, &mut world_overlay_calls);
+                            }
+                            if let Some(name) = &entity.name {
+                                let text_width = renderer.font_atlas.measure_text(name);
                                 let text_x = entry.screen_center[0] - text_width / 2.0;
-                                let text_y = entry.screen_center[1] + 35.0 * entry.sprite_scale;
+                                let text_y = bar_y + HP_BAR_HEIGHT + 13.0;
                                 let outline_color = [0.0, 0.0, 0.0, 1.0];
                                 for &(dx, dy) in &[
                                     (-1.0_f32, 0.0_f32), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0),
-                                    (-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0),
                                 ] {
-                                    let (verts, indices) = ragnarok_ui::draw::text_vertices_scaled(
-                                        name, text_x + dx, text_y + dy, outline_color, &renderer.font_atlas, text_scale,
+                                    let (verts, indices) = ragnarok_ui::draw::text_vertices(
+                                        name, text_x + dx, text_y + dy, outline_color, &renderer.font_atlas,
                                     );
                                     if !verts.is_empty() {
-                                        ui_draw_calls.push(UiDrawCall {
+                                        world_overlay_calls.push(UiDrawCall {
                                             vertices: verts,
                                             indices,
                                             texture: ragnarok_renderer::UiTextureRef::FontAtlas,
                                         });
                                     }
                                 }
-                                let text_color = [1.0, 1.0, 1.0, 1.0];
-                                let (verts, indices) = ragnarok_ui::draw::text_vertices_scaled(
-                                    name, text_x, text_y, text_color, &renderer.font_atlas, text_scale,
+                                let text_color = entity_name_color(entity.entity_type);
+                                let (verts, indices) = ragnarok_ui::draw::text_vertices(
+                                    name, text_x, text_y, text_color, &renderer.font_atlas,
                                 );
                                 if !verts.is_empty() {
-                                    ui_draw_calls.push(UiDrawCall {
+                                    world_overlay_calls.push(UiDrawCall {
                                         vertices: verts,
                                         indices,
                                         texture: ragnarok_renderer::UiTextureRef::FontAtlas,
                                     });
-                                }
-                                if let Some(ratio) = entity.hp_percentage() {
-                                    let bar_y = text_y + renderer.font_atlas.line_height * text_scale + 2.0;
-                                    render_hp_bar(entry.screen_center[0], bar_y, entry.sprite_scale, ratio, &mut ui_draw_calls);
                                 }
                             }
                         }
@@ -1469,19 +1468,12 @@ impl ApplicationHandler for App {
                 }
 
                 // Player HP bar (always visible)
-                if let (Some(renderer), Some(player)) = (&self.renderer, self.game.entities.player()) {
+                if let (Some(_), Some(player)) = (&self.renderer, self.game.entities.player()) {
                     if hovered_entity_id != self.game.entities.player_id() {
                         if let Some(ratio) = player.hp_percentage() {
                             if let Some(entry) = render_list.iter().find(|e| Some(e.id) == self.game.entities.player_id()) {
-                                let wtc = 16.0 / renderer.font_px_height;
-                                let ts = entry.sprite_scale * 0.85 * wtc;
-                                let name_y = entry.screen_center[1] + 35.0 * ts;
-                                let bar_y = if player.name.is_some() {
-                                    name_y + renderer.font_atlas.line_height * ts + 2.0
-                                } else {
-                                    name_y
-                                };
-                                render_hp_bar(entry.screen_center[0], bar_y, entry.sprite_scale, ratio, &mut ui_draw_calls);
+                                let bar_y = entry.pick_bounds[3] + 2.0;
+                                render_hp_bar(entry.screen_center[0], bar_y, ratio, EntityType::Player, &mut world_overlay_calls);
                             }
                         }
                     }
@@ -1491,49 +1483,40 @@ impl ApplicationHandler for App {
                     for entry in &render_list {
                         if let Some(entity) = self.game.entities.get(entry.id) {
                             if let Some(bubble) = &entity.chat_bubble {
-                                let world_text_compensation = FONT_SIZE / renderer.font_px_height;
-                                let text_scale = entry.sprite_scale * 0.65 * world_text_compensation;
-                                let padding = 4.0 * text_scale;
-                                let max_width = 150.0 * text_scale;
-                                let char_width = renderer.font_atlas.measure_text("A") * text_scale;
-                                let max_chars = (max_width / char_width).floor() as usize;
+                                let padding = 4.0;
+                                let lines = ragnarok_ui::draw::word_wrap(
+                                    &bubble.message,
+                                    150.0,
+                                    |t| renderer.font_atlas.measure_text(t),
+                                );
 
-                                let lines: Vec<&str> = if bubble.message.len() > max_chars {
-                                    bubble.message.as_bytes()
-                                        .chunks(max_chars)
-                                        .map(|chunk| std::str::from_utf8(chunk).unwrap_or(""))
-                                        .collect()
-                                } else {
-                                    vec![&bubble.message]
-                                };
-
-                                let line_h = renderer.font_atlas.line_height * text_scale;
+                                let line_h = renderer.font_atlas.line_height;
                                 let total_h = line_h * lines.len() as f32 + padding * 2.0;
                                 let widest = lines.iter()
-                                    .map(|l| renderer.font_atlas.measure_text(l) * text_scale)
+                                    .map(|l| renderer.font_atlas.measure_text(l))
                                     .fold(0.0_f32, f32::max);
                                 let box_w = widest + padding * 2.0;
                                 let box_x = entry.screen_center[0] - box_w / 2.0;
-                                let box_y = entry.screen_center[1] - 60.0 * text_scale - total_h;
+                                let box_y = entry.pick_bounds[1] - 5.0 - total_h;
 
                                 let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
-                                    box_x, box_y, box_w, total_h, [0.0, 0.0, 0.0, 0.65],
+                                    box_x, box_y, box_w, total_h, [0.0, 0.0, 0.0, 0.8],
                                 );
-                                ui_draw_calls.push(UiDrawCall {
+                                world_overlay_calls.push(UiDrawCall {
                                     vertices: bg_verts.to_vec(),
                                     indices: bg_idx.to_vec(),
                                     texture: ragnarok_renderer::UiTextureRef::White,
                                 });
 
                                 for (i, line) in lines.iter().enumerate() {
-                                    let line_w = renderer.font_atlas.measure_text(line) * text_scale;
+                                    let line_w = renderer.font_atlas.measure_text(line);
                                     let lx = entry.screen_center[0] - line_w / 2.0;
-                                    let ly = box_y + padding + line_h * i as f32;
-                                    let (verts, indices) = ragnarok_ui::draw::text_vertices_scaled(
-                                        line, lx, ly, [1.0, 1.0, 1.0, 1.0], &renderer.font_atlas, text_scale,
+                                    let ly = box_y + padding + line_h / 2.0 + line_h * i as f32;
+                                    let (verts, indices) = ragnarok_ui::draw::text_vertices(
+                                        line, lx, ly, [1.0, 1.0, 1.0, 1.0], &renderer.font_atlas,
                                     );
                                     if !verts.is_empty() {
-                                        ui_draw_calls.push(UiDrawCall {
+                                        world_overlay_calls.push(UiDrawCall {
                                             vertices: verts,
                                             indices,
                                             texture: ragnarok_renderer::UiTextureRef::FontAtlas,
@@ -1599,8 +1582,11 @@ impl ApplicationHandler for App {
                         }
                     }
 
+                    let mut all_ui_calls = world_overlay_calls;
+                    all_ui_calls.extend(ui_draw_calls);
+
                     if let Some(renderer) = &mut self.renderer {
-                        renderer.render(&ui_draw_calls, &sprite_batches, &cursor_batches, elapsed);
+                        renderer.render(&all_ui_calls, &sprite_batches, &cursor_batches, elapsed);
                     }
                 }
 
@@ -1617,32 +1603,56 @@ impl ApplicationHandler for App {
     }
 }
 
-fn hp_bar_color(ratio: f32) -> [f32; 4] {
-    if ratio > 0.5 { [0.2, 0.8, 0.2, 1.0] }
-    else if ratio > 0.25 { [0.9, 0.8, 0.1, 1.0] }
-    else { [0.9, 0.2, 0.2, 1.0] }
+fn entity_name_color(entity_type: EntityType) -> [f32; 4] {
+    match entity_type {
+        EntityType::Player => [1.0, 1.0, 1.0, 1.0],             // #FFFFFFEntityType::Npc => [0.580, 0.741, 0.969, 1.0],
+        EntityType::Monster => [1.0, 0.776, 0.776, 1.0],        // #ffc6c6
+        EntityType::Npc => [0.39, 0.54, 0.76, 1.0],          // #648bc2
+    }
 }
 
-fn render_hp_bar(center_x: f32, y: f32, sprite_scale: f32, ratio: f32, draw_calls: &mut Vec<UiDrawCall>) {
-    let bar_w = 60.0 * sprite_scale;
-    let bar_h = 5.0 * sprite_scale;
-    let padding = 1.0 * sprite_scale;
-    let bg_w = bar_w + padding * 2.0;
-    let bg_h = bar_h + padding * 2.0;
-    let bg_x = center_x - bg_w / 2.0;
+fn hp_bar_color(ratio: f32, entity_type: EntityType) -> [f32; 4] {
+    match entity_type {
+        EntityType::Monster => {
+            if ratio >= 0.25 { [1.0, 0.0, 0.906, 1.0] } // #FF00E7 magenta
+            else { [1.0, 1.0, 0.0, 1.0] } // #FFFF00 yellow
+        }
+        _ => {
+            if ratio >= 0.25 { [0.063, 0.937, 0.129, 1.0] } // #10ef21 bright green
+            else { [1.0, 0.0, 0.0, 1.0] } // #FF0000 red
+        }
+    }
+}
 
-    let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(bg_x, y, bg_w, bg_h, [0.1, 0.1, 0.1, 0.8]);
+const HP_BAR_WIDTH: f32 = 60.0;
+const HP_BAR_HEIGHT: f32 = 5.0;
+
+fn render_hp_bar(center_x: f32, y: f32, ratio: f32, entity_type: EntityType, draw_calls: &mut Vec<UiDrawCall>) {
+    let border_x = center_x - HP_BAR_WIDTH / 2.0;
+    // Border: #10189c dark blue
+    let (border_verts, border_idx) = ragnarok_ui::draw::quad_vertices(
+        border_x, y, HP_BAR_WIDTH, HP_BAR_HEIGHT, [0.063, 0.094, 0.612, 1.0],
+    );
+    draw_calls.push(UiDrawCall {
+        vertices: border_verts.to_vec(),
+        indices: border_idx.to_vec(),
+        texture: ragnarok_renderer::UiTextureRef::White,
+    });
+    // Background: #424242 dark gray (1px inside border)
+    let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
+        border_x + 1.0, y + 1.0, HP_BAR_WIDTH - 2.0, HP_BAR_HEIGHT - 2.0, [0.259, 0.259, 0.259, 1.0],
+    );
     draw_calls.push(UiDrawCall {
         vertices: bg_verts.to_vec(),
         indices: bg_idx.to_vec(),
         texture: ragnarok_renderer::UiTextureRef::White,
     });
-
+    // Fill
     let fill_ratio = ratio.clamp(0.0, 1.0);
-    let fill_w = bar_w * fill_ratio;
-    let fill_x = bg_x + padding;
-    let fill_y = y + padding;
-    let (fill_verts, fill_idx) = ragnarok_ui::draw::quad_vertices(fill_x, fill_y, fill_w, bar_h, hp_bar_color(ratio));
+    let fill_w = (HP_BAR_WIDTH - 2.0) * fill_ratio;
+    let (fill_verts, fill_idx) = ragnarok_ui::draw::quad_vertices(
+        border_x + 1.0, y + 1.0, fill_w, HP_BAR_HEIGHT - 2.0, hp_bar_color(ratio, entity_type),
+    );
     draw_calls.push(UiDrawCall {
         vertices: fill_verts.to_vec(),
         indices: fill_idx.to_vec(),
