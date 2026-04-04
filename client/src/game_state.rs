@@ -8,6 +8,8 @@ use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::CursorAnimationState;
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::map_coordinates::MapCoordinates;
+use ragnarok_game::item_name_table::ItemNameTable;
+use ragnarok_game::item_resource_table::ItemResourceTable;
 use ragnarok_game::name_table::NameTable;
 use ragnarok_game::event::CharacterInfo;
 use ragnarok_game::server_time::ServerTimeClock;
@@ -15,6 +17,7 @@ use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui_component::chat_window::ChatWindow;
 use ragnarok_ui_component::npc_dialog::NpcDialog;
+use ragnarok_ui_component::npc_shop::NpcShop;
 use ragnarok_ui_component::system_menu::SystemMenu;
 
 pub struct GameState {
@@ -34,8 +37,11 @@ pub struct GameState {
     pub cursor_animation: CursorAnimationState,
     pub emotion_textures: Option<SpriteTextures>,
     pub emotion_act: Option<ActFile>,
+    pub item_name_table: Option<ItemNameTable>,
+    pub item_resource_table: Option<ItemResourceTable>,
     pub chat_window: ChatWindow,
     pub npc_dialog: NpcDialog,
+    pub npc_shop: NpcShop,
     pub system_menu: SystemMenu,
     pub hovered_entity_id: Option<u32>,
     pub failed_sprite_loads: HashSet<u32>,
@@ -62,8 +68,11 @@ impl GameState {
             cursor_animation: CursorAnimationState::new(),
             emotion_textures: None,
             emotion_act: None,
+            item_name_table: None,
+            item_resource_table: None,
             chat_window: ChatWindow::new(),
             npc_dialog: NpcDialog::new(),
+            npc_shop: NpcShop::new(),
             system_menu: SystemMenu::new(),
             hovered_entity_id: None,
             failed_sprite_loads: HashSet::new(),

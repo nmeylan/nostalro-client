@@ -164,3 +164,33 @@ pub fn build_npc_deal_type_packet(npc_id: u32, deal_type: u8, packetver: u32) ->
     pkt.fill_raw();
     pkt.raw
 }
+
+pub fn build_purchase_item_list_packet(items: &[(i16, u16)], packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzPcPurchaseItemlist::new(packetver);
+    let item_list: Vec<CzPurchaseItem> = items.iter().map(|(count, item_id)| {
+        let mut item = CzPurchaseItem::new(packetver);
+        item.set_count(*count);
+        item.set_itid(*item_id);
+        item.fill_raw();
+        item
+    }).collect();
+    pkt.set_packet_length((4 + items.len() * 4) as i16);
+    pkt.set_item_list(item_list);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_sell_item_list_packet(items: &[(i16, i16)], packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzPcSellItemlist::new(packetver);
+    let item_list: Vec<CzSellItem> = items.iter().map(|(index, count)| {
+        let mut item = CzSellItem::new(packetver);
+        item.set_index(*index);
+        item.set_count(*count);
+        item.fill_raw();
+        item
+    }).collect();
+    pkt.set_packet_length((4 + items.len() * 4) as i16);
+    pkt.set_item_list(item_list);
+    pkt.fill_raw();
+    pkt.raw
+}

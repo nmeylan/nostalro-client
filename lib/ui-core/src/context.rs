@@ -1,14 +1,20 @@
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
 
+const DOUBLE_CLICK_THRESHOLD_MS: u128 = 400;
+const DOUBLE_CLICK_DISTANCE: f32 = 5.0;
+
 pub struct UiContext {
     pub screen_width: f32,
     pub screen_height: f32,
     pub mouse_x: f32,
     pub mouse_y: f32,
     pub mouse_clicked: bool,
+    pub mouse_double_clicked: bool,
     pub mouse_down: bool,
     pub typed_chars: Vec<char>,
+    last_click_time: std::time::Instant,
+    last_click_pos: (f32, f32),
     pub key_backspace: bool,
     pub key_enter: bool,
     pub key_tab: bool,
@@ -31,8 +37,11 @@ impl UiContext {
             mouse_x: 0.0,
             mouse_y: 0.0,
             mouse_clicked: false,
+            mouse_double_clicked: false,
             mouse_down: false,
             typed_chars: Vec::new(),
+            last_click_time: std::time::Instant::now(),
+            last_click_pos: (0.0, 0.0),
             key_backspace: false,
             key_enter: false,
             key_tab: false,
@@ -54,6 +63,7 @@ impl UiContext {
 
     pub fn begin_frame(&mut self) {
         self.mouse_clicked = false;
+        self.mouse_double_clicked = false;
         self.typed_chars.clear();
         self.key_backspace = false;
         self.key_enter = false;
@@ -78,8 +88,23 @@ impl UiContext {
                 if *button == MouseButton::Left {
                     match state {
                         ElementState::Pressed => {
+                            let now = std::time::Instant::now();
+                            let elapsed = now.duration_since(self.last_click_time).as_millis();
+                            let dx = self.mouse_x - self.last_click_pos.0;
+                            let dy = self.mouse_y - self.last_click_pos.1;
+                            let dist = (dx * dx + dy * dy).sqrt();
+
                             self.mouse_clicked = true;
                             self.mouse_down = true;
+
+                            if elapsed < DOUBLE_CLICK_THRESHOLD_MS && dist < DOUBLE_CLICK_DISTANCE {
+                                self.mouse_double_clicked = true;
+                                // Reset so a third click doesn't count as another double
+                                self.last_click_time = now - std::time::Duration::from_secs(1);
+                            } else {
+                                self.last_click_time = now;
+                            }
+                            self.last_click_pos = (self.mouse_x, self.mouse_y);
                         }
                         ElementState::Released => {
                             self.mouse_down = false;

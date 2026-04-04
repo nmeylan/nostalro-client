@@ -340,6 +340,26 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::NpcDealTypeSelect { npc_id: p.naid }];
     }
 
+    // NPC shop
+    if let Some(p) = any.downcast_ref::<PacketZcPcPurchaseItemlist>() {
+        let items = p.item_list.iter().map(|item| {
+            (item.itid, item.price, item.discountprice, item.atype)
+        }).collect();
+        return vec![GameEvent::NpcShopBuyList { npc_id: 0, items }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcPcSellItemlist>() {
+        let items = p.item_list.iter().map(|item| {
+            (item.index, item.price, item.overchargeprice)
+        }).collect();
+        return vec![GameEvent::NpcShopSellList { npc_id: 0, items }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcPcPurchaseResult>() {
+        return vec![GameEvent::NpcShopBuyResult { result: p.result }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcPcSellResult>() {
+        return vec![GameEvent::NpcShopSellResult { result: p.result }];
+    }
+
     // Acknowledged but not yet used (no UI)
     if let Some(p) = any.downcast_ref::<PacketZcAid>() {
         debug!("zone server confirmed AID={}", p.aid);

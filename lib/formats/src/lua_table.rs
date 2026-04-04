@@ -29,6 +29,29 @@ pub fn parse_item_res_table(data: &[u8]) -> HashMap<u16, String> {
     map
 }
 
+/// Parses `id#display_name#` format from EUC-KR data.
+/// Returns id → display_name (no prefix, for UI display).
+pub fn parse_item_name_table(data: &[u8]) -> HashMap<u16, String> {
+    let content = decode_euc_kr(data);
+    let mut map = HashMap::new();
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with("//") {
+            continue;
+        }
+        let parts: Vec<&str> = line.split('#').collect();
+        if parts.len() >= 2 {
+            if let Ok(id) = parts[0].parse::<u16>() {
+                let name = parts[1];
+                if !name.is_empty() {
+                    map.insert(id, name.to_string());
+                }
+            }
+        }
+    }
+    map
+}
+
 /// Parses RO accessory data from `accessoryid.lua` and `accname.lua`.
 /// Returns a map from view_id to sprite name suffix.
 ///

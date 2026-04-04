@@ -164,7 +164,6 @@ impl NpcDialog {
             return result;
         }
 
-        // Dialog position (reference: robrowser NpcBox)
         let dx = (ui.ctx.screen_width / 3.0).max(20.0).floor();
         let dy = (ui.ctx.screen_height / 2.0 - 200.0).max(100.0).floor();
 

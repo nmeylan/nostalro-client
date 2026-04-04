@@ -16,7 +16,7 @@ use ragnarok_game::sprite_path::{WeaponType, weapon_view_id_to_type, entity_type
 use ragnarok_game::path::{path_search, try_move_to};
 use ragnarok_game::shadow::shadow_size;
 use ragnarok_game::{map_loader, sprite_loader};
-use ragnarok_network::{build_action_request_packet, build_char_enter_packet, build_chat_packet, build_contact_npc_packet, build_login_packet, build_map_loaded_packet, build_npc_close_packet, build_npc_deal_type_packet, build_npc_input_number_packet, build_npc_input_string_packet, build_npc_menu_select_packet, build_npc_next_packet, build_reqname_packet, build_request_move_packet, build_restart_packet, build_select_char_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand, KeepaliveMode};
+use ragnarok_network::{build_action_request_packet, build_char_enter_packet, build_chat_packet, build_contact_npc_packet, build_login_packet, build_map_loaded_packet, build_npc_close_packet, build_npc_deal_type_packet, build_npc_input_number_packet, build_npc_input_string_packet, build_npc_menu_select_packet, build_npc_next_packet, build_purchase_item_list_packet, build_reqname_packet, build_request_move_packet, build_restart_packet, build_select_char_packet, build_sell_item_list_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand, KeepaliveMode};
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall, build_clip_quad, upload_sprite_textures, build_entity_sprite, block_on};
 use ragnarok_ui::context::UiContext;
@@ -24,6 +24,7 @@ use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui_component::chat_window::ChatWindow;
 use ragnarok_ui_component::login_window::{LoginFocus, LoginWindow};
 use ragnarok_ui_component::npc_dialog::NpcDialog;
+use ragnarok_ui_component::npc_shop::NpcShop;
 use ragnarok_ui_component::system_menu::SystemMenu;
 use ragnarok_ui_component::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::server_list_window::ServerListWindow;
@@ -139,7 +140,7 @@ impl App {
     }
 
     fn handle_left_click(&mut self) {
-        if self.game.npc_dialog.dialog.is_open() {
+        if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
             return;
         }
         // Click on NPC to talk
@@ -517,6 +518,49 @@ impl App {
                         self.game.npc_dialog.dialog.show_deal_type(npc_id);
                         self.preload_npc_dialog_textures();
                     }
+                    GameEvent::NpcShopBuyList { npc_id, items } => {
+                        let buy_items: Vec<_> = items.into_iter().map(|(item_id, price, discount_price, item_type)| {
+                            let name = self.game.item_name_table.as_ref()
+                                .map(|t| t.get_name_or_id(item_id))
+                                .unwrap_or_else(|| format!("Item #{item_id}"));
+                            let resource_name = self.game.item_resource_table.as_ref()
+                                .and_then(|t| t.get_resource_name(item_id).map(|s| s.to_string()));
+                            ragnarok_game::npc_shop::ShopBuyItem {
+                                item_id, price, discount_price, item_type, name, resource_name,
+                            }
+                        }).collect();
+                        let shop_npc_id = if npc_id != 0 { npc_id } else { self.game.npc_dialog.dialog.npc_id };
+                        self.game.npc_shop.shop.open_buy(shop_npc_id, buy_items);
+                        self.game.npc_dialog.dialog.close();
+                        self.preload_npc_shop_textures();
+                    }
+                    GameEvent::NpcShopSellList { npc_id, items } => {
+                        let sell_items = items.into_iter().map(|(index, price, overcharge_price)| {
+                            ragnarok_game::npc_shop::ShopSellItem {
+                                index, price, overcharge_price,
+                                name: format!("Slot #{index}"),
+                            }
+                        }).collect();
+                        let shop_npc_id = if npc_id != 0 { npc_id } else { self.game.npc_dialog.dialog.npc_id };
+                        self.game.npc_shop.shop.open_sell(shop_npc_id, sell_items);
+                        self.game.npc_dialog.dialog.close();
+                        self.preload_npc_shop_textures();
+                    }
+                    GameEvent::NpcShopBuyResult { result } => {
+                        self.game.npc_shop.shop.close();
+                        match result {
+                            0 => { self.game.chat_window.add_chat("Purchase completed.".into()); }
+                            1 => { self.game.chat_window.add_chat("Not enough zeny.".into()); }
+                            2 => { self.game.chat_window.add_chat("You are overweight.".into()); }
+                            _ => { self.game.chat_window.add_chat("Purchase failed.".into()); }
+                        }
+                    }
+                    GameEvent::NpcShopSellResult { result } => {
+                        self.game.npc_shop.shop.close();
+                        if result != 0 {
+                            self.game.chat_window.add_chat("Sell failed.".into());
+                        }
+                    }
                     GameEvent::ChatMessage { gid, message } => {
                         if let Some(bubble_text) = message.split(" : ").nth(1) {
                             if let Some(entity) = self.game.entities.get_mut(gid) {
@@ -774,6 +818,32 @@ impl App {
         }
     }
 
+    fn preload_npc_shop_textures(&mut self) {
+        if self.game.npc_shop.has_grf_textures {
+            return;
+        }
+        if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
+            self.game.npc_shop.has_grf_textures = renderer.preload_textures(&NpcShop::grf_texture_paths(), grf);
+            if self.game.npc_shop.has_grf_textures {
+                let ui_scale = self.config.ui_scale / 100.0;
+                self.game.npc_shop.set_texture_sizes(|name| {
+                    renderer.texture_cache.texture_size(name).map(|(w, h)| {
+                        ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
+                    })
+                });
+            }
+            // Preload item icon textures
+            let icon_paths: Vec<String> = self.game.npc_shop.shop.buy_items.iter()
+                .filter_map(|item| {
+                    item.resource_name.as_ref()
+                        .map(|name| format!("data/texture/유저인터페이스/item/{name}.bmp"))
+                })
+                .collect();
+            let icon_refs: Vec<&str> = icon_paths.iter().map(|s| s.as_str()).collect();
+            renderer.preload_textures(&icon_refs, grf);
+        }
+    }
+
     fn handle_ui_events(&mut self, events: Vec<GameEvent>, event_loop: &ActiveEventLoop) {
         for event in events {
             match event {
@@ -885,6 +955,34 @@ impl App {
                         let packet = build_npc_deal_type_packet(npc_id, deal_type, self.config.packetver);
                         let _ = tx.send(NetworkCommand::SendPacket(packet));
                     }
+                }
+                GameEvent::RequestNpcShopBuy { items } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_purchase_item_list_packet(&items, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                GameEvent::RequestNpcShopSell { items } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_sell_item_list_packet(&items, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                GameEvent::RequestNpcShopClose => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        match self.game.npc_shop.shop.mode {
+                            Some(ragnarok_game::npc_shop::NpcShopMode::Buy) => {
+                                let packet = build_purchase_item_list_packet(&[], self.config.packetver);
+                                let _ = tx.send(NetworkCommand::SendPacket(packet));
+                            }
+                            Some(ragnarok_game::npc_shop::NpcShopMode::Sell) => {
+                                let packet = build_sell_item_list_packet(&[], self.config.packetver);
+                                let _ = tx.send(NetworkCommand::SendPacket(packet));
+                            }
+                            None => {}
+                        }
+                    }
+                    self.game.npc_shop.close();
                 }
                 GameEvent::RequestSendChat { message } => {
                     if message.starts_with('/') {
@@ -1015,7 +1113,11 @@ impl App {
                     let npc_events = self.game.npc_dialog.build(&mut ui);
                     events.extend(npc_events);
 
-                    let allow_escape = !chat_was_active && !npc_dialog_open;
+                    let shop_open = self.game.npc_shop.shop.is_open();
+                    let shop_events = self.game.npc_shop.build(&mut ui);
+                    events.extend(shop_events);
+
+                    let allow_escape = !chat_was_active && !npc_dialog_open && !shop_open;
                     let menu_events = self.game.system_menu.build(&mut ui, allow_escape);
                     events.extend(menu_events);
 
@@ -1035,7 +1137,7 @@ impl App {
         if self.game.chat_window.is_active() {
             return;
         }
-        if self.game.npc_dialog.dialog.is_open() {
+        if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
             return;
         }
         if self.game.chat_window.contains_point(
@@ -1135,7 +1237,7 @@ impl App {
         let mut render_list = Vec::new();
         if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
             for entity in self.game.entities.iter() {
-                if let Some((screen_center, depth, camera_dir, sprite_scale)) = input::entity_screen_params(
+                if let Some((screen_center, depth, camera_dir, sprite_scale, depth_gradient)) = input::entity_screen_params(
                     entity.movement.position(),
                     self.game.gat.as_ref(),
                     coords,
@@ -1158,6 +1260,7 @@ impl App {
                         id: entity.id,
                         screen_center,
                         depth,
+                        depth_gradient,
                         camera_dir,
                         sprite_scale,
                         pick_bounds,
@@ -1284,6 +1387,8 @@ impl ApplicationHandler for App {
                     self.load_emotion_sprite(&grf);
                     self.game.accessory_table = Some(ragnarok_game::accessory_table::AccessoryTable::load_from_grf(&grf));
                     self.game.name_table = Some(NameTable::load(&grf));
+                    self.game.item_name_table = Some(ragnarok_game::item_name_table::ItemNameTable::load(&grf));
+                    self.game.item_resource_table = Some(ragnarok_game::item_resource_table::ItemResourceTable::load(&grf));
                     self.grf = Some(grf);
                 }
                 Err(e) => {
@@ -1326,7 +1431,7 @@ impl ApplicationHandler for App {
                                     self.input.mouse_position.0 as f32,
                                     self.input.mouse_position.1 as f32,
                                 );
-                                if !mouse_on_chat && !self.game.system_menu.open && !self.game.npc_dialog.dialog.is_open() {
+                                if !mouse_on_chat && !self.game.system_menu.open && !self.game.npc_dialog.dialog.is_open() && !self.game.npc_shop.shop.is_open() {
                                     self.handle_left_click();
                                     self.input.walk_packet_cooldown = 0.5;
                                     self.input.walk_server_acked = false;
@@ -1356,7 +1461,7 @@ impl ApplicationHandler for App {
                         self.input.mouse_position.0 as f32,
                         self.input.mouse_position.1 as f32,
                     );
-                    if !mouse_on_chat {
+                    if !mouse_on_chat && !self.game.npc_shop.shop.is_open() {
                         let scroll = match delta {
                             MouseScrollDelta::LineDelta(_, y) => y,
                             MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
@@ -1542,7 +1647,7 @@ impl ApplicationHandler for App {
                             let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
                             let mut shadow = sprite.build_shadow_batches(entry.screen_center, entry.depth, shadow_scale);
                             sprite_batches.append(&mut shadow);
-                            let mut batches = sprite.build_batches(&entity.animation, Some(entry.camera_dir), entity.head_dir, entry.screen_center, entry.depth, entry.sprite_scale);
+                            let mut batches = sprite.build_batches(&entity.animation, Some(entry.camera_dir), entity.head_dir, entry.screen_center, entry.depth, entry.sprite_scale, entry.depth_gradient);
                             sprite_batches.append(&mut batches);
 
                             if let (Some(emo), Some(emo_act), Some(emo_tex)) =

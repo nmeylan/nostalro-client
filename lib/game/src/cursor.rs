@@ -21,6 +21,7 @@ pub struct RenderEntry {
     pub id: u32,
     pub screen_center: [f32; 2],
     pub depth: f32,
+    pub depth_gradient: f32,
     pub camera_dir: u8,
     pub sprite_scale: f32,
     /// Pick bounds in screen pixels: [left, top, right, bottom].
@@ -234,6 +235,7 @@ mod tests {
             id,
             screen_center: [cx, cy],
             depth,
+            depth_gradient: 0.0,
             camera_dir: 0,
             sprite_scale: scale,
             pick_bounds: default_pick_bounds(cx, cy),

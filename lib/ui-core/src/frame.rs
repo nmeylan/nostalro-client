@@ -45,14 +45,46 @@ pub struct ButtonTextures {
 
 pub struct Response {
     clicked: bool,
+    double_clicked: bool,
     hovered: bool,
     has_focus: bool,
 }
 
 impl Response {
     pub fn clicked(&self) -> bool { self.clicked }
+    pub fn double_clicked(&self) -> bool { self.double_clicked }
     pub fn hovered(&self) -> bool { self.hovered }
     pub fn has_focus(&self) -> bool { self.has_focus }
+}
+
+const DRAG_STATE_ID: WidgetId = WidgetId(u32::MAX);
+const DRAG_THRESHOLD: f32 = 5.0;
+
+#[derive(Clone)]
+pub struct DragState {
+    pending: bool,
+    pub active: bool,
+    start_x: f32,
+    start_y: f32,
+    pub source_id: WidgetId,
+    pub item_index: usize,
+    pub icon_texture: Option<String>,
+    pub icon_size: (f32, f32),
+}
+
+impl Default for DragState {
+    fn default() -> Self {
+        Self {
+            pending: false,
+            active: false,
+            start_x: 0.0,
+            start_y: 0.0,
+            source_id: WidgetId(0),
+            item_index: 0,
+            icon_texture: None,
+            icon_size: (24.0, 24.0),
+        }
+    }
 }
 
 impl<'a> UiFrame<'a> {
@@ -117,11 +149,12 @@ impl<'a> UiFrame<'a> {
             self.any_hovered = true;
         }
         let clicked = hovered && self.ctx.mouse_clicked;
+        let double_clicked = hovered && self.ctx.mouse_double_clicked;
         if clicked {
             self.focus = Some(id);
         }
         let has_focus = self.focus == Some(id);
-        Response { clicked, hovered, has_focus }
+        Response { clicked, double_clicked, hovered, has_focus }
     }
 
     pub fn button(
@@ -329,6 +362,76 @@ impl<'a> UiFrame<'a> {
     pub fn focused(&self) -> Option<WidgetId> {
         self.focus
     }
+
+    /// Call on mouse_clicked over a draggable widget to begin tracking a potential drag.
+    pub fn drag_source(
+        &mut self, source_id: WidgetId, item_index: usize,
+        icon_texture: Option<String>, icon_size: (f32, f32),
+    ) {
+        let drag = self.state.get_or_default::<DragState>(DRAG_STATE_ID);
+        drag.pending = true;
+        drag.active = false;
+        drag.start_x = self.ctx.mouse_x;
+        drag.start_y = self.ctx.mouse_y;
+        drag.source_id = source_id;
+        drag.item_index = item_index;
+        drag.icon_texture = icon_texture;
+        drag.icon_size = icon_size;
+    }
+
+    /// Returns true if a drag is currently active (past threshold).
+    pub fn is_dragging(&mut self) -> bool {
+        self.state.get_or_default::<DragState>(DRAG_STATE_ID).active
+    }
+
+    /// Register a drop zone. Returns (source_id, item_index) when a drag is released over this rect.
+    pub fn drop_zone(&mut self, rect: Rect) -> Option<(WidgetId, usize)> {
+        let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y);
+        let drag = self.state.get_or_default::<DragState>(DRAG_STATE_ID);
+        if drag.active && !self.ctx.mouse_down && hovered {
+            let result = (drag.source_id, drag.item_index);
+            drag.active = false;
+            drag.pending = false;
+            Some(result)
+        } else {
+            None
+        }
+    }
+
+    /// Update drag state and render drag icon. Call at end of frame after all widgets.
+    pub fn draw_drag_icon(&mut self) {
+        let drag = self.state.get_or_default::<DragState>(DRAG_STATE_ID);
+        if !drag.pending && !drag.active {
+            return;
+        }
+        if !self.ctx.mouse_down {
+            drag.active = false;
+            drag.pending = false;
+            return;
+        }
+        // Promote pending → active once mouse moves past threshold
+        if drag.pending && !drag.active {
+            let dx = self.ctx.mouse_x - drag.start_x;
+            let dy = self.ctx.mouse_y - drag.start_y;
+            if (dx * dx + dy * dy).sqrt() >= DRAG_THRESHOLD {
+                drag.active = true;
+                drag.pending = false;
+            }
+        }
+        if drag.active {
+            let (w, h) = drag.icon_size;
+            let icon = drag.icon_texture.clone();
+            let x = self.ctx.mouse_x - w / 2.0;
+            let y = self.ctx.mouse_y - h / 2.0;
+            if let Some(tex) = icon {
+                let (v, i) = draw::quad_vertices(x, y, w, h, [1.0, 1.0, 1.0, 0.8]);
+                self.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(), indices: i.to_vec(),
+                    texture: TextureRef::Named(tex),
+                });
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -505,5 +608,75 @@ mod tests {
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         ui.interact(WidgetId(1), rect);
         assert!(ui.any_hovered);
+    }
+
+    #[test]
+    fn drag_and_drop_lifecycle() {
+        let atlas = FontAtlas::from_embedded(14.0);
+        let mut state = StateCache::new();
+        let source = WidgetId(10);
+        let drop_rect = Rect::new(200.0, 0.0, 200.0, 100.0);
+
+        // Frame 1: click on source item at (50, 50) — starts pending drag
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 50.0;
+        ctx.mouse_y = 50.0;
+        ctx.mouse_clicked = true;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        ui.drag_source(source, 3, None, (24.0, 24.0));
+        assert!(!ui.is_dragging());
+        ui.draw_drag_icon();
+
+        // Frame 2: mouse moves past threshold while held — drag becomes active
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 60.0;
+        ctx.mouse_y = 50.0;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        ui.draw_drag_icon();
+        assert!(ui.is_dragging());
+
+        // Frame 3: mouse released over drop zone — drop_zone returns payload
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 300.0;
+        ctx.mouse_y = 50.0;
+        ctx.mouse_down = false;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let result = ui.drop_zone(drop_rect);
+        assert_eq!(result, Some((source, 3)));
+        assert!(!ui.is_dragging());
+    }
+
+    #[test]
+    fn drag_cancelled_on_release_outside_drop_zone() {
+        let atlas = FontAtlas::from_embedded(14.0);
+        let mut state = StateCache::new();
+        let source = WidgetId(10);
+
+        // Start drag
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 50.0;
+        ctx.mouse_y = 50.0;
+        ctx.mouse_clicked = true;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        ui.drag_source(source, 0, None, (24.0, 24.0));
+        ui.draw_drag_icon();
+
+        // Move past threshold
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 60.0;
+        ctx.mouse_y = 50.0;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        ui.draw_drag_icon();
+        assert!(ui.is_dragging());
+
+        // Release mouse — draw_drag_icon cancels it
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        ui.draw_drag_icon();
+        assert!(!ui.is_dragging());
     }
 }

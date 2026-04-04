@@ -167,6 +167,17 @@ pub enum GameEvent {
     RequestNpcInputString { npc_id: u32, text: String },
     RequestNpcDealType { npc_id: u32, deal_type: u8 },
 
+    // NPC shop (server → client)
+    NpcShopBuyList { npc_id: u32, items: Vec<(u16, i32, i32, u8)> },
+    NpcShopSellList { npc_id: u32, items: Vec<(i16, i32, i32)> },
+    NpcShopBuyResult { result: u8 },
+    NpcShopSellResult { result: u8 },
+
+    // NPC shop (client → server)
+    RequestNpcShopBuy { items: Vec<(i16, u16)> },
+    RequestNpcShopSell { items: Vec<(i16, i16)> },
+    RequestNpcShopClose,
+
     // No-op acknowledgement (packet parsed but no action needed yet)
     Acknowledged,
 }
