@@ -23,6 +23,26 @@ impl Rect {
             h,
         }
     }
+
+    /// Compute button rects right-aligned at the bottom of this rect.
+    /// Returns rects from right to left: index 0 is the rightmost button.
+    /// Matches the RO client layout: BTN_BOTTOM=4, first_right=5, spacing=3.
+    pub fn buttons_bottom_right(&self, count: usize, btn_w: f32, btn_h: f32,
+                                 btn_bottom: f32, first_right: f32, spacing: f32) -> Vec<Rect> {
+        let y = self.y + self.h - btn_bottom - btn_h;
+        (0..count).map(|i| {
+            let right_offset = first_right + i as f32 * (btn_w + spacing);
+            Rect::new(self.x + self.w - right_offset - btn_w, y, btn_w, btn_h)
+        }).collect()
+    }
+
+    /// Y position for a single line of text vertically centered between
+    /// `self.y + top_pad` and `bottom_y` (typically the button row Y).
+    pub fn text_dialog_alignment(&self, padding: f32, bottom_y: f32, line_height: f32) -> (f32, f32) {
+        let top = self.y + padding;
+        let y = top + (bottom_y - top - line_height) / 2.0;
+        (y, self.x + padding)
+    }
 }
 
 #[cfg(test)]

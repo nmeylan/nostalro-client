@@ -64,6 +64,8 @@ const ITEMWIN_MID_TEX: &str = "data/texture/유저인터페이스/basic_interfac
 const FOOTER_TEX: &str = "data/texture/유저인터페이스/basic_interface/btnbar_mid2.bmp";
 const SCROLL_UP_TEX: &str = "data/texture/유저인터페이스/basic_interface/dialscr_up.bmp";
 const SCROLL_DOWN_TEX: &str = "data/texture/유저인터페이스/basic_interface/dialscr_down.bmp";
+const SYS_BASE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_off.bmp";
+const SYS_BASE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_on.bmp";
 
 #[derive(Default)]
 struct ScrollThumbState {
@@ -202,7 +204,7 @@ impl NpcShop {
             Some(NpcShopMode::Sell) => "Available Items for selling",
             None => "",
         };
-        ui.text(win.x + s(15.0), win.y + title_h - s(3.0), title, text_color);
+        ui.text(win.x + s(17.0), win.y + title_h - s(3.0), title, text_color);
 
         // Container
         let container_y = win.y + title_h;
@@ -327,7 +329,7 @@ impl NpcShop {
             Some(NpcShopMode::Sell) => "Selling Items",
             None => "",
         };
-        ui.text(win.x + s(15.0), win.y + title_h - s(3.0), title, text_color);
+        ui.text(win.x + s(17.0), win.y + title_h - s(3.0), title, text_color);
 
         // Container
         let container_y = win.y + title_h;
@@ -497,12 +499,12 @@ impl NpcShop {
         let price = self.shop.item_price(self.qty_popup_item_index);
         let title_str = format!("{} ({}z)", name, format_zeny(price));
         // Truncate if too long
-        let max_title_w = popup_w - s(20.0);
+        let max_title_w = popup_w - s(29.0);
         let measured = ui.atlas.measure_text(&title_str);
         if measured <= max_title_w {
-            ui.text(win.x + s(8.0), win.y + title_h - s(3.0), &title_str, text_color);
+            ui.text(win.x + s(17.0), win.y + title_h - s(3.0), &title_str, text_color);
         } else {
-            ui.text(win.x + s(8.0), win.y + title_h - s(3.0), name, text_color);
+            ui.text(win.x + s(17.0), win.y + title_h - s(3.0), name, text_color);
         }
 
         // Input field + OK button
@@ -638,6 +640,7 @@ impl NpcShop {
             CANCEL_BTN_TEX.normal, CANCEL_BTN_TEX.hover, CANCEL_BTN_TEX.pressed,
             TITLEBAR_TEX, ITEMWIN_MID_TEX, FOOTER_TEX,
             SCROLL_UP_TEX, SCROLL_DOWN_TEX,
+            SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
         ]
     }
 }
@@ -652,6 +655,17 @@ fn draw_titlebar(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bool
     if has_grf {
         let (v, i) = draw::quad_vertices(x, y, w, h, [1.0, 1.0, 1.0, 1.0]);
         ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(TITLEBAR_TEX.to_string()) });
+        let s = |v: f32| ui.ctx.with_ui_scale(v);
+        let btn_size = s(11.0);
+        let btn_x = x + s(4.0);
+        let btn_y = y + s(3.0);
+        let tex = if Rect::new(btn_x, btn_y, btn_size, btn_size).contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
+            SYS_BASE_ON_TEX
+        } else {
+            SYS_BASE_OFF_TEX
+        };
+        let (v, i) = draw::quad_vertices(btn_x, btn_y, btn_size, btn_size, [1.0, 1.0, 1.0, 1.0]);
+        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(tex.to_string()) });
     } else {
         let (v, i) = draw::quad_vertices(x, y, w, h, [0.20, 0.20, 0.30, 0.95]);
         ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });

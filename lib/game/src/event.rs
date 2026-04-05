@@ -1,3 +1,4 @@
+use crate::inventory::{EquipmentItemData, NormalItemData};
 use packets::packets::{CharacterInfoNeoUnion, ServerAddr};
 
 #[derive(Debug)]
@@ -177,6 +178,25 @@ pub enum GameEvent {
     RequestNpcShopBuy { items: Vec<(i16, u16)> },
     RequestNpcShopSell { items: Vec<(i16, i16)> },
     RequestNpcShopClose,
+
+    // Inventory (server → client)
+    InventoryNormalItems { items: Vec<NormalItemData> },
+    InventoryEquipmentItems { items: Vec<EquipmentItemData> },
+    InventoryItemPickup {
+        index: u16, item_id: u16, count: u16, item_type: u8,
+        is_identified: bool, is_damaged: bool, refining_level: u8,
+        slot: [u16; 4], location: u16, result: u8,
+    },
+    InventoryUseItemResult { index: u16, count: i16, success: bool },
+    InventoryEquipResult { index: u16, wear_location: u16, success: bool },
+    InventoryUnequipResult { index: u16, wear_location: u16, success: bool },
+    InventoryItemRemoved { index: u16, count: i16 },
+
+    // Inventory (client → server)
+    RequestUseItem { index: u16 },
+    RequestEquipItem { index: u16, location: u16 },
+    RequestUnequipItem { index: u16 },
+    RequestDropItem { index: u16, count: i16 },
 
     // No-op acknowledgement (packet parsed but no action needed yet)
     Acknowledged,

@@ -9,6 +9,9 @@ pub struct InputState {
     pub mouse_position: (f64, f64),
     pub walk_packet_cooldown: f32,
     pub walk_server_acked: bool,
+    pub alt_pressed: bool,
+    pub ui_hovered: bool,
+    pub ui_dragging: bool,
 }
 
 impl InputState {
@@ -20,6 +23,9 @@ impl InputState {
             mouse_position: (0.0, 0.0),
             walk_packet_cooldown: 0.0,
             walk_server_acked: true,
+            alt_pressed: false,
+            ui_hovered: false,
+            ui_dragging: false,
         }
     }
 }
@@ -42,6 +48,7 @@ pub fn hovered_cell(
     surface_w: f32,
     surface_h: f32,
     coords: &MapCoordinates,
+    gat: Option<&GatFile>,
 ) -> Option<(i32, i32)> {
     let (mx, my) = mouse_pos;
     let (origin, dir) = camera.screen_to_ray(mx as f32, my as f32, surface_w, surface_h);
@@ -49,17 +56,29 @@ pub fn hovered_cell(
     if dir.y.abs() < 1e-6 {
         return None;
     }
-    let t = -origin.y / dir.y;
-    if t < 0.0 {
-        return None;
-    }
-    let hit = origin + dir * t;
 
-    let (cell_x, cell_y) = coords.world_to_cell(hit.x, hit.z);
-    if !coords.is_valid_cell(cell_x, cell_y) {
-        return None;
+    // Iterative refinement: intersect with terrain height instead of y=0 plane
+    let mut plane_y = 0.0f32;
+    let mut cell = None;
+
+    for _ in 0..5 {
+        let t = (plane_y - origin.y) / dir.y;
+        if t < 0.0 {
+            return None;
+        }
+        let hit = origin + dir * t;
+        let (cx, cy) = coords.world_to_cell(hit.x, hit.z);
+        if !coords.is_valid_cell(cx, cy) {
+            return None;
+        }
+
+        if cell == Some((cx, cy)) {
+            break;
+        }
+        cell = Some((cx, cy));
+        plane_y = gat.map_or(0.0, |g| g.get_height(cx as f32 + 0.5, cy as f32 + 0.5));
     }
-    Some((cell_x, cell_y))
+    cell
 }
 
 pub fn handle_camera_drag(camera: &mut Camera, dx: f32, dy: f32, free_camera: bool) {

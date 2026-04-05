@@ -27,7 +27,7 @@ TODO:
 # UI
 - ~~Chat box (normal, whisper, party, guild channels)~~
 - Status window (base/job level, stats, stat allocation)
-- Inventory window
+- ~~Inventory window~~
 - Equipment window
 - Skill window (skill tree, skill levels)
 - Hotkey/shortcut bar (F1-F9 skills/items)
@@ -45,7 +45,7 @@ TODO:
 - Cart window
 - Storage/warehouse window
 - Item tooltips (description, stats, cards, refine level)
-- Context menu (right-click on player/NPC)
+- Context menu (right-click on player/NPC)[ui-component](../lib/ui-component)
 - ~~Escape/system menu~~
 - Card illustration display
 - Refining UI

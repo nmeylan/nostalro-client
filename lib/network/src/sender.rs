@@ -194,3 +194,34 @@ pub fn build_sell_item_list_packet(items: &[(i16, i16)], packetver: u32) -> Vec<
     pkt.fill_raw();
     pkt.raw
 }
+
+pub fn build_use_item_packet(index: u16, account_id: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzUseItem::new(packetver);
+    pkt.set_index(index);
+    pkt.set_aid(account_id);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_equip_item_packet(index: u16, location: u16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqWearEquip::new(packetver);
+    pkt.set_index(index);
+    pkt.set_wear_location(location);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_unequip_item_packet(index: u16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqTakeoffEquip::new(packetver);
+    pkt.set_index(index);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_drop_item_packet(index: u16, count: i16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzItemThrow::new(packetver);
+    pkt.set_index(index);
+    pkt.set_count(count);
+    pkt.fill_raw();
+    pkt.raw
+}

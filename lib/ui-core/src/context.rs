@@ -12,6 +12,7 @@ pub struct UiContext {
     pub mouse_clicked: bool,
     pub mouse_double_clicked: bool,
     pub mouse_down: bool,
+    pub mouse_right_clicked: bool,
     pub typed_chars: Vec<char>,
     last_click_time: std::time::Instant,
     last_click_pos: (f32, f32),
@@ -39,6 +40,7 @@ impl UiContext {
             mouse_clicked: false,
             mouse_double_clicked: false,
             mouse_down: false,
+            mouse_right_clicked: false,
             typed_chars: Vec::new(),
             last_click_time: std::time::Instant::now(),
             last_click_pos: (0.0, 0.0),
@@ -64,6 +66,7 @@ impl UiContext {
     pub fn begin_frame(&mut self) {
         self.mouse_clicked = false;
         self.mouse_double_clicked = false;
+        self.mouse_right_clicked = false;
         self.typed_chars.clear();
         self.key_backspace = false;
         self.key_enter = false;
@@ -110,6 +113,9 @@ impl UiContext {
                             self.mouse_down = false;
                         }
                     }
+                }
+                if *button == MouseButton::Right && *state == ElementState::Pressed {
+                    self.mouse_right_clicked = true;
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {

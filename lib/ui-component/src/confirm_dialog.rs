@@ -9,7 +9,9 @@ const CANCEL_BTN_ID: WidgetId = WidgetId(401);
 const DIALOG_W: f32 = 220.0;
 const DIALOG_H: f32 = 40.0;
 const PADDING: f32 = 4.0;
-const BTN_SPACING: f32 = 8.0;
+const BTN_BOTTOM: f32 = 4.0;
+const BTN_FIRST_RIGHT: f32 = 5.0;
+const BTN_SPACING: f32 = 3.0;
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
 
@@ -66,6 +68,7 @@ impl ConfirmDialog {
         if ui.ctx.key_enter {
             return ConfirmResult::Ok;
         }
+        let s = |v: f32| ui.ctx.with_ui_scale(v);
 
         // Full-screen overlay to block input behind
         let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
@@ -96,26 +99,19 @@ impl ConfirmDialog {
             }
         }
 
-        // OK / Cancel buttons centered
+        // OK / Cancel buttons right-aligned at bottom
         let (btn_w, btn_h) = self.btn_size;
-        let total_btn_w = btn_w * 2.0 + BTN_SPACING;
-        let btn_x = dx + (dialog_w - total_btn_w) / 2.0;
-        let btn_y = dy + dialog_h - PADDING - btn_h;
+        let container = Rect::new(dx, dy, dialog_w, dialog_h);
+        let btns = container.buttons_bottom_right(2, btn_w, btn_h, BTN_BOTTOM, BTN_FIRST_RIGHT, BTN_SPACING);
 
-        // Message text centered vertically between top and buttons
-        let text_w = ui.atlas.measure_text(&self.message);
-        let text_x = dx + (dialog_w - text_w) / 2.0;
-        let text_area_top = dy + PADDING;
-        let text_area_bottom = btn_y;
-        let text_y = text_area_top + (text_area_bottom - text_area_top - ui.atlas.line_height) / 2.0;
+        // Message text centered
+        let (text_y, text_x) =
+            container.text_dialog_alignment(s(PADDING), btns[0].y, ui.atlas.line_height);
         let text_color = if self.has_grf_textures { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
         ui.text(text_x, text_y, &self.message, text_color);
 
-        let ok_rect = Rect::new(btn_x, btn_y, btn_w, btn_h);
-        let cancel_rect = Rect::new(btn_x + btn_w + BTN_SPACING, btn_y, btn_w, btn_h);
-
-        let ok = ui.button(OK_BTN_ID, ok_rect, &OK_BTN, "OK");
-        let cancel = ui.button(CANCEL_BTN_ID, cancel_rect, &CANCEL_BTN, "Cancel");
+        let cancel = ui.button(CANCEL_BTN_ID, btns[0], &CANCEL_BTN, "Cancel");
+        let ok = ui.button(OK_BTN_ID, btns[1], &OK_BTN, "OK");
 
         if ok.clicked() {
             return ConfirmResult::Ok;

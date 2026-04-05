@@ -5,42 +5,60 @@ mod input;
 use config::Config;
 use game_state::GameState;
 use input::InputState;
+use models::enums::EnumWithNumberValue;
+use models::enums::status::StatusTypes;
 use ragnarok_formats::act::SpriteActionType;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
-use ragnarok_game::cursor::{CursorType, RenderEntry, cursor_type_for_cell, hovered_entity_cursor_type};
+use ragnarok_game::cursor::{
+    CursorType, RenderEntry, cursor_type_for_cell, hovered_entity_cursor_type,
+};
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::event::GameEvent;
+use ragnarok_game::inventory::InventoryItem;
 use ragnarok_game::name_table::NameTable;
-use ragnarok_game::sprite_path::{WeaponType, weapon_view_id_to_type, entity_type_from_job, entity_sprite_base_path};
 use ragnarok_game::path::{path_search, try_move_to};
 use ragnarok_game::shadow::shadow_size;
+use ragnarok_game::sprite_path::{
+    WeaponType, entity_sprite_base_path, entity_type_from_job, weapon_view_id_to_type,
+};
 use ragnarok_game::{map_loader, sprite_loader};
-use ragnarok_network::{build_action_request_packet, build_char_enter_packet, build_chat_packet, build_contact_npc_packet, build_login_packet, build_map_loaded_packet, build_npc_close_packet, build_npc_deal_type_packet, build_npc_input_number_packet, build_npc_input_string_packet, build_npc_menu_select_packet, build_npc_next_packet, build_purchase_item_list_packet, build_reqname_packet, build_request_move_packet, build_restart_packet, build_select_char_packet, build_sell_item_list_packet, build_zone_enter_packet, ip_u32_to_string, network_loop, NetworkCommand, KeepaliveMode};
 use ragnarok_network::session::Session;
-use ragnarok_renderer::{GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall, build_clip_quad, upload_sprite_textures, build_entity_sprite, block_on};
+use ragnarok_network::{
+    KeepaliveMode, NetworkCommand, build_action_request_packet, build_char_enter_packet,
+    build_chat_packet, build_contact_npc_packet, build_drop_item_packet, build_equip_item_packet,
+    build_login_packet, build_map_loaded_packet, build_npc_close_packet,
+    build_npc_deal_type_packet, build_npc_input_number_packet, build_npc_input_string_packet,
+    build_npc_menu_select_packet, build_npc_next_packet, build_purchase_item_list_packet,
+    build_reqname_packet, build_request_move_packet, build_restart_packet,
+    build_select_char_packet, build_sell_item_list_packet, build_unequip_item_packet,
+    build_use_item_packet, build_zone_enter_packet, ip_u32_to_string, network_loop,
+};
+use ragnarok_renderer::{
+    GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall, block_on,
+    build_clip_quad, build_entity_sprite, upload_sprite_textures,
+};
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui::state::StateCache;
+use ragnarok_ui_component::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::chat_window::ChatWindow;
+use ragnarok_ui_component::inventory_window::InventoryWindow;
 use ragnarok_ui_component::login_window::{LoginFocus, LoginWindow};
 use ragnarok_ui_component::npc_dialog::NpcDialog;
 use ragnarok_ui_component::npc_shop::NpcShop;
-use ragnarok_ui_component::system_menu::SystemMenu;
-use ragnarok_ui_component::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::server_list_window::ServerListWindow;
-use ragnarok_ui::state::StateCache;
+use ragnarok_ui_component::system_menu::SystemMenu;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::mpsc;
-use models::enums::EnumWithNumberValue;
-use models::enums::status::StatusTypes;
 use tracing::info;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
-use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 
 type ClipData = (Vec<SpriteVertex>, Vec<u32>, usize);
@@ -111,8 +129,11 @@ impl App {
                     grf,
                 );
                 grid.build_grid_mesh(
-                    &renderer.device.device, gat,
-                    map_data.gnd.width, map_data.gnd.height, map_data.gnd.zoom,
+                    &renderer.device.device,
+                    gat,
+                    map_data.gnd.width,
+                    map_data.gnd.height,
+                    map_data.gnd.zoom,
                 );
                 renderer.grid_selector = Some(grid);
             }
@@ -121,7 +142,13 @@ impl App {
 
     fn position_camera_at(&mut self, cell_x: f32, cell_y: f32) {
         if let (Some(coords), Some(renderer)) = (&self.game.map_coords, &mut self.renderer) {
-            input::position_camera_at(&mut renderer.camera, self.game.gat.as_ref(), coords, cell_x, cell_y);
+            input::position_camera_at(
+                &mut renderer.camera,
+                self.game.gat.as_ref(),
+                coords,
+                cell_x,
+                cell_y,
+            );
         }
     }
 
@@ -136,6 +163,7 @@ impl App {
             renderer.device.surface_config.width as f32,
             renderer.device.surface_config.height as f32,
             coords,
+            self.game.gat.as_ref(),
         )
     }
 
@@ -164,8 +192,11 @@ impl App {
             None => return,
         };
 
-        let (src_x, src_y) = self.game.entities.player()
-           .map(|e| e.movement.cell_position())
+        let (src_x, src_y) = self
+            .game
+            .entities
+            .player()
+            .map(|e| e.movement.cell_position())
             .unwrap_or((0, 0));
 
         let move_action = match try_move_to(gat, src_x, src_y, dest_x, dest_y) {
@@ -174,7 +205,11 @@ impl App {
         };
 
         if let Some(tx) = &self.network_cmd_tx {
-            let packet = build_request_move_packet(move_action.dest_x, move_action.dest_y, self.config.packetver);
+            let packet = build_request_move_packet(
+                move_action.dest_x,
+                move_action.dest_y,
+                self.config.packetver,
+            );
             let _ = tx.send(NetworkCommand::SendPacket(packet));
         }
 
@@ -204,505 +239,1029 @@ impl App {
     }
 
     fn handle_game_events(&mut self, event_loop: &ActiveEventLoop) {
-        let events: Vec<_> = self.game_event_rx.as_mut()
+        let events: Vec<_> = self
+            .game_event_rx
+            .as_mut()
             .map(|rx| std::iter::from_fn(|| rx.try_recv().ok()).collect())
             .unwrap_or_default();
         for event in events {
-                match event {
-                    GameEvent::LoginAccepted { account_id, login_id1, login_id2, sex, servers } => {
-                        tracing::info!("Login accepted, {} server(s)", servers.len());
-                        let mut session = Session::new(self.config.packetver);
-                        session.store_login(account_id, login_id1, login_id2, sex);
-                        self.game.login_session = Some(session);
-                        let mut server_win = ServerListWindow::new(servers);
-                        if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-                            server_win.has_grf_textures = renderer.preload_textures(&ServerListWindow::grf_texture_paths(), grf);
-                            if server_win.has_grf_textures {
-                                let ui_scale = self.config.ui_scale / 100.0;
-                                server_win.set_texture_sizes(|name| {
-                                    renderer.texture_cache.texture_size(name).map(|(w, h)| {
-                                        ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
-                                    })
-                                });
-                            }
-                        }
-                        self.server_list_window = Some(server_win);
-                        self.game.app_state = AppState::ServerSelect;
-                    }
-                    GameEvent::LoginRefused { error_code } => {
-                        let msg = match error_code {
-                            0 => "Unregistered ID",
-                            1 => "Incorrect Password",
-                            2 => "ID expired",
-                            3 => "Rejected from server",
-                            4 => "Blocked by GM",
-                            5 => "Not latest client",
-                            6 => "Banned",
-                            _ => "Unknown error",
-                        };
-                        self.login_window.set_error(msg);
-                    }
-                    GameEvent::CharacterListReceived { characters } => {
-                        tracing::info!("Received {} character(s)", characters.len());
-                        let mut char_win = CharSelectWindow::new(characters);
-                        if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-                            char_win.has_grf_textures = renderer.preload_textures(&CharSelectWindow::grf_texture_paths(), grf);
-                            if char_win.has_grf_textures {
-                                let ui_scale = self.config.ui_scale / 100.0;
-                                char_win.set_texture_sizes(|name| {
-                                    renderer.texture_cache.texture_size(name).map(|(w, h)| {
-                                        ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
-                                    })
-                                });
-                            }
-                        }
-                        self.char_select_window = Some(char_win);
-                        self.game.app_state = AppState::CharacterSelect;
-                    }
-                    GameEvent::ZoneServerConnectInfo { char_id, map_name, ip, port } => {
-                        if let Some(session) = &mut self.game.login_session {
-                            session.store_zone_info(char_id, map_name);
-                        }
-                        let addr = format!("{}:{}", ip_u32_to_string(ip), port);
-                        if let Some(tx) = &self.network_cmd_tx {
-                            let _ = tx.send(NetworkCommand::Disconnect);
-                            let _ = tx.send(NetworkCommand::Connect(addr));
-                            if let Some(session) = &self.game.login_session {
-                                let packet = build_zone_enter_packet(session);
-                                let _ = tx.send(NetworkCommand::SendPacket(packet));
-                            }
-                            let _ = tx.send(NetworkCommand::SetKeepalive(KeepaliveMode::MapServer));
+            match event {
+                GameEvent::LoginAccepted {
+                    account_id,
+                    login_id1,
+                    login_id2,
+                    sex,
+                    servers,
+                } => {
+                    tracing::info!("Login accepted, {} server(s)", servers.len());
+                    let mut session = Session::new(self.config.packetver);
+                    session.store_login(account_id, login_id1, login_id2, sex);
+                    self.game.login_session = Some(session);
+                    let mut server_win = ServerListWindow::new(servers);
+                    if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
+                        server_win.has_grf_textures =
+                            renderer.preload_textures(&ServerListWindow::grf_texture_paths(), grf);
+                        if server_win.has_grf_textures {
+                            let ui_scale = self.config.ui_scale / 100.0;
+                            server_win.set_texture_sizes(|name| {
+                                renderer.texture_cache.texture_size(name).map(|(w, h)| {
+                                    ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
+                                })
+                            });
                         }
                     }
-                    GameEvent::RestartAck => {
-                        self.char_select_window = None;
-                        self.game.entities.clear();
-                        self.game.sprites.clear();
-                        self.game.sprite_cache.clear();
-                        self.game.current_map = None;
-                        self.game.map_coords = None;
-                        self.game.gat = None;
-                        if let Some(renderer) = &mut self.renderer {
-                            renderer.ground_renderer = None;
-                            renderer.model_renderer = None;
-                            renderer.water_renderer = None;
-                            renderer.grid_selector = None;
+                    self.server_list_window = Some(server_win);
+                    self.game.app_state = AppState::ServerSelect;
+                }
+                GameEvent::LoginRefused { error_code } => {
+                    let msg = match error_code {
+                        0 => "Unregistered ID",
+                        1 => "Incorrect Password",
+                        2 => "ID expired",
+                        3 => "Rejected from server",
+                        4 => "Blocked by GM",
+                        5 => "Not latest client",
+                        6 => "Banned",
+                        _ => "Unknown error",
+                    };
+                    self.login_window.set_error(msg);
+                }
+                GameEvent::CharacterListReceived { characters } => {
+                    tracing::info!("Received {} character(s)", characters.len());
+                    let mut char_win = CharSelectWindow::new(characters);
+                    if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
+                        char_win.has_grf_textures =
+                            renderer.preload_textures(&CharSelectWindow::grf_texture_paths(), grf);
+                        if char_win.has_grf_textures {
+                            let ui_scale = self.config.ui_scale / 100.0;
+                            char_win.set_texture_sizes(|name| {
+                                renderer.texture_cache.texture_size(name).map(|(w, h)| {
+                                    ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
+                                })
+                            });
                         }
-                        self.reconnect_to_char_server();
                     }
-                    GameEvent::MapEntered { x, y, dir, .. } => {
-                        let map_name = self.game.login_session.as_ref().map(|s| {
-                            s.map_name.strip_suffix(".gat")
-                                .unwrap_or(&s.map_name).to_string()
-                        });
-                        if let Some(map_name) = &map_name {
-                            tracing::info!("Entering map: {map_name}");
-                            self.load_map(map_name);
-                            self.game.current_map = Some(map_name.clone());
+                    self.char_select_window = Some(char_win);
+                    self.game.app_state = AppState::CharacterSelect;
+                }
+                GameEvent::ZoneServerConnectInfo {
+                    char_id,
+                    map_name,
+                    ip,
+                    port,
+                } => {
+                    if let Some(session) = &mut self.game.login_session {
+                        session.store_zone_info(char_id, map_name);
+                    }
+                    let addr = format!("{}:{}", ip_u32_to_string(ip), port);
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let _ = tx.send(NetworkCommand::Disconnect);
+                        let _ = tx.send(NetworkCommand::Connect(addr));
+                        if let Some(session) = &self.game.login_session {
+                            let packet = build_zone_enter_packet(session);
+                            let _ = tx.send(NetworkCommand::SendPacket(packet));
                         }
+                        let _ = tx.send(NetworkCommand::SetKeepalive(KeepaliveMode::MapServer));
+                    }
+                }
+                GameEvent::RestartAck => {
+                    self.char_select_window = None;
+                    self.game.entities.clear();
+                    self.game.sprites.clear();
+                    self.game.sprite_cache.clear();
+                    self.game.current_map = None;
+                    self.game.map_coords = None;
+                    self.game.gat = None;
+                    if let Some(renderer) = &mut self.renderer {
+                        renderer.ground_renderer = None;
+                        renderer.model_renderer = None;
+                        renderer.water_renderer = None;
+                        renderer.grid_selector = None;
+                    }
+                    self.reconnect_to_char_server();
+                }
+                GameEvent::MapEntered { x, y, dir, .. } => {
+                    let map_name = self.game.login_session.as_ref().map(|s| {
+                        s.map_name
+                            .strip_suffix(".gat")
+                            .unwrap_or(&s.map_name)
+                            .to_string()
+                    });
+                    if let Some(map_name) = &map_name {
+                        tracing::info!("Entering map: {map_name}");
+                        self.load_map(map_name);
+                        self.game.current_map = Some(map_name.clone());
+                    }
 
-                        let session_sex = self.game.login_session.as_ref().map(|s| s.sex).unwrap_or(1);
-                        let account_id = self.game.login_session.as_ref().map(|s| s.account_id).unwrap_or(0);
-                        let (job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom, shield_id) = self.game.selected_character.as_ref()
-                            .map(|c| {
-                                let sex = if self.config.packetver >= 20141016 { c.sex } else { session_sex };
-                                (c.class, sex, c.head, c.hair_color, c.weapon, c.head_top, c.head_mid, c.head_bottom, c.shield)
-                            })
-                            .unwrap_or((0, session_sex, 0, 0, 0, 0, 0, 0, 0));
+                    let session_sex = self.game.login_session.as_ref().map(|s| s.sex).unwrap_or(1);
+                    let account_id = self
+                        .game
+                        .login_session
+                        .as_ref()
+                        .map(|s| s.account_id)
+                        .unwrap_or(0);
+                    let (
+                        job,
+                        sex,
+                        head,
+                        hair_color,
+                        weapon,
+                        head_top,
+                        head_mid,
+                        head_bottom,
+                        shield_id,
+                    ) = self
+                        .game
+                        .selected_character
+                        .as_ref()
+                        .map(|c| {
+                            let sex = if self.config.packetver >= 20141016 {
+                                c.sex
+                            } else {
+                                session_sex
+                            };
+                            (
+                                c.class,
+                                sex,
+                                c.head,
+                                c.hair_color,
+                                c.weapon,
+                                c.head_top,
+                                c.head_mid,
+                                c.head_bottom,
+                                c.shield,
+                            )
+                        })
+                        .unwrap_or((0, session_sex, 0, 0, 0, 0, 0, 0, 0));
 
-                        let entity = Entity::new_player(account_id, job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom, shield_id, x, y, dir);
-                        self.game.entities.set_player_id(account_id);
-                        self.game.entities.insert(entity);
+                    let entity = Entity::new_player(
+                        account_id,
+                        job,
+                        sex,
+                        head,
+                        hair_color,
+                        weapon,
+                        head_top,
+                        head_mid,
+                        head_bottom,
+                        shield_id,
+                        x,
+                        y,
+                        dir,
+                    );
+                    self.game.entities.set_player_id(account_id);
+                    self.game.entities.insert(entity);
 
-                        let weapon_type = weapon_view_id_to_type(weapon);
-                        self.load_player_sprite(account_id, job, sex, head, hair_color, 0, weapon_type, head_top, head_mid, head_bottom, shield_id);
+                    let weapon_type = weapon_view_id_to_type(weapon);
+                    self.load_player_sprite(
+                        account_id,
+                        job,
+                        sex,
+                        head,
+                        hair_color,
+                        0,
+                        weapon_type,
+                        head_top,
+                        head_mid,
+                        head_bottom,
+                        shield_id,
+                    );
 
-                        self.position_camera_at(x as f32, y as f32);
-                        self.char_select_window = None;
+                    self.position_camera_at(x as f32, y as f32);
+                    self.char_select_window = None;
 
-                        if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-                            self.game.chat_window.has_grf_textures = renderer.preload_textures(
-                                &ChatWindow::grf_texture_paths(), grf,
-                            );
-                            self.game.system_menu.has_grf_textures = renderer.preload_textures(
-                                &SystemMenu::grf_texture_paths(), grf,
-                            );
-                            if self.game.system_menu.has_grf_textures {
-                                let ui_scale = self.config.ui_scale / 100.0;
-                                self.game.system_menu.set_texture_sizes(|name| {
-                                    renderer.texture_cache.texture_size(name).map(|(w, h)| {
-                                        ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
-                                    })
-                                });
-                            }
+                    if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
+                        self.game.chat_window.has_grf_textures =
+                            renderer.preload_textures(&ChatWindow::grf_texture_paths(), grf);
+                        self.game.system_menu.has_grf_textures =
+                            renderer.preload_textures(&SystemMenu::grf_texture_paths(), grf);
+                        if self.game.system_menu.has_grf_textures {
+                            let ui_scale = self.config.ui_scale / 100.0;
+                            self.game.system_menu.set_texture_sizes(|name| {
+                                renderer.texture_cache.texture_size(name).map(|(w, h)| {
+                                    ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
+                                })
+                            });
                         }
-
-                        self.game.app_state = AppState::InGame;
-
-                        if let Some(tx) = &self.network_cmd_tx {
-                            let _ = tx.send(NetworkCommand::SendPacket(build_map_loaded_packet(self.config.packetver)));
+                        self.game.inventory_window.has_grf_textures =
+                            renderer.preload_textures(&InventoryWindow::grf_texture_paths(), grf);
+                        if self.game.inventory_window.has_grf_textures {
+                            let ui_scale = self.config.ui_scale / 100.0;
+                            self.game.inventory_window.set_texture_sizes(|name| {
+                                renderer.texture_cache.texture_size(name).map(|(w, h)| {
+                                    ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
+                                })
+                            });
                         }
                     }
-                    GameEvent::PlayerMoved { start_x, start_y, dest_x, dest_y, start_time } => {
-                        self.input.walk_server_acked = true;
-                        let already_moving_to_dest = self.game.entities.player()
-                            .filter(|e| e.movement.is_moving())
-                            .and_then(|e| e.movement.destination())
-                            .is_some_and(|(dx, dy)| dx == dest_x && dy == dest_y);
-                        if !already_moving_to_dest {
-                            if let Some(gat) = &self.game.gat {
-                                // Start from rendered position (like original client)
-                                let (sx, sy) = self.game.entities.player()
-                                    .map(|e| e.movement.cell_position())
-                                    .unwrap_or((start_x, start_y));
-                                let path = path_search(gat, sx, sy, dest_x, dest_y);
-                                if !path.is_empty() {
-                                    let local_ms = self.start_time.elapsed().as_millis() as u32;
-                                    let move_start = self.game.server_time.server_to_local_secs(start_time, local_ms);
-                                    if let Some(entity) = self.game.entities.player_mut() {
-                                        entity.movement.set_position(sx as f32, sy as f32);
-                                        entity.movement.start_move(path, move_start);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    GameEvent::MapChanged { map_name, x, y } => {
-                        let map_name = map_name.strip_suffix(".gat")
-                            .unwrap_or(&map_name).to_string();
-                        tracing::info!("MapChanged: {map_name} ({x},{y}) current={:?}", self.game.current_map);
-                        if self.game.current_map.as_deref() != Some(&map_name) {
-                            tracing::info!("Different map, clearing entities");
-                            self.load_map(&map_name);
-                            self.game.current_map = Some(map_name);
-                            // Clear non-player entities only on actual map change;
-                            // same-map warps rely on server FOV updates
-                            let player_sprite = self.game.entities.player_id()
-                                .and_then(|pid| self.game.sprites.remove(&pid));
-                            self.game.sprites.clear();
-                            self.game.sprite_cache.clear();
-                            self.game.entities.clear_non_player();
-                            self.game.failed_sprite_loads.clear();
-                            if let (Some(pid), Some(sprite)) = (self.game.entities.player_id(), player_sprite) {
-                                self.game.sprites.insert(pid, sprite);
-                            }
-                        }
-                        if let Some(entity) = self.game.entities.player_mut() {
-                            entity.movement.set_position(x as f32, y as f32);
-                        }
-                        self.position_camera_at(x as f32, y as f32);
 
-                        if let Some(tx) = &self.network_cmd_tx {
-                            let _ = tx.send(NetworkCommand::SendPacket(build_map_loaded_packet(self.config.packetver)));
-                        }
+                    self.game.app_state = AppState::InGame;
+
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let _ = tx.send(NetworkCommand::SendPacket(build_map_loaded_packet(
+                            self.config.packetver,
+                        )));
                     }
-                    GameEvent::EntitySpawned { gid, job, speed, sex, head, weapon, shield,
-                                             head_top, head_mid, head_bottom, hair_color,
-                                             x, y, direction, body_state } => {
-                        if self.game.entities.player_id() == Some(gid) {
-                            continue;
-                        }
-                        let entity_type = entity_type_from_job(job);
-                        tracing::info!("EntitySpawned: gid={gid} job={job} type={entity_type:?} pos=({x},{y})");
-                        let mut entity = Entity::new(gid, entity_type, job, sex, head, hair_color,
-                                                 weapon, head_top, head_mid, head_bottom, shield,
-                                                 x, y, direction, speed);
-                        if body_state == 2 {
-                            entity.state = EntityState::Sitting;
-                        }
-                        self.game.entities.insert(entity);
-                        self.load_entity_sprite(gid, entity_type, job, sex, head, weapon,
-                                                shield, head_top, head_mid, head_bottom,
-                                                hair_color, direction);
-                    }
-                    GameEvent::EntityMoved { gid, start_x, start_y, dest_x, dest_y, start_time } => {
+                }
+                GameEvent::PlayerMoved {
+                    start_x,
+                    start_y,
+                    dest_x,
+                    dest_y,
+                    start_time,
+                } => {
+                    self.input.walk_server_acked = true;
+                    let already_moving_to_dest = self
+                        .game
+                        .entities
+                        .player()
+                        .filter(|e| e.movement.is_moving())
+                        .and_then(|e| e.movement.destination())
+                        .is_some_and(|(dx, dy)| dx == dest_x && dy == dest_y);
+                    if !already_moving_to_dest {
                         if let Some(gat) = &self.game.gat {
-                            let path = path_search(gat, start_x, start_y, dest_x, dest_y);
+                            // Start from rendered position (like original client)
+                            let (sx, sy) = self
+                                .game
+                                .entities
+                                .player()
+                                .map(|e| e.movement.cell_position())
+                                .unwrap_or((start_x, start_y));
+                            let path = path_search(gat, sx, sy, dest_x, dest_y);
                             if !path.is_empty() {
                                 let local_ms = self.start_time.elapsed().as_millis() as u32;
-                                let move_start = self.game.server_time.server_to_local_secs(start_time, local_ms);
-                                if let Some(entity) = self.game.entities.get_mut(gid) {
-                                    entity.movement.set_position(start_x as f32, start_y as f32);
+                                let move_start = self
+                                    .game
+                                    .server_time
+                                    .server_to_local_secs(start_time, local_ms);
+                                if let Some(entity) = self.game.entities.player_mut() {
+                                    entity.movement.set_position(sx as f32, sy as f32);
                                     entity.movement.start_move(path, move_start);
                                 }
                             }
                         }
                     }
-                    GameEvent::EntityVanished { gid } => {
-                        let r1 = self.game.entities.remove(gid).is_some();
-                        let r2 = self.game.sprites.remove(&gid).is_some();
-                        tracing::info!("EntityVanished: gid={gid} r1={r1} r2={r2}");
+                }
+                GameEvent::MapChanged { map_name, x, y } => {
+                    let map_name = map_name
+                        .strip_suffix(".gat")
+                        .unwrap_or(&map_name)
+                        .to_string();
+                    tracing::info!(
+                        "MapChanged: {map_name} ({x},{y}) current={:?}",
+                        self.game.current_map
+                    );
+                    if self.game.current_map.as_deref() != Some(&map_name) {
+                        tracing::info!("Different map, clearing entities");
+                        self.load_map(&map_name);
+                        self.game.current_map = Some(map_name);
+                        // Clear non-player entities only on actual map change;
+                        // same-map warps rely on server FOV updates
+                        let player_sprite = self
+                            .game
+                            .entities
+                            .player_id()
+                            .and_then(|pid| self.game.sprites.remove(&pid));
+                        self.game.sprites.clear();
+                        self.game.sprite_cache.clear();
+                        self.game.entities.clear_non_player();
+                        self.game.failed_sprite_loads.clear();
+                        if let (Some(pid), Some(sprite)) =
+                            (self.game.entities.player_id(), player_sprite)
+                        {
+                            self.game.sprites.insert(pid, sprite);
+                        }
                     }
-                    GameEvent::EntityStopMove { gid, x, y } => {
-                        if let Some(entity) = self.game.entities.get_mut(gid) {
-                            entity.movement.set_position(x as f32, y as f32);
-                            if entity.state == EntityState::Moving {
-                                entity.state = EntityState::Standing;
+                    if let Some(entity) = self.game.entities.player_mut() {
+                        entity.movement.set_position(x as f32, y as f32);
+                    }
+                    self.position_camera_at(x as f32, y as f32);
+
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let _ = tx.send(NetworkCommand::SendPacket(build_map_loaded_packet(
+                            self.config.packetver,
+                        )));
+                    }
+                }
+                GameEvent::EntitySpawned {
+                    gid,
+                    job,
+                    speed,
+                    sex,
+                    head,
+                    weapon,
+                    shield,
+                    head_top,
+                    head_mid,
+                    head_bottom,
+                    hair_color,
+                    x,
+                    y,
+                    direction,
+                    body_state,
+                } => {
+                    if self.game.entities.player_id() == Some(gid) {
+                        continue;
+                    }
+                    let entity_type = entity_type_from_job(job);
+                    tracing::info!(
+                        "EntitySpawned: gid={gid} job={job} type={entity_type:?} pos=({x},{y})"
+                    );
+                    let mut entity = Entity::new(
+                        gid,
+                        entity_type,
+                        job,
+                        sex,
+                        head,
+                        hair_color,
+                        weapon,
+                        head_top,
+                        head_mid,
+                        head_bottom,
+                        shield,
+                        x,
+                        y,
+                        direction,
+                        speed,
+                    );
+                    if body_state == 2 {
+                        entity.state = EntityState::Sitting;
+                    }
+                    self.game.entities.insert(entity);
+                    self.load_entity_sprite(
+                        gid,
+                        entity_type,
+                        job,
+                        sex,
+                        head,
+                        weapon,
+                        shield,
+                        head_top,
+                        head_mid,
+                        head_bottom,
+                        hair_color,
+                        direction,
+                    );
+                }
+                GameEvent::EntityMoved {
+                    gid,
+                    start_x,
+                    start_y,
+                    dest_x,
+                    dest_y,
+                    start_time,
+                } => {
+                    if let Some(gat) = &self.game.gat {
+                        let path = path_search(gat, start_x, start_y, dest_x, dest_y);
+                        if !path.is_empty() {
+                            let local_ms = self.start_time.elapsed().as_millis() as u32;
+                            let move_start = self
+                                .game
+                                .server_time
+                                .server_to_local_secs(start_time, local_ms);
+                            if let Some(entity) = self.game.entities.get_mut(gid) {
+                                entity.movement.set_position(start_x as f32, start_y as f32);
+                                entity.movement.start_move(path, move_start);
                             }
                         }
                     }
-                    GameEvent::EntityAction { gid, target_gid, action, damage, left_damage, attack_mt, attacked_mt, .. } => {
-                        match action {
-                            2 => {
-                                if let Some(entity) = self.game.entities.get_mut(gid) {
-                                    entity.state = EntityState::Sitting;
-                                    entity.state_timer = 0.0;
+                }
+                GameEvent::EntityVanished { gid } => {
+                    let r1 = self.game.entities.remove(gid).is_some();
+                    let r2 = self.game.sprites.remove(&gid).is_some();
+                    tracing::info!("EntityVanished: gid={gid} r1={r1} r2={r2}");
+                }
+                GameEvent::EntityStopMove { gid, x, y } => {
+                    if let Some(entity) = self.game.entities.get_mut(gid) {
+                        entity.movement.set_position(x as f32, y as f32);
+                        if entity.state == EntityState::Moving {
+                            entity.state = EntityState::Standing;
+                        }
+                    }
+                }
+                GameEvent::EntityAction {
+                    gid,
+                    target_gid,
+                    action,
+                    damage,
+                    left_damage,
+                    attack_mt,
+                    attacked_mt,
+                    ..
+                } => match action {
+                    2 => {
+                        if let Some(entity) = self.game.entities.get_mut(gid) {
+                            entity.state = EntityState::Sitting;
+                            entity.state_timer = 0.0;
+                        }
+                    }
+                    3 => {
+                        if let Some(entity) = self.game.entities.get_mut(gid) {
+                            entity.state = EntityState::Standing;
+                            entity.state_timer = 0.0;
+                        }
+                    }
+                    0 | 8 => {
+                        if let Some(entity) = self.game.entities.get_mut(gid) {
+                            let duration = (attack_mt as f32 / 1000.0).max(0.5);
+                            entity.enter_attack(duration);
+                        }
+                        if damage > 0 || left_damage > 0 {
+                            if let Some(target) = self.game.entities.get_mut(target_gid) {
+                                let duration = (attacked_mt as f32 / 1000.0).max(0.3);
+                                target.enter_hurt(duration);
+                            }
+                        }
+                    }
+                    1 => {
+                        if let Some(entity) = self.game.entities.get_mut(gid) {
+                            entity.enter_pickup(0.5);
+                        }
+                    }
+                    _ => {}
+                },
+                GameEvent::EntityDirectionChanged { gid, head_dir, dir } => {
+                    if let Some(entity) = self.game.entities.get_mut(gid) {
+                        entity.head_dir = head_dir;
+                        entity.direction = dir;
+                    }
+                }
+                GameEvent::EntityNameReceived { gid, name } => {
+                    if let Some(entity) = self.game.entities.get_mut(gid) {
+                        entity.name = Some(name);
+                    }
+                }
+                GameEvent::EntityHpChanged { gid, hp, max_hp } => {
+                    if let Some(entity) = self.game.entities.get_mut(gid) {
+                        entity.hp = Some(hp);
+                        entity.max_hp = Some(max_hp);
+                    }
+                }
+                GameEvent::NpcDialogText { npc_id, text } => {
+                    self.game.npc_dialog.dialog.open_text(npc_id, &text);
+                    self.preload_npc_dialog_textures();
+                }
+                GameEvent::NpcDialogNext { npc_id } => {
+                    self.game.npc_dialog.dialog.wait_for_next(npc_id);
+                }
+                GameEvent::NpcDialogClose { npc_id } => {
+                    self.game.npc_dialog.dialog.wait_for_close(npc_id);
+                }
+                GameEvent::NpcDialogMenu { npc_id, items } => {
+                    self.game.npc_dialog.dialog.show_menu(npc_id, items);
+                    self.preload_npc_dialog_textures();
+                }
+                GameEvent::NpcInputNumber { npc_id } => {
+                    self.game.npc_dialog.dialog.wait_for_number_input(npc_id);
+                    self.preload_npc_dialog_textures();
+                }
+                GameEvent::NpcInputString { npc_id } => {
+                    self.game.npc_dialog.dialog.wait_for_string_input(npc_id);
+                    self.preload_npc_dialog_textures();
+                }
+                GameEvent::NpcDealTypeSelect { npc_id } => {
+                    self.game.npc_dialog.dialog.show_deal_type(npc_id);
+                    self.preload_npc_dialog_textures();
+                }
+                GameEvent::NpcShopBuyList { npc_id, items } => {
+                    let buy_items: Vec<_> = items
+                        .into_iter()
+                        .map(|(item_id, price, discount_price, item_type)| {
+                            let name = self
+                                .game
+                                .item_name_table
+                                .as_ref()
+                                .map(|t| t.get_name_or_id(item_id))
+                                .unwrap_or_else(|| format!("Item #{item_id}"));
+                            let resource_name =
+                                self.game.item_resource_table.as_ref().and_then(|t| {
+                                    t.get_resource_name(item_id).map(|s| s.to_string())
+                                });
+                            ragnarok_game::npc_shop::ShopBuyItem {
+                                item_id,
+                                price,
+                                discount_price,
+                                item_type,
+                                name,
+                                resource_name,
+                            }
+                        })
+                        .collect();
+                    let shop_npc_id = if npc_id != 0 {
+                        npc_id
+                    } else {
+                        self.game.npc_dialog.dialog.npc_id
+                    };
+                    self.game.npc_shop.shop.open_buy(shop_npc_id, buy_items);
+                    self.game.npc_dialog.dialog.close();
+                    self.preload_npc_shop_textures();
+                }
+                GameEvent::NpcShopSellList { npc_id, items } => {
+                    let sell_items = items
+                        .into_iter()
+                        .map(|(index, price, overcharge_price)| {
+                            ragnarok_game::npc_shop::ShopSellItem {
+                                index,
+                                price,
+                                overcharge_price,
+                                name: format!("Slot #{index}"),
+                            }
+                        })
+                        .collect();
+                    let shop_npc_id = if npc_id != 0 {
+                        npc_id
+                    } else {
+                        self.game.npc_dialog.dialog.npc_id
+                    };
+                    self.game.npc_shop.shop.open_sell(shop_npc_id, sell_items);
+                    self.game.npc_dialog.dialog.close();
+                    self.preload_npc_shop_textures();
+                }
+                GameEvent::NpcShopBuyResult { result } => {
+                    self.game.npc_shop.shop.close();
+                    match result {
+                        0 => {
+                            self.game.chat_window.add_chat("Purchase completed.".into());
+                        }
+                        1 => {
+                            self.game.chat_window.add_chat("Not enough zeny.".into());
+                        }
+                        2 => {
+                            self.game.chat_window.add_chat("You are overweight.".into());
+                        }
+                        _ => {
+                            self.game.chat_window.add_chat("Purchase failed.".into());
+                        }
+                    }
+                }
+                GameEvent::NpcShopSellResult { result } => {
+                    self.game.npc_shop.shop.close();
+                    if result != 0 {
+                        self.game.chat_window.add_chat("Sell failed.".into());
+                    }
+                }
+                GameEvent::InventoryNormalItems { items } => {
+                    for info in items {
+                        let name = self
+                            .game
+                            .item_name_table
+                            .as_ref()
+                            .and_then(|t| t.get_name(info.item_id))
+                            .unwrap_or("Unknown")
+                            .to_string();
+                        let resource_name =
+                            self.game.item_resource_table.as_ref().and_then(|t| {
+                                t.get_resource_name(info.item_id).map(|s| s.to_string())
+                            });
+                        self.game
+                            .inventory_window
+                            .inventory
+                            .add_item(InventoryItem {
+                                index: info.index as u16,
+                                item_id: info.item_id,
+                                item_type: info.item_type,
+                                count: info.count,
+                                is_identified: info.is_identified,
+                                is_damaged: false,
+                                refining_level: 0,
+                                slot: [0; 4],
+                                location: 0,
+                                wear_state: info.wear_state,
+                                name,
+                                resource_name,
+                            });
+                    }
+                    self.preload_inventory_textures();
+                }
+                GameEvent::InventoryEquipmentItems { items } => {
+                    for info in items {
+                        let name = self
+                            .game
+                            .item_name_table
+                            .as_ref()
+                            .and_then(|t| t.get_name(info.item_id))
+                            .unwrap_or("Unknown")
+                            .to_string();
+                        let resource_name =
+                            self.game.item_resource_table.as_ref().and_then(|t| {
+                                t.get_resource_name(info.item_id).map(|s| s.to_string())
+                            });
+                        self.game
+                            .inventory_window
+                            .inventory
+                            .add_item(InventoryItem {
+                                index: info.index as u16,
+                                item_id: info.item_id,
+                                item_type: info.item_type,
+                                count: 1,
+                                is_identified: info.is_identified,
+                                is_damaged: info.is_damaged,
+                                refining_level: info.refining_level,
+                                slot: info.slot,
+                                location: info.location,
+                                wear_state: info.wear_state,
+                                name,
+                                resource_name,
+                            });
+                    }
+                    self.preload_inventory_textures();
+                }
+                GameEvent::InventoryItemPickup {
+                    index,
+                    item_id,
+                    count,
+                    item_type,
+                    is_identified,
+                    is_damaged,
+                    refining_level,
+                    slot,
+                    location,
+                    result,
+                } => {
+                    if result == 0 {
+                        let name = self
+                            .game
+                            .item_name_table
+                            .as_ref()
+                            .and_then(|t| t.get_name(item_id))
+                            .unwrap_or("Unknown")
+                            .to_string();
+                        let resource_name = self
+                            .game
+                            .item_resource_table
+                            .as_ref()
+                            .and_then(|t| t.get_resource_name(item_id).map(|s| s.to_string()));
+                        self.game
+                            .inventory_window
+                            .inventory
+                            .add_item(InventoryItem {
+                                index,
+                                item_id,
+                                item_type,
+                                count: count as i16,
+                                is_identified,
+                                is_damaged,
+                                refining_level,
+                                slot,
+                                location,
+                                wear_state: 0,
+                                name: name.clone(),
+                                resource_name,
+                            });
+                        self.game
+                            .chat_window
+                            .add_system(format!("Picked up {name} x{count}"));
+                        self.preload_inventory_textures();
+                    }
+                }
+                GameEvent::InventoryUseItemResult {
+                    index,
+                    count,
+                    success,
+                } => {
+                    if success {
+                        self.game
+                            .inventory_window
+                            .inventory
+                            .update_item_count(index, count);
+                    }
+                }
+                GameEvent::InventoryEquipResult {
+                    index,
+                    wear_location,
+                    success,
+                } => {
+                    if success {
+                        self.game
+                            .inventory_window
+                            .inventory
+                            .update_wear_state(index, wear_location);
+                    }
+                }
+                GameEvent::InventoryUnequipResult { index, success, .. } => {
+                    if success {
+                        self.game.inventory_window.inventory.clear_wear_state(index);
+                    }
+                }
+                GameEvent::InventoryItemRemoved { index, count } => {
+                    self.game
+                        .inventory_window
+                        .inventory
+                        .update_item_count(index, count);
+                }
+                GameEvent::ChatMessage { gid, message } => {
+                    if let Some(bubble_text) = message.split(" : ").nth(1) {
+                        if let Some(entity) = self.game.entities.get_mut(gid) {
+                            entity.chat_bubble = Some(ragnarok_game::entity::ChatBubbleState::new(
+                                bubble_text.to_string(),
+                            ));
+                        }
+                    }
+                    self.game.chat_window.add_chat(message);
+                }
+                GameEvent::OwnChatMessage { message } => {
+                    if let Some(bubble_text) = message.split(" : ").nth(1) {
+                        if let Some(player_id) = self.game.entities.player_id() {
+                            if let Some(entity) = self.game.entities.get_mut(player_id) {
+                                entity.chat_bubble =
+                                    Some(ragnarok_game::entity::ChatBubbleState::new(
+                                        bubble_text.to_string(),
+                                    ));
+                            }
+                        }
+                    }
+                    self.game.chat_window.add_own_chat(message);
+                }
+                GameEvent::ServerTick {
+                    server_tick,
+                    local_send_time_ms,
+                } => {
+                    let local_now_ms = self.start_time.elapsed().as_millis() as u32;
+                    if self.config.enhanced_lag_compensation {
+                        self.game.server_time.on_server_tick_enhanced(
+                            server_tick,
+                            local_now_ms,
+                            local_send_time_ms,
+                        );
+                    } else {
+                        self.game.server_time.on_server_tick(
+                            server_tick,
+                            local_now_ms,
+                            local_send_time_ms,
+                        );
+                    }
+                }
+                GameEvent::ParameterChanged { var_id, value } => {
+                    if let Ok(status) = StatusTypes::try_from_value(var_id as usize) {
+                        match status {
+                            StatusTypes::Speed => {
+                                if let Some(entity) = self.game.entities.player_mut() {
+                                    entity.speed = value as u16;
+                                    entity.movement.set_speed(value as u16);
                                 }
                             }
-                            3 => {
-                                if let Some(entity) = self.game.entities.get_mut(gid) {
-                                    entity.state = EntityState::Standing;
-                                    entity.state_timer = 0.0;
+                            StatusTypes::Hp => {
+                                if let Some(c) = &mut self.game.selected_character {
+                                    c.hp = value as u32;
+                                }
+                                if let Some(e) = self.game.entities.player_mut() {
+                                    e.hp = Some(value as u32);
                                 }
                             }
-                            0 | 8 => {
-                                if let Some(entity) = self.game.entities.get_mut(gid) {
-                                    let duration = (attack_mt as f32 / 1000.0).max(0.5);
-                                    entity.enter_attack(duration);
+                            StatusTypes::Maxhp => {
+                                if let Some(c) = &mut self.game.selected_character {
+                                    c.max_hp = value as u32;
                                 }
-                                if damage > 0 || left_damage > 0 {
-                                    if let Some(target) = self.game.entities.get_mut(target_gid) {
-                                        let duration = (attacked_mt as f32 / 1000.0).max(0.3);
-                                        target.enter_hurt(duration);
-                                    }
+                                if let Some(e) = self.game.entities.player_mut() {
+                                    e.max_hp = Some(value as u32);
                                 }
                             }
-                            1 => {
-                                if let Some(entity) = self.game.entities.get_mut(gid) {
-                                    entity.enter_pickup(0.5);
+                            StatusTypes::Sp => {
+                                if let Some(c) = &mut self.game.selected_character {
+                                    c.sp = value as u16;
                                 }
+                            }
+                            StatusTypes::Maxsp => {
+                                if let Some(c) = &mut self.game.selected_character {
+                                    c.max_sp = value as u16;
+                                }
+                            }
+                            StatusTypes::Baselevel => {
+                                if let Some(c) = &mut self.game.selected_character {
+                                    c.base_level = value as u16;
+                                }
+                            }
+                            StatusTypes::Str => {
+                                if let Some(c) = &mut self.game.selected_character {
+                                    c.str = value as u8;
+                                }
+                            }
+                            StatusTypes::Agi => {
+                                if let Some(c) = &mut self.game.selected_character {
+                                    c.agi = value as u8;
+                                }
+                            }
+                            StatusTypes::Vit => {
+                                if let Some(c) = &mut self.game.selected_character {
+                                    c.vit = value as u8;
+                                }
+                            }
+                            StatusTypes::Int => {
+                                if let Some(c) = &mut self.game.selected_character {
+                                    c.int = value as u8;
+                                }
+                            }
+                            StatusTypes::Dex => {
+                                if let Some(c) = &mut self.game.selected_character {
+                                    c.dex = value as u8;
+                                }
+                            }
+                            StatusTypes::Luk => {
+                                if let Some(c) = &mut self.game.selected_character {
+                                    c.luk = value as u8;
+                                }
+                            }
+                            StatusTypes::Joblevel => {
+                                if let Some(c) = &mut self.game.selected_character {
+                                    c.job_level = value as u32;
+                                }
+                            }
+                            StatusTypes::Weight => {
+                                self.game.inventory_window.inventory.weight = value;
+                            }
+                            StatusTypes::Maxweight => {
+                                self.game.inventory_window.inventory.max_weight = value;
+                            }
+                            StatusTypes::Zeny => {
+                                self.game.inventory_window.inventory.zeny = value;
                             }
                             _ => {}
                         }
                     }
-                    GameEvent::EntityDirectionChanged { gid, head_dir, dir } => {
-                        if let Some(entity) = self.game.entities.get_mut(gid) {
-                            entity.head_dir = head_dir;
-                            entity.direction = dir;
-                        }
-                    }
-                    GameEvent::EntityNameReceived { gid, name } => {
-                        if let Some(entity) = self.game.entities.get_mut(gid) {
-                            entity.name = Some(name);
-                        }
-                    }
-                    GameEvent::EntityHpChanged { gid, hp, max_hp } => {
-                        if let Some(entity) = self.game.entities.get_mut(gid) {
-                            entity.hp = Some(hp);
-                            entity.max_hp = Some(max_hp);
-                        }
-                    }
-                    GameEvent::NpcDialogText { npc_id, text } => {
-                        self.game.npc_dialog.dialog.open_text(npc_id, &text);
-                        self.preload_npc_dialog_textures();
-                    }
-                    GameEvent::NpcDialogNext { npc_id } => {
-                        self.game.npc_dialog.dialog.wait_for_next(npc_id);
-                    }
-                    GameEvent::NpcDialogClose { npc_id } => {
-                        self.game.npc_dialog.dialog.wait_for_close(npc_id);
-                    }
-                    GameEvent::NpcDialogMenu { npc_id, items } => {
-                        self.game.npc_dialog.dialog.show_menu(npc_id, items);
-                        self.preload_npc_dialog_textures();
-                    }
-                    GameEvent::NpcInputNumber { npc_id } => {
-                        self.game.npc_dialog.dialog.wait_for_number_input(npc_id);
-                        self.preload_npc_dialog_textures();
-                    }
-                    GameEvent::NpcInputString { npc_id } => {
-                        self.game.npc_dialog.dialog.wait_for_string_input(npc_id);
-                        self.preload_npc_dialog_textures();
-                    }
-                    GameEvent::NpcDealTypeSelect { npc_id } => {
-                        self.game.npc_dialog.dialog.show_deal_type(npc_id);
-                        self.preload_npc_dialog_textures();
-                    }
-                    GameEvent::NpcShopBuyList { npc_id, items } => {
-                        let buy_items: Vec<_> = items.into_iter().map(|(item_id, price, discount_price, item_type)| {
-                            let name = self.game.item_name_table.as_ref()
-                                .map(|t| t.get_name_or_id(item_id))
-                                .unwrap_or_else(|| format!("Item #{item_id}"));
-                            let resource_name = self.game.item_resource_table.as_ref()
-                                .and_then(|t| t.get_resource_name(item_id).map(|s| s.to_string()));
-                            ragnarok_game::npc_shop::ShopBuyItem {
-                                item_id, price, discount_price, item_type, name, resource_name,
-                            }
-                        }).collect();
-                        let shop_npc_id = if npc_id != 0 { npc_id } else { self.game.npc_dialog.dialog.npc_id };
-                        self.game.npc_shop.shop.open_buy(shop_npc_id, buy_items);
-                        self.game.npc_dialog.dialog.close();
-                        self.preload_npc_shop_textures();
-                    }
-                    GameEvent::NpcShopSellList { npc_id, items } => {
-                        let sell_items = items.into_iter().map(|(index, price, overcharge_price)| {
-                            ragnarok_game::npc_shop::ShopSellItem {
-                                index, price, overcharge_price,
-                                name: format!("Slot #{index}"),
-                            }
-                        }).collect();
-                        let shop_npc_id = if npc_id != 0 { npc_id } else { self.game.npc_dialog.dialog.npc_id };
-                        self.game.npc_shop.shop.open_sell(shop_npc_id, sell_items);
-                        self.game.npc_dialog.dialog.close();
-                        self.preload_npc_shop_textures();
-                    }
-                    GameEvent::NpcShopBuyResult { result } => {
-                        self.game.npc_shop.shop.close();
-                        match result {
-                            0 => { self.game.chat_window.add_chat("Purchase completed.".into()); }
-                            1 => { self.game.chat_window.add_chat("Not enough zeny.".into()); }
-                            2 => { self.game.chat_window.add_chat("You are overweight.".into()); }
-                            _ => { self.game.chat_window.add_chat("Purchase failed.".into()); }
-                        }
-                    }
-                    GameEvent::NpcShopSellResult { result } => {
-                        self.game.npc_shop.shop.close();
-                        if result != 0 {
-                            self.game.chat_window.add_chat("Sell failed.".into());
-                        }
-                    }
-                    GameEvent::ChatMessage { gid, message } => {
-                        if let Some(bubble_text) = message.split(" : ").nth(1) {
-                            if let Some(entity) = self.game.entities.get_mut(gid) {
-                                entity.chat_bubble = Some(ragnarok_game::entity::ChatBubbleState::new(bubble_text.to_string()));
-                            }
-                        }
-                        self.game.chat_window.add_chat(message);
-                    }
-                    GameEvent::OwnChatMessage { message } => {
-                        if let Some(bubble_text) = message.split(" : ").nth(1) {
-                            if let Some(player_id) = self.game.entities.player_id() {
-                                if let Some(entity) = self.game.entities.get_mut(player_id) {
-                                    entity.chat_bubble = Some(ragnarok_game::entity::ChatBubbleState::new(bubble_text.to_string()));
-                                }
-                            }
-                        }
-                        self.game.chat_window.add_own_chat(message);
-                    }
-                    GameEvent::ServerTick { server_tick, local_send_time_ms } => {
-                        let local_now_ms = self.start_time.elapsed().as_millis() as u32;
-                        if self.config.enhanced_lag_compensation {
-                            self.game.server_time.on_server_tick_enhanced(server_tick, local_now_ms, local_send_time_ms);
-                        } else {
-                            self.game.server_time.on_server_tick(server_tick, local_now_ms, local_send_time_ms);
-                        }
-                    }
-                    GameEvent::ParameterChanged { var_id, value } => {
-                        if let Ok(status) = StatusTypes::try_from_value(var_id as usize) {
+                }
+                GameEvent::StatusChanged {
+                    status_type, base, ..
+                } => {
+                    if let Some(c) = &mut self.game.selected_character {
+                        if let Ok(status) = StatusTypes::try_from_value(status_type as usize) {
                             match status {
-                                StatusTypes::Speed => {
-                                    if let Some(entity) = self.game.entities.player_mut() {
-                                        entity.speed = value as u16;
-                                        entity.movement.set_speed(value as u16);
-                                    }
-                                }
-                                StatusTypes::Hp => {
-                                    if let Some(c) = &mut self.game.selected_character { c.hp = value as u32; }
-                                    if let Some(e) = self.game.entities.player_mut() { e.hp = Some(value as u32); }
-                                }
-                                StatusTypes::Maxhp => {
-                                    if let Some(c) = &mut self.game.selected_character { c.max_hp = value as u32; }
-                                    if let Some(e) = self.game.entities.player_mut() { e.max_hp = Some(value as u32); }
-                                }
-                                StatusTypes::Sp => { if let Some(c) = &mut self.game.selected_character { c.sp = value as u16; } }
-                                StatusTypes::Maxsp => { if let Some(c) = &mut self.game.selected_character { c.max_sp = value as u16; } }
-                                StatusTypes::Baselevel => { if let Some(c) = &mut self.game.selected_character { c.base_level = value as u16; } }
-                                StatusTypes::Str => { if let Some(c) = &mut self.game.selected_character { c.str = value as u8; } }
-                                StatusTypes::Agi => { if let Some(c) = &mut self.game.selected_character { c.agi = value as u8; } }
-                                StatusTypes::Vit => { if let Some(c) = &mut self.game.selected_character { c.vit = value as u8; } }
-                                StatusTypes::Int => { if let Some(c) = &mut self.game.selected_character { c.int = value as u8; } }
-                                StatusTypes::Dex => { if let Some(c) = &mut self.game.selected_character { c.dex = value as u8; } }
-                                StatusTypes::Luk => { if let Some(c) = &mut self.game.selected_character { c.luk = value as u8; } }
-                                StatusTypes::Joblevel => { if let Some(c) = &mut self.game.selected_character { c.job_level = value as u32; } }
+                                StatusTypes::Str => c.str = base as u8,
+                                StatusTypes::Agi => c.agi = base as u8,
+                                StatusTypes::Vit => c.vit = base as u8,
+                                StatusTypes::Int => c.int = base as u8,
+                                StatusTypes::Dex => c.dex = base as u8,
+                                StatusTypes::Luk => c.luk = base as u8,
                                 _ => {}
                             }
                         }
                     }
-                    GameEvent::StatusChanged { status_type, base, .. } => {
-                        if let Some(c) = &mut self.game.selected_character {
-                            if let Ok(status) = StatusTypes::try_from_value(status_type as usize) {
-                                match status {
-                                    StatusTypes::Str => c.str = base as u8,
-                                    StatusTypes::Agi => c.agi = base as u8,
-                                    StatusTypes::Vit => c.vit = base as u8,
-                                    StatusTypes::Int => c.int = base as u8,
-                                    StatusTypes::Dex => c.dex = base as u8,
-                                    StatusTypes::Luk => c.luk = base as u8,
-                                    _ => {}
-                                }
-                            }
-                        }
-                    }
-                    GameEvent::AttackRangeChanged { range } => {
-                        self.game.attack_range = range;
-                    }
-                    GameEvent::EntitySpriteChanged { gid, sprite_type, value, .. } => {
-                        if let Some(entity) = self.game.entities.get_mut(gid) {
-                            entity.apply_sprite_change(sprite_type, value);
-                            let (job, sex, head, weapon, shield, head_top, head_mid, head_bottom, hair_color, cloth_color) = {
-                                (entity.job, entity.sex, entity.head,
-                                 entity.weapon.map(|w| w as u16).unwrap_or(0),
-                                 entity.shield, entity.head_top, entity.head_mid,
-                                 entity.head_bottom, entity.hair_color, entity.cloth_color)
-                            };
-                            let entity_type = entity.entity_type;
-                            let is_player = self.game.entities.player_id() == Some(gid);
-                            if is_player {
-                                let weapon_type = weapon_view_id_to_type(weapon);
-                                self.load_player_sprite(gid, job, sex, head, hair_color, cloth_color, weapon_type, head_top, head_mid, head_bottom, shield);
-                            } else {
-                                self.load_entity_sprite(gid, entity_type, job, sex, head, weapon,
-                                                        shield, head_top, head_mid, head_bottom,
-                                                        hair_color, 0);
-                            }
-                        }
-                    }
-                    GameEvent::SkillCasting { gid, delay_ms, .. } => {
-                        if let Some(entity) = self.game.entities.get_mut(gid) {
-                            let duration = (delay_ms as f32 / 1000.0).max(0.3);
-                            entity.enter_attack(duration);
-                        }
-                    }
-                    GameEvent::EntityEmotion { gid, emotion_type } => {
-                        if let Some(entity) = self.game.entities.get_mut(gid) {
-                            entity.emotion = Some(ragnarok_game::entity::EmotionState::new(emotion_type));
-                        }
-                    }
-                    GameEvent::Disconnected(reason) => {
-                        self.game.server_time.reset();
-                        if reason == "User exit" {
-                            event_loop.exit();
-                        } else {
-                            self.login_window.set_error(&format!("Disconnected: {reason}"));
-                        }
-                    }
-                    _ => {}
                 }
+                GameEvent::AttackRangeChanged { range } => {
+                    self.game.attack_range = range;
+                }
+                GameEvent::EntitySpriteChanged {
+                    gid,
+                    sprite_type,
+                    value,
+                    ..
+                } => {
+                    if let Some(entity) = self.game.entities.get_mut(gid) {
+                        entity.apply_sprite_change(sprite_type, value);
+                        let (
+                            job,
+                            sex,
+                            head,
+                            weapon,
+                            shield,
+                            head_top,
+                            head_mid,
+                            head_bottom,
+                            hair_color,
+                            cloth_color,
+                        ) = {
+                            (
+                                entity.job,
+                                entity.sex,
+                                entity.head,
+                                entity.weapon.map(|w| w as u16).unwrap_or(0),
+                                entity.shield,
+                                entity.head_top,
+                                entity.head_mid,
+                                entity.head_bottom,
+                                entity.hair_color,
+                                entity.cloth_color,
+                            )
+                        };
+                        let entity_type = entity.entity_type;
+                        let is_player = self.game.entities.player_id() == Some(gid);
+                        if is_player {
+                            let weapon_type = weapon_view_id_to_type(weapon);
+                            self.load_player_sprite(
+                                gid,
+                                job,
+                                sex,
+                                head,
+                                hair_color,
+                                cloth_color,
+                                weapon_type,
+                                head_top,
+                                head_mid,
+                                head_bottom,
+                                shield,
+                            );
+                        } else {
+                            self.load_entity_sprite(
+                                gid,
+                                entity_type,
+                                job,
+                                sex,
+                                head,
+                                weapon,
+                                shield,
+                                head_top,
+                                head_mid,
+                                head_bottom,
+                                hair_color,
+                                0,
+                            );
+                        }
+                    }
+                }
+                GameEvent::SkillCasting { gid, delay_ms, .. } => {
+                    if let Some(entity) = self.game.entities.get_mut(gid) {
+                        let duration = (delay_ms as f32 / 1000.0).max(0.3);
+                        entity.enter_attack(duration);
+                    }
+                }
+                GameEvent::EntityEmotion { gid, emotion_type } => {
+                    if let Some(entity) = self.game.entities.get_mut(gid) {
+                        entity.emotion =
+                            Some(ragnarok_game::entity::EmotionState::new(emotion_type));
+                    }
+                }
+                GameEvent::Disconnected(reason) => {
+                    self.game.server_time.reset();
+                    self.game.inventory_window.inventory.clear();
+                    if reason == "User exit" {
+                        event_loop.exit();
+                    } else {
+                        self.login_window
+                            .set_error(&format!("Disconnected: {reason}"));
+                    }
+                }
+                _ => {}
+            }
         }
     }
 
-    fn load_player_sprite(&mut self, gid: u32, job: u16, sex: u8, head: u16, hair_color: u16, cloth_color: u16, weapon: Option<WeaponType>, head_top: u16, head_mid: u16, head_bottom: u16, shield_id: u16) {
+    fn load_player_sprite(
+        &mut self,
+        gid: u32,
+        job: u16,
+        sex: u8,
+        head: u16,
+        hair_color: u16,
+        cloth_color: u16,
+        weapon: Option<WeaponType>,
+        head_top: u16,
+        head_mid: u16,
+        head_bottom: u16,
+        shield_id: u16,
+    ) {
         let (grf, renderer) = match (&self.grf, &self.renderer) {
             (Some(g), Some(r)) => (g, r),
             _ => return,
         };
         let empty_table = ragnarok_game::accessory_table::AccessoryTable::empty();
         let accessory_table = self.game.accessory_table.as_ref().unwrap_or(&empty_table);
-        let data = match sprite_loader::load_player_sprite_data(grf, accessory_table, job, sex, head, hair_color, cloth_color, weapon, head_top, head_mid, head_bottom, shield_id) {
+        let data = match sprite_loader::load_player_sprite_data(
+            grf,
+            accessory_table,
+            job,
+            sex,
+            head,
+            hair_color,
+            cloth_color,
+            weapon,
+            head_top,
+            head_mid,
+            head_bottom,
+            shield_id,
+        ) {
             Some(d) => d,
             None => return,
         };
         let sprite = Rc::new(build_entity_sprite(
-            &renderer.device.device, &renderer.device.queue, &renderer.texture_cache.bind_group_layout,
-            data.body, data.head, data.weapon, data.headgear_top, data.headgear_mid, data.headgear_bottom, data.shield, data.shadow,
+            &renderer.device.device,
+            &renderer.device.queue,
+            &renderer.texture_cache.bind_group_layout,
+            data.body,
+            data.head,
+            data.weapon,
+            data.headgear_top,
+            data.headgear_mid,
+            data.headgear_bottom,
+            data.shield,
+            data.shadow,
         ));
         self.game.sprites.insert(gid, sprite);
     }
 
-    fn load_entity_sprite(&mut self, gid: u32, entity_type: EntityType, job: u16,
-                           sex: u8, head: u16, weapon: u16, shield: u16,
-                           head_top: u16, head_mid: u16, head_bottom: u16,
-                           hair_color: u16, _direction: u8) {
+    fn load_entity_sprite(
+        &mut self,
+        gid: u32,
+        entity_type: EntityType,
+        job: u16,
+        sex: u8,
+        head: u16,
+        weapon: u16,
+        shield: u16,
+        head_top: u16,
+        head_mid: u16,
+        head_bottom: u16,
+        hair_color: u16,
+        _direction: u8,
+    ) {
         let (grf, renderer) = match (&self.grf, &self.renderer) {
             (Some(g), Some(r)) => (g, r),
             _ => return,
@@ -711,16 +1270,34 @@ impl App {
         match entity_type {
             EntityType::Player => {
                 let weapon_type = weapon_view_id_to_type(weapon);
-                self.load_player_sprite(gid, job, sex, head, hair_color, 0, weapon_type, head_top, head_mid, head_bottom, shield);
+                self.load_player_sprite(
+                    gid,
+                    job,
+                    sex,
+                    head,
+                    hair_color,
+                    0,
+                    weapon_type,
+                    head_top,
+                    head_mid,
+                    head_bottom,
+                    shield,
+                );
             }
             EntityType::Npc | EntityType::Monster => {
                 let name_table = match &self.game.name_table {
                     Some(t) => t,
-                    None => { tracing::warn!("No name table for job {job}"); return; },
+                    None => {
+                        tracing::warn!("No name table for job {job}");
+                        return;
+                    }
                 };
                 let cache_key = match entity_sprite_base_path(name_table, job) {
                     Some(p) => p,
-                    None => { tracing::warn!("No sprite path for job {job}"); return; },
+                    None => {
+                        tracing::warn!("No sprite path for job {job}");
+                        return;
+                    }
                 };
 
                 if let Some(cached) = self.game.sprite_cache.get(&cache_key) {
@@ -733,8 +1310,17 @@ impl App {
                     None => return,
                 };
                 let sprite = Rc::new(build_entity_sprite(
-                    &renderer.device.device, &renderer.device.queue, &renderer.texture_cache.bind_group_layout,
-                    data.body, None, None, None, None, None, None, data.shadow,
+                    &renderer.device.device,
+                    &renderer.device.queue,
+                    &renderer.texture_cache.bind_group_layout,
+                    data.body,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    data.shadow,
                 ));
                 self.game.sprite_cache.insert(cache_key, Rc::clone(&sprite));
                 self.game.sprites.insert(gid, sprite);
@@ -743,17 +1329,62 @@ impl App {
     }
 
     fn load_missing_entity_sprites(&mut self) {
-        let missing: Vec<_> = self.game.entities.iter()
+        let missing: Vec<_> = self
+            .game
+            .entities
+            .iter()
             .filter(|e| {
                 self.game.entities.player_id() != Some(e.id)
                     && !self.game.sprites.contains_key(&e.id)
                     && !self.game.failed_sprite_loads.contains(&e.id)
             })
-            .map(|e| (e.id, e.entity_type, e.job, e.sex, e.head, e.head_top, e.head_mid, e.head_bottom, e.shield, e.hair_color, e.direction))
+            .map(|e| {
+                (
+                    e.id,
+                    e.entity_type,
+                    e.job,
+                    e.sex,
+                    e.head,
+                    e.head_top,
+                    e.head_mid,
+                    e.head_bottom,
+                    e.shield,
+                    e.hair_color,
+                    e.direction,
+                )
+            })
             .collect();
-        for (gid, entity_type, job, sex, head, head_top, head_mid, head_bottom, shield, hair_color, direction) in &missing {
-            tracing::info!("Retrying sprite load for entity gid={gid} job={job} type={entity_type:?}");
-            self.load_entity_sprite(*gid, *entity_type, *job, *sex, *head, 0, *shield, *head_top, *head_mid, *head_bottom, *hair_color, *direction);
+        for (
+            gid,
+            entity_type,
+            job,
+            sex,
+            head,
+            head_top,
+            head_mid,
+            head_bottom,
+            shield,
+            hair_color,
+            direction,
+        ) in &missing
+        {
+            tracing::info!(
+                "Retrying sprite load for entity gid={gid} job={job} type={entity_type:?}"
+            );
+            self.load_entity_sprite(
+                *gid,
+                *entity_type,
+                *job,
+                *sex,
+                *head,
+                0,
+                *shield,
+                *head_top,
+                *head_mid,
+                *head_bottom,
+                *hair_color,
+                *direction,
+            );
             if !self.game.sprites.contains_key(gid) {
                 self.game.failed_sprite_loads.insert(*gid);
             }
@@ -806,13 +1437,15 @@ impl App {
             return;
         }
         if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-            self.game.npc_dialog.has_grf_textures = renderer.preload_textures(&NpcDialog::grf_texture_paths(), grf);
+            self.game.npc_dialog.has_grf_textures =
+                renderer.preload_textures(&NpcDialog::grf_texture_paths(), grf);
             if self.game.npc_dialog.has_grf_textures {
                 let ui_scale = self.config.ui_scale / 100.0;
                 self.game.npc_dialog.set_texture_sizes(|name| {
-                    renderer.texture_cache.texture_size(name).map(|(w, h)| {
-                        ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
-                    })
+                    renderer
+                        .texture_cache
+                        .texture_size(name)
+                        .map(|(w, h)| ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32))
                 });
             }
         }
@@ -823,21 +1456,57 @@ impl App {
             return;
         }
         if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-            self.game.npc_shop.has_grf_textures = renderer.preload_textures(&NpcShop::grf_texture_paths(), grf);
+            self.game.npc_shop.has_grf_textures =
+                renderer.preload_textures(&NpcShop::grf_texture_paths(), grf);
             if self.game.npc_shop.has_grf_textures {
                 let ui_scale = self.config.ui_scale / 100.0;
                 self.game.npc_shop.set_texture_sizes(|name| {
-                    renderer.texture_cache.texture_size(name).map(|(w, h)| {
-                        ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
-                    })
+                    renderer
+                        .texture_cache
+                        .texture_size(name)
+                        .map(|(w, h)| ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32))
                 });
             }
             // Preload item icon textures
-            let icon_paths: Vec<String> = self.game.npc_shop.shop.buy_items.iter()
+            let icon_paths: Vec<String> = self
+                .game
+                .npc_shop
+                .shop
+                .buy_items
+                .iter()
                 .filter_map(|item| {
-                    item.resource_name.as_ref()
+                    item.resource_name
+                        .as_ref()
                         .map(|name| format!("data/texture/유저인터페이스/item/{name}.bmp"))
                 })
+                .collect();
+            let icon_refs: Vec<&str> = icon_paths.iter().map(|s| s.as_str()).collect();
+            renderer.preload_textures(&icon_refs, grf);
+        }
+    }
+
+    fn preload_inventory_textures(&mut self) {
+        if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
+            if !self.game.inventory_window.has_grf_textures {
+                self.game.inventory_window.has_grf_textures =
+                    renderer.preload_textures(&InventoryWindow::grf_texture_paths(), grf);
+                if self.game.inventory_window.has_grf_textures {
+                    let ui_scale = self.config.ui_scale / 100.0;
+                    self.game.inventory_window.set_texture_sizes(|name| {
+                        renderer.texture_cache.texture_size(name).map(|(w, h)| {
+                            ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
+                        })
+                    });
+                }
+            }
+            // Preload item icon textures
+            let icon_paths: Vec<String> = self
+                .game
+                .inventory_window
+                .inventory
+                .all_items()
+                .iter()
+                .filter_map(|item| item.icon_path())
                 .collect();
             let icon_refs: Vec<&str> = icon_paths.iter().map(|s| s.as_str()).collect();
             renderer.preload_textures(&icon_refs, grf);
@@ -851,7 +1520,8 @@ impl App {
                     let addr = format!("{}:{}", self.config.login_ip, self.config.login_port);
                     if let Some(tx) = &self.network_cmd_tx {
                         let _ = tx.send(NetworkCommand::Connect(addr));
-                        let packet = build_login_packet(&username, &password, self.config.packetver);
+                        let packet =
+                            build_login_packet(&username, &password, self.config.packetver);
                         let _ = tx.send(NetworkCommand::SendPacket(packet));
                     }
                 }
@@ -866,7 +1536,11 @@ impl App {
                                     session.char_server_addr = Some(addr);
                                     let packet = build_char_enter_packet(session);
                                     let _ = tx.send(NetworkCommand::SendPacket(packet));
-                                    let _ = tx.send(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer { account_id: session.account_id }));
+                                    let _ = tx.send(NetworkCommand::SetKeepalive(
+                                        KeepaliveMode::CharServer {
+                                            account_id: session.account_id,
+                                        },
+                                    ));
                                 }
                             }
                         }
@@ -874,7 +1548,9 @@ impl App {
                 }
                 GameEvent::RequestSelectCharacter { slot } => {
                     if let Some(char_win) = &self.char_select_window {
-                        self.game.selected_character = char_win.characters.iter()
+                        self.game.selected_character = char_win
+                            .characters
+                            .iter()
                             .find(|c| c.slot == slot as i8)
                             .cloned();
                     }
@@ -934,25 +1610,29 @@ impl App {
                 }
                 GameEvent::RequestNpcMenuSelect { npc_id, choice } => {
                     if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_npc_menu_select_packet(npc_id, choice, self.config.packetver);
+                        let packet =
+                            build_npc_menu_select_packet(npc_id, choice, self.config.packetver);
                         let _ = tx.send(NetworkCommand::SendPacket(packet));
                     }
                 }
                 GameEvent::RequestNpcInputNumber { npc_id, value } => {
                     if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_npc_input_number_packet(npc_id, value, self.config.packetver);
+                        let packet =
+                            build_npc_input_number_packet(npc_id, value, self.config.packetver);
                         let _ = tx.send(NetworkCommand::SendPacket(packet));
                     }
                 }
                 GameEvent::RequestNpcInputString { npc_id, text } => {
                     if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_npc_input_string_packet(npc_id, &text, self.config.packetver);
+                        let packet =
+                            build_npc_input_string_packet(npc_id, &text, self.config.packetver);
                         let _ = tx.send(NetworkCommand::SendPacket(packet));
                     }
                 }
                 GameEvent::RequestNpcDealType { npc_id, deal_type } => {
                     if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_npc_deal_type_packet(npc_id, deal_type, self.config.packetver);
+                        let packet =
+                            build_npc_deal_type_packet(npc_id, deal_type, self.config.packetver);
                         let _ = tx.send(NetworkCommand::SendPacket(packet));
                     }
                 }
@@ -972,11 +1652,13 @@ impl App {
                     if let Some(tx) = &self.network_cmd_tx {
                         match self.game.npc_shop.shop.mode {
                             Some(ragnarok_game::npc_shop::NpcShopMode::Buy) => {
-                                let packet = build_purchase_item_list_packet(&[], self.config.packetver);
+                                let packet =
+                                    build_purchase_item_list_packet(&[], self.config.packetver);
                                 let _ = tx.send(NetworkCommand::SendPacket(packet));
                             }
                             Some(ragnarok_game::npc_shop::NpcShopMode::Sell) => {
-                                let packet = build_sell_item_list_packet(&[], self.config.packetver);
+                                let packet =
+                                    build_sell_item_list_packet(&[], self.config.packetver);
                                 let _ = tx.send(NetworkCommand::SendPacket(packet));
                             }
                             None => {}
@@ -984,12 +1666,48 @@ impl App {
                     }
                     self.game.npc_shop.close();
                 }
+                GameEvent::RequestUseItem { index } => {
+                    let account_id = self
+                        .game
+                        .login_session
+                        .as_ref()
+                        .map(|s| s.account_id)
+                        .unwrap_or(0);
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet =
+                            build_use_item_packet(index, account_id, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                GameEvent::RequestEquipItem { index, location } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet =
+                            build_equip_item_packet(index, location, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                GameEvent::RequestUnequipItem { index } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_unequip_item_packet(index, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                GameEvent::RequestDropItem { index, count } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_drop_item_packet(index, count, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
                 GameEvent::RequestSendChat { message } => {
                     if message.starts_with('/') {
                         self.handle_slash_command(&message);
                     } else {
-                        let char_name = self.game.selected_character.as_ref()
-                            .map(|c| c.name.as_str()).unwrap_or("Unknown");
+                        let char_name = self
+                            .game
+                            .selected_character
+                            .as_ref()
+                            .map(|c| c.name.as_str())
+                            .unwrap_or("Unknown");
                         let full_msg = format!("{char_name} : {message}");
                         if let Some(tx) = &self.network_cmd_tx {
                             let packet = build_chat_packet(&full_msg, self.config.packetver);
@@ -1009,14 +1727,22 @@ impl App {
     }
 
     fn reconnect_to_char_server(&mut self) -> bool {
-        let Some(tx) = &self.network_cmd_tx else { return false };
-        let Some(session) = &self.game.login_session else { return false };
-        let Some(addr) = &session.char_server_addr else { return false };
+        let Some(tx) = &self.network_cmd_tx else {
+            return false;
+        };
+        let Some(session) = &self.game.login_session else {
+            return false;
+        };
+        let Some(addr) = &session.char_server_addr else {
+            return false;
+        };
         let _ = tx.send(NetworkCommand::Disconnect);
         let _ = tx.send(NetworkCommand::Connect(addr.clone()));
         let packet = build_char_enter_packet(session);
         let _ = tx.send(NetworkCommand::SendPacket(packet));
-        let _ = tx.send(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer { account_id: session.account_id }));
+        let _ = tx.send(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer {
+            account_id: session.account_id,
+        }));
         // Switch to CharacterSelect immediately; char_select_window is None
         // until CharacterListReceived arrives, so the screen will be blank briefly
         self.game.app_state = AppState::CharacterSelect;
@@ -1028,7 +1754,11 @@ impl App {
         match cmd {
             "/sit" => {
                 if let Some(entity) = self.game.entities.player() {
-                    let action = if entity.state == EntityState::Sitting { 3u8 } else { 2u8 };
+                    let action = if entity.state == EntityState::Sitting {
+                        3u8
+                    } else {
+                        2u8
+                    };
                     if let Some(tx) = &self.network_cmd_tx {
                         let packet = build_action_request_packet(0, action, self.config.packetver);
                         let _ = tx.send(NetworkCommand::SendPacket(packet));
@@ -1041,7 +1771,9 @@ impl App {
                 }
             }
             _ => {
-                self.game.chat_window.add_system(format!("Unknown command: {cmd}"));
+                self.game
+                    .chat_window
+                    .add_system(format!("Unknown command: {cmd}"));
             }
         }
     }
@@ -1055,8 +1787,12 @@ impl App {
                         LoginFocus::Password => Some(WidgetId(1)),
                     };
                     let mut ui = UiFrame::new(
-                        ui_ctx, &renderer.font_atlas, &mut self.ui_state_cache, elapsed,
-                        self.login_window.has_grf_textures, initial_focus,
+                        ui_ctx,
+                        &renderer.font_atlas,
+                        &mut self.ui_state_cache,
+                        elapsed,
+                        self.login_window.has_grf_textures,
+                        initial_focus,
                     );
                     let events = self.login_window.build(&mut ui);
                     let any_hovered = ui.any_hovered;
@@ -1066,12 +1802,18 @@ impl App {
                 }
             }
             AppState::ServerSelect => {
-                if let (Some(ui_ctx), Some(renderer), Some(server_win)) =
-                    (&self.ui_context, &self.renderer, &mut self.server_list_window)
-                {
+                if let (Some(ui_ctx), Some(renderer), Some(server_win)) = (
+                    &self.ui_context,
+                    &self.renderer,
+                    &mut self.server_list_window,
+                ) {
                     let mut ui = UiFrame::new(
-                        ui_ctx, &renderer.font_atlas, &mut self.ui_state_cache, elapsed,
-                        server_win.has_grf_textures, None,
+                        ui_ctx,
+                        &renderer.font_atlas,
+                        &mut self.ui_state_cache,
+                        elapsed,
+                        server_win.has_grf_textures,
+                        None,
                     );
                     let events = server_win.build(&mut ui);
                     let any_hovered = ui.any_hovered;
@@ -1081,12 +1823,18 @@ impl App {
                 }
             }
             AppState::CharacterSelect => {
-                if let (Some(ui_ctx), Some(renderer), Some(char_win)) =
-                    (&self.ui_context, &self.renderer, &mut self.char_select_window)
-                {
+                if let (Some(ui_ctx), Some(renderer), Some(char_win)) = (
+                    &self.ui_context,
+                    &self.renderer,
+                    &mut self.char_select_window,
+                ) {
                     let mut ui = UiFrame::new(
-                        ui_ctx, &renderer.font_atlas, &mut self.ui_state_cache, elapsed,
-                        char_win.has_grf_textures, None,
+                        ui_ctx,
+                        &renderer.font_atlas,
+                        &mut self.ui_state_cache,
+                        elapsed,
+                        char_win.has_grf_textures,
+                        None,
                     );
                     let events = char_win.build(&mut ui);
                     let any_hovered = ui.any_hovered;
@@ -1103,8 +1851,12 @@ impl App {
                         None
                     };
                     let mut ui = UiFrame::new(
-                        ui_ctx, &renderer.font_atlas, &mut self.ui_state_cache, elapsed,
-                        self.game.system_menu.has_grf_textures, initial_focus,
+                        ui_ctx,
+                        &renderer.font_atlas,
+                        &mut self.ui_state_cache,
+                        elapsed,
+                        self.game.system_menu.has_grf_textures,
+                        initial_focus,
                     );
                     let chat_was_active = self.game.chat_window.is_active();
                     let mut events = self.game.chat_window.build(&mut ui);
@@ -1117,7 +1869,12 @@ impl App {
                     let shop_events = self.game.npc_shop.build(&mut ui);
                     events.extend(shop_events);
 
-                    let allow_escape = !chat_was_active && !npc_dialog_open && !shop_open;
+                    let inv_open = self.game.inventory_window.inventory.is_open();
+                    let inv_events = self.game.inventory_window.build(&mut ui);
+                    events.extend(inv_events);
+
+                    let allow_escape =
+                        !chat_was_active && !npc_dialog_open && !shop_open && !inv_open;
                     let menu_events = self.game.system_menu.build(&mut ui, allow_escape);
                     events.extend(menu_events);
 
@@ -1132,6 +1889,9 @@ impl App {
 
     fn process_continuous_walk(&mut self, delta: f32) {
         if !self.input.left_mouse_down || self.game.app_state != AppState::InGame {
+            return;
+        }
+        if self.input.ui_dragging {
             return;
         }
         if self.game.chat_window.is_active() {
@@ -1188,7 +1948,10 @@ impl App {
                 let action = entity.action_index();
                 let is_transient = matches!(
                     entity.state,
-                    EntityState::Hurt | EntityState::Attacking | EntityState::Dead | EntityState::Pickup
+                    EntityState::Hurt
+                        | EntityState::Attacking
+                        | EntityState::Dead
+                        | EntityState::Pickup
                 );
                 if is_transient {
                     entity.animation.set_action_one_shot(action);
@@ -1197,8 +1960,9 @@ impl App {
                 }
                 entity.animation.set_direction(entity.direction);
                 let is_composite = entity.entity_type == EntityType::Player;
-                let animated = !is_composite || SpriteActionType::from_index(entity.animation.action())
-                    .is_none_or(|a| a.is_animated());
+                let animated = !is_composite
+                    || SpriteActionType::from_index(entity.animation.action())
+                        .is_none_or(|a| a.is_animated());
                 if animated {
                     entity.animation.update(delta, &sprite.body_act, dir);
                 }
@@ -1237,23 +2001,33 @@ impl App {
         let mut render_list = Vec::new();
         if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
             for entity in self.game.entities.iter() {
-                if let Some((screen_center, depth, camera_dir, sprite_scale, depth_gradient)) = input::entity_screen_params(
-                    entity.movement.position(),
-                    self.game.gat.as_ref(),
-                    coords,
-                    &renderer.camera,
-                    renderer.device.surface_config.width as f32,
-                    renderer.device.surface_config.height as f32,
-                ) {
+                if let Some((screen_center, depth, camera_dir, sprite_scale, depth_gradient)) =
+                    input::entity_screen_params(
+                        entity.movement.position(),
+                        self.game.gat.as_ref(),
+                        coords,
+                        &renderer.camera,
+                        renderer.device.surface_config.width as f32,
+                        renderer.device.surface_config.height as f32,
+                    )
+                {
                     let pick_bounds = match self.game.sprites.get(&entity.id) {
                         Some(sprite) => sprite.compute_pick_bounds(
-                            &entity.animation, Some(camera_dir), entity.head_dir,
-                            screen_center, depth, sprite_scale,
+                            &entity.animation,
+                            Some(camera_dir),
+                            entity.head_dir,
+                            screen_center,
+                            depth,
+                            sprite_scale,
                         ),
                         None => {
                             let half = 50.0;
-                            [screen_center[0] - half, screen_center[1] - 100.0,
-                             screen_center[0] + half, screen_center[1]]
+                            [
+                                screen_center[0] - half,
+                                screen_center[1] - 100.0,
+                                screen_center[0] + half,
+                                screen_center[1],
+                            ]
                         }
                     };
                     render_list.push(RenderEntry {
@@ -1268,7 +2042,11 @@ impl App {
                 }
             }
         }
-        render_list.sort_by(|a, b| b.depth.partial_cmp(&a.depth).unwrap_or(std::cmp::Ordering::Equal));
+        render_list.sort_by(|a, b| {
+            b.depth
+                .partial_cmp(&a.depth)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         render_list
     }
 
@@ -1308,10 +2086,14 @@ impl App {
             Some(a) => a,
             None => return Vec::new(),
         };
-        
+
         self.game.cursor_animation.update(dt, cursor_act);
         let action_idx = self.game.cursor_animation.action_index();
-        let action_idx = if action_idx < cursor_act.actions.len() { action_idx } else { 0 };
+        let action_idx = if action_idx < cursor_act.actions.len() {
+            action_idx
+        } else {
+            0
+        };
         let action = &cursor_act.actions[action_idx];
         if action.motions.is_empty() {
             return Vec::new();
@@ -1325,7 +2107,9 @@ impl App {
         };
         let mut clips = Vec::new();
         for clip in &motion.clips {
-            if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, cursor_tex, [mx as f32, my as f32], 0.0, [0, 0]) {
+            if let Some((vertices, indices, tex_idx)) =
+                build_clip_quad(clip, cursor_tex, [mx as f32, my as f32], 0.0, [0, 0])
+            {
                 if tex_idx < cursor_tex.bind_groups.len() {
                     clips.push((vertices, indices, tex_idx));
                 }
@@ -1352,7 +2136,10 @@ impl ApplicationHandler for App {
         let font_scale = self.config.font_scale / 100.0;
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
         let scale_factor = window.scale_factor() as f32;
-        let renderer = block_on(Renderer::new(window.clone(), self.config.font_px_height() * scale_factor * font_scale));
+        let renderer = block_on(Renderer::new(
+            window.clone(),
+            self.config.font_px_height() * scale_factor * font_scale,
+        ));
 
         self.window = Some(window);
         self.renderer = Some(renderer);
@@ -1372,7 +2159,8 @@ impl ApplicationHandler for App {
                     if let Some(renderer) = &mut self.renderer {
                         renderer.try_load_grf_font(&grf);
 
-                        self.login_window.has_grf_textures = renderer.preload_textures(&LoginWindow::grf_texture_paths(), &grf);
+                        self.login_window.has_grf_textures =
+                            renderer.preload_textures(&LoginWindow::grf_texture_paths(), &grf);
                         if self.login_window.has_grf_textures {
                             let ui_scale = self.config.ui_scale / 100.0;
                             self.login_window.set_texture_sizes(|name| {
@@ -1385,10 +2173,14 @@ impl ApplicationHandler for App {
 
                     self.load_cursor_sprite(&grf);
                     self.load_emotion_sprite(&grf);
-                    self.game.accessory_table = Some(ragnarok_game::accessory_table::AccessoryTable::load_from_grf(&grf));
+                    self.game.accessory_table =
+                        Some(ragnarok_game::accessory_table::AccessoryTable::load_from_grf(&grf));
                     self.game.name_table = Some(NameTable::load(&grf));
-                    self.game.item_name_table = Some(ragnarok_game::item_name_table::ItemNameTable::load(&grf));
-                    self.game.item_resource_table = Some(ragnarok_game::item_resource_table::ItemResourceTable::load(&grf));
+                    self.game.item_name_table =
+                        Some(ragnarok_game::item_name_table::ItemNameTable::load(&grf));
+                    self.game.item_resource_table = Some(
+                        ragnarok_game::item_resource_table::ItemResourceTable::load(&grf),
+                    );
                     self.grf = Some(grf);
                 }
                 Err(e) => {
@@ -1427,15 +2219,15 @@ impl ApplicationHandler for App {
                             let pressed = state == ElementState::Pressed;
                             self.input.left_mouse_down = pressed;
                             if pressed {
-                                let mouse_on_chat = self.game.chat_window.contains_point(
-                                    self.input.mouse_position.0 as f32,
-                                    self.input.mouse_position.1 as f32,
-                                );
-                                if !mouse_on_chat && !self.game.system_menu.open && !self.game.npc_dialog.dialog.is_open() && !self.game.npc_shop.shop.is_open() {
+                                if self.input.ui_hovered {
+                                    self.input.ui_dragging = true;
+                                } else {
                                     self.handle_left_click();
                                     self.input.walk_packet_cooldown = 0.5;
                                     self.input.walk_server_acked = false;
                                 }
+                            } else {
+                                self.input.ui_dragging = false;
                             }
                         }
                         _ => {}
@@ -1449,7 +2241,12 @@ impl ApplicationHandler for App {
                         let dx = (position.x - lx) as f32;
                         let dy = (position.y - ly) as f32;
                         if let Some(renderer) = &mut self.renderer {
-                            input::handle_camera_drag(&mut renderer.camera, dx, dy, self.config.free_camera);
+                            input::handle_camera_drag(
+                                &mut renderer.camera,
+                                dx,
+                                dy,
+                                self.config.free_camera,
+                            );
                         }
                     }
                     self.input.last_mouse_pos = Some((position.x, position.y));
@@ -1457,11 +2254,7 @@ impl ApplicationHandler for App {
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 if self.game.app_state == AppState::InGame {
-                    let mouse_on_chat = self.game.chat_window.contains_point(
-                        self.input.mouse_position.0 as f32,
-                        self.input.mouse_position.1 as f32,
-                    );
-                    if !mouse_on_chat && !self.game.npc_shop.shop.is_open() {
+                    if !self.input.ui_hovered {
                         let scroll = match delta {
                             MouseScrollDelta::LineDelta(_, y) => y,
                             MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
@@ -1488,16 +2281,30 @@ impl ApplicationHandler for App {
                         }
                         PhysicalKey::Code(KeyCode::Insert) => {
                             if let Some(entity) = self.game.entities.player() {
-                                let action = if entity.state == EntityState::Sitting { 3u8 } else { 2u8 };
+                                let action = if entity.state == EntityState::Sitting {
+                                    3u8
+                                } else {
+                                    2u8
+                                };
                                 if let Some(tx) = &self.network_cmd_tx {
-                                    let packet = build_action_request_packet(0, action, self.config.packetver);
+                                    let packet = build_action_request_packet(
+                                        0,
+                                        action,
+                                        self.config.packetver,
+                                    );
                                     let _ = tx.send(NetworkCommand::SendPacket(packet));
                                 }
                             }
                         }
+                        PhysicalKey::Code(KeyCode::KeyE) if self.input.alt_pressed => {
+                            self.game.inventory_window.inventory.toggle();
+                        }
                         _ => {}
                     }
                 }
+            }
+            WindowEvent::ModifiersChanged(modifiers) => {
+                self.input.alt_pressed = modifiers.state().alt_key();
             }
             WindowEvent::RedrawRequested => {
                 let elapsed = self.start_time.elapsed().as_secs_f32();
@@ -1505,6 +2312,7 @@ impl ApplicationHandler for App {
                 self.handle_game_events(event_loop);
 
                 let (ui_draw_calls, ui_events, ui_any_hovered) = self.build_ui(elapsed);
+                self.input.ui_hovered = ui_any_hovered;
                 self.handle_ui_events(ui_events, event_loop);
                 let mut world_overlay_calls: Vec<UiDrawCall> = Vec::new();
 
@@ -1518,7 +2326,8 @@ impl ApplicationHandler for App {
 
                 let hovered = self.update_grid_hover();
                 let render_list = self.compute_render_list();
-                let hovered_entity_id = self.update_cursor_type(hovered, ui_any_hovered, &render_list);
+                let hovered_entity_id =
+                    self.update_cursor_type(hovered, ui_any_hovered, &render_list);
                 self.game.hovered_entity_id = hovered_entity_id;
                 if let Some(entity_id) = hovered_entity_id {
                     if let Some(entity) = self.game.entities.get_mut(entity_id) {
@@ -1540,18 +2349,28 @@ impl ApplicationHandler for App {
                         if let Some(entry) = hovered_entry {
                             let bar_y = entry.pick_bounds[3] + 2.0;
                             if let Some(ratio) = entity.hp_percentage() {
-                                render_hp_bar(entry.screen_center[0], bar_y, ratio, entity.entity_type, &mut world_overlay_calls);
+                                render_hp_bar(
+                                    entry.screen_center[0],
+                                    bar_y,
+                                    ratio,
+                                    entity.entity_type,
+                                    &mut world_overlay_calls,
+                                );
                             }
                             if let Some(name) = &entity.name {
                                 let text_width = renderer.font_atlas.measure_text(name);
                                 let text_x = entry.screen_center[0] - text_width / 2.0;
                                 let text_y = bar_y + HP_BAR_HEIGHT + 13.0;
                                 let outline_color = [0.0, 0.0, 0.0, 1.0];
-                                for &(dx, dy) in &[
-                                    (-1.0_f32, 0.0_f32), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0),
-                                ] {
+                                for &(dx, dy) in
+                                    &[(-1.0_f32, 0.0_f32), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0)]
+                                {
                                     let (verts, indices) = ragnarok_ui::draw::text_vertices(
-                                        name, text_x + dx, text_y + dy, outline_color, &renderer.font_atlas,
+                                        name,
+                                        text_x + dx,
+                                        text_y + dy,
+                                        outline_color,
+                                        &renderer.font_atlas,
                                     );
                                     if !verts.is_empty() {
                                         world_overlay_calls.push(UiDrawCall {
@@ -1563,7 +2382,11 @@ impl ApplicationHandler for App {
                                 }
                                 let text_color = entity_name_color(entity.entity_type);
                                 let (verts, indices) = ragnarok_ui::draw::text_vertices(
-                                    name, text_x, text_y, text_color, &renderer.font_atlas,
+                                    name,
+                                    text_x,
+                                    text_y,
+                                    text_color,
+                                    &renderer.font_atlas,
                                 );
                                 if !verts.is_empty() {
                                     world_overlay_calls.push(UiDrawCall {
@@ -1581,9 +2404,18 @@ impl ApplicationHandler for App {
                 if let (Some(_), Some(player)) = (&self.renderer, self.game.entities.player()) {
                     if hovered_entity_id != self.game.entities.player_id() {
                         if let Some(ratio) = player.hp_percentage() {
-                            if let Some(entry) = render_list.iter().find(|e| Some(e.id) == self.game.entities.player_id()) {
+                            if let Some(entry) = render_list
+                                .iter()
+                                .find(|e| Some(e.id) == self.game.entities.player_id())
+                            {
                                 let bar_y = entry.pick_bounds[3] + 2.0;
-                                render_hp_bar(entry.screen_center[0], bar_y, ratio, EntityType::Player, &mut world_overlay_calls);
+                                render_hp_bar(
+                                    entry.screen_center[0],
+                                    bar_y,
+                                    ratio,
+                                    EntityType::Player,
+                                    &mut world_overlay_calls,
+                                );
                             }
                         }
                     }
@@ -1594,15 +2426,15 @@ impl ApplicationHandler for App {
                         if let Some(entity) = self.game.entities.get(entry.id) {
                             if let Some(bubble) = &entity.chat_bubble {
                                 let padding = 4.0;
-                                let lines = ragnarok_ui::draw::word_wrap(
-                                    &bubble.message,
-                                    150.0,
-                                    |t| renderer.font_atlas.measure_text(t),
-                                );
+                                let lines =
+                                    ragnarok_ui::draw::word_wrap(&bubble.message, 150.0, |t| {
+                                        renderer.font_atlas.measure_text(t)
+                                    });
 
                                 let line_h = renderer.font_atlas.line_height;
                                 let total_h = line_h * lines.len() as f32 + padding * 2.0;
-                                let widest = lines.iter()
+                                let widest = lines
+                                    .iter()
                                     .map(|l| renderer.font_atlas.measure_text(l))
                                     .fold(0.0_f32, f32::max);
                                 let box_w = widest + padding * 2.0;
@@ -1610,7 +2442,11 @@ impl ApplicationHandler for App {
                                 let box_y = entry.pick_bounds[1] - 5.0 - total_h;
 
                                 let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
-                                    box_x, box_y, box_w, total_h, [0.0, 0.0, 0.0, 0.8],
+                                    box_x,
+                                    box_y,
+                                    box_w,
+                                    total_h,
+                                    [0.0, 0.0, 0.0, 0.8],
                                 );
                                 world_overlay_calls.push(UiDrawCall {
                                     vertices: bg_verts.to_vec(),
@@ -1623,7 +2459,11 @@ impl ApplicationHandler for App {
                                     let lx = entry.screen_center[0] - line_w / 2.0;
                                     let ly = box_y + padding + line_h / 2.0 + line_h * i as f32;
                                     let (verts, indices) = ragnarok_ui::draw::text_vertices(
-                                        line, lx, ly, [1.0, 1.0, 1.0, 1.0], &renderer.font_atlas,
+                                        line,
+                                        lx,
+                                        ly,
+                                        [1.0, 1.0, 1.0, 1.0],
+                                        &renderer.font_atlas,
                                     );
                                     if !verts.is_empty() {
                                         world_overlay_calls.push(UiDrawCall {
@@ -1643,34 +2483,68 @@ impl ApplicationHandler for App {
                     let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
 
                     for entry in &render_list {
-                        if let (Some(sprite), Some(entity)) = (self.game.sprites.get(&entry.id), self.game.entities.get(entry.id)) {
+                        if let (Some(sprite), Some(entity)) = (
+                            self.game.sprites.get(&entry.id),
+                            self.game.entities.get(entry.id),
+                        ) {
                             let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
-                            let mut shadow = sprite.build_shadow_batches(entry.screen_center, entry.depth, shadow_scale);
+                            let mut shadow = sprite.build_shadow_batches(
+                                entry.screen_center,
+                                entry.depth,
+                                shadow_scale,
+                            );
                             sprite_batches.append(&mut shadow);
-                            let mut batches = sprite.build_batches(&entity.animation, Some(entry.camera_dir), entity.head_dir, entry.screen_center, entry.depth, entry.sprite_scale, entry.depth_gradient);
+                            let mut batches = sprite.build_batches(
+                                &entity.animation,
+                                Some(entry.camera_dir),
+                                entity.head_dir,
+                                entry.screen_center,
+                                entry.depth,
+                                entry.sprite_scale,
+                                entry.depth_gradient,
+                            );
                             sprite_batches.append(&mut batches);
 
-                            if let (Some(emo), Some(emo_act), Some(emo_tex)) =
-                                (&entity.emotion, &self.game.emotion_act, &self.game.emotion_textures)
-                            {
+                            if let (Some(emo), Some(emo_act), Some(emo_tex)) = (
+                                &entity.emotion,
+                                &self.game.emotion_act,
+                                &self.game.emotion_textures,
+                            ) {
                                 let action_idx = emo.emotion_type as usize;
                                 if action_idx < emo_act.actions.len() {
-                                    let delay_ms = emo_act.delays.get(action_idx)
+                                    let delay_ms = emo_act
+                                        .delays
+                                        .get(action_idx)
                                         .map(|d| d * 25.0)
                                         .filter(|d| *d > 0.0)
                                         .unwrap_or(150.0);
                                     let motion_count = emo_act.actions[action_idx].motions.len();
                                     let motion_idx = if motion_count > 0 {
                                         ((emo.elapsed * 1000.0) / delay_ms) as usize % motion_count
-                                    } else { 0 };
+                                    } else {
+                                        0
+                                    };
                                     if motion_idx < motion_count {
-                                        let motion = &emo_act.actions[action_idx].motions[motion_idx];
-                                        let emo_center = [entry.screen_center[0], entry.screen_center[1] - 100.0];
+                                        let motion =
+                                            &emo_act.actions[action_idx].motions[motion_idx];
+                                        let emo_center = [
+                                            entry.screen_center[0],
+                                            entry.screen_center[1] - 100.0,
+                                        ];
                                         for clip in &motion.clips {
-                                            if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, emo_tex, emo_center, entry.depth, [0, 0]) {
+                                            if let Some((vertices, indices, tex_idx)) =
+                                                build_clip_quad(
+                                                    clip,
+                                                    emo_tex,
+                                                    emo_center,
+                                                    entry.depth,
+                                                    [0, 0],
+                                                )
+                                            {
                                                 if tex_idx < emo_tex.bind_groups.len() {
                                                     sprite_batches.push(SpriteBatch {
-                                                        vertices, indices,
+                                                        vertices,
+                                                        indices,
                                                         texture: &emo_tex.bind_groups[tex_idx],
                                                     });
                                                 }
@@ -1715,21 +2589,31 @@ impl ApplicationHandler for App {
 
 fn entity_name_color(entity_type: EntityType) -> [f32; 4] {
     match entity_type {
-        EntityType::Player => [1.0, 1.0, 1.0, 1.0],             // #FFFFFFEntityType::Npc => [0.580, 0.741, 0.969, 1.0],
-        EntityType::Monster => [1.0, 0.776, 0.776, 1.0],        // #ffc6c6
-        EntityType::Npc => [0.39, 0.54, 0.76, 1.0],          // #648bc2
+        EntityType::Player => [1.0, 1.0, 1.0, 1.0], // #FFFFFFEntityType::Npc => [0.580, 0.741, 0.969, 1.0],
+        EntityType::Monster => [1.0, 0.776, 0.776, 1.0], // #ffc6c6
+        EntityType::Npc => [0.39, 0.54, 0.76, 1.0], // #648bc2
     }
 }
 
 fn hp_bar_color(ratio: f32, entity_type: EntityType) -> [f32; 4] {
     match entity_type {
         EntityType::Monster => {
-            if ratio >= 0.25 { [1.0, 0.0, 0.906, 1.0] } // #FF00E7 magenta
-            else { [1.0, 1.0, 0.0, 1.0] } // #FFFF00 yellow
+            if ratio >= 0.25 {
+                [1.0, 0.0, 0.906, 1.0]
+            }
+            // #FF00E7 magenta
+            else {
+                [1.0, 1.0, 0.0, 1.0]
+            } // #FFFF00 yellow
         }
         _ => {
-            if ratio >= 0.25 { [0.063, 0.937, 0.129, 1.0] } // #10ef21 bright green
-            else { [1.0, 0.0, 0.0, 1.0] } // #FF0000 red
+            if ratio >= 0.25 {
+                [0.063, 0.937, 0.129, 1.0]
+            }
+            // #10ef21 bright green
+            else {
+                [1.0, 0.0, 0.0, 1.0]
+            } // #FF0000 red
         }
     }
 }
@@ -1737,11 +2621,21 @@ fn hp_bar_color(ratio: f32, entity_type: EntityType) -> [f32; 4] {
 const HP_BAR_WIDTH: f32 = 60.0;
 const HP_BAR_HEIGHT: f32 = 5.0;
 
-fn render_hp_bar(center_x: f32, y: f32, ratio: f32, entity_type: EntityType, draw_calls: &mut Vec<UiDrawCall>) {
+fn render_hp_bar(
+    center_x: f32,
+    y: f32,
+    ratio: f32,
+    entity_type: EntityType,
+    draw_calls: &mut Vec<UiDrawCall>,
+) {
     let border_x = center_x - HP_BAR_WIDTH / 2.0;
     // Border: #10189c dark blue
     let (border_verts, border_idx) = ragnarok_ui::draw::quad_vertices(
-        border_x, y, HP_BAR_WIDTH, HP_BAR_HEIGHT, [0.063, 0.094, 0.612, 1.0],
+        border_x,
+        y,
+        HP_BAR_WIDTH,
+        HP_BAR_HEIGHT,
+        [0.063, 0.094, 0.612, 1.0],
     );
     draw_calls.push(UiDrawCall {
         vertices: border_verts.to_vec(),
@@ -1750,7 +2644,11 @@ fn render_hp_bar(center_x: f32, y: f32, ratio: f32, entity_type: EntityType, dra
     });
     // Background: #424242 dark gray (1px inside border)
     let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
-        border_x + 1.0, y + 1.0, HP_BAR_WIDTH - 2.0, HP_BAR_HEIGHT - 2.0, [0.259, 0.259, 0.259, 1.0],
+        border_x + 1.0,
+        y + 1.0,
+        HP_BAR_WIDTH - 2.0,
+        HP_BAR_HEIGHT - 2.0,
+        [0.259, 0.259, 0.259, 1.0],
     );
     draw_calls.push(UiDrawCall {
         vertices: bg_verts.to_vec(),
@@ -1761,7 +2659,11 @@ fn render_hp_bar(center_x: f32, y: f32, ratio: f32, entity_type: EntityType, dra
     let fill_ratio = ratio.clamp(0.0, 1.0);
     let fill_w = (HP_BAR_WIDTH - 2.0) * fill_ratio;
     let (fill_verts, fill_idx) = ragnarok_ui::draw::quad_vertices(
-        border_x + 1.0, y + 1.0, fill_w, HP_BAR_HEIGHT - 2.0, hp_bar_color(ratio, entity_type),
+        border_x + 1.0,
+        y + 1.0,
+        fill_w,
+        HP_BAR_HEIGHT - 2.0,
+        hp_bar_color(ratio, entity_type),
     );
     draw_calls.push(UiDrawCall {
         vertices: fill_verts.to_vec(),

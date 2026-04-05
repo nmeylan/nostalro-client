@@ -1,6 +1,7 @@
 pub mod char_select_window;
 pub mod chat_window;
 pub mod confirm_dialog;
+pub mod inventory_window;
 pub mod login_window;
 pub mod npc_dialog;
 pub mod npc_shop;

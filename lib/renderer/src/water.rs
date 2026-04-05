@@ -199,6 +199,10 @@ pub fn build_water_mesh(gnd: &GndFile, water_y: f32) -> (Vec<WaterVertex>, Vec<u
             let cell_idx = (y * gnd.width + x) as usize;
             let cell = &gnd.cells[cell_idx];
 
+            if cell.top_surface < 0 {
+                continue;
+            }
+
             let avg_height = (cell.height[0] + cell.height[1] + cell.height[2] + cell.height[3]) / 4.0;
             // In native RO coords, more negative = higher; skip cells far above water
             if avg_height < water_y - 5.0 * zoom {
@@ -313,10 +317,16 @@ mod tests {
             zoom: 10.0,
             textures: vec![],
             lightmaps: vec![],
-            surfaces: vec![],
+            surfaces: vec![ragnarok_formats::gnd::GndSurface {
+                u: [0.0; 4],
+                v: [0.0; 4],
+                texture_id: 0,
+                lightmap_id: 0,
+                color_bgra: [255; 4],
+            }],
             cells: (0..cell_count).map(|_| GndCell {
                 height: [cell_height; 4],
-                top_surface: -1,
+                top_surface: 0,
                 front_surface: -1,
                 right_surface: -1,
             }).collect(),
@@ -331,6 +341,23 @@ mod tests {
         let (vertices, indices) = build_water_mesh(&gnd, water_y);
         assert_eq!(vertices.len(), 16 * 4);
         assert_eq!(indices.len(), 16 * 6);
+    }
+
+    #[test]
+    fn water_mesh_skips_border_cells_without_surface() {
+        let mut gnd = make_gnd(3, 3, -5.0);
+        // Mark edge cells as border (no surface)
+        for y in 0..3i32 {
+            for x in 0..3i32 {
+                if x == 0 || x == 2 || y == 0 || y == 2 {
+                    gnd.cells[(y * 3 + x) as usize].top_surface = -1;
+                }
+            }
+        }
+        let (vertices, indices) = build_water_mesh(&gnd, -10.0);
+        // Only the center cell (1,1) should generate water
+        assert_eq!(vertices.len(), 4);
+        assert_eq!(indices.len(), 6);
     }
 
     #[test]

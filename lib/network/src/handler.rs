@@ -1,6 +1,7 @@
 use packets::packets::*;
 use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo};
-use tracing::{debug, info};
+use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
+use tracing::debug;
 
 use crate::helpers::{decode_pos, decode_pos2};
 
@@ -358,6 +359,130 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcPcSellResult>() {
         return vec![GameEvent::NpcShopSellResult { result: p.result }];
+    }
+
+    // Inventory
+    if let Some(p) = any.downcast_ref::<PacketZcNormalItemlist>() {
+        let items = p.item_info.iter().map(|i| NormalItemData {
+            index: i.index, item_id: i.itid, item_type: i.atype,
+            is_identified: i.is_identified, count: i.count, wear_state: i.wear_state,
+        }).collect();
+        return vec![GameEvent::InventoryNormalItems { items }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcEquipmentItemlist>() {
+        let items = p.item_info.iter().map(|i| EquipmentItemData {
+            index: i.index, item_id: i.itid, item_type: i.atype,
+            is_identified: i.is_identified, location: i.location,
+            wear_state: i.wear_state, is_damaged: i.is_damaged,
+            refining_level: i.refining_level,
+            slot: [i.slot.card1, i.slot.card2, i.slot.card3, i.slot.card4],
+        }).collect();
+        return vec![GameEvent::InventoryEquipmentItems { items }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcItemPickupAck>() {
+        return vec![GameEvent::InventoryItemPickup {
+            index: p.index, item_id: p.itid, count: p.count, item_type: p.atype,
+            is_identified: p.is_identified, is_damaged: p.is_damaged,
+            refining_level: p.refining_level,
+            slot: [p.slot.card1, p.slot.card2, p.slot.card3, p.slot.card4],
+            location: p.location, result: p.result,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcItemPickupAck2>() {
+        return vec![GameEvent::InventoryItemPickup {
+            index: p.index, item_id: p.itid, count: p.count, item_type: p.atype,
+            is_identified: p.is_identified, is_damaged: p.is_damaged,
+            refining_level: p.refining_level,
+            slot: [p.slot.card1, p.slot.card2, p.slot.card3, p.slot.card4],
+            location: p.location, result: p.result,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcItemPickupAck3>() {
+        return vec![GameEvent::InventoryItemPickup {
+            index: p.index, item_id: p.itid, count: p.count, item_type: p.atype,
+            is_identified: p.is_identified, is_damaged: p.is_damaged,
+            refining_level: p.refining_level,
+            slot: [p.slot.card1, p.slot.card2, p.slot.card3, p.slot.card4],
+            location: p.location, result: p.result,
+        }];
+    }
+    // Normal item list v2/v3
+    if let Some(p) = any.downcast_ref::<PacketZcNormalItemlist2>() {
+        let items = p.item_info.iter().map(|i| NormalItemData {
+            index: i.index, item_id: i.itid, item_type: i.atype,
+            is_identified: i.is_identified, count: i.count, wear_state: i.wear_state,
+        }).collect();
+        return vec![GameEvent::InventoryNormalItems { items }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNormalItemlist3>() {
+        let items = p.item_info.iter().map(|i| NormalItemData {
+            index: i.index, item_id: i.itid, item_type: i.atype,
+            is_identified: i.is_identified, count: i.count, wear_state: i.wear_state,
+        }).collect();
+        return vec![GameEvent::InventoryNormalItems { items }];
+    }
+    // Equipment item list v2/v3
+    if let Some(p) = any.downcast_ref::<PacketZcEquipmentItemlist2>() {
+        let items = p.item_info.iter().map(|i| EquipmentItemData {
+            index: i.index, item_id: i.itid, item_type: i.atype,
+            is_identified: i.is_identified, location: i.location,
+            wear_state: i.wear_state, is_damaged: i.is_damaged,
+            refining_level: i.refining_level,
+            slot: [i.slot.card1, i.slot.card2, i.slot.card3, i.slot.card4],
+        }).collect();
+        return vec![GameEvent::InventoryEquipmentItems { items }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcEquipmentItemlist3>() {
+        let items = p.item_info.iter().map(|i| EquipmentItemData {
+            index: i.index, item_id: i.itid, item_type: i.atype,
+            is_identified: i.is_identified, location: i.location,
+            wear_state: i.wear_state, is_damaged: i.is_damaged,
+            refining_level: i.refining_level,
+            slot: [i.slot.card1, i.slot.card2, i.slot.card3, i.slot.card4],
+        }).collect();
+        return vec![GameEvent::InventoryEquipmentItems { items }];
+    }
+    // Use item ack v1/v2
+    if let Some(p) = any.downcast_ref::<PacketZcUseItemAck>() {
+        return vec![GameEvent::InventoryUseItemResult {
+            index: p.index, count: p.count, success: p.result,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcUseItemAck2>() {
+        return vec![GameEvent::InventoryUseItemResult {
+            index: p.index, count: p.count, success: p.result,
+        }];
+    }
+    // Equip/unequip ack v1/v2
+    if let Some(p) = any.downcast_ref::<PacketZcReqWearEquipAck>() {
+        return vec![GameEvent::InventoryEquipResult {
+            index: p.index, wear_location: p.wear_location, success: p.result == 0,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcReqWearEquipAck2>() {
+        return vec![GameEvent::InventoryEquipResult {
+            index: p.index, wear_location: p.wear_location, success: p.result == 0,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcReqTakeoffEquipAck>() {
+        return vec![GameEvent::InventoryUnequipResult {
+            index: p.index, wear_location: p.wear_location, success: p.result == 0,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcReqTakeoffEquipAck2>() {
+        return vec![GameEvent::InventoryUnequipResult {
+            index: p.index, wear_location: p.wear_location, success: p.result == 0,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcItemThrowAck>() {
+        return vec![GameEvent::InventoryItemRemoved {
+            index: p.index, count: p.count,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcDeleteItemFromBody>() {
+        return vec![GameEvent::InventoryItemRemoved {
+            index: p.index, count: p.count,
+        }];
     }
 
     // Acknowledged but not yet used (no UI)

@@ -46,6 +46,7 @@ pub struct ButtonTextures {
 pub struct Response {
     clicked: bool,
     double_clicked: bool,
+    right_clicked: bool,
     hovered: bool,
     has_focus: bool,
 }
@@ -53,6 +54,7 @@ pub struct Response {
 impl Response {
     pub fn clicked(&self) -> bool { self.clicked }
     pub fn double_clicked(&self) -> bool { self.double_clicked }
+    pub fn right_clicked(&self) -> bool { self.right_clicked }
     pub fn hovered(&self) -> bool { self.hovered }
     pub fn has_focus(&self) -> bool { self.has_focus }
 }
@@ -140,6 +142,9 @@ impl<'a> UiFrame<'a> {
             }
         }
 
+        state.x = state.x.clamp(0.0, (self.ctx.screen_width - w).max(0.0));
+        state.y = state.y.clamp(0.0, (self.ctx.screen_height - h).max(0.0));
+
         Rect::new(state.x, state.y, w, h)
     }
 
@@ -150,11 +155,12 @@ impl<'a> UiFrame<'a> {
         }
         let clicked = hovered && self.ctx.mouse_clicked;
         let double_clicked = hovered && self.ctx.mouse_double_clicked;
+        let right_clicked = hovered && self.ctx.mouse_right_clicked;
         if clicked {
             self.focus = Some(id);
         }
         let has_focus = self.focus == Some(id);
-        Response { clicked, double_clicked, hovered, has_focus }
+        Response { clicked, double_clicked, right_clicked, hovered, has_focus }
     }
 
     pub fn button(
