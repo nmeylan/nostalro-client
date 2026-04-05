@@ -60,6 +60,7 @@ use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowAttributes, WindowId};
+use ragnarok_ui_component::equipment_window::EquipmentWindow;
 
 type ClipData = (Vec<SpriteVertex>, Vec<u32>, usize);
 
@@ -448,6 +449,16 @@ impl App {
                         if self.game.inventory_window.has_grf_textures {
                             let ui_scale = self.config.ui_scale / 100.0;
                             self.game.inventory_window.set_texture_sizes(|name| {
+                                renderer.texture_cache.texture_size(name).map(|(w, h)| {
+                                    ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
+                                })
+                            });
+                        }
+                        self.game.equipment_window.has_grf_textures =
+                            renderer.preload_textures(&EquipmentWindow::grf_texture_paths(), grf);
+                        let ui_scale = self.config.ui_scale / 100.0;
+                        if self.game.equipment_window.has_grf_textures {
+                            self.game.equipment_window.set_texture_sizes(|name| {
                                 renderer.texture_cache.texture_size(name).map(|(w, h)| {
                                     ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
                                 })
@@ -1499,6 +1510,18 @@ impl App {
                     });
                 }
             }
+            if !self.game.equipment_window.has_grf_textures {
+                self.game.equipment_window.has_grf_textures =
+                    renderer.preload_textures(&EquipmentWindow::grf_texture_paths(), grf);
+                if self.game.equipment_window.has_grf_textures {
+                    let ui_scale = self.config.ui_scale / 100.0;
+                    self.game.equipment_window.set_texture_sizes(|name| {
+                        renderer.texture_cache.texture_size(name).map(|(w, h)| {
+                            ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
+                        })
+                    });
+                }
+            }
             // Preload item icon textures
             let icon_paths: Vec<String> = self
                 .game
@@ -1872,6 +1895,10 @@ impl App {
                     let inv_open = self.game.inventory_window.inventory.is_open();
                     let inv_events = self.game.inventory_window.build(&mut ui);
                     events.extend(inv_events);
+
+                    let eq_open = self.game.equipment_window.is_open();
+                    let eq_events = self.game.equipment_window.build(&mut ui, &self.game.inventory_window.inventory);
+                    events.extend(eq_events);
 
                     let allow_escape =
                         !chat_was_active && !npc_dialog_open && !shop_open && !inv_open;
@@ -2298,6 +2325,9 @@ impl ApplicationHandler for App {
                         }
                         PhysicalKey::Code(KeyCode::KeyE) if self.input.alt_pressed => {
                             self.game.inventory_window.inventory.toggle();
+                        }
+                        PhysicalKey::Code(KeyCode::KeyQ) if self.input.alt_pressed => {
+                            self.game.equipment_window.toggle();
                         }
                         _ => {}
                     }

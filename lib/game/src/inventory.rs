@@ -1,3 +1,6 @@
+use models::enums::EnumWithMaskValueU64;
+pub use models::enums::item::EquipmentLocation;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InventoryTab {
     Usable,
@@ -127,6 +130,11 @@ impl InventoryData {
         self.items.iter()
             .filter(|item| item.tab() == self.active_tab && !item.is_equipped())
             .collect()
+    }
+
+    pub fn equipped_in_slot(&self, slot: EquipmentLocation) -> Option<&InventoryItem> {
+        let mask = slot.as_flag() as u16;
+        self.items.iter().find(|i| i.wear_state & mask != 0)
     }
 
     pub fn all_items(&self) -> &[InventoryItem] {
@@ -294,6 +302,31 @@ mod tests {
         inv.remove_item(12);
         assert!(inv.get_item(12).is_none());
         assert_eq!(inv.all_items().len(), 3);
+    }
+
+    #[test]
+    fn equipped_in_slot_lookup() {
+        let mut inv = InventoryData::new();
+        inv.add_item(make_equip_item(3, 1201, 2));  // Knife, location=HandRight
+        inv.add_item(make_equip_item(5, 2101, 16)); // Armor, location=Armor
+
+        // Nothing equipped yet
+        assert!(inv.equipped_in_slot(EquipmentLocation::HandRight).is_none());
+
+        // Equip knife in right hand
+        inv.update_wear_state(3, 2);
+        let item = inv.equipped_in_slot(EquipmentLocation::HandRight).unwrap();
+        assert_eq!(item.index, 3);
+        assert!(inv.equipped_in_slot(EquipmentLocation::Armor).is_none());
+
+        // Equip armor
+        inv.update_wear_state(5, 16);
+        assert!(inv.equipped_in_slot(EquipmentLocation::Armor).is_some());
+
+        // Unequip knife
+        inv.clear_wear_state(3);
+        assert!(inv.equipped_in_slot(EquipmentLocation::HandRight).is_none());
+        assert!(inv.equipped_in_slot(EquipmentLocation::Armor).is_some());
     }
 
     #[test]

@@ -16,6 +16,7 @@ use ragnarok_game::server_time::ServerTimeClock;
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui_component::chat_window::ChatWindow;
+use ragnarok_ui_component::equipment_window::EquipmentWindow;
 use ragnarok_ui_component::inventory_window::InventoryWindow;
 use ragnarok_ui_component::npc_dialog::NpcDialog;
 use ragnarok_ui_component::npc_shop::NpcShop;
@@ -41,6 +42,7 @@ pub struct GameState {
     pub item_name_table: Option<ItemNameTable>,
     pub item_resource_table: Option<ItemResourceTable>,
     pub chat_window: ChatWindow,
+    pub equipment_window: EquipmentWindow,
     pub inventory_window: InventoryWindow,
     pub npc_dialog: NpcDialog,
     pub npc_shop: NpcShop,
@@ -73,6 +75,7 @@ impl GameState {
             item_name_table: None,
             item_resource_table: None,
             chat_window: ChatWindow::new(),
+            equipment_window: EquipmentWindow::new(),
             inventory_window: InventoryWindow::new(),
             npc_dialog: NpcDialog::new(),
             npc_shop: NpcShop::new(),
