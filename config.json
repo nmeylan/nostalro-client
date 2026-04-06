@@ -6,7 +6,7 @@
     "screen_height": 768,
     "bgm_volume": 0.8,
     "sfx_volume": 0.8,
-    "font_scale": 100,
     "dpi_scale": 150,
+    "trace_packets": true,
     "grf_paths": ["data/data.grf"]
 }

@@ -14,11 +14,11 @@ pub struct Config {
     pub bgm_volume: f32,
     pub sfx_volume: f32,
     pub free_camera: bool,
-    pub font_scale: f32,
     pub dpi_scale: f32,
     pub grf_paths: Vec<String>,
     pub enhanced_lag_compensation: bool,
     pub debug_network_delay_ms: u32,
+    pub trace_packets: bool,
 }
 
 impl Default for Config {
@@ -32,18 +32,18 @@ impl Default for Config {
             bgm_volume: 0.8,
             sfx_volume: 0.8,
             free_camera: false,
-            font_scale: 120.0,
             dpi_scale: 120.0,
             grf_paths: vec!["data/data.grf".to_string()],
             enhanced_lag_compensation: false,
             debug_network_delay_ms: 0,
+            trace_packets: false,
         }
     }
 }
 
 impl Config {
     pub fn font_px_height(&self) -> f32 {
-        BASE_FONT_PX_HEIGHT * self.font_scale / 100.0
+        BASE_FONT_PX_HEIGHT
     }
 
     pub fn load_or_default(path: &str) -> Self {

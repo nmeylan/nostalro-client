@@ -228,6 +228,7 @@ impl App {
 
         let packetver = self.config.packetver;
         let debug_delay_ms = self.config.debug_network_delay_ms;
+        let trace_packets = self.config.trace_packets;
         // Spawn on dedicated thread with single-threaded runtime
         // because network_loop uses non-Send packet types
         std::thread::spawn(move || {
@@ -235,7 +236,7 @@ impl App {
                 .enable_all()
                 .build()
                 .expect("failed to create network runtime");
-            rt.block_on(network_loop(cmd_rx, event_tx, packetver, debug_delay_ms));
+            rt.block_on(network_loop(cmd_rx, event_tx, packetver, debug_delay_ms, trace_packets));
         });
     }
 
@@ -2112,7 +2113,6 @@ impl ApplicationHandler for App {
                 self.config.screen_height,
             ));
 
-        let font_scale = self.config.font_scale / 100.0;
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
         let os_scale = window.scale_factor() as f32;
         let dpi_scale = if self.config.dpi_scale > 0.0 {
@@ -2122,7 +2122,7 @@ impl ApplicationHandler for App {
         };
         let renderer = block_on(Renderer::new(
             window.clone(),
-            self.config.font_px_height() * font_scale,
+            self.config.font_px_height(),
             dpi_scale,
         ));
 
