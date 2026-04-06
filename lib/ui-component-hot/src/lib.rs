@@ -263,12 +263,20 @@ pub unsafe extern "C" fn hot_destroy(state_ptr: *mut ()) {
 fn inventory_test_items() -> Vec<InventoryItem> {
     vec![
         InventoryItem { index: 0, item_id: 501, item_type: 0, count: 25, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Red Potion".into(), resource_name: None },
-        InventoryItem { index: 1, item_id: 502, item_type: 0, count: 10, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Orange Potion".into(), resource_name: None },
-        InventoryItem { index: 2, item_id: 601, item_type: 0, count: 5, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Fly Wing".into(), resource_name: None },
-        InventoryItem { index: 3, item_id: 1101, item_type: 1, count: 1, is_identified: true, is_damaged: false, refining_level: 7, slot: [0; 4], location: 0, wear_state: 0, name: "Sword".into(), resource_name: None },
-        InventoryItem { index: 4, item_id: 2101, item_type: 4, count: 1, is_identified: true, is_damaged: false, refining_level: 5, slot: [0; 4], location: 0, wear_state: 0, name: "Guard".into(), resource_name: None },
-        InventoryItem { index: 5, item_id: 910, item_type: 3, count: 50, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Jellopy".into(), resource_name: None },
-        InventoryItem { index: 6, item_id: 911, item_type: 3, count: 30, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Shell".into(), resource_name: None },
+        InventoryItem { index: 1, item_id: 502, item_type: 0, count: 110, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Orange Potion".into(), resource_name: None },
+        InventoryItem { index: 2, item_id: 503, item_type: 0, count: 110, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "White Potion".into(), resource_name: None },
+        InventoryItem { index: 3, item_id: 504, item_type: 0, count: 110, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Blue Potion".into(), resource_name: None },
+        InventoryItem { index: 4, item_id: 606, item_type: 0, count: 110, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Aloevera".into(), resource_name: None },
+        InventoryItem { index: 5, item_id: 605, item_type: 0, count: 110, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Anodyne".into(), resource_name: None },
+        InventoryItem { index: 6, item_id: 696, item_type: 0, count: 110, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Level 1 Fire Ball".into(), resource_name: None },
+        InventoryItem { index: 7, item_id: 698, item_type: 0, count: 110, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Level 1 Fire Wall".into(), resource_name: None },
+        InventoryItem { index: 8, item_id: 700, item_type: 0, count: 110, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Level 1 Frost driver".into(), resource_name: None },
+        InventoryItem { index: 9, item_id: 686, item_type: 0, count: 110, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Level 3 Frost driver".into(), resource_name: None },
+        InventoryItem { index: 10, item_id: 601, item_type: 0, count: 5, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Fly Wing".into(), resource_name: None },
+        InventoryItem { index: 11, item_id: 1101, item_type: 1, count: 1, is_identified: true, is_damaged: false, refining_level: 7, slot: [0; 4], location: 0, wear_state: 0, name: "Sword".into(), resource_name: None },
+        InventoryItem { index: 12, item_id: 2101, item_type: 4, count: 1, is_identified: true, is_damaged: false, refining_level: 5, slot: [0; 4], location: 0, wear_state: 0, name: "Guard".into(), resource_name: None },
+        InventoryItem { index: 13, item_id: 910, item_type: 3, count: 50, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Jellopy".into(), resource_name: None },
+        InventoryItem { index: 14, item_id: 911, item_type: 3, count: 30, is_identified: true, is_damaged: false, refining_level: 0, slot: [0; 4], location: 0, wear_state: 0, name: "Shell".into(), resource_name: None },
     ]
 }
 
