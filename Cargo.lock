@@ -3046,6 +3046,7 @@ name = "ragnarok-ui-component"
 version = "0.1.0"
 dependencies = [
  "image",
+ "libloading",
  "ragnarok-formats",
  "ragnarok-game",
  "ragnarok-renderer",
@@ -3054,6 +3055,15 @@ dependencies = [
  "tracing-subscriber",
  "wgpu 28.0.0",
  "winit",
+]
+
+[[package]]
+name = "ragnarok-ui-component-hot"
+version = "0.1.0"
+dependencies = [
+ "ragnarok-game",
+ "ragnarok-ui",
+ "ragnarok-ui-component",
 ]
 
 [[package]]

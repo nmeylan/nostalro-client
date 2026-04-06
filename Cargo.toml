@@ -10,6 +10,7 @@ members = [
     "lib/audio",
     "tools",
     "tools/grf-editor",
+    "lib/ui-component-hot",
 ]
 resolver = "2"
 
@@ -50,3 +51,4 @@ ragnarok-network = { path = "lib/network" }
 ragnarok-ui = { path = "lib/ui-core" }
 ragnarok-ui-component = { path = "lib/ui-component" }
 ragnarok-audio = { path = "lib/audio" }
+libloading = "0.8"

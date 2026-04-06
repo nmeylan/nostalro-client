@@ -29,6 +29,10 @@ impl StateCache {
     pub fn set<T: Any>(&mut self, id: WidgetId, value: T) {
         self.map.insert((id, TypeId::of::<T>()), Box::new(value));
     }
+
+    pub fn clear(&mut self) {
+        self.map.clear();
+    }
 }
 
 #[cfg(test)]
