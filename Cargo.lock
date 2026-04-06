@@ -111,7 +111,7 @@ dependencies = [
 [[package]]
 name = "accessor"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=13c20094#13c2009445b3f601436f798664531c44f4eecedb"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=68a673f1#68a673f14d9c441cee8a4fc9e364aca56cce29c4"
 dependencies = [
  "quote",
  "syn",
@@ -1162,7 +1162,7 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 [[package]]
 name = "enum_macro"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=13c20094#13c2009445b3f601436f798664531c44f4eecedb"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=68a673f1#68a673f14d9c441cee8a4fc9e364aca56cce29c4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2197,7 +2197,7 @@ dependencies = [
 [[package]]
 name = "models"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=13c20094#13c2009445b3f601436f798664531c44f4eecedb"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=68a673f1#68a673f14d9c441cee8a4fc9e364aca56cce29c4"
 dependencies = [
  "accessor",
  "enum_macro",
@@ -2208,7 +2208,7 @@ dependencies = [
 [[package]]
 name = "movement"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=13c20094#13c2009445b3f601436f798664531c44f4eecedb"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=68a673f1#68a673f14d9c441cee8a4fc9e364aca56cce29c4"
 dependencies = [
  "packets",
  "tracing",
@@ -2700,7 +2700,7 @@ dependencies = [
 [[package]]
 name = "packets"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=13c20094#13c2009445b3f601436f798664531c44f4eecedb"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=68a673f1#68a673f14d9c441cee8a4fc9e364aca56cce29c4"
 dependencies = [
  "byteorder",
  "json-flat-parser",
@@ -3045,9 +3045,15 @@ dependencies = [
 name = "ragnarok-ui-component"
 version = "0.1.0"
 dependencies = [
+ "image",
+ "ragnarok-formats",
  "ragnarok-game",
  "ragnarok-renderer",
  "ragnarok-ui",
+ "tracing",
+ "tracing-subscriber",
+ "wgpu 28.0.0",
+ "winit",
 ]
 
 [[package]]

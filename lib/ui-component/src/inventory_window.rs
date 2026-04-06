@@ -24,10 +24,9 @@ const ICON_SIZE: f32 = 24.0;
 const ICON_PAD: f32 = 4.0;
 const TITLE_H: f32 = 17.0;
 const FOOTER_H: f32 = 19.0;
-const SCROLLBAR_W: f32 = 13.0;
-const SCROLL_BTN_H: f32 = 14.0;
+use crate::scrollbar::{self, ScrollbarIds, SCROLLBAR_W};
 const PAD_X: f32 = 12.0;
-const PAD_Y: f32 = 10.0;
+const PAD_Y: f32 = 4.0;
 const RESIZE_BTN_SIZE: f32 = 13.0;
 const MINI_BTN_SIZE: f32 = 11.0;
 
@@ -43,8 +42,6 @@ const DEFAULT_ROWS: usize = 2;
 const TITLEBAR_TEX: &str = "data/texture/유저인터페이스/basic_interface/titlebar_mid.bmp";
 const ITEMWIN_MID_TEX: &str = "data/texture/유저인터페이스/basic_interface/itemwin_mid.bmp";
 const FOOTER_TEX: &str = "data/texture/유저인터페이스/basic_interface/btnbar_mid2.bmp";
-const SCROLL_UP_TEX: &str = "data/texture/유저인터페이스/basic_interface/dialscr_up.bmp";
-const SCROLL_DOWN_TEX: &str = "data/texture/유저인터페이스/basic_interface/dialscr_down.bmp";
 const TAB_USABLE_TEX: &str = "data/texture/유저인터페이스/basic_interface/tab_itm_01.bmp";
 const TAB_EQUIP_TEX: &str = "data/texture/유저인터페이스/basic_interface/tab_itm_02.bmp";
 const TAB_ETC_TEX: &str = "data/texture/유저인터페이스/basic_interface/tab_itm_03.bmp";
@@ -55,13 +52,6 @@ const SYS_BASE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interfa
 const SYS_BASE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_on.bmp";
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
-
-#[derive(Default)]
-struct ScrollThumbState {
-    dragging: bool,
-    start_mouse: f32,
-    start_value: f32,
-}
 
 #[derive(Default)]
 struct ResizeState {
@@ -205,13 +195,6 @@ impl InventoryWindow {
         let total_rows = (filtered_count + self.grid_cols - 1) / self.grid_cols.max(1);
         let max_scroll = total_rows.saturating_sub(self.grid_rows);
 
-        // Mouse wheel scroll
-        let content_rect = Rect::new(grid_area_x, container_y, grid_area_w, container_h);
-        if content_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) && ui.ctx.scroll_delta != 0.0 {
-            let delta = if ui.ctx.scroll_delta > 0.0 { -1i32 } else { 1 };
-            self.scroll_offset = (self.scroll_offset as i32 + delta).clamp(0, max_scroll as i32) as usize;
-        }
-
         // Render grid items
         let grid_x = grid_area_x + (PAD_X);
         let grid_y = container_y + (PAD_Y);
@@ -219,6 +202,7 @@ impl InventoryWindow {
         let icon = ICON_SIZE ;
         let pad = ICON_PAD ;
 
+        let mut hovered_tooltip: Option<(f32, f32, String)> = None;
         {
             let filtered: Vec<&InventoryItem> = self.inventory.filtered_items();
             let start = self.scroll_offset * self.grid_cols;
@@ -259,9 +243,21 @@ impl InventoryWindow {
                 if item.count > 1 {
                     let count_str = item.count.to_string();
                     let count_w = ui.atlas.measure_text(&count_str);
-                    let count_x = cx + cell - count_w - (2.0);
-                    let count_y = cy + cell - (2.0);
+                    let count_x = cx + cell - count_w - 2.0;
+                    let count_y = cy + cell - 2.0;
+                    for (dx, dy) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)] {
+                        ui.text(count_x + dx, count_y + dy, &count_str, [0.0, 0.0, 0.0, 1.0]);
+                    }
                     ui.text(count_x, count_y, &count_str, [1.0, 1.0, 1.0, 1.0]);
+                }
+
+                if response.hovered() {
+                    let tooltip_text = if item.count > 1 {
+                        format!("{} {} ea", item.name, item.count)
+                    } else {
+                        item.name.clone()
+                    };
+                    hovered_tooltip = Some((ui.ctx.mouse_x, ui.ctx.mouse_y, tooltip_text));
                 }
 
                 // Begin drag on click for equipment items
@@ -295,9 +291,12 @@ impl InventoryWindow {
         // -- Scrollbar (only when needed) --
         if total_rows > self.grid_rows {
             let sb_x = grid_area_x + (PAD_X) + self.grid_cols as f32 * (CELL_SIZE);
-            self.draw_scrollbar(
-                self.grid_rows, max_scroll,
-                grf, ui, sb_x, container_y, container_h,
+            let content_rect = Rect::new(grid_area_x, container_y, grid_area_w, container_h);
+            self.scroll_offset = scrollbar::scrollbar(
+                ui,
+                ScrollbarIds { up: INV_SCROLL_UP_ID, down: INV_SCROLL_DOWN_ID, thumb: INV_SCROLL_THUMB_ID },
+                self.scroll_offset, self.grid_rows, max_scroll,
+                content_rect, sb_x, container_y, container_h,
             );
         }
 
@@ -421,111 +420,32 @@ impl InventoryWindow {
             }
         }
 
+        // Tooltip
+        if let Some((mx, my, text)) = hovered_tooltip {
+            let tw = ui.atlas.measure_text(&text);
+            let th = ui.atlas.line_height;
+            let pad_t = 4.0;
+            let tx = mx + 12.0;
+            let ty = my + 12.0;
+            let (v, idx) = draw::quad_vertices(tx - pad_t, ty - pad_t, tw + pad_t * 2.0, th + pad_t * 2.0, [0.0, 0.0, 0.0, 0.85]);
+            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
+            ui.text(tx, ty + th, &text, [1.0, 1.0, 1.0, 1.0]);
+        }
+
         ui.has_grf_textures = prev_grf;
         events
     }
 
-    fn draw_scrollbar(
-        &mut self,
-        visible_rows: usize,
-        max_scroll: usize,
-        has_grf: bool,
-        ui: &mut UiFrame, x: f32, y: f32, h: f32,
-    ) {
-        let scrollbar_w = SCROLLBAR_W ;
-        let scroll_btn_h = SCROLL_BTN_H ;
-
-        let (v, i) = draw::quad_vertices(x, y, scrollbar_w, h, [0.0, 0.0, 0.0, 0.3]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-
-        // Up button
-        let up_rect = Rect::new(x, y, scrollbar_w, scroll_btn_h);
-        let up_response = ui.interact(INV_SCROLL_UP_ID, up_rect);
-        if up_response.hovered() { ui.any_interactive_hovered = true; }
-        if has_grf {
-            let (v, i) = draw::quad_vertices(x, y, scrollbar_w, scroll_btn_h, [1.0, 1.0, 1.0, 1.0]);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(SCROLL_UP_TEX.to_string()) });
-        } else {
-            let color = if up_response.hovered() { [0.5, 0.5, 0.6, 1.0] } else { [0.3, 0.3, 0.4, 1.0] };
-            let (v, i) = draw::quad_vertices(x, y, scrollbar_w, scroll_btn_h, color);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-        }
-        if up_response.clicked() && self.scroll_offset > 0 {
-            self.scroll_offset -= 1;
-        }
-
-        // Down button
-        let down_y = y + h - scroll_btn_h;
-        let down_rect = Rect::new(x, down_y, scrollbar_w, scroll_btn_h);
-        let down_response = ui.interact(INV_SCROLL_DOWN_ID, down_rect);
-        if down_response.hovered() { ui.any_interactive_hovered = true; }
-        if has_grf {
-            let (v, i) = draw::quad_vertices(x, down_y, scrollbar_w, scroll_btn_h, [1.0, 1.0, 1.0, 1.0]);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(SCROLL_DOWN_TEX.to_string()) });
-        } else {
-            let color = if down_response.hovered() { [0.5, 0.5, 0.6, 1.0] } else { [0.3, 0.3, 0.4, 1.0] };
-            let (v, i) = draw::quad_vertices(x, down_y, scrollbar_w, scroll_btn_h, color);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-        }
-        if down_response.clicked() && self.scroll_offset < max_scroll {
-            self.scroll_offset += 1;
-        }
-
-        // Thumb
-        if max_scroll > 0 {
-            let track_y = y + scroll_btn_h;
-            let track_h = h - 2.0 * scroll_btn_h;
-            let thumb_ratio = visible_rows as f32 / (visible_rows + max_scroll) as f32;
-            let thumb_h = (track_h * thumb_ratio).max(10.0 );
-            let scroll_ratio = self.scroll_offset as f32 / max_scroll as f32;
-            let thumb_y = track_y + scroll_ratio * (track_h - thumb_h);
-
-            let thumb_rect = Rect::new(x, thumb_y, scrollbar_w, thumb_h);
-            let hovered = thumb_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y);
-            if hovered { ui.any_interactive_hovered = true; }
-            let mouse_clicked = ui.ctx.mouse_clicked;
-            let mouse_down = ui.ctx.mouse_down;
-
-            let (thumb_active, new_scroll) = {
-                let t_drag = ui.state.get_or_default::<ScrollThumbState>(INV_SCROLL_THUMB_ID);
-                if hovered && mouse_clicked {
-                    t_drag.dragging = true;
-                    t_drag.start_mouse = ui.ctx.mouse_y;
-                    t_drag.start_value = self.scroll_offset as f32;
-                }
-                if !mouse_down {
-                    t_drag.dragging = false;
-                }
-                let active = t_drag.dragging;
-                let new = if t_drag.dragging {
-                    let dy = ui.ctx.mouse_y - t_drag.start_mouse;
-                    let scroll_per_px = max_scroll as f32 / (track_h - thumb_h).max(1.0);
-                    Some((t_drag.start_value + dy * scroll_per_px).round() as i32)
-                } else {
-                    None
-                };
-                (active, new)
-            };
-
-            if let Some(ns) = new_scroll {
-                self.scroll_offset = ns.clamp(0, max_scroll as i32) as usize;
-            }
-
-            let thumb_color = if thumb_active { [0.6, 0.6, 0.7, 0.9] } else { [0.5, 0.5, 0.6, 0.8] };
-            let (v, i) = draw::quad_vertices(x + (2.0), thumb_y, scrollbar_w - (4.0), thumb_h, thumb_color);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-        }
-    }
-
     pub fn grf_texture_paths() -> Vec<&'static str> {
-        vec![
+        let mut paths = vec![
             TITLEBAR_TEX, ITEMWIN_MID_TEX, FOOTER_TEX,
-            SCROLL_UP_TEX, SCROLL_DOWN_TEX,
             TAB_USABLE_TEX, TAB_EQUIP_TEX, TAB_ETC_TEX,
             MINI_OFF_TEX, MINI_ON_TEX, RESIZE_TEX,
             SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
             CLOSE_OFF_TEX, CLOSE_ON_TEX,
-        ]
+        ];
+        paths.extend(scrollbar::grf_texture_paths());
+        paths
     }
 }
 

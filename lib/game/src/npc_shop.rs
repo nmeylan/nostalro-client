@@ -173,6 +173,14 @@ impl NpcShopData {
         self.selected_index = None;
     }
 
+    pub fn resolve_resource_names(&mut self, table: &crate::item_resource_table::ItemResourceTable) {
+        for item in &mut self.buy_items {
+            if item.resource_name.is_none() {
+                item.resource_name = table.get_resource_name(item.item_id).map(|s| s.to_string());
+            }
+        }
+    }
+
     pub fn close(&mut self) {
         self.mode = None;
         self.npc_id = 0;

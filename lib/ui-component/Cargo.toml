@@ -9,3 +9,10 @@ ragnarok-game = { workspace = true }
 
 [dev-dependencies]
 ragnarok-renderer = { workspace = true }
+ragnarok-formats = { workspace = true }
+winit = { workspace = true }
+wgpu = { workspace = true }
+image = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+libloading = { workspace = true }

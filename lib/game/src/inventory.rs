@@ -1,5 +1,6 @@
 use models::enums::EnumWithMaskValueU64;
 pub use models::enums::item::EquipmentLocation;
+use crate::item_resource_table::ItemResourceTable;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InventoryTab {
@@ -148,6 +149,14 @@ impl InventoryData {
 
     pub fn all_items(&self) -> &[InventoryItem] {
         &self.items
+    }
+
+    pub fn resolve_resource_names(&mut self, table: &ItemResourceTable) {
+        for item in &mut self.items {
+            if item.resource_name.is_none() {
+                item.resource_name = table.get_resource_name(item.item_id).map(|s| s.to_string());
+            }
+        }
     }
 
     pub fn clear(&mut self) {

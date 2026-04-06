@@ -201,6 +201,15 @@ impl Entity {
         }
     }
 
+    pub fn wear_location_to_sprite_type(wear_location: u16) -> Option<u8> {
+        if wear_location & 256 != 0 { Some(4) }       // HeadTop
+        else if wear_location & 512 != 0 { Some(5) }  // HeadMid
+        else if wear_location & 1 != 0 { Some(3) }    // HeadLow
+        else if wear_location & 2 != 0 { Some(2) }    // Weapon (HandRight)
+        else if wear_location & 32 != 0 { Some(8) }   // Shield (HandLeft)
+        else { None }
+    }
+
     pub fn hp_percentage(&self) -> Option<f32> {
         match (self.hp, self.max_hp) {
             (Some(hp), Some(max_hp)) if max_hp > 0 => Some(hp as f32 / max_hp as f32),

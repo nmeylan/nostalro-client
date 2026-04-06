@@ -456,12 +456,14 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     // Equip/unequip ack v1/v2
     if let Some(p) = any.downcast_ref::<PacketZcReqWearEquipAck>() {
         return vec![GameEvent::InventoryEquipResult {
-            index: p.index, wear_location: p.wear_location, success: p.result == 0,
+            index: p.index, wear_location: p.wear_location, view_id: p.view_id,
+            success: p.result == 1,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcReqWearEquipAck2>() {
         return vec![GameEvent::InventoryEquipResult {
-            index: p.index, wear_location: p.wear_location, success: p.result == 0,
+            index: p.index, wear_location: p.wear_location, view_id: p.view_id,
+            success: p.result == 0,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcReqTakeoffEquipAck>() {

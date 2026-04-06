@@ -188,7 +188,7 @@ pub enum GameEvent {
         slot: [u16; 4], location: u16, result: u8,
     },
     InventoryUseItemResult { index: u16, count: i16, success: bool },
-    InventoryEquipResult { index: u16, wear_location: u16, success: bool },
+    InventoryEquipResult { index: u16, wear_location: u16, view_id: u16, success: bool },
     InventoryUnequipResult { index: u16, wear_location: u16, success: bool },
     InventoryItemRemoved { index: u16, count: i16 },
 

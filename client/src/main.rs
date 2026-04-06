@@ -932,17 +932,28 @@ impl App {
                 GameEvent::InventoryEquipResult {
                     index,
                     wear_location,
+                    view_id,
                     success,
                 } => {
                     tracing::debug!(
-                        "EquipResult: idx={} wear_loc={} success={}",
-                        index, wear_location, success,
+                        "EquipResult: idx={} wear_loc={} view_id={} success={}",
+                        index, wear_location, view_id, success,
                     );
                     if success {
                         self.game
                             .inventory_window
                             .inventory
                             .update_wear_state(index, wear_location);
+                        if view_id != 0 {
+                            if let Some(sprite_type) = Entity::wear_location_to_sprite_type(wear_location) {
+                                if let Some(player_id) = self.game.entities.player_id() {
+                                    if let Some(entity) = self.game.entities.get_mut(player_id) {
+                                        entity.apply_sprite_change(sprite_type, view_id);
+                                    }
+                                    self.reload_player_sprite(player_id);
+                                }
+                            }
+                        }
                     }
                 }
                 GameEvent::InventoryUnequipResult { index, success, wear_location } => {
@@ -952,6 +963,14 @@ impl App {
                     );
                     if success {
                         self.game.inventory_window.inventory.clear_wear_state(index);
+                        if let Some(sprite_type) = Entity::wear_location_to_sprite_type(wear_location) {
+                            if let Some(player_id) = self.game.entities.player_id() {
+                                if let Some(entity) = self.game.entities.get_mut(player_id) {
+                                    entity.apply_sprite_change(sprite_type, 0);
+                                }
+                                self.reload_player_sprite(player_id);
+                            }
+                        }
                     }
                 }
                 GameEvent::InventoryItemRemoved { index, count } => {
@@ -1203,6 +1222,28 @@ impl App {
                 _ => {}
             }
         }
+    }
+
+    fn reload_player_sprite(&mut self, gid: u32) {
+        let entity = match self.game.entities.get(gid) {
+            Some(e) => e,
+            None => return,
+        };
+        let job = entity.job;
+        let sex = entity.sex;
+        let head = entity.head;
+        let weapon = entity.weapon.map(|w| w as u16).unwrap_or(0);
+        let shield = entity.shield;
+        let head_top = entity.head_top;
+        let head_mid = entity.head_mid;
+        let head_bottom = entity.head_bottom;
+        let hair_color = entity.hair_color;
+        let cloth_color = entity.cloth_color;
+        let weapon_type = weapon_view_id_to_type(weapon);
+        self.load_player_sprite(
+            gid, job, sex, head, hair_color, cloth_color,
+            weapon_type, head_top, head_mid, head_bottom, shield,
+        );
     }
 
     fn load_player_sprite(

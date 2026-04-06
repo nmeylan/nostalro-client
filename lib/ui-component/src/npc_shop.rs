@@ -39,8 +39,7 @@ const INPUT_DEFAULT_ROWS: usize = 7;
 const OUTPUT_VISIBLE_ROWS: usize = 2;
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
-const SCROLLBAR_W: f32 = 14.0;
-const SCROLL_BTN_H: f32 = 14.0;
+use crate::scrollbar::{self, ScrollbarIds, SCROLLBAR_W};
 const ICON_SIZE: f32 = 24.0;
 const ICON_OFFSET_X: f32 = 4.0;
 const ICON_OFFSET_Y: f32 = 2.0;
@@ -65,19 +64,10 @@ const CANCEL_BTN_TEX: ButtonTextures = ButtonTextures {
 const TITLEBAR_TEX: &str = "data/texture/유저인터페이스/basic_interface/titlebar_mid.bmp";
 const ITEMWIN_MID_TEX: &str = "data/texture/유저인터페이스/basic_interface/itemwin_mid.bmp";
 const FOOTER_TEX: &str = "data/texture/유저인터페이스/basic_interface/btnbar_mid2.bmp";
-const SCROLL_UP_TEX: &str = "data/texture/유저인터페이스/basic_interface/dialscr_up.bmp";
-const SCROLL_DOWN_TEX: &str = "data/texture/유저인터페이스/basic_interface/dialscr_down.bmp";
 const SYS_BASE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_off.bmp";
 const SYS_BASE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_on.bmp";
 const RESIZE_TEX: &str = "data/texture/유저인터페이스/btn_resize.bmp";
 const RESIZE_BTN_SIZE: f32 = 13.0;
-
-#[derive(Default)]
-struct ScrollThumbState {
-    dragging: bool,
-    start_mouse: f32,
-    start_value: f32,
-}
 
 #[derive(Default)]
 struct ResizeState {
@@ -233,16 +223,7 @@ impl NpcShop {
         let container_h = win_h - title_h - footer_h;
         draw_container(ui, win.x, container_y, win_w, container_h, grf);
 
-        // Scroll via mouse wheel
         let max_scroll = item_count.saturating_sub(self.input_visible_rows);
-        let content_rect = Rect::new(win.x, container_y, win_w, container_h);
-        if content_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) && ui.ctx.scroll_delta != 0.0 {
-            let delta = if ui.ctx.scroll_delta > 0.0 { -1i32 } else { 1 };
-            self.scroll_offset = (self.scroll_offset as i32 + delta).clamp(0, max_scroll as i32) as usize;
-        }
-        if self.scroll_offset > max_scroll {
-            self.scroll_offset = max_scroll;
-        }
 
         // Item rows
         let list_y = container_y + pad_y;
@@ -334,10 +315,12 @@ impl NpcShop {
         // Scrollbar
         if item_count > self.input_visible_rows {
             let sb_x = win.x + win_w - scrollbar_w - (1.0);
-            Self::draw_scrollbar(
-                &mut self.scroll_offset, self.input_visible_rows, max_scroll,
-                SCROLL_UP_ID, SCROLL_DOWN_ID, SCROLL_THUMB_ID,
-                grf, ui, sb_x, container_y, container_h,
+            let content_rect = Rect::new(win.x, container_y, win_w, container_h);
+            self.scroll_offset = scrollbar::scrollbar(
+                ui,
+                ScrollbarIds { up: SCROLL_UP_ID, down: SCROLL_DOWN_ID, thumb: SCROLL_THUMB_ID },
+                self.scroll_offset, self.input_visible_rows, max_scroll,
+                content_rect, sb_x, container_y, container_h,
             );
         }
 
@@ -430,17 +413,7 @@ impl NpcShop {
         let has_scrollbar = cart_count > visible;
         let row_content_w = win_w - pad_left - pad_right - if has_scrollbar { scrollbar_w } else { 0.0 };
 
-        // Scroll via mouse wheel
         let max_scroll = cart_count.saturating_sub(visible);
-        let content_rect = Rect::new(win.x, container_y, win_w, container_h);
-        if content_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) && ui.ctx.scroll_delta != 0.0 {
-            let delta = if ui.ctx.scroll_delta > 0.0 { -1i32 } else { 1 };
-            self.output_scroll_offset = (self.output_scroll_offset as i32 + delta).clamp(0, max_scroll as i32) as usize;
-        }
-        // Clamp scroll if cart shrunk
-        if self.output_scroll_offset > max_scroll {
-            self.output_scroll_offset = max_scroll;
-        }
 
         for i in 0..visible {
             let ci = self.output_scroll_offset + i;
@@ -505,10 +478,12 @@ impl NpcShop {
         // Scrollbar
         if has_scrollbar {
             let sb_x = win.x + win_w - scrollbar_w - (1.0);
-            Self::draw_scrollbar(
-                &mut self.output_scroll_offset, visible, max_scroll,
-                OUT_SCROLL_UP_ID, OUT_SCROLL_DOWN_ID, OUT_SCROLL_THUMB_ID,
-                grf, ui, sb_x, container_y, container_h,
+            let content_rect = Rect::new(win.x, container_y, win_w, container_h);
+            self.output_scroll_offset = scrollbar::scrollbar(
+                ui,
+                ScrollbarIds { up: OUT_SCROLL_UP_ID, down: OUT_SCROLL_DOWN_ID, thumb: OUT_SCROLL_THUMB_ID },
+                self.output_scroll_offset, visible, max_scroll,
+                content_rect, sb_x, container_y, container_h,
             );
         }
 
@@ -618,100 +593,6 @@ impl NpcShop {
         }
     }
 
-    fn draw_scrollbar(
-        scroll_offset: &mut usize,
-        visible_rows: usize,
-        max_scroll: usize,
-        up_id: WidgetId, down_id: WidgetId, thumb_id: WidgetId,
-        has_grf: bool,
-        ui: &mut UiFrame, x: f32, y: f32, h: f32,
-    ) {
-        let scrollbar_w = SCROLLBAR_W ;
-        let scroll_btn_h = SCROLL_BTN_H ;
-
-        // Track background
-        let (v, i) = draw::quad_vertices(x, y, scrollbar_w, h, [0.0, 0.0, 0.0, 0.3]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-
-        // Up button
-        let up_rect = Rect::new(x, y, scrollbar_w, scroll_btn_h);
-        let up_response = ui.interact(up_id, up_rect);
-        if up_response.hovered() { ui.any_interactive_hovered = true; }
-        if has_grf {
-            let (v, i) = draw::quad_vertices(x, y, scrollbar_w, scroll_btn_h, [1.0, 1.0, 1.0, 1.0]);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(SCROLL_UP_TEX.to_string()) });
-        } else {
-            let color = if up_response.hovered() { [0.5, 0.5, 0.6, 1.0] } else { [0.3, 0.3, 0.4, 1.0] };
-            let (v, i) = draw::quad_vertices(x, y, scrollbar_w, scroll_btn_h, color);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-        }
-        if up_response.clicked() && *scroll_offset > 0 {
-            *scroll_offset -= 1;
-        }
-
-        // Down button
-        let down_y = y + h - scroll_btn_h;
-        let down_rect = Rect::new(x, down_y, scrollbar_w, scroll_btn_h);
-        let down_response = ui.interact(down_id, down_rect);
-        if down_response.hovered() { ui.any_interactive_hovered = true; }
-        if has_grf {
-            let (v, i) = draw::quad_vertices(x, down_y, scrollbar_w, scroll_btn_h, [1.0, 1.0, 1.0, 1.0]);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(SCROLL_DOWN_TEX.to_string()) });
-        } else {
-            let color = if down_response.hovered() { [0.5, 0.5, 0.6, 1.0] } else { [0.3, 0.3, 0.4, 1.0] };
-            let (v, i) = draw::quad_vertices(x, down_y, scrollbar_w, scroll_btn_h, color);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-        }
-        if down_response.clicked() && *scroll_offset < max_scroll {
-            *scroll_offset += 1;
-        }
-
-        // Thumb
-        if max_scroll > 0 {
-            let track_y = y + scroll_btn_h;
-            let track_h = h - 2.0 * scroll_btn_h;
-            let thumb_ratio = visible_rows as f32 / (visible_rows + max_scroll) as f32;
-            let thumb_h = (track_h * thumb_ratio).max(10.0 );
-            let scroll_ratio = *scroll_offset as f32 / max_scroll as f32;
-            let thumb_y = track_y + scroll_ratio * (track_h - thumb_h);
-
-            let thumb_rect = Rect::new(x, thumb_y, scrollbar_w, thumb_h);
-            let hovered = thumb_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y);
-            if hovered { ui.any_interactive_hovered = true; }
-            let mouse_clicked = ui.ctx.mouse_clicked;
-            let mouse_down = ui.ctx.mouse_down;
-
-            let (thumb_active, new_scroll) = {
-                let t_drag = ui.state.get_or_default::<ScrollThumbState>(thumb_id);
-                if hovered && mouse_clicked {
-                    t_drag.dragging = true;
-                    t_drag.start_mouse = ui.ctx.mouse_y;
-                    t_drag.start_value = *scroll_offset as f32;
-                }
-                if !mouse_down {
-                    t_drag.dragging = false;
-                }
-                let active = t_drag.dragging;
-                let new = if t_drag.dragging {
-                    let dy = ui.ctx.mouse_y - t_drag.start_mouse;
-                    let scroll_per_px = max_scroll as f32 / (track_h - thumb_h).max(1.0);
-                    Some((t_drag.start_value + dy * scroll_per_px).round() as i32)
-                } else {
-                    None
-                };
-                (active, new)
-            };
-
-            if let Some(ns) = new_scroll {
-                *scroll_offset = ns.clamp(0, max_scroll as i32) as usize;
-            }
-
-            let thumb_color = if thumb_active { [0.6, 0.6, 0.7, 0.9] } else { [0.5, 0.5, 0.6, 0.8] };
-            let (v, i) = draw::quad_vertices(x + (2.0), thumb_y, scrollbar_w - (4.0), thumb_h, thumb_color);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-        }
-    }
-
     pub fn close(&mut self) {
         self.shop.close();
         self.qty_popup_open = false;
@@ -723,14 +604,15 @@ impl NpcShop {
     }
 
     pub fn grf_texture_paths() -> Vec<&'static str> {
-        vec![
+        let mut paths = vec![
             OK_BTN.normal, OK_BTN.hover, OK_BTN.pressed,
             CANCEL_BTN_TEX.normal, CANCEL_BTN_TEX.hover, CANCEL_BTN_TEX.pressed,
             TITLEBAR_TEX, ITEMWIN_MID_TEX, FOOTER_TEX,
-            SCROLL_UP_TEX, SCROLL_DOWN_TEX,
             SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
             RESIZE_TEX,
-        ]
+        ];
+        paths.extend(scrollbar::grf_texture_paths());
+        paths
     }
 }
 
