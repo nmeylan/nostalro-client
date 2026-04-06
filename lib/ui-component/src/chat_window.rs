@@ -248,23 +248,22 @@ impl ChatWindow {
 
     pub fn build(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
         let mut events = Vec::new();
-        let s = |v: f32| ui.ctx.with_ui_scale(v);
         let screen_h = ui.ctx.screen_height;
-        let input_h = s(INPUT_H);
-        let toolbar_h = s(TOOLBAR_H);
-        let padding = s(PADDING);
-        let line_h = s(LINE_H);
-        let scrollbar_w = s(SCROLLBAR_W);
-        let max_msg_h = screen_h - input_h - s(50.0);
+        let input_h = INPUT_H ;
+        let toolbar_h = TOOLBAR_H ;
+        let padding = PADDING ;
+        let line_h = LINE_H ;
+        let scrollbar_w = SCROLLBAR_W ;
+        let max_msg_h = screen_h - input_h - (50.0);
 
         // Initialize or read persistent state
         let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
         if !state.initialized {
             state.size_index = DEFAULT_SIZE_INDEX;
-            state.msg_area_h = SIZE_CYCLE[DEFAULT_SIZE_INDEX] * ui.ctx.ui_scale;
-            state.chat_w = s(DEFAULT_CHAT_W);
+            state.msg_area_h = SIZE_CYCLE[DEFAULT_SIZE_INDEX];
+            state.chat_w = DEFAULT_CHAT_W ;
             state.pos_x = padding;
-            let default_h = SIZE_CYCLE[DEFAULT_SIZE_INDEX] * ui.ctx.ui_scale + toolbar_h + input_h;
+            let default_h = SIZE_CYCLE[DEFAULT_SIZE_INDEX] + toolbar_h + input_h;
             state.pos_y = screen_h - default_h - padding;
             state.initialized = true;
         }
@@ -272,7 +271,7 @@ impl ChatWindow {
         // F10 cycles through predefined sizes
         if ui.ctx.key_f10 {
             state.size_index = (state.size_index + 1) % SIZE_CYCLE.len();
-            state.msg_area_h = SIZE_CYCLE[state.size_index] * ui.ctx.ui_scale;
+            state.msg_area_h = SIZE_CYCLE[state.size_index];
         }
 
         let size_index = state.size_index;
@@ -296,7 +295,7 @@ impl ChatWindow {
         // Height drag handle (between message area and input)
         if show_messages {
             let handle_center_y = chat_y + msg_area_h;
-            let handle_rect = Rect::new(chat_x, handle_center_y - s(DRAG_HIT_AREA) / 2.0, chat_w, s(DRAG_HIT_AREA));
+            let handle_rect = Rect::new(chat_x, handle_center_y - (DRAG_HIT_AREA) / 2.0, chat_w, DRAG_HIT_AREA );
             let h_drag = ui.state.get_or_default::<DragHandleState>(HEIGHT_DRAG_ID);
             let hovered = handle_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y);
 
@@ -326,7 +325,7 @@ impl ChatWindow {
         // Width drag handle (right edge)
         {
             let right_edge_x = chat_x + chat_w;
-            let handle_rect = Rect::new(right_edge_x - s(DRAG_HIT_AREA) / 2.0, chat_y, s(DRAG_HIT_AREA), total_h);
+            let handle_rect = Rect::new(right_edge_x - (DRAG_HIT_AREA) / 2.0, chat_y, DRAG_HIT_AREA , total_h);
             let w_drag = ui.state.get_or_default::<DragHandleState>(WIDTH_DRAG_ID);
             let hovered = handle_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y);
 
@@ -338,7 +337,7 @@ impl ChatWindow {
             if w_drag.dragging {
                 if ui.ctx.mouse_down {
                     let delta = ui.ctx.mouse_x - w_drag.start_mouse;
-                    chat_w = (w_drag.start_value + delta).clamp(s(MIN_CHAT_W), s(MAX_CHAT_W));
+                    chat_w = (w_drag.start_value + delta).clamp(MIN_CHAT_W , MAX_CHAT_W );
                 } else {
                     w_drag.dragging = false;
                 }
@@ -512,9 +511,9 @@ impl ChatWindow {
 
             // Compute input rects — scale to match DIALOG_BG texture layout when available
             let (whisper_rect, msg_rect, input_bg) = if self.has_grf_textures {
-                let scale = chat_w / s(DIALOG_BG_W);
-                let wr = Rect::new(chat_x + s(DIALOG_BG_WHISPER_X) * scale, input_y, s(DIALOG_BG_WHISPER_W) * scale, input_h);
-                let mr = Rect::new(chat_x + s(DIALOG_BG_MSG_X) * scale, input_y, s(DIALOG_BG_MSG_W) * scale, input_h);
+                let scale = chat_w / (DIALOG_BG_W);
+                let wr = Rect::new(chat_x + (DIALOG_BG_WHISPER_X) * scale, input_y, (DIALOG_BG_WHISPER_W) * scale, input_h);
+                let mr = Rect::new(chat_x + (DIALOG_BG_MSG_X) * scale, input_y, (DIALOG_BG_MSG_W) * scale, input_h);
 
                 let input_row = Rect::new(chat_x, input_y, chat_w, input_h);
                 let (v, i) = ragnarok_ui::draw::quad_vertices(input_row.x, input_row.y, input_row.w, input_row.h, [1.0; 4]);
@@ -525,9 +524,9 @@ impl ChatWindow {
                 });
                 (wr, mr, TextInputBg::Transparent)
             } else {
-                let wr = Rect::new(chat_x, input_y, s(WHISPER_INPUT_W), input_h);
-                let msg_x = chat_x + s(WHISPER_INPUT_W) + s(INPUT_GAP);
-                let msg_w = chat_w - s(WHISPER_INPUT_W) - s(INPUT_GAP);
+                let wr = Rect::new(chat_x, input_y, WHISPER_INPUT_W , input_h);
+                let msg_x = chat_x + (WHISPER_INPUT_W) + (INPUT_GAP);
+                let msg_w = chat_w - (WHISPER_INPUT_W) - (INPUT_GAP);
                 let mr = Rect::new(msg_x, input_y, msg_w, input_h);
                 (wr, mr, TextInputBg::Default)
             };
@@ -555,9 +554,8 @@ impl ChatWindow {
 
     fn draw_visual_lines(&self, ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, scroll_offset: usize, visual_lines: &[(String, [f32; 4])]) {
         use ragnarok_ui::draw;
-        let s = |v: f32| ui.ctx.with_ui_scale(v);
-        let line_h = s(LINE_H);
-        let padding = s(PADDING);
+        let line_h = LINE_H ;
+        let padding = PADDING ;
 
         // Semi-transparent background
         let bg_color = [0.0, 0.0, 0.0, 0.8];
@@ -581,10 +579,9 @@ impl ChatWindow {
 
     fn draw_scrollbar_filtered(&self, ui: &mut UiFrame, x: f32, y: f32, h: f32, scroll_offset: usize, total: usize) {
         use ragnarok_ui::draw;
-        let s = |v: f32| ui.ctx.with_ui_scale(v);
-        let line_h = s(LINE_H);
-        let scrollbar_w = s(SCROLLBAR_W);
-        let scroll_btn_h = s(SCROLL_BTN_H);
+        let line_h = LINE_H ;
+        let scrollbar_w = SCROLLBAR_W ;
+        let scroll_btn_h = SCROLL_BTN_H ;
 
         let max_lines = (h / line_h) as usize;
         let max_scroll = total.saturating_sub(max_lines);
@@ -616,7 +613,7 @@ impl ChatWindow {
                 indices: i.to_vec(),
                 texture: draw::TextureRef::White,
             });
-            ui.text(x + s(3.0), y + ui.atlas.line_height, "\u{25B2}", [0.8, 0.8, 0.8, 1.0]);
+            ui.text(x + (3.0), y + ui.atlas.line_height, "\u{25B2}", [0.8, 0.8, 0.8, 1.0]);
         }
 
         // Down button
@@ -638,7 +635,7 @@ impl ChatWindow {
                 indices: i.to_vec(),
                 texture: draw::TextureRef::White,
             });
-            ui.text(x + s(3.0), down_y + ui.atlas.line_height, "\u{25BC}", [0.8, 0.8, 0.8, 1.0]);
+            ui.text(x + (3.0), down_y + ui.atlas.line_height, "\u{25BC}", [0.8, 0.8, 0.8, 1.0]);
         }
 
         // Handle scroll button clicks
@@ -693,7 +690,7 @@ impl ChatWindow {
             }
 
             let thumb_color = if thumb_active { [0.6, 0.6, 0.7, 0.9] } else { [0.5, 0.5, 0.6, 0.8] };
-            let (v, i) = draw::quad_vertices(x + s(2.0), thumb_y, scrollbar_w - s(4.0), thumb_h, thumb_color);
+            let (v, i) = draw::quad_vertices(x + (2.0), thumb_y, scrollbar_w - (4.0), thumb_h, thumb_color);
             ui.draw_calls.push(draw::DrawCall {
                 vertices: v.to_vec(),
                 indices: i.to_vec(),
@@ -704,10 +701,9 @@ impl ChatWindow {
 
     fn draw_toolbar(&self, ui: &mut UiFrame, x: f32, y: f32, w: f32, filter: ChatFilter, locked: bool) {
         use ragnarok_ui::draw;
-        let s = |v: f32| ui.ctx.with_ui_scale(v);
-        let toolbar_h = s(TOOLBAR_H);
-        let btn_size = s(TOOLBAR_BTN_SIZE);
-        let btn_gap = s(TOOLBAR_BTN_GAP);
+        let toolbar_h = TOOLBAR_H ;
+        let btn_size = TOOLBAR_BTN_SIZE ;
+        let btn_gap = TOOLBAR_BTN_GAP ;
 
         // Toolbar background
         let bg_color = [0.0, 0.0, 0.0, 0.3];
@@ -765,7 +761,7 @@ impl ChatWindow {
         btn_x -= btn_gap;
 
         // Chat mode toggle
-        let mode_w = btn_size + s(4.0);
+        let mode_w = btn_size + (4.0);
         btn_x -= mode_w;
         let mode_rect = Rect::new(btn_x, y, mode_w, toolbar_h);
         let mode_resp = ui.interact(CHATMODE_BTN_ID, mode_rect);
@@ -808,7 +804,7 @@ impl ChatWindow {
         btn_x -= btn_gap;
 
         // Filter button with label
-        let filter_w = s(24.0);
+        let filter_w = 24.0 ;
         btn_x -= filter_w;
         let filter_rect = Rect::new(btn_x, y, filter_w, toolbar_h);
         let filter_resp = ui.interact(FILTER_BTN_ID, filter_rect);
@@ -818,7 +814,7 @@ impl ChatWindow {
             vertices: v.to_vec(), indices: i.to_vec(),
             texture: draw::TextureRef::White,
         });
-        ui.text(btn_x + s(2.0), btn_visual_y + ui.atlas.line_height, filter.label(), [0.8, 0.8, 0.8, 1.0]);
+        ui.text(btn_x + (2.0), btn_visual_y + ui.atlas.line_height, filter.label(), [0.8, 0.8, 0.8, 1.0]);
 
         // Handle button clicks
         if lock_resp.clicked() {
@@ -904,7 +900,7 @@ mod tests {
 
     #[test]
     fn f10_cycles_through_all_sizes() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut chat = ChatWindow::new();
         let mut state = StateCache::new();
 
@@ -928,7 +924,7 @@ mod tests {
 
     #[test]
     fn hidden_mode_produces_no_draw_calls() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut chat = ChatWindow::new();
         let mut state = StateCache::new();
 
@@ -958,7 +954,7 @@ mod tests {
 
     #[test]
     fn collapsed_mode_shows_input_only_when_active() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut chat = ChatWindow::new();
         let mut state = StateCache::new();
 
@@ -992,7 +988,7 @@ mod tests {
 
     #[test]
     fn contains_point_checks_bounding_rect() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut chat = ChatWindow::new();
         let mut state = StateCache::new();
 
@@ -1009,7 +1005,7 @@ mod tests {
 
     #[test]
     fn height_drag_changes_msg_area_h() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut chat = ChatWindow::new();
         chat.active = true;
         let mut state = StateCache::new();
@@ -1044,7 +1040,7 @@ mod tests {
 
     #[test]
     fn width_drag_changes_chat_w() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut chat = ChatWindow::new();
         chat.active = true;
         let mut state = StateCache::new();
@@ -1080,7 +1076,7 @@ mod tests {
 
     #[test]
     fn drag_respects_min_max_constraints() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut chat = ChatWindow::new();
         chat.active = true;
         let mut state = StateCache::new();
@@ -1114,7 +1110,7 @@ mod tests {
 
     #[test]
     fn scroll_offset_clamps_to_valid_range() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut chat = ChatWindow::new();
         chat.active = true;
         let mut state = StateCache::new();
@@ -1149,7 +1145,7 @@ mod tests {
 
     #[test]
     fn mouse_wheel_scrolls_when_over_chat() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut chat = ChatWindow::new();
         chat.active = true;
         let mut state = StateCache::new();
@@ -1215,7 +1211,7 @@ mod tests {
 
     #[test]
     fn lock_button_prevents_drag() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut chat = ChatWindow::new();
         chat.active = true;
         let mut state = StateCache::new();
@@ -1253,7 +1249,7 @@ mod tests {
 
     #[test]
     fn chat_input_history_navigation() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut chat = ChatWindow::new();
         let mut state = StateCache::new();
 
@@ -1357,7 +1353,7 @@ mod tests {
 
     #[test]
     fn tab_switches_between_inputs() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut chat = ChatWindow::new();
         let mut state = StateCache::new();
 

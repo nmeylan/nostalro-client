@@ -161,8 +161,8 @@ impl App {
         input::hovered_cell(
             self.input.mouse_position,
             &renderer.camera,
-            renderer.device.surface_config.width as f32,
-            renderer.device.surface_config.height as f32,
+            renderer.device.surface_config.width as f32 / renderer.dpi_scale,
+            renderer.device.surface_config.height as f32 / renderer.dpi_scale,
             coords,
             self.game.gat.as_ref(),
         )
@@ -263,12 +263,7 @@ impl App {
                         server_win.has_grf_textures =
                             renderer.preload_textures(&ServerListWindow::grf_texture_paths(), grf);
                         if server_win.has_grf_textures {
-                            let ui_scale = self.config.ui_scale / 100.0;
-                            server_win.set_texture_sizes(|name| {
-                                renderer.texture_cache.texture_size(name).map(|(w, h)| {
-                                    ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
-                                })
-                            });
+                            server_win.set_texture_sizes(|name| renderer.texture_cache.texture_size(name));
                         }
                     }
                     self.server_list_window = Some(server_win);
@@ -294,12 +289,7 @@ impl App {
                         char_win.has_grf_textures =
                             renderer.preload_textures(&CharSelectWindow::grf_texture_paths(), grf);
                         if char_win.has_grf_textures {
-                            let ui_scale = self.config.ui_scale / 100.0;
-                            char_win.set_texture_sizes(|name| {
-                                renderer.texture_cache.texture_size(name).map(|(w, h)| {
-                                    ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
-                                })
-                            });
+                            char_win.set_texture_sizes(|name| renderer.texture_cache.texture_size(name));
                         }
                     }
                     self.char_select_window = Some(char_win);
@@ -437,32 +427,17 @@ impl App {
                         self.game.system_menu.has_grf_textures =
                             renderer.preload_textures(&SystemMenu::grf_texture_paths(), grf);
                         if self.game.system_menu.has_grf_textures {
-                            let ui_scale = self.config.ui_scale / 100.0;
-                            self.game.system_menu.set_texture_sizes(|name| {
-                                renderer.texture_cache.texture_size(name).map(|(w, h)| {
-                                    ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
-                                })
-                            });
+                            self.game.system_menu.set_texture_sizes(|name| renderer.texture_cache.texture_size(name));
                         }
                         self.game.inventory_window.has_grf_textures =
                             renderer.preload_textures(&InventoryWindow::grf_texture_paths(), grf);
                         if self.game.inventory_window.has_grf_textures {
-                            let ui_scale = self.config.ui_scale / 100.0;
-                            self.game.inventory_window.set_texture_sizes(|name| {
-                                renderer.texture_cache.texture_size(name).map(|(w, h)| {
-                                    ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
-                                })
-                            });
+                            self.game.inventory_window.set_texture_sizes(|name| renderer.texture_cache.texture_size(name));
                         }
                         self.game.equipment_window.has_grf_textures =
                             renderer.preload_textures(&EquipmentWindow::grf_texture_paths(), grf);
-                        let ui_scale = self.config.ui_scale / 100.0;
                         if self.game.equipment_window.has_grf_textures {
-                            self.game.equipment_window.set_texture_sizes(|name| {
-                                renderer.texture_cache.texture_size(name).map(|(w, h)| {
-                                    ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
-                                })
-                            });
+                            self.game.equipment_window.set_texture_sizes(|name| renderer.texture_cache.texture_size(name));
                         }
                     }
 
@@ -1451,13 +1426,7 @@ impl App {
             self.game.npc_dialog.has_grf_textures =
                 renderer.preload_textures(&NpcDialog::grf_texture_paths(), grf);
             if self.game.npc_dialog.has_grf_textures {
-                let ui_scale = self.config.ui_scale / 100.0;
-                self.game.npc_dialog.set_texture_sizes(|name| {
-                    renderer
-                        .texture_cache
-                        .texture_size(name)
-                        .map(|(w, h)| ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32))
-                });
+                self.game.npc_dialog.set_texture_sizes(|name| renderer.texture_cache.texture_size(name));
             }
         }
     }
@@ -1470,13 +1439,7 @@ impl App {
             self.game.npc_shop.has_grf_textures =
                 renderer.preload_textures(&NpcShop::grf_texture_paths(), grf);
             if self.game.npc_shop.has_grf_textures {
-                let ui_scale = self.config.ui_scale / 100.0;
-                self.game.npc_shop.set_texture_sizes(|name| {
-                    renderer
-                        .texture_cache
-                        .texture_size(name)
-                        .map(|(w, h)| ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32))
-                });
+                self.game.npc_shop.set_texture_sizes(|name| renderer.texture_cache.texture_size(name));
             }
             // Preload item icon textures
             let icon_paths: Vec<String> = self
@@ -1502,24 +1465,14 @@ impl App {
                 self.game.inventory_window.has_grf_textures =
                     renderer.preload_textures(&InventoryWindow::grf_texture_paths(), grf);
                 if self.game.inventory_window.has_grf_textures {
-                    let ui_scale = self.config.ui_scale / 100.0;
-                    self.game.inventory_window.set_texture_sizes(|name| {
-                        renderer.texture_cache.texture_size(name).map(|(w, h)| {
-                            ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
-                        })
-                    });
+                    self.game.inventory_window.set_texture_sizes(|name| renderer.texture_cache.texture_size(name));
                 }
             }
             if !self.game.equipment_window.has_grf_textures {
                 self.game.equipment_window.has_grf_textures =
                     renderer.preload_textures(&EquipmentWindow::grf_texture_paths(), grf);
                 if self.game.equipment_window.has_grf_textures {
-                    let ui_scale = self.config.ui_scale / 100.0;
-                    self.game.equipment_window.set_texture_sizes(|name| {
-                        renderer.texture_cache.texture_size(name).map(|(w, h)| {
-                            ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
-                        })
-                    });
+                    self.game.equipment_window.set_texture_sizes(|name| renderer.texture_cache.texture_size(name));
                 }
             }
             // Preload item icon textures
@@ -2034,8 +1987,8 @@ impl App {
                         self.game.gat.as_ref(),
                         coords,
                         &renderer.camera,
-                        renderer.device.surface_config.width as f32,
-                        renderer.device.surface_config.height as f32,
+                        renderer.device.surface_config.width as f32 / renderer.dpi_scale,
+                        renderer.device.surface_config.height as f32 / renderer.dpi_scale,
                     )
                 {
                     let pick_bounds = match self.game.sprites.get(&entity.id) {
@@ -2154,27 +2107,33 @@ impl ApplicationHandler for App {
 
         let attrs = WindowAttributes::default()
             .with_title("Ragnarok Online")
-            .with_inner_size(winit::dpi::PhysicalSize::new(
+            .with_inner_size(winit::dpi::LogicalSize::new(
                 self.config.screen_width,
                 self.config.screen_height,
             ));
 
-        let ui_scale = self.config.ui_scale / 100.0;
         let font_scale = self.config.font_scale / 100.0;
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
-        let scale_factor = window.scale_factor() as f32;
+        let os_scale = window.scale_factor() as f32;
+        let dpi_scale = if self.config.dpi_scale > 0.0 {
+            self.config.dpi_scale / 100.0
+        } else {
+            os_scale
+        };
         let renderer = block_on(Renderer::new(
             window.clone(),
-            self.config.font_px_height() * scale_factor * font_scale,
+            self.config.font_px_height() * font_scale,
+            dpi_scale,
         ));
 
+        let physical_size = window.inner_size();
         self.window = Some(window);
         self.renderer = Some(renderer);
         let mut ui_ctx = UiContext::new(
-            self.config.screen_width as f32,
-            self.config.screen_height as f32,
+            physical_size.width as f32 / dpi_scale,
+            physical_size.height as f32 / dpi_scale,
         );
-        ui_ctx.ui_scale = ui_scale;
+        ui_ctx.dpi_scale = dpi_scale;
         self.ui_context = Some(ui_ctx);
 
         // Load GRF
@@ -2189,12 +2148,7 @@ impl ApplicationHandler for App {
                         self.login_window.has_grf_textures =
                             renderer.preload_textures(&LoginWindow::grf_texture_paths(), &grf);
                         if self.login_window.has_grf_textures {
-                            let ui_scale = self.config.ui_scale / 100.0;
-                            self.login_window.set_texture_sizes(|name| {
-                                renderer.texture_cache.texture_size(name).map(|(w, h)| {
-                                    ((w as f32 * ui_scale) as u32, (h as f32 * ui_scale) as u32)
-                                })
-                            });
+                            self.login_window.set_texture_sizes(|name| renderer.texture_cache.texture_size(name));
                         }
                     }
 
@@ -2262,11 +2216,13 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
-                self.input.mouse_position = (position.x, position.y);
+                let dpi = self.renderer.as_ref().map_or(1.0, |r| r.dpi_scale) as f64;
+                let logical_pos = (position.x / dpi, position.y / dpi);
+                self.input.mouse_position = logical_pos;
                 if self.game.app_state == AppState::InGame && self.input.right_mouse_down {
                     if let Some((lx, ly)) = self.input.last_mouse_pos {
-                        let dx = (position.x - lx) as f32;
-                        let dy = (position.y - ly) as f32;
+                        let dx = (logical_pos.0 - lx) as f32;
+                        let dy = (logical_pos.1 - ly) as f32;
                         if let Some(renderer) = &mut self.renderer {
                             input::handle_camera_drag(
                                 &mut renderer.camera,
@@ -2276,7 +2232,7 @@ impl ApplicationHandler for App {
                             );
                         }
                     }
-                    self.input.last_mouse_pos = Some((position.x, position.y));
+                    self.input.last_mouse_pos = Some(logical_pos);
                 }
             }
             WindowEvent::MouseWheel { delta, .. } => {

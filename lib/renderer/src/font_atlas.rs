@@ -17,19 +17,23 @@ pub struct FontAtlas {
     pub glyphs: HashMap<char, GlyphInfo>,
     pub line_height: f32,
     pub ascent: f32,
+    pub dpi_scale: f32,
 }
 
 impl FontAtlas {
-    pub fn from_embedded(px_height: f32) -> Self {
-        Self::build(FALLBACK_FONT, px_height)
+    pub fn from_embedded(px_height: f32, dpi_scale: f32) -> Self {
+        Self::build(FALLBACK_FONT, px_height, dpi_scale)
     }
 
-    pub fn build(font_data: &[u8], px_height: f32) -> Self {
+    /// Rasterize at physical resolution (`px_height * dpi_scale`) for crispness,
+    /// but store all glyph metrics in logical pixels (divided by `dpi_scale`).
+    pub fn build(font_data: &[u8], px_height: f32, dpi_scale: f32) -> Self {
+        let physical_height = px_height * dpi_scale;
         let font = FontRef::try_from_slice(font_data).expect("invalid font data");
-        let scaled = font.as_scaled(px_height);
+        let scaled = font.as_scaled(physical_height);
 
-        let line_height = scaled.height() + scaled.line_gap();
-        let ascent = scaled.ascent();
+        let line_height = (scaled.height() + scaled.line_gap()) / dpi_scale;
+        let ascent = scaled.ascent() / dpi_scale;
 
         // Collect glyphs for ASCII printable range
         let chars: Vec<char> = (32u8..127).map(|b| b as char).collect();
@@ -37,7 +41,7 @@ impl FontAtlas {
 
         for &ch in &chars {
             let glyph_id = font.glyph_id(ch);
-            let glyph = glyph_id.with_scale_and_position(px_height, ab_glyph::point(0.0, 0.0));
+            let glyph = glyph_id.with_scale_and_position(physical_height, ab_glyph::point(0.0, 0.0));
             let outlined = font.outline_glyph(glyph);
             let advance = scaled.h_advance(glyph_id);
             glyph_renders.push((ch, glyph_id, outlined, advance));
@@ -105,9 +109,9 @@ impl FontAtlas {
                 glyphs_map.insert(*ch, GlyphInfo {
                     uv_min: [ox as f32 * inv, oy as f32 * inv],
                     uv_max: [(ox + gw) as f32 * inv, (oy + gh) as f32 * inv],
-                    offset: [bounds.min.x, bounds.min.y],
-                    size: [gw as f32, gh as f32],
-                    advance: *advance,
+                    offset: [bounds.min.x / dpi_scale, bounds.min.y / dpi_scale],
+                    size: [gw as f32 / dpi_scale, gh as f32 / dpi_scale],
+                    advance: *advance / dpi_scale,
                 });
 
                 cursor_x += gw + padding;
@@ -119,7 +123,7 @@ impl FontAtlas {
                     uv_max: [0.0, 0.0],
                     offset: [0.0, 0.0],
                     size: [0.0, 0.0],
-                    advance: *advance,
+                    advance: *advance / dpi_scale,
                 });
             }
         }
@@ -129,7 +133,13 @@ impl FontAtlas {
             glyphs: glyphs_map,
             line_height,
             ascent,
+            dpi_scale,
         }
+    }
+
+    #[inline]
+    pub fn snap_to_physical(&self, logical: f32) -> f32 {
+        (logical * self.dpi_scale).round() / self.dpi_scale
     }
 
     pub fn glyph(&self, ch: char) -> &GlyphInfo {
@@ -146,7 +156,7 @@ mod tests {
     use super::*;
 
     fn atlas() -> FontAtlas {
-        FontAtlas::from_embedded(20.0)
+        FontAtlas::from_embedded(20.0, 1.0)
     }
 
     #[test]

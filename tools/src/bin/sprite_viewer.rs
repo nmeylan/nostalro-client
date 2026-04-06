@@ -622,7 +622,7 @@ impl ApplicationHandler for App {
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
         let device = block_on(RenderDevice::new(window.clone()));
 
-        let tex_cache = TextureCache::new(&device.device);
+        let tex_cache = TextureCache::new(&device.device, 1.0);
 
         let shader_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../lib/renderer/src/shaders");
@@ -633,8 +633,8 @@ impl ApplicationHandler for App {
             &device.device,
             device.surface_format,
             &tex_cache.bind_group_layout,
-            device.surface_config.width,
-            device.surface_config.height,
+            device.surface_config.width as f32,
+            device.surface_config.height as f32,
             &shader_source,
         );
 
@@ -642,7 +642,7 @@ impl ApplicationHandler for App {
             .map_err(|e| tracing::warn!("Shader watcher unavailable: {e}"))
             .ok();
 
-        let font_atlas = FontAtlas::from_embedded(16.0);
+        let font_atlas = FontAtlas::from_embedded(16.0, 1.0);
         let font_atlas_bind_group = texture::create_font_atlas_bind_group(
             &device.device,
             &device.queue,
@@ -662,8 +662,8 @@ impl ApplicationHandler for App {
             &device.device,
             device.surface_format,
             &tex_cache.bind_group_layout,
-            device.surface_config.width,
-            device.surface_config.height,
+            device.surface_config.width as f32,
+            device.surface_config.height as f32,
         );
 
         let screen_h = device.surface_config.height as f32;
@@ -708,7 +708,7 @@ impl ApplicationHandler for App {
                 }
                 if let Some(ui_renderer) = &self.ui_renderer {
                     if let Some(device) = &self.device {
-                        ui_renderer.resize(&device.queue, size.width, size.height);
+                        ui_renderer.resize(&device.queue, size.width as f32, size.height as f32);
                     }
                 }
                 if let Some(browser) = &mut self.browser {

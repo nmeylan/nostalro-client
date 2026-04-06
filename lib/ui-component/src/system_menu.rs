@@ -230,7 +230,7 @@ mod tests {
     use ragnarok_renderer::font_atlas::FontAtlas;
 
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
         UiFrame::new(ctx, atlas, state, 0.0, false, None)
     }

@@ -89,14 +89,14 @@ impl SpriteRenderer {
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
         texture_bind_group_layout: &wgpu::BindGroupLayout,
-        width: u32,
-        height: u32,
+        logical_width: f32,
+        logical_height: f32,
         shader_source: &str,
     ) -> Self {
         use wgpu::util::DeviceExt;
 
         let uniform_data = SpriteUniforms {
-            screen_size: [width as f32, height as f32],
+            screen_size: [logical_width, logical_height],
             zoom: 1.0,
             _pad: 0.0,
             pan: [0.0, 0.0],
@@ -247,9 +247,9 @@ impl SpriteRenderer {
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[*uniforms]));
     }
 
-    pub fn resize(&self, queue: &wgpu::Queue, width: u32, height: u32) {
+    pub fn resize(&self, queue: &wgpu::Queue, logical_width: f32, logical_height: f32) {
         let uniforms = SpriteUniforms {
-            screen_size: [width as f32, height as f32],
+            screen_size: [logical_width, logical_height],
             zoom: 1.0,
             _pad: 0.0,
             pan: [0.0, 0.0],

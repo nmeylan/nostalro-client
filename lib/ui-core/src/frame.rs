@@ -453,7 +453,7 @@ mod tests {
 
     #[test]
     fn window_centers_on_first_call() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let ctx = UiContext::new(800.0, 600.0);
         let mut state = StateCache::new();
         let mut ui = make_frame(&ctx, &atlas, &mut state);
@@ -467,7 +467,7 @@ mod tests {
 
     #[test]
     fn window_drag_moves_position() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id = WidgetId(999);
 
@@ -506,7 +506,7 @@ mod tests {
 
     #[test]
     fn interact_hover_click_and_focus() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id_a = WidgetId(50);
         let id_b = WidgetId(51);
@@ -567,7 +567,7 @@ mod tests {
 
     #[test]
     fn window_click_outside_title_bar_does_not_drag() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id = WidgetId(999);
 
@@ -597,7 +597,7 @@ mod tests {
 
     #[test]
     fn any_hovered_tracks_widget_hover() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let rect = Rect::new(10.0, 10.0, 100.0, 30.0);
 
@@ -618,7 +618,7 @@ mod tests {
 
     #[test]
     fn drag_and_drop_lifecycle() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let source = WidgetId(10);
         let drop_rect = Rect::new(200.0, 0.0, 200.0, 100.0);
@@ -656,7 +656,7 @@ mod tests {
 
     #[test]
     fn drag_cancelled_on_release_outside_drop_zone() {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let source = WidgetId(10);
 

@@ -50,14 +50,14 @@ impl UiRenderer {
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
         texture_bind_group_layout: &wgpu::BindGroupLayout,
-        width: u32,
-        height: u32,
+        logical_width: f32,
+        logical_height: f32,
     ) -> Self {
         use wgpu::util::DeviceExt;
 
-        // Uniform buffer for screen size
+        // Uniform buffer for screen size (logical pixels)
         let uniform_data = UiUniforms {
-            screen_size: [width as f32, height as f32],
+            screen_size: [logical_width, logical_height],
             _pad: [0.0; 2],
         };
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -156,9 +156,9 @@ impl UiRenderer {
         }
     }
 
-    pub fn resize(&self, queue: &wgpu::Queue, width: u32, height: u32) {
+    pub fn resize(&self, queue: &wgpu::Queue, logical_width: f32, logical_height: f32) {
         let data = UiUniforms {
-            screen_size: [width as f32, height as f32],
+            screen_size: [logical_width, logical_height],
             _pad: [0.0; 2],
         };
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[data]));

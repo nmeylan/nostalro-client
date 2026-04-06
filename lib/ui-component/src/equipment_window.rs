@@ -108,31 +108,30 @@ impl EquipmentWindow {
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
 
-        let s = |v: f32| ui.ctx.with_ui_scale(v);
         let grf = self.has_grf_textures;
         let text_color = text_color(grf);
 
-        let win_w = s(WIN_W);
-        let content_h = if self.bg_size.1 > 0.0 { self.bg_size.1 } else { s(CONTENT_H) };
-        let win_h = if self.minimized { s(TITLE_H) } else { s(TITLE_H) + content_h };
+        let win_w = WIN_W ;
+        let content_h = if self.bg_size.1 > 0.0 { self.bg_size.1 } else { CONTENT_H  };
+        let win_h = if self.minimized { TITLE_H  } else { (TITLE_H) + content_h };
 
-        let default_x = ui.ctx.screen_width - win_w - s(250.0);
-        let default_y = s(100.0);
-        let win = ui.window_at(EQ_WIN_ID, win_w, win_h, s(TITLE_H), default_x, default_y);
+        let default_x = ui.ctx.screen_width - win_w - (250.0);
+        let default_y = 100.0 ;
+        let win = ui.window_at(EQ_WIN_ID, win_w, win_h, TITLE_H , default_x, default_y);
 
         // Block clicks through window
         let win_rect = Rect::new(win.x, win.y, win_w, win_h);
         ui.interact(EQ_WIN_ID, win_rect);
 
         // -- Titlebar --
-        draw_titlebar(ui, win.x, win.y, win_w, s(TITLE_H), grf);
-        ui.text(win.x + s(17.0), win.y + s(TITLE_H) - s(3.0), "Equipment", text_color);
+        draw_titlebar(ui, win.x, win.y, win_w, TITLE_H , grf);
+        ui.text(win.x + (17.0), win.y + (TITLE_H) - (3.0), "Equipment", text_color);
 
         // Minimize button (left of close button)
-        let btn_size = s(MINI_BTN_SIZE);
+        let btn_size = MINI_BTN_SIZE ;
         let mini_rect = Rect::new(
-            win.x + win_w - btn_size * 2.0 - s(6.0),
-            win.y + (s(TITLE_H) - btn_size) / 2.0,
+            win.x + win_w - btn_size * 2.0 - (6.0),
+            win.y + ((TITLE_H) - btn_size) / 2.0,
             btn_size, btn_size,
         );
         let mini_resp = ui.interact(EQ_MINI_BTN_ID, mini_rect);
@@ -142,7 +141,7 @@ impl EquipmentWindow {
             ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(tex.to_string()) });
         } else {
             let c = if mini_resp.hovered() { [0.8, 0.8, 0.2, 1.0] } else { text_color };
-            ui.text(mini_rect.x + s(2.0), mini_rect.y + btn_size - s(1.0), "_", c);
+            ui.text(mini_rect.x + (2.0), mini_rect.y + btn_size - (1.0), "_", c);
         }
         if mini_resp.clicked() {
             self.minimized = !self.minimized;
@@ -150,8 +149,8 @@ impl EquipmentWindow {
 
         // Close button
         let close_rect = Rect::new(
-            win.x + win_w - btn_size - s(3.0),
-            win.y + (s(TITLE_H) - btn_size) / 2.0,
+            win.x + win_w - btn_size - (3.0),
+            win.y + ((TITLE_H) - btn_size) / 2.0,
             btn_size, btn_size,
         );
         let close_resp = ui.interact(EQ_CLOSE_BTN_ID, close_rect);
@@ -161,7 +160,7 @@ impl EquipmentWindow {
             ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(tex.to_string()) });
         } else {
             let c = if close_resp.hovered() { [1.0, 0.3, 0.3, 1.0] } else { text_color };
-            ui.text(close_rect.x + s(2.0), close_rect.y + btn_size - s(1.0), "x", c);
+            ui.text(close_rect.x + (2.0), close_rect.y + btn_size - (1.0), "x", c);
         }
         if close_resp.clicked() {
             self.open = false;
@@ -175,7 +174,7 @@ impl EquipmentWindow {
         }
 
         // -- Content background (equipwin_bg.bmp) --
-        let content_y = win.y + s(TITLE_H);
+        let content_y = win.y + (TITLE_H);
         if grf {
             let (v, idx) = draw::quad_vertices(win.x, content_y, win_w, content_h, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(EQUIP_BG_TEX.to_string()) });
@@ -194,15 +193,15 @@ impl EquipmentWindow {
         }
 
         // -- Equipment slots --
-        let side_col_w = s(SIDE_COL_W);
-        let icon = s(ICON_SIZE);
+        let side_col_w = SIDE_COL_W ;
+        let icon = ICON_SIZE ;
         let slot_h = content_h / SLOT_ROWS as f32;
 
         for (i, slot) in EQUIP_SLOTS.iter().enumerate() {
             let (slot_x, slot_w) = match slot.col {
                 0 => (win.x, side_col_w),                          // Left column
                 1 => (win.x + win_w - side_col_w, side_col_w),     // Right column
-                _ => (win.x + side_col_w, s(CENTER_COL_W)),        // Center column
+                _ => (win.x + side_col_w, (CENTER_COL_W)),        // Center column
             };
             let slot_y = content_y + slot.row as f32 * slot_h;
 
@@ -215,14 +214,14 @@ impl EquipmentWindow {
             let (icon_x, text_x, text_anchor_right) = match slot.col {
                 0 => {
                     // Left column: icon on left, text after icon
-                    let ix = slot_x + s(4.0);
-                    let tx = ix + icon + s(3.0);
+                    let ix = slot_x + (4.0);
+                    let tx = ix + icon + (3.0);
                     (ix, tx, false)
                 }
                 1 => {
                     // Right column: text on left, icon on right
-                    let ix = slot_x + slot_w - icon - s(4.0);
-                    let tx = slot_x + s(4.0);
+                    let ix = slot_x + slot_w - icon - (4.0);
+                    let tx = slot_x + (4.0);
                     (ix, tx, false)
                 }
                 _ => {
@@ -242,7 +241,7 @@ impl EquipmentWindow {
                 ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
             }
 
-            let text_y = slot_y + slot_h / 2.0 + s(4.0);
+            let text_y = slot_y + slot_h / 2.0 + (4.0);
 
             if let Some(item) = inventory.equipped_in_slot(slot.location) {
                 // Item icon
@@ -298,10 +297,9 @@ fn draw_titlebar(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bool
     if has_grf {
         let (v, i) = draw::quad_vertices(x, y, w, h, [1.0, 1.0, 1.0, 1.0]);
         ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(TITLEBAR_TEX.to_string()) });
-        let s = |v: f32| ui.ctx.with_ui_scale(v);
-        let btn_size = s(11.0);
-        let btn_x = x + s(4.0);
-        let btn_y = y + s(3.0);
+        let btn_size = 11.0 ;
+        let btn_x = x + (4.0);
+        let btn_y = y + (3.0);
         let tex = if Rect::new(btn_x, btn_y, btn_size, btn_size).contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
             SYS_BASE_ON_TEX
         } else {

@@ -5,10 +5,11 @@ pub struct TextureCache {
     textures: HashMap<String, wgpu::BindGroup>,
     sizes: HashMap<String, (u32, u32)>,
     pub bind_group_layout: wgpu::BindGroupLayout,
+    dpi_scale: f32,
 }
 
 impl TextureCache {
-    pub fn new(device: &wgpu::Device) -> Self {
+    pub fn new(device: &wgpu::Device, dpi_scale: f32) -> Self {
         let bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("texture"),
@@ -36,6 +37,7 @@ impl TextureCache {
             textures: HashMap::new(),
             sizes: HashMap::new(),
             bind_group_layout,
+            dpi_scale,
         }
     }
 
@@ -76,15 +78,24 @@ impl TextureCache {
                 apply_magenta_transparency(&mut img);
             }
 
-            let w = img.width();
-            let h = img.height();
+            let logical_w = img.width();
+            let logical_h = img.height();
+
+            // CPU-upscale by dpi_scale for crisp rendering on high DPI
             let bind_group = if name.ends_with(".bmp") {
-                create_texture_bind_group_nearest(device, queue, &img, &self.bind_group_layout, name)
+                let upscaled = if self.dpi_scale > 1.0 {
+                    let phys_w = (logical_w as f32 * self.dpi_scale) as u32;
+                    let phys_h = (logical_h as f32 * self.dpi_scale) as u32;
+                    image::imageops::resize(&img, phys_w, phys_h, image::imageops::FilterType::CatmullRom)
+                } else {
+                    img
+                };
+                create_texture_bind_group_nearest(device, queue, &upscaled, &self.bind_group_layout, name)
             } else {
                 create_texture_bind_group(device, queue, &img, &self.bind_group_layout, name)
             };
             self.textures.insert(name.to_string(), bind_group);
-            self.sizes.insert(name.to_string(), (w, h));
+            self.sizes.insert(name.to_string(), (logical_w, logical_h));
         }
         self.textures.get(name)
     }

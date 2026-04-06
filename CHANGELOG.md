@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Add high-DPI support: UI renders crisply at non-integer scale factors (e.g. 150%), configurable via `dpi_scale` in config.json
 - Add inventory window (Alt+E): displays items in a tabbed grid (Usable/Equip/Etc), double-click or right-click to use or equip items, shows weight
 - Improve NPC dialog: parse color codes in dialog text, move menu to separate window below dialog, place Next/Close buttons at bottom-right
 - Add shop NPC support: Buy/Sell/Cancel popup when interacting with shop NPCs

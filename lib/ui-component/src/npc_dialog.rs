@@ -214,9 +214,8 @@ impl NpcDialog {
         let has_text = !self.dialog.text.is_empty();
         let menu_only = state == NpcDialogState::WaitingForMenu && !has_text;
 
-        let s = |v: f32| ui.ctx.with_ui_scale(v);
-        let padding = s(PADDING);
-        let dialog_w = s(DIALOG_W);
+        let padding = PADDING ;
+        let dialog_w = DIALOG_W ;
 
         if !menu_only {
             // Compute dialog height based on content
@@ -224,14 +223,14 @@ impl NpcDialog {
             let wrapped_lines = word_wrap(&self.dialog.text, text_area_w, |t| {
                 ui.atlas.measure_text(&strip_color_codes(t))
             });
-            let text_line_h = s(TEXT_LINE_HEIGHT);
+            let text_line_h = TEXT_LINE_HEIGHT ;
             let text_h = (wrapped_lines.len().max(1) as f32) * text_line_h;
 
             let input_h = if matches!(
                 state,
                 NpcDialogState::WaitingForNumberInput | NpcDialogState::WaitingForStringInput
             ) {
-                s(30.0)
+                30.0 
             } else {
                 0.0
             };
@@ -246,7 +245,7 @@ impl NpcDialog {
             );
             let btn_area_h = if has_button { btn_h + padding } else { 0.0 };
 
-            let dialog_h = (padding + text_h + input_h + btn_area_h + padding).max(s(DIALOG_H));
+            let dialog_h = (padding + text_h + input_h + btn_area_h + padding).max(DIALOG_H );
 
             // Dialog background
             draw_box(ui, dx, dy, dialog_w, dialog_h, self.has_grf_textures);
@@ -270,7 +269,7 @@ impl NpcDialog {
                     dx + padding,
                     input_y,
                     text_area_w - btn_w - padding,
-                    s(22.0),
+                    22.0 ,
                 );
                 if ui.focused() != Some(INPUT_ID) {
                     ui.set_focus(INPUT_ID);
@@ -303,7 +302,7 @@ impl NpcDialog {
                     dx + padding,
                     input_y,
                     text_area_w - btn_w - padding,
-                    s(22.0),
+                    22.0 ,
                 );
                 if ui.focused() != Some(INPUT_ID) {
                     ui.set_focus(INPUT_ID);
@@ -337,9 +336,9 @@ impl NpcDialog {
                 1,
                 btn_w,
                 btn_h,
-                s(BTN_BOTTOM),
-                s(BTN_FIRST_RIGHT),
-                s(BTN_SPACING),
+                BTN_BOTTOM ,
+                BTN_FIRST_RIGHT ,
+                BTN_SPACING ,
             );
 
             if state == NpcDialogState::WaitingForNext {
@@ -374,16 +373,15 @@ impl NpcDialog {
 
     fn build_menu_window(&mut self, ui: &mut UiFrame, dx: f32) -> Vec<GameEvent> {
         let mut events = Vec::new();
-        let s = |v: f32| ui.ctx.with_ui_scale(v);
         let (btn_w, btn_h) = self.btn_size;
-        let menu_w = s(MENU_W);
-        let padding = s(PADDING);
-        let menu_item_h = s(MENU_ITEM_HEIGHT);
+        let menu_w = MENU_W ;
+        let padding = PADDING ;
+        let menu_item_h = MENU_ITEM_HEIGHT ;
         let text_area_w = menu_w - padding * 2.0;
 
-        let menu_y = (ui.ctx.screen_height / 2.0 + s(76.0)).max(s(376.0)).floor();
+        let menu_y = (ui.ctx.screen_height / 2.0 + (76.0)).max(376.0 ).floor();
         let items_h = self.dialog.menu_items.len() as f32 * menu_item_h;
-        let menu_h = (padding + items_h + padding + btn_h + padding).max(s(MENU_MIN_H));
+        let menu_h = (padding + items_h + padding + btn_h + padding).max(MENU_MIN_H );
 
         draw_box(ui, dx, menu_y, menu_w, menu_h, self.has_grf_textures);
 
@@ -420,8 +418,8 @@ impl NpcDialog {
 
             let label = format!("{}. {}", idx + 1, item);
             ui.colored_text(
-                dx + padding + s(4.0),
-                item_y + ui.atlas.line_height - s(4.0),
+                dx + padding + (4.0),
+                item_y + ui.atlas.line_height - (4.0),
                 &label,
                 text_color,
             );
@@ -437,9 +435,9 @@ impl NpcDialog {
             2,
             btn_w,
             btn_h,
-            s(BTN_BOTTOM),
-            s(BTN_FIRST_RIGHT),
-            s(BTN_SPACING),
+            BTN_BOTTOM ,
+            BTN_FIRST_RIGHT ,
+            BTN_SPACING ,
         );
 
         let cancel = ui.button(CANCEL_BTN_ID, menu_btns[0], &CANCEL_BTN, "Cancel");
@@ -466,7 +464,6 @@ impl NpcDialog {
 
     fn build_deal_type_popup(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
         let mut events = Vec::new();
-        let s = |v: f32| ui.ctx.with_ui_scale(v);
         let (btn_w, btn_h) = self.btn_size;
         let (dialog_w, dialog_h) = self.win_size;
 
@@ -510,15 +507,15 @@ impl NpcDialog {
             3,
             btn_w,
             btn_h,
-            s(BTN_BOTTOM),
-            s(BTN_FIRST_RIGHT),
-            s(BTN_SPACING),
+            BTN_BOTTOM ,
+            BTN_FIRST_RIGHT ,
+            BTN_SPACING ,
         );
 
         // Text aligned to the left
         let message = "Please select a Deal type";
         let (text_y, text_x) =
-            container.text_dialog_alignment(s(PADDING), btns[0].y, ui.atlas.line_height);
+            container.text_dialog_alignment(PADDING , btns[0].y, ui.atlas.line_height);
         let text_color = if self.has_grf_textures {
             [0.0, 0.0, 0.0, 1.0]
         } else {
@@ -620,7 +617,7 @@ mod tests {
     use ragnarok_ui::state::StateCache;
 
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
         UiFrame::new(ctx, atlas, state, 0.0, false, None)
     }

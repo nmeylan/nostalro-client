@@ -99,14 +99,14 @@ impl InventoryWindow {
         }
     }
 
-    fn compute_dimensions(&self, s: &dyn Fn(f32) -> f32) -> (f32, f32, f32) {
-        let grid_w = self.grid_cols as f32 * s(CELL_SIZE);
-        let grid_h = self.grid_rows as f32 * s(CELL_SIZE);
-        let tab_strip_w = if self.tab_size.0 > 0.0 { self.tab_size.0 } else { s(20.0) };
+    fn compute_dimensions(&self) -> (f32, f32, f32) {
+        let grid_w = self.grid_cols as f32 * (CELL_SIZE);
+        let grid_h = self.grid_rows as f32 * (CELL_SIZE);
+        let tab_strip_w = if self.tab_size.0 > 0.0 { self.tab_size.0 } else { 20.0  };
         // layout: tab_strip | pad | grid | scrollbar | pad
-        let content_w = tab_strip_w + s(PAD_X) + grid_w + s(SCROLLBAR_W) + s(PAD_X);
+        let content_w = tab_strip_w + (PAD_X) + grid_w + (SCROLLBAR_W) + (PAD_X);
         let win_w = content_w;
-        let win_h = s(TITLE_H) + s(PAD_Y) + grid_h + s(PAD_Y) + s(FOOTER_H);
+        let win_h = (TITLE_H) + (PAD_Y) + grid_h + (PAD_Y) + (FOOTER_H);
         (win_w, win_h, tab_strip_w)
     }
 
@@ -125,30 +125,29 @@ impl InventoryWindow {
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
 
-        let s = |v: f32| ui.ctx.with_ui_scale(v);
         let grf = self.has_grf_textures;
         let text_color = text_color(grf);
 
-        let (win_w, full_h, tab_strip_w) = self.compute_dimensions(&s);
-        let win_h = if self.minimized { s(TITLE_H) } else { full_h };
+        let (win_w, full_h, tab_strip_w) = self.compute_dimensions();
+        let win_h = if self.minimized { TITLE_H  } else { full_h };
 
-        let default_x = ui.ctx.screen_width - win_w - s(10.0);
-        let default_y = s(100.0);
-        let win = ui.window_at(INV_WIN_ID, win_w, win_h, s(TITLE_H), default_x, default_y);
+        let default_x = ui.ctx.screen_width - win_w - (10.0);
+        let default_y = 100.0 ;
+        let win = ui.window_at(INV_WIN_ID, win_w, win_h, TITLE_H , default_x, default_y);
 
         // Block clicks through window
         let win_rect = Rect::new(win.x, win.y, win_w, win_h);
         ui.interact(INV_WIN_ID, win_rect);
 
         // -- Titlebar --
-        draw_titlebar(ui, win.x, win.y, win_w, s(TITLE_H), grf);
-        ui.text(win.x + s(17.0), win.y + s(TITLE_H) - s(3.0), "Inventory", text_color);
+        draw_titlebar(ui, win.x, win.y, win_w, TITLE_H , grf);
+        ui.text(win.x + (17.0), win.y + (TITLE_H) - (3.0), "Inventory", text_color);
 
         // Minimize button (left of close button)
-        let mini_size = s(MINI_BTN_SIZE);
+        let mini_size = MINI_BTN_SIZE ;
         let mini_rect = Rect::new(
-            win.x + win_w - mini_size * 2.0 - s(6.0),
-            win.y + (s(TITLE_H) - mini_size) / 2.0,
+            win.x + win_w - mini_size * 2.0 - (6.0),
+            win.y + ((TITLE_H) - mini_size) / 2.0,
             mini_size, mini_size,
         );
         let mini_resp = ui.interact(INV_MINI_BTN_ID, mini_rect);
@@ -158,17 +157,17 @@ impl InventoryWindow {
             ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(tex.to_string()) });
         } else {
             let c = if mini_resp.hovered() { [0.8, 0.8, 0.2, 1.0] } else { text_color };
-            ui.text(mini_rect.x + s(2.0), mini_rect.y + mini_size - s(1.0), "_", c);
+            ui.text(mini_rect.x + (2.0), mini_rect.y + mini_size - (1.0), "_", c);
         }
         if mini_resp.clicked() {
             self.minimized = !self.minimized;
         }
 
         // Close button
-        let close_size = s(MINI_BTN_SIZE);
+        let close_size = MINI_BTN_SIZE ;
         let close_rect = Rect::new(
-            win.x + win_w - close_size - s(3.0),
-            win.y + (s(TITLE_H) - close_size) / 2.0,
+            win.x + win_w - close_size - (3.0),
+            win.y + ((TITLE_H) - close_size) / 2.0,
             close_size, close_size,
         );
         let close_resp = ui.interact(INV_CLOSE_BTN_ID, close_rect);
@@ -178,7 +177,7 @@ impl InventoryWindow {
             ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(tex.to_string()) });
         } else {
             let close_color = if close_resp.hovered() { [1.0, 0.3, 0.3, 1.0] } else { text_color };
-            ui.text(close_rect.x + s(2.0), close_rect.y + close_size - s(1.0), "x", close_color);
+            ui.text(close_rect.x + (2.0), close_rect.y + close_size - (1.0), "x", close_color);
         }
         if close_resp.clicked() {
             self.inventory.close();
@@ -193,10 +192,10 @@ impl InventoryWindow {
 
         // -- Grid container (right of tab strip) --
         let grid_area_x = win.x + tab_strip_w;
-        let grid_area_w = s(PAD_X) + self.grid_cols as f32 * s(CELL_SIZE) + s(SCROLLBAR_W) + s(PAD_X);
-        let grid_h = self.grid_rows as f32 * s(CELL_SIZE);
-        let container_y = win.y + s(TITLE_H);
-        let container_h = s(PAD_Y) + grid_h + s(PAD_Y);
+        let grid_area_w = (PAD_X) + self.grid_cols as f32 * (CELL_SIZE) + (SCROLLBAR_W) + (PAD_X);
+        let grid_h = self.grid_rows as f32 * (CELL_SIZE);
+        let container_y = win.y + (TITLE_H);
+        let container_h = (PAD_Y) + grid_h + (PAD_Y);
         draw_container(ui, grid_area_x, container_y, grid_area_w, container_h, grf);
 
         let filtered_count = self.inventory.filtered_items().len();
@@ -211,11 +210,11 @@ impl InventoryWindow {
         }
 
         // Render grid items
-        let grid_x = grid_area_x + s(PAD_X);
-        let grid_y = container_y + s(PAD_Y);
-        let cell = s(CELL_SIZE);
-        let icon = s(ICON_SIZE);
-        let pad = s(ICON_PAD);
+        let grid_x = grid_area_x + (PAD_X);
+        let grid_y = container_y + (PAD_Y);
+        let cell = CELL_SIZE ;
+        let icon = ICON_SIZE ;
+        let pad = ICON_PAD ;
 
         {
             let filtered: Vec<&InventoryItem> = self.inventory.filtered_items();
@@ -257,8 +256,8 @@ impl InventoryWindow {
                 if item.count > 1 {
                     let count_str = item.count.to_string();
                     let count_w = ui.atlas.measure_text(&count_str);
-                    let count_x = cx + cell - count_w - s(2.0);
-                    let count_y = cy + cell - s(2.0);
+                    let count_x = cx + cell - count_w - (2.0);
+                    let count_y = cy + cell - (2.0);
                     ui.text(count_x, count_y, &count_str, [1.0, 1.0, 1.0, 1.0]);
                 }
 
@@ -285,7 +284,7 @@ impl InventoryWindow {
 
         // -- Scrollbar (only when needed) --
         if total_rows > self.grid_rows {
-            let sb_x = grid_area_x + s(PAD_X) + self.grid_cols as f32 * s(CELL_SIZE);
+            let sb_x = grid_area_x + (PAD_X) + self.grid_cols as f32 * (CELL_SIZE);
             self.draw_scrollbar(
                 self.grid_rows, max_scroll,
                 grf, ui, sb_x, container_y, container_h,
@@ -331,7 +330,7 @@ impl InventoryWindow {
                 let (v, idx) = draw::quad_vertices(tab_x, ty, tab_img_w, tab_btn_h, bg);
                 ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
                 let tw = ui.atlas.measure_text(label);
-                ui.text(tab_x + (tab_img_w - tw) / 2.0, ty + tab_btn_h / 2.0 + s(4.0), label, text_color);
+                ui.text(tab_x + (tab_img_w - tw) / 2.0, ty + tab_btn_h / 2.0 + (4.0), label, text_color);
             }
 
             if resp.clicked() && self.inventory.active_tab != *tab {
@@ -342,16 +341,16 @@ impl InventoryWindow {
 
         // -- Footer --
         let footer_y = container_y + container_h;
-        draw_footer(ui, win.x, footer_y, win_w, s(FOOTER_H), grf);
+        draw_footer(ui, win.x, footer_y, win_w, FOOTER_H , grf);
         let total_count = self.inventory.all_items().len();
         let item_count_label = format!("Num: {total_count}/100");
-        ui.text(win.x + s(4.0), footer_y + s(FOOTER_H) - s(5.0), &item_count_label, text_color);
+        ui.text(win.x + (4.0), footer_y + (FOOTER_H) - (5.0), &item_count_label, text_color);
 
         // Resize handle (bottom-right of footer)
-        let resize_size = s(RESIZE_BTN_SIZE);
+        let resize_size = RESIZE_BTN_SIZE ;
         let resize_rect = Rect::new(
             win.x + win_w - resize_size,
-            footer_y + s(FOOTER_H) - resize_size,
+            footer_y + (FOOTER_H) - resize_size,
             resize_size, resize_size,
         );
         let resize_resp = ui.interact(INV_RESIZE_ID, resize_rect);
@@ -366,7 +365,7 @@ impl InventoryWindow {
         }
 
         // Handle resize dragging
-        let cell_s = s(CELL_SIZE);
+        let cell_s = CELL_SIZE ;
         let mouse_x = ui.ctx.mouse_x;
         let mouse_y = ui.ctx.mouse_y;
         let mouse_clicked = ui.ctx.mouse_clicked;
@@ -420,9 +419,8 @@ impl InventoryWindow {
         has_grf: bool,
         ui: &mut UiFrame, x: f32, y: f32, h: f32,
     ) {
-        let s = |v: f32| ui.ctx.with_ui_scale(v);
-        let scrollbar_w = s(SCROLLBAR_W);
-        let scroll_btn_h = s(SCROLL_BTN_H);
+        let scrollbar_w = SCROLLBAR_W ;
+        let scroll_btn_h = SCROLL_BTN_H ;
 
         let (v, i) = draw::quad_vertices(x, y, scrollbar_w, h, [0.0, 0.0, 0.0, 0.3]);
         ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
@@ -463,7 +461,7 @@ impl InventoryWindow {
             let track_y = y + scroll_btn_h;
             let track_h = h - 2.0 * scroll_btn_h;
             let thumb_ratio = visible_rows as f32 / (visible_rows + max_scroll) as f32;
-            let thumb_h = (track_h * thumb_ratio).max(s(10.0));
+            let thumb_h = (track_h * thumb_ratio).max(10.0 );
             let scroll_ratio = self.scroll_offset as f32 / max_scroll as f32;
             let thumb_y = track_y + scroll_ratio * (track_h - thumb_h);
 
@@ -498,7 +496,7 @@ impl InventoryWindow {
             }
 
             let thumb_color = if thumb_active { [0.6, 0.6, 0.7, 0.9] } else { [0.5, 0.5, 0.6, 0.8] };
-            let (v, i) = draw::quad_vertices(x + s(2.0), thumb_y, scrollbar_w - s(4.0), thumb_h, thumb_color);
+            let (v, i) = draw::quad_vertices(x + (2.0), thumb_y, scrollbar_w - (4.0), thumb_h, thumb_color);
             ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
         }
     }
@@ -525,10 +523,9 @@ fn draw_titlebar(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bool
     if has_grf {
         let (v, i) = draw::quad_vertices(x, y, w, h, [1.0, 1.0, 1.0, 1.0]);
         ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(TITLEBAR_TEX.to_string()) });
-        let s = |v: f32| ui.ctx.with_ui_scale(v);
-        let btn_size = s(11.0);
-        let btn_x = x + s(4.0);
-        let btn_y = y + s(3.0);
+        let btn_size = 11.0 ;
+        let btn_x = x + (4.0);
+        let btn_y = y + (3.0);
         let tex = if Rect::new(btn_x, btn_y, btn_size, btn_size).contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
             SYS_BASE_ON_TEX
         } else {

@@ -56,19 +56,20 @@ pub struct Renderer {
     pub font_atlas_bind_group: wgpu::BindGroup,
     pub white_bind_group: wgpu::BindGroup,
     pub font_px_height: f32,
+    pub dpi_scale: f32,
 }
 
 impl Renderer {
-    pub async fn new(window: Arc<winit::window::Window>, font_px_height: f32) -> Self {
+    pub async fn new(window: Arc<winit::window::Window>, font_px_height: f32, dpi_scale: f32) -> Self {
         let device = RenderDevice::new(window).await;
         let camera = Camera {
             aspect: device.surface_config.width as f32 / device.surface_config.height as f32,
             ..Default::default()
         };
         let global_uniforms = GlobalUniforms::new(&device.device);
-        let texture_cache = TextureCache::new(&device.device);
+        let texture_cache = TextureCache::new(&device.device, dpi_scale);
 
-        let font_atlas = FontAtlas::from_embedded(font_px_height);
+        let font_atlas = FontAtlas::from_embedded(font_px_height, dpi_scale);
         let font_atlas_bind_group = texture::create_font_atlas_bind_group(
             &device.device,
             &device.queue,
@@ -86,12 +87,15 @@ impl Renderer {
             "ui_white",
         );
 
+        let logical_w = device.surface_config.width as f32 / dpi_scale;
+        let logical_h = device.surface_config.height as f32 / dpi_scale;
+
         let sprite_renderer = SpriteRenderer::new(
             &device.device,
             device.surface_format,
             &texture_cache.bind_group_layout,
-            device.surface_config.width,
-            device.surface_config.height,
+            logical_w,
+            logical_h,
             include_str!("shaders/sprite.wgsl"),
         );
 
@@ -99,8 +103,8 @@ impl Renderer {
             &device.device,
             device.surface_format,
             &texture_cache.bind_group_layout,
-            device.surface_config.width,
-            device.surface_config.height,
+            logical_w,
+            logical_h,
         );
 
         Self {
@@ -118,6 +122,7 @@ impl Renderer {
             font_atlas_bind_group,
             white_bind_group,
             font_px_height,
+            dpi_scale,
         }
     }
 
@@ -203,8 +208,10 @@ impl Renderer {
         self.device.resize(width, height);
         if width > 0 && height > 0 {
             self.camera.aspect = width as f32 / height as f32;
-            self.sprite_renderer.resize(&self.device.queue, width, height);
-            self.ui_renderer.resize(&self.device.queue, width, height);
+            let logical_w = width as f32 / self.dpi_scale;
+            let logical_h = height as f32 / self.dpi_scale;
+            self.sprite_renderer.resize(&self.device.queue, logical_w, logical_h);
+            self.ui_renderer.resize(&self.device.queue, logical_w, logical_h);
         }
     }
 
@@ -355,7 +362,7 @@ impl Renderer {
         ];
         for path in &font_paths {
             if let Ok(data) = grf.read_file(path) {
-                self.font_atlas = FontAtlas::build(&data, self.font_px_height);
+                self.font_atlas = FontAtlas::build(&data, self.font_px_height, self.dpi_scale);
                 self.font_atlas_bind_group = texture::create_font_atlas_bind_group(
                     &self.device.device,
                     &self.device.queue,

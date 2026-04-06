@@ -68,7 +68,6 @@ impl ConfirmDialog {
         if ui.ctx.key_enter {
             return ConfirmResult::Ok;
         }
-        let s = |v: f32| ui.ctx.with_ui_scale(v);
 
         // Full-screen overlay to block input behind
         let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
@@ -106,7 +105,7 @@ impl ConfirmDialog {
 
         // Message text centered
         let (text_y, text_x) =
-            container.text_dialog_alignment(s(PADDING), btns[0].y, ui.atlas.line_height);
+            container.text_dialog_alignment(PADDING , btns[0].y, ui.atlas.line_height);
         let text_color = if self.has_grf_textures { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
         ui.text(text_x, text_y, &self.message, text_color);
 
@@ -140,7 +139,7 @@ mod tests {
     use ragnarok_renderer::font_atlas::FontAtlas;
 
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0);
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
         UiFrame::new(ctx, atlas, state, 0.0, false, None)
     }

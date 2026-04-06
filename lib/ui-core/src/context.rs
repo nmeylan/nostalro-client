@@ -27,7 +27,7 @@ pub struct UiContext {
     pub key_down: bool,
     pub key_f10: bool,
     pub scroll_delta: f32,
-    pub ui_scale: f32,
+    pub dpi_scale: f32,
 }
 
 impl UiContext {
@@ -55,12 +55,8 @@ impl UiContext {
             key_down: false,
             key_f10: false,
             scroll_delta: 0.0,
-            ui_scale: 1.0,
+            dpi_scale: 1.0,
         }
-    }
-
-    pub fn with_ui_scale(&self, v: f32) -> f32 {
-        v * self.ui_scale
     }
 
     pub fn begin_frame(&mut self) {
@@ -84,8 +80,8 @@ impl UiContext {
     pub fn handle_event(&mut self, event: &WindowEvent) {
         match event {
             WindowEvent::CursorMoved { position, .. } => {
-                self.mouse_x = position.x as f32;
-                self.mouse_y = position.y as f32;
+                self.mouse_x = position.x as f32 / self.dpi_scale;
+                self.mouse_y = position.y as f32 / self.dpi_scale;
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 if *button == MouseButton::Left {
@@ -152,8 +148,8 @@ impl UiContext {
                 };
             }
             WindowEvent::Resized(size) => {
-                self.screen_width = size.width as f32;
-                self.screen_height = size.height as f32;
+                self.screen_width = size.width as f32 / self.dpi_scale;
+                self.screen_height = size.height as f32 / self.dpi_scale;
             }
             _ => {}
         }
