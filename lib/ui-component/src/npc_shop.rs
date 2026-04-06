@@ -31,7 +31,7 @@ const TITLE_H: f32 = 17.0;
 const CONTAINER_PAD_LEFT: f32 = 16.0;
 const CONTAINER_PAD_RIGHT: f32 = 3.0;
 const CONTAINER_PAD_Y: f32 = 5.0;
-const ITEM_ROW_H: f32 = 28.0;
+const ITEM_ROW_H: f32 = 32.0;
 const FOOTER_H: f32 = 27.0;
 const INPUT_MIN_ROWS: usize = 2;
 const INPUT_MAX_ROWS: usize = 9;
@@ -39,7 +39,7 @@ const INPUT_DEFAULT_ROWS: usize = 7;
 const OUTPUT_VISIBLE_ROWS: usize = 2;
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
-use crate::scrollbar::{self, ScrollbarIds, SCROLLBAR_W};
+use crate::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 const ICON_SIZE: f32 = 24.0;
 const ICON_OFFSET_X: f32 = 4.0;
 const ICON_OFFSET_Y: f32 = 2.0;
@@ -130,14 +130,13 @@ impl NpcShop {
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
 
-
         // Full-screen overlay to block world clicks
         let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
         ui.interact(OVERLAY_ID, screen);
 
         // Compute default positions: InputWindow left, OutputWindow right
-        let input_default_x = 100.0 ;
-        let input_default_y = 100.0 ;
+        let input_default_x = 100.0;
+        let input_default_y = 100.0;
         let output_default_x = input_default_x + (WIN_W) + (WIN_GAP);
 
         // Input window height for output vertical alignment
@@ -145,25 +144,38 @@ impl NpcShop {
             Some(NpcShopMode::Sell) => self.shop.visible_sell_indices().len(),
             _ => self.shop.item_count(),
         };
-        let input_content_rows = self.input_visible_rows.min(input_item_count).max(INPUT_MIN_ROWS);
+        let input_content_rows = self
+            .input_visible_rows
+            .min(input_item_count)
+            .max(INPUT_MIN_ROWS);
         let input_content_h = input_content_rows as f32 * (ITEM_ROW_H);
-        let input_win_h = (TITLE_H) + (CONTAINER_PAD_Y) + input_content_h + (CONTAINER_PAD_Y) + (FOOTER_H);
+        let input_win_h =
+            (TITLE_H) + (CONTAINER_PAD_Y) + input_content_h + (CONTAINER_PAD_Y) + (FOOTER_H);
         let output_content_rows = OUTPUT_VISIBLE_ROWS.max(self.shop.cart.len().min(5)).max(2);
         let output_content_h = output_content_rows as f32 * (ITEM_ROW_H);
-        let output_win_h = (TITLE_H) + (CONTAINER_PAD_Y) + output_content_h + (CONTAINER_PAD_Y) + (FOOTER_H);
+        let output_win_h =
+            (TITLE_H) + (CONTAINER_PAD_Y) + output_content_h + (CONTAINER_PAD_Y) + (FOOTER_H);
 
         // Output vertically aligned: bottom-aligned with input
         let output_default_y = input_default_y + input_win_h - output_win_h;
 
         // Build both windows
         self.build_input_window(ui, input_default_x, input_default_y, input_win_h);
-        let output_rect = self.build_output_window(ui, &mut events, output_default_x, output_default_y, output_win_h);
+        let output_rect = self.build_output_window(
+            ui,
+            &mut events,
+            output_default_x,
+            output_default_y,
+            output_win_h,
+        );
 
         // Handle drag-drop: item dropped on output window opens qty popup
         if !self.qty_popup_open {
             if let Some((source_id, item_idx)) = ui.drop_zone(output_rect) {
                 if source_id == INPUT_WIN_ID {
-                    if self.shop.mode == Some(NpcShopMode::Sell) && self.shop.sell_item_remaining(item_idx) <= 1 {
+                    if self.shop.mode == Some(NpcShopMode::Sell)
+                        && self.shop.sell_item_remaining(item_idx) <= 1
+                    {
                         self.shop.add_to_cart(item_idx, 1);
                     } else {
                         self.qty_popup_open = true;
@@ -187,15 +199,21 @@ impl NpcShop {
         events
     }
 
-    fn build_input_window(&mut self, ui: &mut UiFrame, default_x: f32, default_y: f32, win_h: f32) -> Rect {
-        let win_w = WIN_W ;
-        let title_h = TITLE_H ;
-        let footer_h = FOOTER_H ;
-        let row_h = ITEM_ROW_H ;
-        let pad_left = CONTAINER_PAD_LEFT ;
-        let pad_right = CONTAINER_PAD_RIGHT ;
-        let pad_y = CONTAINER_PAD_Y ;
-        let scrollbar_w = SCROLLBAR_W ;
+    fn build_input_window(
+        &mut self,
+        ui: &mut UiFrame,
+        default_x: f32,
+        default_y: f32,
+        win_h: f32,
+    ) -> Rect {
+        let win_w = WIN_W;
+        let title_h = TITLE_H;
+        let footer_h = FOOTER_H;
+        let row_h = ITEM_ROW_H;
+        let pad_left = CONTAINER_PAD_LEFT;
+        let pad_right = CONTAINER_PAD_RIGHT;
+        let pad_y = CONTAINER_PAD_Y;
+        let scrollbar_w = SCROLLBAR_W;
 
         let visible_indices: Vec<usize> = match self.shop.mode {
             Some(NpcShopMode::Sell) => self.shop.visible_sell_indices(),
@@ -227,56 +245,93 @@ impl NpcShop {
 
         // Item rows
         let list_y = container_y + pad_y;
-        let icon_size = ICON_SIZE ;
+        let icon_size = ICON_SIZE;
         let name_x = win.x + pad_left + (ICON_OFFSET_X) + icon_size + (4.0);
         let row_content_w = win_w - pad_left - pad_right - scrollbar_w;
 
         for i in 0..visible {
             let list_idx = self.scroll_offset + i;
-            if list_idx >= item_count { break; }
+            if list_idx >= item_count {
+                break;
+            }
             let item_idx = visible_indices[list_idx];
 
             let ry = list_y + i as f32 * row_h;
             let row_rect = Rect::new(win.x + pad_left, ry, row_content_w, row_h);
             let widget_id = WidgetId(ITEM_BASE_ID + i as u32);
             let response = ui.interact(widget_id, row_rect);
-            if response.hovered() { ui.any_interactive_hovered = true; }
+            if response.hovered() {
+                ui.any_interactive_hovered = true;
+            }
 
             // Item shadow (itemwin_mid per row)
             if grf {
                 let shadow_x = win.x + pad_left + (ICON_OFFSET_X);
                 let shadow_y = ry + (ICON_OFFSET_Y);
-                let (v, idx) = draw::quad_vertices(shadow_x, shadow_y, icon_size, icon_size, [1.0, 1.0, 1.0, 1.0]);
-                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(ITEMWIN_MID_TEX.to_string()) });
+                let (v, idx) = draw::quad_vertices(
+                    shadow_x,
+                    shadow_y,
+                    icon_size,
+                    icon_size,
+                    [1.0, 1.0, 1.0, 1.0],
+                );
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: idx.to_vec(),
+                    texture: TextureRef::Named(ITEMWIN_MID_TEX.to_string()),
+                });
             }
 
             // Item icon
             if let Some(icon_path) = self.shop.item_icon_path(item_idx) {
                 let ix = win.x + pad_left + (ICON_OFFSET_X);
                 let iy = ry + (ICON_OFFSET_Y);
-                let (v, idx) = draw::quad_vertices(ix, iy, icon_size, icon_size, [1.0, 1.0, 1.0, 1.0]);
-                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(icon_path) });
+                let (v, idx) =
+                    draw::quad_vertices(ix, iy, icon_size, icon_size, [1.0, 1.0, 1.0, 1.0]);
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: idx.to_vec(),
+                    texture: TextureRef::Named(icon_path),
+                });
             }
 
             // Selection highlight
             let is_selected = self.shop.selected_index == Some(item_idx);
             if is_selected {
-                let (v, idx) = draw::quad_vertices(row_rect.x, row_rect.y, row_rect.w, row_rect.h, [0.20, 0.42, 0.88, 0.50]);
-                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
+                let (v, idx) = draw::quad_vertices(
+                    row_rect.x,
+                    row_rect.y,
+                    row_rect.w,
+                    row_rect.h,
+                    [0.20, 0.42, 0.88, 0.50],
+                );
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: idx.to_vec(),
+                    texture: TextureRef::White,
+                });
             } else if response.hovered() {
-                let (v, idx) = draw::quad_vertices(row_rect.x, row_rect.y, row_rect.w, row_rect.h, [0.20, 0.42, 0.88, 0.20]);
-                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
+                let (v, idx) = draw::quad_vertices(
+                    row_rect.x,
+                    row_rect.y,
+                    row_rect.w,
+                    row_rect.h,
+                    [0.20, 0.42, 0.88, 0.20],
+                );
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: idx.to_vec(),
+                    texture: TextureRef::White,
+                });
             }
 
             // Item count (sell mode — show remaining quantity)
             if self.shop.mode == Some(NpcShopMode::Sell) {
                 let remaining = self.shop.sell_item_remaining(item_idx);
-                if remaining > 1 {
-                    let count_str = remaining.to_string();
-                    let count_w = ui.atlas.measure_text(&count_str);
-                    let count_x = win.x + pad_left + (ICON_OFFSET_X) + icon_size - count_w;
-                    ui.text(count_x, ry + icon_size, &count_str, text_color);
-                }
+                let count_str = remaining.to_string();
+                let count_w = ui.atlas.measure_text(&count_str);
+                let count_x = win.x + pad_left + (ICON_OFFSET_X) + icon_size - count_w + 2.0;
+                ui.text(count_x, ry + row_h - 2.0, &count_str, text_color);
             }
 
             // Item name
@@ -300,7 +355,9 @@ impl NpcShop {
                 ui.drag_source(INPUT_WIN_ID, item_idx, drag_icon, (icon_size, icon_size));
             }
             if response.double_clicked() && !self.qty_popup_open {
-                if self.shop.mode == Some(NpcShopMode::Sell) && self.shop.sell_item_remaining(item_idx) <= 1 {
+                if self.shop.mode == Some(NpcShopMode::Sell)
+                    && self.shop.sell_item_remaining(item_idx) <= 1
+                {
                     self.shop.add_to_cart(item_idx, 1);
                 } else {
                     self.qty_popup_open = true;
@@ -318,9 +375,18 @@ impl NpcShop {
             let content_rect = Rect::new(win.x, container_y, win_w, container_h);
             self.scroll_offset = scrollbar::scrollbar(
                 ui,
-                ScrollbarIds { up: SCROLL_UP_ID, down: SCROLL_DOWN_ID, thumb: SCROLL_THUMB_ID },
-                self.scroll_offset, self.input_visible_rows, max_scroll,
-                content_rect, sb_x, container_y, container_h,
+                ScrollbarIds {
+                    up: SCROLL_UP_ID,
+                    down: SCROLL_DOWN_ID,
+                    thumb: SCROLL_THUMB_ID,
+                },
+                self.scroll_offset,
+                self.input_visible_rows,
+                max_scroll,
+                content_rect,
+                sb_x,
+                container_y,
+                container_h,
             );
         }
 
@@ -333,17 +399,44 @@ impl NpcShop {
         let resize_rect = Rect::new(
             win.x + win_w - resize_size,
             footer_y + footer_h - resize_size,
-            resize_size, resize_size,
+            resize_size,
+            resize_size,
         );
         let resize_resp = ui.interact(INPUT_RESIZE_ID, resize_rect);
-        if resize_resp.hovered() { ui.any_interactive_hovered = true; }
+        if resize_resp.hovered() {
+            ui.any_interactive_hovered = true;
+        }
         if grf {
-            let (v, idx) = draw::quad_vertices(resize_rect.x, resize_rect.y, resize_size, resize_size, [1.0, 1.0, 1.0, 1.0]);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(RESIZE_TEX.to_string()) });
+            let (v, idx) = draw::quad_vertices(
+                resize_rect.x,
+                resize_rect.y,
+                resize_size,
+                resize_size,
+                [1.0, 1.0, 1.0, 1.0],
+            );
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: idx.to_vec(),
+                texture: TextureRef::Named(RESIZE_TEX.to_string()),
+            });
         } else {
-            let c = if resize_resp.hovered() { [0.7, 0.7, 0.8, 1.0] } else { [0.4, 0.4, 0.5, 1.0] };
-            let (v, idx) = draw::quad_vertices(resize_rect.x + resize_size * 0.5, resize_rect.y + resize_size * 0.5, resize_size * 0.5, resize_size * 0.5, c);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
+            let c = if resize_resp.hovered() {
+                [0.7, 0.7, 0.8, 1.0]
+            } else {
+                [0.4, 0.4, 0.5, 1.0]
+            };
+            let (v, idx) = draw::quad_vertices(
+                resize_rect.x + resize_size * 0.5,
+                resize_rect.y + resize_size * 0.5,
+                resize_size * 0.5,
+                resize_size * 0.5,
+                c,
+            );
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: idx.to_vec(),
+                texture: TextureRef::White,
+            });
         }
 
         let mouse_y = ui.ctx.mouse_y;
@@ -351,7 +444,9 @@ impl NpcShop {
         let mouse_down = ui.ctx.mouse_down;
         let new_rows = {
             let rs = ui.state.get_or_default::<ResizeState>(INPUT_RESIZE_ID);
-            if resize_resp.clicked() || (resize_rect.contains(ui.ctx.mouse_x, mouse_y) && mouse_clicked) {
+            if resize_resp.clicked()
+                || (resize_rect.contains(ui.ctx.mouse_x, mouse_y) && mouse_clicked)
+            {
                 rs.dragging = true;
                 rs.start_mouse_y = mouse_y;
                 rs.start_rows = self.input_visible_rows;
@@ -374,15 +469,22 @@ impl NpcShop {
         win
     }
 
-    fn build_output_window(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>, default_x: f32, default_y: f32, win_h: f32) -> Rect {
-        let win_w = WIN_W ;
-        let title_h = TITLE_H ;
-        let footer_h = FOOTER_H ;
-        let row_h = ITEM_ROW_H ;
-        let pad_left = CONTAINER_PAD_LEFT ;
-        let pad_right = CONTAINER_PAD_RIGHT ;
-        let pad_y = CONTAINER_PAD_Y ;
-        let scrollbar_w = SCROLLBAR_W ;
+    fn build_output_window(
+        &mut self,
+        ui: &mut UiFrame,
+        events: &mut Vec<GameEvent>,
+        default_x: f32,
+        default_y: f32,
+        win_h: f32,
+    ) -> Rect {
+        let win_w = WIN_W;
+        let title_h = TITLE_H;
+        let footer_h = FOOTER_H;
+        let row_h = ITEM_ROW_H;
+        let pad_left = CONTAINER_PAD_LEFT;
+        let pad_right = CONTAINER_PAD_RIGHT;
+        let pad_y = CONTAINER_PAD_Y;
+        let scrollbar_w = SCROLLBAR_W;
         let (btn_w, btn_h) = self.btn_size;
 
         let win = ui.window_at(OUTPUT_WIN_ID, win_w, win_h, title_h, default_x, default_y);
@@ -406,44 +508,74 @@ impl NpcShop {
 
         // Cart items
         let list_y = container_y + pad_y;
-        let icon_size = ICON_SIZE ;
+        let icon_size = ICON_SIZE;
         let name_x = win.x + pad_left + (ICON_OFFSET_X) + icon_size + (4.0);
         let cart_count = self.shop.cart.len();
         let visible = OUTPUT_VISIBLE_ROWS.max(cart_count.min(5)).max(2);
         let has_scrollbar = cart_count > visible;
-        let row_content_w = win_w - pad_left - pad_right - if has_scrollbar { scrollbar_w } else { 0.0 };
+        let row_content_w =
+            win_w - pad_left - pad_right - if has_scrollbar { scrollbar_w } else { 0.0 };
 
         let max_scroll = cart_count.saturating_sub(visible);
 
         for i in 0..visible {
             let ci = self.output_scroll_offset + i;
-            if ci >= cart_count { break; }
+            if ci >= cart_count {
+                break;
+            }
             let cart_item = &self.shop.cart[ci];
             let ry = list_y + i as f32 * row_h;
             let row_rect = Rect::new(win.x + pad_left, ry, row_content_w, row_h);
             let widget_id = WidgetId(CART_BASE_ID + i as u32);
             let response = ui.interact(widget_id, row_rect);
-            if response.hovered() { ui.any_interactive_hovered = true; }
+            if response.hovered() {
+                ui.any_interactive_hovered = true;
+            }
 
             // Item shadow (itemwin_mid per row)
             if grf {
                 let shadow_x = win.x + pad_left + (ICON_OFFSET_X);
                 let shadow_y = ry + (ICON_OFFSET_Y);
-                let (v, idx) = draw::quad_vertices(shadow_x, shadow_y, icon_size, icon_size, [1.0, 1.0, 1.0, 1.0]);
-                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(ITEMWIN_MID_TEX.to_string()) });
+                let (v, idx) = draw::quad_vertices(
+                    shadow_x,
+                    shadow_y,
+                    icon_size,
+                    icon_size,
+                    [1.0, 1.0, 1.0, 1.0],
+                );
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: idx.to_vec(),
+                    texture: TextureRef::Named(ITEMWIN_MID_TEX.to_string()),
+                });
             }
 
             // Item icon
             if let Some(icon_path) = self.shop.item_icon_path(cart_item.source_index) {
                 let ix = win.x + pad_left + (ICON_OFFSET_X);
                 let iy = ry + (ICON_OFFSET_Y);
-                let (v, idx) = draw::quad_vertices(ix, iy, icon_size, icon_size, [1.0, 1.0, 1.0, 1.0]);
-                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(icon_path) });
+                let (v, idx) =
+                    draw::quad_vertices(ix, iy, icon_size, icon_size, [1.0, 1.0, 1.0, 1.0]);
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: idx.to_vec(),
+                    texture: TextureRef::Named(icon_path),
+                });
             }
 
             if response.hovered() {
-                let (v, idx) = draw::quad_vertices(row_rect.x, row_rect.y, row_rect.w, row_rect.h, [0.88, 0.20, 0.20, 0.15]);
-                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
+                let (v, idx) = draw::quad_vertices(
+                    row_rect.x,
+                    row_rect.y,
+                    row_rect.w,
+                    row_rect.h,
+                    [0.88, 0.20, 0.20, 0.15],
+                );
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: idx.to_vec(),
+                    texture: TextureRef::White,
+                });
             }
 
             let text_y = ry + row_h - (8.0);
@@ -462,7 +594,8 @@ impl NpcShop {
             let price = self.shop.item_price(cart_item.source_index);
             let subtotal = price as i64 * cart_item.quantity as i64;
             let price_str = format_zeny(subtotal as i32);
-            let z_x = win.x + win_w - pad_right - if has_scrollbar { scrollbar_w } else { 0.0 } - (10.0);
+            let z_x =
+                win.x + win_w - pad_right - if has_scrollbar { scrollbar_w } else { 0.0 } - (10.0);
             let price_w = ui.atlas.measure_text(&price_str);
             let price_x = z_x - (2.0) - price_w;
             ui.text(price_x, text_y, &price_str, text_color);
@@ -481,9 +614,18 @@ impl NpcShop {
             let content_rect = Rect::new(win.x, container_y, win_w, container_h);
             self.output_scroll_offset = scrollbar::scrollbar(
                 ui,
-                ScrollbarIds { up: OUT_SCROLL_UP_ID, down: OUT_SCROLL_DOWN_ID, thumb: OUT_SCROLL_THUMB_ID },
-                self.output_scroll_offset, visible, max_scroll,
-                content_rect, sb_x, container_y, container_h,
+                ScrollbarIds {
+                    up: OUT_SCROLL_UP_ID,
+                    down: OUT_SCROLL_DOWN_ID,
+                    thumb: OUT_SCROLL_THUMB_ID,
+                },
+                self.output_scroll_offset,
+                visible,
+                max_scroll,
+                content_rect,
+                sb_x,
+                container_y,
+                container_h,
             );
         }
 
@@ -494,7 +636,12 @@ impl NpcShop {
         // Total display
         let total = self.shop.cart_total();
         let total_label = format!("Total : {} Zeny", format_zeny(total as i32));
-        ui.text(win.x + (10.0), footer_y + footer_h - (10.0), &total_label, text_color);
+        ui.text(
+            win.x + (10.0),
+            footer_y + footer_h - (10.0),
+            &total_label,
+            text_color,
+        );
 
         // Buy/Sell + Cancel buttons
         let btn_y = footer_y + (4.0);
@@ -506,24 +653,44 @@ impl NpcShop {
             Some(NpcShopMode::Sell) => "Sell",
             None => "",
         };
-        let action_btn = ui.button(BUY_SELL_BTN_ID, Rect::new(action_x, btn_y, btn_w, btn_h), &OK_BTN, action_label);
-        let cancel_btn = ui.button(CANCEL_BTN_ID, Rect::new(cancel_x, btn_y, btn_w, btn_h), &CANCEL_BTN_TEX, "Cancel");
+        let action_btn = ui.button(
+            BUY_SELL_BTN_ID,
+            Rect::new(action_x, btn_y, btn_w, btn_h),
+            &OK_BTN,
+            action_label,
+        );
+        let cancel_btn = ui.button(
+            CANCEL_BTN_ID,
+            Rect::new(cancel_x, btn_y, btn_w, btn_h),
+            &CANCEL_BTN_TEX,
+            "Cancel",
+        );
 
         if action_btn.clicked() && !self.shop.cart.is_empty() && !self.qty_popup_open {
             match self.shop.mode {
                 Some(NpcShopMode::Buy) => {
-                    let items: Vec<(i16, u16)> = self.shop.cart.iter().map(|c| {
-                        let item_id = self.shop.buy_items[c.source_index].item_id;
-                        (c.quantity, item_id)
-                    }).collect();
+                    let items: Vec<(i16, u16)> = self
+                        .shop
+                        .cart
+                        .iter()
+                        .map(|c| {
+                            let item_id = self.shop.buy_items[c.source_index].item_id;
+                            (c.quantity, item_id)
+                        })
+                        .collect();
                     events.push(GameEvent::RequestNpcShopBuy { items });
                     self.close();
                 }
                 Some(NpcShopMode::Sell) => {
-                    let items: Vec<(i16, i16)> = self.shop.cart.iter().map(|c| {
-                        let index = self.shop.sell_items[c.source_index].index;
-                        (index, c.quantity)
-                    }).collect();
+                    let items: Vec<(i16, i16)> = self
+                        .shop
+                        .cart
+                        .iter()
+                        .map(|c| {
+                            let index = self.shop.sell_items[c.source_index].index;
+                            (index, c.quantity)
+                        })
+                        .collect();
                     events.push(GameEvent::RequestNpcShopSell { items });
                     self.close();
                 }
@@ -543,9 +710,9 @@ impl NpcShop {
         let grf = self.has_grf_textures;
         let text_color = text_color(grf);
 
-        let popup_w = QTY_W ;
-        let popup_h = QTY_H ;
-        let title_h = TITLE_H ;
+        let popup_w = QTY_W;
+        let popup_h = QTY_H;
+        let title_h = TITLE_H;
 
         // Draggable quantity window
         let win = ui.window_at(QTY_WIN_ID, popup_w, popup_h, title_h, default_x, default_y);
@@ -562,7 +729,12 @@ impl NpcShop {
         let max_title_w = popup_w - (29.0);
         let measured = ui.atlas.measure_text(&title_str);
         if measured <= max_title_w {
-            ui.text(win.x + (17.0), win.y + title_h - (3.0), &title_str, text_color);
+            ui.text(
+                win.x + (17.0),
+                win.y + title_h - (3.0),
+                &title_str,
+                text_color,
+            );
         } else {
             ui.text(win.x + (17.0), win.y + title_h - (3.0), name, text_color);
         }
@@ -570,15 +742,24 @@ impl NpcShop {
         // Input field + OK button
         let input_y = win.y + title_h + (4.0);
         let input_w = popup_w - (12.0) - btn_w - (4.0);
-        let input_rect = Rect::new(win.x + (6.0), input_y, input_w, 16.0 );
+        let input_rect = Rect::new(win.x + (6.0), input_y, input_w, 16.0);
 
         if ui.focused() != Some(QTY_INPUT_ID) {
             ui.set_focus(QTY_INPUT_ID);
         }
-        let input_bg = if grf { TextInputBg::Transparent } else { TextInputBg::Default };
+        let input_bg = if grf {
+            TextInputBg::Transparent
+        } else {
+            TextInputBg::Default
+        };
         ui.text_input(QTY_INPUT_ID, input_rect, &mut self.quantity_input, input_bg);
 
-        let ok_rect = Rect::new(win.x + (6.0) + input_w + (4.0), input_y - (2.0), btn_w, btn_h);
+        let ok_rect = Rect::new(
+            win.x + (6.0) + input_w + (4.0),
+            input_y - (2.0),
+            btn_w,
+            btn_h,
+        );
         let ok = ui.button(QTY_OK_BTN_ID, ok_rect, &OK_BTN, "OK");
 
         let confirmed = ok.clicked() || ui.ctx.key_enter;
@@ -605,10 +786,17 @@ impl NpcShop {
 
     pub fn grf_texture_paths() -> Vec<&'static str> {
         let mut paths = vec![
-            OK_BTN.normal, OK_BTN.hover, OK_BTN.pressed,
-            CANCEL_BTN_TEX.normal, CANCEL_BTN_TEX.hover, CANCEL_BTN_TEX.pressed,
-            TITLEBAR_TEX, ITEMWIN_MID_TEX, FOOTER_TEX,
-            SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
+            OK_BTN.normal,
+            OK_BTN.hover,
+            OK_BTN.pressed,
+            CANCEL_BTN_TEX.normal,
+            CANCEL_BTN_TEX.hover,
+            CANCEL_BTN_TEX.pressed,
+            TITLEBAR_TEX,
+            ITEMWIN_MID_TEX,
+            FOOTER_TEX,
+            SYS_BASE_OFF_TEX,
+            SYS_BASE_ON_TEX,
             RESIZE_TEX,
         ];
         paths.extend(scrollbar::grf_texture_paths());
@@ -619,30 +807,52 @@ impl NpcShop {
 // -- Window chrome drawing functions (RO style) --
 
 fn text_color(has_grf: bool) -> [f32; 4] {
-    if has_grf { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] }
+    if has_grf {
+        [0.0, 0.0, 0.0, 1.0]
+    } else {
+        [1.0, 1.0, 1.0, 1.0]
+    }
 }
 
 fn draw_titlebar(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bool) {
     if has_grf {
         let (v, i) = draw::quad_vertices(x, y, w, h, [1.0, 1.0, 1.0, 1.0]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(TITLEBAR_TEX.to_string()) });
-        let btn_size = 11.0 ;
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::Named(TITLEBAR_TEX.to_string()),
+        });
+        let btn_size = 11.0;
         let btn_x = x + (4.0);
         let btn_y = y + (3.0);
-        let tex = if Rect::new(btn_x, btn_y, btn_size, btn_size).contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
+        let tex = if Rect::new(btn_x, btn_y, btn_size, btn_size)
+            .contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
+        {
             SYS_BASE_ON_TEX
         } else {
             SYS_BASE_OFF_TEX
         };
         let (v, i) = draw::quad_vertices(btn_x, btn_y, btn_size, btn_size, [1.0, 1.0, 1.0, 1.0]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(tex.to_string()) });
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::Named(tex.to_string()),
+        });
     } else {
         let (v, i) = draw::quad_vertices(x, y, w, h, [0.20, 0.20, 0.30, 0.95]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
         let bc = [0.5, 0.5, 0.6, 1.0];
         for (bx, by, bw, bh) in [(x, y, w, 1.0), (x, y, 1.0, h), (x + w - 1.0, y, 1.0, h)] {
             let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
         }
     }
 }
@@ -650,16 +860,32 @@ fn draw_titlebar(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bool
 fn draw_container(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bool) {
     if has_grf {
         let (v, i) = draw::quad_vertices(x, y, w, h, [1.0, 1.0, 1.0, 1.0]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
         let (v, i) = draw::quad_vertices(x + w - 1.0, y, 1.0, h, [0.8, 0.8, 0.8, 1.0]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
     } else {
         let (v, i) = draw::quad_vertices(x, y, w, h, [0.12, 0.12, 0.18, 0.95]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
         let bc = [0.4, 0.4, 0.5, 1.0];
         for (bx, by, bw, bh) in [(x, y, 1.0, h), (x + w - 1.0, y, 1.0, h)] {
             let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
         }
     }
 }
@@ -667,14 +893,30 @@ fn draw_container(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: boo
 fn draw_footer(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bool) {
     if has_grf {
         let (v, i) = draw::quad_vertices(x, y, w, h, [1.0, 1.0, 1.0, 1.0]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(FOOTER_TEX.to_string()) });
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::Named(FOOTER_TEX.to_string()),
+        });
     } else {
         let (v, i) = draw::quad_vertices(x, y, w, h, [0.18, 0.18, 0.25, 0.95]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
         let bc = [0.5, 0.5, 0.6, 1.0];
-        for (bx, by, bw, bh) in [(x, y + h - 1.0, w, 1.0), (x, y, 1.0, h), (x + w - 1.0, y, 1.0, h)] {
+        for (bx, by, bw, bh) in [
+            (x, y + h - 1.0, w, 1.0),
+            (x, y, 1.0, h),
+            (x + w - 1.0, y, 1.0, h),
+        ] {
             let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
         }
     }
 }
@@ -698,9 +940,9 @@ fn format_zeny(amount: i32) -> String {
 mod tests {
     use super::*;
     use ragnarok_game::npc_shop::ShopBuyItem;
+    use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-    use ragnarok_renderer::font_atlas::FontAtlas;
 
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
@@ -711,9 +953,17 @@ mod tests {
     #[test]
     fn escape_closes_shop() {
         let mut shop_ui = NpcShop::new();
-        shop_ui.shop.open_buy(100, vec![
-            ShopBuyItem { item_id: 501, price: 50, discount_price: 50, item_type: 0, name: "Red Potion".into(), resource_name: None },
-        ]);
+        shop_ui.shop.open_buy(
+            100,
+            vec![ShopBuyItem {
+                item_id: 501,
+                price: 50,
+                discount_price: 50,
+                item_type: 0,
+                name: "Red Potion".into(),
+                resource_name: None,
+            }],
+        );
 
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -730,9 +980,17 @@ mod tests {
     #[test]
     fn escape_closes_qty_popup_first() {
         let mut shop_ui = NpcShop::new();
-        shop_ui.shop.open_buy(100, vec![
-            ShopBuyItem { item_id: 501, price: 50, discount_price: 50, item_type: 0, name: "Red Potion".into(), resource_name: None },
-        ]);
+        shop_ui.shop.open_buy(
+            100,
+            vec![ShopBuyItem {
+                item_id: 501,
+                price: 50,
+                discount_price: 50,
+                item_type: 0,
+                name: "Red Potion".into(),
+                resource_name: None,
+            }],
+        );
         shop_ui.qty_popup_open = true;
 
         let mut state = StateCache::new();
