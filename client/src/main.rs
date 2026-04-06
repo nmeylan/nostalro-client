@@ -747,11 +747,18 @@ impl App {
                     let sell_items = items
                         .into_iter()
                         .map(|(index, price, overcharge_price)| {
+                            let inv_item = self.game.inventory_window.inventory.get_item(index as u16);
+                            let name = inv_item.map(|i| i.name.clone())
+                                .unwrap_or_else(|| format!("Item #{index}"));
+                            let resource_name = inv_item.and_then(|i| i.resource_name.clone());
+                            let count = inv_item.map(|i| i.count).unwrap_or(1);
                             ragnarok_game::npc_shop::ShopSellItem {
                                 index,
                                 price,
                                 overcharge_price,
-                                name: format!("Slot #{index}"),
+                                name,
+                                resource_name,
+                                count,
                             }
                         })
                         .collect();
@@ -782,9 +789,14 @@ impl App {
                     }
                 }
                 GameEvent::NpcShopSellResult { result } => {
-                    self.game.npc_shop.shop.close();
-                    if result != 0 {
-                        self.game.chat_window.add_chat("Sell failed.".into());
+                    self.game.npc_shop.close();
+                    match result {
+                        0 => {
+                            self.game.chat_window.add_chat("Sale completed.".into());
+                        }
+                        _ => {
+                            self.game.chat_window.add_chat("Sell failed.".into());
+                        }
                     }
                 }
                 GameEvent::InventoryNormalItems { items } => {
@@ -833,6 +845,10 @@ impl App {
                             self.game.item_resource_table.as_ref().and_then(|t| {
                                 t.get_resource_name(info.item_id).map(|s| s.to_string())
                             });
+                        tracing::debug!(
+                            "Equipment item: idx={} id={} type={} name={} loc={} wear={}",
+                            info.index, info.item_id, info.item_type, name, info.location, info.wear_state,
+                        );
                         self.game
                             .inventory_window
                             .inventory
@@ -918,6 +934,10 @@ impl App {
                     wear_location,
                     success,
                 } => {
+                    tracing::debug!(
+                        "EquipResult: idx={} wear_loc={} success={}",
+                        index, wear_location, success,
+                    );
                     if success {
                         self.game
                             .inventory_window
@@ -925,7 +945,11 @@ impl App {
                             .update_wear_state(index, wear_location);
                     }
                 }
-                GameEvent::InventoryUnequipResult { index, success, .. } => {
+                GameEvent::InventoryUnequipResult { index, success, wear_location } => {
+                    tracing::debug!(
+                        "UnequipResult: idx={} wear_loc={} success={}",
+                        index, wear_location, success,
+                    );
                     if success {
                         self.game.inventory_window.inventory.clear_wear_state(index);
                     }
@@ -934,7 +958,7 @@ impl App {
                     self.game
                         .inventory_window
                         .inventory
-                        .update_item_count(index, count);
+                        .subtract_item_count(index, count);
                 }
                 GameEvent::ChatMessage { gid, message } => {
                     if let Some(bubble_text) = message.split(" : ").nth(1) {
@@ -1454,6 +1478,13 @@ impl App {
                         .as_ref()
                         .map(|name| format!("data/texture/유저인터페이스/item/{name}.bmp"))
                 })
+                .chain(
+                    self.game.npc_shop.shop.sell_items.iter().filter_map(|item| {
+                        item.resource_name
+                            .as_ref()
+                            .map(|name| format!("data/texture/유저인터페이스/item/{name}.bmp"))
+                    }),
+                )
                 .collect();
             let icon_refs: Vec<&str> = icon_paths.iter().map(|s| s.as_str()).collect();
             renderer.preload_textures(&icon_refs, grf);
@@ -1755,7 +1786,7 @@ impl App {
         }
     }
 
-    fn build_ui(&mut self, elapsed: f32) -> (Vec<UiDrawCall>, Vec<GameEvent>, bool) {
+    fn build_ui(&mut self, elapsed: f32) -> (Vec<UiDrawCall>, Vec<GameEvent>, bool, bool) {
         match self.game.app_state {
             AppState::Login => {
                 if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
@@ -1773,9 +1804,10 @@ impl App {
                     );
                     let events = self.login_window.build(&mut ui);
                     let any_hovered = ui.any_hovered;
-                    (ui.draw_calls, events, any_hovered)
+                    let any_interactive = ui.any_interactive_hovered;
+                    (ui.draw_calls, events, any_hovered, any_interactive)
                 } else {
-                    (Vec::new(), Vec::new(), false)
+                    (Vec::new(), Vec::new(), false, false)
                 }
             }
             AppState::ServerSelect => {
@@ -1794,9 +1826,10 @@ impl App {
                     );
                     let events = server_win.build(&mut ui);
                     let any_hovered = ui.any_hovered;
-                    (ui.draw_calls, events, any_hovered)
+                    let any_interactive = ui.any_interactive_hovered;
+                    (ui.draw_calls, events, any_hovered, any_interactive)
                 } else {
-                    (Vec::new(), Vec::new(), false)
+                    (Vec::new(), Vec::new(), false, false)
                 }
             }
             AppState::CharacterSelect => {
@@ -1815,9 +1848,10 @@ impl App {
                     );
                     let events = char_win.build(&mut ui);
                     let any_hovered = ui.any_hovered;
-                    (ui.draw_calls, events, any_hovered)
+                    let any_interactive = ui.any_interactive_hovered;
+                    (ui.draw_calls, events, any_hovered, any_interactive)
                 } else {
-                    (Vec::new(), Vec::new(), false)
+                    (Vec::new(), Vec::new(), false, false)
                 }
             }
             AppState::InGame => {
@@ -1851,7 +1885,12 @@ impl App {
                     events.extend(inv_events);
 
                     let eq_open = self.game.equipment_window.is_open();
-                    let eq_events = self.game.equipment_window.build(&mut ui, &self.game.inventory_window.inventory);
+                    let eq_events = self.game.equipment_window.build(
+                        &mut ui,
+                        &self.game.inventory_window.inventory,
+                        self.game.item_slot_count_table.as_ref(),
+                        self.game.card_name_table.as_ref(),
+                    );
                     events.extend(eq_events);
 
                     let allow_escape =
@@ -1859,10 +1898,13 @@ impl App {
                     let menu_events = self.game.system_menu.build(&mut ui, allow_escape);
                     events.extend(menu_events);
 
+                    ui.draw_drag_icon();
+
                     let any_hovered = ui.any_hovered;
-                    (ui.draw_calls, events, any_hovered)
+                    let any_interactive = ui.any_interactive_hovered;
+                    (ui.draw_calls, events, any_hovered, any_interactive)
                 } else {
-                    (Vec::new(), Vec::new(), false)
+                    (Vec::new(), Vec::new(), false, false)
                 }
             }
         }
@@ -2035,13 +2077,16 @@ impl App {
         &mut self,
         hovered: Option<(i32, i32)>,
         ui_any_hovered: bool,
+        ui_any_interactive_hovered: bool,
         render_list: &[RenderEntry],
     ) -> Option<u32> {
         let (cursor, hovered_entity_id) = if self.game.app_state == AppState::InGame {
             if self.input.right_mouse_down {
                 (CursorType::Rotate, None)
-            } else if ui_any_hovered {
+            } else if ui_any_interactive_hovered {
                 (CursorType::Click, None)
+            } else if ui_any_hovered {
+                (CursorType::Default, None)
             } else if let Some((entity_cursor, entity_id)) = hovered_entity_cursor_type(
                 self.input.mouse_position,
                 &self.game.entities,
@@ -2053,7 +2098,7 @@ impl App {
             } else {
                 (CursorType::Default, None)
             }
-        } else if ui_any_hovered {
+        } else if ui_any_interactive_hovered {
             (CursorType::Click, None)
         } else {
             (CursorType::Default, None)
@@ -2161,6 +2206,12 @@ impl ApplicationHandler for App {
                         Some(ragnarok_game::item_name_table::ItemNameTable::load(&grf));
                     self.game.item_resource_table = Some(
                         ragnarok_game::item_resource_table::ItemResourceTable::load(&grf),
+                    );
+                    self.game.item_slot_count_table = Some(
+                        ragnarok_game::item_slot_count_table::ItemSlotCountTable::load(&grf),
+                    );
+                    self.game.card_name_table = Some(
+                        ragnarok_game::card_name_table::CardNameTable::load(&grf),
                     );
                     self.grf = Some(grf);
                 }
@@ -2297,7 +2348,7 @@ impl ApplicationHandler for App {
 
                 self.handle_game_events(event_loop);
 
-                let (ui_draw_calls, ui_events, ui_any_hovered) = self.build_ui(elapsed);
+                let (ui_draw_calls, ui_events, ui_any_hovered, ui_any_interactive) = self.build_ui(elapsed);
                 self.input.ui_hovered = ui_any_hovered;
                 self.handle_ui_events(ui_events, event_loop);
                 let mut world_overlay_calls: Vec<UiDrawCall> = Vec::new();
@@ -2313,7 +2364,7 @@ impl ApplicationHandler for App {
                 let hovered = self.update_grid_hover();
                 let render_list = self.compute_render_list();
                 let hovered_entity_id =
-                    self.update_cursor_type(hovered, ui_any_hovered, &render_list);
+                    self.update_cursor_type(hovered, ui_any_hovered, ui_any_interactive, &render_list);
                 self.game.hovered_entity_id = hovered_entity_id;
                 if let Some(entity_id) = hovered_entity_id {
                     if let Some(entity) = self.game.entities.get_mut(entity_id) {
@@ -2538,6 +2589,18 @@ impl ApplicationHandler for App {
                                         }
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                    if let Some(center) = self.game.equipment_window.character_center() {
+                        if let Some(player_id) = self.game.entities.player_id() {
+                            if let Some(sprite) = self.game.sprites.get(&player_id) {
+                                let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
+                                let mut paperdoll = sprite.build_batches(
+                                    &idle_anim, None, 0, center, 0.0, 1.0, 0.0,
+                                );
+                                cursor_batches.append(&mut paperdoll);
                             }
                         }
                     }

@@ -8,8 +8,10 @@ use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::CursorAnimationState;
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::map_coordinates::MapCoordinates;
+use ragnarok_game::card_name_table::CardNameTable;
 use ragnarok_game::item_name_table::ItemNameTable;
 use ragnarok_game::item_resource_table::ItemResourceTable;
+use ragnarok_game::item_slot_count_table::ItemSlotCountTable;
 use ragnarok_game::name_table::NameTable;
 use ragnarok_game::event::CharacterInfo;
 use ragnarok_game::server_time::ServerTimeClock;
@@ -41,6 +43,8 @@ pub struct GameState {
     pub emotion_act: Option<ActFile>,
     pub item_name_table: Option<ItemNameTable>,
     pub item_resource_table: Option<ItemResourceTable>,
+    pub item_slot_count_table: Option<ItemSlotCountTable>,
+    pub card_name_table: Option<CardNameTable>,
     pub chat_window: ChatWindow,
     pub equipment_window: EquipmentWindow,
     pub inventory_window: InventoryWindow,
@@ -74,6 +78,8 @@ impl GameState {
             emotion_act: None,
             item_name_table: None,
             item_resource_table: None,
+            item_slot_count_table: None,
+            card_name_table: None,
             chat_window: ChatWindow::new(),
             equipment_window: EquipmentWindow::new(),
             inventory_window: InventoryWindow::new(),

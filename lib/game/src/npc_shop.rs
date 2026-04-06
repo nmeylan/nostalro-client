@@ -20,6 +20,8 @@ pub struct ShopSellItem {
     pub price: i32,
     pub overcharge_price: i32,
     pub name: String,
+    pub resource_name: Option<String>,
+    pub count: i16,
 }
 
 #[derive(Debug, Clone)]
@@ -126,7 +128,10 @@ impl NpcShopData {
             Some(NpcShopMode::Buy) => self.buy_items.get(index)
                 .and_then(|i| i.resource_name.as_ref())
                 .map(|name| format!("data/texture/유저인터페이스/item/{name}.bmp")),
-            _ => None,
+            Some(NpcShopMode::Sell) => self.sell_items.get(index)
+                .and_then(|i| i.resource_name.as_ref())
+                .map(|name| format!("data/texture/유저인터페이스/item/{name}.bmp")),
+            None => None,
         }
     }
 
@@ -136,6 +141,36 @@ impl NpcShopData {
             Some(NpcShopMode::Sell) => self.sell_items.get(index).map(|i| i.overcharge_price).unwrap_or(0),
             None => 0,
         }
+    }
+
+    pub fn sell_item_count(&self, index: usize) -> i16 {
+        self.sell_items.get(index).map(|i| i.count).unwrap_or(1)
+    }
+
+    pub fn sell_item_remaining(&self, index: usize) -> i16 {
+        let total = self.sell_item_count(index);
+        let in_cart: i16 = self.cart.iter()
+            .filter(|c| c.source_index == index)
+            .map(|c| c.quantity)
+            .sum();
+        total - in_cart
+    }
+
+    pub fn visible_sell_indices(&self) -> Vec<usize> {
+        (0..self.sell_items.len())
+            .filter(|&i| self.sell_item_remaining(i) > 0)
+            .collect()
+    }
+
+    pub fn remove_sold_items(&mut self) {
+        for cart_item in &self.cart {
+            if let Some(sell_item) = self.sell_items.get_mut(cart_item.source_index) {
+                sell_item.count -= cart_item.quantity;
+            }
+        }
+        self.sell_items.retain(|i| i.count > 0);
+        self.cart.clear();
+        self.selected_index = None;
     }
 
     pub fn close(&mut self) {
@@ -162,8 +197,8 @@ mod tests {
 
     fn sample_sell_items() -> Vec<ShopSellItem> {
         vec![
-            ShopSellItem { index: 1, price: 25, overcharge_price: 25, name: "Red Potion".into() },
-            ShopSellItem { index: 5, price: 5000, overcharge_price: 5500, name: "Stiletto".into() },
+            ShopSellItem { index: 1, price: 25, overcharge_price: 25, name: "Red Potion".into(), resource_name: Some("빨간포션".into()), count: 10 },
+            ShopSellItem { index: 5, price: 5000, overcharge_price: 5500, name: "Stiletto".into(), resource_name: Some("스틸레토".into()), count: 1 },
         ]
     }
 

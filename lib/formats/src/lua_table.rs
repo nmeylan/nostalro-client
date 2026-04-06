@@ -52,6 +52,25 @@ pub fn parse_item_name_table(data: &[u8]) -> HashMap<u16, String> {
     map
 }
 
+/// Parses `id#` format (id-only lines). Returns a HashSet of ids.
+pub fn parse_id_set_table(data: &[u8]) -> std::collections::HashSet<u16> {
+    let content = decode_euc_kr(data);
+    let mut set = std::collections::HashSet::new();
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with("//") {
+            continue;
+        }
+        let parts: Vec<&str> = line.split('#').collect();
+        if !parts.is_empty() {
+            if let Ok(id) = parts[0].parse::<u16>() {
+                set.insert(id);
+            }
+        }
+    }
+    set
+}
+
 /// Parses RO accessory data from `accessoryid.lua` and `accname.lua`.
 /// Returns a map from view_id to sprite name suffix.
 ///
@@ -151,5 +170,16 @@ ACCESSORY_HEADBAND = 6,
         let table = build_accessory_table(id_content, name_content);
         assert_eq!(table.len(), 1);
         assert!(table.get(&2).is_none());
+    }
+
+    #[test]
+    fn parse_id_set_table_extracts_ids() {
+        let data = b"4001#\n4002#\n// comment\n\n4003#\n";
+        let set = parse_id_set_table(data);
+        assert_eq!(set.len(), 3);
+        assert!(set.contains(&4001));
+        assert!(set.contains(&4002));
+        assert!(set.contains(&4003));
+        assert!(!set.contains(&9999));
     }
 }

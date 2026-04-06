@@ -21,6 +21,7 @@ pub struct UiFrame<'a> {
     pub has_grf_textures: bool,
     pub draw_calls: Vec<DrawCall>,
     pub any_hovered: bool,
+    pub any_interactive_hovered: bool,
     focus: Option<WidgetId>,
 }
 
@@ -106,6 +107,7 @@ impl<'a> UiFrame<'a> {
             has_grf_textures,
             draw_calls: Vec::new(),
             any_hovered: false,
+            any_interactive_hovered: false,
             focus: initial_focus,
         }
     }
@@ -167,6 +169,9 @@ impl<'a> UiFrame<'a> {
         &mut self, id: WidgetId, rect: Rect, textures: &ButtonTextures, fallback_label: &str,
     ) -> Response {
         let response = self.interact(id, rect);
+        if response.hovered {
+            self.any_interactive_hovered = true;
+        }
         let pressed = response.hovered && (self.ctx.mouse_clicked || self.ctx.mouse_down);
 
         if self.has_grf_textures {
@@ -230,6 +235,9 @@ impl<'a> UiFrame<'a> {
         &mut self, id: WidgetId, rect: Rect, state: &mut TextInput, bg: TextInputBg,
     ) -> Response {
         let response = self.interact(id, rect);
+        if response.hovered {
+            self.any_interactive_hovered = true;
+        }
 
         if response.has_focus {
             state.process_keys(self.ctx);
@@ -614,6 +622,53 @@ mod tests {
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         ui.interact(WidgetId(1), rect);
         assert!(ui.any_hovered);
+    }
+
+    #[test]
+    fn interactive_hovered_false_for_plain_interact() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let rect = Rect::new(10.0, 10.0, 100.0, 30.0);
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 50.0;
+        ctx.mouse_y = 25.0;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        ui.interact(WidgetId(1), rect);
+        assert!(ui.any_hovered);
+        assert!(!ui.any_interactive_hovered);
+    }
+
+    #[test]
+    fn interactive_hovered_true_for_button() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let rect = Rect::new(10.0, 10.0, 100.0, 30.0);
+        let textures = ButtonTextures { normal: "n", hover: "h", pressed: "p" };
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 50.0;
+        ctx.mouse_y = 25.0;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        ui.button(WidgetId(1), rect, &textures, "Test");
+        assert!(ui.any_hovered);
+        assert!(ui.any_interactive_hovered);
+    }
+
+    #[test]
+    fn interactive_hovered_true_for_text_input() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let rect = Rect::new(10.0, 10.0, 200.0, 30.0);
+        let mut input = TextInput::new(100, false);
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 50.0;
+        ctx.mouse_y = 25.0;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        ui.text_input(WidgetId(1), rect, &mut input, TextInputBg::Default);
+        assert!(ui.any_hovered);
+        assert!(ui.any_interactive_hovered);
     }
 
     #[test]

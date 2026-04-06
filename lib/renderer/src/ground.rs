@@ -56,7 +56,7 @@ impl GroundRenderer {
         // Preload all ground textures
         for tex_name in &gnd.textures {
             let path = format!("data/texture/{tex_name}");
-            texture_cache.get_or_load(&path, grf, device, queue);
+            texture_cache.get_or_load(&path, grf, device, queue, false);
         }
 
         // Build lightmap atlas

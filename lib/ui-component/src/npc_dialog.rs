@@ -397,6 +397,7 @@ impl NpcDialog {
             let item_rect = Rect::new(dx + padding, item_y, text_area_w, menu_item_h);
             let widget_id = WidgetId(MENU_BASE_ID + idx as u32);
             let response = ui.interact(widget_id, item_rect);
+            if response.hovered() { ui.any_interactive_hovered = true; }
 
             let is_selected = idx == self.dialog.selected_menu_index;
 

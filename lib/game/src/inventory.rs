@@ -110,6 +110,15 @@ impl InventoryData {
         }
     }
 
+    pub fn subtract_item_count(&mut self, index: u16, amount: i16) {
+        if let Some(item) = self.items.iter_mut().find(|i| i.index == index) {
+            item.count -= amount;
+            if item.count <= 0 {
+                self.remove_item(index);
+            }
+        }
+    }
+
     pub fn update_wear_state(&mut self, index: u16, wear_location: u16) {
         if let Some(item) = self.items.iter_mut().find(|i| i.index == index) {
             item.wear_state = wear_location;
@@ -327,6 +336,34 @@ mod tests {
         inv.clear_wear_state(3);
         assert!(inv.equipped_in_slot(EquipmentLocation::HandRight).is_none());
         assert!(inv.equipped_in_slot(EquipmentLocation::Armor).is_some());
+    }
+
+    #[test]
+    fn headgear_equipped_in_slot() {
+        let mut inv = InventoryData::new();
+        // HeadTop mask=256, HeadMid mask=512, HeadLow mask=1
+        inv.add_item(make_equip_item(10, 2220, 256));   // Hat → HeadTop
+        inv.add_item(make_equip_item(11, 5001, 512));   // Sunglasses → HeadMid
+        inv.add_item(make_equip_item(12, 5100, 1));     // Mouth mask → HeadLow
+
+        // Equip all three
+        inv.update_wear_state(10, 256);
+        inv.update_wear_state(11, 512);
+        inv.update_wear_state(12, 1);
+
+        assert_eq!(inv.equipped_in_slot(EquipmentLocation::HeadTop).unwrap().index, 10);
+        assert_eq!(inv.equipped_in_slot(EquipmentLocation::HeadMid).unwrap().index, 11);
+        assert_eq!(inv.equipped_in_slot(EquipmentLocation::HeadLow).unwrap().index, 12);
+
+        // Multi-slot headgear (HeadTop+HeadMid = 256|512 = 768)
+        inv.clear_wear_state(10);
+        inv.clear_wear_state(11);
+        inv.add_item(make_equip_item(13, 2230, 768));
+        inv.update_wear_state(13, 768);
+
+        assert_eq!(inv.equipped_in_slot(EquipmentLocation::HeadTop).unwrap().index, 13);
+        assert_eq!(inv.equipped_in_slot(EquipmentLocation::HeadMid).unwrap().index, 13);
+        assert_eq!(inv.equipped_in_slot(EquipmentLocation::HeadLow).unwrap().index, 12);
     }
 
     #[test]

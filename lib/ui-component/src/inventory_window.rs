@@ -3,9 +3,10 @@ use ragnarok_game::inventory::{InventoryItem, InventoryTab};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
+use crate::equipment_window::EQ_WIN_ID;
 
 // -- Widget IDs --
-const INV_WIN_ID: WidgetId = WidgetId(800);
+pub const INV_WIN_ID: WidgetId = WidgetId(800);
 const INV_TAB_USABLE_ID: WidgetId = WidgetId(801);
 const INV_TAB_EQUIP_ID: WidgetId = WidgetId(802);
 const INV_TAB_ETC_ID: WidgetId = WidgetId(803);
@@ -25,18 +26,18 @@ const TITLE_H: f32 = 17.0;
 const FOOTER_H: f32 = 19.0;
 const SCROLLBAR_W: f32 = 13.0;
 const SCROLL_BTN_H: f32 = 14.0;
-const PAD_X: f32 = 4.0;
-const PAD_Y: f32 = 4.0;
+const PAD_X: f32 = 12.0;
+const PAD_Y: f32 = 10.0;
 const RESIZE_BTN_SIZE: f32 = 13.0;
 const MINI_BTN_SIZE: f32 = 11.0;
 
 // Grid size constraints
-const MIN_COLS: usize = 6;
+const MIN_COLS: usize = 7;
 const MAX_COLS: usize = 10;
 const MIN_ROWS: usize = 2;
 const MAX_ROWS: usize = 6;
 const DEFAULT_COLS: usize = 7;
-const DEFAULT_ROWS: usize = 4;
+const DEFAULT_ROWS: usize = 2;
 
 // -- GRF textures --
 const TITLEBAR_TEX: &str = "data/texture/유저인터페이스/basic_interface/titlebar_mid.bmp";
@@ -151,6 +152,7 @@ impl InventoryWindow {
             mini_size, mini_size,
         );
         let mini_resp = ui.interact(INV_MINI_BTN_ID, mini_rect);
+        if mini_resp.hovered() { ui.any_interactive_hovered = true; }
         if grf {
             let tex = if mini_resp.hovered() { MINI_ON_TEX } else { MINI_OFF_TEX };
             let (v, idx) = draw::quad_vertices(mini_rect.x, mini_rect.y, mini_size, mini_size, [1.0, 1.0, 1.0, 1.0]);
@@ -171,6 +173,7 @@ impl InventoryWindow {
             close_size, close_size,
         );
         let close_resp = ui.interact(INV_CLOSE_BTN_ID, close_rect);
+        if close_resp.hovered() { ui.any_interactive_hovered = true; }
         if grf {
             let tex = if close_resp.hovered() { CLOSE_ON_TEX } else { CLOSE_OFF_TEX };
             let (v, idx) = draw::quad_vertices(close_rect.x, close_rect.y, close_size, close_size, [1.0, 1.0, 1.0, 1.0]);
@@ -261,10 +264,9 @@ impl InventoryWindow {
                     ui.text(count_x, count_y, &count_str, [1.0, 1.0, 1.0, 1.0]);
                 }
 
-                // Hover highlight
-                if response.hovered() {
-                    let (v, idx) = draw::quad_vertices(cx, cy, cell, cell, [0.20, 0.42, 0.88, 0.25]);
-                    ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
+                // Begin drag on click for equipment items
+                if response.clicked() && item.is_equipment() && !item.is_equipped() {
+                    ui.drag_source(INV_WIN_ID, item.index as usize, item.icon_path(), (ICON_SIZE, ICON_SIZE));
                 }
 
                 // Double-click or right-click: use (consumable) or equip/unequip (equipment)
@@ -282,6 +284,14 @@ impl InventoryWindow {
             }
         } // filtered dropped here
 
+        // Drop zone: accept drags from equipment window (unequip)
+        let grid_rect = Rect::new(grid_x, grid_y, self.grid_cols as f32 * CELL_SIZE, self.grid_rows as f32 * CELL_SIZE);
+        if let Some((source_id, item_index)) = ui.drop_zone(grid_rect) {
+            if source_id == EQ_WIN_ID {
+                events.push(GameEvent::RequestUnequipItem { index: item_index as u16 });
+            }
+        }
+
         // -- Scrollbar (only when needed) --
         if total_rows > self.grid_rows {
             let sb_x = grid_area_x + (PAD_X) + self.grid_cols as f32 * (CELL_SIZE);
@@ -295,6 +305,13 @@ impl InventoryWindow {
         let tab_x = win.x;
         let tab_img_w = tab_strip_w;
         let tab_img_h = if self.tab_size.1 > 0.0 { self.tab_size.1 } else { container_h };
+
+        // -- Footer --
+        let footer_y = container_y + container_h;
+        draw_footer(ui, win.x, footer_y, win_w, FOOTER_H , grf);
+        let total_count = self.inventory.all_items().len();
+        let item_count_label = format!("Num: {total_count}/100");
+        ui.text(win.x + tab_img_w + (4.0), footer_y + (FOOTER_H) - (5.0), &item_count_label, text_color);
 
         // White background for the full tab column height (below the texture)
         let (v, idx) = draw::quad_vertices(tab_x, container_y, tab_img_w, container_h, [1.0, 1.0, 1.0, 1.0]);
@@ -322,6 +339,7 @@ impl InventoryWindow {
             let ty = container_y + i as f32 * tab_btn_h;
             let tab_rect = Rect::new(tab_x, ty, tab_img_w, tab_btn_h);
             let resp = ui.interact(*id, tab_rect);
+            if resp.hovered() { ui.any_interactive_hovered = true; }
 
             // Fallback rendering when no GRF textures
             if !grf {
@@ -339,12 +357,6 @@ impl InventoryWindow {
             }
         }
 
-        // -- Footer --
-        let footer_y = container_y + container_h;
-        draw_footer(ui, win.x, footer_y, win_w, FOOTER_H , grf);
-        let total_count = self.inventory.all_items().len();
-        let item_count_label = format!("Num: {total_count}/100");
-        ui.text(win.x + (4.0), footer_y + (FOOTER_H) - (5.0), &item_count_label, text_color);
 
         // Resize handle (bottom-right of footer)
         let resize_size = RESIZE_BTN_SIZE ;
@@ -354,6 +366,7 @@ impl InventoryWindow {
             resize_size, resize_size,
         );
         let resize_resp = ui.interact(INV_RESIZE_ID, resize_rect);
+        if resize_resp.hovered() { ui.any_interactive_hovered = true; }
         if grf {
             let (v, idx) = draw::quad_vertices(resize_rect.x, resize_rect.y, resize_size, resize_size, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(RESIZE_TEX.to_string()) });
@@ -428,6 +441,7 @@ impl InventoryWindow {
         // Up button
         let up_rect = Rect::new(x, y, scrollbar_w, scroll_btn_h);
         let up_response = ui.interact(INV_SCROLL_UP_ID, up_rect);
+        if up_response.hovered() { ui.any_interactive_hovered = true; }
         if has_grf {
             let (v, i) = draw::quad_vertices(x, y, scrollbar_w, scroll_btn_h, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(SCROLL_UP_TEX.to_string()) });
@@ -444,6 +458,7 @@ impl InventoryWindow {
         let down_y = y + h - scroll_btn_h;
         let down_rect = Rect::new(x, down_y, scrollbar_w, scroll_btn_h);
         let down_response = ui.interact(INV_SCROLL_DOWN_ID, down_rect);
+        if down_response.hovered() { ui.any_interactive_hovered = true; }
         if has_grf {
             let (v, i) = draw::quad_vertices(x, down_y, scrollbar_w, scroll_btn_h, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(SCROLL_DOWN_TEX.to_string()) });
@@ -467,6 +482,7 @@ impl InventoryWindow {
 
             let thumb_rect = Rect::new(x, thumb_y, scrollbar_w, thumb_h);
             let hovered = thumb_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y);
+            if hovered { ui.any_interactive_hovered = true; }
             let mouse_clicked = ui.ctx.mouse_clicked;
             let mouse_down = ui.ctx.mouse_down;
 

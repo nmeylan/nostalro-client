@@ -298,6 +298,7 @@ impl ChatWindow {
             let handle_rect = Rect::new(chat_x, handle_center_y - (DRAG_HIT_AREA) / 2.0, chat_w, DRAG_HIT_AREA );
             let h_drag = ui.state.get_or_default::<DragHandleState>(HEIGHT_DRAG_ID);
             let hovered = handle_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y);
+            if hovered { ui.any_interactive_hovered = true; }
 
             if hovered && ui.ctx.mouse_clicked && !drag_locked {
                 h_drag.dragging = true;
@@ -328,6 +329,7 @@ impl ChatWindow {
             let handle_rect = Rect::new(right_edge_x - (DRAG_HIT_AREA) / 2.0, chat_y, DRAG_HIT_AREA , total_h);
             let w_drag = ui.state.get_or_default::<DragHandleState>(WIDTH_DRAG_ID);
             let hovered = handle_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y);
+            if hovered { ui.any_interactive_hovered = true; }
 
             if hovered && ui.ctx.mouse_clicked && !drag_locked {
                 w_drag.dragging = true;
@@ -598,6 +600,7 @@ impl ChatWindow {
         // Up button
         let up_rect = Rect::new(x, y, scrollbar_w, scroll_btn_h);
         let up_response = ui.interact(SCROLL_UP_ID, up_rect);
+        if up_response.hovered() { ui.any_interactive_hovered = true; }
         if self.has_grf_textures {
             let (v, i) = draw::quad_vertices(x, y, scrollbar_w, scroll_btn_h, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(draw::DrawCall {
@@ -620,6 +623,7 @@ impl ChatWindow {
         let down_y = y + h - scroll_btn_h;
         let down_rect = Rect::new(x, down_y, scrollbar_w, scroll_btn_h);
         let down_response = ui.interact(SCROLL_DOWN_ID, down_rect);
+        if down_response.hovered() { ui.any_interactive_hovered = true; }
         if self.has_grf_textures {
             let (v, i) = draw::quad_vertices(x, down_y, scrollbar_w, scroll_btn_h, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(draw::DrawCall {
@@ -659,6 +663,7 @@ impl ChatWindow {
             // Thumb drag interaction
             let thumb_rect = Rect::new(x, thumb_y, scrollbar_w, thumb_h);
             let hovered = thumb_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y);
+            if hovered { ui.any_interactive_hovered = true; }
             let mouse_clicked = ui.ctx.mouse_clicked;
             let mouse_down = ui.ctx.mouse_down;
             let mouse_y = ui.ctx.mouse_y;
@@ -723,6 +728,7 @@ impl ChatWindow {
         btn_x -= btn_size;
         let lock_rect = Rect::new(btn_x, y, btn_size, toolbar_h);
         let lock_resp = ui.interact(LOCK_BTN_ID, lock_rect);
+        if lock_resp.hovered() { ui.any_interactive_hovered = true; }
         if self.has_grf_textures {
             let tex = if locked { LOCK_DRAG_BTN } else { UNLOCK_DRAG_BTN };
             let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, btn_size, btn_size, [1.0, 1.0, 1.0, 1.0]);
@@ -744,6 +750,7 @@ impl ChatWindow {
         btn_x -= btn_size;
         let min_rect = Rect::new(btn_x, y, btn_size, toolbar_h);
         let min_resp = ui.interact(MINIMIZE_BTN_ID, min_rect);
+        if min_resp.hovered() { ui.any_interactive_hovered = true; }
         if self.has_grf_textures {
             let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, btn_size, btn_size, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(draw::DrawCall {
@@ -765,6 +772,7 @@ impl ChatWindow {
         btn_x -= mode_w;
         let mode_rect = Rect::new(btn_x, y, mode_w, toolbar_h);
         let mode_resp = ui.interact(CHATMODE_BTN_ID, mode_rect);
+        if mode_resp.hovered() { ui.any_interactive_hovered = true; }
         let chat_mode_on = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).chat_mode_on;
         if self.has_grf_textures {
             let tex = if chat_mode_on { CHATMODE_ON } else { CHATMODE_OFF };
@@ -787,6 +795,7 @@ impl ChatWindow {
         btn_x -= btn_size;
         let size_rect = Rect::new(btn_x, y, btn_size, toolbar_h);
         let size_resp = ui.interact(SIZE_BTN_ID, size_rect);
+        if size_resp.hovered() { ui.any_interactive_hovered = true; }
         if self.has_grf_textures {
             let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, btn_size, btn_size, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(draw::DrawCall {
@@ -808,6 +817,7 @@ impl ChatWindow {
         btn_x -= filter_w;
         let filter_rect = Rect::new(btn_x, y, filter_w, toolbar_h);
         let filter_resp = ui.interact(FILTER_BTN_ID, filter_rect);
+        if filter_resp.hovered() { ui.any_interactive_hovered = true; }
         let color = if filter_resp.hovered() { [0.5, 0.5, 0.6, 1.0] } else { [0.3, 0.3, 0.4, 1.0] };
         let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, filter_w, btn_size, color);
         ui.draw_calls.push(draw::DrawCall {

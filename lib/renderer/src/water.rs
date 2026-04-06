@@ -77,7 +77,7 @@ impl WaterRenderer {
             format!("data/texture/\u{C6CC}\u{D130}/water{}{:02}.jpg", water_type, i)
         }).collect();
         for name in &texture_names {
-            texture_cache.get_or_load(name, grf, device, queue);
+            texture_cache.get_or_load(name, grf, device, queue, false);
         }
 
         let (vertices, indices) = build_water_mesh(gnd, water_y);

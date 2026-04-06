@@ -196,7 +196,7 @@ impl Renderer {
         let mut all_loaded = true;
         for path in paths {
             if self.texture_cache.get_or_load(
-                path, grf, &self.device.device, &self.device.queue,
+                path, grf, &self.device.device, &self.device.queue, true,
             ).is_none() {
                 all_loaded = false;
             }

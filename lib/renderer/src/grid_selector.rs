@@ -52,7 +52,7 @@ impl GridSelectorRenderer {
         grf: &GrfArchive,
     ) -> Self {
         let texture_name = "data/texture/grid.tga".to_string();
-        if texture_cache.get_or_load(&texture_name, grf, device, queue).is_none() {
+        if texture_cache.get_or_load(&texture_name, grf, device, queue, false).is_none() {
             let img = generate_grid_border_texture();
             let bind_group = crate::texture::create_texture_bind_group(
                 device, queue, &img, &texture_cache.bind_group_layout, "grid_fallback",

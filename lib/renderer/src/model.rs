@@ -506,13 +506,13 @@ fn preload_rsm_textures(
     if !rsm.textures.is_empty() {
         for tex_name in &rsm.textures {
             let path = format!("data/texture/{tex_name}");
-            texture_cache.get_or_load(&path, grf, device, queue);
+            texture_cache.get_or_load(&path, grf, device, queue, false);
         }
     }
     for node in &rsm.nodes {
         for tex_name in &node.texture_names {
             let path = format!("data/texture/{tex_name}");
-            texture_cache.get_or_load(&path, grf, device, queue);
+            texture_cache.get_or_load(&path, grf, device, queue, false);
         }
     }
 }

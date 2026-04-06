@@ -148,6 +148,7 @@ impl CharSelectWindow {
             }
             let row_rect = Rect::new(list_rect.x + 1.0, row_y, list_w - 2.0, row_h);
             let row = ui.interact(WidgetId(WINDOW_ID.0 + 10 + idx as u32), row_rect);
+            if row.hovered() { ui.any_interactive_hovered = true; }
             if row.clicked() {
                 self.selected_index = Some(idx);
             }
@@ -224,6 +225,7 @@ impl CharSelectWindow {
             let row_y = list_y + idx as f32 * row_h;
             let row_rect = Rect::new(win.x + padding, row_y, win.w - padding * 2.0, row_h);
             let row = ui.interact(WidgetId(WINDOW_ID.0 + 10 + idx as u32), row_rect);
+            if row.hovered() { ui.any_interactive_hovered = true; }
             if row.clicked() {
                 self.selected_index = Some(idx);
             }
