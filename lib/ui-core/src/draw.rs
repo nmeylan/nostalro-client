@@ -92,8 +92,8 @@ pub fn colored_text_vertices(
             let glyph = atlas.glyph(ch);
 
             if glyph.size[0] > 0.0 && glyph.size[1] > 0.0 {
-                let gx = (cursor_x + glyph.offset[0]).round();
-                let gy = (y + glyph.offset[1]).round();
+                let gx = atlas.snap_to_physical(cursor_x + glyph.offset[0]);
+                let gy = atlas.snap_to_physical(y + glyph.offset[1]);
 
                 let base = vertices.len() as u32;
                 let (verts, idxs) = quad_vertices_uv(
@@ -129,8 +129,8 @@ pub fn text_vertices_scaled(
         let glyph = atlas.glyph(ch);
 
         if glyph.size[0] > 0.0 && glyph.size[1] > 0.0 {
-            let gx = (cursor_x + glyph.offset[0] * scale).round();
-            let gy = (y + glyph.offset[1] * scale).round();
+            let gx = atlas.snap_to_physical(cursor_x + glyph.offset[0] * scale);
+            let gy = atlas.snap_to_physical(y + glyph.offset[1] * scale);
             let gw = glyph.size[0] * scale;
             let gh = glyph.size[1] * scale;
 
@@ -162,8 +162,8 @@ pub fn text_vertices_clipped(
         let glyph = atlas.glyph(ch);
 
         if glyph.size[0] > 0.0 && glyph.size[1] > 0.0 {
-            let gx = (cursor_x + glyph.offset[0]).round();
-            let gy = (y + glyph.offset[1]).round();
+            let gx = atlas.snap_to_physical(cursor_x + glyph.offset[0]);
+            let gy = atlas.snap_to_physical(y + glyph.offset[1]);
             let gx_right = gx + glyph.size[0];
 
             // Skip fully outside glyphs

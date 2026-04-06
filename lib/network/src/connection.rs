@@ -24,16 +24,18 @@ pub struct Connection {
     reader: OwnedReadHalf,
     writer: OwnedWriteHalf,
     recv_buffer: Vec<u8>,
+    trace_packets: bool,
 }
 
 impl Connection {
-    pub async fn connect(addr: &str) -> io::Result<Self> {
+    pub async fn connect(addr: &str, trace_packets: bool) -> io::Result<Self> {
         let stream = TcpStream::connect(addr).await?;
         let (reader, writer) = stream.into_split();
         Ok(Self {
             reader,
             writer,
             recv_buffer: Vec::with_capacity(4096),
+            trace_packets,
         })
     }
 
@@ -148,11 +150,18 @@ impl Connection {
                         let skip = Self::estimate_packet_len(&remaining);
                         tracing::info!("skipping unknown packet 0x{:02x}{:02x} ({skip} bytes), buffer_remaining={}",
                                remaining[0], remaining[1], remaining.len());
+                        if self.trace_packets {
+                            let dump_len = skip.min(remaining.len());
+                            tracing::debug!("unknown packet dump: {:02x?}", &remaining[..dump_len]);
+                        }
                         offset += skip;
                         continue;
                     }
                     let consumed = packet.raw().len();
                     tracing::info!("recv {} ({consumed} bytes, remaining={})", packet.name(), remaining.len());
+                    if self.trace_packets {
+                        tracing::debug!("packet dump {}: {:02x?}", packet.name(), packet.raw());
+                    }
                     offset += consumed;
                     packets.push(packet);
                 }
