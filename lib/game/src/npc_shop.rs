@@ -129,6 +129,15 @@ impl NpcShopData {
         }
     }
 
+    pub fn item_is_identified(&self, index: usize) -> bool {
+        match self.mode {
+            Some(NpcShopMode::Buy) => true,
+            Some(NpcShopMode::Sell) => self.sell_items.get(index)
+                .map(|i| i.item.is_identified).unwrap_or(true),
+            None => true,
+        }
+    }
+
     pub fn item_price(&self, index: usize) -> i32 {
         match self.mode {
             Some(NpcShopMode::Buy) => self.buy_items.get(index).map(|i| i.discount_price).unwrap_or(0),

@@ -51,7 +51,7 @@ impl Item {
 
     pub fn resolve_resource_name(&mut self, table: &ItemResourceTable) {
         if self.resource_name.is_none() {
-            self.resource_name = table.get_resource_name(self.item_id).map(|s| s.to_string());
+            self.resource_name = table.get_resource_name_for(self.item_id, self.is_identified).map(|s| s.to_string());
         }
     }
 }

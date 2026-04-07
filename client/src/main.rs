@@ -808,12 +808,11 @@ impl App {
                             .game
                             .item_name_table
                             .as_ref()
-                            .and_then(|t| t.get_name(info.item_id))
-                            .unwrap_or("Unknown")
-                            .to_string();
+                            .map(|t| t.get_name_or_id_for(info.item_id, info.is_identified))
+                            .unwrap_or_else(|| format!("Item #{}", info.item_id));
                         let resource_name =
                             self.game.item_resource_table.as_ref().and_then(|t| {
-                                t.get_resource_name(info.item_id).map(|s| s.to_string())
+                                t.get_resource_name_for(info.item_id, info.is_identified).map(|s| s.to_string())
                             });
                         self.game
                             .inventory_window
@@ -841,12 +840,11 @@ impl App {
                             .game
                             .item_name_table
                             .as_ref()
-                            .and_then(|t| t.get_name(info.item_id))
-                            .unwrap_or("Unknown")
-                            .to_string();
+                            .map(|t| t.get_name_or_id_for(info.item_id, info.is_identified))
+                            .unwrap_or_else(|| format!("Item #{}", info.item_id));
                         let resource_name =
                             self.game.item_resource_table.as_ref().and_then(|t| {
-                                t.get_resource_name(info.item_id).map(|s| s.to_string())
+                                t.get_resource_name_for(info.item_id, info.is_identified).map(|s| s.to_string())
                             });
                         tracing::debug!(
                             "Equipment item: idx={} id={} type={} name={} loc={} wear={}",
@@ -889,14 +887,13 @@ impl App {
                             .game
                             .item_name_table
                             .as_ref()
-                            .and_then(|t| t.get_name(item_id))
-                            .unwrap_or("Unknown")
-                            .to_string();
+                            .map(|t| t.get_name_or_id_for(item_id, is_identified))
+                            .unwrap_or_else(|| format!("Item #{item_id}"));
                         let resource_name = self
                             .game
                             .item_resource_table
                             .as_ref()
-                            .and_then(|t| t.get_resource_name(item_id).map(|s| s.to_string()));
+                            .and_then(|t| t.get_resource_name_for(item_id, is_identified).map(|s| s.to_string()));
                         self.game
                             .inventory_window
                             .inventory

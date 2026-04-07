@@ -287,8 +287,13 @@ impl NpcShop {
             if let Some(icon_path) = self.shop.item_icon_path(item_idx) {
                 let ix = win.x + pad_left + (ICON_OFFSET_X);
                 let iy = ry + (ICON_OFFSET_Y);
+                let tint = if self.shop.item_is_identified(item_idx) {
+                    [1.0, 1.0, 1.0, 1.0]
+                } else {
+                    [0.67, 0.67, 0.67, 1.0]
+                };
                 let (v, idx) =
-                    draw::quad_vertices(ix, iy, icon_size, icon_size, [1.0, 1.0, 1.0, 1.0]);
+                    draw::quad_vertices(ix, iy, icon_size, icon_size, tint);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: idx.to_vec(),
@@ -488,8 +493,13 @@ impl NpcShop {
             if let Some(icon_path) = self.shop.item_icon_path(cart_item.source_index) {
                 let ix = win.x + pad_left + (ICON_OFFSET_X);
                 let iy = ry + (ICON_OFFSET_Y);
+                let tint = if self.shop.item_is_identified(cart_item.source_index) {
+                    [1.0, 1.0, 1.0, 1.0]
+                } else {
+                    [0.67, 0.67, 0.67, 1.0]
+                };
                 let (v, idx) =
-                    draw::quad_vertices(ix, iy, icon_size, icon_size, [1.0, 1.0, 1.0, 1.0]);
+                    draw::quad_vertices(ix, iy, icon_size, icon_size, tint);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: idx.to_vec(),

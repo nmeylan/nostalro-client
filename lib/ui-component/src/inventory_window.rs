@@ -300,8 +300,13 @@ impl InventoryWindow {
 
                 // Item icon
                 if let Some(icon_path) = item.icon_path() {
+                    let tint = if item.is_identified {
+                        [1.0, 1.0, 1.0, 1.0]
+                    } else {
+                        [0.67, 0.67, 0.67, 1.0]
+                    };
                     let (v, idx) =
-                        draw::quad_vertices(cx + pad, cy + pad, icon, icon, [1.0, 1.0, 1.0, 1.0]);
+                        draw::quad_vertices(cx + pad, cy + pad, icon, icon, tint);
                     ui.draw_calls.push(DrawCall {
                         vertices: v.to_vec(),
                         indices: idx.to_vec(),

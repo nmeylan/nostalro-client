@@ -633,9 +633,19 @@ fn inventory_test_items() -> Vec<Item> {
         make_test_item(17, 531, 0, 30, "Apple juice"),
         make_test_item(18, 513, 0, 30, "Banana"),
         make_test_item(19, 510, 0, 30, "Blue Herb"),
+        make_test_item(20, 1201, 1, 1, "Stiletto"),
+        make_test_item(21, 2301, 4, 1, "Chain Mail"),
+        make_test_item(22, 2402, 4, 1, "Shoes"),
     ];
     items[11].refining_level = 7;
     items[12].refining_level = 5;
+    // Unidentified equipment
+    items[20].is_identified = false;
+    items[20].name = "Unknown Weapon".into();
+    items[21].is_identified = false;
+    items[21].name = "Unknown Armor".into();
+    items[22].is_identified = false;
+    items[22].name = "Unknown Shoes".into();
     items
 }
 
@@ -715,6 +725,15 @@ fn shop_sell_test_items() -> Vec<ShopSellItem> {
             item: make_test_item(5, 602, 0, 8, "Butterfly Wing"),
             price: 87,
             overcharge_price: 95,
+        },
+        ShopSellItem {
+            item: {
+                let mut item = make_test_item(6, 2402, 4, 1, "Unknown Shoes");
+                item.is_identified = false;
+                item
+            },
+            price: 2500,
+            overcharge_price: 2750,
         },
     ]
 }
