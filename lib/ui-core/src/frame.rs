@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::context::UiContext;
 use crate::draw::{self, DrawCall, TextureRef};
 use crate::rect::Rect;
@@ -23,6 +25,8 @@ pub struct UiFrame<'a> {
     pub any_hovered: bool,
     pub any_interactive_hovered: bool,
     focus: Option<WidgetId>,
+    saved_positions: &'a HashMap<u32, [f32; 2]>,
+    drag_started_this_frame: Option<WidgetId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -60,7 +64,10 @@ impl Response {
     pub fn has_focus(&self) -> bool { self.has_focus }
 }
 
+pub const RESIZE_HANDLE_TEX: &str = "data/texture/유저인터페이스/btn_resize.bmp";
+
 const DRAG_STATE_ID: WidgetId = WidgetId(u32::MAX);
+pub const Z_ORDER_STATE_ID: WidgetId = WidgetId(u32::MAX - 1);
 const DRAG_THRESHOLD: f32 = 5.0;
 
 #[derive(Clone)]
@@ -73,6 +80,18 @@ pub struct DragState {
     pub item_index: usize,
     pub icon_texture: Option<String>,
     pub icon_size: (f32, f32),
+}
+
+#[derive(Default, Clone)]
+pub struct ZOrder {
+    pub order: Vec<WidgetId>,
+    pending_front: Option<WidgetId>,
+}
+
+impl ZOrder {
+    pub fn is_topmost(&self, id: WidgetId) -> bool {
+        self.order.last() == Some(&id)
+    }
 }
 
 impl Default for DragState {
@@ -90,6 +109,21 @@ impl Default for DragState {
     }
 }
 
+#[derive(Default)]
+struct ResizeDragState {
+    dragging: bool,
+    start_mouse_x: f32,
+    start_mouse_y: f32,
+}
+
+pub struct DragResponse {
+    pub delta_x: f32,
+    pub delta_y: f32,
+    pub started: bool,
+    pub dragging: bool,
+    pub hovered: bool,
+}
+
 impl<'a> UiFrame<'a> {
     pub fn new(
         ctx: &'a UiContext,
@@ -98,6 +132,7 @@ impl<'a> UiFrame<'a> {
         elapsed_secs: f32,
         has_grf_textures: bool,
         initial_focus: Option<WidgetId>,
+        saved_positions: &'a HashMap<u32, [f32; 2]>,
     ) -> Self {
         Self {
             ctx,
@@ -109,6 +144,34 @@ impl<'a> UiFrame<'a> {
             any_hovered: false,
             any_interactive_hovered: false,
             focus: initial_focus,
+            saved_positions,
+            drag_started_this_frame: None,
+        }
+    }
+
+    pub fn get_z_order(&mut self) -> Vec<WidgetId> {
+        let z = self.state.get_or_default::<ZOrder>(Z_ORDER_STATE_ID);
+        if let Some(front_id) = z.pending_front.take() {
+            if let Some(pos) = z.order.iter().position(|&id| id == front_id) {
+                z.order.remove(pos);
+                z.order.push(front_id);
+            }
+        }
+        z.order.clone()
+    }
+
+    pub fn bring_to_front(&mut self, id: WidgetId) {
+        let z = self.state.get_or_default::<ZOrder>(Z_ORDER_STATE_ID);
+        if !z.order.contains(&id) {
+            z.order.push(id);
+        }
+        z.pending_front = Some(id);
+    }
+
+    pub fn ensure_in_z_order(&mut self, id: WidgetId) {
+        let z = self.state.get_or_default::<ZOrder>(Z_ORDER_STATE_ID);
+        if !z.order.contains(&id) {
+            z.order.push(id);
         }
     }
 
@@ -122,18 +185,23 @@ impl<'a> UiFrame<'a> {
     pub fn window_at(&mut self, id: WidgetId, w: f32, h: f32, title_bar_h: f32, default_x: f32, default_y: f32) -> Rect {
         let state = self.state.get_or_default::<WindowState>(id);
         if !state.initialized {
-            state.x = default_x;
-            state.y = default_y;
+            if let Some(pos) = self.saved_positions.get(&id.0) {
+                state.x = pos[0];
+                state.y = pos[1];
+            } else {
+                state.x = default_x;
+                state.y = default_y;
+            }
             state.initialized = true;
         }
 
         let title_bar = Rect::new(state.x, state.y, w, title_bar_h);
-
-        if self.ctx.mouse_clicked && title_bar.contains(self.ctx.mouse_x, self.ctx.mouse_y) {
-            state.dragging = true;
-            state.drag_offset_x = self.ctx.mouse_x - state.x;
-            state.drag_offset_y = self.ctx.mouse_y - state.y;
-        }
+        let wants_drag = self.ctx.mouse_clicked && title_bar.contains(self.ctx.mouse_x, self.ctx.mouse_y);
+        let drag_offset = if wants_drag {
+            Some((self.ctx.mouse_x - state.x, self.ctx.mouse_y - state.y))
+        } else {
+            None
+        };
 
         if state.dragging {
             if self.ctx.mouse_down {
@@ -146,8 +214,27 @@ impl<'a> UiFrame<'a> {
 
         state.x = state.x.clamp(0.0, (self.ctx.screen_width - w).max(0.0));
         state.y = state.y.clamp(0.0, (self.ctx.screen_height - h).max(0.0));
+        let rect = Rect::new(state.x, state.y, w, h);
 
-        Rect::new(state.x, state.y, w, h)
+        self.ensure_in_z_order(id);
+        if self.ctx.mouse_clicked && rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) {
+            self.bring_to_front(id);
+        }
+
+        // Start drag after releasing the state borrow above.
+        // Cancel any earlier window's drag — last (topmost) window wins.
+        if let Some((ox, oy)) = drag_offset {
+            if let Some(prev_id) = self.drag_started_this_frame {
+                self.state.get_or_default::<WindowState>(prev_id).dragging = false;
+            }
+            let state = self.state.get_or_default::<WindowState>(id);
+            state.dragging = true;
+            state.drag_offset_x = ox;
+            state.drag_offset_y = oy;
+            self.drag_started_this_frame = Some(id);
+        }
+
+        rect
     }
 
     pub fn interact(&mut self, id: WidgetId, rect: Rect) -> Response {
@@ -377,6 +464,69 @@ impl<'a> UiFrame<'a> {
         self.focus
     }
 
+    /// Tracks drag state on a rect, returns pixel delta from drag start.
+    /// No drawing — caller renders their own visual. Pass `enabled=false` to prevent new drags.
+    pub fn drag_handle(&mut self, id: WidgetId, rect: Rect, enabled: bool) -> DragResponse {
+        let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y);
+        if hovered {
+            self.any_hovered = true;
+            self.any_interactive_hovered = true;
+        }
+
+        let state = self.state.get_or_default::<ResizeDragState>(id);
+        let mut started = false;
+
+        if enabled && hovered && self.ctx.mouse_clicked && !state.dragging {
+            state.dragging = true;
+            state.start_mouse_x = self.ctx.mouse_x;
+            state.start_mouse_y = self.ctx.mouse_y;
+            started = true;
+        }
+        if !self.ctx.mouse_down {
+            state.dragging = false;
+        }
+
+        let (delta_x, delta_y) = if state.dragging {
+            (self.ctx.mouse_x - state.start_mouse_x, self.ctx.mouse_y - state.start_mouse_y)
+        } else {
+            (0.0, 0.0)
+        };
+        let dragging = state.dragging;
+
+        DragResponse { delta_x, delta_y, started, dragging, hovered }
+    }
+
+    /// Corner resize handle with GRF texture or fallback visual.
+    /// Returns pixel delta from drag start.
+    pub fn resize_handle(&mut self, id: WidgetId, rect: Rect) -> DragResponse {
+        let resp = self.drag_handle(id, rect, true);
+
+        if self.has_grf_textures {
+            let (v, i) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, [1.0, 1.0, 1.0, 1.0]);
+            self.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::Named(RESIZE_HANDLE_TEX.to_string()),
+            });
+        } else {
+            let c = if resp.hovered { [0.7, 0.7, 0.8, 1.0] } else { [0.4, 0.4, 0.5, 1.0] };
+            let (v, i) = draw::quad_vertices(
+                rect.x + rect.w * 0.5,
+                rect.y + rect.h * 0.5,
+                rect.w * 0.5,
+                rect.h * 0.5,
+                c,
+            );
+            self.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
+        }
+
+        resp
+    }
+
     /// Call on mouse_clicked over a draggable widget to begin tracking a potential drag.
     pub fn drag_source(
         &mut self, source_id: WidgetId, item_index: usize,
@@ -455,8 +605,8 @@ mod tests {
     use crate::state::StateCache;
     use ragnarok_renderer::font_atlas::FontAtlas;
 
-    fn make_frame<'a>(ctx: &'a UiContext, atlas: &'a FontAtlas, state: &'a mut StateCache) -> UiFrame<'a> {
-        UiFrame::new(ctx, atlas, state, 0.0, false, None)
+    fn make_frame<'a>(ctx: &'a UiContext, atlas: &'a FontAtlas, state: &'a mut StateCache, saved_positions: &'a HashMap<u32, [f32; 2]>) -> UiFrame<'a> {
+        UiFrame::new(ctx, atlas, state, 0.0, false, None, saved_positions)
     }
 
     #[test]
@@ -464,7 +614,8 @@ mod tests {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let ctx = UiContext::new(800.0, 600.0);
         let mut state = StateCache::new();
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let positions = HashMap::new();
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
 
         let rect = ui.window(WidgetId(999), 200.0, 100.0, 25.0);
         assert_eq!(rect.x, 300.0);
@@ -478,10 +629,11 @@ mod tests {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id = WidgetId(999);
+        let positions = HashMap::new();
 
         // Frame 1: initial centering
         let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (300.0, 250.0));
 
@@ -491,7 +643,7 @@ mod tests {
         ctx.mouse_y = 260.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         ui.window(id, 200.0, 100.0, 25.0);
 
         // Frame 3: move mouse while held
@@ -499,7 +651,7 @@ mod tests {
         ctx.mouse_x = 400.0;
         ctx.mouse_y = 280.0;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (350.0, 270.0));
 
@@ -507,9 +659,59 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 400.0;
         ctx.mouse_y = 280.0;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (350.0, 270.0));
+    }
+
+    #[test]
+    fn stacked_windows_only_topmost_drags() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let id_a = WidgetId(1);
+        let id_b = WidgetId(2);
+        let positions = HashMap::new();
+
+        // Frame 1: place two windows at same position
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.window_at(id_a, 200.0, 100.0, 25.0, 100.0, 100.0);
+        ui.window_at(id_b, 200.0, 100.0, 25.0, 100.0, 100.0);
+
+        // Frame 2: click in shared title bar area
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 150.0;
+        ctx.mouse_y = 110.0;
+        ctx.mouse_clicked = true;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.window_at(id_a, 200.0, 100.0, 25.0, 100.0, 100.0);
+        ui.window_at(id_b, 200.0, 100.0, 25.0, 100.0, 100.0);
+
+        // Frame 3: move mouse — only window B (last processed, topmost) should move
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 200.0;
+        ctx.mouse_y = 150.0;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let rect_a = ui.window_at(id_a, 200.0, 100.0, 25.0, 100.0, 100.0);
+        let rect_b = ui.window_at(id_b, 200.0, 100.0, 25.0, 100.0, 100.0);
+
+        assert_eq!((rect_a.x, rect_a.y), (100.0, 100.0));
+        assert_eq!((rect_b.x, rect_b.y), (150.0, 140.0));
+    }
+
+    #[test]
+    fn window_restores_saved_position() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut state = StateCache::new();
+        let mut positions = HashMap::new();
+        positions.insert(999, [50.0, 75.0]);
+
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let rect = ui.window(WidgetId(999), 200.0, 100.0, 25.0);
+        assert_eq!((rect.x, rect.y), (50.0, 75.0));
     }
 
     #[test]
@@ -520,12 +722,13 @@ mod tests {
         let id_b = WidgetId(51);
         let rect_a = Rect::new(10.0, 10.0, 100.0, 30.0);
         let rect_b = Rect::new(10.0, 50.0, 100.0, 30.0);
+        let positions = HashMap::new();
 
         // Hover over A without clicking
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 25.0;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let r = ui.interact(id_a, rect_a);
         assert!(r.hovered());
         assert!(!r.clicked());
@@ -533,7 +736,7 @@ mod tests {
 
         // Click on A — should be clicked + focused
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let r = ui.interact(id_a, rect_a);
         assert!(r.clicked());
         assert!(r.has_focus());
@@ -542,7 +745,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 65.0;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let ra = ui.interact(id_a, rect_a);
         let rb = ui.interact(id_b, rect_b);
         assert!(!ra.hovered());
@@ -552,7 +755,7 @@ mod tests {
 
         // Click on B — focus moves to B
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let ra = ui.interact(id_a, rect_a);
         let rb = ui.interact(id_b, rect_b);
         assert!(!ra.has_focus());
@@ -564,7 +767,7 @@ mod tests {
         ctx.mouse_x = 200.0;
         ctx.mouse_y = 200.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let ra = ui.interact(id_a, rect_a);
         let rb = ui.interact(id_b, rect_b);
         assert!(!ra.hovered());
@@ -578,10 +781,11 @@ mod tests {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id = WidgetId(999);
+        let positions = HashMap::new();
 
         // Frame 1: initial centering
         let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         ui.window(id, 200.0, 100.0, 25.0);
 
         // Frame 2: click inside window body but below title bar (y=250+25=275, click at 290)
@@ -590,7 +794,7 @@ mod tests {
         ctx.mouse_y = 290.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         ui.window(id, 200.0, 100.0, 25.0);
 
         // Frame 3: move mouse — position should not change
@@ -598,7 +802,7 @@ mod tests {
         ctx.mouse_x = 500.0;
         ctx.mouse_y = 400.0;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (300.0, 250.0));
     }
@@ -608,10 +812,11 @@ mod tests {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let rect = Rect::new(10.0, 10.0, 100.0, 30.0);
+        let positions = HashMap::new();
 
         // Mouse outside — any_hovered stays false
         let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         ui.interact(WidgetId(1), rect);
         assert!(!ui.any_hovered);
 
@@ -619,7 +824,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 25.0;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         ui.interact(WidgetId(1), rect);
         assert!(ui.any_hovered);
     }
@@ -629,11 +834,12 @@ mod tests {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let rect = Rect::new(10.0, 10.0, 100.0, 30.0);
+        let positions = HashMap::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 25.0;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         ui.interact(WidgetId(1), rect);
         assert!(ui.any_hovered);
         assert!(!ui.any_interactive_hovered);
@@ -645,11 +851,12 @@ mod tests {
         let mut state = StateCache::new();
         let rect = Rect::new(10.0, 10.0, 100.0, 30.0);
         let textures = ButtonTextures { normal: "n", hover: "h", pressed: "p" };
+        let positions = HashMap::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 25.0;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         ui.button(WidgetId(1), rect, &textures, "Test");
         assert!(ui.any_hovered);
         assert!(ui.any_interactive_hovered);
@@ -661,11 +868,12 @@ mod tests {
         let mut state = StateCache::new();
         let rect = Rect::new(10.0, 10.0, 200.0, 30.0);
         let mut input = TextInput::new(100, false);
+        let positions = HashMap::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 25.0;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         ui.text_input(WidgetId(1), rect, &mut input, TextInputBg::Default);
         assert!(ui.any_hovered);
         assert!(ui.any_interactive_hovered);
@@ -677,6 +885,7 @@ mod tests {
         let mut state = StateCache::new();
         let source = WidgetId(10);
         let drop_rect = Rect::new(200.0, 0.0, 200.0, 100.0);
+        let positions = HashMap::new();
 
         // Frame 1: click on source item at (50, 50) — starts pending drag
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -684,7 +893,7 @@ mod tests {
         ctx.mouse_y = 50.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         ui.drag_source(source, 3, None, (24.0, 24.0));
         assert!(!ui.is_dragging());
         ui.draw_drag_icon();
@@ -694,7 +903,7 @@ mod tests {
         ctx.mouse_x = 60.0;
         ctx.mouse_y = 50.0;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         ui.draw_drag_icon();
         assert!(ui.is_dragging());
 
@@ -703,7 +912,7 @@ mod tests {
         ctx.mouse_x = 300.0;
         ctx.mouse_y = 50.0;
         ctx.mouse_down = false;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let result = ui.drop_zone(drop_rect);
         assert_eq!(result, Some((source, 3)));
         assert!(!ui.is_dragging());
@@ -714,6 +923,7 @@ mod tests {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let source = WidgetId(10);
+        let positions = HashMap::new();
 
         // Start drag
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -721,7 +931,7 @@ mod tests {
         ctx.mouse_y = 50.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         ui.drag_source(source, 0, None, (24.0, 24.0));
         ui.draw_drag_icon();
 
@@ -730,14 +940,81 @@ mod tests {
         ctx.mouse_x = 60.0;
         ctx.mouse_y = 50.0;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         ui.draw_drag_icon();
         assert!(ui.is_dragging());
 
         // Release mouse — draw_drag_icon cancels it
         let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         ui.draw_drag_icon();
         assert!(!ui.is_dragging());
+    }
+
+    #[test]
+    fn click_on_window_brings_to_front() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let id_a = WidgetId(100);
+        let id_b = WidgetId(200);
+        let positions = HashMap::new();
+
+        // Frame 1: place two overlapping windows, A then B (B on top)
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
+        ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
+        // Both should now be in z-order: [A, B]
+        let z = ui.get_z_order();
+        assert_eq!(z.len(), 2);
+        assert_eq!(z[0], id_a);
+        assert_eq!(z[1], id_b);
+
+        // Frame 2: click inside window A's body (in the non-overlapping region)
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 70.0;
+        ctx.mouse_y = 120.0;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
+        ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
+
+        // Frame 3: z-order should now be [B, A] (A on top)
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let z = ui.get_z_order();
+        assert_eq!(z[0], id_b);
+        assert_eq!(z[1], id_a);
+    }
+
+    #[test]
+    fn clicking_topmost_window_keeps_z_order() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let id_a = WidgetId(100);
+        let id_b = WidgetId(200);
+        let positions = HashMap::new();
+
+        // Frame 1: place two windows
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
+        ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
+
+        // Frame 2: click on B (already on top)
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 200.0;
+        ctx.mouse_y = 150.0;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
+        ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
+
+        // Frame 3: z-order still [A, B]
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let z = ui.get_z_order();
+        assert_eq!(z[0], id_a);
+        assert_eq!(z[1], id_b);
     }
 }

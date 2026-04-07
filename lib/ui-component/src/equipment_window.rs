@@ -133,8 +133,8 @@ impl EquipmentWindow {
         let content_h = if self.bg_size.1 > 0.0 { self.bg_size.1 } else { CONTENT_H  };
         let win_h = if self.minimized { TITLE_H  } else { (TITLE_H) + content_h };
 
-        let default_x = ui.ctx.screen_width - win_w - (250.0);
-        let default_y = 100.0 ;
+        let default_x = 0.0;
+        let default_y = 210.0 ;
         let win = ui.window_at(EQ_WIN_ID, win_w, win_h, TITLE_H , default_x, default_y);
 
         // Block clicks through window

@@ -14,6 +14,7 @@ use ragnarok_ui_component::login_window::LoginWindow;
 use ragnarok_ui_component::npc_dialog::NpcDialog;
 use ragnarok_ui_component::npc_shop::NpcShop;
 use ragnarok_ui_component::server_list_window::ServerListWindow;
+use ragnarok_ui_component::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::system_menu::SystemMenu;
 
 // Force system allocator so host and dylib share the same heap.
@@ -89,10 +90,16 @@ impl HotLib {
     }
 }
 
-fn grf_texture_paths(example_name: &str) -> Vec<&'static str> {
-    match example_name {
+const GAME_COMPONENTS: &[&str] = &[
+    "inventory", "npc_shop_buy", "npc_shop_sell", "npc_dialog", "equipment", "system_menu", "confirm_dialog", "chat",
+];
+const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
+
+fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
+    match name {
         "inventory" => InventoryWindow::grf_texture_paths(),
-        "npc_shop" => NpcShop::grf_texture_paths(),
+        "npc_shop_buy" => NpcShop::grf_texture_paths(),
+        "npc_shop_sell" => NpcShop::grf_texture_paths(),
         "login" => LoginWindow::grf_texture_paths(),
         "chat" => ChatWindow::grf_texture_paths(),
         "npc_dialog" => NpcDialog::grf_texture_paths(),
@@ -100,11 +107,26 @@ fn grf_texture_paths(example_name: &str) -> Vec<&'static str> {
         "server_list" => ServerListWindow::grf_texture_paths(),
         "equipment" => EquipmentWindow::grf_texture_paths(),
         "system_menu" => SystemMenu::grf_texture_paths(),
+        "char_select" => CharSelectWindow::grf_texture_paths(),
         _ => {
-            eprintln!("Unknown example: {example_name}");
+            eprintln!("Unknown example: {name}");
             vec![]
         }
     }
+}
+
+fn grf_texture_paths(example_name: &str) -> Vec<&'static str> {
+    let names: &[&str] = match example_name {
+        "game" => GAME_COMPONENTS,
+        "account" => ACCOUNT_COMPONENTS,
+        _ => return grf_texture_paths_single(example_name),
+    };
+    let mut paths: Vec<&'static str> = names.iter()
+        .flat_map(|n| grf_texture_paths_single(n))
+        .collect();
+    paths.sort_unstable();
+    paths.dedup();
+    paths
 }
 
 fn find_dylib() -> PathBuf {
@@ -162,8 +184,10 @@ fn main() {
 
     let texture_paths = grf_texture_paths(&example_name);
     let example_name_for_closure = example_name.clone();
+    let is_category = matches!(example_name.as_str(), "game" | "account");
+    let (win_w, win_h) = if is_category { (1280, 900) } else { (800, 600) };
 
-    shared::UiExampleApp::new("Hot Reload", 800, 600, move |ctx| {
+    shared::UiExampleApp::new("Hot Reload", win_w, win_h, move |ctx| {
         // Poll for dylib changes (mtime check is cheap)
         if let Some(mtime) = dylib_mtime(&dylib_path) {
             if mtime > last_mtime {

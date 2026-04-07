@@ -1,8 +1,8 @@
 use crate::card_name_table::CardNameTable;
-use crate::inventory::InventoryItem;
+use crate::item::Item;
 
 pub fn format_equipment_display_name(
-    item: &InventoryItem,
+    item: &Item,
     slot_count: u8,
     card_table: Option<&CardNameTable>,
 ) -> String {
@@ -80,8 +80,8 @@ mod tests {
     use super::*;
     use std::collections::{HashMap, HashSet};
 
-    fn make_item(name: &str, refining: u8, slots: [u16; 4]) -> InventoryItem {
-        InventoryItem {
+    fn make_item(name: &str, refining: u8, slots: [u16; 4]) -> Item {
+        Item {
             index: 1,
             item_id: 1101,
             item_type: 5,

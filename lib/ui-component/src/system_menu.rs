@@ -232,7 +232,8 @@ mod tests {
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
-        UiFrame::new(ctx, atlas, state, 0.0, false, None)
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
     #[test]

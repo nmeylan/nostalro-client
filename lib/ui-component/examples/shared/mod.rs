@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
@@ -117,6 +118,7 @@ impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
         };
 
         let elapsed = self.start_time.elapsed().as_secs_f32();
+        let positions = HashMap::new();
         let ui = UiFrame::new(
             &self.ui_ctx,
             &gpu.font_atlas,
@@ -124,6 +126,7 @@ impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
             elapsed,
             self.has_grf_textures,
             None,
+            &positions,
         );
 
         let texture_size = |name: &str| -> Option<(u32, u32)> {

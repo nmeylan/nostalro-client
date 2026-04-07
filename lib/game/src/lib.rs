@@ -5,6 +5,7 @@ pub mod card_name_table;
 pub mod cursor;
 pub mod display_name;
 pub mod inventory;
+pub mod item;
 pub use cursor::RenderEntry;
 pub mod entity;
 pub mod entity_collection;

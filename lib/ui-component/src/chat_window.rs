@@ -135,6 +135,9 @@ struct ChatWindowState {
     drag_offset_x: f32,
     drag_offset_y: f32,
     filter: u8, // ChatFilter encoded as u8 for Default
+    drag_start_msg_h: f32,
+    drag_start_chat_w: f32,
+    drag_start_scroll: f32,
 }
 
 impl ChatWindowState {
@@ -155,13 +158,6 @@ impl ChatWindowState {
             ChatFilter::Guild => 3,
         };
     }
-}
-
-#[derive(Default)]
-struct DragHandleState {
-    dragging: bool,
-    start_mouse: f32,
-    start_value: f32,
 }
 
 pub struct ChatLine {
@@ -295,30 +291,17 @@ impl ChatWindow {
         // Height drag handle (between message area and input)
         if show_messages {
             let handle_center_y = chat_y + msg_area_h;
-            let handle_rect = Rect::new(chat_x, handle_center_y - (DRAG_HIT_AREA) / 2.0, chat_w, DRAG_HIT_AREA );
-            let h_drag = ui.state.get_or_default::<DragHandleState>(HEIGHT_DRAG_ID);
-            let hovered = handle_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y);
-            if hovered { ui.any_interactive_hovered = true; }
-
-            if hovered && ui.ctx.mouse_clicked && !drag_locked {
-                h_drag.dragging = true;
-                h_drag.start_mouse = ui.ctx.mouse_y;
-                h_drag.start_value = msg_area_h;
+            let handle_rect = Rect::new(chat_x, handle_center_y - DRAG_HIT_AREA / 2.0, chat_w, DRAG_HIT_AREA);
+            let h = ui.drag_handle(HEIGHT_DRAG_ID, handle_rect, !drag_locked);
+            if h.started {
+                ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).drag_start_msg_h = msg_area_h;
             }
-            if h_drag.dragging {
-                if ui.ctx.mouse_down {
-                    // Dragging up = expanding (mouse_y decreases)
-                    let delta = h_drag.start_mouse - ui.ctx.mouse_y;
-                    msg_area_h = (h_drag.start_value + delta).clamp(MIN_MSG_AREA_H, max_msg_h);
-                } else {
-                    h_drag.dragging = false;
-                }
+            if h.dragging {
+                let start = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).drag_start_msg_h;
+                msg_area_h = (start - h.delta_y).clamp(MIN_MSG_AREA_H, max_msg_h);
             }
-            let h_dragging = h_drag.dragging;
-
-            // Write back updated height
             let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
-            if h_dragging || msg_area_h != state.msg_area_h {
+            if h.dragging || msg_area_h != state.msg_area_h {
                 state.msg_area_h = msg_area_h;
             }
         }
@@ -326,28 +309,17 @@ impl ChatWindow {
         // Width drag handle (right edge)
         {
             let right_edge_x = chat_x + chat_w;
-            let handle_rect = Rect::new(right_edge_x - (DRAG_HIT_AREA) / 2.0, chat_y, DRAG_HIT_AREA , total_h);
-            let w_drag = ui.state.get_or_default::<DragHandleState>(WIDTH_DRAG_ID);
-            let hovered = handle_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y);
-            if hovered { ui.any_interactive_hovered = true; }
-
-            if hovered && ui.ctx.mouse_clicked && !drag_locked {
-                w_drag.dragging = true;
-                w_drag.start_mouse = ui.ctx.mouse_x;
-                w_drag.start_value = chat_w;
+            let handle_rect = Rect::new(right_edge_x - DRAG_HIT_AREA / 2.0, chat_y, DRAG_HIT_AREA, total_h);
+            let w = ui.drag_handle(WIDTH_DRAG_ID, handle_rect, !drag_locked);
+            if w.started {
+                ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).drag_start_chat_w = chat_w;
             }
-            if w_drag.dragging {
-                if ui.ctx.mouse_down {
-                    let delta = ui.ctx.mouse_x - w_drag.start_mouse;
-                    chat_w = (w_drag.start_value + delta).clamp(MIN_CHAT_W , MAX_CHAT_W );
-                } else {
-                    w_drag.dragging = false;
-                }
+            if w.dragging {
+                let start = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).drag_start_chat_w;
+                chat_w = (start + w.delta_x).clamp(MIN_CHAT_W, MAX_CHAT_W);
             }
-            let w_dragging = w_drag.dragging;
-
             let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
-            if w_dragging || chat_w != state.chat_w {
+            if w.dragging || chat_w != state.chat_w {
                 state.chat_w = chat_w;
             }
         }
@@ -359,6 +331,11 @@ impl ChatWindow {
         let chat_y = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).pos_y;
 
         self.bounding_rect = Some(Rect::new(chat_x, chat_y, chat_w, total_h));
+
+        ui.ensure_in_z_order(CHAT_WINDOW_ID);
+        if ui.ctx.mouse_clicked && self.bounding_rect.unwrap().contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
+            ui.bring_to_front(CHAT_WINDOW_ID);
+        }
 
         // Activate chat on Enter when inactive
         if ui.ctx.key_enter && !self.active {
@@ -662,38 +639,18 @@ impl ChatWindow {
 
             // Thumb drag interaction
             let thumb_rect = Rect::new(x, thumb_y, scrollbar_w, thumb_h);
-            let hovered = thumb_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y);
-            if hovered { ui.any_interactive_hovered = true; }
-            let mouse_clicked = ui.ctx.mouse_clicked;
-            let mouse_down = ui.ctx.mouse_down;
-            let mouse_y = ui.ctx.mouse_y;
-
-            // Read drag state, compute new offset if dragging
-            let (thumb_active, new_scroll) = {
-                let t_drag = ui.state.get_or_default::<DragHandleState>(SCROLL_THUMB_ID);
-                if hovered && mouse_clicked {
-                    t_drag.dragging = true;
-                    t_drag.start_mouse = mouse_y;
-                    t_drag.start_value = scroll_offset as f32;
-                }
-                let mut new_scroll = None;
-                if t_drag.dragging {
-                    if mouse_down {
-                        let delta_px = mouse_y - t_drag.start_mouse;
-                        let delta_scroll = -(delta_px / track_h) * max_scroll as f32;
-                        let offset = (t_drag.start_value + delta_scroll).round().clamp(0.0, max_scroll as f32);
-                        new_scroll = Some(offset as usize);
-                    } else {
-                        t_drag.dragging = false;
-                    }
-                }
-                (t_drag.dragging || hovered, new_scroll)
-            };
-
-            if let Some(offset) = new_scroll {
-                ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).scroll_offset = offset;
+            let t = ui.drag_handle(SCROLL_THUMB_ID, thumb_rect, true);
+            if t.started {
+                ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).drag_start_scroll = scroll_offset as f32;
+            }
+            if t.dragging {
+                let start = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).drag_start_scroll;
+                let delta_scroll = -(t.delta_y / track_h) * max_scroll as f32;
+                let offset = (start + delta_scroll).round().clamp(0.0, max_scroll as f32);
+                ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).scroll_offset = offset as usize;
             }
 
+            let thumb_active = t.dragging || t.hovered;
             let thumb_color = if thumb_active { [0.6, 0.6, 0.7, 0.9] } else { [0.5, 0.5, 0.6, 0.8] };
             let (v, i) = draw::quad_vertices(x + (2.0), thumb_y, scrollbar_w - (4.0), thumb_h, thumb_color);
             ui.draw_calls.push(draw::DrawCall {
@@ -886,7 +843,8 @@ mod tests {
     use ragnarok_renderer::font_atlas::FontAtlas;
 
     fn make_frame<'a>(ctx: &'a UiContext, atlas: &'a FontAtlas, state: &'a mut StateCache) -> UiFrame<'a> {
-        UiFrame::new(ctx, atlas, state, 0.0, false, None)
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
     #[test]
@@ -1385,14 +1343,15 @@ mod tests {
         // Press Tab - should switch to whisper input
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_tab = true;
-        let mut ui = UiFrame::new(&ctx, &atlas, &mut state, 0.0, false, Some(INPUT_ID));
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let mut ui = UiFrame::new(&ctx, &atlas, &mut state, 0.0, false, Some(INPUT_ID), positions);
         chat.build(&mut ui);
         assert_eq!(ui.focused(), Some(WHISPER_INPUT_ID));
 
         // Press Tab again - should switch back to message input
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_tab = true;
-        let mut ui = UiFrame::new(&ctx, &atlas, &mut state, 0.0, false, Some(WHISPER_INPUT_ID));
+        let mut ui = UiFrame::new(&ctx, &atlas, &mut state, 0.0, false, Some(WHISPER_INPUT_ID), positions);
         chat.build(&mut ui);
         assert_eq!(ui.focused(), Some(INPUT_ID));
     }

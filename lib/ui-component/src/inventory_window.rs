@@ -1,8 +1,8 @@
 use crate::equipment_window::EQ_WIN_ID;
 use ragnarok_game::event::GameEvent;
-use ragnarok_game::inventory::{InventoryItem, InventoryTab};
+use ragnarok_game::item::{Item, InventoryTab};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui::frame::{RESIZE_HANDLE_TEX, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
 // -- Widget IDs --
@@ -27,7 +27,7 @@ const FOOTER_H: f32 = 19.0;
 use crate::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 const PAD_X: f32 = 12.0;
 const PAD_Y: f32 = 4.0;
-const RESIZE_BTN_SIZE: f32 = 13.0;
+const RESIZE_SIZE: f32 = 13.0;
 const MINI_BTN_SIZE: f32 = 11.0;
 
 // Grid size constraints
@@ -47,19 +47,10 @@ const TAB_EQUIP_TEX: &str = "data/texture/유저인터페이스/basic_interface/
 const TAB_ETC_TEX: &str = "data/texture/유저인터페이스/basic_interface/tab_itm_03.bmp";
 const MINI_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_off.bmp";
 const MINI_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_on.bmp";
-const RESIZE_TEX: &str = "data/texture/유저인터페이스/btn_resize.bmp";
 const SYS_BASE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_off.bmp";
 const SYS_BASE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_on.bmp";
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
-
-#[derive(Default)]
-struct ResizeState {
-    dragging: bool,
-    start_mouse: (f32, f32),
-    start_cols: usize,
-    start_rows: usize,
-}
 
 pub struct InventoryWindow {
     pub has_grf_textures: bool,
@@ -68,6 +59,7 @@ pub struct InventoryWindow {
     tab_size: (f32, f32),
     grid_cols: usize,
     grid_rows: usize,
+    resize_start: Option<(usize, usize)>,
     minimized: bool,
 }
 
@@ -80,6 +72,7 @@ impl InventoryWindow {
             tab_size: (0.0, 0.0),
             grid_cols: DEFAULT_COLS,
             grid_rows: DEFAULT_ROWS,
+            resize_start: None,
             minimized: false,
         }
     }
@@ -126,7 +119,7 @@ impl InventoryWindow {
         let (win_w, full_h, tab_strip_w) = self.compute_dimensions();
         let win_h = if self.minimized { TITLE_H } else { full_h };
 
-        let default_x = ui.ctx.screen_width - win_w - (10.0);
+        let default_x = 0.0;
         let default_y = 100.0;
         let win = ui.window_at(INV_WIN_ID, win_w, win_h, TITLE_H, default_x, default_y);
 
@@ -260,7 +253,7 @@ impl InventoryWindow {
 
         let mut hovered_tooltip: Option<(f32, f32, String)> = None;
         {
-            let filtered: Vec<&InventoryItem> = self.inventory.filtered_items();
+            let filtered: Vec<&Item> = self.inventory.filtered_items();
             let start = self.scroll_offset * self.grid_cols;
             let visible_count = self.grid_rows * self.grid_cols;
 
@@ -499,91 +492,30 @@ impl InventoryWindow {
         }
 
         // Resize handle (bottom-right of footer)
-        let resize_size = RESIZE_BTN_SIZE;
         let resize_rect = Rect::new(
-            win.x + win_w - resize_size,
-            footer_y + (FOOTER_H) - resize_size,
-            resize_size,
-            resize_size,
+            win.x + win_w - RESIZE_SIZE,
+            footer_y + FOOTER_H - RESIZE_SIZE,
+            RESIZE_SIZE,
+            RESIZE_SIZE,
         );
-        let resize_resp = ui.interact(INV_RESIZE_ID, resize_rect);
-        if resize_resp.hovered() {
-            ui.any_interactive_hovered = true;
+        let resize = ui.resize_handle(INV_RESIZE_ID, resize_rect);
+        if resize.started {
+            self.resize_start = Some((self.grid_cols, self.grid_rows));
         }
-        if grf {
-            let (v, idx) = draw::quad_vertices(
-                resize_rect.x,
-                resize_rect.y,
-                resize_size,
-                resize_size,
-                [1.0, 1.0, 1.0, 1.0],
-            );
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: idx.to_vec(),
-                texture: TextureRef::Named(RESIZE_TEX.to_string()),
-            });
-        } else {
-            let c = if resize_resp.hovered() {
-                [0.7, 0.7, 0.8, 1.0]
-            } else {
-                [0.4, 0.4, 0.5, 1.0]
-            };
-            // Draw a small triangle hint
-            let (v, idx) = draw::quad_vertices(
-                resize_rect.x + resize_size * 0.5,
-                resize_rect.y + resize_size * 0.5,
-                resize_size * 0.5,
-                resize_size * 0.5,
-                c,
-            );
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: idx.to_vec(),
-                texture: TextureRef::White,
-            });
-        }
-
-        // Handle resize dragging
-        let cell_s = CELL_SIZE;
-        let mouse_x = ui.ctx.mouse_x;
-        let mouse_y = ui.ctx.mouse_y;
-        let mouse_clicked = ui.ctx.mouse_clicked;
-        let mouse_down = ui.ctx.mouse_down;
-
-        let new_size = {
-            let rs = ui.state.get_or_default::<ResizeState>(INV_RESIZE_ID);
-            if resize_resp.clicked() || (resize_rect.contains(mouse_x, mouse_y) && mouse_clicked) {
-                rs.dragging = true;
-                rs.start_mouse = (mouse_x, mouse_y);
-                rs.start_cols = self.grid_cols;
-                rs.start_rows = self.grid_rows;
-            }
-            if !mouse_down {
-                rs.dragging = false;
-            }
-            if rs.dragging {
-                let dx = mouse_x - rs.start_mouse.0;
-                let dy = mouse_y - rs.start_mouse.1;
-                let new_cols = (rs.start_cols as f32 + dx / cell_s).round() as i32;
-                let new_rows = (rs.start_rows as f32 + dy / cell_s).round() as i32;
-                Some((
-                    new_cols.clamp(MIN_COLS as i32, MAX_COLS as i32) as usize,
-                    new_rows.clamp(MIN_ROWS as i32, MAX_ROWS as i32) as usize,
-                ))
-            } else {
-                None
-            }
-        };
-        if let Some((new_cols, new_rows)) = new_size {
-            if new_cols != self.grid_cols || new_rows != self.grid_rows {
-                self.grid_cols = new_cols;
-                self.grid_rows = new_rows;
-                // Clamp scroll offset to new max
-                let total_rows = (filtered_count + self.grid_cols - 1) / self.grid_cols.max(1);
-                let max_scroll = total_rows.saturating_sub(self.grid_rows);
-                if self.scroll_offset > max_scroll {
-                    self.scroll_offset = max_scroll;
+        if resize.dragging {
+            if let Some((start_cols, start_rows)) = self.resize_start {
+                let new_cols = (start_cols as f32 + resize.delta_x / CELL_SIZE).round() as i32;
+                let new_rows = (start_rows as f32 + resize.delta_y / CELL_SIZE).round() as i32;
+                let new_cols = new_cols.clamp(MIN_COLS as i32, MAX_COLS as i32) as usize;
+                let new_rows = new_rows.clamp(MIN_ROWS as i32, MAX_ROWS as i32) as usize;
+                if new_cols != self.grid_cols || new_rows != self.grid_rows {
+                    self.grid_cols = new_cols;
+                    self.grid_rows = new_rows;
+                    let total_rows = (filtered_count + self.grid_cols - 1) / self.grid_cols.max(1);
+                    let max_scroll = total_rows.saturating_sub(self.grid_rows);
+                    if self.scroll_offset > max_scroll {
+                        self.scroll_offset = max_scroll;
+                    }
                 }
             }
         }
@@ -624,7 +556,7 @@ impl InventoryWindow {
             TAB_ETC_TEX,
             MINI_OFF_TEX,
             MINI_ON_TEX,
-            RESIZE_TEX,
+            RESIZE_HANDLE_TEX,
             SYS_BASE_OFF_TEX,
             SYS_BASE_ON_TEX,
             CLOSE_OFF_TEX,

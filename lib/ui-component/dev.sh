@@ -11,7 +11,11 @@
 #
 # Available examples:
 #   inventory, npc_shop, login, chat, npc_dialog, confirm_dialog,
-#   server_list, equipment, system_menu
+#   server_list, equipment, system_menu, char_select
+#
+# Categories (show multiple windows at once):
+#   game     — inventory, npc_shop, npc_dialog, equipment, system_menu, confirm_dialog, chat
+#   account  — login, server_list, char_select
 #
 # This script runs two processes:
 #   1. The hot_reload host binary (keeps window open)

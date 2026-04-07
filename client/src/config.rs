@@ -1,5 +1,7 @@
-use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::Path;
+
+use serde::{Deserialize, Serialize};
 
 const BASE_FONT_PX_HEIGHT: f32 = 14.0;
 
@@ -19,6 +21,7 @@ pub struct Config {
     pub enhanced_lag_compensation: bool,
     pub debug_network_delay_ms: u32,
     pub trace_packets: bool,
+    pub window_positions: HashMap<u32, [f32; 2]>,
 }
 
 impl Default for Config {
@@ -37,6 +40,7 @@ impl Default for Config {
             enhanced_lag_compensation: false,
             debug_network_delay_ms: 0,
             trace_packets: false,
+            window_positions: HashMap::new(),
         }
     }
 }
@@ -44,6 +48,12 @@ impl Default for Config {
 impl Config {
     pub fn font_px_height(&self) -> f32 {
         BASE_FONT_PX_HEIGHT
+    }
+
+    pub fn save(&self, path: &str) {
+        if let Ok(json) = serde_json::to_string_pretty(self) {
+            let _ = std::fs::write(path, json);
+        }
     }
 
     pub fn load_or_default(path: &str) -> Self {

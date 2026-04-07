@@ -15,7 +15,7 @@ use ragnarok_game::cursor::{
 };
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::event::GameEvent;
-use ragnarok_game::inventory::InventoryItem;
+use ragnarok_game::item::Item;
 use ragnarok_game::name_table::NameTable;
 use ragnarok_game::path::{path_search, try_move_to};
 use ragnarok_game::shadow::shadow_size;
@@ -39,7 +39,7 @@ use ragnarok_renderer::{
     build_clip_quad, build_entity_sprite, upload_sprite_textures,
 };
 use ragnarok_ui::context::UiContext;
-use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui::frame::{UiFrame, WidgetId, ZOrder, Z_ORDER_STATE_ID};
 use ragnarok_ui::state::StateCache;
 use ragnarok_ui_component::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::chat_window::ChatWindow;
@@ -725,12 +725,22 @@ impl App {
                                     t.get_resource_name(item_id).map(|s| s.to_string())
                                 });
                             ragnarok_game::npc_shop::ShopBuyItem {
-                                item_id,
+                                item: Item {
+                                    index: 0,
+                                    item_id,
+                                    item_type,
+                                    count: 1,
+                                    is_identified: true,
+                                    is_damaged: false,
+                                    refining_level: 0,
+                                    slot: [0; 4],
+                                    location: 0,
+                                    wear_state: 0,
+                                    name,
+                                    resource_name,
+                                },
                                 price,
                                 discount_price,
-                                item_type,
-                                name,
-                                resource_name,
                             }
                         })
                         .collect();
@@ -746,20 +756,13 @@ impl App {
                 GameEvent::NpcShopSellList { npc_id, items } => {
                     let sell_items = items
                         .into_iter()
-                        .map(|(index, price, overcharge_price)| {
-                            let inv_item = self.game.inventory_window.inventory.get_item(index as u16);
-                            let name = inv_item.map(|i| i.name.clone())
-                                .unwrap_or_else(|| format!("Item #{index}"));
-                            let resource_name = inv_item.and_then(|i| i.resource_name.clone());
-                            let count = inv_item.map(|i| i.count).unwrap_or(1);
-                            ragnarok_game::npc_shop::ShopSellItem {
-                                index,
+                        .filter_map(|(index, price, overcharge_price)| {
+                            let inv_item = self.game.inventory_window.inventory.get_item(index as u16)?;
+                            Some(ragnarok_game::npc_shop::ShopSellItem {
+                                item: inv_item.clone(),
                                 price,
                                 overcharge_price,
-                                name,
-                                resource_name,
-                                count,
-                            }
+                            })
                         })
                         .collect();
                     let shop_npc_id = if npc_id != 0 {
@@ -815,7 +818,7 @@ impl App {
                         self.game
                             .inventory_window
                             .inventory
-                            .add_item(InventoryItem {
+                            .add_item(Item {
                                 index: info.index as u16,
                                 item_id: info.item_id,
                                 item_type: info.item_type,
@@ -852,7 +855,7 @@ impl App {
                         self.game
                             .inventory_window
                             .inventory
-                            .add_item(InventoryItem {
+                            .add_item(Item {
                                 index: info.index as u16,
                                 item_id: info.item_id,
                                 item_type: info.item_type,
@@ -897,7 +900,7 @@ impl App {
                         self.game
                             .inventory_window
                             .inventory
-                            .add_item(InventoryItem {
+                            .add_item(Item {
                                 index,
                                 item_id,
                                 item_type,
@@ -1514,17 +1517,9 @@ impl App {
                 .shop
                 .buy_items
                 .iter()
-                .filter_map(|item| {
-                    item.resource_name
-                        .as_ref()
-                        .map(|name| format!("data/texture/유저인터페이스/item/{name}.bmp"))
-                })
+                .filter_map(|i| i.item.icon_path())
                 .chain(
-                    self.game.npc_shop.shop.sell_items.iter().filter_map(|item| {
-                        item.resource_name
-                            .as_ref()
-                            .map(|name| format!("data/texture/유저인터페이스/item/{name}.bmp"))
-                    }),
+                    self.game.npc_shop.shop.sell_items.iter().filter_map(|i| i.item.icon_path()),
                 )
                 .collect();
             let icon_refs: Vec<&str> = icon_paths.iter().map(|s| s.as_str()).collect();
@@ -1842,6 +1837,7 @@ impl App {
                         elapsed,
                         self.login_window.has_grf_textures,
                         initial_focus,
+                        &self.config.window_positions,
                     );
                     let events = self.login_window.build(&mut ui);
                     let any_hovered = ui.any_hovered;
@@ -1864,6 +1860,7 @@ impl App {
                         elapsed,
                         server_win.has_grf_textures,
                         None,
+                        &self.config.window_positions,
                     );
                     let events = server_win.build(&mut ui);
                     let any_hovered = ui.any_hovered;
@@ -1886,6 +1883,7 @@ impl App {
                         elapsed,
                         char_win.has_grf_textures,
                         None,
+                        &self.config.window_positions,
                     );
                     let events = char_win.build(&mut ui);
                     let any_hovered = ui.any_hovered;
@@ -1909,35 +1907,51 @@ impl App {
                         elapsed,
                         self.game.system_menu.has_grf_textures,
                         initial_focus,
+                        &self.config.window_positions,
                     );
                     let chat_was_active = self.game.chat_window.is_active();
-                    let mut events = self.game.chat_window.build(&mut ui);
+                    let mut events = Vec::new();
 
+                    // Build z-orderable windows in persisted order (back-to-front)
+                    let z_order = ui.get_z_order();
+                    for &win_id in &z_order {
+                        match win_id.0 {
+                            300 => events.extend(self.game.chat_window.build(&mut ui)),
+                            800 => events.extend(self.game.inventory_window.build(&mut ui)),
+                            900 => events.extend(self.game.equipment_window.build(
+                                &mut ui,
+                                &self.game.inventory_window.inventory,
+                                self.game.item_slot_count_table.as_ref(),
+                                self.game.card_name_table.as_ref(),
+                            )),
+                            _ => {}
+                        }
+                    }
+                    // Build windows not yet in z-order (first appearance)
+                    if !z_order.iter().any(|id| id.0 == 300) {
+                        events.extend(self.game.chat_window.build(&mut ui));
+                    }
+                    if !z_order.iter().any(|id| id.0 == 800) {
+                        events.extend(self.game.inventory_window.build(&mut ui));
+                    }
+                    if !z_order.iter().any(|id| id.0 == 900) {
+                        events.extend(self.game.equipment_window.build(
+                            &mut ui,
+                            &self.game.inventory_window.inventory,
+                            self.game.item_slot_count_table.as_ref(),
+                            self.game.card_name_table.as_ref(),
+                        ));
+                    }
+
+                    // Always-on-top windows (not z-orderable)
                     let npc_dialog_open = self.game.npc_dialog.dialog.is_open();
-                    let npc_events = self.game.npc_dialog.build(&mut ui);
-                    events.extend(npc_events);
-
+                    events.extend(self.game.npc_dialog.build(&mut ui));
                     let shop_open = self.game.npc_shop.shop.is_open();
-                    let shop_events = self.game.npc_shop.build(&mut ui);
-                    events.extend(shop_events);
-
+                    events.extend(self.game.npc_shop.build(&mut ui));
                     let inv_open = self.game.inventory_window.inventory.is_open();
-                    let inv_events = self.game.inventory_window.build(&mut ui);
-                    events.extend(inv_events);
-
-                    let eq_open = self.game.equipment_window.is_open();
-                    let eq_events = self.game.equipment_window.build(
-                        &mut ui,
-                        &self.game.inventory_window.inventory,
-                        self.game.item_slot_count_table.as_ref(),
-                        self.game.card_name_table.as_ref(),
-                    );
-                    events.extend(eq_events);
-
                     let allow_escape =
                         !chat_was_active && !npc_dialog_open && !shop_open && !inv_open;
-                    let menu_events = self.game.system_menu.build(&mut ui, allow_escape);
-                    events.extend(menu_events);
+                    events.extend(self.game.system_menu.build(&mut ui, allow_escape));
 
                     ui.draw_drag_icon();
 
@@ -2272,6 +2286,8 @@ impl ApplicationHandler for App {
 
         match event {
             WindowEvent::CloseRequested => {
+                self.config.window_positions = self.ui_state_cache.extract_window_positions();
+                self.config.save("config.json");
                 event_loop.exit();
             }
             WindowEvent::Resized(size) => {

@@ -1,7 +1,7 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
-use crate::frame::WidgetId;
+use crate::frame::{WidgetId, WindowState};
 
 pub struct StateCache {
     map: HashMap<(WidgetId, TypeId), Box<dyn Any>>,
@@ -32,6 +32,19 @@ impl StateCache {
 
     pub fn clear(&mut self) {
         self.map.clear();
+    }
+
+    pub fn extract_window_positions(&self) -> HashMap<u32, [f32; 2]> {
+        let ws_type = TypeId::of::<WindowState>();
+        self.map.iter()
+            .filter_map(|((wid, tid), val)| {
+                if *tid == ws_type {
+                    val.downcast_ref::<WindowState>().map(|ws| (wid.0, [ws.x, ws.y]))
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }
 

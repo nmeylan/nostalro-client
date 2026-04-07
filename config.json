@@ -1,12 +1,39 @@
 {
-    "packetver": 20120307,
-    "login_ip": "127.0.0.1",
-    "login_port": 6901,
-    "screen_width": 1024,
-    "screen_height": 768,
-    "bgm_volume": 0.8,
-    "sfx_volume": 0.8,
-    "dpi_scale": 150,
-    "trace_packets": false,
-    "grf_paths": ["data/data.grf"]
+  "packetver": 20120307,
+  "login_ip": "127.0.0.1",
+  "login_port": 6901,
+  "screen_width": 1024,
+  "screen_height": 768,
+  "bgm_volume": 0.8,
+  "sfx_volume": 0.8,
+  "free_camera": false,
+  "dpi_scale": 150.0,
+  "grf_paths": [
+    "data/data.grf"
+  ],
+  "enhanced_lag_compensation": false,
+  "debug_network_delay_ms": 0,
+  "trace_packets": false,
+  "window_positions": {
+    "701": [
+      100.0,
+      100.0
+    ],
+    "110": [
+      490.0,
+      635.0
+    ],
+    "210": [
+      342.0,
+      524.0
+    ],
+    "10": [
+      283.0,
+      404.0
+    ],
+    "702": [
+      390.0,
+      260.0
+    ]
+  }
 }

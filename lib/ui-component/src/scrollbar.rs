@@ -139,7 +139,8 @@ mod tests {
     use ragnarok_ui::state::StateCache;
 
     fn make_frame<'a>(ctx: &'a UiContext, atlas: &'a FontAtlas, state: &'a mut StateCache) -> UiFrame<'a> {
-        UiFrame::new(ctx, atlas, state, 0.0, false, None)
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
     fn ids() -> ScrollbarIds {

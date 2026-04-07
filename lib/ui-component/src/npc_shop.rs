@@ -1,7 +1,7 @@
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::npc_shop::{NpcShopData, NpcShopMode};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, RESIZE_HANDLE_TEX, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
 
@@ -66,15 +66,7 @@ const ITEMWIN_MID_TEX: &str = "data/texture/유저인터페이스/basic_interfac
 const FOOTER_TEX: &str = "data/texture/유저인터페이스/basic_interface/btnbar_mid2.bmp";
 const SYS_BASE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_off.bmp";
 const SYS_BASE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_on.bmp";
-const RESIZE_TEX: &str = "data/texture/유저인터페이스/btn_resize.bmp";
-const RESIZE_BTN_SIZE: f32 = 13.0;
-
-#[derive(Default)]
-struct ResizeState {
-    dragging: bool,
-    start_mouse_y: f32,
-    start_rows: usize,
-}
+const RESIZE_SIZE: f32 = 13.0;
 
 pub struct NpcShop {
     pub has_grf_textures: bool,
@@ -86,6 +78,7 @@ pub struct NpcShop {
     scroll_offset: usize,
     output_scroll_offset: usize,
     input_visible_rows: usize,
+    resize_start_rows: Option<usize>,
 }
 
 impl NpcShop {
@@ -100,6 +93,7 @@ impl NpcShop {
             scroll_offset: 0,
             output_scroll_offset: 0,
             input_visible_rows: INPUT_DEFAULT_ROWS,
+            resize_start_rows: None,
         }
     }
 
@@ -260,9 +254,6 @@ impl NpcShop {
             let row_rect = Rect::new(win.x + pad_left, ry, row_content_w, row_h);
             let widget_id = WidgetId(ITEM_BASE_ID + i as u32);
             let response = ui.interact(widget_id, row_rect);
-            if response.hovered() {
-                ui.any_interactive_hovered = true;
-            }
 
             // Item shadow (itemwin_mid per row)
             if grf {
@@ -304,19 +295,6 @@ impl NpcShop {
                     row_rect.w,
                     row_rect.h,
                     [0.20, 0.42, 0.88, 0.50],
-                );
-                ui.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(),
-                    indices: idx.to_vec(),
-                    texture: TextureRef::White,
-                });
-            } else if response.hovered() {
-                let (v, idx) = draw::quad_vertices(
-                    row_rect.x,
-                    row_rect.y,
-                    row_rect.w,
-                    row_rect.h,
-                    [0.20, 0.42, 0.88, 0.20],
                 );
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
@@ -395,75 +373,21 @@ impl NpcShop {
         draw_footer(ui, win.x, footer_y, win_w, footer_h, grf);
 
         // Resize handle (bottom-right of footer)
-        let resize_size = RESIZE_BTN_SIZE;
         let resize_rect = Rect::new(
-            win.x + win_w - resize_size,
-            footer_y + footer_h - resize_size,
-            resize_size,
-            resize_size,
+            win.x + win_w - RESIZE_SIZE,
+            footer_y + footer_h - RESIZE_SIZE,
+            RESIZE_SIZE,
+            RESIZE_SIZE,
         );
-        let resize_resp = ui.interact(INPUT_RESIZE_ID, resize_rect);
-        if resize_resp.hovered() {
-            ui.any_interactive_hovered = true;
+        let resize = ui.resize_handle(INPUT_RESIZE_ID, resize_rect);
+        if resize.started {
+            self.resize_start_rows = Some(self.input_visible_rows);
         }
-        if grf {
-            let (v, idx) = draw::quad_vertices(
-                resize_rect.x,
-                resize_rect.y,
-                resize_size,
-                resize_size,
-                [1.0, 1.0, 1.0, 1.0],
-            );
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: idx.to_vec(),
-                texture: TextureRef::Named(RESIZE_TEX.to_string()),
-            });
-        } else {
-            let c = if resize_resp.hovered() {
-                [0.7, 0.7, 0.8, 1.0]
-            } else {
-                [0.4, 0.4, 0.5, 1.0]
-            };
-            let (v, idx) = draw::quad_vertices(
-                resize_rect.x + resize_size * 0.5,
-                resize_rect.y + resize_size * 0.5,
-                resize_size * 0.5,
-                resize_size * 0.5,
-                c,
-            );
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: idx.to_vec(),
-                texture: TextureRef::White,
-            });
-        }
-
-        let mouse_y = ui.ctx.mouse_y;
-        let mouse_clicked = ui.ctx.mouse_clicked;
-        let mouse_down = ui.ctx.mouse_down;
-        let new_rows = {
-            let rs = ui.state.get_or_default::<ResizeState>(INPUT_RESIZE_ID);
-            if resize_resp.clicked()
-                || (resize_rect.contains(ui.ctx.mouse_x, mouse_y) && mouse_clicked)
-            {
-                rs.dragging = true;
-                rs.start_mouse_y = mouse_y;
-                rs.start_rows = self.input_visible_rows;
+        if resize.dragging {
+            if let Some(start_rows) = self.resize_start_rows {
+                let new = (start_rows as f32 + resize.delta_y / row_h).round() as i32;
+                self.input_visible_rows = new.clamp(INPUT_MIN_ROWS as i32, INPUT_MAX_ROWS as i32) as usize;
             }
-            if !mouse_down {
-                rs.dragging = false;
-            }
-            if rs.dragging {
-                let dy = mouse_y - rs.start_mouse_y;
-                let new = (rs.start_rows as f32 + dy / row_h).round() as i32;
-                Some(new.clamp(INPUT_MIN_ROWS as i32, INPUT_MAX_ROWS as i32) as usize)
-            } else {
-                None
-            }
-        };
-        if let Some(rows) = new_rows {
-            self.input_visible_rows = rows;
         }
 
         win
@@ -674,7 +598,7 @@ impl NpcShop {
                         .cart
                         .iter()
                         .map(|c| {
-                            let item_id = self.shop.buy_items[c.source_index].item_id;
+                            let item_id = self.shop.buy_items[c.source_index].item.item_id;
                             (c.quantity, item_id)
                         })
                         .collect();
@@ -687,7 +611,7 @@ impl NpcShop {
                         .cart
                         .iter()
                         .map(|c| {
-                            let index = self.shop.sell_items[c.source_index].index;
+                            let index = self.shop.sell_items[c.source_index].item.index as i16;
                             (index, c.quantity)
                         })
                         .collect();
@@ -782,6 +706,7 @@ impl NpcShop {
         self.scroll_offset = 0;
         self.output_scroll_offset = 0;
         self.input_visible_rows = INPUT_DEFAULT_ROWS;
+        self.resize_start_rows = None;
     }
 
     pub fn grf_texture_paths() -> Vec<&'static str> {
@@ -797,7 +722,7 @@ impl NpcShop {
             FOOTER_TEX,
             SYS_BASE_OFF_TEX,
             SYS_BASE_ON_TEX,
-            RESIZE_TEX,
+            RESIZE_HANDLE_TEX,
         ];
         paths.extend(scrollbar::grf_texture_paths());
         paths
@@ -939,6 +864,7 @@ fn format_zeny(amount: i32) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_game::item::Item;
     use ragnarok_game::npc_shop::ShopBuyItem;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
@@ -947,7 +873,8 @@ mod tests {
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
-        UiFrame::new(ctx, atlas, state, 0.0, false, None)
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
     #[test]
@@ -956,12 +883,14 @@ mod tests {
         shop_ui.shop.open_buy(
             100,
             vec![ShopBuyItem {
-                item_id: 501,
+                item: Item {
+                    index: 0, item_id: 501, item_type: 0, count: 1,
+                    is_identified: true, is_damaged: false, refining_level: 0,
+                    slot: [0; 4], location: 0, wear_state: 0,
+                    name: "Red Potion".into(), resource_name: None,
+                },
                 price: 50,
                 discount_price: 50,
-                item_type: 0,
-                name: "Red Potion".into(),
-                resource_name: None,
             }],
         );
 
@@ -983,12 +912,14 @@ mod tests {
         shop_ui.shop.open_buy(
             100,
             vec![ShopBuyItem {
-                item_id: 501,
+                item: Item {
+                    index: 0, item_id: 501, item_type: 0, count: 1,
+                    is_identified: true, is_damaged: false, refining_level: 0,
+                    slot: [0; 4], location: 0, wear_state: 0,
+                    name: "Red Potion".into(), resource_name: None,
+                },
                 price: 50,
                 discount_price: 50,
-                item_type: 0,
-                name: "Red Potion".into(),
-                resource_name: None,
             }],
         );
         shop_ui.qty_popup_open = true;

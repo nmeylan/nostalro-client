@@ -1,60 +1,12 @@
 use models::enums::EnumWithMaskValueU64;
 pub use models::enums::item::EquipmentLocation;
+use crate::item::Item;
+use crate::item::InventoryTab;
 use crate::item_resource_table::ItemResourceTable;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InventoryTab {
-    Usable,
-    Equip,
-    Etc,
-}
-
-#[derive(Debug, Clone)]
-pub struct InventoryItem {
-    pub index: u16,
-    pub item_id: u16,
-    pub item_type: u8,
-    pub count: i16,
-    pub is_identified: bool,
-    pub is_damaged: bool,
-    pub refining_level: u8,
-    pub slot: [u16; 4],
-    pub location: u16,
-    pub wear_state: u16,
-    pub name: String,
-    pub resource_name: Option<String>,
-}
-
-impl InventoryItem {
-    pub fn tab(&self) -> InventoryTab {
-        item_tab(self.item_type)
-    }
-
-    pub fn icon_path(&self) -> Option<String> {
-        self.resource_name.as_ref()
-            .map(|name| format!("data/texture/유저인터페이스/item/{name}.bmp"))
-    }
-
-    pub fn is_equipment(&self) -> bool {
-        self.tab() == InventoryTab::Equip
-    }
-
-    pub fn is_equipped(&self) -> bool {
-        self.wear_state != 0
-    }
-}
-
-pub fn item_tab(item_type: u8) -> InventoryTab {
-    match item_type {
-        0 | 2 | 11 | 18 => InventoryTab::Usable,
-        1 | 4 | 5 => InventoryTab::Equip,
-        _ => InventoryTab::Etc,
-    }
-}
 
 #[derive(Debug)]
 pub struct InventoryData {
-    items: Vec<InventoryItem>,
+    items: Vec<Item>,
     pub active_tab: InventoryTab,
     pub weight: i32,
     pub max_weight: i32,
@@ -90,7 +42,7 @@ impl InventoryData {
         self.open = false;
     }
 
-    pub fn add_item(&mut self, item: InventoryItem) {
+    pub fn add_item(&mut self, item: Item) {
         if let Some(existing) = self.items.iter_mut().find(|i| i.index == item.index) {
             existing.count = item.count;
             existing.wear_state = item.wear_state;
@@ -132,30 +84,28 @@ impl InventoryData {
         }
     }
 
-    pub fn get_item(&self, index: u16) -> Option<&InventoryItem> {
+    pub fn get_item(&self, index: u16) -> Option<&Item> {
         self.items.iter().find(|i| i.index == index)
     }
 
-    pub fn filtered_items(&self) -> Vec<&InventoryItem> {
+    pub fn filtered_items(&self) -> Vec<&Item> {
         self.items.iter()
             .filter(|item| item.tab() == self.active_tab && !item.is_equipped())
             .collect()
     }
 
-    pub fn equipped_in_slot(&self, slot: EquipmentLocation) -> Option<&InventoryItem> {
+    pub fn equipped_in_slot(&self, slot: EquipmentLocation) -> Option<&Item> {
         let mask = slot.as_flag() as u16;
         self.items.iter().find(|i| i.wear_state & mask != 0)
     }
 
-    pub fn all_items(&self) -> &[InventoryItem] {
+    pub fn all_items(&self) -> &[Item] {
         &self.items
     }
 
     pub fn resolve_resource_names(&mut self, table: &ItemResourceTable) {
         for item in &mut self.items {
-            if item.resource_name.is_none() {
-                item.resource_name = table.get_resource_name(item.item_id).map(|s| s.to_string());
-            }
+            item.resolve_resource_name(table);
         }
     }
 
@@ -191,9 +141,10 @@ pub struct EquipmentItemData {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::item::item_tab;
 
-    fn make_normal_item(index: u16, item_id: u16, item_type: u8, count: i16) -> InventoryItem {
-        InventoryItem {
+    fn make_normal_item(index: u16, item_id: u16, item_type: u8, count: i16) -> Item {
+        Item {
             index,
             item_id,
             item_type,
@@ -209,8 +160,8 @@ mod tests {
         }
     }
 
-    fn make_equip_item(index: u16, item_id: u16, location: u16) -> InventoryItem {
-        InventoryItem {
+    fn make_equip_item(index: u16, item_id: u16, location: u16) -> Item {
+        Item {
             index,
             item_id,
             item_type: 5, // armor
