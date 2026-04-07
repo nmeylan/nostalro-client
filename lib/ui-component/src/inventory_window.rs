@@ -110,6 +110,7 @@ impl InventoryWindow {
             return events;
         }
 
+        let scrollbar_w = SCROLLBAR_W;
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
 
@@ -370,7 +371,7 @@ impl InventoryWindow {
 
         // -- Scrollbar (only when needed) --
         if total_rows > self.grid_rows {
-            let sb_x = grid_area_x + (PAD_X) + self.grid_cols as f32 * (CELL_SIZE);
+            let sb_x = win.x + win_w - scrollbar_w - (1.0);
             let content_rect = Rect::new(grid_area_x, container_y, grid_area_w, container_h);
             self.scroll_offset = scrollbar::scrollbar(
                 ui,

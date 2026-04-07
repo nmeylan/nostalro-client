@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::context::UiContext;
 use crate::draw::{self, DrawCall, TextureRef};
@@ -27,6 +27,10 @@ pub struct UiFrame<'a> {
     focus: Option<WidgetId>,
     saved_positions: &'a HashMap<u32, [f32; 2]>,
     drag_started_this_frame: Option<WidgetId>,
+    current_window: Option<WidgetId>,
+    hovered_window: Option<WidgetId>,
+    z_order_snapshot: Vec<WidgetId>,
+    modal_layers: Vec<WidgetId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -68,6 +72,7 @@ pub const RESIZE_HANDLE_TEX: &str = "data/texture/유저인터페이스/btn_resi
 
 const DRAG_STATE_ID: WidgetId = WidgetId(u32::MAX);
 pub const Z_ORDER_STATE_ID: WidgetId = WidgetId(u32::MAX - 1);
+const WINDOW_RECTS_STATE_ID: WidgetId = WidgetId(u32::MAX - 2);
 const DRAG_THRESHOLD: f32 = 5.0;
 
 #[derive(Clone)]
@@ -82,16 +87,55 @@ pub struct DragState {
     pub icon_size: (f32, f32),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum WindowOrder {
+    Middle,
+    Foreground,
+    Tooltip,
+}
+
 #[derive(Default, Clone)]
 pub struct ZOrder {
-    pub order: Vec<WidgetId>,
+    pub order: Vec<(WidgetId, WindowOrder)>,
     pending_front: Option<WidgetId>,
+}
+
+impl Default for WindowOrder {
+    fn default() -> Self {
+        WindowOrder::Middle
+    }
 }
 
 impl ZOrder {
     pub fn is_topmost(&self, id: WidgetId) -> bool {
-        self.order.last() == Some(&id)
+        self.order.last().map(|(wid, _)| *wid) == Some(id)
     }
+
+    /// Return ids sorted by category: all Middle first, then Foreground, then Tooltip.
+    /// Within each category, the original insertion order is preserved.
+    fn sorted_ids(&self) -> Vec<WidgetId> {
+        let mut middle = Vec::new();
+        let mut foreground = Vec::new();
+        let mut tooltip = Vec::new();
+        for &(id, order) in &self.order {
+            match order {
+                WindowOrder::Middle => middle.push(id),
+                WindowOrder::Foreground => foreground.push(id),
+                WindowOrder::Tooltip => tooltip.push(id),
+            }
+        }
+        middle.extend(foreground);
+        middle.extend(tooltip);
+        middle
+    }
+}
+
+#[derive(Default)]
+struct WindowRects {
+    prev_rects: HashMap<WidgetId, Rect>,
+    current_rects: HashMap<WidgetId, Rect>,
+    non_interactable: HashSet<WidgetId>,
+    prev_non_interactable: HashSet<WidgetId>,
 }
 
 impl Default for DragState {
@@ -146,32 +190,108 @@ impl<'a> UiFrame<'a> {
             focus: initial_focus,
             saved_positions,
             drag_started_this_frame: None,
+            current_window: None,
+            hovered_window: None,
+            z_order_snapshot: Vec::new(),
+            modal_layers: Vec::new(),
         }
     }
 
     pub fn get_z_order(&mut self) -> Vec<WidgetId> {
         let z = self.state.get_or_default::<ZOrder>(Z_ORDER_STATE_ID);
         if let Some(front_id) = z.pending_front.take() {
-            if let Some(pos) = z.order.iter().position(|&id| id == front_id) {
-                z.order.remove(pos);
-                z.order.push(front_id);
+            if let Some(pos) = z.order.iter().position(|&(id, _)| id == front_id) {
+                let entry = z.order.remove(pos);
+                // Move to end of its category
+                let insert_pos = z.order.iter().rposition(|&(_, o)| o == entry.1)
+                    .map(|p| p + 1)
+                    .unwrap_or(z.order.len());
+                z.order.insert(insert_pos, entry);
             }
         }
-        z.order.clone()
+        z.sorted_ids()
     }
 
     pub fn bring_to_front(&mut self, id: WidgetId) {
         let z = self.state.get_or_default::<ZOrder>(Z_ORDER_STATE_ID);
-        if !z.order.contains(&id) {
-            z.order.push(id);
+        if !z.order.iter().any(|&(wid, _)| wid == id) {
+            z.order.push((id, WindowOrder::Middle));
         }
         z.pending_front = Some(id);
     }
 
     pub fn ensure_in_z_order(&mut self, id: WidgetId) {
+        self.ensure_in_z_order_with(id, WindowOrder::Middle);
+    }
+
+    pub fn ensure_in_z_order_with(&mut self, id: WidgetId, order: WindowOrder) {
         let z = self.state.get_or_default::<ZOrder>(Z_ORDER_STATE_ID);
-        if !z.order.contains(&id) {
-            z.order.push(id);
+        if !z.order.iter().any(|&(wid, _)| wid == id) {
+            z.order.push((id, order));
+        }
+    }
+
+    /// Pre-compute which z-orderable window is topmost at the mouse position.
+    /// Uses rects stored from the previous frame (standard immediate-mode one-frame lag).
+    pub fn compute_hovered_window(&mut self, z_order: &[WidgetId]) {
+        self.z_order_snapshot = z_order.to_vec();
+
+        let wr = self.state.get_or_default::<WindowRects>(WINDOW_RECTS_STATE_ID);
+        wr.prev_rects = std::mem::take(&mut wr.current_rects);
+        wr.prev_non_interactable = std::mem::take(&mut wr.non_interactable);
+
+        self.hovered_window = None;
+        // Iterate top-to-bottom; skip non-interactable windows (tooltips)
+        for &id in z_order.iter().rev() {
+            if wr.prev_non_interactable.contains(&id) {
+                continue;
+            }
+            if let Some(rect) = wr.prev_rects.get(&id) {
+                if rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) {
+                    self.hovered_window = Some(id);
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Mark the start of a window's widget building and record its rect for hit-testing.
+    pub fn enter_window(&mut self, id: WidgetId, rect: Rect) {
+        self.current_window = Some(id);
+        let wr = self.state.get_or_default::<WindowRects>(WINDOW_RECTS_STATE_ID);
+        wr.current_rects.insert(id, rect);
+    }
+
+    /// Mark a window as non-interactable (clicks pass through to windows behind it).
+    pub fn enter_window_passthrough(&mut self, id: WidgetId, rect: Rect) {
+        self.current_window = Some(id);
+        let wr = self.state.get_or_default::<WindowRects>(WINDOW_RECTS_STATE_ID);
+        wr.current_rects.insert(id, rect);
+        wr.non_interactable.insert(id);
+    }
+
+    /// Set modal windows — all windows NOT in this group are occluded regardless of mouse position.
+    pub fn set_modal(&mut self, ids: &[WidgetId]) {
+        self.modal_layers = ids.to_vec();
+    }
+
+    fn is_window_occluded(&self, id: WidgetId) -> bool {
+        if !self.modal_layers.is_empty() && !self.modal_layers.contains(&id) {
+            return true;
+        }
+        // Only apply z-order occlusion to windows present in the snapshot.
+        // Windows built after compute_hovered_window (e.g. always-on-top npc_shop)
+        // are not in the snapshot and must not be occluded by z-order.
+        match self.hovered_window {
+            Some(hw) if hw != id => self.z_order_snapshot.contains(&id),
+            _ => false,
+        }
+    }
+
+    pub fn is_current_window_occluded(&self) -> bool {
+        match self.current_window {
+            Some(cw) => self.is_window_occluded(cw),
+            None => false,
         }
     }
 
@@ -217,28 +337,34 @@ impl<'a> UiFrame<'a> {
         let rect = Rect::new(state.x, state.y, w, h);
 
         self.ensure_in_z_order(id);
-        if self.ctx.mouse_clicked && rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) {
+        self.enter_window(id, rect);
+
+        let is_occluded = self.is_window_occluded(id);
+        if !is_occluded && self.ctx.mouse_clicked && rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) {
             self.bring_to_front(id);
         }
 
         // Start drag after releasing the state borrow above.
         // Cancel any earlier window's drag — last (topmost) window wins.
-        if let Some((ox, oy)) = drag_offset {
-            if let Some(prev_id) = self.drag_started_this_frame {
-                self.state.get_or_default::<WindowState>(prev_id).dragging = false;
+        if !is_occluded {
+            if let Some((ox, oy)) = drag_offset {
+                if let Some(prev_id) = self.drag_started_this_frame {
+                    self.state.get_or_default::<WindowState>(prev_id).dragging = false;
+                }
+                let state = self.state.get_or_default::<WindowState>(id);
+                state.dragging = true;
+                state.drag_offset_x = ox;
+                state.drag_offset_y = oy;
+                self.drag_started_this_frame = Some(id);
             }
-            let state = self.state.get_or_default::<WindowState>(id);
-            state.dragging = true;
-            state.drag_offset_x = ox;
-            state.drag_offset_y = oy;
-            self.drag_started_this_frame = Some(id);
         }
 
         rect
     }
 
     pub fn interact(&mut self, id: WidgetId, rect: Rect) -> Response {
-        let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y);
+        let in_rect = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y);
+        let hovered = in_rect && !self.is_current_window_occluded();
         if hovered {
             self.any_hovered = true;
         }
@@ -467,7 +593,7 @@ impl<'a> UiFrame<'a> {
     /// Tracks drag state on a rect, returns pixel delta from drag start.
     /// No drawing — caller renders their own visual. Pass `enabled=false` to prevent new drags.
     pub fn drag_handle(&mut self, id: WidgetId, rect: Rect, enabled: bool) -> DragResponse {
-        let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y);
+        let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) && !self.is_current_window_occluded();
         if hovered {
             self.any_hovered = true;
             self.any_interactive_hovered = true;
@@ -550,7 +676,7 @@ impl<'a> UiFrame<'a> {
 
     /// Register a drop zone. Returns (source_id, item_index) when a drag is released over this rect.
     pub fn drop_zone(&mut self, rect: Rect) -> Option<(WidgetId, usize)> {
-        let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y);
+        let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) && !self.is_current_window_occluded();
         let drag = self.state.get_or_default::<DragState>(DRAG_STATE_ID);
         if drag.active && !self.ctx.mouse_down && hovered {
             let result = (drag.source_id, drag.item_index);
@@ -1016,5 +1142,241 @@ mod tests {
         let z = ui.get_z_order();
         assert_eq!(z[0], id_a);
         assert_eq!(z[1], id_b);
+    }
+
+    #[test]
+    fn interact_blocked_by_overlapping_topmost_window() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let id_a = WidgetId(100);
+        let id_b = WidgetId(200);
+        let positions = HashMap::new();
+
+        // Frame 1: place two overlapping windows. A at (50,50), B at (100,80).
+        // Overlap region: x 100..250, y 80..200
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
+        ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
+
+        // Frame 2: mouse in the overlap region, click.
+        // z-order is [A, B] (B on top).
+        // Widget in A at the overlap should be blocked.
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 150.0;
+        ctx.mouse_y = 120.0;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let z = ui.get_z_order();
+        ui.compute_hovered_window(&z);
+
+        // Build window A first (back), then B (front)
+        ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
+        let widget_in_a = WidgetId(101);
+        let r = ui.interact(widget_in_a, Rect::new(100.0, 100.0, 100.0, 50.0));
+        assert!(!r.hovered(), "widget in background window should not be hovered");
+        assert!(!r.clicked(), "widget in background window should not be clicked");
+
+        ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
+        let widget_in_b = WidgetId(201);
+        let r = ui.interact(widget_in_b, Rect::new(100.0, 100.0, 100.0, 50.0));
+        assert!(r.hovered(), "widget in topmost window should be hovered");
+        assert!(r.clicked(), "widget in topmost window should be clicked");
+    }
+
+    #[test]
+    fn interact_not_blocked_in_non_overlapping_area() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let id_a = WidgetId(100);
+        let id_b = WidgetId(200);
+        let positions = HashMap::new();
+
+        // Frame 1: place two windows, B offset so A has a non-overlapping region on the left
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
+        ui.window_at(id_b, 200.0, 150.0, 25.0, 200.0, 80.0);
+
+        // Frame 2: mouse in A's non-overlapping area (left side)
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 70.0;
+        ctx.mouse_y = 120.0;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let z = ui.get_z_order();
+        ui.compute_hovered_window(&z);
+
+        ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
+        let widget_in_a = WidgetId(101);
+        let r = ui.interact(widget_in_a, Rect::new(60.0, 100.0, 80.0, 50.0));
+        assert!(r.hovered(), "widget in non-overlapping area should be hovered");
+        assert!(r.clicked(), "widget in non-overlapping area should be clicked");
+    }
+
+    #[test]
+    fn bring_to_front_blocked_when_occluded() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let id_a = WidgetId(100);
+        let id_b = WidgetId(200);
+        let positions = HashMap::new();
+
+        // Frame 1: place two overlapping windows
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
+        ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
+        // z-order: [A, B]
+
+        // Frame 2: click in the overlap region
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 150.0;
+        ctx.mouse_y = 120.0;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let z = ui.get_z_order();
+        ui.compute_hovered_window(&z);
+        ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
+        ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
+
+        // Frame 3: z-order should still be [A, B] — A should NOT have been brought to front
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let z = ui.get_z_order();
+        assert_eq!(z[0], id_a);
+        assert_eq!(z[1], id_b);
+    }
+
+    #[test]
+    fn foreground_window_wins_over_middle() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let id_mid = WidgetId(100);
+        let id_fg = WidgetId(200);
+        let positions = HashMap::new();
+
+        // Frame 1: Middle window first, then Foreground at same position
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.ensure_in_z_order(id_mid);
+        ui.enter_window(id_mid, Rect::new(50.0, 50.0, 200.0, 150.0));
+        ui.ensure_in_z_order_with(id_fg, WindowOrder::Foreground);
+        ui.enter_window(id_fg, Rect::new(50.0, 50.0, 200.0, 150.0));
+
+        // Frame 2: mouse in overlap, Foreground should win even though Middle was added first
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 100.0;
+        ctx.mouse_y = 100.0;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let z = ui.get_z_order();
+        ui.compute_hovered_window(&z);
+
+        // sorted order: [id_mid, id_fg] (Middle first, Foreground last)
+        assert_eq!(z[0], id_mid);
+        assert_eq!(z[1], id_fg);
+
+        ui.enter_window(id_mid, Rect::new(50.0, 50.0, 200.0, 150.0));
+        let r = ui.interact(WidgetId(101), Rect::new(60.0, 60.0, 100.0, 50.0));
+        assert!(!r.clicked(), "widget in Middle window should be blocked by Foreground");
+
+        ui.enter_window(id_fg, Rect::new(50.0, 50.0, 200.0, 150.0));
+        let r = ui.interact(WidgetId(201), Rect::new(60.0, 60.0, 100.0, 50.0));
+        assert!(r.clicked(), "widget in Foreground window should be clickable");
+    }
+
+    #[test]
+    fn passthrough_window_does_not_block_interaction() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let id_win = WidgetId(100);
+        let id_tooltip = WidgetId(200);
+        let positions = HashMap::new();
+
+        // Frame 1: normal window + passthrough tooltip on top
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.ensure_in_z_order(id_win);
+        ui.enter_window(id_win, Rect::new(50.0, 50.0, 200.0, 150.0));
+        ui.ensure_in_z_order_with(id_tooltip, WindowOrder::Tooltip);
+        ui.enter_window_passthrough(id_tooltip, Rect::new(80.0, 80.0, 100.0, 30.0));
+
+        // Frame 2: click in tooltip area — should pass through to window below
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 100.0;
+        ctx.mouse_y = 90.0;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let z = ui.get_z_order();
+        ui.compute_hovered_window(&z);
+
+        ui.enter_window(id_win, Rect::new(50.0, 50.0, 200.0, 150.0));
+        let r = ui.interact(WidgetId(101), Rect::new(80.0, 80.0, 100.0, 30.0));
+        assert!(r.hovered(), "widget below passthrough window should be hovered");
+        assert!(r.clicked(), "widget below passthrough window should be clickable");
+    }
+
+    #[test]
+    fn modal_blocks_all_non_modal_windows() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let id_bg = WidgetId(100);
+        let id_modal = WidgetId(200);
+        let positions = HashMap::new();
+
+        // Frame 1: two non-overlapping windows
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.ensure_in_z_order(id_bg);
+        ui.enter_window(id_bg, Rect::new(50.0, 50.0, 100.0, 100.0));
+        ui.ensure_in_z_order(id_modal);
+        ui.enter_window(id_modal, Rect::new(300.0, 300.0, 100.0, 100.0));
+
+        // Frame 2: set modal on id_modal, click inside id_bg (which is NOT overlapped)
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 80.0;
+        ctx.mouse_y = 80.0;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.set_modal(&[id_modal]);
+        let z = ui.get_z_order();
+        ui.compute_hovered_window(&z);
+
+        // hovered_window = id_bg (it's the only one at the mouse), but modal overrides
+        ui.enter_window(id_bg, Rect::new(50.0, 50.0, 100.0, 100.0));
+        let r = ui.interact(WidgetId(101), Rect::new(60.0, 60.0, 50.0, 50.0));
+        assert!(!r.clicked(), "widget in non-modal window should be blocked");
+
+        // Widget in the modal window is still interactable
+        ui.enter_window(id_modal, Rect::new(300.0, 300.0, 100.0, 100.0));
+        // Mouse is NOT over the modal window, so it shouldn't be hovered
+        let r = ui.interact(WidgetId(201), Rect::new(310.0, 310.0, 50.0, 50.0));
+        assert!(!r.hovered(), "modal widget not under mouse should not be hovered");
+    }
+
+    #[test]
+    fn bring_to_front_respects_category_boundary() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let id_a = WidgetId(100);
+        let id_b = WidgetId(200);
+        let id_fg = WidgetId(300);
+        let positions = HashMap::new();
+
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.ensure_in_z_order(id_a);
+        ui.ensure_in_z_order(id_b);
+        ui.ensure_in_z_order_with(id_fg, WindowOrder::Foreground);
+
+        // sorted: [A, B, FG]
+        let z = ui.get_z_order();
+        assert_eq!(z, vec![id_a, id_b, id_fg]);
+
+        // Bring A to front — should go to end of Middle, not past Foreground
+        ui.bring_to_front(id_a);
+        let z = ui.get_z_order();
+        assert_eq!(z, vec![id_b, id_a, id_fg]);
     }
 }

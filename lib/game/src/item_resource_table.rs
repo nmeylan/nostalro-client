@@ -4,32 +4,38 @@ use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::lua_table;
 
 pub struct ItemResourceTable {
-    entries: HashMap<u16, String>,
+    identified_entries: HashMap<u16, String>,
+    unidentified_entries: HashMap<u16, String>,
 }
 
-const RESOURCE_NAME_PATHS: &[&str] = &[
-    "data/idnum2itemresnametable.txt",
-    "data/num2itemresnametable.txt",
-];
+const IDENTIFIED_PATH: &str = "data/idnum2itemresnametable.txt";
+const UNIDENTIFIED_PATH: &str = "data/num2itemresnametable.txt";
 
 impl ItemResourceTable {
     pub fn load(grf: &GrfArchive) -> Self {
-        for path in RESOURCE_NAME_PATHS {
-            if let Ok(data) = grf.read_file(path) {
-                let entries = lua_table::parse_item_name_table(&data);
-                if !entries.is_empty() {
-                    tracing::info!("Loaded item resource table from GRF: {} entries", entries.len());
-                    return Self { entries };
-                }
-            }
-        }
+        let identified_entries = grf.read_file(IDENTIFIED_PATH)
+            .map(|data| lua_table::parse_item_name_table(&data))
+            .unwrap_or_default();
+        let unidentified_entries = grf.read_file(UNIDENTIFIED_PATH)
+            .map(|data| lua_table::parse_item_name_table(&data))
+            .unwrap_or_default();
 
-        tracing::warn!("No item resource table found in GRF");
-        Self { entries: HashMap::new() }
+        tracing::info!(
+            "Loaded item resource tables from GRF: {} identified, {} unidentified",
+            identified_entries.len(),
+            unidentified_entries.len(),
+        );
+
+        Self { identified_entries, unidentified_entries }
     }
 
     pub fn get_resource_name(&self, item_id: u16) -> Option<&str> {
-        self.entries.get(&item_id).map(|s| s.as_str())
+        self.identified_entries.get(&item_id).map(|s| s.as_str())
+    }
+
+    pub fn get_resource_name_for(&self, item_id: u16, is_identified: bool) -> Option<&str> {
+        let entries = if is_identified { &self.identified_entries } else { &self.unidentified_entries };
+        entries.get(&item_id).map(|s| s.as_str())
     }
 
     pub fn item_icon_path(&self, item_id: u16) -> Option<String> {

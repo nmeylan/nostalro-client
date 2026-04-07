@@ -1912,8 +1912,12 @@ impl App {
                     let chat_was_active = self.game.chat_window.is_active();
                     let mut events = Vec::new();
 
+                    // Modal windows block interaction with z-ordered windows behind them
+                    self.game.npc_shop.setup_modal(&mut ui);
+
                     // Build z-orderable windows in persisted order (back-to-front)
                     let z_order = ui.get_z_order();
+                    ui.compute_hovered_window(&z_order);
                     for &win_id in &z_order {
                         match win_id.0 {
                             300 => events.extend(self.game.chat_window.build(&mut ui)),

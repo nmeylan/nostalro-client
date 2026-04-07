@@ -1,7 +1,7 @@
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::npc_shop::{NpcShopData, NpcShopMode};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{ButtonTextures, RESIZE_HANDLE_TEX, TextInputBg, UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, RESIZE_HANDLE_TEX, TextInputBg, UiFrame, WidgetId, WindowOrder};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
 
@@ -103,6 +103,18 @@ impl NpcShop {
         }
     }
 
+    /// Call before building z-ordered windows to block interaction with them while shop is open.
+    pub fn setup_modal(&self, ui: &mut UiFrame) {
+        if !self.shop.is_open() {
+            return;
+        }
+        if self.qty_popup_open {
+            ui.set_modal(&[INPUT_WIN_ID, OUTPUT_WIN_ID, QTY_WIN_ID]);
+        } else {
+            ui.set_modal(&[INPUT_WIN_ID, OUTPUT_WIN_ID]);
+        }
+    }
+
     pub fn build(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
         if !self.shop.is_open() {
             return Vec::new();
@@ -164,20 +176,18 @@ impl NpcShop {
         );
 
         // Handle drag-drop: item dropped on output window opens qty popup
-        if !self.qty_popup_open {
-            if let Some((source_id, item_idx)) = ui.drop_zone(output_rect) {
-                if source_id == INPUT_WIN_ID {
-                    if self.shop.mode == Some(NpcShopMode::Sell)
-                        && self.shop.sell_item_remaining(item_idx) <= 1
-                    {
-                        self.shop.add_to_cart(item_idx, 1);
-                    } else {
-                        self.qty_popup_open = true;
-                        self.qty_popup_item_index = item_idx;
-                        self.quantity_input.text = "1".to_string();
-                        self.quantity_input.cursor_pos = 1;
-                        ui.set_focus(QTY_INPUT_ID);
-                    }
+        if let Some((source_id, item_idx)) = ui.drop_zone(output_rect) {
+            if source_id == INPUT_WIN_ID {
+                if self.shop.mode == Some(NpcShopMode::Sell)
+                    && self.shop.sell_item_remaining(item_idx) <= 1
+                {
+                    self.shop.add_to_cart(item_idx, 1);
+                } else {
+                    self.qty_popup_open = true;
+                    self.qty_popup_item_index = item_idx;
+                    self.quantity_input.text = "1".to_string();
+                    self.quantity_input.cursor_pos = 1;
+                    ui.set_focus(QTY_INPUT_ID);
                 }
             }
         }
@@ -326,13 +336,13 @@ impl NpcShop {
             ui.text(price_x, text_y, &price_str, text_color);
             ui.text(z_x, text_y, "Z", text_color);
 
-            if response.clicked() && !self.qty_popup_open {
+            if response.clicked() {
                 self.shop.selected_index = Some(item_idx);
                 // Begin drag tracking for this item
                 let drag_icon = self.shop.item_icon_path(item_idx);
                 ui.drag_source(INPUT_WIN_ID, item_idx, drag_icon, (icon_size, icon_size));
             }
-            if response.double_clicked() && !self.qty_popup_open {
+            if response.double_clicked() {
                 if self.shop.mode == Some(NpcShopMode::Sell)
                     && self.shop.sell_item_remaining(item_idx) <= 1
                 {
@@ -526,7 +536,7 @@ impl NpcShop {
             ui.text(z_x, text_y, "Z", text_color);
 
             // Click on cart item removes it
-            if response.clicked() && !self.qty_popup_open {
+            if response.clicked() {
                 self.shop.remove_from_cart(ci);
                 return win;
             }
@@ -590,7 +600,7 @@ impl NpcShop {
             "Cancel",
         );
 
-        if action_btn.clicked() && !self.shop.cart.is_empty() && !self.qty_popup_open {
+        if action_btn.clicked() && !self.shop.cart.is_empty() {
             match self.shop.mode {
                 Some(NpcShopMode::Buy) => {
                     let items: Vec<(i16, u16)> = self
@@ -622,7 +632,7 @@ impl NpcShop {
             }
         }
 
-        if cancel_btn.clicked() && !self.qty_popup_open {
+        if cancel_btn.clicked() {
             events.push(GameEvent::RequestNpcShopClose);
         }
 
@@ -638,7 +648,8 @@ impl NpcShop {
         let popup_h = QTY_H;
         let title_h = TITLE_H;
 
-        // Draggable quantity window
+        // Draggable quantity window (Foreground layer, above input/output windows)
+        ui.ensure_in_z_order_with(QTY_WIN_ID, WindowOrder::Foreground);
         let win = ui.window_at(QTY_WIN_ID, popup_w, popup_h, title_h, default_x, default_y);
 
         // Background: titlebar + container body

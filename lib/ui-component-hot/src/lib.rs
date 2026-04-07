@@ -514,8 +514,10 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             win.build(ui);
         }
         State::Category { components } => {
+
             // Build z-orderable windows in persisted order (back-to-front)
             let z_order = ui.get_z_order();
+            ui.compute_hovered_window(&z_order);
             for &win_id in &z_order {
                 if let Some(comp) = components
                     .iter_mut()
@@ -626,6 +628,11 @@ fn inventory_test_items() -> Vec<Item> {
         make_test_item(12, 2101, 4, 1, "Guard"),
         make_test_item(13, 910, 3, 50, "Jellopy"),
         make_test_item(14, 911, 3, 30, "Shell"),
+        make_test_item(15, 610, 0, 30, "Yggdrasil Leaf"),
+        make_test_item(16, 611, 0, 30, "Magnifier"),
+        make_test_item(17, 531, 0, 30, "Apple juice"),
+        make_test_item(18, 513, 0, 30, "Banana"),
+        make_test_item(19, 510, 0, 30, "Blue Herb"),
     ];
     items[11].refining_level = 7;
     items[12].refining_level = 5;

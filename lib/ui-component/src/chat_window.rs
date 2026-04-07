@@ -333,7 +333,8 @@ impl ChatWindow {
         self.bounding_rect = Some(Rect::new(chat_x, chat_y, chat_w, total_h));
 
         ui.ensure_in_z_order(CHAT_WINDOW_ID);
-        if ui.ctx.mouse_clicked && self.bounding_rect.unwrap().contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
+        ui.enter_window(CHAT_WINDOW_ID, self.bounding_rect.unwrap());
+        if !ui.is_current_window_occluded() && ui.ctx.mouse_clicked && self.bounding_rect.unwrap().contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
             ui.bring_to_front(CHAT_WINDOW_ID);
         }
 
