@@ -6,6 +6,20 @@ pub fn quad_vertices(x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) -> ([UiVer
     quad_vertices_uv(x, y, w, h, [0.0, 0.0], [1.0, 1.0], color)
 }
 
+/// Quad from explicit corner coordinates — avoids float drift from `x + w` recomputation
+pub fn quad_from_bounds(x0: f32, y0: f32, x1: f32, y1: f32, color: [f32; 4]) -> ([UiVertex; 4], [u32; 6]) {
+    let uv_min = [0.0, 0.0];
+    let uv_max = [1.0, 1.0];
+    let verts = [
+        UiVertex { position: [x0, y0], tex_coord: [uv_min[0], uv_min[1]], color },
+        UiVertex { position: [x1, y0], tex_coord: [uv_max[0], uv_min[1]], color },
+        UiVertex { position: [x0, y1], tex_coord: [uv_min[0], uv_max[1]], color },
+        UiVertex { position: [x1, y1], tex_coord: [uv_max[0], uv_max[1]], color },
+    ];
+    let indices = [0, 1, 2, 2, 1, 3];
+    (verts, indices)
+}
+
 pub fn quad_vertices_uv(
     x: f32, y: f32, w: f32, h: f32,
     uv_min: [f32; 2], uv_max: [f32; 2],

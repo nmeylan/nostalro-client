@@ -88,40 +88,54 @@ fn draw_nine_slice(
     sizes: &NineSliceSizes,
     color: [f32; 4],
 ) {
-    let lw = sizes.left_w;
-    let rw = sizes.right_w;
-    let th = sizes.top_h;
-    let bh = sizes.bottom_h;
-    let mw = w - lw - rw;
-    let mh = h - th - bh;
+    let lw = sizes.left_w.floor();
+    let rw = sizes.right_w.floor();
+    let th = sizes.top_h.floor();
+    let bh = sizes.bottom_h.floor();
+
+    // Round to avoid sub-pixel gaps between tiles
+    let x = x.floor();
+    let y = y.floor();
+    let w = w.floor();
+    let h = h.floor();
+
+    // Compute boundaries from both edges so adjacent pieces share exact coordinates
+    let mid_x = x + lw;
+    let right_x = x + w - rw;
+    let mid_y = y + th;
+    let bot_y = y + h - bh;
+    let mw = right_x - mid_x;
+    let mh = bot_y - mid_y;
+
+    let right_edge = x + w;
+    let bottom_edge = y + h;
 
     // Row 0: top
-    push_piece(draw_calls, SYSBOX_LU, x, y, lw, th, color);
+    push_bounds(draw_calls, SYSBOX_LU, x, y, mid_x, mid_y, color);
     if mw > 0.0 {
-        push_piece(draw_calls, SYSBOX_MU, x + lw, y, mw, th, color);
+        push_bounds(draw_calls, SYSBOX_MU, mid_x, y, right_x, mid_y, color);
     }
-    push_piece(draw_calls, SYSBOX_RU, x + lw + mw.max(0.0), y, rw, th, color);
+    push_bounds(draw_calls, SYSBOX_RU, right_x, y, right_edge, mid_y, color);
 
     // Row 1: middle
     if mh > 0.0 {
-        push_piece(draw_calls, SYSBOX_LM, x, y + th, lw, mh, color);
+        push_bounds(draw_calls, SYSBOX_LM, x, mid_y, mid_x, bot_y, color);
         if mw > 0.0 {
-            push_piece(draw_calls, SYSBOX_MM, x + lw, y + th, mw, mh, color);
+            push_bounds(draw_calls, SYSBOX_MM, mid_x, mid_y, right_x, bot_y, color);
         }
-        push_piece(draw_calls, SYSBOX_RM, x + lw + mw.max(0.0), y + th, rw, mh, color);
+        push_bounds(draw_calls, SYSBOX_RM, right_x, mid_y, right_edge, bot_y, color);
     }
 
     // Row 2: bottom
-    let by = y + th + mh.max(0.0);
-    push_piece(draw_calls, SYSBOX_LD, x, by, lw, bh, color);
+    push_bounds(draw_calls, SYSBOX_LD, x, bot_y, mid_x, bottom_edge, color);
     if mw > 0.0 {
-        push_piece(draw_calls, SYSBOX_MD, x + lw, by, mw, bh, color);
+        push_bounds(draw_calls, SYSBOX_MD, mid_x, bot_y, right_x, bottom_edge, color);
     }
-    push_piece(draw_calls, SYSBOX_RD, x + lw + mw.max(0.0), by, rw, bh, color);
+    push_bounds(draw_calls, SYSBOX_RD, right_x, bot_y, right_edge, bottom_edge, color);
 }
 
-fn push_piece(draw_calls: &mut Vec<DrawCall>, texture: &str, x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) {
-    let (v, i) = draw::quad_vertices(x, y, w, h, color);
+fn push_bounds(draw_calls: &mut Vec<DrawCall>, texture: &str, x0: f32, y0: f32, x1: f32, y1: f32, color: [f32; 4]) {
+    let (v, i) = draw::quad_from_bounds(x0, y0, x1, y1, color);
     draw_calls.push(DrawCall {
         vertices: v.to_vec(),
         indices: i.to_vec(),

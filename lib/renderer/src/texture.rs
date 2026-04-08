@@ -90,7 +90,9 @@ impl TextureCache {
                     let upscaled = image::imageops::resize(&img, phys_w, phys_h, image::imageops::FilterType::CatmullRom);
                     // Linear sampling avoids triangle-diagonal UV precision artifacts
                     // that cause shearing with Nearest at fractional DPI scales
-                    create_texture_bind_group(device, queue, &upscaled, &self.bind_group_layout, name)
+                    create_texture_bind_group_filtered(device, queue, &upscaled, &self.bind_group_layout, name, wgpu::FilterMode::Linear, wgpu::AddressMode::ClampToEdge)
+                } else if dpi_upscale {
+                    create_texture_bind_group_filtered(device, queue, &img, &self.bind_group_layout, name, wgpu::FilterMode::Nearest, wgpu::AddressMode::ClampToEdge)
                 } else {
                     create_texture_bind_group_nearest(device, queue, &img, &self.bind_group_layout, name)
                 }
@@ -139,7 +141,7 @@ pub fn create_texture_bind_group(
     layout: &wgpu::BindGroupLayout,
     label: &str,
 ) -> wgpu::BindGroup {
-    create_texture_bind_group_filtered(device, queue, img, layout, label, wgpu::FilterMode::Linear)
+    create_texture_bind_group_filtered(device, queue, img, layout, label, wgpu::FilterMode::Linear, wgpu::AddressMode::Repeat)
 }
 
 pub fn create_texture_bind_group_nearest(
@@ -149,7 +151,7 @@ pub fn create_texture_bind_group_nearest(
     layout: &wgpu::BindGroupLayout,
     label: &str,
 ) -> wgpu::BindGroup {
-    create_texture_bind_group_filtered(device, queue, img, layout, label, wgpu::FilterMode::Nearest)
+    create_texture_bind_group_filtered(device, queue, img, layout, label, wgpu::FilterMode::Nearest, wgpu::AddressMode::Repeat)
 }
 
 pub fn create_font_atlas_bind_group(
@@ -162,6 +164,7 @@ pub fn create_font_atlas_bind_group(
     create_texture_bind_group_from_rgba(
         device, queue, img.as_raw(), img.width(), img.height(),
         layout, label, wgpu::FilterMode::Linear, wgpu::TextureFormat::Rgba8Unorm,
+        wgpu::AddressMode::ClampToEdge,
     )
 }
 
@@ -175,6 +178,7 @@ pub fn create_texture_bind_group_from_rgba(
     label: &str,
     filter: wgpu::FilterMode,
     format: wgpu::TextureFormat,
+    address_mode: wgpu::AddressMode,
 ) -> wgpu::BindGroup {
     let size = wgpu::Extent3d {
         width,
@@ -211,8 +215,8 @@ pub fn create_texture_bind_group_from_rgba(
 
     let view = texture.create_view(&Default::default());
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        address_mode_u: wgpu::AddressMode::Repeat,
-        address_mode_v: wgpu::AddressMode::Repeat,
+        address_mode_u: address_mode,
+        address_mode_v: address_mode,
         mag_filter: filter,
         min_filter: filter,
         mipmap_filter: wgpu::MipmapFilterMode::Nearest,
@@ -242,6 +246,7 @@ fn create_texture_bind_group_filtered(
     layout: &wgpu::BindGroupLayout,
     label: &str,
     filter: wgpu::FilterMode,
+    address_mode: wgpu::AddressMode,
 ) -> wgpu::BindGroup {
-    create_texture_bind_group_from_rgba(device, queue, img.as_raw(), img.width(), img.height(), layout, label, filter, wgpu::TextureFormat::Rgba8UnormSrgb)
+    create_texture_bind_group_from_rgba(device, queue, img.as_raw(), img.width(), img.height(), layout, label, filter, wgpu::TextureFormat::Rgba8UnormSrgb, address_mode)
 }

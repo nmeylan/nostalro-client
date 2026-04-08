@@ -51,6 +51,7 @@ pub fn upload_sprite_textures(
         let bg = create_texture_bind_group_from_rgba(
             device, queue, &img.data, img.width, img.height, layout, &label,
             wgpu::FilterMode::Nearest, wgpu::TextureFormat::Rgba8UnormSrgb,
+            wgpu::AddressMode::ClampToEdge,
         );
         sizes.push((img.width, img.height));
         bind_groups.push(bg);
