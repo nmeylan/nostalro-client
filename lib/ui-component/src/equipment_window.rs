@@ -72,6 +72,8 @@ pub struct EquipmentWindow {
     bg_size: (f32, f32),
     /// Screen-space center for character sprite, set each frame by build()
     character_center: Option<[f32; 2]>,
+    /// Index into the UI draw call list where paperdoll should be inserted
+    paperdoll_insert_index: Option<usize>,
 }
 
 impl EquipmentWindow {
@@ -82,6 +84,7 @@ impl EquipmentWindow {
             minimized: false,
             bg_size: (0.0, 0.0),
             character_center: None,
+            paperdoll_insert_index: None,
         }
     }
 
@@ -89,8 +92,16 @@ impl EquipmentWindow {
         self.character_center
     }
 
+    pub fn paperdoll_insert_index(&self) -> Option<usize> {
+        self.paperdoll_insert_index
+    }
+
     pub fn is_open(&self) -> bool {
         self.open
+    }
+
+    pub fn is_visible(&self) -> bool {
+        self.open && !self.minimized
     }
 
     pub fn toggle(&mut self) {
@@ -111,6 +122,7 @@ impl EquipmentWindow {
         card_name_table: Option<&CardNameTable>,
     ) -> Vec<GameEvent> {
         self.character_center = None;
+        self.paperdoll_insert_index = None;
 
         if !self.open {
             return Vec::new();
@@ -216,6 +228,7 @@ impl EquipmentWindow {
         let character_x = win.x + SIDE_COL_W + CENTER_COL_W / 2.0;
         let character_y = content_y + content_h - slot_h;
         self.character_center = Some([character_x, character_y]);
+        self.paperdoll_insert_index = Some(ui.draw_calls.len());
 
         // -- Equipment slots --
         let side_col_w = SIDE_COL_W ;
@@ -232,7 +245,6 @@ impl EquipmentWindow {
             let slot_rect = Rect::new(slot_x, slot_y, slot_w, slot_h);
             let widget_id = WidgetId(EQ_SLOT_BASE_ID + i as u32);
             let response = ui.interact(widget_id, slot_rect);
-            if response.hovered() { ui.any_interactive_hovered = true; }
 
             // Icon position: left-aligned for col0, right-aligned for col1
             let icon_pad = (slot_h - icon) / 2.0;
@@ -292,11 +304,6 @@ impl EquipmentWindow {
                 }
             }
 
-            // Hover highlight
-            if response.hovered() {
-                let (v, idx) = draw::quad_vertices(slot_x, slot_y, slot_w, slot_h, [0.20, 0.42, 0.88, 0.25]);
-                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
-            }
         }
 
         // Drop zone: accept drags from inventory (equip)

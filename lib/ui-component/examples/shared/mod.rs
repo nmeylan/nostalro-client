@@ -185,6 +185,7 @@ impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
                         gpu.texture_cache.get(name)
                             .unwrap_or(&gpu.white_bind_group)
                     }
+                    UiTextureRef::Inline(_) => &gpu.white_bind_group,
                 };
                 UiDrawCommand {
                     vertices: &call.vertices,

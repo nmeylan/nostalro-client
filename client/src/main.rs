@@ -35,11 +35,13 @@ use ragnarok_network::{
     build_use_item_packet, build_zone_enter_packet, ip_u32_to_string, network_loop,
 };
 use ragnarok_renderer::{
-    GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall, block_on,
+    GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall, UiTextureRef, block_on,
     build_clip_quad, build_entity_sprite, upload_sprite_textures,
 };
+use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_ui::context::UiContext;
-use ragnarok_ui::frame::{UiFrame, WidgetId, ZOrder, Z_ORDER_STATE_ID};
+use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui_component::inventory_window::INV_WIN_ID;
 use ragnarok_ui::state::StateCache;
 use ragnarok_ui_component::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::chat_window::ChatWindow;
@@ -1954,7 +1956,25 @@ impl App {
                         !chat_was_active && !npc_dialog_open && !shop_open && !inv_open;
                     events.extend(self.game.system_menu.build(&mut ui, allow_escape));
 
-                    ui.draw_drag_icon();
+                    if let Some(cancelled) = ui.draw_drag_icon() {
+                        if cancelled.source_id == INV_WIN_ID {
+                            if self.game.waiting_item_throw_ack {
+                                // Already waiting for server ack, ignore
+                            } else if self.game.equipment_window.is_visible() {
+                                self.game.chat_window.add_system(
+                                    "Please close the Equipment window.".to_string(),
+                                );
+                            } else if let Some(item) = self.game.inventory_window.inventory
+                                .get_item(cancelled.item_index as u16)
+                            {
+                                events.push(GameEvent::RequestDropItem {
+                                    index: item.index,
+                                    count: item.count,
+                                });
+                                self.game.waiting_item_throw_ack = true;
+                            }
+                        }
+                    }
 
                     let any_hovered = ui.any_hovered;
                     let any_interactive = ui.any_interactive_hovered;
@@ -2651,14 +2671,91 @@ impl ApplicationHandler for App {
                         }
                     }
 
+                    // Floor item sprites
+                    for fi_entry in &floor_item_render_list {
+                        if let Some(floor_item) = self.game.floor_items.get(&fi_entry.id) {
+                            if let Some((tex, act)) = self.game.floor_item_sprites.get(&fi_entry.id) {
+                                // Falling offset (dhxj: starts 15 units above ground)
+                                let y_offset = if floor_item.is_falling {
+                                    let t = (elapsed - floor_item.drop_time) * 1000.0 / 24.0;
+                                    // -15 + (-0.6 + 0.083*t) * t: starts at -15, rises to 0
+                                    let fall_y = -15.0 + (-0.6 + 0.083 * t as f64) * t as f64;
+                                    (fall_y.min(0.0) as f32) * fi_entry.sprite_scale
+                                } else {
+                                    0.0
+                                };
+
+                                // Blink effect
+                                let blink_frame = ((elapsed * 1000.0 / 24.0) as u32) % 92;
+                                let blink_active = blink_frame >= 90;
+
+                                let center = [
+                                    fi_entry.screen_center[0],
+                                    fi_entry.screen_center[1] + y_offset,
+                                ];
+
+                                if !act.actions.is_empty() {
+                                    let action = &act.actions[0];
+                                    let motion_count = action.motions.len();
+                                    let delay_ms = act.delays.first()
+                                        .map(|d| d * 25.0)
+                                        .filter(|d| *d > 0.0)
+                                        .unwrap_or(150.0);
+                                    let item_elapsed = elapsed - floor_item.drop_time;
+                                    let motion_idx = if motion_count > 0 {
+                                        ((item_elapsed * 1000.0) / delay_ms) as usize % motion_count
+                                    } else {
+                                        0
+                                    };
+                                    if motion_idx < motion_count {
+                                        let motion = &action.motions[motion_idx];
+                                        for clip in &motion.clips {
+                                            if let Some((mut vertices, indices, tex_idx)) =
+                                                build_clip_quad(clip, tex, center, fi_entry.depth, [0, 0])
+                                            {
+                                                if blink_active {
+                                                    for v in &mut vertices {
+                                                        v.color = [1.0, 1.0, 1.0, 1.0];
+                                                    }
+                                                }
+                                                if tex_idx < tex.bind_groups.len() {
+                                                    sprite_batches.push(SpriteBatch {
+                                                        vertices,
+                                                        indices,
+                                                        texture: &tex.bind_groups[tex_idx],
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Build paperdoll as UI draw calls so it renders with the equipment window
+                    let mut inline_textures = Vec::new();
+                    let mut paperdoll_calls: Vec<UiDrawCall> = Vec::new();
                     if let Some(center) = self.game.equipment_window.character_center() {
                         if let Some(player_id) = self.game.entities.player_id() {
                             if let Some(sprite) = self.game.sprites.get(&player_id) {
                                 let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
-                                let mut paperdoll = sprite.build_batches(
+                                let batches = sprite.build_batches(
                                     &idle_anim, None, 0, center, 0.0, 1.0, 0.0,
                                 );
-                                cursor_batches.append(&mut paperdoll);
+                                for batch in batches {
+                                    let idx = inline_textures.len();
+                                    inline_textures.push(batch.texture);
+                                    paperdoll_calls.push(UiDrawCall {
+                                        vertices: batch.vertices.iter().map(|sv| UiVertex {
+                                            position: [sv.position[0], sv.position[1]],
+                                            tex_coord: sv.tex_coord,
+                                            color: sv.color,
+                                        }).collect(),
+                                        indices: batch.indices,
+                                        texture: UiTextureRef::Inline(idx),
+                                    });
+                                }
                             }
                         }
                     }
@@ -2674,10 +2771,18 @@ impl ApplicationHandler for App {
                     }
 
                     let mut all_ui_calls = world_overlay_calls;
+                    let overlay_len = all_ui_calls.len();
                     all_ui_calls.extend(ui_draw_calls);
 
+                    if let Some(insert_idx) = self.game.equipment_window.paperdoll_insert_index() {
+                        let abs_idx = (overlay_len + insert_idx).min(all_ui_calls.len());
+                        for (i, dc) in paperdoll_calls.into_iter().enumerate() {
+                            all_ui_calls.insert(abs_idx + i, dc);
+                        }
+                    }
+
                     if let Some(renderer) = &mut self.renderer {
-                        renderer.render(&all_ui_calls, &sprite_batches, &cursor_batches, elapsed);
+                        renderer.render(&all_ui_calls, &sprite_batches, &cursor_batches, &inline_textures, elapsed);
                     }
                 }
 

@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-
+use std::fmt::Display;
 use crate::context::UiContext;
 use crate::draw::{self, DrawCall, TextureRef};
 use crate::rect::Rect;
@@ -35,6 +35,12 @@ pub struct UiFrame<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WidgetId(pub u32);
+
+impl Display for WidgetId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 #[derive(Default)]
 pub struct WindowState {
@@ -74,6 +80,12 @@ const DRAG_STATE_ID: WidgetId = WidgetId(u32::MAX);
 pub const Z_ORDER_STATE_ID: WidgetId = WidgetId(u32::MAX - 1);
 const WINDOW_RECTS_STATE_ID: WidgetId = WidgetId(u32::MAX - 2);
 const DRAG_THRESHOLD: f32 = 5.0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DragCancelledInfo {
+    pub source_id: WidgetId,
+    pub item_index: usize,
+}
 
 #[derive(Clone)]
 pub struct DragState {
@@ -689,15 +701,21 @@ impl<'a> UiFrame<'a> {
     }
 
     /// Update drag state and render drag icon. Call at end of frame after all widgets.
-    pub fn draw_drag_icon(&mut self) {
+    /// Returns `Some(DragCancelledInfo)` when a drag was released outside any drop zone.
+    pub fn draw_drag_icon(&mut self) -> Option<DragCancelledInfo> {
         let drag = self.state.get_or_default::<DragState>(DRAG_STATE_ID);
         if !drag.pending && !drag.active {
-            return;
+            return None;
         }
         if !self.ctx.mouse_down {
+            let cancelled = if drag.active {
+                Some(DragCancelledInfo { source_id: drag.source_id, item_index: drag.item_index })
+            } else {
+                None
+            };
             drag.active = false;
             drag.pending = false;
-            return;
+            return cancelled;
         }
         // Promote pending → active once mouse moves past threshold
         if drag.pending && !drag.active {
@@ -721,6 +739,7 @@ impl<'a> UiFrame<'a> {
                 });
             }
         }
+        None
     }
 }
 
@@ -1070,11 +1089,51 @@ mod tests {
         ui.draw_drag_icon();
         assert!(ui.is_dragging());
 
-        // Release mouse — draw_drag_icon cancels it
+        // Release mouse — draw_drag_icon returns cancel info
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
-        ui.draw_drag_icon();
+        let cancelled = ui.draw_drag_icon();
         assert!(!ui.is_dragging());
+        assert_eq!(cancelled, Some(DragCancelledInfo { source_id: source, item_index: 0 }));
+    }
+
+    #[test]
+    fn draw_drag_icon_returns_none_when_drop_zone_consumed() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let source = WidgetId(10);
+        let drop_rect = Rect::new(200.0, 0.0, 200.0, 100.0);
+        let positions = HashMap::new();
+
+        // Start drag
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 50.0;
+        ctx.mouse_y = 50.0;
+        ctx.mouse_clicked = true;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.drag_source(source, 5, None, (24.0, 24.0));
+        ui.draw_drag_icon();
+
+        // Move past threshold
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 60.0;
+        ctx.mouse_y = 50.0;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.draw_drag_icon();
+        assert!(ui.is_dragging());
+
+        // Release over drop zone — drop_zone consumes, draw_drag_icon returns None
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 300.0;
+        ctx.mouse_y = 50.0;
+        ctx.mouse_down = false;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let drop_result = ui.drop_zone(drop_rect);
+        assert_eq!(drop_result, Some((source, 5)));
+        let cancelled = ui.draw_drag_icon();
+        assert_eq!(cancelled, None);
     }
 
     #[test]

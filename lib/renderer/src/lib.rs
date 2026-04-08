@@ -32,6 +32,8 @@ pub enum UiTextureRef {
     FontAtlas,
     White,
     Named(String),
+    /// Index into the `inline_textures` slice passed to `Renderer::render()`.
+    Inline(usize),
 }
 
 /// Owned UI draw command produced by the UI layer.
@@ -215,7 +217,7 @@ impl Renderer {
         }
     }
 
-    pub fn render(&mut self, ui_draw_calls: &[UiDrawCall], sprite_batches: &[SpriteBatch], cursor_batches: &[SpriteBatch], elapsed: f32) {
+    pub fn render(&mut self, ui_draw_calls: &[UiDrawCall], sprite_batches: &[SpriteBatch], cursor_batches: &[SpriteBatch], inline_textures: &[&wgpu::BindGroup], elapsed: f32) {
         self.global_uniforms
             .update_camera(&self.device.queue, &self.camera);
 
@@ -319,6 +321,7 @@ impl Renderer {
                             self.texture_cache.get(name)
                                 .unwrap_or(&self.white_bind_group)
                         }
+                        UiTextureRef::Inline(idx) => inline_textures[*idx],
                     };
                     UiDrawCommand {
                         vertices: &call.vertices,

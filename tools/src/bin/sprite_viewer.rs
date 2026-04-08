@@ -581,7 +581,7 @@ impl App {
                     let bind_group = match &call.texture {
                         UiTextureRef::FontAtlas => font_bg,
                         UiTextureRef::White => white_bg,
-                        UiTextureRef::Named(_) => white_bg,
+                        UiTextureRef::Named(_) | UiTextureRef::Inline(_) => white_bg,
                     };
                     UiDrawCommand {
                         vertices: &call.vertices,
