@@ -84,14 +84,16 @@ impl TextureCache {
 
             // CPU-upscale UI textures by dpi_scale for crisp rendering on high DPI
             let bind_group = if name.ends_with(".bmp") {
-                let upscaled = if dpi_upscale && self.dpi_scale > 1.0 {
+                if dpi_upscale && self.dpi_scale > 1.0 {
                     let phys_w = (logical_w as f32 * self.dpi_scale) as u32;
                     let phys_h = (logical_h as f32 * self.dpi_scale) as u32;
-                    image::imageops::resize(&img, phys_w, phys_h, image::imageops::FilterType::CatmullRom)
+                    let upscaled = image::imageops::resize(&img, phys_w, phys_h, image::imageops::FilterType::CatmullRom);
+                    // Linear sampling avoids triangle-diagonal UV precision artifacts
+                    // that cause shearing with Nearest at fractional DPI scales
+                    create_texture_bind_group(device, queue, &upscaled, &self.bind_group_layout, name)
                 } else {
-                    img
-                };
-                create_texture_bind_group_nearest(device, queue, &upscaled, &self.bind_group_layout, name)
+                    create_texture_bind_group_nearest(device, queue, &img, &self.bind_group_layout, name)
+                }
             } else {
                 create_texture_bind_group(device, queue, &img, &self.bind_group_layout, name)
             };
