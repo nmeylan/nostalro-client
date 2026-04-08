@@ -65,6 +65,7 @@ pub struct GameState {
     pub drop_quantity_dialog: Option<DropQuantityDialog>,
     pub pending_pickup_item_id: Option<u32>,
     pub item_pickup_notification: ItemPickupNotification,
+    pub debug_show_pick_bounds: bool,
 }
 
 impl GameState {
@@ -107,6 +108,7 @@ impl GameState {
             drop_quantity_dialog: None,
             pending_pickup_item_id: None,
             item_pickup_notification: ItemPickupNotification::new(),
+            debug_show_pick_bounds: false,
         }
     }
 }

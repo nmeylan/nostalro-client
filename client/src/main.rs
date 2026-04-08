@@ -2442,7 +2442,7 @@ impl App {
         let mut render_list = Vec::new();
         if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
             for entity in self.game.entities.iter() {
-                if let Some((screen_center, depth, camera_dir, sprite_scale, depth_gradient)) =
+                if let Some((screen_anchor, depth, camera_dir, sprite_scale, depth_gradient)) =
                     input::entity_screen_params(
                         entity.movement.position(),
                         self.game.gat.as_ref(),
@@ -2457,24 +2457,24 @@ impl App {
                             &entity.animation,
                             Some(camera_dir),
                             entity.head_dir,
-                            screen_center,
+                            screen_anchor,
                             depth,
                             sprite_scale,
                         ),
                         None => {
                             let half = 50.0;
                             [
-                                screen_center[0] - half,
-                                screen_center[1] - 100.0,
-                                screen_center[0] + half,
-                                screen_center[1],
+                                screen_anchor[0] - half,
+                                screen_anchor[1] - 100.0,
+                                screen_anchor[0] + half,
+                                screen_anchor[1],
                             ]
                         }
                     };
                     render_list.push(RenderEntry {
                         kind: RenderEntryKind::Entity,
                         id: entity.id,
-                        screen_center,
+                        screen_anchor,
                         depth,
                         depth_gradient,
                         camera_dir,
@@ -2499,7 +2499,7 @@ impl App {
             let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
             for floor_item in self.game.floor_items.values() {
                 let pos = floor_item.world_position();
-                if let Some((screen_center, depth, _camera_dir, sprite_scale, depth_gradient)) =
+                if let Some((screen_anchor, depth, _camera_dir, sprite_scale, depth_gradient)) =
                     input::entity_screen_params(
                         pos,
                         self.game.gat.as_ref(),
@@ -2511,15 +2511,15 @@ impl App {
                 {
                     let half = 17.0 * sprite_scale;
                     let pick_bounds = [
-                        screen_center[0] - half,
-                        screen_center[1] - half,
-                        screen_center[0] + half,
-                        screen_center[1] + half,
+                        screen_anchor[0] - half,
+                        screen_anchor[1] - half,
+                        screen_anchor[0] + half,
+                        screen_anchor[1] + half,
                     ];
                     render_list.push(RenderEntry {
                         kind: RenderEntryKind::FloorItem,
                         id: floor_item.id,
-                        screen_center,
+                        screen_anchor,
                         depth,
                         depth_gradient,
                         camera_dir: 0,
@@ -2777,6 +2777,7 @@ impl ApplicationHandler for App {
                                     grid.show_grid = !grid.show_grid;
                                 }
                             }
+                            self.game.debug_show_pick_bounds = !self.game.debug_show_pick_bounds;
                         }
                         PhysicalKey::Code(KeyCode::Insert) => {
                             if let Some(entity) = self.game.entities.player() {
@@ -2894,7 +2895,7 @@ impl ApplicationHandler for App {
                             }
                             if let Some(name) = &entity.name {
                                 let text_width = renderer.font_atlas.measure_text(name);
-                                let text_x = entry.screen_center[0] - text_width / 2.0;
+                                let text_x = entry.screen_anchor[0] - text_width / 2.0;
                                 let text_y = bar_y + HP_BAR_HEIGHT + 13.0;
                                 let outline_color = [0.0, 0.0, 0.0, 1.0];
                                 for &(dx, dy) in
@@ -2971,7 +2972,7 @@ impl ApplicationHandler for App {
                                     .map(|l| renderer.font_atlas.measure_text(l))
                                     .fold(0.0_f32, f32::max);
                                 let box_w = widest + padding * 2.0;
-                                let box_x = entry.screen_center[0] - box_w / 2.0;
+                                let box_x = entry.screen_anchor[0] - box_w / 2.0;
                                 let box_y = entry.pick_bounds[1] - 5.0 - total_h;
 
                                 let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
@@ -2989,7 +2990,7 @@ impl ApplicationHandler for App {
 
                                 for (i, line) in lines.iter().enumerate() {
                                     let line_w = renderer.font_atlas.measure_text(line);
-                                    let lx = entry.screen_center[0] - line_w / 2.0;
+                                    let lx = entry.screen_anchor[0] - line_w / 2.0;
                                     let ly = box_y + padding + line_h / 2.0 + line_h * i as f32;
                                     let (verts, indices) = ragnarok_ui::draw::text_vertices(
                                         line,
@@ -3024,7 +3025,7 @@ impl ApplicationHandler for App {
                                     floor_item.name.clone()
                                 };
                                 let text_w = renderer.font_atlas.measure_text(&tooltip);
-                                let text_x = fi_entry.screen_center[0] - text_w / 2.0;
+                                let text_x = fi_entry.screen_anchor[0] - text_w / 2.0;
                                 let text_y = fi_entry.pick_bounds[1] - 5.0;
                                 let padding = 3.0;
 
@@ -3060,6 +3061,44 @@ impl ApplicationHandler for App {
                     }
                 }
 
+                if self.game.debug_show_pick_bounds {
+                    let debug_color = [1.0, 0.0, 0.0, 0.7];
+                    let line_thickness = 1.0;
+                    for entry in render_list.iter().chain(floor_item_render_list.iter()) {
+                        let [left, top, right, bottom] = entry.pick_bounds;
+                        let w = right - left;
+                        let h = bottom - top;
+                        // Outline: top, bottom, left, right edges
+                        for (x, y, bw, bh) in [
+                            (left, top, w, line_thickness),
+                            (left, bottom - line_thickness, w, line_thickness),
+                            (left, top, line_thickness, h),
+                            (right - line_thickness, top, line_thickness, h),
+                        ] {
+                            let (v, i) = ragnarok_ui::draw::quad_vertices(x, y, bw, bh, debug_color);
+                            world_overlay_calls.push(UiDrawCall {
+                                vertices: v.to_vec(),
+                                indices: i.to_vec(),
+                                texture: UiTextureRef::White,
+                            });
+                        }
+                        // Screen center: red dot
+                        let dot = 3.0;
+                        let (v, i) = ragnarok_ui::draw::quad_vertices(
+                            entry.screen_anchor[0] - dot,
+                            entry.screen_anchor[1] - dot,
+                            dot * 2.0,
+                            dot * 2.0,
+                            debug_color,
+                        );
+                        world_overlay_calls.push(UiDrawCall {
+                            vertices: v.to_vec(),
+                            indices: i.to_vec(),
+                            texture: UiTextureRef::White,
+                        });
+                    }
+                }
+
                 {
                     let mut sprite_batches: Vec<SpriteBatch> = Vec::new();
                     let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
@@ -3084,7 +3123,7 @@ impl ApplicationHandler for App {
                                 ) {
                                     let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
                                     let mut shadow = sprite.build_shadow_batches(
-                                        entry.screen_center,
+                                        entry.screen_anchor,
                                         entry.depth,
                                         shadow_scale,
                                     );
@@ -3093,7 +3132,7 @@ impl ApplicationHandler for App {
                                         &entity.animation,
                                         Some(entry.camera_dir),
                                         entity.head_dir,
-                                        entry.screen_center,
+                                        entry.screen_anchor,
                                         entry.depth,
                                         entry.sprite_scale,
                                         entry.depth_gradient,
@@ -3125,8 +3164,8 @@ impl ApplicationHandler for App {
                                                 let motion = &emo_act.actions[action_idx].motions
                                                     [motion_idx];
                                                 let emo_center = [
-                                                    entry.screen_center[0],
-                                                    entry.screen_center[1] - 100.0,
+                                                    entry.screen_anchor[0],
+                                                    entry.screen_anchor[1] - 100.0,
                                                 ];
                                                 for clip in &motion.clips {
                                                     if let Some((vertices, indices, tex_idx)) =
@@ -3172,8 +3211,8 @@ impl ApplicationHandler for App {
                                         let blink_active = blink_frame >= 90;
 
                                         let center = [
-                                            entry.screen_center[0],
-                                            entry.screen_center[1] + y_offset,
+                                            entry.screen_anchor[0],
+                                            entry.screen_anchor[1] + y_offset,
                                         ];
 
                                         if !act.actions.is_empty() {
@@ -3347,7 +3386,7 @@ fn render_hp_bar(
     entity_type: EntityType,
     draw_calls: &mut Vec<UiDrawCall>,
 ) -> (f32, f32) {
-    let center_x = entry.screen_center[0];
+    let center_x = entry.screen_anchor[0];
     let y = entry.pick_bounds[3] ;
     let border_x = center_x - HP_BAR_WIDTH / 2.0;
     // Border: #10189c dark blue

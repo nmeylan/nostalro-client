@@ -376,7 +376,7 @@ pub struct SpriteBatch<'a> {
 pub fn build_clip_quad(
     clip: &SprClip,
     textures: &SpriteTextures,
-    screen_center: [f32; 2],
+    screen_anchor: [f32; 2],
     depth: f32,
     offset: [i32; 2],
 ) -> Option<(Vec<SpriteVertex>, Vec<u32>, usize)> {
@@ -405,8 +405,8 @@ pub fn build_clip_quad(
     let half_w = scaled_w / 2.0;
     let half_h = scaled_h / 2.0;
 
-    let cx = screen_center[0] + (clip.x + offset[0]) as f32;
-    let cy = screen_center[1] + (clip.y + offset[1]) as f32;
+    let cx = screen_anchor[0] + (clip.x + offset[0]) as f32;
+    let cy = screen_anchor[1] + (clip.y + offset[1]) as f32;
 
     let (mut u0, u1) = if clip.mirror != 0 { (1.0, 0.0) } else { (0.0, 1.0) };
     let (v0, v1) = (0.0f32, 1.0f32);
@@ -470,7 +470,7 @@ pub fn build_composite_clips(
     action_idx: usize,
     motion_idx: usize,
     head_dir: u8,
-    screen_center: [f32; 2],
+    screen_anchor: [f32; 2],
     depth: f32,
 ) -> Option<CompositeClips> {
     let body_action = &entity.body_act.actions[action_idx];
@@ -484,7 +484,7 @@ pub fn build_composite_clips(
 
     let mut body = Vec::new();
     for clip in &body_motion.clips {
-        if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, &entity.body_textures, screen_center, depth, [0, 0]) {
+        if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, &entity.body_textures, screen_anchor, depth, [0, 0]) {
             if tex_idx < entity.body_textures.bind_groups.len() {
                 body.push((vertices, indices, tex_idx));
             }
@@ -504,7 +504,7 @@ pub fn build_composite_clips(
             let head_motion = &head_action.motions[head_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, head_motion);
             for clip in &head_motion.clips {
-                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, head_tex, screen_center, depth, [off_x, off_y]) {
+                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, head_tex, screen_anchor, depth, [off_x, off_y]) {
                     if tex_idx < head_tex.bind_groups.len() {
                         head.push((vertices, indices, tex_idx));
                     }
@@ -526,7 +526,7 @@ pub fn build_composite_clips(
         head_dir: u8,
         is_idle_or_sit: bool,
         head_offset: Option<(i32, i32)>,
-        screen_center: [f32; 2],
+        screen_anchor: [f32; 2],
         depth: f32,
     ) -> Vec<ClipQuad> {
         let mut clips = Vec::new();
@@ -542,7 +542,7 @@ pub fn build_composite_clips(
                 };
                 let hg_motion = &hg_action.motions[hg_motion_idx];
                 for clip in &hg_motion.clips {
-                    if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, tex, screen_center, depth, [off_x, off_y]) {
+                    if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, tex, screen_anchor, depth, [off_x, off_y]) {
                         if tex_idx < tex.bind_groups.len() {
                             clips.push((vertices, indices, tex_idx));
                         }
@@ -555,15 +555,15 @@ pub fn build_composite_clips(
 
     let headgear_bottom = build_headgear_clips(
         entity.headgear_bottom_act.as_ref(), entity.headgear_bottom_textures.as_ref(),
-        action_idx, motion_idx, head_dir, is_idle_or_sit, head_offset, screen_center, depth,
+        action_idx, motion_idx, head_dir, is_idle_or_sit, head_offset, screen_anchor, depth,
     );
     let headgear_mid = build_headgear_clips(
         entity.headgear_mid_act.as_ref(), entity.headgear_mid_textures.as_ref(),
-        action_idx, motion_idx, head_dir, is_idle_or_sit, head_offset, screen_center, depth,
+        action_idx, motion_idx, head_dir, is_idle_or_sit, head_offset, screen_anchor, depth,
     );
     let headgear_top = build_headgear_clips(
         entity.headgear_top_act.as_ref(), entity.headgear_top_textures.as_ref(),
-        action_idx, motion_idx, head_dir, is_idle_or_sit, head_offset, screen_center, depth,
+        action_idx, motion_idx, head_dir, is_idle_or_sit, head_offset, screen_anchor, depth,
     );
 
     let mut weapon = Vec::new();
@@ -575,7 +575,7 @@ pub fn build_composite_clips(
             let weapon_motion = &weapon_action.motions[weapon_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, weapon_motion);
             for clip in &weapon_motion.clips {
-                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, weapon_tex, screen_center, depth, [off_x, off_y]) {
+                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, weapon_tex, screen_anchor, depth, [off_x, off_y]) {
                     if tex_idx < weapon_tex.bind_groups.len() {
                         weapon.push((vertices, indices, tex_idx));
                     }
@@ -593,7 +593,7 @@ pub fn build_composite_clips(
             let shield_motion = &shield_action.motions[shield_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, shield_motion);
             for clip in &shield_motion.clips {
-                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, shield_tex, screen_center, depth, [off_x, off_y]) {
+                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, shield_tex, screen_anchor, depth, [off_x, off_y]) {
                     if tex_idx < shield_tex.bind_groups.len() {
                         shield.push((vertices, indices, tex_idx));
                     }
@@ -692,6 +692,7 @@ pub fn build_entity_sprite(
 
 const MIN_PICK_SIZE: f32 = 100.0;
 const MAX_PICK_WIDTH: f32 = 200.0;
+const PICK_BOTTOM_MARGIN: f32 = 10.0;
 
 impl EntitySprite {
     /// Compute screen-space pick bounding box from the sprite's current animation frame.
@@ -701,7 +702,7 @@ impl EntitySprite {
         animation: &ragnarok_formats::act::SpriteAnimationState,
         camera_dir: Option<u8>,
         head_dir: u8,
-        screen_center: [f32; 2],
+        screen_anchor: [f32; 2],
         depth: f32,
         scale: f32,
     ) -> [f32; 4] {
@@ -710,7 +711,7 @@ impl EntitySprite {
             None => animation.flat_action_index(&self.body_act),
         };
 
-        let clips = build_composite_clips(self, action_idx, animation.motion_index(), head_dir, screen_center, depth);
+        let clips = build_composite_clips(self, action_idx, animation.motion_index(), head_dir, screen_anchor, depth);
 
         let (mut min_x, mut min_y, mut max_x, mut max_y) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
         let mut has_vertices = false;
@@ -724,8 +725,8 @@ impl EntitySprite {
             for group in all_groups {
                 for (vertices, _, _) in group {
                     for v in vertices {
-                        let sx = screen_center[0] + (v.position[0] - screen_center[0]) * scale;
-                        let sy = screen_center[1] + (v.position[1] - screen_center[1]) * scale;
+                        let sx = screen_anchor[0] + (v.position[0] - screen_anchor[0]) * scale;
+                        let sy = screen_anchor[1] + (v.position[1] - screen_anchor[1]) * scale;
                         min_x = min_x.min(sx);
                         min_y = min_y.min(sy);
                         max_x = max_x.max(sx);
@@ -737,23 +738,26 @@ impl EntitySprite {
         }
 
         if !has_vertices {
-            let half = MIN_PICK_SIZE / 2.0;
+            let min_pick = MIN_PICK_SIZE * scale;
+            let half = min_pick / 2.0;
             return [
-                screen_center[0] - half,
-                screen_center[1] - MIN_PICK_SIZE,
-                screen_center[0] + half,
-                screen_center[1],
+                screen_anchor[0] - half,
+                screen_anchor[1] - min_pick + PICK_BOTTOM_MARGIN * scale,
+                screen_anchor[0] + half,
+                screen_anchor[1] + PICK_BOTTOM_MARGIN * scale,
             ];
         }
 
         let raw_w = max_x - min_x;
-        let half_w = raw_w.max(MIN_PICK_SIZE).min(MAX_PICK_WIDTH) / 2.0;
-        let top = min_y.min(max_y - MIN_PICK_SIZE);
+        let min_pick = MIN_PICK_SIZE * scale;
+        let half_w = raw_w.max(min_pick).min(MAX_PICK_WIDTH) / 2.0;
+        let bottom = max_y.min(screen_anchor[1] + PICK_BOTTOM_MARGIN * scale);
+        let top = min_y.min(bottom - min_pick);
         [
-            screen_center[0] - half_w,
+            screen_anchor[0] - half_w,
             top,
-            screen_center[0] + half_w,
-            max_y,
+            screen_anchor[0] + half_w,
+            bottom,
         ]
     }
 
@@ -762,7 +766,7 @@ impl EntitySprite {
         animation: &ragnarok_formats::act::SpriteAnimationState,
         camera_dir: Option<u8>,
         head_dir: u8,
-        screen_center: [f32; 2],
+        screen_anchor: [f32; 2],
         depth: f32,
         scale: f32,
         depth_gradient: f32,
@@ -773,7 +777,7 @@ impl EntitySprite {
         };
 
         let Some(clips) = build_composite_clips(
-            self, action_idx, animation.motion_index(), head_dir, screen_center, depth,
+            self, action_idx, animation.motion_index(), head_dir, screen_anchor, depth,
         ) else {
             return Vec::new();
         };
@@ -786,7 +790,7 @@ impl EntitySprite {
         let mut shield_batches = Vec::new();
         if let Some(shield_tex) = &self.shield_textures {
             for (mut vertices, indices, tex_idx) in clips.shield {
-                scale_clip_vertices(&mut vertices, screen_center, scale, depth_gradient);
+                scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
                 shield_batches.push(SpriteBatch { vertices, indices, texture: &shield_tex.bind_groups[tex_idx] });
             }
         }
@@ -796,36 +800,36 @@ impl EntitySprite {
         }
 
         for (mut vertices, indices, tex_idx) in clips.body {
-            scale_clip_vertices(&mut vertices, screen_center, scale, depth_gradient);
+            scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
             batches.push(SpriteBatch { vertices, indices, texture: &self.body_textures.bind_groups[tex_idx] });
         }
         if let Some(head_tex) = &self.head_textures {
             for (mut vertices, indices, tex_idx) in clips.head {
-                scale_clip_vertices(&mut vertices, screen_center, scale, depth_gradient);
+                scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
                 batches.push(SpriteBatch { vertices, indices, texture: &head_tex.bind_groups[tex_idx] });
             }
         }
         if let Some(hg_tex) = &self.headgear_bottom_textures {
             for (mut vertices, indices, tex_idx) in clips.headgear_bottom {
-                scale_clip_vertices(&mut vertices, screen_center, scale, depth_gradient);
+                scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
                 batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx] });
             }
         }
         if let Some(hg_tex) = &self.headgear_mid_textures {
             for (mut vertices, indices, tex_idx) in clips.headgear_mid {
-                scale_clip_vertices(&mut vertices, screen_center, scale, depth_gradient);
+                scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
                 batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx] });
             }
         }
         if let Some(hg_tex) = &self.headgear_top_textures {
             for (mut vertices, indices, tex_idx) in clips.headgear_top {
-                scale_clip_vertices(&mut vertices, screen_center, scale, depth_gradient);
+                scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
                 batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx] });
             }
         }
         if let Some(weapon_tex) = &self.weapon_textures {
             for (mut vertices, indices, tex_idx) in clips.weapon {
-                scale_clip_vertices(&mut vertices, screen_center, scale, depth_gradient);
+                scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
                 batches.push(SpriteBatch { vertices, indices, texture: &weapon_tex.bind_groups[tex_idx] });
             }
         }
@@ -838,7 +842,7 @@ impl EntitySprite {
 
     pub fn build_shadow_batches(
         &self,
-        screen_center: [f32; 2],
+        screen_anchor: [f32; 2],
         depth: f32,
         scale: f32,
     ) -> Vec<SpriteBatch<'_>> {
@@ -847,9 +851,9 @@ impl EntitySprite {
             if !shadow_act.actions.is_empty() && !shadow_act.actions[0].motions.is_empty() {
                 let shadow_motion = &shadow_act.actions[0].motions[0];
                 for clip in &shadow_motion.clips {
-                    if let Some((mut vertices, indices, tex_idx)) = build_clip_quad(clip, shadow_tex, screen_center, depth, [0, 0]) {
+                    if let Some((mut vertices, indices, tex_idx)) = build_clip_quad(clip, shadow_tex, screen_anchor, depth, [0, 0]) {
                         if tex_idx < shadow_tex.bind_groups.len() {
-                            scale_clip_vertices(&mut vertices, screen_center, scale, 0.0);
+                            scale_clip_vertices(&mut vertices, screen_anchor, scale, 0.0);
                             batches.push(SpriteBatch { vertices, indices, texture: &shadow_tex.bind_groups[tex_idx] });
                         }
                     }

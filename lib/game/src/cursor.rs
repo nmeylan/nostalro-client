@@ -27,7 +27,7 @@ pub enum RenderEntryKind {
 pub struct RenderEntry {
     pub kind: RenderEntryKind,
     pub id: u32,
-    pub screen_center: [f32; 2],
+    pub screen_anchor: [f32; 2],
     pub depth: f32,
     pub depth_gradient: f32,
     pub camera_dir: u8,
@@ -242,7 +242,7 @@ mod tests {
         RenderEntry {
             kind: RenderEntryKind::Entity,
             id,
-            screen_center: [cx, cy],
+            screen_anchor: [cx, cy],
             depth,
             depth_gradient: 0.0,
             camera_dir: 0,

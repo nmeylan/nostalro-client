@@ -503,8 +503,8 @@ impl App {
                     _pad2: [0.0, 0.0],
                 });
 
-                let screen_center = [width / 2.0 + self.pan[0] * self.zoom, height / 2.0 + self.pan[1] * self.zoom];
-                let batches = entity.build_batches(&self.animation, None, 0, screen_center, 0.0, self.zoom, 0.0);
+                let screen_anchor = [width / 2.0 + self.pan[0] * self.zoom, height / 2.0 + self.pan[1] * self.zoom];
+                let batches = entity.build_batches(&self.animation, None, 0, screen_anchor, 0.0, self.zoom, 0.0);
 
                 renderer.render(
                     &mut encoder,
