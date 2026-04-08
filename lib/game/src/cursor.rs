@@ -13,11 +13,19 @@ pub enum CursorType {
     Rotate = 4,
     Attack = 5,
     Warp = 7,
+    Pick = 9,
     NoWalk = 13,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RenderEntryKind {
+    Entity,
+    FloorItem,
 }
 
 #[derive(Clone, Copy)]
 pub struct RenderEntry {
+    pub kind: RenderEntryKind,
     pub id: u32,
     pub screen_center: [f32; 2],
     pub depth: f32,
@@ -232,6 +240,7 @@ mod tests {
 
     fn entry(id: u32, cx: f32, cy: f32, depth: f32, scale: f32) -> RenderEntry {
         RenderEntry {
+            kind: RenderEntryKind::Entity,
             id,
             screen_center: [cx, cy],
             depth,

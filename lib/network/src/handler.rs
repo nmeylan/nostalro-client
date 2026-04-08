@@ -487,6 +487,25 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
+    // Floor items
+    if let Some(p) = any.downcast_ref::<PacketZcItemFallEntry>() {
+        return vec![GameEvent::FloorItemAppeared {
+            id: p.itaid, item_id: p.itid, is_identified: p.is_identified,
+            x: p.x_pos, y: p.y_pos, sub_x: p.sub_x, sub_y: p.sub_y,
+            count: p.count, is_falling: true,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcItemEntry>() {
+        return vec![GameEvent::FloorItemAppeared {
+            id: p.itaid, item_id: p.itid, is_identified: p.is_identified,
+            x: p.x_pos, y: p.y_pos, sub_x: p.sub_x, sub_y: p.sub_y,
+            count: p.count, is_falling: false,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcItemDisappear>() {
+        return vec![GameEvent::FloorItemDisappeared { id: p.itaid }];
+    }
+
     // Acknowledged but not yet used (no UI)
     if let Some(p) = any.downcast_ref::<PacketZcAid>() {
         debug!("zone server confirmed AID={}", p.aid);

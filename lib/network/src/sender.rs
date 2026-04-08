@@ -225,3 +225,10 @@ pub fn build_drop_item_packet(index: u16, count: i16, packetver: u32) -> Vec<u8>
     pkt.fill_raw();
     pkt.raw
 }
+
+pub fn build_pickup_item_packet(itaid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzItemPickup::new(packetver);
+    pkt.set_itaid(itaid);
+    pkt.fill_raw();
+    pkt.raw
+}

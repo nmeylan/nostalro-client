@@ -47,6 +47,11 @@ impl ItemResourceTable {
         self.get_resource_name(item_id)
             .map(|name| format!("data/texture/유저인터페이스/item/{name}.bmp"))
     }
+
+    pub fn item_sprite_path(&self, item_id: u16, is_identified: bool) -> Option<String> {
+        self.get_resource_name_for(item_id, is_identified)
+            .map(|name| format!("data/sprite/아이템/{name}"))
+    }
 }
 
 #[cfg(test)]

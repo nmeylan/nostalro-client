@@ -7,7 +7,7 @@ TODO:
 - Mount/Peco (costume job swap, loads mounted body sprite)
 - ~~Other players / NPCs / monsters entity sprites~~ (done — entity collection manages Player/NPC/Monster types)
 - ~~Doridori head animation~~ (done — head_dir from server selects head/headgear motion)
-- Divide attachment offset by clip zoom for weapons/accessories (dhxj compensates when sprClip zoom != 1.0)
+- Divide attachment offset by clip zoom for weapons/accessories (original compensates when sprClip zoom != 1.0)
 - Damage numbers display
 - ~~Emotion/emote bubbles~~ (done — EmotionState with 2.5s display)
 - ~~Chat bubbles above entities~~ (done — text bubble with background above entity, 5s duration)
@@ -28,12 +28,12 @@ TODO:
 - ~~Chat box (normal, whisper, party, guild channels)~~
 - Status window (base/job level, stats, stat allocation)
 - ~~Inventory window~~
-- Equipment window
+- ~~Equipment window~~
 - Skill window (skill tree, skill levels)
 - Hotkey/shortcut bar (F1-F9 skills/items)
 - Minimap
 - ~~NPC dialog box (text, menu choices, number input)~~
-- NPC shop (buy/sell)
+- ~~NPC shop (buy/sell)~~
 - Trade window (player-to-player)
 - Vending (player shop setup + buying)
 - Party window
@@ -73,9 +73,10 @@ TODO:
 - ~~Sit/stand actions~~ (done — Insert key toggle, PacketZcNotifyAct handling)
 
 # Items & equipment
-- Inventory management (pickup, drop, use, equip)
-- Equipment slots + visual update on character
+- ~~Inventory management (pickup, drop, use, equip)~~
+- ~~Equipment slots + visual update on character~~
 - Card slotting
+- Item info window
 - Item crafting (arrows, cooking)
 - Item refining
 - Cart system
@@ -93,9 +94,9 @@ TODO:
 # Network
 - ~~Chat packets~~ (done — multi-channel chat)
 - Combat packets (attack, skill use, damage)
-- Item packets (pickup, drop, use, equip, unequip)
+- ~~Item packets (pickup, drop, use, equip, unequip)~~
 - Skill packets (cast, execute, ground target)
-- NPC packets (dialog, menu, shop, close)
+- ~~NPC packets (dialog, menu, shop, close)~~
 - ~~Entity spawn/despawn/update packets~~ (done — full spawn/move/vanish/act handling)
 - Status change packets
 - Party/guild packets

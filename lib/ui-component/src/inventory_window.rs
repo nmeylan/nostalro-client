@@ -331,8 +331,8 @@ impl InventoryWindow {
                     hovered_tooltip = Some((cx, cy - icon, tooltip_text));
                 }
 
-                // Begin drag on click for equipment items
-                if response.clicked() && item.is_equipment() && !item.is_equipped() {
+                // Begin drag on click for any non-equipped item
+                if response.clicked() && !item.is_equipped() {
                     ui.drag_source(
                         INV_WIN_ID,
                         item.index as usize,

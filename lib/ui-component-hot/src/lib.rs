@@ -584,7 +584,7 @@ pub unsafe extern "C" fn hot_build(state_ptr: *mut (), ui_ptr: *mut UiFrame) {
     let state = unsafe { &mut *(state_ptr as *mut State) };
     let ui = unsafe { &mut *ui_ptr };
     build_single(state, ui);
-    ui.draw_drag_icon();
+    let _ = ui.draw_drag_icon();
 }
 
 #[unsafe(no_mangle)]

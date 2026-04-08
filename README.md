@@ -1,8 +1,29 @@
-The goal is to have a playable client to retrieve the classic ro experience (2004-2007)
+The goal is to have a playable client to retrieve the classic ro experience (2004-2008)
 
-It reuse many part of rust-ro.
+It reuses many part of [rust-ro](https://github.com/nmeylan/rust-ro): packets, data structure, proc-macro.
 
 If you seek for the best/most promising client implementation check-out [korangar](https://github.com/vE5li/korangar)
+
+# Why
+I wanted to be able to run the game as it was in 2005~2008, but original client from this time does not handle well high dpi screen. It is also very painful to find right game resources and right exe diff to make it works with a server.
+
+# Principles
+- Support any game resources until EP 12 (included)
+- Support any packet version until 20120307 (reason is that rust-ro was implemented with this packet version support first)
+- Do not alter original game resources: render actual resources with high dpi support
+- Runnable on windows and linux
+- We use a "mini framework" for the UI, in immediate mode, inspired by `egui`
+
+# Run
+Place a single game resource file at `data/data.grf`
+
+```
+run --package ragnarok-client --bin ragnarok-client
+```
+
+# Development tools
+
+For faster feedback loop following tools are available
 
 ## Sprite Viewer
 
@@ -14,25 +35,30 @@ cargo run --bin sprite-viewer
 
 # Open a specific GRF
 cargo run --bin sprite-viewer -- --grf data.grf
-
-# Open a specific sprite directly
-cargo run --bin sprite-viewer -- --grf data.grf --sprite "data/sprite/monsters/poring.spr"
-
-# List all sprites in a GRF
-cargo run --bin sprite-viewer -- --grf data.grf --list
 ```
 
-**Controls:** arrows (direction/action), space (pause), `.`/`,` (step), scroll/+/- (zoom), B (background), Tab (sprite browser)
-
-### Hot-reload
-
-WGSL shader hot-reload works out of the box,  edit `lib/renderer/src/shaders/sprite.wgsl` and changes apply instantly.
-
-For Rust code hot-patching via [subsecond](https://crates.io/crates/subsecond), install the Dioxus CLI and `lld`, then run:
+## Grf editor
 
 ```bash
-cargo install dioxus-cli@0.7.3
-dx serve --hot-patch --features hot-reload --bin sprite-viewer -- --grf data/data.grf
+cargo run --bin ragnarok-grf-editor
 ```
 
-Editing any workspace crate (e.g. `lib/renderer/src/sprite.rs`) hot-reloads in ~500ms without restarting.
+## Ui component hot reload
+Creation of UI is something that can takes lot of iteration, for this reason it was designed from scratch to be hot reloadable
+```bash
+# In game UI
+lib/ui-component/dev.sh game
+# Login/char select UI
+lib/ui-component/dev.sh account
+```
+
+# AI usage
+This project leverage AI to develop faster, as my time is very limited. AI is being used for:
+- Fix network packet handling
+- Helping to implement rendering (wgpu and wsgl api): when i started this project my knowledge on wgpu and wsgl was almost 0, although I have implemented few effects for robrowser 4 years ago.
+- Game resource format handling
+- Refactoring tasks
+- tools
+
+# Progress
+see [todo](docs/TODO.md)

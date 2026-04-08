@@ -24,7 +24,7 @@ const INPUT_RESIZE_ID: WidgetId = WidgetId(714);
 const ITEM_BASE_ID: u32 = 720;
 const CART_BASE_ID: u32 = 780;
 
-// -- Layout (matches robrowser NpcStore) --
+// -- Layout (matches original game NpcStore) --
 const WIN_W: f32 = 280.0;
 const WIN_GAP: f32 = 10.0;
 const TITLE_H: f32 = 17.0;

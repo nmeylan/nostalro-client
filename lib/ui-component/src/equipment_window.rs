@@ -15,7 +15,7 @@ const EQ_MINI_BTN_ID: WidgetId = WidgetId(902);
 const EQ_SLOT_BASE_ID: u32 = 910;
 
 // -- Layout (matches official RO client: 3-column layout) --
-// Robrowser: 280px wide, 17px titlebar, 130px content, 5 slot rows
+// 280px wide, 17px titlebar, 130px content, 5 slot rows
 const TITLE_H: f32 = 17.0;
 const WIN_W: f32 = 280.0;
 const CONTENT_H: f32 = 130.0;

@@ -7,6 +7,7 @@ use ragnarok_game::accessory_table::AccessoryTable;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::CursorAnimationState;
 use ragnarok_game::entity_collection::EntityCollection;
+use ragnarok_game::floor_item::FloorItem;
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::card_name_table::CardNameTable;
 use ragnarok_game::item_name_table::ItemNameTable;
@@ -18,6 +19,7 @@ use ragnarok_game::server_time::ServerTimeClock;
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui_component::chat_window::ChatWindow;
+use ragnarok_ui_component::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::equipment_window::EquipmentWindow;
 use ragnarok_ui_component::inventory_window::InventoryWindow;
 use ragnarok_ui_component::npc_dialog::NpcDialog;
@@ -52,9 +54,15 @@ pub struct GameState {
     pub npc_shop: NpcShop,
     pub system_menu: SystemMenu,
     pub hovered_entity_id: Option<u32>,
+    pub hovered_floor_item_id: Option<u32>,
     pub failed_sprite_loads: HashSet<u32>,
     pub server_time: ServerTimeClock,
     pub attack_range: i16,
+    pub floor_items: HashMap<u32, FloorItem>,
+    pub floor_item_sprites: HashMap<u32, (Rc<SpriteTextures>, ActFile)>,
+    pub waiting_item_throw_ack: bool,
+    pub drop_quantity_dialog: Option<DropQuantityDialog>,
+    pub pending_pickup_item_id: Option<u32>,
 }
 
 impl GameState {
@@ -87,9 +95,15 @@ impl GameState {
             npc_shop: NpcShop::new(),
             system_menu: SystemMenu::new(),
             hovered_entity_id: None,
+            hovered_floor_item_id: None,
             failed_sprite_loads: HashSet::new(),
             server_time: ServerTimeClock::new(),
             attack_range: 1,
+            floor_items: HashMap::new(),
+            floor_item_sprites: HashMap::new(),
+            waiting_item_throw_ack: false,
+            drop_quantity_dialog: None,
+            pending_pickup_item_id: None,
         }
     }
 }

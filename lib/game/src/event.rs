@@ -198,6 +198,17 @@ pub enum GameEvent {
     RequestUnequipItem { index: u16 },
     RequestDropItem { index: u16, count: i16 },
 
+    // Floor items (server → client)
+    FloorItemAppeared {
+        id: u32, item_id: u16, is_identified: bool,
+        x: i16, y: i16, sub_x: u8, sub_y: u8,
+        count: i16, is_falling: bool,
+    },
+    FloorItemDisappeared { id: u32 },
+
+    // Floor items (client → server)
+    RequestPickupItem { id: u32 },
+
     // No-op acknowledgement (packet parsed but no action needed yet)
     Acknowledged,
 }

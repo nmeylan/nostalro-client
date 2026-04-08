@@ -11,7 +11,7 @@ use ragnarok_formats::act::SpriteActionType;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::{
-    CursorType, RenderEntry, cursor_type_for_cell, hovered_entity_cursor_type,
+    CursorType, RenderEntry, RenderEntryKind, cursor_type_for_cell, hovered_entity_cursor_type,
 };
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::event::GameEvent;
@@ -29,18 +29,20 @@ use ragnarok_network::{
     build_chat_packet, build_contact_npc_packet, build_drop_item_packet, build_equip_item_packet,
     build_login_packet, build_map_loaded_packet, build_npc_close_packet,
     build_npc_deal_type_packet, build_npc_input_number_packet, build_npc_input_string_packet,
-    build_npc_menu_select_packet, build_npc_next_packet, build_purchase_item_list_packet,
-    build_reqname_packet, build_request_move_packet, build_restart_packet,
-    build_select_char_packet, build_sell_item_list_packet, build_unequip_item_packet,
-    build_use_item_packet, build_zone_enter_packet, ip_u32_to_string, network_loop,
+    build_npc_menu_select_packet, build_npc_next_packet, build_pickup_item_packet,
+    build_purchase_item_list_packet, build_reqname_packet, build_request_move_packet,
+    build_restart_packet, build_select_char_packet, build_sell_item_list_packet,
+    build_unequip_item_packet, build_use_item_packet, build_zone_enter_packet,
+    ip_u32_to_string, network_loop,
 };
 use ragnarok_renderer::{
     GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall, UiTextureRef, block_on,
-    build_clip_quad, build_entity_sprite, upload_sprite_textures,
+    build_clip_quad, build_entity_sprite, scale_clip_vertices, upload_sprite_textures,
 };
 use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui_component::drop_quantity_dialog::{DropQuantityDialog, DropQuantityResult};
 use ragnarok_ui_component::inventory_window::INV_WIN_ID;
 use ragnarok_ui::state::StateCache;
 use ragnarok_ui_component::char_select_window::CharSelectWindow;
@@ -174,6 +176,43 @@ impl App {
         if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
             return;
         }
+        // Click on floor item to pick up
+        if let Some(item_id) = self.game.hovered_floor_item_id {
+            self.game.pending_pickup_item_id = None;
+            if let Some(floor_item) = self.game.floor_items.get(&item_id) {
+                let (px, py) = self.game.entities.player()
+                    .map(|e| e.movement.cell_position())
+                    .unwrap_or((0, 0));
+                let dx = (px as i32 - floor_item.x as i32).unsigned_abs();
+                let dy = (py as i32 - floor_item.y as i32).unsigned_abs();
+                if dx <= 1 && dy <= 1 {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_pickup_item_packet(item_id, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                    if let Some(entity) = self.game.entities.player_mut() {
+                        entity.enter_pickup(0.5);
+                    }
+                } else if let Some(gat) = &self.game.gat {
+                    let dest_x = floor_item.x as i32;
+                    let dest_y = floor_item.y as i32;
+                    if let Some(move_action) = try_move_to(gat, px, py, dest_x, dest_y) {
+                        if let Some(tx) = &self.network_cmd_tx {
+                            let packet = build_request_move_packet(
+                                move_action.dest_x, move_action.dest_y, self.config.packetver,
+                            );
+                            let _ = tx.send(NetworkCommand::SendPacket(packet));
+                        }
+                        let elapsed = self.start_time.elapsed().as_secs_f32();
+                        if let Some(entity) = self.game.entities.player_mut() {
+                            entity.movement.start_move(move_action.path, elapsed);
+                        }
+                        self.game.pending_pickup_item_id = Some(item_id);
+                    }
+                }
+            }
+            return;
+        }
         // Click on NPC to talk
         if let Some(entity_id) = self.game.hovered_entity_id {
             if let Some(entity) = self.game.entities.get(entity_id) {
@@ -186,6 +225,7 @@ impl App {
                 }
             }
         }
+        self.game.pending_pickup_item_id = None;
         let (dest_x, dest_y) = match self.hovered_cell() {
             Some(c) => c,
             None => return,
@@ -323,6 +363,11 @@ impl App {
                     self.game.entities.clear();
                     self.game.sprites.clear();
                     self.game.sprite_cache.clear();
+                    self.game.floor_items.clear();
+                    self.game.floor_item_sprites.clear();
+                    self.game.waiting_item_throw_ack = false;
+                    self.game.drop_quantity_dialog = None;
+                    self.game.pending_pickup_item_id = None;
                     self.game.current_map = None;
                     self.game.map_coords = None;
                     self.game.gat = None;
@@ -515,6 +560,8 @@ impl App {
                         self.game.sprite_cache.clear();
                         self.game.entities.clear_non_player();
                         self.game.failed_sprite_loads.clear();
+                        self.game.floor_items.clear();
+                        self.game.floor_item_sprites.clear();
                         if let (Some(pid), Some(sprite)) =
                             (self.game.entities.player_id(), player_sprite)
                         {
@@ -980,6 +1027,18 @@ impl App {
                         .inventory_window
                         .inventory
                         .subtract_item_count(index, count);
+                    self.game.waiting_item_throw_ack = false;
+                }
+                GameEvent::FloorItemAppeared {
+                    id, item_id, is_identified, x, y, sub_x, sub_y, count, is_falling,
+                } => {
+                    self.handle_floor_item_appeared(
+                        id, item_id, is_identified, x, y, sub_x, sub_y, count, is_falling,
+                    );
+                }
+                GameEvent::FloorItemDisappeared { id } => {
+                    self.game.floor_items.remove(&id);
+                    self.game.floor_item_sprites.remove(&id);
                 }
                 GameEvent::ChatMessage { gid, message } => {
                     if let Some(bubble_text) = message.split(" : ").nth(1) {
@@ -1214,6 +1273,11 @@ impl App {
                 GameEvent::Disconnected(reason) => {
                     self.game.server_time.reset();
                     self.game.inventory_window.inventory.clear();
+                    self.game.floor_items.clear();
+                    self.game.floor_item_sprites.clear();
+                    self.game.waiting_item_throw_ack = false;
+                    self.game.drop_quantity_dialog = None;
+                    self.game.pending_pickup_item_id = None;
                     if reason == "User exit" {
                         event_loop.exit();
                     } else {
@@ -1556,6 +1620,56 @@ impl App {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn handle_floor_item_appeared(
+        &mut self, id: u32, item_id: u16, is_identified: bool,
+        x: i16, y: i16, sub_x: u8, sub_y: u8, count: i16, is_falling: bool,
+    ) {
+        let elapsed = self.start_time.elapsed().as_secs_f32();
+        let name = self.game.item_name_table.as_ref()
+            .and_then(|t| t.get_name(item_id))
+            .unwrap_or("Unknown Item")
+            .to_string();
+        let resource_name = self.game.item_resource_table.as_ref()
+            .and_then(|t| t.get_resource_name_for(item_id, is_identified))
+            .map(|s| s.to_string());
+
+        // Compute initial_y for fall animation
+        let cell_x = x as f32 + sub_x as f32 / 16.0;
+        let cell_y = y as f32 + sub_y as f32 / 16.0;
+        let ground_y = self.game.gat.as_ref()
+            .map(|gat| gat.get_height(cell_x + 0.5, cell_y + 0.5))
+            .unwrap_or(0.0);
+
+        let floor_item = ragnarok_game::floor_item::FloorItem {
+            id, item_id, is_identified,
+            x, y, sub_x, sub_y, count,
+            name,
+            resource_name: resource_name.clone(),
+            drop_time: elapsed,
+            is_falling,
+            initial_y: ground_y,
+        };
+        self.game.floor_items.insert(id, floor_item);
+
+        // Load item SPR/ACT sprite
+        if let Some(res_name) = &resource_name {
+            if let (Some(grf), Some(renderer)) = (&self.grf, &self.renderer) {
+                let base = format!("data/sprite/아이템/{res_name}");
+                let spr_path = format!("{base}.spr");
+                let act_path = format!("{base}.act");
+                if let Some(data) = sprite_loader::load_sprite_data(grf, &spr_path, &act_path) {
+                    let tex = upload_sprite_textures(
+                        &data.images, data.indexed_count,
+                        &renderer.device.device, &renderer.device.queue,
+                        &renderer.texture_cache.bind_group_layout,
+                    );
+                    self.game.floor_item_sprites.insert(id, (Rc::new(tex), data.act));
+                }
+            }
+        }
+    }
+
     fn handle_ui_events(&mut self, events: Vec<GameEvent>, event_loop: &ActiveEventLoop) {
         for event in events {
             match event {
@@ -1739,6 +1853,15 @@ impl App {
                     if let Some(tx) = &self.network_cmd_tx {
                         let packet = build_drop_item_packet(index, count, self.config.packetver);
                         let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                GameEvent::RequestPickupItem { id } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_pickup_item_packet(id, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                    if let Some(entity) = self.game.entities.player_mut() {
+                        entity.enter_pickup(0.5);
                     }
                 }
                 GameEvent::RequestSendChat { message } => {
@@ -1967,12 +2090,33 @@ impl App {
                             } else if let Some(item) = self.game.inventory_window.inventory
                                 .get_item(cancelled.item_index as u16)
                             {
-                                events.push(GameEvent::RequestDropItem {
-                                    index: item.index,
-                                    count: item.count,
-                                });
-                                self.game.waiting_item_throw_ack = true;
+                                if item.count > 1 {
+                                    let mut dialog = DropQuantityDialog::new(item.index, item.count);
+                                    dialog.has_grf_textures = self.game.inventory_window.has_grf_textures;
+                                    self.game.drop_quantity_dialog = Some(dialog);
+                                } else {
+                                    events.push(GameEvent::RequestDropItem {
+                                        index: item.index,
+                                        count: 1,
+                                    });
+                                    self.game.waiting_item_throw_ack = true;
+                                }
                             }
+                        }
+                    }
+
+                    if let Some(dialog) = &mut self.game.drop_quantity_dialog {
+                        match dialog.build(&mut ui) {
+                            DropQuantityResult::Ok(qty) => {
+                                let index = dialog.item_index;
+                                events.push(GameEvent::RequestDropItem { index, count: qty });
+                                self.game.waiting_item_throw_ack = true;
+                                self.game.drop_quantity_dialog = None;
+                            }
+                            DropQuantityResult::Cancel => {
+                                self.game.drop_quantity_dialog = None;
+                            }
+                            DropQuantityResult::None => {}
                         }
                     }
 
@@ -2026,6 +2170,48 @@ impl App {
         if let Some(player) = self.game.entities.player() {
             let (px, py) = player.movement.position();
             self.position_camera_at(px, py);
+        }
+    }
+
+    fn update_floor_items(&mut self, elapsed: f32) {
+        for floor_item in self.game.floor_items.values_mut() {
+            if floor_item.is_falling {
+                let t = (elapsed - floor_item.drop_time) * 1000.0 / 24.0;
+                // original game: position = initial_y + (-0.6 + 0.083*t) * t
+                // initial_y is ground_y - 15 (15 units above ground)
+                // Item lands when offset from ground >= 0:  -15 + (-0.6 + 0.083*t) * t >= 0
+                let fall_offset = -15.0 + (-0.6 + 0.083 * t as f64) * t as f64;
+                if fall_offset >= 0.0 {
+                    floor_item.is_falling = false;
+                }
+            }
+        }
+    }
+
+    fn check_pending_pickup(&mut self) {
+        let item_id = match self.game.pending_pickup_item_id {
+            Some(id) => id,
+            None => return,
+        };
+        if !self.game.floor_items.contains_key(&item_id) {
+            self.game.pending_pickup_item_id = None;
+            return;
+        }
+        let (px, py) = self.game.entities.player()
+            .map(|e| e.movement.cell_position())
+            .unwrap_or((0, 0));
+        let floor_item = &self.game.floor_items[&item_id];
+        let dx = (px as i32 - floor_item.x as i32).unsigned_abs();
+        let dy = (py as i32 - floor_item.y as i32).unsigned_abs();
+        if dx <= 1 && dy <= 1 {
+            if let Some(tx) = &self.network_cmd_tx {
+                let packet = build_pickup_item_packet(item_id, self.config.packetver);
+                let _ = tx.send(NetworkCommand::SendPacket(packet));
+            }
+            if let Some(entity) = self.game.entities.player_mut() {
+                entity.enter_pickup(0.5);
+            }
+            self.game.pending_pickup_item_id = None;
         }
     }
 
@@ -2130,6 +2316,7 @@ impl App {
                         }
                     };
                     render_list.push(RenderEntry {
+                        kind: RenderEntryKind::Entity,
                         id: entity.id,
                         screen_center,
                         depth,
@@ -2145,6 +2332,45 @@ impl App {
             b.depth
                 .partial_cmp(&a.depth)
                 .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        render_list
+    }
+
+    fn compute_floor_item_render_list(&self) -> Vec<RenderEntry> {
+        let mut render_list = Vec::new();
+        if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
+            let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
+            let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+            for floor_item in self.game.floor_items.values() {
+                let pos = floor_item.world_position();
+                if let Some((screen_center, depth, _camera_dir, sprite_scale, depth_gradient)) =
+                    input::entity_screen_params(
+                        pos, self.game.gat.as_ref(), coords,
+                        &renderer.camera, screen_w, screen_h,
+                    )
+                {
+                    let half = 17.0 * sprite_scale;
+                    let pick_bounds = [
+                        screen_center[0] - half,
+                        screen_center[1] - half,
+                        screen_center[0] + half,
+                        screen_center[1] + half,
+                    ];
+                    render_list.push(RenderEntry {
+                        kind: RenderEntryKind::FloorItem,
+                        id: floor_item.id,
+                        screen_center,
+                        depth,
+                        depth_gradient,
+                        camera_dir: 0,
+                        sprite_scale,
+                        pick_bounds,
+                    });
+                }
+            }
+        }
+        render_list.sort_by(|a, b| {
+            b.depth.partial_cmp(&a.depth).unwrap_or(std::cmp::Ordering::Equal)
         });
         render_list
     }
@@ -2436,11 +2662,14 @@ impl ApplicationHandler for App {
                 self.last_render_time = elapsed;
                 self.process_continuous_walk(delta);
                 self.update_entity_state(delta);
+                self.update_floor_items(elapsed);
+                self.check_pending_pickup();
                 self.load_missing_entity_sprites();
                 self.update_sprite_animation(delta);
 
                 let hovered = self.update_grid_hover();
                 let render_list = self.compute_render_list();
+                let floor_item_render_list = self.compute_floor_item_render_list();
                 let hovered_entity_id =
                     self.update_cursor_type(hovered, ui_any_hovered, ui_any_interactive, &render_list);
                 self.game.hovered_entity_id = hovered_entity_id;
@@ -2456,13 +2685,32 @@ impl ApplicationHandler for App {
                     }
                 }
 
+                // Floor item hover detection (entities have priority)
+                let hovered_floor_item_id = if hovered_entity_id.is_none()
+                    && !ui_any_hovered && !self.input.right_mouse_down
+                {
+                    let (mx, my) = self.input.mouse_position;
+                    let mx = mx as f32;
+                    let my = my as f32;
+                    floor_item_render_list.iter().find(|entry| {
+                        mx >= entry.pick_bounds[0] && mx <= entry.pick_bounds[2]
+                            && my >= entry.pick_bounds[1] && my <= entry.pick_bounds[3]
+                    }).map(|entry| entry.id)
+                } else {
+                    None
+                };
+                self.game.hovered_floor_item_id = hovered_floor_item_id;
+                if hovered_floor_item_id.is_some() {
+                    self.game.cursor_animation.set_cursor_type(CursorType::Pick);
+                }
+
                 let cursor_clips = self.build_cursor_sprite_clips(delta);
 
                 if let (Some(entity_id), Some(renderer)) = (hovered_entity_id, &self.renderer) {
                     if let Some(entity) = self.game.entities.get(entity_id) {
                         let hovered_entry = render_list.iter().find(|e| e.id == entity_id);
                         if let Some(entry) = hovered_entry {
-                            let bar_y = entry.pick_bounds[3] + 2.0;
+                            let bar_y = entry.screen_center[1] + 2.0;
                             if let Some(ratio) = entity.hp_percentage() {
                                 render_hp_bar(
                                     entry.screen_center[0],
@@ -2523,7 +2771,7 @@ impl ApplicationHandler for App {
                                 .iter()
                                 .find(|e| Some(e.id) == self.game.entities.player_id())
                             {
-                                let bar_y = entry.pick_bounds[3] + 2.0;
+                                let bar_y = entry.screen_center[1] + 2.0;
                                 render_hp_bar(
                                     entry.screen_center[0],
                                     bar_y,
@@ -2593,137 +2841,185 @@ impl ApplicationHandler for App {
                     }
                 }
 
+                // Floor item tooltip (when hovered)
+                if let Some(fi_id) = hovered_floor_item_id {
+                    if let Some(floor_item) = self.game.floor_items.get(&fi_id) {
+                        if let Some(fi_entry) = floor_item_render_list.iter().find(|e| e.id == fi_id) {
+                            if let Some(renderer) = &self.renderer {
+                                let tooltip = if floor_item.count > 1 {
+                                    format!("{} : {} ea.", floor_item.name, floor_item.count)
+                                } else {
+                                    floor_item.name.clone()
+                                };
+                                let text_w = renderer.font_atlas.measure_text(&tooltip);
+                                let text_x = fi_entry.screen_center[0] - text_w / 2.0;
+                                let text_y = fi_entry.pick_bounds[1] - 5.0;
+                                let padding = 3.0;
+
+                                let (bg_v, bg_i) = ragnarok_ui::draw::quad_vertices(
+                                    text_x - padding, text_y - padding - 12.0,
+                                    text_w + padding * 2.0, 12.0 + padding * 2.0,
+                                    [0.0, 0.0, 0.0, 0.85],
+                                );
+                                world_overlay_calls.push(UiDrawCall {
+                                    vertices: bg_v.to_vec(), indices: bg_i.to_vec(),
+                                    texture: ragnarok_renderer::UiTextureRef::White,
+                                });
+
+                                let (verts, indices) = ragnarok_ui::draw::text_vertices(
+                                    &tooltip, text_x, text_y,
+                                    [1.0, 1.0, 1.0, 1.0], &renderer.font_atlas,
+                                );
+                                if !verts.is_empty() {
+                                    world_overlay_calls.push(UiDrawCall {
+                                        vertices: verts, indices,
+                                        texture: ragnarok_renderer::UiTextureRef::FontAtlas,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+
                 {
                     let mut sprite_batches: Vec<SpriteBatch> = Vec::new();
                     let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
 
-                    for entry in &render_list {
-                        if let (Some(sprite), Some(entity)) = (
-                            self.game.sprites.get(&entry.id),
-                            self.game.entities.get(entry.id),
-                        ) {
-                            let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
-                            let mut shadow = sprite.build_shadow_batches(
-                                entry.screen_center,
-                                entry.depth,
-                                shadow_scale,
-                            );
-                            sprite_batches.append(&mut shadow);
-                            let mut batches = sprite.build_batches(
-                                &entity.animation,
-                                Some(entry.camera_dir),
-                                entity.head_dir,
-                                entry.screen_center,
-                                entry.depth,
-                                entry.sprite_scale,
-                                entry.depth_gradient,
-                            );
-                            sprite_batches.append(&mut batches);
+                    // Merge entity and floor item render lists for unified depth sorting
+                    let mut unified_list: Vec<&RenderEntry> = render_list.iter()
+                        .chain(floor_item_render_list.iter())
+                        .collect();
+                    unified_list.sort_by(|a, b| {
+                        b.depth.partial_cmp(&a.depth).unwrap_or(std::cmp::Ordering::Equal)
+                    });
 
-                            if let (Some(emo), Some(emo_act), Some(emo_tex)) = (
-                                &entity.emotion,
-                                &self.game.emotion_act,
-                                &self.game.emotion_textures,
-                            ) {
-                                let action_idx = emo.emotion_type as usize;
-                                if action_idx < emo_act.actions.len() {
-                                    let delay_ms = emo_act
-                                        .delays
-                                        .get(action_idx)
-                                        .map(|d| d * 25.0)
-                                        .filter(|d| *d > 0.0)
-                                        .unwrap_or(150.0);
-                                    let motion_count = emo_act.actions[action_idx].motions.len();
-                                    let motion_idx = if motion_count > 0 {
-                                        ((emo.elapsed * 1000.0) / delay_ms) as usize % motion_count
-                                    } else {
-                                        0
-                                    };
-                                    if motion_idx < motion_count {
-                                        let motion =
-                                            &emo_act.actions[action_idx].motions[motion_idx];
-                                        let emo_center = [
-                                            entry.screen_center[0],
-                                            entry.screen_center[1] - 100.0,
-                                        ];
-                                        for clip in &motion.clips {
-                                            if let Some((vertices, indices, tex_idx)) =
-                                                build_clip_quad(
-                                                    clip,
-                                                    emo_tex,
-                                                    emo_center,
-                                                    entry.depth,
-                                                    [0, 0],
-                                                )
-                                            {
-                                                if tex_idx < emo_tex.bind_groups.len() {
-                                                    sprite_batches.push(SpriteBatch {
-                                                        vertices,
-                                                        indices,
-                                                        texture: &emo_tex.bind_groups[tex_idx],
-                                                    });
+                    for entry in &unified_list {
+                        match entry.kind {
+                            RenderEntryKind::Entity => {
+                                if let (Some(sprite), Some(entity)) = (
+                                    self.game.sprites.get(&entry.id),
+                                    self.game.entities.get(entry.id),
+                                ) {
+                                    let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
+                                    let mut shadow = sprite.build_shadow_batches(
+                                        entry.screen_center,
+                                        entry.depth,
+                                        shadow_scale,
+                                    );
+                                    sprite_batches.append(&mut shadow);
+                                    let mut batches = sprite.build_batches(
+                                        &entity.animation,
+                                        Some(entry.camera_dir),
+                                        entity.head_dir,
+                                        entry.screen_center,
+                                        entry.depth,
+                                        entry.sprite_scale,
+                                        entry.depth_gradient,
+                                    );
+                                    sprite_batches.append(&mut batches);
+
+                                    if let (Some(emo), Some(emo_act), Some(emo_tex)) = (
+                                        &entity.emotion,
+                                        &self.game.emotion_act,
+                                        &self.game.emotion_textures,
+                                    ) {
+                                        let action_idx = emo.emotion_type as usize;
+                                        if action_idx < emo_act.actions.len() {
+                                            let delay_ms = emo_act
+                                                .delays
+                                                .get(action_idx)
+                                                .map(|d| d * 25.0)
+                                                .filter(|d| *d > 0.0)
+                                                .unwrap_or(150.0);
+                                            let motion_count = emo_act.actions[action_idx].motions.len();
+                                            let motion_idx = if motion_count > 0 {
+                                                ((emo.elapsed * 1000.0) / delay_ms) as usize % motion_count
+                                            } else {
+                                                0
+                                            };
+                                            if motion_idx < motion_count {
+                                                let motion =
+                                                    &emo_act.actions[action_idx].motions[motion_idx];
+                                                let emo_center = [
+                                                    entry.screen_center[0],
+                                                    entry.screen_center[1] - 100.0,
+                                                ];
+                                                for clip in &motion.clips {
+                                                    if let Some((vertices, indices, tex_idx)) =
+                                                        build_clip_quad(
+                                                            clip,
+                                                            emo_tex,
+                                                            emo_center,
+                                                            entry.depth,
+                                                            [0, 0],
+                                                        )
+                                                    {
+                                                        if tex_idx < emo_tex.bind_groups.len() {
+                                                            sprite_batches.push(SpriteBatch {
+                                                                vertices,
+                                                                indices,
+                                                                texture: &emo_tex.bind_groups[tex_idx],
+                                                            });
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
-                    }
+                            RenderEntryKind::FloorItem => {
+                                if let Some(floor_item) = self.game.floor_items.get(&entry.id) {
+                                    if let Some((tex, act)) = self.game.floor_item_sprites.get(&entry.id) {
+                                        let y_offset = if floor_item.is_falling {
+                                            let t = (elapsed - floor_item.drop_time) * 1000.0 / 24.0;
+                                            let fall_y = -15.0 + (-0.6 + 0.083 * t as f64) * t as f64;
+                                            (fall_y.min(0.0) as f32) * entry.sprite_scale
+                                        } else {
+                                            0.0
+                                        };
 
-                    // Floor item sprites
-                    for fi_entry in &floor_item_render_list {
-                        if let Some(floor_item) = self.game.floor_items.get(&fi_entry.id) {
-                            if let Some((tex, act)) = self.game.floor_item_sprites.get(&fi_entry.id) {
-                                // Falling offset (dhxj: starts 15 units above ground)
-                                let y_offset = if floor_item.is_falling {
-                                    let t = (elapsed - floor_item.drop_time) * 1000.0 / 24.0;
-                                    // -15 + (-0.6 + 0.083*t) * t: starts at -15, rises to 0
-                                    let fall_y = -15.0 + (-0.6 + 0.083 * t as f64) * t as f64;
-                                    (fall_y.min(0.0) as f32) * fi_entry.sprite_scale
-                                } else {
-                                    0.0
-                                };
+                                        let blink_frame = ((elapsed * 1000.0 / 24.0) as u32) % 92;
+                                        let blink_active = blink_frame >= 90;
 
-                                // Blink effect
-                                let blink_frame = ((elapsed * 1000.0 / 24.0) as u32) % 92;
-                                let blink_active = blink_frame >= 90;
+                                        let center = [
+                                            entry.screen_center[0],
+                                            entry.screen_center[1] + y_offset,
+                                        ];
 
-                                let center = [
-                                    fi_entry.screen_center[0],
-                                    fi_entry.screen_center[1] + y_offset,
-                                ];
-
-                                if !act.actions.is_empty() {
-                                    let action = &act.actions[0];
-                                    let motion_count = action.motions.len();
-                                    let delay_ms = act.delays.first()
-                                        .map(|d| d * 25.0)
-                                        .filter(|d| *d > 0.0)
-                                        .unwrap_or(150.0);
-                                    let item_elapsed = elapsed - floor_item.drop_time;
-                                    let motion_idx = if motion_count > 0 {
-                                        ((item_elapsed * 1000.0) / delay_ms) as usize % motion_count
-                                    } else {
-                                        0
-                                    };
-                                    if motion_idx < motion_count {
-                                        let motion = &action.motions[motion_idx];
-                                        for clip in &motion.clips {
-                                            if let Some((mut vertices, indices, tex_idx)) =
-                                                build_clip_quad(clip, tex, center, fi_entry.depth, [0, 0])
-                                            {
-                                                if blink_active {
-                                                    for v in &mut vertices {
-                                                        v.color = [1.0, 1.0, 1.0, 1.0];
+                                        if !act.actions.is_empty() {
+                                            let action = &act.actions[0];
+                                            let motion_count = action.motions.len();
+                                            let delay_ms = act.delays.first()
+                                                .map(|d| d * 25.0)
+                                                .filter(|d| *d > 0.0)
+                                                .unwrap_or(150.0);
+                                            let item_elapsed = elapsed - floor_item.drop_time;
+                                            let motion_idx = if motion_count > 0 {
+                                                ((item_elapsed * 1000.0) / delay_ms) as usize % motion_count
+                                            } else {
+                                                0
+                                            };
+                                            if motion_idx < motion_count {
+                                                let motion = &action.motions[motion_idx];
+                                                for clip in &motion.clips {
+                                                    if let Some((mut vertices, indices, tex_idx)) =
+                                                        build_clip_quad(clip, tex, center, entry.depth, [0, 0])
+                                                    {
+                                                        scale_clip_vertices(&mut vertices, center, entry.sprite_scale, entry.depth_gradient);
+                                                        if blink_active {
+                                                            for v in &mut vertices {
+                                                                v.color = [1.0, 1.0, 1.0, 1.0];
+                                                            }
+                                                        }
+                                                        if tex_idx < tex.bind_groups.len() {
+                                                            sprite_batches.push(SpriteBatch {
+                                                                vertices,
+                                                                indices,
+                                                                texture: &tex.bind_groups[tex_idx],
+                                                            });
+                                                        }
                                                     }
-                                                }
-                                                if tex_idx < tex.bind_groups.len() {
-                                                    sprite_batches.push(SpriteBatch {
-                                                        vertices,
-                                                        indices,
-                                                        texture: &tex.bind_groups[tex_idx],
-                                                    });
                                                 }
                                             }
                                         }
@@ -2801,7 +3097,7 @@ impl ApplicationHandler for App {
 
 fn entity_name_color(entity_type: EntityType) -> [f32; 4] {
     match entity_type {
-        EntityType::Player => [1.0, 1.0, 1.0, 1.0], // #FFFFFFEntityType::Npc => [0.580, 0.741, 0.969, 1.0],
+        EntityType::Player => [1.0, 1.0, 1.0, 1.0], // #FFFFFF
         EntityType::Monster => [1.0, 0.776, 0.776, 1.0], // #ffc6c6
         EntityType::Npc => [0.39, 0.54, 0.76, 1.0], // #648bc2
     }
