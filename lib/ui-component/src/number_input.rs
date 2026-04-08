@@ -77,6 +77,11 @@ impl NumberInputDialog {
         self.container.set_texture_sizes(&size_fn);
     }
 
+    pub fn init_container(&mut self, source: &DialogContainer) {
+        self.has_grf_textures = source.has_grf_textures;
+        self.container.copy_sizes_from(source);
+    }
+
     pub fn value_str(&self) -> &str {
         &self.input.text
     }

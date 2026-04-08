@@ -8,6 +8,8 @@ use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use crate::inventory_window::INV_WIN_ID;
 
+const ITEM_INVERT_TEX: &str = "data/texture/유저인터페이스/basic_interface/item_invert.bmp";
+
 // -- Widget IDs --
 pub const EQ_WIN_ID: WidgetId = WidgetId(900);
 const EQ_CLOSE_BTN_ID: WidgetId = WidgetId(901);
@@ -230,6 +232,13 @@ impl EquipmentWindow {
         self.character_center = Some([character_x, character_y]);
         self.paperdoll_insert_index = Some(ui.draw_calls.len());
 
+        // Highlight valid slots when dragging an equipment item from inventory
+        let highlight_location: Option<u16> = ui.drag_info()
+            .filter(|(src, _)| *src == INV_WIN_ID)
+            .and_then(|(_, idx)| inventory.get_item(idx as u16))
+            .filter(|item| item.is_equipment() && !item.is_equipped())
+            .map(|item| item.location);
+
         // -- Equipment slots --
         let side_col_w = SIDE_COL_W ;
         let icon = ICON_SIZE ;
@@ -304,6 +313,18 @@ impl EquipmentWindow {
                 }
             }
 
+            if let Some(loc) = highlight_location {
+                if loc & InventoryData::slot_mask(slot.location) != 0 {
+                    if grf {
+                        let (v, idx) = draw::quad_vertices(slot_rect.x, slot_rect.y, slot_rect.w, slot_rect.h, [1.0, 1.0, 1.0, 1.0]);
+                        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(ITEM_INVERT_TEX.to_string()) });
+                    } else {
+                        let (v, idx) = draw::quad_vertices(slot_rect.x, slot_rect.y, slot_rect.w, slot_rect.h, [0.20, 0.42, 0.88, 0.35]);
+                        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
+                    }
+                }
+            }
+
         }
 
         // Drop zone: accept drags from inventory (equip)
@@ -327,7 +348,7 @@ impl EquipmentWindow {
 
     pub fn grf_texture_paths() -> Vec<&'static str> {
         vec![
-            TITLEBAR_TEX, EQUIP_BG_TEX,
+            TITLEBAR_TEX, EQUIP_BG_TEX, ITEM_INVERT_TEX,
             SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
             CLOSE_OFF_TEX, CLOSE_ON_TEX,
             MINI_OFF_TEX, MINI_ON_TEX,

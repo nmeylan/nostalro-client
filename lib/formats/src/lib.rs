@@ -63,6 +63,9 @@ impl From<std::io::Error> for FormatError {
 pub fn apply_magenta_transparency(rgba_data: &mut [u8]) {
     for pixel in rgba_data.chunks_exact_mut(4) {
         if pixel[0] >= 0xFE && pixel[1] <= 0x01 && pixel[2] >= 0xFE {
+            pixel[0] = 0;
+            pixel[1] = 0;
+            pixel[2] = 0;
             pixel[3] = 0;
         }
     }

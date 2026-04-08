@@ -99,6 +99,10 @@ impl InventoryData {
         self.items.iter().find(|i| i.wear_state & mask != 0)
     }
 
+    pub fn slot_mask(slot: EquipmentLocation) -> u16 {
+        slot.as_flag() as u16
+    }
+
     pub fn all_items(&self) -> &[Item] {
         &self.items
     }

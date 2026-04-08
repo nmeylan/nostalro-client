@@ -65,6 +65,7 @@ const SELL_BTN: ButtonTextures = ButtonTextures {
     pressed: "data/texture/유저인터페이스/btn_sell_b.bmp",
 };
 
+const WIN_TEXTURE: &str = "data/texture/유저인터페이스/win_msgbox.bmp";
 const BTN_BOTTOM: f32 = 4.0;
 const BTN_FIRST_RIGHT: f32 = 5.0;
 const BTN_SPACING: f32 = 3.0;
@@ -76,6 +77,7 @@ pub struct NpcDialog {
     number_input_dialog: Option<NumberInputDialog>,
     btn_size: (f32, f32),
     container: DialogContainer,
+    win_size: (f32, f32),
 }
 
 impl NpcDialog {
@@ -87,6 +89,7 @@ impl NpcDialog {
             number_input_dialog: None,
             btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
             container: DialogContainer::new(),
+            win_size: (280.0, 120.0),
         }
     }
 
@@ -95,6 +98,9 @@ impl NpcDialog {
             self.btn_size = (w as f32, h as f32);
         }
         self.container.set_texture_sizes(&size_fn);
+        if let Some((w, h)) = size_fn(WIN_TEXTURE) {
+            self.win_size = (w as f32, h as f32);
+        }
     }
 
     pub fn build(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
@@ -184,6 +190,7 @@ impl NpcDialog {
         // Override frame's grf texture flag to match the dialog's own state
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
+        self.container.has_grf_textures = self.has_grf_textures;
 
         // Full-screen overlay
         let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
@@ -233,7 +240,6 @@ impl NpcDialog {
             let dialog_h = (padding + text_h + input_h + btn_area_h + padding).max(DIALOG_H );
 
             // Dialog background
-            self.container.has_grf_textures = self.has_grf_textures;
             self.container.draw(&mut ui.draw_calls, dx, dy, dialog_w, dialog_h, [1.0, 1.0, 1.0, 0.95]);
 
             // Text content
@@ -329,11 +335,11 @@ impl NpcDialog {
                     },
                     WidgetId(INPUT_ID.0),
                 );
-                dialog.has_grf_textures = self.has_grf_textures;
+                dialog.init_container(&self.container);
                 self.number_input_dialog = Some(dialog);
             }
             let dialog = self.number_input_dialog.as_mut().unwrap();
-            dialog.has_grf_textures = self.has_grf_textures;
+            dialog.init_container(&self.container);
             if let NumberInputResult::Submitted = dialog.build(ui) {
                 let value: i32 = dialog.value_i32().unwrap_or(0);
                 events.push(GameEvent::RequestNpcInputNumber {
@@ -442,14 +448,41 @@ impl NpcDialog {
     fn build_deal_type_popup(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
         let mut events = Vec::new();
         let (btn_w, btn_h) = self.btn_size;
-        let dialog_w = DIALOG_W;
-        let dialog_h = btn_h + PADDING * 3.0 + 16.0;
+        let (dialog_w, dialog_h) = self.win_size;
 
         let dx = ((ui.ctx.screen_width - dialog_w) / 2.0).floor();
         let dy = (ui.ctx.screen_height / 1.5).floor();
 
         // Background
-        self.container.draw(&mut ui.draw_calls, dx, dy, dialog_w, dialog_h, [1.0, 1.0, 1.0, 1.0]);
+        if self.has_grf_textures {
+            let (v, i) = draw::quad_vertices(dx, dy, dialog_w, dialog_h, [1.0, 1.0, 1.0, 1.0]);
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::Named(WIN_TEXTURE.to_string()),
+            });
+        } else {
+            let (v, i) = draw::quad_vertices(dx, dy, dialog_w, dialog_h, [0.2, 0.2, 0.28, 1.0]);
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
+            let border_color = [0.5, 0.5, 0.6, 1.0];
+            for (bx, by, bw, bh) in [
+                (dx, dy, dialog_w, 1.0),
+                (dx, dy + dialog_h - 1.0, dialog_w, 1.0),
+                (dx, dy, 1.0, dialog_h),
+                (dx + dialog_w - 1.0, dy, 1.0, dialog_h),
+            ] {
+                let (v, i) = draw::quad_vertices(bx, by, bw, bh, border_color);
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: i.to_vec(),
+                    texture: TextureRef::White,
+                });
+            }
+        }
 
         // Buttons right-aligned at bottom (cancel rightmost, then sell, then buy)
         let container = Rect::new(dx, dy, dialog_w, dialog_h);
@@ -466,7 +499,12 @@ impl NpcDialog {
         let message = "Please select a Deal type";
         let (text_y, text_x) =
             container.text_dialog_alignment(PADDING , btns[0].y, ui.atlas.line_height);
-        ui.text(text_x, text_y, message, self.container.text_color());
+        let text_color = if self.has_grf_textures {
+            [0.0, 0.0, 0.0, 1.0]
+        } else {
+            [1.0, 1.0, 1.0, 1.0]
+        };
+        ui.text(text_x, text_y, message, text_color);
 
         let cancel = ui.button(DEAL_CANCEL_BTN_ID, btns[0], &CANCEL_BTN, "Cancel");
         let sell = ui.button(SELL_BTN_ID, btns[1], &SELL_BTN, "Sell");
@@ -500,6 +538,7 @@ impl NpcDialog {
     pub fn grf_texture_paths() -> Vec<&'static str> {
         let mut paths = DialogContainer::grf_texture_paths();
         paths.extend_from_slice(&[
+            WIN_TEXTURE,
             NEXT_BTN.normal, NEXT_BTN.hover, NEXT_BTN.pressed,
             CLOSE_BTN.normal, CLOSE_BTN.hover, CLOSE_BTN.pressed,
             OK_BTN.normal, OK_BTN.hover, OK_BTN.pressed,

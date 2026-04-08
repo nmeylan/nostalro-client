@@ -3,6 +3,7 @@ use ragnarok_game::npc_shop::{NpcShopData, NpcShopMode};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, RESIZE_HANDLE_TEX, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
+use crate::dialog_container::DialogContainer;
 use crate::number_input::{NumberInputDialog, NumberInputConfig, NumberInputResult};
 use crate::window_chrome::{
     ITEMWIN_MID_TEX, TITLEBAR_TEX, FOOTER_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
@@ -69,6 +70,7 @@ pub struct NpcShop {
     output_scroll_offset: usize,
     input_visible_rows: usize,
     resize_start_rows: Option<usize>,
+    container: DialogContainer,
 }
 
 impl NpcShop {
@@ -82,6 +84,7 @@ impl NpcShop {
             output_scroll_offset: 0,
             input_visible_rows: INPUT_DEFAULT_ROWS,
             resize_start_rows: None,
+            container: DialogContainer::new(),
         }
     }
 
@@ -89,6 +92,8 @@ impl NpcShop {
         if let Some((w, h)) = size_fn(OK_BTN.normal) {
             self.btn_size = (w as f32, h as f32);
         }
+        self.container.has_grf_textures = true;
+        self.container.set_texture_sizes(&size_fn);
     }
 
     /// Call before building z-ordered windows to block interaction with them while shop is open.
@@ -638,14 +643,14 @@ impl NpcShop {
             },
             WidgetId(QTY_INPUT_ID.0),
         );
-        dialog.has_grf_textures = self.has_grf_textures;
+        dialog.init_container(&self.container);
         self.qty_popup = Some((item_idx, dialog));
     }
 
     fn build_quantity_popup(&mut self, ui: &mut UiFrame) {
         let (item_idx, dialog) = self.qty_popup.as_mut().unwrap();
         let item_idx = *item_idx;
-        dialog.has_grf_textures = self.has_grf_textures;
+        dialog.init_container(&self.container);
 
         match dialog.build(ui) {
             NumberInputResult::Submitted => {
@@ -672,7 +677,8 @@ impl NpcShop {
     }
 
     pub fn grf_texture_paths() -> Vec<&'static str> {
-        let mut paths = vec![
+        let mut paths = DialogContainer::grf_texture_paths();
+        paths.extend_from_slice(&[
             OK_BTN.normal,
             OK_BTN.hover,
             OK_BTN.pressed,
@@ -685,7 +691,7 @@ impl NpcShop {
             SYS_BASE_OFF_TEX,
             SYS_BASE_ON_TEX,
             RESIZE_HANDLE_TEX,
-        ];
+        ]);
         paths.extend(scrollbar::grf_texture_paths());
         paths
     }

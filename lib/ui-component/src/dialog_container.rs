@@ -16,6 +16,7 @@ const SYSBOX_TEXTURES: [&str; 9] = [
     SYSBOX_LD, SYSBOX_MD, SYSBOX_RD,
 ];
 
+#[derive(Clone, Copy)]
 struct NineSliceSizes {
     left_w: f32,
     right_w: f32,
@@ -52,6 +53,10 @@ impl DialogContainer {
 
     pub fn set_texture_sizes(&mut self, size_fn: &impl Fn(&str) -> Option<(u32, u32)>) {
         self.sysbox_sizes = NineSliceSizes::from_texture_sizes(size_fn);
+    }
+
+    pub fn copy_sizes_from(&mut self, other: &DialogContainer) {
+        self.sysbox_sizes = other.sysbox_sizes;
     }
 
     pub fn text_color(&self) -> [f32; 4] {

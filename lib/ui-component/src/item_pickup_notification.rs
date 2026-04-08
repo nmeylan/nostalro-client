@@ -69,7 +69,6 @@ impl ItemPickupNotification {
         let x = ((ui.ctx.screen_width - bar_w) / 2.0).floor();
         let y = TOP_Y;
 
-        self.container.has_grf_textures = ui.has_grf_textures;
         self.container.draw(&mut ui.draw_calls, x, y, bar_w, bar_h, [1.0, 1.0, 1.0, alpha]);
 
         if let Some(icon_path) = &entry.icon_texture {

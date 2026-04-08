@@ -696,6 +696,16 @@ impl<'a> UiFrame<'a> {
         self.state.get_or_default::<DragState>(DRAG_STATE_ID).active
     }
 
+    /// Returns (source_id, item_index) if a drag is currently active.
+    pub fn drag_info(&mut self) -> Option<(WidgetId, usize)> {
+        let drag = self.state.get_or_default::<DragState>(DRAG_STATE_ID);
+        if drag.active {
+            Some((drag.source_id, drag.item_index))
+        } else {
+            None
+        }
+    }
+
     /// Register a drop zone. Returns (source_id, item_index) when a drag is released over this rect.
     pub fn drop_zone(&mut self, rect: Rect) -> Option<(WidgetId, usize)> {
         let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) && !self.is_current_window_occluded();
