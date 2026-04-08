@@ -10,9 +10,9 @@ use crate::window_chrome::{
 };
 
 // -- Widget IDs --
-const OVERLAY_ID: WidgetId = WidgetId(700);
-const INPUT_WIN_ID: WidgetId = WidgetId(701);
-const OUTPUT_WIN_ID: WidgetId = WidgetId(702);
+pub const OVERLAY_ID: WidgetId = WidgetId(700);
+pub const INPUT_WIN_ID: WidgetId = WidgetId(701);
+pub const OUTPUT_WIN_ID: WidgetId = WidgetId(702);
 const BUY_SELL_BTN_ID: WidgetId = WidgetId(703);
 const CANCEL_BTN_ID: WidgetId = WidgetId(704);
 const QTY_INPUT_ID: WidgetId = WidgetId(709);

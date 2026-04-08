@@ -13,6 +13,7 @@ pub enum TextInputBg<'a> {
     Texture(&'a str),
     /// No background drawn; dark text for use over an externally-drawn light bg
     Transparent,
+    Gray,
 }
 
 pub struct UiFrame<'a> {
@@ -531,6 +532,15 @@ impl<'a> UiFrame<'a> {
                         texture: TextureRef::White,
                     });
                 }
+            }
+            TextInputBg::Gray => {
+               let bg_color = [0.15, 0.15, 0.2, 0.3];
+                let (verts, indices) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, bg_color);
+                self.draw_calls.push(DrawCall {
+                    vertices: verts.to_vec(),
+                    indices: indices.to_vec(),
+                    texture: TextureRef::White,
+                });
             }
             TextInputBg::Transparent => {}
         }

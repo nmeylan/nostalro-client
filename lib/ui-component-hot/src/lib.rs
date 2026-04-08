@@ -20,6 +20,8 @@ use ragnarok_ui_component::npc_dialog::NpcDialog;
 use ragnarok_ui_component::npc_shop::NpcShop;
 use ragnarok_ui_component::number_input::{NumberInputDialog, NumberInputConfig};
 use ragnarok_ui_component::server_list_window::ServerListWindow;
+use ragnarok_ui_component::dialog_container::DialogContainer;
+use ragnarok_ui_component::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::system_menu::SystemMenu;
 
 const GAME_COMPONENTS: &[&str] = &[
@@ -31,6 +33,7 @@ const GAME_COMPONENTS: &[&str] = &[
     "confirm_dialog",
     "number_input",
     "chat",
+    "dialog_container",
 ];
 const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
 
@@ -72,6 +75,9 @@ enum State {
     },
     CharSelect {
         win: CharSelectWindow,
+    },
+    DialogContainerDemo {
+        notification: ItemPickupNotification,
     },
     Category {
         components: Vec<State>,
@@ -146,7 +152,7 @@ fn create_single(name: &str) -> State {
             dialog: NumberInputDialog::new(
                 NumberInputConfig {
                     label: Some("How many (max 99)?".to_string()),
-                    show_cancel: true,
+                    show_cancel: false,
                     escape_cancels: true,
                     default_value: "99".to_string(),
                     max_len: 6,
@@ -356,6 +362,13 @@ fn create_single(name: &str) -> State {
                 win: CharSelectWindow::new(characters),
             }
         }
+        "dialog_container" => {
+            let mut notification = ItemPickupNotification::new();
+            notification.show("Sticky Mucus".to_string(), 1, None);
+            State::DialogContainerDemo {
+                notification,
+            }
+        }
         _ => panic!("Unknown example: {name}"),
     }
 }
@@ -442,6 +455,10 @@ fn grf_init_single(
         State::CharSelect { win } => {
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
+        }
+        State::DialogContainerDemo { notification } => {
+            notification.container.has_grf_textures = true;
+            notification.set_texture_sizes(size_fn);
         }
         State::Category { components } => {
             for component in components.iter_mut() {
@@ -536,6 +553,9 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
         }
         State::CharSelect { win } => {
             win.build(ui);
+        }
+        State::DialogContainerDemo {  notification } => {
+            notification.build(ui);
         }
         State::Category { components } => {
 

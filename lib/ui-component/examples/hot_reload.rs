@@ -15,6 +15,7 @@ use ragnarok_ui_component::npc_dialog::NpcDialog;
 use ragnarok_ui_component::npc_shop::NpcShop;
 use ragnarok_ui_component::server_list_window::ServerListWindow;
 use ragnarok_ui_component::char_select_window::CharSelectWindow;
+use ragnarok_ui_component::dialog_container::DialogContainer;
 use ragnarok_ui_component::system_menu::SystemMenu;
 
 // Force system allocator so host and dylib share the same heap.
@@ -91,7 +92,7 @@ impl HotLib {
 }
 
 const GAME_COMPONENTS: &[&str] = &[
-    "inventory", "npc_shop_buy", "npc_shop_sell", "npc_dialog", "equipment", "system_menu", "confirm_dialog", "chat",
+    "inventory", "npc_shop_buy", "npc_shop_sell", "npc_dialog", "equipment", "system_menu", "confirm_dialog", "chat", "dialog_container",
 ];
 const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
 
@@ -108,6 +109,7 @@ fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
         "equipment" => EquipmentWindow::grf_texture_paths(),
         "system_menu" => SystemMenu::grf_texture_paths(),
         "char_select" => CharSelectWindow::grf_texture_paths(),
+        "dialog_container" => DialogContainer::grf_texture_paths(),
         _ => {
             eprintln!("Unknown example: {name}");
             vec![]

@@ -65,6 +65,7 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 use ragnarok_ui_component::equipment_window::EquipmentWindow;
+use ragnarok_ui_component::item_pickup_notification::ItemPickupNotification;
 
 type ClipData = (Vec<SpriteVertex>, Vec<u32>, usize);
 
@@ -963,6 +964,14 @@ impl App {
                         self.game
                             .chat_window
                             .add_system(format!("Picked up {name} x{count}"));
+                        let icon_path = self.game.inventory_window.inventory
+                            .get_item(index)
+                            .and_then(|item| item.icon_path());
+                        if let (Some(path), Some(grf), Some(renderer)) = (&icon_path, &self.grf, &mut self.renderer) {
+                            renderer.preload_textures(&[path.as_str()], grf);
+                        }
+                        self.game.item_pickup_notification.show(name, count, icon_path);
+                        self.preload_pickup_notification_textures();
                         self.preload_inventory_textures();
                     }
                 }
@@ -1620,6 +1629,21 @@ impl App {
         }
     }
 
+    fn preload_pickup_notification_textures(&mut self) {
+        if self.game.item_pickup_notification.container.has_grf_textures {
+            return;
+        }
+        if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
+            self.game.item_pickup_notification.container.has_grf_textures =
+                renderer.preload_textures(&ItemPickupNotification::grf_texture_paths(), grf);
+            if self.game.item_pickup_notification.container.has_grf_textures {
+                self.game.item_pickup_notification.set_texture_sizes(
+                    &|name| renderer.texture_cache.texture_size(name),
+                );
+            }
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn handle_floor_item_appeared(
         &mut self, id: u32, item_id: u16, is_identified: bool,
@@ -2078,6 +2102,7 @@ impl App {
                     let allow_escape =
                         !chat_was_active && !npc_dialog_open && !shop_open && !inv_open;
                     events.extend(self.game.system_menu.build(&mut ui, allow_escape));
+                    self.game.item_pickup_notification.build(&mut ui);
 
                     if let Some(cancelled) = ui.draw_drag_icon() {
                         if cancelled.source_id == INV_WIN_ID {

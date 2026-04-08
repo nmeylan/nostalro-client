@@ -18,8 +18,8 @@ pub struct DropQuantityDialog {
 impl DropQuantityDialog {
     pub fn new(item_index: u16, max_count: i16) -> Self {
         let config = NumberInputConfig {
-            label: Some(format!("How many (max {})?", max_count)),
-            show_cancel: true,
+            label: None,
+            show_cancel: false,
             escape_cancels: true,
             default_value: max_count.to_string(),
             max_len: 6,

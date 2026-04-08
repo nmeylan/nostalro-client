@@ -22,6 +22,7 @@ use ragnarok_ui_component::chat_window::ChatWindow;
 use ragnarok_ui_component::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::equipment_window::EquipmentWindow;
 use ragnarok_ui_component::inventory_window::InventoryWindow;
+use ragnarok_ui_component::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::npc_dialog::NpcDialog;
 use ragnarok_ui_component::npc_shop::NpcShop;
 use ragnarok_ui_component::system_menu::SystemMenu;
@@ -63,6 +64,7 @@ pub struct GameState {
     pub waiting_item_throw_ack: bool,
     pub drop_quantity_dialog: Option<DropQuantityDialog>,
     pub pending_pickup_item_id: Option<u32>,
+    pub item_pickup_notification: ItemPickupNotification,
 }
 
 impl GameState {
@@ -104,6 +106,7 @@ impl GameState {
             waiting_item_throw_ack: false,
             drop_quantity_dialog: None,
             pending_pickup_item_id: None,
+            item_pickup_notification: ItemPickupNotification::new(),
         }
     }
 }

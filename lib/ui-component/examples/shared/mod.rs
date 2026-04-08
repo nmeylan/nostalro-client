@@ -16,6 +16,7 @@ use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
+use ragnarok_ui_component::{equipment_window, inventory_window, npc_shop};
 
 struct Gpu {
     device: RenderDevice,
@@ -119,8 +120,10 @@ impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
 
         let elapsed = self.start_time.elapsed().as_secs_f32();
         let mut positions = HashMap::new();
-        positions.insert(800, [200.0, 200.0]);
-        positions.insert(950, [400.0, 200.0]);
+        positions.insert(inventory_window::INV_WIN_ID.0, [0.0, 200.0]);
+        positions.insert(npc_shop::INPUT_WIN_ID.0, [300.0, 100.0]);
+        positions.insert(npc_shop::OUTPUT_WIN_ID.0, [740.0, 270.0]);
+        positions.insert(equipment_window::EQ_WIN_ID.0, [0.0, 400.0]);
         let ui = UiFrame::new(
             &self.ui_ctx,
             &gpu.font_atlas,
@@ -262,6 +265,7 @@ impl<F: FnMut(&mut ExampleCtx)> ApplicationHandler for UiExampleApp<F> {
                         if tex_cache.get_or_load(
                             path, &grf, &device.device, &device.queue, true,
                         ).is_none() {
+                            eprintln!("Not able to load {path}");
                             all_loaded = false;
                         }
                     }

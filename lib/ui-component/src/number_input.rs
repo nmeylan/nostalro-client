@@ -1,7 +1,7 @@
-use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
+use crate::dialog_container::DialogContainer;
 
 pub const OK_BTN: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/btn_ok.bmp",
@@ -14,13 +14,12 @@ pub const CANCEL_BTN: ButtonTextures = ButtonTextures {
     pressed: "data/texture/유저인터페이스/btn_cancel_b.bmp",
 };
 
-const WIN_TEXTURE: &str = "data/texture/유저인터페이스/win_msgbox.bmp";
-
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
 const DIALOG_W: f32 = 220.0;
 const DIALOG_H: f32 = 55.0;
 const PADDING: f32 = 4.0;
+const PADDING_X: f32 = 12.0;
 const BTN_SPACING: f32 = 3.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,11 +41,11 @@ pub struct NumberInputDialog {
     pub has_grf_textures: bool,
     input: TextInput,
     btn_size: (f32, f32),
-    win_size: (f32, f32),
     show_cancel: bool,
     escape_cancels: bool,
     label: Option<String>,
     base_id: WidgetId,
+    container: DialogContainer,
 }
 
 const ID_INPUT: u32 = 0;
@@ -63,11 +62,11 @@ impl NumberInputDialog {
             has_grf_textures: false,
             input,
             btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
-            win_size: (DIALOG_W, DIALOG_H),
             show_cancel: config.show_cancel,
             escape_cancels: config.escape_cancels,
             label: config.label,
             base_id,
+            container: DialogContainer::new(),
         }
     }
 
@@ -75,9 +74,7 @@ impl NumberInputDialog {
         if let Some((w, h)) = size_fn(OK_BTN.normal) {
             self.btn_size = (w as f32, h as f32);
         }
-        if let Some((w, h)) = size_fn(WIN_TEXTURE) {
-            self.win_size = (w as f32, h as f32);
-        }
+        self.container.set_texture_sizes(&size_fn);
     }
 
     pub fn value_str(&self) -> &str {
@@ -112,38 +109,23 @@ impl NumberInputDialog {
             return NumberInputResult::Cancel;
         }
 
-        let (dw, dh) = self.win_size;
+        let dw = DIALOG_W;
+        let dh = DIALOG_H;
         let title_bar_h = PADDING * 2.0 + ui.atlas.line_height;
         let win = ui.window(self.win_id(), dw, dh, title_bar_h);
         let dx = win.x;
         let dy = win.y;
 
         // Background
-        if self.has_grf_textures {
-            let (v, i) = draw::quad_vertices(dx, dy, dw, dh, [1.0, 1.0, 1.0, 1.0]);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(WIN_TEXTURE.to_string()) });
-        } else {
-            let (v, i) = draw::quad_vertices(dx, dy, dw, dh, [0.2, 0.2, 0.28, 1.0]);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-            let border_color = [0.5, 0.5, 0.6, 1.0];
-            for (bx, by, bw, bh) in [
-                (dx, dy, dw, 1.0),
-                (dx, dy + dh - 1.0, dw, 1.0),
-                (dx, dy, 1.0, dh),
-                (dx + dw - 1.0, dy, 1.0, dh),
-            ] {
-                let (v, i) = draw::quad_vertices(bx, by, bw, bh, border_color);
-                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-            }
-        }
+        self.container.has_grf_textures = self.has_grf_textures;
+        self.container.draw(&mut ui.draw_calls, dx, dy, dw, dh, [1.0, 1.0, 1.0, 1.0]);
 
-        let text_color = if self.has_grf_textures { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
+        let text_color = self.container.text_color();
 
         // Label
         let mut content_y = dy + PADDING + ui.atlas.line_height;
         if let Some(label) = &self.label {
-            let label_w = ui.atlas.measure_text(label);
-            let label_x = dx + (dw - label_w) / 2.0;
+            let label_x = dx + PADDING_X;
             ui.text(label_x, content_y, label, text_color);
             content_y += PADDING;
         }
@@ -151,8 +133,8 @@ impl NumberInputDialog {
         // Input + OK [+ Cancel]
         let (btn_w, btn_h) = self.btn_size;
         let cancel_space = if self.show_cancel { btn_w + BTN_SPACING } else { 0.0 };
-        let input_w = dw - PADDING * 2.0 - btn_w - cancel_space - BTN_SPACING * 2.0;
-        let input_bg = if self.has_grf_textures { TextInputBg::Transparent } else { TextInputBg::Default };
+        let input_w = dw - PADDING_X * 2.0 - btn_w - cancel_space - BTN_SPACING * 2.0;
+        let input_bg = if self.has_grf_textures { TextInputBg::Gray } else { TextInputBg::Default };
 
         let input_id = self.input_id();
         let ok_id = self.ok_id();
@@ -161,10 +143,10 @@ impl NumberInputDialog {
             ui.set_focus(input_id);
         }
 
-        let input_rect = Rect::new(dx + PADDING, content_y, input_w, 16.0);
+        let input_rect = Rect::new(dx + PADDING_X, content_y, input_w, 16.0);
         ui.text_input(input_id, input_rect, &mut self.input, input_bg);
 
-        let btn_x = dx + PADDING + input_w + BTN_SPACING;
+        let btn_x = PADDING_X + dx + input_w + BTN_SPACING * 2.0;
         let ok_rect = Rect::new(btn_x, content_y - 2.0, btn_w, btn_h);
         let ok = ui.button(ok_id, ok_rect, &OK_BTN, "OK");
 
@@ -184,11 +166,12 @@ impl NumberInputDialog {
     }
 
     pub fn grf_texture_paths() -> Vec<&'static str> {
-        vec![
-            WIN_TEXTURE,
+        let mut paths = DialogContainer::grf_texture_paths();
+        paths.extend_from_slice(&[
             OK_BTN.normal, OK_BTN.hover, OK_BTN.pressed,
             CANCEL_BTN.normal, CANCEL_BTN.hover, CANCEL_BTN.pressed,
-        ]
+        ]);
+        paths
     }
 }
 

@@ -1,7 +1,9 @@
 pub mod char_select_window;
 pub mod chat_window;
 pub mod confirm_dialog;
+pub mod dialog_container;
 pub mod drop_quantity_dialog;
+pub mod item_pickup_notification;
 pub mod equipment_window;
 pub mod inventory_window;
 pub mod login_window;
