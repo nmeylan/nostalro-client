@@ -1,9 +1,13 @@
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::npc_shop::{NpcShopData, NpcShopMode};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{ButtonTextures, RESIZE_HANDLE_TEX, TextInputBg, UiFrame, WidgetId, WindowOrder};
+use ragnarok_ui::frame::{ButtonTextures, RESIZE_HANDLE_TEX, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-use ragnarok_ui::text_input::TextInput;
+use crate::number_input::{NumberInputDialog, NumberInputConfig, NumberInputResult};
+use crate::window_chrome::{
+    ITEMWIN_MID_TEX, TITLEBAR_TEX, FOOTER_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
+    draw_titlebar, draw_container, draw_footer, text_color,
+};
 
 // -- Widget IDs --
 const OVERLAY_ID: WidgetId = WidgetId(700);
@@ -11,8 +15,6 @@ const INPUT_WIN_ID: WidgetId = WidgetId(701);
 const OUTPUT_WIN_ID: WidgetId = WidgetId(702);
 const BUY_SELL_BTN_ID: WidgetId = WidgetId(703);
 const CANCEL_BTN_ID: WidgetId = WidgetId(704);
-const QTY_WIN_ID: WidgetId = WidgetId(705);
-const QTY_OK_BTN_ID: WidgetId = WidgetId(706);
 const QTY_INPUT_ID: WidgetId = WidgetId(709);
 const SCROLL_UP_ID: WidgetId = WidgetId(707);
 const SCROLL_DOWN_ID: WidgetId = WidgetId(708);
@@ -44,10 +46,6 @@ const ICON_SIZE: f32 = 24.0;
 const ICON_OFFSET_X: f32 = 4.0;
 const ICON_OFFSET_Y: f32 = 2.0;
 
-// -- Quantity popup dimensions --
-const QTY_W: f32 = 174.0;
-const QTY_H: f32 = 44.0;
-
 // -- GRF button textures --
 const OK_BTN: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/btn_ok.bmp",
@@ -60,20 +58,12 @@ const CANCEL_BTN_TEX: ButtonTextures = ButtonTextures {
     pressed: "data/texture/유저인터페이스/btn_cancel_b.bmp",
 };
 
-// Window chrome textures
-const TITLEBAR_TEX: &str = "data/texture/유저인터페이스/basic_interface/titlebar_mid.bmp";
-const ITEMWIN_MID_TEX: &str = "data/texture/유저인터페이스/basic_interface/itemwin_mid.bmp";
-const FOOTER_TEX: &str = "data/texture/유저인터페이스/basic_interface/btnbar_mid2.bmp";
-const SYS_BASE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_off.bmp";
-const SYS_BASE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_on.bmp";
 const RESIZE_SIZE: f32 = 13.0;
 
 pub struct NpcShop {
     pub has_grf_textures: bool,
     pub shop: NpcShopData,
-    pub quantity_input: TextInput,
-    qty_popup_open: bool,
-    qty_popup_item_index: usize,
+    qty_popup: Option<(usize, NumberInputDialog)>,
     btn_size: (f32, f32),
     scroll_offset: usize,
     output_scroll_offset: usize,
@@ -86,9 +76,7 @@ impl NpcShop {
         Self {
             has_grf_textures: false,
             shop: NpcShopData::new(),
-            quantity_input: TextInput::new(6, false),
-            qty_popup_open: false,
-            qty_popup_item_index: 0,
+            qty_popup: None,
             btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
             scroll_offset: 0,
             output_scroll_offset: 0,
@@ -108,11 +96,11 @@ impl NpcShop {
         if !self.shop.is_open() {
             return;
         }
-        if self.qty_popup_open {
-            ui.set_modal(&[INPUT_WIN_ID, OUTPUT_WIN_ID, QTY_WIN_ID]);
-        } else {
-            ui.set_modal(&[INPUT_WIN_ID, OUTPUT_WIN_ID]);
+        let mut modal_ids = vec![INPUT_WIN_ID, OUTPUT_WIN_ID];
+        if let Some((_, ref dialog)) = self.qty_popup {
+            modal_ids.push(dialog.win_id());
         }
+        ui.set_modal(&modal_ids);
     }
 
     pub fn build(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
@@ -123,10 +111,8 @@ impl NpcShop {
         let mut events = Vec::new();
 
         if ui.ctx.key_escape {
-            if self.qty_popup_open {
-                self.qty_popup_open = false;
-                self.quantity_input.text.clear();
-                self.quantity_input.cursor_pos = 0;
+            if self.qty_popup.is_some() {
+                self.qty_popup = None;
                 return events;
             }
             events.push(GameEvent::RequestNpcShopClose);
@@ -183,20 +169,13 @@ impl NpcShop {
                 {
                     self.shop.add_to_cart(item_idx, 1);
                 } else {
-                    self.qty_popup_open = true;
-                    self.qty_popup_item_index = item_idx;
-                    self.quantity_input.text = "1".to_string();
-                    self.quantity_input.cursor_pos = 1;
-                    ui.set_focus(QTY_INPUT_ID);
+                    self.open_qty_popup(item_idx);
                 }
             }
         }
 
-        // Quantity popup: draggable window below output window
-        if self.qty_popup_open {
-            let qty_default_x = output_rect.x;
-            let qty_default_y = output_rect.y + output_rect.h + (5.0);
-            self.build_quantity_popup(ui, qty_default_x, qty_default_y);
+        if self.qty_popup.is_some() {
+            self.build_quantity_popup(ui);
         }
 
         ui.has_grf_textures = prev_grf;
@@ -353,11 +332,7 @@ impl NpcShop {
                 {
                     self.shop.add_to_cart(item_idx, 1);
                 } else {
-                    self.qty_popup_open = true;
-                    self.qty_popup_item_index = item_idx;
-                    self.quantity_input.text = "1".to_string();
-                    self.quantity_input.cursor_pos = 1;
-                    ui.set_focus(QTY_INPUT_ID);
+                    self.open_qty_popup(item_idx);
                 }
             }
         }
@@ -649,81 +624,47 @@ impl NpcShop {
         win
     }
 
-    fn build_quantity_popup(&mut self, ui: &mut UiFrame, default_x: f32, default_y: f32) {
-        let (btn_w, btn_h) = self.btn_size;
-        let grf = self.has_grf_textures;
-        let text_color = text_color(grf);
-
-        let popup_w = QTY_W;
-        let popup_h = QTY_H;
-        let title_h = TITLE_H;
-
-        // Draggable quantity window (Foreground layer, above input/output windows)
-        ui.ensure_in_z_order_with(QTY_WIN_ID, WindowOrder::Foreground);
-        let win = ui.window_at(QTY_WIN_ID, popup_w, popup_h, title_h, default_x, default_y);
-
-        // Background: titlebar + container body
-        draw_titlebar(ui, win.x, win.y, popup_w, title_h, grf);
-        draw_container(ui, win.x, win.y + title_h, popup_w, popup_h - title_h, grf);
-
-        // Title
-        let name = self.shop.item_name(self.qty_popup_item_index);
-        let price = self.shop.item_price(self.qty_popup_item_index);
-        let title_str = format!("{} ({}z)", name, format_zeny(price));
-        // Truncate if too long
-        let max_title_w = popup_w - (29.0);
-        let measured = ui.atlas.measure_text(&title_str);
-        if measured <= max_title_w {
-            ui.text(
-                win.x + (17.0),
-                win.y + title_h - (3.0),
-                &title_str,
-                text_color,
-            );
-        } else {
-            ui.text(win.x + (17.0), win.y + title_h - (3.0), name, text_color);
-        }
-
-        // Input field + OK button
-        let input_y = win.y + title_h + (4.0);
-        let input_w = popup_w - (12.0) - btn_w - (4.0);
-        let input_rect = Rect::new(win.x + (6.0), input_y, input_w, 16.0);
-
-        if ui.focused() != Some(QTY_INPUT_ID) {
-            ui.set_focus(QTY_INPUT_ID);
-        }
-        let input_bg = if grf {
-            TextInputBg::Transparent
-        } else {
-            TextInputBg::Default
-        };
-        ui.text_input(QTY_INPUT_ID, input_rect, &mut self.quantity_input, input_bg);
-
-        let ok_rect = Rect::new(
-            win.x + (6.0) + input_w + (4.0),
-            input_y - (2.0),
-            btn_w,
-            btn_h,
+    fn open_qty_popup(&mut self, item_idx: usize) {
+        let name = self.shop.item_name(item_idx);
+        let price = self.shop.item_price(item_idx);
+        let label = format!("{} ({}z)", name, format_zeny(price));
+        let mut dialog = NumberInputDialog::new(
+            NumberInputConfig {
+                label: Some(label),
+                show_cancel: false,
+                escape_cancels: false,
+                default_value: "1".to_string(),
+                max_len: 6,
+            },
+            WidgetId(QTY_INPUT_ID.0),
         );
-        let ok = ui.button(QTY_OK_BTN_ID, ok_rect, &OK_BTN, "OK");
+        dialog.has_grf_textures = self.has_grf_textures;
+        self.qty_popup = Some((item_idx, dialog));
+    }
 
-        let confirmed = ok.clicked() || ui.ctx.key_enter;
-        if confirmed {
-            let qty: i16 = self.quantity_input.text.parse().unwrap_or(0);
-            if qty > 0 {
-                self.shop.add_to_cart(self.qty_popup_item_index, qty);
+    fn build_quantity_popup(&mut self, ui: &mut UiFrame) {
+        let (item_idx, dialog) = self.qty_popup.as_mut().unwrap();
+        let item_idx = *item_idx;
+        dialog.has_grf_textures = self.has_grf_textures;
+
+        match dialog.build(ui) {
+            NumberInputResult::Submitted => {
+                let qty: i16 = dialog.value_i16().unwrap_or(0);
+                if qty > 0 {
+                    self.shop.add_to_cart(item_idx, qty);
+                }
+                self.qty_popup = None;
             }
-            self.qty_popup_open = false;
-            self.quantity_input.text.clear();
-            self.quantity_input.cursor_pos = 0;
+            NumberInputResult::Cancel => {
+                self.qty_popup = None;
+            }
+            NumberInputResult::None => {}
         }
     }
 
     pub fn close(&mut self) {
         self.shop.close();
-        self.qty_popup_open = false;
-        self.quantity_input.text.clear();
-        self.quantity_input.cursor_pos = 0;
+        self.qty_popup = None;
         self.scroll_offset = 0;
         self.output_scroll_offset = 0;
         self.input_visible_rows = INPUT_DEFAULT_ROWS;
@@ -747,123 +688,6 @@ impl NpcShop {
         ];
         paths.extend(scrollbar::grf_texture_paths());
         paths
-    }
-}
-
-// -- Window chrome drawing functions (RO style) --
-
-fn text_color(has_grf: bool) -> [f32; 4] {
-    if has_grf {
-        [0.0, 0.0, 0.0, 1.0]
-    } else {
-        [1.0, 1.0, 1.0, 1.0]
-    }
-}
-
-fn draw_titlebar(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bool) {
-    if has_grf {
-        let (v, i) = draw::quad_vertices(x, y, w, h, [1.0, 1.0, 1.0, 1.0]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::Named(TITLEBAR_TEX.to_string()),
-        });
-        let btn_size = 11.0;
-        let btn_x = x + (4.0);
-        let btn_y = y + (3.0);
-        let tex = if Rect::new(btn_x, btn_y, btn_size, btn_size)
-            .contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
-        {
-            SYS_BASE_ON_TEX
-        } else {
-            SYS_BASE_OFF_TEX
-        };
-        let (v, i) = draw::quad_vertices(btn_x, btn_y, btn_size, btn_size, [1.0, 1.0, 1.0, 1.0]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::Named(tex.to_string()),
-        });
-    } else {
-        let (v, i) = draw::quad_vertices(x, y, w, h, [0.20, 0.20, 0.30, 0.95]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
-        let bc = [0.5, 0.5, 0.6, 1.0];
-        for (bx, by, bw, bh) in [(x, y, w, 1.0), (x, y, 1.0, h), (x + w - 1.0, y, 1.0, h)] {
-            let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-        }
-    }
-}
-
-fn draw_container(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bool) {
-    if has_grf {
-        let (v, i) = draw::quad_vertices(x, y, w, h, [1.0, 1.0, 1.0, 1.0]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
-        let (v, i) = draw::quad_vertices(x + w - 1.0, y, 1.0, h, [0.8, 0.8, 0.8, 1.0]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
-    } else {
-        let (v, i) = draw::quad_vertices(x, y, w, h, [0.12, 0.12, 0.18, 0.95]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
-        let bc = [0.4, 0.4, 0.5, 1.0];
-        for (bx, by, bw, bh) in [(x, y, 1.0, h), (x + w - 1.0, y, 1.0, h)] {
-            let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-        }
-    }
-}
-
-fn draw_footer(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bool) {
-    if has_grf {
-        let (v, i) = draw::quad_vertices(x, y, w, h, [1.0, 1.0, 1.0, 1.0]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::Named(FOOTER_TEX.to_string()),
-        });
-    } else {
-        let (v, i) = draw::quad_vertices(x, y, w, h, [0.18, 0.18, 0.25, 0.95]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
-        let bc = [0.5, 0.5, 0.6, 1.0];
-        for (bx, by, bw, bh) in [
-            (x, y + h - 1.0, w, 1.0),
-            (x, y, 1.0, h),
-            (x + w - 1.0, y, 1.0, h),
-        ] {
-            let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-        }
     }
 }
 
@@ -943,7 +767,7 @@ mod tests {
                 discount_price: 50,
             }],
         );
-        shop_ui.qty_popup_open = true;
+        shop_ui.open_qty_popup(0);
 
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -952,7 +776,7 @@ mod tests {
 
         let events = shop_ui.build(&mut ui);
         assert!(events.is_empty());
-        assert!(!shop_ui.qty_popup_open);
+        assert!(shop_ui.qty_popup.is_none());
         assert!(shop_ui.shop.is_open());
     }
 

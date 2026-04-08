@@ -1,32 +1,5 @@
-use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
-use ragnarok_ui::rect::Rect;
-use ragnarok_ui::text_input::TextInput;
-
-const OVERLAY_ID: WidgetId = WidgetId(420);
-const INPUT_ID: WidgetId = WidgetId(421);
-const OK_BTN_ID: WidgetId = WidgetId(422);
-const CANCEL_BTN_ID: WidgetId = WidgetId(423);
-
-const DIALOG_W: f32 = 220.0;
-const DIALOG_H: f32 = 55.0;
-const PADDING: f32 = 4.0;
-const BTN_SPACING: f32 = 3.0;
-const FALLBACK_BTN_W: f32 = 42.0;
-const FALLBACK_BTN_H: f32 = 20.0;
-
-const WIN_TEXTURE: &str = "data/texture/유저인터페이스/win_msgbox.bmp";
-
-const OK_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_ok.bmp",
-    hover: "data/texture/유저인터페이스/btn_ok_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_ok_b.bmp",
-};
-const CANCEL_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_cancel.bmp",
-    hover: "data/texture/유저인터페이스/btn_cancel_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_cancel_b.bmp",
-};
+use ragnarok_ui::frame::{UiFrame, WidgetId};
+use crate::number_input::{NumberInputDialog, NumberInputConfig, NumberInputResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DropQuantityResult {
@@ -39,118 +12,48 @@ pub struct DropQuantityDialog {
     pub item_index: u16,
     pub max_count: i16,
     pub has_grf_textures: bool,
-    input: TextInput,
-    btn_size: (f32, f32),
-    win_size: (f32, f32),
+    inner: NumberInputDialog,
 }
 
 impl DropQuantityDialog {
     pub fn new(item_index: u16, max_count: i16) -> Self {
-        let mut input = TextInput::new(6, false);
-        input.text = max_count.to_string();
-        input.cursor_pos = input.text.chars().count();
+        let config = NumberInputConfig {
+            label: Some(format!("How many (max {})?", max_count)),
+            show_cancel: true,
+            escape_cancels: true,
+            default_value: max_count.to_string(),
+            max_len: 6,
+        };
         Self {
             item_index,
             max_count,
             has_grf_textures: false,
-            input,
-            btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
-            win_size: (DIALOG_W, DIALOG_H),
+            inner: NumberInputDialog::new(config, WidgetId(421)),
         }
     }
 
     pub fn set_texture_sizes(&mut self, size_fn: impl Fn(&str) -> Option<(u32, u32)>) {
-        if let Some((w, h)) = size_fn(OK_BTN.normal) {
-            self.btn_size = (w as f32, h as f32);
-        }
-        if let Some((w, h)) = size_fn(WIN_TEXTURE) {
-            self.win_size = (w as f32, h as f32);
-        }
+        self.inner.set_texture_sizes(size_fn);
     }
 
     pub fn build(&mut self, ui: &mut UiFrame) -> DropQuantityResult {
-        if ui.ctx.key_escape {
-            return DropQuantityResult::Cancel;
-        }
-
-        // Full-screen overlay to block input behind
-        let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
-        ui.interact(OVERLAY_ID, screen);
-        let (v, i) = draw::quad_vertices(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height, [0.0, 0.0, 0.0, 0.5]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-
-        // Dialog box centered on screen
-        let (dialog_w, dialog_h) = self.win_size;
-        let dx = ((ui.ctx.screen_width - dialog_w) / 2.0).floor();
-        let dy = ((ui.ctx.screen_height - dialog_h) / 2.0).floor();
-
-        if self.has_grf_textures {
-            let (v, i) = draw::quad_vertices(dx, dy, dialog_w, dialog_h, [1.0, 1.0, 1.0, 1.0]);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(WIN_TEXTURE.to_string()) });
-        } else {
-            let (v, i) = draw::quad_vertices(dx, dy, dialog_w, dialog_h, [0.2, 0.2, 0.28, 1.0]);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-            let border_color = [0.5, 0.5, 0.6, 1.0];
-            for (bx, by, bw, bh) in [
-                (dx, dy, dialog_w, 1.0),
-                (dx, dy + dialog_h - 1.0, dialog_w, 1.0),
-                (dx, dy, 1.0, dialog_h),
-                (dx + dialog_w - 1.0, dy, 1.0, dialog_h),
-            ] {
-                let (v, i) = draw::quad_vertices(bx, by, bw, bh, border_color);
-                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        self.inner.has_grf_textures = self.has_grf_textures;
+        match self.inner.build(ui) {
+            NumberInputResult::Submitted => {
+                let qty: i16 = self.inner.value_i16().unwrap_or(0);
+                if qty > 0 && qty <= self.max_count {
+                    DropQuantityResult::Ok(qty)
+                } else {
+                    DropQuantityResult::Cancel
+                }
             }
+            NumberInputResult::Cancel => DropQuantityResult::Cancel,
+            NumberInputResult::None => DropQuantityResult::None,
         }
-
-        let text_color = if self.has_grf_textures { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
-
-        // Label
-        let label = format!("How many (max {})?", self.max_count);
-        let label_w = ui.atlas.measure_text(&label);
-        let label_x = dx + (dialog_w - label_w) / 2.0;
-        let label_y = dy + PADDING + ui.atlas.line_height;
-        ui.text(label_x, label_y, &label, text_color);
-
-        // Input field
-        let input_y = label_y + PADDING;
-        let (btn_w, btn_h) = self.btn_size;
-        let input_w = dialog_w - PADDING * 2.0 - btn_w * 2.0 - BTN_SPACING * 3.0;
-        let input_rect = Rect::new(dx + PADDING, input_y, input_w, 16.0);
-
-        if ui.focused() != Some(INPUT_ID) {
-            ui.set_focus(INPUT_ID);
-        }
-        let input_bg = if self.has_grf_textures { TextInputBg::Transparent } else { TextInputBg::Default };
-        ui.text_input(INPUT_ID, input_rect, &mut self.input, input_bg);
-
-        // OK / Cancel buttons
-        let btn_x = dx + PADDING + input_w + BTN_SPACING;
-        let ok_rect = Rect::new(btn_x, input_y - 2.0, btn_w, btn_h);
-        let cancel_rect = Rect::new(btn_x + btn_w + BTN_SPACING, input_y - 2.0, btn_w, btn_h);
-
-        let ok = ui.button(OK_BTN_ID, ok_rect, &OK_BTN, "OK");
-        let cancel = ui.button(CANCEL_BTN_ID, cancel_rect, &CANCEL_BTN, "Cancel");
-
-        if ok.clicked() || ui.ctx.key_enter {
-            let qty: i16 = self.input.text.parse().unwrap_or(0);
-            if qty > 0 && qty <= self.max_count {
-                return DropQuantityResult::Ok(qty);
-            }
-            return DropQuantityResult::Cancel;
-        }
-        if cancel.clicked() {
-            return DropQuantityResult::Cancel;
-        }
-
-        DropQuantityResult::None
     }
 
     pub fn grf_texture_paths() -> Vec<&'static str> {
-        vec![
-            WIN_TEXTURE,
-            OK_BTN.normal, OK_BTN.hover, OK_BTN.pressed,
-            CANCEL_BTN.normal, CANCEL_BTN.hover, CANCEL_BTN.pressed,
-        ]
+        NumberInputDialog::grf_texture_paths()
     }
 }
 
@@ -171,8 +74,7 @@ mod tests {
     #[test]
     fn enter_key_confirms_with_valid_quantity() {
         let mut dialog = DropQuantityDialog::new(0, 10);
-        dialog.input.text = "5".to_string();
-        dialog.input.cursor_pos = 1;
+        dialog.inner.set_input_text("5");
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
@@ -183,8 +85,7 @@ mod tests {
     #[test]
     fn enter_key_cancels_with_zero() {
         let mut dialog = DropQuantityDialog::new(0, 10);
-        dialog.input.text = "0".to_string();
-        dialog.input.cursor_pos = 1;
+        dialog.inner.set_input_text("0");
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
@@ -195,8 +96,7 @@ mod tests {
     #[test]
     fn enter_key_cancels_with_over_max() {
         let mut dialog = DropQuantityDialog::new(0, 10);
-        dialog.input.text = "11".to_string();
-        dialog.input.cursor_pos = 2;
+        dialog.inner.set_input_text("11");
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
@@ -226,7 +126,6 @@ mod tests {
     #[test]
     fn initial_text_is_max_count() {
         let dialog = DropQuantityDialog::new(5, 42);
-        assert_eq!(dialog.input.text, "42");
-        assert_eq!(dialog.input.cursor_pos, 2);
+        assert_eq!(dialog.inner.value_str(), "42");
     }
 }

@@ -7,6 +7,8 @@ pub mod inventory_window;
 pub mod login_window;
 pub mod npc_dialog;
 pub mod npc_shop;
+pub mod number_input;
 pub mod scrollbar;
 pub mod server_list_window;
 pub mod system_menu;
+pub(crate) mod window_chrome;

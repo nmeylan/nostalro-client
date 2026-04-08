@@ -18,6 +18,7 @@ use ragnarok_ui_component::inventory_window::InventoryWindow;
 use ragnarok_ui_component::login_window::LoginWindow;
 use ragnarok_ui_component::npc_dialog::NpcDialog;
 use ragnarok_ui_component::npc_shop::NpcShop;
+use ragnarok_ui_component::number_input::{NumberInputDialog, NumberInputConfig};
 use ragnarok_ui_component::server_list_window::ServerListWindow;
 use ragnarok_ui_component::system_menu::SystemMenu;
 
@@ -28,6 +29,7 @@ const GAME_COMPONENTS: &[&str] = &[
     "equipment",
     "system_menu",
     "confirm_dialog",
+    "number_input",
     "chat",
 ];
 const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
@@ -54,6 +56,9 @@ enum State {
     ConfirmDialog {
         dialog: ConfirmDialog,
         open: bool,
+    },
+    NumberInput {
+        dialog: NumberInputDialog,
     },
     ServerList {
         win: ServerListWindow,
@@ -136,6 +141,18 @@ fn create_single(name: &str) -> State {
         "confirm_dialog" => State::ConfirmDialog {
             dialog: ConfirmDialog::new("Are you sure you want to quit?"),
             open: false,
+        },
+        "number_input" => State::NumberInput {
+            dialog: NumberInputDialog::new(
+                NumberInputConfig {
+                    label: Some("How many (max 99)?".to_string()),
+                    show_cancel: true,
+                    escape_cancels: true,
+                    default_value: "99".to_string(),
+                    max_len: 6,
+                },
+                WidgetId(950),
+            ),
         },
         "server_list" => State::ServerList {
             win: ServerListWindow::new(vec![
@@ -403,6 +420,10 @@ fn grf_init_single(
             dialog.has_grf_textures = true;
             dialog.set_texture_sizes(size_fn);
         }
+        State::NumberInput { dialog } => {
+            dialog.has_grf_textures = true;
+            dialog.set_texture_sizes(size_fn);
+        }
         State::ServerList { win } => {
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
@@ -497,6 +518,9 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
                 }
             } else {
             }
+        }
+        State::NumberInput { dialog } => {
+            dialog.build(ui);
         }
         State::ServerList { win } => {
             win.build(ui);

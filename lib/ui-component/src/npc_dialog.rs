@@ -4,6 +4,7 @@ use ragnarok_ui::draw::{self, DrawCall, TextureRef, strip_color_codes, word_wrap
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
+use crate::number_input::{NumberInputDialog, NumberInputConfig, NumberInputResult};
 
 const OVERLAY_ID: WidgetId = WidgetId(600);
 const NEXT_BTN_ID: WidgetId = WidgetId(601);
@@ -71,8 +72,8 @@ const BTN_SPACING: f32 = 3.0;
 pub struct NpcDialog {
     pub has_grf_textures: bool,
     pub dialog: NpcDialogData,
-    pub number_input: TextInput,
     pub string_input: TextInput,
+    number_input_dialog: Option<NumberInputDialog>,
     btn_size: (f32, f32),
     win_size: (f32, f32),
 }
@@ -82,8 +83,8 @@ impl NpcDialog {
         Self {
             has_grf_textures: false,
             dialog: NpcDialogData::new(),
-            number_input: TextInput::new(10, false),
             string_input: TextInput::new(70, false),
+            number_input_dialog: None,
             btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
             win_size: (280.0, 120.0),
         }
@@ -154,17 +155,7 @@ impl NpcDialog {
                 }
             }
             NpcDialogState::WaitingForNumberInput => {
-                if ui.ctx.key_enter {
-                    let value: i32 = self.number_input.text.parse().unwrap_or(0);
-                    events.push(GameEvent::RequestNpcInputNumber {
-                        npc_id: self.dialog.npc_id,
-                        value,
-                    });
-                    self.number_input.text.clear();
-                    self.number_input.cursor_pos = 0;
-                    self.dialog.close();
-                    return events;
-                }
+                // Handled by NumberInputDialog popup below
             }
             NpcDialogState::WaitingForStringInput => {
                 if ui.ctx.key_enter {
@@ -226,11 +217,8 @@ impl NpcDialog {
             let text_line_h = TEXT_LINE_HEIGHT ;
             let text_h = (wrapped_lines.len().max(1) as f32) * text_line_h;
 
-            let input_h = if matches!(
-                state,
-                NpcDialogState::WaitingForNumberInput | NpcDialogState::WaitingForStringInput
-            ) {
-                30.0 
+            let input_h = if state == NpcDialogState::WaitingForStringInput {
+                30.0
             } else {
                 0.0
             };
@@ -240,7 +228,6 @@ impl NpcDialog {
                 state,
                 NpcDialogState::WaitingForNext
                     | NpcDialogState::WaitingForClose
-                    | NpcDialogState::WaitingForNumberInput
                     | NpcDialogState::WaitingForStringInput
             );
             let btn_area_h = if has_button { btn_h + padding } else { 0.0 };
@@ -262,47 +249,14 @@ impl NpcDialog {
                 text_y += text_line_h;
             }
 
-            // Input fields
-            if state == NpcDialogState::WaitingForNumberInput {
-                let input_y = text_y + padding;
-                let input_rect = Rect::new(
-                    dx + padding,
-                    input_y,
-                    text_area_w - btn_w - padding,
-                    22.0 ,
-                );
-                if ui.focused() != Some(INPUT_ID) {
-                    ui.set_focus(INPUT_ID);
-                }
-                ui.text_input(
-                    INPUT_ID,
-                    input_rect,
-                    &mut self.number_input,
-                    TextInputBg::Default,
-                );
-
-                let ok_rect = Rect::new(dx + dialog_w - padding - btn_w, input_y, btn_w, btn_h);
-                let ok = ui.button(OK_BTN_ID, ok_rect, &OK_BTN, "OK");
-                if ok.clicked() {
-                    let value: i32 = self.number_input.text.parse().unwrap_or(0);
-                    events.push(GameEvent::RequestNpcInputNumber {
-                        npc_id: self.dialog.npc_id,
-                        value,
-                    });
-                    self.number_input.text.clear();
-                    self.number_input.cursor_pos = 0;
-                    self.dialog.close();
-                    ui.has_grf_textures = prev_grf;
-                    return events;
-                }
-            }
+            // String input (inline in dialog)
             if state == NpcDialogState::WaitingForStringInput {
                 let input_y = text_y + padding;
                 let input_rect = Rect::new(
                     dx + padding,
                     input_y,
                     text_area_w - btn_w - padding,
-                    22.0 ,
+                    22.0,
                 );
                 if ui.focused() != Some(INPUT_ID) {
                     ui.set_focus(INPUT_ID);
@@ -365,6 +319,37 @@ impl NpcDialog {
         if state == NpcDialogState::WaitingForMenu {
             let menu_events = self.build_menu_window(ui, dx);
             events.extend(menu_events);
+        }
+
+        // Number input as a separate popup (same dialog as drop quantity / npc shop)
+        if state == NpcDialogState::WaitingForNumberInput {
+            if self.number_input_dialog.is_none() {
+                let mut dialog = NumberInputDialog::new(
+                    NumberInputConfig {
+                        label: Some("Input number".to_string()),
+                        show_cancel: false,
+                        escape_cancels: false,
+                        default_value: String::new(),
+                        max_len: 10,
+                    },
+                    WidgetId(INPUT_ID.0),
+                );
+                dialog.has_grf_textures = self.has_grf_textures;
+                self.number_input_dialog = Some(dialog);
+            }
+            let dialog = self.number_input_dialog.as_mut().unwrap();
+            dialog.has_grf_textures = self.has_grf_textures;
+            if let NumberInputResult::Submitted = dialog.build(ui) {
+                let value: i32 = dialog.value_i32().unwrap_or(0);
+                events.push(GameEvent::RequestNpcInputNumber {
+                    npc_id: self.dialog.npc_id,
+                    value,
+                });
+                self.number_input_dialog = None;
+                self.dialog.close();
+            }
+        } else {
+            self.number_input_dialog = None;
         }
 
         ui.has_grf_textures = prev_grf;

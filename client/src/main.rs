@@ -194,8 +194,8 @@ impl App {
                         entity.enter_pickup(0.5);
                     }
                 } else if let Some(gat) = &self.game.gat {
-                    let dest_x = floor_item.x as i32;
-                    let dest_y = floor_item.y as i32;
+                    let dest_x = floor_item.x as i32 - 1;
+                    let dest_y = floor_item.y as i32 - 1;
                     if let Some(move_action) = try_move_to(gat, px, py, dest_x, dest_y) {
                         if let Some(tx) = &self.network_cmd_tx {
                             let packet = build_request_move_packet(

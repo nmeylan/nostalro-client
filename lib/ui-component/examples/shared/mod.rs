@@ -118,7 +118,9 @@ impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
         };
 
         let elapsed = self.start_time.elapsed().as_secs_f32();
-        let positions = HashMap::new();
+        let mut positions = HashMap::new();
+        positions.insert(800, [200.0, 200.0]);
+        positions.insert(950, [400.0, 200.0]);
         let ui = UiFrame::new(
             &self.ui_ctx,
             &gpu.font_atlas,
