@@ -16,6 +16,8 @@ const BTN_SPACING: f32 = 3.0;
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
 
+const WIN_TEXTURE: &str = "data/texture/유저인터페이스/win_msgbox.bmp";
+
 const OK_BTN: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/btn_ok.bmp",
     hover: "data/texture/유저인터페이스/btn_ok_a.bmp",
@@ -38,7 +40,7 @@ pub struct ConfirmDialog {
     pub message: String,
     pub has_grf_textures: bool,
     btn_size: (f32, f32),
-    container: DialogContainer,
+    win_size: (f32, f32),
 }
 
 impl ConfirmDialog {
@@ -47,7 +49,7 @@ impl ConfirmDialog {
             message: message.to_string(),
             has_grf_textures: false,
             btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
-            container: DialogContainer::new(),
+            win_size: (DIALOG_W, DIALOG_H),
         }
     }
 
@@ -55,7 +57,9 @@ impl ConfirmDialog {
         if let Some((w, h)) = size_fn(OK_BTN.normal) {
             self.btn_size = (w as f32, h as f32);
         }
-        self.container.set_texture_sizes(&size_fn);
+        if let Some((w, h)) = size_fn(WIN_TEXTURE) {
+            self.win_size = (w as f32, h as f32);
+        }
     }
 
     pub fn build(&mut self, ui: &mut UiFrame) -> ConfirmResult {
@@ -73,13 +77,27 @@ impl ConfirmDialog {
         ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
 
         // Dialog box centered on screen
-        let dialog_w = DIALOG_W;
-        let dialog_h = DIALOG_H;
+        let (dialog_w, dialog_h) = self.win_size;
         let dx = ((ui.ctx.screen_width - dialog_w) / 2.0).floor();
         let dy = ((ui.ctx.screen_height - dialog_h) / 2.0).floor();
 
-        self.container.has_grf_textures = self.has_grf_textures;
-        self.container.draw(&mut ui.draw_calls, dx, dy, dialog_w, dialog_h, [1.0, 1.0, 1.0, 1.0]);
+        if self.has_grf_textures {
+            let (v, i) = draw::quad_vertices(dx, dy, dialog_w, dialog_h, [1.0, 1.0, 1.0, 1.0]);
+            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(WIN_TEXTURE.to_string()) });
+        } else {
+            let (v, i) = draw::quad_vertices(dx, dy, dialog_w, dialog_h, [0.2, 0.2, 0.28, 1.0]);
+            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            let border_color = [0.5, 0.5, 0.6, 1.0];
+            for (bx, by, bw, bh) in [
+                (dx, dy, dialog_w, 1.0),
+                (dx, dy + dialog_h - 1.0, dialog_w, 1.0),
+                (dx, dy, 1.0, dialog_h),
+                (dx + dialog_w - 1.0, dy, 1.0, dialog_h),
+            ] {
+                let (v, i) = draw::quad_vertices(bx, by, bw, bh, border_color);
+                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            }
+        }
 
         // OK / Cancel buttons right-aligned at bottom
         let (btn_w, btn_h) = self.btn_size;
@@ -89,7 +107,8 @@ impl ConfirmDialog {
         // Message text centered
         let (text_y, text_x) =
             container.text_dialog_alignment(PADDING , btns[0].y, ui.atlas.line_height);
-        ui.text(text_x, text_y, &self.message, self.container.text_color());
+        let text_color = if self.has_grf_textures { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
+        ui.text(text_x, text_y, &self.message, text_color);
 
         let cancel = ui.button(CANCEL_BTN_ID, btns[0], &CANCEL_BTN, "Cancel");
         let ok = ui.button(OK_BTN_ID, btns[1], &OK_BTN, "OK");
@@ -105,12 +124,11 @@ impl ConfirmDialog {
     }
 
     pub fn grf_texture_paths() -> Vec<&'static str> {
-        let mut paths = DialogContainer::grf_texture_paths();
-        paths.extend_from_slice(&[
+        vec![
+            WIN_TEXTURE,
             OK_BTN.normal, OK_BTN.hover, OK_BTN.pressed,
             CANCEL_BTN.normal, CANCEL_BTN.hover, CANCEL_BTN.pressed,
-        ]);
-        paths
+        ]
     }
 }
 
