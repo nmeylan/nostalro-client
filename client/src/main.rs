@@ -197,8 +197,8 @@ impl App {
                         entity.enter_pickup(0.5);
                     }
                 } else if let Some(gat) = &self.game.gat {
-                    let dest_x = floor_item.x as i32 - 1;
-                    let dest_y = floor_item.y as i32 - 1;
+                    let dest_x = floor_item.x as i32;
+                    let dest_y = floor_item.y as i32;
                     if let Some(move_action) = try_move_to(gat, px, py, dest_x, dest_y) {
                         if let Some(tx) = &self.network_cmd_tx {
                             let packet = build_request_move_packet(
@@ -2245,6 +2245,7 @@ impl App {
         }
     }
 
+    // When pickup happen after move
     fn check_pending_pickup(&mut self) {
         let item_id = match self.game.pending_pickup_item_id {
             Some(id) => id,
@@ -2269,6 +2270,7 @@ impl App {
                 let _ = tx.send(NetworkCommand::SendPacket(packet));
             }
             if let Some(entity) = self.game.entities.player_mut() {
+                entity.movement.stop();
                 entity.enter_pickup(0.5);
             }
             self.game.pending_pickup_item_id = None;

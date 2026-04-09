@@ -574,7 +574,8 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             win.build(ui);
         }
         State::DialogContainerDemo {  notification } => {
-            notification.build(ui);
+            let mut character = Character::new();
+            notification.build(ui, &mut character, &DataTable::default());
         }
         State::Category { components } => {
 

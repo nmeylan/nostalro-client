@@ -1,6 +1,9 @@
+use ragnarok_game::character::Character;
+use ragnarok_game::data_table::DataTable;
+use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::UiFrame;
-use crate::Window;
+use crate::{Window, InGameWindow};
 use crate::helper::dialog_container::DialogContainer;
 
 const DISPLAY_DURATION: f32 = 3.0;
@@ -40,8 +43,16 @@ impl ItemPickupNotification {
         });
     }
 
-    pub fn build(&mut self, ui: &mut UiFrame) {
-        let Some(entry) = &mut self.entry else { return };
+
+    pub fn is_empty(&self) -> bool {
+        self.entry.is_none()
+    }
+
+}
+
+impl InGameWindow for ItemPickupNotification {
+    fn build(&mut self, ui: &mut UiFrame, _character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
+        let Some(entry) = &mut self.entry else { return vec![] };
 
         let start = *entry.start_time.get_or_insert(ui.elapsed_secs);
         let age = ui.elapsed_secs - start;
@@ -49,7 +60,7 @@ impl ItemPickupNotification {
 
         if age > total {
             self.entry = None;
-            return;
+            return vec![];
         }
 
         let alpha = if age > DISPLAY_DURATION {
@@ -86,12 +97,8 @@ impl ItemPickupNotification {
         let mut color = self.container.text_color();
         color[3] = alpha;
         ui.text(tx, ty, &text, color);
+        vec![]
     }
-
-    pub fn is_empty(&self) -> bool {
-        self.entry.is_none()
-    }
-
 }
 
 impl Window for ItemPickupNotification {
@@ -112,6 +119,7 @@ mod tests {
     use super::*;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
+    use ragnarok_ui::frame::TextInputBg::Default;
     use ragnarok_ui::state::StateCache;
 
     fn make_frame_with_elapsed<'a>(
@@ -129,7 +137,8 @@ mod tests {
         let mut state = StateCache::new();
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame_with_elapsed(&ctx, &mut state, 0.0);
-        notif.build(&mut ui);
+        let mut character = Character::new();
+        notif.build(&mut ui, &mut character, &DataTable::default());
         assert!(ui.draw_calls.is_empty());
     }
 
@@ -140,7 +149,8 @@ mod tests {
         let mut state = StateCache::new();
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame_with_elapsed(&ctx, &mut state, 1.0);
-        notif.build(&mut ui);
+        let mut character = Character::new();
+        notif.build(&mut ui, &mut character, &DataTable::default());
         assert!(!ui.draw_calls.is_empty());
         assert!(!notif.is_empty());
     }
@@ -155,12 +165,14 @@ mod tests {
 
         // First build sets start_time to 0.0
         let mut ui = make_frame_with_elapsed(&ctx, &mut state, 0.0);
-        notif.build(&mut ui);
+        let mut character = Character::new();
+        notif.build(&mut ui, &mut character, &DataTable::default());
         assert!(!notif.is_empty());
 
         // Build after total duration
         let mut ui = make_frame_with_elapsed(&ctx, &mut state, 5.0);
-        notif.build(&mut ui);
+        let mut character = Character::new();
+        notif.build(&mut ui, &mut character, &DataTable::default());
         assert!(notif.is_empty());
     }
 }

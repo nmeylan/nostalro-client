@@ -5,6 +5,7 @@ use crate::item_resource_table::ItemResourceTable;
 use crate::item_slot_count_table::ItemSlotCountTable;
 use crate::name_table::NameTable;
 
+#[derive(Default)]
 pub struct DataTable {
     pub name: Option<NameTable>,
     pub accessory: Option<AccessoryTable>,

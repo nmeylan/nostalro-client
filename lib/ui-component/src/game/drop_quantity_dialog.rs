@@ -1,13 +1,9 @@
+use ragnarok_game::character::Character;
+use ragnarok_game::data_table::DataTable;
+use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
-use crate::Window;
+use crate::{Window, InGameWindow};
 use super::number_input::{NumberInputDialog, NumberInputConfig, NumberInputResult};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DropQuantityResult {
-    None,
-    Ok(i16),
-    Cancel,
-}
 
 pub struct DropQuantityDialog {
     pub item_index: u16,
@@ -33,22 +29,24 @@ impl DropQuantityDialog {
         }
     }
 
-    pub fn build(&mut self, ui: &mut UiFrame) -> DropQuantityResult {
+}
+
+impl InGameWindow for DropQuantityDialog {
+    fn build(&mut self, ui: &mut UiFrame, _character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
         self.inner.has_grf_textures = self.has_grf_textures;
         match self.inner.build(ui) {
             NumberInputResult::Submitted => {
                 let qty: i16 = self.inner.value_i16().unwrap_or(0);
                 if qty > 0 && qty <= self.max_count {
-                    DropQuantityResult::Ok(qty)
+                    vec![GameEvent::RequestDropItem { index: self.item_index, count: qty }]
                 } else {
-                    DropQuantityResult::Cancel
+                    vec![GameEvent::DialogClosed]
                 }
             }
-            NumberInputResult::Cancel => DropQuantityResult::Cancel,
-            NumberInputResult::None => DropQuantityResult::None,
+            NumberInputResult::Cancel => vec![GameEvent::DialogClosed],
+            NumberInputResult::None => vec![]
         }
     }
-
 }
 
 impl Window for DropQuantityDialog {
@@ -78,6 +76,12 @@ mod tests {
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
+    fn build_dialog(dialog: &mut DropQuantityDialog, ctx: &UiContext, state: &mut StateCache) -> Vec<GameEvent> {
+        let mut ui = make_frame(ctx, state);
+        let mut character = Character::new();
+        dialog.build(&mut ui, &mut character, &DataTable::default())
+    }
+
     #[test]
     fn enter_key_confirms_with_valid_quantity() {
         let mut dialog = DropQuantityDialog::new(0, 10);
@@ -85,8 +89,9 @@ mod tests {
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
-        let mut ui = make_frame(&ctx, &mut state);
-        assert_eq!(dialog.build(&mut ui), DropQuantityResult::Ok(5));
+        let events = build_dialog(&mut dialog, &ctx, &mut state);
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], GameEvent::RequestDropItem { index: 0, count: 5 }));
     }
 
     #[test]
@@ -96,8 +101,9 @@ mod tests {
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
-        let mut ui = make_frame(&ctx, &mut state);
-        assert_eq!(dialog.build(&mut ui), DropQuantityResult::Cancel);
+        let events = build_dialog(&mut dialog, &ctx, &mut state);
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], GameEvent::DialogClosed));
     }
 
     #[test]
@@ -107,8 +113,9 @@ mod tests {
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
-        let mut ui = make_frame(&ctx, &mut state);
-        assert_eq!(dialog.build(&mut ui), DropQuantityResult::Cancel);
+        let events = build_dialog(&mut dialog, &ctx, &mut state);
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], GameEvent::DialogClosed));
     }
 
     #[test]
@@ -117,8 +124,9 @@ mod tests {
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
-        let mut ui = make_frame(&ctx, &mut state);
-        assert_eq!(dialog.build(&mut ui), DropQuantityResult::Cancel);
+        let events = build_dialog(&mut dialog, &ctx, &mut state);
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], GameEvent::DialogClosed));
     }
 
     #[test]
@@ -126,8 +134,8 @@ mod tests {
         let mut dialog = DropQuantityDialog::new(0, 10);
         let mut state = StateCache::new();
         let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &mut state);
-        assert_eq!(dialog.build(&mut ui), DropQuantityResult::None);
+        let events = build_dialog(&mut dialog, &ctx, &mut state);
+        assert!(events.is_empty());
     }
 
     #[test]

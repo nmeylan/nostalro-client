@@ -209,6 +209,9 @@ pub enum GameEvent {
     // Floor items (client → server)
     RequestPickupItem { id: u32 },
 
+    // UI lifecycle
+    DialogClosed,
+
     // No-op acknowledgement (packet parsed but no action needed yet)
     Acknowledged,
 }

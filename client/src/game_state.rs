@@ -16,7 +16,7 @@ use ragnarok_game::server_time::ServerTimeClock;
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
-use ragnarok_ui_component::game::drop_quantity_dialog::{DropQuantityDialog, DropQuantityResult};
+use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::equipment_window::{EquipmentWindow, EQ_WINDOW_ID};
 use ragnarok_ui_component::game::inventory_window::{InventoryWindow, INV_WINDOW_ID};
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
@@ -102,7 +102,7 @@ impl GameState {
         let allow_escape = !chat_was_active && !npc_dialog_open && !shop_open && !inv_open;
         self.system_menu.allow_escape_toggle = allow_escape;
         events.extend(self.system_menu.build(ui, &mut self.character, &self.data_table));
-        self.item_pickup_notification.build(ui);
+        events.extend(InGameWindow::build(&mut self.item_pickup_notification, ui, &mut self.character, &self.data_table));
 
         // Drag-cancel handling
         if let Some(cancelled) = ui.draw_drag_icon() {
@@ -136,18 +136,15 @@ impl GameState {
         }
 
         if let Some(dialog) = &mut self.drop_quantity_dialog {
-            match dialog.build(ui) {
-                DropQuantityResult::Ok(qty) => {
-                    let index = dialog.item_index;
-                    events.push(GameEvent::RequestDropItem { index, count: qty });
+            let dialog_events = InGameWindow::build(dialog, ui, &mut self.character, &self.data_table);
+            let closed = dialog_events.iter().any(|e| matches!(e, GameEvent::DialogClosed | GameEvent::RequestDropItem { .. }));
+            if closed {
+                if dialog_events.iter().any(|e| matches!(e, GameEvent::RequestDropItem { .. })) {
                     self.waiting_item_throw_ack = true;
-                    self.drop_quantity_dialog = None;
                 }
-                DropQuantityResult::Cancel => {
-                    self.drop_quantity_dialog = None;
-                }
-                DropQuantityResult::None => {}
+                self.drop_quantity_dialog = None;
             }
+            events.extend(dialog_events.into_iter().filter(|e| !matches!(e, GameEvent::DialogClosed)));
         }
 
         events
