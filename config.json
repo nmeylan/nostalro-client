@@ -14,42 +14,46 @@
   "enhanced_lag_compensation": false,
   "debug_network_delay_ms": 0,
   "trace_packets": false,
-  "window_positions": {
-    "701": [
-      100.0,
-      100.0
-    ],
-    "800": [
-      0.0,
-      100.0
-    ],
-    "606": [
-      520.0,
-      316.0
-    ],
-    "712": [
-      520.0,
-      316.0
-    ],
-    "210": [
-      341.0,
-      346.0
-    ],
-    "10": [
-      283.0,
-      344.66666
-    ],
-    "424": [
-      520.0,
-      316.0
-    ],
-    "110": [
-      489.0,
-      568.0
-    ],
-    "702": [
-      390.0,
-      260.0
-    ]
+  "window_state": {
+    "800": {
+      "position": [
+        0.0,
+        100.0
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "900": {
+      "position": [
+        0.0,
+        210.0
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "10": {
+      "position": [
+        283.0,
+        404.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "110": {
+      "position": [
+        490.0,
+        635.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "210": {
+      "position": [
+        342.0,
+        524.0
+      ],
+      "open": false,
+      "collapsed": false
+    }
   }
 }

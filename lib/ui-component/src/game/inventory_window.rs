@@ -141,10 +141,6 @@ impl InGameWindow for InventoryWindow {
 
         let mut events = Vec::new();
 
-        if ui.ctx.key_escape {
-            character.inventory.close();
-            return events;
-        }
 
         let scrollbar_w = SCROLLBAR_W;
         let prev_grf = ui.has_grf_textures;

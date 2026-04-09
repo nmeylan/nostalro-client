@@ -163,10 +163,6 @@ impl InGameWindow for EquipmentWindow {
 
         let mut events = Vec::new();
 
-        if ui.ctx.key_escape {
-            self.open = false;
-            return events;
-        }
 
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;

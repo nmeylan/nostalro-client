@@ -101,8 +101,7 @@ impl GameState {
         events.extend(self.npc_dialog.build(ui, &mut self.character, &self.data_table));
         let shop_open = self.npc_shop.shop.is_open();
         events.extend(self.npc_shop.build(ui, &mut self.character, &self.data_table));
-        let inv_open = self.character.inventory.is_open();
-        let allow_escape = !chat_was_active && !npc_dialog_open && !shop_open && !inv_open;
+        let allow_escape = !chat_was_active && !npc_dialog_open && !shop_open;
         self.system_menu.allow_escape_toggle = allow_escape;
         events.extend(self.system_menu.build(ui, &mut self.character, &self.data_table));
         events.extend(InGameWindow::build(&mut self.item_pickup_notification, ui, &mut self.character, &self.data_table));
