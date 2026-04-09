@@ -3,7 +3,7 @@ use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
 
-const CHAT_WINDOW_ID: WidgetId = WidgetId(300);
+pub const CHAT_WINDOW_ID: WidgetId = WidgetId(300);
 const INPUT_ID: WidgetId = WidgetId(301);
 const WHISPER_INPUT_ID: WidgetId = WidgetId(317);
 const HEIGHT_DRAG_ID: WidgetId = WidgetId(303);
@@ -437,6 +437,7 @@ impl ChatWindow {
             // Mouse wheel scroll when hovering message area
             let msg_rect = Rect::new(chat_x, chat_y, chat_w, msg_area_h);
             if msg_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) && ui.ctx.scroll_delta != 0.0 {
+                ui.any_hovered = true;
                 let max_lines = (msg_area_h / line_h) as usize;
                 let max_scroll = total_visual.saturating_sub(max_lines);
                 let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);

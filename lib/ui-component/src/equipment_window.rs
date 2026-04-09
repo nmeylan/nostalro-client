@@ -6,12 +6,12 @@ use ragnarok_game::item_slot_count_table::ItemSlotCountTable;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-use crate::inventory_window::INV_WIN_ID;
+use crate::inventory_window::INV_WINDOW_ID;
 
 const ITEM_INVERT_TEX: &str = "data/texture/유저인터페이스/basic_interface/item_invert.bmp";
 
 // -- Widget IDs --
-pub const EQ_WIN_ID: WidgetId = WidgetId(900);
+pub const EQ_WINDOW_ID: WidgetId = WidgetId(900);
 const EQ_CLOSE_BTN_ID: WidgetId = WidgetId(901);
 const EQ_MINI_BTN_ID: WidgetId = WidgetId(902);
 const EQ_SLOT_BASE_ID: u32 = 910;
@@ -149,11 +149,11 @@ impl EquipmentWindow {
 
         let default_x = 0.0;
         let default_y = 210.0 ;
-        let win = ui.window_at(EQ_WIN_ID, win_w, win_h, TITLE_H , default_x, default_y);
+        let win = ui.window_at(EQ_WINDOW_ID, win_w, win_h, TITLE_H, default_x, default_y);
 
         // Block clicks through window
         let win_rect = Rect::new(win.x, win.y, win_w, win_h);
-        ui.interact(EQ_WIN_ID, win_rect);
+        ui.interact(EQ_WINDOW_ID, win_rect);
 
         // -- Titlebar --
         draw_titlebar(ui, win.x, win.y, win_w, TITLE_H , grf);
@@ -234,7 +234,7 @@ impl EquipmentWindow {
 
         // Highlight valid slots when dragging an equipment item from inventory
         let highlight_location: Option<u16> = ui.drag_info()
-            .filter(|(src, _)| *src == INV_WIN_ID)
+            .filter(|(src, _)| *src == INV_WINDOW_ID)
             .and_then(|(_, idx)| inventory.get_item(idx as u16))
             .filter(|item| item.is_equipment() && !item.is_equipped())
             .map(|item| item.location);
@@ -304,7 +304,7 @@ impl EquipmentWindow {
 
                 // Begin drag on click (to unequip by dragging to inventory)
                 if response.clicked() {
-                    ui.drag_source(EQ_WIN_ID, item.index as usize, item.icon_path(), (ICON_SIZE, ICON_SIZE));
+                    ui.drag_source(EQ_WINDOW_ID, item.index as usize, item.icon_path(), (ICON_SIZE, ICON_SIZE));
                 }
 
                 // Unequip on double-click or right-click
@@ -330,7 +330,7 @@ impl EquipmentWindow {
         // Drop zone: accept drags from inventory (equip)
         let content_rect = Rect::new(win.x, content_y, win_w, content_h);
         if let Some((source_id, item_index)) = ui.drop_zone(content_rect) {
-            if source_id == INV_WIN_ID {
+            if source_id == INV_WINDOW_ID {
                 if let Some(item) = inventory.get_item(item_index as u16) {
                     if item.is_equipment() && !item.is_equipped() {
                         events.push(GameEvent::RequestEquipItem {

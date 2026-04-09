@@ -1,4 +1,4 @@
-use crate::equipment_window::EQ_WIN_ID;
+use crate::equipment_window::EQ_WINDOW_ID;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::item::{Item, InventoryTab};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
@@ -6,7 +6,7 @@ use ragnarok_ui::frame::{RESIZE_HANDLE_TEX, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
 // -- Widget IDs --
-pub const INV_WIN_ID: WidgetId = WidgetId(800);
+pub const INV_WINDOW_ID: WidgetId = WidgetId(800);
 const INV_TAB_USABLE_ID: WidgetId = WidgetId(801);
 const INV_TAB_EQUIP_ID: WidgetId = WidgetId(802);
 const INV_TAB_ETC_ID: WidgetId = WidgetId(803);
@@ -122,11 +122,11 @@ impl InventoryWindow {
 
         let default_x = 0.0;
         let default_y = 100.0;
-        let win = ui.window_at(INV_WIN_ID, win_w, win_h, TITLE_H, default_x, default_y);
+        let win = ui.window_at(INV_WINDOW_ID, win_w, win_h, TITLE_H, default_x, default_y);
 
         // Block clicks through window
         let win_rect = Rect::new(win.x, win.y, win_w, win_h);
-        ui.interact(INV_WIN_ID, win_rect);
+        ui.interact(INV_WINDOW_ID, win_rect);
 
         // -- Titlebar --
         draw_titlebar(ui, win.x, win.y, win_w, TITLE_H, grf);
@@ -334,7 +334,7 @@ impl InventoryWindow {
                 // Begin drag on click for any non-equipped item
                 if response.clicked() && !item.is_equipped() {
                     ui.drag_source(
-                        INV_WIN_ID,
+                        INV_WINDOW_ID,
                         item.index as usize,
                         item.icon_path(),
                         (ICON_SIZE, ICON_SIZE),
@@ -367,7 +367,7 @@ impl InventoryWindow {
             self.grid_rows as f32 * CELL_SIZE,
         );
         if let Some((source_id, item_index)) = ui.drop_zone(grid_rect) {
-            if source_id == EQ_WIN_ID {
+            if source_id == EQ_WINDOW_ID {
                 events.push(GameEvent::RequestUnequipItem {
                     index: item_index as u16,
                 });

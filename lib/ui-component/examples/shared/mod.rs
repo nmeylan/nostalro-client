@@ -120,10 +120,10 @@ impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
 
         let elapsed = self.start_time.elapsed().as_secs_f32();
         let mut positions = HashMap::new();
-        positions.insert(inventory_window::INV_WIN_ID.0, [0.0, 200.0]);
+        positions.insert(inventory_window::INV_WINDOW_ID.0, [0.0, 200.0]);
         positions.insert(npc_shop::INPUT_WIN_ID.0, [300.0, 100.0]);
         positions.insert(npc_shop::OUTPUT_WIN_ID.0, [740.0, 270.0]);
-        positions.insert(equipment_window::EQ_WIN_ID.0, [0.0, 400.0]);
+        positions.insert(equipment_window::EQ_WINDOW_ID.0, [0.0, 400.0]);
         let ui = UiFrame::new(
             &self.ui_ctx,
             &gpu.font_atlas,

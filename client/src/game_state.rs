@@ -14,14 +14,15 @@ use ragnarok_game::item_name_table::ItemNameTable;
 use ragnarok_game::item_resource_table::ItemResourceTable;
 use ragnarok_game::item_slot_count_table::ItemSlotCountTable;
 use ragnarok_game::name_table::NameTable;
-use ragnarok_game::event::CharacterInfo;
+use ragnarok_game::event::{CharacterInfo, GameEvent};
+use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_game::server_time::ServerTimeClock;
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
-use ragnarok_ui_component::chat_window::ChatWindow;
-use ragnarok_ui_component::drop_quantity_dialog::DropQuantityDialog;
-use ragnarok_ui_component::equipment_window::EquipmentWindow;
-use ragnarok_ui_component::inventory_window::InventoryWindow;
+use ragnarok_ui_component::chat_window::{self, ChatWindow};
+use ragnarok_ui_component::drop_quantity_dialog::{DropQuantityDialog, DropQuantityResult};
+use ragnarok_ui_component::equipment_window::{EquipmentWindow, EQ_WINDOW_ID};
+use ragnarok_ui_component::inventory_window::{InventoryWindow, INV_WINDOW_ID};
 use ragnarok_ui_component::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::npc_dialog::NpcDialog;
 use ragnarok_ui_component::npc_shop::NpcShop;
@@ -68,7 +69,119 @@ pub struct GameState {
     pub debug_show_pick_bounds: bool,
 }
 
+const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
+    chat_window::CHAT_WINDOW_ID,
+    INV_WINDOW_ID,
+    EQ_WINDOW_ID,
+];
+
 impl GameState {
+    pub fn build_in_game_ui(
+        &mut self,
+        ui: &mut UiFrame,
+        texture_size_fn: &dyn Fn(&str) -> Option<(u32, u32)>,
+    ) -> Vec<GameEvent> {
+        let chat_was_active = self.chat_window.is_active();
+        let mut events = Vec::new();
+
+        // Modal windows block interaction with z-ordered windows behind them
+        self.npc_shop.setup_modal(ui);
+
+        // Build z-orderable windows in persisted order (back-to-front)
+        let z_order = ui.get_z_order();
+        ui.compute_hovered_window(&z_order);
+        for &win_id in &z_order {
+            self.build_window(win_id, ui, &mut events);
+        }
+        // Build windows not yet in z-order (first appearance)
+        for &win_id in Z_ORDERABLE_WINDOWS {
+            if !z_order.contains(&win_id) {
+                self.build_window(win_id, ui, &mut events);
+            }
+        }
+
+        // Always-on-top windows (not z-orderable)
+        let npc_dialog_open = self.npc_dialog.dialog.is_open();
+        events.extend(self.npc_dialog.build(ui));
+        let shop_open = self.npc_shop.shop.is_open();
+        events.extend(self.npc_shop.build(ui));
+        let inv_open = self.inventory_window.inventory.is_open();
+        let allow_escape = !chat_was_active && !npc_dialog_open && !shop_open && !inv_open;
+        events.extend(self.system_menu.build(ui, allow_escape));
+        self.item_pickup_notification.build(ui);
+
+        // Drag-cancel handling
+        if let Some(cancelled) = ui.draw_drag_icon() {
+            if cancelled.source_id == INV_WINDOW_ID {
+                if self.waiting_item_throw_ack {
+                    // Already waiting for server ack, ignore
+                } else if self.equipment_window.is_visible() {
+                    self.chat_window
+                        .add_system("Please close the Equipment window.".to_string());
+                } else if let Some(item) = self
+                    .inventory_window
+                    .inventory
+                    .get_item(cancelled.item_index as u16)
+                {
+                    if item.count > 1 {
+                        let mut dialog = DropQuantityDialog::new(item.index, item.count);
+                        dialog.has_grf_textures = self.inventory_window.has_grf_textures;
+                        if dialog.has_grf_textures {
+                            dialog.set_texture_sizes(texture_size_fn);
+                        }
+                        self.drop_quantity_dialog = Some(dialog);
+                    } else {
+                        events.push(GameEvent::RequestDropItem {
+                            index: item.index,
+                            count: 1,
+                        });
+                        self.waiting_item_throw_ack = true;
+                    }
+                }
+            }
+        }
+
+        if let Some(dialog) = &mut self.drop_quantity_dialog {
+            match dialog.build(ui) {
+                DropQuantityResult::Ok(qty) => {
+                    let index = dialog.item_index;
+                    events.push(GameEvent::RequestDropItem { index, count: qty });
+                    self.waiting_item_throw_ack = true;
+                    self.drop_quantity_dialog = None;
+                }
+                DropQuantityResult::Cancel => {
+                    self.drop_quantity_dialog = None;
+                }
+                DropQuantityResult::None => {}
+            }
+        }
+
+        events
+    }
+
+    fn build_window(&mut self, win_id: WidgetId, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
+        match win_id {
+            chat_window::CHAT_WINDOW_ID => events.extend(self.chat_window.build(ui)),
+            INV_WINDOW_ID => events.extend(self.inventory_window.build(ui)),
+            EQ_WINDOW_ID => {
+                let Self {
+                    equipment_window,
+                    inventory_window,
+                    item_slot_count_table,
+                    card_name_table,
+                    ..
+                } = self;
+                events.extend(equipment_window.build(
+                    ui,
+                    &inventory_window.inventory,
+                    item_slot_count_table.as_ref(),
+                    card_name_table.as_ref(),
+                ));
+            }
+            _ => {}
+        }
+    }
+
     pub fn new() -> Self {
         Self {
             app_state: AppState::Login,

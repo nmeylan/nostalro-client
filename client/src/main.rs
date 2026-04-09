@@ -45,9 +45,7 @@ use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::state::StateCache;
 use ragnarok_ui_component::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::chat_window::ChatWindow;
-use ragnarok_ui_component::drop_quantity_dialog::{DropQuantityDialog, DropQuantityResult};
 use ragnarok_ui_component::equipment_window::EquipmentWindow;
-use ragnarok_ui_component::inventory_window::INV_WIN_ID;
 use ragnarok_ui_component::inventory_window::InventoryWindow;
 use ragnarok_ui_component::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::login_window::{LoginFocus, LoginWindow};
@@ -2173,105 +2171,10 @@ impl App {
                         initial_focus,
                         &self.config.window_positions,
                     );
-                    let chat_was_active = self.game.chat_window.is_active();
-                    let mut events = Vec::new();
-
-                    // Modal windows block interaction with z-ordered windows behind them
-                    self.game.npc_shop.setup_modal(&mut ui);
-
-                    // Build z-orderable windows in persisted order (back-to-front)
-                    let z_order = ui.get_z_order();
-                    ui.compute_hovered_window(&z_order);
-                    for &win_id in &z_order {
-                        match win_id.0 {
-                            300 => events.extend(self.game.chat_window.build(&mut ui)),
-                            800 => events.extend(self.game.inventory_window.build(&mut ui)),
-                            900 => events.extend(self.game.equipment_window.build(
-                                &mut ui,
-                                &self.game.inventory_window.inventory,
-                                self.game.item_slot_count_table.as_ref(),
-                                self.game.card_name_table.as_ref(),
-                            )),
-                            _ => {}
-                        }
-                    }
-                    // Build windows not yet in z-order (first appearance)
-                    if !z_order.iter().any(|id| id.0 == 300) {
-                        events.extend(self.game.chat_window.build(&mut ui));
-                    }
-                    if !z_order.iter().any(|id| id.0 == 800) {
-                        events.extend(self.game.inventory_window.build(&mut ui));
-                    }
-                    if !z_order.iter().any(|id| id.0 == 900) {
-                        events.extend(self.game.equipment_window.build(
-                            &mut ui,
-                            &self.game.inventory_window.inventory,
-                            self.game.item_slot_count_table.as_ref(),
-                            self.game.card_name_table.as_ref(),
-                        ));
-                    }
-
-                    // Always-on-top windows (not z-orderable)
-                    let npc_dialog_open = self.game.npc_dialog.dialog.is_open();
-                    events.extend(self.game.npc_dialog.build(&mut ui));
-                    let shop_open = self.game.npc_shop.shop.is_open();
-                    events.extend(self.game.npc_shop.build(&mut ui));
-                    let inv_open = self.game.inventory_window.inventory.is_open();
-                    let allow_escape =
-                        !chat_was_active && !npc_dialog_open && !shop_open && !inv_open;
-                    events.extend(self.game.system_menu.build(&mut ui, allow_escape));
-                    self.game.item_pickup_notification.build(&mut ui);
-
-                    if let Some(cancelled) = ui.draw_drag_icon() {
-                        if cancelled.source_id == INV_WIN_ID {
-                            if self.game.waiting_item_throw_ack {
-                                // Already waiting for server ack, ignore
-                            } else if self.game.equipment_window.is_visible() {
-                                self.game
-                                    .chat_window
-                                    .add_system("Please close the Equipment window.".to_string());
-                            } else if let Some(item) = self
-                                .game
-                                .inventory_window
-                                .inventory
-                                .get_item(cancelled.item_index as u16)
-                            {
-                                if item.count > 1 {
-                                    let mut dialog =
-                                        DropQuantityDialog::new(item.index, item.count);
-                                    dialog.has_grf_textures =
-                                        self.game.inventory_window.has_grf_textures;
-                                    if dialog.has_grf_textures {
-                                        dialog.set_texture_sizes(|name| {
-                                            renderer.texture_cache.texture_size(name)
-                                        });
-                                    }
-                                    self.game.drop_quantity_dialog = Some(dialog);
-                                } else {
-                                    events.push(GameEvent::RequestDropItem {
-                                        index: item.index,
-                                        count: 1,
-                                    });
-                                    self.game.waiting_item_throw_ack = true;
-                                }
-                            }
-                        }
-                    }
-
-                    if let Some(dialog) = &mut self.game.drop_quantity_dialog {
-                        match dialog.build(&mut ui) {
-                            DropQuantityResult::Ok(qty) => {
-                                let index = dialog.item_index;
-                                events.push(GameEvent::RequestDropItem { index, count: qty });
-                                self.game.waiting_item_throw_ack = true;
-                                self.game.drop_quantity_dialog = None;
-                            }
-                            DropQuantityResult::Cancel => {
-                                self.game.drop_quantity_dialog = None;
-                            }
-                            DropQuantityResult::None => {}
-                        }
-                    }
+                    let events = self.game.build_in_game_ui(
+                        &mut ui,
+                        &|name| renderer.texture_cache.texture_size(name),
+                    );
 
                     let any_hovered = ui.any_hovered;
                     let any_interactive = ui.any_interactive_hovered;
