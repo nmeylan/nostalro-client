@@ -1,9 +1,11 @@
+use ragnarok_game::character::Character;
+use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-
-use crate::confirm_dialog::{ConfirmDialog, ConfirmResult};
+use crate::{Window, InGameWindow};
+use super::confirm_dialog::{ConfirmDialog, ConfirmResult};
 
 const BG_ID: WidgetId = WidgetId(510);
 const RESUME_ID: WidgetId = WidgetId(500);
@@ -52,6 +54,7 @@ enum PendingConfirm {
 pub struct SystemMenu {
     pub open: bool,
     pub has_grf_textures: bool,
+    pub allow_escape_toggle: bool,
     pending_confirm: PendingConfirm,
     confirm_dialog: ConfirmDialog,
     win_size: (f32, f32),
@@ -63,6 +66,7 @@ impl SystemMenu {
         Self {
             open: false,
             has_grf_textures: false,
+            allow_escape_toggle: false,
             pending_confirm: PendingConfirm::None,
             confirm_dialog: ConfirmDialog::new("Are you sure?"),
             win_size: (MENU_W, MENU_H),
@@ -70,7 +74,24 @@ impl SystemMenu {
         }
     }
 
-    pub fn grf_texture_paths() -> Vec<&'static str> {
+}
+
+impl Window for SystemMenu {
+    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
+    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+
+    fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
+        if let Some((w, h)) = size_fn(RESUME_BTN.normal) {
+            self.btn_size = (w as f32, h as f32);
+        }
+        if let Some((w, h)) = size_fn(WIN_TEXTURE) {
+            self.win_size = (w as f32, h as f32);
+        }
+        self.confirm_dialog.set_texture_sizes(size_fn);
+        self.confirm_dialog.has_grf_textures = true;
+    }
+
+    fn grf_texture_paths() -> Vec<&'static str> {
         let mut paths = vec![
             WIN_TEXTURE,
             RESUME_BTN.normal, RESUME_BTN.hover, RESUME_BTN.pressed,
@@ -80,23 +101,14 @@ impl SystemMenu {
         paths.extend(ConfirmDialog::grf_texture_paths());
         paths
     }
+}
 
-    pub fn set_texture_sizes(&mut self, size_fn: impl Fn(&str) -> Option<(u32, u32)>) {
-        if let Some((w, h)) = size_fn(RESUME_BTN.normal) {
-            self.btn_size = (w as f32, h as f32);
-        }
-        if let Some((w, h)) = size_fn(WIN_TEXTURE) {
-            self.win_size = (w as f32, h as f32);
-        }
-        self.confirm_dialog.set_texture_sizes(&size_fn);
-        self.confirm_dialog.has_grf_textures = true;
-    }
-
-    pub fn build(&mut self, ui: &mut UiFrame, allow_escape_toggle: bool) -> Vec<GameEvent> {
+impl InGameWindow for SystemMenu {
+    fn build(&mut self, ui: &mut UiFrame, _character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
         let mut events = Vec::new();
 
         // Toggle menu on Escape (only when no confirm dialog is showing)
-        if allow_escape_toggle && ui.ctx.key_escape && self.pending_confirm == PendingConfirm::None {
+        if self.allow_escape_toggle && ui.ctx.key_escape && self.pending_confirm == PendingConfirm::None {
             self.open = !self.open;
             if !self.open {
                 return events;
@@ -139,7 +151,9 @@ impl SystemMenu {
 
         events
     }
+}
 
+impl SystemMenu {
     fn build_grf(&mut self, ui: &mut UiFrame, _events: &mut Vec<GameEvent>) {
         let (btn_w, btn_h) = self.btn_size;
         let (titlebar_w, titlebar_h) = self.win_size;
@@ -225,6 +239,7 @@ impl SystemMenu {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::InGameWindow;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
     use ragnarok_renderer::font_atlas::FontAtlas;
@@ -240,18 +255,20 @@ mod tests {
     fn escape_toggles_menu() {
         let mut menu = SystemMenu::new();
         let mut state = StateCache::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
         assert!(!menu.open);
 
         // Escape opens the menu
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.build(&mut ui, true);
+        menu.allow_escape_toggle = true; menu.build(&mut ui, &mut character, &data);
         assert!(menu.open);
 
         // Escape again closes it
         let mut ui = make_frame(&ctx, &mut state);
-        menu.build(&mut ui, true);
+        menu.allow_escape_toggle = true; menu.build(&mut ui, &mut character, &data);
         assert!(!menu.open);
     }
 
@@ -259,11 +276,13 @@ mod tests {
     fn escape_blocked_when_not_allowed() {
         let mut menu = SystemMenu::new();
         let mut state = StateCache::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.build(&mut ui, false);
+        menu.allow_escape_toggle = false; menu.build(&mut ui, &mut character, &data);
         assert!(!menu.open);
     }
 
@@ -272,6 +291,8 @@ mod tests {
         let mut menu = SystemMenu::new();
         menu.open = true;
         let mut state = StateCache::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
 
         // Click on the Resume button area
         // Menu is centered at (330, 230) for 800x600 screen, resume btn at y=230+12=242
@@ -282,7 +303,7 @@ mod tests {
         ctx.mouse_y = btn_y + FALLBACK_BTN_H / 2.0;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.build(&mut ui, true);
+        menu.allow_escape_toggle = true; menu.build(&mut ui, &mut character, &data);
         assert!(!menu.open);
     }
 
@@ -291,6 +312,8 @@ mod tests {
         let mut menu = SystemMenu::new();
         menu.open = true;
         let mut state = StateCache::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
 
         // Click Character Select button (index 2)
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -300,7 +323,7 @@ mod tests {
         ctx.mouse_y = btn_y + FALLBACK_BTN_H / 2.0;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        let events = menu.build(&mut ui, true);
+        menu.allow_escape_toggle = true; let events = menu.build(&mut ui, &mut character, &data);
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::CharacterSelect);
 
@@ -308,7 +331,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &mut state);
-        let events = menu.build(&mut ui, true);
+        menu.allow_escape_toggle = true; let events = menu.build(&mut ui, &mut character, &data);
         assert!(events.iter().any(|e| matches!(e, GameEvent::BackToCharacterSelect)));
         assert!(!menu.open);
     }
@@ -318,6 +341,8 @@ mod tests {
         let mut menu = SystemMenu::new();
         menu.open = true;
         let mut state = StateCache::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
 
         // Click Quit button (index 3)
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -327,7 +352,7 @@ mod tests {
         ctx.mouse_y = btn_y + FALLBACK_BTN_H / 2.0;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        let events = menu.build(&mut ui, true);
+        menu.allow_escape_toggle = true; let events = menu.build(&mut ui, &mut character, &data);
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::QuitGame);
 
@@ -335,7 +360,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &mut state);
-        let events = menu.build(&mut ui, true);
+        menu.allow_escape_toggle = true; let events = menu.build(&mut ui, &mut character, &data);
         assert!(events.iter().any(|e| matches!(e, GameEvent::QuitGame)));
         assert!(!menu.open);
     }
@@ -346,12 +371,14 @@ mod tests {
         menu.open = true;
         menu.pending_confirm = PendingConfirm::CharacterSelect;
         let mut state = StateCache::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
 
         // Press Escape to cancel the confirm dialog
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
-        let events = menu.build(&mut ui, true);
+        menu.allow_escape_toggle = true; let events = menu.build(&mut ui, &mut character, &data);
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::None);
         assert!(menu.open);

@@ -43,16 +43,16 @@ use ragnarok_renderer::{
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::state::StateCache;
-use ragnarok_ui_component::char_select_window::CharSelectWindow;
-use ragnarok_ui_component::chat_window::ChatWindow;
-use ragnarok_ui_component::equipment_window::EquipmentWindow;
-use ragnarok_ui_component::inventory_window::InventoryWindow;
-use ragnarok_ui_component::item_pickup_notification::ItemPickupNotification;
-use ragnarok_ui_component::login_window::{LoginFocus, LoginWindow};
-use ragnarok_ui_component::npc_dialog::NpcDialog;
-use ragnarok_ui_component::npc_shop::NpcShop;
-use ragnarok_ui_component::server_list_window::ServerListWindow;
-use ragnarok_ui_component::system_menu::SystemMenu;
+use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
+use ragnarok_ui_component::account::login_window::{LoginFocus, LoginWindow};
+use ragnarok_ui_component::account::server_list_window::ServerListWindow;
+use ragnarok_ui_component::game::chat_window::ChatWindow;
+use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
+use ragnarok_ui_component::game::inventory_window::InventoryWindow;
+use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
+use ragnarok_ui_component::game::npc_dialog::NpcDialog;
+use ragnarok_ui_component::game::npc_shop::NpcShop;
+use ragnarok_ui_component::game::system_menu::SystemMenu;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -64,6 +64,7 @@ use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowAttributes, WindowId};
+use ragnarok_ui_component::Window as OtherWindow;
 
 type ClipData = (Vec<SpriteVertex>, Vec<u32>, usize);
 
@@ -316,7 +317,7 @@ impl App {
                         server_win.has_grf_textures =
                             renderer.preload_textures(&ServerListWindow::grf_texture_paths(), grf);
                         if server_win.has_grf_textures {
-                            server_win.set_texture_sizes(|name| {
+                            server_win.set_texture_sizes(&|name| {
                                 renderer.texture_cache.texture_size(name)
                             });
                         }
@@ -344,7 +345,7 @@ impl App {
                         char_win.has_grf_textures =
                             renderer.preload_textures(&CharSelectWindow::grf_texture_paths(), grf);
                         if char_win.has_grf_textures {
-                            char_win.set_texture_sizes(|name| {
+                            char_win.set_texture_sizes(&|name| {
                                 renderer.texture_cache.texture_size(name)
                             });
                         }
@@ -489,21 +490,21 @@ impl App {
                         self.game.system_menu.has_grf_textures =
                             renderer.preload_textures(&SystemMenu::grf_texture_paths(), grf);
                         if self.game.system_menu.has_grf_textures {
-                            self.game.system_menu.set_texture_sizes(|name| {
+                            self.game.system_menu.set_texture_sizes(&|name| {
                                 renderer.texture_cache.texture_size(name)
                             });
                         }
                         self.game.inventory_window.has_grf_textures =
                             renderer.preload_textures(&InventoryWindow::grf_texture_paths(), grf);
                         if self.game.inventory_window.has_grf_textures {
-                            self.game.inventory_window.set_texture_sizes(|name| {
+                            self.game.inventory_window.set_texture_sizes(&|name| {
                                 renderer.texture_cache.texture_size(name)
                             });
                         }
                         self.game.equipment_window.has_grf_textures =
                             renderer.preload_textures(&EquipmentWindow::grf_texture_paths(), grf);
                         if self.game.equipment_window.has_grf_textures {
-                            self.game.equipment_window.set_texture_sizes(|name| {
+                            self.game.equipment_window.set_texture_sizes(&|name| {
                                 renderer.texture_cache.texture_size(name)
                             });
                         }
@@ -785,12 +786,12 @@ impl App {
                         .map(|(item_id, price, discount_price, item_type)| {
                             let name = self
                                 .game
-                                .item_name_table
+                                .data_table.item_name
                                 .as_ref()
                                 .map(|t| t.get_name_or_id(item_id))
                                 .unwrap_or_else(|| format!("Item #{item_id}"));
                             let resource_name =
-                                self.game.item_resource_table.as_ref().and_then(|t| {
+                                self.game.data_table.item_resource.as_ref().and_then(|t| {
                                     t.get_resource_name(item_id).map(|s| s.to_string())
                                 });
                             ragnarok_game::npc_shop::ShopBuyItem {
@@ -828,7 +829,7 @@ impl App {
                         .filter_map(|(index, price, overcharge_price)| {
                             let inv_item = self
                                 .game
-                                .inventory_window
+                                .character
                                 .inventory
                                 .get_item(index as u16)?;
                             Some(ragnarok_game::npc_shop::ShopSellItem {
@@ -879,15 +880,15 @@ impl App {
                     for info in items {
                         let name = self
                             .game
-                            .item_name_table
+                            .data_table.item_name
                             .as_ref()
                             .map(|t| t.get_name_or_id_for(info.item_id, info.is_identified))
                             .unwrap_or_else(|| format!("Item #{}", info.item_id));
-                        let resource_name = self.game.item_resource_table.as_ref().and_then(|t| {
+                        let resource_name = self.game.data_table.item_resource.as_ref().and_then(|t| {
                             t.get_resource_name_for(info.item_id, info.is_identified)
                                 .map(|s| s.to_string())
                         });
-                        self.game.inventory_window.inventory.add_item(Item {
+                        self.game.character.inventory.add_item(Item {
                             index: info.index as u16,
                             item_id: info.item_id,
                             item_type: info.item_type,
@@ -908,11 +909,11 @@ impl App {
                     for info in items {
                         let name = self
                             .game
-                            .item_name_table
+                            .data_table.item_name
                             .as_ref()
                             .map(|t| t.get_name_or_id_for(info.item_id, info.is_identified))
                             .unwrap_or_else(|| format!("Item #{}", info.item_id));
-                        let resource_name = self.game.item_resource_table.as_ref().and_then(|t| {
+                        let resource_name = self.game.data_table.item_resource.as_ref().and_then(|t| {
                             t.get_resource_name_for(info.item_id, info.is_identified)
                                 .map(|s| s.to_string())
                         });
@@ -925,7 +926,7 @@ impl App {
                             info.location,
                             info.wear_state,
                         );
-                        self.game.inventory_window.inventory.add_item(Item {
+                        self.game.character.inventory.add_item(Item {
                             index: info.index as u16,
                             item_id: info.item_id,
                             item_type: info.item_type,
@@ -957,15 +958,15 @@ impl App {
                     if result == 0 {
                         let name = self
                             .game
-                            .item_name_table
+                            .data_table.item_name
                             .as_ref()
                             .map(|t| t.get_name_or_id_for(item_id, is_identified))
                             .unwrap_or_else(|| format!("Item #{item_id}"));
-                        let resource_name = self.game.item_resource_table.as_ref().and_then(|t| {
+                        let resource_name = self.game.data_table.item_resource.as_ref().and_then(|t| {
                             t.get_resource_name_for(item_id, is_identified)
                                 .map(|s| s.to_string())
                         });
-                        self.game.inventory_window.inventory.add_item(Item {
+                        self.game.character.inventory.add_item(Item {
                             index,
                             item_id,
                             item_type,
@@ -984,7 +985,7 @@ impl App {
                             .add_system(format!("Picked up {name} x{count}"));
                         let icon_path = self
                             .game
-                            .inventory_window
+                            .character
                             .inventory
                             .get_item(index)
                             .and_then(|item| item.icon_path());
@@ -1007,7 +1008,7 @@ impl App {
                 } => {
                     if success {
                         self.game
-                            .inventory_window
+                            .character
                             .inventory
                             .update_item_count(index, count);
                     }
@@ -1027,7 +1028,7 @@ impl App {
                     );
                     if success {
                         self.game
-                            .inventory_window
+                            .character
                             .inventory
                             .update_wear_state(index, wear_location);
                         if view_id != 0 {
@@ -1056,7 +1057,7 @@ impl App {
                         success,
                     );
                     if success {
-                        self.game.inventory_window.inventory.clear_wear_state(index);
+                        self.game.character.inventory.clear_wear_state(index);
                         if let Some(sprite_type) =
                             Entity::wear_location_to_sprite_type(wear_location)
                         {
@@ -1071,7 +1072,7 @@ impl App {
                 }
                 GameEvent::InventoryItemRemoved { index, count } => {
                     self.game
-                        .inventory_window
+                        .character
                         .inventory
                         .subtract_item_count(index, count);
                     self.game.waiting_item_throw_ack = false;
@@ -1221,13 +1222,13 @@ impl App {
                                 }
                             }
                             StatusTypes::Weight => {
-                                self.game.inventory_window.inventory.weight = value;
+                                self.game.character.inventory.weight = value;
                             }
                             StatusTypes::Maxweight => {
-                                self.game.inventory_window.inventory.max_weight = value;
+                                self.game.character.inventory.max_weight = value;
                             }
                             StatusTypes::Zeny => {
-                                self.game.inventory_window.inventory.zeny = value;
+                                self.game.character.inventory.zeny = value;
                             }
                             _ => {}
                         }
@@ -1335,7 +1336,7 @@ impl App {
                 }
                 GameEvent::Disconnected(reason) => {
                     self.game.server_time.reset();
-                    self.game.inventory_window.inventory.clear();
+                    self.game.character.inventory.clear();
                     self.game.floor_items.clear();
                     self.game.floor_item_sprites.clear();
                     self.game.waiting_item_throw_ack = false;
@@ -1403,7 +1404,7 @@ impl App {
             _ => return,
         };
         let empty_table = ragnarok_game::accessory_table::AccessoryTable::empty();
-        let accessory_table = self.game.accessory_table.as_ref().unwrap_or(&empty_table);
+        let accessory_table = self.game.data_table.accessory.as_ref().unwrap_or(&empty_table);
         let data = match sprite_loader::load_player_sprite_data(
             grf,
             accessory_table,
@@ -1475,7 +1476,7 @@ impl App {
                 );
             }
             EntityType::Npc | EntityType::Monster => {
-                let name_table = match &self.game.name_table {
+                let name_table = match &self.game.data_table.name {
                     Some(t) => t,
                     None => {
                         tracing::warn!("No name table for job {job}");
@@ -1632,7 +1633,7 @@ impl App {
             if self.game.npc_dialog.has_grf_textures {
                 self.game
                     .npc_dialog
-                    .set_texture_sizes(|name| renderer.texture_cache.texture_size(name));
+                    .set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
             }
         }
     }
@@ -1647,7 +1648,7 @@ impl App {
             if self.game.npc_shop.has_grf_textures {
                 self.game
                     .npc_shop
-                    .set_texture_sizes(|name| renderer.texture_cache.texture_size(name));
+                    .set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
             }
             // Preload item icon textures
             let icon_paths: Vec<String> = self
@@ -1679,7 +1680,7 @@ impl App {
                 if self.game.inventory_window.has_grf_textures {
                     self.game
                         .inventory_window
-                        .set_texture_sizes(|name| renderer.texture_cache.texture_size(name));
+                        .set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
                 }
             }
             if !self.game.equipment_window.has_grf_textures {
@@ -1688,13 +1689,13 @@ impl App {
                 if self.game.equipment_window.has_grf_textures {
                     self.game
                         .equipment_window
-                        .set_texture_sizes(|name| renderer.texture_cache.texture_size(name));
+                        .set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
                 }
             }
             // Preload item icon textures
             let icon_paths: Vec<String> = self
                 .game
-                .inventory_window
+                .character
                 .inventory
                 .all_items()
                 .iter()
@@ -1749,14 +1750,14 @@ impl App {
         let elapsed = self.start_time.elapsed().as_secs_f32();
         let name = self
             .game
-            .item_name_table
+            .data_table.item_name
             .as_ref()
             .and_then(|t| t.get_name(item_id))
             .unwrap_or("Unknown Item")
             .to_string();
         let resource_name = self
             .game
-            .item_resource_table
+            .data_table.item_resource
             .as_ref()
             .and_then(|t| t.get_resource_name_for(item_id, is_identified))
             .map(|s| s.to_string());
@@ -2560,7 +2561,7 @@ impl ApplicationHandler for App {
                         self.login_window.has_grf_textures =
                             renderer.preload_textures(&LoginWindow::grf_texture_paths(), &grf);
                         if self.login_window.has_grf_textures {
-                            self.login_window.set_texture_sizes(|name| {
+                            self.login_window.set_texture_sizes(&|name| {
                                 renderer.texture_cache.texture_size(name)
                             });
                         }
@@ -2568,17 +2569,17 @@ impl ApplicationHandler for App {
 
                     self.load_cursor_sprite(&grf);
                     self.load_emotion_sprite(&grf);
-                    self.game.accessory_table =
+                    self.game.data_table.accessory =
                         Some(ragnarok_game::accessory_table::AccessoryTable::load_from_grf(&grf));
-                    self.game.name_table = Some(NameTable::load(&grf));
-                    self.game.item_name_table =
+                    self.game.data_table.name = Some(NameTable::load(&grf));
+                    self.game.data_table.item_name =
                         Some(ragnarok_game::item_name_table::ItemNameTable::load(&grf));
-                    self.game.item_resource_table = Some(
+                    self.game.data_table.item_resource = Some(
                         ragnarok_game::item_resource_table::ItemResourceTable::load(&grf),
                     );
-                    self.game.item_slot_count_table =
+                    self.game.data_table.item_slot_count =
                         Some(ragnarok_game::item_slot_count_table::ItemSlotCountTable::load(&grf));
-                    self.game.card_name_table =
+                    self.game.data_table.card_name =
                         Some(ragnarok_game::card_name_table::CardNameTable::load(&grf));
                     self.grf = Some(grf);
                 }
@@ -2700,7 +2701,7 @@ impl ApplicationHandler for App {
                             }
                         }
                         PhysicalKey::Code(KeyCode::KeyE) if self.input.alt_pressed => {
-                            self.game.inventory_window.inventory.toggle();
+                            self.game.character.inventory.toggle();
                         }
                         PhysicalKey::Code(KeyCode::KeyQ) if self.input.alt_pressed => {
                             self.game.equipment_window.toggle();

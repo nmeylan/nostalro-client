@@ -1,5 +1,6 @@
 use ragnarok_ui::frame::{UiFrame, WidgetId};
-use crate::number_input::{NumberInputDialog, NumberInputConfig, NumberInputResult};
+use crate::Window;
+use super::number_input::{NumberInputDialog, NumberInputConfig, NumberInputResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DropQuantityResult {
@@ -32,10 +33,6 @@ impl DropQuantityDialog {
         }
     }
 
-    pub fn set_texture_sizes(&mut self, size_fn: impl Fn(&str) -> Option<(u32, u32)>) {
-        self.inner.set_texture_sizes(size_fn);
-    }
-
     pub fn build(&mut self, ui: &mut UiFrame) -> DropQuantityResult {
         self.inner.has_grf_textures = self.has_grf_textures;
         match self.inner.build(ui) {
@@ -52,7 +49,17 @@ impl DropQuantityDialog {
         }
     }
 
-    pub fn grf_texture_paths() -> Vec<&'static str> {
+}
+
+impl Window for DropQuantityDialog {
+    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
+    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+
+    fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
+        self.inner.set_texture_sizes(size_fn);
+    }
+
+    fn grf_texture_paths() -> Vec<&'static str> {
         NumberInputDialog::grf_texture_paths()
     }
 }

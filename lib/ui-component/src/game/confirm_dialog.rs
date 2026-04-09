@@ -1,7 +1,7 @@
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-use crate::dialog_container::DialogContainer;
+use crate::Window;
 
 const OVERLAY_ID: WidgetId = WidgetId(410);
 const OK_BTN_ID: WidgetId = WidgetId(400);
@@ -50,15 +50,6 @@ impl ConfirmDialog {
             has_grf_textures: false,
             btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
             win_size: (DIALOG_W, DIALOG_H),
-        }
-    }
-
-    pub fn set_texture_sizes(&mut self, size_fn: impl Fn(&str) -> Option<(u32, u32)>) {
-        if let Some((w, h)) = size_fn(OK_BTN.normal) {
-            self.btn_size = (w as f32, h as f32);
-        }
-        if let Some((w, h)) = size_fn(WIN_TEXTURE) {
-            self.win_size = (w as f32, h as f32);
         }
     }
 
@@ -123,7 +114,22 @@ impl ConfirmDialog {
         ConfirmResult::None
     }
 
-    pub fn grf_texture_paths() -> Vec<&'static str> {
+}
+
+impl Window for ConfirmDialog {
+    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
+    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+
+    fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
+        if let Some((w, h)) = size_fn(OK_BTN.normal) {
+            self.btn_size = (w as f32, h as f32);
+        }
+        if let Some((w, h)) = size_fn(WIN_TEXTURE) {
+            self.win_size = (w as f32, h as f32);
+        }
+    }
+
+    fn grf_texture_paths() -> Vec<&'static str> {
         vec![
             WIN_TEXTURE,
             OK_BTN.normal, OK_BTN.hover, OK_BTN.pressed,

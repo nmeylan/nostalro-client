@@ -1,11 +1,14 @@
+use ragnarok_game::character::Character;
+use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::npc_dialog::{NpcDialogData, NpcDialogState};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef, strip_color_codes, word_wrap};
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
-use crate::dialog_container::DialogContainer;
-use crate::number_input::{NumberInputDialog, NumberInputConfig, NumberInputResult};
+use crate::{Window, InGameWindow};
+use crate::helper::dialog_container::DialogContainer;
+use super::number_input::{NumberInputDialog, NumberInputConfig, NumberInputResult};
 
 const OVERLAY_ID: WidgetId = WidgetId(600);
 const NEXT_BTN_ID: WidgetId = WidgetId(601);
@@ -93,17 +96,39 @@ impl NpcDialog {
         }
     }
 
-    pub fn set_texture_sizes(&mut self, size_fn: impl Fn(&str) -> Option<(u32, u32)>) {
+}
+
+impl Window for NpcDialog {
+    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
+    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+
+    fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(NEXT_BTN.normal) {
             self.btn_size = (w as f32, h as f32);
         }
-        self.container.set_texture_sizes(&size_fn);
+        self.container.set_texture_sizes(size_fn);
         if let Some((w, h)) = size_fn(WIN_TEXTURE) {
             self.win_size = (w as f32, h as f32);
         }
     }
 
-    pub fn build(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
+    fn grf_texture_paths() -> Vec<&'static str> {
+        let mut paths = DialogContainer::grf_texture_paths();
+        paths.extend_from_slice(&[
+            WIN_TEXTURE,
+            NEXT_BTN.normal, NEXT_BTN.hover, NEXT_BTN.pressed,
+            CLOSE_BTN.normal, CLOSE_BTN.hover, CLOSE_BTN.pressed,
+            OK_BTN.normal, OK_BTN.hover, OK_BTN.pressed,
+            CANCEL_BTN.normal, CANCEL_BTN.hover, CANCEL_BTN.pressed,
+            BUY_BTN.normal, BUY_BTN.hover, BUY_BTN.pressed,
+            SELL_BTN.normal, SELL_BTN.hover, SELL_BTN.pressed,
+        ]);
+        paths
+    }
+}
+
+impl InGameWindow for NpcDialog {
+    fn build(&mut self, ui: &mut UiFrame, _character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
         if !self.dialog.is_open() {
             return Vec::new();
         }
@@ -356,7 +381,9 @@ impl NpcDialog {
         ui.has_grf_textures = prev_grf;
         events
     }
+}
 
+impl NpcDialog {
     fn build_menu_window(&mut self, ui: &mut UiFrame, dx: f32) -> Vec<GameEvent> {
         let mut events = Vec::new();
         let (btn_w, btn_h) = self.btn_size;
@@ -535,24 +562,14 @@ impl NpcDialog {
         events
     }
 
-    pub fn grf_texture_paths() -> Vec<&'static str> {
-        let mut paths = DialogContainer::grf_texture_paths();
-        paths.extend_from_slice(&[
-            WIN_TEXTURE,
-            NEXT_BTN.normal, NEXT_BTN.hover, NEXT_BTN.pressed,
-            CLOSE_BTN.normal, CLOSE_BTN.hover, CLOSE_BTN.pressed,
-            OK_BTN.normal, OK_BTN.hover, OK_BTN.pressed,
-            CANCEL_BTN.normal, CANCEL_BTN.hover, CANCEL_BTN.pressed,
-            BUY_BTN.normal, BUY_BTN.hover, BUY_BTN.pressed,
-            SELL_BTN.normal, SELL_BTN.hover, SELL_BTN.pressed,
-        ]);
-        paths
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::InGameWindow;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
@@ -570,12 +587,14 @@ mod tests {
         npc.dialog.open_text(100, "Hello");
         npc.dialog.wait_for_next(100);
 
+        let mut character = Character::new();
+        let data = DataTable::new();
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &mut state);
 
-        let events = npc.build(&mut ui);
+        let events = npc.build(&mut ui, &mut character, &data);
         assert_eq!(events.len(), 1);
         assert!(matches!(
             events[0],
@@ -589,12 +608,14 @@ mod tests {
         let mut npc = NpcDialog::new();
         npc.dialog.show_menu(100, vec!["Buy".into(), "Sell".into()]);
 
+        let mut character = Character::new();
+        let data = DataTable::new();
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
 
-        let events = npc.build(&mut ui);
+        let events = npc.build(&mut ui, &mut character, &data);
         assert_eq!(events.len(), 1);
         match &events[0] {
             GameEvent::RequestNpcMenuSelect { npc_id, choice } => {
@@ -611,12 +632,14 @@ mod tests {
         let mut npc = NpcDialog::new();
         npc.dialog.show_deal_type(100);
 
+        let mut character = Character::new();
+        let data = DataTable::new();
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
 
-        let events = npc.build(&mut ui);
+        let events = npc.build(&mut ui, &mut character, &data);
         assert_eq!(events.len(), 1);
         match &events[0] {
             GameEvent::RequestNpcDealType { npc_id, deal_type } => {

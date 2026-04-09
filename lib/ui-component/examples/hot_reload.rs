@@ -6,17 +6,18 @@ use std::time::SystemTime;
 use libloading::{Library, Symbol};
 use ragnarok_game::item_resource_table::ItemResourceTable;
 use ragnarok_ui::frame::UiFrame;
-use ragnarok_ui_component::chat_window::ChatWindow;
-use ragnarok_ui_component::confirm_dialog::ConfirmDialog;
-use ragnarok_ui_component::equipment_window::EquipmentWindow;
-use ragnarok_ui_component::inventory_window::InventoryWindow;
-use ragnarok_ui_component::login_window::LoginWindow;
-use ragnarok_ui_component::npc_dialog::NpcDialog;
-use ragnarok_ui_component::npc_shop::NpcShop;
-use ragnarok_ui_component::server_list_window::ServerListWindow;
-use ragnarok_ui_component::char_select_window::CharSelectWindow;
-use ragnarok_ui_component::dialog_container::DialogContainer;
-use ragnarok_ui_component::system_menu::SystemMenu;
+use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
+use ragnarok_ui_component::account::login_window::LoginWindow;
+use ragnarok_ui_component::account::server_list_window::ServerListWindow;
+use ragnarok_ui_component::game::chat_window::ChatWindow;
+use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
+use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
+use ragnarok_ui_component::game::inventory_window::InventoryWindow;
+use ragnarok_ui_component::game::npc_dialog::NpcDialog;
+use ragnarok_ui_component::game::npc_shop::NpcShop;
+use ragnarok_ui_component::game::system_menu::SystemMenu;
+use ragnarok_ui_component::helper::dialog_container::DialogContainer;
+use ragnarok_ui_component::Window;
 
 // Force system allocator so host and dylib share the same heap.
 // A cdylib gets its own Rust runtime; without this, Vec/String

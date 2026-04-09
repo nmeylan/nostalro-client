@@ -1,4 +1,6 @@
 use ragnarok_game::card_name_table::CardNameTable;
+use ragnarok_game::character::Character;
+use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::inventory::{EquipmentLocation, InventoryData};
@@ -6,7 +8,8 @@ use ragnarok_game::item_slot_count_table::ItemSlotCountTable;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-use crate::inventory_window::INV_WINDOW_ID;
+use crate::{Window, InGameWindow};
+use super::inventory_window::INV_WINDOW_ID;
 
 const ITEM_INVERT_TEX: &str = "data/texture/유저인터페이스/basic_interface/item_invert.bmp";
 
@@ -110,19 +113,38 @@ impl EquipmentWindow {
         self.open = !self.open;
     }
 
-    pub fn set_texture_sizes(&mut self, size_fn: impl Fn(&str) -> Option<(u32, u32)>) {
+}
+
+impl Window for EquipmentWindow {
+    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
+    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+
+    fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(EQUIP_BG_TEX) {
             self.bg_size = (w as f32, h as f32);
         }
     }
 
-    pub fn build(
+    fn grf_texture_paths() -> Vec<&'static str> {
+        vec![
+            TITLEBAR_TEX, EQUIP_BG_TEX, ITEM_INVERT_TEX,
+            SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
+            CLOSE_OFF_TEX, CLOSE_ON_TEX,
+            MINI_OFF_TEX, MINI_ON_TEX,
+        ]
+    }
+}
+
+impl InGameWindow for EquipmentWindow {
+    fn build(
         &mut self,
         ui: &mut UiFrame,
-        inventory: &InventoryData,
-        slot_count_table: Option<&ItemSlotCountTable>,
-        card_name_table: Option<&CardNameTable>,
+        character: &mut Character,
+        data: &DataTable,
     ) -> Vec<GameEvent> {
+        let inventory = &character.inventory;
+        let slot_count_table = data.item_slot_count.as_ref();
+        let card_name_table = data.card_name.as_ref();
         self.character_center = None;
         self.paperdoll_insert_index = None;
 
@@ -345,18 +367,8 @@ impl EquipmentWindow {
         ui.has_grf_textures = prev_grf;
         events
     }
-
-    pub fn grf_texture_paths() -> Vec<&'static str> {
-        vec![
-            TITLEBAR_TEX, EQUIP_BG_TEX, ITEM_INVERT_TEX,
-            SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
-            CLOSE_OFF_TEX, CLOSE_ON_TEX,
-            MINI_OFF_TEX, MINI_ON_TEX,
-        ]
-    }
 }
 
-// -- Window chrome helpers --
 
 fn text_color(has_grf: bool) -> [f32; 4] {
     if has_grf { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] }

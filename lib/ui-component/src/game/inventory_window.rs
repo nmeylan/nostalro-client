@@ -1,4 +1,6 @@
-use crate::equipment_window::EQ_WINDOW_ID;
+use super::equipment_window::EQ_WINDOW_ID;
+use ragnarok_game::character::Character;
+use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::item::{Item, InventoryTab};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
@@ -24,7 +26,8 @@ const ICON_SIZE: f32 = 24.0;
 const ICON_PAD: f32 = 4.0;
 const TITLE_H: f32 = 17.0;
 const FOOTER_H: f32 = 19.0;
-use crate::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
+use crate::{Window, InGameWindow};
+use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 const PAD_X: f32 = 12.0;
 const PAD_Y: f32 = 4.0;
 const RESIZE_SIZE: f32 = 13.0;
@@ -54,7 +57,6 @@ const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/s
 
 pub struct InventoryWindow {
     pub has_grf_textures: bool,
-    pub inventory: ragnarok_game::inventory::InventoryData,
     scroll_offset: usize,
     tab_size: (f32, f32),
     grid_cols: usize,
@@ -67,19 +69,12 @@ impl InventoryWindow {
     pub fn new() -> Self {
         Self {
             has_grf_textures: false,
-            inventory: ragnarok_game::inventory::InventoryData::new(),
             scroll_offset: 0,
             tab_size: (0.0, 0.0),
             grid_cols: DEFAULT_COLS,
             grid_rows: DEFAULT_ROWS,
             resize_start: None,
             minimized: false,
-        }
-    }
-
-    pub fn set_texture_sizes(&mut self, size_fn: impl Fn(&str) -> Option<(u32, u32)>) {
-        if let Some((w, h)) = size_fn(TAB_USABLE_TEX) {
-            self.tab_size = (w as f32, h as f32);
         }
     }
 
@@ -98,15 +93,49 @@ impl InventoryWindow {
         (win_w, win_h, tab_strip_w)
     }
 
-    pub fn build(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
-        if !self.inventory.is_open() {
+}
+
+impl Window for InventoryWindow {
+    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
+    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+
+    fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
+        if let Some((w, h)) = size_fn(TAB_USABLE_TEX) {
+            self.tab_size = (w as f32, h as f32);
+        }
+    }
+
+    fn grf_texture_paths() -> Vec<&'static str> {
+        let mut paths = vec![
+            TITLEBAR_TEX,
+            ITEMWIN_MID_TEX,
+            FOOTER_TEX,
+            TAB_USABLE_TEX,
+            TAB_EQUIP_TEX,
+            TAB_ETC_TEX,
+            MINI_OFF_TEX,
+            MINI_ON_TEX,
+            RESIZE_HANDLE_TEX,
+            SYS_BASE_OFF_TEX,
+            SYS_BASE_ON_TEX,
+            CLOSE_OFF_TEX,
+            CLOSE_ON_TEX,
+        ];
+        paths.extend(scrollbar::grf_texture_paths());
+        paths
+    }
+}
+
+impl InGameWindow for InventoryWindow {
+    fn build(&mut self, ui: &mut UiFrame, character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
+        if !character.inventory.is_open() {
             return Vec::new();
         }
 
         let mut events = Vec::new();
 
         if ui.ctx.key_escape {
-            self.inventory.close();
+            character.inventory.close();
             return events;
         }
 
@@ -223,7 +252,7 @@ impl InventoryWindow {
             );
         }
         if close_resp.clicked() {
-            self.inventory.close();
+            character.inventory.close();
             ui.has_grf_textures = prev_grf;
             return events;
         }
@@ -241,7 +270,7 @@ impl InventoryWindow {
         let container_h = (PAD_Y) + grid_h + (PAD_Y);
         draw_container(ui, grid_area_x, container_y, grid_area_w, container_h, grf);
 
-        let filtered_count = self.inventory.filtered_items().len();
+        let filtered_count = character.inventory.filtered_items().len();
         let total_rows = (filtered_count + self.grid_cols - 1) / self.grid_cols.max(1);
         let max_scroll = total_rows.saturating_sub(self.grid_rows);
 
@@ -254,7 +283,7 @@ impl InventoryWindow {
 
         let mut hovered_tooltip: Option<(f32, f32, String)> = None;
         {
-            let filtered: Vec<&Item> = self.inventory.filtered_items();
+            let filtered: Vec<&Item> = character.inventory.filtered_items();
             let start = self.scroll_offset * self.grid_cols;
             let visible_count = self.grid_rows * self.grid_cols;
 
@@ -407,7 +436,7 @@ impl InventoryWindow {
         // -- Footer --
         let footer_y = container_y + container_h;
         draw_footer(ui, win.x, footer_y, win_w, FOOTER_H, grf);
-        let total_count = self.inventory.all_items().len();
+        let total_count = character.inventory.all_items().len();
         let item_count_label = format!("Num: {total_count}/100");
         ui.text(
             win.x + tab_img_w + (4.0),
@@ -431,7 +460,7 @@ impl InventoryWindow {
         });
 
         // Tab image on top (only covers its native height)
-        let tab_tex = match self.inventory.active_tab {
+        let tab_tex = match character.inventory.active_tab {
             InventoryTab::Usable => TAB_USABLE_TEX,
             InventoryTab::Equip => TAB_EQUIP_TEX,
             InventoryTab::Etc => TAB_ETC_TEX,
@@ -468,7 +497,7 @@ impl InventoryWindow {
 
             // Fallback rendering when no GRF textures
             if !grf {
-                let active = self.inventory.active_tab == *tab;
+                let active = character.inventory.active_tab == *tab;
                 let bg = if active {
                     [0.25, 0.25, 0.38, 1.0]
                 } else if resp.hovered() {
@@ -491,8 +520,8 @@ impl InventoryWindow {
                 );
             }
 
-            if resp.clicked() && self.inventory.active_tab != *tab {
-                self.inventory.active_tab = *tab;
+            if resp.clicked() && character.inventory.active_tab != *tab {
+                character.inventory.active_tab = *tab;
                 self.scroll_offset = 0;
             }
         }
@@ -550,26 +579,6 @@ impl InventoryWindow {
 
         ui.has_grf_textures = prev_grf;
         events
-    }
-
-    pub fn grf_texture_paths() -> Vec<&'static str> {
-        let mut paths = vec![
-            TITLEBAR_TEX,
-            ITEMWIN_MID_TEX,
-            FOOTER_TEX,
-            TAB_USABLE_TEX,
-            TAB_EQUIP_TEX,
-            TAB_ETC_TEX,
-            MINI_OFF_TEX,
-            MINI_ON_TEX,
-            RESIZE_HANDLE_TEX,
-            SYS_BASE_OFF_TEX,
-            SYS_BASE_ON_TEX,
-            CLOSE_OFF_TEX,
-            CLOSE_ON_TEX,
-        ];
-        paths.extend(scrollbar::grf_texture_paths());
-        paths
     }
 }
 

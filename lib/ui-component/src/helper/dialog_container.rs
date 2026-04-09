@@ -25,7 +25,7 @@ struct NineSliceSizes {
 }
 
 impl NineSliceSizes {
-    fn from_texture_sizes(size_fn: &impl Fn(&str) -> Option<(u32, u32)>) -> Option<Self> {
+    fn from_texture_sizes(size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) -> Option<Self> {
         let (lw, th) = size_fn(SYSBOX_LU)?;
         let (rw, _) = size_fn(SYSBOX_RU)?;
         let (_, bh) = size_fn(SYSBOX_LD)?;
@@ -51,7 +51,7 @@ impl DialogContainer {
         }
     }
 
-    pub fn set_texture_sizes(&mut self, size_fn: &impl Fn(&str) -> Option<(u32, u32)>) {
+    pub fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         self.sysbox_sizes = NineSliceSizes::from_texture_sizes(size_fn);
     }
 

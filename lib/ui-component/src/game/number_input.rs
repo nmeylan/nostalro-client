@@ -1,7 +1,8 @@
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
-use crate::dialog_container::DialogContainer;
+use crate::Window;
+use crate::helper::dialog_container::DialogContainer;
 
 pub const OK_BTN: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/btn_ok.bmp",
@@ -68,13 +69,6 @@ impl NumberInputDialog {
             base_id,
             container: DialogContainer::new(),
         }
-    }
-
-    pub fn set_texture_sizes(&mut self, size_fn: impl Fn(&str) -> Option<(u32, u32)>) {
-        if let Some((w, h)) = size_fn(OK_BTN.normal) {
-            self.btn_size = (w as f32, h as f32);
-        }
-        self.container.set_texture_sizes(&size_fn);
     }
 
     pub fn init_container(&mut self, source: &DialogContainer) {
@@ -170,7 +164,20 @@ impl NumberInputDialog {
         NumberInputResult::None
     }
 
-    pub fn grf_texture_paths() -> Vec<&'static str> {
+}
+
+impl Window for NumberInputDialog {
+    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
+    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+
+    fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
+        if let Some((w, h)) = size_fn(OK_BTN.normal) {
+            self.btn_size = (w as f32, h as f32);
+        }
+        self.container.set_texture_sizes(size_fn);
+    }
+
+    fn grf_texture_paths() -> Vec<&'static str> {
         let mut paths = DialogContainer::grf_texture_paths();
         paths.extend_from_slice(&[
             OK_BTN.normal, OK_BTN.hover, OK_BTN.pressed,

@@ -3,26 +3,28 @@
 #[global_allocator]
 static GLOBAL: std::alloc::System = std::alloc::System;
 
+use ragnarok_game::character::Character;
+use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::{CharacterInfo, ServerInfo};
-use ragnarok_game::inventory::InventoryData;
 use ragnarok_game::item::Item;
 use ragnarok_game::item_resource_table::ItemResourceTable;
 use ragnarok_game::npc_shop::{NpcShopMode, ShopBuyItem, ShopSellItem};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-use ragnarok_ui_component::char_select_window::CharSelectWindow;
-use ragnarok_ui_component::chat_window::ChatWindow;
-use ragnarok_ui_component::confirm_dialog::ConfirmDialog;
-use ragnarok_ui_component::equipment_window::EquipmentWindow;
-use ragnarok_ui_component::inventory_window::InventoryWindow;
-use ragnarok_ui_component::login_window::LoginWindow;
-use ragnarok_ui_component::npc_dialog::NpcDialog;
-use ragnarok_ui_component::npc_shop::NpcShop;
-use ragnarok_ui_component::number_input::{NumberInputDialog, NumberInputConfig};
-use ragnarok_ui_component::server_list_window::ServerListWindow;
-use ragnarok_ui_component::dialog_container::DialogContainer;
-use ragnarok_ui_component::item_pickup_notification::ItemPickupNotification;
-use ragnarok_ui_component::system_menu::SystemMenu;
+use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
+use ragnarok_ui_component::account::login_window::LoginWindow;
+use ragnarok_ui_component::account::server_list_window::ServerListWindow;
+use ragnarok_ui_component::game::chat_window::ChatWindow;
+use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
+use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
+use ragnarok_ui_component::game::inventory_window::InventoryWindow;
+use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
+use ragnarok_ui_component::game::npc_dialog::NpcDialog;
+use ragnarok_ui_component::game::npc_shop::NpcShop;
+use ragnarok_ui_component::game::number_input::{NumberInputDialog, NumberInputConfig};
+use ragnarok_ui_component::game::system_menu::SystemMenu;
+use ragnarok_ui_component::helper::dialog_container::DialogContainer;
+use ragnarok_ui_component::{Window, InGameWindow};
 
 const GAME_COMPONENTS: &[&str] = &[
     "inventory",
@@ -40,21 +42,29 @@ const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
 enum State {
     Inventory {
         inv: InventoryWindow,
+        character: Character,
+        data: DataTable,
     },
     NpcShop {
         shop: NpcShop,
         buy_items: Vec<ShopBuyItem>,
         sell_items: Vec<ShopSellItem>,
         is_sell: bool,
+        character: Character,
+        data: DataTable,
     },
     Login {
         login: LoginWindow,
     },
     Chat {
         chat: ChatWindow,
+        character: Character,
+        data: DataTable,
     },
     NpcDialog {
         npc: NpcDialog,
+        character: Character,
+        data: DataTable,
     },
     ConfirmDialog {
         dialog: ConfirmDialog,
@@ -68,10 +78,13 @@ enum State {
     },
     Equipment {
         equip: EquipmentWindow,
-        inventory: InventoryData,
+        character: Character,
+        data: DataTable,
     },
     SystemMenu {
         menu: SystemMenu,
+        character: Character,
+        data: DataTable,
     },
     CharSelect {
         win: CharSelectWindow,
@@ -101,12 +114,13 @@ fn wrap_texture_size_fn(f: TextureSizeFn) -> impl Fn(&str) -> Option<(u32, u32)>
 fn create_single(name: &str) -> State {
     match name {
         "inventory" => {
-            let mut inv = InventoryWindow::new();
-            inv.inventory.toggle();
+            let inv = InventoryWindow::new();
+            let mut character = Character::new();
+            character.inventory.toggle();
             for item in inventory_test_items() {
-                inv.inventory.add_item(item);
+                character.inventory.add_item(item);
             }
-            State::Inventory { inv }
+            State::Inventory { inv, character, data: DataTable::new() }
         }
         "npc_shop" => {
             let buy_items = shop_buy_test_items();
@@ -117,6 +131,8 @@ fn create_single(name: &str) -> State {
                 buy_items,
                 sell_items: shop_sell_test_items(),
                 is_sell: false,
+                character: Character::new(),
+                data: DataTable::new(),
             }
         }
         "login" => State::Login {
@@ -133,7 +149,7 @@ fn create_single(name: &str) -> State {
             chat.add_chat("[Archer]: WTB Composite Bow +5".into());
             chat.add_chat("^FF0000[System]: Server maintenance in 30 minutes.".into());
             chat.add_chat("[Mage]: Trading Fire Bolt 10 for Cold Bolt 10".into());
-            State::Chat { chat }
+            State::Chat { chat, character: Character::new(), data: DataTable::new() }
         }
         "npc_dialog" => {
             let mut npc = NpcDialog::new();
@@ -142,7 +158,7 @@ fn create_single(name: &str) -> State {
                 "Hello adventurer!\nWelcome to Prontera.\nHow can I help you today?",
             );
             npc.dialog.wait_for_next(100);
-            State::NpcDialog { npc }
+            State::NpcDialog { npc, character: Character::new(), data: DataTable::new() }
         }
         "confirm_dialog" => State::ConfirmDialog {
             dialog: ConfirmDialog::new("Are you sure you want to quit?"),
@@ -191,7 +207,7 @@ fn create_single(name: &str) -> State {
         "equipment" => {
             let mut equip = EquipmentWindow::new();
             equip.open = true;
-            let mut inventory = InventoryData::new();
+            let mut character = Character::new();
             let items = vec![
                 Item {
                     index: 0,
@@ -265,14 +281,14 @@ fn create_single(name: &str) -> State {
                 },
             ];
             for item in items {
-                inventory.add_item(item);
+                character.inventory.add_item(item);
             }
-            State::Equipment { equip, inventory }
+            State::Equipment { equip, character, data: DataTable::new() }
         }
         "system_menu" => {
             let mut menu = SystemMenu::new();
             menu.open = false;
-            State::SystemMenu { menu }
+            State::SystemMenu { menu, character: Character::new(), data: DataTable::new() }
         }
         "char_select" => {
             let characters = vec![
@@ -398,9 +414,9 @@ fn grf_init_single(
     table: Option<&ItemResourceTable>,
 ) {
     match state {
-        State::Inventory { inv } => {
+        State::Inventory { inv, character, .. } => {
             if let Some(table) = table {
-                inv.inventory.resolve_resource_names(table);
+                character.inventory.resolve_resource_names(table);
             }
             inv.has_grf_textures = true;
             inv.set_texture_sizes(size_fn);
@@ -422,10 +438,10 @@ fn grf_init_single(
             login.has_grf_textures = true;
             login.set_texture_sizes(size_fn);
         }
-        State::Chat { chat } => {
+        State::Chat { chat, .. } => {
             chat.has_grf_textures = true;
         }
-        State::NpcDialog { npc } => {
+        State::NpcDialog { npc, .. } => {
             npc.has_grf_textures = true;
             npc.set_texture_sizes(size_fn);
         }
@@ -441,14 +457,14 @@ fn grf_init_single(
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
-        State::Equipment { equip, inventory } => {
+        State::Equipment { equip, character, .. } => {
             if let Some(table) = table {
-                inventory.resolve_resource_names(table);
+                character.inventory.resolve_resource_names(table);
             }
             equip.has_grf_textures = true;
             equip.set_texture_sizes(size_fn);
         }
-        State::SystemMenu { menu } => {
+        State::SystemMenu { menu, .. } => {
             menu.has_grf_textures = true;
             menu.set_texture_sizes(size_fn);
         }
@@ -496,14 +512,16 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
 
 fn build_single(state: &mut State, ui: &mut UiFrame) {
     match state {
-        State::Inventory { inv } => {
-            inv.build(ui);
+        State::Inventory { inv, character, data } => {
+            inv.build(ui, character, data);
         }
         State::NpcShop {
             shop,
             buy_items,
             sell_items,
             is_sell,
+            character,
+            data,
         } => {
             add_button(ui, "Toggle shop", WidgetId(799), 200.0, 10.0, |_ui| {
                 *is_sell = !*is_sell;
@@ -516,21 +534,21 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
                     shop.shop.open_buy(100, buy_items.clone());
                 }
             }
-            shop.build(ui);
+            shop.build(ui, character, data);
         }
         State::Login { login } => {
             login.build(ui);
         }
-        State::Chat { chat } => {
-            chat.build(ui);
+        State::Chat { chat, character, data } => {
+            chat.build(ui, character, data);
         }
-        State::NpcDialog { npc } => {
-            npc.build(ui);
+        State::NpcDialog { npc, character, data } => {
+            npc.build(ui, character, data);
         }
         State::ConfirmDialog { dialog, open } => {
             if *open {
                 let result = dialog.build(ui);
-                if result != ragnarok_ui_component::confirm_dialog::ConfirmResult::None {
+                if result != ragnarok_ui_component::game::confirm_dialog::ConfirmResult::None {
                     *open = false;
                 }
             } else {
@@ -542,14 +560,15 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
         State::ServerList { win } => {
             win.build(ui);
         }
-        State::Equipment { equip, inventory } => {
-            equip.build(ui, inventory, None, None);
+        State::Equipment { equip, character, data } => {
+            equip.build(ui, character, data);
         }
-        State::SystemMenu { menu } => {
+        State::SystemMenu { menu, character, data } => {
             add_button(ui, "Open system Dialog", WidgetId(599), 10.0, 10.0, |_ui| {
                 menu.open = true;
             });
-            menu.build(ui, true);
+            menu.allow_escape_toggle = true;
+            menu.build(ui, character, data);
         }
         State::CharSelect { win } => {
             win.build(ui);

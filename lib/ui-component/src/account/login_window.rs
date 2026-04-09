@@ -3,6 +3,7 @@ use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
 use ragnarok_game::event::GameEvent;
+use crate::Window;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LoginFocus {
@@ -68,17 +69,6 @@ impl LoginWindow {
             has_grf_textures: false,
             win_size: (FALLBACK_WIN_W, FALLBACK_WIN_H),
             btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
-        }
-    }
-
-    /// Set actual BMP dimensions from texture cache. Call after preloading textures.
-    /// `size_fn` maps a texture path to its (width, height) in pixels.
-    pub fn set_texture_sizes(&mut self, size_fn: impl Fn(&str) -> Option<(u32, u32)>) {
-        if let Some((w, h)) = size_fn(WIN_TEXTURE) {
-            self.win_size = (w as f32, h as f32);
-        }
-        if let Some((w, h)) = size_fn(CONNECT_BTN.normal) {
-            self.btn_size = (w as f32, h as f32);
         }
     }
 
@@ -193,7 +183,22 @@ impl LoginWindow {
         self.error_message = Some(msg.to_string());
     }
 
-    pub fn grf_texture_paths() -> Vec<&'static str> {
+}
+
+impl Window for LoginWindow {
+    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
+    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+
+    fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
+        if let Some((w, h)) = size_fn(WIN_TEXTURE) {
+            self.win_size = (w as f32, h as f32);
+        }
+        if let Some((w, h)) = size_fn(CONNECT_BTN.normal) {
+            self.btn_size = (w as f32, h as f32);
+        }
+    }
+
+    fn grf_texture_paths() -> Vec<&'static str> {
         vec![
             CONNECT_BTN.normal,
             CONNECT_BTN.hover,

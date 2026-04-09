@@ -1,11 +1,14 @@
+use ragnarok_game::character::Character;
+use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::npc_shop::{NpcShopData, NpcShopMode};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, RESIZE_HANDLE_TEX, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-use crate::dialog_container::DialogContainer;
-use crate::number_input::{NumberInputDialog, NumberInputConfig, NumberInputResult};
-use crate::window_chrome::{
+use crate::{Window, InGameWindow};
+use crate::helper::dialog_container::DialogContainer;
+use super::number_input::{NumberInputDialog, NumberInputConfig, NumberInputResult};
+use crate::helper::window_chrome::{
     ITEMWIN_MID_TEX, TITLEBAR_TEX, FOOTER_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
     draw_titlebar, draw_container, draw_footer, text_color,
 };
@@ -42,7 +45,7 @@ const INPUT_DEFAULT_ROWS: usize = 7;
 const OUTPUT_VISIBLE_ROWS: usize = 2;
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
-use crate::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
+use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 const ICON_SIZE: f32 = 24.0;
 const ICON_OFFSET_X: f32 = 4.0;
 const ICON_OFFSET_Y: f32 = 2.0;
@@ -88,16 +91,43 @@ impl NpcShop {
         }
     }
 
-    pub fn set_texture_sizes(&mut self, size_fn: impl Fn(&str) -> Option<(u32, u32)>) {
+}
+
+impl Window for NpcShop {
+    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
+    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+
+    fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(OK_BTN.normal) {
             self.btn_size = (w as f32, h as f32);
         }
         self.container.has_grf_textures = true;
-        self.container.set_texture_sizes(&size_fn);
+        self.container.set_texture_sizes(size_fn);
     }
 
-    /// Call before building z-ordered windows to block interaction with them while shop is open.
-    pub fn setup_modal(&self, ui: &mut UiFrame) {
+    fn grf_texture_paths() -> Vec<&'static str> {
+        let mut paths = DialogContainer::grf_texture_paths();
+        paths.extend_from_slice(&[
+            OK_BTN.normal,
+            OK_BTN.hover,
+            OK_BTN.pressed,
+            CANCEL_BTN_TEX.normal,
+            CANCEL_BTN_TEX.hover,
+            CANCEL_BTN_TEX.pressed,
+            TITLEBAR_TEX,
+            ITEMWIN_MID_TEX,
+            FOOTER_TEX,
+            SYS_BASE_OFF_TEX,
+            SYS_BASE_ON_TEX,
+            RESIZE_HANDLE_TEX,
+        ]);
+        paths.extend(scrollbar::grf_texture_paths());
+        paths
+    }
+}
+
+impl InGameWindow for NpcShop {
+    fn setup_modal(&self, ui: &mut UiFrame) {
         if !self.shop.is_open() {
             return;
         }
@@ -108,7 +138,7 @@ impl NpcShop {
         ui.set_modal(&modal_ids);
     }
 
-    pub fn build(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, _character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
         if !self.shop.is_open() {
             return Vec::new();
         }
@@ -186,7 +216,9 @@ impl NpcShop {
         ui.has_grf_textures = prev_grf;
         events
     }
+}
 
+impl NpcShop {
     fn build_input_window(
         &mut self,
         ui: &mut UiFrame,
@@ -676,25 +708,6 @@ impl NpcShop {
         self.resize_start_rows = None;
     }
 
-    pub fn grf_texture_paths() -> Vec<&'static str> {
-        let mut paths = DialogContainer::grf_texture_paths();
-        paths.extend_from_slice(&[
-            OK_BTN.normal,
-            OK_BTN.hover,
-            OK_BTN.pressed,
-            CANCEL_BTN_TEX.normal,
-            CANCEL_BTN_TEX.hover,
-            CANCEL_BTN_TEX.pressed,
-            TITLEBAR_TEX,
-            ITEMWIN_MID_TEX,
-            FOOTER_TEX,
-            SYS_BASE_OFF_TEX,
-            SYS_BASE_ON_TEX,
-            RESIZE_HANDLE_TEX,
-        ]);
-        paths.extend(scrollbar::grf_texture_paths());
-        paths
-    }
 }
 
 fn format_zeny(amount: i32) -> String {
@@ -715,6 +728,9 @@ fn format_zeny(amount: i32) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::InGameWindow;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
     use ragnarok_game::item::Item;
     use ragnarok_game::npc_shop::ShopBuyItem;
     use ragnarok_renderer::font_atlas::FontAtlas;
@@ -745,12 +761,14 @@ mod tests {
             }],
         );
 
+        let mut character = Character::new();
+        let data = DataTable::new();
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
 
-        let events = shop_ui.build(&mut ui);
+        let events = shop_ui.build(&mut ui, &mut character, &data);
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], GameEvent::RequestNpcShopClose));
         // Shop remains open — main.rs closes it after sending the network packet
@@ -775,12 +793,14 @@ mod tests {
         );
         shop_ui.open_qty_popup(0);
 
+        let mut character = Character::new();
+        let data = DataTable::new();
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
 
-        let events = shop_ui.build(&mut ui);
+        let events = shop_ui.build(&mut ui, &mut character, &data);
         assert!(events.is_empty());
         assert!(shop_ui.qty_popup.is_none());
         assert!(shop_ui.shop.is_open());
@@ -789,11 +809,13 @@ mod tests {
     #[test]
     fn closed_shop_returns_no_events() {
         let mut shop_ui = NpcShop::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
         let mut state = StateCache::new();
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &mut state);
 
-        let events = shop_ui.build(&mut ui);
+        let events = shop_ui.build(&mut ui, &mut character, &data);
         assert!(events.is_empty());
     }
 

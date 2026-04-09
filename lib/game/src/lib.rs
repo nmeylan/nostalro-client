@@ -2,6 +2,8 @@ pub mod accessory_table;
 pub mod animation;
 pub mod app_state;
 pub mod card_name_table;
+pub mod character;
+pub mod data_table;
 pub mod cursor;
 pub mod display_name;
 pub mod inventory;

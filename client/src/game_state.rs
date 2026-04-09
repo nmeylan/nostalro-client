@@ -3,30 +3,27 @@ use std::rc::Rc;
 
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
-use ragnarok_game::accessory_table::AccessoryTable;
 use ragnarok_game::app_state::AppState;
+use ragnarok_game::character::Character;
 use ragnarok_game::cursor::CursorAnimationState;
+use ragnarok_game::data_table::DataTable;
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::floor_item::FloorItem;
 use ragnarok_game::map_coordinates::MapCoordinates;
-use ragnarok_game::card_name_table::CardNameTable;
-use ragnarok_game::item_name_table::ItemNameTable;
-use ragnarok_game::item_resource_table::ItemResourceTable;
-use ragnarok_game::item_slot_count_table::ItemSlotCountTable;
-use ragnarok_game::name_table::NameTable;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_game::server_time::ServerTimeClock;
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
-use ragnarok_ui_component::chat_window::{self, ChatWindow};
-use ragnarok_ui_component::drop_quantity_dialog::{DropQuantityDialog, DropQuantityResult};
-use ragnarok_ui_component::equipment_window::{EquipmentWindow, EQ_WINDOW_ID};
-use ragnarok_ui_component::inventory_window::{InventoryWindow, INV_WINDOW_ID};
-use ragnarok_ui_component::item_pickup_notification::ItemPickupNotification;
-use ragnarok_ui_component::npc_dialog::NpcDialog;
-use ragnarok_ui_component::npc_shop::NpcShop;
-use ragnarok_ui_component::system_menu::SystemMenu;
+use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
+use ragnarok_ui_component::game::drop_quantity_dialog::{DropQuantityDialog, DropQuantityResult};
+use ragnarok_ui_component::game::equipment_window::{EquipmentWindow, EQ_WINDOW_ID};
+use ragnarok_ui_component::game::inventory_window::{InventoryWindow, INV_WINDOW_ID};
+use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
+use ragnarok_ui_component::game::npc_dialog::NpcDialog;
+use ragnarok_ui_component::game::npc_shop::NpcShop;
+use ragnarok_ui_component::game::system_menu::SystemMenu;
+use ragnarok_ui_component::{InGameWindow, Window};
 
 pub struct GameState {
     pub app_state: AppState,
@@ -38,17 +35,13 @@ pub struct GameState {
     pub entities: EntityCollection,
     pub sprites: HashMap<u32, Rc<EntitySprite>>,
     pub sprite_cache: HashMap<String, Rc<EntitySprite>>,
-    pub name_table: Option<NameTable>,
-    pub accessory_table: Option<AccessoryTable>,
+    pub character: Character,
+    pub data_table: DataTable,
     pub cursor_textures: Option<SpriteTextures>,
     pub cursor_act: Option<ActFile>,
     pub cursor_animation: CursorAnimationState,
     pub emotion_textures: Option<SpriteTextures>,
     pub emotion_act: Option<ActFile>,
-    pub item_name_table: Option<ItemNameTable>,
-    pub item_resource_table: Option<ItemResourceTable>,
-    pub item_slot_count_table: Option<ItemSlotCountTable>,
-    pub card_name_table: Option<CardNameTable>,
     pub chat_window: ChatWindow,
     pub equipment_window: EquipmentWindow,
     pub inventory_window: InventoryWindow,
@@ -102,12 +95,13 @@ impl GameState {
 
         // Always-on-top windows (not z-orderable)
         let npc_dialog_open = self.npc_dialog.dialog.is_open();
-        events.extend(self.npc_dialog.build(ui));
+        events.extend(self.npc_dialog.build(ui, &mut self.character, &self.data_table));
         let shop_open = self.npc_shop.shop.is_open();
-        events.extend(self.npc_shop.build(ui));
-        let inv_open = self.inventory_window.inventory.is_open();
+        events.extend(self.npc_shop.build(ui, &mut self.character, &self.data_table));
+        let inv_open = self.character.inventory.is_open();
         let allow_escape = !chat_was_active && !npc_dialog_open && !shop_open && !inv_open;
-        events.extend(self.system_menu.build(ui, allow_escape));
+        self.system_menu.allow_escape_toggle = allow_escape;
+        events.extend(self.system_menu.build(ui, &mut self.character, &self.data_table));
         self.item_pickup_notification.build(ui);
 
         // Drag-cancel handling
@@ -119,7 +113,7 @@ impl GameState {
                     self.chat_window
                         .add_system("Please close the Equipment window.".to_string());
                 } else if let Some(item) = self
-                    .inventory_window
+                    .character
                     .inventory
                     .get_item(cancelled.item_index as u16)
                 {
@@ -161,22 +155,10 @@ impl GameState {
 
     fn build_window(&mut self, win_id: WidgetId, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
         match win_id {
-            chat_window::CHAT_WINDOW_ID => events.extend(self.chat_window.build(ui)),
-            INV_WINDOW_ID => events.extend(self.inventory_window.build(ui)),
+            chat_window::CHAT_WINDOW_ID => events.extend(self.chat_window.build(ui, &mut self.character, &self.data_table)),
+            INV_WINDOW_ID => events.extend(self.inventory_window.build(ui, &mut self.character, &self.data_table)),
             EQ_WINDOW_ID => {
-                let Self {
-                    equipment_window,
-                    inventory_window,
-                    item_slot_count_table,
-                    card_name_table,
-                    ..
-                } = self;
-                events.extend(equipment_window.build(
-                    ui,
-                    &inventory_window.inventory,
-                    item_slot_count_table.as_ref(),
-                    card_name_table.as_ref(),
-                ));
+                events.extend(self.equipment_window.build(ui, &mut self.character, &self.data_table));
             }
             _ => {}
         }
@@ -193,17 +175,13 @@ impl GameState {
             entities: EntityCollection::new(),
             sprites: HashMap::new(),
             sprite_cache: HashMap::new(),
-            name_table: None,
-            accessory_table: None,
+            character: Character::new(),
+            data_table: DataTable::new(),
             cursor_textures: None,
             cursor_act: None,
             cursor_animation: CursorAnimationState::new(),
             emotion_textures: None,
             emotion_act: None,
-            item_name_table: None,
-            item_resource_table: None,
-            item_slot_count_table: None,
-            card_name_table: None,
             chat_window: ChatWindow::new(),
             equipment_window: EquipmentWindow::new(),
             inventory_window: InventoryWindow::new(),

@@ -16,7 +16,7 @@ use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
-use ragnarok_ui_component::{equipment_window, inventory_window, npc_shop};
+use ragnarok_ui_component::game::{equipment_window, inventory_window, npc_shop};
 
 struct Gpu {
     device: RenderDevice,

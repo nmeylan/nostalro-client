@@ -1,6 +1,7 @@
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::UiFrame;
-use crate::dialog_container::DialogContainer;
+use crate::Window;
+use crate::helper::dialog_container::DialogContainer;
 
 const DISPLAY_DURATION: f32 = 3.0;
 const FADE_OUT_DURATION: f32 = 1.0;
@@ -16,6 +17,7 @@ struct PickupEntry {
 }
 
 pub struct ItemPickupNotification {
+    pub has_grf_textures: bool,
     pub container: DialogContainer,
     entry: Option<PickupEntry>,
 }
@@ -23,13 +25,10 @@ pub struct ItemPickupNotification {
 impl ItemPickupNotification {
     pub fn new() -> Self {
         Self {
+            has_grf_textures: false,
             container: DialogContainer::new(),
             entry: None,
         }
-    }
-
-    pub fn set_texture_sizes(&mut self, size_fn: &impl Fn(&str) -> Option<(u32, u32)>) {
-        self.container.set_texture_sizes(size_fn);
     }
 
     pub fn show(&mut self, item_name: String, count: u16, icon_texture: Option<String>) {
@@ -93,7 +92,17 @@ impl ItemPickupNotification {
         self.entry.is_none()
     }
 
-    pub fn grf_texture_paths() -> Vec<&'static str> {
+}
+
+impl Window for ItemPickupNotification {
+    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
+    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+
+    fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
+        self.container.set_texture_sizes(size_fn);
+    }
+
+    fn grf_texture_paths() -> Vec<&'static str> {
         DialogContainer::grf_texture_paths()
     }
 }

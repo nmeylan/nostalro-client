@@ -1,16 +1,20 @@
-pub mod char_select_window;
-pub mod chat_window;
-pub mod confirm_dialog;
-pub mod dialog_container;
-pub mod drop_quantity_dialog;
-pub mod item_pickup_notification;
-pub mod equipment_window;
-pub mod inventory_window;
-pub mod login_window;
-pub mod npc_dialog;
-pub mod npc_shop;
-pub mod number_input;
-pub mod scrollbar;
-pub mod server_list_window;
-pub mod system_menu;
-pub(crate) mod window_chrome;
+pub mod account;
+pub mod game;
+pub mod helper;
+
+use ragnarok_game::character::Character;
+use ragnarok_game::data_table::DataTable;
+use ragnarok_game::event::GameEvent;
+use ragnarok_ui::frame::UiFrame;
+
+pub trait Window {
+    fn has_grf_textures(&self) -> bool;
+    fn set_has_grf_textures(&mut self, value: bool);
+    fn set_texture_sizes(&mut self, _size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {}
+    fn grf_texture_paths() -> Vec<&'static str> where Self: Sized;
+}
+
+pub trait InGameWindow: Window {
+    fn setup_modal(&self, _ui: &mut UiFrame) {}
+    fn build(&mut self, ui: &mut UiFrame, character: &mut Character, data: &DataTable) -> Vec<GameEvent>;
+}
