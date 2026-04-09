@@ -15,6 +15,14 @@
   "debug_network_delay_ms": 0,
   "trace_packets": false,
   "window_state": {
+    "900": {
+      "position": [
+        0.0,
+        210.0
+      ],
+      "open": true,
+      "collapsed": false
+    },
     "800": {
       "position": [
         0.0,
@@ -23,12 +31,12 @@
       "open": true,
       "collapsed": false
     },
-    "900": {
+    "210": {
       "position": [
-        0.0,
-        210.0
+        342.0,
+        524.0
       ],
-      "open": true,
+      "open": false,
       "collapsed": false
     },
     "10": {
@@ -43,14 +51,6 @@
       "position": [
         490.0,
         635.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "210": {
-      "position": [
-        342.0,
-        524.0
       ],
       "open": false,
       "collapsed": false

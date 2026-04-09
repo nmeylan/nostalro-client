@@ -495,6 +495,10 @@ impl App {
                             renderer.preload_textures(&DropQuantityDialog::grf_texture_paths(), grf);
                     }
 
+                    if let Some(info) = &self.game.selected_character {
+                        self.game.character.init_from_info(info);
+                    }
+
                     self.game.app_state = AppState::InGame;
                     self.game.apply_window_state(&self.config.window_state);
 
@@ -735,7 +739,10 @@ impl App {
                     }
                 }
                 GameEvent::EntityHpChanged { gid, hp, max_hp } => {
-                    if let Some(entity) = self.game.entities.get_mut(gid) {
+                    if self.game.entities.is_player(gid) {
+                        self.game.character.hp = hp;
+                        self.game.character.max_hp = max_hp;
+                    } else if let Some(entity) = self.game.entities.get_mut(gid) {
                         entity.hp = Some(hp);
                         entity.max_hp = Some(max_hp);
                     }
@@ -1145,70 +1152,40 @@ impl App {
                                 }
                             }
                             StatusTypes::Hp => {
-                                if let Some(c) = &mut self.game.selected_character {
-                                    c.hp = value as u32;
-                                }
-                                if let Some(e) = self.game.entities.player_mut() {
-                                    e.hp = Some(value as u32);
-                                }
+                                self.game.character.hp = value as u32;
                             }
                             StatusTypes::Maxhp => {
-                                if let Some(c) = &mut self.game.selected_character {
-                                    c.max_hp = value as u32;
-                                }
-                                if let Some(e) = self.game.entities.player_mut() {
-                                    e.max_hp = Some(value as u32);
-                                }
+                                self.game.character.max_hp = value as u32;
                             }
                             StatusTypes::Sp => {
-                                if let Some(c) = &mut self.game.selected_character {
-                                    c.sp = value as u16;
-                                }
+                                self.game.character.sp = value as u16;
                             }
                             StatusTypes::Maxsp => {
-                                if let Some(c) = &mut self.game.selected_character {
-                                    c.max_sp = value as u16;
-                                }
+                                self.game.character.max_sp = value as u16;
                             }
                             StatusTypes::Baselevel => {
-                                if let Some(c) = &mut self.game.selected_character {
-                                    c.base_level = value as u16;
-                                }
+                                self.game.character.base_level = value as u16;
                             }
                             StatusTypes::Str => {
-                                if let Some(c) = &mut self.game.selected_character {
-                                    c.str = value as u8;
-                                }
+                                self.game.character.str = value as u8;
                             }
                             StatusTypes::Agi => {
-                                if let Some(c) = &mut self.game.selected_character {
-                                    c.agi = value as u8;
-                                }
+                                self.game.character.agi = value as u8;
                             }
                             StatusTypes::Vit => {
-                                if let Some(c) = &mut self.game.selected_character {
-                                    c.vit = value as u8;
-                                }
+                                self.game.character.vit = value as u8;
                             }
                             StatusTypes::Int => {
-                                if let Some(c) = &mut self.game.selected_character {
-                                    c.int = value as u8;
-                                }
+                                self.game.character.int = value as u8;
                             }
                             StatusTypes::Dex => {
-                                if let Some(c) = &mut self.game.selected_character {
-                                    c.dex = value as u8;
-                                }
+                                self.game.character.dex = value as u8;
                             }
                             StatusTypes::Luk => {
-                                if let Some(c) = &mut self.game.selected_character {
-                                    c.luk = value as u8;
-                                }
+                                self.game.character.luk = value as u8;
                             }
                             StatusTypes::Joblevel => {
-                                if let Some(c) = &mut self.game.selected_character {
-                                    c.job_level = value as u32;
-                                }
+                                self.game.character.job_level = value as u32;
                             }
                             StatusTypes::Weight => {
                                 self.game.character.inventory.weight = value;
@@ -1226,17 +1203,15 @@ impl App {
                 GameEvent::StatusChanged {
                     status_type, base, ..
                 } => {
-                    if let Some(c) = &mut self.game.selected_character {
-                        if let Ok(status) = StatusTypes::try_from_value(status_type as usize) {
-                            match status {
-                                StatusTypes::Str => c.str = base as u8,
-                                StatusTypes::Agi => c.agi = base as u8,
-                                StatusTypes::Vit => c.vit = base as u8,
-                                StatusTypes::Int => c.int = base as u8,
-                                StatusTypes::Dex => c.dex = base as u8,
-                                StatusTypes::Luk => c.luk = base as u8,
-                                _ => {}
-                            }
+                    if let Ok(status) = StatusTypes::try_from_value(status_type as usize) {
+                        match status {
+                            StatusTypes::Str => self.game.character.str = base as u8,
+                            StatusTypes::Agi => self.game.character.agi = base as u8,
+                            StatusTypes::Vit => self.game.character.vit = base as u8,
+                            StatusTypes::Int => self.game.character.int = base as u8,
+                            StatusTypes::Dex => self.game.character.dex = base as u8,
+                            StatusTypes::Luk => self.game.character.luk = base as u8,
+                            _ => {}
                         }
                     }
                 }
@@ -2681,7 +2656,12 @@ impl ApplicationHandler for App {
                         let hovered_entry = render_list.iter().find(|e| e.id == entity_id);
                         if let Some(entry) = hovered_entry {
                             let mut bar_y = entry.pick_bounds[3] + 5.0;
-                            if let Some(ratio) = entity.hp_percentage() {
+                            let hp_ratio = if self.game.entities.is_player(entity_id) {
+                                Some(self.game.character.hp_percentage())
+                            } else {
+                                entity.hp_percentage()
+                            };
+                            if let Some(ratio) = hp_ratio {
                                 let (_x, y) = render_hp_bar(
                                     &entry,
                                     ratio,
@@ -2689,6 +2669,11 @@ impl ApplicationHandler for App {
                                     &mut world_overlay_calls,
                                 );
                                 bar_y = y;
+                                if self.game.entities.is_player(entity_id) {
+                                    let sp_y = y + HP_BAR_HEIGHT;
+                                    render_bar(entry.screen_anchor[0], sp_y, self.game.character.sp_percentage(), SP_BAR_COLOR, &mut world_overlay_calls);
+                                    bar_y = sp_y;
+                                }
                             }
                             if let Some(name) = &entity.name {
                                 let text_width = renderer.font_atlas.measure_text(name);
@@ -2734,20 +2719,20 @@ impl ApplicationHandler for App {
                 }
 
                 // Player HP bar (always visible)
-                if let (Some(_), Some(player)) = (&self.renderer, self.game.entities.player()) {
+                if self.renderer.is_some() && self.game.entities.player().is_some() {
                     if hovered_entity_id != self.game.entities.player_id() {
-                        if let Some(ratio) = player.hp_percentage() {
-                            if let Some(entry) = render_list
-                                .iter()
-                                .find(|e| Some(e.id) == self.game.entities.player_id())
-                            {
-                                render_hp_bar(
-                                    entry,
-                                    ratio,
-                                    EntityType::Player,
-                                    &mut world_overlay_calls,
-                                );
-                            }
+                        let ratio = self.game.character.hp_percentage();
+                        if let Some(entry) = render_list
+                            .iter()
+                            .find(|e| Some(e.id) == self.game.entities.player_id())
+                        {
+                            let (_x, y) = render_hp_bar(
+                                entry,
+                                ratio,
+                                EntityType::Player,
+                                &mut world_overlay_calls,
+                            );
+                            render_bar(entry.screen_anchor[0], y + HP_BAR_HEIGHT, self.game.character.sp_percentage(), SP_BAR_COLOR, &mut world_overlay_calls);
                         }
                     }
                 }
@@ -3176,17 +3161,16 @@ fn hp_bar_color(ratio: f32, entity_type: EntityType) -> [f32; 4] {
 
 const HP_BAR_WIDTH: f32 = 60.0;
 const HP_BAR_HEIGHT: f32 = 5.0;
+const SP_BAR_COLOR: [f32; 4] = [0.063, 0.094, 0.61, 1.0];
 
-fn render_hp_bar(
-    entry: &RenderEntry,
+fn render_bar(
+    center_x: f32,
+    y: f32,
     ratio: f32,
-    entity_type: EntityType,
+    fill_color: [f32; 4],
     draw_calls: &mut Vec<UiDrawCall>,
-) -> (f32, f32) {
-    let center_x = entry.screen_anchor[0];
-    let y = entry.pick_bounds[3] ;
+) {
     let border_x = center_x - HP_BAR_WIDTH / 2.0;
-    // Border: #10189c dark blue
     let (border_verts, border_idx) = ragnarok_ui::draw::quad_vertices(
         border_x,
         y,
@@ -3199,7 +3183,6 @@ fn render_hp_bar(
         indices: border_idx.to_vec(),
         texture: ragnarok_renderer::UiTextureRef::White,
     });
-    // Background: #424242 dark gray (1px inside border)
     let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
         border_x + 1.0,
         y + 1.0,
@@ -3212,7 +3195,6 @@ fn render_hp_bar(
         indices: bg_idx.to_vec(),
         texture: ragnarok_renderer::UiTextureRef::White,
     });
-    // Fill
     let fill_ratio = ratio.clamp(0.0, 1.0);
     let fill_w = (HP_BAR_WIDTH - 2.0) * fill_ratio;
     let (fill_verts, fill_idx) = ragnarok_ui::draw::quad_vertices(
@@ -3220,13 +3202,24 @@ fn render_hp_bar(
         y + 1.0,
         fill_w,
         HP_BAR_HEIGHT - 2.0,
-        hp_bar_color(ratio, entity_type),
+        fill_color,
     );
     draw_calls.push(UiDrawCall {
         vertices: fill_verts.to_vec(),
         indices: fill_idx.to_vec(),
         texture: ragnarok_renderer::UiTextureRef::White,
     });
+}
+
+fn render_hp_bar(
+    entry: &RenderEntry,
+    ratio: f32,
+    entity_type: EntityType,
+    draw_calls: &mut Vec<UiDrawCall>,
+) -> (f32, f32) {
+    let center_x = entry.screen_anchor[0];
+    let y = entry.pick_bounds[3];
+    render_bar(center_x, y, ratio, hp_bar_color(ratio, entity_type), draw_calls);
     (center_x, y)
 }
 

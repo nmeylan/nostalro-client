@@ -60,6 +60,10 @@ impl EntityCollection {
         self.player_id = None;
     }
 
+    pub fn is_player(&self, id: u32) -> bool {
+        self.player_id == Some(id)
+    }
+
     pub fn clear_non_player(&mut self) {
         if let Some(pid) = self.player_id {
             self.entities.retain(|&id, _| id == pid);
