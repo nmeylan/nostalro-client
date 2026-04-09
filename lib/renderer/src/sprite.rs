@@ -1,4 +1,4 @@
-use ragnarok_formats::act::{ActFile, SprClip, attachment_offset};
+use ragnarok_formats::act::{ActFile, Motion, SprClip, attachment_offset};
 use ragnarok_formats::spr::{RgbaImageData, SpriteData};
 
 use crate::device::DEPTH_FORMAT;
@@ -493,7 +493,7 @@ pub fn build_composite_clips(
     }
 
     let mut head = Vec::new();
-    let head_offset = if let (Some(head_act), Some(head_tex)) = (&entity.head_act, &entity.head_textures) {
+    if let (Some(head_act), Some(head_tex)) = (&entity.head_act, &entity.head_textures) {
         let head_action_idx = action_idx % head_act.actions.len();
         let head_action = &head_act.actions[head_action_idx];
         if !head_action.motions.is_empty() {
@@ -511,13 +511,8 @@ pub fn build_composite_clips(
                     }
                 }
             }
-            Some((off_x, off_y))
-        } else {
-            None
         }
-    } else {
-        None
-    };
+    }
 
     fn build_headgear_clips(
         act: Option<&ActFile>,
@@ -526,13 +521,12 @@ pub fn build_composite_clips(
         motion_idx: usize,
         head_dir: u8,
         is_idle_or_sit: bool,
-        head_offset: Option<(i32, i32)>,
+        body_motion: &Motion,
         screen_anchor: [f32; 2],
         depth: f32,
     ) -> Vec<ClipQuad> {
         let mut clips = Vec::new();
         if let (Some(act), Some(tex)) = (act, tex) {
-            let (off_x, off_y) = head_offset.unwrap_or((0, 0));
             let hg_action_idx = action_idx % act.actions.len();
             let hg_action = &act.actions[hg_action_idx];
             if !hg_action.motions.is_empty() {
@@ -542,6 +536,7 @@ pub fn build_composite_clips(
                     motion_idx % hg_action.motions.len()
                 };
                 let hg_motion = &hg_action.motions[hg_motion_idx];
+                let (off_x, off_y) = attachment_offset(body_motion, hg_motion);
                 for clip in &hg_motion.clips {
                     if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, tex, screen_anchor, depth, [off_x, off_y]) {
                         if tex_idx < tex.bind_groups.len() {
@@ -556,15 +551,15 @@ pub fn build_composite_clips(
 
     let headgear_bottom = build_headgear_clips(
         entity.headgear_bottom_act.as_ref(), entity.headgear_bottom_textures.as_ref(),
-        action_idx, motion_idx, head_dir, is_idle_or_sit, head_offset, screen_anchor, depth,
+        action_idx, motion_idx, head_dir, is_idle_or_sit, body_motion, screen_anchor, depth,
     );
     let headgear_mid = build_headgear_clips(
         entity.headgear_mid_act.as_ref(), entity.headgear_mid_textures.as_ref(),
-        action_idx, motion_idx, head_dir, is_idle_or_sit, head_offset, screen_anchor, depth,
+        action_idx, motion_idx, head_dir, is_idle_or_sit, body_motion, screen_anchor, depth,
     );
     let headgear_top = build_headgear_clips(
         entity.headgear_top_act.as_ref(), entity.headgear_top_textures.as_ref(),
-        action_idx, motion_idx, head_dir, is_idle_or_sit, head_offset, screen_anchor, depth,
+        action_idx, motion_idx, head_dir, is_idle_or_sit, body_motion, screen_anchor, depth,
     );
 
     let mut weapon = Vec::new();
