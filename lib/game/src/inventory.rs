@@ -90,7 +90,7 @@ impl InventoryData {
 
     pub fn filtered_items(&self) -> Vec<&Item> {
         self.items.iter()
-            .filter(|item| item.tab() == self.active_tab && !item.is_equipped())
+            .filter(|item| item.tab() == self.active_tab && (!item.is_equipped() || item.is_ammunition()))
             .collect()
     }
 
@@ -328,6 +328,34 @@ mod tests {
         assert_eq!(inv.equipped_in_slot(EquipmentLocation::HeadTop).unwrap().index, 13);
         assert_eq!(inv.equipped_in_slot(EquipmentLocation::HeadMid).unwrap().index, 13);
         assert_eq!(inv.equipped_in_slot(EquipmentLocation::HeadLow).unwrap().index, 12);
+    }
+
+    #[test]
+    fn ammunition_equip_stays_visible() {
+        let mut inv = InventoryData::new();
+        inv.add_item(make_normal_item(20, 1750, 10, 100)); // arrows, type 10 = ammo
+
+        let ammo = inv.get_item(20).unwrap();
+        assert_eq!(ammo.tab(), InventoryTab::Etc);
+        assert!(ammo.is_ammunition());
+        assert!(ammo.is_equipment());
+
+        // Ammo visible in Etc tab before equipping
+        inv.active_tab = InventoryTab::Etc;
+        assert_eq!(inv.filtered_items().len(), 1);
+
+        // Equip ammo — it should remain visible in Etc tab
+        inv.update_wear_state(20, InventoryData::slot_mask(EquipmentLocation::Ammo));
+        assert!(inv.get_item(20).unwrap().is_equipped());
+        assert_eq!(inv.filtered_items().len(), 1);
+
+        // Also findable via equipped_in_slot
+        assert_eq!(inv.equipped_in_slot(EquipmentLocation::Ammo).unwrap().index, 20);
+
+        // Unequip — still visible
+        inv.clear_wear_state(20);
+        assert!(!inv.get_item(20).unwrap().is_equipped());
+        assert_eq!(inv.filtered_items().len(), 1);
     }
 
     #[test]

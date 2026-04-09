@@ -3,11 +3,14 @@
 #[global_allocator]
 static GLOBAL: std::alloc::System = std::alloc::System;
 
+use std::collections::HashMap;
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::{CharacterInfo, ServerInfo};
 use ragnarok_game::item::Item;
+use ragnarok_game::item_description_table::ItemDescriptionTable;
 use ragnarok_game::item_resource_table::ItemResourceTable;
+use ragnarok_game::item_slot_count_table::ItemSlotCountTable;
 use ragnarok_game::npc_shop::{NpcShopMode, ShopBuyItem, ShopSellItem};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -18,6 +21,7 @@ use ragnarok_ui_component::game::chat_window::ChatWindow;
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
 use ragnarok_ui_component::game::inventory_window::InventoryWindow;
+use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
@@ -36,6 +40,7 @@ const GAME_COMPONENTS: &[&str] = &[
     "number_input",
     "chat",
     "dialog_container",
+    "item_info",
 ];
 const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
 
@@ -88,6 +93,11 @@ enum State {
     },
     CharSelect {
         win: CharSelectWindow,
+    },
+    ItemInfo {
+        win: ItemInfoWindow,
+        character: Character,
+        data: DataTable,
     },
     DialogContainerDemo {
         notification: ItemPickupNotification,
@@ -378,6 +388,46 @@ fn create_single(name: &str) -> State {
                 win: CharSelectWindow::new(characters),
             }
         }
+        "item_info" => {
+            let mut slot_entries = HashMap::new();
+            slot_entries.insert(1701u16, 3u8);
+            let mut desc_entries = HashMap::new();
+            desc_entries.insert(1701u16, vec![
+                "A bow with 3 card slots.".to_string(),
+                "Class:^0000FF Weapon^000000".to_string(),
+                "Attack:^777777 15^000000".to_string(),
+                "Weight:^777777 50^000000".to_string(),
+                "Weapon Level:^777777 1^000000".to_string(),
+                "Required Level:^777777 4^000000".to_string(),
+                "Applicable Job:^777777 Archer class^000000".to_string(),
+            ]);
+            let mut res_identified = HashMap::new();
+            res_identified.insert(1701u16, "활".to_string());
+            res_identified.insert(4025u16, "고블린카드".to_string());
+            let data = DataTable {
+                item_slot_count: Some(ItemSlotCountTable::from_entries(slot_entries)),
+                item_description: Some(ItemDescriptionTable::from_entries(desc_entries, HashMap::new())),
+                item_resource: Some(ItemResourceTable::from_entries(res_identified, HashMap::new())),
+                ..DataTable::new()
+            };
+            let bow = Item {
+                index: 0,
+                item_id: 1701,
+                item_type: 4,
+                count: 1,
+                is_identified: true,
+                is_damaged: false,
+                refining_level: 0,
+                slot: [4025, 4025, 0xFFFF, 0],
+                location: 0,
+                wear_state: 0,
+                name: "Bow [3]".into(),
+                resource_name: Some("활".to_string()),
+            };
+            let mut win = ItemInfoWindow::new();
+            win.show(&bow, &data);
+            State::ItemInfo { win, character: Character::new(), data }
+        }
         "dialog_container" => {
             let mut notification = ItemPickupNotification::new();
             notification.show("Sticky Mucus".to_string(), 1, None);
@@ -469,6 +519,10 @@ fn grf_init_single(
             menu.set_texture_sizes(size_fn);
         }
         State::CharSelect { win } => {
+            win.has_grf_textures = true;
+            win.set_texture_sizes(size_fn);
+        }
+        State::ItemInfo { win, .. } => {
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
@@ -572,6 +626,9 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
         }
         State::CharSelect { win } => {
             win.build(ui);
+        }
+        State::ItemInfo { win, character, data } => {
+            win.build(ui, character, data);
         }
         State::DialogContainerDemo {  notification } => {
             let mut character = Character::new();

@@ -363,8 +363,8 @@ impl InGameWindow for InventoryWindow {
                     hovered_tooltip = Some((cx, cy - icon, tooltip_text));
                 }
 
-                // Begin drag on click for any non-equipped item
-                if response.clicked() && !item.is_equipped() {
+                // Begin drag on click (ammo stays draggable even when equipped)
+                if response.clicked() && (!item.is_equipped() || item.is_ammunition()) {
                     ui.drag_source(
                         INV_WINDOW_ID,
                         item.index as usize,
@@ -373,15 +373,19 @@ impl InGameWindow for InventoryWindow {
                     );
                 }
 
-                // Double-click or right-click: use (consumable) or equip/unequip (equipment)
-                if response.double_clicked() || response.right_clicked() {
+                // Right-click: show item info
+                if response.right_clicked() {
+                    events.push(GameEvent::ShowItemInfo { index: item.index });
+                }
+                // Double-click: use (consumable) or equip/unequip (equipment)
+                if response.double_clicked() {
                     if item.is_equipment() {
                         if item.is_equipped() {
                             events.push(GameEvent::RequestUnequipItem { index: item.index });
                         } else {
                             events.push(GameEvent::RequestEquipItem {
                                 index: item.index,
-                                location: item.location,
+                                location: item.equip_location(),
                             });
                         }
                     } else {

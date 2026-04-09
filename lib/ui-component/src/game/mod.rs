@@ -3,6 +3,7 @@ pub mod confirm_dialog;
 pub mod drop_quantity_dialog;
 pub mod equipment_window;
 pub mod inventory_window;
+pub mod item_info_window;
 pub mod item_pickup_notification;
 pub mod npc_dialog;
 pub mod npc_shop;

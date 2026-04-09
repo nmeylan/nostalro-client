@@ -1,5 +1,6 @@
 use crate::accessory_table::AccessoryTable;
 use crate::card_name_table::CardNameTable;
+use crate::item_description_table::ItemDescriptionTable;
 use crate::item_name_table::ItemNameTable;
 use crate::item_resource_table::ItemResourceTable;
 use crate::item_slot_count_table::ItemSlotCountTable;
@@ -13,6 +14,7 @@ pub struct DataTable {
     pub item_resource: Option<ItemResourceTable>,
     pub item_slot_count: Option<ItemSlotCountTable>,
     pub card_name: Option<CardNameTable>,
+    pub item_description: Option<ItemDescriptionTable>,
 }
 
 impl DataTable {
@@ -24,6 +26,7 @@ impl DataTable {
             item_resource: None,
             item_slot_count: None,
             card_name: None,
+            item_description: None,
         }
     }
 }

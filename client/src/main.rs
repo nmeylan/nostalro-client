@@ -490,6 +490,7 @@ impl App {
                         preload_window(&mut self.game.equipment_window, renderer, grf);
                         preload_window(&mut self.game.npc_dialog, renderer, grf);
                         preload_window(&mut self.game.npc_shop, renderer, grf);
+                        preload_window(&mut self.game.item_info_window, renderer, grf);
                         preload_window(&mut self.game.item_pickup_notification, renderer, grf);
                         self.game.drop_dialog_has_grf_textures =
                             renderer.preload_textures(&DropQuantityDialog::grf_texture_paths(), grf);
@@ -891,8 +892,8 @@ impl App {
                             is_damaged: false,
                             refining_level: 0,
                             slot: [0; 4],
-                            location: 0,
-                            wear_state: info.wear_state,
+                            location: info.wear_state,
+                            wear_state: 0,
                             name,
                             resource_name,
                         });
@@ -1824,6 +1825,18 @@ impl App {
                     }
                     self.game.npc_shop.close();
                 }
+                GameEvent::ShowItemInfo { index } => {
+                    if let Some(item) = self.game.character.inventory.get_item(index) {
+                        self.game.item_info_window.show(item, &self.game.data_table);
+                        let tex_paths = self.game.item_info_window.pending_texture_paths();
+                        self.preload_item_icons(tex_paths);
+                    }
+                }
+                GameEvent::ShowCardInfo { item_id } => {
+                    self.game.item_info_window.show_card(item_id, &self.game.data_table);
+                    let tex_paths = self.game.item_info_window.pending_card_texture_paths();
+                    self.preload_item_icons(tex_paths);
+                }
                 GameEvent::RequestUseItem { index } => {
                     let account_id = self
                         .game
@@ -2436,6 +2449,8 @@ impl ApplicationHandler for App {
                         Some(ragnarok_game::item_slot_count_table::ItemSlotCountTable::load(&grf));
                     self.game.data_table.card_name =
                         Some(ragnarok_game::card_name_table::CardNameTable::load(&grf));
+                    self.game.data_table.item_description =
+                        Some(ragnarok_game::item_description_table::ItemDescriptionTable::load(&grf));
                     self.grf = Some(grf);
                 }
                 Err(e) => {

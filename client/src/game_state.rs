@@ -21,6 +21,7 @@ use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::equipment_window::{EquipmentWindow, EQ_WINDOW_ID};
 use ragnarok_ui_component::game::inventory_window::{InventoryWindow, INV_WINDOW_ID};
+use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
@@ -61,6 +62,7 @@ pub struct GameState {
     pub drop_dialog_has_grf_textures: bool,
     pub drop_quantity_dialog: Option<DropQuantityDialog>,
     pub pending_pickup_item_id: Option<u32>,
+    pub item_info_window: ItemInfoWindow,
     pub item_pickup_notification: ItemPickupNotification,
     pub debug_show_pick_bounds: bool,
 }
@@ -104,6 +106,7 @@ impl GameState {
         let allow_escape = !chat_was_active && !npc_dialog_open && !shop_open;
         self.system_menu.allow_escape_toggle = allow_escape;
         events.extend(self.system_menu.build(ui, &mut self.character, &self.data_table));
+        events.extend(self.item_info_window.build(ui, &mut self.character, &self.data_table));
         events.extend(InGameWindow::build(&mut self.item_pickup_notification, ui, &mut self.character, &self.data_table));
 
         // Drag-cancel handling
@@ -198,6 +201,7 @@ impl GameState {
             drop_dialog_has_grf_textures: false,
             drop_quantity_dialog: None,
             pending_pickup_item_id: None,
+            item_info_window: ItemInfoWindow::new(),
             item_pickup_notification: ItemPickupNotification::new(),
             debug_show_pick_bounds: false,
         }

@@ -209,6 +209,10 @@ pub enum GameEvent {
     // Floor items (client → server)
     RequestPickupItem { id: u32 },
 
+    // UI actions
+    ShowItemInfo { index: u16 },
+    ShowCardInfo { item_id: u16 },
+
     // UI lifecycle
     DialogClosed,
 

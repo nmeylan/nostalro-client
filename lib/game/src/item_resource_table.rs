@@ -12,6 +12,13 @@ const IDENTIFIED_PATH: &str = "data/idnum2itemresnametable.txt";
 const UNIDENTIFIED_PATH: &str = "data/num2itemresnametable.txt";
 
 impl ItemResourceTable {
+    pub fn from_entries(
+        identified_entries: HashMap<u16, String>,
+        unidentified_entries: HashMap<u16, String>,
+    ) -> Self {
+        Self { identified_entries, unidentified_entries }
+    }
+
     pub fn load(grf: &GrfArchive) -> Self {
         let identified_entries = grf.read_file(IDENTIFIED_PATH)
             .map(|data| lua_table::parse_item_name_table(&data))

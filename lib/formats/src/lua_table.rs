@@ -52,6 +52,35 @@ pub fn parse_item_name_table(data: &[u8]) -> HashMap<u16, String> {
     map
 }
 
+/// Parses item description tables (`idnum2itemdesctable.txt` / `num2itemdesctable.txt`).
+/// Format: `ID#\ndescription lines...\n#\n` repeating.
+/// Returns id → Vec of description lines (may contain `^RRGGBB` color codes).
+pub fn parse_item_description_table(data: &[u8]) -> HashMap<u16, Vec<String>> {
+    let content = decode_euc_kr(data);
+    let mut map: HashMap<u16, Vec<String>> = HashMap::new();
+    let mut current_id: Option<u16> = None;
+
+    for token in content.split('#') {
+        let trimmed = token.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Ok(id) = trimmed.parse::<u16>() {
+            current_id = Some(id);
+        } else if let Some(id) = current_id {
+            let lines: Vec<String> = token
+                .lines()
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| l.to_string())
+                .collect();
+            if !lines.is_empty() {
+                map.entry(id).or_default().extend(lines);
+            }
+        }
+    }
+    map
+}
+
 /// Parses `id#` format (id-only lines). Returns a HashSet of ids.
 pub fn parse_id_set_table(data: &[u8]) -> std::collections::HashSet<u16> {
     let content = decode_euc_kr(data);
@@ -170,6 +199,29 @@ ACCESSORY_HEADBAND = 6,
         let table = build_accessory_table(id_content, name_content);
         assert_eq!(table.len(), 1);
         assert!(table.get(&2).is_none());
+    }
+
+    #[test]
+    fn parse_item_description_table_multiple_items() {
+        let data = b"501#\nA red potion.\n^FFFFFF_^000000\nClass:^0000FF Restorative^000000\nWeight:^009900 7^000000\n#\n502#\nAn orange potion.\nWeight:^009900 10^000000\n#\n";
+        let table = parse_item_description_table(data);
+        assert_eq!(table.len(), 2);
+        let desc_501 = table.get(&501).unwrap();
+        assert_eq!(desc_501.len(), 4);
+        assert_eq!(desc_501[0], "A red potion.");
+        assert_eq!(desc_501[1], "^FFFFFF_^000000");
+        assert_eq!(desc_501[2], "Class:^0000FF Restorative^000000");
+        assert_eq!(desc_501[3], "Weight:^009900 7^000000");
+        let desc_502 = table.get(&502).unwrap();
+        assert_eq!(desc_502.len(), 2);
+        assert_eq!(desc_502[0], "An orange potion.");
+    }
+
+    #[test]
+    fn parse_item_description_table_missing_item_returns_none() {
+        let data = b"501#\nSome desc\n#\n";
+        let table = parse_item_description_table(data);
+        assert!(table.get(&999).is_none());
     }
 
     #[test]

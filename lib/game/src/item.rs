@@ -1,3 +1,5 @@
+use models::enums::EnumWithMaskValueU64;
+use models::enums::item::EquipmentLocation;
 use crate::item_resource_table::ItemResourceTable;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,11 +44,23 @@ impl Item {
     }
 
     pub fn is_equipment(&self) -> bool {
-        self.tab() == InventoryTab::Equip
+        self.tab() == InventoryTab::Equip || self.is_ammunition()
     }
 
     pub fn is_equipped(&self) -> bool {
         self.wear_state != 0
+    }
+
+    pub fn is_ammunition(&self) -> bool {
+        self.item_type == 10
+    }
+
+    pub fn equip_location(&self) -> u16 {
+        if self.is_ammunition() {
+            EquipmentLocation::Ammo.as_flag() as u16
+        } else {
+            self.location
+        }
     }
 
     pub fn resolve_resource_name(&mut self, table: &ItemResourceTable) {

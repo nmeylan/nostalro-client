@@ -264,7 +264,7 @@ impl InGameWindow for EquipmentWindow {
             .filter(|(src, _)| *src == INV_WINDOW_ID)
             .and_then(|(_, idx)| inventory.get_item(idx as u16))
             .filter(|item| item.is_equipment() && !item.is_equipped())
-            .map(|item| item.location);
+            .map(|item| item.equip_location());
 
         // -- Equipment slots --
         let side_col_w = SIDE_COL_W ;
@@ -334,8 +334,12 @@ impl InGameWindow for EquipmentWindow {
                     ui.drag_source(EQ_WINDOW_ID, item.index as usize, item.icon_path(), (ICON_SIZE, ICON_SIZE));
                 }
 
-                // Unequip on double-click or right-click
-                if response.double_clicked() || response.right_clicked() {
+                // Right-click: show item info
+                if response.right_clicked() {
+                    events.push(GameEvent::ShowItemInfo { index: item.index });
+                }
+                // Unequip on double-click
+                if response.double_clicked() {
                     events.push(GameEvent::RequestUnequipItem { index: item.index });
                 }
             }
@@ -362,7 +366,7 @@ impl InGameWindow for EquipmentWindow {
                     if item.is_equipment() && !item.is_equipped() {
                         events.push(GameEvent::RequestEquipItem {
                             index: item.index,
-                            location: item.location,
+                            location: item.equip_location(),
                         });
                     }
                 }

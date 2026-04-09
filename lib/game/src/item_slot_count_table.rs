@@ -10,6 +10,10 @@ pub struct ItemSlotCountTable {
 const SLOT_COUNT_PATH: &str = "data/itemslotcounttable.txt";
 
 impl ItemSlotCountTable {
+    pub fn from_entries(entries: HashMap<u16, u8>) -> Self {
+        Self { entries }
+    }
+
     pub fn load(grf: &GrfArchive) -> Self {
         if let Ok(data) = grf.read_file(SLOT_COUNT_PATH) {
             let raw = lua_table::parse_item_name_table(&data);
