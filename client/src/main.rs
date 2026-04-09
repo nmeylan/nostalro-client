@@ -2,7 +2,8 @@ mod config;
 mod game_state;
 mod input;
 
-use config::Config;
+use std::collections::HashMap;
+use config::{Config, WindowStateEntry};
 use game_state::GameState;
 use input::InputState;
 use models::enums::EnumWithNumberValue;
@@ -46,30 +47,35 @@ use ragnarok_ui::state::StateCache;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::{LoginFocus, LoginWindow};
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
-use ragnarok_ui_component::game::chat_window::ChatWindow;
-use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
-use ragnarok_ui_component::game::inventory_window::InventoryWindow;
-use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
-use ragnarok_ui_component::game::npc_dialog::NpcDialog;
-use ragnarok_ui_component::game::npc_shop::NpcShop;
-use ragnarok_ui_component::game::system_menu::SystemMenu;
+use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::mpsc;
-use tracing::info;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowAttributes, WindowId};
-use ragnarok_ui_component::Window as OtherWindow;
+use ragnarok_ui_component::Window as UiWindow;
 
 type ClipData = (Vec<SpriteVertex>, Vec<u32>, usize);
 
+fn preload_window<W: UiWindow>(window: &mut W, renderer: &mut Renderer, grf: &GrfArchive) {
+    if !window.has_grf_textures() {
+        let paths = W::grf_texture_paths();
+        let loaded = renderer.preload_textures(&paths, grf);
+        window.set_has_grf_textures(loaded);
+        if loaded {
+            window.set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
+        }
+    }
+}
+
 struct App {
     config: Config,
+    saved_window_positions: HashMap<u32, [f32; 2]>,
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
     grf: Option<GrfArchive>,
@@ -88,8 +94,12 @@ struct App {
 
 impl App {
     fn new(config: Config) -> Self {
+        let saved_window_positions = config.window_state.iter()
+            .map(|(&id, entry)| (id, entry.position))
+            .collect();
         Self {
             config,
+            saved_window_positions,
             window: None,
             renderer: None,
             grf: None,
@@ -314,13 +324,7 @@ impl App {
                     self.game.login_session = Some(session);
                     let mut server_win = ServerListWindow::new(servers);
                     if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-                        server_win.has_grf_textures =
-                            renderer.preload_textures(&ServerListWindow::grf_texture_paths(), grf);
-                        if server_win.has_grf_textures {
-                            server_win.set_texture_sizes(&|name| {
-                                renderer.texture_cache.texture_size(name)
-                            });
-                        }
+                        preload_window(&mut server_win, renderer, grf);
                     }
                     self.server_list_window = Some(server_win);
                     self.game.app_state = AppState::ServerSelect;
@@ -342,13 +346,7 @@ impl App {
                     tracing::info!("Received {} character(s)", characters.len());
                     let mut char_win = CharSelectWindow::new(characters);
                     if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-                        char_win.has_grf_textures =
-                            renderer.preload_textures(&CharSelectWindow::grf_texture_paths(), grf);
-                        if char_win.has_grf_textures {
-                            char_win.set_texture_sizes(&|name| {
-                                renderer.texture_cache.texture_size(name)
-                            });
-                        }
+                        preload_window(&mut char_win, renderer, grf);
                     }
                     self.char_select_window = Some(char_win);
                     self.game.app_state = AppState::CharacterSelect;
@@ -375,6 +373,7 @@ impl App {
                 }
                 GameEvent::RestartAck => {
                     self.char_select_window = None;
+                    self.game.character.clear();
                     self.game.entities.clear();
                     self.game.sprites.clear();
                     self.game.sprite_cache.clear();
@@ -485,32 +484,19 @@ impl App {
                     self.char_select_window = None;
 
                     if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-                        self.game.chat_window.has_grf_textures =
-                            renderer.preload_textures(&ChatWindow::grf_texture_paths(), grf);
-                        self.game.system_menu.has_grf_textures =
-                            renderer.preload_textures(&SystemMenu::grf_texture_paths(), grf);
-                        if self.game.system_menu.has_grf_textures {
-                            self.game.system_menu.set_texture_sizes(&|name| {
-                                renderer.texture_cache.texture_size(name)
-                            });
-                        }
-                        self.game.inventory_window.has_grf_textures =
-                            renderer.preload_textures(&InventoryWindow::grf_texture_paths(), grf);
-                        if self.game.inventory_window.has_grf_textures {
-                            self.game.inventory_window.set_texture_sizes(&|name| {
-                                renderer.texture_cache.texture_size(name)
-                            });
-                        }
-                        self.game.equipment_window.has_grf_textures =
-                            renderer.preload_textures(&EquipmentWindow::grf_texture_paths(), grf);
-                        if self.game.equipment_window.has_grf_textures {
-                            self.game.equipment_window.set_texture_sizes(&|name| {
-                                renderer.texture_cache.texture_size(name)
-                            });
-                        }
+                        preload_window(&mut self.game.chat_window, renderer, grf);
+                        preload_window(&mut self.game.system_menu, renderer, grf);
+                        preload_window(&mut self.game.inventory_window, renderer, grf);
+                        preload_window(&mut self.game.equipment_window, renderer, grf);
+                        preload_window(&mut self.game.npc_dialog, renderer, grf);
+                        preload_window(&mut self.game.npc_shop, renderer, grf);
+                        preload_window(&mut self.game.item_pickup_notification, renderer, grf);
+                        self.game.drop_dialog_has_grf_textures =
+                            renderer.preload_textures(&DropQuantityDialog::grf_texture_paths(), grf);
                     }
 
                     self.game.app_state = AppState::InGame;
+                    self.game.apply_window_state(&self.config.window_state);
 
                     if let Some(tx) = &self.network_cmd_tx {
                         let _ = tx.send(NetworkCommand::SendPacket(build_map_loaded_packet(
@@ -756,7 +742,6 @@ impl App {
                 }
                 GameEvent::NpcDialogText { npc_id, text } => {
                     self.game.npc_dialog.dialog.open_text(npc_id, &text);
-                    self.preload_npc_dialog_textures();
                 }
                 GameEvent::NpcDialogNext { npc_id } => {
                     self.game.npc_dialog.dialog.wait_for_next(npc_id);
@@ -766,19 +751,15 @@ impl App {
                 }
                 GameEvent::NpcDialogMenu { npc_id, items } => {
                     self.game.npc_dialog.dialog.show_menu(npc_id, items);
-                    self.preload_npc_dialog_textures();
                 }
                 GameEvent::NpcInputNumber { npc_id } => {
                     self.game.npc_dialog.dialog.wait_for_number_input(npc_id);
-                    self.preload_npc_dialog_textures();
                 }
                 GameEvent::NpcInputString { npc_id } => {
                     self.game.npc_dialog.dialog.wait_for_string_input(npc_id);
-                    self.preload_npc_dialog_textures();
                 }
                 GameEvent::NpcDealTypeSelect { npc_id } => {
                     self.game.npc_dialog.dialog.show_deal_type(npc_id);
-                    self.preload_npc_dialog_textures();
                 }
                 GameEvent::NpcShopBuyList { npc_id, items } => {
                     let buy_items: Vec<_> = items
@@ -821,7 +802,10 @@ impl App {
                     };
                     self.game.npc_shop.shop.open_buy(shop_npc_id, buy_items);
                     self.game.npc_dialog.dialog.close();
-                    self.preload_npc_shop_textures();
+                    let icon_paths: Vec<String> = self.game.npc_shop.shop.buy_items.iter()
+                        .filter_map(|i| i.item.icon_path())
+                        .collect();
+                    self.preload_item_icons(icon_paths);
                 }
                 GameEvent::NpcShopSellList { npc_id, items } => {
                     let sell_items = items
@@ -846,7 +830,10 @@ impl App {
                     };
                     self.game.npc_shop.shop.open_sell(shop_npc_id, sell_items);
                     self.game.npc_dialog.dialog.close();
-                    self.preload_npc_shop_textures();
+                    let icon_paths: Vec<String> = self.game.npc_shop.shop.sell_items.iter()
+                        .filter_map(|i| i.item.icon_path())
+                        .collect();
+                    self.preload_item_icons(icon_paths);
                 }
                 GameEvent::NpcShopBuyResult { result } => {
                     self.game.npc_shop.shop.close();
@@ -903,7 +890,10 @@ impl App {
                             resource_name,
                         });
                     }
-                    self.preload_inventory_textures();
+                    let icon_paths: Vec<String> = self.game.character.inventory.all_items().iter()
+                        .filter_map(|item| item.icon_path())
+                        .collect();
+                    self.preload_item_icons(icon_paths);
                 }
                 GameEvent::InventoryEquipmentItems { items } => {
                     for info in items {
@@ -941,7 +931,10 @@ impl App {
                             resource_name,
                         });
                     }
-                    self.preload_inventory_textures();
+                    let icon_paths: Vec<String> = self.game.character.inventory.all_items().iter()
+                        .filter_map(|item| item.icon_path())
+                        .collect();
+                    self.preload_item_icons(icon_paths);
                 }
                 GameEvent::InventoryItemPickup {
                     index,
@@ -989,16 +982,12 @@ impl App {
                             .inventory
                             .get_item(index)
                             .and_then(|item| item.icon_path());
-                        if let (Some(path), Some(grf), Some(renderer)) =
-                            (&icon_path, &self.grf, &mut self.renderer)
-                        {
-                            renderer.preload_textures(&[path.as_str()], grf);
+                        if let Some(path) = &icon_path {
+                            self.preload_item_icons(vec![path.clone()]);
                         }
                         self.game
                             .item_pickup_notification
                             .show(name, count, icon_path);
-                        self.preload_pickup_notification_textures();
-                        self.preload_inventory_textures();
                     }
                 }
                 GameEvent::InventoryUseItemResult {
@@ -1623,114 +1612,10 @@ impl App {
         }
     }
 
-    fn preload_npc_dialog_textures(&mut self) {
-        if self.game.npc_dialog.has_grf_textures {
-            return;
-        }
+    fn preload_item_icons(&mut self, icon_paths: Vec<String>) {
         if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-            self.game.npc_dialog.has_grf_textures =
-                renderer.preload_textures(&NpcDialog::grf_texture_paths(), grf);
-            if self.game.npc_dialog.has_grf_textures {
-                self.game
-                    .npc_dialog
-                    .set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
-            }
-        }
-    }
-
-    fn preload_npc_shop_textures(&mut self) {
-        if self.game.npc_shop.has_grf_textures {
-            return;
-        }
-        if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-            self.game.npc_shop.has_grf_textures =
-                renderer.preload_textures(&NpcShop::grf_texture_paths(), grf);
-            if self.game.npc_shop.has_grf_textures {
-                self.game
-                    .npc_shop
-                    .set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
-            }
-            // Preload item icon textures
-            let icon_paths: Vec<String> = self
-                .game
-                .npc_shop
-                .shop
-                .buy_items
-                .iter()
-                .filter_map(|i| i.item.icon_path())
-                .chain(
-                    self.game
-                        .npc_shop
-                        .shop
-                        .sell_items
-                        .iter()
-                        .filter_map(|i| i.item.icon_path()),
-                )
-                .collect();
             let icon_refs: Vec<&str> = icon_paths.iter().map(|s| s.as_str()).collect();
             renderer.preload_textures(&icon_refs, grf);
-        }
-    }
-
-    fn preload_inventory_textures(&mut self) {
-        if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-            if !self.game.inventory_window.has_grf_textures {
-                self.game.inventory_window.has_grf_textures =
-                    renderer.preload_textures(&InventoryWindow::grf_texture_paths(), grf);
-                if self.game.inventory_window.has_grf_textures {
-                    self.game
-                        .inventory_window
-                        .set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
-                }
-            }
-            if !self.game.equipment_window.has_grf_textures {
-                self.game.equipment_window.has_grf_textures =
-                    renderer.preload_textures(&EquipmentWindow::grf_texture_paths(), grf);
-                if self.game.equipment_window.has_grf_textures {
-                    self.game
-                        .equipment_window
-                        .set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
-                }
-            }
-            // Preload item icon textures
-            let icon_paths: Vec<String> = self
-                .game
-                .character
-                .inventory
-                .all_items()
-                .iter()
-                .filter_map(|item| item.icon_path())
-                .collect();
-            let icon_refs: Vec<&str> = icon_paths.iter().map(|s| s.as_str()).collect();
-            renderer.preload_textures(&icon_refs, grf);
-        }
-    }
-
-    fn preload_pickup_notification_textures(&mut self) {
-        if self
-            .game
-            .item_pickup_notification
-            .container
-            .has_grf_textures
-        {
-            return;
-        }
-        if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-            self.game
-                .item_pickup_notification
-                .container
-                .has_grf_textures =
-                renderer.preload_textures(&ItemPickupNotification::grf_texture_paths(), grf);
-            if self
-                .game
-                .item_pickup_notification
-                .container
-                .has_grf_textures
-            {
-                self.game
-                    .item_pickup_notification
-                    .set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
-            }
         }
     }
 
@@ -2100,7 +1985,7 @@ impl App {
                         elapsed,
                         self.login_window.has_grf_textures,
                         initial_focus,
-                        &self.config.window_positions,
+                        &self.saved_window_positions,
                     );
                     let events = self.login_window.build(&mut ui);
                     let any_hovered = ui.any_hovered;
@@ -2123,7 +2008,7 @@ impl App {
                         elapsed,
                         server_win.has_grf_textures,
                         None,
-                        &self.config.window_positions,
+                        &self.saved_window_positions,
                     );
                     let events = server_win.build(&mut ui);
                     let any_hovered = ui.any_hovered;
@@ -2146,7 +2031,7 @@ impl App {
                         elapsed,
                         char_win.has_grf_textures,
                         None,
-                        &self.config.window_positions,
+                        &self.saved_window_positions,
                     );
                     let events = char_win.build(&mut ui);
                     let any_hovered = ui.any_hovered;
@@ -2170,7 +2055,7 @@ impl App {
                         elapsed,
                         self.game.system_menu.has_grf_textures,
                         initial_focus,
-                        &self.config.window_positions,
+                        &self.saved_window_positions,
                     );
                     let events = self.game.build_in_game_ui(
                         &mut ui,
@@ -2559,14 +2444,7 @@ impl ApplicationHandler for App {
 
                     if let Some(renderer) = &mut self.renderer {
                         renderer.try_load_grf_font(&grf);
-
-                        self.login_window.has_grf_textures =
-                            renderer.preload_textures(&LoginWindow::grf_texture_paths(), &grf);
-                        if self.login_window.has_grf_textures {
-                            self.login_window.set_texture_sizes(&|name| {
-                                renderer.texture_cache.texture_size(name)
-                            });
-                        }
+                        preload_window(&mut self.login_window, renderer, &grf);
                     }
 
                     self.load_cursor_sprite(&grf);
@@ -2601,7 +2479,19 @@ impl ApplicationHandler for App {
 
         match event {
             WindowEvent::CloseRequested => {
-                self.config.window_positions = self.ui_state_cache.extract_window_positions();
+                let positions = self.ui_state_cache.extract_window_positions();
+                let open_collapsed = self.game.extract_window_state(&self.ui_state_cache);
+                let mut window_state = HashMap::new();
+                for (id, pos) in &positions {
+                    let (open, collapsed) = open_collapsed.get(id)
+                        .copied().unwrap_or((false, false));
+                    window_state.insert(*id, WindowStateEntry {
+                        position: *pos,
+                        open,
+                        collapsed,
+                    });
+                }
+                self.config.window_state = window_state;
                 self.config.save("config.json");
                 event_loop.exit();
             }
@@ -2625,10 +2515,11 @@ impl ApplicationHandler for App {
                             if pressed {
                                 if self.input.ui_hovered {
                                     self.input.ui_dragging = true;
+                                } else {
+                                    self.handle_left_click();
+                                    self.input.walk_packet_cooldown = 0.5;
+                                    self.input.walk_server_acked = false;
                                 }
-                                self.handle_left_click();
-                                self.input.walk_packet_cooldown = 0.5;
-                                self.input.walk_server_acked = false;
                             } else {
                                 self.input.ui_dragging = false;
                             }

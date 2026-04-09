@@ -106,6 +106,7 @@ impl Window for ItemPickupNotification {
     fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
+        self.container.has_grf_textures = true;
         self.container.set_texture_sizes(size_fn);
     }
 

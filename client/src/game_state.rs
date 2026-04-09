@@ -12,7 +12,9 @@ use ragnarok_game::floor_item::FloorItem;
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui::state::StateCache;
 use ragnarok_game::server_time::ServerTimeClock;
+use crate::config::WindowStateEntry;
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
@@ -56,6 +58,7 @@ pub struct GameState {
     pub floor_items: HashMap<u32, FloorItem>,
     pub floor_item_sprites: HashMap<u32, (Rc<SpriteTextures>, ActFile)>,
     pub waiting_item_throw_ack: bool,
+    pub drop_dialog_has_grf_textures: bool,
     pub drop_quantity_dialog: Option<DropQuantityDialog>,
     pub pending_pickup_item_id: Option<u32>,
     pub item_pickup_notification: ItemPickupNotification,
@@ -119,7 +122,7 @@ impl GameState {
                 {
                     if item.count > 1 {
                         let mut dialog = DropQuantityDialog::new(item.index, item.count);
-                        dialog.has_grf_textures = self.inventory_window.has_grf_textures;
+                        dialog.has_grf_textures = self.drop_dialog_has_grf_textures;
                         if dialog.has_grf_textures {
                             dialog.set_texture_sizes(texture_size_fn);
                         }
@@ -193,10 +196,49 @@ impl GameState {
             floor_items: HashMap::new(),
             floor_item_sprites: HashMap::new(),
             waiting_item_throw_ack: false,
+            drop_dialog_has_grf_textures: false,
             drop_quantity_dialog: None,
             pending_pickup_item_id: None,
             item_pickup_notification: ItemPickupNotification::new(),
             debug_show_pick_bounds: false,
         }
+    }
+
+    pub fn apply_window_state(&mut self, window_state: &HashMap<u32, WindowStateEntry>) {
+        if let Some(entry) = window_state.get(&INV_WINDOW_ID.0) {
+            if entry.open {
+                self.character.inventory.open();
+            }
+            self.inventory_window.set_minimized(entry.collapsed);
+        }
+        if let Some(entry) = window_state.get(&EQ_WINDOW_ID.0) {
+            self.equipment_window.open = entry.open;
+            self.equipment_window.set_minimized(entry.collapsed);
+        }
+        if let Some(entry) = window_state.get(&chat_window::CHAT_WINDOW_ID.0) {
+            let size_index = if !entry.open {
+                0
+            } else if entry.collapsed {
+                1
+            } else {
+                5
+            };
+            self.chat_window.set_initial_size_index(size_index);
+        }
+    }
+
+    pub fn extract_window_state(&self, state_cache: &StateCache) -> HashMap<u32, (bool, bool)> {
+        let mut result = HashMap::new();
+        result.insert(INV_WINDOW_ID.0, (
+            self.character.inventory.is_open(),
+            self.inventory_window.is_minimized(),
+        ));
+        result.insert(EQ_WINDOW_ID.0, (
+            self.equipment_window.is_open(),
+            self.equipment_window.is_minimized(),
+        ));
+        let size_index = self.chat_window.get_size_index(state_cache);
+        result.insert(chat_window::CHAT_WINDOW_ID.0, (size_index > 0, size_index == 1));
+        result
     }
 }

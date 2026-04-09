@@ -10,4 +10,8 @@ impl Character {
             inventory: InventoryData::new(),
         }
     }
+    
+    pub fn clear(&mut self) {
+       self.inventory.clear(); 
+    }
 }

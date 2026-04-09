@@ -5,6 +5,24 @@ use serde::{Deserialize, Serialize};
 
 const BASE_FONT_PX_HEIGHT: f32 = 14.0;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WindowStateEntry {
+    pub position: [f32; 2],
+    pub open: bool,
+    pub collapsed: bool,
+}
+
+impl Default for WindowStateEntry {
+    fn default() -> Self {
+        Self {
+            position: [0.0, 0.0],
+            open: false,
+            collapsed: false,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -21,7 +39,7 @@ pub struct Config {
     pub enhanced_lag_compensation: bool,
     pub debug_network_delay_ms: u32,
     pub trace_packets: bool,
-    pub window_positions: HashMap<u32, [f32; 2]>,
+    pub window_state: HashMap<u32, WindowStateEntry>,
 }
 
 impl Default for Config {
@@ -40,7 +58,7 @@ impl Default for Config {
             enhanced_lag_compensation: false,
             debug_network_delay_ms: 0,
             trace_packets: false,
-            window_positions: HashMap::new(),
+            window_state: HashMap::new(),
         }
     }
 }
@@ -90,6 +108,30 @@ mod tests {
         assert_eq!(parsed.login_port, 6900);
         assert_eq!(parsed.screen_width, 1024);
         assert_eq!(parsed.grf_paths, vec!["data/data.grf"]);
+    }
+
+    #[test]
+    fn window_state_roundtrips() {
+        let mut config = Config::default();
+        config.window_state.insert(800, WindowStateEntry {
+            position: [100.0, 200.0],
+            open: true,
+            collapsed: false,
+        });
+        config.window_state.insert(900, WindowStateEntry {
+            position: [50.0, 60.0],
+            open: false,
+            collapsed: true,
+        });
+        let json = serde_json::to_string_pretty(&config).unwrap();
+        let parsed: Config = serde_json::from_str(&json).unwrap();
+        let inv = parsed.window_state.get(&800).unwrap();
+        assert_eq!(inv.position, [100.0, 200.0]);
+        assert!(inv.open);
+        assert!(!inv.collapsed);
+        let eq = parsed.window_state.get(&900).unwrap();
+        assert!(!eq.open);
+        assert!(eq.collapsed);
     }
 
     #[test]

@@ -3,6 +3,7 @@ use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
+use ragnarok_ui::state::StateCache;
 use ragnarok_ui::text_input::TextInput;
 use crate::{Window, InGameWindow};
 
@@ -180,6 +181,7 @@ pub struct ChatWindow {
     sent_history: Vec<String>,
     history_index: Option<usize>,
     draft: String,
+    initial_size_index: Option<usize>,
 }
 
 impl ChatWindow {
@@ -195,7 +197,18 @@ impl ChatWindow {
             sent_history: Vec::new(),
             history_index: None,
             draft: String::new(),
+            initial_size_index: None,
         }
+    }
+
+    pub fn set_initial_size_index(&mut self, index: usize) {
+        self.initial_size_index = Some(index);
+    }
+
+    pub fn get_size_index(&self, state: &StateCache) -> usize {
+        state.get::<ChatWindowState>(CHAT_WINDOW_ID)
+            .map(|s| s.size_index)
+            .unwrap_or(DEFAULT_SIZE_INDEX)
     }
 
     pub fn is_active(&self) -> bool {
@@ -568,11 +581,12 @@ impl InGameWindow for ChatWindow {
         // Initialize or read persistent state
         let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
         if !state.initialized {
-            state.size_index = DEFAULT_SIZE_INDEX;
-            state.msg_area_h = SIZE_CYCLE[DEFAULT_SIZE_INDEX];
+            let idx = self.initial_size_index.take().unwrap_or(DEFAULT_SIZE_INDEX);
+            state.size_index = idx;
+            state.msg_area_h = SIZE_CYCLE[idx];
             state.chat_w = DEFAULT_CHAT_W ;
             state.pos_x = padding;
-            let default_h = SIZE_CYCLE[DEFAULT_SIZE_INDEX] + toolbar_h + input_h;
+            let default_h = SIZE_CYCLE[idx] + toolbar_h + input_h;
             state.pos_y = screen_h - default_h - padding;
             state.initialized = true;
         }

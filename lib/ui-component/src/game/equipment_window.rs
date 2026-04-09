@@ -110,6 +110,14 @@ impl EquipmentWindow {
         self.open && !self.minimized
     }
 
+    pub fn is_minimized(&self) -> bool {
+        self.minimized
+    }
+
+    pub fn set_minimized(&mut self, value: bool) {
+        self.minimized = value;
+    }
+
     pub fn toggle(&mut self) {
         self.open = !self.open;
     }

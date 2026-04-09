@@ -77,6 +77,14 @@ impl InventoryWindow {
         }
     }
 
+    pub fn is_minimized(&self) -> bool {
+        self.minimized
+    }
+
+    pub fn set_minimized(&mut self, value: bool) {
+        self.minimized = value;
+    }
+
     fn compute_dimensions(&self) -> (f32, f32, f32) {
         let grid_w = self.grid_cols as f32 * (CELL_SIZE);
         let grid_h = self.grid_rows as f32 * (CELL_SIZE);
