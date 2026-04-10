@@ -73,6 +73,12 @@ impl InventoryData {
     }
 
     pub fn update_wear_state(&mut self, index: u16, wear_location: u16) {
+        // Clear any existing item in the same slot (e.g. only one ammo can be equipped)
+        for item in &mut self.items {
+            if item.index != index && item.wear_state & wear_location != 0 {
+                item.wear_state &= !wear_location;
+            }
+        }
         if let Some(item) = self.items.iter_mut().find(|i| i.index == index) {
             item.wear_state = wear_location;
         }

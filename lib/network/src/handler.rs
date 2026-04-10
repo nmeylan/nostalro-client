@@ -453,6 +453,10 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             index: p.index, count: p.count, success: p.result,
         }];
     }
+    // Arrow/ammo equip notification
+    if let Some(p) = any.downcast_ref::<PacketZcEquipArrow>() {
+        return vec![GameEvent::InventoryArrowEquipped { index: p.index as u16 }];
+    }
     // Equip/unequip ack v1/v2
     if let Some(p) = any.downcast_ref::<PacketZcReqWearEquipAck>() {
         return vec![GameEvent::InventoryEquipResult {

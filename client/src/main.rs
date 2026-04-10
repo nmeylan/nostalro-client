@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use config::{Config, WindowStateEntry};
 use game_state::GameState;
 use input::InputState;
-use models::enums::EnumWithNumberValue;
+use models::enums::{EnumWithMaskValueU64, EnumWithNumberValue};
 use models::enums::status::StatusTypes;
 use ragnarok_formats::act::SpriteActionType;
 use ragnarok_formats::grf::GrfArchive;
@@ -1041,6 +1041,10 @@ impl App {
                             }
                         }
                     }
+                }
+                GameEvent::InventoryArrowEquipped { index } => {
+                    let ammo_mask = ragnarok_game::inventory::EquipmentLocation::Ammo.as_flag() as u16;
+                    self.game.character.inventory.update_wear_state(index, ammo_mask);
                 }
                 GameEvent::InventoryUnequipResult {
                     index,
