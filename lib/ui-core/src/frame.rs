@@ -23,6 +23,7 @@ pub struct UiFrame<'a> {
     pub elapsed_secs: f32,
     pub has_grf_textures: bool,
     pub draw_calls: Vec<DrawCall>,
+    pub tooltip_draw_calls: Vec<DrawCall>,
     pub any_hovered: bool,
     pub any_interactive_hovered: bool,
     focus: Option<WidgetId>,
@@ -198,6 +199,7 @@ impl<'a> UiFrame<'a> {
             elapsed_secs,
             has_grf_textures,
             draw_calls: Vec::new(),
+            tooltip_draw_calls: Vec::new(),
             any_hovered: false,
             any_interactive_hovered: false,
             focus: initial_focus,
@@ -602,6 +604,24 @@ impl<'a> UiFrame<'a> {
         if !v.is_empty() {
             self.draw_calls.push(DrawCall { vertices: v, indices: i, texture: TextureRef::FontAtlas });
         }
+    }
+
+    pub fn tooltip(&mut self, anchor_x: f32, anchor_y: f32, text: &str) {
+        let tw = self.atlas.measure_text(text);
+        let th = self.atlas.line_height;
+        let pad = 4.0;
+        let tx = anchor_x + 12.0;
+        let ty = anchor_y + 8.0;
+        let (v, idx) = draw::quad_vertices(tx - pad, ty, tw + pad * 2.0, th + pad * 2.0, [0.0, 0.0, 0.0, 0.85]);
+        self.tooltip_draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
+        let (v, i) = draw::text_vertices(text, tx, ty + th, [1.0, 1.0, 1.0, 1.0], self.atlas);
+        if !v.is_empty() {
+            self.tooltip_draw_calls.push(DrawCall { vertices: v, indices: i, texture: TextureRef::FontAtlas });
+        }
+    }
+
+    pub fn flush_tooltips(&mut self) {
+        self.draw_calls.append(&mut self.tooltip_draw_calls);
     }
 
     pub fn set_focus(&mut self, id: WidgetId) {

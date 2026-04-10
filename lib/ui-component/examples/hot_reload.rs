@@ -13,6 +13,7 @@ use ragnarok_ui_component::game::chat_window::ChatWindow;
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
 use ragnarok_ui_component::game::inventory_window::InventoryWindow;
+use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::system_menu::SystemMenu;
@@ -93,7 +94,7 @@ impl HotLib {
 }
 
 const GAME_COMPONENTS: &[&str] = &[
-    "inventory", "npc_shop_buy", "npc_shop_sell", "npc_dialog", "equipment", "system_menu", "confirm_dialog", "chat", "dialog_container",
+    "inventory", "npc_shop_buy", "npc_shop_sell", "npc_dialog", "equipment", "system_menu", "confirm_dialog", "chat", "dialog_container", "item_info",
 ];
 const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
 
@@ -111,6 +112,7 @@ fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
         "system_menu" => SystemMenu::grf_texture_paths(),
         "char_select" => CharSelectWindow::grf_texture_paths(),
         "dialog_container" => DialogContainer::grf_texture_paths(),
+        "item_info" => ItemInfoWindow::grf_texture_paths(),
         _ => {
             eprintln!("Unknown example: {name}");
             vec![]

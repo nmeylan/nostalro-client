@@ -9,6 +9,7 @@ use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::{CharacterInfo, ServerInfo};
 use ragnarok_game::item::Item;
 use ragnarok_game::item_description_table::ItemDescriptionTable;
+use ragnarok_game::item_name_table::ItemNameTable;
 use ragnarok_game::item_resource_table::ItemResourceTable;
 use ragnarok_game::item_slot_count_table::ItemSlotCountTable;
 use ragnarok_game::npc_shop::{NpcShopMode, ShopBuyItem, ShopSellItem};
@@ -230,7 +231,7 @@ fn create_single(name: &str) -> State {
                     slot: [0; 4],
                     location: 0,
                     wear_state: 2,
-                    name: "Sword".into(),
+                    name: "Quadruple liberation two-handed Sword".into(),
                     resource_name: None,
                 },
                 Item {
@@ -404,10 +405,14 @@ fn create_single(name: &str) -> State {
             let mut res_identified = HashMap::new();
             res_identified.insert(1701u16, "활".to_string());
             res_identified.insert(4025u16, "고블린카드".to_string());
+            let mut name_identified = HashMap::new();
+            name_identified.insert(1701u16, "Bow".to_string());
+            name_identified.insert(4025u16, "Goblin Card".to_string());
             let data = DataTable {
                 item_slot_count: Some(ItemSlotCountTable::from_entries(slot_entries)),
                 item_description: Some(ItemDescriptionTable::from_entries(desc_entries, HashMap::new())),
                 item_resource: Some(ItemResourceTable::from_entries(res_identified, HashMap::new())),
+                item_name: Some(ItemNameTable::from_entries(name_identified, HashMap::new())),
                 ..DataTable::new()
             };
             let bow = Item {

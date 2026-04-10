@@ -109,6 +109,8 @@ impl GameState {
         events.extend(self.item_info_window.build(ui, &mut self.character, &self.data_table));
         events.extend(InGameWindow::build(&mut self.item_pickup_notification, ui, &mut self.character, &self.data_table));
 
+        ui.flush_tooltips();
+
         // Drag-cancel handling
         if let Some(cancelled) = ui.draw_drag_icon() {
             if cancelled.source_id == INV_WINDOW_ID {

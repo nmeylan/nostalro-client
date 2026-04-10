@@ -213,6 +213,7 @@ pub enum GameEvent {
     // UI actions
     ShowItemInfo { index: u16 },
     ShowCardInfo { item_id: u16 },
+    ShowCardIllustration { item_id: u16 },
 
     // UI lifecycle
     DialogClosed,

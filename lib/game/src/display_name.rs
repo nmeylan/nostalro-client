@@ -1,11 +1,20 @@
 use crate::card_name_table::CardNameTable;
 use crate::item::Item;
+use crate::item_slot_count_table::ItemSlotCountTable;
 
 pub fn format_equipment_display_name(
     item: &Item,
-    slot_count: u8,
+    slot_count_table: Option<&ItemSlotCountTable>,
     card_table: Option<&CardNameTable>,
 ) -> String {
+    if !item.is_identified {
+        return item.name.clone();
+    }
+
+    let slot_count = slot_count_table
+        .map(|t| t.get_slot_count(item.item_id))
+        .unwrap_or(0);
+
     let mut result = String::new();
 
     if item.refining_level > 0 {
@@ -78,6 +87,7 @@ fn build_card_affixes(slots: &[u16; 4], card_table: Option<&CardNameTable>) -> (
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::item_slot_count_table::ItemSlotCountTable;
     use std::collections::{HashMap, HashSet};
 
     fn make_item(name: &str, refining: u8, slots: [u16; 4]) -> Item {
@@ -109,36 +119,47 @@ mod tests {
         CardNameTable::from_data(prefix_names, postfix_ids)
     }
 
+    fn make_slot_table(item_id: u16, count: u8) -> ItemSlotCountTable {
+        let mut entries = HashMap::new();
+        if count > 0 {
+            entries.insert(item_id, count);
+        }
+        ItemSlotCountTable::from_entries(entries)
+    }
+
     #[test]
     fn plain_item_name() {
         let item = make_item("Sword", 0, [0; 4]);
-        assert_eq!(format_equipment_display_name(&item, 0, None), "Sword");
+        assert_eq!(format_equipment_display_name(&item, None, None), "Sword");
     }
 
     #[test]
     fn refining_only() {
         let item = make_item("Sword", 5, [0; 4]);
-        assert_eq!(format_equipment_display_name(&item, 0, None), "+5 Sword");
+        assert_eq!(format_equipment_display_name(&item, None, None), "+5 Sword");
     }
 
     #[test]
     fn slot_count_only() {
         let item = make_item("Sword", 0, [0; 4]);
-        assert_eq!(format_equipment_display_name(&item, 3, None), "Sword [3]");
+        let slot_table = make_slot_table(1101, 3);
+        assert_eq!(format_equipment_display_name(&item, Some(&slot_table), None), "Sword [3]");
     }
 
     #[test]
     fn refining_and_slot_count() {
         let item = make_item("Sword", 7, [0; 4]);
-        assert_eq!(format_equipment_display_name(&item, 2, None), "+7 Sword [2]");
+        let slot_table = make_slot_table(1101, 2);
+        assert_eq!(format_equipment_display_name(&item, Some(&slot_table), None), "+7 Sword [2]");
     }
 
     #[test]
     fn single_prefix_card() {
         let table = make_card_table(&[(4001, "Bloody")], &[]);
         let item = make_item("Katana", 5, [4001, 0, 0, 0]);
+        let slot_table = make_slot_table(1101, 3);
         assert_eq!(
-            format_equipment_display_name(&item, 3, Some(&table)),
+            format_equipment_display_name(&item, Some(&slot_table), Some(&table)),
             "+5 Bloody Katana [3]"
         );
     }
@@ -147,8 +168,9 @@ mod tests {
     fn single_postfix_card() {
         let table = make_card_table(&[(4002, "of Starlight")], &[4002]);
         let item = make_item("Katana", 0, [4002, 0, 0, 0]);
+        let slot_table = make_slot_table(1101, 2);
         assert_eq!(
-            format_equipment_display_name(&item, 2, Some(&table)),
+            format_equipment_display_name(&item, Some(&slot_table), Some(&table)),
             "Katana of Starlight [2]"
         );
     }
@@ -157,8 +179,9 @@ mod tests {
     fn double_prefix_card() {
         let table = make_card_table(&[(4001, "Bloody")], &[]);
         let item = make_item("Katana", 7, [4001, 4001, 0, 0]);
+        let slot_table = make_slot_table(1101, 3);
         assert_eq!(
-            format_equipment_display_name(&item, 3, Some(&table)),
+            format_equipment_display_name(&item, Some(&slot_table), Some(&table)),
             "+7 Double Bloody Katana [3]"
         );
     }
@@ -170,8 +193,9 @@ mod tests {
             &[4002],
         );
         let item = make_item("Katana", 7, [4001, 4001, 4002, 0]);
+        let slot_table = make_slot_table(1101, 3);
         assert_eq!(
-            format_equipment_display_name(&item, 3, Some(&table)),
+            format_equipment_display_name(&item, Some(&slot_table), Some(&table)),
             "+7 Double Bloody Katana of Starlight [3]"
         );
     }
@@ -180,8 +204,9 @@ mod tests {
     fn unknown_card_id_skipped() {
         let table = make_card_table(&[(4001, "Bloody")], &[]);
         let item = make_item("Katana", 0, [9999, 4001, 0, 0]);
+        let slot_table = make_slot_table(1101, 2);
         assert_eq!(
-            format_equipment_display_name(&item, 2, Some(&table)),
+            format_equipment_display_name(&item, Some(&slot_table), Some(&table)),
             "Bloody Katana [2]"
         );
     }
@@ -190,9 +215,22 @@ mod tests {
     fn quadruple_card() {
         let table = make_card_table(&[(4001, "Bloody")], &[]);
         let item = make_item("Katana", 0, [4001, 4001, 4001, 4001]);
+        let slot_table = make_slot_table(1101, 4);
         assert_eq!(
-            format_equipment_display_name(&item, 4, Some(&table)),
+            format_equipment_display_name(&item, Some(&slot_table), Some(&table)),
             "Quadruple Bloody Katana [4]"
+        );
+    }
+
+    #[test]
+    fn unidentified_item_returns_plain_name() {
+        let mut item = make_item("Unknown Weapon", 7, [4001, 0, 0, 0]);
+        item.is_identified = false;
+        let table = make_card_table(&[(4001, "Bloody")], &[]);
+        let slot_table = make_slot_table(1101, 3);
+        assert_eq!(
+            format_equipment_display_name(&item, Some(&slot_table), Some(&table)),
+            "Unknown Weapon"
         );
     }
 }

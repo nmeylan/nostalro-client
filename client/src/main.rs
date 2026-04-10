@@ -11,6 +11,7 @@ use models::enums::status::StatusTypes;
 use ragnarok_formats::act::SpriteActionType;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
+use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::cursor::{
     CursorType, RenderEntry, RenderEntryKind, cursor_type_for_cell, hovered_entity_cursor_type,
 };
@@ -981,21 +982,28 @@ impl App {
                             name: name.clone(),
                             resource_name,
                         });
-                        self.game
-                            .chat_window
-                            .add_system(format!("Picked up {name} x{count}"));
                         let icon_path = self
                             .game
                             .character
                             .inventory
                             .get_item(index)
                             .and_then(|item| item.icon_path());
+                        let formatted_name = self.game.character.inventory.get_item(index)
+                            .map(|item| format_equipment_display_name(
+                                item,
+                                self.game.data_table.item_slot_count.as_ref(),
+                                self.game.data_table.card_name.as_ref(),
+                            ))
+                            .unwrap_or(name);
+                        self.game
+                            .chat_window
+                            .add_system(format!("Picked up {formatted_name} x{count}"));
                         if let Some(path) = &icon_path {
                             self.preload_item_icons(vec![path.clone()]);
                         }
                         self.game
                             .item_pickup_notification
-                            .show(name, count, icon_path);
+                            .show(formatted_name, count, icon_path);
                     }
                 }
                 GameEvent::InventoryUseItemResult {
@@ -1617,9 +1625,8 @@ impl App {
             .game
             .data_table.item_name
             .as_ref()
-            .and_then(|t| t.get_name(item_id))
-            .unwrap_or("Unknown Item")
-            .to_string();
+            .map(|t| t.get_name_or_id_for(item_id, is_identified))
+            .unwrap_or_else(|| format!("Item #{item_id}"));
         let resource_name = self
             .game
             .data_table.item_resource
@@ -1840,6 +1847,18 @@ impl App {
                     self.game.item_info_window.show_card(item_id, &self.game.data_table);
                     let tex_paths = self.game.item_info_window.pending_card_texture_paths();
                     self.preload_item_icons(tex_paths);
+                }
+                GameEvent::ShowCardIllustration { item_id } => {
+                    let name = self.game.data_table.item_name.as_ref()
+                        .map(|t| t.get_name_or_id(item_id))
+                        .unwrap_or_else(|| format!("Item #{item_id}"));
+                    let illust_path = self.game.data_table.card_illustration.as_ref()
+                        .and_then(|t| t.illustration_path(item_id));
+                    if let Some(path) = illust_path {
+                        self.game.item_info_window.show_illustration(item_id, name, path);
+                        let tex_paths = self.game.item_info_window.pending_illustration_texture_paths();
+                        self.preload_item_icons(tex_paths);
+                    }
                 }
                 GameEvent::RequestUseItem { index } => {
                     let account_id = self
@@ -2453,6 +2472,8 @@ impl ApplicationHandler for App {
                         Some(ragnarok_game::item_slot_count_table::ItemSlotCountTable::load(&grf));
                     self.game.data_table.card_name =
                         Some(ragnarok_game::card_name_table::CardNameTable::load(&grf));
+                    self.game.data_table.card_illustration =
+                        Some(ragnarok_game::card_illustration_table::CardIllustrationTable::load(&grf));
                     self.game.data_table.item_description =
                         Some(ragnarok_game::item_description_table::ItemDescriptionTable::load(&grf));
                     self.grf = Some(grf);
@@ -2764,7 +2785,7 @@ impl ApplicationHandler for App {
                                 let lines =
                                     ragnarok_ui::draw::word_wrap(&bubble.message, 150.0, |t| {
                                         renderer.font_atlas.measure_text(t)
-                                    });
+                                    }, false);
 
                                 let line_h = renderer.font_atlas.line_height;
                                 let total_h = line_h * lines.len() as f32 + padding * 2.0;

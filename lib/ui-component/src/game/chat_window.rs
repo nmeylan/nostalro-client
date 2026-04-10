@@ -754,7 +754,7 @@ impl InGameWindow for ChatWindow {
             let atlas = &*ui.atlas;
             let visual_lines: Vec<(String, [f32; 4])> = filtered.iter()
                 .flat_map(|line| {
-                    let wrapped = ragnarok_ui::draw::word_wrap(&line.text, text_area_w, |t| atlas.measure_text(t));
+                    let wrapped = ragnarok_ui::draw::word_wrap(&line.text, text_area_w, |t| atlas.measure_text(t), false);
                     let color = line.color;
                     wrapped.into_iter().map(move |w| (w, color))
                 })

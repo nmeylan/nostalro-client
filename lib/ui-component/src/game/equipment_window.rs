@@ -1,10 +1,8 @@
-use ragnarok_game::card_name_table::CardNameTable;
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::inventory::{EquipmentLocation, InventoryData};
-use ragnarok_game::item_slot_count_table::ItemSlotCountTable;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -35,6 +33,7 @@ const SIDE_COL_W: f32 = 115.0;
 const CENTER_COL_W: f32 = 50.0;
 const ICON_SIZE: f32 = 24.0;
 const SLOT_ROWS: usize = 5;
+const TEXT_MAX_W: f32 = SIDE_COL_W - ICON_SIZE - 4.0 - 3.0;
 
 // -- GRF textures --
 const EQUIP_BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/equipwin_bg.bmp";
@@ -278,9 +277,7 @@ impl InGameWindow for EquipmentWindow {
             };
             let slot_y = content_y + slot.row as f32 * slot_h;
 
-            let slot_rect = Rect::new(slot_x, slot_y, slot_w, slot_h);
             let widget_id = WidgetId(EQ_SLOT_BASE_ID + i as u32);
-            let response = ui.interact(widget_id, slot_rect);
 
             // Icon position: left-aligned for col0, right-aligned for col1
             let icon_pad = (slot_h - icon) / 2.0;
@@ -303,54 +300,72 @@ impl InGameWindow for EquipmentWindow {
                 }
             };
             let icon_y = slot_y + icon_pad;
-
-            let text_y = slot_y + slot_h / 2.0 + (4.0);
+            let icon_rect = Rect::new(icon_x, icon_y, icon, icon);
+            let response = ui.interact(widget_id, icon_rect);
 
             if let Some(item) = inventory.equipped_in_slot(slot.location) {
                 // Item icon
                 if let Some(icon_path) = item.icon_path() {
-                    let (v, idx) = draw::quad_vertices(icon_x, icon_y, icon, icon, [1.0, 1.0, 1.0, 1.0]);
+                    let (v, idx) = draw::quad_vertices(icon_rect.x, icon_rect.y, icon_rect.w, icon_rect.h, [1.0, 1.0, 1.0, 1.0]);
                     ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(icon_path) });
                 }
 
-                // Item name
+                let display_name = format_equipment_display_name(
+                    item, slot_count_table, card_name_table,
+                );
+                // Item name (wrapped if too long)
                 if show_text {
-                    let slot_count = slot_count_table
-                        .map(|t| t.get_slot_count(item.item_id))
-                        .unwrap_or(0);
-                    let display_name = format_equipment_display_name(
-                        item, slot_count, card_name_table,
-                    );
-                    if right_align {
-                        let text_w = ui.atlas.measure_text(&display_name);
-                        ui.text(text_x - text_w, text_y, &display_name, text_color);
-                    } else {
-                        ui.text(text_x, text_y, &display_name, text_color);
+                    let mut lines = draw::word_wrap(&display_name, TEXT_MAX_W, |t| ui.atlas.measure_text(t), true);
+                    lines.reverse();
+                    let line_h = ui.atlas.line_height - 2.0;
+                    let mut block_bottom = slot_y + slot_h ;
+
+                    if lines.len() == 3 {
+                        block_bottom += 8.0;
+                    }
+
+                    let line_space = 1.0 * lines.len() as f32- 1.0;
+                    for (j, line) in lines.iter().enumerate() {
+                        let ly = block_bottom - (j as f32 + 1.0) * (line_h - line_space) + (line_h - line_space) / 2.0;
+                        if right_align {
+                            let text_w = ui.atlas.measure_text(line);
+                            ui.text(text_x - text_w, ly, line, text_color);
+                        } else {
+                            ui.text(text_x, ly, line, text_color);
+                        }
                     }
                 }
+
+                let mut clicked = false;
 
                 // Begin drag on click (to unequip by dragging to inventory)
                 if response.clicked() {
                     ui.drag_source(EQ_WINDOW_ID, item.index as usize, item.icon_path(), (ICON_SIZE, ICON_SIZE));
+                    clicked = true;
                 }
 
                 // Right-click: show item info
                 if response.right_clicked() {
                     events.push(GameEvent::ShowItemInfo { index: item.index });
+                    clicked = true;
                 }
                 // Unequip on double-click
                 if response.double_clicked() {
                     events.push(GameEvent::RequestUnequipItem { index: item.index });
+                    clicked = true;
+                }
+                if !clicked && response.hovered() {
+                    ui.tooltip(icon_rect.x, icon_rect.y - ui.atlas.line_height - 16.0, &display_name);
                 }
             }
 
             if let Some(loc) = highlight_location {
                 if loc & InventoryData::slot_mask(slot.location) != 0 {
                     if grf {
-                        let (v, idx) = draw::quad_vertices(slot_rect.x, slot_rect.y, slot_rect.w, slot_rect.h, [1.0, 1.0, 1.0, 1.0]);
+                        let (v, idx) = draw::quad_vertices(icon_rect.x, icon_rect.y, icon_rect.w, icon_rect.h, [1.0, 1.0, 1.0, 1.0]);
                         ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(ITEM_INVERT_TEX.to_string()) });
                     } else {
-                        let (v, idx) = draw::quad_vertices(slot_rect.x, slot_rect.y, slot_rect.w, slot_rect.h, [0.20, 0.42, 0.88, 0.35]);
+                        let (v, idx) = draw::quad_vertices(icon_rect.x, icon_rect.y, icon_rect.w, icon_rect.h, [0.20, 0.42, 0.88, 0.35]);
                         ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
                     }
                 }

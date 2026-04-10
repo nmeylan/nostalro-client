@@ -1,6 +1,7 @@
 use super::equipment_window::EQ_WINDOW_ID;
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
+use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::item::{Item, InventoryTab};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
@@ -134,11 +135,13 @@ impl Window for InventoryWindow {
 }
 
 impl InGameWindow for InventoryWindow {
-    fn build(&mut self, ui: &mut UiFrame, character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, character: &mut Character, data: &DataTable) -> Vec<GameEvent> {
         if !character.inventory.is_open() {
             return Vec::new();
         }
 
+        let slot_count_table = data.item_slot_count.as_ref();
+        let card_name_table = data.card_name.as_ref();
         let mut events = Vec::new();
 
 
@@ -284,7 +287,6 @@ impl InGameWindow for InventoryWindow {
         let icon = ICON_SIZE;
         let pad = ICON_PAD;
 
-        let mut hovered_tooltip: Option<(f32, f32, String)> = None;
         {
             let filtered: Vec<&Item> = character.inventory.filtered_items();
             let start = self.scroll_offset * self.grid_cols;
@@ -355,12 +357,13 @@ impl InGameWindow for InventoryWindow {
                 ui.text(count_x, count_y, &count_str, [0.0, 0.0, 0.0, 1.0]);
 
                 if response.hovered() {
+                    let display_name = format_equipment_display_name(item, slot_count_table, card_name_table);
                     let tooltip_text = if item.count > 1 {
-                        format!("{} {} ea", item.name, item.count)
+                        format!("{display_name} {} ea", item.count)
                     } else {
-                        item.name.clone()
+                        display_name
                     };
-                    hovered_tooltip = Some((cx, cy - icon, tooltip_text));
+                    ui.tooltip(cx, cy - icon, &tooltip_text);
                 }
 
                 // Begin drag on click (ammo stays draggable even when equipped)
@@ -560,28 +563,6 @@ impl InGameWindow for InventoryWindow {
                     }
                 }
             }
-        }
-
-        // Tooltip
-        if let Some((mx, my, text)) = hovered_tooltip {
-            let tw = ui.atlas.measure_text(&text);
-            let th = ui.atlas.line_height;
-            let pad_t = 4.0;
-            let tx = mx + 12.0;
-            let ty = my + 8.0;
-            let (v, idx) = draw::quad_vertices(
-                tx - pad_t,
-                ty,
-                tw + pad_t * 2.0,
-                th + pad_t * 2.0,
-                [0.0, 0.0, 0.0, 0.85],
-            );
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: idx.to_vec(),
-                texture: TextureRef::White,
-            });
-            ui.text(tx, ty + th, &text, [1.0, 1.0, 1.0, 1.0]);
         }
 
         ui.has_grf_textures = prev_grf;

@@ -1,9 +1,10 @@
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
+use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::item::Item;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef, strip_color_codes, word_wrap};
-use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use crate::{Window, InGameWindow};
 use crate::helper::dialog_container::DialogContainer;
@@ -20,6 +21,9 @@ const CARD_INFO_CLOSE_ID: WidgetId = WidgetId(1011);
 const CARD_INFO_SCROLL_UP_ID: WidgetId = WidgetId(1012);
 const CARD_INFO_SCROLL_DOWN_ID: WidgetId = WidgetId(1013);
 const CARD_INFO_SCROLL_THUMB_ID: WidgetId = WidgetId(1014);
+const VIEW_BTN_ID: WidgetId = WidgetId(1015);
+const CARD_ILLUST_WINDOW_ID: WidgetId = WidgetId(1020);
+const CARD_ILLUST_CLOSE_ID: WidgetId = WidgetId(1021);
 
 // Layout — container uses the fixed GRF texture size (bg_size)
 const COLLECTION_X: f32 = 10.0;
@@ -45,6 +49,18 @@ const DISABLED_SLOT_TEX: &str = "data/texture/유저인터페이스/basic_interf
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
 
+const VIEW_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/btn_view.bmp",
+    hover: "data/texture/유저인터페이스/btn_view_b.bmp",
+    pressed: "data/texture/유저인터페이스/btn_view_a.bmp",
+};
+const VIEW_BTN_W: f32 = 42.0;
+const VIEW_BTN_H: f32 = 20.0;
+const VIEW_SECTION_H: f32 = 28.0;
+const ILLUST_TITLEBAR_H: f32 = 17.0;
+const ILLUST_FALLBACK_W: f32 = 306.0;
+const ILLUST_FALLBACK_H: f32 = 428.0;
+
 const SLOT_EMPTY: u16 = 0xFFFF;
 
 struct ItemInfoData {
@@ -53,10 +69,17 @@ struct ItemInfoData {
     collection_path: Option<String>,
     is_damaged: bool,
     is_equipment: bool,
+    is_card: bool,
     description_lines: Vec<String>,
     slot: [u16; 4],
     slot_count: u8,
     card_icon_paths: [Option<String>; 4],
+}
+
+struct CardIllustration {
+    item_id: u16,
+    name: String,
+    texture_path: String,
 }
 
 pub struct ItemInfoWindow {
@@ -66,9 +89,11 @@ pub struct ItemInfoWindow {
     scroll_offset: usize,
     bg_size: (f32, f32),
     card_section_container: DialogContainer,
+    view_section_container: DialogContainer,
     card_info: Option<ItemInfoData>,
     card_wrapped_lines: Vec<String>,
     card_scroll_offset: usize,
+    card_illustration: Option<CardIllustration>,
 }
 
 impl ItemInfoWindow {
@@ -80,9 +105,11 @@ impl ItemInfoWindow {
             scroll_offset: 0,
             bg_size: (FALLBACK_WIN_W, FALLBACK_WIN_H),
             card_section_container: DialogContainer::new(),
+            view_section_container: DialogContainer::new(),
             card_info: None,
             card_wrapped_lines: Vec::new(),
             card_scroll_offset: 0,
+            card_illustration: None,
         }
     }
 
@@ -123,10 +150,11 @@ impl ItemInfoWindow {
 
         self.item = Some(ItemInfoData {
             item_id: item.item_id,
-            name: item.name.clone(),
+            name: format_equipment_display_name(item, data.item_slot_count.as_ref(), data.card_name.as_ref()),
             collection_path,
             is_damaged: item.is_damaged,
             is_equipment: item.is_equipment(),
+            is_card: item.item_type == 6,
             description_lines,
             slot: item.slot,
             slot_count,
@@ -181,6 +209,7 @@ impl ItemInfoWindow {
             collection_path,
             is_damaged: false,
             is_equipment: false,
+            is_card: true,
             description_lines,
             slot: [0; 4],
             slot_count: 0,
@@ -212,6 +241,28 @@ impl ItemInfoWindow {
         self.card_scroll_offset = 0;
     }
 
+    pub fn show_illustration(&mut self, item_id: u16, name: String, texture_path: String) {
+        if let Some(current) = &self.card_illustration {
+            if current.item_id == item_id {
+                self.close_illustration();
+                return;
+            }
+        }
+        self.card_illustration = Some(CardIllustration { item_id, name, texture_path });
+    }
+
+    pub fn close_illustration(&mut self) {
+        self.card_illustration = None;
+    }
+
+    pub fn pending_illustration_texture_paths(&self) -> Vec<String> {
+        let mut paths = Vec::new();
+        if let Some(illust) = &self.card_illustration {
+            paths.push(illust.texture_path.clone());
+        }
+        paths
+    }
+
     pub fn is_open(&self) -> bool {
         self.item.is_some()
     }
@@ -226,6 +277,7 @@ impl Window for ItemInfoWindow {
             self.bg_size = (w as f32, h as f32);
         }
         self.card_section_container.set_texture_sizes(size_fn);
+        self.view_section_container.set_texture_sizes(size_fn);
     }
 
     fn grf_texture_paths() -> Vec<&'static str> {
@@ -235,6 +287,9 @@ impl Window for ItemInfoWindow {
             DISABLED_SLOT_TEX,
             CLOSE_OFF_TEX,
             CLOSE_ON_TEX,
+            VIEW_BTN.normal,
+            VIEW_BTN.hover,
+            VIEW_BTN.pressed,
         ];
         paths.extend(scrollbar::grf_texture_paths());
         paths.extend(DialogContainer::grf_texture_paths());
@@ -243,8 +298,8 @@ impl Window for ItemInfoWindow {
 }
 
 impl InGameWindow for ItemInfoWindow {
-    fn build(&mut self, ui: &mut UiFrame, _character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
-        if self.item.is_none() && self.card_info.is_none() {
+    fn build(&mut self, ui: &mut UiFrame, _character: &mut Character, data: &DataTable) -> Vec<GameEvent> {
+        if self.item.is_none() && self.card_info.is_none() && self.card_illustration.is_none() {
             return Vec::new();
         }
 
@@ -260,11 +315,17 @@ impl InGameWindow for ItemInfoWindow {
                 let full_text = self.item.as_ref().unwrap().description_lines.join("\n");
                 self.wrapped_lines = word_wrap(&full_text, DESC_W, |t| {
                     ui.atlas.measure_text(&strip_color_codes(t))
-                });
+                }, false);
             }
 
             let item_data = self.item.as_ref().unwrap();
-            let card_section_h = if item_data.is_equipment { CARD_SECTION_H } else { 0.0 };
+            let extra_h = if item_data.is_equipment {
+                CARD_SECTION_H
+            } else if item_data.is_card {
+                VIEW_SECTION_H
+            } else {
+                0.0
+            };
 
             let ids = InfoWindowIds {
                 window: ITEM_INFO_WINDOW_ID,
@@ -275,12 +336,33 @@ impl InGameWindow for ItemInfoWindow {
             };
             let result = build_info_window(
                 ui, item_data, &self.wrapped_lines, self.scroll_offset,
-                &ids, grf, bg_size, card_section_h, true,
+                &ids, grf, bg_size, extra_h, true,
             );
             self.scroll_offset = result.scroll_offset;
 
             if result.closed {
                 self.close();
+            } else if self.item.as_ref().unwrap().is_card {
+                let item_data = self.item.as_ref().unwrap();
+                let (container_w, container_h) = if grf { bg_size } else { (FALLBACK_WIN_W, FALLBACK_WIN_H) };
+                let win_w = container_w;
+                let section_y = result.win_y + container_h;
+
+                // View section background
+                self.view_section_container.has_grf_textures = grf;
+                self.view_section_container.draw(
+                    &mut ui.draw_calls, result.win_x, section_y, win_w, VIEW_SECTION_H,
+                    [1.0, 1.0, 1.0, 1.0],
+                );
+
+                // View button centered in section
+                let btn_x = result.win_x + (win_w - VIEW_BTN_W) / 2.0;
+                let btn_y = section_y + (VIEW_SECTION_H - VIEW_BTN_H) / 2.0;
+                let btn_rect = Rect::new(btn_x, btn_y, VIEW_BTN_W, VIEW_BTN_H);
+                let btn_resp = ui.button(VIEW_BTN_ID, btn_rect, &VIEW_BTN, "View");
+                if btn_resp.clicked() {
+                    events.push(GameEvent::ShowCardIllustration { item_id: item_data.item_id });
+                }
             } else if self.item.as_ref().unwrap().is_equipment {
                 let item_data = self.item.as_ref().unwrap();
                 let (container_w, container_h) = if grf { bg_size } else { (FALLBACK_WIN_W, FALLBACK_WIN_H) };
@@ -298,7 +380,6 @@ impl InGameWindow for ItemInfoWindow {
                 // Inline card slot icons (horizontal row)
                 let icon_y = section_y + (CARD_SECTION_H - CARD_ICON_SIZE) / 2.0;
                 let mut icon_x = result.win_x + 8.0;
-
                 for i in 0..4usize {
                     let card_id = item_data.slot[i];
                     let slot_rect = Rect::new(icon_x, icon_y, CARD_ICON_SIZE, CARD_ICON_SIZE);
@@ -321,6 +402,10 @@ impl InGameWindow for ItemInfoWindow {
                             let slot_resp = ui.interact(WidgetId(CARD_SLOT_BASE_ID + i as u32), slot_rect);
                             if slot_resp.hovered() {
                                 ui.any_interactive_hovered = true;
+                                let card_name = data.item_name.as_ref()
+                                    .map(|t| t.get_name_or_id(card_id))
+                                    .unwrap_or_else(|| format!("Item #{card_id}"));
+                                ui.tooltip(icon_x, icon_y - CARD_ICON_SIZE, &card_name);
                             }
                             if slot_resp.right_clicked() {
                                 events.push(GameEvent::ShowCardInfo { item_id: card_id });
@@ -363,7 +448,7 @@ impl InGameWindow for ItemInfoWindow {
                 let full_text = self.card_info.as_ref().unwrap().description_lines.join("\n");
                 self.card_wrapped_lines = word_wrap(&full_text, DESC_W, |t| {
                     ui.atlas.measure_text(&strip_color_codes(t))
-                });
+                }, false);
             }
 
             let card_data = self.card_info.as_ref().unwrap();
@@ -382,6 +467,93 @@ impl InGameWindow for ItemInfoWindow {
 
             if result.closed {
                 self.close_card();
+            }
+        }
+
+        // Card illustration window (independent)
+        if let Some(illust) = &self.card_illustration {
+            let illust_w = ILLUST_FALLBACK_W;
+            let illust_h = ILLUST_FALLBACK_H;
+            let total_h = ILLUST_TITLEBAR_H + illust_h;
+
+            let win = ui.window(CARD_ILLUST_WINDOW_ID, illust_w, total_h, ILLUST_TITLEBAR_H);
+            let win_rect = Rect::new(win.x, win.y, illust_w, total_h);
+            ui.interact(CARD_ILLUST_WINDOW_ID, win_rect);
+
+            // Background
+            if grf {
+                let (v, i) = draw::quad_vertices(win.x, win.y, illust_w, total_h, [1.0, 1.0, 1.0, 1.0]);
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: i.to_vec(),
+                    texture: TextureRef::Named(COLLECTION_BG_TEX.to_string()),
+                });
+            } else {
+                let (v, i) = draw::quad_vertices(win.x, win.y, illust_w, total_h, [0.15, 0.15, 0.20, 0.95]);
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: i.to_vec(),
+                    texture: TextureRef::White,
+                });
+                let bc = [0.5, 0.5, 0.6, 1.0];
+                for (bx, by, bw, bh) in [
+                    (win.x, win.y, illust_w, 1.0),
+                    (win.x, win.y + total_h - 1.0, illust_w, 1.0),
+                    (win.x, win.y, 1.0, total_h),
+                    (win.x + illust_w - 1.0, win.y, 1.0, total_h),
+                ] {
+                    let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
+                    ui.draw_calls.push(DrawCall {
+                        vertices: v.to_vec(),
+                        indices: i.to_vec(),
+                        texture: TextureRef::White,
+                    });
+                }
+            }
+
+            // Title
+            let title_color = if grf { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
+            ui.text(win.x + 5.0, win.y + ui.atlas.line_height + 1.0, &illust.name, title_color);
+
+            // Close button
+            let close_rect = Rect::new(
+                win.x + illust_w - CLOSE_SIZE - 3.0,
+                win.y + 3.0,
+                CLOSE_SIZE,
+                CLOSE_SIZE,
+            );
+            let close_resp = ui.interact(CARD_ILLUST_CLOSE_ID, close_rect);
+            if close_resp.hovered() {
+                ui.any_interactive_hovered = true;
+            }
+            if grf {
+                let tex = if close_resp.hovered() { CLOSE_ON_TEX } else { CLOSE_OFF_TEX };
+                let (v, idx) = draw::quad_vertices(
+                    close_rect.x, close_rect.y, CLOSE_SIZE, CLOSE_SIZE,
+                    [1.0, 1.0, 1.0, 1.0],
+                );
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: idx.to_vec(),
+                    texture: TextureRef::Named(tex.to_string()),
+                });
+            } else {
+                let c = if close_resp.hovered() { [1.0, 0.3, 0.3, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
+                ui.text(close_rect.x + 2.0, close_rect.y + CLOSE_SIZE - 1.0, "x", c);
+            }
+
+            if close_resp.clicked() {
+                self.close_illustration();
+            } else {
+                // Card illustration image
+                let img_x = win.x;
+                let img_y = win.y + ILLUST_TITLEBAR_H;
+                let (v, i) = draw::quad_vertices(img_x, img_y, illust_w, illust_h, [1.0, 1.0, 1.0, 1.0]);
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: i.to_vec(),
+                    texture: TextureRef::Named(illust.texture_path.clone()),
+                });
             }
         }
 
@@ -715,4 +887,53 @@ mod tests {
         assert_eq!(paths.len(), 1);
         assert!(paths[0].contains("collection/고블린카드.bmp"));
     }
+
+    #[test]
+    fn card_item_sets_is_card_flag() {
+        let mut win = ItemInfoWindow::new();
+        let data = make_data_table();
+        let card = make_item(4001, 6, [0; 4]);
+        win.show(&card, &data);
+        assert!(win.item.as_ref().unwrap().is_card);
+        assert!(!win.item.as_ref().unwrap().is_equipment);
+
+        let weapon = make_item(1201, 4, [0; 4]);
+        win.show(&weapon, &data);
+        assert!(!win.item.as_ref().unwrap().is_card);
+        assert!(win.item.as_ref().unwrap().is_equipment);
+    }
+
+    #[test]
+    fn show_illustration_opens_and_toggle_closes() {
+        let mut win = ItemInfoWindow::new();
+        win.show_illustration(4001, "Test Card".to_string(), "data/texture/cardbmp/test.bmp".to_string());
+        assert!(win.card_illustration.is_some());
+        assert_eq!(win.card_illustration.as_ref().unwrap().item_id, 4001);
+
+        // Same id toggles off
+        win.show_illustration(4001, "Test Card".to_string(), "data/texture/cardbmp/test.bmp".to_string());
+        assert!(win.card_illustration.is_none());
+    }
+
+    #[test]
+    fn show_illustration_switches_to_different_card() {
+        let mut win = ItemInfoWindow::new();
+        win.show_illustration(4001, "Card A".to_string(), "a.bmp".to_string());
+        assert_eq!(win.card_illustration.as_ref().unwrap().item_id, 4001);
+
+        win.show_illustration(4002, "Card B".to_string(), "b.bmp".to_string());
+        assert_eq!(win.card_illustration.as_ref().unwrap().item_id, 4002);
+    }
+
+    #[test]
+    fn pending_illustration_texture_paths() {
+        let mut win = ItemInfoWindow::new();
+        assert!(win.pending_illustration_texture_paths().is_empty());
+
+        win.show_illustration(4001, "Test".to_string(), "data/texture/cardbmp/test.bmp".to_string());
+        let paths = win.pending_illustration_texture_paths();
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], "data/texture/cardbmp/test.bmp");
+    }
+
 }

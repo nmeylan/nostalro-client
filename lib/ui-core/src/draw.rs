@@ -220,30 +220,47 @@ pub fn text_vertices_clipped(
     (vertices, indices)
 }
 
-pub fn word_wrap(text: &str, max_width: f32, measure: impl Fn(&str) -> f32) -> Vec<String> {
+pub fn word_wrap(text: &str, max_width: f32, measure: impl Fn(&str) -> f32, truncate: bool) -> Vec<String> {
     let mut lines = Vec::new();
     for paragraph in text.split('\n') {
         if paragraph.is_empty() {
             lines.push(String::new());
             continue;
         }
-        let words: Vec<&str> = paragraph.split(' ').collect();
-        let mut current_line = String::new();
-        for word in words {
-            if current_line.is_empty() {
-                current_line = word.to_string();
-            } else {
-                let candidate = format!("{current_line} {word}");
-                if measure(&candidate) <= max_width {
-                    current_line = candidate;
-                } else {
-                    lines.push(current_line);
-                    current_line = word.to_string();
+        if truncate {
+            let mut current_line = String::new();
+            for ch in paragraph.chars() {
+                current_line.push(ch);
+                if measure(&current_line) > max_width {
+                    current_line.pop();
+                    if !current_line.is_empty() {
+                        lines.push(current_line);
+                    }
+                    current_line = ch.to_string();
                 }
             }
-        }
-        if !current_line.is_empty() {
-            lines.push(current_line);
+            if !current_line.is_empty() {
+                lines.push(current_line);
+            }
+        } else {
+            let words: Vec<&str> = paragraph.split(' ').collect();
+            let mut current_line = String::new();
+            for word in words {
+                if current_line.is_empty() {
+                    current_line = word.to_string();
+                } else {
+                    let candidate = format!("{current_line} {word}");
+                    if measure(&candidate) <= max_width {
+                        current_line = candidate;
+                    } else {
+                        lines.push(current_line);
+                        current_line = word.to_string();
+                    }
+                }
+            }
+            if !current_line.is_empty() {
+                lines.push(current_line);
+            }
         }
     }
     if lines.is_empty() {
@@ -298,5 +315,29 @@ mod tests {
         assert_eq!(strip_color_codes("^FF0000Red ^000000Black"), "Red Black");
         assert_eq!(strip_color_codes("No codes"), "No codes");
         assert_eq!(strip_color_codes("^FF00short"), "^FF00short");
+    }
+
+    fn char_count_measure(s: &str) -> f32 {
+        s.chars().count() as f32
+    }
+
+    #[test]
+    fn word_wrap_truncate_breaks_long_word() {
+        // max_width=5, measure = char count; "abcdefgh" (8 chars) should be split
+        let lines = word_wrap("abcdefgh", 5.0, char_count_measure, true);
+        assert_eq!(lines, vec!["abcde", "fgh"]);
+    }
+
+    #[test]
+    fn word_wrap_truncate_mixed_short_and_long() {
+        // Truncate treats spaces as regular characters
+        let lines = word_wrap("hi abcdefgh ok", 5.0, char_count_measure, true);
+        assert_eq!(lines, vec!["hi ab", "cdefg", "h ok"]);
+    }
+
+    #[test]
+    fn word_wrap_no_truncate_keeps_long_word_intact() {
+        let lines = word_wrap("abcdefgh", 5.0, char_count_measure, false);
+        assert_eq!(lines, vec!["abcdefgh"]);
     }
 }

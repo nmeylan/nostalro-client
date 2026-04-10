@@ -42,7 +42,7 @@ pub fn parse_item_name_table(data: &[u8]) -> HashMap<u16, String> {
         let parts: Vec<&str> = line.split('#').collect();
         if parts.len() >= 2 {
             if let Ok(id) = parts[0].parse::<u16>() {
-                let name = parts[1];
+                let name = parts[1].replace("_", " ");
                 if !name.is_empty() {
                     map.insert(id, name.to_string());
                 }

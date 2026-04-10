@@ -44,7 +44,7 @@ TODO:
 - Quest window
 - Cart window
 - Storage/warehouse window
-- Item tooltips (description, stats, cards, refine level)
+- ~~Item tooltips (description, stats, cards, refine level)~~
 - Context menu (right-click on player/NPC)[ui-component](../lib/ui-component)
 - ~~Escape/system menu~~
 - Card illustration display

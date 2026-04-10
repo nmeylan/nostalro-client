@@ -243,7 +243,7 @@ impl InGameWindow for NpcDialog {
             let text_area_w = dialog_w - padding * 2.0;
             let wrapped_lines = word_wrap(&self.dialog.text, text_area_w, |t| {
                 ui.atlas.measure_text(&strip_color_codes(t))
-            });
+            }, false);
             let text_line_h = TEXT_LINE_HEIGHT ;
             let text_h = (wrapped_lines.len().max(1) as f32) * text_line_h;
 
