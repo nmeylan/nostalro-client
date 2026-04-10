@@ -47,7 +47,7 @@ TODO:
 - ~~Item tooltips (description, stats, cards, refine level)~~
 - Context menu (right-click on player/NPC)[ui-component](../lib/ui-component)
 - ~~Escape/system menu~~
-- Card illustration display
+- ~~Card illustration display~~
 - Refining UI
 - Mail/Rodex
 
@@ -56,7 +56,7 @@ TODO:
 - Other players (full sprite layers)
 - ~~NPCs~~ (done — entity type with sprite rendering)
 - ~~Monsters~~ (done — job-based sprites with animation states)
-- Ground items (dropped items with pickup)
+- ~~Ground items (dropped items with pickup)~~
 - Skill ground units (AoE, traps)
 - Pet companion rendering
 - Homunculus rendering
@@ -68,7 +68,7 @@ TODO:
 - Skill execution + effects
 - Damage/heal numbers
 - Status effects (buff/debuff icons + visuals: poison, freeze, stun, etc.)
-- HP/SP bars
+- ~~HP/SP bars~~
 - Death + respawn
 - ~~Sit/stand actions~~ (done — Insert key toggle, PacketZcNotifyAct handling)
 
@@ -76,7 +76,7 @@ TODO:
 - ~~Inventory management (pickup, drop, use, equip)~~
 - ~~Equipment slots + visual update on character~~
 - Card slotting
-- Item info window
+- ~~Item info window~~
 - Item crafting (arrows, cooking)
 - Item refining
 - Cart system

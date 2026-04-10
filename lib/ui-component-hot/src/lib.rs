@@ -19,6 +19,7 @@ use ragnarok_ui::rect::Rect;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::LoginWindow;
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
+use ragnarok_ui_component::game::card_insert_dialog::{CardInsertDialog, EligibleItem};
 use ragnarok_ui_component::game::chat_window::ChatWindow;
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
@@ -28,6 +29,7 @@ use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotificatio
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::number_input::{NumberInputDialog, NumberInputConfig};
+use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::helper::dialog_container::DialogContainer;
 use ragnarok_ui_component::{Window, InGameWindow};
@@ -43,6 +45,8 @@ const GAME_COMPONENTS: &[&str] = &[
     "chat",
     "dialog_container",
     "item_info",
+    "skill_tree",
+    "card_insert",
 ];
 const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
 
@@ -101,6 +105,16 @@ enum State {
         character: Character,
         data: DataTable,
         item: Item,
+    },
+    SkillTree {
+        win: SkillTreeWindow,
+        character: Character,
+        data: DataTable,
+    },
+    CardInsert {
+        dialog: CardInsertDialog,
+        character: Character,
+        data: DataTable,
     },
     DialogContainerDemo {
         notification: ItemPickupNotification,
@@ -444,6 +458,77 @@ fn create_single(name: &str) -> State {
             win.show(&bow, &data);
             State::ItemInfo { win, character: Character::new(), data, item: bow }
         }
+        "skill_tree" => {
+            use ragnarok_game::skill::SkillData;
+            use ragnarok_game::skill_name_table::SkillNameTable;
+            use ragnarok_game::skill_tree_table::{SkillTreeTable, SkillTreeEntry};
+
+            let mut character = Character::new();
+            character.skill_point = 5;
+            character.skills.open();
+            character.skills.set_skills(vec![
+                SkillData { id: 1, name: "SM_SWORD".into(), level: 10, sp_cost: 0, attack_range: 0, upgradable: false, skill_type: 0 },
+                SkillData { id: 2, name: "SM_RECOVERY".into(), level: 5, sp_cost: 0, attack_range: 0, upgradable: true, skill_type: 0 },
+                SkillData { id: 3, name: "SM_BASH".into(), level: 5, sp_cost: 8, attack_range: 1, upgradable: true, skill_type: 1 },
+                SkillData { id: 4, name: "SM_PROVOKE".into(), level: 3, sp_cost: 4, attack_range: 9, upgradable: true, skill_type: 1 },
+                SkillData { id: 5, name: "SM_ENDURE".into(), level: 0, sp_cost: 10, attack_range: 0, upgradable: true, skill_type: 2 },
+            ]);
+
+            let mut skill_names = HashMap::new();
+            skill_names.insert("SM_SWORD".into(), "Sword Mastery".into());
+            skill_names.insert("SM_RECOVERY".into(), "HP Recovery".into());
+            skill_names.insert("SM_BASH".into(), "Bash".into());
+            skill_names.insert("SM_PROVOKE".into(), "Provoke".into());
+            skill_names.insert("SM_AUTOBERSERK".into(), "Auto Berserk".into());
+            skill_names.insert("SM_MOVINGRECOVERY".into(), "Moving Recovery".into());
+            skill_names.insert("SM_TWOHAND".into(), "Two-Hand Mastery".into());
+            skill_names.insert("SM_MAGNUM".into(), "Magnum Break".into());
+            skill_names.insert("SM_ENDURE".into(), "Endure".into());
+            skill_names.insert("SM_FATALBLOW".into(), "Fatal Blow".into());
+            skill_names.insert("NV_BASIC".into(), "Basic Skill".into());
+
+            let mut trees = HashMap::new();
+            trees.insert(0, vec![
+                SkillTreeEntry { skill_name: "NV_BASIC".into(), position: 0, max_level: 9, prerequisite_positions: vec![] },
+            ]);
+            trees.insert(1, vec![
+                SkillTreeEntry { skill_name: "SM_SWORD".into(), position: 1, max_level: 10, prerequisite_positions: vec![] },
+                SkillTreeEntry { skill_name: "SM_RECOVERY".into(), position: 2, max_level: 10, prerequisite_positions: vec![] },
+                SkillTreeEntry { skill_name: "SM_BASH".into(), position: 3, max_level: 10, prerequisite_positions: vec![] },
+                SkillTreeEntry { skill_name: "SM_PROVOKE".into(), position: 4, max_level: 10, prerequisite_positions: vec![] },
+                SkillTreeEntry { skill_name: "SM_AUTOBERSERK".into(), position: 5, max_level: 1, prerequisite_positions: vec![] },
+                SkillTreeEntry { skill_name: "SM_MOVINGRECOVERY".into(), position: 6, max_level: 1, prerequisite_positions: vec![] },
+                SkillTreeEntry { skill_name: "SM_TWOHAND".into(), position: 8, max_level: 10, prerequisite_positions: vec![1] },
+                SkillTreeEntry { skill_name: "SM_MAGNUM".into(), position: 10, max_level: 10, prerequisite_positions: vec![3] },
+                SkillTreeEntry { skill_name: "SM_ENDURE".into(), position: 11, max_level: 10, prerequisite_positions: vec![4] },
+                SkillTreeEntry { skill_name: "SM_FATALBLOW".into(), position: 12, max_level: 1, prerequisite_positions: vec![] },
+            ]);
+
+            let data = DataTable {
+                skill_name: Some(SkillNameTable::from_entries(skill_names)),
+                skill_tree: Some(SkillTreeTable::from_entries(trees)),
+                ..DataTable::new()
+            };
+
+            let mut win = SkillTreeWindow::new();
+            win.job_class = 1; // Swordsman
+
+            State::SkillTree { win, character, data }
+        }
+        "card_insert" => {
+            let eligible = vec![
+                EligibleItem { inventory_index: 1, display_name: "+7 Sword [3]".into(), icon_path: None },
+                EligibleItem { inventory_index: 2, display_name: "Bow [2]".into(), icon_path: None },
+                EligibleItem { inventory_index: 3, display_name: "+5 Guard [1]".into(), icon_path: None },
+                EligibleItem { inventory_index: 4, display_name: "Chain Mail [1]".into(), icon_path: None },
+                EligibleItem { inventory_index: 5, display_name: "Sandals [1]".into(), icon_path: None },
+                EligibleItem { inventory_index: 6, display_name: "Hood [1]".into(), icon_path: None },
+                EligibleItem { inventory_index: 7, display_name: "Muffler [1]".into(), icon_path: None },
+            ];
+            let mut dialog = CardInsertDialog::new();
+            dialog.open(10, "Poring Card".into(), eligible);
+            State::CardInsert { dialog, character: Character::new(), data: DataTable::new() }
+        }
         "dialog_container" => {
             let mut notification = ItemPickupNotification::new();
             notification.show("Sticky Mucus".to_string(), 1, None);
@@ -559,6 +644,14 @@ fn grf_init_single(
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
+        State::SkillTree { win, .. } => {
+            win.has_grf_textures = true;
+            win.set_texture_sizes(size_fn);
+        }
+        State::CardInsert { dialog, .. } => {
+            dialog.has_grf_textures = true;
+            dialog.set_texture_sizes(size_fn);
+        }
         State::DialogContainerDemo { notification } => {
             notification.container.has_grf_textures = true;
             notification.set_texture_sizes(size_fn);
@@ -593,6 +686,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Chat { .. } => Some(WidgetId(300)),
         State::Inventory { .. } => Some(WidgetId(800)),
         State::Equipment { .. } => Some(WidgetId(900)),
+        State::SkillTree { .. } => Some(WidgetId(1000)),
         _ => None,
     }
 }
@@ -680,6 +774,12 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
                     _ => {}
                 }
             }
+        }
+        State::SkillTree { win, character, data } => {
+            win.build(ui, character, data);
+        }
+        State::CardInsert { dialog, character, data } => {
+            dialog.build(ui, character, data);
         }
         State::DialogContainerDemo {  notification } => {
             let mut character = Character::new();

@@ -94,6 +94,14 @@ impl InventoryData {
         self.items.iter().find(|i| i.index == index)
     }
 
+    pub fn insert_card(&mut self, equip_index: u16, card_item_id: u16) {
+        if let Some(item) = self.items.iter_mut().find(|i| i.index == equip_index) {
+            if let Some(slot) = item.slot.iter_mut().find(|s| **s == 0) {
+                *slot = card_item_id;
+            }
+        }
+    }
+
     pub fn filtered_items(&self) -> Vec<&Item> {
         self.items.iter()
             .filter(|item| item.tab() == self.active_tab && (!item.is_equipped() || item.is_ammunition()))
@@ -375,5 +383,19 @@ mod tests {
         let mut no_resource = make_normal_item(2, 502, 0, 1);
         no_resource.resource_name = None;
         assert!(no_resource.icon_path().is_none());
+    }
+
+    #[test]
+    fn insert_card_fills_first_empty_slot() {
+        let mut inv = InventoryData::new();
+        let mut equip = make_equip_item(1, 1101, 2);
+        equip.slot = [4001, 0, 0, 0];
+        inv.add_item(equip);
+
+        inv.insert_card(1, 4025);
+        assert_eq!(inv.get_item(1).unwrap().slot, [4001, 4025, 0, 0]);
+
+        inv.insert_card(1, 4026);
+        assert_eq!(inv.get_item(1).unwrap().slot, [4001, 4025, 4026, 0]);
     }
 }

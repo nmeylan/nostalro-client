@@ -199,6 +199,14 @@ pub enum GameEvent {
     RequestUnequipItem { index: u16 },
     RequestDropItem { index: u16, count: i16 },
 
+    // Card composition (client → server)
+    RequestCardInsertList { card_index: u16 },
+    RequestCardInsert { card_index: u16, equip_index: u16 },
+
+    // Card composition (server → client)
+    CardInsertItemList { card_index: u16, equip_indices: Vec<u16> },
+    CardInsertResult { equip_index: u16, card_index: u16, result: u8 },
+
     // Floor items (server → client)
     FloorItemAppeared {
         id: u32, item_id: u16, is_identified: bool,
@@ -210,6 +218,14 @@ pub enum GameEvent {
     // Floor items (client → server)
     RequestPickupItem { id: u32 },
 
+    // Skills (server → client)
+    SkillListReceived { skills: Vec<SkillInfo> },
+    SkillUpdated { id: u16, level: i16, sp_cost: i16, attack_range: i16, upgradable: bool },
+    SkillAdded { skill: SkillInfo },
+
+    // Skills (client → server)
+    RequestSkillLevelUp { skill_id: u16 },
+
     // UI actions
     ShowItemInfo { index: u16 },
     ShowCardInfo { item_id: u16 },
@@ -220,6 +236,17 @@ pub enum GameEvent {
 
     // No-op acknowledgement (packet parsed but no action needed yet)
     Acknowledged,
+}
+
+#[derive(Debug, Clone)]
+pub struct SkillInfo {
+    pub id: u16,
+    pub name: String,
+    pub level: i16,
+    pub sp_cost: i16,
+    pub attack_range: i16,
+    pub upgradable: bool,
+    pub skill_type: i32,
 }
 
 #[derive(Debug, Clone)]

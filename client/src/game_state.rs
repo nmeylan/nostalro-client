@@ -18,6 +18,7 @@ use crate::config::WindowStateEntry;
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
+use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::equipment_window::{EquipmentWindow, EQ_WINDOW_ID};
 use ragnarok_ui_component::game::inventory_window::{InventoryWindow, INV_WINDOW_ID};
@@ -25,6 +26,7 @@ use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
+use ragnarok_ui_component::game::skill_tree_window::{SkillTreeWindow, SKILL_WINDOW_ID};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::{InGameWindow, Window};
 
@@ -61,9 +63,13 @@ pub struct GameState {
     pub waiting_item_throw_ack: bool,
     pub drop_dialog_has_grf_textures: bool,
     pub drop_quantity_dialog: Option<DropQuantityDialog>,
+    pub card_insert_dialog: Option<CardInsertDialog>,
+    pub card_insert_dialog_has_grf_textures: bool,
+    pub pending_card_composition_index: Option<u16>,
     pub pending_pickup_item_id: Option<u32>,
     pub item_info_window: ItemInfoWindow,
     pub item_pickup_notification: ItemPickupNotification,
+    pub skill_tree_window: SkillTreeWindow,
     pub debug_show_pick_bounds: bool,
 }
 
@@ -71,6 +77,7 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     chat_window::CHAT_WINDOW_ID,
     INV_WINDOW_ID,
     EQ_WINDOW_ID,
+    SKILL_WINDOW_ID,
 ];
 
 impl GameState {
@@ -154,6 +161,17 @@ impl GameState {
             events.extend(dialog_events.into_iter().filter(|e| !matches!(e, GameEvent::DialogClosed)));
         }
 
+        if let Some(dialog) = &mut self.card_insert_dialog {
+            let dialog_events = InGameWindow::build(dialog, ui, &mut self.character, &self.data_table);
+            let closed = dialog_events.iter().any(|e| matches!(
+                e, GameEvent::DialogClosed | GameEvent::RequestCardInsert { .. }
+            ));
+            if closed {
+                self.card_insert_dialog = None;
+            }
+            events.extend(dialog_events.into_iter().filter(|e| !matches!(e, GameEvent::DialogClosed)));
+        }
+
         events
     }
 
@@ -163,6 +181,11 @@ impl GameState {
             INV_WINDOW_ID => events.extend(self.inventory_window.build(ui, &mut self.character, &self.data_table)),
             EQ_WINDOW_ID => {
                 events.extend(self.equipment_window.build(ui, &mut self.character, &self.data_table));
+            }
+            SKILL_WINDOW_ID => {
+                self.skill_tree_window.job_class = self.selected_character.as_ref()
+                    .map(|c| c.class).unwrap_or(0);
+                events.extend(self.skill_tree_window.build(ui, &mut self.character, &self.data_table));
             }
             _ => {}
         }
@@ -202,9 +225,13 @@ impl GameState {
             waiting_item_throw_ack: false,
             drop_dialog_has_grf_textures: false,
             drop_quantity_dialog: None,
+            card_insert_dialog: None,
+            card_insert_dialog_has_grf_textures: false,
+            pending_card_composition_index: None,
             pending_pickup_item_id: None,
             item_info_window: ItemInfoWindow::new(),
             item_pickup_notification: ItemPickupNotification::new(),
+            skill_tree_window: SkillTreeWindow::new(),
             debug_show_pick_bounds: false,
         }
     }
@@ -219,6 +246,11 @@ impl GameState {
         if let Some(entry) = window_state.get(&EQ_WINDOW_ID.0) {
             self.equipment_window.open = entry.open;
             self.equipment_window.set_minimized(entry.collapsed);
+        }
+        if let Some(entry) = window_state.get(&SKILL_WINDOW_ID.0) {
+            if entry.open {
+                self.character.skills.open();
+            }
         }
         if let Some(entry) = window_state.get(&chat_window::CHAT_WINDOW_ID.0) {
             let size_index = if !entry.open {
@@ -241,6 +273,10 @@ impl GameState {
         result.insert(EQ_WINDOW_ID.0, (
             self.equipment_window.is_open(),
             self.equipment_window.is_minimized(),
+        ));
+        result.insert(SKILL_WINDOW_ID.0, (
+            self.character.skills.is_open(),
+            false,
         ));
         let size_index = self.chat_window.get_size_index(state_cache);
         result.insert(chat_window::CHAT_WINDOW_ID.0, (size_index > 0, size_index == 1));

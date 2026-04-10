@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Add card insertion: double-click a card in inventory to open a selection dialog listing eligible equipment, select an item and confirm to insert the card
 - Improve item info window: card section uses standard dialog container, slotted cards show icon texture with fallback, right-click a slotted card to open its own independent item info window
 - Add drop item to floor: drag any item from inventory outside windows to drop it, items appear on the floor with falling animation and periodic blink highlight, hover to see tooltip, click to pick up
 - Add high-DPI support: UI renders crisply at non-integer scale factors (e.g. 150%), configurable via `dpi_scale` in config.json

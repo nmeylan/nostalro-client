@@ -232,3 +232,25 @@ pub fn build_pickup_item_packet(itaid: u32, packetver: u32) -> Vec<u8> {
     pkt.fill_raw();
     pkt.raw
 }
+
+pub fn build_upgrade_skill_packet(skill_id: u16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzUpgradeSkilllevel::new(packetver);
+    pkt.set_skid(skill_id);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_card_composition_list_packet(card_index: u16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqItemcompositionList::new(packetver);
+    pkt.set_card_index(card_index as i16);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_card_composition_packet(card_index: u16, equip_index: u16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqItemcomposition::new(packetver);
+    pkt.set_card_index(card_index as i16);
+    pkt.set_equip_index(equip_index as i16);
+    pkt.fill_raw();
+    pkt.raw
+}

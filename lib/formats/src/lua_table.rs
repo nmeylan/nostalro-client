@@ -100,6 +100,58 @@ pub fn parse_id_set_table(data: &[u8]) -> std::collections::HashSet<u16> {
     set
 }
 
+/// Parses `SKILL_NAME#Display Name#` format from EUC-KR data.
+/// Returns internal_name → display_name.
+pub fn parse_skill_name_table(data: &[u8]) -> HashMap<String, String> {
+    let content = decode_euc_kr(data);
+    let mut map = HashMap::new();
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with("//") {
+            continue;
+        }
+        let parts: Vec<&str> = line.split('#').collect();
+        if parts.len() >= 2 {
+            let name = parts[0].trim();
+            let display = parts[1].trim();
+            if !name.is_empty() && !display.is_empty() {
+                map.insert(name.to_string(), display.to_string());
+            }
+        }
+    }
+    map
+}
+
+/// Parses skill description tables (`skilldesctable.txt`).
+/// Format: `SKILL_NAME#\ndescription lines...\n#\n` repeating.
+/// Returns internal_name → Vec of description lines.
+pub fn parse_skill_description_table(data: &[u8]) -> HashMap<String, Vec<String>> {
+    let content = decode_euc_kr(data);
+    let mut map: HashMap<String, Vec<String>> = HashMap::new();
+    let mut current_name: Option<String> = None;
+
+    for token in content.split('#') {
+        let trimmed = token.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        // Skill names contain only alphanumeric and underscore, no spaces or digits-only
+        if !trimmed.contains(' ') && !trimmed.contains('\n') && trimmed.contains('_') {
+            current_name = Some(trimmed.to_string());
+        } else if let Some(ref name) = current_name {
+            let lines: Vec<String> = token
+                .lines()
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| l.to_string())
+                .collect();
+            if !lines.is_empty() {
+                map.entry(name.clone()).or_default().extend(lines);
+            }
+        }
+    }
+    map
+}
+
 /// Parses RO accessory data from `accessoryid.lua` and `accname.lua`.
 /// Returns a map from view_id to sprite name suffix.
 ///

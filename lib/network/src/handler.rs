@@ -1,5 +1,5 @@
 use packets::packets::*;
-use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo};
+use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo, SkillInfo};
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
 use tracing::debug;
 
@@ -491,6 +491,21 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
+    // Card composition
+    if let Some(p) = any.downcast_ref::<PacketZcItemcompositionList>() {
+        return vec![GameEvent::CardInsertItemList {
+            card_index: 0,
+            equip_indices: p.itidlist.clone(),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckItemcomposition>() {
+        return vec![GameEvent::CardInsertResult {
+            equip_index: p.equip_index as u16,
+            card_index: p.card_index as u16,
+            result: p.result,
+        }];
+    }
+
     // Floor items
     if let Some(p) = any.downcast_ref::<PacketZcItemFallEntry>() {
         return vec![GameEvent::FloorItemAppeared {
@@ -524,8 +539,52 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if any.downcast_ref::<PacketZcFriendsList>().is_some() {
         return vec![GameEvent::Acknowledged];
     }
-    if any.downcast_ref::<PacketZcSkillinfoList>().is_some() {
-        return vec![GameEvent::Acknowledged];
+    if let Some(p) = any.downcast_ref::<PacketZcSkillinfoList>() {
+        let skills = p.skill_list.iter().map(|s| {
+            let name: String = s.skill_name.iter().take_while(|c| **c != '\0').collect();
+            SkillInfo {
+                id: s.skid as u16,
+                name,
+                level: s.level,
+                sp_cost: s.spcost,
+                attack_range: s.attack_range,
+                upgradable: s.upgradable != 0,
+                skill_type: s.atype,
+            }
+        }).collect();
+        return vec![GameEvent::SkillListReceived { skills }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcSkillinfoUpdate>() {
+        return vec![GameEvent::SkillUpdated {
+            id: p.skid,
+            level: p.level,
+            sp_cost: p.spcost,
+            attack_range: p.attack_range,
+            upgradable: p.upgradable,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcSkillinfoUpdate2>() {
+        return vec![GameEvent::SkillUpdated {
+            id: p.skid,
+            level: p.level,
+            sp_cost: p.spcost,
+            attack_range: p.attack_range,
+            upgradable: p.upgradable,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAddSkill>() {
+        let name: String = p.data.skill_name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::SkillAdded {
+            skill: SkillInfo {
+                id: p.data.skid as u16,
+                name,
+                level: p.data.level,
+                sp_cost: p.data.spcost,
+                attack_range: p.data.attack_range,
+                upgradable: p.data.upgradable != 0,
+                skill_type: p.data.atype,
+            },
+        }];
     }
     if any.downcast_ref::<PacketZcShortcutKeyListV2>().is_some() {
         return vec![GameEvent::Acknowledged];

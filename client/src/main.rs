@@ -30,11 +30,12 @@ use ragnarok_network::{
     KeepaliveMode, NetworkCommand, build_action_request_packet, build_char_enter_packet,
     build_chat_packet, build_contact_npc_packet, build_drop_item_packet, build_equip_item_packet,
     build_login_packet, build_map_loaded_packet, build_npc_close_packet,
+    build_card_composition_list_packet, build_card_composition_packet,
     build_npc_deal_type_packet, build_npc_input_number_packet, build_npc_input_string_packet,
     build_npc_menu_select_packet, build_npc_next_packet, build_pickup_item_packet,
     build_purchase_item_list_packet, build_reqname_packet, build_request_move_packet,
     build_restart_packet, build_select_char_packet, build_sell_item_list_packet,
-    build_unequip_item_packet, build_use_item_packet, build_zone_enter_packet, ip_u32_to_string,
+    build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_zone_enter_packet, ip_u32_to_string,
     network_loop,
 };
 use ragnarok_renderer::ui_renderer::UiVertex;
@@ -48,6 +49,7 @@ use ragnarok_ui::state::StateCache;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::{LoginFocus, LoginWindow};
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
+use ragnarok_ui_component::game::card_insert_dialog::{CardInsertDialog, EligibleItem};
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use std::path::Path;
 use std::rc::Rc;
@@ -382,6 +384,8 @@ impl App {
                     self.game.floor_item_sprites.clear();
                     self.game.waiting_item_throw_ack = false;
                     self.game.drop_quantity_dialog = None;
+                    self.game.card_insert_dialog = None;
+                    self.game.pending_card_composition_index = None;
                     self.game.pending_pickup_item_id = None;
                     self.game.current_map = None;
                     self.game.map_coords = None;
@@ -493,8 +497,11 @@ impl App {
                         preload_window(&mut self.game.npc_shop, renderer, grf);
                         preload_window(&mut self.game.item_info_window, renderer, grf);
                         preload_window(&mut self.game.item_pickup_notification, renderer, grf);
+                        preload_window(&mut self.game.skill_tree_window, renderer, grf);
                         self.game.drop_dialog_has_grf_textures =
                             renderer.preload_textures(&DropQuantityDialog::grf_texture_paths(), grf);
+                        self.game.card_insert_dialog_has_grf_textures =
+                            renderer.preload_textures(&CardInsertDialog::grf_texture_paths(), grf);
                     }
 
                     if let Some(info) = &self.game.selected_character {
@@ -1086,6 +1093,55 @@ impl App {
                         .subtract_item_count(index, count);
                     self.game.waiting_item_throw_ack = false;
                 }
+                GameEvent::CardInsertItemList { equip_indices, .. } => {
+                    let card_index = match self.game.pending_card_composition_index.take() {
+                        Some(idx) => idx,
+                        None => continue,
+                    };
+                    if equip_indices.is_empty() {
+                        continue;
+                    }
+                    let slot_count_table = self.game.data_table.item_slot_count.as_ref();
+                    let card_name_table = self.game.data_table.card_name.as_ref();
+                    let eligible: Vec<EligibleItem> = equip_indices.iter().filter_map(|&idx| {
+                        let item = self.game.character.inventory.get_item(idx)?;
+                        let name = format_equipment_display_name(item, slot_count_table, card_name_table);
+                        Some(EligibleItem {
+                            inventory_index: idx,
+                            display_name: name,
+                            icon_path: item.icon_path(),
+                        })
+                    }).collect();
+                    let card_name = self.game.character.inventory.get_item(card_index)
+                        .map(|c| c.name.clone())
+                        .unwrap_or_default();
+                    let mut dialog = CardInsertDialog::new();
+                    dialog.open(card_index, card_name, eligible);
+                    dialog.has_grf_textures = self.game.card_insert_dialog_has_grf_textures;
+                    if dialog.has_grf_textures {
+                        if let Some(renderer) = &self.renderer {
+                            dialog.set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
+                        }
+                    }
+                    let tex_paths = dialog.pending_texture_paths();
+                    self.game.card_insert_dialog = Some(dialog);
+                    self.preload_item_icons(tex_paths);
+                }
+                GameEvent::CardInsertResult { equip_index, card_index, result } => {
+                    self.game.card_insert_dialog = None;
+                    self.game.pending_card_composition_index = None;
+                    if result == 0 {
+                        let card_item_id = self.game.character.inventory.get_item(card_index)
+                            .map(|c| c.item_id)
+                            .unwrap_or(0);
+                        self.game.character.inventory.subtract_item_count(card_index, 1);
+                        if card_item_id != 0 {
+                            self.game.character.inventory.insert_card(equip_index, card_item_id);
+                        }
+                    } else {
+                        self.game.chat_window.add_system("Card insertion failed.".to_string());
+                    }
+                }
                 GameEvent::FloorItemAppeared {
                     id,
                     item_id,
@@ -1209,6 +1265,9 @@ impl App {
                             StatusTypes::Zeny => {
                                 self.game.character.inventory.zeny = value;
                             }
+                            StatusTypes::Skillpoint => {
+                                self.game.character.skill_point = value as u16;
+                            }
                             _ => {}
                         }
                     }
@@ -1311,6 +1370,33 @@ impl App {
                             Some(ragnarok_game::entity::EmotionState::new(emotion_type));
                     }
                 }
+                GameEvent::SkillListReceived { skills } => {
+                    self.game.character.skills.set_skills(
+                        skills.into_iter().map(|s| ragnarok_game::skill::SkillData {
+                            id: s.id,
+                            name: s.name,
+                            level: s.level,
+                            sp_cost: s.sp_cost,
+                            attack_range: s.attack_range,
+                            upgradable: s.upgradable,
+                            skill_type: s.skill_type,
+                        }).collect(),
+                    );
+                }
+                GameEvent::SkillUpdated { id, level, sp_cost, attack_range, upgradable } => {
+                    self.game.character.skills.update_skill(id, level, sp_cost, attack_range, upgradable);
+                }
+                GameEvent::SkillAdded { skill } => {
+                    self.game.character.skills.add_skill(ragnarok_game::skill::SkillData {
+                        id: skill.id,
+                        name: skill.name,
+                        level: skill.level,
+                        sp_cost: skill.sp_cost,
+                        attack_range: skill.attack_range,
+                        upgradable: skill.upgradable,
+                        skill_type: skill.skill_type,
+                    });
+                }
                 GameEvent::Disconnected(reason) => {
                     self.game.server_time.reset();
                     self.game.character.inventory.clear();
@@ -1318,6 +1404,8 @@ impl App {
                     self.game.floor_item_sprites.clear();
                     self.game.waiting_item_throw_ack = false;
                     self.game.drop_quantity_dialog = None;
+                    self.game.card_insert_dialog = None;
+                    self.game.pending_card_composition_index = None;
                     self.game.pending_pickup_item_id = None;
                     if reason == "User exit" {
                         event_loop.exit();
@@ -1892,6 +1980,12 @@ impl App {
                         let _ = tx.send(NetworkCommand::SendPacket(packet));
                     }
                 }
+                GameEvent::RequestSkillLevelUp { skill_id } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_upgrade_skill_packet(skill_id, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
                 GameEvent::RequestPickupItem { id } => {
                     if let Some(tx) = &self.network_cmd_tx {
                         let packet = build_pickup_item_packet(id, self.config.packetver);
@@ -1900,6 +1994,20 @@ impl App {
                     if let Some(entity) = self.game.entities.player_mut() {
                         entity.enter_pickup(0.5);
                     }
+                }
+                GameEvent::RequestCardInsertList { card_index } => {
+                    self.game.pending_card_composition_index = Some(card_index);
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_card_composition_list_packet(card_index, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                GameEvent::RequestCardInsert { card_index, equip_index } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_card_composition_packet(card_index, equip_index, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                    self.game.pending_card_composition_index = None;
                 }
                 GameEvent::RequestSendChat { message } => {
                     if message.starts_with('/') {
@@ -2476,6 +2584,12 @@ impl ApplicationHandler for App {
                         Some(ragnarok_game::card_illustration_table::CardIllustrationTable::load(&grf));
                     self.game.data_table.item_description =
                         Some(ragnarok_game::item_description_table::ItemDescriptionTable::load(&grf));
+                    self.game.data_table.skill_name =
+                        Some(ragnarok_game::skill_name_table::SkillNameTable::load(&grf));
+                    self.game.data_table.skill_description =
+                        Some(ragnarok_game::skill_description_table::SkillDescriptionTable::load(&grf));
+                    self.game.data_table.skill_tree =
+                        Some(ragnarok_game::skill_tree_table::SkillTreeTable::load(&grf));
                     self.grf = Some(grf);
                 }
                 Err(e) => {
@@ -2613,6 +2727,9 @@ impl ApplicationHandler for App {
                         }
                         PhysicalKey::Code(KeyCode::KeyQ) if self.input.alt_pressed => {
                             self.game.equipment_window.toggle();
+                        }
+                        PhysicalKey::Code(KeyCode::KeyS) if self.input.alt_pressed => {
+                            self.game.character.skills.toggle();
                         }
                         _ => {}
                     }

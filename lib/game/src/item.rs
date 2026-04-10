@@ -55,6 +55,10 @@ impl Item {
         self.item_type == 10
     }
 
+    pub fn is_card(&self) -> bool {
+        self.item_type == 6
+    }
+
     pub fn equip_location(&self) -> u16 {
         if self.is_ammunition() {
             EquipmentLocation::Ammo.as_flag() as u16

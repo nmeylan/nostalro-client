@@ -1,8 +1,11 @@
 use crate::event::CharacterInfo;
 use crate::inventory::InventoryData;
+use crate::skill::SkillList;
 
 pub struct Character {
     pub inventory: InventoryData,
+    pub skills: SkillList,
+    pub skill_point: u16,
     pub hp: u32,
     pub max_hp: u32,
     pub sp: u16,
@@ -21,6 +24,8 @@ impl Character {
     pub fn new() -> Self {
         Self {
             inventory: InventoryData::new(),
+            skills: SkillList::new(),
+            skill_point: 0,
             hp: 0,
             max_hp: 0,
             sp: 0,
@@ -69,6 +74,8 @@ impl Character {
 
     pub fn clear(&mut self) {
         self.inventory.clear();
+        self.skills.clear();
+        self.skill_point = 0;
         self.hp = 0;
         self.max_hp = 0;
         self.sp = 0;

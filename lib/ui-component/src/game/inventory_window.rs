@@ -380,7 +380,7 @@ impl InGameWindow for InventoryWindow {
                 if response.right_clicked() {
                     events.push(GameEvent::ShowItemInfo { index: item.index });
                 }
-                // Double-click: use (consumable) or equip/unequip (equipment)
+                // Double-click: use (consumable), equip/unequip (equipment), or insert (card)
                 if response.double_clicked() {
                     if item.is_equipment() {
                         if item.is_equipped() {
@@ -391,6 +391,8 @@ impl InGameWindow for InventoryWindow {
                                 location: item.equip_location(),
                             });
                         }
+                    } else if item.is_card() {
+                        events.push(GameEvent::RequestCardInsertList { card_index: item.index });
                     } else {
                         events.push(GameEvent::RequestUseItem { index: item.index });
                     }
