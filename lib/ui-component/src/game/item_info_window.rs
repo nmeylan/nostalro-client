@@ -22,6 +22,7 @@ const CARD_INFO_SCROLL_UP_ID: WidgetId = WidgetId(1012);
 const CARD_INFO_SCROLL_DOWN_ID: WidgetId = WidgetId(1013);
 const CARD_INFO_SCROLL_THUMB_ID: WidgetId = WidgetId(1014);
 const VIEW_BTN_ID: WidgetId = WidgetId(1015);
+const CARD_INFO_VIEW_BTN_ID: WidgetId = WidgetId(1016);
 const CARD_ILLUST_WINDOW_ID: WidgetId = WidgetId(1020);
 const CARD_ILLUST_CLOSE_ID: WidgetId = WidgetId(1021);
 
@@ -89,7 +90,6 @@ pub struct ItemInfoWindow {
     scroll_offset: usize,
     bg_size: (f32, f32),
     card_section_container: DialogContainer,
-    view_section_container: DialogContainer,
     card_info: Option<ItemInfoData>,
     card_wrapped_lines: Vec<String>,
     card_scroll_offset: usize,
@@ -105,7 +105,6 @@ impl ItemInfoWindow {
             scroll_offset: 0,
             bg_size: (FALLBACK_WIN_W, FALLBACK_WIN_H),
             card_section_container: DialogContainer::new(),
-            view_section_container: DialogContainer::new(),
             card_info: None,
             card_wrapped_lines: Vec::new(),
             card_scroll_offset: 0,
@@ -266,6 +265,16 @@ impl ItemInfoWindow {
     pub fn is_open(&self) -> bool {
         self.item.is_some()
     }
+
+    fn view_card_illustration_button(ui: &mut UiFrame, events: &mut Vec<GameEvent>, info_window: InfoWindowResult, card_data: &ItemInfoData)  {
+        let btn_x = info_window.win_x + 6.0;
+        let btn_y = info_window.win_y + 6.0;
+        let btn_rect = Rect::new(btn_x, btn_y, VIEW_BTN_W, VIEW_BTN_H);
+        let btn_resp = ui.button(CARD_INFO_VIEW_BTN_ID, btn_rect, &VIEW_BTN, "View");
+        if btn_resp.clicked() {
+            events.push(GameEvent::ShowCardIllustration { item_id: card_data.item_id });
+        }
+    }
 }
 
 impl Window for ItemInfoWindow {
@@ -277,7 +286,6 @@ impl Window for ItemInfoWindow {
             self.bg_size = (w as f32, h as f32);
         }
         self.card_section_container.set_texture_sizes(size_fn);
-        self.view_section_container.set_texture_sizes(size_fn);
     }
 
     fn grf_texture_paths() -> Vec<&'static str> {
@@ -343,26 +351,9 @@ impl InGameWindow for ItemInfoWindow {
             if result.closed {
                 self.close();
             } else if self.item.as_ref().unwrap().is_card {
-                let item_data = self.item.as_ref().unwrap();
-                let (container_w, container_h) = if grf { bg_size } else { (FALLBACK_WIN_W, FALLBACK_WIN_H) };
-                let win_w = container_w;
-                let section_y = result.win_y + container_h;
+                let card_data = self.item.as_ref().unwrap();
 
-                // View section background
-                self.view_section_container.has_grf_textures = grf;
-                self.view_section_container.draw(
-                    &mut ui.draw_calls, result.win_x, section_y, win_w, VIEW_SECTION_H,
-                    [1.0, 1.0, 1.0, 1.0],
-                );
-
-                // View button centered in section
-                let btn_x = result.win_x + (win_w - VIEW_BTN_W) / 2.0;
-                let btn_y = section_y + (VIEW_SECTION_H - VIEW_BTN_H) / 2.0;
-                let btn_rect = Rect::new(btn_x, btn_y, VIEW_BTN_W, VIEW_BTN_H);
-                let btn_resp = ui.button(VIEW_BTN_ID, btn_rect, &VIEW_BTN, "View");
-                if btn_resp.clicked() {
-                    events.push(GameEvent::ShowCardIllustration { item_id: item_data.item_id });
-                }
+                Self::view_card_illustration_button(ui, &mut events, result, card_data);
             } else if self.item.as_ref().unwrap().is_equipment {
                 let item_data = self.item.as_ref().unwrap();
                 let (container_w, container_h) = if grf { bg_size } else { (FALLBACK_WIN_W, FALLBACK_WIN_H) };
@@ -461,12 +452,15 @@ impl InGameWindow for ItemInfoWindow {
             };
             let result = build_info_window(
                 ui, card_data, &self.card_wrapped_lines, self.card_scroll_offset,
-                &ids, grf, bg_size, 0.0, false,
+                &ids, grf, bg_size, VIEW_SECTION_H, false,
             );
             self.card_scroll_offset = result.scroll_offset;
 
             if result.closed {
                 self.close_card();
+            } else {
+                let card_data = self.card_info.as_ref().unwrap();
+                Self::view_card_illustration_button(ui, &mut events, result, card_data);
             }
         }
 
@@ -511,9 +505,6 @@ impl InGameWindow for ItemInfoWindow {
                 }
             }
 
-            // Title
-            let title_color = if grf { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
-            ui.text(win.x + 5.0, win.y + ui.atlas.line_height + 1.0, &illust.name, title_color);
 
             // Close button
             let close_rect = Rect::new(

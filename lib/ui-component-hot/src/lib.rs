@@ -6,7 +6,8 @@ static GLOBAL: std::alloc::System = std::alloc::System;
 use std::collections::HashMap;
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
-use ragnarok_game::event::{CharacterInfo, ServerInfo};
+use ragnarok_game::card_illustration_table::CardIllustrationTable;
+use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo};
 use ragnarok_game::item::Item;
 use ragnarok_game::item_description_table::ItemDescriptionTable;
 use ragnarok_game::item_name_table::ItemNameTable;
@@ -99,6 +100,7 @@ enum State {
         win: ItemInfoWindow,
         character: Character,
         data: DataTable,
+        item: Item,
     },
     DialogContainerDemo {
         notification: ItemPickupNotification,
@@ -402,19 +404,28 @@ fn create_single(name: &str) -> State {
                 "Required Level:^777777 4^000000".to_string(),
                 "Applicable Job:^777777 Archer class^000000".to_string(),
             ]);
-            let mut res_identified = HashMap::new();
-            res_identified.insert(1701u16, "활".to_string());
-            res_identified.insert(4025u16, "고블린카드".to_string());
+            desc_entries.insert(4025u16, vec![
+                "A card with a picture".to_string(),
+                "of a Goblin on it.".to_string(),
+                "ATK+10, CRIT+5".to_string(),
+                "Class:^0000FF Card^000000".to_string(),
+                "Compound on:^777777 Weapon^000000".to_string(),
+                "Weight:^777777 1^000000".to_string(),
+            ]);
             let mut name_identified = HashMap::new();
             name_identified.insert(1701u16, "Bow".to_string());
             name_identified.insert(4025u16, "Goblin Card".to_string());
+            let mut illust_entries = HashMap::new();
+            illust_entries.insert(4025u16, "고블린카드".to_string());
             let data = DataTable {
                 item_slot_count: Some(ItemSlotCountTable::from_entries(slot_entries)),
                 item_description: Some(ItemDescriptionTable::from_entries(desc_entries, HashMap::new())),
-                item_resource: Some(ItemResourceTable::from_entries(res_identified, HashMap::new())),
+                item_resource: None,
                 item_name: Some(ItemNameTable::from_entries(name_identified, HashMap::new())),
+                card_illustration: Some(CardIllustrationTable::from_entries(illust_entries)),
                 ..DataTable::new()
             };
+            // resource_name: None — resolved from GRF's ItemResourceTable in grf_init_single
             let bow = Item {
                 index: 0,
                 item_id: 1701,
@@ -426,12 +437,12 @@ fn create_single(name: &str) -> State {
                 slot: [4025, 4025, 0xFFFF, 0],
                 location: 0,
                 wear_state: 0,
-                name: "Bow [3]".into(),
-                resource_name: Some("활".to_string()),
+                name: "Bow".into(),
+                resource_name: None,
             };
             let mut win = ItemInfoWindow::new();
             win.show(&bow, &data);
-            State::ItemInfo { win, character: Character::new(), data }
+            State::ItemInfo { win, character: Character::new(), data, item: bow }
         }
         "dialog_container" => {
             let mut notification = ItemPickupNotification::new();
@@ -527,7 +538,24 @@ fn grf_init_single(
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
-        State::ItemInfo { win, .. } => {
+        State::ItemInfo { win, data, item, .. } => {
+            if let Some(table) = table {
+                item.resolve_resource_name(table);
+                // Card icon paths also need the resource table
+                if data.item_resource.is_none() {
+                    let mut entries = HashMap::new();
+                    for &card_id in &item.slot {
+                        if card_id != 0 && card_id != 0xFFFF {
+                            if let Some(name) = table.get_resource_name(card_id) {
+                                entries.insert(card_id, name.to_string());
+                            }
+                        }
+                    }
+                    data.item_resource = Some(ItemResourceTable::from_entries(entries, HashMap::new()));
+                }
+                win.close();
+                win.show(item, data);
+            }
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
@@ -632,8 +660,26 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
         State::CharSelect { win } => {
             win.build(ui);
         }
-        State::ItemInfo { win, character, data } => {
-            win.build(ui, character, data);
+        State::ItemInfo { win, character, data, .. } => {
+            let events = win.build(ui, character, data);
+            for event in events {
+                match event {
+                    GameEvent::ShowCardInfo { item_id } => {
+                        win.show_card(item_id, data);
+                    }
+                    GameEvent::ShowCardIllustration { item_id } => {
+                        let name = data.item_name.as_ref()
+                            .map(|t| t.get_name_or_id(item_id))
+                            .unwrap_or_else(|| format!("Item #{item_id}"));
+                        let illust_path = data.card_illustration.as_ref()
+                            .and_then(|t| t.illustration_path(item_id));
+                        if let Some(path) = illust_path {
+                            win.show_illustration(item_id, name, path);
+                        }
+                    }
+                    _ => {}
+                }
+            }
         }
         State::DialogContainerDemo {  notification } => {
             let mut character = Character::new();
