@@ -9,6 +9,7 @@ use ragnarok_ui::rect::Rect;
 use crate::{Window, InGameWindow};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::scrollbar::{self, ScrollbarIds};
+use crate::helper::window_chrome::{draw_titlebar, text_color};
 
 pub const ITEM_INFO_WINDOW_ID: WidgetId = WidgetId(1000);
 const CLOSE_BTN_ID: WidgetId = WidgetId(1001);
@@ -42,6 +43,8 @@ const CARD_ICON_SIZE: f32 = 24.0;
 const CLOSE_SIZE: f32 = 11.0;
 const FALLBACK_WIN_W: f32 = 280.0;
 const FALLBACK_WIN_H: f32 = 120.0;
+
+const TITLE_H_ILLUS: f32 = 17.0;
 
 // GRF textures
 const COLLECTION_BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/collection_bg.bmp";
@@ -474,14 +477,22 @@ impl InGameWindow for ItemInfoWindow {
             let win_rect = Rect::new(win.x, win.y, illust_w, total_h);
             ui.interact(CARD_ILLUST_WINDOW_ID, win_rect);
 
+            draw_titlebar(ui, win.x, win.y, illust_w, TITLE_H_ILLUS, grf);
+            let text_color = text_color(grf);
+            ui.text(
+                win.x + (17.0),
+                win.y + (TITLE_H_ILLUS) - (3.0),
+                &illust.name,
+                text_color,
+            );
             // Background
             if grf {
                 let (v, i) = draw::quad_vertices(win.x, win.y, illust_w, total_h, [1.0, 1.0, 1.0, 1.0]);
-                ui.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(),
-                    indices: i.to_vec(),
-                    texture: TextureRef::Named(COLLECTION_BG_TEX.to_string()),
-                });
+                // ui.draw_calls.push(DrawCall {
+                //     vertices: v.to_vec(),
+                //     indices: i.to_vec(),
+                //     texture: TextureRef::Named(COLLECTION_BG_TEX.to_string()),
+                // });
             } else {
                 let (v, i) = draw::quad_vertices(win.x, win.y, illust_w, total_h, [0.15, 0.15, 0.20, 0.95]);
                 ui.draw_calls.push(DrawCall {
