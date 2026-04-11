@@ -1,4 +1,4 @@
-use ragnarok_formats::gat::{CellType, GatFile};
+use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::grf::GrfArchive;
 
 use crate::device::DEPTH_FORMAT;
@@ -131,34 +131,35 @@ impl GridSelectorRenderer {
         for cy in 0..gat_h {
             for cx in 0..gat_w {
                 let cell = &gat.cells[(cy * gat_w + cx) as usize];
-                let color = match cell.cell_type {
-                    CellType::Walkable => GRID_WALKABLE_COLOR,
-                    CellType::WaterWalkable => GRID_WATER_COLOR,
-                    _ => continue,
+                let color = if cell.is_water() {
+                    GRID_WATER_COLOR
+                } else if cell.is_walkable() {
+                    GRID_WALKABLE_COLOR
+                } else {
+                    continue;
                 };
 
                 let wx = cx as f32 * cell_w;
                 let wz = cy as f32 * cell_h;
 
-                let h = &cell.heights;
                 let base = vertices.len() as u32;
                 vertices.push(GridSelectorVertex {
-                    position: [wx, h[0] + GRID_Y_OFFSET, wz],
+                    position: [wx, cell.height_sw + GRID_Y_OFFSET, wz],
                     tex_coord: [0.0, 0.0],
                     color,
                 });
                 vertices.push(GridSelectorVertex {
-                    position: [wx + cell_w, h[1] + GRID_Y_OFFSET, wz],
+                    position: [wx + cell_w, cell.height_se + GRID_Y_OFFSET, wz],
                     tex_coord: [1.0, 0.0],
                     color,
                 });
                 vertices.push(GridSelectorVertex {
-                    position: [wx, h[2] + GRID_Y_OFFSET, wz + cell_h],
+                    position: [wx, cell.height_nw + GRID_Y_OFFSET, wz + cell_h],
                     tex_coord: [0.0, 1.0],
                     color,
                 });
                 vertices.push(GridSelectorVertex {
-                    position: [wx + cell_w, h[3] + GRID_Y_OFFSET, wz + cell_h],
+                    position: [wx + cell_w, cell.height_ne + GRID_Y_OFFSET, wz + cell_h],
                     tex_coord: [1.0, 1.0],
                     color,
                 });

@@ -1,17 +1,17 @@
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use byteorder::{LittleEndian as LE, ReadBytesExt};
 
 use crate::{Color, FormatError, read_string, version_at_least};
 
-pub struct AttachPoint {
+pub struct AnchorPoint {
     pub ignored: u32,
     pub x: i32,
     pub y: i32,
     pub attribute: u32,
 }
 
-pub struct SprClip {
+pub struct SpriteFrame {
     pub x: i32,
     pub y: i32,
     pub sprite_index: i32,
@@ -28,9 +28,9 @@ pub struct SprClip {
 pub struct Motion {
     pub range1: [i32; 4],
     pub range2: [i32; 4],
-    pub clips: Vec<SprClip>,
+    pub clips: Vec<SpriteFrame>,
     pub event_id: i32,
-    pub attach_points: Vec<AttachPoint>,
+    pub attach_points: Vec<AnchorPoint>,
 }
 
 pub struct Action {
@@ -59,8 +59,7 @@ impl ActFile {
         let version = (ver_major, ver_minor);
 
         let action_count = r.read_u16::<LE>()? as usize;
-        let mut reserved = [0u8; 10];
-        r.read_exact(&mut reserved)?;
+        r.seek(SeekFrom::Current(10))?;
 
         let mut actions = Vec::with_capacity(action_count);
         for _ in 0..action_count {
@@ -104,7 +103,7 @@ impl ActFile {
                         (None, None)
                     };
 
-                    clips.push(SprClip {
+                    clips.push(SpriteFrame {
                         x, y, sprite_index, mirror, color,
                         zoom_x, zoom_y, angle, sprite_type,
                         width, height,
@@ -121,7 +120,7 @@ impl ActFile {
                     let count = r.read_u32::<LE>()? as usize;
                     let mut points = Vec::with_capacity(count);
                     for _ in 0..count {
-                        points.push(AttachPoint {
+                        points.push(AnchorPoint {
                             ignored: r.read_u32::<LE>()?,
                             x: r.read_i32::<LE>()?,
                             y: r.read_i32::<LE>()?,
@@ -441,7 +440,7 @@ mod tests {
         Motion {
             range1: [0; 4], range2: [0; 4],
             clips: Vec::new(), event_id: -1,
-            attach_points: vec![AttachPoint { ignored: 0, x, y, attribute: 0 }],
+            attach_points: vec![AnchorPoint { ignored: 0, x, y, attribute: 0 }],
         }
     }
 

@@ -49,13 +49,12 @@ impl MapCoordinates {
         let c2 = self.cell_to_world(cx as f32, cy as f32 + 1.0);
         let c3 = self.cell_to_world(cx as f32 + 1.0, cy as f32 + 1.0);
         let cell = &gat.cells[(cy * gat.width + cx) as usize];
-        let h = &cell.heights;
         let y_off = -0.2;
         [
-            [c0.0, h[0] + y_off, c0.2],
-            [c1.0, h[1] + y_off, c1.2],
-            [c2.0, h[2] + y_off, c2.2],
-            [c3.0, h[3] + y_off, c3.2],
+            [c0.0, cell.height_sw + y_off, c0.2],
+            [c1.0, cell.height_se + y_off, c1.2],
+            [c2.0, cell.height_nw + y_off, c2.2],
+            [c3.0, cell.height_ne + y_off, c3.2],
         ]
     }
 }

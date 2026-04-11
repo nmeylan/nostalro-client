@@ -39,7 +39,7 @@ pub fn path_search(
     let cells: Vec<u16> = gat
         .cells
         .iter()
-        .map(|c| u16::from(c.cell_type.is_walkable()))
+        .map(|c| c.cell_flags)
         .collect();
     movement::path::path_search_client_side_algorithm(
         gat.width as u16,

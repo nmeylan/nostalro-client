@@ -9,7 +9,7 @@ use ragnarok_formats::pal::PalFile;
 use ragnarok_formats::rsm::RsmFile;
 use ragnarok_formats::rsw::RswFile;
 use ragnarok_formats::spr::SprFile;
-use ragnarok_formats::str_effect::StrFile;
+use ragnarok_formats::str_effect::StrEffectFile;
 
 fn open_grf() -> GrfArchive {
     let path = ["data/testdata", "../../data/testdata"]
@@ -76,7 +76,7 @@ fn extract_and_parse_all_formats_from_grf() {
 
     // STR — visual effect
     let data = grf.read_file("data/sprite/이팩트/jong_mini.str").unwrap();
-    let str_file = StrFile::parse(&data).expect("failed to parse jong_mini.str");
+    let str_file = StrEffectFile::parse(&data).expect("failed to parse jong_mini.str");
     assert!(!str_file.layers.is_empty());
 
     // PAL — swordsman body palette

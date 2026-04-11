@@ -1,4 +1,4 @@
-use ragnarok_formats::act::{ActFile, Motion, SprClip, attachment_offset};
+use ragnarok_formats::act::{ActFile, Motion, SpriteFrame, attachment_offset};
 use ragnarok_formats::spr::{RgbaImageData, SpriteData};
 
 use crate::device::DEPTH_FORMAT;
@@ -375,7 +375,7 @@ pub struct SpriteBatch<'a> {
 }
 
 pub fn build_clip_quad(
-    clip: &SprClip,
+    clip: &SpriteFrame,
     textures: &SpriteTextures,
     screen_anchor: [f32; 2],
     depth: f32,
@@ -863,7 +863,7 @@ impl EntitySprite {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_formats::act::SprClip;
+    use ragnarok_formats::act::SpriteFrame;
 
     fn dummy_textures() -> SpriteTextures {
         SpriteTextures {
@@ -875,7 +875,7 @@ mod tests {
 
     #[test]
     fn build_clip_quad_basic_indexed_sprite() {
-        let clip = SprClip {
+        let clip = SpriteFrame {
             x: 0, y: 0, sprite_index: 0, mirror: 0,
             color: [255, 255, 255, 255],
             zoom_x: 1.0, zoom_y: 1.0, angle: 0,
@@ -898,7 +898,7 @@ mod tests {
 
     #[test]
     fn build_clip_quad_rgba_sprite_with_offset() {
-        let clip = SprClip {
+        let clip = SpriteFrame {
             x: 10, y: -5, sprite_index: 0, mirror: 0,
             color: [255, 255, 255, 255],
             zoom_x: 1.0, zoom_y: 1.0, angle: 0,
@@ -912,7 +912,7 @@ mod tests {
 
     #[test]
     fn build_clip_quad_mirrored_flips_uvs() {
-        let clip = SprClip {
+        let clip = SpriteFrame {
             x: 0, y: 0, sprite_index: 0, mirror: 1,
             color: [255, 255, 255, 255],
             zoom_x: 1.0, zoom_y: 1.0, angle: 0,
@@ -927,7 +927,7 @@ mod tests {
 
     #[test]
     fn build_clip_quad_negative_index_returns_none() {
-        let clip = SprClip {
+        let clip = SpriteFrame {
             x: 0, y: 0, sprite_index: -1, mirror: 0,
             color: [255, 255, 255, 255],
             zoom_x: 1.0, zoom_y: 1.0, angle: 0,
@@ -939,7 +939,7 @@ mod tests {
 
     #[test]
     fn build_clip_quad_with_zoom_scales_dimensions() {
-        let clip = SprClip {
+        let clip = SpriteFrame {
             x: 0, y: 0, sprite_index: 0, mirror: 0,
             color: [255, 255, 255, 255],
             zoom_x: 2.0, zoom_y: 0.5, angle: 0,

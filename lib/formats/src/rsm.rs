@@ -17,7 +17,7 @@ pub struct RsmFace {
     pub padding: u16,
     pub two_sided: i32,
     pub smooth_group: i32,
-    pub smooth_group_extra: Vec<i32>,
+    pub extra_smooth_groups: Vec<i32>,
 }
 
 pub struct RotKeyframe {
@@ -57,7 +57,7 @@ pub struct RsmNode {
     pub parent_name: String,
     pub texture_ids: Vec<u32>,
     pub texture_names: Vec<String>,
-    pub offset_matrix: Mat3,
+    pub local_transform: Mat3,
     pub translation1: Option<Vec3>,
     pub translation2: Vec3,
     pub rotation_angle: Option<f32>,
@@ -122,7 +122,7 @@ impl RsmFile {
             let count = r.read_u32::<LE>()? as usize;
             let mut names = Vec::with_capacity(count);
             for _ in 0..count {
-                names.push(read_model_string(&mut r, version)?);
+                names.push(read_versioned_string(&mut r, version)?);
             }
             names
         } else {
@@ -134,11 +134,11 @@ impl RsmFile {
             let count = r.read_u32::<LE>()? as usize;
             let mut names = Vec::with_capacity(count);
             for _ in 0..count {
-                names.push(read_model_string(&mut r, version)?);
+                names.push(read_versioned_string(&mut r, version)?);
             }
             names
         } else {
-            vec![read_model_string(&mut r, version)?]
+            vec![read_versioned_string(&mut r, version)?]
         };
 
         // Nodes
@@ -161,7 +161,7 @@ impl RsmFile {
     }
 }
 
-fn read_model_string(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<String, FormatError> {
+fn read_versioned_string(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<String, FormatError> {
     if version_at_least(version, 2, 2) {
         read_length_string(r)
     } else {
@@ -170,8 +170,8 @@ fn read_model_string(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<String,
 }
 
 fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, FormatError> {
-    let name = read_model_string(r, version)?;
-    let parent_name = read_model_string(r, version)?;
+    let name = read_versioned_string(r, version)?;
+    let parent_name = read_versioned_string(r, version)?;
 
     // Texture references
     let mut texture_ids = Vec::new();
@@ -185,13 +185,13 @@ fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, Forma
     } else {
         let count = r.read_u32::<LE>()? as usize;
         for _ in 0..count {
-            texture_names.push(read_model_string(r, version)?);
+            texture_names.push(read_versioned_string(r, version)?);
         }
     }
 
     // Offset matrix (3x3)
-    let mut offset_matrix = [[0.0f32; 3]; 3];
-    for row in &mut offset_matrix {
+    let mut local_transform = [[0.0f32; 3]; 3];
+    for row in &mut local_transform {
         for val in row.iter_mut() {
             *val = r.read_f32::<LE>()?;
         }
@@ -262,9 +262,9 @@ fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, Forma
         let smooth_group = r.read_i32::<LE>()?;
 
         // v2.2+: extra smooth group data
-        let smooth_group_extra = if let Some(length) = face_length {
-            let base_size = 24u32; // 6*u16 + u16 + u16 + i32 + i32
-            let extra_count = (length.saturating_sub(base_size) / 4) as usize;
+        let extra_smooth_groups = if let Some(length) = face_length {
+            const RSM_FACE_BASE_SIZE: u32 = 24; // 6*u16 + u16 + u16 + i32 + i32
+            let extra_count = (length.saturating_sub(RSM_FACE_BASE_SIZE) / 4) as usize;
             let mut extra = Vec::with_capacity(extra_count);
             for _ in 0..extra_count {
                 extra.push(r.read_i32::<LE>()?);
@@ -281,7 +281,7 @@ fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, Forma
             padding,
             two_sided,
             smooth_group,
-            smooth_group_extra,
+            extra_smooth_groups,
         });
     }
 
@@ -364,7 +364,7 @@ fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, Forma
         parent_name,
         texture_ids,
         texture_names,
-        offset_matrix,
+        local_transform,
         translation1,
         translation2,
         rotation_angle,

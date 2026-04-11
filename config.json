@@ -15,18 +15,10 @@
   "debug_network_delay_ms": 0,
   "trace_packets": false,
   "window_state": {
-    "110": {
+    "210": {
       "position": [
-        490.0,
-        635.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "10": {
-      "position": [
-        283.0,
-        344.66666
+        342.0,
+        524.0
       ],
       "open": false,
       "collapsed": false
@@ -39,6 +31,14 @@
       "open": true,
       "collapsed": false
     },
+    "1200": {
+      "position": [
+        400.0,
+        100.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
     "800": {
       "position": [
         1.4257812,
@@ -47,18 +47,18 @@
       "open": true,
       "collapsed": false
     },
-    "1000": {
+    "10": {
       "position": [
-        315.66016,
-        424.5039
+        283.0,
+        344.66666
       ],
       "open": false,
       "collapsed": false
     },
-    "210": {
+    "110": {
       "position": [
-        342.0,
-        524.0
+        490.0,
+        635.0
       ],
       "open": false,
       "collapsed": false

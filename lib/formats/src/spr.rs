@@ -24,7 +24,7 @@ pub struct RgbaImageData {
 }
 
 impl SprImage {
-    pub fn indexed_to_rgba(&self, palette: &[Color; 256]) -> RgbaImageData {
+    pub fn apply_palette(&self, palette: &[Color; 256]) -> RgbaImageData {
         let w = self.width as u32;
         let h = self.height as u32;
         let mut data = vec![0u8; (w * h * 4) as usize];
@@ -45,7 +45,7 @@ impl SprImage {
         RgbaImageData { width: w, height: h, data }
     }
 
-    pub fn abgr_to_rgba(&self) -> RgbaImageData {
+    pub fn swizzle_pixel_bytes(&self) -> RgbaImageData {
         let w = self.width as u32;
         let h = self.height as u32;
         let mut data = vec![0u8; (w * h * 4) as usize];
@@ -102,7 +102,7 @@ impl SprFile {
                 let encoded_size = r.read_u16::<LE>()? as usize;
                 let mut encoded = vec![0u8; encoded_size];
                 r.read_exact(&mut encoded)?;
-                decode_rle(&encoded, pixel_count)
+                decompress_indexed(&encoded, pixel_count)
             } else {
                 let mut raw = vec![0u8; pixel_count];
                 r.read_exact(&mut raw)?;
@@ -148,17 +148,17 @@ impl SprFile {
         let palette = override_palette.or(self.palette.as_ref()).expect("SPR file has no palette");
         let mut images = Vec::with_capacity(self.indexed_sprites.len() + self.rgba_sprites.len());
         for sprite in &self.indexed_sprites {
-            images.push(sprite.indexed_to_rgba(palette));
+            images.push(sprite.apply_palette(palette));
         }
         let indexed_count = self.indexed_sprites.len();
         for sprite in &self.rgba_sprites {
-            images.push(sprite.abgr_to_rgba());
+            images.push(sprite.swizzle_pixel_bytes());
         }
         (images, indexed_count)
     }
 }
 
-fn decode_rle(data: &[u8], pixel_count: usize) -> Vec<u8> {
+fn decompress_indexed(data: &[u8], pixel_count: usize) -> Vec<u8> {
     let mut output = vec![0u8; pixel_count];
     let mut i = 0;
     let mut next = 0;
@@ -187,12 +187,12 @@ mod tests {
     fn rle_decode_with_runs_and_literals() {
         // 3 literal, 0x00 0x02 = 2 zeros, 1 literal
         let encoded = [5, 10, 15, 0, 2, 20];
-        let result = decode_rle(&encoded, 6);
+        let result = decompress_indexed(&encoded, 6);
         assert_eq!(result, [5, 10, 15, 0, 0, 20]);
     }
 
     #[test]
-    fn indexed_to_rgba_transparent_and_magenta() {
+    fn apply_palette_transparent_and_magenta() {
         let sprite = SprImage {
             width: 3, height: 1,
             data: vec![0, 1, 2],
@@ -200,7 +200,7 @@ mod tests {
         let mut palette = [[0u8; 4]; 256];
         palette[1] = [255, 0, 0, 0]; // red
         palette[2] = [255, 0, 255, 0]; // magenta → transparent
-        let img = sprite.indexed_to_rgba(&palette);
+        let img = sprite.apply_palette(&palette);
         assert_eq!(img.width, 3);
         assert_eq!(img.height, 1);
         // index 0 → transparent
@@ -212,12 +212,12 @@ mod tests {
     }
 
     #[test]
-    fn abgr_to_rgba_swizzle() {
+    fn swizzle_pixel_bytes_swizzle() {
         let sprite = SprImage {
             width: 1, height: 1,
             data: vec![200, 50, 100, 150], // A=200, B=50, G=100, R=150
         };
-        let img = sprite.abgr_to_rgba();
+        let img = sprite.swizzle_pixel_bytes();
         assert_eq!(&img.data, &[150, 100, 50, 200]);
     }
 

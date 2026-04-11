@@ -199,11 +199,11 @@ pub fn build_water_mesh(gnd: &GndFile, water_y: f32) -> (Vec<WaterVertex>, Vec<u
             let cell_idx = (y * gnd.width + x) as usize;
             let cell = &gnd.cells[cell_idx];
 
-            if cell.top_surface < 0 {
+            if cell.surface_up < 0 {
                 continue;
             }
 
-            let avg_height = (cell.height[0] + cell.height[1] + cell.height[2] + cell.height[3]) / 4.0;
+            let avg_height = (cell.height_sw + cell.height_se + cell.height_nw + cell.height_ne) / 4.0;
             // In native RO coords, more negative = higher; skip cells far above water
             if avg_height < water_y - 5.0 * zoom {
                 continue;
@@ -318,17 +318,20 @@ mod tests {
             textures: vec![],
             lightmaps: vec![],
             surfaces: vec![ragnarok_formats::gnd::GndSurface {
-                u: [0.0; 4],
-                v: [0.0; 4],
+                tex_u: [0.0; 4],
+                tex_v: [0.0; 4],
                 texture_id: 0,
                 lightmap_id: 0,
                 color_bgra: [255; 4],
             }],
             cells: (0..cell_count).map(|_| GndCell {
-                height: [cell_height; 4],
-                top_surface: 0,
-                front_surface: -1,
-                right_surface: -1,
+                height_sw: cell_height,
+                height_se: cell_height,
+                height_nw: cell_height,
+                height_ne: cell_height,
+                surface_up: 0,
+                surface_south: -1,
+                surface_east: -1,
             }).collect(),
         }
     }
@@ -350,7 +353,7 @@ mod tests {
         for y in 0..3i32 {
             for x in 0..3i32 {
                 if x == 0 || x == 2 || y == 0 || y == 2 {
-                    gnd.cells[(y * 3 + x) as usize].top_surface = -1;
+                    gnd.cells[(y * 3 + x) as usize].surface_up = -1;
                 }
             }
         }

@@ -2961,6 +2961,7 @@ dependencies = [
  "byteorder",
  "encoding_rs",
  "flate2",
+ "models",
  "tracing",
 ]
 

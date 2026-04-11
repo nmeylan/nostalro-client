@@ -1,13 +1,11 @@
-// GRF mixed encryption scheme: DES + byte shuffle.
-// Ported from Korangar (korangar/src/loaders/archive/native/mixcrypt.rs),
-// which contains DES routines originally from the RustCrypto `des` crate
-// (Apache-2.0 license).
+// GRF mixed encryption: G's modified DES + byte permutation.
+// DES routines derived from RustCrypto `des` crate (Apache-2.0 license).
 
 pub const GRF_FLAG_FULL_MIX_CRYPT: u8 = 1 << 1;
 pub const GRF_FLAG_HEADER_DES_CRYPT: u8 = 1 << 2;
 
-const HEADER_BLOCKS_SIZE: usize = 0x14;
-const BLOCK_SIZE: usize = 8;
+const ENCRYPTED_HEADER_LEN: usize = 0x14;
+const DES_BLOCK_LEN: usize = 8;
 
 pub fn nibble_swap(data: &mut [u8]) {
     for b in data.iter_mut() {
@@ -17,23 +15,34 @@ pub fn nibble_swap(data: &mut [u8]) {
 
 pub fn decrypt_filename(data: &mut [u8]) {
     nibble_swap(data);
-    for block in data.chunks_exact_mut(BLOCK_SIZE) {
+    for block in data.chunks_exact_mut(DES_BLOCK_LEN) {
         let mut val = u64::from_be_bytes(block.try_into().unwrap());
-        val = decode_des_block(val);
+        val = des_decrypt_block(val);
         block.copy_from_slice(&val.to_be_bytes());
     }
 }
 
 pub fn decrypt_file(flags: u8, compressed_size: u32, data: &mut [u8]) {
-    if let Some((header_only, cycle)) = determine_scheme(flags, compressed_size) {
-        decrypt_data(data, header_only, cycle);
+    if let Some((header_only, cycle)) = resolve_encryption(flags, compressed_size) {
+        apply_decryption(data, header_only, cycle);
     }
 }
 
-fn determine_scheme(flags: u8, compressed_size: u32) -> Option<(bool, usize)> {
+fn resolve_encryption(flags: u8, compressed_size: u32) -> Option<(bool, usize)> {
     if flags & GRF_FLAG_FULL_MIX_CRYPT != 0 {
-        let digits = count_digits(compressed_size);
-        Some((false, encryption_cycle(digits)))
+        let digits = {
+            let mut d = 0;
+            let mut rest = compressed_size;
+            while rest > 0 { rest /= 10; d += 1; }
+            if d < 1 { 1 } else { d }
+        };
+        let cycle = match digits {
+            0..3 => 3,
+            3..5 => digits + 1,
+            5..7 => digits + 9,
+            _ => digits + 15,
+        };
+        Some((false, cycle))
     } else if flags & GRF_FLAG_HEADER_DES_CRYPT != 0 {
         Some((true, 0))
     } else {
@@ -41,69 +50,53 @@ fn determine_scheme(flags: u8, compressed_size: u32) -> Option<(bool, usize)> {
     }
 }
 
-fn count_digits(size: u32) -> usize {
-    let mut digits = 0;
-    let mut rest = size;
-    while rest > 0 {
-        rest /= 10;
-        digits += 1;
-    }
-    digits.max(1)
-}
+fn apply_decryption(data: &mut [u8], header_only: bool, cycle: usize) {
+    let aligned_len = (data.len() / DES_BLOCK_LEN) * DES_BLOCK_LEN;
+    let remainder = data.len() % DES_BLOCK_LEN;
 
-fn encryption_cycle(digit: usize) -> usize {
-    match digit {
-        0..3 => 3,
-        3..5 => digit + 1,
-        5..7 => digit + 9,
-        _ => digit + 15,
-    }
-}
-
-fn decrypt_data(data: &mut [u8], header_only: bool, cycle: usize) {
-    let full_blocks_size = (data.len() / BLOCK_SIZE) * BLOCK_SIZE;
-    let remainder_size = data.len() % BLOCK_SIZE;
-
-    if full_blocks_size > 0 {
-        decrypt_blocks(&mut data[..full_blocks_size], header_only, cycle);
-    }
-
-    if remainder_size > 0 {
-        let mut last_block = [0u8; BLOCK_SIZE];
-        last_block[..remainder_size].copy_from_slice(&data[full_blocks_size..]);
-        decrypt_blocks(&mut last_block, header_only, cycle);
-        data[full_blocks_size..].copy_from_slice(&last_block[..remainder_size]);
-    }
-}
-
-fn decrypt_blocks(data: &mut [u8], header_only: bool, cycle: usize) {
     let mut non_des_count: usize = 0;
 
-    for (block_num, block) in data.chunks_exact_mut(BLOCK_SIZE).enumerate() {
-        if block_num < HEADER_BLOCKS_SIZE || (!header_only && cycle > 0 && block_num % cycle == 0) {
-            let mut val = u64::from_be_bytes(block.try_into().unwrap());
-            val = decode_des_block(val);
-            block.copy_from_slice(&val.to_be_bytes());
-        } else if !header_only {
-            if non_des_count == 7 {
-                scramble_block(block);
-                non_des_count = 0;
-            }
-            non_des_count += 1;
-        }
+    // Process aligned blocks
+    for (block_idx, block) in data[..aligned_len].chunks_exact_mut(DES_BLOCK_LEN).enumerate() {
+        process_block(block, block_idx, header_only, cycle, &mut non_des_count);
+    }
+
+    // Handle trailing partial block
+    if remainder > 0 {
+        let mut padded = [0u8; DES_BLOCK_LEN];
+        padded[..remainder].copy_from_slice(&data[aligned_len..]);
+        process_block(&mut padded, aligned_len / DES_BLOCK_LEN, header_only, cycle, &mut non_des_count);
+        data[aligned_len..].copy_from_slice(&padded[..remainder]);
     }
 }
 
-fn scramble_block(block: &mut [u8]) {
-    let mut copy = [0u8; BLOCK_SIZE];
-    copy.copy_from_slice(block);
+fn process_block(block: &mut [u8], block_idx: usize, header_only: bool, cycle: usize, non_des_count: &mut usize) {
+    let is_header = block_idx < ENCRYPTED_HEADER_LEN;
+    let is_cycle_hit = !header_only && cycle > 0 && block_idx % cycle == 0;
 
-    const SHUFFLE: [usize; 7] = [3, 4, 6, 0, 1, 2, 5];
-    for (i, &pos) in SHUFFLE.iter().enumerate() {
-        block[i] = copy[pos];
+    if is_header || is_cycle_hit {
+        let mut val = u64::from_be_bytes(block.try_into().unwrap());
+        val = des_decrypt_block(val);
+        block.copy_from_slice(&val.to_be_bytes());
+    } else if !header_only {
+        if *non_des_count == 7 {
+            permute_block(block);
+            *non_des_count = 0;
+        }
+        *non_des_count += 1;
+    }
+}
+
+const SCRAMBLE_PERMUTATION: [usize; 7] = [3, 4, 6, 0, 1, 2, 5];
+
+fn permute_block(block: &mut [u8]) {
+    let original = <[u8; DES_BLOCK_LEN]>::try_from(&block[..DES_BLOCK_LEN]).unwrap();
+
+    for (dst, &src) in SCRAMBLE_PERMUTATION.iter().enumerate() {
+        block[dst] = original[src];
     }
 
-    block[7] = match copy[7] {
+    block[7] = match original[7] {
         0x00 => 0x2B,
         0x2B => 0x00,
         0x01 => 0x68,
@@ -122,15 +115,15 @@ fn scramble_block(block: &mut [u8]) {
     };
 }
 
-pub fn decode_des_block(mut block: u64) -> u64 {
-    block = des::ip(block);
-    block = des::round(block, 0);
-    // Gravity accidentally swapped the sides
+pub fn des_decrypt_block(mut block: u64) -> u64 {
+    block = g_des::initial_permutation(block);
+    block = g_des::feistel_round(block, 0);
+    // Gravity's implementation swaps L/R before final permutation
     block = block.rotate_left(32);
-    des::fp(block)
+    g_des::final_permutation(block)
 }
 
-mod des {
+mod g_des {
     const S_BOXES: [[u8; 64]; 8] = [
         [
             0x0E, 0x00, 0x04, 0x0F, 0x0D, 0x07, 0x01, 0x04, 0x02, 0x0E, 0x0F, 0x02, 0x0B, 0x0D,
@@ -190,14 +183,14 @@ mod des {
         ],
     ];
 
-    pub(super) fn round(input: u64, key: u64) -> u64 {
+    pub(super) fn feistel_round(input: u64, key: u64) -> u64 {
         let left = input & (0xFFFF_FFFF << 32);
         let right = input << 32;
         right | ((feistel(right, key) ^ left) >> 32)
     }
 
     fn feistel(right: u64, key: u64) -> u64 {
-        let expanded = expand(right);
+        let expanded = expand_half_block(right);
         let xored = expanded ^ key;
         let substituted = sbox_substitute(xored);
         pbox_permute(substituted)
@@ -212,32 +205,29 @@ mod des {
         output
     }
 
-    fn delta_swap(a: u64, delta: u64, mask: u64) -> u64 {
+    fn bit_swap(a: u64, delta: u64, mask: u64) -> u64 {
         let b = (a ^ (a >> delta)) & mask;
         a ^ b ^ (b << delta)
     }
 
-    pub(super) fn fp(mut msg: u64) -> u64 {
-        msg = delta_swap(msg, 24, 0x000000FF000000FF);
-        msg = delta_swap(msg, 24, 0x00000000FF00FF00);
-        msg = delta_swap(msg, 36, 0x000000000F0F0F0F);
-        msg = delta_swap(msg, 18, 0x0000333300003333);
-        delta_swap(msg, 9, 0x0055005500550055)
+    pub(super) fn final_permutation(mut msg: u64) -> u64 {
+        msg = bit_swap(msg, 24, 0x000000FF000000FF);
+        msg = bit_swap(msg, 24, 0x00000000FF00FF00);
+        msg = bit_swap(msg, 36, 0x000000000F0F0F0F);
+        msg = bit_swap(msg, 18, 0x0000333300003333);
+        bit_swap(msg, 9, 0x0055005500550055)
     }
 
-    pub(super) fn ip(mut msg: u64) -> u64 {
-        msg = delta_swap(msg, 9, 0x0055005500550055);
-        msg = delta_swap(msg, 18, 0x0000333300003333);
-        msg = delta_swap(msg, 36, 0x000000000F0F0F0F);
-        msg = delta_swap(msg, 24, 0x00000000FF00FF00);
-        delta_swap(msg, 24, 0x000000FF000000FF)
+    pub(super) fn initial_permutation(mut msg: u64) -> u64 {
+        msg = bit_swap(msg, 9, 0x0055005500550055);
+        msg = bit_swap(msg, 18, 0x0000333300003333);
+        msg = bit_swap(msg, 36, 0x000000000F0F0F0F);
+        msg = bit_swap(msg, 24, 0x00000000FF00FF00);
+        bit_swap(msg, 24, 0x000000FF000000FF)
     }
 
-    fn expand(block: u64) -> u64 {
-        const BLOCK_LEN: usize = 32;
-        const RESULT_LEN: usize = 48;
-
-        let b1 = (block << (BLOCK_LEN - 1)) & 0x8000000000000000;
+    fn expand_half_block(block: u64) -> u64 {
+        let b1 = (block << 31) & 0x8000000000000000;
         let b2 = (block >> 1) & 0x7C00000000000000;
         let b3 = (block >> 3) & 0x03F0000000000000;
         let b4 = (block >> 5) & 0x000FC00000000000;
@@ -246,7 +236,7 @@ mod des {
         let b7 = (block >> 11) & 0x00000003F0000000;
         let b8 = (block >> 13) & 0x000000000FC00000;
         let b9 = (block >> 15) & 0x00000000003E0000;
-        let b10 = (block >> (RESULT_LEN - 1)) & 0x0000000000010000;
+        let b10 = (block >> 47) & 0x0000000000010000;
         b1 | b2 | b3 | b4 | b5 | b6 | b7 | b8 | b9 | b10
     }
 
@@ -277,10 +267,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn des_block_decode() {
+    fn des_block_decrypt_produces_expected_output() {
         let input: u64 = u64::MAX - 123456789;
         let expected: u64 = 12316197016309868543;
-        assert_eq!(decode_des_block(input), expected);
+        assert_eq!(des_decrypt_block(input), expected);
     }
 
     #[test]

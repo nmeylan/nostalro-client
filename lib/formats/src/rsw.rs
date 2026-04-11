@@ -155,10 +155,10 @@ impl RswFile {
         for _ in 0..object_count {
             let obj_type = r.read_i32::<LE>()?;
             match obj_type {
-                1 => objects.push(RswObject::Model(parse_model(&mut r, version, build_version)?)),
-                2 => objects.push(RswObject::Light(parse_light(&mut r)?)),
-                3 => objects.push(RswObject::Sound(parse_sound(&mut r, version)?)),
-                4 => objects.push(RswObject::Effect(parse_effect(&mut r)?)),
+                1 => objects.push(RswObject::Model(RswModel::parse(&mut r, version, build_version)?)),
+                2 => objects.push(RswObject::Light(RswLight::parse(&mut r)?)),
+                3 => objects.push(RswObject::Sound(RswSound::parse(&mut r, version)?)),
+                4 => objects.push(RswObject::Effect(RswEffect::parse(&mut r)?)),
                 _ => {
                     tracing::warn!("unknown RSW object type {obj_type}, stopping object parse");
                     break;
@@ -183,7 +183,10 @@ impl RswFile {
     }
 }
 
-fn parse_model(r: &mut Cursor<&[u8]>, version: (u8, u8), build_version: Option<u32>) -> Result<RswModel, FormatError> {
+const DEFAULT_SOUND_CYCLE: f32 = 4.0;
+
+impl RswModel {
+    fn parse(r: &mut Cursor<&[u8]>, version: (u8, u8), build_version: Option<u32>) -> Result<Self, FormatError> {
     let (name, anim_type, anim_speed, block_type) = if version_at_least(version, 1, 3) {
         (
             Some(read_string(r, 40)?),
@@ -215,9 +218,11 @@ fn parse_model(r: &mut Cursor<&[u8]>, version: (u8, u8), build_version: Option<u
         name, anim_type, anim_speed, block_type,
         model_name, node_name, position, rotation, scale,
     })
+    }
 }
 
-fn parse_light(r: &mut Cursor<&[u8]>) -> Result<RswLight, FormatError> {
+impl RswLight {
+    fn parse(r: &mut Cursor<&[u8]>) -> Result<Self, FormatError> {
     let name = read_string(r, 80)?;
     let position = read_vec3(r)?;
     let mut color = read_vec3(r)?;
@@ -227,9 +232,11 @@ fn parse_light(r: &mut Cursor<&[u8]>) -> Result<RswLight, FormatError> {
     }
     let range = r.read_f32::<LE>()?;
     Ok(RswLight { name, position, color, range })
+    }
 }
 
-fn parse_sound(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RswSound, FormatError> {
+impl RswSound {
+    fn parse(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<Self, FormatError> {
     let name = read_string(r, 80)?;
     let file_name = read_string(r, 80)?;
     let position = read_vec3(r)?;
@@ -240,12 +247,14 @@ fn parse_sound(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RswSound, For
     let cycle = if version_at_least(version, 2, 0) {
         r.read_f32::<LE>()?
     } else {
-        4.0
+        DEFAULT_SOUND_CYCLE
     };
     Ok(RswSound { name, file_name, position, volume, width, height, range, cycle })
+    }
 }
 
-fn parse_effect(r: &mut Cursor<&[u8]>) -> Result<RswEffect, FormatError> {
+impl RswEffect {
+    fn parse(r: &mut Cursor<&[u8]>) -> Result<Self, FormatError> {
     let name = read_string(r, 80)?;
     let position = read_vec3(r)?;
     let effect_type = r.read_u32::<LE>()?;
@@ -257,4 +266,5 @@ fn parse_effect(r: &mut Cursor<&[u8]>) -> Result<RswEffect, FormatError> {
         r.read_f32::<LE>()?,
     ];
     Ok(RswEffect { name, position, effect_type, emit_speed, param })
+    }
 }

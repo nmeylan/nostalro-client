@@ -121,20 +121,19 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
             let cell_idx = (y * gnd.width + x) as usize;
             let cell = &gnd.cells[cell_idx];
 
-            if cell.top_surface >= 0 {
-                let surface = &gnd.surfaces[cell.top_surface as usize];
+            if cell.surface_up >= 0 {
+                let surface = &gnd.surfaces[cell.surface_up as usize];
                 let tex_name = texture_name_for_surface(gnd, surface);
                 let color = bgra_to_rgba_f32(surface.color_bgra);
 
                 let wx = x as f32 * gnd.zoom;
                 let wz = y as f32 * gnd.zoom;
 
-                let h = cell.height;
                 let positions = [
-                    [wx, h[0], wz],
-                    [wx + gnd.zoom, h[1], wz],
-                    [wx, h[2], wz + gnd.zoom],
-                    [wx + gnd.zoom, h[3], wz + gnd.zoom],
+                    [wx, cell.height_sw, wz],
+                    [wx + gnd.zoom, cell.height_se, wz],
+                    [wx, cell.height_nw, wz + gnd.zoom],
+                    [wx + gnd.zoom, cell.height_ne, wz + gnd.zoom],
                 ];
 
                 let normal = compute_quad_normal(&positions);
@@ -145,28 +144,28 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                     GroundVertex {
                         position: positions[0],
                         normal,
-                        tex_coord: [surface.u[0], surface.v[0]],
+                        tex_coord: [surface.tex_u[0], surface.tex_v[0]],
                         lightmap_coord: lm_uvs[0],
                         color,
                     },
                     GroundVertex {
                         position: positions[1],
                         normal,
-                        tex_coord: [surface.u[1], surface.v[1]],
+                        tex_coord: [surface.tex_u[1], surface.tex_v[1]],
                         lightmap_coord: lm_uvs[1],
                         color,
                     },
                     GroundVertex {
                         position: positions[2],
                         normal,
-                        tex_coord: [surface.u[2], surface.v[2]],
+                        tex_coord: [surface.tex_u[2], surface.tex_v[2]],
                         lightmap_coord: lm_uvs[2],
                         color,
                     },
                     GroundVertex {
                         position: positions[3],
                         normal,
-                        tex_coord: [surface.u[3], surface.v[3]],
+                        tex_coord: [surface.tex_u[3], surface.tex_v[3]],
                         lightmap_coord: lm_uvs[3],
                         color,
                     },
@@ -179,9 +178,9 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
             }
 
             // Front wall
-            if cell.front_surface >= 0 && y + 1 < gnd.height {
+            if cell.surface_south >= 0 && y + 1 < gnd.height {
                 let next_cell = &gnd.cells[((y + 1) * gnd.width + x) as usize];
-                let surface = &gnd.surfaces[cell.front_surface as usize];
+                let surface = &gnd.surfaces[cell.surface_south as usize];
                 let tex_name = texture_name_for_surface(gnd, surface);
                 let color = bgra_to_rgba_f32(surface.color_bgra);
 
@@ -189,20 +188,20 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                 let wz = (y + 1) as f32 * gnd.zoom;
 
                 let positions = [
-                    [wx, cell.height[2], wz],
-                    [wx + gnd.zoom, cell.height[3], wz],
-                    [wx, next_cell.height[0], wz],
-                    [wx + gnd.zoom, next_cell.height[1], wz],
+                    [wx, cell.height_nw, wz],
+                    [wx + gnd.zoom, cell.height_ne, wz],
+                    [wx, next_cell.height_sw, wz],
+                    [wx + gnd.zoom, next_cell.height_se, wz],
                 ];
 
                 let normal = compute_quad_normal(&positions);
                 let lm_uvs = lightmap_uvs(surface.lightmap_id, atlas_dim);
 
                 let verts = [
-                    GroundVertex { position: positions[0], normal, tex_coord: [surface.u[0], surface.v[0]], lightmap_coord: lm_uvs[0], color },
-                    GroundVertex { position: positions[1], normal, tex_coord: [surface.u[1], surface.v[1]], lightmap_coord: lm_uvs[1], color },
-                    GroundVertex { position: positions[2], normal, tex_coord: [surface.u[2], surface.v[2]], lightmap_coord: lm_uvs[2], color },
-                    GroundVertex { position: positions[3], normal, tex_coord: [surface.u[3], surface.v[3]], lightmap_coord: lm_uvs[3], color },
+                    GroundVertex { position: positions[0], normal, tex_coord: [surface.tex_u[0], surface.tex_v[0]], lightmap_coord: lm_uvs[0], color },
+                    GroundVertex { position: positions[1], normal, tex_coord: [surface.tex_u[1], surface.tex_v[1]], lightmap_coord: lm_uvs[1], color },
+                    GroundVertex { position: positions[2], normal, tex_coord: [surface.tex_u[2], surface.tex_v[2]], lightmap_coord: lm_uvs[2], color },
+                    GroundVertex { position: positions[3], normal, tex_coord: [surface.tex_u[3], surface.tex_v[3]], lightmap_coord: lm_uvs[3], color },
                 ];
 
                 let entry = texture_quads.entry(tex_name).or_insert_with(|| (Vec::new(), Vec::new()));
@@ -212,9 +211,9 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
             }
 
             // Right wall
-            if cell.right_surface >= 0 && x + 1 < gnd.width {
+            if cell.surface_east >= 0 && x + 1 < gnd.width {
                 let next_cell = &gnd.cells[(y * gnd.width + x + 1) as usize];
-                let surface = &gnd.surfaces[cell.right_surface as usize];
+                let surface = &gnd.surfaces[cell.surface_east as usize];
                 let tex_name = texture_name_for_surface(gnd, surface);
                 let color = bgra_to_rgba_f32(surface.color_bgra);
 
@@ -222,20 +221,20 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                 let wz = y as f32 * gnd.zoom;
 
                 let positions = [
-                    [wx, cell.height[1], wz],
-                    [wx, next_cell.height[0], wz],
-                    [wx, cell.height[3], wz + gnd.zoom],
-                    [wx, next_cell.height[2], wz + gnd.zoom],
+                    [wx, cell.height_se, wz],
+                    [wx, next_cell.height_sw, wz],
+                    [wx, cell.height_ne, wz + gnd.zoom],
+                    [wx, next_cell.height_nw, wz + gnd.zoom],
                 ];
 
                 let normal = compute_quad_normal(&positions);
                 let lm_uvs = lightmap_uvs(surface.lightmap_id, atlas_dim);
 
                 let verts = [
-                    GroundVertex { position: positions[0], normal, tex_coord: [surface.u[0], surface.v[0]], lightmap_coord: lm_uvs[0], color },
-                    GroundVertex { position: positions[1], normal, tex_coord: [surface.u[1], surface.v[1]], lightmap_coord: lm_uvs[1], color },
-                    GroundVertex { position: positions[2], normal, tex_coord: [surface.u[2], surface.v[2]], lightmap_coord: lm_uvs[2], color },
-                    GroundVertex { position: positions[3], normal, tex_coord: [surface.u[3], surface.v[3]], lightmap_coord: lm_uvs[3], color },
+                    GroundVertex { position: positions[0], normal, tex_coord: [surface.tex_u[0], surface.tex_v[0]], lightmap_coord: lm_uvs[0], color },
+                    GroundVertex { position: positions[1], normal, tex_coord: [surface.tex_u[1], surface.tex_v[1]], lightmap_coord: lm_uvs[1], color },
+                    GroundVertex { position: positions[2], normal, tex_coord: [surface.tex_u[2], surface.tex_v[2]], lightmap_coord: lm_uvs[2], color },
+                    GroundVertex { position: positions[3], normal, tex_coord: [surface.tex_u[3], surface.tex_v[3]], lightmap_coord: lm_uvs[3], color },
                 ];
 
                 let entry = texture_quads.entry(tex_name).or_insert_with(|| (Vec::new(), Vec::new()));

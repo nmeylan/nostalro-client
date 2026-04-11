@@ -10,18 +10,21 @@ pub struct Lightmap {
 }
 
 pub struct GndSurface {
-    pub u: [f32; 4],
-    pub v: [f32; 4],
+    pub tex_u: [f32; 4],
+    pub tex_v: [f32; 4],
     pub texture_id: i16,
     pub lightmap_id: i16,
     pub color_bgra: [u8; 4],
 }
 
 pub struct GndCell {
-    pub height: [f32; 4],
-    pub top_surface: i32,
-    pub front_surface: i32,
-    pub right_surface: i32,
+    pub height_sw: f32,
+    pub height_se: f32,
+    pub height_nw: f32,
+    pub height_ne: f32,
+    pub surface_up: i32,
+    pub surface_south: i32,
+    pub surface_east: i32,
 }
 
 pub struct GndFile {
@@ -106,31 +109,29 @@ impl GndFile {
             let lightmap_id = r.read_i16::<LE>()?;
             let mut color_bgra = [0u8; 4];
             r.read_exact(&mut color_bgra)?;
-            surfaces.push(GndSurface { u, v, texture_id, lightmap_id, color_bgra });
+            surfaces.push(GndSurface { tex_u: u, tex_v: v, texture_id, lightmap_id, color_bgra });
         }
 
         // Cells
         let cell_count = (width as usize) * (height as usize);
         let mut cells = Vec::with_capacity(cell_count);
         for _ in 0..cell_count {
-            let h = [
-                r.read_f32::<LE>()?,
-                r.read_f32::<LE>()?,
-                r.read_f32::<LE>()?,
-                r.read_f32::<LE>()?,
-            ];
+            let height_sw = r.read_f32::<LE>()?;
+            let height_se = r.read_f32::<LE>()?;
+            let height_nw = r.read_f32::<LE>()?;
+            let height_ne = r.read_f32::<LE>()?;
 
-            let (top, front, right) = if version_at_least(version, 1, 7) {
+            let (up, south, east) = if version_at_least(version, 1, 7) {
                 (r.read_i32::<LE>()?, r.read_i32::<LE>()?, r.read_i32::<LE>()?)
             } else {
                 (r.read_i16::<LE>()? as i32, r.read_i16::<LE>()? as i32, r.read_i16::<LE>()? as i32)
             };
 
             cells.push(GndCell {
-                height: h,
-                top_surface: top,
-                front_surface: front,
-                right_surface: right,
+                height_sw, height_se, height_nw, height_ne,
+                surface_up: up,
+                surface_south: south,
+                surface_east: east,
             });
         }
 
@@ -182,8 +183,8 @@ mod tests {
         data.extend_from_slice(&(-1i16).to_le_bytes()); // right
 
         let gnd = GndFile::parse(&data).unwrap();
-        assert_eq!(gnd.cells[0].top_surface, 0);
-        assert_eq!(gnd.cells[0].front_surface, -1);
+        assert_eq!(gnd.cells[0].surface_up, 0);
+        assert_eq!(gnd.cells[0].surface_south, -1);
     }
 
     #[test]
@@ -195,8 +196,8 @@ mod tests {
         data.extend_from_slice(&3i32.to_le_bytes()); // right
 
         let gnd = GndFile::parse(&data).unwrap();
-        assert_eq!(gnd.cells[0].top_surface, 5);
-        assert_eq!(gnd.cells[0].right_surface, 3);
-        assert_eq!(gnd.cells[0].height[0], 2.0);
+        assert_eq!(gnd.cells[0].surface_up, 5);
+        assert_eq!(gnd.cells[0].surface_east, 3);
+        assert_eq!(gnd.cells[0].height_sw, 2.0);
     }
 }

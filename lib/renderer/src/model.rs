@@ -286,7 +286,7 @@ fn build_instance_matrix(
 }
 
 fn mat3_to_mat4(m: &ragnarok_formats::Mat3) -> glam::Mat4 {
-    // RSM offset_matrix is read row-major, gl-matrix treats as column-major
+    // RSM local_transform is read row-major, gl-matrix treats as column-major
     // Our row 0 = their column 0, etc.
     glam::Mat4::from_cols(
         glam::Vec4::new(m[0][0], m[0][1], m[0][2], 0.0),
@@ -363,7 +363,7 @@ fn calc_bounding_box(rsm: &RsmFile) -> (BoundingBox, Vec<glam::Mat4>) {
                 local = local * glam::Mat4::from_translation(vec3_from_arr(&offset));
             }
         }
-        local = local * mat3_to_mat4(&node.offset_matrix);
+        local = local * mat3_to_mat4(&node.local_transform);
 
         // Transform all vertices to compute bounds
         for vert in &node.vertices {
@@ -418,7 +418,7 @@ fn compile_node(
         }
     }
 
-    matrix = matrix * mat3_to_mat4(&node.offset_matrix);
+    matrix = matrix * mat3_to_mat4(&node.local_transform);
 
     // Final model-view matrix
     let model_view = *instance_matrix * matrix;
@@ -638,7 +638,7 @@ mod tests {
                 parent_name: String::new(),
                 texture_ids: vec![0],
                 texture_names: vec![],
-                offset_matrix: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                local_transform: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
                 translation1: Some([0.0, 0.0, 0.0]),
                 translation2: [0.0, 0.0, 0.0],
                 rotation_angle: Some(0.0),

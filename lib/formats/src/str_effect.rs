@@ -4,35 +4,35 @@ use byteorder::{LittleEndian as LE, ReadBytesExt};
 
 use crate::{FormatError, read_string};
 
-pub struct StrKeyframe {
+pub struct EffectFrame {
     pub frame_index: i32,
     pub frame_type: i32,
     pub offset: [f32; 2],
-    pub uv: [f32; 8],
-    pub xy: [f32; 8],
+    pub tex_coords: [f32; 8],
+    pub positions: [f32; 8],
     pub texture_index: f32,
-    pub anim_type: i32,
+    pub animation_mode: i32,
     pub delay: f32,
     pub angle: f32,
     pub color: [f32; 4],
-    pub src_blend: i32,
-    pub dst_blend: i32,
-    pub mt_preset: i32,
+    pub blend_src: i32,
+    pub blend_dst: i32,
+    pub multi_texture: i32,
 }
 
-pub struct StrLayer {
+pub struct EffectLayer {
     pub textures: Vec<String>,
-    pub keyframes: Vec<StrKeyframe>,
+    pub frames: Vec<EffectFrame>,
 }
 
-pub struct StrFile {
+pub struct StrEffectFile {
     pub version: (u8, u8),
     pub fps: u32,
     pub max_key: u32,
-    pub layers: Vec<StrLayer>,
+    pub layers: Vec<EffectLayer>,
 }
 
-impl StrFile {
+impl StrEffectFile {
     pub fn parse(data: &[u8]) -> Result<Self, FormatError> {
         let mut r = Cursor::new(data);
 
@@ -65,41 +65,41 @@ impl StrFile {
                 textures.push(read_string(&mut r, 128)?);
             }
 
-            let key_count = r.read_i32::<LE>()? as usize;
-            let mut keyframes = Vec::with_capacity(key_count);
-            for _ in 0..key_count {
+            let frame_count = r.read_i32::<LE>()? as usize;
+            let mut frames = Vec::with_capacity(frame_count);
+            for _ in 0..frame_count {
                 let frame_index = r.read_i32::<LE>()?;
                 let frame_type = r.read_i32::<LE>()?;
                 let offset = [r.read_f32::<LE>()?, r.read_f32::<LE>()?];
 
-                let mut uv = [0f32; 8];
-                for v in &mut uv { *v = r.read_f32::<LE>()?; }
-                let mut xy = [0f32; 8];
-                for v in &mut xy { *v = r.read_f32::<LE>()?; }
+                let mut tex_coords = [0f32; 8];
+                for v in &mut tex_coords { *v = r.read_f32::<LE>()?; }
+                let mut positions = [0f32; 8];
+                for v in &mut positions { *v = r.read_f32::<LE>()?; }
 
                 let texture_index = r.read_f32::<LE>()?;
-                let anim_type = r.read_i32::<LE>()?;
+                let animation_mode = r.read_i32::<LE>()?;
                 let delay = r.read_f32::<LE>()?;
                 let angle = r.read_f32::<LE>()?;
 
                 let mut color = [0f32; 4];
                 for v in &mut color { *v = r.read_f32::<LE>()?; }
 
-                let src_blend = r.read_i32::<LE>()?;
-                let dst_blend = r.read_i32::<LE>()?;
-                let mt_preset = r.read_i32::<LE>()?;
+                let blend_src = r.read_i32::<LE>()?;
+                let blend_dst = r.read_i32::<LE>()?;
+                let multi_texture = r.read_i32::<LE>()?;
 
-                keyframes.push(StrKeyframe {
-                    frame_index, frame_type, offset, uv, xy,
-                    texture_index, anim_type, delay, angle, color,
-                    src_blend, dst_blend, mt_preset,
+                frames.push(EffectFrame {
+                    frame_index, frame_type, offset, tex_coords, positions,
+                    texture_index, animation_mode, delay, angle, color,
+                    blend_src, blend_dst, multi_texture,
                 });
             }
 
-            layers.push(StrLayer { textures, keyframes });
+            layers.push(EffectLayer { textures, frames });
         }
 
-        Ok(StrFile {
+        Ok(StrEffectFile {
             version: (ver_major, ver_minor),
             fps,
             max_key,
