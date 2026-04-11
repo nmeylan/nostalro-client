@@ -510,8 +510,7 @@ fn create_single(name: &str) -> State {
                 ..DataTable::new()
             };
 
-            let mut win = SkillTreeWindow::new();
-            win.job_class = 1; // Swordsman
+            let win = SkillTreeWindow::new();
 
             State::SkillTree { win, character, data }
         }

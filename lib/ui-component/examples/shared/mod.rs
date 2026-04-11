@@ -16,7 +16,7 @@ use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
-use ragnarok_ui_component::game::{equipment_window, inventory_window, npc_shop};
+use ragnarok_ui_component::game::{equipment_window, inventory_window, npc_shop, skill_tree_window};
 
 struct Gpu {
     device: RenderDevice,
@@ -124,6 +124,7 @@ impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
         positions.insert(npc_shop::INPUT_WIN_ID.0, [300.0, 100.0]);
         positions.insert(npc_shop::OUTPUT_WIN_ID.0, [740.0, 270.0]);
         positions.insert(equipment_window::EQ_WINDOW_ID.0, [0.0, 400.0]);
+        positions.insert(skill_tree_window::SKILL_WINDOW_ID.0, [0.0, 800.0]);
         let ui = UiFrame::new(
             &self.ui_ctx,
             &gpu.font_atlas,

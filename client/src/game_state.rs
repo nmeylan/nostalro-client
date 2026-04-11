@@ -183,8 +183,6 @@ impl GameState {
                 events.extend(self.equipment_window.build(ui, &mut self.character, &self.data_table));
             }
             SKILL_WINDOW_ID => {
-                self.skill_tree_window.job_class = self.selected_character.as_ref()
-                    .map(|c| c.class).unwrap_or(0);
                 events.extend(self.skill_tree_window.build(ui, &mut self.character, &self.data_table));
             }
             _ => {}

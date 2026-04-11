@@ -75,7 +75,7 @@ TODO:
 # Items & equipment
 - ~~Inventory management (pickup, drop, use, equip)~~
 - ~~Equipment slots + visual update on character~~
-- Card slotting
+- ~~Card slotting~~
 - ~~Item info window~~
 - Item crafting (arrows, cooking)
 - Item refining

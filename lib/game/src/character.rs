@@ -5,7 +5,8 @@ use crate::skill::SkillList;
 pub struct Character {
     pub inventory: InventoryData,
     pub skills: SkillList,
-    pub skill_point: u16,
+    pub skill_point: u32,
+    pub status_point: u32,
     pub hp: u32,
     pub max_hp: u32,
     pub sp: u16,
@@ -26,6 +27,7 @@ impl Character {
             inventory: InventoryData::new(),
             skills: SkillList::new(),
             skill_point: 0,
+            status_point: 0,
             hp: 0,
             max_hp: 0,
             sp: 0,
@@ -76,6 +78,7 @@ impl Character {
         self.inventory.clear();
         self.skills.clear();
         self.skill_point = 0;
+        self.status_point = 0;
         self.hp = 0;
         self.max_hp = 0;
         self.sp = 0;

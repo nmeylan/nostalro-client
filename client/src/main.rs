@@ -1266,7 +1266,10 @@ impl App {
                                 self.game.character.inventory.zeny = value;
                             }
                             StatusTypes::Skillpoint => {
-                                self.game.character.skill_point = value as u16;
+                                self.game.character.skill_point = value as u32;
+                            }
+                            StatusTypes::Statuspoint => {
+                                self.game.character.status_point = value as u32;
                             }
                             _ => {}
                         }
@@ -1382,11 +1385,18 @@ impl App {
                             skill_type: s.skill_type,
                         }).collect(),
                     );
+                    let icon_paths: Vec<String> = self.game.character.skills.skills()
+                        .iter().map(|s| s.icon_path()).collect();
+                    self.preload_item_icons(icon_paths);
                 }
                 GameEvent::SkillUpdated { id, level, sp_cost, attack_range, upgradable } => {
                     self.game.character.skills.update_skill(id, level, sp_cost, attack_range, upgradable);
                 }
                 GameEvent::SkillAdded { skill } => {
+                    let icon_path = format!(
+                        "data/texture/유저인터페이스/item/{}.bmp",
+                        skill.name.to_lowercase()
+                    );
                     self.game.character.skills.add_skill(ragnarok_game::skill::SkillData {
                         id: skill.id,
                         name: skill.name,
@@ -1396,6 +1406,7 @@ impl App {
                         upgradable: skill.upgradable,
                         skill_type: skill.skill_type,
                     });
+                    self.preload_item_icons(vec![icon_path]);
                 }
                 GameEvent::Disconnected(reason) => {
                     self.game.server_time.reset();

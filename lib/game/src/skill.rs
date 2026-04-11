@@ -9,6 +9,12 @@ pub struct SkillData {
     pub skill_type: i32,
 }
 
+impl SkillData {
+    pub fn icon_path(&self) -> String {
+        format!("data/texture/유저인터페이스/item/{}.bmp", self.name.to_lowercase())
+    }
+}
+
 /// Collection of known skills for a character.
 pub struct SkillList {
     skills: Vec<SkillData>,
