@@ -1213,6 +1213,7 @@ impl App {
                 }
                 GameEvent::ParameterChanged { var_id, value } => {
                     if let Ok(status) = StatusTypes::try_from_value(var_id as usize) {
+                        tracing::debug!("Received status changed: {:?}", status);
                         match status {
                             StatusTypes::Speed => {
                                 if let Some(entity) = self.game.entities.player_mut() {
@@ -1266,6 +1267,7 @@ impl App {
                                 self.game.character.inventory.zeny = value;
                             }
                             StatusTypes::Skillpoint => {
+                                tracing::debug!("Skill point: {value}");
                                 self.game.character.skill_point = value as u32;
                             }
                             StatusTypes::Statuspoint => {
@@ -1273,6 +1275,8 @@ impl App {
                             }
                             _ => {}
                         }
+                    } else {
+                        tracing::debug!("Unrecognized parameter var_id={var_id} value={value}");
                     }
                 }
                 GameEvent::StatusChanged {

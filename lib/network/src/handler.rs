@@ -261,11 +261,23 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if let Some(p) = any.downcast_ref::<PacketZcParChange>() {
         return vec![GameEvent::ParameterChanged { var_id: p.var_id, value: p.count }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcLongparChange>() {
+        return vec![GameEvent::ParameterChanged { var_id: p.var_id, value: p.amount }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcStatusValues>() {
         return vec![GameEvent::StatusChanged {
             status_type: p.status_type,
             base: p.default_status,
             bonus: p.plus_status,
+        }];
+    }
+    // Initial status packet (0x00bd) - sent by rathena via clif_initialstatus()
+    // Contains status_point in the `point` field; base stats and combat stats
+    // are sent redundantly via separate packets so we only extract status_point here.
+    if let Some(p) = any.downcast_ref::<PacketZcStatus>() {
+        return vec![GameEvent::ParameterChanged {
+            var_id: 9, // StatusTypes::Statuspoint
+            value: p.point as i32,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcAttackRange>() {

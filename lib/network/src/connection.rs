@@ -84,6 +84,24 @@ impl Connection {
         )
     }
 
+    /// Fixed-size packets whose parser uses `buffer.len()` to count
+    /// repeating entries. We must slice the buffer to the correct size
+    /// before parsing, otherwise they consume trailing packets.
+    fn fixed_packet_size(packet_id: [u8; 2], packetver: u32) -> Option<usize> {
+        match packet_id {
+            // ZC_SHORTCUT_KEY_LIST_V2 (0x07d9): 2 + 38*7 = 268
+            // ZC_SHORTCUT_KEY_LIST   (0x02b9): 2 + 27*7 = 191
+            [0xd9, 0x07] => {
+                let count = if packetver >= 20090617 { 38 } else { 36 };
+                Some(2 + count * 7)
+            }
+            [0xb9, 0x02] => Some(2 + 27 * 7),
+            // ZC_SHORTCUT_KEY_LIST_V3 (0x0a00): 3 + 38*7 = 269
+            [0x00, 0x0a] => Some(3 + 38 * 7),
+            _ => None,
+        }
+    }
+
     /// Estimate the byte length of an unknown RO packet.
     /// Variable-length packets store their total length at bytes 2-3.
     /// Fixed-length packets need a lookup table we don't have, so we
@@ -119,25 +137,32 @@ impl Connection {
         }
         self.recv_buffer.extend_from_slice(&buf[..n]);
 
-        // Log first bytes of each TCP read to diagnose missing packets
-        // 0x0915 = PacketZcNotifyStandentry7
-        let has_entity = buf[..n].windows(2).any(|w| w[0] == 0x15 && w[1] == 0x09);
-        if has_entity || n > 200 {
-            tracing::info!("TCP read: {n} bytes, buffer_total={}, has_standentry7={has_entity}, first_16={:02x?}",
-                self.recv_buffer.len(), &buf[..n.min(16)]);
-        }
+        // Log every TCP read to diagnose missing packets
+        tracing::info!("TCP read: {n} bytes, buffer_total={}, first_16={:02x?}",
+            self.recv_buffer.len(), &buf[..n.min(16)]);
 
         let mut packets = Vec::new();
         let mut offset = 0;
 
         while offset < self.recv_buffer.len() {
             let remaining = self.recv_buffer[offset..].to_vec();
-            // Only slice variable-length packets to their declared size;
-            // fixed-length packets don't store length at bytes [2:3].
-            let parse_buf = if remaining.len() >= 2
-                && Self::is_variable_length_packet([remaining[0], remaining[1]], packetver)
-            {
-                Self::slice_to_packet_len(&remaining)
+            // Slice the buffer to the correct packet size before parsing:
+            // - Variable-length packets: use the length field at bytes [2:3]
+            // - Known fixed-size packets with arrays: use our lookup table
+            // - Other packets: pass the full remaining buffer
+            let parse_buf = if remaining.len() >= 2 {
+                let pkt_id = [remaining[0], remaining[1]];
+                if Self::is_variable_length_packet(pkt_id, packetver) {
+                    Self::slice_to_packet_len(&remaining)
+                } else if let Some(fixed_size) = Self::fixed_packet_size(pkt_id, packetver) {
+                    if fixed_size <= remaining.len() {
+                        &remaining[..fixed_size]
+                    } else {
+                        &remaining
+                    }
+                } else {
+                    &remaining
+                }
             } else {
                 &remaining
             };
