@@ -399,13 +399,14 @@ impl InGameWindow for SkillTreeWindow {
             return events;
         }
 
-        let use_btn_x = close_btn_x - btn_w - 4.0;
-        let _use_btn = ui.button(
-            SKILL_USE_BTN_ID,
-            Rect::new(use_btn_x, btn_y, btn_w, btn_h),
-            &USE_BTN,
-            "use",
-        );
+        // TODO see later if we implement this "confirm" allocation feature
+        // let use_btn_x = close_btn_x - btn_w - 4.0;
+        // let _use_btn = ui.button(
+        //     SKILL_USE_BTN_ID,
+        //     Rect::new(use_btn_x, btn_y, btn_w, btn_h),
+        //     &USE_BTN,
+        //     "use",
+        // );
 
         events
     }
