@@ -8,6 +8,7 @@ use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use crate::{InGameWindow, Window};
+use crate::game::equipment_window::EQ_WINDOW_ID;
 use crate::helper::window_chrome::text_color;
 use super::inventory_window::INV_WINDOW_ID;
 use super::skill_tree_window::SKILL_WINDOW_ID;
@@ -87,7 +88,7 @@ impl HotkeyBarWindow {
                     .filter(|i| i.index == inventory_index)
                     .map(|i| i.count)
                     .sum();
-                if count > 1 { Some(format!("{count}")) } else if count == 0 { Some("0".to_string()) } else { None }
+                if count > 0 { Some(format!("{count}")) } else if count == 0 { Some("0".to_string()) } else { None }
             }
         }
     }
@@ -100,8 +101,12 @@ impl HotkeyBarWindow {
                 events.push(GameEvent::RequestUseSkill { skill_id, level });
             }
             HotkeySlotContent::Item { inventory_index, .. } => {
-                if character.inventory.get_item(inventory_index).is_some() {
-                    events.push(GameEvent::RequestUseItem { index: inventory_index });
+                if let Some(item) = character.inventory.get_item(inventory_index) {
+                    if item.is_equipment() {
+                        events.push(GameEvent::RequestEquipItem { index: inventory_index, location: item.equip_location() });
+                    } else {
+                        events.push(GameEvent::RequestUseItem { index: inventory_index });
+                    }
                 }
             }
         }
@@ -115,9 +120,9 @@ impl HotkeyBarWindow {
         character: &mut Character,
         events: &mut Vec<GameEvent>,
     ) {
-        if source_id == INV_WINDOW_ID {
+        if source_id == INV_WINDOW_ID || source_id == EQ_WINDOW_ID {
             if let Some(item) = character.inventory.get_item(item_index as u16) {
-                if item.tab() == InventoryTab::Etc {
+                if item.tab() == InventoryTab::Etc && !item.is_ammunition() {
                     return;
                 }
                 let item_id = item.item_id;
@@ -359,8 +364,9 @@ impl InGameWindow for HotkeyBarWindow {
                         ui.text(tx, ty, &count_text, label_color);
                     }
 
-                    // Drag source for occupied slots
-                    if resp.clicked() {
+                    if resp.double_clicked() {
+                        self.execute_slot(slot_index, character, &mut events);
+                    } else if resp.clicked() {
                         ui.drag_source(
                             HOTKEY_BAR_WINDOW_ID,
                             slot_index,

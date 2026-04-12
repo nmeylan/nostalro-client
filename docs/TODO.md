@@ -30,7 +30,7 @@ TODO:
 - ~~Inventory window~~
 - ~~Equipment window~~
 - Skill window (skill tree, skill levels)
-- Hotkey/shortcut bar (F1-F9 skills/items)
+- ~~Hotkey/shortcut bar (F1-F9 skills/items)~~
 - Minimap
 - ~~NPC dialog box (text, menu choices, number input)~~
 - ~~NPC shop (buy/sell)~~

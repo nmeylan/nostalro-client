@@ -15,12 +15,20 @@
   "debug_network_delay_ms": 0,
   "trace_packets": false,
   "window_state": {
-    "900": {
+    "800": {
       "position": [
-        0.0,
-        210.0
+        1.4257812,
+        100.0
       ],
       "open": true,
+      "collapsed": false
+    },
+    "1300": {
+      "position": [
+        533.9206,
+        1.0742188
+      ],
+      "open": false,
       "collapsed": false
     },
     "210": {
@@ -29,14 +37,6 @@
         346.0
       ],
       "open": false,
-      "collapsed": false
-    },
-    "800": {
-      "position": [
-        1.4257812,
-        100.0
-      ],
-      "open": true,
       "collapsed": false
     },
     "110": {
@@ -55,15 +55,15 @@
       "open": false,
       "collapsed": false
     },
-    "1300": {
+    "900": {
       "position": [
-        459.1784,
-        1.3789062
+        0.0,
+        210.0
       ],
-      "open": false,
+      "open": true,
       "collapsed": false
     }
   },
-  "hotkey_visible_rows": 1,
+  "hotkey_visible_rows": 2,
   "battle_mode": false
 }
