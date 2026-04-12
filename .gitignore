@@ -1,3 +1,4 @@
 /data/*.grf
+/data/testdata
 /target/
 .idea

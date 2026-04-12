@@ -11,13 +11,12 @@ use ragnarok_formats::rsw::RswFile;
 use ragnarok_formats::spr::SprFile;
 use ragnarok_formats::str_effect::StrEffectFile;
 
-fn open_grf() -> GrfArchive {
+fn open_grf() -> Option<GrfArchive> {
     let path = ["data/testdata", "../../data/testdata"]
         .iter()
         .map(Path::new)
-        .find(|p| p.exists())
-        .expect("Test GRF not found — place a GRF at data/testdata (workspace root)");
-    GrfArchive::open(path).expect("failed to open GRF")
+        .find(|p| p.exists())?;
+    Some(GrfArchive::open(path).expect("failed to open GRF"))
 }
 
 fn open_v1_grf() -> Option<GrfArchive> {
@@ -30,7 +29,10 @@ fn open_v1_grf() -> Option<GrfArchive> {
 
 #[test]
 fn extract_and_parse_all_formats_from_grf() {
-    let grf = open_grf();
+    let Some(grf) = open_grf() else {
+        eprintln!("Skipping test: data/testdata not found");
+        return;
+    };
     assert!(grf.file_count() > 0);
 
     // GAT — morroc ruins walkability grid
