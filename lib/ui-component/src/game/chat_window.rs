@@ -568,7 +568,7 @@ impl Window for ChatWindow {
 }
 
 impl InGameWindow for ChatWindow {
-    fn build(&mut self, ui: &mut UiFrame, _character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
         let mut events = Vec::new();
         let screen_h = ui.ctx.screen_height;
         let input_h = INPUT_H ;
@@ -687,7 +687,13 @@ impl InGameWindow for ChatWindow {
                     self.draft.clear();
                     self.input.text.clear();
                     self.input.cursor_pos = 0;
-                    events.push(GameEvent::RequestSendChat { message });
+                    if message == "/battlemode" || message == "/bm" {
+                        character.hotkeys.toggle_battle_mode();
+                        let status = if character.hotkeys.battle_mode() { "ON" } else { "OFF" };
+                        self.add_system(format!("Battle Mode {status}"));
+                    } else {
+                        events.push(GameEvent::RequestSendChat { message });
+                    }
                 }
                 self.active = false;
             } else if ui.ctx.key_escape {

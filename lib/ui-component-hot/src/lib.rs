@@ -29,6 +29,7 @@ use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotificatio
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::number_input::{NumberInputDialog, NumberInputConfig};
+use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
 use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::helper::dialog_container::DialogContainer;
@@ -47,6 +48,7 @@ const GAME_COMPONENTS: &[&str] = &[
     "item_info",
     "skill_tree",
     "card_insert",
+    "hotkey_bar",
 ];
 const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
 
@@ -118,6 +120,11 @@ enum State {
     },
     DialogContainerDemo {
         notification: ItemPickupNotification,
+    },
+    HotkeyBarDemo {
+        hotkey_win: HotkeyBarWindow,
+        character: Character,
+        data: DataTable,
     },
     Category {
         components: Vec<State>,
@@ -535,6 +542,64 @@ fn create_single(name: &str) -> State {
                 notification,
             }
         }
+        "hotkey_bar" => {
+            use ragnarok_game::hotkey::HotkeySlotContent;
+            use ragnarok_game::skill::SkillData;
+            use ragnarok_game::skill_name_table::SkillNameTable;
+            use ragnarok_game::skill_tree_table::{SkillTreeTable, SkillTreeEntry};
+
+            let mut character = Character::new();
+
+            character.inventory.toggle();
+            for item in inventory_test_items() {
+                character.inventory.add_item(item);
+            }
+
+            character.skill_point = 5;
+            character.skills.open();
+            character.skills.set_skills(vec![
+                SkillData { id: 43, name: "AC_OWL".into(), level: 10, sp_cost: 0, attack_range: 0, upgradable: false, skill_type: 0 },
+                SkillData { id: 44, name: "AC_VULTURE".into(), level: 10, sp_cost: 0, attack_range: 0, upgradable: false, skill_type: 0 },
+                SkillData { id: 45, name: "AC_CONCENTRATION".into(), level: 10, sp_cost: 15, attack_range: 0, upgradable: true, skill_type: 2 },
+                SkillData { id: 46, name: "AC_DOUBLE".into(), level: 10, sp_cost: 12, attack_range: 9, upgradable: true, skill_type: 1 },
+                SkillData { id: 47, name: "AC_SHOWER".into(), level: 10, sp_cost: 15, attack_range: 9, upgradable: true, skill_type: 1 },
+            ]);
+
+            character.hotkeys.set_slot(0, HotkeySlotContent::Skill { skill_id: 46, level: 10 });
+            character.hotkeys.set_slot(1, HotkeySlotContent::Item { item_id: 501, inventory_index: 0 });
+
+            let mut skill_names = HashMap::new();
+            skill_names.insert("AC_OWL".into(), "Owl's Eye".into());
+            skill_names.insert("AC_VULTURE".into(), "Vulture's Eye".into());
+            skill_names.insert("AC_CONCENTRATION".into(), "Improve Concentration".into());
+            skill_names.insert("AC_DOUBLE".into(), "Double Strafe".into());
+            skill_names.insert("AC_SHOWER".into(), "Arrow Shower".into());
+            skill_names.insert("NV_BASIC".into(), "Basic Skill".into());
+
+            let mut trees = HashMap::new();
+            trees.insert(0, vec![
+                SkillTreeEntry { skill_name: "NV_BASIC".into(), position: 0, max_level: 9, prerequisite_positions: vec![] },
+            ]);
+            trees.insert(3, vec![
+                SkillTreeEntry { skill_name: "AC_OWL".into(), position: 1, max_level: 10, prerequisite_positions: vec![] },
+                SkillTreeEntry { skill_name: "AC_VULTURE".into(), position: 2, max_level: 10, prerequisite_positions: vec![] },
+                SkillTreeEntry { skill_name: "AC_CONCENTRATION".into(), position: 3, max_level: 10, prerequisite_positions: vec![] },
+                SkillTreeEntry { skill_name: "AC_DOUBLE".into(), position: 4, max_level: 10, prerequisite_positions: vec![2] },
+                SkillTreeEntry { skill_name: "AC_SHOWER".into(), position: 5, max_level: 10, prerequisite_positions: vec![4] },
+            ]);
+
+            let data = DataTable {
+                skill_name: Some(SkillNameTable::from_entries(skill_names)),
+                skill_tree: Some(SkillTreeTable::from_entries(trees)),
+                ..DataTable::new()
+            };
+
+            State::HotkeyBarDemo {
+                hotkey_win: HotkeyBarWindow::new(),
+                character,
+                data,
+            }
+        }
         _ => panic!("Unknown example: {name}"),
     }
 }
@@ -654,6 +719,22 @@ fn grf_init_single(
         State::DialogContainerDemo { notification } => {
             notification.container.has_grf_textures = true;
             notification.set_texture_sizes(size_fn);
+        }
+        State::HotkeyBarDemo { hotkey_win, character, data } => {
+            if let Some(table) = table {
+                character.inventory.resolve_resource_names(table);
+                if data.item_resource.is_none() {
+                    let mut entries = HashMap::new();
+                    for item in character.inventory.all_items() {
+                        if let Some(name) = table.get_resource_name(item.item_id) {
+                            entries.insert(item.item_id, name.to_string());
+                        }
+                    }
+                    data.item_resource = Some(ItemResourceTable::from_entries(entries, HashMap::new()));
+                }
+            }
+            hotkey_win.has_grf_textures = true;
+            hotkey_win.set_texture_sizes(size_fn);
         }
         State::Category { components } => {
             for component in components.iter_mut() {
@@ -784,6 +865,9 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             let mut character = Character::new();
             notification.build(ui, &mut character, &DataTable::default());
         }
+        State::HotkeyBarDemo { hotkey_win, character, data } => {
+            hotkey_win.build(ui, character, data);
+        }
         State::Category { components } => {
 
             // Build z-orderable windows in persisted order (back-to-front)
@@ -855,6 +939,7 @@ pub unsafe extern "C" fn hot_build(state_ptr: *mut (), ui_ptr: *mut UiFrame) {
     let state = unsafe { &mut *(state_ptr as *mut State) };
     let ui = unsafe { &mut *ui_ptr };
     build_single(state, ui);
+    ui.flush_tooltips();
     let _ = ui.draw_drag_icon();
 }
 

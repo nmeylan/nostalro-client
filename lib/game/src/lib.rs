@@ -14,6 +14,7 @@ pub mod entity;
 pub mod entity_collection;
 pub mod event;
 pub mod floor_item;
+pub mod hotkey;
 pub mod item_description_table;
 pub mod item_name_table;
 pub mod item_resource_table;

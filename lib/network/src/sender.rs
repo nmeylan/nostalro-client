@@ -240,6 +240,19 @@ pub fn build_upgrade_skill_packet(skill_id: u16, packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_shortcut_key_change_packet(index: u16, is_skill: i8, id: u32, count: i16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzShortcutKeyChange::new(packetver);
+    pkt.set_index(index);
+    let mut key = ShortCutKey::new(packetver);
+    key.set_is_skill(is_skill);
+    key.set_id(id);
+    key.set_count(count);
+    key.fill_raw();
+    pkt.set_short_cut_key(key);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_card_composition_list_packet(card_index: u16, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzReqItemcompositionList::new(packetver);
     pkt.set_card_index(card_index as i16);

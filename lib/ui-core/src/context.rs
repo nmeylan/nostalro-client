@@ -25,7 +25,17 @@ pub struct UiContext {
     pub key_delete: bool,
     pub key_up: bool,
     pub key_down: bool,
+    pub key_f1: bool,
+    pub key_f2: bool,
+    pub key_f3: bool,
+    pub key_f4: bool,
+    pub key_f5: bool,
+    pub key_f6: bool,
+    pub key_f7: bool,
+    pub key_f8: bool,
+    pub key_f9: bool,
     pub key_f10: bool,
+    pub key_f12: bool,
     pub scroll_delta: f32,
     pub dpi_scale: f32,
 }
@@ -53,7 +63,17 @@ impl UiContext {
             key_delete: false,
             key_up: false,
             key_down: false,
+            key_f1: false,
+            key_f2: false,
+            key_f3: false,
+            key_f4: false,
+            key_f5: false,
+            key_f6: false,
+            key_f7: false,
+            key_f8: false,
+            key_f9: false,
             key_f10: false,
+            key_f12: false,
             scroll_delta: 0.0,
             dpi_scale: 1.0,
         }
@@ -73,7 +93,17 @@ impl UiContext {
         self.key_delete = false;
         self.key_up = false;
         self.key_down = false;
+        self.key_f1 = false;
+        self.key_f2 = false;
+        self.key_f3 = false;
+        self.key_f4 = false;
+        self.key_f5 = false;
+        self.key_f6 = false;
+        self.key_f7 = false;
+        self.key_f8 = false;
+        self.key_f9 = false;
         self.key_f10 = false;
+        self.key_f12 = false;
         self.scroll_delta = 0.0;
     }
 
@@ -126,7 +156,17 @@ impl UiContext {
                         Key::Named(NamedKey::Delete) => self.key_delete = true,
                         Key::Named(NamedKey::ArrowUp) => self.key_up = true,
                         Key::Named(NamedKey::ArrowDown) => self.key_down = true,
+                        Key::Named(NamedKey::F1) => self.key_f1 = true,
+                        Key::Named(NamedKey::F2) => self.key_f2 = true,
+                        Key::Named(NamedKey::F3) => self.key_f3 = true,
+                        Key::Named(NamedKey::F4) => self.key_f4 = true,
+                        Key::Named(NamedKey::F5) => self.key_f5 = true,
+                        Key::Named(NamedKey::F6) => self.key_f6 = true,
+                        Key::Named(NamedKey::F7) => self.key_f7 = true,
+                        Key::Named(NamedKey::F8) => self.key_f8 = true,
+                        Key::Named(NamedKey::F9) => self.key_f9 = true,
                         Key::Named(NamedKey::F10) => self.key_f10 = true,
+                        Key::Named(NamedKey::F12) => self.key_f12 = true,
                         Key::Named(NamedKey::Space) => self.typed_chars.push(' '),
                         Key::Character(_) => {
                             if let Some(text) = &event.text {

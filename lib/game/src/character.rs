@@ -1,10 +1,12 @@
 use crate::event::CharacterInfo;
+use crate::hotkey::HotkeyBar;
 use crate::inventory::InventoryData;
 use crate::skill::SkillList;
 
 pub struct Character {
     pub inventory: InventoryData,
     pub skills: SkillList,
+    pub hotkeys: HotkeyBar,
     pub skill_point: u32,
     pub status_point: u32,
     pub hp: u32,
@@ -26,6 +28,7 @@ impl Character {
         Self {
             inventory: InventoryData::new(),
             skills: SkillList::new(),
+            hotkeys: HotkeyBar::new(),
             skill_point: 0,
             status_point: 0,
             hp: 0,
@@ -77,6 +80,7 @@ impl Character {
     pub fn clear(&mut self) {
         self.inventory.clear();
         self.skills.clear();
+        self.hotkeys.clear();
         self.skill_point = 0;
         self.status_point = 0;
         self.hp = 0;

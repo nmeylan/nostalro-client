@@ -226,6 +226,13 @@ pub enum GameEvent {
     // Skills (client → server)
     RequestSkillLevelUp { skill_id: u16 },
 
+    // Hotkeys (server → client)
+    HotkeyListReceived { slots: Vec<(i8, u32, i16)> },
+
+    // Hotkeys (client → server)
+    RequestHotkeyChange { index: u16, is_skill: bool, id: u32, count: i16 },
+    RequestUseSkill { skill_id: u16, level: i16 },
+
     // UI actions
     ShowItemInfo { index: u16 },
     ShowCardInfo { item_id: u16 },

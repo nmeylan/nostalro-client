@@ -26,6 +26,7 @@ use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
+use ragnarok_ui_component::game::hotkey_bar::{HotkeyBarWindow, HOTKEY_BAR_WINDOW_ID};
 use ragnarok_ui_component::game::skill_tree_window::{SkillTreeWindow, SKILL_WINDOW_ID};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::{InGameWindow, Window};
@@ -70,6 +71,7 @@ pub struct GameState {
     pub item_info_window: ItemInfoWindow,
     pub item_pickup_notification: ItemPickupNotification,
     pub skill_tree_window: SkillTreeWindow,
+    pub hotkey_bar: HotkeyBarWindow,
     pub debug_show_pick_bounds: bool,
 }
 
@@ -105,6 +107,10 @@ impl GameState {
             }
         }
 
+        // Hotkey bar (always visible, not z-orderable)
+        self.hotkey_bar.chat_is_active = self.chat_window.is_active();
+        events.extend(self.hotkey_bar.build(ui, &mut self.character, &self.data_table));
+
         // Always-on-top windows (not z-orderable)
         let npc_dialog_open = self.npc_dialog.dialog.is_open();
         events.extend(self.npc_dialog.build(ui, &mut self.character, &self.data_table));
@@ -120,7 +126,17 @@ impl GameState {
 
         // Drag-cancel handling
         if let Some(cancelled) = ui.draw_drag_icon() {
-            if cancelled.source_id == INV_WINDOW_ID {
+            if cancelled.source_id == HOTKEY_BAR_WINDOW_ID {
+                if self.character.hotkeys.get_slot(cancelled.item_index) != ragnarok_game::hotkey::HotkeySlotContent::Empty {
+                    self.character.hotkeys.clear_slot(cancelled.item_index);
+                    events.push(GameEvent::RequestHotkeyChange {
+                        index: cancelled.item_index as u16,
+                        is_skill: false,
+                        id: 0,
+                        count: 0,
+                    });
+                }
+            } else if cancelled.source_id == INV_WINDOW_ID {
                 if self.waiting_item_throw_ack {
                     // Already waiting for server ack, ignore
                 } else if self.equipment_window.is_visible() {
@@ -230,6 +246,7 @@ impl GameState {
             item_info_window: ItemInfoWindow::new(),
             item_pickup_notification: ItemPickupNotification::new(),
             skill_tree_window: SkillTreeWindow::new(),
+            hotkey_bar: HotkeyBarWindow::new(),
             debug_show_pick_bounds: false,
         }
     }

@@ -3,6 +3,7 @@ pub mod chat_window;
 pub mod confirm_dialog;
 pub mod drop_quantity_dialog;
 pub mod equipment_window;
+pub mod hotkey_bar;
 pub mod inventory_window;
 pub mod item_info_window;
 pub mod item_pickup_notification;

@@ -598,8 +598,17 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             },
         }];
     }
-    if any.downcast_ref::<PacketZcShortcutKeyListV2>().is_some() {
-        return vec![GameEvent::Acknowledged];
+    if let Some(p) = any.downcast_ref::<PacketZcShortcutKeyListV2>() {
+        let slots: Vec<(i8, u32, i16)> = p.short_cut_key.iter()
+            .map(|k| (k.is_skill, k.id, k.count))
+            .collect();
+        return vec![GameEvent::HotkeyListReceived { slots }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcShortcutKeyList>() {
+        let slots: Vec<(i8, u32, i16)> = p.short_cut_key.iter()
+            .map(|k| (k.is_skill, k.id, k.count))
+            .collect();
+        return vec![GameEvent::HotkeyListReceived { slots }];
     }
     if any.downcast_ref::<PacketZcNotifyMapproperty>().is_some() {
         return vec![GameEvent::Acknowledged];

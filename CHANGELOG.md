@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Add hotkey bar: 4 rows of 9 shortcut slots (F1-F9, 1-9, Q-O, A-L), drag skills or items from skill tree and inventory, press F12 to toggle row visibility, use /battlemode to enable keyboard shortcuts for rows 2-4 when chat is closed
 - Add card insertion: double-click a card in inventory to open a selection dialog listing eligible equipment, select an item and confirm to insert the card
 - Improve item info window: card section uses standard dialog container, slotted cards show icon texture with fallback, right-click a slotted card to open its own independent item info window
 - Add drop item to floor: drag any item from inventory outside windows to drop it, items appear on the floor with falling animation and periodic blink highlight, hover to see tooltip, click to pick up

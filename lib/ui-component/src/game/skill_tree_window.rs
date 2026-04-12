@@ -309,6 +309,16 @@ impl InGameWindow for SkillTreeWindow {
                 }
             }
 
+            // Drag source for usable skills (non-passive, learned)
+            if row_resp.clicked() && skill.level > 0 && skill.skill_type != 0 {
+                ui.drag_source(
+                    SKILL_WINDOW_ID,
+                    skill.id as usize,
+                    Some(skill.icon_path()),
+                    (ICON_SIZE, ICON_SIZE),
+                );
+            }
+
             // Tooltip on hover
             if row_resp.hovered() {
                 let mut tooltip_lines = vec![display_name.clone()];

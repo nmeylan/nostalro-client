@@ -35,6 +35,7 @@ use ragnarok_network::{
     build_npc_menu_select_packet, build_npc_next_packet, build_pickup_item_packet,
     build_purchase_item_list_packet, build_reqname_packet, build_request_move_packet,
     build_restart_packet, build_select_char_packet, build_sell_item_list_packet,
+    build_shortcut_key_change_packet,
     build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_zone_enter_packet, ip_u32_to_string,
     network_loop,
 };
@@ -498,6 +499,7 @@ impl App {
                         preload_window(&mut self.game.item_info_window, renderer, grf);
                         preload_window(&mut self.game.item_pickup_notification, renderer, grf);
                         preload_window(&mut self.game.skill_tree_window, renderer, grf);
+                        preload_window(&mut self.game.hotkey_bar, renderer, grf);
                         self.game.drop_dialog_has_grf_textures =
                             renderer.preload_textures(&DropQuantityDialog::grf_texture_paths(), grf);
                         self.game.card_insert_dialog_has_grf_textures =
@@ -510,6 +512,8 @@ impl App {
 
                     self.game.app_state = AppState::InGame;
                     self.game.apply_window_state(&self.config.window_state);
+                    self.game.character.hotkeys.set_visible_rows(self.config.hotkey_visible_rows);
+                    self.game.character.hotkeys.set_battle_mode(self.config.battle_mode);
 
                     if let Some(tx) = &self.network_cmd_tx {
                         let _ = tx.send(NetworkCommand::SendPacket(build_map_loaded_packet(
@@ -2001,6 +2005,19 @@ impl App {
                         let _ = tx.send(NetworkCommand::SendPacket(packet));
                     }
                 }
+                GameEvent::HotkeyListReceived { slots } => {
+                    self.game.character.hotkeys.set_from_server(&slots, self.game.character.inventory.all_items());
+                }
+                GameEvent::RequestHotkeyChange { index, is_skill, id, count } => {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let is_skill_i8 = if is_skill { 1i8 } else { 0i8 };
+                        let packet = build_shortcut_key_change_packet(index, is_skill_i8, id, count, self.config.packetver);
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                GameEvent::RequestUseSkill { skill_id, level } => {
+                    tracing::info!("Hotkey: use skill id={skill_id} lv={level} (targeting not yet implemented)");
+                }
                 GameEvent::RequestPickupItem { id } => {
                     if let Some(tx) = &self.network_cmd_tx {
                         let packet = build_pickup_item_packet(id, self.config.packetver);
@@ -2636,6 +2653,8 @@ impl ApplicationHandler for App {
                     });
                 }
                 self.config.window_state = window_state;
+                self.config.hotkey_visible_rows = self.game.character.hotkeys.visible_rows();
+                self.config.battle_mode = self.game.character.hotkeys.battle_mode();
                 self.config.save("config.json");
                 event_loop.exit();
             }

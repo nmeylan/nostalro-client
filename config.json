@@ -23,6 +23,14 @@
       "open": false,
       "collapsed": false
     },
+    "1300": {
+      "position": [
+        459.1784,
+        1.3789062
+      ],
+      "open": false,
+      "collapsed": false
+    },
     "10": {
       "position": [
         283.0,
@@ -46,22 +54,8 @@
       ],
       "open": false,
       "collapsed": false
-    },
-    "900": {
-      "position": [
-        0.0,
-        210.0
-      ],
-      "open": true,
-      "collapsed": false
-    },
-    "1200": {
-      "position": [
-        402.67188,
-        110.75
-      ],
-      "open": true,
-      "collapsed": false
     }
-  }
+  },
+  "hotkey_visible_rows": 1,
+  "battle_mode": false
 }

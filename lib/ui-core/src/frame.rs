@@ -377,6 +377,10 @@ impl<'a> UiFrame<'a> {
         rect
     }
 
+    pub fn cancel_window_drag(&mut self, id: WidgetId) {
+        self.state.get_or_default::<WindowState>(id).dragging = false;
+    }
+
     pub fn interact(&mut self, id: WidgetId, rect: Rect) -> Response {
         let in_rect = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y);
         let hovered = in_rect && !self.is_current_window_occluded();

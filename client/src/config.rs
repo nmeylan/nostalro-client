@@ -40,6 +40,8 @@ pub struct Config {
     pub debug_network_delay_ms: u32,
     pub trace_packets: bool,
     pub window_state: HashMap<u32, WindowStateEntry>,
+    pub hotkey_visible_rows: u8,
+    pub battle_mode: bool,
 }
 
 impl Default for Config {
@@ -59,6 +61,8 @@ impl Default for Config {
             debug_network_delay_ms: 0,
             trace_packets: false,
             window_state: HashMap::new(),
+            hotkey_visible_rows: 1,
+            battle_mode: false,
         }
     }
 }
