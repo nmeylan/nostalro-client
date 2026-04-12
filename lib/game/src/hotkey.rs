@@ -34,14 +34,18 @@ impl HotkeyBar {
                     level: count,
                 }
             } else if id != 0 {
-                let item_id = id as u16;
-                let inventory_index = inventory.iter()
-                    .find(|i| i.item_id == item_id)
-                    .map(|i| i.index)
+                let inventory_index = id as u16;
+                let item_id = inventory.iter()
+                    .find(|i| i.index == inventory_index)
+                    .map(|i| i.item_id)
                     .unwrap_or(0);
-                HotkeySlotContent::Item {
-                    item_id,
-                    inventory_index,
+                if item_id != 0 {
+                    HotkeySlotContent::Item {
+                        item_id,
+                        inventory_index,
+                    }
+                } else {
+                    HotkeySlotContent::Empty
                 }
             } else {
                 HotkeySlotContent::Empty
@@ -97,7 +101,7 @@ impl HotkeyBar {
         match self.get_slot(index) {
             HotkeySlotContent::Empty => (0, 0, 0),
             HotkeySlotContent::Skill { skill_id, level } => (1, skill_id as u32, level),
-            HotkeySlotContent::Item { item_id, .. } => (0, item_id as u32, 0),
+            HotkeySlotContent::Item { inventory_index, .. } => (0, inventory_index as u32, 0),
         }
     }
 
@@ -130,17 +134,18 @@ mod tests {
     #[test]
     fn set_from_server_and_query() {
         let mut bar = HotkeyBar::new();
-        let inventory = vec![make_item(3, 501)];
+        let inventory = vec![make_item(3, 501), make_item(7, 501), make_item(12, 502)];
         let server_data = vec![
             (1i8, 28u32, 5i16),   // Skill: id=28, level=5
-            (0, 501, 0),           // Item: id=501
+            (0, 7, 0),            // Item: inventory_index=7 (second bow)
             (0, 0, 0),            // Empty
             (1, 10, 3),           // Skill: id=10, level=3
+            (0, 99, 0),           // Item: inventory_index=99 (not in inventory)
         ];
         bar.set_from_server(&server_data, &inventory);
 
         assert_eq!(bar.get_slot(0), HotkeySlotContent::Skill { skill_id: 28, level: 5 });
-        assert_eq!(bar.get_slot(1), HotkeySlotContent::Item { item_id: 501, inventory_index: 3 });
+        assert_eq!(bar.get_slot(1), HotkeySlotContent::Item { item_id: 501, inventory_index: 7 });
         assert_eq!(bar.get_slot(2), HotkeySlotContent::Empty);
         assert_eq!(bar.get_slot(3), HotkeySlotContent::Skill { skill_id: 10, level: 3 });
         assert_eq!(bar.get_slot(4), HotkeySlotContent::Empty);
@@ -182,7 +187,7 @@ mod tests {
         bar.set_slot(1, HotkeySlotContent::Item { item_id: 501, inventory_index: 3 });
 
         assert_eq!(bar.to_server_format(0), (1, 28, 5));
-        assert_eq!(bar.to_server_format(1), (0, 501, 0));
+        assert_eq!(bar.to_server_format(1), (0, 3, 0));
         assert_eq!(bar.to_server_format(2), (0, 0, 0));
     }
 }

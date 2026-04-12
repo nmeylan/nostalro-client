@@ -18,12 +18,13 @@ const SLOT_BASE_ID: u32 = 1310;
 const BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/shortitem_bg.bmp";
 
 const ICON_SIZE: f32 = 24.0;
-const SLOT_PAD_X: f32 = 5.0;
+const SLOT_PAD_X: f32 = 16.0;
 const SLOT_PAD_Y: f32 = 5.0;
-const SLOT_W: f32 = ICON_SIZE + SLOT_PAD_X;
+const SLOT_W: f32 = 32.0;
+const SLOT_MARGIN: f32 = 2.0;
 const ROW_H: f32 = 34.0;
 const LABEL_W: f32 = 4.0;
-const WIN_W: f32 = LABEL_W + SLOT_W * HOTKEY_COLS as f32 + SLOT_PAD_X;
+const WIN_W: f32 = SLOT_MARGIN + (SLOT_W + SLOT_MARGIN ) * HOTKEY_COLS as f32;
 
 const ROW_KEYS: [[&str; 9]; 4] = [
     ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9"],
@@ -116,7 +117,7 @@ impl HotkeyBarWindow {
                 events.push(GameEvent::RequestHotkeyChange {
                     index: slot_index as u16,
                     is_skill: false,
-                    id: item_id as u32,
+                    id: inventory_index as u32,
                     count: 0,
                 });
             }
@@ -258,16 +259,16 @@ impl InGameWindow for HotkeyBarWindow {
                 let slot_id = WidgetId(SLOT_BASE_ID + slot_index as u32);
                 let content = character.hotkeys.get_slot(slot_index);
 
-                let cell_x = win.x + LABEL_W + col as f32 * SLOT_W;
+                let cell_x = win.x + SLOT_MARGIN + SLOT_MARGIN + col as f32 * (SLOT_W);
                 let cell_y = row_y + SLOT_PAD_Y;
-                let cell_rect = Rect::new(cell_x, cell_y, ICON_SIZE, ICON_SIZE);
+                let cell_rect = Rect::new(cell_x, cell_y, SLOT_W - 2.0 * SLOT_MARGIN, SLOT_W - SLOT_MARGIN * 2.0);
 
                 let resp = ui.interact(slot_id, cell_rect);
 
                 // Hover highlight
                 if resp.hovered() {
-                    let hover_color = [0.4, 0.6, 0.4, 0.3];
-                    let (v, idx) = draw::quad_vertices(cell_x - 1.0, cell_y - 1.0, ICON_SIZE + 2.0, ICON_SIZE + 2.0, hover_color);
+                    let hover_color = [0.71, 1.0, 0.71, 1.0];
+                    let (v, idx) = draw::quad_vertices(cell_rect.x + 1.0, cell_rect.y, cell_rect.w - 1.0,  cell_rect.h - SLOT_MARGIN * 2.0, hover_color);
                     ui.draw_calls.push(DrawCall {
                         vertices: v.to_vec(),
                         indices: idx.to_vec(),
@@ -278,7 +279,7 @@ impl InGameWindow for HotkeyBarWindow {
                 let label_color = [tc[0] * 0.6, tc[1] * 0.6, tc[2] * 0.6, tc[3]];
                 // Slot icon
                 if let Some(icon_path) = self.slot_icon_path(content, character, data) {
-                    let (v, idx) = draw::quad_vertices(cell_x, cell_y, ICON_SIZE, ICON_SIZE, [1.0; 4]);
+                    let (v, idx) = draw::quad_vertices(cell_rect.x + (SLOT_W - ICON_SIZE) / 2.0 - SLOT_MARGIN, cell_rect.y, ICON_SIZE, ICON_SIZE, [1.0; 4]);
                     ui.draw_calls.push(DrawCall {
                         vertices: v.to_vec(),
                         indices: idx.to_vec(),
@@ -288,7 +289,7 @@ impl InGameWindow for HotkeyBarWindow {
                     // Count/level text
                     if let Some(count_text) = self.slot_count_text(content, character) {
                         let text_w = ui.atlas.measure_text(&count_text);
-                        let tx = cell_x + ICON_SIZE - text_w;
+                        let tx = cell_rect.x + ICON_SIZE - text_w;
                         let ty = cell_y + ICON_SIZE + 2.0;
                         ui.text(tx, ty, &count_text, label_color);
                     }

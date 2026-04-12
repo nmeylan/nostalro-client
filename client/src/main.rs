@@ -1416,6 +1416,9 @@ impl App {
                     });
                     self.preload_item_icons(vec![icon_path]);
                 }
+                GameEvent::HotkeyListReceived { slots } => {
+                    self.game.character.hotkeys.set_from_server(&slots, self.game.character.inventory.all_items());
+                }
                 GameEvent::Disconnected(reason) => {
                     self.game.server_time.reset();
                     self.game.character.inventory.clear();
