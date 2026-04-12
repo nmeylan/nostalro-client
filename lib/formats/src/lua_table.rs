@@ -152,6 +152,49 @@ pub fn parse_skill_description_table(data: &[u8]) -> HashMap<String, Vec<String>
     map
 }
 
+/// Parses `leveluseskillspamount.txt`: blocks of `SKILL_NAME#\nSP1#\nSP2#\n...\n@` repeating.
+/// Returns skill_name → Vec of SP costs per level (index 0 = level 1).
+pub fn parse_level_use_skill_sp_table(data: &[u8]) -> HashMap<String, Vec<i16>> {
+    let content = decode_euc_kr(data);
+    let mut map = HashMap::new();
+    let mut current_name: Option<String> = None;
+    let mut sp_list: Vec<i16> = Vec::new();
+
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with("//") {
+            continue;
+        }
+        if line == "@" {
+            if let Some(name) = current_name.take() {
+                if !sp_list.is_empty() {
+                    map.insert(name, std::mem::take(&mut sp_list));
+                }
+            }
+            sp_list.clear();
+            continue;
+        }
+        let stripped = line.trim_end_matches('#');
+        if let Ok(sp) = stripped.parse::<i16>() {
+            sp_list.push(sp);
+        } else if !stripped.is_empty() && stripped.contains('_') {
+            if let Some(name) = current_name.take() {
+                if !sp_list.is_empty() {
+                    map.insert(name, std::mem::take(&mut sp_list));
+                }
+            }
+            sp_list.clear();
+            current_name = Some(stripped.to_string());
+        }
+    }
+    if let Some(name) = current_name {
+        if !sp_list.is_empty() {
+            map.insert(name, sp_list);
+        }
+    }
+    map
+}
+
 /// Parses RO accessory data from `accessoryid.lua` and `accname.lua`.
 /// Returns a map from view_id to sprite name suffix.
 ///
@@ -274,6 +317,23 @@ ACCESSORY_HEADBAND = 6,
         let data = b"501#\nSome desc\n#\n";
         let table = parse_item_description_table(data);
         assert!(table.get(&999).is_none());
+    }
+
+    #[test]
+    fn parse_level_use_skill_sp_table_parses_blocks() {
+        let data = b"SM_BASH#\n8#\n8#\n15#\n@\nSM_PROVOKE#\n4#\n5#\n6#\n@\n";
+        let table = parse_level_use_skill_sp_table(data);
+        assert_eq!(table.len(), 2);
+        assert_eq!(table["SM_BASH"], vec![8, 8, 15]);
+        assert_eq!(table["SM_PROVOKE"], vec![4, 5, 6]);
+    }
+
+    #[test]
+    fn parse_level_use_skill_sp_table_skips_comments() {
+        let data = b"// comment\nSM_BASH#\n8#\n@\n";
+        let table = parse_level_use_skill_sp_table(data);
+        assert_eq!(table.len(), 1);
+        assert_eq!(table["SM_BASH"], vec![8]);
     }
 
     #[test]

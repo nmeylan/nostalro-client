@@ -1,3 +1,4 @@
+use crate::cooldown::CooldownTracker;
 use crate::event::CharacterInfo;
 use crate::hotkey::HotkeyBar;
 use crate::inventory::InventoryData;
@@ -7,6 +8,7 @@ pub struct Character {
     pub inventory: InventoryData,
     pub skills: SkillList,
     pub hotkeys: HotkeyBar,
+    pub cooldowns: CooldownTracker,
     pub skill_point: u32,
     pub status_point: u32,
     pub hp: u32,
@@ -29,6 +31,7 @@ impl Character {
             inventory: InventoryData::new(),
             skills: SkillList::new(),
             hotkeys: HotkeyBar::new(),
+            cooldowns: CooldownTracker::new(),
             skill_point: 0,
             status_point: 0,
             hp: 0,
@@ -81,6 +84,7 @@ impl Character {
         self.inventory.clear();
         self.skills.clear();
         self.hotkeys.clear();
+        self.cooldowns.clear();
         self.skill_point = 0;
         self.status_point = 0;
         self.hp = 0;

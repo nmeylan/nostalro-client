@@ -5,7 +5,7 @@ use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::character::Character;
-use ragnarok_game::cursor::CursorAnimationState;
+use ragnarok_game::cursor::{CursorAnimationState, PendingSkillTarget};
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::floor_item::FloorItem;
@@ -66,6 +66,7 @@ pub struct GameState {
     pub drop_quantity_dialog: Option<DropQuantityDialog>,
     pub card_insert_dialog: Option<CardInsertDialog>,
     pub card_insert_dialog_has_grf_textures: bool,
+    pub pending_skill_target: Option<PendingSkillTarget>,
     pub pending_card_composition_index: Option<u16>,
     pub pending_pickup_item_id: Option<u32>,
     pub item_info_window: ItemInfoWindow,
@@ -116,7 +117,11 @@ impl GameState {
         events.extend(self.npc_dialog.build(ui, &mut self.character, &self.data_table));
         let shop_open = self.npc_shop.shop.is_open();
         events.extend(self.npc_shop.build(ui, &mut self.character, &self.data_table));
-        let allow_escape = !chat_was_active && !npc_dialog_open && !shop_open;
+        let mut allow_escape = !chat_was_active && !npc_dialog_open && !shop_open;
+        if allow_escape && ui.ctx.key_escape && self.pending_skill_target.is_some() {
+            self.pending_skill_target = None;
+            allow_escape = false;
+        }
         self.system_menu.allow_escape_toggle = allow_escape;
         events.extend(self.system_menu.build(ui, &mut self.character, &self.data_table));
         events.extend(self.item_info_window.build(ui, &mut self.character, &self.data_table));
@@ -241,6 +246,7 @@ impl GameState {
             drop_quantity_dialog: None,
             card_insert_dialog: None,
             card_insert_dialog_has_grf_textures: false,
+            pending_skill_target: None,
             pending_card_composition_index: None,
             pending_pickup_item_id: None,
             item_info_window: ItemInfoWindow::new(),

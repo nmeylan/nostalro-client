@@ -231,13 +231,24 @@ impl SpriteActionType {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MotionType {
+    Loop,
+    OneShot,
+    Static,
+}
+
 pub struct SpriteAnimationState {
     action: usize,
     direction: usize,
     motion_index: usize,
     accumulated_ms: f32,
-    one_shot: bool,
+    motion_type: MotionType,
     finished: bool,
+    /// When set, overrides ACT file delay so the full animation plays in this many ms.
+    motion_speed_override_ms: Option<f32>,
+    /// Number of remaining full-cycle repeats before the animation finishes (0 = play once).
+    remaining_repeats: u16,
 }
 
 impl SpriteAnimationState {
@@ -247,8 +258,10 @@ impl SpriteAnimationState {
             direction: direction as usize % 8,
             motion_index: 0,
             accumulated_ms: 0.0,
-            one_shot: false,
+            motion_type: MotionType::Loop,
             finished: false,
+            motion_speed_override_ms: None,
+            remaining_repeats: 0,
         }
     }
 
@@ -264,29 +277,49 @@ impl SpriteAnimationState {
         self.motion_index
     }
 
-    /// Sets the base action (0=idle, 1=walk, etc). Only resets motion if action changed.
-    pub fn set_action(&mut self, action: usize) {
-        if self.action != action {
+    /// Sets the base action with the given motion type.
+    /// Resets motion only when the action changes (or when OneShot has finished).
+    pub fn set_action(&mut self, action: usize, motion_type: MotionType) {
+        let changed = self.action != action;
+        let restart = changed || (motion_type == MotionType::OneShot && self.finished);
+        if restart {
             self.action = action;
             self.motion_index = 0;
             self.accumulated_ms = 0.0;
-            self.one_shot = false;
             self.finished = false;
-        } else if self.one_shot {
-            self.one_shot = false;
+            self.motion_speed_override_ms = None;
+            self.remaining_repeats = 0;
+        } else if self.motion_type != motion_type {
             self.finished = false;
+            self.motion_speed_override_ms = None;
+            self.remaining_repeats = 0;
         }
+        self.motion_type = motion_type;
     }
 
-    /// Sets the base action as one-shot: plays once and holds on last frame.
-    pub fn set_action_one_shot(&mut self, action: usize) {
-        if self.action != action || self.finished {
-            self.action = action;
-            self.motion_index = 0;
-            self.accumulated_ms = 0.0;
-            self.one_shot = true;
-            self.finished = false;
-        }
+    /// Force-start a one-shot animation with a fixed total duration.
+    /// Always resets unconditionally. `start_frame` controls which frame to begin on.
+    pub fn play(&mut self, action: usize, total_ms: f32, start_frame: usize) {
+        self.action = action;
+        self.motion_index = start_frame;
+        self.accumulated_ms = 0.0;
+        self.motion_type = MotionType::OneShot;
+        self.finished = false;
+        self.motion_speed_override_ms = Some(total_ms);
+        self.remaining_repeats = 0;
+    }
+
+    /// Force-start an animation that repeats `repeat_count` times within `total_ms`.
+    /// Each cycle plays all frames, then restarts. After all repeats finish, the animation
+    /// marks itself as finished.
+    pub fn play_repeated(&mut self, action: usize, total_ms: f32, repeat_count: u16) {
+        self.action = action;
+        self.motion_index = 0;
+        self.accumulated_ms = 0.0;
+        self.motion_type = MotionType::OneShot;
+        self.finished = false;
+        self.motion_speed_override_ms = Some(total_ms / repeat_count.max(1) as f32);
+        self.remaining_repeats = repeat_count.saturating_sub(1);
     }
 
     pub fn is_finished(&self) -> bool {
@@ -294,13 +327,13 @@ impl SpriteAnimationState {
     }
 
     /// Sets the base action, clamping to the number of action types in the ACT file.
-    pub fn set_action_clamped(&mut self, action: usize, act: &ActFile) {
+    pub fn set_action_clamped(&mut self, action: usize, motion_type: MotionType, act: &ActFile) {
         let max_action = act.actions.len() / 8;
-        self.set_action(action % max_action.max(1));
+        self.set_action(action % max_action.max(1), motion_type);
     }
 
     pub fn set_direction(&mut self, direction: u8) {
-        self.direction = direction as usize % 8;
+        self.direction = direction as usize % 16;
     }
 
     /// Computes the flat action index into the ACT file, applying camera direction offset.
@@ -346,7 +379,7 @@ impl SpriteAnimationState {
     }
 
     fn advance(&mut self, action_idx: usize, act: &ActFile, dt_secs: f32) {
-        if self.finished {
+        if self.finished || self.motion_type == MotionType::Static {
             return;
         }
         let motion_count = act.actions[action_idx].motions.len();
@@ -354,7 +387,10 @@ impl SpriteAnimationState {
             return;
         }
 
-        let delay_ms = if action_idx < act.delays.len() {
+        let delay_ms = if let Some(total_ms) = self.motion_speed_override_ms {
+            // Distribute total animation time evenly across all frames
+            if motion_count > 0 { total_ms / motion_count as f32 } else { 150.0 }
+        } else if action_idx < act.delays.len() {
             let d = act.delays[action_idx] * 25.0;
             if d > 0.0 { d } else { 150.0 }
         } else {
@@ -364,7 +400,12 @@ impl SpriteAnimationState {
         self.accumulated_ms += dt_secs * 1000.0;
         while self.accumulated_ms >= delay_ms {
             self.accumulated_ms -= delay_ms;
-            if self.one_shot && self.motion_index == motion_count - 1 {
+            if self.motion_type == MotionType::OneShot && self.motion_index == motion_count - 1 {
+                if self.remaining_repeats > 0 {
+                    self.remaining_repeats -= 1;
+                    self.motion_index = 0;
+                    continue;
+                }
                 self.finished = true;
                 self.accumulated_ms = 0.0;
                 return;
@@ -494,7 +535,7 @@ mod tests {
         let mut anim = SpriteAnimationState::new(0);
         anim.set_direction(3);
         assert_eq!(anim.flat_action_index(&act), 3);
-        anim.set_action(1);
+        anim.set_action(1, MotionType::Loop);
         assert_eq!(anim.flat_action_index(&act), 11);
     }
 

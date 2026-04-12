@@ -9,12 +9,19 @@ pub enum CursorType {
     Default = 0,
     Talk = 1,
     Click = 2,
-    Lock = 3,
+    SemiLock = 3,
     Rotate = 4,
     Attack = 5,
     Warp = 7,
+    NoWalk = 8,
     Pick = 9,
-    NoWalk = 13,
+    Lock = 10,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PendingSkillTarget {
+    pub skill_id: u16,
+    pub level: i16,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -186,7 +193,7 @@ mod tests {
         assert_eq!(anim.action_index(), 0);
 
         anim.set_cursor_type(CursorType::NoWalk);
-        assert_eq!(anim.action_index(), 13);
+        assert_eq!(anim.action_index(), 8);
 
         anim.set_cursor_type(CursorType::Attack);
         assert_eq!(anim.action_index(), 5);

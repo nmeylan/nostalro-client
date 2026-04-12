@@ -4,6 +4,8 @@ It reuses many part of [rust-ro](https://github.com/nmeylan/rust-ro): packets, d
 
 If you seek for the best/most promising client implementation check-out [korangar](https://github.com/vE5li/korangar)
 
+This repository does not provide any game assets
+
 # Why
 I wanted to be able to run the game as it was in 2005~2008, but original client from this time does not handle well high dpi screen. It is also very painful to find right game resources and right exe diff to make it works with a server.
 
@@ -53,12 +55,12 @@ lib/ui-component/dev.sh account
 ```
 
 # AI usage
-This project leverage AI to develop faster, as my time is very limited. AI is being used for:
-- Fix network packet handling
+This project leverage AI to allow a faster development, as my time is very limited. AI is being used for:
+- Fix network packet handling: investigate raw packet trace
 - Helping to implement rendering (wgpu and wsgl api): when i started this project my knowledge on wgpu and wsgl was almost 0, although I have implemented few effects for robrowser 4 years ago.
 - Game resource format handling
 - Refactoring tasks
-- tools
+- Write tools
 
 # Progress
 see [todo](docs/TODO.md)

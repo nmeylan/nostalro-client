@@ -1,7 +1,7 @@
 use packets::packets::*;
 use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo, SkillInfo};
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::helpers::{decode_pos, decode_pos2};
 
@@ -218,6 +218,32 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             gid: p.gid,
             target_gid: p.target_gid,
             action: p.action,
+            damage: p.damage as i32,
+            left_damage: p.left_damage as i32,
+            attack_mt: p.attack_mt,
+            attacked_mt: p.attacked_mt,
+            start_time: p.start_time,
+            count: p.count,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyAct2>() {
+        return vec![GameEvent::EntityAction {
+            gid: p.gid,
+            target_gid: p.target_gid,
+            action: p.action,
+            damage: p.damage,
+            left_damage: p.left_damage,
+            attack_mt: p.attack_mt,
+            attacked_mt: p.attacked_mt,
+            start_time: p.start_time,
+            count: p.count,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyAct3>() {
+        return vec![GameEvent::EntityAction {
+            gid: p.gid,
+            target_gid: p.target_gid,
+            action: p.action,
             damage: p.damage,
             left_damage: p.left_damage,
             attack_mt: p.attack_mt,
@@ -300,6 +326,63 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             skill_id: p.skid,
             delay_ms: p.delay_time,
         }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcUseskillAck>() {
+        return vec![GameEvent::SkillCasting {
+            gid: p.aid,
+            target_gid: p.target_id,
+            skill_id: p.skid,
+            delay_ms: p.delay_time,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckTouseskill>() {
+        if !p.result {
+            return vec![GameEvent::SkillFailed {
+                skill_id: p.skid,
+                cause: p.cause,
+            }];
+        }
+        return vec![GameEvent::Acknowledged];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcSkillPostdelay>() {
+        return vec![GameEvent::SkillPostDelay {
+            skill_id: p.skid,
+            delay_ms: p.delay_tm,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifySkill>() {
+        return vec![GameEvent::SkillDamage {
+            skill_id: p.skid,
+            src_gid: p.aid,
+            target_gid: p.target_id,
+            damage: p.damage as i32,
+            attack_mt: p.attack_mt,
+            attacked_mt: p.attacked_mt,
+            count: p.count,
+            action: p.action,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifySkill2>() {
+        return vec![GameEvent::SkillDamage {
+            skill_id: p.skid,
+            src_gid: p.aid,
+            target_gid: p.target_id,
+            damage: p.damage,
+            attack_mt: p.attack_mt,
+            attacked_mt: p.attacked_mt,
+            count: p.count,
+            action: p.action,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcUseSkill>() {
+        if p.result {
+            return vec![GameEvent::SkillNoDamage {
+                skill_id: p.skid,
+                src_gid: p.src_aid,
+                target_gid: p.target_aid,
+            }];
+        }
+        return vec![GameEvent::Acknowledged];
     }
     if let Some(p) = any.downcast_ref::<PacketZcEmotion>() {
         return vec![GameEvent::EntityEmotion {
@@ -609,6 +692,9 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             .map(|k| (k.is_skill, k.id, k.count))
             .collect();
         return vec![GameEvent::HotkeyListReceived { slots }];
+    }
+    if any.downcast_ref::<PacketZcActionFailure>().is_some() {
+        return vec![GameEvent::ActionFailure];
     }
     if any.downcast_ref::<PacketZcNotifyMapproperty>().is_some() {
         return vec![GameEvent::Acknowledged];

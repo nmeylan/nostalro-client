@@ -21,6 +21,7 @@ const RESIZE_ID: WidgetId = WidgetId(1351);
 const BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/shortitem_bg.bmp";
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const CAT_PAW_TEX: &str = "data/texture/유저인터페이스/item/고양이발머리핀.bmp";
 
 const ICON_SIZE: f32 = 24.0;
 const SLOT_PAD_X: f32 = 16.0;
@@ -93,12 +94,14 @@ impl HotkeyBarWindow {
         }
     }
 
-    fn execute_slot(&self, index: usize, character: &Character, events: &mut Vec<GameEvent>) {
+    fn execute_slot(&self, index: usize, character: &Character, events: &mut Vec<GameEvent>, elapsed: f32) {
         let content = character.hotkeys.get_slot(index);
         match content {
             HotkeySlotContent::Empty => {}
             HotkeySlotContent::Skill { skill_id, level } => {
-                events.push(GameEvent::RequestUseSkill { skill_id, level });
+                if !character.cooldowns.is_on_cooldown(skill_id, elapsed) {
+                    events.push(GameEvent::RequestUseSkill { skill_id, level });
+                }
             }
             HotkeySlotContent::Item { inventory_index, .. } => {
                 if let Some(item) = character.inventory.get_item(inventory_index) {
@@ -139,7 +142,7 @@ impl HotkeyBarWindow {
         } else if source_id == SKILL_WINDOW_ID {
             let skill_id = item_index as u16;
             if let Some(skill) = character.skills.get_skill(skill_id) {
-                let level = skill.level;
+                let level = skill.use_level();
                 let content = HotkeySlotContent::Skill { skill_id, level };
                 character.hotkeys.set_slot(slot_index, content);
                 events.push(GameEvent::RequestHotkeyChange {
@@ -191,7 +194,7 @@ impl Window for HotkeyBarWindow {
     }
 
     fn grf_texture_paths() -> Vec<&'static str> {
-        vec![BG_TEX, CLOSE_OFF_TEX, CLOSE_ON_TEX]
+        vec![BG_TEX, CLOSE_OFF_TEX, CLOSE_ON_TEX, CAT_PAW_TEX]
     }
 }
 
@@ -364,8 +367,43 @@ impl InGameWindow for HotkeyBarWindow {
                         ui.text(tx, ty, &count_text, label_color);
                     }
 
+                    // Cooldown overlay for skill slots
+                    if let HotkeySlotContent::Skill { skill_id, .. } = content {
+                        if character.cooldowns.is_on_cooldown(skill_id, ui.elapsed_secs) {
+                            let icon_x = cell_rect.x + (SLOT_W - ICON_SIZE) / 2.0 - SLOT_MARGIN;
+                            // Darken icon
+                            let (v, idx) = draw::quad_vertices(icon_x, cell_rect.y, ICON_SIZE, ICON_SIZE, [0.0, 0.0, 0.0, 0.45]);
+                            ui.draw_calls.push(DrawCall {
+                                vertices: v.to_vec(),
+                                indices: idx.to_vec(),
+                                texture: TextureRef::White,
+                            });
+                            // Cat paw icon overlay
+                            if has_grf {
+                                let (v, idx) = draw::quad_vertices(icon_x, cell_rect.y, ICON_SIZE, ICON_SIZE, [1.0; 4]);
+                                ui.draw_calls.push(DrawCall {
+                                    vertices: v.to_vec(),
+                                    indices: idx.to_vec(),
+                                    texture: TextureRef::Named(CAT_PAW_TEX.to_string()),
+                                });
+                            }
+                            let remaining = character.cooldowns.remaining_secs(skill_id, ui.elapsed_secs);
+                            if remaining > 0.1 {
+                                let time_text = if remaining >= 1.0 {
+                                    format!("{:.0}", remaining)
+                                } else {
+                                    format!("{:.1}", remaining)
+                                };
+                                let text_w = ui.atlas.measure_text(&time_text);
+                                let tx = icon_x + (ICON_SIZE - text_w) / 2.0;
+                                let ty = cell_rect.y + ICON_SIZE / 2.0 + 4.0;
+                                ui.text(tx, ty, &time_text, [1.0, 1.0, 1.0, 1.0]);
+                            }
+                        }
+                    }
+
                     if resp.double_clicked() {
-                        self.execute_slot(slot_index, character, &mut events);
+                        self.execute_slot(slot_index, character, &mut events, ui.elapsed_secs);
                     } else if resp.clicked() {
                         ui.drag_source(
                             HOTKEY_BAR_WINDOW_ID,
@@ -419,7 +457,7 @@ impl InGameWindow for HotkeyBarWindow {
         ];
         for (i, &pressed) in f_keys.iter().enumerate() {
             if pressed {
-                self.execute_slot(i, character, &mut events);
+                self.execute_slot(i, character, &mut events, ui.elapsed_secs);
             }
         }
 
@@ -429,15 +467,15 @@ impl InGameWindow for HotkeyBarWindow {
                 let lower = ch.to_ascii_lowercase();
                 if let Some(col) = ROW2_CHARS.iter().position(|&c| c == lower) {
                     if visible_rows > 1 {
-                        self.execute_slot(HOTKEY_COLS + col, character, &mut events);
+                        self.execute_slot(HOTKEY_COLS + col, character, &mut events, ui.elapsed_secs);
                     }
                 } else if let Some(col) = ROW3_CHARS.iter().position(|&c| c == lower) {
                     if visible_rows > 2 {
-                        self.execute_slot(HOTKEY_COLS * 2 + col, character, &mut events);
+                        self.execute_slot(HOTKEY_COLS * 2 + col, character, &mut events, ui.elapsed_secs);
                     }
                 } else if let Some(col) = ROW4_CHARS.iter().position(|&c| c == lower) {
                     if visible_rows > 3 {
-                        self.execute_slot(HOTKEY_COLS * 3 + col, character, &mut events);
+                        self.execute_slot(HOTKEY_COLS * 3 + col, character, &mut events, ui.elapsed_secs);
                     }
                 }
             }

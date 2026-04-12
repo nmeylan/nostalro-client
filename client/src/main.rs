@@ -8,12 +8,12 @@ use game_state::GameState;
 use input::InputState;
 use models::enums::{EnumWithMaskValueU64, EnumWithNumberValue};
 use models::enums::status::StatusTypes;
-use ragnarok_formats::act::SpriteActionType;
+use ragnarok_formats::act::{MotionType, SpriteActionType};
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::cursor::{
-    CursorType, RenderEntry, RenderEntryKind, cursor_type_for_cell, hovered_entity_cursor_type,
+    CursorType, PendingSkillTarget, RenderEntry, RenderEntryKind, cursor_type_for_cell, hovered_entity_cursor_type,
 };
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::event::GameEvent;
@@ -24,6 +24,7 @@ use ragnarok_game::shadow::shadow_size;
 use ragnarok_game::sprite_path::{
     WeaponType, entity_sprite_base_path, entity_type_from_job, weapon_view_id_to_type,
 };
+use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::{map_loader, sprite_loader};
 use ragnarok_network::session::Session;
 use ragnarok_network::{
@@ -36,7 +37,7 @@ use ragnarok_network::{
     build_purchase_item_list_packet, build_reqname_packet, build_request_move_packet,
     build_restart_packet, build_select_char_packet, build_sell_item_list_packet,
     build_shortcut_key_change_packet,
-    build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_zone_enter_packet, ip_u32_to_string,
+    build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_use_skill_packet, build_zone_enter_packet, ip_u32_to_string,
     network_loop,
 };
 use ragnarok_renderer::ui_renderer::UiVertex;
@@ -57,6 +58,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::mpsc;
+use tracing::info;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -188,6 +190,22 @@ impl App {
 
     fn handle_left_click(&mut self) {
         if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
+            return;
+        }
+        if let Some(entity) = self.game.entities.player() {
+            if matches!(entity.state, EntityState::Casting | EntityState::SkillExec) {
+                return;
+            }
+        }
+        // Skill targeting mode: consume pending skill on click
+        if let Some(pending) = self.game.pending_skill_target.take() {
+            if let Some(entity_id) = self.game.hovered_entity_id {
+                if let Some(tx) = &self.network_cmd_tx {
+                    let packet = build_use_skill_packet(pending.skill_id, pending.level, entity_id, self.config.packetver);
+                    let _ = tx.send(NetworkCommand::SendPacket(packet));
+                }
+            }
+            // Whether we had a target or not, targeting is consumed (click on ground cancels)
             return;
         }
         // Click on floor item to pick up
@@ -561,6 +579,7 @@ impl App {
                     }
                 }
                 GameEvent::MapChanged { map_name, x, y } => {
+                    self.game.pending_skill_target = None;
                     let map_name = map_name
                         .strip_suffix(".gat")
                         .unwrap_or(&map_name)
@@ -721,12 +740,21 @@ impl App {
                             entity.state_timer = 0.0;
                         }
                     }
-                    0 | 8 => {
+                    0 | 4 | 8 | 9 => {
+                        let target_pos = self.game.entities.get(target_gid).map(|e| e.movement.cell_position());
                         if let Some(entity) = self.game.entities.get_mut(gid) {
+                            if let Some(tp) = target_pos {
+                                let sp = entity.movement.cell_position();
+                                if let Some(dir) = direction_from_positions(sp.0, sp.1, tp.0, tp.1) {
+                                    entity.direction = dir;
+                                }
+                            }
                             let duration = (attack_mt as f32 / 1000.0).max(0.5);
                             entity.enter_attack(duration);
                         }
-                        if damage > 0 || left_damage > 0 {
+                        // action 4 = endure, 9 = multi-hit endure: skip hurt animation
+                        let is_endure = action == 4 || action == 9;
+                        if !is_endure && (damage > 0 || left_damage > 0) {
                             if let Some(target) = self.game.entities.get_mut(target_gid) {
                                 let duration = (attacked_mt as f32 / 1000.0).max(0.3);
                                 target.enter_hurt(duration);
@@ -1369,10 +1397,25 @@ impl App {
                         }
                     }
                 }
-                GameEvent::SkillCasting { gid, delay_ms, .. } => {
+                GameEvent::SkillCasting { gid, target_gid, skill_id, delay_ms } => {
+                    // TODO: Skill effect rendering — each skill_id maps to a visual effect (EF_* constant).
+                    // Effects include casting auras and target lock indicators. They should be rendered
+                    // as sprites/particles using the existing sprite rendering pipeline.
+                    // Effect definitions can be found in the original game's skilleffectinfo table.
+                    let target_pos = self.game.entities.get(target_gid).map(|e| e.movement.cell_position());
                     if let Some(entity) = self.game.entities.get_mut(gid) {
-                        let duration = (delay_ms as f32 / 1000.0).max(0.3);
-                        entity.enter_attack(duration);
+                        if let Some(tp) = target_pos {
+                            let sp = entity.movement.cell_position();
+                            if let Some(dir) = direction_from_positions(sp.0, sp.1, tp.0, tp.1) {
+                                entity.direction = dir;
+                            }
+                        }
+                        let duration = delay_ms as f32 / 1000.0;
+                        if duration > 0.0 {
+                            entity.enter_casting(duration, skill_id);
+                        } else {
+                            entity.enter_skill_exec(0.3, skill_id, 1);
+                        }
                     }
                 }
                 GameEvent::EntityEmotion { gid, emotion_type } => {
@@ -1385,12 +1428,13 @@ impl App {
                     self.game.character.skills.set_skills(
                         skills.into_iter().map(|s| ragnarok_game::skill::SkillData {
                             id: s.id,
-                            name: s.name,
+                            selected_level: s.level,
                             level: s.level,
                             sp_cost: s.sp_cost,
                             attack_range: s.attack_range,
                             upgradable: s.upgradable,
                             skill_type: s.skill_type,
+                            name: s.name,
                         }).collect(),
                     );
                     let icon_paths: Vec<String> = self.game.character.skills.skills()
@@ -1407,12 +1451,13 @@ impl App {
                     );
                     self.game.character.skills.add_skill(ragnarok_game::skill::SkillData {
                         id: skill.id,
-                        name: skill.name,
+                        selected_level: skill.level,
                         level: skill.level,
                         sp_cost: skill.sp_cost,
                         attack_range: skill.attack_range,
                         upgradable: skill.upgradable,
                         skill_type: skill.skill_type,
+                        name: skill.name,
                     });
                     self.preload_item_icons(vec![icon_path]);
                 }
@@ -1434,6 +1479,65 @@ impl App {
                     } else {
                         self.login_window
                             .set_error(&format!("Disconnected: {reason}"));
+                    }
+                }
+                GameEvent::SkillFailed { skill_id, cause } => {
+                    self.game.pending_skill_target = None;
+                    let msg = ragnarok_game::skill::skill_failure_message(cause);
+                    tracing::info!("Skill {skill_id} failed (cause: {cause}): {msg}");
+                    self.game.chat_window.add_system(msg.to_string());
+                }
+                GameEvent::SkillPostDelay { skill_id, delay_ms } => {
+                    let duration = delay_ms as f32 / 1000.0;
+                    let now = self.start_time.elapsed().as_secs_f32();
+                    self.game.character.cooldowns.set_skill_cooldown(skill_id, duration, now);
+                }
+                GameEvent::SkillDamage { skill_id, src_gid, target_gid, damage, attack_mt, attacked_mt, count, .. } => {
+                    // TODO: Skill effect rendering — each skill_id maps to a visual effect (EF_* constant).
+                    // Effects include projectiles, ground AoEs, and hit animations. They should be rendered
+                    // as sprites/particles at the target position using the existing sprite rendering pipeline.
+                    // Effect definitions can be found in the original game's skilleffectinfo table.
+                    let target_pos = self.game.entities.get(target_gid).map(|e| e.movement.cell_position());
+                    if let Some(entity) = self.game.entities.get_mut(src_gid) {
+                        if let Some(tp) = target_pos {
+                            let sp = entity.movement.cell_position();
+                            if let Some(dir) = direction_from_positions(sp.0, sp.1, tp.0, tp.1) {
+                                entity.direction = dir;
+                            }
+                        }
+                        let duration = (attack_mt as f32 / 1000.0).max(0.3);
+                        entity.enter_skill_exec(duration, skill_id, count.max(1) as u16);
+                    }
+                    if damage > 0 {
+                        if let Some(target) = self.game.entities.get_mut(target_gid) {
+                            let hurt_duration = (attacked_mt as f32 / 1000.0).max(0.3);
+                            target.enter_hurt(hurt_duration);
+                        }
+                    }
+                }
+                GameEvent::SkillNoDamage { skill_id, src_gid, target_gid } => {
+                    let target_pos = self.game.entities.get(target_gid).map(|e| e.movement.cell_position());
+                    if let Some(entity) = self.game.entities.get_mut(src_gid) {
+                        if let Some(tp) = target_pos {
+                            let sp = entity.movement.cell_position();
+                            if let Some(dir) = direction_from_positions(sp.0, sp.1, tp.0, tp.1) {
+                                entity.direction = dir;
+                            }
+                        }
+                        entity.enter_skill_exec(0.6, skill_id, 1);
+                    }
+                }
+                GameEvent::SkillCastCancel { gid } => {
+                    if let Some(entity) = self.game.entities.get_mut(gid) {
+                        entity.state = EntityState::Standing;
+                        entity.state_timer = 0.0;
+                        entity.cast_total_duration = 0.0;
+                    }
+                }
+                GameEvent::ActionFailure => {
+                    if let Some(entity) = self.game.entities.player_mut() {
+                        entity.state = EntityState::Standing;
+                        entity.state_timer = 0.0;
                     }
                 }
                 _ => {}
@@ -2019,7 +2123,26 @@ impl App {
                     }
                 }
                 GameEvent::RequestUseSkill { skill_id, level } => {
-                    tracing::info!("Hotkey: use skill id={skill_id} lv={level} (targeting not yet implemented)");
+                    let skill_type = self.game.character.skills.get_skill(skill_id)
+                        .map(|s| s.skill_type)
+                        .unwrap_or(1);
+                    match skill_type {
+                        4 => {
+                            // Self-cast: send immediately targeting self
+                            if let Some(tx) = &self.network_cmd_tx {
+                                let target_id = self.game.entities.player_id().unwrap_or(0);
+                                let packet = build_use_skill_packet(skill_id, level, target_id, self.config.packetver);
+                                let _ = tx.send(NetworkCommand::SendPacket(packet));
+                            }
+                        }
+                        1 => {
+                            // Targeted skill: enter targeting mode
+                            self.game.pending_skill_target = Some(PendingSkillTarget { skill_id, level });
+                        }
+                        _ => {
+                            tracing::debug!("Skill type {skill_type} not yet supported for skill {skill_id}");
+                        }
+                    }
                 }
                 GameEvent::RequestPickupItem { id } => {
                     if let Some(tx) = &self.network_cmd_tx {
@@ -2233,6 +2356,9 @@ impl App {
         if self.input.ui_dragging {
             return;
         }
+        if self.game.pending_skill_target.is_some() {
+            return;
+        }
         if self.game.chat_window.is_active() {
             return;
         }
@@ -2336,13 +2462,27 @@ impl App {
                     entity.state,
                     EntityState::Hurt
                         | EntityState::Attacking
+                        | EntityState::SkillExec
                         | EntityState::Dead
                         | EntityState::Pickup
                 );
-                if is_transient {
-                    entity.animation.set_action_one_shot(action);
+                if let Some(duration) = entity.animation_duration.take() {
+                    if entity.state == EntityState::SkillExec && entity.skill_hit_count > 1 {
+                        entity.animation.play_repeated(action, duration * 1000.0, entity.skill_hit_count);
+                    } else {
+                        let start_frame = if entity.state == EntityState::SkillExec {
+                            entity.skill_exec_start_frame()
+                        } else { 0 };
+                        entity.animation.play(action, duration * 1000.0, start_frame);
+                    }
+                } else if entity.state == EntityState::Casting {
+                    entity.animation.set_action(action, MotionType::Static);
+                    entity.animation.set_direction(entity.direction);
+                    continue;
+                } else if is_transient {
+                    entity.animation.set_action(action, MotionType::OneShot);
                 } else {
-                    entity.animation.set_action(action);
+                    entity.animation.set_action(action, MotionType::Loop);
                 }
                 entity.animation.set_direction(entity.direction);
                 let is_composite = entity.entity_type == EntityType::Player;
@@ -2496,6 +2636,15 @@ impl App {
                 (CursorType::Click, None)
             } else if ui_any_hovered {
                 (CursorType::Default, None)
+            } else if self.game.pending_skill_target.is_some() {
+                // Skill targeting mode: show Lock cursor, but still detect hovered entity for click
+                let hovered = hovered_entity_cursor_type(
+                    self.input.mouse_position,
+                    &self.game.entities,
+                    render_list,
+                );
+                let entity_id = hovered.map(|(_, id)| id);
+                (CursorType::Lock, entity_id)
             } else if let Some((entity_cursor, entity_id)) = hovered_entity_cursor_type(
                 self.input.mouse_position,
                 &self.game.entities,
@@ -2625,6 +2774,8 @@ impl ApplicationHandler for App {
                         Some(ragnarok_game::skill_description_table::SkillDescriptionTable::load(&grf));
                     self.game.data_table.skill_tree =
                         Some(ragnarok_game::skill_tree_table::SkillTreeTable::load(&grf));
+                    self.game.data_table.skill_use_level =
+                        Some(ragnarok_game::skill_use_level_table::SkillUseLevelTable::load(&grf));
                     self.grf = Some(grf);
                 }
                 Err(e) => {
@@ -2671,7 +2822,9 @@ impl ApplicationHandler for App {
                     match button {
                         MouseButton::Right => {
                             self.input.right_mouse_down = state == ElementState::Pressed;
-                            if !self.input.right_mouse_down {
+                            if self.input.right_mouse_down {
+                                self.game.pending_skill_target = None;
+                            } else {
                                 self.input.last_mouse_pos = None;
                             }
                         }
@@ -2927,6 +3080,18 @@ impl ApplicationHandler for App {
                                 &mut world_overlay_calls,
                             );
                             render_bar(entry.screen_anchor[0], y + HP_BAR_HEIGHT, self.game.character.sp_percentage(), SP_BAR_COLOR, &mut world_overlay_calls);
+                        }
+                    }
+                }
+
+                // Casting bar for entities currently casting
+                for entry in &render_list {
+                    if let Some(entity) = self.game.entities.get(entry.id) {
+                        if entity.state == EntityState::Casting && entity.cast_total_duration > 0.0 {
+                            let progress = 1.0 - (entity.state_timer / entity.cast_total_duration);
+                            let cast_bar_y = entry.pick_bounds[1] - HP_BAR_HEIGHT - 2.0;
+                            let cast_color = [0.0, 0.8, 0.0, 1.0];
+                            render_bar(entry.screen_anchor[0], cast_bar_y, progress, cast_color, &mut world_overlay_calls);
                         }
                     }
                 }
@@ -3287,6 +3452,36 @@ impl ApplicationHandler for App {
                         }
                     }
 
+                    // Skill targeting: render skill level text near cursor
+                    let mut skill_level_calls: Vec<UiDrawCall> = Vec::new();
+                    if let (Some(pending), Some(renderer)) = (&self.game.pending_skill_target, &self.renderer) {
+                        let (mx, my) = self.input.mouse_position;
+                        let text = format!("Lv {}", pending.level);
+                        let text_x = mx as f32 + 20.0;
+                        let text_y = my as f32 + 2.0;
+                        let outline_color = [0.0, 0.0, 0.0, 1.0];
+                        for &(dx, dy) in &[(-1.0_f32, 0.0_f32), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0)] {
+                            let (verts, indices) = ragnarok_ui::draw::text_vertices(
+                                &text, text_x + dx, text_y + dy, outline_color, &renderer.font_atlas,
+                            );
+                            if !verts.is_empty() {
+                                skill_level_calls.push(UiDrawCall {
+                                    vertices: verts, indices,
+                                    texture: UiTextureRef::FontAtlas,
+                                });
+                            }
+                        }
+                        let (verts, indices) = ragnarok_ui::draw::text_vertices(
+                            &text, text_x, text_y, [1.0, 1.0, 1.0, 1.0], &renderer.font_atlas,
+                        );
+                        if !verts.is_empty() {
+                            skill_level_calls.push(UiDrawCall {
+                                vertices: verts, indices,
+                                texture: UiTextureRef::FontAtlas,
+                            });
+                        }
+                    }
+
                     let mut all_ui_calls = world_overlay_calls;
                     let overlay_len = all_ui_calls.len();
                     all_ui_calls.extend(ui_draw_calls);
@@ -3297,6 +3492,8 @@ impl ApplicationHandler for App {
                             all_ui_calls.insert(abs_idx + i, dc);
                         }
                     }
+
+                    all_ui_calls.extend(skill_level_calls);
 
                     if let Some(renderer) = &mut self.renderer {
                         renderer.render(

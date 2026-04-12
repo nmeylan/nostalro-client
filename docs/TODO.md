@@ -29,7 +29,7 @@ TODO:
 - Status window (base/job level, stats, stat allocation)
 - ~~Inventory window~~
 - ~~Equipment window~~
-- Skill window (skill tree, skill levels)
+- ~~Skill window (skill tree, skill levels)~~
 - ~~Hotkey/shortcut bar (F1-F9 skills/items)~~
 - Minimap
 - ~~NPC dialog box (text, menu choices, number input)~~
@@ -117,9 +117,9 @@ TODO:
 
 # Input
 - Slash commands (/sit, /emotion, /where, etc.)
-- Keyboard shortcuts
+- ~~Keyboard shortcuts~~
 - Hotkey configuration
-- Battle mode (keyboard skill activation)
+- ~~Battle mode (keyboard skill activation)~~
 
 # Tools
 - Effect viewer tool

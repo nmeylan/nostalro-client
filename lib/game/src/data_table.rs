@@ -9,6 +9,7 @@ use crate::name_table::NameTable;
 use crate::skill_description_table::SkillDescriptionTable;
 use crate::skill_name_table::SkillNameTable;
 use crate::skill_tree_table::SkillTreeTable;
+use crate::skill_use_level_table::SkillUseLevelTable;
 
 #[derive(Default)]
 pub struct DataTable {
@@ -23,6 +24,7 @@ pub struct DataTable {
     pub skill_name: Option<SkillNameTable>,
     pub skill_description: Option<SkillDescriptionTable>,
     pub skill_tree: Option<SkillTreeTable>,
+    pub skill_use_level: Option<SkillUseLevelTable>,
 }
 
 impl DataTable {
@@ -39,6 +41,7 @@ impl DataTable {
             skill_name: None,
             skill_description: None,
             skill_tree: None,
+            skill_use_level: None,
         }
     }
 }

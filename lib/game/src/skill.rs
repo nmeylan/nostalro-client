@@ -1,8 +1,29 @@
+pub fn skill_failure_message(cause: u8) -> &'static str {
+    match cause {
+        0 => "Skill level insufficient",
+        1 => "Not enough SP",
+        2 => "Not enough HP",
+        3 => "Insufficient materials",
+        4 => "Skill is on cooldown",
+        5 => "Not enough Zeny",
+        6 => "Cannot use with this weapon",
+        7 => "Red Gemstone required",
+        8 => "Blue Gemstone required",
+        9 => "Overweight",
+        10 => "Skill failed",
+        13 => "Holy Water required",
+        17 => "Need another skill first",
+        18 => "Need a partner",
+        _ => "Skill failed",
+    }
+}
+
 /// A known skill with its current state (from server packets).
 pub struct SkillData {
     pub id: u16,
     pub name: String,
     pub level: i16,
+    pub selected_level: i16,
     pub sp_cost: i16,
     pub attack_range: i16,
     pub upgradable: bool,
@@ -12,6 +33,22 @@ pub struct SkillData {
 impl SkillData {
     pub fn icon_path(&self) -> String {
         format!("data/texture/유저인터페이스/item/{}.bmp", self.name.to_lowercase())
+    }
+
+    pub fn use_level(&self) -> i16 {
+        if self.level <= 0 { 0 } else { self.selected_level.clamp(1, self.level) }
+    }
+
+    pub fn decrement_use_level(&mut self) {
+        if self.level > 0 {
+            self.selected_level = (self.selected_level - 1).max(1);
+        }
+    }
+
+    pub fn increment_use_level(&mut self) {
+        if self.level > 0 {
+            self.selected_level = (self.selected_level + 1).min(self.level);
+        }
     }
 }
 
@@ -67,6 +104,13 @@ impl SkillList {
             skill.sp_cost = sp_cost;
             skill.attack_range = attack_range;
             skill.upgradable = upgradable;
+            if level <= 0 {
+                skill.selected_level = 0;
+            } else if skill.selected_level > level {
+                skill.selected_level = level;
+            } else if skill.selected_level < 1 {
+                skill.selected_level = 1;
+            }
         }
     }
 
@@ -77,6 +121,13 @@ impl SkillList {
             existing.attack_range = skill.attack_range;
             existing.upgradable = skill.upgradable;
             existing.skill_type = skill.skill_type;
+            if skill.level <= 0 {
+                existing.selected_level = 0;
+            } else if existing.selected_level > skill.level {
+                existing.selected_level = skill.level;
+            } else if existing.selected_level < 1 {
+                existing.selected_level = 1;
+            }
         } else {
             self.skills.push(skill);
         }
@@ -84,6 +135,10 @@ impl SkillList {
 
     pub fn get_skill(&self, id: u16) -> Option<&SkillData> {
         self.skills.iter().find(|s| s.id == id)
+    }
+
+    pub fn get_skill_mut(&mut self, id: u16) -> Option<&mut SkillData> {
+        self.skills.iter_mut().find(|s| s.id == id)
     }
 
     pub fn get_skill_by_name(&self, name: &str) -> Option<&SkillData> {
@@ -104,6 +159,7 @@ mod tests {
             id,
             name: name.to_string(),
             level,
+            selected_level: level,
             sp_cost: 10,
             attack_range: 1,
             upgradable: true,
@@ -156,5 +212,69 @@ mod tests {
         assert!(!list.is_open());
         list.open();
         assert!(list.is_open());
+    }
+
+    #[test]
+    fn skill_failure_message_returns_known_causes() {
+        assert_eq!(skill_failure_message(1), "Not enough SP");
+        assert_eq!(skill_failure_message(2), "Not enough HP");
+        assert_eq!(skill_failure_message(4), "Skill is on cooldown");
+        assert_eq!(skill_failure_message(7), "Red Gemstone required");
+    }
+
+    #[test]
+    fn skill_failure_message_unknown_cause_returns_fallback() {
+        assert_eq!(skill_failure_message(200), "Skill failed");
+    }
+
+    #[test]
+    fn selected_level_defaults_to_learned() {
+        let skill = make_skill(1, "SM_BASH", 10);
+        assert_eq!(skill.use_level(), 10);
+    }
+
+    #[test]
+    fn use_level_zero_for_unlearned() {
+        let skill = make_skill(1, "SM_BASH", 0);
+        assert_eq!(skill.use_level(), 0);
+    }
+
+    #[test]
+    fn decrement_and_increment_use_level() {
+        let mut skill = make_skill(1, "SM_BASH", 5);
+        assert_eq!(skill.use_level(), 5);
+        skill.decrement_use_level();
+        assert_eq!(skill.use_level(), 4);
+        skill.decrement_use_level();
+        skill.decrement_use_level();
+        skill.decrement_use_level();
+        assert_eq!(skill.use_level(), 1);
+        skill.decrement_use_level();
+        assert_eq!(skill.use_level(), 1);
+        skill.increment_use_level();
+        assert_eq!(skill.use_level(), 2);
+        skill.selected_level = 5;
+        skill.increment_use_level();
+        assert_eq!(skill.use_level(), 5);
+    }
+
+    #[test]
+    fn update_skill_clamps_selected_level() {
+        let mut list = SkillList::new();
+        let mut skill = make_skill(5, "SM_BASH", 10);
+        skill.selected_level = 8;
+        list.set_skills(vec![skill]);
+        list.update_skill(5, 5, 15, 1, true);
+        assert_eq!(list.get_skill(5).unwrap().selected_level, 5);
+    }
+
+    #[test]
+    fn add_skill_clamps_selected_level_on_update() {
+        let mut list = SkillList::new();
+        let mut skill = make_skill(5, "SM_BASH", 10);
+        skill.selected_level = 8;
+        list.set_skills(vec![skill]);
+        list.add_skill(make_skill(5, "SM_BASH", 3));
+        assert_eq!(list.get_skill(5).unwrap().selected_level, 3);
     }
 }

@@ -267,3 +267,12 @@ pub fn build_card_composition_packet(card_index: u16, equip_index: u16, packetve
     pkt.fill_raw();
     pkt.raw
 }
+
+pub fn build_use_skill_packet(skill_id: u16, level: i16, target_id: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzUseSkill::new(packetver);
+    pkt.set_selected_level(level);
+    pkt.set_skid(skill_id);
+    pkt.set_target_id(target_id);
+    pkt.fill_raw();
+    pkt.raw
+}

@@ -129,22 +129,32 @@ impl MovementState {
         let target = &self.path[self.path_index];
         let dx = target.x as f32 - self.current_x;
         let dy = target.y as f32 - self.current_y;
-        if dx.abs() < 0.01 && dy.abs() < 0.01 {
-            return None;
-        }
-        let dir = match (dx.partial_cmp(&0.0), dy.partial_cmp(&0.0)) {
-            (Some(std::cmp::Ordering::Equal), Some(std::cmp::Ordering::Greater)) => 0,   // S
-            (Some(std::cmp::Ordering::Less), Some(std::cmp::Ordering::Greater)) => 1,    // SW
-            (Some(std::cmp::Ordering::Less), Some(std::cmp::Ordering::Equal)) => 2,      // W
-            (Some(std::cmp::Ordering::Less), Some(std::cmp::Ordering::Less)) => 3,       // NW
-            (Some(std::cmp::Ordering::Equal), Some(std::cmp::Ordering::Less)) => 4,      // N
-            (Some(std::cmp::Ordering::Greater), Some(std::cmp::Ordering::Less)) => 5,    // NE
-            (Some(std::cmp::Ordering::Greater), Some(std::cmp::Ordering::Equal)) => 6,   // E
-            (Some(std::cmp::Ordering::Greater), Some(std::cmp::Ordering::Greater)) => 7, // SE
-            _ => return None,
-        };
-        Some(dir)
+        direction_from_delta(dx, dy)
     }
+}
+
+pub fn direction_from_positions(src_x: u16, src_y: u16, dst_x: u16, dst_y: u16) -> Option<u8> {
+    let dx = dst_x as f32 - src_x as f32;
+    let dy = dst_y as f32 - src_y as f32;
+    direction_from_delta(dx, dy)
+}
+
+fn direction_from_delta(dx: f32, dy: f32) -> Option<u8> {
+    if dx.abs() < 0.01 && dy.abs() < 0.01 {
+        return None;
+    }
+    let dir = match (dx.partial_cmp(&0.0), dy.partial_cmp(&0.0)) {
+        (Some(std::cmp::Ordering::Equal), Some(std::cmp::Ordering::Greater)) => 0,   // S
+        (Some(std::cmp::Ordering::Less), Some(std::cmp::Ordering::Greater)) => 1,    // SW
+        (Some(std::cmp::Ordering::Less), Some(std::cmp::Ordering::Equal)) => 2,      // W
+        (Some(std::cmp::Ordering::Less), Some(std::cmp::Ordering::Less)) => 3,       // NW
+        (Some(std::cmp::Ordering::Equal), Some(std::cmp::Ordering::Less)) => 4,      // N
+        (Some(std::cmp::Ordering::Greater), Some(std::cmp::Ordering::Less)) => 5,    // NE
+        (Some(std::cmp::Ordering::Greater), Some(std::cmp::Ordering::Equal)) => 6,   // E
+        (Some(std::cmp::Ordering::Greater), Some(std::cmp::Ordering::Greater)) => 7, // SE
+        _ => return None,
+    };
+    Some(dir)
 }
 
 #[cfg(test)]
@@ -265,5 +275,30 @@ mod tests {
         let (x, _) = movement.position();
         assert!((x - 0.5).abs() < 0.01, "position() should return smooth value, got x={x}");
         assert_eq!(movement.cell_position(), (1, 0));
+    }
+
+    #[test]
+    fn direction_from_positions_all_eight_directions() {
+        // S: dst_y > src_y, same x
+        assert_eq!(direction_from_positions(5, 5, 5, 8), Some(0));
+        // SW
+        assert_eq!(direction_from_positions(5, 5, 3, 8), Some(1));
+        // W: dst_x < src_x, same y
+        assert_eq!(direction_from_positions(5, 5, 2, 5), Some(2));
+        // NW
+        assert_eq!(direction_from_positions(5, 5, 3, 3), Some(3));
+        // N: dst_y < src_y, same x
+        assert_eq!(direction_from_positions(5, 5, 5, 2), Some(4));
+        // NE
+        assert_eq!(direction_from_positions(5, 5, 8, 3), Some(5));
+        // E: dst_x > src_x, same y
+        assert_eq!(direction_from_positions(5, 5, 8, 5), Some(6));
+        // SE
+        assert_eq!(direction_from_positions(5, 5, 8, 8), Some(7));
+    }
+
+    #[test]
+    fn direction_from_positions_same_position_returns_none() {
+        assert_eq!(direction_from_positions(5, 5, 5, 5), None);
     }
 }

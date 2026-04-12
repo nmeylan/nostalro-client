@@ -106,8 +106,8 @@ pub enum GameEvent {
         gid: u32,
         target_gid: u32,
         action: u8,
-        damage: i16,
-        left_damage: i16,
+        damage: i32,
+        left_damage: i32,
         attack_mt: i32,
         attacked_mt: i32,
         start_time: u32,
@@ -134,8 +134,20 @@ pub enum GameEvent {
     AttackRangeChanged { range: i16 },
     EntitySpriteChanged { gid: u32, sprite_type: u8, value: u16, value2: u16 },
 
-    // Effects
+    // Skills (effects & casting)
     SkillCasting { gid: u32, target_gid: u32, skill_id: u16, delay_ms: u32 },
+    SkillCastCancel { gid: u32 },
+    SkillFailed { skill_id: u16, cause: u8 },
+    ActionFailure,
+    SkillPostDelay { skill_id: u16, delay_ms: u32 },
+    SkillDamage {
+        skill_id: u16, src_gid: u32, target_gid: u32,
+        damage: i32, attack_mt: i32, attacked_mt: i32,
+        count: i16, action: u8,
+    },
+    SkillNoDamage { skill_id: u16, src_gid: u32, target_gid: u32 },
+
+    // Effects
     EntityEmotion { gid: u32, emotion_type: u8 },
 
     // Chat

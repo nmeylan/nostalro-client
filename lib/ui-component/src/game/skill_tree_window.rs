@@ -22,6 +22,8 @@ const SKILL_SCROLL_DOWN_ID: WidgetId = WidgetId(1204);
 const SKILL_SCROLL_THUMB_ID: WidgetId = WidgetId(1205);
 const SKILL_FOOTER_CLOSE_BTN_ID: WidgetId = WidgetId(1206);
 const SKILL_ENTRY_BASE_ID: u32 = 1120;
+const SKILL_LEVEL_DOWN_BASE_ID: u32 = 1130;
+const SKILL_LEVEL_UP_BASE_ID: u32 = 1140;
 const SKILL_LEVELUP_BASE_ID: u32 = 1160;
 
 // -- Layout --
@@ -37,6 +39,9 @@ const FALLBACK_BTN_H: f32 = 20.0;
 
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const ARW_LEFT_TEX: &str = "data/texture/유저인터페이스/basic_interface/arw_left.bmp";
+const ARW_RIGHT_TEX: &str = "data/texture/유저인터페이스/basic_interface/arw_right.bmp";
+const ARW_SIZE: f32 = 11.0;
 
 const LEVELUP_BTN: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/basic_interface/skill_up_a.bmp",
@@ -102,6 +107,7 @@ impl Window for SkillTreeWindow {
     {
         let mut paths = vec![
             TITLEBAR_TEX, FOOTER_TEX, CLOSE_OFF_TEX, CLOSE_ON_TEX,
+            ARW_LEFT_TEX, ARW_RIGHT_TEX,
             LEVELUP_BTN.normal, LEVELUP_BTN.hover, LEVELUP_BTN.pressed,
             USE_BTN.normal, USE_BTN.hover, USE_BTN.pressed,
             CLOSE_BTN.normal, CLOSE_BTN.hover, CLOSE_BTN.pressed,
@@ -127,8 +133,7 @@ impl InGameWindow for SkillTreeWindow {
         let has_grf = self.has_grf_textures;
         let tc = text_color(has_grf);
 
-        let skills = character.skills.skills();
-        let total_skills = skills.len();
+        let total_skills = character.skills.skills().len();
 
         // Window dimensions
         let content_h = VISIBLE_ROWS as f32 * ROW_H;
@@ -210,12 +215,19 @@ impl InGameWindow for SkillTreeWindow {
 
         // -- Skill rows --
         let skill_area_w = WIN_W - SCROLLBAR_W - PAD_X * 2.0 - 1.0;
-        for (vis_i, skill) in skills
+
+        // Collect visible skill IDs to avoid borrowing character.skills for the whole loop
+        let visible_skill_ids: Vec<u16> = character.skills.skills()
             .iter()
             .skip(self.scroll_offset)
             .take(VISIBLE_ROWS)
-            .enumerate()
-        {
+            .map(|s| s.id)
+            .collect();
+
+        let mut level_changes: Vec<(u16, bool)> = Vec::new();
+
+        for (vis_i, &skill_id) in visible_skill_ids.iter().enumerate() {
+            let skill = character.skills.get_skill(skill_id).unwrap();
             let row_y = content_y + vis_i as f32 * ROW_H;
             let entry_id = WidgetId(SKILL_ENTRY_BASE_ID + vis_i as u32);
 
@@ -277,21 +289,79 @@ impl InGameWindow for SkillTreeWindow {
             let name_y = row_y + 14.0;
             ui.text(name_x, name_y, &display_name, tc);
 
-            // Level text
-            let level_text = format!("Lv : {}", skill.level);
+            // Level text with optional rank selection arrows
             let level_y = row_y + 28.0;
             let level_color = [tc[0] * 0.7, tc[1] * 0.7, tc[2] * 0.7, tc[3]];
-            ui.text(name_x, level_y, &level_text, level_color);
+            let is_level_selectable = skill.skill_type != 0
+                && skill.level > 0
+                && data.skill_use_level.as_ref()
+                    .is_some_and(|t| t.supports_level_select(&skill.name));
+
+            if is_level_selectable {
+                let selected = skill.use_level();
+                let level_text = format!("Lv : {} / {}", selected, skill.level);
+
+                let arw_y = level_y - ARW_SIZE + 2.0;
+                let left_id = WidgetId(SKILL_LEVEL_DOWN_BASE_ID + vis_i as u32);
+                let left_rect = Rect::new(name_x, arw_y, ARW_SIZE, ARW_SIZE);
+                let left_resp = ui.interact(left_id, left_rect);
+                if has_grf {
+                    let (v, i) = draw::quad_vertices(name_x, arw_y, ARW_SIZE, ARW_SIZE, [1.0; 4]);
+                    ui.draw_calls.push(DrawCall {
+                        vertices: v.to_vec(),
+                        indices: i.to_vec(),
+                        texture: TextureRef::Named(ARW_LEFT_TEX.to_string()),
+                    });
+                } else {
+                    let c = if left_resp.hovered() { [1.0, 1.0, 0.5, 1.0] } else { level_color };
+                    ui.text(name_x, level_y, "<", c);
+                }
+                if left_resp.clicked() {
+                    level_changes.push((skill_id, false));
+                }
+
+                let text_x = name_x + ARW_SIZE + 2.0;
+                ui.text(text_x, level_y, &level_text, level_color);
+
+                let text_w = ui.atlas.measure_text(&level_text);
+                let right_x = text_x + text_w + 2.0;
+                let right_id = WidgetId(SKILL_LEVEL_UP_BASE_ID + vis_i as u32);
+                let right_rect = Rect::new(right_x, arw_y, ARW_SIZE, ARW_SIZE);
+                let right_resp = ui.interact(right_id, right_rect);
+                if has_grf {
+                    let (v, i) = draw::quad_vertices(right_x, arw_y, ARW_SIZE, ARW_SIZE, [1.0; 4]);
+                    ui.draw_calls.push(DrawCall {
+                        vertices: v.to_vec(),
+                        indices: i.to_vec(),
+                        texture: TextureRef::Named(ARW_RIGHT_TEX.to_string()),
+                    });
+                } else {
+                    let c = if right_resp.hovered() { [1.0, 1.0, 0.5, 1.0] } else { level_color };
+                    ui.text(right_x, level_y, ">", c);
+                }
+                if right_resp.clicked() {
+                    level_changes.push((skill_id, true));
+                }
+            } else {
+                let level_text = format!("Lv : {}", skill.level);
+                ui.text(name_x, level_y, &level_text, level_color);
+            }
 
             // Type text (right-aligned): "Passive" or "Sp : XX"
-            let type_text = if skill.skill_type == 0 {
-                "Passive".to_string()
-            } else {
-                format!("Sp : {}", skill.sp_cost)
-            };
             let type_x = x + WIN_W - SCROLLBAR_W - PAD_X - 50.0;
             let type_y = row_y + ROW_H / 2.0 + 4.0;
-            ui.text(type_x, type_y, &type_text, tc);
+            if skill.skill_type == 0 {
+                ui.text(type_x, type_y, "Passive", tc);
+            } else if is_level_selectable {
+                let sp = data.skill_use_level.as_ref()
+                    .and_then(|t| t.sp_at_level(&skill.name, skill.use_level()))
+                    .unwrap_or(skill.sp_cost);
+                let type_text = format!("Sp : {}", sp);
+                ui.text(type_x, type_y, &type_text, tc);
+            } else {
+                let type_text = format!("Sp : {}", skill.sp_cost);
+                ui.text(type_x, type_y, &type_text, tc);
+            }
 
             // Level up button (only when upgradable and has skill points)
             if skill.upgradable && character.skill_point > 0 {
@@ -381,6 +451,17 @@ impl InGameWindow for SkillTreeWindow {
                         });
                     }
                     text_y += line_h;
+                }
+            }
+        }
+
+        // Apply deferred level changes
+        for (skill_id, is_increment) in level_changes {
+            if let Some(skill) = character.skills.get_skill_mut(skill_id) {
+                if is_increment {
+                    skill.increment_use_level();
+                } else {
+                    skill.decrement_use_level();
                 }
             }
         }

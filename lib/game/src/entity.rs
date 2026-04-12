@@ -1,4 +1,7 @@
+use models::enums::class::JobName;
 use models::enums::weapon::WeaponType;
+use models::enums::EnumWithNumberValue;
+use tracing::info;
 use ragnarok_formats::act::SpriteAnimationState;
 
 use crate::movement::MovementState;
@@ -17,6 +20,9 @@ pub enum EntityState {
     Moving,
     Sitting,
     Attacking,
+    Casting,
+    SkillExec,
+    ReadyFight,
     Hurt,
     Dead,
     Pickup,
@@ -78,10 +84,17 @@ pub struct Entity {
     pub speed: u16,
     pub state: EntityState,
     pub state_timer: f32,
+    pub cast_total_duration: f32,
+    /// Animation duration override in seconds, applied once when the action changes.
+    pub animation_duration: Option<f32>,
+    /// Last attack motion duration from server, used as ReadyFight timer after attack.
+    attack_motion_duration: f32,
     pub movement: MovementState,
     pub animation: SpriteAnimationState,
     pub emotion: Option<EmotionState>,
     pub chat_bubble: Option<ChatBubbleState>,
+    pub active_skill_id: Option<u16>,
+    pub skill_hit_count: u16,
 }
 
 impl Entity {
@@ -108,10 +121,15 @@ impl Entity {
             direction, head_dir: direction, speed,
             state: EntityState::Standing,
             state_timer: 0.0,
+            cast_total_duration: 0.0,
+            animation_duration: None,
+            attack_motion_duration: 0.0,
             movement,
             animation: SpriteAnimationState::new(direction),
             emotion: None,
             chat_bubble: None,
+            active_skill_id: None,
+            skill_hit_count: 0,
         }
     }
 
@@ -141,7 +159,18 @@ impl Entity {
             self.state_timer -= dt;
             if self.state_timer <= 0.0 {
                 self.state_timer = 0.0;
-                self.state = EntityState::Standing;
+                match self.state {
+                    EntityState::Attacking
+                        if self.entity_type == EntityType::Player =>
+                    {
+                        self.state = EntityState::ReadyFight;
+                        self.state_timer = self.attack_motion_duration;
+                    }
+                    _ => {
+                        self.state = EntityState::Standing;
+                        self.active_skill_id = None;
+                    }
+                }
             }
             return;
         }
@@ -156,7 +185,10 @@ impl Entity {
     }
 
     pub fn enter_hurt(&mut self, duration_secs: f32) {
-        if self.state == EntityState::Dead || self.state == EntityState::Attacking {
+        if matches!(
+            self.state,
+            EntityState::Dead | EntityState::Attacking | EntityState::SkillExec
+        ) {
             return;
         }
         self.movement.stop();
@@ -170,6 +202,30 @@ impl Entity {
         }
         self.state = EntityState::Attacking;
         self.state_timer = duration_secs;
+        self.attack_motion_duration = duration_secs;
+        self.animation_duration = Some(duration_secs);
+    }
+
+    pub fn enter_casting(&mut self, duration_secs: f32, skill_id: u16) {
+        if self.state == EntityState::Dead {
+            return;
+        }
+        self.movement.stop();
+        self.state = EntityState::Casting;
+        self.state_timer = duration_secs;
+        self.cast_total_duration = duration_secs;
+        self.active_skill_id = Some(skill_id);
+    }
+
+    pub fn enter_skill_exec(&mut self, duration_secs: f32, skill_id: u16, hit_count: u16) {
+        if self.state == EntityState::Dead {
+            return;
+        }
+        self.state = EntityState::SkillExec;
+        self.state_timer = duration_secs;
+        self.animation_duration = Some(duration_secs);
+        self.active_skill_id = Some(skill_id);
+        self.skill_hit_count = hit_count;
     }
 
     pub fn enter_dead(&mut self) {
@@ -224,17 +280,194 @@ impl Entity {
                 EntityState::Moving => 1,
                 EntityState::Sitting => 2,
                 EntityState::Pickup => 3,
-                EntityState::Attacking => 5,
+                EntityState::ReadyFight => 4,
+                EntityState::Attacking => self.attack_action_for_weapon(),
                 EntityState::Hurt => 6,
                 EntityState::Dead => 8,
+                EntityState::Casting => 12,
+                EntityState::SkillExec => self.skill_exec_action_index(),
             },
             EntityType::Monster | EntityType::Npc => match self.state {
-                EntityState::Standing | EntityState::Sitting | EntityState::Pickup => 0,
+                EntityState::Standing | EntityState::Sitting | EntityState::Pickup
+                | EntityState::ReadyFight => 0,
                 EntityState::Moving => 1,
-                EntityState::Attacking => 2,
+                EntityState::Attacking | EntityState::Casting | EntityState::SkillExec => 2,
                 EntityState::Hurt => 3,
                 EntityState::Dead => 4,
             },
+        }
+    }
+
+    /// Returns the start frame for the current skill exec animation.
+    /// SKILL action (index 12) starts at frame 1 (frame 0 is static pose),
+    /// attack-type actions start at frame 0.
+    pub fn skill_exec_start_frame(&self) -> usize {
+        use crate::skill_action::{skill_motion_type, SkillMotionType};
+        match self.active_skill_id {
+            Some(id) => match skill_motion_type(id) {
+                SkillMotionType::Skill | SkillMotionType::Sing | SkillMotionType::Dance => 1,
+                _ => 0,
+            },
+            None => 1,
+        }
+    }
+
+    fn skill_exec_action_index(&self) -> usize {
+        use crate::skill_action::{skill_motion_type, SkillMotionType};
+        let skill_id = match self.active_skill_id {
+            Some(id) => id,
+            None => return 12,
+        };
+        match skill_motion_type(skill_id) {
+            SkillMotionType::Attack => self.attack_action_for_weapon(),
+            SkillMotionType::Throw => 5,
+            SkillMotionType::Attack2 => 10,
+            SkillMotionType::Pickup => 3,
+            SkillMotionType::Sing | SkillMotionType::Dance | SkillMotionType::Skill => 12,
+            SkillMotionType::Stand => 0,
+        }
+    }
+
+    /// Returns the attack action index based on job and equipped weapon.
+    /// 5 = Attack1 (unarmed), 10 = Attack2 (primary weapon), 11 = Attack3 (alternate weapon)
+    fn attack_action_for_weapon(&self) -> usize {
+        let job = match JobName::try_from_value(self.job as usize) {
+            Ok(j) => j,
+            Err(_) => return 5,
+        };
+        let weapon = match self.weapon {
+            Some(ref w) => w,
+            None => {
+                return match job {
+                    // Monk unarmed uses alternate attack animation
+                    JobName::Monk | JobName::Champion | JobName::BabyMonk => 11,
+                    _ => 5,
+                };
+            }
+        };
+        let is_female = self.sex == 0;
+        match job {
+            JobName::Novice | JobName::NoviceHigh | JobName::BabyNovice
+            | JobName::SuperNovice | JobName::SuperBaby => {
+                if is_female {
+                    match weapon {
+                        WeaponType::Dagger => 11,
+                        _ => 10,
+                    }
+                } else {
+                    match weapon {
+                        WeaponType::Dagger => 10,
+                        _ => 11,
+                    }
+                }
+            }
+            JobName::Swordsman | JobName::SwordsmanHigh | JobName::BabySwordsman => match weapon {
+                WeaponType::Spear1H | WeaponType::Spear2H => 11,
+                _ => 10,
+            },
+            JobName::Mage | JobName::MageHigh | JobName::BabyMage => match weapon {
+                WeaponType::Dagger => 11,
+                _ => 10,
+            },
+            JobName::Archer | JobName::ArcherHigh | JobName::BabyArcher => match weapon {
+                WeaponType::Bow => 10,
+                _ => 11,
+            },
+            JobName::Acolyte | JobName::AcolyteHigh | JobName::BabyAcolyte => 10,
+            JobName::Merchant | JobName::MerchantHigh | JobName::BabyMerchant => match weapon {
+                WeaponType::Dagger => 11,
+                _ => 10,
+            },
+            JobName::Thief | JobName::ThiefHigh | JobName::BabyThief => match weapon {
+                WeaponType::Bow => 11,
+                _ => 10,
+            },
+            JobName::Knight | JobName::LordKnight | JobName::BabyKnight => match weapon {
+                WeaponType::Spear1H | WeaponType::Spear2H => 11,
+                _ => 10,
+            },
+            JobName::Priest | JobName::HighPriest | JobName::BabyPriest => match weapon {
+                WeaponType::Book => 11,
+                _ => 10,
+            },
+            JobName::Wizard | JobName::HighWizard | JobName::BabyWizard => {
+                if is_female {
+                    match weapon {
+                        WeaponType::Staff | WeaponType::Staff2H => 11,
+                        _ => 10,
+                    }
+                } else {
+                    match weapon {
+                        WeaponType::Dagger => 11,
+                        _ => 10,
+                    }
+                }
+            }
+            JobName::Blacksmith | JobName::Whitesmith | JobName::BabyBlacksmith => match weapon {
+                WeaponType::Sword1H | WeaponType::Axe1H | WeaponType::Axe2H | WeaponType::Mace => 11,
+                _ => 10,
+            },
+            JobName::Hunter | JobName::Sniper | JobName::BabyHunter => match weapon {
+                WeaponType::Bow => 11,
+                _ => 10,
+            },
+            JobName::Assassin | JobName::AssassinCross | JobName::BabyAssassin => match weapon {
+                WeaponType::Katar
+                | WeaponType::DoubleDd | WeaponType::DoubleSs | WeaponType::DoubleAa
+                | WeaponType::DoubleDs | WeaponType::DoubleDa | WeaponType::DoubleSa => 11,
+                _ => 10,
+            },
+            JobName::Crusader | JobName::Paladin | JobName::BabyCrusader => match weapon {
+                WeaponType::Spear1H | WeaponType::Spear2H => 11,
+                _ => 10,
+            },
+            JobName::Monk | JobName::Champion | JobName::BabyMonk => match weapon {
+                WeaponType::Knuckle => 11,
+                _ => 10,
+            },
+            JobName::Sage | JobName::Professor | JobName::BabySage => match weapon {
+                WeaponType::Book | WeaponType::Staff | WeaponType::Staff2H | WeaponType::Spear2H => 11,
+                _ => 10,
+            },
+            JobName::Rogue | JobName::Stalker | JobName::BabyRogue => match weapon {
+                WeaponType::Bow => 11,
+                _ => 10,
+            },
+            JobName::Alchemist | JobName::Creator | JobName::BabyAlchemist => match weapon {
+                WeaponType::Sword1H | WeaponType::Axe1H | WeaponType::Axe2H | WeaponType::Mace => 11,
+                _ => 10,
+            },
+            JobName::Bard | JobName::Clown | JobName::BabyBard => match weapon {
+                WeaponType::Bow => 11,
+                _ => 10,
+            },
+            JobName::Dancer | JobName::Gypsy | JobName::BabyDancer => match weapon {
+                WeaponType::Bow => 11,
+                _ => 10,
+            },
+            JobName::SoulLinker => {
+                if is_female {
+                    match weapon {
+                        WeaponType::Staff | WeaponType::Staff2H => 11,
+                        _ => 10,
+                    }
+                } else {
+                    match weapon {
+                        WeaponType::Dagger => 11,
+                        _ => 10,
+                    }
+                }
+            }
+            JobName::Gunslinger => match weapon {
+                WeaponType::Rifle | WeaponType::Gatling | WeaponType::Grenade => 11,
+                _ => 10,
+            },
+            JobName::Ninja => match weapon {
+                WeaponType::Shuriken => 11,
+                _ => 10,
+            },
+            JobName::Taekwon | JobName::StarGladiator => 10,
+            _ => 10,
         }
     }
 }
@@ -269,12 +502,18 @@ mod tests {
         assert_eq!(e.action_index(), 2);
         e.state = EntityState::Pickup;
         assert_eq!(e.action_index(), 3);
+        e.state = EntityState::ReadyFight;
+        assert_eq!(e.action_index(), 4);
         e.state = EntityState::Attacking;
-        assert_eq!(e.action_index(), 5);
+        assert_eq!(e.action_index(), 5); // Default unarmed → Attack1
         e.state = EntityState::Hurt;
         assert_eq!(e.action_index(), 6);
         e.state = EntityState::Dead;
         assert_eq!(e.action_index(), 8);
+        e.state = EntityState::Casting;
+        assert_eq!(e.action_index(), 12);
+        e.state = EntityState::SkillExec;
+        assert_eq!(e.action_index(), 12);
     }
 
     #[test]
@@ -284,6 +523,10 @@ mod tests {
         e.state = EntityState::Moving;
         assert_eq!(e.action_index(), 1);
         e.state = EntityState::Attacking;
+        assert_eq!(e.action_index(), 2);
+        e.state = EntityState::SkillExec;
+        assert_eq!(e.action_index(), 2);
+        e.state = EntityState::Casting;
         assert_eq!(e.action_index(), 2);
         e.state = EntityState::Hurt;
         assert_eq!(e.action_index(), 3);
@@ -331,7 +574,13 @@ mod tests {
         e.enter_attack(1.0);
         assert_eq!(e.state, EntityState::Dead);
 
+        e.enter_skill_exec(1.0, 0, 1);
+        assert_eq!(e.state, EntityState::Dead);
+
         e.enter_pickup(1.0);
+        assert_eq!(e.state, EntityState::Dead);
+
+        e.enter_casting(1.0, 0);
         assert_eq!(e.state, EntityState::Dead);
 
         e.update_state(1.0);
@@ -339,13 +588,18 @@ mod tests {
     }
 
     #[test]
-    fn attacking_blocks_hurt() {
+    fn attacking_and_skill_exec_block_hurt() {
         let mut e = make_entity();
         e.enter_attack(1.0);
         assert_eq!(e.state, EntityState::Attacking);
-
         e.enter_hurt(0.5);
         assert_eq!(e.state, EntityState::Attacking);
+
+        let mut e2 = make_entity();
+        e2.enter_skill_exec(1.0, 0, 1);
+        assert_eq!(e2.state, EntityState::SkillExec);
+        e2.enter_hurt(0.5);
+        assert_eq!(e2.state, EntityState::SkillExec);
     }
 
     #[test]
@@ -405,5 +659,137 @@ mod tests {
 
         e.update_state(1.6);
         assert!(e.emotion.is_none());
+    }
+
+    #[test]
+    fn casting_uses_action_index_12_for_player() {
+        let mut e = make_entity();
+        e.enter_casting(2.0, 0);
+        assert_eq!(e.state, EntityState::Casting);
+        assert_eq!(e.action_index(), 12);
+    }
+
+    #[test]
+    fn hurt_interrupts_casting_animation() {
+        let mut e = make_entity();
+        e.enter_casting(2.0, 0);
+        assert_eq!(e.state, EntityState::Casting);
+
+        e.enter_hurt(0.5);
+        assert_eq!(e.state, EntityState::Hurt);
+    }
+
+    #[test]
+    fn casting_counts_down_to_standing() {
+        let mut e = make_entity();
+        e.enter_casting(1.0, 0);
+        assert_eq!(e.state, EntityState::Casting);
+
+        e.update_state(0.5);
+        assert_eq!(e.state, EntityState::Casting);
+
+        e.update_state(0.6);
+        assert_eq!(e.state, EntityState::Standing);
+    }
+
+    #[test]
+    fn enter_casting_stops_movement() {
+        let mut e = make_entity();
+        let path = vec![make_path_node(101, 100, false), make_path_node(102, 100, false)];
+        e.movement.start_move(path, 0.0);
+        assert!(e.movement.is_moving());
+
+        e.enter_casting(2.0, 0);
+        assert!(!e.movement.is_moving());
+        assert_eq!(e.cast_total_duration, 2.0);
+    }
+
+    #[test]
+    fn attack_expires_to_readyfight_for_player() {
+        let mut e = make_entity();
+        e.enter_attack(0.5);
+        assert_eq!(e.state, EntityState::Attacking);
+
+        e.update_state(0.6);
+        assert_eq!(e.state, EntityState::ReadyFight);
+        assert_eq!(e.action_index(), 4);
+
+        // ReadyFight duration matches attack_motion_duration (0.5s)
+        e.update_state(0.4);
+        assert_eq!(e.state, EntityState::ReadyFight);
+        e.update_state(0.2);
+        assert_eq!(e.state, EntityState::Standing);
+    }
+
+    #[test]
+    fn skill_exec_expires_to_standing_for_player() {
+        let mut e = make_entity();
+        e.enter_skill_exec(0.5, 0, 1);
+        assert_eq!(e.state, EntityState::SkillExec);
+        assert_eq!(e.action_index(), 12);
+
+        e.update_state(0.6);
+        assert_eq!(e.state, EntityState::Standing);
+    }
+
+    #[test]
+    fn attack_expires_to_standing_for_monster() {
+        let mut e = Entity::new(2, EntityType::Monster, 1002, 0, 0, 0, 0, 0, 0, 0, 0, 100, 100, 0, 200);
+        e.enter_attack(0.5);
+        e.update_state(0.6);
+        assert_eq!(e.state, EntityState::Standing);
+    }
+
+    #[test]
+    fn weapon_dependent_attack_action() {
+        // Swordsman(1) with spear → Attack3 (alternate)
+        let mut e = Entity::new_player(1, 1, 1, 1, 0, 4, 0, 0, 0, 0, 100, 100, 0);
+        e.state = EntityState::Attacking;
+        assert_eq!(e.action_index(), 11);
+
+        // Swordsman(1) with sword → Attack2 (primary weapon)
+        let mut e = Entity::new_player(1, 1, 1, 1, 0, 2, 0, 0, 0, 0, 100, 100, 0);
+        e.state = EntityState::Attacking;
+        assert_eq!(e.action_index(), 10);
+
+        // Assassin(12) with katar → Attack3 (alternate)
+        let mut e = Entity::new_player(1, 12, 1, 1, 0, 16, 0, 0, 0, 0, 100, 100, 0);
+        e.state = EntityState::Attacking;
+        assert_eq!(e.action_index(), 11);
+
+        // Archer(3) with bow → Attack2 (primary weapon)
+        let mut e = Entity::new_player(1, 3, 1, 1, 0, 11, 0, 0, 0, 0, 100, 100, 0);
+        e.state = EntityState::Attacking;
+        assert_eq!(e.action_index(), 10);
+
+        // Archer(3) with dagger → Attack3 (alternate)
+        let mut e = Entity::new_player(1, 3, 1, 1, 0, 1, 0, 0, 0, 0, 100, 100, 0);
+        e.state = EntityState::Attacking;
+        assert_eq!(e.action_index(), 11);
+
+        // Hunter(11) with bow → Attack3 (alternate, different from Archer!)
+        let mut e = Entity::new_player(1, 11, 1, 1, 0, 11, 0, 0, 0, 0, 100, 100, 0);
+        e.state = EntityState::Attacking;
+        assert_eq!(e.action_index(), 11);
+
+        // Bard(19) with bow → Attack3 (alternate)
+        let mut e = Entity::new_player(1, 19, 1, 1, 0, 11, 0, 0, 0, 0, 100, 100, 0);
+        e.state = EntityState::Attacking;
+        assert_eq!(e.action_index(), 11);
+
+        // Monk(15) unarmed → Attack3 (fist fighting)
+        let mut e = Entity::new_player(1, 15, 1, 1, 0, 0, 0, 0, 0, 0, 100, 100, 0);
+        e.state = EntityState::Attacking;
+        assert_eq!(e.action_index(), 11);
+
+        // Monk(15) with knuckle → Attack3
+        let mut e = Entity::new_player(1, 15, 1, 1, 0, 12, 0, 0, 0, 0, 100, 100, 0);
+        e.state = EntityState::Attacking;
+        assert_eq!(e.action_index(), 11);
+
+        // Monk(15) with mace → Attack2 (primary)
+        let mut e = Entity::new_player(1, 15, 1, 1, 0, 8, 0, 0, 0, 0, 100, 100, 0);
+        e.state = EntityState::Attacking;
+        assert_eq!(e.action_index(), 10);
     }
 }

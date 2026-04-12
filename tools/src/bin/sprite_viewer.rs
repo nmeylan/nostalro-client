@@ -2,7 +2,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
-use ragnarok_formats::act::{SpriteActionType, SpriteAnimationState};
+use ragnarok_formats::act::{MotionType, SpriteActionType, SpriteAnimationState};
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::accessory_table::AccessoryTable;
 use ragnarok_game::sprite_loader::{self as game_sprite_loader};
@@ -356,7 +356,7 @@ impl App {
                 }
             }
             ViewerAction::NextDirection => {
-                let dir = ((self.animation.direction() + 1) % 8) as u8;
+                let dir = ((self.animation.direction() + 1) % 16) as u8;
                 self.animation.set_direction(dir);
                 self.animation.reset_motion();
             }
@@ -368,7 +368,7 @@ impl App {
             ViewerAction::NextAction => {
                 if let Some(entity) = &self.entity_sprite {
                     let next = self.animation.action() + 1;
-                    self.animation.set_action_clamped(next, &entity.body_act);
+                    self.animation.set_action_clamped(next, MotionType::Loop, &entity.body_act);
                 }
             }
             ViewerAction::PrevAction => {
@@ -378,7 +378,7 @@ impl App {
                     } else {
                         self.animation.action() - 1
                     };
-                    self.animation.set_action_clamped(prev, &entity.body_act);
+                    self.animation.set_action_clamped(prev, MotionType::Loop, &entity.body_act);
                 }
             }
             ViewerAction::TogglePause => {
