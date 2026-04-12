@@ -2,7 +2,7 @@ use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::GameEvent;
-use ragnarok_game::hotkey::{HOTKEY_COLS, HotkeySlotContent};
+use ragnarok_game::hotkey::{HOTKEY_COLS, HOTKEY_ROWS, HotkeySlotContent};
 use ragnarok_game::item::InventoryTab;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
@@ -14,8 +14,12 @@ use super::skill_tree_window::SKILL_WINDOW_ID;
 
 pub const HOTKEY_BAR_WINDOW_ID: WidgetId = WidgetId(1300);
 const SLOT_BASE_ID: u32 = 1310;
+const CLOSE_BTN_ID: WidgetId = WidgetId(1350);
+const RESIZE_ID: WidgetId = WidgetId(1351);
 
 const BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/shortitem_bg.bmp";
+const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
+const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
 
 const ICON_SIZE: f32 = 24.0;
 const SLOT_PAD_X: f32 = 16.0;
@@ -24,6 +28,8 @@ const SLOT_W: f32 = 32.0;
 const SLOT_MARGIN: f32 = 2.0;
 const ROW_H: f32 = 34.0;
 const LABEL_W: f32 = 4.0;
+const CLOSE_SIZE: f32 = 12.0;
+const RESIZE_SIZE: f32 = 13.0;
 const WIN_W: f32 = SLOT_MARGIN + (SLOT_W + SLOT_MARGIN ) * HOTKEY_COLS as f32;
 
 const ROW_KEYS: [[&str; 9]; 4] = [
@@ -41,6 +47,8 @@ pub struct HotkeyBarWindow {
     pub has_grf_textures: bool,
     pub chat_is_active: bool,
     bg_size: (f32, f32),
+    close_size: (f32, f32),
+    resize_start: Option<u8>,
 }
 
 impl HotkeyBarWindow {
@@ -49,6 +57,8 @@ impl HotkeyBarWindow {
             has_grf_textures: false,
             chat_is_active: false,
             bg_size: (0.0, 0.0),
+            close_size: (0.0, 0.0),
+            resize_start: None,
         }
     }
 
@@ -170,10 +180,13 @@ impl Window for HotkeyBarWindow {
         if let Some(size) = size_fn(BG_TEX) {
             self.bg_size = (size.0 as f32, size.1 as f32);
         }
+        if let Some(size) = size_fn(CLOSE_OFF_TEX) {
+            self.close_size = (size.0 as f32, size.1 as f32);
+        }
     }
 
     fn grf_texture_paths() -> Vec<&'static str> {
-        vec![BG_TEX]
+        vec![BG_TEX, CLOSE_OFF_TEX, CLOSE_ON_TEX]
     }
 }
 
@@ -182,7 +195,11 @@ impl InGameWindow for HotkeyBarWindow {
         let mut events = Vec::new();
 
         if ui.ctx.key_f12 {
-            character.hotkeys.cycle_visibility();
+            if character.hotkeys.visible_rows() == 0 {
+                character.hotkeys.set_visible_rows(1);
+            } else {
+                character.hotkeys.cycle_visibility();
+            }
         }
 
         let visible_rows = character.hotkeys.visible_rows() as usize;
@@ -232,6 +249,54 @@ impl InGameWindow for HotkeyBarWindow {
                 indices: idx.to_vec(),
                 texture: TextureRef::White,
             });
+        }
+
+        // Close button (top-right)
+        let close_size = if has_grf { self.close_size.1.max(CLOSE_SIZE) } else { CLOSE_SIZE };
+        let close_rect = Rect::new(
+            win.x + WIN_W - close_size - 2.0,
+            win.y + SLOT_MARGIN,
+            close_size,
+            close_size,
+        );
+        let close_resp = ui.interact(CLOSE_BTN_ID, close_rect);
+        if has_grf {
+            let tex = if close_resp.hovered() { CLOSE_ON_TEX } else { CLOSE_OFF_TEX };
+            let (v, idx) = draw::quad_vertices(close_rect.x, close_rect.y, close_size, close_size, [1.0; 4]);
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: idx.to_vec(),
+                texture: TextureRef::Named(tex.to_string()),
+            });
+        } else {
+            let c = if close_resp.hovered() { [1.0, 0.3, 0.3, 1.0] } else { text_color(false) };
+            ui.text(close_rect.x + 2.0, close_rect.y + close_size - 1.0, "x", c);
+        }
+        if close_resp.clicked() {
+            character.hotkeys.set_visible_rows(0);
+            return events;
+        }
+
+        // Resize handle (bottom-right)
+        let resize_rect = Rect::new(
+            win.x + WIN_W - RESIZE_SIZE,
+            win.y + win_h - RESIZE_SIZE,
+            RESIZE_SIZE,
+            RESIZE_SIZE,
+        );
+        let resize = ui.resize_handle(RESIZE_ID, resize_rect);
+        if resize.started {
+            self.resize_start = Some(visible_rows as u8);
+            ui.cancel_window_drag(HOTKEY_BAR_WINDOW_ID);
+        }
+        if resize.dragging {
+            if let Some(start_rows) = self.resize_start {
+                let new_rows = (start_rows as f32 + resize.delta_y / ROW_H).round() as i32;
+                let new_rows = new_rows.clamp(1, HOTKEY_ROWS as i32) as u8;
+                if new_rows != visible_rows as u8 {
+                    character.hotkeys.set_visible_rows(new_rows);
+                }
+            }
         }
 
         let tc = text_color(has_grf);
