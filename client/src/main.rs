@@ -17,6 +17,7 @@ use ragnarok_game::cursor::{
     CursorType, PendingSkillTarget, RenderEntry, RenderEntryKind, cursor_type_for_cell, hovered_entity_cursor_type,
 };
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
+use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::item::Item;
@@ -44,8 +45,9 @@ use ragnarok_network::{
 };
 use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_renderer::{
-    GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall, UiTextureRef, block_on,
-    build_clip_quad, build_entity_sprite, scale_clip_vertices, upload_sprite_textures,
+    DamageNumberEntry, GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall,
+    UiTextureRef, block_on, build_clip_quad, build_entity_sprite, scale_clip_vertices,
+    upload_sprite_textures,
 };
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
@@ -770,6 +772,7 @@ impl App {
                             total_damage
                         };
 
+                        let is_critical = matches!(action, ActionType::AttackCritical);
                         if let Some(target) = self.game.entities.get_mut(target_gid) {
                             let double_attack_term = 0.2;
                             for i in 0..effective_count {
@@ -788,13 +791,17 @@ impl App {
                                     attacker_gid: gid,
                                     skill_id: 0,
                                     is_last_hit: i == effective_count - 1,
+                                    is_critical,
+                                    hit_index: i as u16,
                                 });
                             }
                         }
                     }
                     ActionType::AttackLucky => {
-                        // Lucky dodge — target dodged, no damage
-                        // TODO: show "Lucky" floating text when damage numbers are implemented
+                        let dir = self.game.entities.get(target_gid).map(|e| e.direction).unwrap_or(0);
+                        self.game.damage_numbers.add(DamageNumber::new(
+                            target_gid, 0, DamageNumberType::Lucky, dir,
+                        ));
                     }
                     ActionType::Itempickup => {
                         if let Some(entity) = self.game.entities.get_mut(gid) {
@@ -1553,7 +1560,8 @@ impl App {
                     }
 
                     // Schedule target-side hits
-                    let delay_time = (attack_mt as f32 / 1000.0).max(0.0);
+                    // Server sends full attack_motion for skills (unlike normal attacks which are halved)
+                    let delay_time = (attack_mt as f32 / 2000.0).max(0.0);
                     let per_hit_damage = if effective_count > 1 && damage > 0 {
                         damage / effective_count as i32
                     } else {
@@ -1579,6 +1587,8 @@ impl App {
                                 attacker_gid: src_gid,
                                 skill_id,
                                 is_last_hit: i == effective_count - 1,
+                                is_critical: false,
+                                hit_index: i as u16,
                             });
                         }
                     }
@@ -1885,6 +1895,35 @@ impl App {
             );
             self.game.emotion_textures = Some(textures);
             self.game.emotion_act = Some(sprite_data.act);
+        }
+    }
+
+    fn load_damage_sprites(&mut self, grf: &GrfArchive) {
+        let renderer = match &self.renderer {
+            Some(r) => r,
+            None => return,
+        };
+        if let Some(sprite_data) = sprite_loader::load_damage_number_sprite(grf) {
+            let textures = upload_sprite_textures(
+                &sprite_data.images,
+                sprite_data.indexed_count,
+                &renderer.device.device,
+                &renderer.device.queue,
+                &renderer.texture_cache.bind_group_layout,
+            );
+            self.game.damage_number_textures = Some(textures);
+            self.game.damage_number_act = Some(sprite_data.act);
+        }
+        if let Some(sprite_data) = sprite_loader::load_damage_miss_msg_sprite(grf) {
+            let textures = upload_sprite_textures(
+                &sprite_data.images,
+                sprite_data.indexed_count,
+                &renderer.device.device,
+                &renderer.device.queue,
+                &renderer.texture_cache.bind_group_layout,
+            );
+            self.game.damage_msg_textures = Some(textures);
+            self.game.damage_msg_act = Some(sprite_data.act);
         }
     }
 
@@ -2548,8 +2587,53 @@ impl App {
         }
     }
 
-    /// Placeholder for Phase 2 (damage numbers). Will display floating damage/heal/miss text.
-    fn emit_damage_number(&mut self, _entity_id: u32, _hit: &ScheduledHit) {
+    fn emit_damage_number(&mut self, entity_id: u32, hit: &ScheduledHit) {
+        let dir = self.game.entities.get(entity_id).map(|e| e.direction).unwrap_or(0);
+        let is_player_target = self.game.entities.get(entity_id)
+            .map(|e| e.entity_type == EntityType::Player)
+            .unwrap_or(false);
+        let is_multi = matches!(hit.message, DamageMessage::AttackedMultiHit { .. });
+        let is_skill = hit.skill_id > 0;
+
+        if hit.damage == 0 && !is_multi {
+            self.game.damage_numbers.add(DamageNumber::new(
+                entity_id, 0, DamageNumberType::Miss, dir,
+            ));
+            return;
+        }
+
+        if is_multi {
+            // Per-hit damage number (white, same digit style as skill damage)
+            self.game.damage_numbers.add(DamageNumber::new(
+                entity_id, hit.damage, DamageNumberType::Skill, dir,
+            ));
+
+            // Running total as combo, each hit replaces previous
+            let running_total = hit.damage * (hit.hit_index as i32 + 1);
+            let combo_type = if hit.is_last_hit {
+                if is_skill { DamageNumberType::ComboFinal } else { DamageNumberType::MultiHitTotal }
+            } else {
+                if is_skill { DamageNumberType::Combo } else { DamageNumberType::MultiHit }
+            };
+            self.game.damage_numbers.add(DamageNumber::new(
+                entity_id, running_total, combo_type, dir,
+            ));
+        } else {
+            let number_type = if hit.is_critical {
+                DamageNumberType::Critical
+            } else if hit.damage < 0 {
+                DamageNumberType::Heal
+            } else if is_skill {
+                DamageNumberType::Skill
+            } else if is_player_target {
+                DamageNumberType::Enemy
+            } else {
+                DamageNumberType::Normal
+            };
+            self.game.damage_numbers.add(DamageNumber::new(
+                entity_id, hit.damage.abs(), number_type, dir,
+            ));
+        }
     }
 
     fn update_sprite_animation(&mut self, delta: f32) {
@@ -2849,6 +2933,7 @@ impl ApplicationHandler for App {
 
                     self.load_cursor_sprite(&grf);
                     self.load_emotion_sprite(&grf);
+                    self.load_damage_sprites(&grf);
                     self.game.data_table.accessory =
                         Some(ragnarok_game::accessory_table::AccessoryTable::load_from_grf(&grf));
                     self.game.data_table.name = Some(NameTable::load(&grf));
@@ -3042,6 +3127,7 @@ impl ApplicationHandler for App {
                 self.process_continuous_walk(delta);
                 self.update_entity_state(delta);
                 self.process_scheduled_hits();
+                self.game.damage_numbers.update(delta);
                 self.update_floor_items(elapsed);
                 self.check_pending_pickup();
                 self.load_missing_entity_sprites();
@@ -3537,6 +3623,51 @@ impl ApplicationHandler for App {
                                     });
                                 }
                             }
+                        }
+                    }
+
+                    // Damage numbers (sprite-based)
+                    {
+                        use ragnarok_game::damage_number::{MSG_FRAME_MISS, MSG_FRAME_LUCKYBG, MSG_FRAME_LUCKY};
+                        let entries: Vec<DamageNumberEntry> = self.game.damage_numbers.numbers.iter()
+                            .filter_map(|dmg| {
+                                let entry = render_list.iter().find(|e| e.id == dmg.entity_id)?;
+                                let alpha = dmg.alpha();
+                                if alpha <= 0.0 { return None; }
+                                let [cr, cg, cb] = dmg.number_type.color();
+                                let digits = dmg.digits();
+                                let digit_count = digits.len();
+                                let digit_x_offsets = (0..digit_count).map(|i| dmg.digit_x_offset(i, digit_count)).collect();
+                                let msg_frames = match dmg.number_type {
+                                    DamageNumberType::Miss => vec![MSG_FRAME_MISS],
+                                    DamageNumberType::Lucky => vec![MSG_FRAME_LUCKYBG, MSG_FRAME_LUCKY],
+                                    _ => vec![],
+                                };
+                                Some(DamageNumberEntry {
+                                    screen_x: entry.screen_anchor[0],
+                                    screen_y: entry.pick_bounds[1],
+                                    digits,
+                                    digit_x_offsets,
+                                    sprite_action: dmg.number_type.sprite_action(),
+                                    color: [cr, cg, cb, alpha],
+                                    zoom: dmg.zoom(),
+                                    y_offset: dmg.y_offset(),
+                                    x_offset: dmg.x_offset(),
+                                    uses_msg_sprite: dmg.number_type.uses_msg_sprite(),
+                                    msg_frames,
+                                    is_critical: matches!(dmg.number_type, DamageNumberType::Critical),
+                                })
+                            })
+                            .collect();
+                        if let (Some(num_tex), Some(num_act)) = (&self.game.damage_number_textures, &self.game.damage_number_act) {
+                            ragnarok_renderer::render_damage_numbers(
+                                &entries,
+                                num_tex,
+                                num_act,
+                                self.game.damage_msg_textures.as_ref(),
+                                &mut world_overlay_calls,
+                                &mut inline_textures,
+                            );
                         }
                     }
 

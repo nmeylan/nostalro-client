@@ -6,6 +6,7 @@ use ragnarok_formats::gat::GatFile;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::character::Character;
 use ragnarok_game::cursor::{CursorAnimationState, PendingSkillTarget};
+use ragnarok_game::damage_number::DamageNumberManager;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::floor_item::FloorItem;
@@ -73,6 +74,11 @@ pub struct GameState {
     pub item_pickup_notification: ItemPickupNotification,
     pub skill_tree_window: SkillTreeWindow,
     pub hotkey_bar: HotkeyBarWindow,
+    pub damage_numbers: DamageNumberManager,
+    pub damage_number_textures: Option<SpriteTextures>,
+    pub damage_number_act: Option<ragnarok_formats::act::ActFile>,
+    pub damage_msg_textures: Option<SpriteTextures>,
+    pub damage_msg_act: Option<ragnarok_formats::act::ActFile>,
     pub debug_show_pick_bounds: bool,
 }
 
@@ -253,6 +259,11 @@ impl GameState {
             item_pickup_notification: ItemPickupNotification::new(),
             skill_tree_window: SkillTreeWindow::new(),
             hotkey_bar: HotkeyBarWindow::new(),
+            damage_numbers: DamageNumberManager::new(),
+            damage_number_textures: None,
+            damage_number_act: None,
+            damage_msg_textures: None,
+            damage_msg_act: None,
             debug_show_pick_bounds: false,
         }
     }

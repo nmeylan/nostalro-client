@@ -15,6 +15,8 @@ pub struct ScheduledHit {
     pub attacker_gid: u32,
     pub skill_id: u16,
     pub is_last_hit: bool,
+    pub is_critical: bool,
+    pub hit_index: u16,
 }
 
 pub struct ScheduledHitQueue {
@@ -62,6 +64,8 @@ mod tests {
             attacker_gid: 1,
             skill_id: 0,
             is_last_hit: true,
+            is_critical: false,
+            hit_index: 0,
         });
         queue.push(ScheduledHit {
             message: DamageMessage::Attacked,
@@ -70,6 +74,8 @@ mod tests {
             attacker_gid: 1,
             skill_id: 0,
             is_last_hit: true,
+            is_critical: false,
+            hit_index: 0,
         });
         queue.push(ScheduledHit {
             message: DamageMessage::Attacked,
@@ -78,6 +84,8 @@ mod tests {
             attacker_gid: 1,
             skill_id: 0,
             is_last_hit: true,
+            is_critical: false,
+            hit_index: 0,
         });
 
         let ready = queue.drain_ready(1.0);
@@ -107,6 +115,8 @@ mod tests {
                 attacker_gid: 1,
                 skill_id: 10,
                 is_last_hit: i == hit_count - 1,
+                is_critical: false,
+                hit_index: i,
             });
         }
 

@@ -7,6 +7,7 @@ pub mod character;
 pub mod cooldown;
 pub mod data_table;
 pub mod cursor;
+pub mod damage_number;
 pub mod display_name;
 pub mod inventory;
 pub mod item;

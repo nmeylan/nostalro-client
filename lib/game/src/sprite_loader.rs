@@ -213,6 +213,16 @@ pub fn load_emotion_sprite(grf: &GrfArchive) -> Option<SpriteData> {
                      "data/sprite/이팩트/emotion.act")
 }
 
+pub fn load_damage_number_sprite(grf: &GrfArchive) -> Option<SpriteData> {
+    load_sprite_data(grf, "data/sprite/이팩트/숫자.spr",
+                     "data/sprite/이팩트/숫자.act")
+}
+
+pub fn load_damage_miss_msg_sprite(grf: &GrfArchive) -> Option<SpriteData> {
+    load_sprite_data(grf, "data/sprite/이팩트/msg.spr",
+                     "data/sprite/이팩트/msg.act")
+}
+
 pub struct SimpleEntitySpriteData {
     pub body: SpriteData,
     pub shadow: Option<SpriteData>,
