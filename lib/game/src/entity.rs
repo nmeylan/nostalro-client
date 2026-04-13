@@ -5,6 +5,7 @@ use tracing::info;
 use ragnarok_formats::act::SpriteAnimationState;
 
 use crate::movement::MovementState;
+use crate::scheduled_hit::ScheduledHitQueue;
 use crate::sprite_path::weapon_view_id_to_type;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,6 +96,7 @@ pub struct Entity {
     pub chat_bubble: Option<ChatBubbleState>,
     pub active_skill_id: Option<u16>,
     pub skill_hit_count: u16,
+    pub scheduled_hits: ScheduledHitQueue,
 }
 
 impl Entity {
@@ -130,6 +132,7 @@ impl Entity {
             chat_bubble: None,
             active_skill_id: None,
             skill_hit_count: 0,
+            scheduled_hits: ScheduledHitQueue::new(),
         }
     }
 

@@ -17,6 +17,7 @@ use ragnarok_game::cursor::{
     CursorType, PendingSkillTarget, RenderEntry, RenderEntryKind, cursor_type_for_cell, hovered_entity_cursor_type,
 };
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
+use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::item::Item;
 use ragnarok_game::name_table::NameTable;
@@ -726,7 +727,7 @@ impl App {
                     damage,
                     left_damage,
                     attack_mt,
-                    attacked_mt,
+                    count,
                     ..
                 } => match action {
                     ActionType::Sit => {
@@ -754,17 +755,46 @@ impl App {
                             let duration = (attack_mt as f32 / 1000.0).max(0.5);
                             entity.enter_attack(duration);
                         }
+
                         let is_endure = matches!(action, ActionType::AttackNomotion | ActionType::AttackMultipleNomotion);
-                        if !is_endure && (damage > 0 || left_damage > 0) {
-                            if let Some(target) = self.game.entities.get_mut(target_gid) {
-                                let duration = (attacked_mt as f32 / 1000.0).max(0.3);
-                                target.enter_hurt(duration);
+                        let effective_count = match action {
+                            ActionType::AttackMultiple | ActionType::AttackMultipleNomotion => count.max(1) as u16,
+                            _ => 1,
+                        };
+                        let total_damage = damage + left_damage;
+                        let now = self.start_time.elapsed().as_secs_f32();
+                        let delay_time = (attack_mt as f32 / 1000.0).max(0.0);
+                        let per_hit_damage = if effective_count > 1 && total_damage > 0 {
+                            total_damage / effective_count as i32
+                        } else {
+                            total_damage
+                        };
+
+                        if let Some(target) = self.game.entities.get_mut(target_gid) {
+                            let double_attack_term = 0.2;
+                            for i in 0..effective_count {
+                                let hit_time = now + delay_time + (i as f32 * double_attack_term);
+                                let msg = if is_endure {
+                                    DamageMessage::AttackedNoMotion
+                                } else if effective_count > 1 {
+                                    DamageMessage::AttackedMultiHit { total_damage }
+                                } else {
+                                    DamageMessage::Attacked
+                                };
+                                target.scheduled_hits.push(ScheduledHit {
+                                    message: msg,
+                                    damage: per_hit_damage,
+                                    fire_at: hit_time,
+                                    attacker_gid: gid,
+                                    skill_id: 0,
+                                    is_last_hit: i == effective_count - 1,
+                                });
                             }
                         }
                     }
                     ActionType::AttackLucky => {
-                        // Lucky dodge - target dodged, no damage
-                        // TODO implement effect
+                        // Lucky dodge — target dodged, no damage
+                        // TODO: show "Lucky" floating text when damage numbers are implemented
                     }
                     ActionType::Itempickup => {
                         if let Some(entity) = self.game.entities.get_mut(gid) {
@@ -1497,9 +1527,11 @@ impl App {
                     let now = self.start_time.elapsed().as_secs_f32();
                     self.game.character.cooldowns.set_skill_cooldown(skill_id, duration, now);
                 }
-                GameEvent::SkillDamage { skill_id, src_gid, target_gid, damage, attack_mt, attacked_mt, count, action } => {
+                GameEvent::SkillDamage { skill_id, src_gid, target_gid, damage, attack_mt, attacked_mt: _, count, action } => {
+                    let now = self.start_time.elapsed().as_secs_f32();
+
                     let effective_count = match action {
-                        ActionType::AttackMultiple | ActionType::AttackMultipleNomotion => count.max(1),
+                        ActionType::AttackMultiple | ActionType::AttackMultipleNomotion => count.max(1) as u16,
                         _ => 1,
                     };
 
@@ -1507,6 +1539,7 @@ impl App {
                         ActionType::Skill | ActionType::AttackNomotion | ActionType::AttackMultipleNomotion
                     );
 
+                    // Caster animation (plays once)
                     let target_pos = self.game.entities.get(target_gid).map(|e| e.movement.cell_position());
                     if let Some(entity) = self.game.entities.get_mut(src_gid) {
                         if let Some(dst) = target_pos {
@@ -1516,12 +1549,37 @@ impl App {
                             }
                         }
                         let duration = (attack_mt as f32 / 1000.0).max(0.3);
-                        entity.enter_skill_exec(duration, skill_id, effective_count.max(1) as u16);
+                        entity.enter_skill_exec(duration, skill_id, effective_count);
                     }
-                    if damage > 0 && !suppress_flinch {
-                        if let Some(target) = self.game.entities.get_mut(target_gid) {
-                            let hurt_duration = (attacked_mt as f32 / 1000.0).max(0.3);
-                            target.enter_hurt(hurt_duration);
+
+                    // Schedule target-side hits
+                    let delay_time = (attack_mt as f32 / 1000.0).max(0.0);
+                    let per_hit_damage = if effective_count > 1 && damage > 0 {
+                        damage / effective_count as i32
+                    } else {
+                        damage
+                    };
+
+                    let message = if suppress_flinch {
+                        DamageMessage::AttackedNoMotion
+                    } else if effective_count > 1 {
+                        DamageMessage::AttackedMultiHit { total_damage: damage }
+                    } else {
+                        DamageMessage::Attacked
+                    };
+
+                    if let Some(target) = self.game.entities.get_mut(target_gid) {
+                        let double_attack_term = 0.2;
+                        for i in 0..effective_count {
+                            let hit_time = now + delay_time + (i as f32 * double_attack_term);
+                            target.scheduled_hits.push(ScheduledHit {
+                                message,
+                                damage: per_hit_damage,
+                                fire_at: hit_time,
+                                attacker_gid: src_gid,
+                                skill_id,
+                                is_last_hit: i == effective_count - 1,
+                            });
                         }
                     }
                 }
@@ -2467,6 +2525,33 @@ impl App {
         }
     }
 
+    fn process_scheduled_hits(&mut self) {
+        let now = self.start_time.elapsed().as_secs_f32();
+        let entity_ids: Vec<u32> = self.game.entities.iter().map(|e| e.id).collect();
+        for entity_id in entity_ids {
+            let ready = if let Some(entity) = self.game.entities.get_mut(entity_id) {
+                entity.scheduled_hits.drain_ready(now)
+            } else {
+                continue;
+            };
+            for hit in ready {
+                self.emit_damage_number(entity_id, &hit);
+
+                if matches!(hit.message, DamageMessage::Attacked | DamageMessage::AttackedMultiHit { .. }) {
+                    if hit.damage > 0 {
+                        if let Some(entity) = self.game.entities.get_mut(entity_id) {
+                            entity.enter_hurt(0.3);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Placeholder for Phase 2 (damage numbers). Will display floating damage/heal/miss text.
+    fn emit_damage_number(&mut self, _entity_id: u32, _hit: &ScheduledHit) {
+    }
+
     fn update_sprite_animation(&mut self, delta: f32) {
         let camera_dir = self.renderer.as_ref().map(|r| r.camera.direction_index());
         let sprites = &self.game.sprites;
@@ -2956,6 +3041,7 @@ impl ApplicationHandler for App {
                 self.last_render_time = elapsed;
                 self.process_continuous_walk(delta);
                 self.update_entity_state(delta);
+                self.process_scheduled_hits();
                 self.update_floor_items(elapsed);
                 self.check_pending_pickup();
                 self.load_missing_entity_sprites();

@@ -28,6 +28,7 @@ pub mod name_table;
 pub mod npc_dialog;
 pub mod npc_shop;
 pub mod path;
+pub mod scheduled_hit;
 pub mod server_time;
 pub mod shadow;
 pub mod skill;
