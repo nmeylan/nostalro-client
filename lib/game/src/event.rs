@@ -1,4 +1,5 @@
 use crate::inventory::{EquipmentItemData, NormalItemData};
+use models::enums::action::ActionType;
 use packets::packets::{CharacterInfoNeoUnion, ServerAddr};
 
 #[derive(Debug)]
@@ -105,7 +106,7 @@ pub enum GameEvent {
     EntityAction {
         gid: u32,
         target_gid: u32,
-        action: u8,
+        action: ActionType,
         damage: i32,
         left_damage: i32,
         attack_mt: i32,
@@ -143,7 +144,7 @@ pub enum GameEvent {
     SkillDamage {
         skill_id: u16, src_gid: u32, target_gid: u32,
         damage: i32, attack_mt: i32, attacked_mt: i32,
-        count: i16, action: u8,
+        count: i16, action: ActionType,
     },
     SkillNoDamage { skill_id: u16, src_gid: u32, target_gid: u32 },
 

@@ -1,3 +1,5 @@
+use models::enums::EnumWithNumberValue;
+use models::enums::action::ActionType;
 use packets::packets::*;
 use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo, SkillInfo};
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
@@ -217,7 +219,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::EntityAction {
             gid: p.gid,
             target_gid: p.target_gid,
-            action: p.action,
+            action: ActionType::from_value(p.action as usize),
             damage: p.damage as i32,
             left_damage: p.left_damage as i32,
             attack_mt: p.attack_mt,
@@ -230,7 +232,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::EntityAction {
             gid: p.gid,
             target_gid: p.target_gid,
-            action: p.action,
+            action: ActionType::from_value(p.action as usize),
             damage: p.damage,
             left_damage: p.left_damage,
             attack_mt: p.attack_mt,
@@ -243,7 +245,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::EntityAction {
             gid: p.gid,
             target_gid: p.target_gid,
-            action: p.action,
+            action: ActionType::from_value(p.action as usize),
             damage: p.damage,
             left_damage: p.left_damage,
             attack_mt: p.attack_mt,
@@ -359,7 +361,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             attack_mt: p.attack_mt,
             attacked_mt: p.attacked_mt,
             count: p.count,
-            action: p.action,
+            action: ActionType::from_value(p.action as usize),
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifySkill2>() {
@@ -371,8 +373,11 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             attack_mt: p.attack_mt,
             attacked_mt: p.attacked_mt,
             count: p.count,
-            action: p.action,
+            action: ActionType::from_value(p.action as usize),
         }];
+    }
+    if let Some(_p) = any.downcast_ref::<PacketZcProgressCancel>() {
+        return vec![GameEvent::SkillCastCancel { gid: 0 }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcUseSkill>() {
         if p.result {
@@ -896,7 +901,7 @@ mod tests {
             GameEvent::EntityAction { gid, target_gid, action, damage, attack_mt, attacked_mt, .. } => {
                 assert_eq!(*gid, 50);
                 assert_eq!(*target_gid, 99);
-                assert_eq!(*action, 8);
+                assert_eq!(*action, ActionType::AttackMultiple);
                 assert_eq!(*damage, 42);
                 assert_eq!(*attack_mt, 500);
                 assert_eq!(*attacked_mt, 300);

@@ -187,7 +187,7 @@ impl Entity {
     pub fn enter_hurt(&mut self, duration_secs: f32) {
         if matches!(
             self.state,
-            EntityState::Dead | EntityState::Attacking | EntityState::SkillExec
+            EntityState::Dead | EntityState::Attacking | EntityState::SkillExec | EntityState::Casting
         ) {
             return;
         }
@@ -670,13 +670,13 @@ mod tests {
     }
 
     #[test]
-    fn hurt_interrupts_casting_animation() {
+    fn casting_blocks_hurt() {
         let mut e = make_entity();
         e.enter_casting(2.0, 0);
         assert_eq!(e.state, EntityState::Casting);
 
         e.enter_hurt(0.5);
-        assert_eq!(e.state, EntityState::Hurt);
+        assert_eq!(e.state, EntityState::Casting);
     }
 
     #[test]

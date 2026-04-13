@@ -7,6 +7,7 @@ use config::{Config, WindowStateEntry};
 use game_state::GameState;
 use input::InputState;
 use models::enums::{EnumWithMaskValueU64, EnumWithNumberValue};
+use models::enums::action::ActionType;
 use models::enums::status::StatusTypes;
 use ragnarok_formats::act::{MotionType, SpriteActionType};
 use ragnarok_formats::grf::GrfArchive;
@@ -728,19 +729,20 @@ impl App {
                     attacked_mt,
                     ..
                 } => match action {
-                    2 => {
+                    ActionType::Sit => {
                         if let Some(entity) = self.game.entities.get_mut(gid) {
                             entity.state = EntityState::Sitting;
                             entity.state_timer = 0.0;
                         }
                     }
-                    3 => {
+                    ActionType::Stand => {
                         if let Some(entity) = self.game.entities.get_mut(gid) {
                             entity.state = EntityState::Standing;
                             entity.state_timer = 0.0;
                         }
                     }
-                    0 | 4 | 8 | 9 => {
+                    ActionType::Attack | ActionType::AttackNomotion | ActionType::AttackRepeat
+                    | ActionType::AttackMultiple | ActionType::AttackMultipleNomotion | ActionType::AttackCritical => {
                         let target_pos = self.game.entities.get(target_gid).map(|e| e.movement.cell_position());
                         if let Some(entity) = self.game.entities.get_mut(gid) {
                             if let Some(tp) = target_pos {
@@ -752,8 +754,7 @@ impl App {
                             let duration = (attack_mt as f32 / 1000.0).max(0.5);
                             entity.enter_attack(duration);
                         }
-                        // action 4 = endure, 9 = multi-hit endure: skip hurt animation
-                        let is_endure = action == 4 || action == 9;
+                        let is_endure = matches!(action, ActionType::AttackNomotion | ActionType::AttackMultipleNomotion);
                         if !is_endure && (damage > 0 || left_damage > 0) {
                             if let Some(target) = self.game.entities.get_mut(target_gid) {
                                 let duration = (attacked_mt as f32 / 1000.0).max(0.3);
@@ -761,7 +762,11 @@ impl App {
                             }
                         }
                     }
-                    1 => {
+                    ActionType::AttackLucky => {
+                        // Lucky dodge - target dodged, no damage
+                        // TODO implement effect
+                    }
+                    ActionType::Itempickup => {
                         if let Some(entity) = self.game.entities.get_mut(gid) {
                             entity.enter_pickup(0.5);
                         }
@@ -1492,23 +1497,28 @@ impl App {
                     let now = self.start_time.elapsed().as_secs_f32();
                     self.game.character.cooldowns.set_skill_cooldown(skill_id, duration, now);
                 }
-                GameEvent::SkillDamage { skill_id, src_gid, target_gid, damage, attack_mt, attacked_mt, count, .. } => {
-                    // TODO: Skill effect rendering — each skill_id maps to a visual effect (EF_* constant).
-                    // Effects include projectiles, ground AoEs, and hit animations. They should be rendered
-                    // as sprites/particles at the target position using the existing sprite rendering pipeline.
-                    // Effect definitions can be found in the original game's skilleffectinfo table.
+                GameEvent::SkillDamage { skill_id, src_gid, target_gid, damage, attack_mt, attacked_mt, count, action } => {
+                    let effective_count = match action {
+                        ActionType::AttackMultiple | ActionType::AttackMultipleNomotion => count.max(1),
+                        _ => 1,
+                    };
+
+                    let suppress_flinch = matches!(action,
+                        ActionType::Skill | ActionType::AttackNomotion | ActionType::AttackMultipleNomotion
+                    );
+
                     let target_pos = self.game.entities.get(target_gid).map(|e| e.movement.cell_position());
                     if let Some(entity) = self.game.entities.get_mut(src_gid) {
-                        if let Some(tp) = target_pos {
-                            let sp = entity.movement.cell_position();
-                            if let Some(dir) = direction_from_positions(sp.0, sp.1, tp.0, tp.1) {
+                        if let Some(dst) = target_pos {
+                            let src = entity.movement.cell_position();
+                            if let Some(dir) = direction_from_positions(src.0, src.1, dst.0, dst.1) {
                                 entity.direction = dir;
                             }
                         }
                         let duration = (attack_mt as f32 / 1000.0).max(0.3);
-                        entity.enter_skill_exec(duration, skill_id, count.max(1) as u16);
+                        entity.enter_skill_exec(duration, skill_id, effective_count.max(1) as u16);
                     }
-                    if damage > 0 {
+                    if damage > 0 && !suppress_flinch {
                         if let Some(target) = self.game.entities.get_mut(target_gid) {
                             let hurt_duration = (attacked_mt as f32 / 1000.0).max(0.3);
                             target.enter_hurt(hurt_duration);
@@ -1518,9 +1528,9 @@ impl App {
                 GameEvent::SkillNoDamage { skill_id, src_gid, target_gid } => {
                     let target_pos = self.game.entities.get(target_gid).map(|e| e.movement.cell_position());
                     if let Some(entity) = self.game.entities.get_mut(src_gid) {
-                        if let Some(tp) = target_pos {
-                            let sp = entity.movement.cell_position();
-                            if let Some(dir) = direction_from_positions(sp.0, sp.1, tp.0, tp.1) {
+                        if let Some(dst) = target_pos {
+                            let src = entity.movement.cell_position();
+                            if let Some(dir) = direction_from_positions(src.0, src.1, dst.0, dst.1) {
                                 entity.direction = dir;
                             }
                         }
@@ -1528,10 +1538,16 @@ impl App {
                     }
                 }
                 GameEvent::SkillCastCancel { gid } => {
-                    if let Some(entity) = self.game.entities.get_mut(gid) {
+                    let target_gid = if gid == 0 {
+                        self.game.entities.player_id().unwrap_or(0)
+                    } else {
+                        gid
+                    };
+                    if let Some(entity) = self.game.entities.get_mut(target_gid) {
                         entity.state = EntityState::Standing;
                         entity.state_timer = 0.0;
                         entity.cast_total_duration = 0.0;
+                        entity.active_skill_id = None;
                     }
                 }
                 GameEvent::ActionFailure => {
@@ -2467,14 +2483,10 @@ impl App {
                         | EntityState::Pickup
                 );
                 if let Some(duration) = entity.animation_duration.take() {
-                    if entity.state == EntityState::SkillExec && entity.skill_hit_count > 1 {
-                        entity.animation.play_repeated(action, duration * 1000.0, entity.skill_hit_count);
-                    } else {
-                        let start_frame = if entity.state == EntityState::SkillExec {
-                            entity.skill_exec_start_frame()
-                        } else { 0 };
-                        entity.animation.play(action, duration * 1000.0, start_frame);
-                    }
+                    let start_frame = if entity.state == EntityState::SkillExec {
+                        entity.skill_exec_start_frame()
+                    } else { 0 };
+                    entity.animation.play(action, duration * 1000.0, start_frame);
                 } else if entity.state == EntityState::Casting {
                     entity.animation.set_action(action, MotionType::Static);
                     entity.animation.set_direction(entity.direction);
