@@ -17,7 +17,7 @@ use ragnarok_game::cursor::{
     CursorType, PendingSkillTarget, RenderEntry, RenderEntryKind, cursor_type_for_cell, hovered_entity_cursor_type,
 };
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
-use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
+use ragnarok_game::damage_number::{DamageEvent, DamageNumber, DamageNumberType};
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::item::Item;
@@ -2592,48 +2592,15 @@ impl App {
         let is_player_target = self.game.entities.get(entity_id)
             .map(|e| e.entity_type == EntityType::Player)
             .unwrap_or(false);
-        let is_multi = matches!(hit.message, DamageMessage::AttackedMultiHit { .. });
-        let is_skill = hit.skill_id > 0;
-
-        if hit.damage == 0 && !is_multi {
-            self.game.damage_numbers.add(DamageNumber::new(
-                entity_id, 0, DamageNumberType::Miss, dir,
-            ));
-            return;
-        }
-
-        if is_multi {
-            // Per-hit damage number (white, same digit style as skill damage)
-            self.game.damage_numbers.add(DamageNumber::new(
-                entity_id, hit.damage, DamageNumberType::Skill, dir,
-            ));
-
-            // Running total as combo, each hit replaces previous
-            let running_total = hit.damage * (hit.hit_index as i32 + 1);
-            let combo_type = if hit.is_last_hit {
-                if is_skill { DamageNumberType::ComboFinal } else { DamageNumberType::MultiHitTotal }
-            } else {
-                if is_skill { DamageNumberType::Combo } else { DamageNumberType::MultiHit }
-            };
-            self.game.damage_numbers.add(DamageNumber::new(
-                entity_id, running_total, combo_type, dir,
-            ));
-        } else {
-            let number_type = if hit.is_critical {
-                DamageNumberType::Critical
-            } else if hit.damage < 0 {
-                DamageNumberType::Heal
-            } else if is_skill {
-                DamageNumberType::Skill
-            } else if is_player_target {
-                DamageNumberType::Enemy
-            } else {
-                DamageNumberType::Normal
-            };
-            self.game.damage_numbers.add(DamageNumber::new(
-                entity_id, hit.damage.abs(), number_type, dir,
-            ));
-        }
+        self.game.damage_numbers.emit(entity_id, dir, &DamageEvent {
+            damage: hit.damage,
+            is_critical: hit.is_critical,
+            is_skill: hit.skill_id > 0,
+            is_multi_hit: matches!(hit.message, DamageMessage::AttackedMultiHit { .. }),
+            is_player_target,
+            hit_index: hit.hit_index,
+            is_last_hit: hit.is_last_hit,
+        });
     }
 
     fn update_sprite_animation(&mut self, delta: f32) {
@@ -3628,34 +3595,23 @@ impl ApplicationHandler for App {
 
                     // Damage numbers (sprite-based)
                     {
-                        use ragnarok_game::damage_number::{MSG_FRAME_MISS, MSG_FRAME_LUCKYBG, MSG_FRAME_LUCKY};
                         let entries: Vec<DamageNumberEntry> = self.game.damage_numbers.numbers.iter()
                             .filter_map(|dmg| {
                                 let entry = render_list.iter().find(|e| e.id == dmg.entity_id)?;
-                                let alpha = dmg.alpha();
-                                if alpha <= 0.0 { return None; }
-                                let [cr, cg, cb] = dmg.number_type.color();
-                                let digits = dmg.digits();
-                                let digit_count = digits.len();
-                                let digit_x_offsets = (0..digit_count).map(|i| dmg.digit_x_offset(i, digit_count)).collect();
-                                let msg_frames = match dmg.number_type {
-                                    DamageNumberType::Miss => vec![MSG_FRAME_MISS],
-                                    DamageNumberType::Lucky => vec![MSG_FRAME_LUCKYBG, MSG_FRAME_LUCKY],
-                                    _ => vec![],
-                                };
+                                let data = dmg.render_data()?;
                                 Some(DamageNumberEntry {
                                     screen_x: entry.screen_anchor[0],
                                     screen_y: entry.pick_bounds[1],
-                                    digits,
-                                    digit_x_offsets,
-                                    sprite_action: dmg.number_type.sprite_action(),
-                                    color: [cr, cg, cb, alpha],
-                                    zoom: dmg.zoom(),
-                                    y_offset: dmg.y_offset(),
-                                    x_offset: dmg.x_offset(),
-                                    uses_msg_sprite: dmg.number_type.uses_msg_sprite(),
-                                    msg_frames,
-                                    is_critical: matches!(dmg.number_type, DamageNumberType::Critical),
+                                    digits: data.digits,
+                                    digit_x_offsets: data.digit_x_offsets,
+                                    sprite_action: data.sprite_action,
+                                    color: data.color,
+                                    zoom: data.zoom,
+                                    y_offset: data.y_offset,
+                                    x_offset: data.x_offset,
+                                    uses_msg_sprite: data.uses_msg_sprite,
+                                    msg_frames: data.msg_frames,
+                                    is_critical: data.is_critical,
                                 })
                             })
                             .collect();

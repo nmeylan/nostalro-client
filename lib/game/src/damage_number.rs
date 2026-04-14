@@ -213,6 +213,57 @@ impl DamageNumber {
         let fc = count as f32;
         -fi * DIGIT_SPACING + (DIGIT_SPACING / 2.0) * (fc - 1.0)
     }
+
+    pub fn render_data(&self) -> Option<DamageNumberRenderData> {
+        let alpha = self.alpha();
+        if alpha <= 0.0 {
+            return None;
+        }
+        let [cr, cg, cb] = self.number_type.color();
+        let digits = self.digits();
+        let count = digits.len();
+        let digit_x_offsets = (0..count).map(|i| self.digit_x_offset(i, count)).collect();
+        let msg_frames = match self.number_type {
+            DamageNumberType::Miss => vec![MSG_FRAME_MISS],
+            DamageNumberType::Lucky => vec![MSG_FRAME_LUCKYBG, MSG_FRAME_LUCKY],
+            _ => vec![],
+        };
+        Some(DamageNumberRenderData {
+            digits,
+            digit_x_offsets,
+            sprite_action: self.number_type.sprite_action(),
+            color: [cr, cg, cb, alpha],
+            zoom: self.zoom(),
+            y_offset: self.y_offset(),
+            x_offset: self.x_offset(),
+            uses_msg_sprite: self.number_type.uses_msg_sprite(),
+            msg_frames,
+            is_critical: matches!(self.number_type, DamageNumberType::Critical),
+        })
+    }
+}
+
+pub struct DamageNumberRenderData {
+    pub digits: Vec<u8>,
+    pub digit_x_offsets: Vec<f32>,
+    pub sprite_action: u8,
+    pub color: [f32; 4],
+    pub zoom: f32,
+    pub y_offset: f32,
+    pub x_offset: f32,
+    pub uses_msg_sprite: bool,
+    pub msg_frames: Vec<usize>,
+    pub is_critical: bool,
+}
+
+pub struct DamageEvent {
+    pub damage: i32,
+    pub is_critical: bool,
+    pub is_skill: bool,
+    pub is_multi_hit: bool,
+    pub is_player_target: bool,
+    pub hit_index: u16,
+    pub is_last_hit: bool,
 }
 
 pub struct DamageNumberManager {
@@ -233,6 +284,41 @@ impl DamageNumberManager {
             });
         }
         self.numbers.push(number);
+    }
+
+    pub fn emit(&mut self, entity_id: u32, direction: u8, event: &DamageEvent) {
+        if event.damage == 0 && !event.is_multi_hit {
+            self.add(DamageNumber::new(entity_id, 0, DamageNumberType::Miss, direction));
+            return;
+        }
+
+        if event.is_multi_hit {
+            self.add(DamageNumber::new(
+                entity_id, event.damage, DamageNumberType::Skill, direction,
+            ));
+            let running_total = event.damage * (event.hit_index as i32 + 1);
+            let combo_type = if event.is_last_hit {
+                if event.is_skill { DamageNumberType::ComboFinal } else { DamageNumberType::MultiHitTotal }
+            } else {
+                if event.is_skill { DamageNumberType::Combo } else { DamageNumberType::MultiHit }
+            };
+            self.add(DamageNumber::new(entity_id, running_total, combo_type, direction));
+        } else {
+            let number_type = if event.is_critical {
+                DamageNumberType::Critical
+            } else if event.damage < 0 {
+                DamageNumberType::Heal
+            } else if event.is_skill {
+                DamageNumberType::Skill
+            } else if event.is_player_target {
+                DamageNumberType::Enemy
+            } else {
+                DamageNumberType::Normal
+            };
+            self.add(DamageNumber::new(
+                entity_id, event.damage.abs(), number_type, direction,
+            ));
+        }
     }
 
     pub fn update(&mut self, dt: f32) {
