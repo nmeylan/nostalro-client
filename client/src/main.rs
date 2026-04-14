@@ -17,7 +17,7 @@ use ragnarok_game::cursor::{
     CursorType, PendingSkillTarget, RenderEntry, RenderEntryKind, cursor_type_for_cell, hovered_entity_cursor_type,
 };
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
-use ragnarok_game::damage_number::{DamageEvent, DamageNumber, DamageNumberType};
+use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::item::Item;
@@ -45,7 +45,7 @@ use ragnarok_network::{
 };
 use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_renderer::{
-    DamageNumberEntry, GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall,
+    GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall,
     UiTextureRef, block_on, build_clip_quad, build_entity_sprite, scale_clip_vertices,
     upload_sprite_textures,
 };
@@ -100,6 +100,7 @@ struct App {
     game: GameState,
     start_time: Instant,
     last_render_time: f32,
+    last_frame_instant: Instant,
 }
 
 impl App {
@@ -124,6 +125,7 @@ impl App {
             game: GameState::new(),
             start_time: Instant::now(),
             last_render_time: 0.0,
+            last_frame_instant: Instant::now(),
         }
     }
 
@@ -2588,19 +2590,26 @@ impl App {
     }
 
     fn emit_damage_number(&mut self, entity_id: u32, hit: &ScheduledHit) {
-        let dir = self.game.entities.get(entity_id).map(|e| e.direction).unwrap_or(0);
+        let is_multi_hit = matches!(hit.message, DamageMessage::AttackedMultiHit { .. });
+        let is_miss = hit.damage == 0 && !is_multi_hit;
+
+        // Miss displays over the attacker
+        let display_entity = if is_miss && hit.attacker_gid != 0 {
+            hit.attacker_gid
+        } else {
+            entity_id
+        };
+
+        let target_pos = self.game.entities.get(entity_id).map(|e| e.movement.cell_position());
+        let attacker_pos = self.game.entities.get(hit.attacker_gid).map(|e| e.movement.cell_position());
+        let dir = match (attacker_pos, target_pos) {
+            (Some(ap), Some(tp)) => direction_from_positions(ap.0, ap.1, tp.0, tp.1).unwrap_or(0),
+            _ => self.game.entities.get(entity_id).map(|e| e.direction).unwrap_or(0),
+        };
         let is_player_target = self.game.entities.get(entity_id)
             .map(|e| e.entity_type == EntityType::Player)
             .unwrap_or(false);
-        self.game.damage_numbers.emit(entity_id, dir, &DamageEvent {
-            damage: hit.damage,
-            is_critical: hit.is_critical,
-            is_skill: hit.skill_id > 0,
-            is_multi_hit: matches!(hit.message, DamageMessage::AttackedMultiHit { .. }),
-            is_player_target,
-            hit_index: hit.hit_index,
-            is_last_hit: hit.is_last_hit,
-        });
+        self.game.damage_numbers.emit(display_entity, dir, hit, is_player_target);
     }
 
     fn update_sprite_animation(&mut self, delta: f32) {
@@ -3089,12 +3098,17 @@ impl ApplicationHandler for App {
                 let mut world_overlay_calls: Vec<UiDrawCall> = Vec::new();
 
                 self.update_movement(elapsed);
-                let delta = elapsed - self.last_render_time;
-                self.last_render_time = elapsed;
+                let now = Instant::now();
+                let raw_delta = now.duration_since(self.last_frame_instant).as_secs_f32();
+                self.last_frame_instant = now;
+                let delta = raw_delta.min(0.1);
+                if self.game.app_state == AppState::InGame {
+                    tracing::debug!("delta={raw_delta:.4}s fps={:.0}", 1.0 / raw_delta);
+                }
                 self.process_continuous_walk(delta);
                 self.update_entity_state(delta);
-                self.process_scheduled_hits();
                 self.game.damage_numbers.update(delta);
+                self.process_scheduled_hits();
                 self.update_floor_items(elapsed);
                 self.check_pending_pickup();
                 self.load_missing_entity_sprites();
@@ -3595,31 +3609,31 @@ impl ApplicationHandler for App {
 
                     // Damage numbers (sprite-based)
                     {
-                        let entries: Vec<DamageNumberEntry> = self.game.damage_numbers.numbers.iter()
+                        use ragnarok_game::damage_number::{DamageNumberRenderEntry, build_damage_number_quads};
+                        let entries: Vec<DamageNumberRenderEntry> = self.game.damage_numbers.numbers.iter()
                             .filter_map(|dmg| {
                                 let entry = render_list.iter().find(|e| e.id == dmg.entity_id)?;
                                 let data = dmg.render_data()?;
-                                Some(DamageNumberEntry {
+                                Some(DamageNumberRenderEntry {
+                                    entity_id: dmg.entity_id,
                                     screen_x: entry.screen_anchor[0],
                                     screen_y: entry.pick_bounds[1],
-                                    digits: data.digits,
-                                    digit_x_offsets: data.digit_x_offsets,
-                                    sprite_action: data.sprite_action,
-                                    color: data.color,
-                                    zoom: data.zoom,
-                                    y_offset: data.y_offset,
-                                    x_offset: data.x_offset,
-                                    uses_msg_sprite: data.uses_msg_sprite,
-                                    msg_frames: data.msg_frames,
-                                    is_critical: data.is_critical,
+                                    scale: entry.sprite_scale,
+                                    data,
                                 })
                             })
                             .collect();
                         if let (Some(num_tex), Some(num_act)) = (&self.game.damage_number_textures, &self.game.damage_number_act) {
-                            ragnarok_renderer::render_damage_numbers(
+                            let quads = build_damage_number_quads(
                                 &entries,
-                                num_tex,
                                 num_act,
+                                &num_tex.sizes,
+                                num_tex.indexed_count,
+                                self.game.damage_msg_textures.as_ref().map(|t| t.sizes.as_slice()),
+                            );
+                            ragnarok_renderer::render_damage_number_quads(
+                                &quads,
+                                num_tex,
                                 self.game.damage_msg_textures.as_ref(),
                                 &mut world_overlay_calls,
                                 &mut inline_textures,

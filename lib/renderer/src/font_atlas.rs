@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use ab_glyph::{Font, FontRef, ScaleFont};
 
 const FALLBACK_FONT: &[u8] = include_bytes!("fonts/NotoSans-Regular.ttf");
+const CJK_FONT_PATH: &str = "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc";
 
 #[derive(Debug, Clone)]
 pub struct GlyphInfo {
@@ -25,9 +26,26 @@ impl FontAtlas {
         Self::build(FALLBACK_FONT, px_height, dpi_scale)
     }
 
+    /// Build a font atlas from the system NotoSansCJK font, falling back to the
+    /// embedded font if the CJK font is not available. Includes ASCII plus the
+    /// given extra characters (typically collected from GRF file paths).
+    pub fn from_system_cjk(px_height: f32, dpi_scale: f32, extra_chars: &[char]) -> Self {
+        match std::fs::read(CJK_FONT_PATH) {
+            Ok(data) => Self::build_with_extra_chars(&data, px_height, dpi_scale, extra_chars),
+            Err(_) => {
+                tracing::warn!("CJK font not found at {CJK_FONT_PATH}, Korean text will not render");
+                Self::build(FALLBACK_FONT, px_height, dpi_scale)
+            }
+        }
+    }
+
     /// Rasterize at physical resolution (`px_height * dpi_scale`) for crispness,
     /// but store all glyph metrics in logical pixels (divided by `dpi_scale`).
     pub fn build(font_data: &[u8], px_height: f32, dpi_scale: f32) -> Self {
+        Self::build_with_extra_chars(font_data, px_height, dpi_scale, &[])
+    }
+
+    pub fn build_with_extra_chars(font_data: &[u8], px_height: f32, dpi_scale: f32, extra_chars: &[char]) -> Self {
         let physical_height = px_height * dpi_scale;
         let font = FontRef::try_from_slice(font_data).expect("invalid font data");
         let scaled = font.as_scaled(physical_height);
@@ -35,8 +53,12 @@ impl FontAtlas {
         let line_height = (scaled.height() + scaled.line_gap()) / dpi_scale;
         let ascent = scaled.ascent() / dpi_scale;
 
-        // Collect glyphs for ASCII printable range
-        let chars: Vec<char> = (32u8..127).map(|b| b as char).collect();
+        let mut chars: Vec<char> = (32u8..127).map(|b| b as char).collect();
+        for &ch in extra_chars {
+            if !chars.contains(&ch) && !ch.is_control() {
+                chars.push(ch);
+            }
+        }
         let mut glyph_renders: Vec<(char, ab_glyph::GlyphId, Option<ab_glyph::OutlinedGlyph>, f32)> = Vec::new();
 
         for &ch in &chars {

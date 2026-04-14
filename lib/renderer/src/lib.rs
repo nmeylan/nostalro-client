@@ -22,7 +22,7 @@ pub use texture::TextureCache;
 pub use font_atlas::FontAtlas;
 pub use sprite::{SpriteRenderer, SpriteVertex, SpriteBatch, SpriteTextures, SpriteUniforms, build_clip_quad, upload_sprite_textures, build_composite_clips, CompositeClips, ClipQuad, scale_clip_vertices, EntitySprite, build_entity_sprite};
 pub use ui_renderer::{UiRenderer, UiVertex, UiDrawCommand};
-pub use damage_number::{DamageNumberEntry, render_damage_numbers};
+pub use damage_number::render_damage_number_quads;
 
 use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::grf::GrfArchive;

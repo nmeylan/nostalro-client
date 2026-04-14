@@ -225,6 +225,15 @@ impl SpriteBrowser {
         self.apply_filter();
     }
 
+    pub fn handle_paste(&mut self, text: &str) {
+        for ch in text.chars() {
+            if !ch.is_control() {
+                self.filter_text.push(ch);
+            }
+        }
+        self.apply_filter();
+    }
+
     pub fn handle_backspace(&mut self) {
         self.filter_text.pop();
         self.apply_filter();

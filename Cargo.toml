@@ -10,6 +10,7 @@ members = [
     "lib/audio",
     "tools",
     "tools/grf-editor",
+    "tools/rendering-viewer-hot",
     "lib/ui-component-hot",
 ]
 resolver = "2"

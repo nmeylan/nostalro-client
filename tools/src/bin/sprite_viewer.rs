@@ -90,6 +90,7 @@ struct App {
     shield_view_id: u16,
     accessory_table: AccessoryTable,
     is_composite: bool,
+    ctrl_pressed: bool,
 }
 
 impl App {
@@ -122,6 +123,7 @@ impl App {
             shield_view_id: 0,
             accessory_table: AccessoryTable::empty(),
             is_composite: false,
+            ctrl_pressed: false,
         }
     }
 
@@ -139,6 +141,15 @@ impl App {
         self.accessory_table = AccessoryTable::load_from_grf(&grf);
         self.grf = Some(grf);
 
+        // Collect unique non-ASCII chars from sprite paths for CJK font atlas
+        let mut extra_chars: Vec<char> = sprites.iter()
+            .flat_map(|s| s.chars())
+            .filter(|c| !c.is_ascii())
+            .collect();
+        extra_chars.sort_unstable();
+        extra_chars.dedup();
+        self.rebuild_font_atlas(&extra_chars);
+
         let mut browser = SpriteBrowser::new_with_tabs(sprites, &self.accessory_table);
         if let Some(device) = &self.device {
             browser.update_visible_rows(device.surface_config.height as f32);
@@ -148,6 +159,22 @@ impl App {
         if let Some(window) = &self.window {
             window.set_title(&format!("Sprite Viewer — {path}"));
         }
+    }
+
+    fn rebuild_font_atlas(&mut self, extra_chars: &[char]) {
+        let (Some(device), Some(tex_cache)) = (&self.device, &self.texture_cache) else {
+            return;
+        };
+        let font_atlas = FontAtlas::from_system_cjk(16.0, 1.0, extra_chars);
+        let font_atlas_bind_group = texture::create_font_atlas_bind_group(
+            &device.device,
+            &device.queue,
+            &font_atlas.image,
+            &tex_cache.bind_group_layout,
+            "font_atlas",
+        );
+        self.font_atlas = Some(font_atlas);
+        self.font_atlas_bind_group = Some(font_atlas_bind_group);
     }
 
     fn load_sprite(&mut self, path: &str) {
@@ -373,6 +400,7 @@ impl App {
             }
             ViewerAction::PrevAction => {
                 if let Some(entity) = &self.entity_sprite {
+                    eprintln!("actions len {}", entity.body_act.actions.len());
                     let prev = if self.animation.action() == 0 {
                         entity.body_act.actions.len() - 1
                     } else {
@@ -675,12 +703,6 @@ impl ApplicationHandler for App {
         self.font_atlas_bind_group = Some(font_atlas_bind_group);
         self.white_bind_group = Some(white_bind_group);
         self.ui_renderer = Some(ui_renderer);
-        #[cfg(feature = "hot-reload")]
-        {
-            let win = window.clone();
-            subsecond::register_handler(std::sync::Arc::new(move || win.request_redraw()));
-        }
-
         self.device = Some(device);
         self.window = Some(window);
 
@@ -742,6 +764,14 @@ impl ApplicationHandler for App {
                         }
                         key => {
                             if let Some(browser) = &mut self.browser {
+                                if self.ctrl_pressed && matches!(key, Key::Character(c) if c == "v") {
+                                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                                        if let Ok(text) = clipboard.get_text() {
+                                            browser.handle_paste(&text);
+                                        }
+                                    }
+                                    return;
+                                }
                                 match key {
                                     Key::Named(NamedKey::ArrowUp) => browser.handle_up(),
                                     Key::Named(NamedKey::ArrowDown) => browser.handle_down(),
@@ -786,6 +816,9 @@ impl ApplicationHandler for App {
                     }
                 }
             }
+            WindowEvent::ModifiersChanged(modifiers) => {
+                self.ctrl_pressed = modifiers.state().control_key();
+            }
             WindowEvent::MouseWheel { delta, .. } => {
                 if !self.browser_is_open() {
                     if let Some(action) = controls::map_scroll(delta) {
@@ -824,9 +857,6 @@ impl ApplicationHandler for App {
                     }
                 }
 
-                #[cfg(feature = "hot-reload")]
-                subsecond::call(|| self.render_frame());
-                #[cfg(not(feature = "hot-reload"))]
                 self.render_frame();
 
                 if let Some(window) = &self.window {
@@ -862,9 +892,6 @@ fn main() {
         println!("\n{} sprite files found", sprites.len());
         return;
     }
-
-    #[cfg(feature = "hot-reload")]
-    dioxus_devtools::connect_subsecond();
 
     let event_loop = EventLoop::new().unwrap();
     let mut app = App::new(args.grf_path);

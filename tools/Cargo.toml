@@ -16,9 +16,6 @@ name = "rendering-viewer"
 path = "src/bin/rendering_viewer.rs"
 
 
-[features]
-hot-reload = ["subsecond", "dioxus-devtools"]
-
 [dependencies]
 ragnarok-formats = { workspace = true }
 ragnarok-renderer = { workspace = true }
@@ -32,5 +29,5 @@ image = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 notify = "7"
-subsecond = { version = "0.7", optional = true }
-dioxus-devtools = { version = "0.7", optional = true }
+libloading = { workspace = true }
+arboard = { version = "3", features = ["wayland-data-control"] }

@@ -8,6 +8,7 @@ pub enum DamageMessage {
     AttackedMultiHit { total_damage: i32 },
 }
 
+#[derive(Clone, Copy)]
 pub struct ScheduledHit {
     pub message: DamageMessage,
     pub damage: i32,
@@ -17,6 +18,16 @@ pub struct ScheduledHit {
     pub is_last_hit: bool,
     pub is_critical: bool,
     pub hit_index: u16,
+}
+
+impl ScheduledHit {
+    pub fn single(damage: i32, skill_id: u16, is_critical: bool) -> Self {
+        Self { message: DamageMessage::Attacked, damage, fire_at: 0.0, attacker_gid: 0, skill_id, is_last_hit: true, is_critical, hit_index: 0 }
+    }
+
+    pub fn multi_hit(damage: i32, total_damage: i32, skill_id: u16, hit_index: u16, is_last_hit: bool) -> Self {
+        Self { message: DamageMessage::AttackedMultiHit { total_damage }, damage, fire_at: 0.0, attacker_gid: 0, skill_id, is_last_hit, is_critical: false, hit_index }
+    }
 }
 
 pub struct ScheduledHitQueue {

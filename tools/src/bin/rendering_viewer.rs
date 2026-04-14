@@ -2,16 +2,14 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
-use ragnarok_formats::act::ActFile;
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_game::damage_number::{DamageEvent, DamageNumberManager};
+use ragnarok_game::damage_number::DamageNumberQuad;
 use ragnarok_game::sprite_loader;
-use ragnarok_renderer::damage_number::DamageNumberEntry;
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::sprite::{SpriteTextures, upload_sprite_textures};
 use ragnarok_renderer::texture::{self, TextureCache};
 use ragnarok_renderer::ui_renderer::{UiDrawCommand, UiRenderer};
-use ragnarok_renderer::{RenderDevice, UiDrawCall, UiTextureRef, block_on, render_damage_numbers};
+use ragnarok_renderer::{RenderDevice, UiDrawCall, UiTextureRef, block_on, render_damage_number_quads};
 use ragnarok_tools::rendering_viewer::controls::{
     self, Background, Scenario, ViewerAction,
 };
@@ -20,10 +18,116 @@ use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 
-struct ScheduledHit {
-    delay: f32,
-    entity_id: u32,
-    event: DamageEvent,
+use std::path::PathBuf;
+use std::time::SystemTime;
+
+// --- Hot-reload dylib loading ---
+
+type HotCreateFn = extern "C" fn() -> *mut ();
+type HotDestroyFn = unsafe extern "C" fn(*mut ());
+type HotTriggerFn = unsafe extern "C" fn(*mut (), u8, i32, u8);
+type HotUpdateFn = unsafe extern "C" fn(*mut (), f32);
+type HotBuildFn = unsafe extern "C" fn(*mut (), *mut Vec<DamageNumberQuad>);
+type HotInitSpritesFn = unsafe extern "C" fn(*mut (), *const u8, usize, *const (u32, u32), usize, usize, *const (u32, u32), usize);
+
+struct HotLib {
+    _lib: libloading::Library,
+    state: *mut (),
+    update_fn: HotUpdateFn,
+    trigger_fn: HotTriggerFn,
+    build_fn: HotBuildFn,
+    destroy_fn: HotDestroyFn,
+    init_sprites_fn: HotInitSpritesFn,
+}
+
+impl HotLib {
+    fn load(dylib_path: &Path) -> Option<Self> {
+        let lib = match unsafe { libloading::Library::new(dylib_path) } {
+            Ok(lib) => lib,
+            Err(e) => {
+                eprintln!("Failed to load dylib: {e}");
+                return None;
+            }
+        };
+
+        let (create_fn, update_fn, trigger_fn, build_fn, destroy_fn, init_sprites_fn) = unsafe {
+            let create: libloading::Symbol<HotCreateFn> = lib.get(b"hot_create").ok()?;
+            let update: libloading::Symbol<HotUpdateFn> = lib.get(b"hot_update").ok()?;
+            let trigger: libloading::Symbol<HotTriggerFn> = lib.get(b"hot_trigger").ok()?;
+            let build: libloading::Symbol<HotBuildFn> = lib.get(b"hot_build").ok()?;
+            let destroy: libloading::Symbol<HotDestroyFn> = lib.get(b"hot_destroy").ok()?;
+            let init_sprites: libloading::Symbol<HotInitSpritesFn> = lib.get(b"hot_init_sprites").ok()?;
+            (*create, *update, *trigger, *build, *destroy, *init_sprites)
+        };
+
+        let state = (create_fn)();
+        Some(Self { _lib: lib, state, update_fn, trigger_fn, build_fn, destroy_fn, init_sprites_fn })
+    }
+
+    fn unload(mut self) {
+        if !self.state.is_null() {
+            unsafe { (self.destroy_fn)(self.state) };
+            self.state = std::ptr::null_mut();
+        }
+    }
+
+    fn update(&self, dt: f32) {
+        unsafe { (self.update_fn)(self.state, dt) };
+    }
+
+    fn trigger(&self, scenario: u8, damage_value: i32, direction: u8) {
+        unsafe { (self.trigger_fn)(self.state, scenario, damage_value, direction) };
+    }
+
+    fn build(&self, out: &mut Vec<DamageNumberQuad>) {
+        unsafe { (self.build_fn)(self.state, out as *mut Vec<DamageNumberQuad>) };
+    }
+
+    fn init_sprites(
+        &self,
+        act_data: &[u8],
+        num_sizes: &[(u32, u32)],
+        num_indexed_count: usize,
+        msg_sizes: Option<&[(u32, u32)]>,
+    ) {
+        let (msg_ptr, msg_len) = match msg_sizes {
+            Some(s) => (s.as_ptr(), s.len()),
+            None => (std::ptr::null(), 0),
+        };
+        unsafe {
+            (self.init_sprites_fn)(
+                self.state,
+                act_data.as_ptr(),
+                act_data.len(),
+                num_sizes.as_ptr(),
+                num_sizes.len(),
+                num_indexed_count,
+                msg_ptr,
+                msg_len,
+            )
+        };
+    }
+}
+
+fn find_dylib() -> PathBuf {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let target_dir = manifest_dir
+        .parent().unwrap()
+        .join("target")
+        .join("debug");
+
+    #[cfg(target_os = "linux")]
+    let name = "librendering_viewer_hot.so";
+    #[cfg(target_os = "macos")]
+    let name = "librendering_viewer_hot.dylib";
+    #[cfg(target_os = "windows")]
+    let name = "rendering_viewer_hot.dll";
+
+    target_dir.join(name)
+}
+
+fn dylib_mtime(path: &Path) -> Option<SystemTime> {
+    std::fs::metadata(path).ok()?.modified().ok()
 }
 
 struct App {
@@ -36,11 +140,9 @@ struct App {
     white_bind_group: Option<wgpu::BindGroup>,
 
     num_textures: Option<SpriteTextures>,
-    num_act: Option<ActFile>,
+    num_act_data: Option<Vec<u8>>,
     msg_textures: Option<SpriteTextures>,
 
-    damage_numbers: DamageNumberManager,
-    scheduled_hits: Vec<ScheduledHit>,
     paused: bool,
     speed: f32,
     last_frame: Instant,
@@ -49,6 +151,11 @@ struct App {
     direction: u8,
     background: Background,
     grf_path: Option<String>,
+
+    hot_lib: Option<HotLib>,
+    dylib_path: PathBuf,
+    last_dylib_mtime: SystemTime,
+    reload_counter: u64,
 }
 
 // Fixed screen positions for each scenario entity_id (1-9)
@@ -79,8 +186,27 @@ const SCENARIO_LABELS: &[(u32, &str)] = &[
     (9, "Lucky"),
 ];
 
+fn scenario_to_u8(s: Scenario) -> u8 {
+    match s {
+        Scenario::NormalAttack => 1,
+        Scenario::SkillAttack => 2,
+        Scenario::CriticalHit => 3,
+        Scenario::PlayerDamage => 4,
+        Scenario::SkillMultiHit => 5,
+        Scenario::NormalMultiHit => 6,
+        Scenario::Heal => 7,
+        Scenario::Miss => 8,
+        Scenario::LuckyDodge => 9,
+        Scenario::All => 0,
+    }
+}
+
 impl App {
     fn new(grf_path: Option<String>) -> Self {
+        let dylib_path = find_dylib();
+        let last_dylib_mtime = dylib_mtime(&dylib_path).unwrap_or(SystemTime::UNIX_EPOCH);
+        let hot_lib = HotLib::load(&dylib_path);
+
         Self {
             window: None,
             device: None,
@@ -90,10 +216,8 @@ impl App {
             font_atlas_bind_group: None,
             white_bind_group: None,
             num_textures: None,
-            num_act: None,
+            num_act_data: None,
             msg_textures: None,
-            damage_numbers: DamageNumberManager::new(),
-            scheduled_hits: Vec::new(),
             paused: false,
             speed: 1.0,
             last_frame: Instant::now(),
@@ -101,6 +225,10 @@ impl App {
             direction: 0,
             background: Background::Black,
             grf_path,
+            hot_lib,
+            dylib_path,
+            last_dylib_mtime,
+            reload_counter: 0,
         }
     }
 
@@ -118,7 +246,6 @@ impl App {
                 &device.queue,
                 &tex_cache.bind_group_layout,
             ));
-            self.num_act = Some(sprite_data.act);
         }
         if let Some(sprite_data) = sprite_loader::load_damage_miss_msg_sprite(grf) {
             self.msg_textures = Some(upload_sprite_textures(
@@ -131,139 +258,23 @@ impl App {
         }
     }
 
-    fn trigger_scenario(&mut self, scenario: Scenario) {
-        match scenario {
-            Scenario::NormalAttack => {
-                self.damage_numbers.emit(1, self.direction, &DamageEvent {
-                    damage: self.damage_value,
-                    is_critical: false,
-                    is_skill: false,
-                    is_multi_hit: false,
-                    is_player_target: false,
-                    hit_index: 0,
-                    is_last_hit: true,
-                });
-            }
-            Scenario::SkillAttack => {
-                self.damage_numbers.emit(2, self.direction, &DamageEvent {
-                    damage: self.damage_value,
-                    is_critical: false,
-                    is_skill: true,
-                    is_multi_hit: false,
-                    is_player_target: false,
-                    hit_index: 0,
-                    is_last_hit: true,
-                });
-            }
-            Scenario::CriticalHit => {
-                self.damage_numbers.emit(3, self.direction, &DamageEvent {
-                    damage: self.damage_value,
-                    is_critical: true,
-                    is_skill: false,
-                    is_multi_hit: false,
-                    is_player_target: false,
-                    hit_index: 0,
-                    is_last_hit: true,
-                });
-            }
-            Scenario::PlayerDamage => {
-                self.damage_numbers.emit(4, self.direction, &DamageEvent {
-                    damage: self.damage_value,
-                    is_critical: false,
-                    is_skill: false,
-                    is_multi_hit: false,
-                    is_player_target: true,
-                    hit_index: 0,
-                    is_last_hit: true,
-                });
-            }
-            Scenario::SkillMultiHit => {
-                let per_hit = self.damage_value / 3;
-                let delay = 0.2;
-                for i in 0..3u16 {
-                    self.scheduled_hits.push(ScheduledHit {
-                        delay: delay * i as f32,
-                        entity_id: 5,
-                        event: DamageEvent {
-                            damage: per_hit,
-                            is_critical: false,
-                            is_skill: true,
-                            is_multi_hit: true,
-                            is_player_target: false,
-                            hit_index: i,
-                            is_last_hit: i == 2,
-                        },
-                    });
-                }
-            }
-            Scenario::NormalMultiHit => {
-                let per_hit = self.damage_value / 3;
-                let delay = 0.2;
-                for i in 0..3u16 {
-                    self.scheduled_hits.push(ScheduledHit {
-                        delay: delay * i as f32,
-                        entity_id: 6,
-                        event: DamageEvent {
-                            damage: per_hit,
-                            is_critical: false,
-                            is_skill: false,
-                            is_multi_hit: true,
-                            is_player_target: false,
-                            hit_index: i,
-                            is_last_hit: i == 2,
-                        },
-                    });
-                }
-            }
-            Scenario::Heal => {
-                self.damage_numbers.emit(7, self.direction, &DamageEvent {
-                    damage: -(self.damage_value),
-                    is_critical: false,
-                    is_skill: false,
-                    is_multi_hit: false,
-                    is_player_target: false,
-                    hit_index: 0,
-                    is_last_hit: true,
-                });
-            }
-            Scenario::Miss => {
-                self.damage_numbers.emit(8, self.direction, &DamageEvent {
-                    damage: 0,
-                    is_critical: false,
-                    is_skill: false,
-                    is_multi_hit: false,
-                    is_player_target: false,
-                    hit_index: 0,
-                    is_last_hit: true,
-                });
-            }
-            Scenario::LuckyDodge => {
-                self.damage_numbers.add(ragnarok_game::damage_number::DamageNumber::new(
-                    9, 0, ragnarok_game::damage_number::DamageNumberType::Lucky, self.direction,
-                ));
-            }
-            Scenario::All => {
-                self.trigger_scenario(Scenario::NormalAttack);
-                self.trigger_scenario(Scenario::SkillAttack);
-                self.trigger_scenario(Scenario::CriticalHit);
-                self.trigger_scenario(Scenario::PlayerDamage);
-                self.trigger_scenario(Scenario::SkillMultiHit);
-                self.trigger_scenario(Scenario::NormalMultiHit);
-                self.trigger_scenario(Scenario::Heal);
-                self.trigger_scenario(Scenario::Miss);
-                self.trigger_scenario(Scenario::LuckyDodge);
-            }
-        }
-    }
-
     fn handle_action(&mut self, action: ViewerAction) {
         match action {
-            ViewerAction::TriggerScenario(s) => self.trigger_scenario(s),
+            ViewerAction::TriggerScenario(s) => {
+                if let Some(hot) = &self.hot_lib {
+                    hot.trigger(scenario_to_u8(s), self.damage_value, self.direction);
+                }
+            }
             ViewerAction::TogglePause => self.paused = !self.paused,
             ViewerAction::Restart => {
-                self.damage_numbers = DamageNumberManager::new();
-                self.scheduled_hits.clear();
-                self.trigger_scenario(Scenario::All);
+                if let Some(old) = self.hot_lib.take() {
+                    old.unload();
+                }
+                self.hot_lib = HotLib::load(&self.dylib_path);
+                self.hot_init_sprites();
+                if let Some(hot) = &self.hot_lib {
+                    hot.trigger(0, self.damage_value, self.direction);
+                }
             }
             ViewerAction::IncreaseValue => {
                 self.damage_value = (self.damage_value + 100).min(999999);
@@ -289,28 +300,64 @@ impl App {
         }
     }
 
-    fn process_scheduled_hits(&mut self, dt: f32) {
-        let mut ready = Vec::new();
-        self.scheduled_hits.retain_mut(|hit| {
-            hit.delay -= dt;
-            if hit.delay <= 0.0 {
-                ready.push((hit.entity_id, std::mem::replace(&mut hit.event, DamageEvent {
-                    damage: 0, is_critical: false, is_skill: false,
-                    is_multi_hit: false, is_player_target: false,
-                    hit_index: 0, is_last_hit: false,
-                })));
-                false
-            } else {
-                true
+    fn check_hot_reload(&mut self) {
+        if let Some(mtime) = dylib_mtime(&self.dylib_path) {
+            if mtime > self.last_dylib_mtime {
+                self.last_dylib_mtime = mtime;
+                self.reload_counter += 1;
+                let ext = format!("hot{}.so", self.reload_counter);
+                let tmp_path = self.dylib_path.with_extension(&ext);
+                if std::fs::copy(&self.dylib_path, &tmp_path).is_err() {
+                    eprintln!("Failed to copy dylib to temp file");
+                    return;
+                }
+
+                eprintln!("Reloading dylib...");
+
+                if let Some(old) = self.hot_lib.take() {
+                    old.unload();
+                }
+
+                match HotLib::load(&tmp_path) {
+                    Some(new_lib) => {
+                        self.hot_lib = Some(new_lib);
+                        self.hot_init_sprites();
+                        if let Some(hot) = &self.hot_lib {
+                            hot.trigger(0, self.damage_value, self.direction);
+                        }
+                        eprintln!("Reload complete.");
+                    }
+                    None => {
+                        eprintln!("Failed to load new dylib, falling back to original");
+                        self.hot_lib = HotLib::load(&self.dylib_path);
+                        self.hot_init_sprites();
+                    }
+                }
+
+                if self.reload_counter > 1 {
+                    let prev_ext = format!("hot{}.so", self.reload_counter - 1);
+                    let prev = self.dylib_path.with_extension(prev_ext);
+                    let _ = std::fs::remove_file(prev);
+                }
             }
-        });
-        for (entity_id, event) in ready {
-            self.damage_numbers.emit(entity_id, self.direction, &event);
+        }
+    }
+
+    fn hot_init_sprites(&self) {
+        if let (Some(hot), Some(num_tex), Some(act_data)) = (&self.hot_lib, &self.num_textures, &self.num_act_data) {
+            hot.init_sprites(
+                act_data,
+                &num_tex.sizes,
+                num_tex.indexed_count,
+                self.msg_textures.as_ref().map(|t| t.sizes.as_slice()),
+            );
         }
     }
 
     fn render_frame(&mut self) {
         if self.device.is_none() { return; }
+
+        self.check_hot_reload();
 
         let now = Instant::now();
         let dt = now.duration_since(self.last_frame).as_secs_f32();
@@ -318,8 +365,9 @@ impl App {
 
         if !self.paused {
             let scaled_dt = dt * self.speed;
-            self.damage_numbers.update(scaled_dt);
-            self.process_scheduled_hits(scaled_dt);
+            if let Some(hot) = &self.hot_lib {
+                hot.update(scaled_dt);
+            }
         }
 
         let device = self.device.as_ref().unwrap();
@@ -361,33 +409,19 @@ impl App {
         let mut draw_calls: Vec<UiDrawCall> = Vec::new();
         let mut inline_textures: Vec<&wgpu::BindGroup> = Vec::new();
 
-        // Build damage number entries
-        let entries: Vec<DamageNumberEntry> = self.damage_numbers.numbers.iter()
-            .filter_map(|dmg| {
-                let (sx, sy) = entity_screen_pos(dmg.entity_id);
-                let data = dmg.render_data()?;
-                Some(DamageNumberEntry {
-                    screen_x: sx,
-                    screen_y: sy,
-                    digits: data.digits,
-                    digit_x_offsets: data.digit_x_offsets,
-                    sprite_action: data.sprite_action,
-                    color: data.color,
-                    zoom: data.zoom,
-                    y_offset: data.y_offset,
-                    x_offset: data.x_offset,
-                    uses_msg_sprite: data.uses_msg_sprite,
-                    msg_frames: data.msg_frames,
-                    is_critical: data.is_critical,
-                })
-            })
-            .collect();
+        // Build damage number quads
+        let quads: Vec<DamageNumberQuad> = {
+            let mut q = Vec::new();
+            if let Some(hot) = &self.hot_lib {
+                hot.build(&mut q);
+            }
+            q
+        };
 
-        if let (Some(num_tex), Some(num_act)) = (&self.num_textures, &self.num_act) {
-            render_damage_numbers(
-                &entries,
+        if let Some(num_tex) = &self.num_textures {
+            render_damage_number_quads(
+                &quads,
                 num_tex,
-                num_act,
                 self.msg_textures.as_ref(),
                 &mut draw_calls,
                 &mut inline_textures,
@@ -498,11 +532,6 @@ impl ApplicationHandler for App {
         self.ui_renderer = Some(ui_renderer);
         self.texture_cache = Some(tex_cache);
 
-        #[cfg(feature = "hot-reload")]
-        {
-            let win = window.clone();
-            subsecond::register_handler(Arc::new(move || win.request_redraw()));
-        }
 
         self.last_frame = Instant::now();
         self.device = Some(device);
@@ -513,8 +542,13 @@ impl ApplicationHandler for App {
             match GrfArchive::open(Path::new(grf_path)) {
                 Ok(grf) => {
                     self.load_damage_sprites(&grf);
-                    // Trigger all scenarios on startup
-                    self.trigger_scenario(Scenario::All);
+                    if let Ok(act_data) = grf.read_file("data/sprite/이팩트/숫자.act") {
+                        self.num_act_data = Some(act_data);
+                    }
+                    self.hot_init_sprites();
+                    if let Some(hot) = &self.hot_lib {
+                        hot.trigger(0, self.damage_value, self.direction);
+                    }
                 }
                 Err(e) => {
                     eprintln!("Failed to open GRF {grf_path}: {e}");
@@ -548,9 +582,6 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::RedrawRequested => {
-                #[cfg(feature = "hot-reload")]
-                subsecond::call(|| self.render_frame());
-                #[cfg(not(feature = "hot-reload"))]
                 self.render_frame();
 
                 if let Some(window) = &self.window {
@@ -583,8 +614,6 @@ fn main() {
         i += 1;
     }
 
-    #[cfg(feature = "hot-reload")]
-    dioxus_devtools::connect_subsecond();
 
     let event_loop = EventLoop::new().unwrap();
     let mut app = App::new(grf_path);

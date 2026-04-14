@@ -3,6 +3,8 @@
 /// Each type maps to a sprite action index, color tint, and animation curve
 /// matching the original game behavior.
 
+use crate::scheduled_hit::{DamageMessage, ScheduledHit};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DamageNumberType {
     /// Basic attack → action 1, white
@@ -29,31 +31,12 @@ pub enum DamageNumberType {
     Lucky,
 }
 
-/// Sprite action index in 숫자.act
-const ACTION_SKILL: u8 = 0;
-const ACTION_NORMAL: u8 = 1;
-const ACTION_DAMAGE: u8 = 2;
-const ACTION_RECOVERY: u8 = 3;
-
 const DIGIT_SPACING: f32 = 8.0;
 
 /// One stateCnt tick = 24ms in the original game
 const FRAME_MS: f32 = 24.0;
 
 impl DamageNumberType {
-    pub fn sprite_action(&self) -> u8 {
-        match self {
-            // tpSkill → action 0 (skill, critical, combo)
-            Self::Skill | Self::Critical | Self::Combo | Self::ComboFinal
-            | Self::MultiHit | Self::MultiHitTotal => ACTION_SKILL,
-            // tpNormal → action 1 (basic attack on monsters)
-            Self::Normal => ACTION_NORMAL,
-            // tpDamage → action 2 (player taking damage)
-            Self::Enemy => ACTION_DAMAGE,
-            Self::Heal => ACTION_RECOVERY,
-            Self::Miss | Self::Lucky => 0,
-        }
-    }
 
     pub fn color(&self) -> [f32; 3] {
         match self {
@@ -63,6 +46,7 @@ impl DamageNumberType {
             _ => [1.0, 1.0, 1.0],
         }
     }
+
 
     pub fn is_total(&self) -> bool {
         matches!(self, Self::ComboFinal | Self::MultiHitTotal)
@@ -79,7 +63,7 @@ impl DamageNumberType {
     pub fn duration(&self) -> f32 {
         match self {
             Self::ComboFinal | Self::MultiHitTotal => 120.0 * FRAME_MS / 1000.0, // 2.88s
-            Self::Combo | Self::MultiHit => 0.45,             // robrowser: 15% of 3s
+            Self::Combo | Self::MultiHit => 0.45,             // 15% of 3s
             Self::Miss => 80.0 * FRAME_MS / 1000.0,          // 1.92s
             Self::Lucky => 0.8,
             _ => 70.0 * FRAME_MS / 1000.0,                   // 1.68s
@@ -117,7 +101,6 @@ impl DamageNumber {
                 f * 0.1
             }
             DamageNumberType::Combo | DamageNumberType::MultiHit => {
-                // Robrowser: stays near entity, minimal rise
                 self.elapsed * 2.0
             }
             DamageNumberType::Miss => {
@@ -161,7 +144,7 @@ impl DamageNumber {
                 (0.5 + 0.09 * f * f).min(3.0)
             }
             DamageNumberType::Combo | DamageNumberType::MultiHit => {
-                // Robrowser: quick grow to ~3.75 in first 150ms
+                // quick grow to ~3.75 in first 150ms
                 let growth = (self.elapsed / 0.15).min(1.0);
                 0.1 + growth * 3.65
             }
@@ -188,7 +171,7 @@ impl DamageNumber {
                 if f < 90.0 { 250.0 } else { 250.0 - (f - 90.0) * 8.0 }
             }
             DamageNumberType::Combo | DamageNumberType::MultiHit => {
-                // Robrowser: alpha = 1.0 - (elapsed / 3.0)
+                // alpha = 1.0 - (elapsed / 3.0)
                 (1.0 - self.elapsed / 3.0) * 255.0
             }
             DamageNumberType::Miss => 250.0 - f * 3.0,
@@ -204,7 +187,7 @@ impl DamageNumber {
         }
         let clamped = self.value.unsigned_abs().min(999999);
         let s = clamped.to_string();
-        s.bytes().map(|b| b - b'0').collect()
+        s.bytes().rev().map(|b| b - b'0').collect()
     }
 
     /// X offset for digit at index i (0 = leftmost), centered around 0
@@ -231,7 +214,6 @@ impl DamageNumber {
         Some(DamageNumberRenderData {
             digits,
             digit_x_offsets,
-            sprite_action: self.number_type.sprite_action(),
             color: [cr, cg, cb, alpha],
             zoom: self.zoom(),
             y_offset: self.y_offset(),
@@ -246,7 +228,6 @@ impl DamageNumber {
 pub struct DamageNumberRenderData {
     pub digits: Vec<u8>,
     pub digit_x_offsets: Vec<f32>,
-    pub sprite_action: u8,
     pub color: [f32; 4],
     pub zoom: f32,
     pub y_offset: f32,
@@ -256,14 +237,135 @@ pub struct DamageNumberRenderData {
     pub is_critical: bool,
 }
 
-pub struct DamageEvent {
-    pub damage: i32,
-    pub is_critical: bool,
-    pub is_skill: bool,
-    pub is_multi_hit: bool,
-    pub is_player_target: bool,
-    pub hit_index: u16,
-    pub is_last_hit: bool,
+pub struct DamageNumberRenderEntry {
+    pub entity_id: u32,
+    pub screen_x: f32,
+    pub screen_y: f32,
+    pub scale: f32,
+    pub data: DamageNumberRenderData,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub enum TextureSource {
+    Number,
+    Message,
+}
+
+#[repr(C)]
+pub struct DamageNumberQuad {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub color: [f32; 4],
+    pub source: TextureSource,
+    pub tex_idx: usize,
+}
+
+pub fn build_damage_number_quads(
+    entries: &[DamageNumberRenderEntry],
+    num_act: &ragnarok_formats::act::ActFile,
+    num_sizes: &[(u32, u32)],
+    num_indexed_count: usize,
+    msg_sizes: Option<&[(u32, u32)]>,
+) -> Vec<DamageNumberQuad> {
+    let mut quads = Vec::new();
+    for entry in entries {
+        let dmg = &entry.data;
+        let s = entry.scale;
+        let base_x = entry.screen_x + dmg.x_offset * s;
+        let base_y = entry.screen_y - 10.0 * s - dmg.y_offset * s;
+        let [cr, cg, cb, alpha] = dmg.color;
+        let zoom = dmg.zoom * s;
+
+        if dmg.uses_msg_sprite {
+            let msg_sz = match msg_sizes {
+                Some(s) => s,
+                None => continue,
+            };
+            for &frame_idx in &dmg.msg_frames {
+                if frame_idx >= msg_sz.len() {
+                    continue;
+                }
+                let (tw, th) = msg_sz[frame_idx];
+                let sw = tw as f32 * zoom;
+                let sh = th as f32 * zoom;
+                let x = base_x - sw / 2.0;
+                let y = base_y - sh / 2.0;
+                quads.push(DamageNumberQuad {
+                    x, y, w: sw, h: sh,
+                    color: [cr, cg, cb, alpha],
+                    source: TextureSource::Message,
+                    tex_idx: frame_idx,
+                });
+            }
+            continue;
+        }
+
+        let action = &num_act.actions[0];
+
+        // Critical: render critbg behind digits
+        if dmg.is_critical {
+            if let Some(msg_sz) = msg_sizes {
+                if MSG_FRAME_CRITBG < msg_sz.len() {
+                    let (tw, th) = msg_sz[MSG_FRAME_CRITBG];
+                    let crit_zoom = 0.6 * zoom;
+                    let sw = tw as f32 * crit_zoom;
+                    let sh = th as f32 * crit_zoom;
+                    let x = base_x - sw / 2.0;
+                    let y = base_y - sh / 2.0 - 6.0 * s;
+                    quads.push(DamageNumberQuad {
+                        x, y, w: sw, h: sh,
+                        color: [0.66, 0.66, 0.66, alpha],
+                        source: TextureSource::Message,
+                        tex_idx: MSG_FRAME_CRITBG,
+                    });
+                }
+            }
+        }
+
+        for (i, &digit) in dmg.digits.iter().enumerate() {
+            let motion_idx = digit as usize;
+            if motion_idx >= action.motions.len() {
+                continue;
+            }
+            let motion = &action.motions[motion_idx];
+            if motion.clips.is_empty() {
+                continue;
+            }
+            let clip = &motion.clips[0];
+            if clip.sprite_index < 0 {
+                continue;
+            }
+
+            let tex_idx = if clip.sprite_type == 0 {
+                clip.sprite_index as usize
+            } else {
+                num_indexed_count + clip.sprite_index as usize
+            };
+            if tex_idx >= num_sizes.len() {
+                continue;
+            }
+
+            let (tw, th) = num_sizes[tex_idx];
+            let sw = tw as f32 * zoom;
+            let sh = th as f32 * zoom;
+
+            let x_offset = dmg.digit_x_offsets.get(i).copied().unwrap_or(0.0) * zoom;
+            let x = base_x + x_offset - sw / 2.0;
+            let y = base_y - sh / 2.0;
+
+            quads.push(DamageNumberQuad {
+                x, y, w: sw, h: sh,
+                color: [cr, cg, cb, alpha],
+                source: TextureSource::Number,
+                tex_idx,
+            });
+        }
+
+    }
+    quads
 }
 
 pub struct DamageNumberManager {
@@ -286,37 +388,40 @@ impl DamageNumberManager {
         self.numbers.push(number);
     }
 
-    pub fn emit(&mut self, entity_id: u32, direction: u8, event: &DamageEvent) {
-        if event.damage == 0 && !event.is_multi_hit {
+    pub fn emit(&mut self, entity_id: u32, direction: u8, hit: &ScheduledHit, is_player_target: bool) {
+        let is_multi_hit = matches!(hit.message, DamageMessage::AttackedMultiHit { .. });
+        let is_skill = hit.skill_id > 0;
+
+        if hit.damage == 0 && !is_multi_hit {
             self.add(DamageNumber::new(entity_id, 0, DamageNumberType::Miss, direction));
             return;
         }
 
-        if event.is_multi_hit {
+        if is_multi_hit {
             self.add(DamageNumber::new(
-                entity_id, event.damage, DamageNumberType::Skill, direction,
+                entity_id, hit.damage, DamageNumberType::Skill, direction,
             ));
-            let running_total = event.damage * (event.hit_index as i32 + 1);
-            let combo_type = if event.is_last_hit {
-                if event.is_skill { DamageNumberType::ComboFinal } else { DamageNumberType::MultiHitTotal }
+            let running_total = hit.damage * (hit.hit_index as i32 + 1);
+            let combo_type = if hit.is_last_hit {
+                if is_skill { DamageNumberType::ComboFinal } else { DamageNumberType::MultiHitTotal }
             } else {
-                if event.is_skill { DamageNumberType::Combo } else { DamageNumberType::MultiHit }
+                if is_skill { DamageNumberType::Combo } else { DamageNumberType::MultiHit }
             };
             self.add(DamageNumber::new(entity_id, running_total, combo_type, direction));
         } else {
-            let number_type = if event.is_critical {
+            let number_type = if hit.is_critical {
                 DamageNumberType::Critical
-            } else if event.damage < 0 {
+            } else if hit.damage < 0 {
                 DamageNumberType::Heal
-            } else if event.is_skill {
+            } else if is_skill {
                 DamageNumberType::Skill
-            } else if event.is_player_target {
+            } else if is_player_target {
                 DamageNumberType::Enemy
             } else {
                 DamageNumberType::Normal
             };
             self.add(DamageNumber::new(
-                entity_id, event.damage.abs(), number_type, direction,
+                entity_id, hit.damage.abs(), number_type, direction,
             ));
         }
     }
@@ -343,7 +448,8 @@ mod tests {
     #[test]
     fn digits_decomposition() {
         let d = DamageNumber::new(1, 12345, DamageNumberType::Normal, 0);
-        assert_eq!(d.digits(), vec![1, 2, 3, 4, 5]);
+        // Reversed order: rightmost digit first, matching digit_x_offset layout
+        assert_eq!(d.digits(), vec![5, 4, 3, 2, 1]);
     }
 
     #[test]
@@ -443,16 +549,6 @@ mod tests {
         mgr.add(DamageNumber::new(1, 100, DamageNumberType::Normal, 0));
         mgr.update(2.0); // well past 1.68s duration
         assert!(mgr.numbers.is_empty());
-    }
-
-    #[test]
-    fn sprite_action_matches_original() {
-        // Critical uses skill action (0), not damage action (2)
-        assert_eq!(DamageNumberType::Critical.sprite_action(), ACTION_SKILL);
-        // Enemy (player taking damage) uses damage action (2)
-        assert_eq!(DamageNumberType::Enemy.sprite_action(), ACTION_DAMAGE);
-        assert_eq!(DamageNumberType::Normal.sprite_action(), ACTION_NORMAL);
-        assert_eq!(DamageNumberType::Heal.sprite_action(), ACTION_RECOVERY);
     }
 
     #[test]
