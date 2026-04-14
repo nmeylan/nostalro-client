@@ -60,7 +60,7 @@ use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::info;
 use winit::application::ApplicationHandler;
@@ -3087,6 +3087,8 @@ impl ApplicationHandler for App {
                 self.input.alt_pressed = modifiers.state().alt_key();
             }
             WindowEvent::RedrawRequested => {
+                const TARGET_FRAME_TIME: Duration = Duration::from_micros(16_667);
+                let frame_start = Instant::now();
                 let elapsed = self.start_time.elapsed().as_secs_f32();
 
                 self.handle_game_events(event_loop);
@@ -3102,9 +3104,6 @@ impl ApplicationHandler for App {
                 let raw_delta = now.duration_since(self.last_frame_instant).as_secs_f32();
                 self.last_frame_instant = now;
                 let delta = raw_delta.min(0.1);
-                if self.game.app_state == AppState::InGame {
-                    tracing::debug!("delta={raw_delta:.4}s fps={:.0}", 1.0 / raw_delta);
-                }
                 self.process_continuous_walk(delta);
                 self.update_entity_state(delta);
                 self.game.damage_numbers.update(delta);
@@ -3610,15 +3609,21 @@ impl ApplicationHandler for App {
                     // Damage numbers (sprite-based)
                     {
                         use ragnarok_game::damage_number::{DamageNumberRenderEntry, build_damage_number_quads};
-                        let entries: Vec<DamageNumberRenderEntry> = self.game.damage_numbers.numbers.iter()
+                        let entries: Vec<DamageNumberRenderEntry> = self.game.damage_numbers.numbers.iter_mut()
                             .filter_map(|dmg| {
-                                let entry = render_list.iter().find(|e| e.id == dmg.entity_id)?;
+                                let (screen_x, screen_y, scale) = if let Some(entry) = render_list.iter().find(|e| e.id == dmg.entity_id) {
+                                    let pos = (entry.screen_anchor[0], entry.pick_bounds[1], entry.sprite_scale);
+                                    dmg.last_screen_pos = Some(pos);
+                                    pos
+                                } else {
+                                    dmg.last_screen_pos?
+                                };
                                 let data = dmg.render_data()?;
                                 Some(DamageNumberRenderEntry {
                                     entity_id: dmg.entity_id,
-                                    screen_x: entry.screen_anchor[0],
-                                    screen_y: entry.pick_bounds[1],
-                                    scale: entry.sprite_scale,
+                                    screen_x,
+                                    screen_y,
+                                    scale,
                                     data,
                                 })
                             })
@@ -3707,6 +3712,11 @@ impl ApplicationHandler for App {
 
                 if let Some(ui_ctx) = &mut self.ui_context {
                     ui_ctx.begin_frame();
+                }
+
+                let frame_duration = frame_start.elapsed();
+                if frame_duration < TARGET_FRAME_TIME {
+                    std::thread::sleep(TARGET_FRAME_TIME - frame_duration);
                 }
 
                 if let Some(window) = &self.window {

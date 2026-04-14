@@ -391,7 +391,7 @@ impl SpriteAnimationState {
             // Distribute total animation time evenly across all frames
             if motion_count > 0 { total_ms / motion_count as f32 } else { 150.0 }
         } else if action_idx < act.delays.len() {
-            let d = act.delays[action_idx] * 25.0;
+            let d = act.delays[action_idx] * 50.0;
             if d > 0.0 { d } else { 150.0 }
         } else {
             150.0
@@ -543,7 +543,7 @@ mod tests {
     fn update_advances_motion() {
         let act = make_act(8, 3);
         let mut anim = SpriteAnimationState::new(0);
-        anim.update(0.25, &act, 0);
+        anim.update(0.5, &act, 0);
         assert_eq!(anim.motion_index, 2);
     }
 

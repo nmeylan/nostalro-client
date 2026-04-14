@@ -62,11 +62,8 @@ impl DamageNumberType {
 
     pub fn duration(&self) -> f32 {
         match self {
-            Self::ComboFinal | Self::MultiHitTotal => 120.0 * FRAME_MS / 1000.0, // 2.88s
-            Self::Combo | Self::MultiHit => 0.45,             // 15% of 3s
-            Self::Miss => 80.0 * FRAME_MS / 1000.0,          // 1.92s
-            Self::Lucky => 0.8,
-            _ => 70.0 * FRAME_MS / 1000.0,                   // 1.68s
+            Self::Combo | Self::MultiHit => 0.45,
+            _ => 120.0 * FRAME_MS / 1000.0,                  // 2.88s
         }
     }
 }
@@ -77,11 +74,13 @@ pub struct DamageNumber {
     pub number_type: DamageNumberType,
     pub elapsed: f32,
     pub direction: u8,
+    /// Cached screen position so numbers keep rendering after entity vanishes.
+    pub last_screen_pos: Option<(f32, f32, f32)>,
 }
 
 impl DamageNumber {
     pub fn new(entity_id: u32, value: i32, number_type: DamageNumberType, direction: u8) -> Self {
-        Self { entity_id, value, number_type, elapsed: 0.0, direction }
+        Self { entity_id, value, number_type, elapsed: 0.0, direction, last_screen_pos: None }
     }
 
     pub fn is_expired(&self) -> bool {
@@ -174,8 +173,7 @@ impl DamageNumber {
                 // alpha = 1.0 - (elapsed / 3.0)
                 (1.0 - self.elapsed / 3.0) * 255.0
             }
-            DamageNumberType::Miss => 250.0 - f * 3.0,
-            _ => 250.0 - f * 3.4,
+            _ => 255.0 - f * 2.0,
         };
         (alpha_255 / 255.0).clamp(0.0, 1.0)
     }
@@ -547,7 +545,7 @@ mod tests {
     fn expired_numbers_removed_on_update() {
         let mut mgr = DamageNumberManager::new();
         mgr.add(DamageNumber::new(1, 100, DamageNumberType::Normal, 0));
-        mgr.update(2.0); // well past 1.68s duration
+        mgr.update(3.0); // well past 2.88s duration
         assert!(mgr.numbers.is_empty());
     }
 
