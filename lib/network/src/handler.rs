@@ -282,7 +282,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
 
     // Entity despawn
     if let Some(p) = any.downcast_ref::<PacketZcNotifyVanish>() {
-        return vec![GameEvent::EntityVanished { gid: p.gid }];
+        return vec![GameEvent::EntityVanished { gid: p.gid, vanish_type: p.atype }];
     }
 
     // Character stats & parameters
@@ -327,6 +327,8 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             target_gid: p.target_id,
             skill_id: p.skid,
             delay_ms: p.delay_time,
+            x: p.x_pos,
+            y: p.y_pos,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcUseskillAck>() {
@@ -335,6 +337,8 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             target_gid: p.target_id,
             skill_id: p.skid,
             delay_ms: p.delay_time,
+            x: p.x_pos,
+            y: p.y_pos,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcAckTouseskill>() {
@@ -388,6 +392,15 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             }];
         }
         return vec![GameEvent::Acknowledged];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyGroundskill>() {
+        return vec![GameEvent::GroundSkill {
+            skill_id: p.skid,
+            src_gid: p.aid,
+            level: p.level,
+            x: p.x_pos,
+            y: p.y_pos,
+        }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcEmotion>() {
         return vec![GameEvent::EntityEmotion {
@@ -831,7 +844,10 @@ mod tests {
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            GameEvent::EntityVanished { gid } => assert_eq!(*gid, 42),
+            GameEvent::EntityVanished { gid, vanish_type } => {
+                assert_eq!(*gid, 42);
+                assert_eq!(*vanish_type, 0);
+            }
             other => panic!("expected EntityVanished, got {other:?}"),
         }
     }
@@ -1122,11 +1138,13 @@ mod tests {
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            GameEvent::SkillCasting { gid, target_gid, skill_id, delay_ms } => {
+            GameEvent::SkillCasting { gid, target_gid, skill_id, delay_ms, x, y } => {
                 assert_eq!(*gid, 150000);
                 assert_eq!(*target_gid, 200000);
                 assert_eq!(*skill_id, 10);
                 assert_eq!(*delay_ms, 2000);
+                assert_eq!(*x, 0);
+                assert_eq!(*y, 0);
             }
             other => panic!("expected SkillCasting, got {other:?}"),
         }

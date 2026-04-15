@@ -167,7 +167,8 @@ impl DamageNumber {
         let f = self.frame();
         let alpha_255 = match self.number_type {
             DamageNumberType::ComboFinal | DamageNumberType::MultiHitTotal => {
-                if f < 90.0 { 250.0 } else { 250.0 - (f - 90.0) * 8.0 }
+                let alpha = if f < FRAME_MS / 2.0 { 250.0 } else { 250.0 - (f - FRAME_MS / 2.0) * 2.0 };
+                alpha
             }
             DamageNumberType::Combo | DamageNumberType::MultiHit => {
                 // alpha = 1.0 - (elapsed / 3.0)

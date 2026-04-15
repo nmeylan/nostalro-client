@@ -391,7 +391,7 @@ impl SpriteAnimationState {
             // Distribute total animation time evenly across all frames
             if motion_count > 0 { total_ms / motion_count as f32 } else { 150.0 }
         } else if action_idx < act.delays.len() {
-            let d = act.delays[action_idx] * 50.0;
+            let d = act.delays[action_idx] * 25.0;
             if d > 0.0 { d } else { 150.0 }
         } else {
             150.0

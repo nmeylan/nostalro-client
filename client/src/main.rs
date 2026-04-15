@@ -711,10 +711,10 @@ impl App {
                         }
                     }
                 }
-                GameEvent::EntityVanished { gid } => {
+                GameEvent::EntityVanished { gid, vanish_type: _ } => {
                     let r1 = self.game.entities.remove(gid).is_some();
                     let r2 = self.game.sprites.remove(&gid).is_some();
-                    tracing::info!("EntityVanished: gid={gid} r1={r1} r2={r2}");
+                    tracing::debug!("EntityVanished: gid={gid} r1={r1} r2={r2}");
                 }
                 GameEvent::EntityStopMove { gid, x, y } => {
                     if let Some(entity) = self.game.entities.get_mut(gid) {
@@ -1441,12 +1441,18 @@ impl App {
                         }
                     }
                 }
-                GameEvent::SkillCasting { gid, target_gid, skill_id, delay_ms } => {
+                GameEvent::SkillCasting { gid, target_gid, skill_id, delay_ms, x, y } => {
                     // TODO: Skill effect rendering — each skill_id maps to a visual effect (EF_* constant).
                     // Effects include casting auras and target lock indicators. They should be rendered
                     // as sprites/particles using the existing sprite rendering pipeline.
                     // Effect definitions can be found in the original game's skilleffectinfo table.
-                    let target_pos = self.game.entities.get(target_gid).map(|e| e.movement.cell_position());
+                    let target_pos = if target_gid != 0 {
+                        self.game.entities.get(target_gid).map(|e| e.movement.cell_position())
+                    } else if x != 0 || y != 0 {
+                        Some((x as u16, y as u16))
+                    } else {
+                        None
+                    };
                     if let Some(entity) = self.game.entities.get_mut(gid) {
                         if let Some(tp) = target_pos {
                             let sp = entity.movement.cell_position();
@@ -1539,14 +1545,17 @@ impl App {
                 GameEvent::SkillDamage { skill_id, src_gid, target_gid, damage, attack_mt, attacked_mt: _, count, action } => {
                     let now = self.start_time.elapsed().as_secs_f32();
 
+                    // Server currently sends action=Skill for all offensive skills (TODO on server).
+                    // Treat Skill with count>1 as multi-hit to handle this correctly.
                     let effective_count = match action {
                         ActionType::AttackMultiple | ActionType::AttackMultipleNomotion => count.max(1) as u16,
+                        ActionType::Skill if count > 1 => count as u16,
                         _ => 1,
                     };
 
                     let suppress_flinch = matches!(action,
-                        ActionType::Skill | ActionType::AttackNomotion | ActionType::AttackMultipleNomotion
-                    );
+                        ActionType::AttackNomotion | ActionType::AttackMultipleNomotion
+                    ) || (action == ActionType::Skill && effective_count == 1);
 
                     // Caster animation (plays once)
                     let target_pos = self.game.entities.get(target_gid).map(|e| e.movement.cell_position());
@@ -1578,8 +1587,8 @@ impl App {
                         DamageMessage::Attacked
                     };
 
+                    let double_attack_term = 0.2;
                     if let Some(target) = self.game.entities.get_mut(target_gid) {
-                        let double_attack_term = 0.2;
                         for i in 0..effective_count {
                             let hit_time = now + delay_time + (i as f32 * double_attack_term);
                             target.scheduled_hits.push(ScheduledHit {
@@ -1594,6 +1603,19 @@ impl App {
                             });
                         }
                     }
+
+                    const SKID_AS_SONICBLOW: u16 = 136;
+                    const SKID_CH_CHAINCRUSH: u16 = 271;
+                    const SKID_CG_ARROWVULCAN: u16 = 394;
+                    let replays_caster = matches!(skill_id, SKID_AS_SONICBLOW | SKID_CH_CHAINCRUSH | SKID_CG_ARROWVULCAN);
+                    if replays_caster && effective_count > 1 {
+                        if let Some(caster) = self.game.entities.get_mut(src_gid) {
+                            for i in 1..effective_count {
+                                let hit_time = now + delay_time + (i as f32 * double_attack_term);
+                                caster.pending_attack_replays.push(hit_time);
+                            }
+                        }
+                    }
                 }
                 GameEvent::SkillNoDamage { skill_id, src_gid, target_gid } => {
                     let target_pos = self.game.entities.get(target_gid).map(|e| e.movement.cell_position());
@@ -1606,6 +1628,16 @@ impl App {
                         }
                         entity.enter_skill_exec(0.6, skill_id, 1);
                     }
+                }
+                GameEvent::GroundSkill { skill_id, src_gid, level: _, x, y } => {
+                    if let Some(entity) = self.game.entities.get_mut(src_gid) {
+                        let sp = entity.movement.cell_position();
+                        if let Some(dir) = direction_from_positions(sp.0, sp.1, x as u16, y as u16) {
+                            entity.direction = dir;
+                        }
+                        entity.enter_skill_exec(0.6, skill_id, 1);
+                    }
+                    // TODO: Place ground effect at (x, y) when STR effect renderer exists
                 }
                 GameEvent::SkillCastCancel { gid } => {
                     let target_gid = if gid == 0 {
@@ -2586,6 +2618,25 @@ impl App {
                     }
                 }
             }
+
+        }
+    }
+
+    fn process_caster_replays(&mut self) {
+        let now = self.start_time.elapsed().as_secs_f32();
+        for entity in self.game.entities.iter_mut() {
+            let mut replayed = false;
+            entity.pending_attack_replays.retain(|&fire_at| {
+                if now >= fire_at {
+                    replayed = true;
+                    false
+                } else {
+                    true
+                }
+            });
+            if replayed {
+                entity.enter_attack_replay();
+            }
         }
     }
 
@@ -2628,9 +2679,13 @@ impl App {
                         | EntityState::Pickup
                 );
                 if let Some(duration) = entity.animation_duration.take() {
-                    let start_frame = if entity.state == EntityState::SkillExec {
-                        entity.skill_exec_start_frame()
-                    } else { 0 };
+                    let start_frame = entity.animation_start_frame.take().unwrap_or_else(|| {
+                        if entity.state == EntityState::SkillExec {
+                            entity.skill_exec_start_frame()
+                        } else {
+                            0
+                        }
+                    });
                     entity.animation.play(action, duration * 1000.0, start_frame);
                 } else if entity.state == EntityState::Casting {
                     entity.animation.set_action(action, MotionType::Static);
@@ -3108,6 +3163,7 @@ impl ApplicationHandler for App {
                 self.update_entity_state(delta);
                 self.game.damage_numbers.update(delta);
                 self.process_scheduled_hits();
+                self.process_caster_replays();
                 self.update_floor_items(elapsed);
                 self.check_pending_pickup();
                 self.load_missing_entity_sprites();
@@ -3714,10 +3770,10 @@ impl ApplicationHandler for App {
                     ui_ctx.begin_frame();
                 }
 
-                let frame_duration = frame_start.elapsed();
-                if frame_duration < TARGET_FRAME_TIME {
-                    std::thread::sleep(TARGET_FRAME_TIME - frame_duration);
-                }
+                // let frame_duration = frame_start.elapsed();
+                // if frame_duration < TARGET_FRAME_TIME {
+                //     std::thread::sleep(TARGET_FRAME_TIME - frame_duration);
+                // }
 
                 if let Some(window) = &self.window {
                     window.request_redraw();

@@ -88,6 +88,8 @@ pub struct Entity {
     pub cast_total_duration: f32,
     /// Animation duration override in seconds, applied once when the action changes.
     pub animation_duration: Option<f32>,
+    /// Override start frame for the next animation play (consumed alongside animation_duration).
+    pub animation_start_frame: Option<usize>,
     /// Last attack motion duration from server, used as ReadyFight timer after attack.
     attack_motion_duration: f32,
     pub movement: MovementState,
@@ -97,6 +99,7 @@ pub struct Entity {
     pub active_skill_id: Option<u16>,
     pub skill_hit_count: u16,
     pub scheduled_hits: ScheduledHitQueue,
+    pub pending_attack_replays: Vec<f32>,
 }
 
 impl Entity {
@@ -125,6 +128,7 @@ impl Entity {
             state_timer: 0.0,
             cast_total_duration: 0.0,
             animation_duration: None,
+            animation_start_frame: None,
             attack_motion_duration: 0.0,
             movement,
             animation: SpriteAnimationState::new(direction),
@@ -133,6 +137,7 @@ impl Entity {
             active_skill_id: None,
             skill_hit_count: 0,
             scheduled_hits: ScheduledHitQueue::new(),
+            pending_attack_replays: Vec::new(),
         }
     }
 
@@ -207,6 +212,20 @@ impl Entity {
         self.state_timer = duration_secs;
         self.attack_motion_duration = duration_secs;
         self.animation_duration = Some(duration_secs);
+    }
+
+    /// Caster attack replay for multi-hit skills (Sonic Blow, Chain Crush, Arrow Vulcan).
+    /// Starts at frame 4 (weapon swing), matching original game's AM_WILL_BE_ATTACK
+    /// with m_curMotion=4, m_motionSpeed=1.
+    pub fn enter_attack_replay(&mut self) {
+        if self.state == EntityState::Dead {
+            return;
+        }
+        self.state = EntityState::Attacking;
+        self.state_timer = 0.2;
+        self.attack_motion_duration = 0.2;
+        self.animation_duration = Some(0.3);
+        self.animation_start_frame = Some(4);
     }
 
     pub fn enter_casting(&mut self, duration_secs: f32, skill_id: u16) {

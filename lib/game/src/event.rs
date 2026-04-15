@@ -97,6 +97,7 @@ pub enum GameEvent {
     },
     EntityVanished {
         gid: u32,
+        vanish_type: u8,
     },
     EntityStopMove {
         gid: u32,
@@ -136,7 +137,7 @@ pub enum GameEvent {
     EntitySpriteChanged { gid: u32, sprite_type: u8, value: u16, value2: u16 },
 
     // Skills (effects & casting)
-    SkillCasting { gid: u32, target_gid: u32, skill_id: u16, delay_ms: u32 },
+    SkillCasting { gid: u32, target_gid: u32, skill_id: u16, delay_ms: u32, x: i16, y: i16 },
     SkillCastCancel { gid: u32 },
     SkillFailed { skill_id: u16, cause: u8 },
     ActionFailure,
@@ -147,6 +148,13 @@ pub enum GameEvent {
         count: i16, action: ActionType,
     },
     SkillNoDamage { skill_id: u16, src_gid: u32, target_gid: u32 },
+    GroundSkill {
+        skill_id: u16,
+        src_gid: u32,
+        level: i16,
+        x: i16,
+        y: i16,
+    },
 
     // Effects
     EntityEmotion { gid: u32, emotion_type: u8 },
