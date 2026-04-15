@@ -117,7 +117,7 @@ pub struct Entity {
     pub active_skill_id: Option<u16>,
     pub skill_hit_count: u16,
     pub scheduled_hits: ScheduledHitQueue,
-    pub pending_attack_replays: Vec<f32>,
+    pub pending_attack_replays: Vec<(f32, u16)>,
     pub fade: Option<EntityFade>,
 }
 
@@ -237,13 +237,17 @@ impl Entity {
     /// Caster attack replay for multi-hit skills (Sonic Blow, Chain Crush, Arrow Vulcan).
     /// Starts at frame 4 (weapon swing), matching original game's AM_WILL_BE_ATTACK
     /// with m_curMotion=4, m_motionSpeed=1.
-    pub fn enter_attack_replay(&mut self) {
+    pub fn enter_attack_replay(&mut self, skill_id: u16) {
         if self.state == EntityState::Dead {
             return;
         }
-        self.state = EntityState::Attacking;
+        // Stay in SkillExec so action_index() uses skill_exec_action_index(),
+        // which picks the correct action based on active_skill_id (e.g. Attack2
+        // for Arrow Vulcan). Using Attacking state would call
+        // attack_action_for_weapon() which may return a different action.
+        self.state = EntityState::SkillExec;
         self.state_timer = 0.2;
-        self.attack_motion_duration = 0.2;
+        self.active_skill_id = Some(skill_id);
         self.animation_duration = Some(0.3);
         self.animation_start_frame = Some(4);
     }

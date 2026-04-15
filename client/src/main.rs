@@ -1569,6 +1569,7 @@ impl App {
                         ActionType::Skill if count > 1 => count as u16,
                         _ => 1,
                     };
+                    tracing::info!("SkillDamage: skill_id={skill_id}, src_gid={src_gid}, count={count}, action={action:?}, effective_count={effective_count}");
 
                     let suppress_flinch = matches!(action,
                         ActionType::AttackNomotion | ActionType::AttackMultipleNomotion
@@ -1625,12 +1626,16 @@ impl App {
                     const SKID_CH_CHAINCRUSH: u16 = 271;
                     const SKID_CG_ARROWVULCAN: u16 = 394;
                     let replays_caster = matches!(skill_id, SKID_AS_SONICBLOW | SKID_CH_CHAINCRUSH | SKID_CG_ARROWVULCAN);
+                    tracing::info!("SkillDamage replay check: replays_caster={replays_caster}, effective_count={effective_count}");
                     if replays_caster && effective_count > 1 {
                         if let Some(caster) = self.game.entities.get_mut(src_gid) {
                             for i in 1..effective_count {
                                 let hit_time = now + delay_time + (i as f32 * double_attack_term);
-                                caster.pending_attack_replays.push(hit_time);
+                                caster.pending_attack_replays.push((hit_time, skill_id));
                             }
+                            tracing::info!("Scheduled {} caster replays for entity {src_gid}", effective_count - 1);
+                        } else {
+                            tracing::warn!("Caster entity {src_gid} NOT FOUND for replay scheduling");
                         }
                     }
                 }
@@ -2629,7 +2634,15 @@ impl App {
 
                 if matches!(hit.message, DamageMessage::Attacked | DamageMessage::AttackedMultiHit { .. }) {
                     if hit.damage > 0 {
+                        let attacker_pos = self.game.entities.get(hit.attacker_gid)
+                            .map(|e| e.movement.cell_position());
                         if let Some(entity) = self.game.entities.get_mut(entity_id) {
+                            if let Some(ap) = attacker_pos {
+                                let tp = entity.movement.cell_position();
+                                if let Some(dir) = direction_from_positions(tp.0, tp.1, ap.0, ap.1) {
+                                    entity.direction = dir;
+                                }
+                            }
                             entity.enter_hurt(0.3);
                         }
                     }
@@ -2642,17 +2655,21 @@ impl App {
     fn process_caster_replays(&mut self) {
         let now = self.start_time.elapsed().as_secs_f32();
         for entity in self.game.entities.iter_mut() {
-            let mut replayed = false;
-            entity.pending_attack_replays.retain(|&fire_at| {
+            let mut replay_skill_id = None;
+            let before_count = entity.pending_attack_replays.len();
+            entity.pending_attack_replays.retain(|&(fire_at, skill_id)| {
                 if now >= fire_at {
-                    replayed = true;
+                    replay_skill_id = Some(skill_id);
                     false
                 } else {
                     true
                 }
             });
-            if replayed {
-                entity.enter_attack_replay();
+            if let Some(skill_id) = replay_skill_id {
+                let after_count = entity.pending_attack_replays.len();
+                tracing::info!("Caster replay fired for entity {}: state={:?}, drained {} replays, {} remaining",
+                    entity.id, entity.state, before_count - after_count, after_count);
+                entity.enter_attack_replay(skill_id);
             }
         }
     }

@@ -47,6 +47,7 @@ pub fn skill_motion_type(skill_id: u16) -> SkillMotionType {
         || id == SkillEnum::RgRaid.id() as u16
         || id == SkillEnum::RgIntimidate.id() as u16
         || id == SkillEnum::RgCloseconfine.id() as u16
+        || id == SkillEnum::AsSonicblow.id() as u16
         || id == SkillEnum::MoInvestigate.id() as u16
         || id == SkillEnum::MoFingeroffensive.id() as u16
         || id == SkillEnum::MoTripleattack.id() as u16
@@ -168,6 +169,7 @@ mod tests {
     fn attack_skills_return_attack() {
         assert_eq!(skill_motion_type(SkillEnum::SmBash.id() as u16), SkillMotionType::Attack);
         assert_eq!(skill_motion_type(SkillEnum::AcDouble.id() as u16), SkillMotionType::Attack);
+        assert_eq!(skill_motion_type(SkillEnum::AsSonicblow.id() as u16), SkillMotionType::Attack);
         assert_eq!(skill_motion_type(SkillEnum::LkSpiralpierce.id() as u16), SkillMotionType::Attack);
     }
 
