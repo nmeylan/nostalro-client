@@ -29,6 +29,24 @@ pub enum EntityState {
     Pickup,
 }
 
+pub const DEATH_FADE_DURATION: f32 = 6.12; // 255 * 24ms, matching original client corpse fade
+pub const VANISH_FADE_DURATION: f32 = 0.51; // 510ms, matching original client out-of-sight fade
+
+pub struct EntityFade {
+    pub elapsed: f32,
+    pub duration: f32,
+}
+
+impl EntityFade {
+    pub fn alpha(&self) -> f32 {
+        (1.0 - self.elapsed / self.duration).clamp(0.0, 1.0)
+    }
+
+    pub fn is_expired(&self) -> bool {
+        self.elapsed >= self.duration
+    }
+}
+
 pub struct EmotionState {
     pub emotion_type: u8,
     pub elapsed: f32,
@@ -100,6 +118,7 @@ pub struct Entity {
     pub skill_hit_count: u16,
     pub scheduled_hits: ScheduledHitQueue,
     pub pending_attack_replays: Vec<f32>,
+    pub fade: Option<EntityFade>,
 }
 
 impl Entity {
@@ -138,6 +157,7 @@ impl Entity {
             skill_hit_count: 0,
             scheduled_hits: ScheduledHitQueue::new(),
             pending_attack_replays: Vec::new(),
+            fade: None,
         }
     }
 
@@ -254,6 +274,22 @@ impl Entity {
         self.state = EntityState::Dead;
         self.state_timer = 0.0;
         self.movement.stop();
+    }
+
+    pub fn start_vanish_fade(&mut self) {
+        self.fade = Some(EntityFade { elapsed: 0.0, duration: VANISH_FADE_DURATION });
+    }
+
+    pub fn alpha(&self) -> f32 {
+        self.fade.as_ref().map_or(1.0, |f| f.alpha())
+    }
+
+    pub fn is_fading(&self) -> bool {
+        self.fade.is_some()
+    }
+
+    pub fn should_remove(&self) -> bool {
+        self.fade.as_ref().is_some_and(|f| f.is_expired())
     }
 
     pub fn enter_pickup(&mut self, duration_secs: f32) {
@@ -813,5 +849,42 @@ mod tests {
         let mut e = Entity::new_player(1, 15, 1, 1, 0, 8, 0, 0, 0, 0, 100, 100, 0);
         e.state = EntityState::Attacking;
         assert_eq!(e.action_index(), 10);
+    }
+
+    #[test]
+    fn death_fade_alpha_decreases_linearly() {
+        let mut e = Entity::new(1, EntityType::Monster, 1002, 0, 0, 0, 0, 0, 0, 0, 0, 100, 100, 0, 200);
+        assert!((e.alpha() - 1.0).abs() < f32::EPSILON);
+
+        e.fade = Some(super::EntityFade { elapsed: 0.0, duration: DEATH_FADE_DURATION });
+        assert!((e.alpha() - 1.0).abs() < f32::EPSILON);
+
+        e.fade.as_mut().unwrap().elapsed = 3.06;
+        assert!((e.alpha() - 0.5).abs() < 0.01);
+
+        e.fade.as_mut().unwrap().elapsed = 6.12;
+        assert!((e.alpha() - 0.0).abs() < f32::EPSILON);
+        assert!(e.should_remove());
+    }
+
+    #[test]
+    fn vanish_fade_expires_at_510ms() {
+        let mut e = make_entity();
+        e.start_vanish_fade();
+        assert!(e.is_fading());
+        assert!(!e.should_remove());
+
+        e.fade.as_mut().unwrap().elapsed = 0.51;
+        assert!(e.should_remove());
+    }
+
+    #[test]
+    fn player_death_no_fade_by_default() {
+        let mut e = make_entity(); // Player type
+        e.enter_dead();
+        assert_eq!(e.state, EntityState::Dead);
+        assert!(!e.is_fading());
+        assert!((e.alpha() - 1.0).abs() < f32::EPSILON);
+        assert!(!e.should_remove());
     }
 }

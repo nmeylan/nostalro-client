@@ -1,5 +1,6 @@
 use crate::inventory::{EquipmentItemData, NormalItemData};
 use models::enums::action::ActionType;
+use models::enums::vanish::VanishType;
 use packets::packets::{CharacterInfoNeoUnion, ServerAddr};
 
 #[derive(Debug)]
@@ -97,7 +98,7 @@ pub enum GameEvent {
     },
     EntityVanished {
         gid: u32,
-        vanish_type: u8,
+        vanish_type: VanishType,
     },
     EntityStopMove {
         gid: u32,

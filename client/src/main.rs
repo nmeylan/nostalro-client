@@ -16,10 +16,11 @@ use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::cursor::{
     CursorType, PendingSkillTarget, RenderEntry, RenderEntryKind, cursor_type_for_cell, hovered_entity_cursor_type,
 };
-use ragnarok_game::entity::{Entity, EntityState, EntityType};
+use ragnarok_game::entity::{Entity, EntityFade, EntityState, EntityType, DEATH_FADE_DURATION};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::event::GameEvent;
+use models::enums::vanish::VanishType;
 use ragnarok_game::item::Item;
 use ragnarok_game::name_table::NameTable;
 use ragnarok_game::path::{path_search, try_move_to};
@@ -711,10 +712,26 @@ impl App {
                         }
                     }
                 }
-                GameEvent::EntityVanished { gid, vanish_type: _ } => {
-                    let r1 = self.game.entities.remove(gid).is_some();
-                    let r2 = self.game.sprites.remove(&gid).is_some();
-                    tracing::debug!("EntityVanished: gid={gid} r1={r1} r2={r2}");
+                GameEvent::EntityVanished { gid, vanish_type } => {
+                    match vanish_type {
+                        VanishType::Die => {
+                            if let Some(entity) = self.game.entities.get_mut(gid) {
+                                entity.enter_dead();
+                                tracing::debug!("EntityVanished(death): gid={gid}");
+                            }
+                        }
+                        VanishType::OutOfSight => {
+                            if let Some(entity) = self.game.entities.get_mut(gid) {
+                                entity.start_vanish_fade();
+                                tracing::debug!("EntityVanished(outofsight): gid={gid}");
+                            }
+                        }
+                        _ => {
+                            let r1 = self.game.entities.remove(gid).is_some();
+                            let r2 = self.game.sprites.remove(&gid).is_some();
+                            tracing::debug!("EntityVanished: gid={gid} type={vanish_type:?} r1={r1} r2={r2}");
+                        }
+                    }
                 }
                 GameEvent::EntityStopMove { gid, x, y } => {
                     if let Some(entity) = self.game.entities.get_mut(gid) {
@@ -2668,6 +2685,10 @@ impl App {
         let sprites = &self.game.sprites;
         for entity in self.game.entities.iter_mut() {
             if let Some(sprite) = sprites.get(&entity.id) {
+                // Freeze on last frame once death animation finishes
+                if entity.state == EntityState::Dead && entity.animation.is_finished() {
+                    continue;
+                }
                 let dir = camera_dir.unwrap_or(0);
                 let action = entity.action_index();
                 let is_transient = matches!(
@@ -2705,6 +2726,35 @@ impl App {
                     entity.animation.update(delta, &sprite.body_act, dir);
                 }
             }
+        }
+    }
+
+    fn update_fades(&mut self, delta: f32) {
+        for entity in self.game.entities.iter_mut() {
+            // Start death fade when: dead, animation finished, pending hits drained, non-player
+            if entity.state == EntityState::Dead
+                && entity.fade.is_none()
+                && entity.animation.is_finished()
+                && entity.scheduled_hits.is_empty()
+                && entity.entity_type != EntityType::Player
+            {
+                entity.fade = Some(EntityFade { elapsed: 0.0, duration: DEATH_FADE_DURATION });
+            }
+
+            // Advance active fade timer
+            if let Some(ref mut fade) = entity.fade {
+                fade.elapsed += delta;
+            }
+        }
+
+        // Remove expired fading entities
+        let expired: Vec<u32> = self.game.entities.iter()
+            .filter(|e| e.should_remove())
+            .map(|e| e.id)
+            .collect();
+        for gid in expired {
+            self.game.entities.remove(gid);
+            self.game.sprites.remove(&gid);
         }
     }
 
@@ -3168,6 +3218,7 @@ impl ApplicationHandler for App {
                 self.check_pending_pickup();
                 self.load_missing_entity_sprites();
                 self.update_sprite_animation(delta);
+                self.update_fades(delta);
 
                 let hovered = self.update_grid_hover();
                 let render_list = self.compute_render_list();
@@ -3482,13 +3533,19 @@ impl ApplicationHandler for App {
                                     self.game.sprites.get(&entry.id),
                                     self.game.entities.get(entry.id),
                                 ) {
-                                    let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
-                                    let mut shadow = sprite.build_shadow_batches(
-                                        entry.screen_anchor,
-                                        entry.depth,
-                                        shadow_scale,
-                                    );
-                                    sprite_batches.append(&mut shadow);
+                                    let alpha = entity.alpha();
+                                    let is_fading = alpha < 1.0;
+
+                                    if !is_fading {
+                                        let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
+                                        let mut shadow = sprite.build_shadow_batches(
+                                            entry.screen_anchor,
+                                            entry.depth,
+                                            shadow_scale,
+                                        );
+                                        sprite_batches.append(&mut shadow);
+                                    }
+
                                     let mut batches = sprite.build_batches(
                                         &entity.animation,
                                         Some(entry.camera_dir),
@@ -3498,6 +3555,13 @@ impl ApplicationHandler for App {
                                         entry.sprite_scale,
                                         entry.depth_gradient,
                                     );
+                                    if is_fading {
+                                        for batch in &mut batches {
+                                            for vertex in &mut batch.vertices {
+                                                vertex.color[3] *= alpha;
+                                            }
+                                        }
+                                    }
                                     sprite_batches.append(&mut batches);
 
                                     if let (Some(emo), Some(emo_act), Some(emo_tex)) = (

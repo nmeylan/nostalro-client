@@ -1,7 +1,7 @@
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
 
-use crate::entity::EntityType;
+use crate::entity::{EntityState, EntityType};
 use crate::entity_collection::EntityCollection;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,6 +74,9 @@ pub fn hovered_entity_cursor_type(
 
         if mx >= left && mx <= right && my >= top && my <= bottom {
             let entity = entities.get(entry.id)?;
+            if entity.state == EntityState::Dead || entity.is_fading() {
+                continue;
+            }
             return match entity.entity_type {
                 EntityType::Npc if entity.job == 45 => Some((CursorType::Warp, entry.id)),
                 EntityType::Npc => Some((CursorType::Talk, entry.id)),
@@ -327,5 +330,25 @@ mod tests {
         let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
         // Mouse far from entity center
         assert_eq!(hovered_entity_cursor_type((100.0, 100.0), &entities, &list), None);
+    }
+
+    #[test]
+    fn dead_monster_is_not_hoverable() {
+        let mut entities = EntityCollection::new();
+        let mut monster = make_entity(10, EntityType::Monster, 1002);
+        monster.enter_dead();
+        entities.insert(monster);
+        let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
+        assert_eq!(hovered_entity_cursor_type((400.0, 310.0), &entities, &list), None);
+    }
+
+    #[test]
+    fn fading_entity_is_not_hoverable() {
+        let mut entities = EntityCollection::new();
+        let mut monster = make_entity(10, EntityType::Monster, 1002);
+        monster.start_vanish_fade();
+        entities.insert(monster);
+        let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
+        assert_eq!(hovered_entity_cursor_type((400.0, 310.0), &entities, &list), None);
     }
 }

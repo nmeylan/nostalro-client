@@ -1,5 +1,6 @@
 use models::enums::EnumWithNumberValue;
 use models::enums::action::ActionType;
+use models::enums::vanish::VanishType;
 use packets::packets::*;
 use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo, SkillInfo};
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
@@ -282,7 +283,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
 
     // Entity despawn
     if let Some(p) = any.downcast_ref::<PacketZcNotifyVanish>() {
-        return vec![GameEvent::EntityVanished { gid: p.gid, vanish_type: p.atype }];
+        return vec![GameEvent::EntityVanished { gid: p.gid, vanish_type: VanishType::from_value(p.atype as usize) }];
     }
 
     // Character stats & parameters
@@ -846,7 +847,7 @@ mod tests {
         match &result[0] {
             GameEvent::EntityVanished { gid, vanish_type } => {
                 assert_eq!(*gid, 42);
-                assert_eq!(*vanish_type, 0);
+                assert!(matches!(vanish_type, VanishType::OutOfSight));
             }
             other => panic!("expected EntityVanished, got {other:?}"),
         }

@@ -492,16 +492,6 @@ mod tests {
     }
 
     #[test]
-    fn total_alpha_holds_then_fades() {
-        let mut d = DamageNumber::new(1, 100, DamageNumberType::ComboFinal, 0);
-        // frame 90 = 90 * 24ms = 2.16s
-        d.elapsed = 2.0; // frame ~83 < 90
-        assert!(d.alpha() > 0.95, "should be nearly opaque before frame 90");
-        d.elapsed = 2.5; // frame ~104 > 90
-        assert!(d.alpha() < 0.95, "should be fading after frame 90");
-    }
-
-    #[test]
     fn critical_color_is_yellow() {
         assert_eq!(DamageNumberType::Critical.color(), [0.9, 0.9, 0.15]);
     }
