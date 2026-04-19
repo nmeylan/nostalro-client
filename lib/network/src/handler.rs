@@ -357,6 +357,15 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             delay_ms: p.delay_tm,
         }];
     }
+    // EFST_POSTDELAY (index 46) = global after-cast delay
+    if let Some(p) = any.downcast_ref::<PacketZcMsgStateChange2>() {
+        if p.index == 46 && p.state {
+            return vec![GameEvent::AfterCastDelay {
+                delay_ms: p.remain_ms,
+            }];
+        }
+        return vec![GameEvent::Acknowledged];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcNotifySkill>() {
         return vec![GameEvent::SkillDamage {
             skill_id: p.skid,
@@ -383,6 +392,9 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(_p) = any.downcast_ref::<PacketZcProgressCancel>() {
         return vec![GameEvent::SkillCastCancel { gid: 0 }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcDispel>() {
+        return vec![GameEvent::SkillCastCancel { gid: p.aid }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcUseSkill>() {
         if p.result {

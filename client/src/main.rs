@@ -1559,6 +1559,11 @@ impl App {
                     let now = self.start_time.elapsed().as_secs_f32();
                     self.game.character.cooldowns.set_skill_cooldown(skill_id, duration, now);
                 }
+                GameEvent::AfterCastDelay { delay_ms } => {
+                    let duration = delay_ms as f32 / 1000.0;
+                    let now = self.start_time.elapsed().as_secs_f32();
+                    self.game.character.cooldowns.set_global_cooldown(duration, now);
+                }
                 GameEvent::SkillDamage { skill_id, src_gid, target_gid, damage, attack_mt, attacked_mt: _, count, action } => {
                     let now = self.start_time.elapsed().as_secs_f32();
 
@@ -1662,6 +1667,7 @@ impl App {
                     // TODO: Place ground effect at (x, y) when STR effect renderer exists
                 }
                 GameEvent::SkillCastCancel { gid } => {
+                    dbg!("Skill cast cancel", gid);
                     let target_gid = if gid == 0 {
                         self.game.entities.player_id().unwrap_or(0)
                     } else {

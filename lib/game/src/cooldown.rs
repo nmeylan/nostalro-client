@@ -69,12 +69,13 @@ mod tests {
     }
 
     #[test]
-    fn skill_specific_cooldown_only_blocks_that_skill() {
+    fn per_skill_cooldown_does_not_block_other_skills_end_to_end() {
         let mut cd = CooldownTracker::new();
-        cd.set_skill_cooldown(10, 3.0, 5.0);
-        assert!(cd.is_on_cooldown(10, 7.0));
-        assert!(!cd.is_on_cooldown(20, 7.0));
-        assert!(!cd.is_on_cooldown(10, 8.1));
+        cd.set_skill_cooldown(28, 1.5, 10.0);
+        assert!(cd.is_on_cooldown(28, 10.5));
+        assert!(!cd.is_on_cooldown(29, 10.5));
+        assert!((cd.remaining_secs(28, 11.0) - 0.5).abs() < f32::EPSILON);
+        assert!(!cd.is_on_cooldown(28, 11.6));
     }
 
     #[test]

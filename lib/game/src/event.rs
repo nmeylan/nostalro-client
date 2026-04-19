@@ -143,6 +143,7 @@ pub enum GameEvent {
     SkillFailed { skill_id: u16, cause: u8 },
     ActionFailure,
     SkillPostDelay { skill_id: u16, delay_ms: u32 },
+    AfterCastDelay { delay_ms: u32 },
     SkillDamage {
         skill_id: u16, src_gid: u32, target_gid: u32,
         damage: i32, attack_mt: i32, attacked_mt: i32,
