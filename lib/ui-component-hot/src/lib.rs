@@ -466,7 +466,7 @@ fn create_single(name: &str) -> State {
             State::ItemInfo { win, character: Character::new(), data, item: bow }
         }
         "skill_tree" => {
-            use ragnarok_game::skill::SkillData;
+            use ragnarok_game::skill::{SkillData, SkillTargetType};
             use ragnarok_game::skill_name_table::SkillNameTable;
             use ragnarok_game::skill_tree_table::{SkillTreeTable, SkillTreeEntry};
 
@@ -474,11 +474,11 @@ fn create_single(name: &str) -> State {
             character.skill_point = 5;
             character.skills.open();
             character.skills.set_skills(vec![
-                SkillData { id: 1, name: "SM_SWORD".into(), level: 10, selected_level: 10, sp_cost: 0, attack_range: 0, upgradable: false, skill_type: 0 },
-                SkillData { id: 2, name: "SM_RECOVERY".into(), level: 5, selected_level: 5, sp_cost: 0, attack_range: 0, upgradable: true, skill_type: 0 },
-                SkillData { id: 3, name: "SM_BASH".into(), level: 5, selected_level: 5, sp_cost: 8, attack_range: 1, upgradable: true, skill_type: 1 },
-                SkillData { id: 4, name: "SM_PROVOKE".into(), level: 3, selected_level: 3, sp_cost: 4, attack_range: 9, upgradable: true, skill_type: 1 },
-                SkillData { id: 5, name: "SM_ENDURE".into(), level: 0, selected_level: 0, sp_cost: 10, attack_range: 0, upgradable: true, skill_type: 2 },
+                SkillData { id: 1, name: "SM_SWORD".into(), level: 10, selected_level: 10, sp_cost: 0, attack_range: 0, upgradable: false, skill_target_type: SkillTargetType::Passive },
+                SkillData { id: 2, name: "SM_RECOVERY".into(), level: 5, selected_level: 5, sp_cost: 0, attack_range: 0, upgradable: true, skill_target_type: SkillTargetType::Passive },
+                SkillData { id: 3, name: "SM_BASH".into(), level: 5, selected_level: 5, sp_cost: 8, attack_range: 1, upgradable: true, skill_target_type: SkillTargetType::Target },
+                SkillData { id: 4, name: "SM_PROVOKE".into(), level: 3, selected_level: 3, sp_cost: 4, attack_range: 9, upgradable: true, skill_target_type: SkillTargetType::Target },
+                SkillData { id: 5, name: "SM_ENDURE".into(), level: 0, selected_level: 0, sp_cost: 10, attack_range: 0, upgradable: true, skill_target_type: SkillTargetType::Ground },
             ]);
 
             let mut skill_names = HashMap::new();
@@ -544,7 +544,7 @@ fn create_single(name: &str) -> State {
         }
         "hotkey_bar" => {
             use ragnarok_game::hotkey::HotkeySlotContent;
-            use ragnarok_game::skill::SkillData;
+            use ragnarok_game::skill::{SkillData, SkillTargetType};
             use ragnarok_game::skill_name_table::SkillNameTable;
             use ragnarok_game::skill_tree_table::{SkillTreeTable, SkillTreeEntry};
 
@@ -558,11 +558,11 @@ fn create_single(name: &str) -> State {
             character.skill_point = 5;
             character.skills.open();
             character.skills.set_skills(vec![
-                SkillData { id: 43, name: "AC_OWL".into(), level: 10, selected_level: 10, sp_cost: 0, attack_range: 0, upgradable: false, skill_type: 0 },
-                SkillData { id: 44, name: "AC_VULTURE".into(), level: 10, selected_level: 10, sp_cost: 0, attack_range: 0, upgradable: false, skill_type: 0 },
-                SkillData { id: 45, name: "AC_CONCENTRATION".into(), level: 10, selected_level: 10, sp_cost: 15, attack_range: 0, upgradable: true, skill_type: 2 },
-                SkillData { id: 46, name: "AC_DOUBLE".into(), level: 10, selected_level: 10, sp_cost: 12, attack_range: 9, upgradable: true, skill_type: 1 },
-                SkillData { id: 47, name: "AC_SHOWER".into(), level: 10, selected_level: 10, sp_cost: 15, attack_range: 9, upgradable: true, skill_type: 1 },
+                SkillData { id: 43, name: "AC_OWL".into(), level: 10, selected_level: 10, sp_cost: 0, attack_range: 0, upgradable: false, skill_target_type: SkillTargetType::Passive },
+                SkillData { id: 44, name: "AC_VULTURE".into(), level: 10, selected_level: 10, sp_cost: 0, attack_range: 0, upgradable: false, skill_target_type: SkillTargetType::Passive },
+                SkillData { id: 45, name: "AC_CONCENTRATION".into(), level: 10, selected_level: 10, sp_cost: 15, attack_range: 0, upgradable: true, skill_target_type: SkillTargetType::Ground },
+                SkillData { id: 46, name: "AC_DOUBLE".into(), level: 10, selected_level: 10, sp_cost: 12, attack_range: 9, upgradable: true, skill_target_type: SkillTargetType::Target },
+                SkillData { id: 47, name: "AC_SHOWER".into(), level: 10, selected_level: 10, sp_cost: 15, attack_range: 9, upgradable: true, skill_target_type: SkillTargetType::Target },
             ]);
 
             character.hotkeys.set_slot(0, HotkeySlotContent::Skill { skill_id: 46, level: 10 });

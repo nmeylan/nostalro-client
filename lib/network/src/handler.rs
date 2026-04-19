@@ -1,5 +1,6 @@
 use models::enums::EnumWithNumberValue;
 use models::enums::action::ActionType;
+use models::enums::skill::SkillTargetType;
 use models::enums::vanish::VanishType;
 use packets::packets::*;
 use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo, SkillInfo};
@@ -675,7 +676,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
                 sp_cost: s.spcost,
                 attack_range: s.attack_range,
                 upgradable: s.upgradable != 0,
-                skill_type: s.atype,
+                skill_target_type: SkillTargetType::from_value(s.atype as usize),
             }
         }).collect();
         return vec![GameEvent::SkillListReceived { skills }];
@@ -708,7 +709,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
                 sp_cost: p.data.spcost,
                 attack_range: p.data.attack_range,
                 upgradable: p.data.upgradable != 0,
-                skill_type: p.data.atype,
+                skill_target_type: SkillTargetType::from_value(p.data.atype as usize),
             },
         }];
     }

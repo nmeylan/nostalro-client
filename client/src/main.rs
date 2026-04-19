@@ -9,6 +9,7 @@ use input::InputState;
 use models::enums::{EnumWithMaskValueU64, EnumWithNumberValue};
 use models::enums::action::ActionType;
 use models::enums::status::StatusTypes;
+use ragnarok_game::skill::SkillTargetType;
 use ragnarok_formats::act::{MotionType, SpriteActionType};
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
@@ -41,7 +42,7 @@ use ragnarok_network::{
     build_purchase_item_list_packet, build_reqname_packet, build_request_move_packet,
     build_restart_packet, build_select_char_packet, build_sell_item_list_packet,
     build_shortcut_key_change_packet,
-    build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_use_skill_packet, build_zone_enter_packet, ip_u32_to_string,
+    build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet, build_zone_enter_packet, ip_u32_to_string,
     network_loop,
 };
 use ragnarok_renderer::ui_renderer::UiVertex;
@@ -206,13 +207,25 @@ impl App {
         }
         // Skill targeting mode: consume pending skill on click
         if let Some(pending) = self.game.pending_skill_target.take() {
-            if let Some(entity_id) = self.game.hovered_entity_id {
-                if let Some(tx) = &self.network_cmd_tx {
-                    let packet = build_use_skill_packet(pending.skill_id, pending.level, entity_id, self.config.packetver);
-                    let _ = tx.send(NetworkCommand::SendPacket(packet));
+            match pending {
+                PendingSkillTarget::Entity { skill_id, level } => {
+                    if let Some(entity_id) = self.game.hovered_entity_id {
+                        if let Some(tx) = &self.network_cmd_tx {
+                            let packet = build_use_skill_packet(skill_id, level, entity_id, self.config.packetver);
+                            let _ = tx.send(NetworkCommand::SendPacket(packet));
+                        }
+                    }
+                }
+                PendingSkillTarget::Ground { skill_id, level } => {
+                    // TODO: render effect\magic_target.tga ground overlay at hovered cell for skill area
+                    if let Some((cx, cy)) = self.hovered_cell() {
+                        if let Some(tx) = &self.network_cmd_tx {
+                            let packet = build_use_skill_to_ground_packet(skill_id, level, cx as i16, cy as i16, self.config.packetver);
+                            let _ = tx.send(NetworkCommand::SendPacket(packet));
+                        }
+                    }
                 }
             }
-            // Whether we had a target or not, targeting is consumed (click on ground cancels)
             return;
         }
         // Click on floor item to pick up
@@ -1500,7 +1513,7 @@ impl App {
                             sp_cost: s.sp_cost,
                             attack_range: s.attack_range,
                             upgradable: s.upgradable,
-                            skill_type: s.skill_type,
+                            skill_target_type: s.skill_target_type,
                             name: s.name,
                         }).collect(),
                     );
@@ -1523,7 +1536,7 @@ impl App {
                         sp_cost: skill.sp_cost,
                         attack_range: skill.attack_range,
                         upgradable: skill.upgradable,
-                        skill_type: skill.skill_type,
+                        skill_target_type: skill.skill_target_type,
                         name: skill.name,
                     });
                     self.preload_item_icons(vec![icon_path]);
@@ -2298,24 +2311,25 @@ impl App {
                     }
                 }
                 GameEvent::RequestUseSkill { skill_id, level } => {
-                    let skill_type = self.game.character.skills.get_skill(skill_id)
-                        .map(|s| s.skill_type)
-                        .unwrap_or(1);
-                    match skill_type {
-                        4 => {
-                            // Self-cast: send immediately targeting self
+                    let skill_target_type = self.game.character.skills.get_skill(skill_id)
+                        .map(|s| s.skill_target_type)
+                        .unwrap_or(SkillTargetType::Target);
+                    match skill_target_type {
+                        SkillTargetType::MySelf => {
                             if let Some(tx) = &self.network_cmd_tx {
                                 let target_id = self.game.entities.player_id().unwrap_or(0);
                                 let packet = build_use_skill_packet(skill_id, level, target_id, self.config.packetver);
                                 let _ = tx.send(NetworkCommand::SendPacket(packet));
                             }
                         }
-                        1 => {
-                            // Targeted skill: enter targeting mode
-                            self.game.pending_skill_target = Some(PendingSkillTarget { skill_id, level });
+                        SkillTargetType::Target => {
+                            self.game.pending_skill_target = Some(PendingSkillTarget::Entity { skill_id, level });
+                        }
+                        SkillTargetType::Ground | SkillTargetType::Trap => {
+                            self.game.pending_skill_target = Some(PendingSkillTarget::Ground { skill_id, level });
                         }
                         _ => {
-                            tracing::debug!("Skill type {skill_type} not yet supported for skill {skill_id}");
+                            tracing::debug!("Skill target type {:?} not yet supported for skill {skill_id}", skill_target_type);
                         }
                     }
                 }
@@ -2921,15 +2935,22 @@ impl App {
                 (CursorType::Click, None)
             } else if ui_any_hovered {
                 (CursorType::Default, None)
-            } else if self.game.pending_skill_target.is_some() {
-                // Skill targeting mode: show Lock cursor, but still detect hovered entity for click
-                let hovered = hovered_entity_cursor_type(
-                    self.input.mouse_position,
-                    &self.game.entities,
-                    render_list,
-                );
-                let entity_id = hovered.map(|(_, id)| id);
-                (CursorType::Lock, entity_id)
+            } else if let Some(pending) = &self.game.pending_skill_target {
+                match pending {
+                    PendingSkillTarget::Entity { .. } => {
+                        let hovered = hovered_entity_cursor_type(
+                            self.input.mouse_position,
+                            &self.game.entities,
+                            render_list,
+                        );
+                        let entity_id = hovered.map(|(_, id)| id);
+                        (CursorType::Lock, entity_id)
+                    }
+                    PendingSkillTarget::Ground { .. } => {
+                        // TODO: render effect\magic_target.tga ground overlay at hovered cell for skill area
+                        (CursorType::Lock, None)
+                    }
+                }
             } else if let Some((entity_cursor, entity_id)) = hovered_entity_cursor_type(
                 self.input.mouse_position,
                 &self.game.entities,
@@ -3803,7 +3824,7 @@ impl ApplicationHandler for App {
                     let mut skill_level_calls: Vec<UiDrawCall> = Vec::new();
                     if let (Some(pending), Some(renderer)) = (&self.game.pending_skill_target, &self.renderer) {
                         let (mx, my) = self.input.mouse_position;
-                        let text = format!("Lv {}", pending.level);
+                        let text = format!("Lv {}", pending.level());
                         let text_x = mx as f32 + 20.0;
                         let text_y = my as f32 + 2.0;
                         let outline_color = [0.0, 0.0, 0.0, 1.0];

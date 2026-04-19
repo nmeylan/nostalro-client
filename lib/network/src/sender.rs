@@ -276,3 +276,13 @@ pub fn build_use_skill_packet(skill_id: u16, level: i16, target_id: u32, packetv
     pkt.fill_raw();
     pkt.raw
 }
+
+pub fn build_use_skill_to_ground_packet(skill_id: u16, level: i16, x: i16, y: i16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzUseSkillToground::new(packetver);
+    pkt.set_selected_level(level);
+    pkt.set_skid(skill_id);
+    pkt.set_x_pos(x);
+    pkt.set_y_pos(y);
+    pkt.fill_raw();
+    pkt.raw
+}

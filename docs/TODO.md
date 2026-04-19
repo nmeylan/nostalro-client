@@ -8,7 +8,7 @@ TODO:
 - ~~Other players / NPCs / monsters entity sprites~~ (done — entity collection manages Player/NPC/Monster types)
 - ~~Doridori head animation~~ (done — head_dir from server selects head/headgear motion)
 - Divide attachment offset by clip zoom for weapons/accessories (original compensates when sprClip zoom != 1.0)
-- Damage numbers display
+- ~~Damage numbers display~~
 - ~~Emotion/emote bubbles~~ (done — EmotionState with 2.5s display)
 - ~~Chat bubbles above entities~~ (done — text bubble with background above entity, 5s duration)
 - ~~Name above entities~~ (done — text with outline rendered above sprites)
@@ -66,10 +66,10 @@ TODO:
 - Attack action + animation
 - Skill casting (cast bar, cast animation)
 - Skill execution + effects
-- Damage/heal numbers
+- ~~Damage/heal numbers~~
 - Status effects (buff/debuff icons + visuals: poison, freeze, stun, etc.)
 - ~~HP/SP bars~~
-- Death + respawn
+- ~~Death~~ + respawn
 - ~~Sit/stand actions~~ (done — Insert key toggle, PacketZcNotifyAct handling)
 
 # Items & equipment

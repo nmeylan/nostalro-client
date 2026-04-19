@@ -1,6 +1,7 @@
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
+use ragnarok_game::skill::SkillTargetType;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -292,7 +293,7 @@ impl InGameWindow for SkillTreeWindow {
             // Level text with optional rank selection arrows
             let level_y = row_y + 28.0;
             let level_color = [tc[0] * 0.7, tc[1] * 0.7, tc[2] * 0.7, tc[3]];
-            let is_level_selectable = skill.skill_type != 0
+            let is_level_selectable = skill.skill_target_type != SkillTargetType::Passive
                 && skill.level > 0
                 && data.skill_use_level.as_ref()
                     .is_some_and(|t| t.supports_level_select(&skill.name));
@@ -350,7 +351,7 @@ impl InGameWindow for SkillTreeWindow {
             // Type text (right-aligned): "Passive" or "Sp : XX"
             let type_x = x + WIN_W - SCROLLBAR_W - PAD_X - 50.0;
             let type_y = row_y + ROW_H / 2.0 + 4.0;
-            if skill.skill_type == 0 {
+            if skill.skill_target_type == SkillTargetType::Passive {
                 ui.text(type_x, type_y, "Passive", tc);
             } else if is_level_selectable {
                 let sp = data.skill_use_level.as_ref()
@@ -380,7 +381,7 @@ impl InGameWindow for SkillTreeWindow {
             }
 
             // Drag source for usable skills (non-passive, learned)
-            if row_resp.clicked() && skill.level > 0 && skill.skill_type != 0 {
+            if row_resp.clicked() && skill.level > 0 && skill.skill_target_type != SkillTargetType::Passive {
                 ui.drag_source(
                     SKILL_WINDOW_ID,
                     skill.id as usize,
@@ -393,10 +394,12 @@ impl InGameWindow for SkillTreeWindow {
             if row_resp.hovered() {
                 let mut tooltip_lines = vec![display_name.clone()];
 
-                let type_str = match skill.skill_type {
-                    0 => "Passive",
-                    1 => "Offensive",
-                    2 => "Supportive",
+                let type_str = match skill.skill_target_type {
+                    SkillTargetType::Passive => "Passive",
+                    SkillTargetType::Target => "Target",
+                    SkillTargetType::Ground => "Ground",
+                    SkillTargetType::MySelf => "Self",
+                    SkillTargetType::Trap => "Trap",
                     _ => "Unknown",
                 };
                 tooltip_lines.push(format!("Type: {type_str}"));

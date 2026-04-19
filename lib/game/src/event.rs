@@ -1,5 +1,6 @@
 use crate::inventory::{EquipmentItemData, NormalItemData};
 use models::enums::action::ActionType;
+use models::enums::skill::SkillTargetType;
 use models::enums::vanish::VanishType;
 use packets::packets::{CharacterInfoNeoUnion, ServerAddr};
 
@@ -276,7 +277,7 @@ pub struct SkillInfo {
     pub sp_cost: i16,
     pub attack_range: i16,
     pub upgradable: bool,
-    pub skill_type: i32,
+    pub skill_target_type: SkillTargetType,
 }
 
 #[derive(Debug, Clone)]

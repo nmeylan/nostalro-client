@@ -1,3 +1,5 @@
+pub use models::enums::skill::SkillTargetType;
+
 pub fn skill_failure_message(cause: u8) -> &'static str {
     match cause {
         0 => "Skill level insufficient",
@@ -27,7 +29,7 @@ pub struct SkillData {
     pub sp_cost: i16,
     pub attack_range: i16,
     pub upgradable: bool,
-    pub skill_type: i32,
+    pub skill_target_type: SkillTargetType,
 }
 
 impl SkillData {
@@ -120,7 +122,7 @@ impl SkillList {
             existing.sp_cost = skill.sp_cost;
             existing.attack_range = skill.attack_range;
             existing.upgradable = skill.upgradable;
-            existing.skill_type = skill.skill_type;
+            existing.skill_target_type = skill.skill_target_type;
             if skill.level <= 0 {
                 existing.selected_level = 0;
             } else if existing.selected_level > skill.level {
@@ -163,7 +165,7 @@ mod tests {
             sp_cost: 10,
             attack_range: 1,
             upgradable: true,
-            skill_type: 1,
+            skill_target_type: SkillTargetType::Target,
         }
     }
 

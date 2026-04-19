@@ -19,9 +19,23 @@ pub enum CursorType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PendingSkillTarget {
-    pub skill_id: u16,
-    pub level: i16,
+pub enum PendingSkillTarget {
+    Entity { skill_id: u16, level: i16 },
+    Ground { skill_id: u16, level: i16 },
+}
+
+impl PendingSkillTarget {
+    pub fn skill_id(&self) -> u16 {
+        match self {
+            Self::Entity { skill_id, .. } | Self::Ground { skill_id, .. } => *skill_id,
+        }
+    }
+
+    pub fn level(&self) -> i16 {
+        match self {
+            Self::Entity { level, .. } | Self::Ground { level, .. } => *level,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
