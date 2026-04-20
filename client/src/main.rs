@@ -226,10 +226,12 @@ impl App {
                     }
                 }
             }
+            self.game.attack_target_id = None;
             return;
         }
         // Click on floor item to pick up
         if let Some(item_id) = self.game.hovered_floor_item_id {
+            self.game.attack_target_id = None;
             self.game.pending_pickup_item_id = None;
             if let Some(floor_item) = self.game.floor_items.get(&item_id) {
                 let (px, py) = self
@@ -282,6 +284,21 @@ impl App {
                 }
             }
         }
+        // Click on monster to attack (always), or player (shift or noshift mode)
+        if let Some(entity_id) = self.game.hovered_entity_id {
+            if let Some(entity) = self.game.entities.get(entity_id) {
+                let should_attack = match entity.entity_type {
+                    EntityType::Monster => !self.input.shift_pressed,
+                    EntityType::Player => self.input.shift_pressed || self.game.noshift_mode,
+                    _ => false,
+                };
+                if should_attack {
+                    self.initiate_attack(entity_id);
+                    return;
+                }
+            }
+        }
+        self.game.attack_target_id = None;
         self.game.pending_pickup_item_id = None;
         let (dest_x, dest_y) = match self.hovered_cell() {
             Some(c) => c,
@@ -426,6 +443,7 @@ impl App {
                     self.game.card_insert_dialog = None;
                     self.game.pending_card_composition_index = None;
                     self.game.pending_pickup_item_id = None;
+                    self.game.attack_target_id = None;
                     self.game.current_map = None;
                     self.game.map_coords = None;
                     self.game.gat = None;
@@ -600,6 +618,7 @@ impl App {
                 }
                 GameEvent::MapChanged { map_name, x, y } => {
                     self.game.pending_skill_target = None;
+                    self.game.attack_target_id = None;
                     let map_name = map_name
                         .strip_suffix(".gat")
                         .unwrap_or(&map_name)
@@ -726,6 +745,9 @@ impl App {
                     }
                 }
                 GameEvent::EntityVanished { gid, vanish_type } => {
+                    if self.game.attack_target_id == Some(gid) {
+                        self.game.attack_target_id = None;
+                    }
                     match vanish_type {
                         VanishType::Die => {
                             if let Some(entity) = self.game.entities.get_mut(gid) {
@@ -761,6 +783,7 @@ impl App {
                     damage,
                     left_damage,
                     attack_mt,
+                    attacked_mt,
                     count,
                     ..
                 } => match action {
@@ -825,6 +848,7 @@ impl App {
                                     is_last_hit: i == effective_count - 1,
                                     is_critical,
                                     hit_index: i as u16,
+                                    attacked_mt_secs: attacked_mt as f32 / 1000.0,
                                 });
                             }
                         }
@@ -1577,7 +1601,7 @@ impl App {
                     let now = self.start_time.elapsed().as_secs_f32();
                     self.game.character.cooldowns.set_global_cooldown(duration, now);
                 }
-                GameEvent::SkillDamage { skill_id, src_gid, target_gid, damage, attack_mt, attacked_mt: _, count, action } => {
+                GameEvent::SkillDamage { skill_id, src_gid, target_gid, damage, attack_mt, attacked_mt, count, action } => {
                     let now = self.start_time.elapsed().as_secs_f32();
 
                     // Server currently sends action=Skill for all offensive skills (TODO on server).
@@ -1636,6 +1660,7 @@ impl App {
                                 is_last_hit: i == effective_count - 1,
                                 is_critical: false,
                                 hit_index: i as u16,
+                                attacked_mt_secs: attacked_mt as f32 / 1000.0,
                             });
                         }
                     }
@@ -1694,6 +1719,7 @@ impl App {
                     }
                 }
                 GameEvent::ActionFailure => {
+                    self.game.attack_target_id = None;
                     if let Some(entity) = self.game.entities.player_mut() {
                         entity.state = EntityState::Standing;
                         entity.state_timer = 0.0;
@@ -2428,6 +2454,16 @@ impl App {
                     entity.head_dir = if entity.head_dir == 0 { 1 } else { 0 };
                 }
             }
+            "/noshift" | "/ns" => {
+                self.game.noshift_mode = !self.game.noshift_mode;
+                let status = if self.game.noshift_mode { "ON" } else { "OFF" };
+                self.game.chat_window.add_system(format!("No-shift mode: {status}"));
+            }
+            "/noctrl" | "/nc" => {
+                self.game.noctrl_mode = !self.game.noctrl_mode;
+                let status = if self.game.noctrl_mode { "ON" } else { "OFF" };
+                self.game.chat_window.add_system(format!("No-ctrl mode: {status}"));
+            }
             _ => {
                 self.game
                     .chat_window
@@ -2545,6 +2581,9 @@ impl App {
         if self.input.ui_dragging {
             return;
         }
+        if self.game.attack_target_id.is_some() {
+            return;
+        }
         if self.game.pending_skill_target.is_some() {
             return;
         }
@@ -2631,6 +2670,136 @@ impl App {
         }
     }
 
+    fn initiate_attack(&mut self, target_id: u32) {
+        self.game.pending_pickup_item_id = None;
+        let locked = self.game.noctrl_mode || self.input.ctrl_pressed;
+        self.game.attack_is_locked = locked;
+
+        let target_pos = match self.game.entities.get(target_id) {
+            Some(e) => e.movement.cell_position(),
+            None => return,
+        };
+        let (px, py) = self.game.entities.player()
+            .map(|e| e.movement.cell_position())
+            .unwrap_or((0, 0));
+
+        let range = self.game.attack_range as i32;
+        let dx = (px as i32 - target_pos.0 as i32).abs();
+        let dy = (py as i32 - target_pos.1 as i32).abs();
+        let dist = dx.max(dy);
+
+        if dist <= range {
+            self.send_attack_packet(target_id);
+            self.game.attack_target_id = Some(target_id);
+            self.game.attack_request_cooldown = 0.3;
+        } else {
+            if let Some(gat) = &self.game.gat {
+                let dest_x = target_pos.0 as i32;
+                let dest_y = target_pos.1 as i32;
+                if let Some(move_action) = try_move_to(gat, px, py, dest_x, dest_y) {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_request_move_packet(
+                            move_action.dest_x,
+                            move_action.dest_y,
+                            self.config.packetver,
+                        );
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                    let elapsed = self.start_time.elapsed().as_secs_f32();
+                    if let Some(entity) = self.game.entities.player_mut() {
+                        entity.movement.start_move(move_action.path, elapsed);
+                    }
+                    self.game.attack_target_id = Some(target_id);
+                }
+            }
+        }
+    }
+
+    fn send_attack_packet(&self, target_id: u32) {
+        if let Some(tx) = &self.network_cmd_tx {
+            let packet = build_action_request_packet(target_id, 7, self.config.packetver);
+            let _ = tx.send(NetworkCommand::SendPacket(packet));
+        }
+    }
+
+    fn check_pending_attack(&mut self, delta: f32) {
+        self.game.attack_request_cooldown = (self.game.attack_request_cooldown - delta).max(0.0);
+
+        let target_id = match self.game.attack_target_id {
+            Some(id) => id,
+            None => return,
+        };
+
+        let target_alive = self.game.entities.get(target_id)
+            .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading());
+        if !target_alive {
+            self.game.attack_target_id = None;
+            return;
+        }
+
+        if let Some(player) = self.game.entities.player() {
+            if matches!(player.state,
+                EntityState::Casting | EntityState::SkillExec | EntityState::Dead | EntityState::Sitting
+            ) {
+                self.game.attack_target_id = None;
+                return;
+            }
+        }
+
+        if !self.game.attack_is_locked && !self.input.left_mouse_down {
+            self.game.attack_target_id = None;
+            return;
+        }
+
+        if self.game.attack_request_cooldown > 0.0 {
+            return;
+        }
+
+        let target_pos = self.game.entities.get(target_id)
+            .map(|e| e.movement.cell_position())
+            .unwrap_or((0, 0));
+        let (px, py) = self.game.entities.player()
+            .map(|e| e.movement.cell_position())
+            .unwrap_or((0, 0));
+
+        let range = self.game.attack_range as i32;
+        let dx = (px as i32 - target_pos.0 as i32).abs();
+        let dy = (py as i32 - target_pos.1 as i32).abs();
+        let dist = dx.max(dy);
+
+        if dist <= range {
+            let player_state = self.game.entities.player()
+                .map(|e| e.state)
+                .unwrap_or(EntityState::Standing);
+            if matches!(player_state, EntityState::Standing | EntityState::ReadyFight) {
+                self.send_attack_packet(target_id);
+                self.game.attack_request_cooldown = 0.3;
+            }
+        } else if let Some(player) = self.game.entities.player() {
+            if !player.movement.is_moving() {
+                let gat = self.game.gat.as_ref();
+                if let Some(gat) = gat {
+                    let dest_x = target_pos.0 as i32;
+                    let dest_y = target_pos.1 as i32;
+                    if let Some(move_action) = try_move_to(gat, px, py, dest_x, dest_y) {
+                        if let Some(tx) = &self.network_cmd_tx {
+                            let packet = build_request_move_packet(
+                                move_action.dest_x,
+                                move_action.dest_y,
+                                self.config.packetver,
+                            );
+                            let _ = tx.send(NetworkCommand::SendPacket(packet));
+                        }
+                        let elapsed = self.start_time.elapsed().as_secs_f32();
+                        if let Some(entity) = self.game.entities.player_mut() {
+                            entity.movement.start_move(move_action.path, elapsed);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fn update_entity_state(&mut self, delta: f32) {
         for entity in self.game.entities.iter_mut() {
             entity.update_state(delta);
@@ -2663,7 +2832,7 @@ impl App {
                                     entity.direction = dir;
                                 }
                             }
-                            entity.enter_hurt(0.3);
+                            entity.enter_hurt(hit.attacked_mt_secs.max(0.288));
                         }
                     }
                 }
@@ -3007,6 +3176,56 @@ impl App {
         }
         clips
     }
+
+    fn build_lock_cursor_clips(&mut self, dt: f32, render_list: &[RenderEntry]) -> Vec<ClipData> {
+        let target_id = match self.game.attack_target_id {
+            Some(id) => id,
+            None => return Vec::new(),
+        };
+        let cursor_act = match &self.game.cursor_act {
+            Some(a) => a,
+            None => return Vec::new(),
+        };
+        let cursor_tex = match &self.game.cursor_textures {
+            Some(t) => t,
+            None => return Vec::new(),
+        };
+
+        let screen_pos = render_list.iter()
+            .find(|e| e.id == target_id)
+            .map(|e| e.screen_anchor);
+        let [sx, sy] = match screen_pos {
+            Some(pos) => pos,
+            None => return Vec::new(),
+        };
+
+        self.game.lock_cursor_animation.set_cursor_type(CursorType::SemiLock);
+        self.game.lock_cursor_animation.update(dt, cursor_act);
+        let action_idx = self.game.lock_cursor_animation.action_index();
+        let action_idx = if action_idx < cursor_act.actions.len() {
+            action_idx
+        } else {
+            return Vec::new();
+        };
+        let action = &cursor_act.actions[action_idx];
+        if action.motions.is_empty() {
+            return Vec::new();
+        }
+        let motion_idx = self.game.lock_cursor_animation.motion_index() % action.motions.len();
+        let motion = &action.motions[motion_idx];
+
+        let mut clips = Vec::new();
+        for clip in &motion.clips {
+            if let Some((vertices, indices, tex_idx)) =
+                build_clip_quad(clip, cursor_tex, [sx, sy], 0.0, [0, 0])
+            {
+                if tex_idx < cursor_tex.bind_groups.len() {
+                    clips.push((vertices, indices, tex_idx));
+                }
+            }
+        }
+        clips
+    }
 }
 
 impl ApplicationHandler for App {
@@ -3234,6 +3453,8 @@ impl ApplicationHandler for App {
             }
             WindowEvent::ModifiersChanged(modifiers) => {
                 self.input.alt_pressed = modifiers.state().alt_key();
+                self.input.shift_pressed = modifiers.state().shift_key();
+                self.input.ctrl_pressed = modifiers.state().control_key();
             }
             WindowEvent::RedrawRequested => {
                 const TARGET_FRAME_TIME: Duration = Duration::from_micros(16_667);
@@ -3260,6 +3481,7 @@ impl ApplicationHandler for App {
                 self.process_caster_replays();
                 self.update_floor_items(elapsed);
                 self.check_pending_pickup();
+                self.check_pending_attack(delta);
                 self.load_missing_entity_sprites();
                 self.update_sprite_animation(delta);
                 self.update_fades(delta);
@@ -3312,6 +3534,7 @@ impl ApplicationHandler for App {
                 }
 
                 let cursor_clips = self.build_cursor_sprite_clips(delta);
+                let lock_cursor_clips = self.build_lock_cursor_clips(delta, &render_list);
 
                 if let (Some(entity_id), Some(renderer)) = (hovered_entity_id, &self.renderer) {
                     if let Some(entity) = self.game.entities.get(entity_id) {
@@ -3811,6 +4034,13 @@ impl ApplicationHandler for App {
                     }
 
                     if let Some(cursor_tex) = &self.game.cursor_textures {
+                        for (vertices, indices, tex_idx) in lock_cursor_clips {
+                            cursor_batches.push(SpriteBatch {
+                                vertices,
+                                indices,
+                                texture: &cursor_tex.bind_groups[tex_idx],
+                            });
+                        }
                         for (vertices, indices, tex_idx) in cursor_clips {
                             cursor_batches.push(SpriteBatch {
                                 vertices,

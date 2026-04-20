@@ -10,6 +10,8 @@ pub struct InputState {
     pub walk_packet_cooldown: f32,
     pub walk_server_acked: bool,
     pub alt_pressed: bool,
+    pub shift_pressed: bool,
+    pub ctrl_pressed: bool,
     pub ui_hovered: bool,
     pub ui_dragging: bool,
 }
@@ -24,6 +26,8 @@ impl InputState {
             walk_packet_cooldown: 0.0,
             walk_server_acked: true,
             alt_pressed: false,
+            shift_pressed: false,
+            ctrl_pressed: false,
             ui_hovered: false,
             ui_dragging: false,
         }
