@@ -4078,6 +4078,53 @@ impl ApplicationHandler for App {
                                 texture: UiTextureRef::FontAtlas,
                             });
                         }
+
+                        // Skill name banner centered near top of screen
+                        let skill_id = pending.skill_id();
+                        if let Some(skill_data) = self.game.character.skills.get_skill(skill_id) {
+                            let display_name = self.game.data_table.skill_name
+                                .as_ref()
+                                .map(|t| t.get_display_name_or_internal(&skill_data.name))
+                                .unwrap_or_else(|| skill_data.name.clone());
+                            let level = pending.level();
+                            let banner_text = if level > 0 {
+                                format!("{}(Lv {})", display_name, level)
+                            } else {
+                                display_name
+                            };
+                            let padding = 4.0;
+                            let line_h = renderer.font_atlas.line_height;
+                            let text_w = renderer.font_atlas.measure_text(&banner_text);
+                            let box_w = text_w + padding * 2.0;
+                            let box_h = line_h + padding * 2.0;
+                            let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
+                            let box_x = ((screen_w - box_w) / 2.0).floor();
+                            let box_y = 80.0;
+
+                            let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
+                                box_x, box_y, box_w, box_h,
+                                [0.0, 0.0, 0.0, 0.8],
+                            );
+                            skill_level_calls.push(UiDrawCall {
+                                vertices: bg_verts.to_vec(),
+                                indices: bg_idx.to_vec(),
+                                texture: UiTextureRef::White,
+                            });
+
+                            let tx = box_x + padding;
+                            let ty = box_y + padding + line_h / 2.0;
+                            let (verts, indices) = ragnarok_ui::draw::text_vertices(
+                                &banner_text, tx, ty,
+                                [0.0, 1.0, 0.0, 1.0],
+                                &renderer.font_atlas,
+                            );
+                            if !verts.is_empty() {
+                                skill_level_calls.push(UiDrawCall {
+                                    vertices: verts, indices,
+                                    texture: UiTextureRef::FontAtlas,
+                                });
+                            }
+                        }
                     }
 
                     let mut all_ui_calls = world_overlay_calls;
