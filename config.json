@@ -39,20 +39,20 @@
       "open": false,
       "collapsed": false
     },
-    "210": {
-      "position": [
-        342.0,
-        346.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
     "900": {
       "position": [
         0.0,
         210.0
       ],
       "open": true,
+      "collapsed": false
+    },
+    "210": {
+      "position": [
+        342.0,
+        346.0
+      ],
+      "open": false,
       "collapsed": false
     },
     "110": {

@@ -119,6 +119,9 @@ pub struct Entity {
     pub scheduled_hits: ScheduledHitQueue,
     pub pending_attack_replays: Vec<(f32, u16)>,
     pub fade: Option<EntityFade>,
+    /// True when the server sent a death event but we're waiting for
+    /// all scheduled hits to finish their hurt animation first.
+    pub pending_death: bool,
 }
 
 impl Entity {
@@ -158,6 +161,7 @@ impl Entity {
             scheduled_hits: ScheduledHitQueue::new(),
             pending_attack_replays: Vec::new(),
             fade: None,
+            pending_death: false,
         }
     }
 
@@ -187,6 +191,14 @@ impl Entity {
             self.state_timer -= dt;
             if self.state_timer <= 0.0 {
                 self.state_timer = 0.0;
+                // If a death was requested while we were in a transient state,
+                // transition to Dead now that the hurt animation has finished.
+                if self.pending_death {
+                    self.state = EntityState::Dead;
+                    self.pending_death = false;
+                    self.movement.stop();
+                    return;
+                }
                 match self.state {
                     EntityState::Attacking
                         if self.entity_type == EntityType::Player =>
@@ -278,6 +290,17 @@ impl Entity {
         self.state = EntityState::Dead;
         self.state_timer = 0.0;
         self.movement.stop();
+        self.pending_death = false;
+    }
+
+    /// Request death but defer it until all scheduled hits complete.
+    /// If there are no pending scheduled hits, transition to Dead immediately.
+    pub fn request_pending_death(&mut self) {
+        self.pending_death = true;
+        if self.scheduled_hits.is_empty() {
+            // No scheduled hits left, transition to Dead immediately
+            self.enter_dead();
+        }
     }
 
     pub fn start_vanish_fade(&mut self) {

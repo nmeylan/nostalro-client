@@ -8,6 +8,7 @@ use game_state::GameState;
 use input::InputState;
 use models::enums::{EnumWithMaskValueU64, EnumWithNumberValue};
 use models::enums::action::ActionType;
+use models::enums::skill_enums::SkillEnum;
 use models::enums::status::StatusTypes;
 use ragnarok_game::skill::SkillTargetType;
 use ragnarok_formats::act::{MotionType, SpriteActionType};
@@ -751,8 +752,7 @@ impl App {
                     match vanish_type {
                         VanishType::Die => {
                             if let Some(entity) = self.game.entities.get_mut(gid) {
-                                entity.enter_dead();
-                                tracing::debug!("EntityVanished(death): gid={gid}");
+                                entity.request_pending_death();
                             }
                         }
                         VanishType::OutOfSight => {
@@ -1665,10 +1665,9 @@ impl App {
                         }
                     }
 
-                    const SKID_AS_SONICBLOW: u16 = 136;
-                    const SKID_CH_CHAINCRUSH: u16 = 271;
-                    const SKID_CG_ARROWVULCAN: u16 = 394;
-                    let replays_caster = matches!(skill_id, SKID_AS_SONICBLOW | SKID_CH_CHAINCRUSH | SKID_CG_ARROWVULCAN);
+                    let replays_caster = skill_id == SkillEnum::AsSonicblow.id() as u16
+                        || skill_id == SkillEnum::ChChaincrush.id() as u16
+                        || skill_id == SkillEnum::CgArrowvulcan.id() as u16;
                     tracing::info!("SkillDamage replay check: replays_caster={replays_caster}, effective_count={effective_count}");
                     if replays_caster && effective_count > 1 {
                         if let Some(caster) = self.game.entities.get_mut(src_gid) {
@@ -2823,16 +2822,26 @@ impl App {
 
                 if matches!(hit.message, DamageMessage::Attacked | DamageMessage::AttackedMultiHit { .. }) {
                     if hit.damage > 0 {
+                        let is_sonic_or_chain = hit.skill_id == SkillEnum::AsSonicblow.id() as u16
+                            || hit.skill_id == SkillEnum::MoChaincombo.id() as u16;
                         let attacker_pos = self.game.entities.get(hit.attacker_gid)
                             .map(|e| e.movement.cell_position());
                         if let Some(entity) = self.game.entities.get_mut(entity_id) {
-                            if let Some(ap) = attacker_pos {
-                                let tp = entity.movement.cell_position();
-                                if let Some(dir) = direction_from_positions(tp.0, tp.1, ap.0, ap.1) {
-                                    entity.direction = dir;
+                            // Sonic Blow / Chain Combo: skip "face attacker" reset,
+                            // just apply +90° rotation for cumulative spin effect
+                            if !is_sonic_or_chain {
+                                if let Some(ap) = attacker_pos {
+                                    let tp = entity.movement.cell_position();
+                                    if let Some(dir) = direction_from_positions(tp.0, tp.1, ap.0, ap.1) {
+                                        entity.direction = dir;
+                                    }
                                 }
                             }
                             entity.enter_hurt(hit.attacked_mt_secs.max(0.288));
+
+                            if is_sonic_or_chain {
+                                entity.direction = ((entity.direction as i32 + 2) % 8) as u8;
+                            }
                         }
                     }
                 }
