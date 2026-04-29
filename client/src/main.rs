@@ -25,7 +25,7 @@ use ragnarok_game::event::GameEvent;
 use models::enums::vanish::VanishType;
 use ragnarok_game::item::Item;
 use ragnarok_game::name_table::NameTable;
-use ragnarok_game::path::{path_search, try_move_to};
+use ragnarok_game::path::{path_search, try_move_to, try_move_to_range};
 use ragnarok_game::shadow::shadow_size;
 use ragnarok_game::sprite_path::{
     WeaponType, entity_sprite_base_path, entity_type_from_job, weapon_view_id_to_type,
@@ -208,12 +208,49 @@ impl App {
         }
         // Skill targeting mode: consume pending skill on click
         if let Some(pending) = self.game.pending_skill_target.take() {
+            let mut skill_cast = false;
             match pending {
                 PendingSkillTarget::Entity { skill_id, level } => {
                     if let Some(entity_id) = self.game.hovered_entity_id {
-                        if let Some(tx) = &self.network_cmd_tx {
-                            let packet = build_use_skill_packet(skill_id, level, entity_id, self.config.packetver);
-                            let _ = tx.send(NetworkCommand::SendPacket(packet));
+                        let target_pos = self.game.entities.get(entity_id)
+                            .map(|e| e.movement.cell_position())
+                            .unwrap_or((0, 0));
+                        let (px, py) = self.game.entities.player()
+                            .map(|e| e.movement.cell_position())
+                            .unwrap_or((0, 0));
+                        let skill_range = self.game.character.skills.get_skill(skill_id)
+                            .map(|s| s.attack_range as i32)
+                            .unwrap_or(1);
+                        let dx = (px as i32 - target_pos.0 as i32).abs();
+                        let dy = (py as i32 - target_pos.1 as i32).abs();
+                        let dist = dx.max(dy);
+                        if dist <= skill_range {
+                            if let Some(tx) = &self.network_cmd_tx {
+                                let packet = build_use_skill_packet(skill_id, level, entity_id, self.config.packetver);
+                                let _ = tx.send(NetworkCommand::SendPacket(packet));
+                            }
+                            skill_cast = true;
+                        } else if let Some(gat) = &self.game.gat {
+                            let dest_x = target_pos.0 as i32;
+                            let dest_y = target_pos.1 as i32;
+                            if let Some(move_action) = try_move_to(gat, px, py, dest_x, dest_y) {
+                                if let Some(tx) = &self.network_cmd_tx {
+                                    let packet = build_request_move_packet(
+                                        move_action.dest_x,
+                                        move_action.dest_y,
+                                        self.config.packetver,
+                                    );
+                                    let _ = tx.send(NetworkCommand::SendPacket(packet));
+                                }
+                                let elapsed = self.start_time.elapsed().as_secs_f32();
+                                if let Some(entity) = self.game.entities.player_mut() {
+                                    entity.movement.start_move(move_action.path, elapsed);
+                                }
+                                // Store pending skill info for check_pending_skill to use
+                                self.game.pending_skill_id = Some(skill_id);
+                                self.game.pending_skill_level = Some(level);
+                                self.game.attack_target_id = Some(entity_id);
+                            }
                         }
                     }
                 }
@@ -225,9 +262,12 @@ impl App {
                             let _ = tx.send(NetworkCommand::SendPacket(packet));
                         }
                     }
+                    skill_cast = true;
                 }
             }
-            self.game.attack_target_id = None;
+            if skill_cast {
+                self.game.attack_target_id = None;
+            }
             return;
         }
         // Click on floor item to pick up
@@ -619,6 +659,8 @@ impl App {
                 }
                 GameEvent::MapChanged { map_name, x, y } => {
                     self.game.pending_skill_target = None;
+                    self.game.pending_skill_id = None;
+                    self.game.pending_skill_level = None;
                     self.game.attack_target_id = None;
                     let map_name = map_name
                         .strip_suffix(".gat")
@@ -1587,6 +1629,8 @@ impl App {
                 }
                 GameEvent::SkillFailed { skill_id, cause } => {
                     self.game.pending_skill_target = None;
+                    self.game.pending_skill_id = None;
+                    self.game.pending_skill_level = None;
                     let msg = ragnarok_game::skill::skill_failure_message(cause);
                     tracing::info!("Skill {skill_id} failed (cause: {cause}): {msg}");
                     self.game.chat_window.add_system(msg.to_string());
@@ -2349,6 +2393,8 @@ impl App {
                         }
                         SkillTargetType::Target => {
                             self.game.pending_skill_target = Some(PendingSkillTarget::Entity { skill_id, level });
+                            self.game.pending_skill_id = Some(skill_id);
+                            self.game.pending_skill_level = Some(level);
                         }
                         SkillTargetType::Ground | SkillTargetType::Trap => {
                             self.game.pending_skill_target = Some(PendingSkillTarget::Ground { skill_id, level });
@@ -2691,26 +2737,8 @@ impl App {
             self.send_attack_packet(target_id);
             self.game.attack_target_id = Some(target_id);
             self.game.attack_request_cooldown = 0.3;
-        } else {
-            if let Some(gat) = &self.game.gat {
-                let dest_x = target_pos.0 as i32;
-                let dest_y = target_pos.1 as i32;
-                if let Some(move_action) = try_move_to(gat, px, py, dest_x, dest_y) {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_request_move_packet(
-                            move_action.dest_x,
-                            move_action.dest_y,
-                            self.config.packetver,
-                        );
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
-                    let elapsed = self.start_time.elapsed().as_secs_f32();
-                    if let Some(entity) = self.game.entities.player_mut() {
-                        entity.movement.start_move(move_action.path, elapsed);
-                    }
-                    self.game.attack_target_id = Some(target_id);
-                }
-            }
+        } else if self.try_move_toward(target_pos.0 as i32, target_pos.1 as i32, px, py, range) {
+            self.game.attack_target_id = Some(target_id);
         }
     }
 
@@ -2718,6 +2746,39 @@ impl App {
         if let Some(tx) = &self.network_cmd_tx {
             let packet = build_action_request_packet(target_id, 7, self.config.packetver);
             let _ = tx.send(NetworkCommand::SendPacket(packet));
+        }
+    }
+
+    /// Try to move the player to a position within `range` of the target.
+    /// Returns true if movement was started.
+    fn try_move_toward(
+        &mut self,
+        target_x: i32,
+        target_y: i32,
+        px: u16,
+        py: u16,
+        range: i32,
+    ) -> bool {
+        let gat = match &self.game.gat {
+            Some(g) => g,
+            None => return false,
+        };
+        if let Some(move_action) = try_move_to_range(gat, px, py, target_x, target_y, range) {
+            if let Some(tx) = &self.network_cmd_tx {
+                let packet = build_request_move_packet(
+                    move_action.dest_x,
+                    move_action.dest_y,
+                    self.config.packetver,
+                );
+                let _ = tx.send(NetworkCommand::SendPacket(packet));
+            }
+            let elapsed = self.start_time.elapsed().as_secs_f32();
+            if let Some(entity) = self.game.entities.player_mut() {
+                entity.movement.start_move(move_action.path, elapsed);
+            }
+            true
+        } else {
+            false
         }
     }
 
@@ -2772,29 +2833,73 @@ impl App {
                 .unwrap_or(EntityState::Standing);
             if matches!(player_state, EntityState::Standing | EntityState::ReadyFight) {
                 self.send_attack_packet(target_id);
+                // TODO Having a doubt on this number should investigate how to do it properly
                 self.game.attack_request_cooldown = 0.3;
             }
         } else if let Some(player) = self.game.entities.player() {
-            if !player.movement.is_moving() {
-                let gat = self.game.gat.as_ref();
-                if let Some(gat) = gat {
-                    let dest_x = target_pos.0 as i32;
-                    let dest_y = target_pos.1 as i32;
-                    if let Some(move_action) = try_move_to(gat, px, py, dest_x, dest_y) {
-                        if let Some(tx) = &self.network_cmd_tx {
-                            let packet = build_request_move_packet(
-                                move_action.dest_x,
-                                move_action.dest_y,
-                                self.config.packetver,
-                            );
-                            let _ = tx.send(NetworkCommand::SendPacket(packet));
-                        }
-                        let elapsed = self.start_time.elapsed().as_secs_f32();
-                        if let Some(entity) = self.game.entities.player_mut() {
-                            entity.movement.start_move(move_action.path, elapsed);
-                        }
-                    }
-                }
+            if !matches!(player.state, EntityState::Casting | EntityState::SkillExec | EntityState::Dead | EntityState::Sitting) {
+                // Call every frame to track a moving target (original game used to recalculates dest cell each tick)
+                self.try_move_toward(target_pos.0 as i32, target_pos.1 as i32, px, py, range);
+            }
+        }
+    }
+
+    fn check_pending_skill(&mut self) {
+        let (skill_id, level) = match (self.game.pending_skill_id, self.game.pending_skill_level) {
+            (Some(sid), Some(lvl)) => (sid, lvl),
+            _ => return,
+        };
+
+        let target_id = match self.game.attack_target_id {
+            Some(id) => id,
+            None => {
+                self.game.pending_skill_id = None;
+                self.game.pending_skill_level = None;
+                return;
+            }
+        };
+
+        let target_alive = self.game.entities.get(target_id)
+            .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading());
+        if !target_alive {
+            self.game.pending_skill_id = None;
+            self.game.pending_skill_level = None;
+            self.game.attack_target_id = None;
+            return;
+        }
+
+        if let Some(player) = self.game.entities.player() {
+            if matches!(player.state, EntityState::Casting | EntityState::SkillExec | EntityState::Dead | EntityState::Sitting) {
+                return;
+            }
+        }
+
+        let target_pos = self.game.entities.get(target_id)
+            .map(|e| e.movement.cell_position())
+            .unwrap_or((0, 0));
+        let (px, py) = self.game.entities.player()
+            .map(|e| e.movement.cell_position())
+            .unwrap_or((0, 0));
+
+        let skill_range = self.game.character.skills.get_skill(skill_id)
+            .map(|s| s.attack_range as i32)
+            .unwrap_or(1);
+        let dx = (px as i32 - target_pos.0 as i32).abs();
+        let dy = (py as i32 - target_pos.1 as i32).abs();
+        let dist = dx.max(dy);
+
+        if dist <= skill_range {
+            if let Some(tx) = &self.network_cmd_tx {
+                let packet = build_use_skill_packet(skill_id, level, target_id, self.config.packetver);
+                let _ = tx.send(NetworkCommand::SendPacket(packet));
+            }
+            self.game.pending_skill_id = None;
+            self.game.pending_skill_level = None;
+            self.game.attack_target_id = None;
+        } else if let Some(player) = self.game.entities.player() {
+            if !matches!(player.state, EntityState::Casting | EntityState::SkillExec | EntityState::Dead | EntityState::Sitting) {
+                // Call every frame to track a moving target
+                self.try_move_toward(target_pos.0 as i32, target_pos.1 as i32, px, py, skill_range);
             }
         }
     }
@@ -3359,6 +3464,8 @@ impl ApplicationHandler for App {
                             self.input.right_mouse_down = state == ElementState::Pressed;
                             if self.input.right_mouse_down {
                                 self.game.pending_skill_target = None;
+                                self.game.pending_skill_id = None;
+                                self.game.pending_skill_level = None;
                             } else {
                                 self.input.last_mouse_pos = None;
                             }
@@ -3491,6 +3598,7 @@ impl ApplicationHandler for App {
                 self.update_floor_items(elapsed);
                 self.check_pending_pickup();
                 self.check_pending_attack(delta);
+                self.check_pending_skill();
                 self.load_missing_entity_sprites();
                 self.update_sprite_animation(delta);
                 self.update_fades(delta);

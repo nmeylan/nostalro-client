@@ -15,26 +15,18 @@
   "debug_network_delay_ms": 0,
   "trace_packets": false,
   "window_state": {
-    "1300": {
+    "110": {
       "position": [
-        476.6667,
-        0.0
+        490.0,
+        568.0
       ],
       "open": false,
       "collapsed": false
     },
-    "800": {
+    "1200": {
       "position": [
-        0.0,
+        400.0,
         100.0
-      ],
-      "open": true,
-      "collapsed": false
-    },
-    "10": {
-      "position": [
-        283.0,
-        344.66666
       ],
       "open": false,
       "collapsed": false
@@ -55,10 +47,26 @@
       "open": false,
       "collapsed": false
     },
-    "110": {
+    "10": {
       "position": [
-        490.0,
-        568.0
+        283.0,
+        344.66666
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "800": {
+      "position": [
+        0.0,
+        100.0
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "1300": {
+      "position": [
+        310.6667,
+        0.0
       ],
       "open": false,
       "collapsed": false
