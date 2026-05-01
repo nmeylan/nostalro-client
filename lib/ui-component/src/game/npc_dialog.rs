@@ -8,6 +8,7 @@ use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
 use crate::{Window, InGameWindow};
 use crate::helper::dialog_container::DialogContainer;
+use crate::helper::scrollbar::{self, ScrollbarIds};
 use super::number_input::{NumberInputDialog, NumberInputConfig, NumberInputResult};
 
 const OVERLAY_ID: WidgetId = WidgetId(600);
@@ -21,6 +22,9 @@ const BUY_BTN_ID: WidgetId = WidgetId(607);
 const SELL_BTN_ID: WidgetId = WidgetId(608);
 const DEAL_CANCEL_BTN_ID: WidgetId = WidgetId(609);
 const MENU_BASE_ID: u32 = 620;
+const SCROLL_UP_ID: WidgetId = WidgetId(640);
+const SCROLL_DOWN_ID: WidgetId = WidgetId(641);
+const SCROLL_THUMB_ID: WidgetId = WidgetId(642);
 
 const DIALOG_W: f32 = 276.0;
 const DIALOG_H: f32 = 176.0;
@@ -29,6 +33,7 @@ const MENU_MIN_H: f32 = 116.0;
 const PADDING: f32 = 8.0;
 const TEXT_LINE_HEIGHT: f32 = 16.0;
 const MENU_ITEM_HEIGHT: f32 = 18.0;
+const MENU_VISIBLE_ROWS: usize = 5;
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
 
@@ -123,6 +128,7 @@ impl Window for NpcDialog {
             BUY_BTN.normal, BUY_BTN.hover, BUY_BTN.pressed,
             SELL_BTN.normal, SELL_BTN.hover, SELL_BTN.pressed,
         ]);
+        paths.extend_from_slice(&scrollbar::grf_texture_paths());
         paths
     }
 }
@@ -165,13 +171,26 @@ impl InGameWindow for NpcDialog {
                     self.dialog.close();
                     return events;
                 }
+                let total_items = self.dialog.menu_items.len();
                 if ui.ctx.key_up && self.dialog.selected_menu_index > 0 {
                     self.dialog.selected_menu_index -= 1;
                 }
                 if ui.ctx.key_down
-                    && self.dialog.selected_menu_index + 1 < self.dialog.menu_items.len()
+                    && self.dialog.selected_menu_index + 1 < total_items
                 {
                     self.dialog.selected_menu_index += 1;
+                }
+                if ui.ctx.key_up || ui.ctx.key_down {
+                    let offset = &mut self.dialog.menu_scroll_offset;
+                    if *offset > self.dialog.selected_menu_index {
+                        *offset = self.dialog.selected_menu_index;
+                    } else if self.dialog.selected_menu_index >= *offset + MENU_VISIBLE_ROWS
+                        && total_items > MENU_VISIBLE_ROWS
+                    {
+                        *offset = self.dialog.selected_menu_index + 1 - MENU_VISIBLE_ROWS;
+                    }
+                    let max_offset = total_items.saturating_sub(MENU_VISIBLE_ROWS);
+                    *offset = (*offset).min(max_offset);
                 }
                 if ui.ctx.key_enter {
                     let choice = (self.dialog.selected_menu_index + 1) as u8;
@@ -392,18 +411,25 @@ impl NpcDialog {
         let menu_item_h = MENU_ITEM_HEIGHT ;
         let text_area_w = menu_w - padding * 2.0;
 
+        let total_items = self.dialog.menu_items.len();
+        let visible_rows = total_items.min(MENU_VISIBLE_ROWS);
+        let needs_scroll = total_items > MENU_VISIBLE_ROWS;
+        let content_h = visible_rows as f32 * menu_item_h;
+
         let menu_y = (ui.ctx.screen_height / 2.0 + (76.0)).max(376.0 ).floor();
-        let items_h = self.dialog.menu_items.len() as f32 * menu_item_h;
-        let menu_h = (padding + items_h + padding + btn_h + padding).max(MENU_MIN_H );
+        let menu_h = (padding + content_h + padding + btn_h + padding).max(MENU_MIN_H );
 
         self.container.draw(&mut ui.draw_calls, dx, menu_y, menu_w, menu_h, [1.0, 1.0, 1.0, 0.95]);
 
         let text_color = self.container.text_color();
-        let menu_y_start = menu_y + padding;
+        let offset = self.dialog.menu_scroll_offset;
+        let end_idx = (offset + MENU_VISIBLE_ROWS).min(total_items);
+        let item_text_w = if needs_scroll { text_area_w - scrollbar::SCROLLBAR_W } else { text_area_w };
 
-        for (idx, item) in self.dialog.menu_items.iter().enumerate() {
-            let item_y = menu_y_start + idx as f32 * menu_item_h;
-            let item_rect = Rect::new(dx + padding, item_y, text_area_w, menu_item_h);
+        for idx in offset..end_idx {
+            let row = idx - offset;
+            let item_y = menu_y + padding + row as f32 * menu_item_h;
+            let item_rect = Rect::new(dx + padding, item_y, item_text_w, menu_item_h);
             let widget_id = WidgetId(MENU_BASE_ID + idx as u32);
             let response = ui.interact(widget_id, item_rect);
             if response.hovered() { ui.any_interactive_hovered = true; }
@@ -426,7 +452,7 @@ impl NpcDialog {
                 });
             }
 
-            let label = format!("{}. {}", idx + 1, item);
+            let label = format!("{}. {}", idx + 1, &self.dialog.menu_items[idx]);
             ui.colored_text(
                 dx + padding + (4.0),
                 item_y + ui.atlas.line_height - (4.0),
@@ -437,6 +463,28 @@ impl NpcDialog {
             if response.clicked() {
                 self.dialog.selected_menu_index = idx;
             }
+        }
+
+        if needs_scroll {
+            let max_scroll = total_items - MENU_VISIBLE_ROWS;
+            let scroll_ids = ScrollbarIds {
+                up: SCROLL_UP_ID,
+                down: SCROLL_DOWN_ID,
+                thumb: SCROLL_THUMB_ID,
+            };
+            let content_rect = Rect::new(dx + padding, menu_y + padding, text_area_w, content_h);
+            let scroll_x = dx + menu_w - scrollbar::SCROLLBAR_W - padding;
+            self.dialog.menu_scroll_offset = scrollbar::scrollbar(
+                ui,
+                scroll_ids,
+                offset,
+                MENU_VISIBLE_ROWS,
+                max_scroll,
+                content_rect,
+                scroll_x,
+                menu_y + padding,
+                content_h,
+            );
         }
 
         // OK + Cancel buttons at bottom-right of menu box
@@ -649,5 +697,66 @@ mod tests {
             other => panic!("expected RequestNpcDealType, got {other:?}"),
         }
         assert!(!npc.dialog.is_open());
+    }
+
+    #[test]
+    fn menu_with_many_items_keeps_scroll_offset_bounded() {
+        let mut npc = NpcDialog::new();
+        let items: Vec<String> = (1..=10).map(|i| format!("Item {i}")).collect();
+        npc.dialog.show_menu(100, items);
+
+        let mut character = Character::new();
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &mut state);
+
+        npc.build(&mut ui, &mut character, &data);
+        assert_eq!(npc.dialog.menu_scroll_offset, 0);
+        assert_eq!(npc.dialog.selected_menu_index, 0);
+
+        let mut ctx2 = UiContext::new(800.0, 600.0);
+        ctx2.key_down = true;
+        let mut ui2 = make_frame(&ctx2, &mut state);
+
+        for _ in 0..6 {
+            npc.build(&mut ui2, &mut character, &data);
+        }
+        assert_eq!(npc.dialog.selected_menu_index, 6);
+        assert_eq!(npc.dialog.menu_scroll_offset, 2);
+    }
+
+    #[test]
+    fn menu_mouse_wheel_scrolls_and_persists() {
+        let mut npc = NpcDialog::new();
+        let items: Vec<String> = (1..=10).map(|i| format!("Item {i}")).collect();
+        npc.dialog.show_menu(100, items);
+
+        let mut character = Character::new();
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+
+        // First frame: render to establish layout
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &mut state);
+        npc.build(&mut ui, &mut character, &data);
+        assert_eq!(npc.dialog.menu_scroll_offset, 0);
+
+        // Second frame: mouse wheel scroll down, mouse over menu area
+        // Menu is at dx=(800/3).floor()=266, menu_y=(600/2+76).max(376).floor()=376
+        // content_rect = Rect(266+8, 376+8, 260, 90) = Rect(274, 384, 260, 90)
+        let mut ctx2 = UiContext::new(800.0, 600.0);
+        ctx2.mouse_x = 300.0;
+        ctx2.mouse_y = 400.0;
+        ctx2.scroll_delta = -1.0; // scroll down
+        let mut ui2 = make_frame(&ctx2, &mut state);
+        npc.build(&mut ui2, &mut character, &data);
+        assert_eq!(npc.dialog.menu_scroll_offset, 1, "mouse wheel should scroll down");
+
+        // Third frame: no input — offset must NOT reset to 0
+        let ctx3 = UiContext::new(800.0, 600.0);
+        let mut ui3 = make_frame(&ctx3, &mut state);
+        npc.build(&mut ui3, &mut character, &data);
+        assert_eq!(npc.dialog.menu_scroll_offset, 1, "scroll offset must persist across frames");
     }
 }
