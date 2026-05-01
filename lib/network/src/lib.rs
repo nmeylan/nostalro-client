@@ -35,7 +35,8 @@ pub async fn network_loop(
     event_tx: mpsc::UnboundedSender<GameEvent>,
     packetver: u32,
     debug_delay_ms: u32,
-    trace_packets: bool,
+    trace_packets_send: bool,
+    trace_packets_recv: bool,
 ) {
     let mut connection: Option<Connection> = None;
     let mut session = Session::new(packetver);
@@ -109,7 +110,7 @@ pub async fn network_loop(
                             }
                         };
                         if let Some(data) = packet {
-                            if let Err(e) = conn.send_packet(&data).await {
+                            if let Err(e) = conn.send_packet(&data, session.packetver).await {
                                 error!("keepalive send error: {e}");
                                 let _ = event_tx.send(GameEvent::Disconnected(e.to_string()));
                                 connection = None;
@@ -123,7 +124,7 @@ pub async fn network_loop(
                     match cmd {
                         Some(NetworkCommand::SendPacket(data)) => {
                             if let Some(conn) = &mut connection {
-                                if let Err(e) = conn.send_packet(&data).await {
+                                if let Err(e) = conn.send_packet(&data, session.packetver).await {
                                     error!("send error: {e}");
                                     let _ = event_tx.send(GameEvent::Disconnected(e.to_string()));
                                     connection = None;
@@ -132,7 +133,7 @@ pub async fn network_loop(
                             }
                         }
                         Some(NetworkCommand::Connect(addr)) => {
-                            match Connection::connect(&addr, trace_packets).await {
+                            match Connection::connect(&addr, trace_packets_send, trace_packets_recv).await {
                                 Ok(conn) => {
                                     info!("connected to {addr}");
                                     connection = Some(conn);
@@ -163,7 +164,7 @@ pub async fn network_loop(
             // No connection, only process commands
             match cmd_rx.recv().await {
                 Some(NetworkCommand::Connect(addr)) => {
-                    match Connection::connect(&addr, trace_packets).await {
+                    match Connection::connect(&addr, trace_packets_send, trace_packets_recv).await {
                         Ok(conn) => {
                             info!("connected to {addr}");
                             connection = Some(conn);

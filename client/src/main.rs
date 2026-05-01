@@ -230,23 +230,10 @@ impl App {
                                 let _ = tx.send(NetworkCommand::SendPacket(packet));
                             }
                             skill_cast = true;
-                        } else if let Some(gat) = &self.game.gat {
+                        } else {
                             let dest_x = target_pos.0 as i32;
                             let dest_y = target_pos.1 as i32;
-                            if let Some(move_action) = try_move_to(gat, px, py, dest_x, dest_y) {
-                                if let Some(tx) = &self.network_cmd_tx {
-                                    let packet = build_request_move_packet(
-                                        move_action.dest_x,
-                                        move_action.dest_y,
-                                        self.config.packetver,
-                                    );
-                                    let _ = tx.send(NetworkCommand::SendPacket(packet));
-                                }
-                                let elapsed = self.start_time.elapsed().as_secs_f32();
-                                if let Some(entity) = self.game.entities.player_mut() {
-                                    entity.movement.start_move(move_action.path, elapsed);
-                                }
-                                // Store pending skill info for check_pending_skill to use
+                            if self.try_move_toward(dest_x, dest_y, px, py, skill_range) {
                                 self.game.pending_skill_id = Some(skill_id);
                                 self.game.pending_skill_level = Some(level);
                                 self.game.attack_target_id = Some(entity_id);
@@ -385,7 +372,8 @@ impl App {
 
         let packetver = self.config.packetver;
         let debug_delay_ms = self.config.debug_network_delay_ms;
-        let trace_packets = self.config.trace_packets;
+        let trace_packets_send = self.config.trace_packets_send;
+        let trace_packets_recv = self.config.trace_packets_recv;
         // Spawn on dedicated thread with single-threaded runtime
         // because network_loop uses non-Send packet types
         std::thread::spawn(move || {
@@ -398,7 +386,8 @@ impl App {
                 event_tx,
                 packetver,
                 debug_delay_ms,
-                trace_packets,
+                trace_packets_send,
+                trace_packets_recv,
             ));
         });
     }
@@ -409,6 +398,7 @@ impl App {
             .as_mut()
             .map(|rx| std::iter::from_fn(|| rx.try_recv().ok()).collect())
             .unwrap_or_default();
+        let mut just_spawned: std::collections::HashSet<u32> = std::collections::HashSet::new();
         for event in events {
             match event {
                 GameEvent::LoginAccepted {
@@ -724,10 +714,12 @@ impl App {
                     if self.game.entities.player_id() == Some(gid) {
                         continue;
                     }
+                    if let Some(existing) = self.game.entities.get_mut(gid) {
+                        existing.movement.set_speed(speed);
+                        continue;
+                    }
                     let entity_type = entity_type_from_job(job);
-                    tracing::info!(
-                        "EntitySpawned: gid={gid} job={job} type={entity_type:?} pos=({x},{y})"
-                    );
+
                     let mut entity = Entity::new(
                         gid,
                         entity_type,
@@ -749,6 +741,7 @@ impl App {
                         entity.state = EntityState::Sitting;
                     }
                     self.game.entities.insert(entity);
+                    just_spawned.insert(gid);
                     self.load_entity_sprite(
                         gid,
                         entity_type,
@@ -773,16 +766,25 @@ impl App {
                     start_time,
                 } => {
                     if let Some(gat) = &self.game.gat {
-                        let path = path_search(gat, start_x, start_y, dest_x, dest_y);
+                        let (sx, sy) = self
+                            .game
+                            .entities
+                            .get(gid)
+                            .map(|e| e.movement.cell_position())
+                            .unwrap_or((start_x, start_y));
+                        let path = path_search(gat, sx, sy, dest_x, dest_y);
                         if !path.is_empty() {
                             let local_ms = self.start_time.elapsed().as_millis() as u32;
-                            let move_start = self
-                                .game
-                                .server_time
-                                .server_to_local_secs(start_time, local_ms);
+                            let move_start = if just_spawned.contains(&gid) {
+                                self.game
+                                    .server_time
+                                    .server_to_local_secs(start_time, local_ms)
+                            } else {
+                                local_ms as f32 / 1000.0
+                            };
                             if let Some(entity) = self.game.entities.get_mut(gid) {
-                                entity.movement.set_position(start_x as f32, start_y as f32);
                                 entity.movement.start_move(path, move_start);
+                                entity.state_timer = 0.0;
                             }
                         }
                     }
@@ -2750,7 +2752,7 @@ impl App {
     }
 
     /// Try to move the player to a position within `range` of the target.
-    /// Returns true if movement was started.
+    /// Returns true if movement was started or already in progress toward the destination.
     fn try_move_toward(
         &mut self,
         target_x: i32,
@@ -2764,6 +2766,26 @@ impl App {
             None => return false,
         };
         if let Some(move_action) = try_move_to_range(gat, px, py, target_x, target_y, range) {
+            let is_moving = self.game.entities.player()
+                .is_some_and(|p| p.movement.is_moving());
+            if is_moving {
+                // While moving, only send a new packet if destination changed
+                // Never restart client movement — let the server response handle it
+                let dest_changed = self.game.entities.player()
+                    .and_then(|p| p.movement.destination())
+                    .is_none_or(|(dx, dy)| dx != move_action.dest_x || dy != move_action.dest_y);
+                if dest_changed {
+                    if let Some(tx) = &self.network_cmd_tx {
+                        let packet = build_request_move_packet(
+                            move_action.dest_x,
+                            move_action.dest_y,
+                            self.config.packetver,
+                        );
+                        let _ = tx.send(NetworkCommand::SendPacket(packet));
+                    }
+                }
+                return true;
+            }
             if let Some(tx) = &self.network_cmd_tx {
                 let packet = build_request_move_packet(
                     move_action.dest_x,

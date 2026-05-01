@@ -24,22 +24,35 @@ pub struct Connection {
     reader: OwnedReadHalf,
     writer: OwnedWriteHalf,
     recv_buffer: Vec<u8>,
-    trace_packets: bool,
+    trace_packets_send: bool,
+    trace_packets_recv: bool,
 }
 
 impl Connection {
-    pub async fn connect(addr: &str, trace_packets: bool) -> io::Result<Self> {
+    pub async fn connect(addr: &str, trace_packets_send: bool, trace_packets_recv: bool) -> io::Result<Self> {
         let stream = TcpStream::connect(addr).await?;
         let (reader, writer) = stream.into_split();
         Ok(Self {
             reader,
             writer,
             recv_buffer: Vec::with_capacity(4096),
-            trace_packets,
+            trace_packets_send,
+            trace_packets_recv
         })
     }
 
-    pub async fn send_packet(&mut self, data: &[u8]) -> io::Result<()> {
+    pub async fn send_packet(&mut self, data: &[u8], packetver: u32) -> io::Result<()> {
+        if self.trace_packets_send {
+            let result = panic::catch_unwind(|| {
+                packets_parser::parse(data, packetver)
+            });
+            match result {
+                Ok(packet) => {
+                    tracing::info!("send packet: {:?}", packet.name());
+                }
+                Err(_) => {}
+            }
+        }
         self.writer.write_all(data).await
     }
 
@@ -175,7 +188,7 @@ impl Connection {
                         let skip = Self::estimate_packet_len(&remaining);
                         tracing::info!("skipping unknown packet 0x{:02x}{:02x} ({skip} bytes), buffer_remaining={}",
                                remaining[0], remaining[1], remaining.len());
-                        if self.trace_packets {
+                        if self.trace_packets_recv {
                             let dump_len = skip.min(remaining.len());
                             tracing::debug!("unknown packet dump: {:02x?}", &remaining[..dump_len]);
                         }
@@ -183,9 +196,9 @@ impl Connection {
                         continue;
                     }
                     let consumed = packet.raw().len();
-                    tracing::info!("recv {} ({consumed} bytes, remaining={})", packet.name(), remaining.len());
-                    if self.trace_packets {
-                        tracing::debug!("packet dump {}: {:02x?}", packet.name(), packet.raw());
+                    if self.trace_packets_recv {
+                        tracing::info!("recv {} ({consumed} bytes, remaining={})", packet.name(), remaining.len());
+                        // tracing::debug!("packet dump {}: {:02x?}", packet.name(), packet.raw());
                     }
                     offset += consumed;
                     packets.push(packet);

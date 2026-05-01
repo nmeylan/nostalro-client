@@ -41,7 +41,16 @@ impl MovementState {
         self.path_index = 0;
         self.move_start_time = start_time;
         self.moving = true;
-        self.step_duration = self.calc_step_duration(self.path[0].is_diagonal);
+        let full_duration = self.calc_step_duration(self.path[0].is_diagonal);
+        let dx = self.path[0].x as f32 - self.step_start_x;
+        let dy = self.path[0].y as f32 - self.step_start_y;
+        let actual_dist = (dx * dx + dy * dy).sqrt();
+        let normal_dist = if self.path[0].is_diagonal { std::f32::consts::SQRT_2 } else { 1.0 };
+        self.step_duration = if actual_dist > 0.01 {
+            full_duration * (actual_dist / normal_dist)
+        } else {
+            full_duration
+        };
     }
 
     pub fn update(&mut self, elapsed: f32) -> (f32, f32) {
@@ -300,5 +309,68 @@ mod tests {
     #[test]
     fn direction_from_positions_same_position_returns_none() {
         assert_eq!(direction_from_positions(5, 5, 5, 5), None);
+    }
+
+    #[test]
+    fn repath_mid_movement_with_set_position_aligns_step_start() {
+        let mut movement = MovementState::new(100, 100);
+        let path = vec![
+            make_path_node(101, 100, false),
+            make_path_node(102, 100, false),
+        ];
+        movement.start_move(path, 0.0);
+
+        // Advance to midway through first step (position ~100.5)
+        movement.update(0.075);
+        let (x, _) = movement.position();
+        assert!((x - 100.5).abs() < 0.01);
+
+        // Simulate re-path during chase: cell_position rounds to 101
+        let (cx, cy) = movement.cell_position();
+        assert_eq!((cx, cy), (101, 100));
+
+        // Align position to cell before starting new path
+        movement.set_position(cx as f32, cy as f32);
+        let new_path = vec![make_path_node(102, 100, false)];
+        movement.start_move(new_path, 0.075);
+
+        // Halfway through new step: should be at 101.5
+        let (x, _) = movement.update(0.075 + 0.075);
+        assert!((x - 101.5).abs() < 0.01, "expected 101.5, got {x}");
+    }
+
+    #[test]
+    fn repath_mid_movement_uses_proportional_first_step() {
+        let mut movement = MovementState::new(100, 100);
+        let path = vec![
+            make_path_node(101, 100, false),
+            make_path_node(102, 100, false),
+        ];
+        movement.start_move(path, 0.0);
+
+        // Advance to 70% through first step → position ~100.7
+        movement.update(0.105);
+        let (x, _) = movement.position();
+        assert!((x - 100.7).abs() < 0.01, "setup: expected 100.7, got {x}");
+
+        // Re-path from current position (100.7) toward 103.
+        // Path nodes skip from 101 (next cell) onward.
+        let new_path = vec![
+            make_path_node(101, 100, false),
+            make_path_node(102, 100, false),
+            make_path_node(103, 100, false),
+        ];
+        movement.start_move(new_path, 0.105);
+
+        // First step: 100.7 → 101.0 = 0.3 cells.
+        // Proportional duration = 150ms * 0.3 = 45ms.
+        // At 22.5ms into the step (~halfway): position should be ~100.85
+        let (x, _) = movement.update(0.105 + 0.0225);
+        assert!((x - 100.85).abs() < 0.02, "expected ~100.85, got {x}");
+
+        // At 45ms the first step completes, entity is at 101.0
+        // At 45 + 75ms = 120ms, entity is halfway through second step: ~101.5
+        let (x, _) = movement.update(0.105 + 0.045 + 0.075);
+        assert!((x - 101.5).abs() < 0.02, "expected ~101.5, got {x}");
     }
 }
