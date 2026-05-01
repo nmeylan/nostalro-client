@@ -11,6 +11,12 @@ pub struct ServerTimeClock {
     rtt_sample_count: u32,
 }
 
+impl Default for ServerTimeClock {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ServerTimeClock {
     pub fn new() -> Self {
         Self {

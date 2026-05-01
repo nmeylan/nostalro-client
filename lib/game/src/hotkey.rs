@@ -17,6 +17,12 @@ pub struct HotkeyBar {
     battle_mode: bool,
 }
 
+impl Default for HotkeyBar {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HotkeyBar {
     pub fn new() -> Self {
         Self {

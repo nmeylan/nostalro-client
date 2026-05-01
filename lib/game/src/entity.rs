@@ -1,7 +1,6 @@
 use models::enums::class::JobName;
 use models::enums::weapon::WeaponType;
 use models::enums::EnumWithNumberValue;
-use tracing::info;
 use ragnarok_formats::act::SpriteAnimationState;
 
 use crate::movement::MovementState;
@@ -122,6 +121,7 @@ pub struct Entity {
     /// True when the server sent a death event but we're waiting for
     /// all scheduled hits to finish their hurt animation first.
     pub pending_death: bool,
+    pub just_spawned: bool,
 }
 
 impl Entity {
@@ -162,6 +162,7 @@ impl Entity {
             pending_attack_replays: Vec::new(),
             fade: None,
             pending_death: false,
+            just_spawned: true,
         }
     }
 

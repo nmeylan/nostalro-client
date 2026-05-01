@@ -85,7 +85,7 @@ impl Config {
         if path.exists() {
             let content = std::fs::read_to_string(path).unwrap_or_else(|e| {
                 tracing::warn!("Failed to read config: {e}, using defaults");
-                return String::new();
+                String::new()
             });
             serde_json::from_str(&content).unwrap_or_else(|e| {
                 tracing::warn!("Failed to parse config: {e}, using defaults");
@@ -119,16 +119,22 @@ mod tests {
     #[test]
     fn window_state_roundtrips() {
         let mut config = Config::default();
-        config.window_state.insert(800, WindowStateEntry {
-            position: [100.0, 200.0],
-            open: true,
-            collapsed: false,
-        });
-        config.window_state.insert(900, WindowStateEntry {
-            position: [50.0, 60.0],
-            open: false,
-            collapsed: true,
-        });
+        config.window_state.insert(
+            800,
+            WindowStateEntry {
+                position: [100.0, 200.0],
+                open: true,
+                collapsed: false,
+            },
+        );
+        config.window_state.insert(
+            900,
+            WindowStateEntry {
+                position: [50.0, 60.0],
+                open: false,
+                collapsed: true,
+            },
+        );
         let json = serde_json::to_string_pretty(&config).unwrap();
         let parsed: Config = serde_json::from_str(&json).unwrap();
         let inv = parsed.window_state.get(&800).unwrap();

@@ -54,14 +54,13 @@ pub fn load_map_data(grf: &GrfArchive, map_name: &str) -> Option<MapData> {
     let mut coordinates = None;
 
     let gat_path = format!("data/{map_name}.gat");
-    if let Ok(gat_data) = grf.read_file(&gat_path) {
-        if let Ok(gat) = GatFile::parse(&gat_data) {
+    if let Ok(gat_data) = grf.read_file(&gat_path)
+        && let Ok(gat) = GatFile::parse(&gat_data) {
             coordinates = Some(MapCoordinates::new(
                 gnd.zoom, gat.width, gat.height, gnd.width, gnd.height,
             ));
             gat_file = Some(gat);
         }
-    }
 
     Some(MapData { rsw, gnd, gat: gat_file, coordinates })
 }

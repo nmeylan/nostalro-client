@@ -1,3 +1,5 @@
+mod window_events;
+
 use ragnarok_formats::gat::GatFile;
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_renderer::Camera;
@@ -88,8 +90,7 @@ pub fn hovered_cell(
 pub fn handle_camera_drag(camera: &mut Camera, dx: f32, dy: f32, free_camera: bool) {
     camera.yaw += dx * 0.0175;
     if free_camera {
-        camera.pitch = (camera.pitch - dy * 0.005)
-            .clamp(0.1, std::f32::consts::FRAC_PI_2 - 0.01);
+        camera.pitch = (camera.pitch - dy * 0.005).clamp(0.1, std::f32::consts::FRAC_PI_2 - 0.01);
     }
 }
 
@@ -109,7 +110,8 @@ pub fn entity_screen_params(
     let (wx, _, wz) = coords.cell_to_world(cell_x + 0.5, cell_y + 0.5);
     let wy = gat.map_or(0.0, |gat| gat.get_height(cell_x + 0.5, cell_y + 0.5));
 
-    let (sx, sy, ndc_z_raw, clip_w) = camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h)?;
+    let (sx, sy, ndc_z_raw, clip_w) =
+        camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h)?;
     // Scale bias to a constant view-space offset; fixed NDC bias grew to ~450 world units at max zoom
     let ndc_z = ndc_z_raw - camera.near * 4.0 / (clip_w * clip_w);
 
@@ -120,7 +122,11 @@ pub fn entity_screen_params(
         .world_to_screen_with_depth(wx, wy - 1.0, wz, screen_w, screen_h)
         .map(|(_, sy_above, ndc_z_above, _)| {
             let dy = sy_above - sy;
-            if dy.abs() > 1e-6 { (ndc_z_above - ndc_z_raw) / dy } else { 0.0 }
+            if dy.abs() > 1e-6 {
+                (ndc_z_above - ndc_z_raw) / dy
+            } else {
+                0.0
+            }
         })
         .unwrap_or(0.0);
 

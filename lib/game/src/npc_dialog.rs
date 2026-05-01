@@ -17,6 +17,7 @@ pub struct NpcDialogData {
     pub text: String,
     pub menu_items: Vec<String>,
     pub selected_menu_index: usize,
+    pub menu_scroll_offset: usize,
 }
 
 impl NpcDialogData {
@@ -27,6 +28,7 @@ impl NpcDialogData {
             text: String::new(),
             menu_items: Vec::new(),
             selected_menu_index: 0,
+            menu_scroll_offset: 0,
         }
     }
 
@@ -60,6 +62,7 @@ impl NpcDialogData {
         self.npc_id = npc_id;
         self.menu_items = items;
         self.selected_menu_index = 0;
+        self.menu_scroll_offset = 0;
         self.state = NpcDialogState::WaitingForMenu;
     }
 
@@ -89,6 +92,7 @@ impl NpcDialogData {
         self.text.clear();
         self.menu_items.clear();
         self.selected_menu_index = 0;
+        self.menu_scroll_offset = 0;
     }
 }
 

@@ -60,6 +60,12 @@ pub struct SkillList {
     open: bool,
 }
 
+impl Default for SkillList {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SkillList {
     pub fn new() -> Self {
         Self {
@@ -133,6 +139,41 @@ impl SkillList {
         } else {
             self.skills.push(skill);
         }
+    }
+
+    pub fn apply_skill_list(&mut self, skills: Vec<crate::event::SkillInfo>) -> Vec<String> {
+        self.skills = skills
+            .into_iter()
+            .map(|s| SkillData {
+                id: s.id,
+                selected_level: s.level,
+                level: s.level,
+                sp_cost: s.sp_cost,
+                attack_range: s.attack_range,
+                upgradable: s.upgradable,
+                skill_target_type: s.skill_target_type,
+                name: s.name,
+            })
+            .collect();
+        self.skills.iter().map(|s| s.icon_path()).collect()
+    }
+
+    pub fn apply_skill_added(&mut self, skill: crate::event::SkillInfo) -> String {
+        let icon_path = format!(
+            "data/texture/유저인터페이스/item/{}.bmp",
+            skill.name.to_lowercase()
+        );
+        self.add_skill(SkillData {
+            id: skill.id,
+            selected_level: skill.level,
+            level: skill.level,
+            sp_cost: skill.sp_cost,
+            attack_range: skill.attack_range,
+            upgradable: skill.upgradable,
+            skill_target_type: skill.skill_target_type,
+            name: skill.name,
+        });
+        icon_path
     }
 
     pub fn get_skill(&self, id: u16) -> Option<&SkillData> {

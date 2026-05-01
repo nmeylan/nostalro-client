@@ -36,6 +36,12 @@ pub struct NpcShopData {
     pub selected_index: Option<usize>,
 }
 
+impl Default for NpcShopData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NpcShopData {
     pub fn new() -> Self {
         Self {
@@ -174,6 +180,77 @@ impl NpcShopData {
         self.sell_items.retain(|i| i.item.count > 0);
         self.cart.clear();
         self.selected_index = None;
+    }
+
+    pub fn apply_buy_list(
+        &mut self,
+        npc_id: u32,
+        fallback_npc_id: u32,
+        items: Vec<(u16, i32, i32, u8)>,
+        data_table: &crate::data_table::DataTable,
+    ) -> Vec<String> {
+        let buy_items: Vec<ShopBuyItem> = items
+            .into_iter()
+            .map(|(item_id, price, discount_price, item_type)| {
+                let name = data_table.item_name.as_ref()
+                    .map(|t| t.get_name_or_id(item_id))
+                    .unwrap_or_else(|| format!("Item #{item_id}"));
+                let resource_name = data_table.item_resource.as_ref()
+                    .and_then(|t| t.get_resource_name(item_id).map(|s| s.to_string()));
+                ShopBuyItem {
+                    item: Item {
+                        index: 0, item_id, item_type, count: 1,
+                        is_identified: true, is_damaged: false, refining_level: 0,
+                        slot: [0; 4], location: 0, wear_state: 0,
+                        name, resource_name,
+                    },
+                    price, discount_price,
+                }
+            })
+            .collect();
+        let shop_npc_id = if npc_id != 0 { npc_id } else { fallback_npc_id };
+        self.open_buy(shop_npc_id, buy_items);
+        self.buy_items.iter().filter_map(|i| i.item.icon_path()).collect()
+    }
+
+    pub fn apply_sell_list(
+        &mut self,
+        npc_id: u32,
+        fallback_npc_id: u32,
+        items: Vec<(i16, i32, i32)>,
+        inventory: &crate::inventory::InventoryData,
+    ) -> Vec<String> {
+        let sell_items: Vec<ShopSellItem> = items
+            .into_iter()
+            .filter_map(|(index, price, overcharge_price)| {
+                let inv_item = inventory.get_item(index as u16)?;
+                Some(ShopSellItem {
+                    item: inv_item.clone(),
+                    price, overcharge_price,
+                })
+            })
+            .collect();
+        let shop_npc_id = if npc_id != 0 { npc_id } else { fallback_npc_id };
+        self.open_sell(shop_npc_id, sell_items);
+        self.sell_items.iter().filter_map(|i| i.item.icon_path()).collect()
+    }
+
+    pub fn apply_buy_result(&mut self, result: u8) -> &'static str {
+        self.close();
+        match result {
+            0 => "Purchase completed.",
+            1 => "Not enough zeny.",
+            2 => "You are overweight.",
+            _ => "Purchase failed.",
+        }
+    }
+
+    pub fn apply_sell_result(&mut self, result: u8) -> &'static str {
+        self.close();
+        match result {
+            0 => "Sale completed.",
+            _ => "Sell failed.",
+        }
     }
 
     pub fn resolve_resource_names(&mut self, table: &crate::item_resource_table::ItemResourceTable) {

@@ -1,56 +1,43 @@
 mod config;
+mod events;
 mod game_state;
+mod game_updates;
 mod input;
+mod input_action;
+mod overlay;
+mod scene;
+mod sprite;
 
 use std::collections::HashMap;
-use config::{Config, WindowStateEntry};
+use config::Config;
 use game_state::GameState;
 use input::InputState;
-use models::enums::{EnumWithMaskValueU64, EnumWithNumberValue};
-use models::enums::action::ActionType;
-use models::enums::skill_enums::SkillEnum;
-use models::enums::status::StatusTypes;
 use ragnarok_game::skill::SkillTargetType;
-use ragnarok_formats::act::{MotionType, SpriteActionType};
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
-use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::cursor::{
     CursorType, PendingSkillTarget, RenderEntry, RenderEntryKind, cursor_type_for_cell, hovered_entity_cursor_type,
 };
-use ragnarok_game::entity::{Entity, EntityFade, EntityState, EntityType, DEATH_FADE_DURATION};
-use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
-use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
+use ragnarok_game::entity::EntityState;
 use ragnarok_game::event::GameEvent;
-use models::enums::vanish::VanishType;
-use ragnarok_game::item::Item;
 use ragnarok_game::name_table::NameTable;
-use ragnarok_game::path::{path_search, try_move_to, try_move_to_range};
-use ragnarok_game::shadow::shadow_size;
-use ragnarok_game::sprite_path::{
-    WeaponType, entity_sprite_base_path, entity_type_from_job, weapon_view_id_to_type,
-};
-use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::{map_loader, sprite_loader};
-use ragnarok_network::session::Session;
 use ragnarok_network::{
     KeepaliveMode, NetworkCommand, build_action_request_packet, build_char_enter_packet,
     build_chat_packet, build_contact_npc_packet, build_drop_item_packet, build_equip_item_packet,
-    build_login_packet, build_map_loaded_packet, build_npc_close_packet,
+    build_login_packet, build_npc_close_packet,
     build_card_composition_list_packet, build_card_composition_packet,
     build_npc_deal_type_packet, build_npc_input_number_packet, build_npc_input_string_packet,
     build_npc_menu_select_packet, build_npc_next_packet, build_pickup_item_packet,
-    build_purchase_item_list_packet, build_reqname_packet, build_request_move_packet,
+    build_purchase_item_list_packet, build_reqname_packet,
     build_restart_packet, build_select_char_packet, build_sell_item_list_packet,
     build_shortcut_key_change_packet,
-    build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet, build_zone_enter_packet, ip_u32_to_string,
-    network_loop,
+    build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_use_skill_packet,
+    ip_u32_to_string, network_loop,
 };
-use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_renderer::{
-    GridSelectorRenderer, Renderer, SpriteBatch, SpriteVertex, UiDrawCall,
-    UiTextureRef, block_on, build_clip_quad, build_entity_sprite, scale_clip_vertices,
-    upload_sprite_textures,
+    GridSelectorRenderer, Renderer, SpriteVertex, UiDrawCall,
+    block_on, upload_sprite_textures,
 };
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
@@ -58,31 +45,47 @@ use ragnarok_ui::state::StateCache;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::{LoginFocus, LoginWindow};
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
-use ragnarok_ui_component::game::card_insert_dialog::{CardInsertDialog, EligibleItem};
-use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::sync::mpsc;
-use tracing::info;
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowAttributes, WindowId};
-use ragnarok_ui_component::Window as UiWindow;
-
 type ClipData = (Vec<SpriteVertex>, Vec<u32>, usize);
 
-fn preload_window<W: UiWindow>(window: &mut W, renderer: &mut Renderer, grf: &GrfArchive) {
-    if !window.has_grf_textures() {
-        let paths = W::grf_texture_paths();
-        let loaded = renderer.preload_textures(&paths, grf);
-        window.set_has_grf_textures(loaded);
-        if loaded {
-            window.set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
+struct GameChannel {
+    cmd_tx: Option<mpsc::UnboundedSender<NetworkCommand>>,
+    event_rx: Option<mpsc::UnboundedReceiver<GameEvent>>,
+}
+
+impl GameChannel {
+    fn new() -> Self {
+        Self {
+            cmd_tx: None,
+            event_rx: None,
         }
+    }
+
+    fn send_packet(&self, packet: Vec<u8>) {
+        if let Some(tx) = &self.cmd_tx {
+            let _ = tx.send(NetworkCommand::SendPacket(packet));
+        }
+    }
+
+    fn send_cmd(&self, cmd: NetworkCommand) {
+        if let Some(tx) = &self.cmd_tx {
+            let _ = tx.send(cmd);
+        }
+    }
+
+    fn drain_events(&mut self) -> Vec<GameEvent> {
+        self.event_rx
+            .as_mut()
+            .map(|rx| std::iter::from_fn(|| rx.try_recv().ok()).collect())
+            .unwrap_or_default()
     }
 }
 
@@ -98,11 +101,9 @@ struct App {
     login_window: LoginWindow,
     server_list_window: Option<ServerListWindow>,
     char_select_window: Option<CharSelectWindow>,
-    network_cmd_tx: Option<mpsc::UnboundedSender<NetworkCommand>>,
-    game_event_rx: Option<mpsc::UnboundedReceiver<GameEvent>>,
+    channel: GameChannel,
     game: GameState,
     start_time: Instant,
-    last_render_time: f32,
     last_frame_instant: Instant,
 }
 
@@ -123,11 +124,9 @@ impl App {
             login_window: LoginWindow::new(),
             server_list_window: None,
             char_select_window: None,
-            network_cmd_tx: None,
-            game_event_rx: None,
+            channel: GameChannel::new(),
             game: GameState::new(),
             start_time: Instant::now(),
-            last_render_time: 0.0,
             last_frame_instant: Instant::now(),
         }
     }
@@ -197,178 +196,11 @@ impl App {
         )
     }
 
-    fn handle_left_click(&mut self) {
-        if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
-            return;
-        }
-        if let Some(entity) = self.game.entities.player() {
-            if matches!(entity.state, EntityState::Casting | EntityState::SkillExec) {
-                return;
-            }
-        }
-        // Skill targeting mode: consume pending skill on click
-        if let Some(pending) = self.game.pending_skill_target.take() {
-            let mut skill_cast = false;
-            match pending {
-                PendingSkillTarget::Entity { skill_id, level } => {
-                    if let Some(entity_id) = self.game.hovered_entity_id {
-                        let target_pos = self.game.entities.get(entity_id)
-                            .map(|e| e.movement.cell_position())
-                            .unwrap_or((0, 0));
-                        let (px, py) = self.game.entities.player()
-                            .map(|e| e.movement.cell_position())
-                            .unwrap_or((0, 0));
-                        let skill_range = self.game.character.skills.get_skill(skill_id)
-                            .map(|s| s.attack_range as i32)
-                            .unwrap_or(1);
-                        let dx = (px as i32 - target_pos.0 as i32).abs();
-                        let dy = (py as i32 - target_pos.1 as i32).abs();
-                        let dist = dx.max(dy);
-                        if dist <= skill_range {
-                            if let Some(tx) = &self.network_cmd_tx {
-                                let packet = build_use_skill_packet(skill_id, level, entity_id, self.config.packetver);
-                                let _ = tx.send(NetworkCommand::SendPacket(packet));
-                            }
-                            skill_cast = true;
-                        } else {
-                            let dest_x = target_pos.0 as i32;
-                            let dest_y = target_pos.1 as i32;
-                            if self.try_move_toward(dest_x, dest_y, px, py, skill_range) {
-                                self.game.pending_skill_id = Some(skill_id);
-                                self.game.pending_skill_level = Some(level);
-                                self.game.attack_target_id = Some(entity_id);
-                            }
-                        }
-                    }
-                }
-                PendingSkillTarget::Ground { skill_id, level } => {
-                    // TODO: render effect\magic_target.tga ground overlay at hovered cell for skill area
-                    if let Some((cx, cy)) = self.hovered_cell() {
-                        if let Some(tx) = &self.network_cmd_tx {
-                            let packet = build_use_skill_to_ground_packet(skill_id, level, cx as i16, cy as i16, self.config.packetver);
-                            let _ = tx.send(NetworkCommand::SendPacket(packet));
-                        }
-                    }
-                    skill_cast = true;
-                }
-            }
-            if skill_cast {
-                self.game.attack_target_id = None;
-            }
-            return;
-        }
-        // Click on floor item to pick up
-        if let Some(item_id) = self.game.hovered_floor_item_id {
-            self.game.attack_target_id = None;
-            self.game.pending_pickup_item_id = None;
-            if let Some(floor_item) = self.game.floor_items.get(&item_id) {
-                let (px, py) = self
-                    .game
-                    .entities
-                    .player()
-                    .map(|e| e.movement.cell_position())
-                    .unwrap_or((0, 0));
-                let dx = (px as i32 - floor_item.x as i32).unsigned_abs();
-                let dy = (py as i32 - floor_item.y as i32).unsigned_abs();
-                if dx <= 1 && dy <= 1 {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_pickup_item_packet(item_id, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
-                    if let Some(entity) = self.game.entities.player_mut() {
-                        entity.enter_pickup(0.5);
-                    }
-                } else if let Some(gat) = &self.game.gat {
-                    let dest_x = floor_item.x as i32;
-                    let dest_y = floor_item.y as i32;
-                    if let Some(move_action) = try_move_to(gat, px, py, dest_x, dest_y) {
-                        if let Some(tx) = &self.network_cmd_tx {
-                            let packet = build_request_move_packet(
-                                move_action.dest_x,
-                                move_action.dest_y,
-                                self.config.packetver,
-                            );
-                            let _ = tx.send(NetworkCommand::SendPacket(packet));
-                        }
-                        let elapsed = self.start_time.elapsed().as_secs_f32();
-                        if let Some(entity) = self.game.entities.player_mut() {
-                            entity.movement.start_move(move_action.path, elapsed);
-                        }
-                        self.game.pending_pickup_item_id = Some(item_id);
-                    }
-                }
-            }
-            return;
-        }
-        // Click on NPC to talk
-        if let Some(entity_id) = self.game.hovered_entity_id {
-            if let Some(entity) = self.game.entities.get(entity_id) {
-                if entity.entity_type == EntityType::Npc && entity.job != 45 {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_contact_npc_packet(entity_id, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
-                    return;
-                }
-            }
-        }
-        // Click on monster to attack (always), or player (shift or noshift mode)
-        if let Some(entity_id) = self.game.hovered_entity_id {
-            if let Some(entity) = self.game.entities.get(entity_id) {
-                let should_attack = match entity.entity_type {
-                    EntityType::Monster => !self.input.shift_pressed,
-                    EntityType::Player => self.input.shift_pressed || self.game.noshift_mode,
-                    _ => false,
-                };
-                if should_attack {
-                    self.initiate_attack(entity_id);
-                    return;
-                }
-            }
-        }
-        self.game.attack_target_id = None;
-        self.game.pending_pickup_item_id = None;
-        let (dest_x, dest_y) = match self.hovered_cell() {
-            Some(c) => c,
-            None => return,
-        };
-        let gat = match &self.game.gat {
-            Some(g) => g,
-            None => return,
-        };
-
-        let (src_x, src_y) = self
-            .game
-            .entities
-            .player()
-            .map(|e| e.movement.cell_position())
-            .unwrap_or((0, 0));
-
-        let move_action = match try_move_to(gat, src_x, src_y, dest_x, dest_y) {
-            Some(a) => a,
-            None => return,
-        };
-
-        if let Some(tx) = &self.network_cmd_tx {
-            let packet = build_request_move_packet(
-                move_action.dest_x,
-                move_action.dest_y,
-                self.config.packetver,
-            );
-            let _ = tx.send(NetworkCommand::SendPacket(packet));
-        }
-
-        let elapsed = self.start_time.elapsed().as_secs_f32();
-        if let Some(entity) = self.game.entities.player_mut() {
-            entity.movement.start_move(move_action.path, elapsed);
-        }
-    }
-
     fn spawn_network(&mut self) {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let (event_tx, event_rx) = mpsc::unbounded_channel();
-        self.network_cmd_tx = Some(cmd_tx);
-        self.game_event_rx = Some(event_rx);
+        self.channel.cmd_tx = Some(cmd_tx);
+        self.channel.event_rx = Some(event_rx);
 
         let packetver = self.config.packetver;
         let debug_delay_ms = self.config.debug_network_delay_ms;
@@ -392,1693 +224,6 @@ impl App {
         });
     }
 
-    fn handle_game_events(&mut self, event_loop: &ActiveEventLoop) {
-        let events: Vec<_> = self
-            .game_event_rx
-            .as_mut()
-            .map(|rx| std::iter::from_fn(|| rx.try_recv().ok()).collect())
-            .unwrap_or_default();
-        let mut just_spawned: std::collections::HashSet<u32> = std::collections::HashSet::new();
-        for event in events {
-            match event {
-                GameEvent::LoginAccepted {
-                    account_id,
-                    login_id1,
-                    login_id2,
-                    sex,
-                    servers,
-                } => {
-                    tracing::info!("Login accepted, {} server(s)", servers.len());
-                    let mut session = Session::new(self.config.packetver);
-                    session.store_login(account_id, login_id1, login_id2, sex);
-                    self.game.login_session = Some(session);
-                    let mut server_win = ServerListWindow::new(servers);
-                    if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-                        preload_window(&mut server_win, renderer, grf);
-                    }
-                    self.server_list_window = Some(server_win);
-                    self.game.app_state = AppState::ServerSelect;
-                }
-                GameEvent::LoginRefused { error_code } => {
-                    let msg = match error_code {
-                        0 => "Unregistered ID",
-                        1 => "Incorrect Password",
-                        2 => "ID expired",
-                        3 => "Rejected from server",
-                        4 => "Blocked by GM",
-                        5 => "Not latest client",
-                        6 => "Banned",
-                        _ => "Unknown error",
-                    };
-                    self.login_window.set_error(msg);
-                }
-                GameEvent::CharacterListReceived { characters } => {
-                    tracing::info!("Received {} character(s)", characters.len());
-                    let mut char_win = CharSelectWindow::new(characters);
-                    if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-                        preload_window(&mut char_win, renderer, grf);
-                    }
-                    self.char_select_window = Some(char_win);
-                    self.game.app_state = AppState::CharacterSelect;
-                }
-                GameEvent::ZoneServerConnectInfo {
-                    char_id,
-                    map_name,
-                    ip,
-                    port,
-                } => {
-                    if let Some(session) = &mut self.game.login_session {
-                        session.store_zone_info(char_id, map_name);
-                    }
-                    let addr = format!("{}:{}", ip_u32_to_string(ip), port);
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let _ = tx.send(NetworkCommand::Disconnect);
-                        let _ = tx.send(NetworkCommand::Connect(addr));
-                        if let Some(session) = &self.game.login_session {
-                            let packet = build_zone_enter_packet(session);
-                            let _ = tx.send(NetworkCommand::SendPacket(packet));
-                        }
-                        let _ = tx.send(NetworkCommand::SetKeepalive(KeepaliveMode::MapServer));
-                    }
-                }
-                GameEvent::RestartAck => {
-                    self.char_select_window = None;
-                    self.game.character.clear();
-                    self.game.entities.clear();
-                    self.game.sprites.clear();
-                    self.game.sprite_cache.clear();
-                    self.game.floor_items.clear();
-                    self.game.floor_item_sprites.clear();
-                    self.game.waiting_item_throw_ack = false;
-                    self.game.drop_quantity_dialog = None;
-                    self.game.card_insert_dialog = None;
-                    self.game.pending_card_composition_index = None;
-                    self.game.pending_pickup_item_id = None;
-                    self.game.attack_target_id = None;
-                    self.game.current_map = None;
-                    self.game.map_coords = None;
-                    self.game.gat = None;
-                    if let Some(renderer) = &mut self.renderer {
-                        renderer.ground_renderer = None;
-                        renderer.model_renderer = None;
-                        renderer.water_renderer = None;
-                        renderer.grid_selector = None;
-                    }
-                    self.reconnect_to_char_server();
-                }
-                GameEvent::MapEntered { x, y, dir, .. } => {
-                    let map_name = self.game.login_session.as_ref().map(|s| {
-                        s.map_name
-                            .strip_suffix(".gat")
-                            .unwrap_or(&s.map_name)
-                            .to_string()
-                    });
-                    if let Some(map_name) = &map_name {
-                        tracing::info!("Entering map: {map_name}");
-                        self.load_map(map_name);
-                        self.game.current_map = Some(map_name.clone());
-                    }
-
-                    let session_sex = self.game.login_session.as_ref().map(|s| s.sex).unwrap_or(1);
-                    let account_id = self
-                        .game
-                        .login_session
-                        .as_ref()
-                        .map(|s| s.account_id)
-                        .unwrap_or(0);
-                    let (
-                        job,
-                        sex,
-                        head,
-                        hair_color,
-                        weapon,
-                        head_top,
-                        head_mid,
-                        head_bottom,
-                        shield_id,
-                    ) = self
-                        .game
-                        .selected_character
-                        .as_ref()
-                        .map(|c| {
-                            let sex = if self.config.packetver >= 20141016 {
-                                c.sex
-                            } else {
-                                session_sex
-                            };
-                            (
-                                c.class,
-                                sex,
-                                c.head,
-                                c.hair_color,
-                                c.weapon,
-                                c.head_top,
-                                c.head_mid,
-                                c.head_bottom,
-                                c.shield,
-                            )
-                        })
-                        .unwrap_or((0, session_sex, 0, 0, 0, 0, 0, 0, 0));
-
-                    let entity = Entity::new_player(
-                        account_id,
-                        job,
-                        sex,
-                        head,
-                        hair_color,
-                        weapon,
-                        head_top,
-                        head_mid,
-                        head_bottom,
-                        shield_id,
-                        x,
-                        y,
-                        dir,
-                    );
-                    self.game.entities.set_player_id(account_id);
-                    self.game.entities.insert(entity);
-
-                    let weapon_type = weapon_view_id_to_type(weapon);
-                    self.load_player_sprite(
-                        account_id,
-                        job,
-                        sex,
-                        head,
-                        hair_color,
-                        0,
-                        weapon_type,
-                        head_top,
-                        head_mid,
-                        head_bottom,
-                        shield_id,
-                    );
-
-                    self.position_camera_at(x as f32, y as f32);
-                    self.char_select_window = None;
-
-                    if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-                        preload_window(&mut self.game.chat_window, renderer, grf);
-                        preload_window(&mut self.game.system_menu, renderer, grf);
-                        preload_window(&mut self.game.inventory_window, renderer, grf);
-                        preload_window(&mut self.game.equipment_window, renderer, grf);
-                        preload_window(&mut self.game.npc_dialog, renderer, grf);
-                        preload_window(&mut self.game.npc_shop, renderer, grf);
-                        preload_window(&mut self.game.item_info_window, renderer, grf);
-                        preload_window(&mut self.game.item_pickup_notification, renderer, grf);
-                        preload_window(&mut self.game.skill_tree_window, renderer, grf);
-                        preload_window(&mut self.game.hotkey_bar, renderer, grf);
-                        self.game.drop_dialog_has_grf_textures =
-                            renderer.preload_textures(&DropQuantityDialog::grf_texture_paths(), grf);
-                        self.game.card_insert_dialog_has_grf_textures =
-                            renderer.preload_textures(&CardInsertDialog::grf_texture_paths(), grf);
-                    }
-
-                    if let Some(info) = &self.game.selected_character {
-                        self.game.character.init_from_info(info);
-                    }
-
-                    self.game.app_state = AppState::InGame;
-                    self.game.apply_window_state(&self.config.window_state);
-                    self.game.character.hotkeys.set_visible_rows(self.config.hotkey_visible_rows);
-                    self.game.character.hotkeys.set_battle_mode(self.config.battle_mode);
-
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let _ = tx.send(NetworkCommand::SendPacket(build_map_loaded_packet(
-                            self.config.packetver,
-                        )));
-                    }
-                }
-                GameEvent::PlayerMoved {
-                    start_x,
-                    start_y,
-                    dest_x,
-                    dest_y,
-                    start_time,
-                } => {
-                    self.input.walk_server_acked = true;
-                    let already_moving_to_dest = self
-                        .game
-                        .entities
-                        .player()
-                        .filter(|e| e.movement.is_moving())
-                        .and_then(|e| e.movement.destination())
-                        .is_some_and(|(dx, dy)| dx == dest_x && dy == dest_y);
-                    if !already_moving_to_dest {
-                        if let Some(gat) = &self.game.gat {
-                            // Start from rendered position (like original client)
-                            let (sx, sy) = self
-                                .game
-                                .entities
-                                .player()
-                                .map(|e| e.movement.cell_position())
-                                .unwrap_or((start_x, start_y));
-                            let path = path_search(gat, sx, sy, dest_x, dest_y);
-                            if !path.is_empty() {
-                                let local_ms = self.start_time.elapsed().as_millis() as u32;
-                                let move_start = self
-                                    .game
-                                    .server_time
-                                    .server_to_local_secs(start_time, local_ms);
-                                if let Some(entity) = self.game.entities.player_mut() {
-                                    entity.movement.set_position(sx as f32, sy as f32);
-                                    entity.movement.start_move(path, move_start);
-                                }
-                            }
-                        }
-                    }
-                }
-                GameEvent::MapChanged { map_name, x, y } => {
-                    self.game.pending_skill_target = None;
-                    self.game.pending_skill_id = None;
-                    self.game.pending_skill_level = None;
-                    self.game.attack_target_id = None;
-                    let map_name = map_name
-                        .strip_suffix(".gat")
-                        .unwrap_or(&map_name)
-                        .to_string();
-                    tracing::info!(
-                        "MapChanged: {map_name} ({x},{y}) current={:?}",
-                        self.game.current_map
-                    );
-                    if self.game.current_map.as_deref() != Some(&map_name) {
-                        tracing::info!("Different map, clearing entities");
-                        self.load_map(&map_name);
-                        self.game.current_map = Some(map_name);
-                        // Clear non-player entities only on actual map change;
-                        // same-map warps rely on server FOV updates
-                        let player_sprite = self
-                            .game
-                            .entities
-                            .player_id()
-                            .and_then(|pid| self.game.sprites.remove(&pid));
-                        self.game.sprites.clear();
-                        self.game.sprite_cache.clear();
-                        self.game.entities.clear_non_player();
-                        self.game.failed_sprite_loads.clear();
-                        self.game.floor_items.clear();
-                        self.game.floor_item_sprites.clear();
-                        if let (Some(pid), Some(sprite)) =
-                            (self.game.entities.player_id(), player_sprite)
-                        {
-                            self.game.sprites.insert(pid, sprite);
-                        }
-                    }
-                    if let Some(entity) = self.game.entities.player_mut() {
-                        entity.movement.set_position(x as f32, y as f32);
-                    }
-                    self.position_camera_at(x as f32, y as f32);
-
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let _ = tx.send(NetworkCommand::SendPacket(build_map_loaded_packet(
-                            self.config.packetver,
-                        )));
-                    }
-                }
-                GameEvent::EntitySpawned {
-                    gid,
-                    job,
-                    speed,
-                    sex,
-                    head,
-                    weapon,
-                    shield,
-                    head_top,
-                    head_mid,
-                    head_bottom,
-                    hair_color,
-                    x,
-                    y,
-                    direction,
-                    body_state,
-                } => {
-                    if self.game.entities.player_id() == Some(gid) {
-                        continue;
-                    }
-                    if let Some(existing) = self.game.entities.get_mut(gid) {
-                        existing.movement.set_speed(speed);
-                        continue;
-                    }
-                    let entity_type = entity_type_from_job(job);
-
-                    let mut entity = Entity::new(
-                        gid,
-                        entity_type,
-                        job,
-                        sex,
-                        head,
-                        hair_color,
-                        weapon,
-                        head_top,
-                        head_mid,
-                        head_bottom,
-                        shield,
-                        x,
-                        y,
-                        direction,
-                        speed,
-                    );
-                    if body_state == 2 {
-                        entity.state = EntityState::Sitting;
-                    }
-                    self.game.entities.insert(entity);
-                    just_spawned.insert(gid);
-                    self.load_entity_sprite(
-                        gid,
-                        entity_type,
-                        job,
-                        sex,
-                        head,
-                        weapon,
-                        shield,
-                        head_top,
-                        head_mid,
-                        head_bottom,
-                        hair_color,
-                        direction,
-                    );
-                }
-                GameEvent::EntityMoved {
-                    gid,
-                    start_x,
-                    start_y,
-                    dest_x,
-                    dest_y,
-                    start_time,
-                } => {
-                    if let Some(gat) = &self.game.gat {
-                        let (sx, sy) = self
-                            .game
-                            .entities
-                            .get(gid)
-                            .map(|e| e.movement.cell_position())
-                            .unwrap_or((start_x, start_y));
-                        let path = path_search(gat, sx, sy, dest_x, dest_y);
-                        if !path.is_empty() {
-                            let local_ms = self.start_time.elapsed().as_millis() as u32;
-                            let move_start = if just_spawned.contains(&gid) {
-                                self.game
-                                    .server_time
-                                    .server_to_local_secs(start_time, local_ms)
-                            } else {
-                                local_ms as f32 / 1000.0
-                            };
-                            if let Some(entity) = self.game.entities.get_mut(gid) {
-                                entity.movement.start_move(path, move_start);
-                                entity.state_timer = 0.0;
-                            }
-                        }
-                    }
-                }
-                GameEvent::EntityVanished { gid, vanish_type } => {
-                    if self.game.attack_target_id == Some(gid) {
-                        self.game.attack_target_id = None;
-                    }
-                    match vanish_type {
-                        VanishType::Die => {
-                            if let Some(entity) = self.game.entities.get_mut(gid) {
-                                entity.request_pending_death();
-                            }
-                        }
-                        VanishType::OutOfSight => {
-                            if let Some(entity) = self.game.entities.get_mut(gid) {
-                                entity.start_vanish_fade();
-                                tracing::debug!("EntityVanished(outofsight): gid={gid}");
-                            }
-                        }
-                        _ => {
-                            let r1 = self.game.entities.remove(gid).is_some();
-                            let r2 = self.game.sprites.remove(&gid).is_some();
-                            tracing::debug!("EntityVanished: gid={gid} type={vanish_type:?} r1={r1} r2={r2}");
-                        }
-                    }
-                }
-                GameEvent::EntityStopMove { gid, x, y } => {
-                    if let Some(entity) = self.game.entities.get_mut(gid) {
-                        entity.movement.set_position(x as f32, y as f32);
-                        if entity.state == EntityState::Moving {
-                            entity.state = EntityState::Standing;
-                        }
-                    }
-                }
-                GameEvent::EntityAction {
-                    gid,
-                    target_gid,
-                    action,
-                    damage,
-                    left_damage,
-                    attack_mt,
-                    attacked_mt,
-                    count,
-                    ..
-                } => match action {
-                    ActionType::Sit => {
-                        if let Some(entity) = self.game.entities.get_mut(gid) {
-                            entity.state = EntityState::Sitting;
-                            entity.state_timer = 0.0;
-                        }
-                    }
-                    ActionType::Stand => {
-                        if let Some(entity) = self.game.entities.get_mut(gid) {
-                            entity.state = EntityState::Standing;
-                            entity.state_timer = 0.0;
-                        }
-                    }
-                    ActionType::Attack | ActionType::AttackNomotion | ActionType::AttackRepeat
-                    | ActionType::AttackMultiple | ActionType::AttackMultipleNomotion | ActionType::AttackCritical => {
-                        let target_pos = self.game.entities.get(target_gid).map(|e| e.movement.cell_position());
-                        if let Some(entity) = self.game.entities.get_mut(gid) {
-                            if let Some(tp) = target_pos {
-                                let sp = entity.movement.cell_position();
-                                if let Some(dir) = direction_from_positions(sp.0, sp.1, tp.0, tp.1) {
-                                    entity.direction = dir;
-                                }
-                            }
-                            let duration = (attack_mt as f32 / 1000.0).max(0.5);
-                            entity.enter_attack(duration);
-                        }
-
-                        let is_endure = matches!(action, ActionType::AttackNomotion | ActionType::AttackMultipleNomotion);
-                        let effective_count = match action {
-                            ActionType::AttackMultiple | ActionType::AttackMultipleNomotion => count.max(1) as u16,
-                            _ => 1,
-                        };
-                        let total_damage = damage + left_damage;
-                        let now = self.start_time.elapsed().as_secs_f32();
-                        let delay_time = (attack_mt as f32 / 1000.0).max(0.0);
-                        let per_hit_damage = if effective_count > 1 && total_damage > 0 {
-                            total_damage / effective_count as i32
-                        } else {
-                            total_damage
-                        };
-
-                        let is_critical = matches!(action, ActionType::AttackCritical);
-                        if let Some(target) = self.game.entities.get_mut(target_gid) {
-                            let double_attack_term = 0.2;
-                            for i in 0..effective_count {
-                                let hit_time = now + delay_time + (i as f32 * double_attack_term);
-                                let msg = if is_endure {
-                                    DamageMessage::AttackedNoMotion
-                                } else if effective_count > 1 {
-                                    DamageMessage::AttackedMultiHit { total_damage }
-                                } else {
-                                    DamageMessage::Attacked
-                                };
-                                target.scheduled_hits.push(ScheduledHit {
-                                    message: msg,
-                                    damage: per_hit_damage,
-                                    fire_at: hit_time,
-                                    attacker_gid: gid,
-                                    skill_id: 0,
-                                    is_last_hit: i == effective_count - 1,
-                                    is_critical,
-                                    hit_index: i as u16,
-                                    attacked_mt_secs: attacked_mt as f32 / 1000.0,
-                                });
-                            }
-                        }
-                    }
-                    ActionType::AttackLucky => {
-                        let dir = self.game.entities.get(target_gid).map(|e| e.direction).unwrap_or(0);
-                        self.game.damage_numbers.add(DamageNumber::new(
-                            target_gid, 0, DamageNumberType::Lucky, dir,
-                        ));
-                    }
-                    ActionType::Itempickup => {
-                        if let Some(entity) = self.game.entities.get_mut(gid) {
-                            entity.enter_pickup(0.5);
-                        }
-                    }
-                    _ => {}
-                },
-                GameEvent::EntityDirectionChanged { gid, head_dir, dir } => {
-                    if let Some(entity) = self.game.entities.get_mut(gid) {
-                        entity.head_dir = head_dir;
-                        entity.direction = dir;
-                    }
-                }
-                GameEvent::EntityNameReceived { gid, name } => {
-                    if let Some(entity) = self.game.entities.get_mut(gid) {
-                        entity.name = Some(name);
-                    }
-                }
-                GameEvent::EntityHpChanged { gid, hp, max_hp } => {
-                    if self.game.entities.is_player(gid) {
-                        self.game.character.hp = hp;
-                        self.game.character.max_hp = max_hp;
-                    } else if let Some(entity) = self.game.entities.get_mut(gid) {
-                        entity.hp = Some(hp);
-                        entity.max_hp = Some(max_hp);
-                    }
-                }
-                GameEvent::NpcDialogText { npc_id, text } => {
-                    self.game.npc_dialog.dialog.open_text(npc_id, &text);
-                }
-                GameEvent::NpcDialogNext { npc_id } => {
-                    self.game.npc_dialog.dialog.wait_for_next(npc_id);
-                }
-                GameEvent::NpcDialogClose { npc_id } => {
-                    self.game.npc_dialog.dialog.wait_for_close(npc_id);
-                }
-                GameEvent::NpcDialogMenu { npc_id, items } => {
-                    self.game.npc_dialog.dialog.show_menu(npc_id, items);
-                }
-                GameEvent::NpcInputNumber { npc_id } => {
-                    self.game.npc_dialog.dialog.wait_for_number_input(npc_id);
-                }
-                GameEvent::NpcInputString { npc_id } => {
-                    self.game.npc_dialog.dialog.wait_for_string_input(npc_id);
-                }
-                GameEvent::NpcDealTypeSelect { npc_id } => {
-                    self.game.npc_dialog.dialog.show_deal_type(npc_id);
-                }
-                GameEvent::NpcShopBuyList { npc_id, items } => {
-                    let buy_items: Vec<_> = items
-                        .into_iter()
-                        .map(|(item_id, price, discount_price, item_type)| {
-                            let name = self
-                                .game
-                                .data_table.item_name
-                                .as_ref()
-                                .map(|t| t.get_name_or_id(item_id))
-                                .unwrap_or_else(|| format!("Item #{item_id}"));
-                            let resource_name =
-                                self.game.data_table.item_resource.as_ref().and_then(|t| {
-                                    t.get_resource_name(item_id).map(|s| s.to_string())
-                                });
-                            ragnarok_game::npc_shop::ShopBuyItem {
-                                item: Item {
-                                    index: 0,
-                                    item_id,
-                                    item_type,
-                                    count: 1,
-                                    is_identified: true,
-                                    is_damaged: false,
-                                    refining_level: 0,
-                                    slot: [0; 4],
-                                    location: 0,
-                                    wear_state: 0,
-                                    name,
-                                    resource_name,
-                                },
-                                price,
-                                discount_price,
-                            }
-                        })
-                        .collect();
-                    let shop_npc_id = if npc_id != 0 {
-                        npc_id
-                    } else {
-                        self.game.npc_dialog.dialog.npc_id
-                    };
-                    self.game.npc_shop.shop.open_buy(shop_npc_id, buy_items);
-                    self.game.npc_dialog.dialog.close();
-                    let icon_paths: Vec<String> = self.game.npc_shop.shop.buy_items.iter()
-                        .filter_map(|i| i.item.icon_path())
-                        .collect();
-                    self.preload_item_icons(icon_paths);
-                }
-                GameEvent::NpcShopSellList { npc_id, items } => {
-                    let sell_items = items
-                        .into_iter()
-                        .filter_map(|(index, price, overcharge_price)| {
-                            let inv_item = self
-                                .game
-                                .character
-                                .inventory
-                                .get_item(index as u16)?;
-                            Some(ragnarok_game::npc_shop::ShopSellItem {
-                                item: inv_item.clone(),
-                                price,
-                                overcharge_price,
-                            })
-                        })
-                        .collect();
-                    let shop_npc_id = if npc_id != 0 {
-                        npc_id
-                    } else {
-                        self.game.npc_dialog.dialog.npc_id
-                    };
-                    self.game.npc_shop.shop.open_sell(shop_npc_id, sell_items);
-                    self.game.npc_dialog.dialog.close();
-                    let icon_paths: Vec<String> = self.game.npc_shop.shop.sell_items.iter()
-                        .filter_map(|i| i.item.icon_path())
-                        .collect();
-                    self.preload_item_icons(icon_paths);
-                }
-                GameEvent::NpcShopBuyResult { result } => {
-                    self.game.npc_shop.shop.close();
-                    match result {
-                        0 => {
-                            self.game.chat_window.add_chat("Purchase completed.".into());
-                        }
-                        1 => {
-                            self.game.chat_window.add_chat("Not enough zeny.".into());
-                        }
-                        2 => {
-                            self.game.chat_window.add_chat("You are overweight.".into());
-                        }
-                        _ => {
-                            self.game.chat_window.add_chat("Purchase failed.".into());
-                        }
-                    }
-                }
-                GameEvent::NpcShopSellResult { result } => {
-                    self.game.npc_shop.close();
-                    match result {
-                        0 => {
-                            self.game.chat_window.add_chat("Sale completed.".into());
-                        }
-                        _ => {
-                            self.game.chat_window.add_chat("Sell failed.".into());
-                        }
-                    }
-                }
-                GameEvent::InventoryNormalItems { items } => {
-                    for info in items {
-                        let name = self
-                            .game
-                            .data_table.item_name
-                            .as_ref()
-                            .map(|t| t.get_name_or_id_for(info.item_id, info.is_identified))
-                            .unwrap_or_else(|| format!("Item #{}", info.item_id));
-                        let resource_name = self.game.data_table.item_resource.as_ref().and_then(|t| {
-                            t.get_resource_name_for(info.item_id, info.is_identified)
-                                .map(|s| s.to_string())
-                        });
-                        self.game.character.inventory.add_item(Item {
-                            index: info.index as u16,
-                            item_id: info.item_id,
-                            item_type: info.item_type,
-                            count: info.count,
-                            is_identified: info.is_identified,
-                            is_damaged: false,
-                            refining_level: 0,
-                            slot: [0; 4],
-                            location: info.wear_state,
-                            wear_state: 0,
-                            name,
-                            resource_name,
-                        });
-                    }
-                    let icon_paths: Vec<String> = self.game.character.inventory.all_items().iter()
-                        .filter_map(|item| item.icon_path())
-                        .collect();
-                    self.preload_item_icons(icon_paths);
-                }
-                GameEvent::InventoryEquipmentItems { items } => {
-                    for info in items {
-                        let name = self
-                            .game
-                            .data_table.item_name
-                            .as_ref()
-                            .map(|t| t.get_name_or_id_for(info.item_id, info.is_identified))
-                            .unwrap_or_else(|| format!("Item #{}", info.item_id));
-                        let resource_name = self.game.data_table.item_resource.as_ref().and_then(|t| {
-                            t.get_resource_name_for(info.item_id, info.is_identified)
-                                .map(|s| s.to_string())
-                        });
-                        tracing::debug!(
-                            "Equipment item: idx={} id={} type={} name={} loc={} wear={}",
-                            info.index,
-                            info.item_id,
-                            info.item_type,
-                            name,
-                            info.location,
-                            info.wear_state,
-                        );
-                        self.game.character.inventory.add_item(Item {
-                            index: info.index as u16,
-                            item_id: info.item_id,
-                            item_type: info.item_type,
-                            count: 1,
-                            is_identified: info.is_identified,
-                            is_damaged: info.is_damaged,
-                            refining_level: info.refining_level,
-                            slot: info.slot,
-                            location: info.location,
-                            wear_state: info.wear_state,
-                            name,
-                            resource_name,
-                        });
-                    }
-                    let icon_paths: Vec<String> = self.game.character.inventory.all_items().iter()
-                        .filter_map(|item| item.icon_path())
-                        .collect();
-                    self.preload_item_icons(icon_paths);
-                }
-                GameEvent::InventoryItemPickup {
-                    index,
-                    item_id,
-                    count,
-                    item_type,
-                    is_identified,
-                    is_damaged,
-                    refining_level,
-                    slot,
-                    location,
-                    result,
-                } => {
-                    if result == 0 {
-                        let name = self
-                            .game
-                            .data_table.item_name
-                            .as_ref()
-                            .map(|t| t.get_name_or_id_for(item_id, is_identified))
-                            .unwrap_or_else(|| format!("Item #{item_id}"));
-                        let resource_name = self.game.data_table.item_resource.as_ref().and_then(|t| {
-                            t.get_resource_name_for(item_id, is_identified)
-                                .map(|s| s.to_string())
-                        });
-                        self.game.character.inventory.add_item(Item {
-                            index,
-                            item_id,
-                            item_type,
-                            count: count as i16,
-                            is_identified,
-                            is_damaged,
-                            refining_level,
-                            slot,
-                            location,
-                            wear_state: 0,
-                            name: name.clone(),
-                            resource_name,
-                        });
-                        let icon_path = self
-                            .game
-                            .character
-                            .inventory
-                            .get_item(index)
-                            .and_then(|item| item.icon_path());
-                        let formatted_name = self.game.character.inventory.get_item(index)
-                            .map(|item| format_equipment_display_name(
-                                item,
-                                self.game.data_table.item_slot_count.as_ref(),
-                                self.game.data_table.card_name.as_ref(),
-                            ))
-                            .unwrap_or(name);
-                        self.game
-                            .chat_window
-                            .add_system(format!("Picked up {formatted_name} x{count}"));
-                        if let Some(path) = &icon_path {
-                            self.preload_item_icons(vec![path.clone()]);
-                        }
-                        self.game
-                            .item_pickup_notification
-                            .show(formatted_name, count, icon_path);
-                    }
-                }
-                GameEvent::InventoryUseItemResult {
-                    index,
-                    count,
-                    success,
-                } => {
-                    if success {
-                        self.game
-                            .character
-                            .inventory
-                            .update_item_count(index, count);
-                    }
-                }
-                GameEvent::InventoryEquipResult {
-                    index,
-                    wear_location,
-                    view_id,
-                    success,
-                } => {
-                    tracing::debug!(
-                        "EquipResult: idx={} wear_loc={} view_id={} success={}",
-                        index,
-                        wear_location,
-                        view_id,
-                        success,
-                    );
-                    if success {
-                        self.game
-                            .character
-                            .inventory
-                            .update_wear_state(index, wear_location);
-                        if view_id != 0 {
-                            if let Some(sprite_type) =
-                                Entity::wear_location_to_sprite_type(wear_location)
-                            {
-                                if let Some(player_id) = self.game.entities.player_id() {
-                                    if let Some(entity) = self.game.entities.get_mut(player_id) {
-                                        entity.apply_sprite_change(sprite_type, view_id);
-                                    }
-                                    self.reload_player_sprite(player_id);
-                                }
-                            }
-                        }
-                    }
-                }
-                GameEvent::InventoryArrowEquipped { index } => {
-                    let ammo_mask = ragnarok_game::inventory::EquipmentLocation::Ammo.as_flag() as u16;
-                    self.game.character.inventory.update_wear_state(index, ammo_mask);
-                }
-                GameEvent::InventoryUnequipResult {
-                    index,
-                    success,
-                    wear_location,
-                } => {
-                    tracing::debug!(
-                        "UnequipResult: idx={} wear_loc={} success={}",
-                        index,
-                        wear_location,
-                        success,
-                    );
-                    if success {
-                        self.game.character.inventory.clear_wear_state(index);
-                        if let Some(sprite_type) =
-                            Entity::wear_location_to_sprite_type(wear_location)
-                        {
-                            if let Some(player_id) = self.game.entities.player_id() {
-                                if let Some(entity) = self.game.entities.get_mut(player_id) {
-                                    entity.apply_sprite_change(sprite_type, 0);
-                                }
-                                self.reload_player_sprite(player_id);
-                            }
-                        }
-                    }
-                }
-                GameEvent::InventoryItemRemoved { index, count } => {
-                    self.game
-                        .character
-                        .inventory
-                        .subtract_item_count(index, count);
-                    self.game.waiting_item_throw_ack = false;
-                }
-                GameEvent::CardInsertItemList { equip_indices, .. } => {
-                    let card_index = match self.game.pending_card_composition_index.take() {
-                        Some(idx) => idx,
-                        None => continue,
-                    };
-                    if equip_indices.is_empty() {
-                        continue;
-                    }
-                    let slot_count_table = self.game.data_table.item_slot_count.as_ref();
-                    let card_name_table = self.game.data_table.card_name.as_ref();
-                    let eligible: Vec<EligibleItem> = equip_indices.iter().filter_map(|&idx| {
-                        let item = self.game.character.inventory.get_item(idx)?;
-                        let name = format_equipment_display_name(item, slot_count_table, card_name_table);
-                        Some(EligibleItem {
-                            inventory_index: idx,
-                            display_name: name,
-                            icon_path: item.icon_path(),
-                        })
-                    }).collect();
-                    let card_name = self.game.character.inventory.get_item(card_index)
-                        .map(|c| c.name.clone())
-                        .unwrap_or_default();
-                    let mut dialog = CardInsertDialog::new();
-                    dialog.open(card_index, card_name, eligible);
-                    dialog.has_grf_textures = self.game.card_insert_dialog_has_grf_textures;
-                    if dialog.has_grf_textures {
-                        if let Some(renderer) = &self.renderer {
-                            dialog.set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
-                        }
-                    }
-                    let tex_paths = dialog.pending_texture_paths();
-                    self.game.card_insert_dialog = Some(dialog);
-                    self.preload_item_icons(tex_paths);
-                }
-                GameEvent::CardInsertResult { equip_index, card_index, result } => {
-                    self.game.card_insert_dialog = None;
-                    self.game.pending_card_composition_index = None;
-                    if result == 0 {
-                        let card_item_id = self.game.character.inventory.get_item(card_index)
-                            .map(|c| c.item_id)
-                            .unwrap_or(0);
-                        self.game.character.inventory.subtract_item_count(card_index, 1);
-                        if card_item_id != 0 {
-                            self.game.character.inventory.insert_card(equip_index, card_item_id);
-                        }
-                    } else {
-                        self.game.chat_window.add_system("Card insertion failed.".to_string());
-                    }
-                }
-                GameEvent::FloorItemAppeared {
-                    id,
-                    item_id,
-                    is_identified,
-                    x,
-                    y,
-                    sub_x,
-                    sub_y,
-                    count,
-                    is_falling,
-                } => {
-                    self.handle_floor_item_appeared(
-                        id,
-                        item_id,
-                        is_identified,
-                        x,
-                        y,
-                        sub_x,
-                        sub_y,
-                        count,
-                        is_falling,
-                    );
-                }
-                GameEvent::FloorItemDisappeared { id } => {
-                    self.game.floor_items.remove(&id);
-                    self.game.floor_item_sprites.remove(&id);
-                }
-                GameEvent::ChatMessage { gid, message } => {
-                    if let Some(bubble_text) = message.split(" : ").nth(1) {
-                        if let Some(entity) = self.game.entities.get_mut(gid) {
-                            entity.chat_bubble = Some(ragnarok_game::entity::ChatBubbleState::new(
-                                bubble_text.to_string(),
-                            ));
-                        }
-                    }
-                    self.game.chat_window.add_chat(message);
-                }
-                GameEvent::OwnChatMessage { message } => {
-                    if let Some(bubble_text) = message.split(" : ").nth(1) {
-                        if let Some(player_id) = self.game.entities.player_id() {
-                            if let Some(entity) = self.game.entities.get_mut(player_id) {
-                                entity.chat_bubble =
-                                    Some(ragnarok_game::entity::ChatBubbleState::new(
-                                        bubble_text.to_string(),
-                                    ));
-                            }
-                        }
-                    }
-                    self.game.chat_window.add_own_chat(message);
-                }
-                GameEvent::ServerTick {
-                    server_tick,
-                    local_send_time_ms,
-                } => {
-                    let local_now_ms = self.start_time.elapsed().as_millis() as u32;
-                    if self.config.enhanced_lag_compensation {
-                        self.game.server_time.on_server_tick_enhanced(
-                            server_tick,
-                            local_now_ms,
-                            local_send_time_ms,
-                        );
-                    } else {
-                        self.game.server_time.on_server_tick(
-                            server_tick,
-                            local_now_ms,
-                            local_send_time_ms,
-                        );
-                    }
-                }
-                GameEvent::ParameterChanged { var_id, value } => {
-                    if let Ok(status) = StatusTypes::try_from_value(var_id as usize) {
-                        tracing::debug!("Received status changed: {:?}", status);
-                        match status {
-                            StatusTypes::Speed => {
-                                if let Some(entity) = self.game.entities.player_mut() {
-                                    entity.speed = value as u16;
-                                    entity.movement.set_speed(value as u16);
-                                }
-                            }
-                            StatusTypes::Hp => {
-                                self.game.character.hp = value as u32;
-                            }
-                            StatusTypes::Maxhp => {
-                                self.game.character.max_hp = value as u32;
-                            }
-                            StatusTypes::Sp => {
-                                self.game.character.sp = value as u16;
-                            }
-                            StatusTypes::Maxsp => {
-                                self.game.character.max_sp = value as u16;
-                            }
-                            StatusTypes::Baselevel => {
-                                self.game.character.base_level = value as u16;
-                            }
-                            StatusTypes::Str => {
-                                self.game.character.str = value as u8;
-                            }
-                            StatusTypes::Agi => {
-                                self.game.character.agi = value as u8;
-                            }
-                            StatusTypes::Vit => {
-                                self.game.character.vit = value as u8;
-                            }
-                            StatusTypes::Int => {
-                                self.game.character.int = value as u8;
-                            }
-                            StatusTypes::Dex => {
-                                self.game.character.dex = value as u8;
-                            }
-                            StatusTypes::Luk => {
-                                self.game.character.luk = value as u8;
-                            }
-                            StatusTypes::Joblevel => {
-                                self.game.character.job_level = value as u32;
-                            }
-                            StatusTypes::Weight => {
-                                self.game.character.inventory.weight = value;
-                            }
-                            StatusTypes::Maxweight => {
-                                self.game.character.inventory.max_weight = value;
-                            }
-                            StatusTypes::Zeny => {
-                                self.game.character.inventory.zeny = value;
-                            }
-                            StatusTypes::Skillpoint => {
-                                tracing::debug!("Skill point: {value}");
-                                self.game.character.skill_point = value as u32;
-                            }
-                            StatusTypes::Statuspoint => {
-                                self.game.character.status_point = value as u32;
-                            }
-                            _ => {}
-                        }
-                    } else {
-                        tracing::debug!("Unrecognized parameter var_id={var_id} value={value}");
-                    }
-                }
-                GameEvent::StatusChanged {
-                    status_type, base, ..
-                } => {
-                    if let Ok(status) = StatusTypes::try_from_value(status_type as usize) {
-                        match status {
-                            StatusTypes::Str => self.game.character.str = base as u8,
-                            StatusTypes::Agi => self.game.character.agi = base as u8,
-                            StatusTypes::Vit => self.game.character.vit = base as u8,
-                            StatusTypes::Int => self.game.character.int = base as u8,
-                            StatusTypes::Dex => self.game.character.dex = base as u8,
-                            StatusTypes::Luk => self.game.character.luk = base as u8,
-                            _ => {}
-                        }
-                    }
-                }
-                GameEvent::AttackRangeChanged { range } => {
-                    self.game.attack_range = range;
-                }
-                GameEvent::EntitySpriteChanged {
-                    gid,
-                    sprite_type,
-                    value,
-                    ..
-                } => {
-                    if let Some(entity) = self.game.entities.get_mut(gid) {
-                        entity.apply_sprite_change(sprite_type, value);
-                        let (
-                            job,
-                            sex,
-                            head,
-                            weapon,
-                            shield,
-                            head_top,
-                            head_mid,
-                            head_bottom,
-                            hair_color,
-                            cloth_color,
-                        ) = {
-                            (
-                                entity.job,
-                                entity.sex,
-                                entity.head,
-                                entity.weapon.map(|w| w as u16).unwrap_or(0),
-                                entity.shield,
-                                entity.head_top,
-                                entity.head_mid,
-                                entity.head_bottom,
-                                entity.hair_color,
-                                entity.cloth_color,
-                            )
-                        };
-                        let entity_type = entity.entity_type;
-                        let is_player = self.game.entities.player_id() == Some(gid);
-                        if is_player {
-                            let weapon_type = weapon_view_id_to_type(weapon);
-                            self.load_player_sprite(
-                                gid,
-                                job,
-                                sex,
-                                head,
-                                hair_color,
-                                cloth_color,
-                                weapon_type,
-                                head_top,
-                                head_mid,
-                                head_bottom,
-                                shield,
-                            );
-                        } else {
-                            self.load_entity_sprite(
-                                gid,
-                                entity_type,
-                                job,
-                                sex,
-                                head,
-                                weapon,
-                                shield,
-                                head_top,
-                                head_mid,
-                                head_bottom,
-                                hair_color,
-                                0,
-                            );
-                        }
-                    }
-                }
-                GameEvent::SkillCasting { gid, target_gid, skill_id, delay_ms, x, y } => {
-                    // TODO: Skill effect rendering — each skill_id maps to a visual effect (EF_* constant).
-                    // Effects include casting auras and target lock indicators. They should be rendered
-                    // as sprites/particles using the existing sprite rendering pipeline.
-                    // Effect definitions can be found in the original game's skilleffectinfo table.
-                    let target_pos = if target_gid != 0 {
-                        self.game.entities.get(target_gid).map(|e| e.movement.cell_position())
-                    } else if x != 0 || y != 0 {
-                        Some((x as u16, y as u16))
-                    } else {
-                        None
-                    };
-                    if let Some(entity) = self.game.entities.get_mut(gid) {
-                        if let Some(tp) = target_pos {
-                            let sp = entity.movement.cell_position();
-                            if let Some(dir) = direction_from_positions(sp.0, sp.1, tp.0, tp.1) {
-                                entity.direction = dir;
-                            }
-                        }
-                        let duration = delay_ms as f32 / 1000.0;
-                        if duration > 0.0 {
-                            entity.enter_casting(duration, skill_id);
-                        } else {
-                            entity.enter_skill_exec(0.3, skill_id, 1);
-                        }
-                    }
-                }
-                GameEvent::EntityEmotion { gid, emotion_type } => {
-                    if let Some(entity) = self.game.entities.get_mut(gid) {
-                        entity.emotion =
-                            Some(ragnarok_game::entity::EmotionState::new(emotion_type));
-                    }
-                }
-                GameEvent::SkillListReceived { skills } => {
-                    self.game.character.skills.set_skills(
-                        skills.into_iter().map(|s| ragnarok_game::skill::SkillData {
-                            id: s.id,
-                            selected_level: s.level,
-                            level: s.level,
-                            sp_cost: s.sp_cost,
-                            attack_range: s.attack_range,
-                            upgradable: s.upgradable,
-                            skill_target_type: s.skill_target_type,
-                            name: s.name,
-                        }).collect(),
-                    );
-                    let icon_paths: Vec<String> = self.game.character.skills.skills()
-                        .iter().map(|s| s.icon_path()).collect();
-                    self.preload_item_icons(icon_paths);
-                }
-                GameEvent::SkillUpdated { id, level, sp_cost, attack_range, upgradable } => {
-                    self.game.character.skills.update_skill(id, level, sp_cost, attack_range, upgradable);
-                }
-                GameEvent::SkillAdded { skill } => {
-                    let icon_path = format!(
-                        "data/texture/유저인터페이스/item/{}.bmp",
-                        skill.name.to_lowercase()
-                    );
-                    self.game.character.skills.add_skill(ragnarok_game::skill::SkillData {
-                        id: skill.id,
-                        selected_level: skill.level,
-                        level: skill.level,
-                        sp_cost: skill.sp_cost,
-                        attack_range: skill.attack_range,
-                        upgradable: skill.upgradable,
-                        skill_target_type: skill.skill_target_type,
-                        name: skill.name,
-                    });
-                    self.preload_item_icons(vec![icon_path]);
-                }
-                GameEvent::HotkeyListReceived { slots } => {
-                    self.game.character.hotkeys.set_from_server(&slots, self.game.character.inventory.all_items());
-                }
-                GameEvent::Disconnected(reason) => {
-                    self.game.server_time.reset();
-                    self.game.character.inventory.clear();
-                    self.game.floor_items.clear();
-                    self.game.floor_item_sprites.clear();
-                    self.game.waiting_item_throw_ack = false;
-                    self.game.drop_quantity_dialog = None;
-                    self.game.card_insert_dialog = None;
-                    self.game.pending_card_composition_index = None;
-                    self.game.pending_pickup_item_id = None;
-                    if reason == "User exit" {
-                        event_loop.exit();
-                    } else {
-                        self.login_window
-                            .set_error(&format!("Disconnected: {reason}"));
-                    }
-                }
-                GameEvent::SkillFailed { skill_id, cause } => {
-                    self.game.pending_skill_target = None;
-                    self.game.pending_skill_id = None;
-                    self.game.pending_skill_level = None;
-                    let msg = ragnarok_game::skill::skill_failure_message(cause);
-                    tracing::info!("Skill {skill_id} failed (cause: {cause}): {msg}");
-                    self.game.chat_window.add_system(msg.to_string());
-                }
-                GameEvent::SkillPostDelay { skill_id, delay_ms } => {
-                    let duration = delay_ms as f32 / 1000.0;
-                    let now = self.start_time.elapsed().as_secs_f32();
-                    self.game.character.cooldowns.set_skill_cooldown(skill_id, duration, now);
-                }
-                GameEvent::AfterCastDelay { delay_ms } => {
-                    let duration = delay_ms as f32 / 1000.0;
-                    let now = self.start_time.elapsed().as_secs_f32();
-                    self.game.character.cooldowns.set_global_cooldown(duration, now);
-                }
-                GameEvent::SkillDamage { skill_id, src_gid, target_gid, damage, attack_mt, attacked_mt, count, action } => {
-                    let now = self.start_time.elapsed().as_secs_f32();
-
-                    // Server currently sends action=Skill for all offensive skills (TODO on server).
-                    // Treat Skill with count>1 as multi-hit to handle this correctly.
-                    let effective_count = match action {
-                        ActionType::AttackMultiple | ActionType::AttackMultipleNomotion => count.max(1) as u16,
-                        ActionType::Skill if count > 1 => count as u16,
-                        _ => 1,
-                    };
-                    tracing::info!("SkillDamage: skill_id={skill_id}, src_gid={src_gid}, count={count}, action={action:?}, effective_count={effective_count}");
-
-                    let suppress_flinch = matches!(action,
-                        ActionType::AttackNomotion | ActionType::AttackMultipleNomotion
-                    ) || (action == ActionType::Skill && effective_count == 1);
-
-                    // Caster animation (plays once)
-                    let target_pos = self.game.entities.get(target_gid).map(|e| e.movement.cell_position());
-                    if let Some(entity) = self.game.entities.get_mut(src_gid) {
-                        if let Some(dst) = target_pos {
-                            let src = entity.movement.cell_position();
-                            if let Some(dir) = direction_from_positions(src.0, src.1, dst.0, dst.1) {
-                                entity.direction = dir;
-                            }
-                        }
-                        let duration = (attack_mt as f32 / 1000.0).max(0.3);
-                        entity.enter_skill_exec(duration, skill_id, effective_count);
-                    }
-
-                    // Schedule target-side hits
-                    // Server sends full attack_motion for skills (unlike normal attacks which are halved)
-                    let delay_time = (attack_mt as f32 / 2000.0).max(0.0);
-                    let per_hit_damage = if effective_count > 1 && damage > 0 {
-                        damage / effective_count as i32
-                    } else {
-                        damage
-                    };
-
-                    let message = if suppress_flinch {
-                        DamageMessage::AttackedNoMotion
-                    } else if effective_count > 1 {
-                        DamageMessage::AttackedMultiHit { total_damage: damage }
-                    } else {
-                        DamageMessage::Attacked
-                    };
-
-                    let double_attack_term = 0.2;
-                    if let Some(target) = self.game.entities.get_mut(target_gid) {
-                        for i in 0..effective_count {
-                            let hit_time = now + delay_time + (i as f32 * double_attack_term);
-                            target.scheduled_hits.push(ScheduledHit {
-                                message,
-                                damage: per_hit_damage,
-                                fire_at: hit_time,
-                                attacker_gid: src_gid,
-                                skill_id,
-                                is_last_hit: i == effective_count - 1,
-                                is_critical: false,
-                                hit_index: i as u16,
-                                attacked_mt_secs: attacked_mt as f32 / 1000.0,
-                            });
-                        }
-                    }
-
-                    let replays_caster = skill_id == SkillEnum::AsSonicblow.id() as u16
-                        || skill_id == SkillEnum::ChChaincrush.id() as u16
-                        || skill_id == SkillEnum::CgArrowvulcan.id() as u16;
-                    tracing::info!("SkillDamage replay check: replays_caster={replays_caster}, effective_count={effective_count}");
-                    if replays_caster && effective_count > 1 {
-                        if let Some(caster) = self.game.entities.get_mut(src_gid) {
-                            for i in 1..effective_count {
-                                let hit_time = now + delay_time + (i as f32 * double_attack_term);
-                                caster.pending_attack_replays.push((hit_time, skill_id));
-                            }
-                            tracing::info!("Scheduled {} caster replays for entity {src_gid}", effective_count - 1);
-                        } else {
-                            tracing::warn!("Caster entity {src_gid} NOT FOUND for replay scheduling");
-                        }
-                    }
-                }
-                GameEvent::SkillNoDamage { skill_id, src_gid, target_gid } => {
-                    let target_pos = self.game.entities.get(target_gid).map(|e| e.movement.cell_position());
-                    if let Some(entity) = self.game.entities.get_mut(src_gid) {
-                        if let Some(dst) = target_pos {
-                            let src = entity.movement.cell_position();
-                            if let Some(dir) = direction_from_positions(src.0, src.1, dst.0, dst.1) {
-                                entity.direction = dir;
-                            }
-                        }
-                        entity.enter_skill_exec(0.6, skill_id, 1);
-                    }
-                }
-                GameEvent::GroundSkill { skill_id, src_gid, level: _, x, y } => {
-                    if let Some(entity) = self.game.entities.get_mut(src_gid) {
-                        let sp = entity.movement.cell_position();
-                        if let Some(dir) = direction_from_positions(sp.0, sp.1, x as u16, y as u16) {
-                            entity.direction = dir;
-                        }
-                        entity.enter_skill_exec(0.6, skill_id, 1);
-                    }
-                    // TODO: Place ground effect at (x, y) when STR effect renderer exists
-                }
-                GameEvent::SkillCastCancel { gid } => {
-                    dbg!("Skill cast cancel", gid);
-                    let target_gid = if gid == 0 {
-                        self.game.entities.player_id().unwrap_or(0)
-                    } else {
-                        gid
-                    };
-                    if let Some(entity) = self.game.entities.get_mut(target_gid) {
-                        entity.state = EntityState::Standing;
-                        entity.state_timer = 0.0;
-                        entity.cast_total_duration = 0.0;
-                        entity.active_skill_id = None;
-                    }
-                }
-                GameEvent::ActionFailure => {
-                    self.game.attack_target_id = None;
-                    if let Some(entity) = self.game.entities.player_mut() {
-                        entity.state = EntityState::Standing;
-                        entity.state_timer = 0.0;
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
-    fn reload_player_sprite(&mut self, gid: u32) {
-        let entity = match self.game.entities.get(gid) {
-            Some(e) => e,
-            None => return,
-        };
-        let job = entity.job;
-        let sex = entity.sex;
-        let head = entity.head;
-        let weapon = entity.weapon.map(|w| w as u16).unwrap_or(0);
-        let shield = entity.shield;
-        let head_top = entity.head_top;
-        let head_mid = entity.head_mid;
-        let head_bottom = entity.head_bottom;
-        let hair_color = entity.hair_color;
-        let cloth_color = entity.cloth_color;
-        let weapon_type = weapon_view_id_to_type(weapon);
-        self.load_player_sprite(
-            gid,
-            job,
-            sex,
-            head,
-            hair_color,
-            cloth_color,
-            weapon_type,
-            head_top,
-            head_mid,
-            head_bottom,
-            shield,
-        );
-    }
-
-    fn load_player_sprite(
-        &mut self,
-        gid: u32,
-        job: u16,
-        sex: u8,
-        head: u16,
-        hair_color: u16,
-        cloth_color: u16,
-        weapon: Option<WeaponType>,
-        head_top: u16,
-        head_mid: u16,
-        head_bottom: u16,
-        shield_id: u16,
-    ) {
-        let (grf, renderer) = match (&self.grf, &self.renderer) {
-            (Some(g), Some(r)) => (g, r),
-            _ => return,
-        };
-        let empty_table = ragnarok_game::accessory_table::AccessoryTable::empty();
-        let accessory_table = self.game.data_table.accessory.as_ref().unwrap_or(&empty_table);
-        let data = match sprite_loader::load_player_sprite_data(
-            grf,
-            accessory_table,
-            job,
-            sex,
-            head,
-            hair_color,
-            cloth_color,
-            weapon,
-            head_top,
-            head_mid,
-            head_bottom,
-            shield_id,
-        ) {
-            Some(d) => d,
-            None => return,
-        };
-        let sprite = Rc::new(build_entity_sprite(
-            &renderer.device.device,
-            &renderer.device.queue,
-            &renderer.texture_cache.bind_group_layout,
-            data.body,
-            data.head,
-            data.weapon,
-            data.headgear_top,
-            data.headgear_mid,
-            data.headgear_bottom,
-            data.shield,
-            data.shadow,
-        ));
-        self.game.sprites.insert(gid, sprite);
-    }
-
-    fn load_entity_sprite(
-        &mut self,
-        gid: u32,
-        entity_type: EntityType,
-        job: u16,
-        sex: u8,
-        head: u16,
-        weapon: u16,
-        shield: u16,
-        head_top: u16,
-        head_mid: u16,
-        head_bottom: u16,
-        hair_color: u16,
-        _direction: u8,
-    ) {
-        let (grf, renderer) = match (&self.grf, &self.renderer) {
-            (Some(g), Some(r)) => (g, r),
-            _ => return,
-        };
-
-        match entity_type {
-            EntityType::Player => {
-                let weapon_type = weapon_view_id_to_type(weapon);
-                self.load_player_sprite(
-                    gid,
-                    job,
-                    sex,
-                    head,
-                    hair_color,
-                    0,
-                    weapon_type,
-                    head_top,
-                    head_mid,
-                    head_bottom,
-                    shield,
-                );
-            }
-            EntityType::Npc | EntityType::Monster => {
-                let name_table = match &self.game.data_table.name {
-                    Some(t) => t,
-                    None => {
-                        tracing::warn!("No name table for job {job}");
-                        return;
-                    }
-                };
-                let cache_key = match entity_sprite_base_path(name_table, job) {
-                    Some(p) => p,
-                    None => {
-                        tracing::warn!("No sprite path for job {job}");
-                        return;
-                    }
-                };
-
-                if let Some(cached) = self.game.sprite_cache.get(&cache_key) {
-                    self.game.sprites.insert(gid, Rc::clone(cached));
-                    return;
-                }
-
-                let data = match sprite_loader::load_entity_sprite_data(grf, name_table, job) {
-                    Some(d) => d,
-                    None => return,
-                };
-                let sprite = Rc::new(build_entity_sprite(
-                    &renderer.device.device,
-                    &renderer.device.queue,
-                    &renderer.texture_cache.bind_group_layout,
-                    data.body,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    data.shadow,
-                ));
-                self.game.sprite_cache.insert(cache_key, Rc::clone(&sprite));
-                self.game.sprites.insert(gid, sprite);
-            }
-        }
-    }
-
-    fn load_missing_entity_sprites(&mut self) {
-        let missing: Vec<_> = self
-            .game
-            .entities
-            .iter()
-            .filter(|e| {
-                self.game.entities.player_id() != Some(e.id)
-                    && !self.game.sprites.contains_key(&e.id)
-                    && !self.game.failed_sprite_loads.contains(&e.id)
-            })
-            .map(|e| {
-                (
-                    e.id,
-                    e.entity_type,
-                    e.job,
-                    e.sex,
-                    e.head,
-                    e.head_top,
-                    e.head_mid,
-                    e.head_bottom,
-                    e.shield,
-                    e.hair_color,
-                    e.direction,
-                )
-            })
-            .collect();
-        for (
-            gid,
-            entity_type,
-            job,
-            sex,
-            head,
-            head_top,
-            head_mid,
-            head_bottom,
-            shield,
-            hair_color,
-            direction,
-        ) in &missing
-        {
-            tracing::info!(
-                "Retrying sprite load for entity gid={gid} job={job} type={entity_type:?}"
-            );
-            self.load_entity_sprite(
-                *gid,
-                *entity_type,
-                *job,
-                *sex,
-                *head,
-                0,
-                *shield,
-                *head_top,
-                *head_mid,
-                *head_bottom,
-                *hair_color,
-                *direction,
-            );
-            if !self.game.sprites.contains_key(gid) {
-                self.game.failed_sprite_loads.insert(*gid);
-            }
-        }
-    }
-
-    fn load_cursor_sprite(&mut self, grf: &GrfArchive) {
-        let renderer = match &self.renderer {
-            Some(r) => r,
-            None => return,
-        };
-
-        if let Some(sprite_data) = sprite_loader::load_cursor_sprite(grf) {
-            let textures = upload_sprite_textures(
-                &sprite_data.images,
-                sprite_data.indexed_count,
-                &renderer.device.device,
-                &renderer.device.queue,
-                &renderer.texture_cache.bind_group_layout,
-            );
-            self.game.cursor_textures = Some(textures);
-            self.game.cursor_act = Some(sprite_data.act);
-
-            if let Some(window) = &self.window {
-                window.set_cursor_visible(false);
-            }
-        }
-    }
-
-    fn load_emotion_sprite(&mut self, grf: &GrfArchive) {
-        let renderer = match &self.renderer {
-            Some(r) => r,
-            None => return,
-        };
-        if let Some(sprite_data) = sprite_loader::load_emotion_sprite(grf) {
-            let textures = upload_sprite_textures(
-                &sprite_data.images,
-                sprite_data.indexed_count,
-                &renderer.device.device,
-                &renderer.device.queue,
-                &renderer.texture_cache.bind_group_layout,
-            );
-            self.game.emotion_textures = Some(textures);
-            self.game.emotion_act = Some(sprite_data.act);
-        }
-    }
-
-    fn load_damage_sprites(&mut self, grf: &GrfArchive) {
-        let renderer = match &self.renderer {
-            Some(r) => r,
-            None => return,
-        };
-        if let Some(sprite_data) = sprite_loader::load_damage_number_sprite(grf) {
-            let textures = upload_sprite_textures(
-                &sprite_data.images,
-                sprite_data.indexed_count,
-                &renderer.device.device,
-                &renderer.device.queue,
-                &renderer.texture_cache.bind_group_layout,
-            );
-            self.game.damage_number_textures = Some(textures);
-            self.game.damage_number_act = Some(sprite_data.act);
-        }
-        if let Some(sprite_data) = sprite_loader::load_damage_miss_msg_sprite(grf) {
-            let textures = upload_sprite_textures(
-                &sprite_data.images,
-                sprite_data.indexed_count,
-                &renderer.device.device,
-                &renderer.device.queue,
-                &renderer.texture_cache.bind_group_layout,
-            );
-            self.game.damage_msg_textures = Some(textures);
-            self.game.damage_msg_act = Some(sprite_data.act);
-        }
-    }
-
-    fn preload_item_icons(&mut self, icon_paths: Vec<String>) {
-        if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-            let icon_refs: Vec<&str> = icon_paths.iter().map(|s| s.as_str()).collect();
-            renderer.preload_textures(&icon_refs, grf);
-        }
-    }
 
     #[allow(clippy::too_many_arguments)]
     fn handle_floor_item_appeared(
@@ -2161,30 +306,23 @@ impl App {
             match event {
                 GameEvent::RequestLogin { username, password } => {
                     let addr = format!("{}:{}", self.config.login_ip, self.config.login_port);
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let _ = tx.send(NetworkCommand::Connect(addr));
-                        let packet =
-                            build_login_packet(&username, &password, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_cmd(NetworkCommand::Connect(addr));
+                    self.channel.send_packet(build_login_packet(&username, &password, self.config.packetver));
                 }
                 GameEvent::RequestSelectServer { index } => {
                     if let Some(server_win) = &self.server_list_window {
                         if let Some(server) = server_win.servers.get(index) {
                             let addr = format!("{}:{}", ip_u32_to_string(server.ip), server.port);
-                            if let Some(tx) = &self.network_cmd_tx {
-                                let _ = tx.send(NetworkCommand::Disconnect);
-                                let _ = tx.send(NetworkCommand::Connect(addr.clone()));
-                                if let Some(session) = &mut self.game.login_session {
-                                    session.char_server_addr = Some(addr);
-                                    let packet = build_char_enter_packet(session);
-                                    let _ = tx.send(NetworkCommand::SendPacket(packet));
-                                    let _ = tx.send(NetworkCommand::SetKeepalive(
-                                        KeepaliveMode::CharServer {
-                                            account_id: session.account_id,
-                                        },
-                                    ));
-                                }
+                            self.channel.send_cmd(NetworkCommand::Disconnect);
+                            self.channel.send_cmd(NetworkCommand::Connect(addr.clone()));
+                            if let Some(session) = &mut self.game.login_session {
+                                session.char_server_addr = Some(addr);
+                                self.channel.send_packet(build_char_enter_packet(session));
+                                self.channel.send_cmd(NetworkCommand::SetKeepalive(
+                                    KeepaliveMode::CharServer {
+                                        account_id: session.account_id,
+                                    },
+                                ));
                             }
                         }
                     }
@@ -2197,18 +335,13 @@ impl App {
                             .find(|c| c.slot == slot as i8)
                             .cloned();
                     }
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_select_char_packet(slot, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_select_char_packet(slot, self.config.packetver));
                 }
                 GameEvent::BackToServerSelect => {
                     self.game.app_state = AppState::ServerSelect;
                     self.char_select_window = None;
                     self.game.system_menu.open = false;
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let _ = tx.send(NetworkCommand::Disconnect);
-                    }
+                    self.channel.send_cmd(NetworkCommand::Disconnect);
                 }
                 GameEvent::BackToLogin => {
                     self.game.app_state = AppState::Login;
@@ -2216,96 +349,52 @@ impl App {
                     self.char_select_window = None;
                     self.game.login_session = None;
                     self.game.system_menu.open = false;
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let _ = tx.send(NetworkCommand::Disconnect);
-                    }
+                    self.channel.send_cmd(NetworkCommand::Disconnect);
                 }
                 GameEvent::BackToCharacterSelect => {
                     self.game.system_menu.open = false;
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_restart_packet(self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_restart_packet(self.config.packetver));
                 }
                 GameEvent::QuitGame => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let _ = tx.send(NetworkCommand::Disconnect);
-                    }
+                    self.channel.send_cmd(NetworkCommand::Disconnect);
                     event_loop.exit();
                 }
                 GameEvent::RequestNpcContact { npc_id } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_contact_npc_packet(npc_id, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_contact_npc_packet(npc_id, self.config.packetver));
                 }
                 GameEvent::RequestNpcNext { npc_id } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_npc_next_packet(npc_id, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_npc_next_packet(npc_id, self.config.packetver));
                 }
                 GameEvent::RequestNpcClose { npc_id } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_npc_close_packet(npc_id, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_npc_close_packet(npc_id, self.config.packetver));
                 }
                 GameEvent::RequestNpcMenuSelect { npc_id, choice } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet =
-                            build_npc_menu_select_packet(npc_id, choice, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_npc_menu_select_packet(npc_id, choice, self.config.packetver));
                 }
                 GameEvent::RequestNpcInputNumber { npc_id, value } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet =
-                            build_npc_input_number_packet(npc_id, value, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_npc_input_number_packet(npc_id, value, self.config.packetver));
                 }
                 GameEvent::RequestNpcInputString { npc_id, text } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet =
-                            build_npc_input_string_packet(npc_id, &text, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_npc_input_string_packet(npc_id, &text, self.config.packetver));
                 }
                 GameEvent::RequestNpcDealType { npc_id, deal_type } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet =
-                            build_npc_deal_type_packet(npc_id, deal_type, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_npc_deal_type_packet(npc_id, deal_type, self.config.packetver));
                 }
                 GameEvent::RequestNpcShopBuy { items } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_purchase_item_list_packet(&items, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_purchase_item_list_packet(&items, self.config.packetver));
                 }
                 GameEvent::RequestNpcShopSell { items } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_sell_item_list_packet(&items, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_sell_item_list_packet(&items, self.config.packetver));
                 }
                 GameEvent::RequestNpcShopClose => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        match self.game.npc_shop.shop.mode {
-                            Some(ragnarok_game::npc_shop::NpcShopMode::Buy) => {
-                                let packet =
-                                    build_purchase_item_list_packet(&[], self.config.packetver);
-                                let _ = tx.send(NetworkCommand::SendPacket(packet));
-                            }
-                            Some(ragnarok_game::npc_shop::NpcShopMode::Sell) => {
-                                let packet =
-                                    build_sell_item_list_packet(&[], self.config.packetver);
-                                let _ = tx.send(NetworkCommand::SendPacket(packet));
-                            }
-                            None => {}
+                    match self.game.npc_shop.shop.mode {
+                        Some(ragnarok_game::npc_shop::NpcShopMode::Buy) => {
+                            self.channel.send_packet(build_purchase_item_list_packet(&[], self.config.packetver));
                         }
+                        Some(ragnarok_game::npc_shop::NpcShopMode::Sell) => {
+                            self.channel.send_packet(build_sell_item_list_packet(&[], self.config.packetver));
+                        }
+                        None => {}
                     }
                     self.game.npc_shop.close();
                 }
@@ -2340,46 +429,26 @@ impl App {
                         .as_ref()
                         .map(|s| s.account_id)
                         .unwrap_or(0);
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet =
-                            build_use_item_packet(index, account_id, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_use_item_packet(index, account_id, self.config.packetver));
                 }
                 GameEvent::RequestEquipItem { index, location } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet =
-                            build_equip_item_packet(index, location, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_equip_item_packet(index, location, self.config.packetver));
                 }
                 GameEvent::RequestUnequipItem { index } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_unequip_item_packet(index, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_unequip_item_packet(index, self.config.packetver));
                 }
                 GameEvent::RequestDropItem { index, count } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_drop_item_packet(index, count, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_drop_item_packet(index, count, self.config.packetver));
                 }
                 GameEvent::RequestSkillLevelUp { skill_id } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_upgrade_skill_packet(skill_id, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_upgrade_skill_packet(skill_id, self.config.packetver));
                 }
                 GameEvent::HotkeyListReceived { slots } => {
                     self.game.character.hotkeys.set_from_server(&slots, self.game.character.inventory.all_items());
                 }
                 GameEvent::RequestHotkeyChange { index, is_skill, id, count } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let is_skill_i8 = if is_skill { 1i8 } else { 0i8 };
-                        let packet = build_shortcut_key_change_packet(index, is_skill_i8, id, count, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    let is_skill_i8 = if is_skill { 1i8 } else { 0i8 };
+                    self.channel.send_packet(build_shortcut_key_change_packet(index, is_skill_i8, id, count, self.config.packetver));
                 }
                 GameEvent::RequestUseSkill { skill_id, level } => {
                     let skill_target_type = self.game.character.skills.get_skill(skill_id)
@@ -2387,11 +456,8 @@ impl App {
                         .unwrap_or(SkillTargetType::Target);
                     match skill_target_type {
                         SkillTargetType::MySelf => {
-                            if let Some(tx) = &self.network_cmd_tx {
-                                let target_id = self.game.entities.player_id().unwrap_or(0);
-                                let packet = build_use_skill_packet(skill_id, level, target_id, self.config.packetver);
-                                let _ = tx.send(NetworkCommand::SendPacket(packet));
-                            }
+                            let target_id = self.game.entities.player_id().unwrap_or(0);
+                            self.channel.send_packet(build_use_skill_packet(skill_id, level, target_id, self.config.packetver));
                         }
                         SkillTargetType::Target => {
                             self.game.pending_skill_target = Some(PendingSkillTarget::Entity { skill_id, level });
@@ -2407,26 +473,17 @@ impl App {
                     }
                 }
                 GameEvent::RequestPickupItem { id } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_pickup_item_packet(id, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_pickup_item_packet(id, self.config.packetver));
                     if let Some(entity) = self.game.entities.player_mut() {
                         entity.enter_pickup(0.5);
                     }
                 }
                 GameEvent::RequestCardInsertList { card_index } => {
                     self.game.pending_card_composition_index = Some(card_index);
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_card_composition_list_packet(card_index, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_card_composition_list_packet(card_index, self.config.packetver));
                 }
                 GameEvent::RequestCardInsert { card_index, equip_index } => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_card_composition_packet(card_index, equip_index, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_card_composition_packet(card_index, equip_index, self.config.packetver));
                     self.game.pending_card_composition_index = None;
                 }
                 GameEvent::RequestSendChat { message } => {
@@ -2440,16 +497,11 @@ impl App {
                             .map(|c| c.name.as_str())
                             .unwrap_or("Unknown");
                         let full_msg = format!("{char_name} : {message}");
-                        if let Some(tx) = &self.network_cmd_tx {
-                            let packet = build_chat_packet(&full_msg, self.config.packetver);
-                            let _ = tx.send(NetworkCommand::SendPacket(packet));
-                        }
+                        self.channel.send_packet(build_chat_packet(&full_msg, self.config.packetver));
                     }
                 }
                 GameEvent::Disconnected(ref reason) if reason == "User exit" => {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let _ = tx.send(NetworkCommand::Disconnect);
-                    }
+                    self.channel.send_cmd(NetworkCommand::Disconnect);
                     event_loop.exit();
                 }
                 _ => {}
@@ -2458,20 +510,19 @@ impl App {
     }
 
     fn reconnect_to_char_server(&mut self) -> bool {
-        let Some(tx) = &self.network_cmd_tx else {
+        if self.channel.cmd_tx.is_none() {
             return false;
-        };
+        }
         let Some(session) = &self.game.login_session else {
             return false;
         };
         let Some(addr) = &session.char_server_addr else {
             return false;
         };
-        let _ = tx.send(NetworkCommand::Disconnect);
-        let _ = tx.send(NetworkCommand::Connect(addr.clone()));
-        let packet = build_char_enter_packet(session);
-        let _ = tx.send(NetworkCommand::SendPacket(packet));
-        let _ = tx.send(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer {
+        self.channel.send_cmd(NetworkCommand::Disconnect);
+        self.channel.send_cmd(NetworkCommand::Connect(addr.clone()));
+        self.channel.send_packet(build_char_enter_packet(session));
+        self.channel.send_cmd(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer {
             account_id: session.account_id,
         }));
         // Switch to CharacterSelect immediately; char_select_window is None
@@ -2490,10 +541,7 @@ impl App {
                     } else {
                         2u8
                     };
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_action_request_packet(0, action, self.config.packetver);
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
+                    self.channel.send_packet(build_action_request_packet(0, action, self.config.packetver));
                 }
             }
             "/doridori" => {
@@ -2618,485 +666,6 @@ impl App {
                     (Vec::new(), Vec::new(), false, false)
                 }
             }
-        }
-    }
-
-    fn process_continuous_walk(&mut self, delta: f32) {
-        if !self.input.left_mouse_down || self.game.app_state != AppState::InGame {
-            return;
-        }
-        if self.input.ui_dragging {
-            return;
-        }
-        if self.game.attack_target_id.is_some() {
-            return;
-        }
-        if self.game.pending_skill_target.is_some() {
-            return;
-        }
-        if self.game.chat_window.is_active() {
-            return;
-        }
-        if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
-            return;
-        }
-        if self.game.chat_window.contains_point(
-            self.input.mouse_position.0 as f32,
-            self.input.mouse_position.1 as f32,
-        ) {
-            return;
-        }
-        self.input.walk_packet_cooldown -= delta;
-        if self.input.walk_packet_cooldown > 0.0 && !self.input.walk_server_acked {
-            return;
-        }
-        if self.input.walk_packet_cooldown > 0.0 {
-            return;
-        }
-        self.handle_left_click();
-        self.input.walk_packet_cooldown = 0.5;
-        self.input.walk_server_acked = false;
-    }
-
-    fn update_movement(&mut self, elapsed: f32) {
-        for entity in self.game.entities.iter_mut() {
-            if entity.movement.is_moving() {
-                entity.movement.update(elapsed);
-            }
-        }
-        if let Some(player) = self.game.entities.player() {
-            let (px, py) = player.movement.position();
-            self.position_camera_at(px, py);
-        }
-    }
-
-    fn update_floor_items(&mut self, elapsed: f32) {
-        for floor_item in self.game.floor_items.values_mut() {
-            if floor_item.is_falling {
-                let t = (elapsed - floor_item.drop_time) * 1000.0 / 24.0;
-                // original game: position = initial_y + (-0.6 + 0.083*t) * t
-                // initial_y is ground_y - 15 (15 units above ground)
-                // Item lands when offset from ground >= 0:  -15 + (-0.6 + 0.083*t) * t >= 0
-                let fall_offset = -15.0 + (-0.6 + 0.083 * t as f64) * t as f64;
-                if fall_offset >= 0.0 {
-                    floor_item.is_falling = false;
-                }
-            }
-        }
-    }
-
-    // When pickup happen after move
-    fn check_pending_pickup(&mut self) {
-        let item_id = match self.game.pending_pickup_item_id {
-            Some(id) => id,
-            None => return,
-        };
-        if !self.game.floor_items.contains_key(&item_id) {
-            self.game.pending_pickup_item_id = None;
-            return;
-        }
-        let (px, py) = self
-            .game
-            .entities
-            .player()
-            .map(|e| e.movement.cell_position())
-            .unwrap_or((0, 0));
-        let floor_item = &self.game.floor_items[&item_id];
-        let dx = (px as i32 - floor_item.x as i32).unsigned_abs();
-        let dy = (py as i32 - floor_item.y as i32).unsigned_abs();
-        if dx <= 1 && dy <= 1 {
-            if let Some(tx) = &self.network_cmd_tx {
-                let packet = build_pickup_item_packet(item_id, self.config.packetver);
-                let _ = tx.send(NetworkCommand::SendPacket(packet));
-            }
-            if let Some(entity) = self.game.entities.player_mut() {
-                entity.movement.stop();
-                entity.enter_pickup(0.5);
-            }
-            self.game.pending_pickup_item_id = None;
-        }
-    }
-
-    fn initiate_attack(&mut self, target_id: u32) {
-        self.game.pending_pickup_item_id = None;
-        let locked = self.game.noctrl_mode || self.input.ctrl_pressed;
-        self.game.attack_is_locked = locked;
-
-        let target_pos = match self.game.entities.get(target_id) {
-            Some(e) => e.movement.cell_position(),
-            None => return,
-        };
-        let (px, py) = self.game.entities.player()
-            .map(|e| e.movement.cell_position())
-            .unwrap_or((0, 0));
-
-        let range = self.game.attack_range as i32;
-        let dx = (px as i32 - target_pos.0 as i32).abs();
-        let dy = (py as i32 - target_pos.1 as i32).abs();
-        let dist = dx.max(dy);
-
-        if dist <= range {
-            self.send_attack_packet(target_id);
-            self.game.attack_target_id = Some(target_id);
-            self.game.attack_request_cooldown = 0.3;
-        } else if self.try_move_toward(target_pos.0 as i32, target_pos.1 as i32, px, py, range) {
-            self.game.attack_target_id = Some(target_id);
-        }
-    }
-
-    fn send_attack_packet(&self, target_id: u32) {
-        if let Some(tx) = &self.network_cmd_tx {
-            let packet = build_action_request_packet(target_id, 7, self.config.packetver);
-            let _ = tx.send(NetworkCommand::SendPacket(packet));
-        }
-    }
-
-    /// Try to move the player to a position within `range` of the target.
-    /// Returns true if movement was started or already in progress toward the destination.
-    fn try_move_toward(
-        &mut self,
-        target_x: i32,
-        target_y: i32,
-        px: u16,
-        py: u16,
-        range: i32,
-    ) -> bool {
-        let gat = match &self.game.gat {
-            Some(g) => g,
-            None => return false,
-        };
-        if let Some(move_action) = try_move_to_range(gat, px, py, target_x, target_y, range) {
-            let is_moving = self.game.entities.player()
-                .is_some_and(|p| p.movement.is_moving());
-            if is_moving {
-                // While moving, only send a new packet if destination changed
-                // Never restart client movement — let the server response handle it
-                let dest_changed = self.game.entities.player()
-                    .and_then(|p| p.movement.destination())
-                    .is_none_or(|(dx, dy)| dx != move_action.dest_x || dy != move_action.dest_y);
-                if dest_changed {
-                    if let Some(tx) = &self.network_cmd_tx {
-                        let packet = build_request_move_packet(
-                            move_action.dest_x,
-                            move_action.dest_y,
-                            self.config.packetver,
-                        );
-                        let _ = tx.send(NetworkCommand::SendPacket(packet));
-                    }
-                }
-                return true;
-            }
-            if let Some(tx) = &self.network_cmd_tx {
-                let packet = build_request_move_packet(
-                    move_action.dest_x,
-                    move_action.dest_y,
-                    self.config.packetver,
-                );
-                let _ = tx.send(NetworkCommand::SendPacket(packet));
-            }
-            let elapsed = self.start_time.elapsed().as_secs_f32();
-            if let Some(entity) = self.game.entities.player_mut() {
-                entity.movement.start_move(move_action.path, elapsed);
-            }
-            true
-        } else {
-            false
-        }
-    }
-
-    fn check_pending_attack(&mut self, delta: f32) {
-        self.game.attack_request_cooldown = (self.game.attack_request_cooldown - delta).max(0.0);
-
-        let target_id = match self.game.attack_target_id {
-            Some(id) => id,
-            None => return,
-        };
-
-        let target_alive = self.game.entities.get(target_id)
-            .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading());
-        if !target_alive {
-            self.game.attack_target_id = None;
-            return;
-        }
-
-        if let Some(player) = self.game.entities.player() {
-            if matches!(player.state,
-                EntityState::Casting | EntityState::SkillExec | EntityState::Dead | EntityState::Sitting
-            ) {
-                self.game.attack_target_id = None;
-                return;
-            }
-        }
-
-        if !self.game.attack_is_locked && !self.input.left_mouse_down {
-            self.game.attack_target_id = None;
-            return;
-        }
-
-        if self.game.attack_request_cooldown > 0.0 {
-            return;
-        }
-
-        let target_pos = self.game.entities.get(target_id)
-            .map(|e| e.movement.cell_position())
-            .unwrap_or((0, 0));
-        let (px, py) = self.game.entities.player()
-            .map(|e| e.movement.cell_position())
-            .unwrap_or((0, 0));
-
-        let range = self.game.attack_range as i32;
-        let dx = (px as i32 - target_pos.0 as i32).abs();
-        let dy = (py as i32 - target_pos.1 as i32).abs();
-        let dist = dx.max(dy);
-
-        if dist <= range {
-            let player_state = self.game.entities.player()
-                .map(|e| e.state)
-                .unwrap_or(EntityState::Standing);
-            if matches!(player_state, EntityState::Standing | EntityState::ReadyFight) {
-                self.send_attack_packet(target_id);
-                // TODO Having a doubt on this number should investigate how to do it properly
-                self.game.attack_request_cooldown = 0.3;
-            }
-        } else if let Some(player) = self.game.entities.player() {
-            if !matches!(player.state, EntityState::Casting | EntityState::SkillExec | EntityState::Dead | EntityState::Sitting) {
-                // Call every frame to track a moving target (original game used to recalculates dest cell each tick)
-                self.try_move_toward(target_pos.0 as i32, target_pos.1 as i32, px, py, range);
-            }
-        }
-    }
-
-    fn check_pending_skill(&mut self) {
-        let (skill_id, level) = match (self.game.pending_skill_id, self.game.pending_skill_level) {
-            (Some(sid), Some(lvl)) => (sid, lvl),
-            _ => return,
-        };
-
-        let target_id = match self.game.attack_target_id {
-            Some(id) => id,
-            None => {
-                self.game.pending_skill_id = None;
-                self.game.pending_skill_level = None;
-                return;
-            }
-        };
-
-        let target_alive = self.game.entities.get(target_id)
-            .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading());
-        if !target_alive {
-            self.game.pending_skill_id = None;
-            self.game.pending_skill_level = None;
-            self.game.attack_target_id = None;
-            return;
-        }
-
-        if let Some(player) = self.game.entities.player() {
-            if matches!(player.state, EntityState::Casting | EntityState::SkillExec | EntityState::Dead | EntityState::Sitting) {
-                return;
-            }
-        }
-
-        let target_pos = self.game.entities.get(target_id)
-            .map(|e| e.movement.cell_position())
-            .unwrap_or((0, 0));
-        let (px, py) = self.game.entities.player()
-            .map(|e| e.movement.cell_position())
-            .unwrap_or((0, 0));
-
-        let skill_range = self.game.character.skills.get_skill(skill_id)
-            .map(|s| s.attack_range as i32)
-            .unwrap_or(1);
-        let dx = (px as i32 - target_pos.0 as i32).abs();
-        let dy = (py as i32 - target_pos.1 as i32).abs();
-        let dist = dx.max(dy);
-
-        if dist <= skill_range {
-            if let Some(tx) = &self.network_cmd_tx {
-                let packet = build_use_skill_packet(skill_id, level, target_id, self.config.packetver);
-                let _ = tx.send(NetworkCommand::SendPacket(packet));
-            }
-            self.game.pending_skill_id = None;
-            self.game.pending_skill_level = None;
-            self.game.attack_target_id = None;
-        } else if let Some(player) = self.game.entities.player() {
-            if !matches!(player.state, EntityState::Casting | EntityState::SkillExec | EntityState::Dead | EntityState::Sitting) {
-                // Call every frame to track a moving target
-                self.try_move_toward(target_pos.0 as i32, target_pos.1 as i32, px, py, skill_range);
-            }
-        }
-    }
-
-    fn update_entity_state(&mut self, delta: f32) {
-        for entity in self.game.entities.iter_mut() {
-            entity.update_state(delta);
-            if let Some(move_dir) = entity.movement.movement_direction() {
-                entity.direction = move_dir;
-            }
-        }
-    }
-
-    fn process_scheduled_hits(&mut self) {
-        let now = self.start_time.elapsed().as_secs_f32();
-        let entity_ids: Vec<u32> = self.game.entities.iter().map(|e| e.id).collect();
-        for entity_id in entity_ids {
-            let ready = if let Some(entity) = self.game.entities.get_mut(entity_id) {
-                entity.scheduled_hits.drain_ready(now)
-            } else {
-                continue;
-            };
-            for hit in ready {
-                self.emit_damage_number(entity_id, &hit);
-
-                if matches!(hit.message, DamageMessage::Attacked | DamageMessage::AttackedMultiHit { .. }) {
-                    if hit.damage > 0 {
-                        let is_sonic_or_chain = hit.skill_id == SkillEnum::AsSonicblow.id() as u16
-                            || hit.skill_id == SkillEnum::MoChaincombo.id() as u16;
-                        let attacker_pos = self.game.entities.get(hit.attacker_gid)
-                            .map(|e| e.movement.cell_position());
-                        if let Some(entity) = self.game.entities.get_mut(entity_id) {
-                            // Sonic Blow / Chain Combo: skip "face attacker" reset,
-                            // just apply +90° rotation for cumulative spin effect
-                            if !is_sonic_or_chain {
-                                if let Some(ap) = attacker_pos {
-                                    let tp = entity.movement.cell_position();
-                                    if let Some(dir) = direction_from_positions(tp.0, tp.1, ap.0, ap.1) {
-                                        entity.direction = dir;
-                                    }
-                                }
-                            }
-                            entity.enter_hurt(hit.attacked_mt_secs.max(0.288));
-
-                            if is_sonic_or_chain {
-                                entity.direction = ((entity.direction as i32 + 2) % 8) as u8;
-                            }
-                        }
-                    }
-                }
-            }
-
-        }
-    }
-
-    fn process_caster_replays(&mut self) {
-        let now = self.start_time.elapsed().as_secs_f32();
-        for entity in self.game.entities.iter_mut() {
-            let mut replay_skill_id = None;
-            let before_count = entity.pending_attack_replays.len();
-            entity.pending_attack_replays.retain(|&(fire_at, skill_id)| {
-                if now >= fire_at {
-                    replay_skill_id = Some(skill_id);
-                    false
-                } else {
-                    true
-                }
-            });
-            if let Some(skill_id) = replay_skill_id {
-                let after_count = entity.pending_attack_replays.len();
-                tracing::info!("Caster replay fired for entity {}: state={:?}, drained {} replays, {} remaining",
-                    entity.id, entity.state, before_count - after_count, after_count);
-                entity.enter_attack_replay(skill_id);
-            }
-        }
-    }
-
-    fn emit_damage_number(&mut self, entity_id: u32, hit: &ScheduledHit) {
-        let is_multi_hit = matches!(hit.message, DamageMessage::AttackedMultiHit { .. });
-        let is_miss = hit.damage == 0 && !is_multi_hit;
-
-        // Miss displays over the attacker
-        let display_entity = if is_miss && hit.attacker_gid != 0 {
-            hit.attacker_gid
-        } else {
-            entity_id
-        };
-
-        let target_pos = self.game.entities.get(entity_id).map(|e| e.movement.cell_position());
-        let attacker_pos = self.game.entities.get(hit.attacker_gid).map(|e| e.movement.cell_position());
-        let dir = match (attacker_pos, target_pos) {
-            (Some(ap), Some(tp)) => direction_from_positions(ap.0, ap.1, tp.0, tp.1).unwrap_or(0),
-            _ => self.game.entities.get(entity_id).map(|e| e.direction).unwrap_or(0),
-        };
-        let is_player_target = self.game.entities.get(entity_id)
-            .map(|e| e.entity_type == EntityType::Player)
-            .unwrap_or(false);
-        self.game.damage_numbers.emit(display_entity, dir, hit, is_player_target);
-    }
-
-    fn update_sprite_animation(&mut self, delta: f32) {
-        let camera_dir = self.renderer.as_ref().map(|r| r.camera.direction_index());
-        let sprites = &self.game.sprites;
-        for entity in self.game.entities.iter_mut() {
-            if let Some(sprite) = sprites.get(&entity.id) {
-                // Freeze on last frame once death animation finishes
-                if entity.state == EntityState::Dead && entity.animation.is_finished() {
-                    continue;
-                }
-                let dir = camera_dir.unwrap_or(0);
-                let action = entity.action_index();
-                let is_transient = matches!(
-                    entity.state,
-                    EntityState::Hurt
-                        | EntityState::Attacking
-                        | EntityState::SkillExec
-                        | EntityState::Dead
-                        | EntityState::Pickup
-                );
-                if let Some(duration) = entity.animation_duration.take() {
-                    let start_frame = entity.animation_start_frame.take().unwrap_or_else(|| {
-                        if entity.state == EntityState::SkillExec {
-                            entity.skill_exec_start_frame()
-                        } else {
-                            0
-                        }
-                    });
-                    entity.animation.play(action, duration * 1000.0, start_frame);
-                } else if entity.state == EntityState::Casting {
-                    entity.animation.set_action(action, MotionType::Static);
-                    entity.animation.set_direction(entity.direction);
-                    continue;
-                } else if is_transient {
-                    entity.animation.set_action(action, MotionType::OneShot);
-                } else {
-                    entity.animation.set_action(action, MotionType::Loop);
-                }
-                entity.animation.set_direction(entity.direction);
-                let is_composite = entity.entity_type == EntityType::Player;
-                let animated = !is_composite
-                    || SpriteActionType::from_index(entity.animation.action())
-                        .is_none_or(|a| a.is_animated());
-                if animated {
-                    entity.animation.update(delta, &sprite.body_act, dir);
-                }
-            }
-        }
-    }
-
-    fn update_fades(&mut self, delta: f32) {
-        for entity in self.game.entities.iter_mut() {
-            // Start death fade when: dead, animation finished, pending hits drained, non-player
-            if entity.state == EntityState::Dead
-                && entity.fade.is_none()
-                && entity.animation.is_finished()
-                && entity.scheduled_hits.is_empty()
-                && entity.entity_type != EntityType::Player
-            {
-                entity.fade = Some(EntityFade { elapsed: 0.0, duration: DEATH_FADE_DURATION });
-            }
-
-            // Advance active fade timer
-            if let Some(ref mut fade) = entity.fade {
-                fade.elapsed += delta;
-            }
-        }
-
-        // Remove expired fading entities
-        let expired: Vec<u32> = self.game.entities.iter()
-            .filter(|e| e.should_remove())
-            .map(|e| e.id)
-            .collect();
-        for gid in expired {
-            self.game.entities.remove(gid);
-            self.game.sprites.remove(&gid);
         }
     }
 
@@ -3276,92 +845,6 @@ impl App {
         hovered_entity_id
     }
 
-    fn build_cursor_sprite_clips(&mut self, dt: f32) -> Vec<ClipData> {
-        let cursor_act = match &self.game.cursor_act {
-            Some(a) => a,
-            None => return Vec::new(),
-        };
-
-        self.game.cursor_animation.update(dt, cursor_act);
-        let action_idx = self.game.cursor_animation.action_index();
-        let action_idx = if action_idx < cursor_act.actions.len() {
-            action_idx
-        } else {
-            0
-        };
-        let action = &cursor_act.actions[action_idx];
-        if action.motions.is_empty() {
-            return Vec::new();
-        }
-        let motion_idx = self.game.cursor_animation.motion_index() % action.motions.len();
-        let motion = &action.motions[motion_idx];
-        let (mx, my) = self.input.mouse_position;
-        let cursor_tex = match &self.game.cursor_textures {
-            Some(t) => t,
-            None => return Vec::new(),
-        };
-        let mut clips = Vec::new();
-        for clip in &motion.clips {
-            if let Some((vertices, indices, tex_idx)) =
-                build_clip_quad(clip, cursor_tex, [mx as f32, my as f32], 0.0, [0, 0])
-            {
-                if tex_idx < cursor_tex.bind_groups.len() {
-                    clips.push((vertices, indices, tex_idx));
-                }
-            }
-        }
-        clips
-    }
-
-    fn build_lock_cursor_clips(&mut self, dt: f32, render_list: &[RenderEntry]) -> Vec<ClipData> {
-        let target_id = match self.game.attack_target_id {
-            Some(id) => id,
-            None => return Vec::new(),
-        };
-        let cursor_act = match &self.game.cursor_act {
-            Some(a) => a,
-            None => return Vec::new(),
-        };
-        let cursor_tex = match &self.game.cursor_textures {
-            Some(t) => t,
-            None => return Vec::new(),
-        };
-
-        let screen_pos = render_list.iter()
-            .find(|e| e.id == target_id)
-            .map(|e| e.screen_anchor);
-        let [sx, sy] = match screen_pos {
-            Some(pos) => pos,
-            None => return Vec::new(),
-        };
-
-        self.game.lock_cursor_animation.set_cursor_type(CursorType::SemiLock);
-        self.game.lock_cursor_animation.update(dt, cursor_act);
-        let action_idx = self.game.lock_cursor_animation.action_index();
-        let action_idx = if action_idx < cursor_act.actions.len() {
-            action_idx
-        } else {
-            return Vec::new();
-        };
-        let action = &cursor_act.actions[action_idx];
-        if action.motions.is_empty() {
-            return Vec::new();
-        }
-        let motion_idx = self.game.lock_cursor_animation.motion_index() % action.motions.len();
-        let motion = &action.motions[motion_idx];
-
-        let mut clips = Vec::new();
-        for clip in &motion.clips {
-            if let Some((vertices, indices, tex_idx)) =
-                build_clip_quad(clip, cursor_tex, [sx, sy], 0.0, [0, 0])
-            {
-                if tex_idx < cursor_tex.bind_groups.len() {
-                    clips.push((vertices, indices, tex_idx));
-                }
-            }
-        }
-        clips
-    }
 }
 
 impl ApplicationHandler for App {
@@ -3408,7 +891,7 @@ impl ApplicationHandler for App {
 
                     if let Some(renderer) = &mut self.renderer {
                         renderer.try_load_grf_font(&grf);
-                        preload_window(&mut self.login_window, renderer, &grf);
+                        events::preload_window(&mut self.login_window, renderer, &grf);
                     }
 
                     self.load_cursor_sprite(&grf);
@@ -3455,148 +938,14 @@ impl ApplicationHandler for App {
         }
 
         match event {
-            WindowEvent::CloseRequested => {
-                let positions = self.ui_state_cache.extract_window_positions();
-                let open_collapsed = self.game.extract_window_state(&self.ui_state_cache);
-                let mut window_state = HashMap::new();
-                for (id, pos) in &positions {
-                    let (open, collapsed) = open_collapsed.get(id)
-                        .copied().unwrap_or((false, false));
-                    window_state.insert(*id, WindowStateEntry {
-                        position: *pos,
-                        open,
-                        collapsed,
-                    });
-                }
-                self.config.window_state = window_state;
-                self.config.hotkey_visible_rows = self.game.character.hotkeys.visible_rows();
-                self.config.battle_mode = self.game.character.hotkeys.battle_mode();
-                self.config.save("config.json");
-                event_loop.exit();
-            }
-            WindowEvent::Resized(size) => {
-                if let Some(renderer) = &mut self.renderer {
-                    renderer.resize(size.width, size.height);
-                }
-            }
-            WindowEvent::MouseInput { state, button, .. } => {
-                if self.game.app_state == AppState::InGame {
-                    match button {
-                        MouseButton::Right => {
-                            self.input.right_mouse_down = state == ElementState::Pressed;
-                            if self.input.right_mouse_down {
-                                self.game.pending_skill_target = None;
-                                self.game.pending_skill_id = None;
-                                self.game.pending_skill_level = None;
-                            } else {
-                                self.input.last_mouse_pos = None;
-                            }
-                        }
-                        MouseButton::Left => {
-                            let pressed = state == ElementState::Pressed;
-                            self.input.left_mouse_down = pressed;
-                            if pressed {
-                                if self.input.ui_hovered {
-                                    self.input.ui_dragging = true;
-                                } else {
-                                    self.handle_left_click();
-                                    self.input.walk_packet_cooldown = 0.5;
-                                    self.input.walk_server_acked = false;
-                                }
-                            } else {
-                                self.input.ui_dragging = false;
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            WindowEvent::CursorMoved { position, .. } => {
-                let dpi = self.renderer.as_ref().map_or(1.0, |r| r.dpi_scale) as f64;
-                let logical_pos = (position.x / dpi, position.y / dpi);
-                self.input.mouse_position = logical_pos;
-                if self.game.app_state == AppState::InGame && self.input.right_mouse_down {
-                    if let Some((lx, ly)) = self.input.last_mouse_pos {
-                        let dx = (logical_pos.0 - lx) as f32;
-                        let dy = (logical_pos.1 - ly) as f32;
-                        if let Some(renderer) = &mut self.renderer {
-                            input::handle_camera_drag(
-                                &mut renderer.camera,
-                                dx,
-                                dy,
-                                self.config.free_camera,
-                            );
-                        }
-                    }
-                    self.input.last_mouse_pos = Some(logical_pos);
-                }
-            }
-            WindowEvent::MouseWheel { delta, .. } => {
-                if self.game.app_state == AppState::InGame {
-                    if !self.input.ui_hovered {
-                        let scroll = match delta {
-                            MouseScrollDelta::LineDelta(_, y) => y,
-                            MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
-                        };
-                        if let Some(renderer) = &mut self.renderer {
-                            input::handle_camera_zoom(&mut renderer.camera, scroll);
-                        }
-                    }
-                }
-            }
-            WindowEvent::KeyboardInput { event, .. } => {
-                if event.state == ElementState::Pressed
-                    && self.game.app_state == AppState::InGame
-                    && !self.game.chat_window.is_active()
-                    && !self.game.system_menu.open
-                {
-                    match event.physical_key {
-                        PhysicalKey::Code(KeyCode::F11) => {
-                            if let Some(renderer) = &mut self.renderer {
-                                if let Some(grid) = &mut renderer.grid_selector {
-                                    grid.show_grid = !grid.show_grid;
-                                }
-                            }
-                            self.game.debug_show_pick_bounds = !self.game.debug_show_pick_bounds;
-                        }
-                        PhysicalKey::Code(KeyCode::Insert) => {
-                            if let Some(entity) = self.game.entities.player() {
-                                let action = if entity.state == EntityState::Sitting {
-                                    3u8
-                                } else {
-                                    2u8
-                                };
-                                if let Some(tx) = &self.network_cmd_tx {
-                                    let packet = build_action_request_packet(
-                                        0,
-                                        action,
-                                        self.config.packetver,
-                                    );
-                                    let _ = tx.send(NetworkCommand::SendPacket(packet));
-                                }
-                            }
-                        }
-                        PhysicalKey::Code(KeyCode::KeyE) if self.input.alt_pressed => {
-                            self.game.character.inventory.toggle();
-                        }
-                        PhysicalKey::Code(KeyCode::KeyQ) if self.input.alt_pressed => {
-                            self.game.equipment_window.toggle();
-                        }
-                        PhysicalKey::Code(KeyCode::KeyS) if self.input.alt_pressed => {
-                            self.game.character.skills.toggle();
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            WindowEvent::ModifiersChanged(modifiers) => {
-                self.input.alt_pressed = modifiers.state().alt_key();
-                self.input.shift_pressed = modifiers.state().shift_key();
-                self.input.ctrl_pressed = modifiers.state().control_key();
-            }
+            WindowEvent::CloseRequested => self.handle_close_requested(event_loop),
+            WindowEvent::Resized(size) => self.handle_resize(size),
+            WindowEvent::MouseInput { state, button, .. } => self.handle_mouse_input(state, button),
+            WindowEvent::CursorMoved { position, .. } => self.handle_cursor_moved(position),
+            WindowEvent::MouseWheel { delta, .. } => self.handle_mouse_wheel(delta),
+            WindowEvent::KeyboardInput { event, .. } => self.handle_keyboard_input(event),
+            WindowEvent::ModifiersChanged(modifiers) => self.handle_modifiers_changed(modifiers),
             WindowEvent::RedrawRequested => {
-                const TARGET_FRAME_TIME: Duration = Duration::from_micros(16_667);
-                let frame_start = Instant::now();
                 let elapsed = self.start_time.elapsed().as_secs_f32();
 
                 self.handle_game_events(event_loop);
@@ -3605,25 +954,11 @@ impl ApplicationHandler for App {
                     self.build_ui(elapsed);
                 self.input.ui_hovered = ui_any_hovered;
                 self.handle_ui_events(ui_events, event_loop);
-                let mut world_overlay_calls: Vec<UiDrawCall> = Vec::new();
-
-                self.update_movement(elapsed);
                 let now = Instant::now();
                 let raw_delta = now.duration_since(self.last_frame_instant).as_secs_f32();
                 self.last_frame_instant = now;
                 let delta = raw_delta.min(0.1);
-                self.process_continuous_walk(delta);
-                self.update_entity_state(delta);
-                self.game.damage_numbers.update(delta);
-                self.process_scheduled_hits();
-                self.process_caster_replays();
-                self.update_floor_items(elapsed);
-                self.check_pending_pickup();
-                self.check_pending_attack(delta);
-                self.check_pending_skill();
-                self.load_missing_entity_sprites();
-                self.update_sprite_animation(delta);
-                self.update_fades(delta);
+                self.run_game_updates(delta, elapsed);
 
                 let hovered = self.update_grid_hover();
                 let render_list = self.compute_render_list();
@@ -3639,15 +974,11 @@ impl ApplicationHandler for App {
                     if let Some(entity) = self.game.entities.get_mut(entity_id) {
                         if !entity.name_requested {
                             entity.name_requested = true;
-                            if let Some(tx) = &self.network_cmd_tx {
-                                let packet = build_reqname_packet(entity_id, self.config.packetver);
-                                let _ = tx.send(NetworkCommand::SendPacket(packet));
-                            }
+                            self.channel.send_packet(build_reqname_packet(entity_id, self.config.packetver));
                         }
                     }
                 }
 
-                // Floor item hover detection (entities have priority)
                 let hovered_floor_item_id = if hovered_entity_id.is_none()
                     && !ui_any_hovered
                     && !self.input.right_mouse_down
@@ -3675,629 +1006,22 @@ impl ApplicationHandler for App {
                 let cursor_clips = self.build_cursor_sprite_clips(delta);
                 let lock_cursor_clips = self.build_lock_cursor_clips(delta, &render_list);
 
-                if let (Some(entity_id), Some(renderer)) = (hovered_entity_id, &self.renderer) {
-                    if let Some(entity) = self.game.entities.get(entity_id) {
-                        let hovered_entry = render_list.iter().find(|e| e.id == entity_id);
-                        if let Some(entry) = hovered_entry {
-                            let mut bar_y = entry.pick_bounds[3] + 5.0;
-                            let hp_ratio = if self.game.entities.is_player(entity_id) {
-                                Some(self.game.character.hp_percentage())
-                            } else {
-                                entity.hp_percentage()
-                            };
-                            if let Some(ratio) = hp_ratio {
-                                let (_x, y) = render_hp_bar(
-                                    &entry,
-                                    ratio,
-                                    entity.entity_type,
-                                    &mut world_overlay_calls,
-                                );
-                                bar_y = y;
-                                if self.game.entities.is_player(entity_id) {
-                                    let sp_y = y + HP_BAR_HEIGHT;
-                                    render_bar(entry.screen_anchor[0], sp_y, self.game.character.sp_percentage(), SP_BAR_COLOR, &mut world_overlay_calls);
-                                    bar_y = sp_y;
-                                }
-                            }
-                            if let Some(name) = &entity.name {
-                                let text_width = renderer.font_atlas.measure_text(name);
-                                let text_x = entry.screen_anchor[0] - text_width / 2.0;
-                                let text_y = bar_y + HP_BAR_HEIGHT + 13.0;
-                                let outline_color = [0.0, 0.0, 0.0, 1.0];
-                                for &(dx, dy) in
-                                    &[(-1.0_f32, 0.0_f32), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0)]
-                                {
-                                    let (verts, indices) = ragnarok_ui::draw::text_vertices(
-                                        name,
-                                        text_x + dx,
-                                        text_y + dy,
-                                        outline_color,
-                                        &renderer.font_atlas,
-                                    );
-                                    if !verts.is_empty() {
-                                        world_overlay_calls.push(UiDrawCall {
-                                            vertices: verts,
-                                            indices,
-                                            texture: ragnarok_renderer::UiTextureRef::FontAtlas,
-                                        });
-                                    }
-                                }
-                                let text_color = entity_name_color(entity.entity_type);
-                                let (verts, indices) = ragnarok_ui::draw::text_vertices(
-                                    name,
-                                    text_x,
-                                    text_y,
-                                    text_color,
-                                    &renderer.font_atlas,
-                                );
-                                if !verts.is_empty() {
-                                    world_overlay_calls.push(UiDrawCall {
-                                        vertices: verts,
-                                        indices,
-                                        texture: ragnarok_renderer::UiTextureRef::FontAtlas,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
+                let world_overlay_calls = self.build_world_overlays(
+                    &render_list, &floor_item_render_list,
+                    hovered_entity_id, hovered_floor_item_id,
+                );
+                let skill_level_calls = self.build_skill_overlay();
 
-                // Player HP bar (always visible)
-                if self.renderer.is_some() && self.game.entities.player().is_some() {
-                    if hovered_entity_id != self.game.entities.player_id() {
-                        let ratio = self.game.character.hp_percentage();
-                        if let Some(entry) = render_list
-                            .iter()
-                            .find(|e| Some(e.id) == self.game.entities.player_id())
-                        {
-                            let (_x, y) = render_hp_bar(
-                                entry,
-                                ratio,
-                                EntityType::Player,
-                                &mut world_overlay_calls,
-                            );
-                            render_bar(entry.screen_anchor[0], y + HP_BAR_HEIGHT, self.game.character.sp_percentage(), SP_BAR_COLOR, &mut world_overlay_calls);
-                        }
-                    }
-                }
-
-                // Casting bar for entities currently casting
-                for entry in &render_list {
-                    if let Some(entity) = self.game.entities.get(entry.id) {
-                        if entity.state == EntityState::Casting && entity.cast_total_duration > 0.0 {
-                            let progress = 1.0 - (entity.state_timer / entity.cast_total_duration);
-                            let cast_bar_y = entry.pick_bounds[1] - HP_BAR_HEIGHT - 2.0;
-                            let cast_color = [0.0, 0.8, 0.0, 1.0];
-                            render_bar(entry.screen_anchor[0], cast_bar_y, progress, cast_color, &mut world_overlay_calls);
-                        }
-                    }
-                }
-
-                if let Some(renderer) = &self.renderer {
-                    for entry in &render_list {
-                        if let Some(entity) = self.game.entities.get(entry.id) {
-                            if let Some(bubble) = &entity.chat_bubble {
-                                let padding = 4.0;
-                                let lines =
-                                    ragnarok_ui::draw::word_wrap(&bubble.message, 150.0, |t| {
-                                        renderer.font_atlas.measure_text(t)
-                                    }, false);
-
-                                let line_h = renderer.font_atlas.line_height;
-                                let total_h = line_h * lines.len() as f32 + padding * 2.0;
-                                let widest = lines
-                                    .iter()
-                                    .map(|l| renderer.font_atlas.measure_text(l))
-                                    .fold(0.0_f32, f32::max);
-                                let box_w = widest + padding * 2.0;
-                                let box_x = entry.screen_anchor[0] - box_w / 2.0;
-                                let box_y = entry.pick_bounds[1] - 5.0 - total_h;
-
-                                let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
-                                    box_x,
-                                    box_y,
-                                    box_w,
-                                    total_h,
-                                    [0.0, 0.0, 0.0, 0.8],
-                                );
-                                world_overlay_calls.push(UiDrawCall {
-                                    vertices: bg_verts.to_vec(),
-                                    indices: bg_idx.to_vec(),
-                                    texture: ragnarok_renderer::UiTextureRef::White,
-                                });
-
-                                for (i, line) in lines.iter().enumerate() {
-                                    let line_w = renderer.font_atlas.measure_text(line);
-                                    let lx = entry.screen_anchor[0] - line_w / 2.0;
-                                    let ly = box_y + padding + line_h / 2.0 + line_h * i as f32;
-                                    let (verts, indices) = ragnarok_ui::draw::text_vertices(
-                                        line,
-                                        lx,
-                                        ly,
-                                        [1.0, 1.0, 1.0, 1.0],
-                                        &renderer.font_atlas,
-                                    );
-                                    if !verts.is_empty() {
-                                        world_overlay_calls.push(UiDrawCall {
-                                            vertices: verts,
-                                            indices,
-                                            texture: ragnarok_renderer::UiTextureRef::FontAtlas,
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Floor item tooltip (when hovered)
-                if let Some(fi_id) = hovered_floor_item_id {
-                    if let Some(floor_item) = self.game.floor_items.get(&fi_id) {
-                        if let Some(fi_entry) =
-                            floor_item_render_list.iter().find(|e| e.id == fi_id)
-                        {
-                            if let Some(renderer) = &self.renderer {
-                                let tooltip = if floor_item.count > 1 {
-                                    format!("{} : {} ea.", floor_item.name, floor_item.count)
-                                } else {
-                                    floor_item.name.clone()
-                                };
-                                let text_w = renderer.font_atlas.measure_text(&tooltip);
-                                let text_x = fi_entry.screen_anchor[0] - text_w / 2.0;
-                                let text_y = fi_entry.pick_bounds[1] - 5.0;
-                                let padding = 3.0;
-
-                                let (bg_v, bg_i) = ragnarok_ui::draw::quad_vertices(
-                                    text_x - padding,
-                                    text_y - padding - 12.0,
-                                    text_w + padding * 2.0,
-                                    12.0 + padding * 2.0,
-                                    [0.0, 0.0, 0.0, 0.85],
-                                );
-                                world_overlay_calls.push(UiDrawCall {
-                                    vertices: bg_v.to_vec(),
-                                    indices: bg_i.to_vec(),
-                                    texture: ragnarok_renderer::UiTextureRef::White,
-                                });
-
-                                let (verts, indices) = ragnarok_ui::draw::text_vertices(
-                                    &tooltip,
-                                    text_x,
-                                    text_y,
-                                    [1.0, 1.0, 1.0, 1.0],
-                                    &renderer.font_atlas,
-                                );
-                                if !verts.is_empty() {
-                                    world_overlay_calls.push(UiDrawCall {
-                                        vertices: verts,
-                                        indices,
-                                        texture: ragnarok_renderer::UiTextureRef::FontAtlas,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if self.game.debug_show_pick_bounds {
-                    let debug_color = [1.0, 0.0, 0.0, 0.7];
-                    let line_thickness = 1.0;
-                    for entry in render_list.iter().chain(floor_item_render_list.iter()) {
-                        let [left, top, right, bottom] = entry.pick_bounds;
-                        let w = right - left;
-                        let h = bottom - top;
-                        // Outline: top, bottom, left, right edges
-                        for (x, y, bw, bh) in [
-                            (left, top, w, line_thickness),
-                            (left, bottom - line_thickness, w, line_thickness),
-                            (left, top, line_thickness, h),
-                            (right - line_thickness, top, line_thickness, h),
-                        ] {
-                            let (v, i) = ragnarok_ui::draw::quad_vertices(x, y, bw, bh, debug_color);
-                            world_overlay_calls.push(UiDrawCall {
-                                vertices: v.to_vec(),
-                                indices: i.to_vec(),
-                                texture: UiTextureRef::White,
-                            });
-                        }
-                        // Screen center: red dot
-                        let dot = 3.0;
-                        let (v, i) = ragnarok_ui::draw::quad_vertices(
-                            entry.screen_anchor[0] - dot,
-                            entry.screen_anchor[1] - dot,
-                            dot * 2.0,
-                            dot * 2.0,
-                            debug_color,
-                        );
-                        world_overlay_calls.push(UiDrawCall {
-                            vertices: v.to_vec(),
-                            indices: i.to_vec(),
-                            texture: UiTextureRef::White,
-                        });
-                    }
-                }
-
-                {
-                    let mut sprite_batches: Vec<SpriteBatch> = Vec::new();
-                    let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
-
-                    // Merge entity and floor item render lists for unified depth sorting
-                    let mut unified_list: Vec<&RenderEntry> = render_list
-                        .iter()
-                        .chain(floor_item_render_list.iter())
-                        .collect();
-                    unified_list.sort_by(|a, b| {
-                        b.depth
-                            .partial_cmp(&a.depth)
-                            .unwrap_or(std::cmp::Ordering::Equal)
-                    });
-
-                    for entry in &unified_list {
-                        match entry.kind {
-                            RenderEntryKind::Entity => {
-                                if let (Some(sprite), Some(entity)) = (
-                                    self.game.sprites.get(&entry.id),
-                                    self.game.entities.get(entry.id),
-                                ) {
-                                    let alpha = entity.alpha();
-                                    let is_fading = alpha < 1.0;
-
-                                    if !is_fading {
-                                        let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
-                                        let mut shadow = sprite.build_shadow_batches(
-                                            entry.screen_anchor,
-                                            entry.depth,
-                                            shadow_scale,
-                                        );
-                                        sprite_batches.append(&mut shadow);
-                                    }
-
-                                    let mut batches = sprite.build_batches(
-                                        &entity.animation,
-                                        Some(entry.camera_dir),
-                                        entity.head_dir,
-                                        entry.screen_anchor,
-                                        entry.depth,
-                                        entry.sprite_scale,
-                                        entry.depth_gradient,
-                                    );
-                                    if is_fading {
-                                        for batch in &mut batches {
-                                            for vertex in &mut batch.vertices {
-                                                vertex.color[3] *= alpha;
-                                            }
-                                        }
-                                    }
-                                    sprite_batches.append(&mut batches);
-
-                                    if let (Some(emo), Some(emo_act), Some(emo_tex)) = (
-                                        &entity.emotion,
-                                        &self.game.emotion_act,
-                                        &self.game.emotion_textures,
-                                    ) {
-                                        let action_idx = emo.emotion_type as usize;
-                                        if action_idx < emo_act.actions.len() {
-                                            let delay_ms = emo_act
-                                                .delays
-                                                .get(action_idx)
-                                                .map(|d| d * 25.0)
-                                                .filter(|d| *d > 0.0)
-                                                .unwrap_or(150.0);
-                                            let motion_count =
-                                                emo_act.actions[action_idx].motions.len();
-                                            let motion_idx = if motion_count > 0 {
-                                                ((emo.elapsed * 1000.0) / delay_ms) as usize
-                                                    % motion_count
-                                            } else {
-                                                0
-                                            };
-                                            if motion_idx < motion_count {
-                                                let motion = &emo_act.actions[action_idx].motions
-                                                    [motion_idx];
-                                                let emo_center = [
-                                                    entry.screen_anchor[0],
-                                                    entry.screen_anchor[1] - 100.0,
-                                                ];
-                                                for clip in &motion.clips {
-                                                    if let Some((vertices, indices, tex_idx)) =
-                                                        build_clip_quad(
-                                                            clip,
-                                                            emo_tex,
-                                                            emo_center,
-                                                            entry.depth,
-                                                            [0, 0],
-                                                        )
-                                                    {
-                                                        if tex_idx < emo_tex.bind_groups.len() {
-                                                            sprite_batches.push(SpriteBatch {
-                                                                vertices,
-                                                                indices,
-                                                                texture: &emo_tex.bind_groups
-                                                                    [tex_idx],
-                                                            });
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            RenderEntryKind::FloorItem => {
-                                if let Some(floor_item) = self.game.floor_items.get(&entry.id) {
-                                    if let Some((tex, act)) =
-                                        self.game.floor_item_sprites.get(&entry.id)
-                                    {
-                                        let y_offset = if floor_item.is_falling {
-                                            let t =
-                                                (elapsed - floor_item.drop_time) * 1000.0 / 24.0;
-                                            let fall_y =
-                                                -15.0 + (-0.6 + 0.083 * t as f64) * t as f64;
-                                            (fall_y.min(0.0) as f32) * entry.sprite_scale
-                                        } else {
-                                            0.0
-                                        };
-
-                                        let blink_frame = ((elapsed * 1000.0 / 24.0) as u32) % 92;
-                                        let blink_active = blink_frame >= 90;
-
-                                        let center = [
-                                            entry.screen_anchor[0],
-                                            entry.screen_anchor[1] + y_offset,
-                                        ];
-
-                                        if !act.actions.is_empty() {
-                                            let action = &act.actions[0];
-                                            let motion_count = action.motions.len();
-                                            let delay_ms = act
-                                                .delays
-                                                .first()
-                                                .map(|d| d * 25.0)
-                                                .filter(|d| *d > 0.0)
-                                                .unwrap_or(150.0);
-                                            let item_elapsed = elapsed - floor_item.drop_time;
-                                            let motion_idx = if motion_count > 0 {
-                                                ((item_elapsed * 1000.0) / delay_ms) as usize
-                                                    % motion_count
-                                            } else {
-                                                0
-                                            };
-                                            if motion_idx < motion_count {
-                                                let motion = &action.motions[motion_idx];
-                                                for clip in &motion.clips {
-                                                    if let Some((mut vertices, indices, tex_idx)) =
-                                                        build_clip_quad(
-                                                            clip,
-                                                            tex,
-                                                            center,
-                                                            entry.depth,
-                                                            [0, 0],
-                                                        )
-                                                    {
-                                                        scale_clip_vertices(
-                                                            &mut vertices,
-                                                            center,
-                                                            entry.sprite_scale,
-                                                            entry.depth_gradient,
-                                                        );
-                                                        if blink_active {
-                                                            for v in &mut vertices {
-                                                                v.color = [1.0, 1.0, 1.0, 1.0];
-                                                            }
-                                                        }
-                                                        if tex_idx < tex.bind_groups.len() {
-                                                            sprite_batches.push(SpriteBatch {
-                                                                vertices,
-                                                                indices,
-                                                                texture: &tex.bind_groups[tex_idx],
-                                                            });
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Build paperdoll as UI draw calls so it renders with the equipment window
-                    let mut inline_textures = Vec::new();
-                    let mut paperdoll_calls: Vec<UiDrawCall> = Vec::new();
-                    if let Some(center) = self.game.equipment_window.character_center() {
-                        if let Some(player_id) = self.game.entities.player_id() {
-                            if let Some(sprite) = self.game.sprites.get(&player_id) {
-                                let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
-                                let batches = sprite
-                                    .build_batches(&idle_anim, None, 0, center, 0.0, 1.0, 0.0);
-                                for batch in batches {
-                                    let idx = inline_textures.len();
-                                    inline_textures.push(batch.texture);
-                                    paperdoll_calls.push(UiDrawCall {
-                                        vertices: batch
-                                            .vertices
-                                            .iter()
-                                            .map(|sv| UiVertex {
-                                                position: [sv.position[0], sv.position[1]],
-                                                tex_coord: sv.tex_coord,
-                                                color: sv.color,
-                                            })
-                                            .collect(),
-                                        indices: batch.indices,
-                                        texture: UiTextureRef::Inline(idx),
-                                    });
-                                }
-                            }
-                        }
-                    }
-
-                    // Damage numbers (sprite-based)
-                    {
-                        use ragnarok_game::damage_number::{DamageNumberRenderEntry, build_damage_number_quads};
-                        let entries: Vec<DamageNumberRenderEntry> = self.game.damage_numbers.numbers.iter_mut()
-                            .filter_map(|dmg| {
-                                let (screen_x, screen_y, scale) = if let Some(entry) = render_list.iter().find(|e| e.id == dmg.entity_id) {
-                                    let pos = (entry.screen_anchor[0], entry.pick_bounds[1], entry.sprite_scale);
-                                    dmg.last_screen_pos = Some(pos);
-                                    pos
-                                } else {
-                                    dmg.last_screen_pos?
-                                };
-                                let data = dmg.render_data()?;
-                                Some(DamageNumberRenderEntry {
-                                    entity_id: dmg.entity_id,
-                                    screen_x,
-                                    screen_y,
-                                    scale,
-                                    data,
-                                })
-                            })
-                            .collect();
-                        if let (Some(num_tex), Some(num_act)) = (&self.game.damage_number_textures, &self.game.damage_number_act) {
-                            let quads = build_damage_number_quads(
-                                &entries,
-                                num_act,
-                                &num_tex.sizes,
-                                num_tex.indexed_count,
-                                self.game.damage_msg_textures.as_ref().map(|t| t.sizes.as_slice()),
-                            );
-                            ragnarok_renderer::render_damage_number_quads(
-                                &quads,
-                                num_tex,
-                                self.game.damage_msg_textures.as_ref(),
-                                &mut world_overlay_calls,
-                                &mut inline_textures,
-                            );
-                        }
-                    }
-
-                    if let Some(cursor_tex) = &self.game.cursor_textures {
-                        for (vertices, indices, tex_idx) in lock_cursor_clips {
-                            cursor_batches.push(SpriteBatch {
-                                vertices,
-                                indices,
-                                texture: &cursor_tex.bind_groups[tex_idx],
-                            });
-                        }
-                        for (vertices, indices, tex_idx) in cursor_clips {
-                            cursor_batches.push(SpriteBatch {
-                                vertices,
-                                indices,
-                                texture: &cursor_tex.bind_groups[tex_idx],
-                            });
-                        }
-                    }
-
-                    // Skill targeting: render skill level text near cursor
-                    let mut skill_level_calls: Vec<UiDrawCall> = Vec::new();
-                    if let (Some(pending), Some(renderer)) = (&self.game.pending_skill_target, &self.renderer) {
-                        let (mx, my) = self.input.mouse_position;
-                        let text = format!("Lv {}", pending.level());
-                        let text_x = mx as f32 + 20.0;
-                        let text_y = my as f32 + 2.0;
-                        let outline_color = [0.0, 0.0, 0.0, 1.0];
-                        for &(dx, dy) in &[(-1.0_f32, 0.0_f32), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0)] {
-                            let (verts, indices) = ragnarok_ui::draw::text_vertices(
-                                &text, text_x + dx, text_y + dy, outline_color, &renderer.font_atlas,
-                            );
-                            if !verts.is_empty() {
-                                skill_level_calls.push(UiDrawCall {
-                                    vertices: verts, indices,
-                                    texture: UiTextureRef::FontAtlas,
-                                });
-                            }
-                        }
-                        let (verts, indices) = ragnarok_ui::draw::text_vertices(
-                            &text, text_x, text_y, [1.0, 1.0, 1.0, 1.0], &renderer.font_atlas,
-                        );
-                        if !verts.is_empty() {
-                            skill_level_calls.push(UiDrawCall {
-                                vertices: verts, indices,
-                                texture: UiTextureRef::FontAtlas,
-                            });
-                        }
-
-                        // Skill name banner centered near top of screen
-                        let skill_id = pending.skill_id();
-                        if let Some(skill_data) = self.game.character.skills.get_skill(skill_id) {
-                            let display_name = self.game.data_table.skill_name
-                                .as_ref()
-                                .map(|t| t.get_display_name_or_internal(&skill_data.name))
-                                .unwrap_or_else(|| skill_data.name.clone());
-                            let level = pending.level();
-                            let banner_text = if level > 0 {
-                                format!("{}(Lv {})", display_name, level)
-                            } else {
-                                display_name
-                            };
-                            let padding = 4.0;
-                            let line_h = renderer.font_atlas.line_height;
-                            let text_w = renderer.font_atlas.measure_text(&banner_text);
-                            let box_w = text_w + padding * 2.0;
-                            let box_h = line_h + padding * 2.0;
-                            let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
-                            let box_x = ((screen_w - box_w) / 2.0).floor();
-                            let box_y = 80.0;
-
-                            let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
-                                box_x, box_y, box_w, box_h,
-                                [0.0, 0.0, 0.0, 0.8],
-                            );
-                            skill_level_calls.push(UiDrawCall {
-                                vertices: bg_verts.to_vec(),
-                                indices: bg_idx.to_vec(),
-                                texture: UiTextureRef::White,
-                            });
-
-                            let tx = box_x + padding;
-                            let ty = box_y + padding + line_h / 2.0;
-                            let (verts, indices) = ragnarok_ui::draw::text_vertices(
-                                &banner_text, tx, ty,
-                                [0.0, 1.0, 0.0, 1.0],
-                                &renderer.font_atlas,
-                            );
-                            if !verts.is_empty() {
-                                skill_level_calls.push(UiDrawCall {
-                                    vertices: verts, indices,
-                                    texture: UiTextureRef::FontAtlas,
-                                });
-                            }
-                        }
-                    }
-
-                    let mut all_ui_calls = world_overlay_calls;
-                    let overlay_len = all_ui_calls.len();
-                    all_ui_calls.extend(ui_draw_calls);
-
-                    if let Some(insert_idx) = self.game.equipment_window.paperdoll_insert_index() {
-                        let abs_idx = (overlay_len + insert_idx).min(all_ui_calls.len());
-                        for (i, dc) in paperdoll_calls.into_iter().enumerate() {
-                            all_ui_calls.insert(abs_idx + i, dc);
-                        }
-                    }
-
-                    all_ui_calls.extend(skill_level_calls);
-
-                    if let Some(renderer) = &mut self.renderer {
-                        renderer.render(
-                            &all_ui_calls,
-                            &sprite_batches,
-                            &cursor_batches,
-                            &inline_textures,
-                            elapsed,
-                        );
-                    }
-                }
+                self.compose_and_render(
+                    &render_list, &floor_item_render_list, elapsed,
+                    cursor_clips, lock_cursor_clips,
+                    world_overlay_calls, skill_level_calls, ui_draw_calls,
+                );
 
                 if let Some(ui_ctx) = &mut self.ui_context {
                     ui_ctx.begin_frame();
                 }
 
-                // let frame_duration = frame_start.elapsed();
-                // if frame_duration < TARGET_FRAME_TIME {
-                //     std::thread::sleep(TARGET_FRAME_TIME - frame_duration);
-                // }
 
                 if let Some(window) = &self.window {
                     window.request_redraw();
@@ -4306,101 +1030,6 @@ impl ApplicationHandler for App {
             _ => {}
         }
     }
-}
-
-fn entity_name_color(entity_type: EntityType) -> [f32; 4] {
-    match entity_type {
-        EntityType::Player => [1.0, 1.0, 1.0, 1.0], // #FFFFFF
-        EntityType::Monster => [1.0, 0.776, 0.776, 1.0], // #ffc6c6
-        EntityType::Npc => [0.39, 0.54, 0.76, 1.0], // #648bc2
-    }
-}
-
-fn hp_bar_color(ratio: f32, entity_type: EntityType) -> [f32; 4] {
-    match entity_type {
-        EntityType::Monster => {
-            if ratio >= 0.25 {
-                [1.0, 0.0, 0.906, 1.0]
-            }
-            // #FF00E7 magenta
-            else {
-                [1.0, 1.0, 0.0, 1.0]
-            } // #FFFF00 yellow
-        }
-        _ => {
-            if ratio >= 0.25 {
-                [0.063, 0.937, 0.129, 1.0]
-            }
-            // #10ef21 bright green
-            else {
-                [1.0, 0.0, 0.0, 1.0]
-            } // #FF0000 red
-        }
-    }
-}
-
-const HP_BAR_WIDTH: f32 = 60.0;
-const HP_BAR_HEIGHT: f32 = 5.0;
-const SP_BAR_COLOR: [f32; 4] = [0.063, 0.094, 0.61, 1.0];
-
-fn render_bar(
-    center_x: f32,
-    y: f32,
-    ratio: f32,
-    fill_color: [f32; 4],
-    draw_calls: &mut Vec<UiDrawCall>,
-) {
-    let border_x = center_x - HP_BAR_WIDTH / 2.0;
-    let (border_verts, border_idx) = ragnarok_ui::draw::quad_vertices(
-        border_x,
-        y,
-        HP_BAR_WIDTH,
-        HP_BAR_HEIGHT,
-        [0.063, 0.094, 0.612, 1.0],
-    );
-    draw_calls.push(UiDrawCall {
-        vertices: border_verts.to_vec(),
-        indices: border_idx.to_vec(),
-        texture: ragnarok_renderer::UiTextureRef::White,
-    });
-    let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
-        border_x + 1.0,
-        y + 1.0,
-        HP_BAR_WIDTH - 2.0,
-        HP_BAR_HEIGHT - 2.0,
-        [0.259, 0.259, 0.259, 1.0],
-    );
-    draw_calls.push(UiDrawCall {
-        vertices: bg_verts.to_vec(),
-        indices: bg_idx.to_vec(),
-        texture: ragnarok_renderer::UiTextureRef::White,
-    });
-    let fill_ratio = ratio.clamp(0.0, 1.0);
-    let fill_w = (HP_BAR_WIDTH - 2.0) * fill_ratio;
-    let (fill_verts, fill_idx) = ragnarok_ui::draw::quad_vertices(
-        border_x + 1.0,
-        y + 1.0,
-        fill_w,
-        HP_BAR_HEIGHT - 2.0,
-        fill_color,
-    );
-    draw_calls.push(UiDrawCall {
-        vertices: fill_verts.to_vec(),
-        indices: fill_idx.to_vec(),
-        texture: ragnarok_renderer::UiTextureRef::White,
-    });
-}
-
-fn render_hp_bar(
-    entry: &RenderEntry,
-    ratio: f32,
-    entity_type: EntityType,
-    draw_calls: &mut Vec<UiDrawCall>,
-) -> (f32, f32) {
-    let center_x = entry.screen_anchor[0];
-    let y = entry.pick_bounds[3];
-    render_bar(center_x, y, ratio, hp_bar_color(ratio, entity_type), draw_calls);
-    (center_x, y)
 }
 
 fn main() {

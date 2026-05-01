@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
+use crate::config::WindowStateEntry;
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
 use ragnarok_game::app_state::AppState;
@@ -9,25 +10,24 @@ use ragnarok_game::cursor::{CursorAnimationState, PendingSkillTarget};
 use ragnarok_game::damage_number::DamageNumberManager;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::entity_collection::EntityCollection;
+use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::floor_item::FloorItem;
 use ragnarok_game::map_coordinates::MapCoordinates;
-use ragnarok_game::event::{CharacterInfo, GameEvent};
-use ragnarok_ui::frame::{UiFrame, WidgetId};
-use ragnarok_ui::state::StateCache;
 use ragnarok_game::server_time::ServerTimeClock;
-use crate::config::WindowStateEntry;
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
-use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
+use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui::state::StateCache;
 use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
+use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::equipment_window::{EquipmentWindow, EQ_WINDOW_ID};
+use ragnarok_ui_component::game::hotkey_bar::{HotkeyBarWindow, HOTKEY_BAR_WINDOW_ID};
 use ragnarok_ui_component::game::inventory_window::{InventoryWindow, INV_WINDOW_ID};
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
-use ragnarok_ui_component::game::hotkey_bar::{HotkeyBarWindow, HOTKEY_BAR_WINDOW_ID};
 use ragnarok_ui_component::game::skill_tree_window::{SkillTreeWindow, SKILL_WINDOW_ID};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::{InGameWindow, Window};
@@ -124,29 +124,51 @@ impl GameState {
 
         // Hotkey bar (always visible, not z-orderable)
         self.hotkey_bar.chat_is_active = self.chat_window.is_active();
-        events.extend(self.hotkey_bar.build(ui, &mut self.character, &self.data_table));
+        events.extend(
+            self.hotkey_bar
+                .build(ui, &mut self.character, &self.data_table),
+        );
 
         // Always-on-top windows (not z-orderable)
         let npc_dialog_open = self.npc_dialog.dialog.is_open();
-        events.extend(self.npc_dialog.build(ui, &mut self.character, &self.data_table));
+        events.extend(
+            self.npc_dialog
+                .build(ui, &mut self.character, &self.data_table),
+        );
         let shop_open = self.npc_shop.shop.is_open();
-        events.extend(self.npc_shop.build(ui, &mut self.character, &self.data_table));
+        events.extend(
+            self.npc_shop
+                .build(ui, &mut self.character, &self.data_table),
+        );
         let mut allow_escape = !chat_was_active && !npc_dialog_open && !shop_open;
         if allow_escape && ui.ctx.key_escape && self.pending_skill_target.is_some() {
             self.pending_skill_target = None;
             allow_escape = false;
         }
         self.system_menu.allow_escape_toggle = allow_escape;
-        events.extend(self.system_menu.build(ui, &mut self.character, &self.data_table));
-        events.extend(self.item_info_window.build(ui, &mut self.character, &self.data_table));
-        events.extend(InGameWindow::build(&mut self.item_pickup_notification, ui, &mut self.character, &self.data_table));
+        events.extend(
+            self.system_menu
+                .build(ui, &mut self.character, &self.data_table),
+        );
+        events.extend(
+            self.item_info_window
+                .build(ui, &mut self.character, &self.data_table),
+        );
+        events.extend(InGameWindow::build(
+            &mut self.item_pickup_notification,
+            ui,
+            &mut self.character,
+            &self.data_table,
+        ));
 
         ui.flush_tooltips();
 
         // Drag-cancel handling
         if let Some(cancelled) = ui.draw_drag_icon() {
             if cancelled.source_id == HOTKEY_BAR_WINDOW_ID {
-                if self.character.hotkeys.get_slot(cancelled.item_index) != ragnarok_game::hotkey::HotkeySlotContent::Empty {
+                if self.character.hotkeys.get_slot(cancelled.item_index)
+                    != ragnarok_game::hotkey::HotkeySlotContent::Empty
+                {
                     self.character.hotkeys.clear_slot(cancelled.item_index);
                     events.push(GameEvent::RequestHotkeyChange {
                         index: cancelled.item_index as u16,
@@ -185,26 +207,47 @@ impl GameState {
         }
 
         if let Some(dialog) = &mut self.drop_quantity_dialog {
-            let dialog_events = InGameWindow::build(dialog, ui, &mut self.character, &self.data_table);
-            let closed = dialog_events.iter().any(|e| matches!(e, GameEvent::DialogClosed | GameEvent::RequestDropItem { .. }));
+            let dialog_events =
+                InGameWindow::build(dialog, ui, &mut self.character, &self.data_table);
+            let closed = dialog_events.iter().any(|e| {
+                matches!(
+                    e,
+                    GameEvent::DialogClosed | GameEvent::RequestDropItem { .. }
+                )
+            });
             if closed {
-                if dialog_events.iter().any(|e| matches!(e, GameEvent::RequestDropItem { .. })) {
+                if dialog_events
+                    .iter()
+                    .any(|e| matches!(e, GameEvent::RequestDropItem { .. }))
+                {
                     self.waiting_item_throw_ack = true;
                 }
                 self.drop_quantity_dialog = None;
             }
-            events.extend(dialog_events.into_iter().filter(|e| !matches!(e, GameEvent::DialogClosed)));
+            events.extend(
+                dialog_events
+                    .into_iter()
+                    .filter(|e| !matches!(e, GameEvent::DialogClosed)),
+            );
         }
 
         if let Some(dialog) = &mut self.card_insert_dialog {
-            let dialog_events = InGameWindow::build(dialog, ui, &mut self.character, &self.data_table);
-            let closed = dialog_events.iter().any(|e| matches!(
-                e, GameEvent::DialogClosed | GameEvent::RequestCardInsert { .. }
-            ));
+            let dialog_events =
+                InGameWindow::build(dialog, ui, &mut self.character, &self.data_table);
+            let closed = dialog_events.iter().any(|e| {
+                matches!(
+                    e,
+                    GameEvent::DialogClosed | GameEvent::RequestCardInsert { .. }
+                )
+            });
             if closed {
                 self.card_insert_dialog = None;
             }
-            events.extend(dialog_events.into_iter().filter(|e| !matches!(e, GameEvent::DialogClosed)));
+            events.extend(
+                dialog_events
+                    .into_iter()
+                    .filter(|e| !matches!(e, GameEvent::DialogClosed)),
+            );
         }
 
         events
@@ -212,13 +255,29 @@ impl GameState {
 
     fn build_window(&mut self, win_id: WidgetId, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
         match win_id {
-            chat_window::CHAT_WINDOW_ID => events.extend(self.chat_window.build(ui, &mut self.character, &self.data_table)),
-            INV_WINDOW_ID => events.extend(self.inventory_window.build(ui, &mut self.character, &self.data_table)),
+            chat_window::CHAT_WINDOW_ID => events.extend(self.chat_window.build(
+                ui,
+                &mut self.character,
+                &self.data_table,
+            )),
+            INV_WINDOW_ID => events.extend(self.inventory_window.build(
+                ui,
+                &mut self.character,
+                &self.data_table,
+            )),
             EQ_WINDOW_ID => {
-                events.extend(self.equipment_window.build(ui, &mut self.character, &self.data_table));
+                events.extend(self.equipment_window.build(
+                    ui,
+                    &mut self.character,
+                    &self.data_table,
+                ));
             }
             SKILL_WINDOW_ID => {
-                events.extend(self.skill_tree_window.build(ui, &mut self.character, &self.data_table));
+                events.extend(self.skill_tree_window.build(
+                    ui,
+                    &mut self.character,
+                    &self.data_table,
+                ));
             }
             _ => {}
         }
@@ -295,11 +354,10 @@ impl GameState {
             self.equipment_window.open = entry.open;
             self.equipment_window.set_minimized(entry.collapsed);
         }
-        if let Some(entry) = window_state.get(&SKILL_WINDOW_ID.0) {
-            if entry.open {
+        if let Some(entry) = window_state.get(&SKILL_WINDOW_ID.0)
+            && entry.open {
                 self.character.skills.open();
             }
-        }
         if let Some(entry) = window_state.get(&chat_window::CHAT_WINDOW_ID.0) {
             let size_index = if !entry.open {
                 0
@@ -314,20 +372,26 @@ impl GameState {
 
     pub fn extract_window_state(&self, state_cache: &StateCache) -> HashMap<u32, (bool, bool)> {
         let mut result = HashMap::new();
-        result.insert(INV_WINDOW_ID.0, (
-            self.character.inventory.is_open(),
-            self.inventory_window.is_minimized(),
-        ));
-        result.insert(EQ_WINDOW_ID.0, (
-            self.equipment_window.is_open(),
-            self.equipment_window.is_minimized(),
-        ));
-        result.insert(SKILL_WINDOW_ID.0, (
-            self.character.skills.is_open(),
-            false,
-        ));
+        result.insert(
+            INV_WINDOW_ID.0,
+            (
+                self.character.inventory.is_open(),
+                self.inventory_window.is_minimized(),
+            ),
+        );
+        result.insert(
+            EQ_WINDOW_ID.0,
+            (
+                self.equipment_window.is_open(),
+                self.equipment_window.is_minimized(),
+            ),
+        );
+        result.insert(SKILL_WINDOW_ID.0, (self.character.skills.is_open(), false));
         let size_index = self.chat_window.get_size_index(state_cache);
-        result.insert(chat_window::CHAT_WINDOW_ID.0, (size_index > 0, size_index == 1));
+        result.insert(
+            chat_window::CHAT_WINDOW_ID.0,
+            (size_index > 0, size_index == 1),
+        );
         result
     }
 }

@@ -366,7 +366,7 @@ impl CharacterInfo {
             head_top: info.head_top,
             head_mid: info.head_mid,
             head_bottom: info.head_bottom,
-            shield: info.shield as u16,
+            shield: info.shield,
             sex,
             hp,
             max_hp,

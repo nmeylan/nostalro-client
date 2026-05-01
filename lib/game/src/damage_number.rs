@@ -167,8 +167,8 @@ impl DamageNumber {
         let f = self.frame();
         let alpha_255 = match self.number_type {
             DamageNumberType::ComboFinal | DamageNumberType::MultiHitTotal => {
-                let alpha = if f < FRAME_MS / 2.0 { 250.0 } else { 250.0 - (f - FRAME_MS / 2.0) * 2.0 };
-                alpha
+                
+                if f < FRAME_MS / 2.0 { 250.0 } else { 250.0 - (f - FRAME_MS / 2.0) * 2.0 }
             }
             DamageNumberType::Combo | DamageNumberType::MultiHit => {
                 // alpha = 1.0 - (elapsed / 3.0)
@@ -305,9 +305,9 @@ pub fn build_damage_number_quads(
         let action = &num_act.actions[0];
 
         // Critical: render critbg behind digits
-        if dmg.is_critical {
-            if let Some(msg_sz) = msg_sizes {
-                if MSG_FRAME_CRITBG < msg_sz.len() {
+        if dmg.is_critical
+            && let Some(msg_sz) = msg_sizes
+                && MSG_FRAME_CRITBG < msg_sz.len() {
                     let (tw, th) = msg_sz[MSG_FRAME_CRITBG];
                     let crit_zoom = 0.6 * zoom;
                     let sw = tw as f32 * crit_zoom;
@@ -321,8 +321,6 @@ pub fn build_damage_number_quads(
                         tex_idx: MSG_FRAME_CRITBG,
                     });
                 }
-            }
-        }
 
         for (i, &digit) in dmg.digits.iter().enumerate() {
             let motion_idx = digit as usize;
@@ -371,6 +369,12 @@ pub struct DamageNumberManager {
     pub numbers: Vec<DamageNumber>,
 }
 
+impl Default for DamageNumberManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DamageNumberManager {
     pub fn new() -> Self {
         Self { numbers: Vec::new() }
@@ -403,9 +407,7 @@ impl DamageNumberManager {
             let running_total = hit.damage * (hit.hit_index as i32 + 1);
             let combo_type = if hit.is_last_hit {
                 if is_skill { DamageNumberType::ComboFinal } else { DamageNumberType::MultiHitTotal }
-            } else {
-                if is_skill { DamageNumberType::Combo } else { DamageNumberType::MultiHit }
-            };
+            } else if is_skill { DamageNumberType::Combo } else { DamageNumberType::MultiHit };
             self.add(DamageNumber::new(entity_id, running_total, combo_type, direction));
         } else {
             let number_type = if hit.is_critical {

@@ -3,6 +3,12 @@ pub struct CooldownTracker {
     skill_cooldowns: Vec<(u16, f32)>,
 }
 
+impl Default for CooldownTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CooldownTracker {
     pub fn new() -> Self {
         Self {

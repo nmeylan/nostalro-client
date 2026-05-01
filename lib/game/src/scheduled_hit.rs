@@ -35,6 +35,12 @@ pub struct ScheduledHitQueue {
     events: Vec<ScheduledHit>,
 }
 
+impl Default for ScheduledHitQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ScheduledHitQueue {
     pub fn new() -> Self {
         Self { events: Vec::new() }

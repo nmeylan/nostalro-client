@@ -14,6 +14,12 @@ pub struct InventoryData {
     open: bool,
 }
 
+impl Default for InventoryData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InventoryData {
     pub fn new() -> Self {
         Self {
@@ -95,11 +101,10 @@ impl InventoryData {
     }
 
     pub fn insert_card(&mut self, equip_index: u16, card_item_id: u16) {
-        if let Some(item) = self.items.iter_mut().find(|i| i.index == equip_index) {
-            if let Some(slot) = item.slot.iter_mut().find(|s| **s == 0) {
+        if let Some(item) = self.items.iter_mut().find(|i| i.index == equip_index)
+            && let Some(slot) = item.slot.iter_mut().find(|s| **s == 0) {
                 *slot = card_item_id;
             }
-        }
     }
 
     pub fn filtered_items(&self) -> Vec<&Item> {
@@ -124,6 +129,124 @@ impl InventoryData {
     pub fn resolve_resource_names(&mut self, table: &ItemResourceTable) {
         for item in &mut self.items {
             item.resolve_resource_name(table);
+        }
+    }
+
+    pub fn apply_normal_items(&mut self, items: Vec<NormalItemData>, data_table: &crate::data_table::DataTable) -> Vec<String> {
+        for info in items {
+            let name = data_table.item_name.as_ref()
+                .map(|t| t.get_name_or_id_for(info.item_id, info.is_identified))
+                .unwrap_or_else(|| format!("Item #{}", info.item_id));
+            let resource_name = data_table.item_resource.as_ref()
+                .and_then(|t| t.get_resource_name_for(info.item_id, info.is_identified).map(|s| s.to_string()));
+            self.add_item(Item {
+                index: info.index as u16,
+                item_id: info.item_id,
+                item_type: info.item_type,
+                count: info.count,
+                is_identified: info.is_identified,
+                is_damaged: false,
+                refining_level: 0,
+                slot: [0; 4],
+                location: info.wear_state,
+                wear_state: 0,
+                name,
+                resource_name,
+            });
+        }
+        self.items.iter().filter_map(|item| item.icon_path()).collect()
+    }
+
+    pub fn apply_equipment_items(&mut self, items: Vec<EquipmentItemData>, data_table: &crate::data_table::DataTable) -> Vec<String> {
+        for info in items {
+            let name = data_table.item_name.as_ref()
+                .map(|t| t.get_name_or_id_for(info.item_id, info.is_identified))
+                .unwrap_or_else(|| format!("Item #{}", info.item_id));
+            let resource_name = data_table.item_resource.as_ref()
+                .and_then(|t| t.get_resource_name_for(info.item_id, info.is_identified).map(|s| s.to_string()));
+            self.add_item(Item {
+                index: info.index as u16,
+                item_id: info.item_id,
+                item_type: info.item_type,
+                count: 1,
+                is_identified: info.is_identified,
+                is_damaged: info.is_damaged,
+                refining_level: info.refining_level,
+                slot: info.slot,
+                location: info.location,
+                wear_state: info.wear_state,
+                name,
+                resource_name,
+            });
+        }
+        self.items.iter().filter_map(|item| item.icon_path()).collect()
+    }
+
+    pub fn apply_item_pickup(
+        &mut self,
+        index: u16, item_id: u16, count: u16, item_type: u8,
+        is_identified: bool, is_damaged: bool, refining_level: u8,
+        slot: [u16; 4], location: u16, result: u8,
+        data_table: &crate::data_table::DataTable,
+    ) -> Option<(String, u16, Option<String>)> {
+        if result != 0 {
+            return None;
+        }
+        let name = data_table.item_name.as_ref()
+            .map(|t| t.get_name_or_id_for(item_id, is_identified))
+            .unwrap_or_else(|| format!("Item #{item_id}"));
+        let resource_name = data_table.item_resource.as_ref()
+            .and_then(|t| t.get_resource_name_for(item_id, is_identified).map(|s| s.to_string()));
+        self.add_item(Item {
+            index, item_id, item_type,
+            count: count as i16,
+            is_identified, is_damaged, refining_level, slot, location,
+            wear_state: 0,
+            name: name.clone(),
+            resource_name,
+        });
+        let icon_path = self.get_item(index).and_then(|item| item.icon_path());
+        let formatted_name = self.get_item(index)
+            .map(|item| crate::display_name::format_equipment_display_name(
+                item,
+                data_table.item_slot_count.as_ref(),
+                data_table.card_name.as_ref(),
+            ))
+            .unwrap_or(name);
+        Some((formatted_name, count, icon_path))
+    }
+
+    pub fn apply_equip_result(&mut self, index: u16, wear_location: u16, view_id: u16, success: bool) -> Option<(u8, u16)> {
+        if !success {
+            return None;
+        }
+        self.update_wear_state(index, wear_location);
+        if view_id != 0 {
+            if let Some(sprite_type) = crate::entity::Entity::wear_location_to_sprite_type(wear_location) {
+                return Some((sprite_type, view_id));
+            }
+        }
+        None
+    }
+
+    pub fn apply_unequip_result(&mut self, index: u16, wear_location: u16, success: bool) -> Option<u8> {
+        if !success {
+            return None;
+        }
+        self.clear_wear_state(index);
+        crate::entity::Entity::wear_location_to_sprite_type(wear_location)
+    }
+
+    pub fn apply_card_insert_result(&mut self, equip_index: u16, card_index: u16, result: u8) -> bool {
+        if result == 0 {
+            let card_item_id = self.get_item(card_index).map(|c| c.item_id).unwrap_or(0);
+            self.subtract_item_count(card_index, 1);
+            if card_item_id != 0 {
+                self.insert_card(equip_index, card_item_id);
+            }
+            true
+        } else {
+            false
         }
     }
 

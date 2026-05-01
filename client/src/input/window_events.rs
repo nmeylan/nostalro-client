@@ -1,0 +1,155 @@
+use std::collections::HashMap;
+use winit::dpi::PhysicalSize;
+use winit::event::{ElementState, KeyEvent, Modifiers, MouseButton, MouseScrollDelta};
+use winit::event_loop::ActiveEventLoop;
+use winit::keyboard::{KeyCode, PhysicalKey};
+use crate::App;
+use crate::config::WindowStateEntry;
+use ragnarok_game::app_state::AppState;
+use ragnarok_game::entity::EntityState;
+use ragnarok_network::build_action_request_packet;
+
+impl App {
+    pub(crate) fn handle_close_requested(&mut self, event_loop: &ActiveEventLoop) {
+        let positions = self.ui_state_cache.extract_window_positions();
+        let open_collapsed = self.game.extract_window_state(&self.ui_state_cache);
+        let mut window_state = HashMap::new();
+        for (id, pos) in &positions {
+            let (open, collapsed) = open_collapsed.get(id)
+                .copied().unwrap_or((false, false));
+            window_state.insert(*id, WindowStateEntry {
+                position: *pos,
+                open,
+                collapsed,
+            });
+        }
+        self.config.window_state = window_state;
+        self.config.hotkey_visible_rows = self.game.character.hotkeys.visible_rows();
+        self.config.battle_mode = self.game.character.hotkeys.battle_mode();
+        self.config.save("config.json");
+        event_loop.exit();
+    }
+
+    pub(crate) fn handle_resize(&mut self, size: PhysicalSize<u32>) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.resize(size.width, size.height);
+        }
+    }
+
+    pub(crate) fn handle_mouse_input(&mut self, state: ElementState, button: MouseButton) {
+        if self.game.app_state == AppState::InGame {
+            match button {
+                MouseButton::Right => {
+                    self.input.right_mouse_down = state == ElementState::Pressed;
+                    if self.input.right_mouse_down {
+                        self.game.pending_skill_target = None;
+                        self.game.pending_skill_id = None;
+                        self.game.pending_skill_level = None;
+                    } else {
+                        self.input.last_mouse_pos = None;
+                    }
+                }
+                MouseButton::Left => {
+                    let pressed = state == ElementState::Pressed;
+                    self.input.left_mouse_down = pressed;
+                    if pressed {
+                        if self.input.ui_hovered {
+                            self.input.ui_dragging = true;
+                        } else {
+                            self.handle_left_click();
+                            self.input.walk_packet_cooldown = 0.5;
+                            self.input.walk_server_acked = false;
+                        }
+                    } else {
+                        self.input.ui_dragging = false;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    pub(crate) fn handle_cursor_moved(&mut self, position: winit::dpi::PhysicalPosition<f64>) {
+        let dpi = self.renderer.as_ref().map_or(1.0, |r| r.dpi_scale) as f64;
+        let logical_pos = (position.x / dpi, position.y / dpi);
+        self.input.mouse_position = logical_pos;
+        if self.game.app_state == AppState::InGame && self.input.right_mouse_down {
+            if let Some((lx, ly)) = self.input.last_mouse_pos {
+                let dx = (logical_pos.0 - lx) as f32;
+                let dy = (logical_pos.1 - ly) as f32;
+                if let Some(renderer) = &mut self.renderer {
+                    super::handle_camera_drag(
+                        &mut renderer.camera,
+                        dx,
+                        dy,
+                        self.config.free_camera,
+                    );
+                }
+            }
+            self.input.last_mouse_pos = Some(logical_pos);
+        }
+    }
+
+    pub(crate) fn handle_mouse_wheel(&mut self, delta: MouseScrollDelta) {
+        if self.game.app_state == AppState::InGame {
+            if !self.input.ui_hovered {
+                let scroll = match delta {
+                    MouseScrollDelta::LineDelta(_, y) => y,
+                    MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
+                };
+                if let Some(renderer) = &mut self.renderer {
+                    super::handle_camera_zoom(&mut renderer.camera, scroll);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn handle_keyboard_input(&mut self, event: KeyEvent) {
+        if event.state == ElementState::Pressed
+            && self.game.app_state == AppState::InGame
+            && !self.game.chat_window.is_active()
+            && !self.game.system_menu.open
+        {
+            match event.physical_key {
+                PhysicalKey::Code(KeyCode::F11) => {
+                    if let Some(renderer) = &mut self.renderer {
+                        if let Some(grid) = &mut renderer.grid_selector {
+                            grid.show_grid = !grid.show_grid;
+                        }
+                    }
+                    self.game.debug_show_pick_bounds = !self.game.debug_show_pick_bounds;
+                }
+                PhysicalKey::Code(KeyCode::Insert) => {
+                    if let Some(entity) = self.game.entities.player() {
+                        let action = if entity.state == EntityState::Sitting {
+                            3u8
+                        } else {
+                            2u8
+                        };
+                        self.channel.send_packet(build_action_request_packet(
+                            0,
+                            action,
+                            self.config.packetver,
+                        ));
+                    }
+                }
+                PhysicalKey::Code(KeyCode::KeyE) if self.input.alt_pressed => {
+                    self.game.character.inventory.toggle();
+                }
+                PhysicalKey::Code(KeyCode::KeyQ) if self.input.alt_pressed => {
+                    self.game.equipment_window.toggle();
+                }
+                PhysicalKey::Code(KeyCode::KeyS) if self.input.alt_pressed => {
+                    self.game.character.skills.toggle();
+                }
+                _ => {}
+            }
+        }
+    }
+
+    pub(crate) fn handle_modifiers_changed(&mut self, modifiers: Modifiers) {
+        self.input.alt_pressed = modifiers.state().alt_key();
+        self.input.shift_pressed = modifiers.state().shift_key();
+        self.input.ctrl_pressed = modifiers.state().control_key();
+    }
+}

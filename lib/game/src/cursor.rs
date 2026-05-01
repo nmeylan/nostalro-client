@@ -108,6 +108,12 @@ pub struct CursorAnimationState {
     accumulated_ms: f32,
 }
 
+impl Default for CursorAnimationState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CursorAnimationState {
     pub fn new() -> Self {
         Self {

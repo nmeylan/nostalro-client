@@ -1,4 +1,5 @@
 pub mod accessory_table;
+pub mod apply_outcome;
 pub mod animation;
 pub mod app_state;
 pub mod card_illustration_table;

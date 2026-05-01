@@ -1,0 +1,277 @@
+use crate::App;
+use models::enums::action::ActionType;
+use models::enums::vanish::VanishType;
+use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
+use ragnarok_game::entity::{Entity, EntityState};
+use ragnarok_game::movement::direction_from_positions;
+use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
+use ragnarok_game::sprite_path::entity_type_from_job;
+
+impl App {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn handle_entity_spawned(
+        &mut self,
+        gid: u32,
+        job: u16,
+        speed: u16,
+        sex: u8,
+        head: u16,
+        weapon: u16,
+        shield: u16,
+        head_top: u16,
+        head_mid: u16,
+        head_bottom: u16,
+        hair_color: u16,
+        x: u16,
+        y: u16,
+        direction: u8,
+        body_state: i16,
+    ) {
+        if self.game.entities.player_id() == Some(gid) {
+            return;
+        }
+        if let Some(existing) = self.game.entities.get_mut(gid) {
+            existing.movement.set_speed(speed);
+            return;
+        }
+        let entity_type = entity_type_from_job(job);
+        let mut entity = Entity::new(
+            gid, entity_type, job, sex, head, hair_color, weapon, head_top, head_mid,
+            head_bottom, shield, x, y, direction, speed,
+        );
+        if body_state == 2 {
+            entity.state = EntityState::Sitting;
+        }
+        self.game.entities.insert(entity);
+        self.load_entity_sprite(
+            gid, entity_type, job, sex, head, weapon, shield, head_top, head_mid, head_bottom,
+            hair_color, direction,
+        );
+    }
+
+    pub(super) fn handle_entity_moved(
+        &mut self,
+        gid: u32,
+        start_x: u16,
+        start_y: u16,
+        dest_x: u16,
+        dest_y: u16,
+        start_time: u32,
+    ) {
+        if let Some(gat) = &self.game.gat {
+            let (sx, sy) = self
+                .game
+                .entities
+                .get(gid)
+                .map(|e| e.movement.cell_position())
+                .unwrap_or((start_x, start_y));
+            let path = ragnarok_game::path::path_search(gat, sx, sy, dest_x, dest_y);
+            if !path.is_empty() {
+                let local_ms = self.start_time.elapsed().as_millis() as u32;
+                let is_just_spawned = self
+                    .game
+                    .entities
+                    .get(gid)
+                    .is_some_and(|e| e.just_spawned);
+                let move_start = if is_just_spawned {
+                    self.game
+                        .server_time
+                        .server_to_local_secs(start_time, local_ms)
+                } else {
+                    local_ms as f32 / 1000.0
+                };
+                if let Some(entity) = self.game.entities.get_mut(gid) {
+                    entity.movement.start_move(path, move_start);
+                    entity.state_timer = 0.0;
+                }
+            }
+        }
+    }
+
+    pub(super) fn handle_entity_vanished(&mut self, gid: u32, vanish_type: VanishType) {
+        if self.game.attack_target_id == Some(gid) {
+            self.game.attack_target_id = None;
+        }
+        match vanish_type {
+            VanishType::Die => {
+                if let Some(entity) = self.game.entities.get_mut(gid) {
+                    entity.request_pending_death();
+                }
+            }
+            VanishType::OutOfSight => {
+                if let Some(entity) = self.game.entities.get_mut(gid) {
+                    entity.start_vanish_fade();
+                    tracing::debug!("EntityVanished(outofsight): gid={gid}");
+                }
+            }
+            _ => {
+                let r1 = self.game.entities.remove(gid).is_some();
+                let r2 = self.game.sprites.remove(&gid).is_some();
+                tracing::debug!(
+                    "EntityVanished: gid={gid} type={vanish_type:?} r1={r1} r2={r2}"
+                );
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn handle_entity_action(
+        &mut self,
+        gid: u32,
+        target_gid: u32,
+        action: ActionType,
+        damage: i32,
+        left_damage: i32,
+        attack_mt: i32,
+        attacked_mt: i32,
+        count: i16,
+    ) {
+        match action {
+            ActionType::Sit => {
+                if let Some(entity) = self.game.entities.get_mut(gid) {
+                    entity.state = EntityState::Sitting;
+                    entity.state_timer = 0.0;
+                }
+            }
+            ActionType::Stand => {
+                if let Some(entity) = self.game.entities.get_mut(gid) {
+                    entity.state = EntityState::Standing;
+                    entity.state_timer = 0.0;
+                }
+            }
+            ActionType::Attack
+            | ActionType::AttackNomotion
+            | ActionType::AttackRepeat
+            | ActionType::AttackMultiple
+            | ActionType::AttackMultipleNomotion
+            | ActionType::AttackCritical => {
+                let target_pos = self
+                    .game
+                    .entities
+                    .get(target_gid)
+                    .map(|e| e.movement.cell_position());
+                if let Some(entity) = self.game.entities.get_mut(gid) {
+                    if let Some(tp) = target_pos {
+                        let sp = entity.movement.cell_position();
+                        if let Some(dir) = direction_from_positions(sp.0, sp.1, tp.0, tp.1) {
+                            entity.direction = dir;
+                        }
+                    }
+                    let duration = (attack_mt as f32 / 1000.0).max(0.5);
+                    entity.enter_attack(duration);
+                }
+
+                let is_endure = matches!(
+                    action,
+                    ActionType::AttackNomotion | ActionType::AttackMultipleNomotion
+                );
+                let effective_count = match action {
+                    ActionType::AttackMultiple | ActionType::AttackMultipleNomotion => {
+                        count.max(1) as u16
+                    }
+                    _ => 1,
+                };
+                let total_damage = damage + left_damage;
+                let now = self.start_time.elapsed().as_secs_f32();
+                let delay_time = (attack_mt as f32 / 1000.0).max(0.0);
+                let per_hit_damage = if effective_count > 1 && total_damage > 0 {
+                    total_damage / effective_count as i32
+                } else {
+                    total_damage
+                };
+
+                let is_critical = matches!(action, ActionType::AttackCritical);
+                if let Some(target) = self.game.entities.get_mut(target_gid) {
+                    let double_attack_term = 0.2;
+                    for i in 0..effective_count {
+                        let hit_time = now + delay_time + (i as f32 * double_attack_term);
+                        let msg = if is_endure {
+                            DamageMessage::AttackedNoMotion
+                        } else if effective_count > 1 {
+                            DamageMessage::AttackedMultiHit {
+                                total_damage,
+                            }
+                        } else {
+                            DamageMessage::Attacked
+                        };
+                        target.scheduled_hits.push(ScheduledHit {
+                            message: msg,
+                            damage: per_hit_damage,
+                            fire_at: hit_time,
+                            attacker_gid: gid,
+                            skill_id: 0,
+                            is_last_hit: i == effective_count - 1,
+                            is_critical,
+                            hit_index: i as u16,
+                            attacked_mt_secs: attacked_mt as f32 / 1000.0,
+                        });
+                    }
+                }
+            }
+            ActionType::AttackLucky => {
+                let dir = self
+                    .game
+                    .entities
+                    .get(target_gid)
+                    .map(|e| e.direction)
+                    .unwrap_or(0);
+                self.game.damage_numbers.add(DamageNumber::new(
+                    target_gid,
+                    0,
+                    DamageNumberType::Lucky,
+                    dir,
+                ));
+            }
+            ActionType::Itempickup => {
+                if let Some(entity) = self.game.entities.get_mut(gid) {
+                    entity.enter_pickup(0.5);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub(super) fn handle_entity_hp_changed(&mut self, gid: u32, hp: u32, max_hp: u32) {
+        if self.game.entities.is_player(gid) {
+            self.game.character.hp = hp;
+            self.game.character.max_hp = max_hp;
+        } else if let Some(entity) = self.game.entities.get_mut(gid) {
+            entity.hp = Some(hp);
+            entity.max_hp = Some(max_hp);
+        }
+    }
+
+    pub(super) fn handle_entity_sprite_changed(&mut self, gid: u32, sprite_type: u8, value: u16) {
+        if let Some(entity) = self.game.entities.get_mut(gid) {
+            entity.apply_sprite_change(sprite_type, value);
+            let (job, sex, head, weapon, shield, head_top, head_mid, head_bottom, hair_color, cloth_color) = {
+                (
+                    entity.job,
+                    entity.sex,
+                    entity.head,
+                    entity.weapon.map(|w| w as u16).unwrap_or(0),
+                    entity.shield,
+                    entity.head_top,
+                    entity.head_mid,
+                    entity.head_bottom,
+                    entity.hair_color,
+                    entity.cloth_color,
+                )
+            };
+            let entity_type = entity.entity_type;
+            let is_player = self.game.entities.player_id() == Some(gid);
+            if is_player {
+                let weapon_type = ragnarok_game::sprite_path::weapon_view_id_to_type(weapon);
+                self.load_player_sprite(
+                    gid, job, sex, head, hair_color, cloth_color, weapon_type, head_top, head_mid,
+                    head_bottom, shield,
+                );
+            } else {
+                self.load_entity_sprite(
+                    gid, entity_type, job, sex, head, weapon, shield, head_top, head_mid,
+                    head_bottom, hair_color, 0,
+                );
+            }
+        }
+    }
+}
