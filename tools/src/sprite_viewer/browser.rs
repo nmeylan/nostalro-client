@@ -1,7 +1,7 @@
 use ragnarok_game::accessory_table::AccessoryTable;
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
-use ragnarok_ui::draw::{text_vertices, quad_vertices};
+use ragnarok_ui::draw::{quad_vertices, text_vertices};
 
 const LINE_HEIGHT: f32 = 20.0;
 const PADDING: f32 = 10.0;
@@ -102,24 +102,22 @@ impl SpriteBrowser {
     }
 
     pub fn new_with_tabs(all_sprites: Vec<String>, accessory_table: &AccessoryTable) -> Self {
-        let mut npc_sprites: Vec<String> = all_sprites.iter()
+        let mut npc_sprites: Vec<String> = all_sprites
+            .iter()
             .filter(|s| s.starts_with("data/sprite/npc/"))
             .cloned()
             .collect();
         npc_sprites.sort();
 
-        let mut monster_sprites: Vec<String> = all_sprites.iter()
+        let mut monster_sprites: Vec<String> = all_sprites
+            .iter()
             .filter(|s| s.starts_with("data/sprite/몬스터/"))
             .cloned()
             .collect();
         monster_sprites.sort();
 
-        let char_names: Vec<String> = JOB_LIST.iter()
-            .map(|(_, name)| name.to_string())
-            .collect();
-        let char_job_ids: Vec<u16> = JOB_LIST.iter()
-            .map(|(id, _)| *id)
-            .collect();
+        let char_names: Vec<String> = JOB_LIST.iter().map(|(_, name)| name.to_string()).collect();
+        let char_job_ids: Vec<u16> = JOB_LIST.iter().map(|(id, _)| *id).collect();
 
         let excluded_prefixes = [
             "data/sprite/npc/",
@@ -128,19 +126,19 @@ impl SpriteBrowser {
             "data/sprite/악세사리/",
             "data/sprite/방패/",
         ];
-        let mut other_sprites: Vec<String> = all_sprites.iter()
+        let mut other_sprites: Vec<String> = all_sprites
+            .iter()
             .filter(|s| !excluded_prefixes.iter().any(|prefix| s.starts_with(prefix)))
             .cloned()
             .collect();
         other_sprites.sort();
 
         let sorted_accessories = accessory_table.sorted_entries();
-        let headgear_names: Vec<String> = sorted_accessories.iter()
+        let headgear_names: Vec<String> = sorted_accessories
+            .iter()
             .map(|(id, suffix)| format!("{id}: {suffix}"))
             .collect();
-        let headgear_ids: Vec<u16> = sorted_accessories.iter()
-            .map(|(id, _)| *id)
-            .collect();
+        let headgear_ids: Vec<u16> = sorted_accessories.iter().map(|(id, _)| *id).collect();
 
         let filtered: Vec<usize> = (0..npc_sprites.len()).collect();
         let items = npc_sprites.clone();
@@ -208,14 +206,18 @@ impl SpriteBrowser {
 
     pub fn selected_job_id(&self) -> Option<u16> {
         let tabs = self.tabs.as_ref()?;
-        if tabs.active != BrowserTab::Character { return None; }
+        if tabs.active != BrowserTab::Character {
+            return None;
+        }
         let &idx = self.filtered.get(self.selected)?;
         tabs.char_job_ids.get(idx).copied()
     }
 
     pub fn selected_headgear_id(&self) -> Option<u16> {
         let tabs = self.tabs.as_ref()?;
-        if tabs.active != BrowserTab::Headgear { return None; }
+        if tabs.active != BrowserTab::Headgear {
+            return None;
+        }
         let &idx = self.filtered.get(self.selected)?;
         tabs.headgear_ids.get(idx).copied()
     }
@@ -279,19 +281,27 @@ impl SpriteBrowser {
     }
 
     pub fn selected_item(&self) -> Option<&str> {
-        self.filtered.get(self.selected)
+        self.filtered
+            .get(self.selected)
             .map(|&idx| self.items[idx].as_str())
     }
 
     pub fn update_visible_rows(&mut self, screen_height: f32) {
-        let tab_offset = if self.tabs.is_some() { LINE_HEIGHT } else { 0.0 };
+        let tab_offset = if self.tabs.is_some() {
+            LINE_HEIGHT
+        } else {
+            0.0
+        };
         let available = screen_height - PADDING * 2.0 - LINE_HEIGHT * 2.0 - tab_offset;
         self.visible_rows = (available / LINE_HEIGHT).max(1.0) as usize;
     }
 
     fn apply_filter(&mut self) {
         let needle = self.filter_text.to_lowercase();
-        self.filtered = self.items.iter().enumerate()
+        self.filtered = self
+            .items
+            .iter()
+            .enumerate()
             .filter(|(_, name)| needle.is_empty() || name.to_lowercase().contains(&needle))
             .map(|(i, _)| i)
             .collect();
@@ -299,7 +309,12 @@ impl SpriteBrowser {
         self.scroll_offset = 0;
     }
 
-    pub fn build_draw_calls(&self, atlas: &FontAtlas, screen_w: f32, screen_h: f32) -> Vec<UiDrawCall> {
+    pub fn build_draw_calls(
+        &self,
+        atlas: &FontAtlas,
+        screen_w: f32,
+        screen_h: f32,
+    ) -> Vec<UiDrawCall> {
         let mut calls = Vec::new();
 
         let (bg_verts, bg_idx) = quad_vertices(0.0, 0.0, screen_w, screen_h, BG_COLOR);
@@ -322,15 +337,33 @@ impl SpriteBrowser {
             ];
             let mut tab_x = x;
             for (tab, label) in &tab_labels {
-                let color = if *tab == tabs.active { TAB_ACTIVE_COLOR } else { TAB_INACTIVE_COLOR };
+                let color = if *tab == tabs.active {
+                    TAB_ACTIVE_COLOR
+                } else {
+                    TAB_INACTIVE_COLOR
+                };
                 let (tv, ti) = text_vertices(label, tab_x, y + atlas.ascent, color, atlas);
                 let label_w = atlas.measure_text(label);
                 if *tab == tabs.active {
-                    let (uv, ui) = quad_vertices(tab_x, y + LINE_HEIGHT - 2.0, label_w, 2.0, TAB_UNDERLINE_COLOR);
-                    calls.push(UiDrawCall { vertices: uv.to_vec(), indices: ui.to_vec(), texture: UiTextureRef::White });
+                    let (uv, ui) = quad_vertices(
+                        tab_x,
+                        y + LINE_HEIGHT - 2.0,
+                        label_w,
+                        2.0,
+                        TAB_UNDERLINE_COLOR,
+                    );
+                    calls.push(UiDrawCall {
+                        vertices: uv.to_vec(),
+                        indices: ui.to_vec(),
+                        texture: UiTextureRef::White,
+                    });
                 }
                 if !tv.is_empty() {
-                    calls.push(UiDrawCall { vertices: tv, indices: ti, texture: UiTextureRef::FontAtlas });
+                    calls.push(UiDrawCall {
+                        vertices: tv,
+                        indices: ti,
+                        texture: UiTextureRef::FontAtlas,
+                    });
                 }
                 tab_x += label_w + TAB_GAP;
             }
@@ -340,14 +373,27 @@ impl SpriteBrowser {
         let prompt = format!("> {}_", self.filter_text);
         let (tv, ti) = text_vertices(&prompt, x, y + atlas.ascent, CURSOR_COLOR, atlas);
         if !tv.is_empty() {
-            calls.push(UiDrawCall { vertices: tv, indices: ti, texture: UiTextureRef::FontAtlas });
+            calls.push(UiDrawCall {
+                vertices: tv,
+                indices: ti,
+                texture: UiTextureRef::FontAtlas,
+            });
         }
         y += LINE_HEIGHT;
 
-        let status = format!("{} / {} {}", self.filtered.len(), self.items.len(), self.label);
+        let status = format!(
+            "{} / {} {}",
+            self.filtered.len(),
+            self.items.len(),
+            self.label
+        );
         let (sv, si) = text_vertices(&status, x, y + atlas.ascent, DIM_COLOR, atlas);
         if !sv.is_empty() {
-            calls.push(UiDrawCall { vertices: sv, indices: si, texture: UiTextureRef::FontAtlas });
+            calls.push(UiDrawCall {
+                vertices: sv,
+                indices: si,
+                texture: UiTextureRef::FontAtlas,
+            });
         }
         y += LINE_HEIGHT;
 
@@ -365,10 +411,18 @@ impl SpriteBrowser {
             }
 
             let name = &self.items[self.filtered[i]];
-            let color = if i == self.selected { CURSOR_COLOR } else { TEXT_COLOR };
+            let color = if i == self.selected {
+                CURSOR_COLOR
+            } else {
+                TEXT_COLOR
+            };
             let (tv, ti) = text_vertices(name, x, row_y + atlas.ascent, color, atlas);
             if !tv.is_empty() {
-                calls.push(UiDrawCall { vertices: tv, indices: ti, texture: UiTextureRef::FontAtlas });
+                calls.push(UiDrawCall {
+                    vertices: tv,
+                    indices: ti,
+                    texture: UiTextureRef::FontAtlas,
+                });
             }
         }
 
@@ -400,7 +454,9 @@ mod tests {
     #[test]
     fn filter_narrows_results() {
         let mut browser = SpriteBrowser::new(sample_sprites(), "sprites");
-        for ch in "poring".chars() { browser.handle_char(ch); }
+        for ch in "poring".chars() {
+            browser.handle_char(ch);
+        }
         assert_eq!(browser.filtered.len(), 2); // poring + poporing
         assert!(browser.selected_item().unwrap().contains("poring"));
     }
@@ -408,7 +464,9 @@ mod tests {
     #[test]
     fn filter_is_case_insensitive() {
         let mut browser = SpriteBrowser::new(sample_sprites(), "sprites");
-        for ch in "KAF".chars() { browser.handle_char(ch); }
+        for ch in "KAF".chars() {
+            browser.handle_char(ch);
+        }
         assert_eq!(browser.filtered.len(), 1);
         assert!(browser.selected_item().unwrap().contains("kafra"));
     }
@@ -451,14 +509,18 @@ mod tests {
     #[test]
     fn selected_item_empty_filter() {
         let mut browser = SpriteBrowser::new(sample_sprites(), "sprites");
-        for ch in "zzz".chars() { browser.handle_char(ch); }
+        for ch in "zzz".chars() {
+            browser.handle_char(ch);
+        }
         assert!(browser.selected_item().is_none());
     }
 
     #[test]
     fn set_items_replaces_content() {
         let mut browser = SpriteBrowser::new(sample_sprites(), "sprites");
-        for ch in "kafra".chars() { browser.handle_char(ch); }
+        for ch in "kafra".chars() {
+            browser.handle_char(ch);
+        }
         assert_eq!(browser.filtered.len(), 1);
 
         let grf_files = vec!["a.grf".to_string(), "b.grf".to_string()];

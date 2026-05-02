@@ -1,7 +1,7 @@
 use ragnarok_formats::act::SpriteActionType;
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
-use ragnarok_ui::draw::{text_vertices, quad_vertices};
+use ragnarok_ui::draw::{quad_vertices, text_vertices};
 use winit::event::{ElementState, MouseScrollDelta};
 use winit::keyboard::{Key, NamedKey};
 
@@ -94,7 +94,12 @@ impl Background {
         match self {
             Background::Black => wgpu::Color::BLACK,
             Background::White => wgpu::Color::WHITE,
-            Background::Checkerboard => wgpu::Color { r: 0.5, g: 0.5, b: 0.5, a: 1.0 },
+            Background::Checkerboard => wgpu::Color {
+                r: 0.5,
+                g: 0.5,
+                b: 0.5,
+                a: 1.0,
+            },
         }
     }
 }
@@ -143,9 +148,23 @@ pub fn build_status_draw_calls(
 
     let mut calls = Vec::new();
     let (bg_verts, bg_idx) = quad_vertices(box_x, box_y, box_w, box_h, STATUS_BG_COLOR);
-    calls.push(UiDrawCall { vertices: bg_verts.to_vec(), indices: bg_idx.to_vec(), texture: UiTextureRef::White });
-    let (tv, ti) = text_vertices(&text, box_x + STATUS_PADDING, box_y + STATUS_PADDING, STATUS_COLOR, atlas);
-    calls.push(UiDrawCall { vertices: tv, indices: ti, texture: UiTextureRef::FontAtlas });
+    calls.push(UiDrawCall {
+        vertices: bg_verts.to_vec(),
+        indices: bg_idx.to_vec(),
+        texture: UiTextureRef::White,
+    });
+    let (tv, ti) = text_vertices(
+        &text,
+        box_x + STATUS_PADDING,
+        box_y + STATUS_PADDING,
+        STATUS_COLOR,
+        atlas,
+    );
+    calls.push(UiDrawCall {
+        vertices: tv,
+        indices: ti,
+        texture: UiTextureRef::FontAtlas,
+    });
     calls
 }
 
@@ -176,9 +195,17 @@ pub fn build_legend_draw_calls(atlas: &FontAtlas, screen_h: f32) -> Vec<UiDrawCa
     for (i, (key, desc)) in LEGEND_ENTRIES.iter().enumerate() {
         let y = box_y + LEGEND_PADDING + i as f32 * LEGEND_LINE_HEIGHT;
         let (kv, ki) = text_vertices(key, key_col_x, y, LEGEND_KEY_COLOR, atlas);
-        calls.push(UiDrawCall { vertices: kv, indices: ki, texture: UiTextureRef::FontAtlas });
+        calls.push(UiDrawCall {
+            vertices: kv,
+            indices: ki,
+            texture: UiTextureRef::FontAtlas,
+        });
         let (dv, di) = text_vertices(desc, desc_col_x, y, LEGEND_DESC_COLOR, atlas);
-        calls.push(UiDrawCall { vertices: dv, indices: di, texture: UiTextureRef::FontAtlas });
+        calls.push(UiDrawCall {
+            vertices: dv,
+            indices: di,
+            texture: UiTextureRef::FontAtlas,
+        });
     }
 
     calls

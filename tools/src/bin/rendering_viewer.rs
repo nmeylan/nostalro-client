@@ -301,8 +301,8 @@ impl App {
     }
 
     fn check_hot_reload(&mut self) {
-        if let Some(mtime) = dylib_mtime(&self.dylib_path) {
-            if mtime > self.last_dylib_mtime {
+        if let Some(mtime) = dylib_mtime(&self.dylib_path)
+            && mtime > self.last_dylib_mtime {
                 self.last_dylib_mtime = mtime;
                 self.reload_counter += 1;
                 let ext = format!("hot{}.so", self.reload_counter);
@@ -340,7 +340,6 @@ impl App {
                     let _ = std::fs::remove_file(prev);
                 }
             }
-        }
     }
 
     fn hot_init_sprites(&self) {

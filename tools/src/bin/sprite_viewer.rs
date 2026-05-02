@@ -53,11 +53,10 @@ fn scan_grf_files() -> Vec<String> {
     let mut files = Vec::new();
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("grf")) {
-            if let Some(name) = path.to_str() {
+        if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("grf"))
+            && let Some(name) = path.to_str() {
                 files.push(name.to_string());
             }
-        }
     }
     files
 }
@@ -376,11 +375,10 @@ impl App {
     fn handle_action(&mut self, action: ViewerAction) {
         match action {
             ViewerAction::ToggleBrowser => {
-                if let Some(browser) = &mut self.browser {
-                    if browser.has_tabs() {
+                if let Some(browser) = &mut self.browser
+                    && browser.has_tabs() {
                         browser.open = !browser.open;
                     }
-                }
             }
             ViewerAction::NextDirection => {
                 let dir = ((self.animation.direction() + 1) % 16) as u8;
@@ -413,22 +411,20 @@ impl App {
                 self.paused = !self.paused;
             }
             ViewerAction::StepForward => {
-                if self.paused {
-                    if let Some(entity) = &self.entity_sprite {
+                if self.paused
+                    && let Some(entity) = &self.entity_sprite {
                         let action_idx = self.animation.flat_action_index(&entity.body_act);
                         let motion_count = entity.body_act.actions[action_idx].motions.len();
                         self.animation.step_forward(motion_count);
                     }
-                }
             }
             ViewerAction::StepBackward => {
-                if self.paused {
-                    if let Some(entity) = &self.entity_sprite {
+                if self.paused
+                    && let Some(entity) = &self.entity_sprite {
                         let action_idx = self.animation.flat_action_index(&entity.body_act);
                         let motion_count = entity.body_act.actions[action_idx].motions.len();
                         self.animation.step_backward(motion_count);
                     }
-                }
             }
             ViewerAction::ZoomIn => {
                 self.zoom = (self.zoom * 1.2).min(20.0);
@@ -728,11 +724,10 @@ impl ApplicationHandler for App {
                 if let Some(device) = &mut self.device {
                     device.resize(size.width, size.height);
                 }
-                if let Some(ui_renderer) = &self.ui_renderer {
-                    if let Some(device) = &self.device {
+                if let Some(ui_renderer) = &self.ui_renderer
+                    && let Some(device) = &self.device {
                         ui_renderer.resize(&device.queue, size.width as f32, size.height as f32);
                     }
-                }
                 if let Some(browser) = &mut self.browser {
                     browser.update_visible_rows(size.height as f32);
                 }
@@ -745,11 +740,10 @@ impl ApplicationHandler for App {
                     let has_tabs = self.browser.as_ref().is_some_and(|b| b.has_tabs());
                     match &event.logical_key {
                         Key::Named(NamedKey::Escape) | Key::Named(NamedKey::Tab) => {
-                            if has_tabs {
-                                if let Some(browser) = &mut self.browser {
+                            if has_tabs
+                                && let Some(browser) = &mut self.browser {
                                     browser.open = false;
                                 }
-                            }
                         }
                         Key::Named(NamedKey::Enter) => {
                             if has_tabs {
@@ -765,11 +759,10 @@ impl ApplicationHandler for App {
                         key => {
                             if let Some(browser) = &mut self.browser {
                                 if self.ctrl_pressed && matches!(key, Key::Character(c) if c == "v") {
-                                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                                        if let Ok(text) = clipboard.get_text() {
+                                    if let Ok(mut clipboard) = arboard::Clipboard::new()
+                                        && let Ok(text) = clipboard.get_text() {
                                             browser.handle_paste(&text);
                                         }
-                                    }
                                     return;
                                 }
                                 match key {
@@ -807,47 +800,43 @@ impl ApplicationHandler for App {
                             }
                         }
                     }
-                } else {
-                    if let Some(action) = controls::map_key_press(
-                        &event.logical_key,
-                        event.state,
-                    ) {
-                        self.handle_action(action);
-                    }
+                } else if let Some(action) = controls::map_key_press(
+                    &event.logical_key,
+                    event.state,
+                ) {
+                    self.handle_action(action);
                 }
             }
             WindowEvent::ModifiersChanged(modifiers) => {
                 self.ctrl_pressed = modifiers.state().control_key();
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                if !self.browser_is_open() {
-                    if let Some(action) = controls::map_scroll(delta) {
+                if !self.browser_is_open()
+                    && let Some(action) = controls::map_scroll(delta) {
                         self.handle_action(action);
                     }
-                }
             }
             WindowEvent::RedrawRequested => {
                 let now = Instant::now();
                 let dt = (now - self.last_frame).as_secs_f32();
                 self.last_frame = now;
 
-                if !self.paused {
-                    if let Some(entity) = &self.entity_sprite {
+                if !self.paused
+                    && let Some(entity) = &self.entity_sprite {
                         let animated = !self.is_composite || SpriteActionType::from_index(self.animation.action())
                             .is_none_or(|a| a.is_animated());
                         if animated {
                             self.animation.update_flat(dt, &entity.body_act);
                         }
                     }
-                }
 
                 if let (Some(watcher), Some(renderer), Some(device), Some(tc)) = (
                     &self.shader_watcher,
                     &mut self.sprite_renderer,
                     &self.device,
                     &self.texture_cache,
-                ) {
-                    if let Some(new_source) = watcher.check_and_reload() {
+                )
+                    && let Some(new_source) = watcher.check_and_reload() {
                         renderer.recreate_pipeline(
                             &device.device,
                             device.surface_format,
@@ -855,7 +844,6 @@ impl ApplicationHandler for App {
                             &new_source,
                         );
                     }
-                }
 
                 self.render_frame();
 

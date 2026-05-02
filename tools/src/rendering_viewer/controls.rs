@@ -1,6 +1,6 @@
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
-use ragnarok_ui::draw::{text_vertices, quad_vertices};
+use ragnarok_ui::draw::{quad_vertices, text_vertices};
 use winit::event::ElementState;
 use winit::keyboard::{Key, NamedKey};
 
@@ -82,7 +82,12 @@ impl Background {
         match self {
             Self::Black => wgpu::Color::BLACK,
             Self::White => wgpu::Color::WHITE,
-            Self::Gray => wgpu::Color { r: 0.3, g: 0.3, b: 0.3, a: 1.0 },
+            Self::Gray => wgpu::Color {
+                r: 0.3,
+                g: 0.3,
+                b: 0.3,
+                a: 1.0,
+            },
         }
     }
 }
@@ -138,9 +143,17 @@ pub fn build_legend_draw_calls(atlas: &FontAtlas, screen_h: f32) -> Vec<UiDrawCa
         }
         let y = box_y + PADDING + i as f32 * LINE_HEIGHT;
         let (kv, ki) = text_vertices(key, key_col_x, y, KEY_COLOR, atlas);
-        calls.push(UiDrawCall { vertices: kv, indices: ki, texture: UiTextureRef::FontAtlas });
+        calls.push(UiDrawCall {
+            vertices: kv,
+            indices: ki,
+            texture: UiTextureRef::FontAtlas,
+        });
         let (dv, di) = text_vertices(desc, desc_col_x, y, DESC_COLOR, atlas);
-        calls.push(UiDrawCall { vertices: dv, indices: di, texture: UiTextureRef::FontAtlas });
+        calls.push(UiDrawCall {
+            vertices: dv,
+            indices: di,
+            texture: UiTextureRef::FontAtlas,
+        });
     }
 
     calls
@@ -168,8 +181,16 @@ pub fn build_status_draw_calls(
 
     let mut calls = Vec::new();
     let (bg_verts, bg_idx) = quad_vertices(box_x, box_y, box_w, box_h, BG_COLOR);
-    calls.push(UiDrawCall { vertices: bg_verts.to_vec(), indices: bg_idx.to_vec(), texture: UiTextureRef::White });
+    calls.push(UiDrawCall {
+        vertices: bg_verts.to_vec(),
+        indices: bg_idx.to_vec(),
+        texture: UiTextureRef::White,
+    });
     let (tv, ti) = text_vertices(&text, box_x + PADDING, box_y + PADDING, STATUS_COLOR, atlas);
-    calls.push(UiDrawCall { vertices: tv, indices: ti, texture: UiTextureRef::FontAtlas });
+    calls.push(UiDrawCall {
+        vertices: tv,
+        indices: ti,
+        texture: UiTextureRef::FontAtlas,
+    });
     calls
 }

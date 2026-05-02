@@ -15,6 +15,10 @@ path = "src/bin/sprite_viewer.rs"
 name = "rendering-viewer"
 path = "src/bin/rendering_viewer.rs"
 
+[[bin]]
+name = "rsw-viewer"
+path = "src/bin/rsw_viewer.rs"
+
 
 [dependencies]
 ragnarok-formats = { workspace = true }

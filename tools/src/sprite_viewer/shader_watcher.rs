@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 
@@ -38,7 +38,11 @@ impl ShaderWatcher {
 
         let shader_path = shaders_dir.join(shader_filename);
 
-        Ok(Self { dirty, shader_path, _watcher: watcher })
+        Ok(Self {
+            dirty,
+            shader_path,
+            _watcher: watcher,
+        })
     }
 
     pub fn check_and_reload(&self) -> Option<String> {
