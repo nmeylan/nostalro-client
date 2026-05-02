@@ -20,6 +20,12 @@ pub struct NpcDialogData {
     pub menu_scroll_offset: usize,
 }
 
+impl Default for NpcDialogData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NpcDialogData {
     pub fn new() -> Self {
         Self {

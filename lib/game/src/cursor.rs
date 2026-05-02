@@ -117,7 +117,7 @@ pub fn hovered_entity_cursor_type(
             let dx = mx - entry.screen_anchor[0];
             let dy = my - entry.screen_anchor[1];
             let dist_sq = dx * dx + dy * dy;
-            if best.as_ref().map_or(true, |b| dist_sq < b.2) {
+            if best.as_ref().is_none_or(|b| dist_sq < b.2) {
                 best = Some((cursor, entry.id, dist_sq));
             }
         }

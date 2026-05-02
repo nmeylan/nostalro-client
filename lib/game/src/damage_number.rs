@@ -63,7 +63,8 @@ impl DamageNumberType {
     pub fn duration(&self) -> f32 {
         match self {
             Self::Combo | Self::MultiHit => 0.45,
-            _ => 120.0 * FRAME_MS / 1000.0,                  // 2.88s
+            Self::Miss | Self::Lucky => 80.0 * FRAME_MS / 1000.0, // 1.92s (stateCnt > 80 in original)
+            _ => 120.0 * FRAME_MS / 1000.0,                        // 2.88s
         }
     }
 }
@@ -151,7 +152,7 @@ impl DamageNumber {
                 (5.0 - f * 0.24).max(1.3)
             }
             DamageNumberType::Miss => 1.0,
-            DamageNumberType::Lucky => 0.5,
+            DamageNumberType::Lucky => 1.0,
             DamageNumberType::Heal => {
                 let perc = self.elapsed / self.number_type.duration();
                 ((1.0 - perc * 2.0) * 3.0).max(0.8)
@@ -174,6 +175,7 @@ impl DamageNumber {
                 // alpha = 1.0 - (elapsed / 3.0)
                 (1.0 - self.elapsed / 3.0) * 255.0
             }
+            DamageNumberType::Miss | DamageNumberType::Lucky => 250.0 - f * 3.0,
             _ => 255.0 - f * 2.0,
         };
         (alpha_255 / 255.0).clamp(0.0, 1.0)

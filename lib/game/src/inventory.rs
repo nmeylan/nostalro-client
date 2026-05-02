@@ -221,11 +221,10 @@ impl InventoryData {
             return None;
         }
         self.update_wear_state(index, wear_location);
-        if view_id != 0 {
-            if let Some(sprite_type) = crate::entity::Entity::wear_location_to_sprite_type(wear_location) {
+        if view_id != 0
+            && let Some(sprite_type) = crate::entity::Entity::wear_location_to_sprite_type(wear_location) {
                 return Some((sprite_type, view_id));
             }
-        }
         None
     }
 
