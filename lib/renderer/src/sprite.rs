@@ -686,13 +686,14 @@ pub fn build_entity_sprite(
     }
 }
 
-const MIN_PICK_SIZE: f32 = 100.0;
 const MAX_PICK_WIDTH: f32 = 200.0;
+const MAX_PICK_HEIGHT: f32 = 250.0;
 const PICK_BOTTOM_MARGIN: f32 = 10.0;
 
 impl EntitySprite {
     /// Compute screen-space pick bounding box from the sprite's current animation frame.
-    /// Returns [left, top, right, bottom] clamped to min 100x100, max 200x250.
+    /// Returns [left, top, right, bottom] capped to max 200x250, centered on anchor.
+    /// Minimum hit-test inflation is applied separately in the picking logic.
     pub fn compute_pick_bounds(
         &self,
         animation: &ragnarok_formats::act::SpriteAnimationState,
@@ -734,25 +735,24 @@ impl EntitySprite {
         }
 
         if !has_vertices {
-            let min_pick = MIN_PICK_SIZE * scale;
-            let half = min_pick / 2.0;
+            let half = 20.0 * scale;
             return [
                 screen_anchor[0] - half,
-                screen_anchor[1] - min_pick + PICK_BOTTOM_MARGIN * scale,
+                screen_anchor[1] - half * 2.0,
                 screen_anchor[0] + half,
-                screen_anchor[1] + PICK_BOTTOM_MARGIN * scale,
+                screen_anchor[1],
             ];
         }
 
         let raw_w = max_x - min_x;
-        let min_pick = MIN_PICK_SIZE * scale;
-        let half_w = raw_w.max(min_pick).min(MAX_PICK_WIDTH) / 2.0;
-        let bottom = max_y.min(screen_anchor[1] + PICK_BOTTOM_MARGIN * scale);
-        let top = min_y.min(bottom - min_pick);
+        let raw_h = max_y - min_y;
+        let w = raw_w.min(MAX_PICK_WIDTH * scale);
+        let h = raw_h.min(MAX_PICK_HEIGHT * scale);
+        let bottom = max_y.min(screen_anchor[1] + PICK_BOTTOM_MARGIN);
         [
-            screen_anchor[0] - half_w,
-            top,
-            screen_anchor[0] + half_w,
+            screen_anchor[0] - w / 2.0,
+            bottom - h,
+            screen_anchor[0] + w / 2.0,
             bottom,
         ]
     }

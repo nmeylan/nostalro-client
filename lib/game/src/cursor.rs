@@ -70,6 +70,8 @@ pub fn cursor_type_for_cell(gat: &GatFile, cell: Option<(i32, i32)>) -> CursorTy
     }
 }
 
+const MIN_PICK_SIZE: f32 = 100.0;
+
 /// Check which entity the mouse hovers and return the matching cursor type.
 /// `render_list` is sorted far-to-near (painter order): iterate in reverse for front-to-back.
 pub fn hovered_entity_cursor_type(
@@ -80,26 +82,48 @@ pub fn hovered_entity_cursor_type(
     let (mx, my) = (mouse_pos.0 as f32, mouse_pos.1 as f32);
     let player_id = entities.player_id();
 
+    let mut best: Option<(CursorType, u32, f32)> = None;
+
     for entry in render_list.iter().rev() {
         if player_id == Some(entry.id) {
             continue;
         }
-        let [left, top, right, bottom] = entry.pick_bounds;
+        let [mut left, mut top, mut right, mut bottom] = entry.pick_bounds;
+        let dx = MIN_PICK_SIZE - (right - left);
+        if dx > 0.0 {
+            left -= dx / 2.0;
+            right += dx / 2.0;
+        }
+        let dy = MIN_PICK_SIZE - (bottom - top);
+        if dy > 0.0 {
+            top -= dy / 2.0;
+            bottom += dy / 2.0;
+        }
 
         if mx >= left && mx <= right && my >= top && my <= bottom {
-            let entity = entities.get(entry.id)?;
+            let entity = match entities.get(entry.id) {
+                Some(e) => e,
+                None => continue,
+            };
             if entity.state == EntityState::Dead || entity.is_fading() {
                 continue;
             }
-            return match entity.entity_type {
-                EntityType::Npc if entity.job == 45 => Some((CursorType::Warp, entry.id)),
-                EntityType::Npc => Some((CursorType::Talk, entry.id)),
-                EntityType::Monster => Some((CursorType::Attack, entry.id)),
-                EntityType::Player => None,
+            let cursor = match entity.entity_type {
+                EntityType::Npc if entity.job == 45 => CursorType::Warp,
+                EntityType::Npc => CursorType::Talk,
+                EntityType::Monster => CursorType::Attack,
+                EntityType::Player => continue,
             };
+            let dx = mx - entry.screen_anchor[0];
+            let dy = my - entry.screen_anchor[1];
+            let dist_sq = dx * dx + dy * dy;
+            if best.as_ref().map_or(true, |b| dist_sq < b.2) {
+                best = Some((cursor, entry.id, dist_sq));
+            }
         }
     }
-    None
+
+    best.map(|(cursor, id, _)| (cursor, id))
 }
 
 pub struct CursorAnimationState {
@@ -330,16 +354,33 @@ mod tests {
     }
 
     #[test]
-    fn entity_hover_picks_frontmost() {
+    fn entity_hover_picks_closest_anchor_among_overlapping() {
         let mut entities = EntityCollection::new();
         entities.insert(make_entity(10, EntityType::Monster, 1002));
         entities.insert(make_entity(20, EntityType::Npc, 100));
-        // Sorted far-to-near: monster further (0.8), NPC closer (0.3)
+        // Both at same screen anchor — closest anchor distance is equal, first candidate wins
         let list = vec![entry(10, 400.0, 350.0, 0.8, 1.0), entry(20, 400.0, 350.0, 0.3, 1.0)];
-        // NPC is last in list (closest), so reverse iteration hits it first
         assert_eq!(
             hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
             Some((CursorType::Talk, 20)),
+        );
+    }
+
+    #[test]
+    fn entity_hover_picks_closest_anchor_when_bounds_overlap() {
+        let mut entities = EntityCollection::new();
+        entities.insert(make_entity(10, EntityType::Monster, 1002));
+        entities.insert(make_entity(20, EntityType::Monster, 1002));
+        // Interior mob at (400, 330), front-row mob at (400, 370)
+        // Both have default 100x100 pick bounds that overlap in the 270-330 y range
+        let list = vec![
+            entry(10, 400.0, 330.0, 0.8, 1.0),
+            entry(20, 400.0, 370.0, 0.3, 1.0),
+        ];
+        // Mouse at (400, 300) — closer to interior mob anchor (330) than front mob (370)
+        assert_eq!(
+            hovered_entity_cursor_type((400.0, 300.0), &entities, &list),
+            Some((CursorType::Attack, 10)),
         );
     }
 
@@ -370,5 +411,27 @@ mod tests {
         entities.insert(monster);
         let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(hovered_entity_cursor_type((400.0, 310.0), &entities, &list), None);
+    }
+
+    #[test]
+    fn small_bounds_inflated_to_minimum_during_hit_test() {
+        let mut entities = EntityCollection::new();
+        entities.insert(make_entity(10, EntityType::Monster, 1002));
+        // Small 30x30 stored bounds centered on (400, 350)
+        let list = vec![RenderEntry {
+            kind: RenderEntryKind::Entity,
+            id: 10,
+            screen_anchor: [400.0, 350.0],
+            depth: 0.5,
+            depth_gradient: 0.0,
+            camera_dir: 0,
+            sprite_scale: 1.0,
+            pick_bounds: [385.0, 335.0, 415.0, 365.0],
+        }];
+        // Mouse at (400, 310) is outside stored 30x30 bounds but inside inflated 100x100
+        assert_eq!(
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            Some((CursorType::Attack, 10)),
+        );
     }
 }
