@@ -193,7 +193,11 @@ impl App {
             let entries: Vec<DamageNumberRenderEntry> = self.game.damage_numbers.numbers.iter_mut()
                 .filter_map(|dmg| {
                     let (screen_x, screen_y, scale) = if let Some(entry) = render_list.iter().find(|e| e.id == dmg.entity_id) {
-                        let pos = (entry.screen_anchor[0], entry.pick_bounds[1], entry.sprite_scale);
+                        let pos = (
+                            entry.screen_anchor[0],
+                            entry.screen_anchor[1] - entry.head_offset,
+                            entry.sprite_scale,
+                        );
                         dmg.last_screen_pos = Some(pos);
                         pos
                     } else {

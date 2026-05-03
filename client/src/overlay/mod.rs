@@ -97,7 +97,7 @@ impl App {
             if let Some(entity) = self.game.entities.get(entry.id)
                 && entity.state == EntityState::Casting && entity.cast_total_duration > 0.0 {
                     let progress = 1.0 - (entity.state_timer / entity.cast_total_duration);
-                    let cast_bar_y = entry.pick_bounds[1] - HP_BAR_HEIGHT - 2.0;
+                    let cast_bar_y = entry.screen_anchor[1] - entry.head_offset - HP_BAR_HEIGHT - 2.0;
                     let cast_color = [0.0, 0.8, 0.0, 1.0];
                     render_bar(entry.screen_anchor[0], cast_bar_y, progress, cast_color, calls);
                 }
@@ -135,7 +135,7 @@ impl App {
                 .fold(0.0_f32, f32::max);
             let box_w = widest + padding * 2.0;
             let box_x = entry.screen_anchor[0] - box_w / 2.0;
-            let box_y = entry.pick_bounds[1] - 5.0 - total_h;
+            let box_y = entry.screen_anchor[1] - entry.head_offset - 5.0 - total_h;
 
             let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
                 box_x, box_y, box_w, total_h, [0.0, 0.0, 0.0, 0.8],

@@ -707,23 +707,36 @@ impl App {
                         renderer.device.surface_config.height as f32 / renderer.dpi_scale,
                     )
                 {
-                    let pick_bounds = match self.game.sprites.get(&entity.id) {
-                        Some(sprite) => sprite.compute_pick_bounds(
-                            &entity.animation,
-                            Some(camera_dir),
-                            entity.head_dir,
-                            screen_anchor,
-                            depth,
-                            sprite_scale,
+                    let (pick_bounds, head_offset) = match self.game.sprites.get(&entity.id) {
+                        Some(sprite) => (
+                            sprite.compute_pick_bounds(
+                                &entity.animation,
+                                Some(camera_dir),
+                                entity.head_dir,
+                                screen_anchor,
+                                depth,
+                                sprite_scale,
+                            ),
+                            sprite.compute_head_offset(
+                                &entity.animation,
+                                Some(camera_dir),
+                                entity.head_dir,
+                                screen_anchor,
+                                depth,
+                                sprite_scale,
+                            ),
                         ),
                         None => {
                             let half = 50.0;
-                            [
-                                screen_anchor[0] - half,
-                                screen_anchor[1] - 100.0,
-                                screen_anchor[0] + half,
-                                screen_anchor[1],
-                            ]
+                            (
+                                [
+                                    screen_anchor[0] - half,
+                                    screen_anchor[1] - 100.0,
+                                    screen_anchor[0] + half,
+                                    screen_anchor[1],
+                                ],
+                                100.0,
+                            )
                         }
                     };
                     render_list.push(RenderEntry {
@@ -735,6 +748,7 @@ impl App {
                         camera_dir,
                         sprite_scale,
                         pick_bounds,
+                        head_offset,
                     });
                 }
             }
@@ -780,6 +794,7 @@ impl App {
                         camera_dir: 0,
                         sprite_scale,
                         pick_bounds,
+                        head_offset: half * 2.0,
                     });
                 }
             }

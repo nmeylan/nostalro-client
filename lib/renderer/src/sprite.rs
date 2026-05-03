@@ -757,6 +757,64 @@ impl EntitySprite {
         ]
     }
 
+    /// Distance in screen pixels from the feet anchor up to the top of the idle pose
+    /// (action 0, motion 0) for the entity's current facing direction. Used to position
+    /// floating overlays (chat bubbles, damage numbers, cast bar) so they don't move
+    /// with per-frame animation changes.
+    pub fn compute_head_offset(
+        &self,
+        animation: &ragnarok_formats::act::SpriteAnimationState,
+        camera_dir: Option<u8>,
+        head_dir: u8,
+        screen_anchor: [f32; 2],
+        depth: f32,
+        scale: f32,
+    ) -> f32 {
+        let action_count = self.body_act.actions.len();
+        if action_count == 0 {
+            return 40.0 * scale;
+        }
+        let idle_action_idx = match camera_dir {
+            Some(dir) => (dir as usize + 12 - animation.direction()) % 8 % action_count,
+            None => animation.direction() % action_count,
+        };
+
+        let Some(clips) = build_composite_clips(
+            self,
+            idle_action_idx,
+            0,
+            head_dir,
+            screen_anchor,
+            depth,
+        ) else {
+            return 40.0 * scale;
+        };
+
+        let all_groups: [&Vec<ClipQuad>; 7] = [
+            &clips.body, &clips.head,
+            &clips.headgear_bottom, &clips.headgear_mid, &clips.headgear_top,
+            &clips.weapon, &clips.shield,
+        ];
+        let mut min_y = f32::MAX;
+        let mut has_vertices = false;
+        for group in all_groups {
+            for (vertices, _, _) in group {
+                for v in vertices {
+                    let sy = screen_anchor[1] + (v.position[1] - screen_anchor[1]) * scale;
+                    if sy < min_y {
+                        min_y = sy;
+                    }
+                    has_vertices = true;
+                }
+            }
+        }
+
+        if !has_vertices {
+            return 40.0 * scale;
+        }
+        (screen_anchor[1] - min_y).max(0.0)
+    }
+
     pub fn build_batches(
         &self,
         animation: &ragnarok_formats::act::SpriteAnimationState,

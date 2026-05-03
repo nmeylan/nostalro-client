@@ -55,6 +55,10 @@ pub struct RenderEntry {
     pub sprite_scale: f32,
     /// Pick bounds in screen pixels: [left, top, right, bottom].
     pub pick_bounds: [f32; 4],
+    /// Distance in screen pixels from feet (screen_anchor[1]) up to the top of the
+    /// idle pose (action 0, motion 0). Used to anchor floating elements (damage
+    /// numbers, chat bubbles, cast bars) so they don't move with per-frame animation.
+    pub head_offset: f32,
 }
 
 pub fn cursor_type_for_cell(gat: &GatFile, cell: Option<(i32, i32)>) -> CursorType {
@@ -179,7 +183,11 @@ impl CursorAnimationState {
 
         let delay_ms = if action_idx < act.delays.len() {
             let d = act.delays[action_idx] * 25.0;
-            if d > 0.0 { d } else { 150.0 }
+            if d > 0.0 {
+                d
+            } else {
+                150.0
+            }
         } else {
             150.0
         };
@@ -217,15 +225,19 @@ mod tests {
     }
 
     fn make_cursor_act(action_count: usize, motions_per_action: usize) -> ActFile {
-        let actions: Vec<Action> = (0..action_count).map(|_| {
-            Action {
-                motions: (0..motions_per_action).map(|_| Motion {
-                    range1: [0; 4], range2: [0; 4],
-                    clips: Vec::new(), event_id: -1,
-                    attach_points: Vec::new(),
-                }).collect(),
-            }
-        }).collect();
+        let actions: Vec<Action> = (0..action_count)
+            .map(|_| Action {
+                motions: (0..motions_per_action)
+                    .map(|_| Motion {
+                        range1: [0; 4],
+                        range2: [0; 4],
+                        clips: Vec::new(),
+                        event_id: -1,
+                        attach_points: Vec::new(),
+                    })
+                    .collect(),
+            })
+            .collect();
         ActFile {
             version: (2, 5),
             actions,
@@ -279,13 +291,32 @@ mod tests {
         let data = build_gat_bytes(2, 1, &walkable);
         let gat = GatFile::parse(&data).unwrap();
 
-        assert_eq!(cursor_type_for_cell(&gat, Some((0, 0))), CursorType::Default);
+        assert_eq!(
+            cursor_type_for_cell(&gat, Some((0, 0))),
+            CursorType::Default
+        );
         assert_eq!(cursor_type_for_cell(&gat, Some((1, 0))), CursorType::NoWalk);
         assert_eq!(cursor_type_for_cell(&gat, None), CursorType::Default);
     }
 
     fn make_entity(id: u32, entity_type: EntityType, job: u16) -> Entity {
-        Entity::new(id, entity_type, job, 1, 1, 0, 0, 0, 0, 0, 0, 100, 100, 0, 150)
+        Entity::new(
+            id,
+            entity_type,
+            job,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            100,
+            100,
+            0,
+            150,
+        )
     }
 
     fn default_pick_bounds(cx: f32, cy: f32) -> [f32; 4] {
@@ -293,6 +324,7 @@ mod tests {
     }
 
     fn entry(id: u32, cx: f32, cy: f32, depth: f32, scale: f32) -> RenderEntry {
+        let bounds = default_pick_bounds(cx, cy);
         RenderEntry {
             kind: RenderEntryKind::Entity,
             id,
@@ -301,14 +333,18 @@ mod tests {
             depth_gradient: 0.0,
             camera_dir: 0,
             sprite_scale: scale,
-            pick_bounds: default_pick_bounds(cx, cy),
+            pick_bounds: bounds,
+            head_offset: bounds[3] - bounds[1],
         }
     }
 
     #[test]
     fn entity_hover_returns_none_on_empty_list() {
         let entities = EntityCollection::new();
-        assert_eq!(hovered_entity_cursor_type((400.0, 300.0), &entities, &[]), None);
+        assert_eq!(
+            hovered_entity_cursor_type((400.0, 300.0), &entities, &[]),
+            None
+        );
     }
 
     #[test]
@@ -350,7 +386,10 @@ mod tests {
         entities.set_player_id(1);
         entities.insert(make_entity(1, EntityType::Player, 0));
         let list = vec![entry(1, 400.0, 350.0, 0.5, 1.0)];
-        assert_eq!(hovered_entity_cursor_type((400.0, 310.0), &entities, &list), None);
+        assert_eq!(
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            None
+        );
     }
 
     #[test]
@@ -359,7 +398,10 @@ mod tests {
         entities.insert(make_entity(10, EntityType::Monster, 1002));
         entities.insert(make_entity(20, EntityType::Npc, 100));
         // Both at same screen anchor — closest anchor distance is equal, first candidate wins
-        let list = vec![entry(10, 400.0, 350.0, 0.8, 1.0), entry(20, 400.0, 350.0, 0.3, 1.0)];
+        let list = vec![
+            entry(10, 400.0, 350.0, 0.8, 1.0),
+            entry(20, 400.0, 350.0, 0.3, 1.0),
+        ];
         assert_eq!(
             hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
             Some((CursorType::Talk, 20)),
@@ -390,7 +432,10 @@ mod tests {
         entities.insert(make_entity(10, EntityType::Monster, 1002));
         let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
         // Mouse far from entity center
-        assert_eq!(hovered_entity_cursor_type((100.0, 100.0), &entities, &list), None);
+        assert_eq!(
+            hovered_entity_cursor_type((100.0, 100.0), &entities, &list),
+            None
+        );
     }
 
     #[test]
@@ -400,7 +445,10 @@ mod tests {
         monster.enter_dead();
         entities.insert(monster);
         let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
-        assert_eq!(hovered_entity_cursor_type((400.0, 310.0), &entities, &list), None);
+        assert_eq!(
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            None
+        );
     }
 
     #[test]
@@ -410,7 +458,10 @@ mod tests {
         monster.start_vanish_fade();
         entities.insert(monster);
         let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
-        assert_eq!(hovered_entity_cursor_type((400.0, 310.0), &entities, &list), None);
+        assert_eq!(
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            None
+        );
     }
 
     #[test]
@@ -427,6 +478,7 @@ mod tests {
             camera_dir: 0,
             sprite_scale: 1.0,
             pick_bounds: [385.0, 335.0, 415.0, 365.0],
+            head_offset: 30.0,
         }];
         // Mouse at (400, 310) is outside stored 30x30 bounds but inside inflated 100x100
         assert_eq!(
