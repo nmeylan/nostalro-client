@@ -109,28 +109,26 @@ pub async fn network_loop(
                                 Some(sender::build_request_time_packet(client_time, session.packetver))
                             }
                         };
-                        if let Some(data) = packet {
-                            if let Err(e) = conn.send_packet(&data, session.packetver).await {
+                        if let Some(data) = packet
+                            && let Err(e) = conn.send_packet(&data, session.packetver).await {
                                 error!("keepalive send error: {e}");
                                 let _ = event_tx.send(GameEvent::Disconnected(e.to_string()));
                                 connection = None;
                                 session.state = SessionState::Disconnected;
                                 keepalive = KeepaliveMode::Off;
                             }
-                        }
                     }
                 }
                 cmd = cmd_rx.recv() => {
                     match cmd {
                         Some(NetworkCommand::SendPacket(data)) => {
-                            if let Some(conn) = &mut connection {
-                                if let Err(e) = conn.send_packet(&data, session.packetver).await {
+                            if let Some(conn) = &mut connection
+                                && let Err(e) = conn.send_packet(&data, session.packetver).await {
                                     error!("send error: {e}");
                                     let _ = event_tx.send(GameEvent::Disconnected(e.to_string()));
                                     connection = None;
                                     session.state = SessionState::Disconnected;
                                 }
-                            }
                         }
                         Some(NetworkCommand::Connect(addr)) => {
                             match Connection::connect(&addr, trace_packets_send, trace_packets_recv).await {

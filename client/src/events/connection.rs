@@ -1,17 +1,17 @@
+use super::preload_window;
 use crate::App;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::entity::Entity;
 use ragnarok_game::sprite_path::weapon_view_id_to_type;
 use ragnarok_network::{
-    build_map_loaded_packet, build_zone_enter_packet, ip_u32_to_string,
-    KeepaliveMode, NetworkCommand,
+    build_map_loaded_packet, build_zone_enter_packet, ip_u32_to_string, KeepaliveMode,
+    NetworkCommand,
 };
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::Window as UiWindow;
 use winit::event_loop::ActiveEventLoop;
-use super::preload_window;
 
 impl App {
     pub(super) fn handle_character_list_received(
@@ -118,8 +118,19 @@ impl App {
             .unwrap_or((0, session_sex, 0, 0, 0, 0, 0, 0, 0));
 
         let entity = Entity::new_player(
-            account_id, job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom,
-            shield_id, x, y, dir,
+            account_id,
+            job,
+            sex,
+            head,
+            hair_color,
+            weapon,
+            head_top,
+            head_mid,
+            head_bottom,
+            shield_id,
+            x,
+            y,
+            dir,
         );
         self.game.entities.set_player_id(account_id);
         self.game.entities.insert(entity);
@@ -235,8 +246,8 @@ impl App {
             .filter(|e| e.movement.is_moving())
             .and_then(|e| e.movement.destination())
             .is_some_and(|(dx, dy)| dx == dest_x && dy == dest_y);
-        if !already_moving_to_dest {
-            if let Some(gat) = &self.game.gat {
+        if !already_moving_to_dest
+            && let Some(gat) = &self.game.gat {
                 let (sx, sy) = self
                     .game
                     .entities
@@ -256,15 +267,16 @@ impl App {
                     }
                 }
             }
-        }
     }
 
     pub(super) fn handle_server_tick(&mut self, server_tick: u32, local_send_time_ms: u32) {
         let local_now_ms = self.start_time.elapsed().as_millis() as u32;
         if self.config.enhanced_lag_compensation {
-            self.game
-                .server_time
-                .on_server_tick_enhanced(server_tick, local_now_ms, local_send_time_ms);
+            self.game.server_time.on_server_tick_enhanced(
+                server_tick,
+                local_now_ms,
+                local_send_time_ms,
+            );
         } else {
             self.game
                 .server_time

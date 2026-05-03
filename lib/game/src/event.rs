@@ -133,24 +133,66 @@ pub enum GameEvent {
     },
 
     // Stats & parameters
-    ParameterChanged { var_id: u16, value: i32 },
-    StatusChanged { status_type: u32, base: i32, bonus: i32 },
-    AttackRangeChanged { range: i16 },
-    EntitySpriteChanged { gid: u32, sprite_type: u8, value: u16, value2: u16 },
+    ParameterChanged {
+        var_id: u16,
+        value: i32,
+    },
+    StatusChanged {
+        status_type: u32,
+        base: i32,
+        bonus: i32,
+    },
+    AttackRangeChanged {
+        range: i16,
+    },
+    EntitySpriteChanged {
+        gid: u32,
+        sprite_type: u8,
+        value: u16,
+        value2: u16,
+    },
 
     // Skills (effects & casting)
-    SkillCasting { gid: u32, target_gid: u32, skill_id: u16, delay_ms: u32, x: i16, y: i16 },
-    SkillCastCancel { gid: u32 },
-    SkillFailed { skill_id: u16, cause: u8 },
-    ActionFailure,
-    SkillPostDelay { skill_id: u16, delay_ms: u32 },
-    AfterCastDelay { delay_ms: u32 },
-    SkillDamage {
-        skill_id: u16, src_gid: u32, target_gid: u32,
-        damage: i32, attack_mt: i32, attacked_mt: i32,
-        count: i16, action: ActionType,
+    SkillCasting {
+        gid: u32,
+        target_gid: u32,
+        skill_id: u16,
+        delay_ms: u32,
+        x: i16,
+        y: i16,
     },
-    SkillNoDamage { skill_id: u16, src_gid: u32, target_gid: u32 },
+    SkillCastCancel {
+        gid: u32,
+    },
+    SkillFailed {
+        skill_id: u16,
+        cause: u8,
+    },
+    ActionFailure,
+    SkillPostDelay {
+        skill_id: u16,
+        delay_ms: u32,
+    },
+    AfterCastDelay {
+        delay_ms: u32,
+    },
+    SkillDamage {
+        skill_id: u16,
+        src_gid: u32,
+        target_gid: u32,
+        damage: i32,
+        attack_mt: i32,
+        attacked_mt: i32,
+        count: i16,
+        action: ActionType,
+        skill_name: Option<String>,
+    },
+    SkillNoDamage {
+        skill_id: u16,
+        src_gid: u32,
+        target_gid: u32,
+        skill_name: Option<String>,
+    },
     GroundSkill {
         skill_id: u16,
         src_gid: u32,
@@ -160,7 +202,10 @@ pub enum GameEvent {
     },
 
     // Effects
-    EntityEmotion { gid: u32, emotion_type: u8 },
+    EntityEmotion {
+        gid: u32,
+        emotion_type: u8,
+    },
 
     // Chat
     ChatMessage {
@@ -175,92 +220,229 @@ pub enum GameEvent {
     },
 
     // NPC dialog (server → client)
-    NpcDialogText { npc_id: u32, text: String },
-    NpcDialogNext { npc_id: u32 },
-    NpcDialogClose { npc_id: u32 },
-    NpcDialogMenu { npc_id: u32, items: Vec<String> },
-    NpcInputNumber { npc_id: u32 },
-    NpcInputString { npc_id: u32 },
-    NpcDealTypeSelect { npc_id: u32 },
+    NpcDialogText {
+        npc_id: u32,
+        text: String,
+    },
+    NpcDialogNext {
+        npc_id: u32,
+    },
+    NpcDialogClose {
+        npc_id: u32,
+    },
+    NpcDialogMenu {
+        npc_id: u32,
+        items: Vec<String>,
+    },
+    NpcInputNumber {
+        npc_id: u32,
+    },
+    NpcInputString {
+        npc_id: u32,
+    },
+    NpcDealTypeSelect {
+        npc_id: u32,
+    },
 
     // NPC dialog (client → server)
-    RequestNpcContact { npc_id: u32 },
-    RequestNpcNext { npc_id: u32 },
-    RequestNpcClose { npc_id: u32 },
-    RequestNpcMenuSelect { npc_id: u32, choice: u8 },
-    RequestNpcInputNumber { npc_id: u32, value: i32 },
-    RequestNpcInputString { npc_id: u32, text: String },
-    RequestNpcDealType { npc_id: u32, deal_type: u8 },
+    RequestNpcContact {
+        npc_id: u32,
+    },
+    RequestNpcNext {
+        npc_id: u32,
+    },
+    RequestNpcClose {
+        npc_id: u32,
+    },
+    RequestNpcMenuSelect {
+        npc_id: u32,
+        choice: u8,
+    },
+    RequestNpcInputNumber {
+        npc_id: u32,
+        value: i32,
+    },
+    RequestNpcInputString {
+        npc_id: u32,
+        text: String,
+    },
+    RequestNpcDealType {
+        npc_id: u32,
+        deal_type: u8,
+    },
 
     // NPC shop (server → client)
-    NpcShopBuyList { npc_id: u32, items: Vec<(u16, i32, i32, u8)> },
-    NpcShopSellList { npc_id: u32, items: Vec<(i16, i32, i32)> },
-    NpcShopBuyResult { result: u8 },
-    NpcShopSellResult { result: u8 },
+    NpcShopBuyList {
+        npc_id: u32,
+        items: Vec<(u16, i32, i32, u8)>,
+    },
+    NpcShopSellList {
+        npc_id: u32,
+        items: Vec<(i16, i32, i32)>,
+    },
+    NpcShopBuyResult {
+        result: u8,
+    },
+    NpcShopSellResult {
+        result: u8,
+    },
 
     // NPC shop (client → server)
-    RequestNpcShopBuy { items: Vec<(i16, u16)> },
-    RequestNpcShopSell { items: Vec<(i16, i16)> },
+    RequestNpcShopBuy {
+        items: Vec<(i16, u16)>,
+    },
+    RequestNpcShopSell {
+        items: Vec<(i16, i16)>,
+    },
     RequestNpcShopClose,
 
     // Inventory (server → client)
-    InventoryNormalItems { items: Vec<NormalItemData> },
-    InventoryEquipmentItems { items: Vec<EquipmentItemData> },
-    InventoryItemPickup {
-        index: u16, item_id: u16, count: u16, item_type: u8,
-        is_identified: bool, is_damaged: bool, refining_level: u8,
-        slot: [u16; 4], location: u16, result: u8,
+    InventoryNormalItems {
+        items: Vec<NormalItemData>,
     },
-    InventoryUseItemResult { index: u16, count: i16, success: bool },
-    InventoryEquipResult { index: u16, wear_location: u16, view_id: u16, success: bool },
-    InventoryArrowEquipped { index: u16 },
-    InventoryUnequipResult { index: u16, wear_location: u16, success: bool },
-    InventoryItemRemoved { index: u16, count: i16 },
+    InventoryEquipmentItems {
+        items: Vec<EquipmentItemData>,
+    },
+    InventoryItemPickup {
+        index: u16,
+        item_id: u16,
+        count: u16,
+        item_type: u8,
+        is_identified: bool,
+        is_damaged: bool,
+        refining_level: u8,
+        slot: [u16; 4],
+        location: u16,
+        result: u8,
+    },
+    InventoryUseItemResult {
+        index: u16,
+        count: i16,
+        success: bool,
+    },
+    InventoryEquipResult {
+        index: u16,
+        wear_location: u16,
+        view_id: u16,
+        success: bool,
+    },
+    InventoryArrowEquipped {
+        index: u16,
+    },
+    InventoryUnequipResult {
+        index: u16,
+        wear_location: u16,
+        success: bool,
+    },
+    InventoryItemRemoved {
+        index: u16,
+        count: i16,
+    },
 
     // Inventory (client → server)
-    RequestUseItem { index: u16 },
-    RequestEquipItem { index: u16, location: u16 },
-    RequestUnequipItem { index: u16 },
-    RequestDropItem { index: u16, count: i16 },
+    RequestUseItem {
+        index: u16,
+    },
+    RequestEquipItem {
+        index: u16,
+        location: u16,
+    },
+    RequestUnequipItem {
+        index: u16,
+    },
+    RequestDropItem {
+        index: u16,
+        count: i16,
+    },
 
     // Card composition (client → server)
-    RequestCardInsertList { card_index: u16 },
-    RequestCardInsert { card_index: u16, equip_index: u16 },
+    RequestCardInsertList {
+        card_index: u16,
+    },
+    RequestCardInsert {
+        card_index: u16,
+        equip_index: u16,
+    },
 
     // Card composition (server → client)
-    CardInsertItemList { card_index: u16, equip_indices: Vec<u16> },
-    CardInsertResult { equip_index: u16, card_index: u16, result: u8 },
+    CardInsertItemList {
+        card_index: u16,
+        equip_indices: Vec<u16>,
+    },
+    CardInsertResult {
+        equip_index: u16,
+        card_index: u16,
+        result: u8,
+    },
 
     // Floor items (server → client)
     FloorItemAppeared {
-        id: u32, item_id: u16, is_identified: bool,
-        x: i16, y: i16, sub_x: u8, sub_y: u8,
-        count: i16, is_falling: bool,
+        id: u32,
+        item_id: u16,
+        is_identified: bool,
+        x: i16,
+        y: i16,
+        sub_x: u8,
+        sub_y: u8,
+        count: i16,
+        is_falling: bool,
     },
-    FloorItemDisappeared { id: u32 },
+    FloorItemDisappeared {
+        id: u32,
+    },
 
     // Floor items (client → server)
-    RequestPickupItem { id: u32 },
+    RequestPickupItem {
+        id: u32,
+    },
 
     // Skills (server → client)
-    SkillListReceived { skills: Vec<SkillInfo> },
-    SkillUpdated { id: u16, level: i16, sp_cost: i16, attack_range: i16, upgradable: bool },
-    SkillAdded { skill: SkillInfo },
+    SkillListReceived {
+        skills: Vec<SkillInfo>,
+    },
+    SkillUpdated {
+        id: u16,
+        level: i16,
+        sp_cost: i16,
+        attack_range: i16,
+        upgradable: bool,
+    },
+    SkillAdded {
+        skill: SkillInfo,
+    },
 
     // Skills (client → server)
-    RequestSkillLevelUp { skill_id: u16 },
+    RequestSkillLevelUp {
+        skill_id: u16,
+    },
 
     // Hotkeys (server → client)
-    HotkeyListReceived { slots: Vec<(i8, u32, i16)> },
+    HotkeyListReceived {
+        slots: Vec<(i8, u32, i16)>,
+    },
 
     // Hotkeys (client → server)
-    RequestHotkeyChange { index: u16, is_skill: bool, id: u32, count: i16 },
-    RequestUseSkill { skill_id: u16, level: i16 },
+    RequestHotkeyChange {
+        index: u16,
+        is_skill: bool,
+        id: u32,
+        count: i16,
+    },
+    RequestUseSkill {
+        skill_id: u16,
+        level: i16,
+    },
 
     // UI actions
-    ShowItemInfo { index: u16 },
-    ShowCardInfo { item_id: u16 },
-    ShowCardIllustration { item_id: u16 },
+    ShowItemInfo {
+        index: u16,
+    },
+    ShowCardInfo {
+        item_id: u16,
+    },
+    ShowCardIllustration {
+        item_id: u16,
+    },
 
     // UI lifecycle
     DialogClosed,
@@ -346,11 +528,7 @@ impl CharacterInfo {
         } else {
             (info.hp_16 as u32, info.maxhp_16 as u32)
         };
-        let sex = if packetver >= 20141016 {
-            info.sex
-        } else {
-            0
-        };
+        let sex = if packetver >= 20141016 { info.sex } else { 0 };
 
         Self {
             gid: info.gid,

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::entity::{Entity, EntityState, EmotionState};
+use crate::entity::{EntityType, EmotionState, Entity, EntityState};
 use crate::movement::direction_from_positions;
 
 pub struct EntityCollection {
@@ -113,9 +113,19 @@ impl EntityCollection {
         }
     }
 
-    pub fn apply_skill_casting(&mut self, gid: u32, target_gid: u32, skill_id: u16, delay_ms: u32, x: i16, y: i16) {
+    pub fn apply_skill_casting(
+        &mut self,
+        gid: u32,
+        target_gid: u32,
+        skill_id: u16,
+        delay_ms: u32,
+        x: i16,
+        y: i16,
+    ) {
         let target_pos = if target_gid != 0 {
-            self.entities.get(&target_gid).map(|e| e.movement.cell_position())
+            self.entities
+                .get(&target_gid)
+                .map(|e| e.movement.cell_position())
         } else if x != 0 || y != 0 {
             Some((x as u16, y as u16))
         } else {
@@ -137,8 +147,19 @@ impl EntityCollection {
         }
     }
 
-    pub fn apply_skill_no_damage(&mut self, skill_id: u16, src_gid: u32, target_gid: u32) {
-        let target_pos = self.entities.get(&target_gid).map(|e| e.movement.cell_position());
+    pub fn apply_skill_no_damage(
+        &mut self,
+        skill_id: u16,
+        src_gid: u32,
+        target_gid: u32,
+        skill_name: Option<String>,
+    ) {
+        // Show chat bubble on caster (e.g., "AL_ANGELUS !!")
+        self.show_skill_chat_bubble(src_gid, skill_name);
+        let target_pos = self
+            .entities
+            .get(&target_gid)
+            .map(|e| e.movement.cell_position());
         if let Some(entity) = self.entities.get_mut(&src_gid) {
             if let Some(dst) = target_pos {
                 let src = entity.movement.cell_position();
@@ -148,6 +169,18 @@ impl EntityCollection {
             }
             entity.enter_skill_exec(0.6, skill_id, 1);
         }
+    }
+
+    /// Shows a "SkillName !!" chat bubble on the entity.
+    fn show_skill_chat_bubble(&mut self, gid: u32, skill_name: Option<String>) {
+        if let Some(name) = skill_name
+            && let Some(entity) = self.entities.get_mut(&gid) {
+                // Only show for players/NPCs, not monsters
+                if entity.entity_type != EntityType::Monster {
+                    entity.chat_bubble =
+                        Some(crate::entity::ChatBubbleState::new(format!("{} !!", name)));
+                }
+            }
     }
 
     pub fn apply_ground_skill(&mut self, skill_id: u16, src_gid: u32, x: i16, y: i16) {
@@ -188,7 +221,23 @@ mod tests {
     use crate::entity::EntityType;
 
     fn make_entity(id: u32) -> Entity {
-        Entity::new(id, EntityType::Player, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 150)
+        Entity::new(
+            id,
+            EntityType::Player,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            150,
+        )
     }
 
     #[test]
@@ -299,18 +348,53 @@ mod tests {
 
         col.apply_entity_emotion(100, 3);
         assert!(col.get(100).unwrap().emotion.is_some());
-        assert_eq!(col.get(100).unwrap().emotion.as_ref().unwrap().emotion_type, 3);
+        assert_eq!(
+            col.get(100).unwrap().emotion.as_ref().unwrap().emotion_type,
+            3
+        );
     }
 
     #[test]
     fn skill_no_damage_faces_target() {
         let mut col = EntityCollection::new();
-        let mut caster = Entity::new(1, EntityType::Player, 0, 1, 0, 0, 0, 0, 0, 0, 0, 5, 5, 0, 150);
+        let mut caster = Entity::new(
+            1,
+            EntityType::Player,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            5,
+            5,
+            0,
+            150,
+        );
         caster.direction = 0;
         col.insert(caster);
-        col.insert(Entity::new(2, EntityType::Monster, 1002, 0, 0, 0, 0, 0, 0, 0, 0, 8, 5, 0, 200));
+        col.insert(Entity::new(
+            2,
+            EntityType::Monster,
+            1002,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            8,
+            5,
+            0,
+            200,
+        ));
 
-        col.apply_skill_no_damage(10, 1, 2);
+        col.apply_skill_no_damage(10, 1, 2, Some("TestSkill".to_string()));
         let e = col.get(1).unwrap();
         assert_eq!(e.direction, 6);
         assert_eq!(e.state, EntityState::SkillExec);

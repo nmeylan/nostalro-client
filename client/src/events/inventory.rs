@@ -8,12 +8,20 @@ use ragnarok_ui_component::Window as UiWindow;
 
 impl App {
     pub(super) fn handle_inventory_normal_items(&mut self, items: Vec<NormalItemData>) {
-        let icon_paths = self.game.character.inventory.apply_normal_items(items, &self.game.data_table);
+        let icon_paths = self
+            .game
+            .character
+            .inventory
+            .apply_normal_items(items, &self.game.data_table);
         self.preload_item_icons(icon_paths);
     }
 
     pub(super) fn handle_inventory_equipment_items(&mut self, items: Vec<EquipmentItemData>) {
-        let icon_paths = self.game.character.inventory.apply_equipment_items(items, &self.game.data_table);
+        let icon_paths = self
+            .game
+            .character
+            .inventory
+            .apply_equipment_items(items, &self.game.data_table);
         self.preload_item_icons(icon_paths);
     }
 
@@ -41,15 +49,10 @@ impl App {
             .as_ref()
             .map(|t| t.get_name_or_id_for(item_id, is_identified))
             .unwrap_or_else(|| format!("Item #{item_id}"));
-        let resource_name = self
-            .game
-            .data_table
-            .item_resource
-            .as_ref()
-            .and_then(|t| {
-                t.get_resource_name_for(item_id, is_identified)
-                    .map(|s| s.to_string())
-            });
+        let resource_name = self.game.data_table.item_resource.as_ref().and_then(|t| {
+            t.get_resource_name_for(item_id, is_identified)
+                .map(|s| s.to_string())
+        });
         self.game.character.inventory.add_item(Item {
             index,
             item_id,
@@ -113,16 +116,14 @@ impl App {
                 .character
                 .inventory
                 .update_wear_state(index, wear_location);
-            if view_id != 0 {
-                if let Some(sprite_type) = Entity::wear_location_to_sprite_type(wear_location) {
-                    if let Some(player_id) = self.game.entities.player_id() {
+            if view_id != 0
+                && let Some(sprite_type) = Entity::wear_location_to_sprite_type(wear_location)
+                    && let Some(player_id) = self.game.entities.player_id() {
                         if let Some(entity) = self.game.entities.get_mut(player_id) {
                             entity.apply_sprite_change(sprite_type, view_id);
                         }
                         self.reload_player_sprite(player_id);
                     }
-                }
-            }
         }
     }
 
@@ -140,14 +141,13 @@ impl App {
         );
         if success {
             self.game.character.inventory.clear_wear_state(index);
-            if let Some(sprite_type) = Entity::wear_location_to_sprite_type(wear_location) {
-                if let Some(player_id) = self.game.entities.player_id() {
+            if let Some(sprite_type) = Entity::wear_location_to_sprite_type(wear_location)
+                && let Some(player_id) = self.game.entities.player_id() {
                     if let Some(entity) = self.game.entities.get_mut(player_id) {
                         entity.apply_sprite_change(sprite_type, 0);
                     }
                     self.reload_player_sprite(player_id);
                 }
-            }
         }
     }
 
@@ -183,11 +183,10 @@ impl App {
         let mut dialog = CardInsertDialog::new();
         dialog.open(card_index, card_name, eligible);
         dialog.has_grf_textures = self.game.card_insert_dialog_has_grf_textures;
-        if dialog.has_grf_textures {
-            if let Some(renderer) = &self.renderer {
+        if dialog.has_grf_textures
+            && let Some(renderer) = &self.renderer {
                 dialog.set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
             }
-        }
         let tex_paths = dialog.pending_texture_paths();
         self.game.card_insert_dialog = Some(dialog);
         self.preload_item_icons(tex_paths);

@@ -6,7 +6,6 @@ use packets::packets_parser;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
-use tracing::debug;
 
 #[derive(Debug)]
 pub enum ConnectionError {
@@ -46,11 +45,8 @@ impl Connection {
             let result = panic::catch_unwind(|| {
                 packets_parser::parse(data, packetver)
             });
-            match result {
-                Ok(packet) => {
-                    tracing::info!("send packet: {:?}", packet.name());
-                }
-                Err(_) => {}
+            if let Ok(packet) = result {
+                tracing::info!("send packet: {:?}", packet.name());
             }
         }
         self.writer.write_all(data).await
@@ -206,7 +202,7 @@ impl Connection {
                 Err(_) => {
                     tracing::warn!("packet parse panic at offset {offset}, buffer_len={}, first_bytes=0x{:02x}{:02x}",
                         self.recv_buffer.len(),
-                        remaining.get(0).copied().unwrap_or(0),
+                        remaining.first().copied().unwrap_or(0),
                         remaining.get(1).copied().unwrap_or(0));
                     // Skip past the bad data to avoid permanently blocking the buffer
                     let skip = Self::estimate_packet_len(&remaining);

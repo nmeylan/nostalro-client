@@ -1,11 +1,12 @@
 use models::enums::EnumWithNumberValue;
 use models::enums::action::ActionType;
 use models::enums::skill::SkillTargetType;
+use models::enums::skill_enums::SkillEnum;
 use models::enums::vanish::VanishType;
 use packets::packets::*;
 use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo, SkillInfo};
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::helpers::{decode_pos, decode_pos2};
 
@@ -368,6 +369,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::Acknowledged];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifySkill>() {
+        let name = SkillEnum::from_id(p.skid as u32).to_name().to_string();
         return vec![GameEvent::SkillDamage {
             skill_id: p.skid,
             src_gid: p.aid,
@@ -377,9 +379,11 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             attacked_mt: p.attacked_mt,
             count: p.count,
             action: ActionType::from_value(p.action as usize),
+            skill_name: Some(name),
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifySkill2>() {
+        let name = SkillEnum::from_id(p.skid as u32).to_name().to_string();
         return vec![GameEvent::SkillDamage {
             skill_id: p.skid,
             src_gid: p.aid,
@@ -389,6 +393,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             attacked_mt: p.attacked_mt,
             count: p.count,
             action: ActionType::from_value(p.action as usize),
+            skill_name: Some(name),
         }];
     }
     if let Some(_p) = any.downcast_ref::<PacketZcProgressCancel>() {
@@ -399,10 +404,12 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcUseSkill>() {
         if p.result {
+            let name = SkillEnum::from_id(p.skid as u32).to_name().to_string();
             return vec![GameEvent::SkillNoDamage {
                 skill_id: p.skid,
                 src_gid: p.src_aid,
                 target_gid: p.target_aid,
+                skill_name: Some(name),
             }];
         }
         return vec![GameEvent::Acknowledged];

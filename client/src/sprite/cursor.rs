@@ -57,11 +57,9 @@ impl App {
         for clip in &motion.clips {
             if let Some((vertices, indices, tex_idx)) =
                 build_clip_quad(clip, cursor_tex, [mx as f32, my as f32], 0.0, [0, 0])
-            {
-                if tex_idx < cursor_tex.bind_groups.len() {
+                && tex_idx < cursor_tex.bind_groups.len() {
                     clips.push((vertices, indices, tex_idx));
                 }
-            }
         }
         clips
     }
@@ -107,11 +105,9 @@ impl App {
         for clip in &motion.clips {
             if let Some((vertices, indices, tex_idx)) =
                 build_clip_quad(clip, cursor_tex, [sx, sy], 0.0, [0, 0])
-            {
-                if tex_idx < cursor_tex.bind_groups.len() {
+                && tex_idx < cursor_tex.bind_groups.len() {
                     clips.push((vertices, indices, tex_idx));
                 }
-            }
         }
         clips
     }

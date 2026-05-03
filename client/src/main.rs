@@ -280,8 +280,8 @@ impl App {
         self.game.floor_items.insert(id, floor_item);
 
         // Load item SPR/ACT sprite
-        if let Some(res_name) = &resource_name {
-            if let (Some(grf), Some(renderer)) = (&self.grf, &self.renderer) {
+        if let Some(res_name) = &resource_name
+            && let (Some(grf), Some(renderer)) = (&self.grf, &self.renderer) {
                 let base = format!("data/sprite/아이템/{res_name}");
                 let spr_path = format!("{base}.spr");
                 let act_path = format!("{base}.act");
@@ -298,7 +298,6 @@ impl App {
                         .insert(id, (Rc::new(tex), data.act));
                 }
             }
-        }
     }
 
     fn handle_ui_events(&mut self, events: Vec<GameEvent>, event_loop: &ActiveEventLoop) {
@@ -310,8 +309,8 @@ impl App {
                     self.channel.send_packet(build_login_packet(&username, &password, self.config.packetver));
                 }
                 GameEvent::RequestSelectServer { index } => {
-                    if let Some(server_win) = &self.server_list_window {
-                        if let Some(server) = server_win.servers.get(index) {
+                    if let Some(server_win) = &self.server_list_window
+                        && let Some(server) = server_win.servers.get(index) {
                             let addr = format!("{}:{}", ip_u32_to_string(server.ip), server.port);
                             self.channel.send_cmd(NetworkCommand::Disconnect);
                             self.channel.send_cmd(NetworkCommand::Connect(addr.clone()));
@@ -325,7 +324,6 @@ impl App {
                                 ));
                             }
                         }
-                    }
                 }
                 GameEvent::RequestSelectCharacter { slot } => {
                     if let Some(char_win) = &self.char_select_window {
@@ -682,8 +680,8 @@ impl App {
             Some(coords.cell_corners_world(gat, cx, cy))
         });
 
-        if let Some(renderer) = &mut self.renderer {
-            if let Some(grid) = &mut renderer.grid_selector {
+        if let Some(renderer) = &mut self.renderer
+            && let Some(grid) = &mut renderer.grid_selector {
                 if let Some(corners) = hover_corners {
                     grid.update_hover(&renderer.device.queue, corners);
                     grid.set_hover_visible(true);
@@ -691,7 +689,6 @@ impl App {
                     grid.set_hover_visible(false);
                 }
             }
-        }
 
         hovered
     }
@@ -970,14 +967,12 @@ impl ApplicationHandler for App {
                     &render_list,
                 );
                 self.game.hovered_entity_id = hovered_entity_id;
-                if let Some(entity_id) = hovered_entity_id {
-                    if let Some(entity) = self.game.entities.get_mut(entity_id) {
-                        if !entity.name_requested {
+                if let Some(entity_id) = hovered_entity_id
+                    && let Some(entity) = self.game.entities.get_mut(entity_id)
+                        && !entity.name_requested {
                             entity.name_requested = true;
                             self.channel.send_packet(build_reqname_packet(entity_id, self.config.packetver));
                         }
-                    }
-                }
 
                 let hovered_floor_item_id = if hovered_entity_id.is_none()
                     && !ui_any_hovered

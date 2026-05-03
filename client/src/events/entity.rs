@@ -36,16 +36,39 @@ impl App {
         }
         let entity_type = entity_type_from_job(job);
         let mut entity = Entity::new(
-            gid, entity_type, job, sex, head, hair_color, weapon, head_top, head_mid,
-            head_bottom, shield, x, y, direction, speed,
+            gid,
+            entity_type,
+            job,
+            sex,
+            head,
+            hair_color,
+            weapon,
+            head_top,
+            head_mid,
+            head_bottom,
+            shield,
+            x,
+            y,
+            direction,
+            speed,
         );
         if body_state == 2 {
             entity.state = EntityState::Sitting;
         }
         self.game.entities.insert(entity);
         self.load_entity_sprite(
-            gid, entity_type, job, sex, head, weapon, shield, head_top, head_mid, head_bottom,
-            hair_color, direction,
+            gid,
+            entity_type,
+            job,
+            sex,
+            head,
+            weapon,
+            shield,
+            head_top,
+            head_mid,
+            head_bottom,
+            hair_color,
+            direction,
         );
     }
 
@@ -68,11 +91,7 @@ impl App {
             let path = ragnarok_game::path::path_search(gat, sx, sy, dest_x, dest_y);
             if !path.is_empty() {
                 let local_ms = self.start_time.elapsed().as_millis() as u32;
-                let is_just_spawned = self
-                    .game
-                    .entities
-                    .get(gid)
-                    .is_some_and(|e| e.just_spawned);
+                let is_just_spawned = self.game.entities.get(gid).is_some_and(|e| e.just_spawned);
                 let move_start = if is_just_spawned {
                     self.game
                         .server_time
@@ -107,9 +126,7 @@ impl App {
             _ => {
                 let r1 = self.game.entities.remove(gid).is_some();
                 let r2 = self.game.sprites.remove(&gid).is_some();
-                tracing::debug!(
-                    "EntityVanished: gid={gid} type={vanish_type:?} r1={r1} r2={r2}"
-                );
+                tracing::debug!("EntityVanished: gid={gid} type={vanish_type:?} r1={r1} r2={r2}");
             }
         }
     }
@@ -188,9 +205,7 @@ impl App {
                         let msg = if is_endure {
                             DamageMessage::AttackedNoMotion
                         } else if effective_count > 1 {
-                            DamageMessage::AttackedMultiHit {
-                                total_damage,
-                            }
+                            DamageMessage::AttackedMultiHit { total_damage }
                         } else {
                             DamageMessage::Attacked
                         };
@@ -202,7 +217,7 @@ impl App {
                             skill_id: 0,
                             is_last_hit: i == effective_count - 1,
                             is_critical,
-                            hit_index: i as u16,
+                            hit_index: i,
                             attacked_mt_secs: attacked_mt as f32 / 1000.0,
                         });
                     }
@@ -244,7 +259,18 @@ impl App {
     pub(super) fn handle_entity_sprite_changed(&mut self, gid: u32, sprite_type: u8, value: u16) {
         if let Some(entity) = self.game.entities.get_mut(gid) {
             entity.apply_sprite_change(sprite_type, value);
-            let (job, sex, head, weapon, shield, head_top, head_mid, head_bottom, hair_color, cloth_color) = {
+            let (
+                job,
+                sex,
+                head,
+                weapon,
+                shield,
+                head_top,
+                head_mid,
+                head_bottom,
+                hair_color,
+                cloth_color,
+            ) = {
                 (
                     entity.job,
                     entity.sex,
@@ -263,13 +289,32 @@ impl App {
             if is_player {
                 let weapon_type = ragnarok_game::sprite_path::weapon_view_id_to_type(weapon);
                 self.load_player_sprite(
-                    gid, job, sex, head, hair_color, cloth_color, weapon_type, head_top, head_mid,
-                    head_bottom, shield,
+                    gid,
+                    job,
+                    sex,
+                    head,
+                    hair_color,
+                    cloth_color,
+                    weapon_type,
+                    head_top,
+                    head_mid,
+                    head_bottom,
+                    shield,
                 );
             } else {
                 self.load_entity_sprite(
-                    gid, entity_type, job, sex, head, weapon, shield, head_top, head_mid,
-                    head_bottom, hair_color, 0,
+                    gid,
+                    entity_type,
+                    job,
+                    sex,
+                    head,
+                    weapon,
+                    shield,
+                    head_top,
+                    head_mid,
+                    head_bottom,
+                    hair_color,
+                    0,
                 );
             }
         }

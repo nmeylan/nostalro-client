@@ -17,11 +17,7 @@ impl App {
         self.preload_item_icons(icon_paths);
     }
 
-    pub(super) fn handle_npc_shop_sell_list(
-        &mut self,
-        npc_id: u32,
-        items: Vec<(i16, i32, i32)>,
-    ) {
+    pub(super) fn handle_npc_shop_sell_list(&mut self, npc_id: u32, items: Vec<(i16, i32, i32)>) {
         let fallback_npc_id = self.game.npc_dialog.dialog.npc_id;
         let icon_paths = self.game.npc_shop.shop.apply_sell_list(
             npc_id,

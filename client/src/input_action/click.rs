@@ -12,11 +12,10 @@ impl App {
         if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
             return;
         }
-        if let Some(entity) = self.game.entities.player() {
-            if matches!(entity.state, EntityState::Casting | EntityState::SkillExec) {
+        if let Some(entity) = self.game.entities.player()
+            && matches!(entity.state, EntityState::Casting | EntityState::SkillExec) {
                 return;
             }
-        }
         // Skill targeting mode: consume pending skill on click
         if let Some(pending) = self.game.pending_skill_target.take() {
             let mut skill_cast = false;
@@ -99,17 +98,15 @@ impl App {
             return;
         }
         // Click on NPC to talk
-        if let Some(entity_id) = self.game.hovered_entity_id {
-            if let Some(entity) = self.game.entities.get(entity_id) {
-                if entity.entity_type == EntityType::Npc && entity.job != 45 {
+        if let Some(entity_id) = self.game.hovered_entity_id
+            && let Some(entity) = self.game.entities.get(entity_id)
+                && entity.entity_type == EntityType::Npc && entity.job != 45 {
                     self.channel.send_packet(build_contact_npc_packet(entity_id, self.config.packetver));
                     return;
                 }
-            }
-        }
         // Click on monster to attack (always), or player (shift or noshift mode)
-        if let Some(entity_id) = self.game.hovered_entity_id {
-            if let Some(entity) = self.game.entities.get(entity_id) {
+        if let Some(entity_id) = self.game.hovered_entity_id
+            && let Some(entity) = self.game.entities.get(entity_id) {
                 let should_attack = match entity.entity_type {
                     EntityType::Monster => !self.input.shift_pressed,
                     EntityType::Player => self.input.shift_pressed || self.game.noshift_mode,
@@ -120,7 +117,6 @@ impl App {
                     return;
                 }
             }
-        }
         self.game.attack_target_id = None;
         self.game.pending_pickup_item_id = None;
         let (dest_x, dest_y) = match self.hovered_cell() {

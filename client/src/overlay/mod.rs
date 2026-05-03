@@ -94,14 +94,13 @@ impl App {
         calls: &mut Vec<UiDrawCall>,
     ) {
         for entry in render_list {
-            if let Some(entity) = self.game.entities.get(entry.id) {
-                if entity.state == EntityState::Casting && entity.cast_total_duration > 0.0 {
+            if let Some(entity) = self.game.entities.get(entry.id)
+                && entity.state == EntityState::Casting && entity.cast_total_duration > 0.0 {
                     let progress = 1.0 - (entity.state_timer / entity.cast_total_duration);
                     let cast_bar_y = entry.pick_bounds[1] - HP_BAR_HEIGHT - 2.0;
                     let cast_color = [0.0, 0.8, 0.0, 1.0];
                     render_bar(entry.screen_anchor[0], cast_bar_y, progress, cast_color, calls);
                 }
-            }
         }
     }
 

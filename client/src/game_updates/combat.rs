@@ -9,6 +9,12 @@ impl App {
     pub(crate) fn check_pending_attack(&mut self, delta: f32) {
         self.game.attack_request_cooldown = (self.game.attack_request_cooldown - delta).max(0.0);
 
+        // While a skill is queued, attack_target_id belongs to the skill chase —
+        // check_pending_skill owns the lifecycle, don't touch it here.
+        if self.game.pending_skill_id.is_some() {
+            return;
+        }
+
         let target_id = match self.game.attack_target_id {
             Some(id) => id,
             None => return,
@@ -21,14 +27,13 @@ impl App {
             return;
         }
 
-        if let Some(player) = self.game.entities.player() {
-            if matches!(player.state,
+        if let Some(player) = self.game.entities.player()
+            && matches!(player.state,
                 EntityState::Casting | EntityState::SkillExec | EntityState::Dead | EntityState::Sitting
             ) {
                 self.game.attack_target_id = None;
                 return;
             }
-        }
 
         if !self.game.attack_is_locked && !self.input.left_mouse_down {
             self.game.attack_target_id = None;
@@ -60,12 +65,11 @@ impl App {
                 // TODO Having a doubt on this number should investigate how to do it properly
                 self.game.attack_request_cooldown = 0.3;
             }
-        } else if let Some(player) = self.game.entities.player() {
-            if !matches!(player.state, EntityState::Casting | EntityState::SkillExec | EntityState::Dead | EntityState::Sitting) {
+        } else if let Some(player) = self.game.entities.player()
+            && !matches!(player.state, EntityState::Casting | EntityState::SkillExec | EntityState::Dead | EntityState::Sitting) {
                 // Call every frame to track a moving target (original game used to recalculates dest cell each tick)
                 self.try_move_toward(target_pos.0 as i32, target_pos.1 as i32, px, py, range);
             }
-        }
     }
 
     pub(crate) fn check_pending_skill(&mut self) {
@@ -92,11 +96,10 @@ impl App {
             return;
         }
 
-        if let Some(player) = self.game.entities.player() {
-            if matches!(player.state, EntityState::Casting | EntityState::SkillExec | EntityState::Dead | EntityState::Sitting) {
+        if let Some(player) = self.game.entities.player()
+            && matches!(player.state, EntityState::Casting | EntityState::SkillExec | EntityState::Dead | EntityState::Sitting) {
                 return;
             }
-        }
 
         let target_pos = self.game.entities.get(target_id)
             .map(|e| e.movement.cell_position())
@@ -112,15 +115,19 @@ impl App {
         let dy = (py as i32 - target_pos.1 as i32).abs();
         let dist = dx.max(dy);
 
-        if dist <= skill_range {
+        let path_completed = self.game.entities.player()
+            .is_some_and(|p| !p.movement.is_moving());
+
+        if dist <= skill_range || path_completed {
+            if let Some(player) = self.game.entities.player_mut() {
+                player.movement.stop();
+            }
             self.channel.send_packet(build_use_skill_packet(skill_id, level, target_id, self.config.packetver));
             self.game.pending_skill_id = None;
             self.game.pending_skill_level = None;
             self.game.attack_target_id = None;
-        } else if let Some(player) = self.game.entities.player() {
-            if !matches!(player.state, EntityState::Casting | EntityState::SkillExec | EntityState::Dead | EntityState::Sitting) {
-                self.try_move_toward(target_pos.0 as i32, target_pos.1 as i32, px, py, skill_range);
-            }
+        } else {
+            self.try_move_toward(target_pos.0 as i32, target_pos.1 as i32, px, py, skill_range);
         }
     }
 
@@ -164,21 +171,20 @@ impl App {
             for hit in ready {
                 self.emit_damage_number(entity_id, &hit);
 
-                if matches!(hit.message, DamageMessage::Attacked | DamageMessage::AttackedMultiHit { .. }) {
-                    if hit.damage > 0 {
+                if matches!(hit.message, DamageMessage::Attacked | DamageMessage::AttackedMultiHit { .. })
+                    && hit.damage > 0 {
                         let is_sonic_or_chain = hit.skill_id == SkillEnum::AsSonicblow.id() as u16
                             || hit.skill_id == SkillEnum::MoChaincombo.id() as u16;
                         let attacker_pos = self.game.entities.get(hit.attacker_gid)
                             .map(|e| e.movement.cell_position());
                         if let Some(entity) = self.game.entities.get_mut(entity_id) {
-                            if !is_sonic_or_chain {
-                                if let Some(ap) = attacker_pos {
+                            if !is_sonic_or_chain
+                                && let Some(ap) = attacker_pos {
                                     let tp = entity.movement.cell_position();
                                     if let Some(dir) = direction_from_positions(tp.0, tp.1, ap.0, ap.1) {
                                         entity.direction = dir;
                                     }
                                 }
-                            }
                             entity.enter_hurt(hit.attacked_mt_secs.max(0.288));
 
                             if is_sonic_or_chain {
@@ -186,7 +192,6 @@ impl App {
                             }
                         }
                     }
-                }
             }
 
         }

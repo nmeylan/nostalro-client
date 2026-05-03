@@ -91,8 +91,8 @@ impl App {
     }
 
     pub(crate) fn handle_mouse_wheel(&mut self, delta: MouseScrollDelta) {
-        if self.game.app_state == AppState::InGame {
-            if !self.input.ui_hovered {
+        if self.game.app_state == AppState::InGame
+            && !self.input.ui_hovered {
                 let scroll = match delta {
                     MouseScrollDelta::LineDelta(_, y) => y,
                     MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
@@ -101,7 +101,6 @@ impl App {
                     super::handle_camera_zoom(&mut renderer.camera, scroll);
                 }
             }
-        }
     }
 
     pub(crate) fn handle_keyboard_input(&mut self, event: KeyEvent) {
@@ -112,11 +111,10 @@ impl App {
         {
             match event.physical_key {
                 PhysicalKey::Code(KeyCode::F11) => {
-                    if let Some(renderer) = &mut self.renderer {
-                        if let Some(grid) = &mut renderer.grid_selector {
+                    if let Some(renderer) = &mut self.renderer
+                        && let Some(grid) = &mut renderer.grid_selector {
                             grid.show_grid = !grid.show_grid;
                         }
-                    }
                     self.game.debug_show_pick_bounds = !self.game.debug_show_pick_bounds;
                 }
                 PhysicalKey::Code(KeyCode::Insert) => {

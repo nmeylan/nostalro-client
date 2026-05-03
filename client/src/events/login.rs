@@ -1,8 +1,8 @@
+use super::preload_window;
 use crate::App;
 use ragnarok_game::app_state::AppState;
 use ragnarok_network::session::Session;
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
-use super::preload_window;
 
 impl App {
     pub(super) fn handle_login_accepted(

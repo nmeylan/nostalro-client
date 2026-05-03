@@ -29,6 +29,7 @@ impl App {
         attacked_mt: i32,
         count: i16,
         action: ActionType,
+        skill_name: Option<String>,
     ) {
         let now = self.start_time.elapsed().as_secs_f32();
 
@@ -60,6 +61,15 @@ impl App {
             entity.enter_skill_exec(duration, skill_id, effective_count);
         }
 
+        // Show chat bubble on caster (e.g., "SM_BASH !!")
+        if let Some(name) = skill_name
+            && let Some(entity) = self.game.entities.get_mut(src_gid)
+                && entity.entity_type != ragnarok_game::entity::EntityType::Monster {
+                    entity.chat_bubble = Some(ragnarok_game::entity::ChatBubbleState::new(
+                        format!("{} !!", name),
+                    ));
+                }
+
         let delay_time = (attack_mt as f32 / 2000.0).max(0.0);
         let per_hit_damage = if effective_count > 1 && damage > 0 {
             damage / effective_count as i32
@@ -89,7 +99,7 @@ impl App {
                     skill_id,
                     is_last_hit: i == effective_count - 1,
                     is_critical: false,
-                    hit_index: i as u16,
+                    hit_index: i,
                     attacked_mt_secs: attacked_mt as f32 / 1000.0,
                 });
             }
@@ -110,9 +120,7 @@ impl App {
                     effective_count - 1
                 );
             } else {
-                tracing::warn!(
-                    "Caster entity {src_gid} NOT FOUND for replay scheduling"
-                );
+                tracing::warn!("Caster entity {src_gid} NOT FOUND for replay scheduling");
             }
         }
     }

@@ -90,15 +90,13 @@ impl App {
                                     for clip in &motion.clips {
                                         if let Some((vertices, indices, tex_idx)) =
                                             build_clip_quad(clip, emo_tex, emo_center, entry.depth, [0, 0])
-                                        {
-                                            if tex_idx < emo_tex.bind_groups.len() {
+                                            && tex_idx < emo_tex.bind_groups.len() {
                                                 sprite_batches.push(SpriteBatch {
                                                     vertices,
                                                     indices,
                                                     texture: &emo_tex.bind_groups[tex_idx],
                                                 });
                                             }
-                                        }
                                     }
                                 }
                             }
@@ -106,8 +104,8 @@ impl App {
                     }
                 }
                 RenderEntryKind::FloorItem => {
-                    if let Some(floor_item) = self.game.floor_items.get(&entry.id) {
-                        if let Some((tex, act)) = self.game.floor_item_sprites.get(&entry.id) {
+                    if let Some(floor_item) = self.game.floor_items.get(&entry.id)
+                        && let Some((tex, act)) = self.game.floor_item_sprites.get(&entry.id) {
                             let y_offset = if floor_item.is_falling {
                                 let t = (elapsed - floor_item.drop_time) * 1000.0 / 24.0;
                                 let fall_y = -15.0 + (-0.6 + 0.083 * t as f64) * t as f64;
@@ -164,16 +162,15 @@ impl App {
                                 }
                             }
                         }
-                    }
                 }
             }
         }
 
         let mut inline_textures = Vec::new();
         let mut paperdoll_calls: Vec<UiDrawCall> = Vec::new();
-        if let Some(center) = self.game.equipment_window.character_center() {
-            if let Some(player_id) = self.game.entities.player_id() {
-                if let Some(sprite) = self.game.sprites.get(&player_id) {
+        if let Some(center) = self.game.equipment_window.character_center()
+            && let Some(player_id) = self.game.entities.player_id()
+                && let Some(sprite) = self.game.sprites.get(&player_id) {
                     let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
                     let batches = sprite.build_batches(&idle_anim, None, 0, center, 0.0, 1.0, 0.0);
                     for batch in batches {
@@ -190,8 +187,6 @@ impl App {
                         });
                     }
                 }
-            }
-        }
 
         {
             use ragnarok_game::damage_number::{DamageNumberRenderEntry, build_damage_number_quads};
