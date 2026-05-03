@@ -10,6 +10,8 @@ pub mod data_table;
 pub mod cursor;
 pub mod damage_number;
 pub mod display_name;
+pub mod effect_table;
+pub mod effects;
 pub mod inventory;
 pub mod item;
 pub use cursor::RenderEntry;

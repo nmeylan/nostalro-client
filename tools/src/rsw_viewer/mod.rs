@@ -498,7 +498,7 @@ impl App {
             if let Some(data) = &self.map_data
                 && let Some(renderer) = &mut self.renderer
             {
-                renderer.load_map(&data.gnd, &data.rsw, &grf);
+                renderer.load_map(&data.gnd, &data.rsw, &grf, data.fog);
             }
 
             if let Some(data) = &self.map_data

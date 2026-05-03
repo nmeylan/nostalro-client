@@ -1,6 +1,7 @@
 pub mod act;
 pub mod builtin_accessory_table;
 pub mod builtin_name_table;
+pub mod fog_table;
 pub mod lua_table;
 pub mod gat;
 pub mod gnd;

@@ -17,13 +17,31 @@ struct PointLight {
     color_range: vec4<f32>,
 };
 
+struct FogUniforms {
+    color: vec4<f32>,
+    near: f32,
+    far: f32,
+    factor: f32,
+    enabled: f32,
+};
+
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
 @group(0) @binding(1) var<uniform> light: LightUniforms;
 @group(0) @binding(2) var<storage, read> point_lights: array<PointLight>;
+@group(0) @binding(3) var<uniform> fog: FogUniforms;
 @group(1) @binding(0) var ground_texture: texture_2d<f32>;
 @group(1) @binding(1) var ground_sampler: sampler;
 @group(2) @binding(0) var lightmap_texture: texture_2d<f32>;
 @group(2) @binding(1) var lightmap_sampler: sampler;
+
+fn apply_fog(color: vec3<f32>, view_z: f32) -> vec3<f32> {
+    if (fog.enabled <= 0.0) {
+        return color;
+    }
+    let depth = abs(view_z);
+    let fog_amount = smoothstep(fog.near, fog.far, depth);
+    return mix(color, fog.color.rgb, fog_amount);
+}
 
 fn point_light_attenuation(d: f32, r: f32) -> f32 {
     let n = min(d, r) / (r + 1e-4);
@@ -64,6 +82,7 @@ struct VertexOutput {
     @location(2) normal: vec3<f32>,
     @location(3) color: vec4<f32>,
     @location(4) world_position: vec3<f32>,
+    @location(5) view_z: f32,
 };
 
 @vertex
@@ -75,6 +94,8 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     out.normal = in.normal;
     out.color = in.color;
     out.world_position = in.position;
+    let view_pos = camera.view * vec4<f32>(in.position, 1.0);
+    out.view_z = view_pos.z;
     return out;
 }
 
@@ -91,6 +112,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let pl = point_light_contribution(in.world_position, normalize(in.normal));
     color += tex_color.rgb * pl * in.color.rgb;
+
+    color = apply_fog(color, in.view_z);
 
     let alpha = tex_color.a * in.color.a;
 

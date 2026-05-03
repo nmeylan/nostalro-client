@@ -1,6 +1,7 @@
 mod device;
 pub mod camera;
 pub mod damage_number;
+pub mod effect_sprite;
 pub mod font_atlas;
 pub mod global_uniforms;
 pub mod grid_selector;
@@ -13,7 +14,8 @@ pub mod water;
 
 pub use device::{RenderDevice, block_on};
 pub use camera::Camera;
-pub use global_uniforms::{GlobalUniforms, LightUniform, PointLightGpu};
+pub use global_uniforms::{FogUniform, GlobalUniforms, LightUniform, PointLightGpu};
+
 pub use grid_selector::GridSelectorRenderer;
 pub use ground::GroundRenderer;
 pub use model::ModelRenderer;
@@ -23,8 +25,10 @@ pub use font_atlas::FontAtlas;
 pub use sprite::{SpriteRenderer, SpriteVertex, SpriteBatch, SpriteTextures, SpriteUniforms, build_clip_quad, upload_sprite_textures, build_composite_clips, CompositeClips, ClipQuad, scale_clip_vertices, EntitySprite, build_entity_sprite};
 pub use ui_renderer::{UiRenderer, UiVertex, UiDrawCommand};
 pub use damage_number::render_damage_number_quads;
+pub use effect_sprite::{EffectSpriteCache, EffectSpriteEntry, EmitterDraw, build_emitter_batches, project_billboard};
 pub use wgpu;
 
+use ragnarok_formats::fog_table::FogEntry;
 use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::rsw::{RswFile, RswObject};
@@ -131,7 +135,29 @@ impl Renderer {
         }
     }
 
-    pub fn load_map(&mut self, gnd: &GndFile, rsw: &RswFile, grf: &GrfArchive) {
+    pub fn load_map(
+        &mut self,
+        gnd: &GndFile,
+        rsw: &RswFile,
+        grf: &GrfArchive,
+        fog: Option<FogEntry>,
+    ) {
+        let scale = 120.0 * gnd.zoom;
+        let fog_uniform = match fog {
+            Some(entry) => {
+                FogUniform {
+                    color: [entry.color[0], entry.color[1], entry.color[2], 1.0],
+                    near: entry.near * scale,
+                    far: entry.far * scale,
+                    factor: entry.factor,
+                    enabled: 1.0,
+                }
+            },
+            None => FogUniform::default(),
+        };
+        self.global_uniforms
+            .update_fog(&self.device.queue, &fog_uniform);
+
         // Set camera target to map center
         let center_x = gnd.width as f32 * gnd.zoom / 2.0;
         let center_z = gnd.height as f32 * gnd.zoom / 2.0;

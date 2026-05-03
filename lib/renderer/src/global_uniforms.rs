@@ -29,10 +29,33 @@ pub struct PointLightGpu {
     pub color_range: [f32; 4],
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct FogUniform {
+    pub color: [f32; 4],
+    pub near: f32,
+    pub far: f32,
+    pub factor: f32,
+    pub enabled: f32,
+}
+
+impl Default for FogUniform {
+    fn default() -> Self {
+        Self {
+            color: [0.0; 4],
+            near: 0.0,
+            far: 1.0,
+            factor: 0.0,
+            enabled: 0.0,
+        }
+    }
+}
+
 pub struct GlobalUniforms {
     pub camera_buffer: wgpu::Buffer,
     pub light_buffer: wgpu::Buffer,
     pub point_light_buffer: wgpu::Buffer,
+    pub fog_buffer: wgpu::Buffer,
     pub point_light_capacity: usize,
     pub bind_group_layout: wgpu::BindGroupLayout,
     pub bind_group: wgpu::BindGroup,
@@ -69,6 +92,13 @@ impl GlobalUniforms {
         });
         let point_light_capacity = initial_lights.len();
 
+        let fog_uniform = FogUniform::default();
+        let fog_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("fog_uniform"),
+            contents: bytemuck::cast_slice(&[fog_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("global_uniforms"),
             entries: &[
@@ -102,6 +132,16 @@ impl GlobalUniforms {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -111,12 +151,14 @@ impl GlobalUniforms {
             &camera_buffer,
             &light_buffer,
             &point_light_buffer,
+            &fog_buffer,
         );
 
         Self {
             camera_buffer,
             light_buffer,
             point_light_buffer,
+            fog_buffer,
             point_light_capacity,
             bind_group_layout,
             bind_group,
@@ -129,6 +171,7 @@ impl GlobalUniforms {
         camera_buffer: &wgpu::Buffer,
         light_buffer: &wgpu::Buffer,
         point_light_buffer: &wgpu::Buffer,
+        fog_buffer: &wgpu::Buffer,
     ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("global_uniforms"),
@@ -146,6 +189,10 @@ impl GlobalUniforms {
                     binding: 2,
                     resource: point_light_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: fog_buffer.as_entire_binding(),
+                },
             ],
         })
     }
@@ -157,6 +204,10 @@ impl GlobalUniforms {
 
     pub fn update_light(&self, queue: &wgpu::Queue, light: &LightUniform) {
         queue.write_buffer(&self.light_buffer, 0, bytemuck::cast_slice(&[*light]));
+    }
+
+    pub fn update_fog(&self, queue: &wgpu::Queue, fog: &FogUniform) {
+        queue.write_buffer(&self.fog_buffer, 0, bytemuck::cast_slice(&[*fog]));
     }
 
     /// Replace all point lights. Lights are static for the life of the loaded
@@ -191,6 +242,7 @@ impl GlobalUniforms {
                 &self.camera_buffer,
                 &self.light_buffer,
                 &self.point_light_buffer,
+                &self.fog_buffer,
             );
         } else {
             queue.write_buffer(&self.point_light_buffer, 0, bytemuck::cast_slice(payload));

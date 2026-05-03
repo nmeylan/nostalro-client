@@ -43,6 +43,7 @@ pub struct Config {
     pub window_state: HashMap<u32, WindowStateEntry>,
     pub hotkey_visible_rows: u8,
     pub battle_mode: bool,
+    pub fog: bool,
 }
 
 impl Default for Config {
@@ -65,6 +66,7 @@ impl Default for Config {
             window_state: HashMap::new(),
             hotkey_visible_rows: 1,
             battle_mode: false,
+            fog: false,
         }
     }
 }

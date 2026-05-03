@@ -1,3 +1,6 @@
+use std::sync::OnceLock;
+
+use ragnarok_formats::fog_table::{FogEntry, FogTable};
 use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::grf::GrfArchive;
@@ -10,6 +13,32 @@ pub struct MapData {
     pub gnd: GndFile,
     pub gat: Option<GatFile>,
     pub coordinates: Option<MapCoordinates>,
+    pub fog: Option<FogEntry>,
+}
+
+static FOG_TABLE: OnceLock<Option<FogTable>> = OnceLock::new();
+
+fn fog_table(grf: &GrfArchive) -> Option<&'static FogTable> {
+    FOG_TABLE
+        .get_or_init(|| {
+            match grf.read_file("data/fogparametertable.txt") {
+                Ok(data) => match FogTable::parse(&data) {
+                    Ok(table) => {
+                        tracing::info!("Loaded fog table ({} entries)", table.entries.len());
+                        Some(table)
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to parse fog table: {e}");
+                        None
+                    }
+                },
+                Err(e) => {
+                    tracing::info!("No fog table in GRF: {e}");
+                    None
+                }
+            }
+        })
+        .as_ref()
 }
 
 pub fn load_map_data(grf: &GrfArchive, map_name: &str) -> Option<MapData> {
@@ -62,5 +91,7 @@ pub fn load_map_data(grf: &GrfArchive, map_name: &str) -> Option<MapData> {
             gat_file = Some(gat);
         }
 
-    Some(MapData { rsw, gnd, gat: gat_file, coordinates })
+    let fog = fog_table(grf).and_then(|table| table.get(&format!("{map_name}.rsw")));
+
+    Some(MapData { rsw, gnd, gat: gat_file, coordinates, fog })
 }

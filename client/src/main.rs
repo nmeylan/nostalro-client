@@ -36,7 +36,7 @@ use ragnarok_network::{
     ip_u32_to_string, network_loop,
 };
 use ragnarok_renderer::{
-    GridSelectorRenderer, Renderer, SpriteVertex, UiDrawCall,
+    EffectSpriteCache, GridSelectorRenderer, Renderer, SpriteVertex, UiDrawCall,
     block_on, upload_sprite_textures,
 };
 use ragnarok_ui::context::UiContext;
@@ -94,6 +94,7 @@ struct App {
     saved_window_positions: HashMap<u32, [f32; 2]>,
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
+    effect_sprites: EffectSpriteCache,
     grf: Option<GrfArchive>,
     input: InputState,
     ui_context: Option<UiContext>,
@@ -117,6 +118,7 @@ impl App {
             saved_window_positions,
             window: None,
             renderer: None,
+            effect_sprites: EffectSpriteCache::new(),
             grf: None,
             input: InputState::new(),
             ui_context: None,
@@ -145,9 +147,37 @@ impl App {
         self.game.map_coords = map_data.coordinates;
         self.game.gat = map_data.gat;
 
-        if let Some(renderer) = &mut self.renderer {
-            renderer.load_map(&map_data.gnd, &map_data.rsw, grf);
+        self.game.effects = ragnarok_game::effects::EffectManager::from_rsw(
+            &map_data.rsw, &map_data.gnd,
+        );
 
+        if let Some(renderer) = &mut self.renderer {
+            let fog = if self.config.fog { map_data.fog } else { None };
+            renderer.load_map(&map_data.gnd, &map_data.rsw, grf, fog);
+
+            // Preload sprite assets used by spawned effect emitters once.
+            let mut paths: Vec<&str> = self.game.effects.emitters.iter().filter_map(|e| {
+                use ragnarok_game::effect_table::EffectKind;
+                match &e.kind {
+                    EffectKind::Spr { sprite_path, .. } => Some(*sprite_path),
+                    EffectKind::Smoke3D { sprite_path, .. } => Some(*sprite_path),
+                    EffectKind::Str { .. } => None,
+                }
+            }).collect();
+            paths.sort();
+            paths.dedup();
+            for path in paths {
+                self.effect_sprites.load(
+                    path,
+                    grf,
+                    &renderer.device.device,
+                    &renderer.device.queue,
+                    &renderer.texture_cache.bind_group_layout,
+                );
+            }
+        }
+
+        if let Some(renderer) = &mut self.renderer {
             if let Some(gat) = &self.game.gat {
                 let mut grid = GridSelectorRenderer::new(
                     &renderer.device.device,

@@ -9,6 +9,7 @@ use ragnarok_game::character::Character;
 use ragnarok_game::cursor::{CursorAnimationState, PendingSkillTarget};
 use ragnarok_game::damage_number::DamageNumberManager;
 use ragnarok_game::data_table::DataTable;
+use ragnarok_game::effects::EffectManager;
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::floor_item::FloorItem;
@@ -88,6 +89,7 @@ pub struct GameState {
     pub damage_msg_textures: Option<SpriteTextures>,
     pub damage_msg_act: Option<ragnarok_formats::act::ActFile>,
     pub debug_show_pick_bounds: bool,
+    pub effects: EffectManager,
 }
 
 const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
@@ -340,6 +342,7 @@ impl GameState {
             damage_msg_textures: None,
             damage_msg_act: None,
             debug_show_pick_bounds: false,
+            effects: EffectManager::empty(),
         }
     }
 

@@ -20,5 +20,6 @@ impl App {
         self.load_missing_entity_sprites();
         self.update_sprite_animation(delta);
         self.update_fades(delta);
+        self.game.effects.update(delta);
     }
 }
