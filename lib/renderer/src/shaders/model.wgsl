@@ -12,10 +12,40 @@ struct LightUniforms {
     shadow_strength: f32,
 };
 
+struct PointLight {
+    position: vec4<f32>,
+    color_range: vec4<f32>,
+};
+
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
 @group(0) @binding(1) var<uniform> light: LightUniforms;
+@group(0) @binding(2) var<storage, read> point_lights: array<PointLight>;
 @group(1) @binding(0) var model_texture: texture_2d<f32>;
 @group(1) @binding(1) var model_sampler: sampler;
+
+fn point_light_attenuation(d: f32, r: f32) -> f32 {
+    let n = min(d, r) / (r + 1e-4);
+    let a = saturate(1.0 - n * n);
+    return a * a;
+}
+
+fn point_light_contribution(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+    var acc = vec3<f32>(0.0);
+    let count = arrayLength(&point_lights);
+    for (var i: u32 = 0u; i < count; i = i + 1u) {
+        let lp = point_lights[i].position.xyz;
+        let lc = point_lights[i].color_range.rgb;
+        let lr = point_lights[i].color_range.a;
+        if (lr <= 0.0) { continue; }
+        let to_frag = world_pos - lp;
+        let d = length(to_frag);
+        if (d >= lr) { continue; }
+        let dir = to_frag / max(d, 1e-4);
+        let lambert = max(-dot(dir, normal), 0.0);
+        acc += lc * lambert * point_light_attenuation(d, lr);
+    }
+    return acc;
+}
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -29,6 +59,7 @@ struct VertexOutput {
     @location(0) tex_coord: vec2<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) alpha: f32,
+    @location(3) world_position: vec3<f32>,
 };
 
 @vertex
@@ -38,6 +69,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     out.tex_coord = in.tex_coord;
     out.normal = in.normal;
     out.alpha = in.alpha;
+    out.world_position = in.position;
     return out;
 }
 
@@ -53,6 +85,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let diffuse = light.diffuse_color.rgb * n_dot_l;
     let lighting = diffuse + light.ambient_color.rgb;
 
-    let color = tex_color.rgb * lighting;
+    var color = tex_color.rgb * lighting;
+    let pl = point_light_contribution(in.world_position, normalize(in.normal));
+    color += tex_color.rgb * pl;
+
     return vec4<f32>(color, tex_color.a * in.alpha);
 }

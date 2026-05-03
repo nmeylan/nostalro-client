@@ -97,6 +97,8 @@ type HotGetFlagsFn = unsafe extern "C" fn(*mut (), *mut ViewerFlags);
 type HotGetOverridesFn = unsafe extern "C" fn(*mut (), *mut SceneOverrides);
 type HotBuildOverlayFn =
     unsafe extern "C" fn(*mut (), *const FontAtlas, f32, f32, *mut Vec<UiDrawCall>);
+type HotSetTargetFn = unsafe extern "C" fn(*mut (), f32, f32, f32);
+type HotGetHoverCellFn = unsafe extern "C" fn(*mut (), *mut [i32; 2], *mut u8);
 
 struct HotLib {
     _lib: libloading::Library,
@@ -108,11 +110,13 @@ struct HotLib {
     set_viewport_fn: HotSetViewportFn,
     set_map_info_fn: HotSetMapInfoFn,
     set_hover_cell_fn: HotSetHoverCellFn,
+    get_hover_cell_fn: HotGetHoverCellFn,
     get_camera_fn: HotGetCameraFn,
     set_camera_fn: HotSetCameraFn,
     get_flags_fn: HotGetFlagsFn,
     get_overrides_fn: HotGetOverridesFn,
     build_overlay_fn: HotBuildOverlayFn,
+    set_target_fn: HotSetTargetFn,
     destroy_fn: HotDestroyFn,
 }
 
@@ -136,11 +140,13 @@ impl HotLib {
             set_viewport_fn,
             set_map_info_fn,
             set_hover_cell_fn,
+            get_hover_cell_fn,
             get_camera_fn,
             set_camera_fn,
             get_flags_fn,
             get_overrides_fn,
             build_overlay_fn,
+            set_target_fn,
         ) = unsafe {
             let create: libloading::Symbol<HotCreateFn> = lib.get(b"hot_create").ok()?;
             let destroy: libloading::Symbol<HotDestroyFn> = lib.get(b"hot_destroy").ok()?;
@@ -156,6 +162,8 @@ impl HotLib {
                 lib.get(b"hot_set_map_info").ok()?;
             let set_hover: libloading::Symbol<HotSetHoverCellFn> =
                 lib.get(b"hot_set_hover_cell").ok()?;
+            let get_hover: libloading::Symbol<HotGetHoverCellFn> =
+                lib.get(b"hot_get_hover_cell").ok()?;
             let get_camera: libloading::Symbol<HotGetCameraFn> = lib.get(b"hot_get_camera").ok()?;
             let set_camera: libloading::Symbol<HotSetCameraFn> = lib.get(b"hot_set_camera").ok()?;
             let get_flags: libloading::Symbol<HotGetFlagsFn> = lib.get(b"hot_get_flags").ok()?;
@@ -163,6 +171,8 @@ impl HotLib {
                 lib.get(b"hot_get_overrides").ok()?;
             let build_overlay: libloading::Symbol<HotBuildOverlayFn> =
                 lib.get(b"hot_build_overlay").ok()?;
+            let set_target: libloading::Symbol<HotSetTargetFn> =
+                lib.get(b"hot_set_target").ok()?;
 
             (
                 *create,
@@ -174,11 +184,13 @@ impl HotLib {
                 *set_viewport,
                 *set_map_info,
                 *set_hover,
+                *get_hover,
                 *get_camera,
                 *set_camera,
                 *get_flags,
                 *get_overrides,
                 *build_overlay,
+                *set_target,
             )
         };
 
@@ -193,11 +205,13 @@ impl HotLib {
             set_viewport_fn,
             set_map_info_fn,
             set_hover_cell_fn,
+            get_hover_cell_fn,
             get_camera_fn,
             set_camera_fn,
             get_flags_fn,
             get_overrides_fn,
             build_overlay_fn,
+            set_target_fn,
             destroy_fn,
         })
     }
@@ -294,6 +308,19 @@ impl HotLib {
                 out as *mut Vec<UiDrawCall>,
             )
         };
+    }
+
+    /// Get the current hovered cell from dylib.
+    fn get_hover_cell(&self) -> Option<(i32, i32)> {
+        let mut out = [0i32, 0];
+        let mut valid: u8 = 0;
+        unsafe { (self.get_hover_cell_fn)(self.state, &mut out as *mut _, &mut valid as *mut _) };
+        if valid != 0 { Some((out[0], out[1])) } else { None }
+    }
+
+    /// Click-to-move: set a new camera target (world-space position).
+    fn set_target(&self, x: f32, y: f32, z: f32) {
+        unsafe { (self.set_target_fn)(self.state, x, y, z) };
     }
 }
 
@@ -405,11 +432,10 @@ impl App {
 
         tracing::info!("Loading map: {map_name}");
 
-        if let Some(mut map_data) = map_loader::load_map_data(&grf, &map_name) {
+        if let Some(map_data) = map_loader::load_map_data(&grf, &map_name) {
             let gnd_zoom = map_data.gnd.zoom;
             let gnd_width = map_data.gnd.width;
             let gnd_height = map_data.gnd.height;
-            let gat_option = map_data.gat.take();
 
             // Build the map info payload before moving map_data.
             let model_count = map_data
@@ -446,7 +472,8 @@ impl App {
                 light.shadow_alpha = alpha;
             }
 
-            let (gat_w, gat_h) = gat_option
+            let (gat_w, gat_h) = map_data
+                .gat
                 .as_ref()
                 .map(|g| (g.width, g.height))
                 .unwrap_or((0, 0));
@@ -474,7 +501,8 @@ impl App {
                 renderer.load_map(&data.gnd, &data.rsw, &grf);
             }
 
-            if let Some(ref gat) = gat_option
+            if let Some(data) = &self.map_data
+                && let Some(gat) = data.gat.as_ref()
                 && let Some(renderer) = &mut self.renderer
             {
                 let wgpu_device = &renderer.device.device;
@@ -652,7 +680,10 @@ impl App {
         if dir.y.abs() <= 0.001 {
             return;
         }
-        let t = -target_y / dir.y;
+        let t = (target_y - origin.y) / dir.y;
+        if t < 0.0 {
+            return;
+        }
         let hit_x = origin.x + dir.x * t;
         let hit_z = origin.z + dir.z * t;
 
@@ -689,12 +720,12 @@ impl App {
         }
         let cell = &gat.cells[cell_idx];
         let corners = [
-            [cx as f32 * cell_w, cell.height_nw, cy as f32 * cell_h],
-            [(cx + 1) as f32 * cell_w, cell.height_ne, cy as f32 * cell_h],
-            [cx as f32 * cell_w, cell.height_sw, (cy + 1) as f32 * cell_h],
+            [cx as f32 * cell_w, cell.height_sw, cy as f32 * cell_h],
+            [(cx + 1) as f32 * cell_w, cell.height_se, cy as f32 * cell_h],
+            [cx as f32 * cell_w, cell.height_nw, (cy + 1) as f32 * cell_h],
             [
                 (cx + 1) as f32 * cell_w,
-                cell.height_se,
+                cell.height_ne,
                 (cy + 1) as f32 * cell_h,
             ],
         ];
@@ -911,9 +942,22 @@ impl ApplicationHandler for App {
             }
             WindowEvent::MouseInput { button, state, .. } => match button {
                 winit::event::MouseButton::Left => {
-                    self.mouse_down_left = state == winit::event::ElementState::Pressed;
-                    if self.mouse_down_left {
+                    let pressed = state == winit::event::ElementState::Pressed;
+                    self.mouse_down_left = pressed;
+                    if pressed {
                         self.last_mouse = self.mouse_pos;
+                        // Click-to-move: center the camera on the hovered cell.
+                        if let Some(hot) = &self.hot_lib
+                            && let Some((cx, cy)) = hot.get_hover_cell()
+                            && let Some(coords) = self
+                                .map_data
+                                .as_ref()
+                                .and_then(|m| m.coordinates.as_ref())
+                        {
+                            let (wx, _wy, wz) =
+                                coords.cell_to_world(cx as f32 + 0.5, cy as f32 + 0.5);
+                            hot.set_target(wx, 0.0, wz);
+                        }
                     }
                 }
                 winit::event::MouseButton::Right => {
@@ -930,13 +974,12 @@ impl ApplicationHandler for App {
                 // Hover raycast (host-side; pushes cell to dylib)
                 self.update_hover_from_mouse(position.x as f32, position.y as f32);
 
-                // Drag deltas to dylib
-                if self.mouse_down_left || self.mouse_down_right {
+                // Right-drag = orbit (left-click is reserved for click-to-move).
+                if self.mouse_down_right {
                     let dx = self.mouse_pos.0 - self.last_mouse.0;
                     let dy = self.mouse_pos.1 - self.last_mouse.1;
-                    let button = if self.mouse_down_left { 0 } else { 1 };
                     if let Some(hot) = &self.hot_lib {
-                        hot.on_mouse_drag(dx, dy, button);
+                        hot.on_mouse_drag(dx, dy, 0);
                     }
                     self.last_mouse = self.mouse_pos;
                 }

@@ -23,48 +23,8 @@
       ],
       "open": false,
       "collapsed": false
-    },
-    "900": {
-      "position": [
-        0.0,
-        210.0
-      ],
-      "open": true,
-      "collapsed": false
-    },
-    "210": {
-      "position": [
-        342.0,
-        346.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "800": {
-      "position": [
-        0.0,
-        100.0
-      ],
-      "open": true,
-      "collapsed": false
-    },
-    "110": {
-      "position": [
-        490.0,
-        568.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "1300": {
-      "position": [
-        310.6667,
-        0.0
-      ],
-      "open": false,
-      "collapsed": false
     }
   },
-  "hotkey_visible_rows": 2,
+  "hotkey_visible_rows": 1,
   "battle_mode": false
 }

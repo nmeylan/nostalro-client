@@ -118,6 +118,10 @@ struct State {
 
     // Hover cell (pushed by host after raycast)
     hover_cell: Option<(i32, i32)>,
+
+    // Click-to-move tween state
+    animating: bool,
+    target_goal: [f32; 3],
 }
 
 impl State {
@@ -164,7 +168,7 @@ impl State {
                 self.distance = (self.distance * 0.8).max(20.0);
             }
             ACTION_ZOOM_OUT => {
-                self.distance = (self.distance / 0.8).min(500.0);
+                self.distance = (self.distance / 0.8).min(1500.0);
             }
             ACTION_SHOW_CONTROLS => self.show_info = InfoPanel::Controls,
             ACTION_SHOW_MAP_INFO => self.show_info = InfoPanel::MapInfo,
@@ -173,49 +177,14 @@ impl State {
         }
     }
 
-    fn handle_mouse_drag(&mut self, dx: f32, dy: f32, button: u8) {
+    fn handle_mouse_drag(&mut self, dx: f32, dy: f32, _button: u8) {
         const ORBIT_SENSITIVITY: f32 = 0.005;
-        const PAN_SENSITIVITY: f32 = 0.5;
-
-        match button {
-            0 => {
-                // Left = orbit
-                self.yaw -= dx * ORBIT_SENSITIVITY;
-                self.pitch = (self.pitch - dy * ORBIT_SENSITIVITY)
-                    .clamp(0.1, std::f32::consts::FRAC_PI_2 - 0.01);
-            }
-            1 => {
-                // Right = pan: derive right/up from current orbit basis (no projection needed)
-                let view = build_view_matrix(
-                    glam::Vec3::from(self.target),
-                    self.yaw,
-                    self.pitch,
-                    self.distance,
-                );
-                let right = view.col(0).truncate();
-                let up = view.col(2).truncate();
-                let mut t = glam::Vec3::from(self.target);
-                t -= right * dx * PAN_SENSITIVITY;
-                t += up * dy * PAN_SENSITIVITY;
-                self.target = t.into();
-            }
-            _ => {}
-        }
+        self.yaw -= dx * ORBIT_SENSITIVITY;
+        self.pitch = (self.pitch - dy * ORBIT_SENSITIVITY)
+            .clamp(0.1, std::f32::consts::FRAC_PI_2 - 0.01);
     }
 }
 
-fn build_view_matrix(target: glam::Vec3, yaw: f32, pitch: f32, distance: f32) -> glam::Mat4 {
-    // Mirrors lib/renderer/src/camera.rs eye/view computation closely enough for
-    // pan basis extraction. Native RO coordinates: NEG_Y is up.
-    let cos_p = pitch.cos();
-    let offset = glam::Vec3::new(
-        distance * cos_p * yaw.cos(),
-        -distance * pitch.sin(),
-        distance * cos_p * yaw.sin(),
-    );
-    let eye = target + offset;
-    glam::Mat4::look_at_rh(eye, target, glam::Vec3::NEG_Y)
-}
 
 // === FFI exports ===
 
@@ -228,12 +197,14 @@ pub extern "C" fn hot_create() -> *mut () {
         target: [0.0, 0.0, 0.0],
         viewport_w: 1280.0,
         viewport_h: 800.0,
-        overlay_mode: OverlayMode::Grid,
+        overlay_mode: OverlayMode::Full,
         paused: false,
         show_info: InfoPanel::None,
-        hover_on: false,
+        hover_on: true,
         map: None,
         hover_cell: None,
+        animating: false,
+        target_goal: [0.0, 0.0, 0.0],
     };
     state.default_camera();
     Box::into_raw(Box::new(state)) as *mut ()
@@ -247,8 +218,25 @@ pub unsafe extern "C" fn hot_destroy(state_ptr: *mut ()) {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn hot_update(_state_ptr: *mut (), _dt: f32) {
-    // Camera tweens / lighting transitions land here in a follow-up.
+pub unsafe extern "C" fn hot_update(state_ptr: *mut (), dt: f32) {
+    let state = unsafe { &mut *(state_ptr as *mut State) };
+    // Camera tween: exponential damping toward goal.
+    if state.animating {
+        const TWEEN_RATE: f32 = 12.0; // higher = snappier
+        const SNAP_THRESHOLD: f32 = 0.5;
+
+        let goal = glam::Vec3::from(state.target_goal);
+        let current = glam::Vec3::from(state.target);
+        let dist = (goal - current).length();
+
+        if dist < SNAP_THRESHOLD {
+            state.target = state.target_goal;
+            state.animating = false;
+        } else {
+            let alpha = 1.0 - (-dt * TWEEN_RATE).exp();
+            state.target = current.lerp(goal, alpha).into();
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -263,11 +251,26 @@ pub unsafe extern "C" fn hot_on_mouse_drag(state_ptr: *mut (), dx: f32, dy: f32,
     state.handle_mouse_drag(dx, dy, button);
 }
 
+/// Click-to-move: set a new camera target goal. The tween runs in hot_update.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_set_target(state_ptr: *mut (), x: f32, y: f32, z: f32) {
+    let state = unsafe { &mut *(state_ptr as *mut State) };
+    state.target_goal = [x, y, z];
+    state.animating = true;
+}
+
+/// Cancel any in-progress camera tween.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_cancel_tween(state_ptr: *mut ()) {
+    let state = unsafe { &mut *(state_ptr as *mut State) };
+    state.animating = false;
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hot_on_mouse_wheel(state_ptr: *mut (), dy: f32) {
     let state = unsafe { &mut *(state_ptr as *mut State) };
     if dy < 0.0 {
-        state.distance = (state.distance * 1.1).min(500.0);
+        state.distance = (state.distance * 1.1).min(3000.0);
     } else {
         state.distance = (state.distance / 1.1).max(20.0);
     }
@@ -329,14 +332,26 @@ pub unsafe extern "C" fn hot_set_map_info(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn hot_set_hover_cell(
-    state_ptr: *mut (),
-    cx: i32,
-    cy: i32,
-    valid: u8,
-) {
+pub unsafe extern "C" fn hot_set_hover_cell(state_ptr: *mut (), cx: i32, cy: i32, valid: u8) {
     let state = unsafe { &mut *(state_ptr as *mut State) };
     state.hover_cell = if valid != 0 { Some((cx, cy)) } else { None };
+}
+
+/// Get the current hovered cell from dylib (set by host each frame).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_get_hover_cell(
+    state_ptr: *mut (),
+    out: *mut [i32; 2],
+    valid_out: *mut u8,
+) {
+    let state = unsafe { &*(state_ptr as *const State) };
+    if let Some((cx, cy)) = state.hover_cell {
+        unsafe { *out = [cx, cy] };
+        unsafe { *valid_out = 1 };
+    } else {
+        unsafe { *out = [0, 0] };
+        unsafe { *valid_out = 0 };
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -407,8 +422,8 @@ pub unsafe extern "C" fn hot_build_overlay(
                 "=== RSW Viewer Controls ===",
                 "",
                 "Camera:",
-                "  Left drag    -> Orbit around map",
-                "  Right drag   -> Pan camera",
+                "  Left click   -> Center camera on cell",
+                "  Right drag   -> Orbit around map",
                 "  Scroll wheel -> Zoom in/out",
                 "",
                 "Keyboard:",
@@ -423,7 +438,9 @@ pub unsafe extern "C" fn hot_build_overlay(
                 "  2            -> Show map information",
                 "  Esc          -> Close panel",
             ];
-            out.extend(build_info_panel(atlas, screen_w, screen_h, "Controls", lines));
+            out.extend(build_info_panel(
+                atlas, screen_w, screen_h, "Controls", lines,
+            ));
         }
         InfoPanel::MapInfo => {
             let lines = build_map_info_lines(state);
@@ -581,10 +598,7 @@ fn build_map_info_lines(state: &State) -> Vec<String> {
     lines.push(format!("Name: {}", m.name));
     lines.push(format!("Size: {}x{}", m.gnd_w, m.gnd_h));
     lines.push(format!("Zoom: {:.1}", m.gnd_zoom));
-    lines.push(format!(
-        "Cell size: {:.2}x{:.2}",
-        m.gnd_zoom, m.gnd_zoom
-    ));
+    lines.push(format!("Cell size: {:.2}x{:.2}", m.gnd_zoom, m.gnd_zoom));
     if m.gat_w > 0 && m.gat_h > 0 {
         lines.push(format!("GAT resolution: {}x{}", m.gat_w, m.gat_h));
     }

@@ -13,7 +13,7 @@ pub mod water;
 
 pub use device::{RenderDevice, block_on};
 pub use camera::Camera;
-pub use global_uniforms::{GlobalUniforms, LightUniform};
+pub use global_uniforms::{GlobalUniforms, LightUniform, PointLightGpu};
 pub use grid_selector::GridSelectorRenderer;
 pub use ground::GroundRenderer;
 pub use model::ModelRenderer;
@@ -27,7 +27,7 @@ pub use wgpu;
 
 use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_formats::rsw::RswFile;
+use ragnarok_formats::rsw::{RswFile, RswObject};
 use std::sync::Arc;
 
 /// Texture reference used by UI draw calls, resolved to bind groups at render time.
@@ -162,6 +162,40 @@ impl Renderer {
             self.global_uniforms
                 .update_light(&self.device.queue, &light);
         }
+
+        let scale_factor = gnd.zoom / 10.0;
+        let center_x = gnd.width as f32 * gnd.zoom / 2.0;
+        let center_z = gnd.height as f32 * gnd.zoom / 2.0;
+        let point_lights: Vec<PointLightGpu> = rsw
+            .objects
+            .iter()
+            .filter_map(|obj| {
+                if let RswObject::Light(l) = obj {
+                    Some(PointLightGpu {
+                        position: [
+                            l.position[0] * scale_factor + center_x,
+                            l.position[1] * scale_factor,
+                            l.position[2] * scale_factor + center_z,
+                            0.0,
+                        ],
+                        color_range: [
+                            l.color[0],
+                            l.color[1],
+                            l.color[2],
+                            l.range * scale_factor,
+                        ],
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+        tracing::info!("Loaded {} RSW point lights", point_lights.len());
+        self.global_uniforms.update_point_lights(
+            &self.device.device,
+            &self.device.queue,
+            &point_lights,
+        );
 
         let ground_renderer = GroundRenderer::from_gnd(
             gnd,

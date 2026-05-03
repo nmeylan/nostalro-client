@@ -22,9 +22,18 @@ impl Default for LightUniform {
     }
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct PointLightGpu {
+    pub position: [f32; 4],
+    pub color_range: [f32; 4],
+}
+
 pub struct GlobalUniforms {
     pub camera_buffer: wgpu::Buffer,
     pub light_buffer: wgpu::Buffer,
+    pub point_light_buffer: wgpu::Buffer,
+    pub point_light_capacity: usize,
     pub bind_group_layout: wgpu::BindGroupLayout,
     pub bind_group: wgpu::BindGroup,
 }
@@ -46,6 +55,19 @@ impl GlobalUniforms {
             contents: bytemuck::cast_slice(&[light_uniform]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
+
+        // Storage buffers must be non-empty; seed with one zero-range light that
+        // the shader skips via `if (lr <= 0.0) continue;`.
+        let initial_lights = [PointLightGpu {
+            position: [0.0; 4],
+            color_range: [0.0; 4],
+        }];
+        let point_light_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("point_lights"),
+            contents: bytemuck::cast_slice(&initial_lights),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+        let point_light_capacity = initial_lights.len();
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("global_uniforms"),
@@ -70,12 +92,47 @@ impl GlobalUniforms {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let bind_group = Self::create_bind_group(
+            device,
+            &bind_group_layout,
+            &camera_buffer,
+            &light_buffer,
+            &point_light_buffer,
+        );
+
+        Self {
+            camera_buffer,
+            light_buffer,
+            point_light_buffer,
+            point_light_capacity,
+            bind_group_layout,
+            bind_group,
+        }
+    }
+
+    fn create_bind_group(
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+        camera_buffer: &wgpu::Buffer,
+        light_buffer: &wgpu::Buffer,
+        point_light_buffer: &wgpu::Buffer,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("global_uniforms"),
-            layout: &bind_group_layout,
+            layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -85,15 +142,12 @@ impl GlobalUniforms {
                     binding: 1,
                     resource: light_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: point_light_buffer.as_entire_binding(),
+                },
             ],
-        });
-
-        Self {
-            camera_buffer,
-            light_buffer,
-            bind_group_layout,
-            bind_group,
-        }
+        })
     }
 
     pub fn update_camera(&self, queue: &wgpu::Queue, camera: &Camera) {
@@ -103,5 +157,43 @@ impl GlobalUniforms {
 
     pub fn update_light(&self, queue: &wgpu::Queue, light: &LightUniform) {
         queue.write_buffer(&self.light_buffer, 0, bytemuck::cast_slice(&[*light]));
+    }
+
+    /// Replace all point lights. Lights are static for the life of the loaded
+    /// map; reupload on map change. The buffer is grown when needed; the bind
+    /// group is rebuilt on grow because the underlying buffer is new.
+    pub fn update_point_lights(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        lights: &[PointLightGpu],
+    ) {
+        use wgpu::util::DeviceExt;
+
+        // Always upload at least one entry — wgpu disallows zero-size storage
+        // buffers, and the shader skips zero-range entries.
+        let sentinel = [PointLightGpu {
+            position: [0.0; 4],
+            color_range: [0.0; 4],
+        }];
+        let payload: &[PointLightGpu] = if lights.is_empty() { &sentinel } else { lights };
+
+        if payload.len() > self.point_light_capacity {
+            self.point_light_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("point_lights"),
+                contents: bytemuck::cast_slice(payload),
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            });
+            self.point_light_capacity = payload.len();
+            self.bind_group = Self::create_bind_group(
+                device,
+                &self.bind_group_layout,
+                &self.camera_buffer,
+                &self.light_buffer,
+                &self.point_light_buffer,
+            );
+        } else {
+            queue.write_buffer(&self.point_light_buffer, 0, bytemuck::cast_slice(payload));
+        }
     }
 }
