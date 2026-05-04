@@ -152,9 +152,92 @@ pub fn project_billboard(
         world_pos[0], world_pos[1], world_pos[2], screen_w, screen_h,
     )?;
     let ppu = camera.perspective_scale(world_pos[0], world_pos[1], world_pos[2], screen_h);
-    // Empirically the same scale used for entity sprites; effect sprites
-    // are authored at the same pixel pitch.
     let sprite_scale = ppu / 7.5;
     Some(([sx, sy], ndc_z, sprite_scale))
+}
+
+/// Renderer-side description of a single SPR-based effect emitter.
+pub enum SpriteEffectEmitter<'a> {
+    Spr {
+        sprite_path: &'a str,
+        duration_ms: f32,
+        position: [f32; 3],
+        color: [f32; 4],
+        size_scale: f32,
+        anim_time: f32,
+    },
+    Smoke3D {
+        sprite_path: &'a str,
+        alpha_max: f32,
+        color: [f32; 4],
+        size_scale: f32,
+        particles: Vec<([f32; 3], f32, f32)>,
+    },
+}
+
+/// Collect [`EmitterDraw`] entries from emitters. Shared between the game
+/// client and rsw-viewer so the projection / animation logic is not
+/// duplicated.
+pub fn collect_sprite_effect_draws<'a>(
+    emitters: &[SpriteEffectEmitter<'a>],
+    cache: &'a EffectSpriteCache,
+    camera: &Camera,
+    screen_w: f32,
+    screen_h: f32,
+) -> Vec<EmitterDraw<'a>> {
+    let mut draws = Vec::new();
+    for emitter in emitters {
+        match emitter {
+            SpriteEffectEmitter::Spr {
+                sprite_path, duration_ms, position, color, size_scale, anim_time,
+            } => {
+                let Some(sprite) = cache.get(sprite_path) else { continue };
+                let Some((anchor, depth, sprite_scale)) =
+                    project_billboard(camera, *position, screen_w, screen_h)
+                else { continue };
+                let action = sprite.act.actions.first();
+                let motion_count = action.map(|a| a.motions.len()).unwrap_or(0);
+                if motion_count == 0 { continue; }
+                let act_delay_ms = sprite.act.delays.first().copied().unwrap_or(0.0) * 25.0;
+                let frame_delay_ms = if act_delay_ms > 0.0 {
+                    act_delay_ms
+                } else {
+                    (duration_ms / motion_count as f32).max(1.0)
+                };
+                let motion_index = ((anim_time * 1000.0) / frame_delay_ms) as usize % motion_count;
+                draws.push(EmitterDraw {
+                    sprite,
+                    screen_anchor: anchor,
+                    depth,
+                    sprite_scale: sprite_scale * size_scale,
+                    motion_index,
+                    color: *color,
+                });
+            }
+            SpriteEffectEmitter::Smoke3D {
+                sprite_path, alpha_max, color, size_scale, particles,
+            } => {
+                let Some(sprite) = cache.get(sprite_path) else { continue };
+                for &(pos, age, lifetime) in particles {
+                    let t = (age / lifetime).clamp(0.0, 1.0);
+                    let alpha = (1.0 - t) * alpha_max;
+                    if alpha <= 0.01 { continue; }
+                    let Some((anchor, depth, sprite_scale)) =
+                        project_billboard(camera, pos, screen_w, screen_h)
+                    else { continue };
+                    draws.push(EmitterDraw {
+                        sprite,
+                        screen_anchor: anchor,
+                        depth,
+                        sprite_scale: sprite_scale * size_scale,
+                        motion_index: 0,
+                        color: [color[0], color[1], color[2], color[3] * alpha],
+                    });
+                }
+            }
+        }
+    }
+    draws.sort_by(|a, b| b.depth.partial_cmp(&a.depth).unwrap_or(std::cmp::Ordering::Equal));
+    draws
 }
 

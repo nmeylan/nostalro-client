@@ -6,7 +6,13 @@ use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 
 use ragnarok_formats::grf::GrfArchive;
+use ragnarok_game::effect_table::EffectKind;
+use ragnarok_game::effects::EffectManager;
 use ragnarok_game::map_loader::{self, MapData};
+use ragnarok_renderer::effect_sprite::{
+    EffectSpriteCache, SpriteEffectEmitter, build_emitter_batches,
+    collect_sprite_effect_draws,
+};
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{block_on, UiDrawCall};
 use winit::application::ApplicationHandler;
@@ -376,6 +382,10 @@ struct App {
     mouse_down_right: bool,
     last_mouse: (f32, f32),
 
+    // Effects
+    effects: EffectManager,
+    effect_sprites: EffectSpriteCache,
+
     // Hot-reload
     hot_lib: Option<HotLib>,
     dylib_path: PathBuf,
@@ -404,6 +414,8 @@ impl App {
             mouse_down_left: false,
             mouse_down_right: false,
             last_mouse: (0.0, 0.0),
+            effects: EffectManager::empty(),
+            effect_sprites: EffectSpriteCache::new(),
             hot_lib,
             dylib_path,
             last_dylib_mtime,
@@ -493,12 +505,33 @@ impl App {
             self.push_map_info_to_dylib(&cache);
             self.cached_map = Some(cache);
 
+            self.effects = EffectManager::from_rsw(&map_data.rsw, &map_data.gnd);
+
             self.map_data = Some(map_data);
 
             if let Some(data) = &self.map_data
                 && let Some(renderer) = &mut self.renderer
             {
                 renderer.load_map(&data.gnd, &data.rsw, &grf, data.fog);
+
+                let mut paths: Vec<&str> = self.effects.emitters.iter().filter_map(|e| {
+                    match &e.kind {
+                        EffectKind::Spr { sprite_path, .. } => Some(*sprite_path),
+                        EffectKind::Smoke3D { sprite_path, .. } => Some(*sprite_path),
+                        EffectKind::Str { .. } => None,
+                    }
+                }).collect();
+                paths.sort();
+                paths.dedup();
+                for path in paths {
+                    self.effect_sprites.load(
+                        path,
+                        &grf,
+                        &renderer.device.device,
+                        &renderer.device.queue,
+                        &renderer.texture_cache.bind_group_layout,
+                    );
+                }
             }
 
             if let Some(data) = &self.map_data
@@ -766,6 +799,18 @@ impl App {
         let height = renderer.device.surface_config.height as f32;
         let elapsed = if paused { 0.0 } else { dt };
 
+        if !paused {
+            self.effects.update(dt);
+        }
+
+        let screen_w = width / renderer.dpi_scale;
+        let screen_h = height / renderer.dpi_scale;
+        let emitter_inputs = build_sprite_effect_inputs(&self.effects);
+        let effect_draws = collect_sprite_effect_draws(
+            &emitter_inputs, &self.effect_sprites, &renderer.camera, screen_w, screen_h,
+        );
+        let sprite_batches = build_emitter_batches(&effect_draws);
+
         let mut draw_calls: Vec<UiDrawCall> = Vec::new();
         if let Some(browser) = &self.browser {
             draw_calls.extend(browser.build_draw_calls(&renderer.font_atlas, width, height));
@@ -773,7 +818,7 @@ impl App {
             hot.build_overlay(&renderer.font_atlas, width, height, &mut draw_calls);
         }
 
-        renderer.render(&draw_calls, &[], &[], &[], elapsed);
+        renderer.render(&draw_calls, &sprite_batches, &[], &[], elapsed);
     }
 }
 
@@ -1006,4 +1051,36 @@ pub fn run(args: Args) {
     let event_loop = EventLoop::new().unwrap();
     let mut app = App::new(args);
     event_loop.run_app(&mut app).unwrap();
+}
+
+fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteEffectEmitter<'_>> {
+    let mut inputs = Vec::new();
+    for emitter in &effects.emitters {
+        match &emitter.kind {
+            EffectKind::Spr { sprite_path, duration_ms } => {
+                inputs.push(SpriteEffectEmitter::Spr {
+                    sprite_path,
+                    duration_ms: *duration_ms,
+                    position: emitter.position,
+                    color: emitter.color,
+                    size_scale: emitter.size_scale,
+                    anim_time: emitter.anim_time,
+                });
+            }
+            EffectKind::Smoke3D { sprite_path, alpha_max, .. } => {
+                let particles = emitter.particles.iter()
+                    .map(|p| (p.position, p.age, p.lifetime))
+                    .collect();
+                inputs.push(SpriteEffectEmitter::Smoke3D {
+                    sprite_path,
+                    alpha_max: *alpha_max,
+                    color: emitter.color,
+                    size_scale: emitter.size_scale,
+                    particles,
+                });
+            }
+            EffectKind::Str { .. } => {}
+        }
+    }
+    inputs
 }

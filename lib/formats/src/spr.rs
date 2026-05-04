@@ -49,12 +49,16 @@ impl SprImage {
         let w = self.width as u32;
         let h = self.height as u32;
         let mut data = vec![0u8; (w * h * 4) as usize];
-        for (i, chunk) in self.data.chunks_exact(4).enumerate() {
-            let offset = i * 4;
-            data[offset] = chunk[3];     // R
-            data[offset + 1] = chunk[2]; // G
-            data[offset + 2] = chunk[1]; // B
-            data[offset + 3] = chunk[0]; // A
+        for y in 0..h as usize {
+            let dst_y = (h as usize - 1) - y;
+            for x in 0..w as usize {
+                let src = (y * w as usize + x) * 4;
+                let dst = (dst_y * w as usize + x) * 4;
+                data[dst] = self.data[src + 3];     // R
+                data[dst + 1] = self.data[src + 2]; // G
+                data[dst + 2] = self.data[src + 1]; // B
+                data[dst + 3] = self.data[src];     // A
+            }
         }
         RgbaImageData { width: w, height: h, data }
     }
@@ -219,6 +223,28 @@ mod tests {
         };
         let img = sprite.swizzle_pixel_bytes();
         assert_eq!(&img.data, &[150, 100, 50, 200]);
+    }
+
+    #[test]
+    fn swizzle_flips_rows_vertically() {
+        let sprite = SprImage {
+            width: 2, height: 2,
+            data: vec![
+                // row 0 (top in file = bottom in image): px(0,0) ABGR, px(1,0) ABGR
+                255, 10, 20, 30,   255, 40, 50, 60,
+                // row 1 (bottom in file = top in image): px(0,1) ABGR, px(1,1) ABGR
+                255, 70, 80, 90,   255, 100, 110, 120,
+            ],
+        };
+        let img = sprite.swizzle_pixel_bytes();
+        assert_eq!(img.width, 2);
+        assert_eq!(img.height, 2);
+        // row 0 of output should be file row 1 (flipped), swizzled ABGR→RGBA
+        assert_eq!(&img.data[0..4], &[90, 80, 70, 255]);
+        assert_eq!(&img.data[4..8], &[120, 110, 100, 255]);
+        // row 1 of output should be file row 0 (flipped), swizzled
+        assert_eq!(&img.data[8..12], &[30, 20, 10, 255]);
+        assert_eq!(&img.data[12..16], &[60, 50, 40, 255]);
     }
 
     #[test]

@@ -3,21 +3,40 @@ use ragnarok_formats::rsw::{RswFile, RswObject};
 
 use crate::effect_table::{EffectKind, effect_kind};
 
+fn resolve_str_file(pattern: &str, rand_range: Option<(u32, u32)>) -> String {
+    if let Some((lo, hi)) = rand_range {
+        let n = lo + (rand_u32() % (hi - lo + 1));
+        pattern.replace("%d", &n.to_string())
+    } else {
+        pattern.to_string()
+    }
+}
+
+fn rand_u32() -> u32 {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut h = DefaultHasher::new();
+    std::time::Instant::now().hash(&mut h);
+    std::thread::current().id().hash(&mut h);
+    h.finish() as u32
+}
+
 /// One spawned RSW ambient effect emitter. Position is already in renderer
 /// world coordinates (centered, y from height grid). Units match the
 /// ground/water meshes.
 pub struct EffectEmitter {
     pub kind: EffectKind,
     pub position: [f32; 3],
-    /// Per-emitter color tint from `RswEffect::param[0..3]`. Defaults to
-    /// white if the emitter doesn't override it.
     pub color: [f32; 4],
     /// Time accumulator since spawn (seconds).
     pub anim_time: f32,
-    /// Particles per second; used by 3D smoke emitters. For Spr emitters
-    /// this is purely informational (animation runs at fixed FPS from the
-    /// effect kind).
+    /// Particles per second.
     pub emit_rate: f32,
+    /// Per-emitter size multiplier derived from RSW params.
+    pub size_scale: f32,
+    /// Resolved STR filename for `EffectKind::Str` emitters (pattern with
+    /// `%d` replaced by a random value from `rand_range`).
+    pub str_file: Option<String>,
     /// Time of next particle emission (seconds since spawn). For non-3D
     /// emitters this is unused.
     next_emit_at: f32,
@@ -65,14 +84,37 @@ impl EffectManager {
                 skipped += 1;
                 continue;
             };
-            let color = if eff.param[0] > 0.0 || eff.param[1] > 0.0 || eff.param[2] > 0.0 {
-                [eff.param[0], eff.param[1], eff.param[2], 1.0]
-            } else {
-                [1.0, 1.0, 1.0, 1.0]
+            // Param interpretation is effect-type-specific.
+            let (color, size_scale) = match &kind {
+                EffectKind::Spr { .. } => {
+                    // param[0..2] is an RGB color tint (e.g. orange torches)
+                    let c = if eff.param[0] > 0.0 || eff.param[1] > 0.0 || eff.param[2] > 0.0 {
+                        [eff.param[0], eff.param[1], eff.param[2], 1.0]
+                    } else {
+                        [1.0, 1.0, 1.0, 1.0]
+                    };
+                    (c, 1.0)
+                }
+                EffectKind::Smoke3D { .. } => {
+                    // param[0] = size percentage, param[1] = emission delay modifier
+                    let sz = if eff.param[0] > 0.0 { eff.param[0] / 100.0 } else { 1.0 };
+                    ([1.0, 1.0, 1.0, 1.0], sz)
+                }
+                EffectKind::Str { .. } => ([1.0, 1.0, 1.0, 1.0], 1.0),
+            };
+            let str_file = match &kind {
+                EffectKind::Str { file_pattern, rand_range } => {
+                    Some(resolve_str_file(file_pattern, *rand_range))
+                }
+                _ => None,
+            };
+            let y_offset = match &kind {
+                EffectKind::Spr { .. } => -gnd.zoom,
+                _ => 0.0,
             };
             let world = [
                 eff.position[0] * scale_factor + center_x,
-                eff.position[1] * scale_factor,
+                eff.position[1] * scale_factor + y_offset,
                 eff.position[2] * scale_factor + center_z,
             ];
             let emit_rate = eff.emit_speed.max(0.1);
@@ -82,6 +124,8 @@ impl EffectManager {
                 color,
                 anim_time: 0.0,
                 emit_rate,
+                size_scale,
+                str_file,
                 next_emit_at: 0.0,
                 particles: Vec::new(),
             });
@@ -145,16 +189,16 @@ mod tests {
     use super::*;
     use ragnarok_formats::rsw::{LightSettings, RswEffect, WaterSettings};
 
-    fn make_rsw(effects: Vec<(u32, [f32; 3])>) -> RswFile {
+    fn make_rsw_with_params(effects: Vec<(u32, [f32; 3], [f32; 4])>) -> RswFile {
         let objects = effects
             .into_iter()
-            .map(|(t, pos)| {
+            .map(|(t, pos, param)| {
                 RswObject::Effect(RswEffect {
                     name: String::from("test"),
                     position: pos,
                     effect_type: t,
                     emit_speed: 4.0,
-                    param: [0.0; 4],
+                    param,
                 })
             })
             .collect();
@@ -189,6 +233,32 @@ mod tests {
                 surface_up: -1, surface_south: -1, surface_east: -1,
             }).collect(),
         }
+    }
+
+    fn make_rsw(effects: Vec<(u32, [f32; 3])>) -> RswFile {
+        make_rsw_with_params(
+            effects.into_iter().map(|(t, pos)| (t, pos, [0.0; 4])).collect()
+        )
+    }
+
+    #[test]
+    fn smoke_params_set_size_not_color() {
+        let rsw = make_rsw_with_params(vec![
+            (44, [0.0, 0.0, 0.0], [35.0, 35.0, 0.0, 0.0]),
+            (47, [0.0, 0.0, 0.0], [1.0, 0.6, 0.0, 0.0]),
+        ]);
+        let gnd = make_gnd();
+        let mgr = EffectManager::from_rsw(&rsw, &gnd);
+
+        let smoke = &mgr.emitters[0];
+        assert!(matches!(smoke.kind, EffectKind::Smoke3D { .. }));
+        assert_eq!(smoke.color, [1.0, 1.0, 1.0, 1.0]);
+        assert!((smoke.size_scale - 0.35).abs() < 0.001);
+
+        let torch = &mgr.emitters[1];
+        assert!(matches!(torch.kind, EffectKind::Spr { .. }));
+        assert_eq!(torch.color, [1.0, 0.6, 0.0, 1.0]);
+        assert_eq!(torch.size_scale, 1.0);
     }
 
     #[test]

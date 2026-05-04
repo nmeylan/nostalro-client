@@ -25,7 +25,7 @@ pub use font_atlas::FontAtlas;
 pub use sprite::{SpriteRenderer, SpriteVertex, SpriteBatch, SpriteTextures, SpriteUniforms, build_clip_quad, upload_sprite_textures, build_composite_clips, CompositeClips, ClipQuad, scale_clip_vertices, EntitySprite, build_entity_sprite};
 pub use ui_renderer::{UiRenderer, UiVertex, UiDrawCommand};
 pub use damage_number::render_damage_number_quads;
-pub use effect_sprite::{EffectSpriteCache, EffectSpriteEntry, EmitterDraw, build_emitter_batches, project_billboard};
+pub use effect_sprite::{EffectSpriteCache, EffectSpriteEntry, EmitterDraw, SpriteEffectEmitter, build_emitter_batches, collect_sprite_effect_draws, project_billboard};
 pub use wgpu;
 
 use ragnarok_formats::fog_table::FogEntry;

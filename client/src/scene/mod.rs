@@ -1,11 +1,13 @@
 use crate::{App, ClipData};
 use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
 use ragnarok_game::effect_table::EffectKind;
+use ragnarok_game::effects::EffectManager;
 use ragnarok_game::shadow::shadow_size;
+use ragnarok_renderer::effect_sprite::SpriteEffectEmitter;
 use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_renderer::{
-    EmitterDraw, SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad,
-    build_emitter_batches, project_billboard, scale_clip_vertices,
+    SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad,
+    build_emitter_batches, collect_sprite_effect_draws, scale_clip_vertices,
 };
 
 impl App {
@@ -266,79 +268,13 @@ impl App {
         all_ui_calls.extend(skill_level_calls);
 
         if let Some(renderer) = &mut self.renderer {
-            // Build billboarded effect batches (SPR torches, 3D smoke
-            // particles). STR-typed emitters are kept in EffectManager but
-            // skipped here — STR animation rendering is out of scope for
-            // this milestone.
             let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
             let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
-            let mut effect_draws: Vec<EmitterDraw> = Vec::new();
-            for emitter in &self.game.effects.emitters {
-                match &emitter.kind {
-                    EffectKind::Spr { sprite_path, duration_ms } => {
-                        let Some(sprite) = self.effect_sprites.get(sprite_path) else { continue };
-                        let Some((anchor, depth, sprite_scale)) =
-                            project_billboard(&renderer.camera, emitter.position, screen_w, screen_h)
-                        else { continue };
-                        let action = sprite.act.actions.first();
-                        let motion_count = action.map(|a| a.motions.len()).unwrap_or(0);
-                        if motion_count == 0 { continue; }
-                        let act_delay_ms = sprite.act.delays.first().copied().unwrap_or(0.0) * 25.0;
-                        let frame_delay_ms = if act_delay_ms > 0.0 {
-                            act_delay_ms
-                        } else {
-                            (duration_ms / motion_count as f32).max(1.0)
-                        };
-                        let motion_index = ((emitter.anim_time * 1000.0) / frame_delay_ms) as usize % motion_count;
-                        effect_draws.push(EmitterDraw {
-                            sprite,
-                            screen_anchor: anchor,
-                            depth,
-                            sprite_scale,
-                            motion_index,
-                            color: emitter.color,
-                        });
-                    }
-                    EffectKind::Smoke3D { sprite_path, alpha_max, .. } => {
-                        let Some(sprite) = self.effect_sprites.get(sprite_path) else { continue };
-                        for particle in &emitter.particles {
-                            let t = (particle.age / particle.lifetime).clamp(0.0, 1.0);
-                            let alpha = (1.0 - t) * *alpha_max;
-                            if alpha <= 0.01 { continue; }
-                            let Some((anchor, depth, sprite_scale)) =
-                                project_billboard(&renderer.camera, particle.position, screen_w, screen_h)
-                            else { continue };
-                            effect_draws.push(EmitterDraw {
-                                sprite,
-                                screen_anchor: anchor,
-                                depth,
-                                sprite_scale,
-                                motion_index: 0,
-                                color: [
-                                    emitter.color[0],
-                                    emitter.color[1],
-                                    emitter.color[2],
-                                    emitter.color[3] * alpha,
-                                ],
-                            });
-                        }
-                    }
-                    EffectKind::Str { .. } => {
-                        // STR effect rendering is out of scope; emitter is
-                        // kept in the manager so a later renderer pass can
-                        // pick it up without revisiting the data path.
-                    }
-                }
-            }
-            // Sort effects back-to-front by depth so alpha blending stacks
-            // correctly with each other (the 3D scene already wrote the
-            // depth buffer, and the sprite pipeline tests against it).
-            effect_draws.sort_by(|a, b| {
-                b.depth.partial_cmp(&a.depth).unwrap_or(std::cmp::Ordering::Equal)
-            });
+            let emitter_inputs = crate::scene::build_sprite_effect_inputs(&self.game.effects);
+            let effect_draws = collect_sprite_effect_draws(
+                &emitter_inputs, &self.effect_sprites, &renderer.camera, screen_w, screen_h,
+            );
             let mut effect_batches = build_emitter_batches(&effect_draws);
-            // Render effects before sprites so character sprites, damage
-            // numbers, and HUD overlays remain on top.
             effect_batches.append(&mut sprite_batches);
             let sprite_batches = effect_batches;
 
@@ -351,4 +287,36 @@ impl App {
             );
         }
     }
+}
+
+pub(crate) fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteEffectEmitter<'_>> {
+    let mut inputs = Vec::new();
+    for emitter in &effects.emitters {
+        match &emitter.kind {
+            EffectKind::Spr { sprite_path, duration_ms } => {
+                inputs.push(SpriteEffectEmitter::Spr {
+                    sprite_path,
+                    duration_ms: *duration_ms,
+                    position: emitter.position,
+                    color: emitter.color,
+                    size_scale: emitter.size_scale,
+                    anim_time: emitter.anim_time,
+                });
+            }
+            EffectKind::Smoke3D { sprite_path, alpha_max, .. } => {
+                let particles = emitter.particles.iter()
+                    .map(|p| (p.position, p.age, p.lifetime))
+                    .collect();
+                inputs.push(SpriteEffectEmitter::Smoke3D {
+                    sprite_path,
+                    alpha_max: *alpha_max,
+                    color: emitter.color,
+                    size_scale: emitter.size_scale,
+                    particles,
+                });
+            }
+            EffectKind::Str { .. } => {}
+        }
+    }
+    inputs
 }

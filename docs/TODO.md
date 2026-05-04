@@ -18,7 +18,7 @@ TODO:
 # Rendering
 - STR effects (skill/buff visuals, ~200 effect types)
 - Particle system (2D/3D particles for skills, weather, buffs)
-- Fog
+- ~~Fog~~
 - Weather (rain, snow, sakura)
 - Day/night cycle (lighting changes)
 - Granny models (emperium, guardian)
