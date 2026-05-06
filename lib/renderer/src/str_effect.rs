@@ -6,17 +6,22 @@ use ragnarok_formats::str_effect::{EffectLayer, StrEffectFile};
 use crate::camera::Camera;
 use crate::effect_sprite::project_billboard;
 use crate::sprite::{SpriteBatch, SpriteVertex};
-use crate::texture::TextureCache;
+use crate::texture::{TextureCache, create_texture_bind_group};
 
 /// Cached STR effect file with resolved texture paths per layer.
 pub struct StrEffectEntry {
     pub str_file: StrEffectFile,
     /// `texture_paths[layer_idx][tex_idx]` = GRF path for that texture.
     pub texture_paths: Vec<Vec<String>>,
+    /// Cloned bind groups for each texture, indexed parallel to `texture_paths`.
+    /// `None` entries indicate the texture failed to load.
+    pub bind_groups: Vec<Vec<Option<wgpu::BindGroup>>>,
 }
 
-/// Caches loaded STR effect files and preloads their textures into
-/// [`TextureCache`].
+/// Caches loaded STR effect files and their black-keyed textures.
+/// Textures are loaded directly (not via [`TextureCache`]) so we can convert
+/// the all-black background pixels into transparent ones, matching the
+/// original game's additive-blend STR effect rendering.
 pub struct StrEffectCache {
     entries: HashMap<String, StrEffectEntry>,
 }
@@ -29,7 +34,9 @@ impl Default for StrEffectCache {
 
 impl StrEffectCache {
     pub fn new() -> Self {
-        Self { entries: HashMap::new() }
+        Self {
+            entries: HashMap::new(),
+        }
     }
 
     pub fn load(
@@ -60,27 +67,84 @@ impl StrEffectCache {
             }
         };
 
+        let layout = &texture_cache.bind_group_layout;
         let mut texture_paths = Vec::with_capacity(str_file.layers.len());
+        let mut bind_groups = Vec::with_capacity(str_file.layers.len());
         for layer in &str_file.layers {
             let mut paths = Vec::with_capacity(layer.textures.len());
+            let mut bgs: Vec<Option<wgpu::BindGroup>> = Vec::with_capacity(layer.textures.len());
             for tex_name in &layer.textures {
                 let tex_path = format!("data/texture/effect/{tex_name}");
-                texture_cache.get_or_load(&tex_path, grf, device, queue, false);
+                let bg = load_str_texture(&tex_path, grf, device, queue, layout);
+                bgs.push(bg);
                 paths.push(tex_path);
             }
             texture_paths.push(paths);
+            bind_groups.push(bgs);
         }
 
-        self.entries.insert(name.to_string(), StrEffectEntry {
-            str_file,
-            texture_paths,
-        });
+        self.entries.insert(
+            name.to_string(),
+            StrEffectEntry {
+                str_file,
+                texture_paths,
+                bind_groups,
+            },
+        );
         true
     }
 
     pub fn get(&self, name: &str) -> Option<&StrEffectEntry> {
         self.entries.get(name)
     }
+}
+
+fn load_str_texture(
+    path: &str,
+    grf: &GrfArchive,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    layout: &wgpu::BindGroupLayout,
+) -> Option<wgpu::BindGroup> {
+    let data = match grf.read_file(path) {
+        Ok(d) => d,
+        Err(e) => {
+            tracing::warn!("STR texture missing: {path} ({e})");
+            return None;
+        }
+    };
+
+    let img = match image::load_from_memory(&data) {
+        Ok(i) => i,
+        Err(_) => {
+            let fmt = if path.ends_with(".tga") {
+                image::ImageFormat::Tga
+            } else if path.ends_with(".bmp") {
+                image::ImageFormat::Bmp
+            } else if path.ends_with(".png") {
+                image::ImageFormat::Png
+            } else {
+                tracing::warn!("STR texture decode failed: {path}");
+                return None;
+            };
+            match image::load_from_memory_with_format(&data, fmt) {
+                Ok(i) => i,
+                Err(e) => {
+                    tracing::warn!("STR texture decode failed: {path} ({e})");
+                    return None;
+                }
+            }
+        }
+    };
+
+    let mut rgba = img.to_rgba8();
+    for px in rgba.pixels_mut() {
+        if px[0] == 0 && px[1] == 0 && px[2] == 0 {
+            px[3] = 0;
+        }
+    }
+
+    Some(create_texture_bind_group(device, queue, &rgba, layout, path))
 }
 
 struct LayerAnim {
@@ -94,8 +158,12 @@ struct LayerAnim {
 
 fn calculate_layer_anim(layer: &EffectLayer, key_index: f32) -> LayerAnim {
     let invisible = LayerAnim {
-        visible: false, texture_index: 0, positions: [0.0; 8],
-        color: [1.0; 4], angle: 0.0, offset: [0.0; 2],
+        visible: false,
+        texture_index: 0,
+        positions: [0.0; 8],
+        color: [1.0; 4],
+        angle: 0.0,
+        offset: [0.0; 2],
     };
 
     let frames = &layer.frames;
@@ -110,8 +178,12 @@ fn calculate_layer_anim(layer: &EffectLayer, key_index: f32) -> LayerAnim {
 
     for (i, f) in frames.iter().enumerate() {
         if f.frame_index as f32 <= key_index {
-            if f.frame_type == 0 { from_id = Some(i); }
-            if f.frame_type == 1 { to_id = Some(i); }
+            if f.frame_type == 0 {
+                from_id = Some(i);
+            }
+            if f.frame_type == 1 {
+                to_id = Some(i);
+            }
         }
         last_frame = last_frame.max(f.frame_index as f32);
         if f.frame_type == 0 {
@@ -129,8 +201,8 @@ fn calculate_layer_anim(layer: &EffectLayer, key_index: f32) -> LayerAnim {
 
     let from = &frames[from_idx];
 
-    let has_morph = to_id
-        .is_some_and(|ti| ti == from_idx + 1 && frames[ti].frame_index == from.frame_index);
+    let has_morph =
+        to_id.is_some_and(|ti| ti == from_idx + 1 && frames[ti].frame_index == from.frame_index);
 
     if !has_morph {
         if to_id.is_some() && last_source <= from.frame_index as f32 {
@@ -199,21 +271,23 @@ pub struct StrEmitterInput<'a> {
 pub fn build_str_effect_batches<'a>(
     emitters: &[StrEmitterInput<'_>],
     cache: &'a StrEffectCache,
-    texture_cache: &'a TextureCache,
     camera: &Camera,
     screen_w: f32,
     screen_h: f32,
 ) -> Vec<SpriteBatch<'a>> {
     let mut batches = Vec::new();
-    let pixel_ratio = 1.0 / 35.0;
 
     for input in emitters {
-        let Some(entry) = cache.get(input.str_name) else { continue };
+        let Some(entry) = cache.get(input.str_name) else {
+            continue;
+        };
         let str_file = &entry.str_file;
 
-        let Some((anchor, depth, ppu_scale)) =
+        let Some((anchor, depth, ppu)) =
             project_billboard(camera, input.position, screen_w, screen_h)
-        else { continue };
+        else {
+            continue;
+        };
 
         let key_index = input.anim_time * str_file.fps as f32;
         let key_index = if str_file.max_key > 0 {
@@ -224,49 +298,66 @@ pub fn build_str_effect_batches<'a>(
 
         for (layer_idx, layer) in str_file.layers.iter().enumerate() {
             let anim = calculate_layer_anim(layer, key_index);
-            if !anim.visible { continue; }
+            if !anim.visible {
+                continue;
+            }
 
-            let layer_paths = &entry.texture_paths[layer_idx];
-            if anim.texture_index >= layer_paths.len() { continue; }
+            let layer_bgs = &entry.bind_groups[layer_idx];
+            if anim.texture_index >= layer_bgs.len() {
+                continue;
+            }
 
-            let tex_path = &layer_paths[anim.texture_index];
-            let Some(texture) = texture_cache.get(tex_path) else { continue };
+            let Some(texture) = layer_bgs[anim.texture_index].as_ref() else {
+                continue;
+            };
 
-            if anim.color[3] < 0.01 { continue; }
+            let color = [
+                (anim.color[0] / 255.0).clamp(0.0, 1.0),
+                (anim.color[1] / 255.0).clamp(0.0, 1.0),
+                (anim.color[2] / 255.0).clamp(0.0, 1.0),
+                (anim.color[3] / 255.0).clamp(0.0, 1.0),
+            ];
+            if color[3] < 0.01 {
+                continue;
+            }
 
             let angle_rad = -anim.angle * std::f32::consts::PI / 180.0;
             let cos_a = angle_rad.cos();
             let sin_a = angle_rad.sin();
 
-            let offset_x = (anim.offset[0] - 320.0) * pixel_ratio * ppu_scale;
-            let offset_y = -(anim.offset[1] - 320.0) * pixel_ratio * ppu_scale;
+            // robrowser uses pixel_ratio = 1/35 in cell units; one cell ≈ gnd.zoom
+            // world units (~10), and `ppu` = screen pixels per world unit. So
+            // screen_pixels = pos * (zoom/35) * ppu ≈ pos * ppu * 0.286.
+            let scale = ppu * 10.0 / 35.0;
+            let offset_x = (anim.offset[0] - 320.0) * scale;
+            let offset_y = (anim.offset[1] - 320.0) * scale;
 
             // xy layout: [x0,x1,x2,x3, y0,y1,y2,y3]
             // robrowser vertex order: [0]=TL, [1]=TR, [2]=BR, [3]=BL
             // triangle strip → two triangles
             let xy = &anim.positions;
             let corners = [
-                (xy[0], xy[4]),  // TL
-                (xy[1], xy[5]),  // TR
-                (xy[3], xy[7]),  // BL
-                (xy[2], xy[6]),  // BR
+                (xy[0], xy[4]), // TL
+                (xy[1], xy[5]), // TR
+                (xy[3], xy[7]), // BL
+                (xy[2], xy[6]), // BR
             ];
             let uvs = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 
             let mut vertices = Vec::with_capacity(4);
             for (i, &(px, py)) in corners.iter().enumerate() {
-                let sx = px * pixel_ratio;
-                let sy = -py * pixel_ratio;
+                let sx = px * scale;
+                let sy = py * scale;
                 let rx = sx * cos_a - sy * sin_a;
                 let ry = sx * sin_a + sy * cos_a;
                 vertices.push(SpriteVertex {
                     position: [
-                        anchor[0] + (rx + offset_x) * ppu_scale,
-                        anchor[1] + (ry + offset_y) * ppu_scale,
+                        anchor[0] + rx + offset_x,
+                        anchor[1] + ry + offset_y,
                         depth - 0.001,
                     ],
                     tex_coord: uvs[i],
-                    color: anim.color,
+                    color,
                 });
             }
 
@@ -274,6 +365,7 @@ pub fn build_str_effect_batches<'a>(
                 vertices,
                 indices: vec![0, 1, 2, 1, 3, 2],
                 texture,
+                additive: true,
             });
         }
     }

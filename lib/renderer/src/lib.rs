@@ -8,6 +8,7 @@ pub mod grid_selector;
 pub mod ground;
 pub mod model;
 pub mod sprite;
+pub mod str_effect;
 pub mod texture;
 pub mod ui_renderer;
 pub mod water;
@@ -26,6 +27,7 @@ pub use sprite::{SpriteRenderer, SpriteVertex, SpriteBatch, SpriteTextures, Spri
 pub use ui_renderer::{UiRenderer, UiVertex, UiDrawCommand};
 pub use damage_number::render_damage_number_quads;
 pub use effect_sprite::{EffectSpriteCache, EffectSpriteEntry, EmitterDraw, SpriteEffectEmitter, build_emitter_batches, collect_sprite_effect_draws, project_billboard};
+pub use str_effect::{StrEffectCache, StrEffectEntry, StrEmitterInput, build_str_effect_batches};
 pub use wgpu;
 
 use ragnarok_formats::fog_table::FogEntry;

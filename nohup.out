@@ -1,0 +1,13 @@
+[2026-05-06 20:04:57.076] [info] Using configuration file /home/nmeylan/.config/waybar/config.jsonc
+[2026-05-06 20:04:57.078] [info] Discovered appearance 'dark'
+[2026-05-06 20:04:57.086] [info] Using CSS file /home/nmeylan/.config/waybar/style.css
+[2026-05-06 20:04:57.089] [info] Hyprland IPC starting
+[2026-05-06 20:04:57.089] [info] Loading persistent workspaces from Waybar config
+[2026-05-06 20:04:57.089] [info] Loading persistent workspaces from Hyprland workspace rules
+[2026-05-06 20:04:57.096] [warning] No batteries.
+[2026-05-06 20:04:57.106] [info] Loading persistent workspaces from Waybar config
+[2026-05-06 20:04:57.106] [info] Loading persistent workspaces from Hyprland workspace rules
+[2026-05-06 20:04:57.115] [warning] No batteries.
+[2026-05-06 20:04:57.351] [info] Bar configured (width: 2560, height: 26) for output: DP-1
+[2026-05-06 20:04:57.351] [info] Bar configured (width: 1920, height: 26) for output: HDMI-A-1
+[2026-05-06 20:04:57.353] [info] Bar configured (width: 1920, height: 26) for output: HDMI-A-1

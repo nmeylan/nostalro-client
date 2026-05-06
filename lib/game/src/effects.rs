@@ -37,9 +37,8 @@ pub struct EffectEmitter {
     /// Resolved STR filename for `EffectKind::Str` emitters (pattern with
     /// `%d` replaced by a random value from `rand_range`).
     pub str_file: Option<String>,
-    /// Time of next particle emission (seconds since spawn). For non-3D
-    /// emitters this is unused.
-    next_emit_at: f32,
+    /// Whether the initial burst of particles has been spawned (Smoke3D only).
+    has_emitted: bool,
     pub particles: Vec<Particle>,
 }
 
@@ -87,13 +86,8 @@ impl EffectManager {
             // Param interpretation is effect-type-specific.
             let (color, size_scale) = match &kind {
                 EffectKind::Spr { .. } => {
-                    // param[0..2] is an RGB color tint (e.g. orange torches)
-                    let c = if eff.param[0] > 0.0 || eff.param[1] > 0.0 || eff.param[2] > 0.0 {
-                        [eff.param[0], eff.param[1], eff.param[2], 1.0]
-                    } else {
-                        [1.0, 1.0, 1.0, 1.0]
-                    };
-                    (c, 1.0)
+                    // PT_USEORGARGB: only SPR pixel * ACT clip color, no RSW param tint.
+                    ([1.0, 1.0, 1.0, 1.0], 1.0)
                 }
                 EffectKind::Smoke3D { .. } => {
                     // param[0] = size percentage, param[1] = emission delay modifier
@@ -126,7 +120,7 @@ impl EffectManager {
                 emit_rate,
                 size_scale,
                 str_file,
-                next_emit_at: 0.0,
+                has_emitted: false,
                 particles: Vec::new(),
             });
         }
@@ -143,29 +137,32 @@ impl EffectManager {
         for emitter in &mut self.emitters {
             emitter.anim_time += dt;
 
-            let EffectKind::Smoke3D { duration_ms, pos_z_start, pos_z_end, .. } = emitter.kind else {
+            let EffectKind::Smoke3D {
+                duration_ms, pos_z_start, burst_count_range, speed_range, ..
+            } = emitter.kind else {
                 continue;
             };
             let lifetime = (duration_ms / 1000.0).max(1e-3);
 
-            // Spawn new particles at emit_rate per second.
-            let interval = 1.0 / emitter.emit_rate;
-            while emitter.anim_time >= emitter.next_emit_at {
-                let dy = (pos_z_end - pos_z_start) / lifetime;
-                emitter.particles.push(Particle {
-                    position: [
-                        emitter.position[0],
-                        emitter.position[1] - pos_z_start,
-                        emitter.position[2],
-                    ],
-                    velocity: [0.0, -dy, 0.0],
-                    age: 0.0,
-                    lifetime,
-                });
-                emitter.next_emit_at += interval;
-                if emitter.next_emit_at < emitter.anim_time - interval {
-                    // Catch up after a long pause without exploding particle count
-                    emitter.next_emit_at = emitter.anim_time;
+            // One-shot burst on first update, no continuous emission.
+            if !emitter.has_emitted {
+                emitter.has_emitted = true;
+                let (lo, hi) = burst_count_range;
+                let count = lo + (rand_u32() % (hi - lo + 1));
+                let (slo, shi) = speed_range;
+                for _ in 0..count {
+                    let r = (rand_u32() % 1000) as f32 / 1000.0;
+                    let speed = slo + r * (shi - slo);
+                    emitter.particles.push(Particle {
+                        position: [
+                            emitter.position[0],
+                            emitter.position[1] - pos_z_start,
+                            emitter.position[2],
+                        ],
+                        velocity: [0.0, -speed * 60.0, 0.0],
+                        age: 0.0,
+                        lifetime,
+                    });
                 }
             }
 
@@ -257,7 +254,7 @@ mod tests {
 
         let torch = &mgr.emitters[1];
         assert!(matches!(torch.kind, EffectKind::Spr { .. }));
-        assert_eq!(torch.color, [1.0, 0.6, 0.0, 1.0]);
+        assert_eq!(torch.color, [1.0, 1.0, 1.0, 1.0]);
         assert_eq!(torch.size_scale, 1.0);
     }
 

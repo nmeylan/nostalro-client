@@ -201,13 +201,12 @@ impl GridSelectorRenderer {
         let Some(tex_bg) = texture_cache.get(&self.texture_name) else { return };
         pass.set_bind_group(1, tex_bg, &[]);
 
-        if self.show_grid {
-            if let (Some(vb), Some(ib)) = (&self.grid_vertex_buffer, &self.grid_index_buffer) {
+        if self.show_grid
+            && let (Some(vb), Some(ib)) = (&self.grid_vertex_buffer, &self.grid_index_buffer) {
                 pass.set_vertex_buffer(0, vb.slice(..));
                 pass.set_index_buffer(ib.slice(..), wgpu::IndexFormat::Uint32);
                 pass.draw_indexed(0..self.grid_index_count, 0, 0..1);
             }
-        }
 
         if self.hover_visible {
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -223,7 +222,7 @@ fn generate_grid_border_texture() -> image::RgbaImage {
     let mut img = image::RgbaImage::new(SIZE, SIZE);
     for y in 0..SIZE {
         for x in 0..SIZE {
-            let on_border = x < BORDER || x >= SIZE - BORDER || y < BORDER || y >= SIZE - BORDER;
+            let on_border = !(BORDER..SIZE - BORDER).contains(&x) || !(BORDER..SIZE - BORDER).contains(&y);
             let alpha = if on_border { 255 } else { 0 };
             img.put_pixel(x, y, image::Rgba([255, 255, 255, alpha]));
         }

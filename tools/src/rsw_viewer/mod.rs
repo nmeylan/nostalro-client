@@ -13,6 +13,7 @@ use ragnarok_renderer::effect_sprite::{
     EffectSpriteCache, SpriteEffectEmitter, build_emitter_batches,
     collect_sprite_effect_draws,
 };
+use ragnarok_renderer::str_effect::{StrEffectCache, StrEmitterInput, build_str_effect_batches};
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{block_on, UiDrawCall};
 use winit::application::ApplicationHandler;
@@ -385,6 +386,7 @@ struct App {
     // Effects
     effects: EffectManager,
     effect_sprites: EffectSpriteCache,
+    str_effects: StrEffectCache,
 
     // Hot-reload
     hot_lib: Option<HotLib>,
@@ -416,6 +418,7 @@ impl App {
             last_mouse: (0.0, 0.0),
             effects: EffectManager::empty(),
             effect_sprites: EffectSpriteCache::new(),
+            str_effects: StrEffectCache::new(),
             hot_lib,
             dylib_path,
             last_dylib_mtime,
@@ -530,6 +533,21 @@ impl App {
                         &renderer.device.device,
                         &renderer.device.queue,
                         &renderer.texture_cache.bind_group_layout,
+                    );
+                }
+
+                let mut str_names: Vec<String> = self.effects.emitters.iter()
+                    .filter_map(|e| e.str_file.clone())
+                    .collect();
+                str_names.sort();
+                str_names.dedup();
+                for name in &str_names {
+                    self.str_effects.load(
+                        name,
+                        &grf,
+                        &mut renderer.texture_cache,
+                        &renderer.device.device,
+                        &renderer.device.queue,
                     );
                 }
             }
@@ -809,7 +827,13 @@ impl App {
         let effect_draws = collect_sprite_effect_draws(
             &emitter_inputs, &self.effect_sprites, &renderer.camera, screen_w, screen_h,
         );
-        let sprite_batches = build_emitter_batches(&effect_draws);
+        let mut sprite_batches = build_emitter_batches(&effect_draws);
+
+        let str_inputs = build_str_emitter_inputs(&self.effects);
+        let mut str_batches = build_str_effect_batches(
+            &str_inputs, &self.str_effects, &renderer.camera, screen_w, screen_h,
+        );
+        sprite_batches.append(&mut str_batches);
 
         let mut draw_calls: Vec<UiDrawCall> = Vec::new();
         if let Some(browser) = &self.browser {
@@ -1067,7 +1091,7 @@ fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteEffectEmitte
                     anim_time: emitter.anim_time,
                 });
             }
-            EffectKind::Smoke3D { sprite_path, alpha_max, .. } => {
+            EffectKind::Smoke3D { sprite_path, alpha_max, anim_speed, .. } => {
                 let particles = emitter.particles.iter()
                     .map(|p| (p.position, p.age, p.lifetime))
                     .collect();
@@ -1076,11 +1100,28 @@ fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteEffectEmitte
                     alpha_max: *alpha_max,
                     color: emitter.color,
                     size_scale: emitter.size_scale,
+                    anim_speed: *anim_speed,
                     particles,
                 });
             }
             EffectKind::Str { .. } => {}
         }
+    }
+    inputs
+}
+
+fn build_str_emitter_inputs(effects: &EffectManager) -> Vec<StrEmitterInput<'_>> {
+    let mut inputs = Vec::new();
+    for emitter in &effects.emitters {
+        if !matches!(emitter.kind, EffectKind::Str { .. }) {
+            continue;
+        }
+        let Some(name) = emitter.str_file.as_deref() else { continue };
+        inputs.push(StrEmitterInput {
+            str_name: name,
+            position: emitter.position,
+            anim_time: emitter.anim_time,
+        });
     }
     inputs
 }

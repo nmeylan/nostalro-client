@@ -340,30 +340,29 @@ fn calc_bounding_box(rsm: &RsmFile) -> (BoundingBox, Vec<glam::Mat4>) {
             if let (Some(angle), Some(axis)) = (node.rotation_angle, node.rotation_axis) {
                 let axis_vec = vec3_from_arr(&axis);
                 if axis_vec.length_squared() > 0.0 {
-                    accumulated = accumulated * glam::Mat4::from_axis_angle(axis_vec.normalize(), angle);
+                    accumulated *= glam::Mat4::from_axis_angle(axis_vec.normalize(), angle);
                 }
             }
         } else {
             let q = &node.rot_keyframes[0].quaternion;
             let quat = glam::Quat::from_xyzw(q[0], q[1], q[2], q[3]);
-            accumulated = accumulated * glam::Mat4::from_quat(quat);
+            accumulated *= glam::Mat4::from_quat(quat);
         }
 
         // Apply scale
         if let Some(scale) = node.scale {
-            accumulated = accumulated * glam::Mat4::from_scale(vec3_from_arr(&scale));
+            accumulated *= glam::Mat4::from_scale(vec3_from_arr(&scale));
         }
 
         node_matrices[node_idx] = accumulated;
 
         // Local matrix for bounding box: accumulated × [offset] × mat3
         let mut local = accumulated;
-        if !is_only {
-            if let Some(offset) = node.translation1 {
-                local = local * glam::Mat4::from_translation(vec3_from_arr(&offset));
+        if !is_only
+            && let Some(offset) = node.translation1 {
+                local *= glam::Mat4::from_translation(vec3_from_arr(&offset));
             }
-        }
-        local = local * mat3_to_mat4(&node.local_transform);
+        local *= mat3_to_mat4(&node.local_transform);
 
         // Transform all vertices to compute bounds
         for vert in &node.vertices {
@@ -412,13 +411,12 @@ fn compile_node(
         -bbox.center.z,
     )) * *node_matrix;
 
-    if !is_only {
-        if let Some(offset) = node.translation1 {
-            matrix = matrix * glam::Mat4::from_translation(vec3_from_arr(&offset));
+    if !is_only
+        && let Some(offset) = node.translation1 {
+            matrix *= glam::Mat4::from_translation(vec3_from_arr(&offset));
         }
-    }
 
-    matrix = matrix * mat3_to_mat4(&node.local_transform);
+    matrix *= mat3_to_mat4(&node.local_transform);
 
     // Final model-view matrix
     let model_view = *instance_matrix * matrix;

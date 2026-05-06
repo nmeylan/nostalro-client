@@ -36,7 +36,7 @@ use ragnarok_network::{
     ip_u32_to_string, network_loop,
 };
 use ragnarok_renderer::{
-    EffectSpriteCache, GridSelectorRenderer, Renderer, SpriteVertex, UiDrawCall,
+    EffectSpriteCache, GridSelectorRenderer, Renderer, SpriteVertex, StrEffectCache, UiDrawCall,
     block_on, upload_sprite_textures,
 };
 use ragnarok_ui::context::UiContext;
@@ -95,6 +95,7 @@ struct App {
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
     effect_sprites: EffectSpriteCache,
+    str_effects: StrEffectCache,
     grf: Option<GrfArchive>,
     input: InputState,
     ui_context: Option<UiContext>,
@@ -119,6 +120,7 @@ impl App {
             window: None,
             renderer: None,
             effect_sprites: EffectSpriteCache::new(),
+            str_effects: StrEffectCache::new(),
             grf: None,
             input: InputState::new(),
             ui_context: None,
@@ -173,6 +175,21 @@ impl App {
                     &renderer.device.device,
                     &renderer.device.queue,
                     &renderer.texture_cache.bind_group_layout,
+                );
+            }
+
+            let mut str_names: Vec<String> = self.game.effects.emitters.iter()
+                .filter_map(|e| e.str_file.clone())
+                .collect();
+            str_names.sort();
+            str_names.dedup();
+            for name in &str_names {
+                self.str_effects.load(
+                    name,
+                    grf,
+                    &mut renderer.texture_cache,
+                    &renderer.device.device,
+                    &renderer.device.queue,
                 );
             }
         }

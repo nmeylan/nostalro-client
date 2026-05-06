@@ -134,6 +134,7 @@ pub fn build_emitter_batches<'a>(
                 vertices,
                 indices,
                 texture: &draw.sprite.textures.bind_groups[tex_idx],
+                additive: false,
             });
         }
     }
@@ -152,8 +153,7 @@ pub fn project_billboard(
         world_pos[0], world_pos[1], world_pos[2], screen_w, screen_h,
     )?;
     let ppu = camera.perspective_scale(world_pos[0], world_pos[1], world_pos[2], screen_h);
-    let sprite_scale = ppu / 7.5;
-    Some(([sx, sy], ndc_z, sprite_scale))
+    Some(([sx, sy], ndc_z, ppu))
 }
 
 /// Renderer-side description of a single SPR-based effect emitter.
@@ -171,6 +171,7 @@ pub enum SpriteEffectEmitter<'a> {
         alpha_max: f32,
         color: [f32; 4],
         size_scale: f32,
+        anim_speed: f32,
         particles: Vec<([f32; 3], f32, f32)>,
     },
 }
@@ -192,9 +193,10 @@ pub fn collect_sprite_effect_draws<'a>(
                 sprite_path, duration_ms, position, color, size_scale, anim_time,
             } => {
                 let Some(sprite) = cache.get(sprite_path) else { continue };
-                let Some((anchor, depth, sprite_scale)) =
+                let Some((anchor, depth, ppu)) =
                     project_billboard(camera, *position, screen_w, screen_h)
                 else { continue };
+                let sprite_scale = ppu / 7.5;
                 let action = sprite.act.actions.first();
                 let motion_count = action.map(|a| a.motions.len()).unwrap_or(0);
                 if motion_count == 0 { continue; }
@@ -215,22 +217,28 @@ pub fn collect_sprite_effect_draws<'a>(
                 });
             }
             SpriteEffectEmitter::Smoke3D {
-                sprite_path, alpha_max, color, size_scale, particles,
+                sprite_path, alpha_max, color, size_scale, anim_speed, particles,
             } => {
                 let Some(sprite) = cache.get(sprite_path) else { continue };
+                let action = sprite.act.actions.first();
+                let motion_count = action.map(|a| a.motions.len()).unwrap_or(0);
+                if motion_count == 0 { continue; }
+                let frames_per_sec = 60.0 / anim_speed.max(1.0);
                 for &(pos, age, lifetime) in particles {
                     let t = (age / lifetime).clamp(0.0, 1.0);
                     let alpha = (1.0 - t) * alpha_max;
                     if alpha <= 0.01 { continue; }
-                    let Some((anchor, depth, sprite_scale)) =
+                    let Some((anchor, depth, ppu)) =
                         project_billboard(camera, pos, screen_w, screen_h)
                     else { continue };
+                    let sprite_scale = ppu / 7.5;
+                    let motion_index = (age * frames_per_sec) as usize % motion_count;
                     draws.push(EmitterDraw {
                         sprite,
                         screen_anchor: anchor,
                         depth,
                         sprite_scale: sprite_scale * size_scale,
-                        motion_index: 0,
+                        motion_index,
                         color: [color[0], color[1], color[2], color[3] * alpha],
                     });
                 }

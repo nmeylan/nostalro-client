@@ -76,6 +76,8 @@ const INITIAL_INDEX_CAPACITY: usize = 2048;
 pub struct SpriteRenderer {
     pipeline: wgpu::RenderPipeline,
     pipeline_no_depth: wgpu::RenderPipeline,
+    pipeline_additive: wgpu::RenderPipeline,
+    pipeline_additive_no_depth: wgpu::RenderPipeline,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     uniform_bind_group_layout: wgpu::BindGroupLayout,
@@ -146,18 +148,41 @@ impl SpriteRenderer {
             mapped_at_creation: false,
         });
 
+        let alpha = wgpu::BlendState::ALPHA_BLENDING;
+        let additive = wgpu::BlendState {
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::SrcAlpha,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
+            },
+            alpha: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::SrcAlpha,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
+            },
+        };
         let pipeline = Self::create_pipeline(
             device, surface_format, &uniform_bind_group_layout,
-            texture_bind_group_layout, shader_source, true,
+            texture_bind_group_layout, shader_source, alpha, true,
         );
         let pipeline_no_depth = Self::create_pipeline(
             device, surface_format, &uniform_bind_group_layout,
-            texture_bind_group_layout, shader_source, false,
+            texture_bind_group_layout, shader_source, alpha, false,
+        );
+        let pipeline_additive = Self::create_pipeline(
+            device, surface_format, &uniform_bind_group_layout,
+            texture_bind_group_layout, shader_source, additive, true,
+        );
+        let pipeline_additive_no_depth = Self::create_pipeline(
+            device, surface_format, &uniform_bind_group_layout,
+            texture_bind_group_layout, shader_source, additive, false,
         );
 
         Self {
             pipeline,
             pipeline_no_depth,
+            pipeline_additive,
+            pipeline_additive_no_depth,
             uniform_buffer,
             uniform_bind_group,
             uniform_bind_group_layout,
@@ -174,6 +199,7 @@ impl SpriteRenderer {
         uniform_layout: &wgpu::BindGroupLayout,
         texture_layout: &wgpu::BindGroupLayout,
         shader_source: &str,
+        blend: wgpu::BlendState,
         use_depth: bool,
     ) -> wgpu::RenderPipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -201,7 +227,7 @@ impl SpriteRenderer {
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    blend: Some(blend),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
                 compilation_options: Default::default(),
@@ -234,13 +260,34 @@ impl SpriteRenderer {
         texture_layout: &wgpu::BindGroupLayout,
         shader_source: &str,
     ) {
+        let alpha = wgpu::BlendState::ALPHA_BLENDING;
+        let additive = wgpu::BlendState {
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::SrcAlpha,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
+            },
+            alpha: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::SrcAlpha,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
+            },
+        };
         self.pipeline = Self::create_pipeline(
             device, surface_format, &self.uniform_bind_group_layout,
-            texture_layout, shader_source, true,
+            texture_layout, shader_source, alpha, true,
         );
         self.pipeline_no_depth = Self::create_pipeline(
             device, surface_format, &self.uniform_bind_group_layout,
-            texture_layout, shader_source, false,
+            texture_layout, shader_source, alpha, false,
+        );
+        self.pipeline_additive = Self::create_pipeline(
+            device, surface_format, &self.uniform_bind_group_layout,
+            texture_layout, shader_source, additive, true,
+        );
+        self.pipeline_additive_no_depth = Self::create_pipeline(
+            device, surface_format, &self.uniform_bind_group_layout,
+            texture_layout, shader_source, additive, false,
         );
     }
 
@@ -300,6 +347,7 @@ impl SpriteRenderer {
             texture: &'a wgpu::BindGroup,
             index_start: u32,
             index_count: u32,
+            additive: bool,
         }
 
         let mut all_verts = Vec::with_capacity(total_verts);
@@ -315,6 +363,7 @@ impl SpriteRenderer {
                 texture: batch.texture,
                 index_start,
                 index_count: batch.indices.len() as u32,
+                additive: batch.additive,
             });
         }
 
@@ -350,13 +399,26 @@ impl SpriteRenderer {
                 ..Default::default()
             });
 
-            let pipeline = if depth_view.is_some() { &self.pipeline } else { &self.pipeline_no_depth };
-            pass.set_pipeline(pipeline);
+            let has_depth = depth_view.is_some();
             pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
+            let mut current_additive = false;
+            let initial_pipeline = if has_depth { &self.pipeline } else { &self.pipeline_no_depth };
+            pass.set_pipeline(initial_pipeline);
+
             for batch in &draw_batches {
+                if batch.additive != current_additive {
+                    current_additive = batch.additive;
+                    let pipeline = match (current_additive, has_depth) {
+                        (false, true) => &self.pipeline,
+                        (false, false) => &self.pipeline_no_depth,
+                        (true, true) => &self.pipeline_additive,
+                        (true, false) => &self.pipeline_additive_no_depth,
+                    };
+                    pass.set_pipeline(pipeline);
+                }
                 pass.set_bind_group(1, batch.texture, &[]);
                 pass.draw_indexed(
                     batch.index_start..batch.index_start + batch.index_count,
@@ -372,6 +434,7 @@ pub struct SpriteBatch<'a> {
     pub vertices: Vec<SpriteVertex>,
     pub indices: Vec<u32>,
     pub texture: &'a wgpu::BindGroup,
+    pub additive: bool,
 }
 
 pub fn build_clip_quad(
@@ -485,11 +548,10 @@ pub fn build_composite_clips(
 
     let mut body = Vec::new();
     for clip in &body_motion.clips {
-        if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, &entity.body_textures, screen_anchor, depth, [0, 0]) {
-            if tex_idx < entity.body_textures.bind_groups.len() {
+        if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, &entity.body_textures, screen_anchor, depth, [0, 0])
+            && tex_idx < entity.body_textures.bind_groups.len() {
                 body.push((vertices, indices, tex_idx));
             }
-        }
     }
 
     let mut head = Vec::new();
@@ -505,11 +567,10 @@ pub fn build_composite_clips(
             let head_motion = &head_action.motions[head_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, head_motion);
             for clip in &head_motion.clips {
-                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, head_tex, screen_anchor, depth, [off_x, off_y]) {
-                    if tex_idx < head_tex.bind_groups.len() {
+                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, head_tex, screen_anchor, depth, [off_x, off_y])
+                    && tex_idx < head_tex.bind_groups.len() {
                         head.push((vertices, indices, tex_idx));
                     }
-                }
             }
         }
     }
@@ -538,11 +599,10 @@ pub fn build_composite_clips(
                 let hg_motion = &hg_action.motions[hg_motion_idx];
                 let (off_x, off_y) = attachment_offset(body_motion, hg_motion);
                 for clip in &hg_motion.clips {
-                    if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, tex, screen_anchor, depth, [off_x, off_y]) {
-                        if tex_idx < tex.bind_groups.len() {
+                    if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, tex, screen_anchor, depth, [off_x, off_y])
+                        && tex_idx < tex.bind_groups.len() {
                             clips.push((vertices, indices, tex_idx));
                         }
-                    }
                 }
             }
         }
@@ -571,11 +631,10 @@ pub fn build_composite_clips(
             let weapon_motion = &weapon_action.motions[weapon_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, weapon_motion);
             for clip in &weapon_motion.clips {
-                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, weapon_tex, screen_anchor, depth, [off_x, off_y]) {
-                    if tex_idx < weapon_tex.bind_groups.len() {
+                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, weapon_tex, screen_anchor, depth, [off_x, off_y])
+                    && tex_idx < weapon_tex.bind_groups.len() {
                         weapon.push((vertices, indices, tex_idx));
                     }
-                }
             }
         }
     }
@@ -589,11 +648,10 @@ pub fn build_composite_clips(
             let shield_motion = &shield_action.motions[shield_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, shield_motion);
             for clip in &shield_motion.clips {
-                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, shield_tex, screen_anchor, depth, [off_x, off_y]) {
-                    if tex_idx < shield_tex.bind_groups.len() {
+                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, shield_tex, screen_anchor, depth, [off_x, off_y])
+                    && tex_idx < shield_tex.bind_groups.len() {
                         shield.push((vertices, indices, tex_idx));
                     }
-                }
             }
         }
     }
@@ -845,46 +903,46 @@ impl EntitySprite {
         if let Some(shield_tex) = &self.shield_textures {
             for (mut vertices, indices, tex_idx) in clips.shield {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                shield_batches.push(SpriteBatch { vertices, indices, texture: &shield_tex.bind_groups[tex_idx] });
+                shield_batches.push(SpriteBatch { vertices, indices, texture: &shield_tex.bind_groups[tex_idx], additive: false });
             }
         }
 
         if shield_behind {
-            batches.extend(shield_batches.drain(..));
+            batches.append(&mut shield_batches);
         }
 
         for (mut vertices, indices, tex_idx) in clips.body {
             scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-            batches.push(SpriteBatch { vertices, indices, texture: &self.body_textures.bind_groups[tex_idx] });
+            batches.push(SpriteBatch { vertices, indices, texture: &self.body_textures.bind_groups[tex_idx], additive: false });
         }
         if let Some(head_tex) = &self.head_textures {
             for (mut vertices, indices, tex_idx) in clips.head {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                batches.push(SpriteBatch { vertices, indices, texture: &head_tex.bind_groups[tex_idx] });
+                batches.push(SpriteBatch { vertices, indices, texture: &head_tex.bind_groups[tex_idx], additive: false });
             }
         }
         if let Some(hg_tex) = &self.headgear_bottom_textures {
             for (mut vertices, indices, tex_idx) in clips.headgear_bottom {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx] });
+                batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx], additive: false });
             }
         }
         if let Some(hg_tex) = &self.headgear_mid_textures {
             for (mut vertices, indices, tex_idx) in clips.headgear_mid {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx] });
+                batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx], additive: false });
             }
         }
         if let Some(hg_tex) = &self.headgear_top_textures {
             for (mut vertices, indices, tex_idx) in clips.headgear_top {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx] });
+                batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx], additive: false });
             }
         }
         if let Some(weapon_tex) = &self.weapon_textures {
             for (mut vertices, indices, tex_idx) in clips.weapon {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                batches.push(SpriteBatch { vertices, indices, texture: &weapon_tex.bind_groups[tex_idx] });
+                batches.push(SpriteBatch { vertices, indices, texture: &weapon_tex.bind_groups[tex_idx], additive: false });
             }
         }
         if !shield_behind {
@@ -901,19 +959,17 @@ impl EntitySprite {
         scale: f32,
     ) -> Vec<SpriteBatch<'_>> {
         let mut batches = Vec::new();
-        if let (Some(shadow_act), Some(shadow_tex)) = (&self.shadow_act, &self.shadow_textures) {
-            if !shadow_act.actions.is_empty() && !shadow_act.actions[0].motions.is_empty() {
+        if let (Some(shadow_act), Some(shadow_tex)) = (&self.shadow_act, &self.shadow_textures)
+            && !shadow_act.actions.is_empty() && !shadow_act.actions[0].motions.is_empty() {
                 let shadow_motion = &shadow_act.actions[0].motions[0];
                 for clip in &shadow_motion.clips {
-                    if let Some((mut vertices, indices, tex_idx)) = build_clip_quad(clip, shadow_tex, screen_anchor, depth, [0, 0]) {
-                        if tex_idx < shadow_tex.bind_groups.len() {
+                    if let Some((mut vertices, indices, tex_idx)) = build_clip_quad(clip, shadow_tex, screen_anchor, depth, [0, 0])
+                        && tex_idx < shadow_tex.bind_groups.len() {
                             scale_clip_vertices(&mut vertices, screen_anchor, scale, 0.0);
-                            batches.push(SpriteBatch { vertices, indices, texture: &shadow_tex.bind_groups[tex_idx] });
+                            batches.push(SpriteBatch { vertices, indices, texture: &shadow_tex.bind_groups[tex_idx], additive: false });
                         }
-                    }
                 }
             }
-        }
         batches
     }
 }

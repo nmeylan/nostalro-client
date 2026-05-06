@@ -30,6 +30,12 @@ pub enum EffectKind {
         pos_z_end: f32,
         /// Initial alpha, before fadeOut.
         alpha_max: f32,
+        /// Random number of particles spawned in the initial burst (inclusive).
+        burst_count_range: (u32, u32),
+        /// Random per-particle vertical speed multiplier picked from this range.
+        speed_range: (f32, f32),
+        /// SPR animation frame interval in ticks (60 ticks/sec). dhxj default = 4.
+        anim_speed: f32,
     },
     /// Animated multi-layer STR effect (bubbles, fountain, gaspush, most
     /// spell visuals). Loaded from `data/texture/effect/<file>.str`. The
@@ -54,18 +60,21 @@ pub fn effect_kind(effect_type: u32) -> Option<EffectKind> {
         // EF_SMOKE — chimney smoke
         44 => Some(EffectKind::Smoke3D {
             sprite_path: "data/sprite/이팩트/굴뚝연기",
-            duration_ms: 500.0,
+            duration_ms: 833.0,
             size: 150.0,
             pos_z_start: 0.0,
             pos_z_end: 9.0,
             alpha_max: 1.0,
+            burst_count_range: (1, 4),
+            speed_range: (0.3, 0.5),
+            anim_speed: 4.0,
         }),
         // EF_TORCH — torch flame
         47 => Some(EffectKind::Spr {
             sprite_path: "data/sprite/이팩트/torch_01",
             duration_ms: 250.0,
         }),
-        // EF_BUBBLE — Bailaban Blue bubbles (iz_dun04)
+        // EF_BUBBLE — bybalan Blue bubbles (iz_dun04)
         109 => Some(EffectKind::Str {
             file_pattern: "bubble%d",
             rand_range: Some((1, 4)),

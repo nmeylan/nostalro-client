@@ -4,10 +4,11 @@ use ragnarok_game::effect_table::EffectKind;
 use ragnarok_game::effects::EffectManager;
 use ragnarok_game::shadow::shadow_size;
 use ragnarok_renderer::effect_sprite::SpriteEffectEmitter;
+use ragnarok_renderer::str_effect::StrEmitterInput;
 use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_renderer::{
     SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad,
-    build_emitter_batches, collect_sprite_effect_draws, scale_clip_vertices,
+    build_emitter_batches, build_str_effect_batches, collect_sprite_effect_draws, scale_clip_vertices,
 };
 
 impl App {
@@ -101,6 +102,7 @@ impl App {
                                                     vertices,
                                                     indices,
                                                     texture: &emo_tex.bind_groups[tex_idx],
+                                                    additive: false,
                                                 });
                                             }
                                     }
@@ -161,6 +163,7 @@ impl App {
                                                     vertices,
                                                     indices,
                                                     texture: &tex.bind_groups[tex_idx],
+                                                    additive: false,
                                                 });
                                             }
                                         }
@@ -243,6 +246,7 @@ impl App {
                     vertices,
                     indices,
                     texture: &cursor_tex.bind_groups[tex_idx],
+                    additive: false,
                 });
             }
             for (vertices, indices, tex_idx) in cursor_clips {
@@ -250,6 +254,7 @@ impl App {
                     vertices,
                     indices,
                     texture: &cursor_tex.bind_groups[tex_idx],
+                    additive: false,
                 });
             }
         }
@@ -275,6 +280,16 @@ impl App {
                 &emitter_inputs, &self.effect_sprites, &renderer.camera, screen_w, screen_h,
             );
             let mut effect_batches = build_emitter_batches(&effect_draws);
+
+            let str_inputs = build_str_emitter_inputs(&self.game.effects);
+            let mut str_batches = build_str_effect_batches(
+                &str_inputs,
+                &self.str_effects,
+                &renderer.camera,
+                screen_w,
+                screen_h,
+            );
+            effect_batches.append(&mut str_batches);
             effect_batches.append(&mut sprite_batches);
             let sprite_batches = effect_batches;
 
@@ -303,7 +318,7 @@ pub(crate) fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteE
                     anim_time: emitter.anim_time,
                 });
             }
-            EffectKind::Smoke3D { sprite_path, alpha_max, .. } => {
+            EffectKind::Smoke3D { sprite_path, alpha_max, anim_speed, .. } => {
                 let particles = emitter.particles.iter()
                     .map(|p| (p.position, p.age, p.lifetime))
                     .collect();
@@ -312,11 +327,28 @@ pub(crate) fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteE
                     alpha_max: *alpha_max,
                     color: emitter.color,
                     size_scale: emitter.size_scale,
+                    anim_speed: *anim_speed,
                     particles,
                 });
             }
             EffectKind::Str { .. } => {}
         }
+    }
+    inputs
+}
+
+pub(crate) fn build_str_emitter_inputs(effects: &EffectManager) -> Vec<StrEmitterInput<'_>> {
+    let mut inputs = Vec::new();
+    for emitter in &effects.emitters {
+        if !matches!(emitter.kind, EffectKind::Str { .. }) {
+            continue;
+        }
+        let Some(name) = emitter.str_file.as_deref() else { continue };
+        inputs.push(StrEmitterInput {
+            str_name: name,
+            position: emitter.position,
+            anim_time: emitter.anim_time,
+        });
     }
     inputs
 }
