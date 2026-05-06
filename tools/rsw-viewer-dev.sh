@@ -11,6 +11,8 @@ echo "Edit tools/rsw-viewer-hot/src/lib.rs (camera, overlays, info panel) and ch
 cargo watch \
     -w lib/renderer/src \
     -w lib/ui-core/src \
+    -w lib/game/src \
+    -w lib/formats/src \
     -w tools/rsw-viewer-hot/src \
     -s "cargo build -p rsw-viewer-hot" &
 WATCH_PID=$!

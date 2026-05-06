@@ -34,7 +34,7 @@ pub enum EffectKind {
         burst_count_range: (u32, u32),
         /// Random per-particle vertical speed multiplier picked from this range.
         speed_range: (f32, f32),
-        /// SPR animation frame interval in ticks (60 ticks/sec). dhxj default = 4.
+        /// SPR animation frame interval in ticks (60 ticks/sec). Original game default = 4.
         anim_speed: f32,
     },
     /// Animated multi-layer STR effect (bubbles, fountain, gaspush, most

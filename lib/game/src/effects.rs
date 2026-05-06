@@ -28,10 +28,11 @@ pub struct EffectEmitter {
     pub kind: EffectKind,
     pub position: [f32; 3],
     pub color: [f32; 4],
-    /// Time accumulator since spawn (seconds).
+    /// Time since last emission (seconds). When >= emit_cooldown, a new
+    /// effect cycle starts and this resets to 0.
     pub anim_time: f32,
-    /// Particles per second.
-    pub emit_rate: f32,
+    /// Cooldown between effect re-emissions (seconds), from RSW emit_speed.
+    pub emit_cooldown: f32,
     /// Per-emitter size multiplier derived from RSW params.
     pub size_scale: f32,
     /// Resolved STR filename for `EffectKind::Str` emitters (pattern with
@@ -111,13 +112,18 @@ impl EffectManager {
                 eff.position[1] * scale_factor + y_offset,
                 eff.position[2] * scale_factor + center_z,
             ];
-            let emit_rate = eff.emit_speed.max(0.1);
+            // Original game: emit_speed is in frames (60fps), default 360.
+            // Initial counter starts at emitSpeed - random(24), so first emit
+            // happens after 0..23 frames (0..0.4s). We convert to seconds.
+            let emit_cooldown_secs = eff.emit_speed.max(0.1) / 60.0;
+            // Random initial offset: 0..23 frames = 0..0.383s
+            let initial_offset = (rand_u32() % 24) as f32;
             emitters.push(EffectEmitter {
                 kind,
                 position: world,
                 color,
-                anim_time: 0.0,
-                emit_rate,
+                anim_time: emit_cooldown_secs - initial_offset,
+                emit_cooldown: emit_cooldown_secs,
                 size_scale,
                 str_file,
                 has_emitted: false,
@@ -137,46 +143,59 @@ impl EffectManager {
         for emitter in &mut self.emitters {
             emitter.anim_time += dt;
 
-            let EffectKind::Smoke3D {
-                duration_ms, pos_z_start, burst_count_range, speed_range, ..
-            } = emitter.kind else {
-                continue;
-            };
-            let lifetime = (duration_ms / 1000.0).max(1e-3);
+            match emitter.kind {
+                EffectKind::Smoke3D {
+                    duration_ms, pos_z_start, burst_count_range, speed_range, ..
+                } => {
+                    let lifetime = (duration_ms / 1000.0).max(1e-3);
 
-            // One-shot burst on first update, no continuous emission.
-            if !emitter.has_emitted {
-                emitter.has_emitted = true;
-                let (lo, hi) = burst_count_range;
-                let count = lo + (rand_u32() % (hi - lo + 1));
-                let (slo, shi) = speed_range;
-                for _ in 0..count {
-                    let r = (rand_u32() % 1000) as f32 / 1000.0;
-                    let speed = slo + r * (shi - slo);
-                    emitter.particles.push(Particle {
-                        position: [
-                            emitter.position[0],
-                            emitter.position[1] - pos_z_start,
-                            emitter.position[2],
-                        ],
-                        velocity: [0.0, -speed * 60.0, 0.0],
-                        age: 0.0,
-                        lifetime,
+                    if !emitter.has_emitted {
+                        emitter.has_emitted = true;
+                        let (lo, hi) = burst_count_range;
+                        let count = lo + (rand_u32() % (hi - lo + 1));
+                        let (slo, shi) = speed_range;
+                        for _ in 0..count {
+                            let r = (rand_u32() % 1000) as f32 / 1000.0;
+                            let speed = slo + r * (shi - slo);
+                            emitter.particles.push(Particle {
+                                position: [
+                                    emitter.position[0],
+                                    emitter.position[1] - pos_z_start,
+                                    emitter.position[2],
+                                ],
+                                velocity: [0.0, -speed * 60.0, 0.0],
+                                age: 0.0,
+                                lifetime,
+                            });
+                        }
+                    }
+
+                    // Re-emit after cooldown (all particles dead)
+                    if emitter.anim_time >= emitter.emit_cooldown && emitter.particles.is_empty() {
+                        emitter.anim_time = 0.0;
+                        emitter.has_emitted = false;
+                    }
+
+                    emitter.particles.retain_mut(|p| {
+                        p.age += dt;
+                        if p.age >= p.lifetime {
+                            return false;
+                        }
+                        p.position[0] += p.velocity[0] * dt;
+                        p.position[1] += p.velocity[1] * dt;
+                        p.position[2] += p.velocity[2] * dt;
+                        true
                     });
                 }
-            }
-
-            // Simulate and cull dead particles.
-            emitter.particles.retain_mut(|p| {
-                p.age += dt;
-                if p.age >= p.lifetime {
-                    return false;
+                EffectKind::Str { .. } => {
+                    // Original game re-launches the STR effect every emit_cooldown.
+                    // anim_time resets so the STR plays from the beginning.
+                    if emitter.emit_cooldown > 0.0 && emitter.anim_time >= emitter.emit_cooldown {
+                        emitter.anim_time -= emitter.emit_cooldown;
+                    }
                 }
-                p.position[0] += p.velocity[0] * dt;
-                p.position[1] += p.velocity[1] * dt;
-                p.position[2] += p.velocity[2] * dt;
-                true
-            });
+                _ => {}
+            }
         }
     }
 }

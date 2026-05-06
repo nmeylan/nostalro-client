@@ -290,11 +290,9 @@ pub fn build_str_effect_batches<'a>(
         };
 
         let key_index = input.anim_time * str_file.fps as f32;
-        let key_index = if str_file.max_key > 0 {
-            key_index % str_file.max_key as f32
-        } else {
-            key_index
-        };
+        if str_file.max_key > 0 && key_index >= str_file.max_key as f32 {
+            continue;
+        }
 
         for (layer_idx, layer) in str_file.layers.iter().enumerate() {
             let anim = calculate_layer_anim(layer, key_index);
@@ -325,7 +323,7 @@ pub fn build_str_effect_batches<'a>(
             let cos_a = angle_rad.cos();
             let sin_a = angle_rad.sin();
 
-            // robrowser uses pixel_ratio = 1/35 in cell units; one cell ≈ gnd.zoom
+            // Original game uses pixel_ratio = 1/35 in cell units; one cell ≈ gnd.zoom
             // world units (~10), and `ppu` = screen pixels per world unit. So
             // screen_pixels = pos * (zoom/35) * ppu ≈ pos * ppu * 0.286.
             let scale = ppu * 10.0 / 35.0;
@@ -333,7 +331,7 @@ pub fn build_str_effect_batches<'a>(
             let offset_y = (anim.offset[1] - 320.0) * scale;
 
             // xy layout: [x0,x1,x2,x3, y0,y1,y2,y3]
-            // robrowser vertex order: [0]=TL, [1]=TR, [2]=BR, [3]=BL
+            // vertex order: [0]=TL, [1]=TR, [2]=BR, [3]=BL
             // triangle strip → two triangles
             let xy = &anim.positions;
             let corners = [
