@@ -111,7 +111,7 @@ dependencies = [
 [[package]]
 name = "accessor"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=44f5221f#44f5221f137c53b29effdb27882edb348602baef"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=0f98f5ff#0f98f5ff11c00534047e6d0ecd15a608b1c0bccc"
 dependencies = [
  "quote",
  "syn",
@@ -1014,7 +1014,7 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 [[package]]
 name = "enum_macro"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=44f5221f#44f5221f137c53b29effdb27882edb348602baef"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=0f98f5ff#0f98f5ff11c00534047e6d0ecd15a608b1c0bccc"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2006,7 +2006,7 @@ dependencies = [
 [[package]]
 name = "models"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=44f5221f#44f5221f137c53b29effdb27882edb348602baef"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=0f98f5ff#0f98f5ff11c00534047e6d0ecd15a608b1c0bccc"
 dependencies = [
  "accessor",
  "enum_macro",
@@ -2017,7 +2017,7 @@ dependencies = [
 [[package]]
 name = "movement"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=44f5221f#44f5221f137c53b29effdb27882edb348602baef"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=0f98f5ff#0f98f5ff11c00534047e6d0ecd15a608b1c0bccc"
 dependencies = [
  "packets",
  "tracing",
@@ -2528,7 +2528,7 @@ dependencies = [
 [[package]]
 name = "packets"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=44f5221f#44f5221f137c53b29effdb27882edb348602baef"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=0f98f5ff#0f98f5ff11c00534047e6d0ecd15a608b1c0bccc"
 dependencies = [
  "byteorder",
  "json-flat-parser",

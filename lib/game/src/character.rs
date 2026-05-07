@@ -1,3 +1,5 @@
+use models::enums::class::JobName;
+use models::enums::{EnumWithNumberValue, EnumWithStringValue};
 use crate::cooldown::CooldownTracker;
 use crate::event::CharacterInfo;
 use crate::hotkey::HotkeyBar;
@@ -9,6 +11,8 @@ pub struct Character {
     pub skills: SkillList,
     pub hotkeys: HotkeyBar,
     pub cooldowns: CooldownTracker,
+    pub name: String,
+    pub class: u16,
     pub skill_point: u32,
     pub status_point: u32,
     pub hp: u32,
@@ -17,6 +21,10 @@ pub struct Character {
     pub max_sp: u16,
     pub base_level: u16,
     pub job_level: u32,
+    pub base_exp: u32,
+    pub job_exp: u32,
+    pub next_base_exp: u32,
+    pub next_job_exp: u32,
     pub str: u8,
     pub agi: u8,
     pub vit: u8,
@@ -38,6 +46,8 @@ impl Character {
             skills: SkillList::new(),
             hotkeys: HotkeyBar::new(),
             cooldowns: CooldownTracker::new(),
+            name: String::new(),
+            class: 0,
             skill_point: 0,
             status_point: 0,
             hp: 0,
@@ -46,6 +56,10 @@ impl Character {
             max_sp: 0,
             base_level: 0,
             job_level: 0,
+            base_exp: 0,
+            job_exp: 0,
+            next_base_exp: 0,
+            next_job_exp: 0,
             str: 0,
             agi: 0,
             vit: 0,
@@ -56,6 +70,8 @@ impl Character {
     }
 
     pub fn init_from_info(&mut self, info: &CharacterInfo) {
+        self.name = info.name.clone();
+        self.class = info.class;
         self.hp = info.hp;
         self.max_hp = info.max_hp;
         self.sp = info.sp;
@@ -86,6 +102,22 @@ impl Character {
         }
     }
 
+    pub fn base_exp_percentage(&self) -> f32 {
+        if self.next_base_exp > 0 {
+            self.base_exp as f32 / self.next_base_exp as f32
+        } else {
+            0.0
+        }
+    }
+
+    pub fn job_exp_percentage(&self) -> f32 {
+        if self.next_job_exp > 0 {
+            self.job_exp as f32 / self.next_job_exp as f32
+        } else {
+            0.0
+        }
+    }
+
     pub fn apply_parameter_changed(&mut self, var_id: u16, value: i32) -> Option<u16> {
         use models::enums::status::StatusTypes;
         use models::enums::EnumWithNumberValue;
@@ -98,6 +130,8 @@ impl Character {
             StatusTypes::Maxhp => self.max_hp = value as u32,
             StatusTypes::Sp => self.sp = value as u16,
             StatusTypes::Maxsp => self.max_sp = value as u16,
+            StatusTypes::Baseexp => self.base_exp = value as u32,
+            StatusTypes::Jobexp => self.job_exp = value as u32,
             StatusTypes::Baselevel => self.base_level = value as u16,
             StatusTypes::Str => self.str = value as u8,
             StatusTypes::Agi => self.agi = value as u8,
@@ -111,6 +145,8 @@ impl Character {
             StatusTypes::Zeny => self.inventory.zeny = value,
             StatusTypes::Skillpoint => self.skill_point = value as u32,
             StatusTypes::Statuspoint => self.status_point = value as u32,
+            StatusTypes::Nextbaseexp => self.next_base_exp = value as u32,
+            StatusTypes::Nextjobexp => self.next_job_exp = value as u32,
             _ => {}
         }
         None
@@ -132,11 +168,19 @@ impl Character {
         }
     }
 
+    pub fn job_class_name(&self) -> &'static str {
+        JobName::try_from_value(self.class as usize)
+            .map(|j| j.as_str())
+            .unwrap_or("Novice")
+    }
+
     pub fn clear(&mut self) {
         self.inventory.clear();
         self.skills.clear();
         self.hotkeys.clear();
         self.cooldowns.clear();
+        self.name.clear();
+        self.class = 0;
         self.skill_point = 0;
         self.status_point = 0;
         self.hp = 0;
@@ -145,12 +189,68 @@ impl Character {
         self.max_sp = 0;
         self.base_level = 0;
         self.job_level = 0;
+        self.base_exp = 0;
+        self.job_exp = 0;
+        self.next_base_exp = 0;
+        self.next_job_exp = 0;
         self.str = 0;
         self.agi = 0;
         self.vit = 0;
         self.int = 0;
         self.dex = 0;
         self.luk = 0;
+    }
+}
+
+pub fn job_class_name(class_id: u16) -> &'static str {
+    use models::enums::class::JobName;
+    use models::enums::EnumWithNumberValue;
+    match JobName::try_from_value(class_id as usize) {
+        Ok(job) => match job {
+            JobName::Novice => "Novice",
+            JobName::Swordsman => "Swordsman",
+            JobName::Mage => "Mage",
+            JobName::Archer => "Archer",
+            JobName::Acolyte => "Acolyte",
+            JobName::Merchant => "Merchant",
+            JobName::Thief => "Thief",
+            JobName::Knight => "Knight",
+            JobName::Priest => "Priest",
+            JobName::Wizard => "Wizard",
+            JobName::Blacksmith => "Blacksmith",
+            JobName::Hunter => "Hunter",
+            JobName::Assassin => "Assassin",
+            JobName::Crusader => "Crusader",
+            JobName::Monk => "Monk",
+            JobName::Sage => "Sage",
+            JobName::Rogue => "Rogue",
+            JobName::Alchemist => "Alchemist",
+            JobName::Bard => "Bard",
+            JobName::Dancer => "Dancer",
+            JobName::SuperNovice => "Super Novice",
+            JobName::NoviceHigh => "Novice High",
+            JobName::SwordsmanHigh => "Swordsman High",
+            JobName::MageHigh => "Mage High",
+            JobName::ArcherHigh => "Archer High",
+            JobName::AcolyteHigh => "Acolyte High",
+            JobName::MerchantHigh => "Merchant High",
+            JobName::ThiefHigh => "Thief High",
+            JobName::LordKnight => "Lord Knight",
+            JobName::HighPriest => "High Priest",
+            JobName::HighWizard => "High Wizard",
+            JobName::Whitesmith => "Whitesmith",
+            JobName::Sniper => "Sniper",
+            JobName::AssassinCross => "Assassin Cross",
+            JobName::Paladin => "Paladin",
+            JobName::Champion => "Champion",
+            JobName::Professor => "Professor",
+            JobName::Stalker => "Stalker",
+            JobName::Creator => "Creator",
+            JobName::Clown => "Clown",
+            JobName::Gypsy => "Gypsy",
+            _ => "Adventurer",
+        },
+        Err(_) => "Adventurer",
     }
 }
 

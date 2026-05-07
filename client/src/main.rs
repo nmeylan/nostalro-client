@@ -549,6 +549,15 @@ impl App {
                     self.channel.send_cmd(NetworkCommand::Disconnect);
                     event_loop.exit();
                 }
+                GameEvent::ToggleInventory => {
+                    self.game.character.inventory.toggle();
+                }
+                GameEvent::ToggleEquipment => {
+                    self.game.equipment_window.toggle();
+                }
+                GameEvent::ToggleSkills => {
+                    self.game.character.skills.toggle();
+                }
                 _ => {}
             }
         }
