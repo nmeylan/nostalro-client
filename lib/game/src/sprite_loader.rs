@@ -217,11 +217,24 @@ pub fn load_weapon_sprite(
     weapon_type: WeaponType,
 ) -> Option<SpriteData> {
     let base_path = weapon_sprite_path(job, sex, weapon_type);
-    load_sprite_data(
+    let result = load_sprite_data(
         grf,
         &format!("{base_path}.spr"),
         &format!("{base_path}.act"),
-    )
+    );
+    if result.is_some() {
+        return result;
+    }
+    if let Some(base_job) = crate::sprite_path::transcendent_to_base_class(job) {
+        use models::enums::EnumWithNumberValue;
+        let fallback_path = weapon_sprite_path(base_job.value() as u16, sex, weapon_type);
+        return load_sprite_data(
+            grf,
+            &format!("{fallback_path}.spr"),
+            &format!("{fallback_path}.act"),
+        );
+    }
+    None
 }
 
 pub fn load_headgear_sprite(grf: &GrfArchive, suffix: &str, sex: u8) -> Option<SpriteData> {

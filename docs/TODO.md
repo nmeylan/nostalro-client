@@ -26,12 +26,13 @@ TODO:
 
 # UI
 - ~~Chat box (normal, whisper, party, guild channels)~~
-- Status window (base/job level, stats, stat allocation)
+- Status window (stats, stat allocation)
 - ~~Inventory window~~
 - ~~Equipment window~~
 - ~~Skill window (skill tree, skill levels)~~
 - ~~Hotkey/shortcut bar (F1-F9 skills/items)~~
 - Minimap
+- ~~basic info window~~
 - ~~NPC dialog box (text, menu choices, number input)~~
 - ~~NPC shop (buy/sell)~~
 - Trade window (player-to-player)
@@ -63,14 +64,15 @@ TODO:
 - Mercenary rendering
 
 # Combat
-- Attack action + animation
-- Skill casting (cast bar, cast animation)
+- ~~Attack action + animation~~
+- ~~Skill casting (cast bar, cast animation)~~
 - Skill execution + effects
 - ~~Damage/heal numbers~~
 - Status effects (buff/debuff icons + visuals: poison, freeze, stun, etc.)
 - ~~HP/SP bars~~
 - ~~Death~~ + respawn
 - ~~Sit/stand actions~~ (done — Insert key toggle, PacketZcNotifyAct handling)
+- hide/cloak
 
 # Items & equipment
 - ~~Inventory management (pickup, drop, use, equip)~~

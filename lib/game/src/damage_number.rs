@@ -414,6 +414,11 @@ impl DamageNumberManager {
         let is_multi_hit = matches!(hit.message, DamageMessage::AttackedMultiHit { .. });
         let is_skill = hit.skill_id > 0;
 
+        // Server sends -30000 as a preamble dummy packet for splash skills
+        if hit.damage < 0 {
+            return;
+        }
+
         if hit.damage == 0 && !is_multi_hit {
             self.add(DamageNumber::new(
                 entity_id,

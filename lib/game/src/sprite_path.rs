@@ -2,6 +2,8 @@ pub use models::enums::weapon::WeaponType;
 
 use crate::entity::EntityType;
 use crate::name_table::NameTable;
+use models::enums::class::JobName;
+use models::enums::EnumWithNumberValue;
 
 pub fn entity_type_from_job(job: u16) -> EntityType {
     match job {
@@ -80,7 +82,11 @@ fn job_name_kr(job_class: u16) -> &'static str {
 }
 
 fn sex_kr(sex: u8) -> &'static str {
-    if sex == 0 { "여" } else { "남" }
+    if sex == 0 {
+        "여"
+    } else {
+        "남"
+    }
 }
 
 /// Returns the GRF path base for a body sprite (without file extension).
@@ -253,7 +259,7 @@ fn shield_view_from_item_id(id: u16) -> Option<u16> {
 }
 
 pub fn resolve_shield_view_id(id: u16) -> u16 {
-    if id >= 1 && id <= 4 {
+    if (1..=4).contains(&id) {
         return id;
     }
     shield_view_from_item_id(id).unwrap_or(id)
@@ -272,6 +278,26 @@ pub fn shield_sprite_path_numeric(view_id: u16, job_class: u16, sex: u8) -> Stri
     let job = job_name_kr(job_class);
     let sex_str = sex_kr(sex);
     format!("data/sprite/방패/{job}/{job}_{sex_str}_{view_id}")
+}
+
+pub fn transcendent_to_base_class(job_class: u16) -> Option<JobName> {
+    let job = JobName::try_from_value(job_class as usize).ok()?;
+    match job {
+        JobName::LordKnight => Some(JobName::Knight),
+        JobName::HighPriest => Some(JobName::Priest),
+        JobName::HighWizard => Some(JobName::Wizard),
+        JobName::Whitesmith => Some(JobName::Blacksmith),
+        JobName::Sniper => Some(JobName::Hunter),
+        JobName::AssassinCross => Some(JobName::Assassin),
+        JobName::Paladin => Some(JobName::Crusader),
+        JobName::Champion => Some(JobName::Monk),
+        JobName::Professor => Some(JobName::Sage),
+        JobName::Stalker => Some(JobName::Rogue),
+        JobName::Creator => Some(JobName::Alchemist),
+        JobName::Clown => Some(JobName::Bard),
+        JobName::Gypsy => Some(JobName::Dancer),
+        _ => None,
+    }
 }
 
 pub fn weapon_sprite_path(job_class: u16, sex: u8, weapon_type: WeaponType) -> String {

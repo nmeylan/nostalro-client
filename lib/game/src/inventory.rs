@@ -51,8 +51,11 @@ impl InventoryData {
 
     pub fn add_item(&mut self, item: Item) {
         if let Some(existing) = self.items.iter_mut().find(|i| i.index == item.index) {
-            existing.count += item.count;
-            existing.wear_state = item.wear_state;
+            if item.is_equipment() {
+                existing.wear_state = item.wear_state;
+            } else {
+                existing.count += item.count;
+            }
         } else {
             self.items.push(item);
         }

@@ -155,7 +155,7 @@ impl Renderer {
         grf: &GrfArchive,
         fog: Option<FogEntry>,
     ) {
-        let scale = 120.0 * gnd.zoom;
+        let scale = 240.0 * gnd.zoom;
         let fog_uniform = match fog {
             Some(entry) => FogUniform {
                 color: [entry.color[0], entry.color[1], entry.color[2], 1.0],
