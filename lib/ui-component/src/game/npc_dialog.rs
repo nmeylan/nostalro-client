@@ -88,6 +88,12 @@ pub struct NpcDialog {
     win_size: (f32, f32),
 }
 
+impl Default for NpcDialog {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NpcDialog {
     pub fn new() -> Self {
         Self {

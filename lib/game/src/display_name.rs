@@ -88,13 +88,14 @@ fn build_card_affixes(slots: &[u16; 4], card_table: Option<&CardNameTable>) -> (
 mod tests {
     use super::*;
     use crate::item_slot_count_table::ItemSlotCountTable;
+    use models::enums::item::ItemType;
     use std::collections::{HashMap, HashSet};
 
     fn make_item(name: &str, refining: u8, slots: [u16; 4]) -> Item {
         Item {
             index: 1,
             item_id: 1101,
-            item_type: 5,
+            item_type: ItemType::Weapon,
             count: 1,
             is_identified: true,
             is_damaged: false,
@@ -107,10 +108,7 @@ mod tests {
         }
     }
 
-    fn make_card_table(
-        prefixes: &[(u16, &str)],
-        postfix_ids: &[u16],
-    ) -> CardNameTable {
+    fn make_card_table(prefixes: &[(u16, &str)], postfix_ids: &[u16]) -> CardNameTable {
         let prefix_names: HashMap<u16, String> = prefixes
             .iter()
             .map(|(id, name)| (*id, name.to_string()))
@@ -143,14 +141,20 @@ mod tests {
     fn slot_count_only() {
         let item = make_item("Sword", 0, [0; 4]);
         let slot_table = make_slot_table(1101, 3);
-        assert_eq!(format_equipment_display_name(&item, Some(&slot_table), None), "Sword [3]");
+        assert_eq!(
+            format_equipment_display_name(&item, Some(&slot_table), None),
+            "Sword [3]"
+        );
     }
 
     #[test]
     fn refining_and_slot_count() {
         let item = make_item("Sword", 7, [0; 4]);
         let slot_table = make_slot_table(1101, 2);
-        assert_eq!(format_equipment_display_name(&item, Some(&slot_table), None), "+7 Sword [2]");
+        assert_eq!(
+            format_equipment_display_name(&item, Some(&slot_table), None),
+            "+7 Sword [2]"
+        );
     }
 
     #[test]
@@ -188,10 +192,7 @@ mod tests {
 
     #[test]
     fn mixed_prefix_and_postfix() {
-        let table = make_card_table(
-            &[(4001, "Bloody"), (4002, "of Starlight")],
-            &[4002],
-        );
+        let table = make_card_table(&[(4001, "Bloody"), (4002, "of Starlight")], &[4002]);
         let item = make_item("Katana", 7, [4001, 4001, 4002, 0]);
         let slot_table = make_slot_table(1101, 3);
         assert_eq!(

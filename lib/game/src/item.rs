@@ -1,6 +1,6 @@
-use models::enums::EnumWithMaskValueU64;
-use models::enums::item::EquipmentLocation;
 use crate::item_resource_table::ItemResourceTable;
+use models::enums::item::{EquipmentLocation, ItemType};
+use models::enums::EnumWithMaskValueU64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InventoryTab {
@@ -9,10 +9,12 @@ pub enum InventoryTab {
     Etc,
 }
 
-pub fn item_tab(item_type: u8) -> InventoryTab {
+pub fn item_tab(item_type: ItemType) -> InventoryTab {
     match item_type {
-        0 | 2 | 11 | 18 => InventoryTab::Usable,
-        1 | 4 | 5 => InventoryTab::Equip,
+        ItemType::Healing | ItemType::Usable | ItemType::DelayConsume | ItemType::Cash => {
+            InventoryTab::Usable
+        }
+        ItemType::Unknown | ItemType::Armor | ItemType::Weapon => InventoryTab::Equip,
         _ => InventoryTab::Etc,
     }
 }
@@ -21,7 +23,7 @@ pub fn item_tab(item_type: u8) -> InventoryTab {
 pub struct Item {
     pub index: u16,
     pub item_id: u16,
-    pub item_type: u8,
+    pub item_type: ItemType,
     pub count: i16,
     pub is_identified: bool,
     pub is_damaged: bool,
@@ -39,7 +41,8 @@ impl Item {
     }
 
     pub fn icon_path(&self) -> Option<String> {
-        self.resource_name.as_ref()
+        self.resource_name
+            .as_ref()
             .map(|name| format!("data/texture/유저인터페이스/item/{name}.bmp"))
     }
 
@@ -47,16 +50,20 @@ impl Item {
         self.tab() == InventoryTab::Equip || self.is_ammunition()
     }
 
+    pub fn is_weapon(&self) -> bool {
+        self.item_type == ItemType::Weapon
+    }
+
     pub fn is_equipped(&self) -> bool {
         self.wear_state != 0
     }
 
     pub fn is_ammunition(&self) -> bool {
-        self.item_type == 10
+        self.item_type == ItemType::Ammo
     }
 
     pub fn is_card(&self) -> bool {
-        self.item_type == 6
+        self.item_type == ItemType::Card
     }
 
     pub fn equip_location(&self) -> u16 {
@@ -69,7 +76,9 @@ impl Item {
 
     pub fn resolve_resource_name(&mut self, table: &ItemResourceTable) {
         if self.resource_name.is_none() {
-            self.resource_name = table.get_resource_name_for(self.item_id, self.is_identified).map(|s| s.to_string());
+            self.resource_name = table
+                .get_resource_name_for(self.item_id, self.is_identified)
+                .map(|s| s.to_string());
         }
     }
 }

@@ -59,6 +59,12 @@ const EXIT_BTN: ButtonTextures = ButtonTextures {
     pressed: "data/texture/유저인터페이스/login_interface/btn_exit_b.bmp",
 };
 
+impl Default for LoginWindow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LoginWindow {
     pub fn new() -> Self {
         Self {

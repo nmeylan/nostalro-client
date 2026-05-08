@@ -117,6 +117,12 @@ pub struct BasicInfoWindow {
     sys_btn_size: (f32, f32),
 }
 
+impl Default for BasicInfoWindow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BasicInfoWindow {
     pub fn new() -> Self {
         Self {

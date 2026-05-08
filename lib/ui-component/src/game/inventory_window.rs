@@ -65,6 +65,12 @@ pub struct InventoryWindow {
     minimized: bool,
 }
 
+impl Default for InventoryWindow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InventoryWindow {
     pub fn new() -> Self {
         Self {
@@ -407,13 +413,12 @@ impl InGameWindow for InventoryWindow {
             self.grid_cols as f32 * CELL_SIZE,
             self.grid_rows as f32 * CELL_SIZE,
         );
-        if let Some((source_id, item_index)) = ui.drop_zone(grid_rect) {
-            if source_id == EQ_WINDOW_ID {
+        if let Some((source_id, item_index)) = ui.drop_zone(grid_rect)
+            && source_id == EQ_WINDOW_ID {
                 events.push(GameEvent::RequestUnequipItem {
                     index: item_index as u16,
                 });
             }
-        }
 
         // -- Scrollbar (only when needed) --
         if total_rows > self.grid_rows {
@@ -549,8 +554,8 @@ impl InGameWindow for InventoryWindow {
         if resize.started {
             self.resize_start = Some((self.grid_cols, self.grid_rows));
         }
-        if resize.dragging {
-            if let Some((start_cols, start_rows)) = self.resize_start {
+        if resize.dragging
+            && let Some((start_cols, start_rows)) = self.resize_start {
                 let new_cols = (start_cols as f32 + resize.delta_x / CELL_SIZE).round() as i32;
                 let new_rows = (start_rows as f32 + resize.delta_y / CELL_SIZE).round() as i32;
                 let new_cols = new_cols.clamp(MIN_COLS as i32, MAX_COLS as i32) as usize;
@@ -565,7 +570,6 @@ impl InGameWindow for InventoryWindow {
                     }
                 }
             }
-        }
 
         ui.has_grf_textures = prev_grf;
         events

@@ -8,6 +8,7 @@ ragnarok-ui = { workspace = true }
 ragnarok-game = { workspace = true }
 
 [dev-dependencies]
+models = { workspace = true }
 ragnarok-renderer = { workspace = true }
 ragnarok-formats = { workspace = true }
 winit = { workspace = true }

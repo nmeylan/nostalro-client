@@ -95,6 +95,7 @@ pub struct GameState {
 }
 
 const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
+    BASIC_INFO_WINDOW_ID,
     chat_window::CHAT_WINDOW_ID,
     INV_WINDOW_ID,
     EQ_WINDOW_ID,
@@ -113,19 +114,9 @@ impl GameState {
         // Modal windows block interaction with z-ordered windows behind them
         self.npc_shop.setup_modal(ui);
 
-        // Basic info window — built before z-orderable windows so it renders behind them
-        events.extend(
-            self.basic_info_window
-                .build(ui, &mut self.character, &self.data_table),
-        );
-
         // Build z-orderable windows in persisted order (back-to-front).
-        // Include basic_info at the bottom so it gets properly occluded
-        // when a z-orderable window overlaps it.
         let z_order = ui.get_z_order();
-        let mut z_order_with_bg = vec![BASIC_INFO_WINDOW_ID];
-        z_order_with_bg.extend(&z_order);
-        ui.compute_hovered_window(&z_order_with_bg);
+        ui.compute_hovered_window(&z_order);
         for &win_id in &z_order {
             self.build_window(win_id, ui, &mut events);
         }
@@ -269,6 +260,11 @@ impl GameState {
 
     fn build_window(&mut self, win_id: WidgetId, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
         match win_id {
+            BASIC_INFO_WINDOW_ID => events.extend(self.basic_info_window.build(
+                ui,
+                &mut self.character,
+                &self.data_table,
+            )),
             chat_window::CHAT_WINDOW_ID => events.extend(self.chat_window.build(
                 ui,
                 &mut self.character,

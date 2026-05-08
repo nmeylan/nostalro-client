@@ -1,4 +1,5 @@
-use models::enums::EnumWithMaskValueU64;
+use models::enums::item::ItemType;
+use models::enums::{EnumWithMaskValueU64, EnumWithNumberValue};
 pub use models::enums::item::EquipmentLocation;
 use crate::item::Item;
 use crate::item::InventoryTab;
@@ -142,7 +143,7 @@ impl InventoryData {
             self.add_item(Item {
                 index: info.index as u16,
                 item_id: info.item_id,
-                item_type: info.item_type,
+                item_type: ItemType::from_value(info.item_type as usize),
                 count: info.count,
                 is_identified: info.is_identified,
                 is_damaged: false,
@@ -167,7 +168,7 @@ impl InventoryData {
             self.add_item(Item {
                 index: info.index as u16,
                 item_id: info.item_id,
-                item_type: info.item_type,
+                item_type: ItemType::from_value(info.item_type as usize),
                 count: 1,
                 is_identified: info.is_identified,
                 is_damaged: info.is_damaged,
@@ -184,7 +185,7 @@ impl InventoryData {
 
     pub fn apply_item_pickup(
         &mut self,
-        index: u16, item_id: u16, count: u16, item_type: u8,
+        index: u16, item_id: u16, count: u16, item_type: ItemType,
         is_identified: bool, is_damaged: bool, refining_level: u8,
         slot: [u16; 4], location: u16, result: u8,
         data_table: &crate::data_table::DataTable,
@@ -282,12 +283,13 @@ pub struct EquipmentItemData {
 mod tests {
     use super::*;
     use crate::item::item_tab;
+    use models::enums::item::ItemType;
 
     fn make_normal_item(index: u16, item_id: u16, item_type: u8, count: i16) -> Item {
         Item {
             index,
             item_id,
-            item_type,
+            item_type: ItemType::from_value(item_type as usize),
             count,
             is_identified: true,
             is_damaged: false,
@@ -304,7 +306,7 @@ mod tests {
         Item {
             index,
             item_id,
-            item_type: 5, // armor
+            item_type: ItemType::Weapon,
             count: 1,
             is_identified: true,
             is_damaged: false,
@@ -392,15 +394,15 @@ mod tests {
         inv.add_item(make_normal_item(12, 7001, 3, 1)); // etc -> Etc
         inv.add_item(make_normal_item(13, 1750, 10, 100)); // ammo -> Etc
 
-        assert_eq!(item_tab(0), InventoryTab::Usable);
-        assert_eq!(item_tab(2), InventoryTab::Usable);
-        assert_eq!(item_tab(11), InventoryTab::Usable);
-        assert_eq!(item_tab(4), InventoryTab::Equip);
-        assert_eq!(item_tab(5), InventoryTab::Equip);
-        assert_eq!(item_tab(1), InventoryTab::Equip);
-        assert_eq!(item_tab(3), InventoryTab::Etc);
-        assert_eq!(item_tab(6), InventoryTab::Etc);
-        assert_eq!(item_tab(10), InventoryTab::Etc);
+        assert_eq!(item_tab(ItemType::Healing), InventoryTab::Usable);
+        assert_eq!(item_tab(ItemType::Usable), InventoryTab::Usable);
+        assert_eq!(item_tab(ItemType::DelayConsume), InventoryTab::Usable);
+        assert_eq!(item_tab(ItemType::Armor), InventoryTab::Equip);
+        assert_eq!(item_tab(ItemType::Weapon), InventoryTab::Equip);
+        assert_eq!(item_tab(ItemType::Unknown), InventoryTab::Equip);
+        assert_eq!(item_tab(ItemType::Etc), InventoryTab::Etc);
+        assert_eq!(item_tab(ItemType::Card), InventoryTab::Etc);
+        assert_eq!(item_tab(ItemType::Ammo), InventoryTab::Etc);
 
         // add_item with same index updates existing
         inv.add_item(make_normal_item(10, 501, 0, 5));
@@ -513,12 +515,12 @@ mod tests {
 
         // HandLeft + Weapon item routes to weapon slot.
         assert_eq!(
-            Entity::wear_location_to_sprite_type_for(32, Some(5)),
+            Entity::wear_location_to_sprite_type_for(32, Some(ItemType::Weapon)),
             Some(2),
         );
         // HandLeft + Armor item routes to shield slot.
         assert_eq!(
-            Entity::wear_location_to_sprite_type_for(32, Some(4)),
+            Entity::wear_location_to_sprite_type_for(32, Some(ItemType::Armor)),
             Some(8),
         );
     }

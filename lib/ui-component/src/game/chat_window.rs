@@ -184,6 +184,12 @@ pub struct ChatWindow {
     initial_size_index: Option<usize>,
 }
 
+impl Default for ChatWindow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ChatWindow {
     pub fn new() -> Self {
         Self {
@@ -757,7 +763,7 @@ impl InGameWindow for ChatWindow {
         if show_messages {
             // Wrap messages into visual lines
             let text_area_w = chat_w - padding * 2.0;
-            let atlas = &*ui.atlas;
+            let atlas = ui.atlas;
             let visual_lines: Vec<(String, [f32; 4])> = filtered.iter()
                 .flat_map(|line| {
                     let wrapped = ragnarok_ui::draw::word_wrap(&line.text, text_area_w, |t| atlas.measure_text(t), false);

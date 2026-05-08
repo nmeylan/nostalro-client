@@ -4,6 +4,8 @@
 static GLOBAL: std::alloc::System = std::alloc::System;
 
 use std::collections::HashMap;
+use models::enums::item::ItemType;
+use models::enums::EnumWithNumberValue;
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::card_illustration_table::CardIllustrationTable;
@@ -33,7 +35,6 @@ use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
 use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
 use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
 use ragnarok_ui_component::game::system_menu::SystemMenu;
-use ragnarok_ui_component::helper::dialog_container::DialogContainer;
 use ragnarok_ui_component::{Window, InGameWindow};
 
 const GAME_COMPONENTS: &[&str] = &[
@@ -253,7 +254,7 @@ fn create_single(name: &str) -> State {
                 Item {
                     index: 0,
                     item_id: 1101,
-                    item_type: 5,
+                    item_type: ItemType::Weapon,
                     count: 1,
                     is_identified: true,
                     is_damaged: false,
@@ -267,7 +268,7 @@ fn create_single(name: &str) -> State {
                 Item {
                     index: 1,
                     item_id: 2101,
-                    item_type: 5,
+                    item_type: ItemType::Weapon,
                     count: 1,
                     is_identified: true,
                     is_damaged: false,
@@ -281,7 +282,7 @@ fn create_single(name: &str) -> State {
                 Item {
                     index: 2,
                     item_id: 2301,
-                    item_type: 5,
+                    item_type: ItemType::Armor,
                     count: 1,
                     is_identified: true,
                     is_damaged: false,
@@ -295,7 +296,7 @@ fn create_single(name: &str) -> State {
                 Item {
                     index: 3,
                     item_id: 2401,
-                    item_type: 5,
+                    item_type: ItemType::Armor,
                     count: 1,
                     is_identified: true,
                     is_damaged: false,
@@ -309,7 +310,7 @@ fn create_single(name: &str) -> State {
                 Item {
                     index: 4,
                     item_id: 2501,
-                    item_type: 5,
+                    item_type: ItemType::Armor,
                     count: 1,
                     is_identified: true,
                     is_damaged: false,
@@ -457,7 +458,7 @@ fn create_single(name: &str) -> State {
             let bow = Item {
                 index: 0,
                 item_id: 1701,
-                item_type: 4,
+                item_type: ItemType::Armor,
                 count: 1,
                 is_identified: true,
                 is_damaged: false,
@@ -724,11 +725,10 @@ fn grf_init_single(
                 if data.item_resource.is_none() {
                     let mut entries = HashMap::new();
                     for &card_id in &item.slot {
-                        if card_id != 0 && card_id != 0xFFFF {
-                            if let Some(name) = table.get_resource_name(card_id) {
+                        if card_id != 0 && card_id != 0xFFFF
+                            && let Some(name) = table.get_resource_name(card_id) {
                                 entries.insert(card_id, name.to_string());
                             }
-                        }
                     }
                     data.item_resource = Some(ItemResourceTable::from_entries(entries, HashMap::new()));
                 }
@@ -846,8 +846,7 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
                 if result != ragnarok_ui_component::game::confirm_dialog::ConfirmResult::None {
                     *open = false;
                 }
-            } else {
-            }
+            } 
         }
         State::NumberInput { dialog } => {
             dialog.build(ui);
@@ -920,11 +919,10 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             }
             // Build z-orderable windows not yet in z-order
             for comp in components.iter_mut() {
-                if let Some(id) = z_order_id(comp) {
-                    if !z_order.contains(&id) {
+                if let Some(id) = z_order_id(comp)
+                    && !z_order.contains(&id) {
                         build_single(comp, ui);
                     }
-                }
             }
             // Build non-z-orderable windows (always on top)
             for comp in components.iter_mut() {
@@ -991,7 +989,7 @@ fn make_test_item(index: u16, item_id: u16, item_type: u8, count: i16, name: &st
     Item {
         index,
         item_id,
-        item_type,
+        item_type: ItemType::from_value(item_type as usize),
         count,
         is_identified: true,
         is_damaged: false,

@@ -70,6 +70,12 @@ pub struct SkillTreeWindow {
     tooltip_container: DialogContainer,
 }
 
+impl Default for SkillTreeWindow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SkillTreeWindow {
     pub fn new() -> Self {
         Self {

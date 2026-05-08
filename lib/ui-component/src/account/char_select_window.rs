@@ -66,20 +66,16 @@ impl CharSelectWindow {
     pub fn build(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
         let mut events = Vec::new();
 
-        if ui.ctx.key_down {
-            if let Some(idx) = self.selected_index {
-                if idx + 1 < self.characters.len() {
+        if ui.ctx.key_down
+            && let Some(idx) = self.selected_index
+                && idx + 1 < self.characters.len() {
                     self.selected_index = Some(idx + 1);
                 }
-            }
-        }
-        if ui.ctx.key_up {
-            if let Some(idx) = self.selected_index {
-                if idx > 0 {
+        if ui.ctx.key_up
+            && let Some(idx) = self.selected_index
+                && idx > 0 {
                     self.selected_index = Some(idx - 1);
                 }
-            }
-        }
 
         if self.has_grf_textures {
             self.build_grf(ui, &mut events);
@@ -87,13 +83,11 @@ impl CharSelectWindow {
             self.build_fallback(ui, &mut events);
         }
 
-        if ui.ctx.key_enter {
-            if let Some(idx) = self.selected_index {
-                if let Some(ch) = self.characters.get(idx) {
+        if ui.ctx.key_enter
+            && let Some(idx) = self.selected_index
+                && let Some(ch) = self.characters.get(idx) {
                     events.push(GameEvent::RequestSelectCharacter { slot: ch.slot as u8 });
                 }
-            }
-        }
         if ui.ctx.key_escape {
             events.push(GameEvent::BackToServerSelect);
         }
@@ -161,13 +155,11 @@ impl CharSelectWindow {
         let ok = ui.button(OK_ID, ok_rect, &OK_BTN, "OK");
         let cancel = ui.button(CANCEL_ID, cancel_rect, &CANCEL_BTN, "Cancel");
 
-        if ok.clicked() {
-            if let Some(idx) = self.selected_index {
-                if let Some(ch) = self.characters.get(idx) {
+        if ok.clicked()
+            && let Some(idx) = self.selected_index
+                && let Some(ch) = self.characters.get(idx) {
                     events.push(GameEvent::RequestSelectCharacter { slot: ch.slot as u8 });
                 }
-            }
-        }
         if cancel.clicked() {
             events.push(GameEvent::BackToServerSelect);
         }
@@ -241,8 +233,8 @@ impl CharSelectWindow {
 
         // Detail panel for selected character
         let mut detail_bottom = list_y + list_h;
-        if let Some(idx) = self.selected_index {
-            if let Some(ch) = self.characters.get(idx) {
+        if let Some(idx) = self.selected_index
+            && let Some(ch) = self.characters.get(idx) {
                 let detail_y = list_y + list_h + padding;
                 detail_bottom = detail_y + detail_h;
                 let line_h = ui.atlas.line_height + (2.0);
@@ -263,7 +255,6 @@ impl CharSelectWindow {
                 y += line_h;
                 ui.text(col1_x, y, &format!("INT {} DEX {} LUK {}", ch.int, ch.dex, ch.luk), dim_color);
             }
-        }
 
         // OK / Cancel buttons
         let btn_y = detail_bottom + padding;
@@ -276,13 +267,11 @@ impl CharSelectWindow {
         let ok = ui.button(OK_ID, ok_rect, &OK_BTN, "OK");
         let cancel = ui.button(CANCEL_ID, cancel_rect, &CANCEL_BTN, "Cancel");
 
-        if ok.clicked() {
-            if let Some(idx) = self.selected_index {
-                if let Some(ch) = self.characters.get(idx) {
+        if ok.clicked()
+            && let Some(idx) = self.selected_index
+                && let Some(ch) = self.characters.get(idx) {
                     events.push(GameEvent::RequestSelectCharacter { slot: ch.slot as u8 });
                 }
-            }
-        }
         if cancel.clicked() {
             events.push(GameEvent::BackToServerSelect);
         }

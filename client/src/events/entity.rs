@@ -256,31 +256,47 @@ impl App {
         }
     }
 
-    pub(super) fn handle_entity_sprite_changed(&mut self, gid: u32, sprite_type: u8, value: u16, value2: u16) {
+    pub(super) fn handle_entity_sprite_changed(
+        &mut self,
+        gid: u32,
+        sprite_type: u8,
+        value: u16,
+        value2: u16,
+    ) {
+        let left_hand_is_weapon = self.game.entities.is_player(gid)
+            && self
+                .game
+                .character
+                .inventory
+                .equipped_in_slot(models::enums::item::EquipmentLocation::HandLeft)
+                .is_some_and(|item| item.is_weapon());
         if let Some(entity) = self.game.entities.get_mut(gid) {
             if sprite_type == 2 {
-                // LOOK_WEAPON: value=right hand, value2=left hand (weapon or shield)
+                // LOOK_WEAPON: value=weapon, value2=left hand (weapon if dual-wield, shield otherwise)
+                // Rathena converts both LOOK_WEAPON and LOOK_SHIELD to sprite_type=2 on the wire
                 let right_type = ragnarok_game::sprite_path::weapon_view_id_to_type(value);
-                let left_type = ragnarok_game::sprite_path::weapon_view_id_to_type(value2);
-                match (right_type, left_type) {
-                    (Some(r), Some(l)) => {
-                        entity.weapon = ragnarok_game::sprite_path::dual_wield_type(r, l).or(Some(r));
-                        entity.shield = 0;
-                    }
-                    (Some(_), None) => {
-                        entity.weapon = right_type;
-                        entity.shield = value2;
-                    }
-                    (None, Some(_)) => {
-                        entity.weapon = left_type;
-                        entity.shield = 0;
-                    }
-                    (None, None) => {
-                        entity.weapon = None;
-                        entity.shield = value2;
-                    }
+                if left_hand_is_weapon {
+                    let left_type = ragnarok_game::sprite_path::weapon_view_id_to_type(value2);
+                    entity.weapon = match (right_type, left_type) {
+                        (Some(r), Some(l)) => {
+                            ragnarok_game::sprite_path::dual_wield_type(r, l).or(Some(r))
+                        }
+                        (None, Some(l)) => Some(l),
+                        _ => right_type,
+                    };
+                    entity.shield = 0;
+                } else {
+                    entity.weapon = right_type;
+                    entity.shield = value2;
                 }
+                tracing::debug!(
+                    "LOOK_WEAPON: gid={gid} value={value} value2={value2} left_is_weapon={left_hand_is_weapon} → weapon={:?} shield={}",
+                    entity.weapon, entity.shield
+                );
             } else {
+                tracing::debug!(
+                    "SpriteChange: gid={gid} type={sprite_type} value={value}"
+                );
                 entity.apply_sprite_change(sprite_type, value);
             }
             let weapon_type = entity.weapon;

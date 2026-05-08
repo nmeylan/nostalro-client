@@ -1,4 +1,6 @@
 use crate::App;
+use models::enums::item::ItemType;
+use models::enums::EnumWithNumberValue;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::entity::Entity;
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
@@ -56,7 +58,7 @@ impl App {
         self.game.character.inventory.add_item(Item {
             index,
             item_id,
-            item_type,
+            item_type: ItemType::from_value(item_type as usize),
             count: count as i16,
             is_identified,
             is_damaged,

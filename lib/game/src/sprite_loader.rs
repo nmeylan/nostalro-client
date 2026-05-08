@@ -154,8 +154,17 @@ pub fn load_headgear_sprite(grf: &GrfArchive, suffix: &str, sex: u8) -> Option<S
 }
 
 pub fn load_shield_sprite(grf: &GrfArchive, view_id: u16, job: u16, sex: u8) -> Option<SpriteData> {
-    let base_path = crate::sprite_path::shield_sprite_path(view_id, job, sex)?;
-    load_sprite_data(grf, &format!("{base_path}.spr"), &format!("{base_path}.act"))
+    if let Some(base_path) = crate::sprite_path::shield_sprite_path(view_id, job, sex) {
+        let result = load_sprite_data(grf, &format!("{base_path}.spr"), &format!("{base_path}.act"));
+        if result.is_some() {
+            tracing::debug!("load_shield_sprite: view_id={view_id} path={base_path}");
+            return result;
+        }
+    }
+    let base_path = crate::sprite_path::shield_sprite_path_numeric(view_id, job, sex);
+    let result = load_sprite_data(grf, &format!("{base_path}.spr"), &format!("{base_path}.act"));
+    tracing::debug!("load_shield_sprite: view_id={view_id} numeric_path={base_path} loaded={}", result.is_some());
+    result
 }
 
 pub struct PlayerSpriteData {

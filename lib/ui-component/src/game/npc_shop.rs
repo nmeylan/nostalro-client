@@ -76,6 +76,12 @@ pub struct NpcShop {
     container: DialogContainer,
 }
 
+impl Default for NpcShop {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NpcShop {
     pub fn new() -> Self {
         Self {
@@ -197,8 +203,8 @@ impl InGameWindow for NpcShop {
         );
 
         // Handle drag-drop: item dropped on output window opens qty popup
-        if let Some((source_id, item_idx)) = ui.drop_zone(output_rect) {
-            if source_id == INPUT_WIN_ID {
+        if let Some((source_id, item_idx)) = ui.drop_zone(output_rect)
+            && source_id == INPUT_WIN_ID {
                 if self.shop.mode == Some(NpcShopMode::Sell)
                     && self.shop.sell_item_remaining(item_idx) <= 1
                 {
@@ -207,7 +213,6 @@ impl InGameWindow for NpcShop {
                     self.open_qty_popup(item_idx);
                 }
             }
-        }
 
         if self.qty_popup.is_some() {
             self.build_quantity_popup(ui);
@@ -410,12 +415,11 @@ impl NpcShop {
         if resize.started {
             self.resize_start_rows = Some(self.input_visible_rows);
         }
-        if resize.dragging {
-            if let Some(start_rows) = self.resize_start_rows {
+        if resize.dragging
+            && let Some(start_rows) = self.resize_start_rows {
                 let new = (start_rows as f32 + resize.delta_y / row_h).round() as i32;
                 self.input_visible_rows = new.clamp(INPUT_MIN_ROWS as i32, INPUT_MAX_ROWS as i32) as usize;
             }
-        }
 
         win
     }
@@ -729,6 +733,8 @@ fn format_zeny(amount: i32) -> String {
 mod tests {
     use super::*;
     use crate::InGameWindow;
+    use models::enums::item::ItemType;
+    use models::enums::EnumWithNumberValue;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
     use ragnarok_game::item::Item;
@@ -751,7 +757,7 @@ mod tests {
             100,
             vec![ShopBuyItem {
                 item: Item {
-                    index: 0, item_id: 501, item_type: 0, count: 1,
+                    index: 0, item_id: 501, item_type: ItemType::from_value(0), count: 1,
                     is_identified: true, is_damaged: false, refining_level: 0,
                     slot: [0; 4], location: 0, wear_state: 0,
                     name: "Red Potion".into(), resource_name: None,
@@ -782,7 +788,7 @@ mod tests {
             100,
             vec![ShopBuyItem {
                 item: Item {
-                    index: 0, item_id: 501, item_type: 0, count: 1,
+                    index: 0, item_id: 501, item_type: ItemType::from_value(0), count: 1,
                     is_identified: true, is_damaged: false, refining_level: 0,
                     slot: [0; 4], location: 0, wear_state: 0,
                     name: "Red Potion".into(), resource_name: None,

@@ -2888,6 +2888,7 @@ version = "0.1.0"
 dependencies = [
  "image",
  "libloading",
+ "models",
  "ragnarok-formats",
  "ragnarok-game",
  "ragnarok-renderer",
@@ -2902,6 +2903,7 @@ dependencies = [
 name = "ragnarok-ui-component-hot"
 version = "0.1.0"
 dependencies = [
+ "models",
  "ragnarok-game",
  "ragnarok-ui",
  "ragnarok-ui-component",

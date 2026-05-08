@@ -25,6 +25,12 @@ pub struct ItemPickupNotification {
     entry: Option<PickupEntry>,
 }
 
+impl Default for ItemPickupNotification {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ItemPickupNotification {
     pub fn new() -> Self {
         Self {

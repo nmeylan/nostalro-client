@@ -68,20 +68,16 @@ impl ServerListWindow {
         let mut events = Vec::new();
 
         // Keyboard navigation
-        if ui.ctx.key_down {
-            if let Some(idx) = self.selected_index {
-                if idx + 1 < self.servers.len() {
+        if ui.ctx.key_down
+            && let Some(idx) = self.selected_index
+                && idx + 1 < self.servers.len() {
                     self.selected_index = Some(idx + 1);
                 }
-            }
-        }
-        if ui.ctx.key_up {
-            if let Some(idx) = self.selected_index {
-                if idx > 0 {
+        if ui.ctx.key_up
+            && let Some(idx) = self.selected_index
+                && idx > 0 {
                     self.selected_index = Some(idx - 1);
                 }
-            }
-        }
 
         if self.has_grf_textures {
             self.build_grf(ui, &mut events);

@@ -43,6 +43,12 @@ pub struct DialogContainer {
     sysbox_sizes: Option<NineSliceSizes>,
 }
 
+impl Default for DialogContainer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DialogContainer {
     pub fn new() -> Self {
         Self {
@@ -68,12 +74,11 @@ impl DialogContainer {
     }
 
     pub fn draw(&self, draw_calls: &mut Vec<DrawCall>, x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) {
-        if self.has_grf_textures {
-            if let Some(sizes) = &self.sysbox_sizes {
+        if self.has_grf_textures
+            && let Some(sizes) = &self.sysbox_sizes {
                 draw_nine_slice(draw_calls, x, y, w, h, sizes, color);
                 return;
             }
-        }
         draw_fallback(draw_calls, x, y, w, h);
     }
 

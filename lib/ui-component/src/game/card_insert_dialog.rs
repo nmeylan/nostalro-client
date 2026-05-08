@@ -64,6 +64,12 @@ pub struct CardInsertDialog {
     btn_size: (f32, f32),
 }
 
+impl Default for CardInsertDialog {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CardInsertDialog {
     pub fn new() -> Self {
         Self {
@@ -255,14 +261,13 @@ impl InGameWindow for CardInsertDialog {
             self.close();
             events.push(GameEvent::DialogClosed);
         }
-        if ok.clicked() {
-            if let Some(idx) = self.selected_index {
+        if ok.clicked()
+            && let Some(idx) = self.selected_index {
                 let equip_index = self.eligible_items[idx].inventory_index;
                 let card_index = self.card_index;
                 self.close();
                 events.push(GameEvent::RequestCardInsert { card_index, equip_index });
             }
-        }
 
         events
     }

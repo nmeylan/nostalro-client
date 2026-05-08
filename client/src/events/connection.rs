@@ -2,7 +2,7 @@ use super::preload_window;
 use crate::App;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::entity::Entity;
-use ragnarok_game::sprite_path::{dual_wield_type, weapon_view_id_to_type};
+use ragnarok_game::sprite_path::weapon_view_id_to_type;
 use ragnarok_network::{
     build_map_loaded_packet, build_zone_enter_packet, ip_u32_to_string, KeepaliveMode,
     NetworkCommand,
@@ -135,12 +135,7 @@ impl App {
         self.game.entities.set_player_id(account_id);
         self.game.entities.insert(entity);
 
-        let right_type = weapon_view_id_to_type(weapon);
-        let left_type = weapon_view_id_to_type(shield_id);
-        let (weapon_type, shield_for_sprite) = match (right_type, left_type) {
-            (Some(r), Some(l)) => (dual_wield_type(r, l).or(right_type), 0),
-            _ => (right_type, shield_id),
-        };
+        let weapon_type = weapon_view_id_to_type(weapon);
         self.load_player_sprite(
             account_id,
             job,
@@ -152,7 +147,7 @@ impl App {
             head_top,
             head_mid,
             head_bottom,
-            shield_for_sprite,
+            shield_id,
         );
 
         self.position_camera_at(x as f32, y as f32);

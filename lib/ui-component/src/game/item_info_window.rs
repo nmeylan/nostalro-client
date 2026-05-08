@@ -99,6 +99,12 @@ pub struct ItemInfoWindow {
     card_illustration: Option<CardIllustration>,
 }
 
+impl Default for ItemInfoWindow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ItemInfoWindow {
     pub fn new() -> Self {
         Self {
@@ -117,12 +123,11 @@ impl ItemInfoWindow {
 
     pub fn show(&mut self, item: &Item, data: &DataTable) {
         // Toggle off if same item
-        if let Some(current) = &self.item {
-            if current.item_id == item.item_id {
+        if let Some(current) = &self.item
+            && current.item_id == item.item_id {
                 self.close();
                 return;
             }
-        }
 
         let description_lines = data.item_description
             .as_ref()
@@ -156,7 +161,7 @@ impl ItemInfoWindow {
             collection_path,
             is_damaged: item.is_damaged,
             is_equipment: item.is_equipment(),
-            is_card: item.item_type == 6,
+            is_card: item.is_card(),
             description_lines,
             slot: item.slot,
             slot_count,
@@ -173,22 +178,19 @@ impl ItemInfoWindow {
             if let Some(path) = &data.collection_path {
                 paths.push(path.clone());
             }
-            for p in &data.card_icon_paths {
-                if let Some(path) = p {
-                    paths.push(path.clone());
-                }
+            for path in data.card_icon_paths.iter().flatten() {
+                paths.push(path.clone());
             }
         }
         paths
     }
 
     pub fn show_card(&mut self, card_id: u16, data: &DataTable) {
-        if let Some(current) = &self.card_info {
-            if current.item_id == card_id {
+        if let Some(current) = &self.card_info
+            && current.item_id == card_id {
                 self.close_card();
                 return;
             }
-        }
 
         let name = data.item_name.as_ref()
             .map(|t| t.get_name_or_id(card_id))
@@ -223,11 +225,10 @@ impl ItemInfoWindow {
 
     pub fn pending_card_texture_paths(&self) -> Vec<String> {
         let mut paths = Vec::new();
-        if let Some(data) = &self.card_info {
-            if let Some(path) = &data.collection_path {
+        if let Some(data) = &self.card_info
+            && let Some(path) = &data.collection_path {
                 paths.push(path.clone());
             }
-        }
         paths
     }
 
@@ -244,12 +245,11 @@ impl ItemInfoWindow {
     }
 
     pub fn show_illustration(&mut self, item_id: u16, name: String, texture_path: String) {
-        if let Some(current) = &self.card_illustration {
-            if current.item_id == item_id {
+        if let Some(current) = &self.card_illustration
+            && current.item_id == item_id {
                 self.close_illustration();
                 return;
             }
-        }
         self.card_illustration = Some(CardIllustration { item_id, name, texture_path });
     }
 
@@ -404,21 +404,7 @@ impl InGameWindow for ItemInfoWindow {
                             if slot_resp.right_clicked() {
                                 events.push(GameEvent::ShowCardInfo { item_id: card_id });
                             }
-                        } else {
-                            if grf {
-                                let (v, idx) = draw::quad_vertices(
-                                    icon_x, icon_y, CARD_ICON_SIZE, CARD_ICON_SIZE,
-                                    [1.0, 1.0, 1.0, 1.0],
-                                );
-                                ui.draw_calls.push(DrawCall {
-                                    vertices: v.to_vec(),
-                                    indices: idx.to_vec(),
-                                    texture: TextureRef::Named(EMPTY_SLOT_TEX.to_string()),
-                                });
-                            }
-                        }
-                    } else {
-                        if grf {
+                        } else if grf {
                             let (v, idx) = draw::quad_vertices(
                                 icon_x, icon_y, CARD_ICON_SIZE, CARD_ICON_SIZE,
                                 [1.0, 1.0, 1.0, 1.0],
@@ -426,9 +412,19 @@ impl InGameWindow for ItemInfoWindow {
                             ui.draw_calls.push(DrawCall {
                                 vertices: v.to_vec(),
                                 indices: idx.to_vec(),
-                                texture: TextureRef::Named(DISABLED_SLOT_TEX.to_string()),
+                                texture: TextureRef::Named(EMPTY_SLOT_TEX.to_string()),
                             });
                         }
+                    } else if grf {
+                        let (v, idx) = draw::quad_vertices(
+                            icon_x, icon_y, CARD_ICON_SIZE, CARD_ICON_SIZE,
+                            [1.0, 1.0, 1.0, 1.0],
+                        );
+                        ui.draw_calls.push(DrawCall {
+                            vertices: v.to_vec(),
+                            indices: idx.to_vec(),
+                            texture: TextureRef::Named(DISABLED_SLOT_TEX.to_string()),
+                        });
                     }
 
                     icon_x += CARD_ICON_SIZE + 2.0;
@@ -487,7 +483,7 @@ impl InGameWindow for ItemInfoWindow {
             );
             // Background
             if grf {
-                let (v, i) = draw::quad_vertices(win.x, win.y, illust_w, total_h, [1.0, 1.0, 1.0, 1.0]);
+                let (_v, _i) = draw::quad_vertices(win.x, win.y, illust_w, total_h, [1.0, 1.0, 1.0, 1.0]);
                 // ui.draw_calls.push(DrawCall {
                 //     vertices: v.to_vec(),
                 //     indices: i.to_vec(),
@@ -739,6 +735,8 @@ fn build_info_window(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use models::enums::item::ItemType;
+    use models::enums::EnumWithNumberValue;
 
     fn make_data_table() -> DataTable {
         DataTable::new()
@@ -748,7 +746,7 @@ mod tests {
         Item {
             index: 1,
             item_id,
-            item_type,
+            item_type: ItemType::from_value(item_type as usize),
             count: 1,
             is_identified: true,
             is_damaged: false,

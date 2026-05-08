@@ -232,11 +232,36 @@ fn shield_name_kr(view_id: u16) -> Option<&'static str> {
     }
 }
 
+fn shield_view_from_item_id(id: u16) -> Option<u16> {
+    match id {
+        2101 | 2102 | 2112 | 2116..=2120 => Some(1),
+        2103 | 2104 | 2114 | 2126 => Some(2),
+        2105 | 2106 | 2113 => Some(3),
+        2107 | 2108 | 2110 | 2111 | 2115 | 2127 | 2128 => Some(4),
+        _ => None,
+    }
+}
+
+pub fn resolve_shield_view_id(id: u16) -> u16 {
+    if id >= 1 && id <= 4 {
+        return id;
+    }
+    shield_view_from_item_id(id).unwrap_or(id)
+}
+
 pub fn shield_sprite_path(view_id: u16, job_class: u16, sex: u8) -> Option<String> {
-    let shield = shield_name_kr(view_id)?;
+    let resolved = resolve_shield_view_id(view_id);
+    let shield = shield_name_kr(resolved)?;
     let job = job_name_kr(job_class);
     let sex_str = sex_kr(sex);
     Some(format!("data/sprite/방패/{job}/{job}_{sex_str}_{shield}"))
+}
+
+/// Numeric path format used by some GRFs (e.g. dhxj-style)
+pub fn shield_sprite_path_numeric(view_id: u16, job_class: u16, sex: u8) -> String {
+    let job = job_name_kr(job_class);
+    let sex_str = sex_kr(sex);
+    format!("data/sprite/방패/{job}/{job}_{sex_str}_{view_id}")
 }
 
 pub fn weapon_sprite_path(job_class: u16, sex: u8, weapon_type: WeaponType) -> String {
@@ -415,5 +440,22 @@ mod tests {
     fn npc_and_monster_sprite_paths() {
         assert_eq!(npc_sprite_path("1_ETC_01"), "data/sprite/npc/1_ETC_01");
         assert_eq!(monster_sprite_path("Poring"), "data/sprite/몬스터/Poring");
+    }
+
+    #[test]
+    fn shield_view_id_resolution() {
+        assert_eq!(resolve_shield_view_id(1), 1);
+        assert_eq!(resolve_shield_view_id(2), 2);
+        assert_eq!(resolve_shield_view_id(4), 4);
+        assert_eq!(resolve_shield_view_id(2101), 1); // Guard
+        assert_eq!(resolve_shield_view_id(2103), 2); // Buckler
+        assert_eq!(resolve_shield_view_id(2105), 3); // Shield
+        assert_eq!(resolve_shield_view_id(2107), 4); // Mirror Shield
+    }
+
+    #[test]
+    fn shield_sprite_path_with_item_id() {
+        let path = shield_sprite_path(2103, 12, 1);
+        assert_eq!(path.unwrap(), "data/sprite/방패/어세신/어세신_남_버클러");
     }
 }

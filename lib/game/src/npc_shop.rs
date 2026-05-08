@@ -1,4 +1,6 @@
 use crate::item::Item;
+use models::enums::item::ItemType;
+use models::enums::EnumWithNumberValue;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NpcShopMode {
@@ -77,10 +79,17 @@ impl NpcShopData {
     }
 
     pub fn add_to_cart(&mut self, source_index: usize, quantity: i16) {
-        if let Some(existing) = self.cart.iter_mut().find(|c| c.source_index == source_index) {
+        if let Some(existing) = self
+            .cart
+            .iter_mut()
+            .find(|c| c.source_index == source_index)
+        {
             existing.quantity += quantity;
         } else {
-            self.cart.push(ShopCartItem { source_index, quantity });
+            self.cart.push(ShopCartItem {
+                source_index,
+                quantity,
+            });
         }
     }
 
@@ -91,22 +100,25 @@ impl NpcShopData {
     }
 
     pub fn cart_total(&self) -> i64 {
-        self.cart.iter().map(|cart_item| {
-            let unit_price = match self.mode {
-                Some(NpcShopMode::Buy) => {
-                    self.buy_items.get(cart_item.source_index)
+        self.cart
+            .iter()
+            .map(|cart_item| {
+                let unit_price = match self.mode {
+                    Some(NpcShopMode::Buy) => self
+                        .buy_items
+                        .get(cart_item.source_index)
                         .map(|i| i.discount_price)
-                        .unwrap_or(0)
-                }
-                Some(NpcShopMode::Sell) => {
-                    self.sell_items.get(cart_item.source_index)
+                        .unwrap_or(0),
+                    Some(NpcShopMode::Sell) => self
+                        .sell_items
+                        .get(cart_item.source_index)
                         .map(|i| i.overcharge_price)
-                        .unwrap_or(0)
-                }
-                None => 0,
-            };
-            unit_price as i64 * cart_item.quantity as i64
-        }).sum()
+                        .unwrap_or(0),
+                    None => 0,
+                };
+                unit_price as i64 * cart_item.quantity as i64
+            })
+            .sum()
     }
 
     pub fn item_count(&self) -> usize {
@@ -119,18 +131,24 @@ impl NpcShopData {
 
     pub fn item_name(&self, index: usize) -> &str {
         match self.mode {
-            Some(NpcShopMode::Buy) => self.buy_items.get(index).map(|i| i.item.name.as_str()).unwrap_or(""),
-            Some(NpcShopMode::Sell) => self.sell_items.get(index).map(|i| i.item.name.as_str()).unwrap_or(""),
+            Some(NpcShopMode::Buy) => self
+                .buy_items
+                .get(index)
+                .map(|i| i.item.name.as_str())
+                .unwrap_or(""),
+            Some(NpcShopMode::Sell) => self
+                .sell_items
+                .get(index)
+                .map(|i| i.item.name.as_str())
+                .unwrap_or(""),
             None => "",
         }
     }
 
     pub fn item_icon_path(&self, index: usize) -> Option<String> {
         match self.mode {
-            Some(NpcShopMode::Buy) => self.buy_items.get(index)
-                .and_then(|i| i.item.icon_path()),
-            Some(NpcShopMode::Sell) => self.sell_items.get(index)
-                .and_then(|i| i.item.icon_path()),
+            Some(NpcShopMode::Buy) => self.buy_items.get(index).and_then(|i| i.item.icon_path()),
+            Some(NpcShopMode::Sell) => self.sell_items.get(index).and_then(|i| i.item.icon_path()),
             None => None,
         }
     }
@@ -138,27 +156,43 @@ impl NpcShopData {
     pub fn item_is_identified(&self, index: usize) -> bool {
         match self.mode {
             Some(NpcShopMode::Buy) => true,
-            Some(NpcShopMode::Sell) => self.sell_items.get(index)
-                .map(|i| i.item.is_identified).unwrap_or(true),
+            Some(NpcShopMode::Sell) => self
+                .sell_items
+                .get(index)
+                .map(|i| i.item.is_identified)
+                .unwrap_or(true),
             None => true,
         }
     }
 
     pub fn item_price(&self, index: usize) -> i32 {
         match self.mode {
-            Some(NpcShopMode::Buy) => self.buy_items.get(index).map(|i| i.discount_price).unwrap_or(0),
-            Some(NpcShopMode::Sell) => self.sell_items.get(index).map(|i| i.overcharge_price).unwrap_or(0),
+            Some(NpcShopMode::Buy) => self
+                .buy_items
+                .get(index)
+                .map(|i| i.discount_price)
+                .unwrap_or(0),
+            Some(NpcShopMode::Sell) => self
+                .sell_items
+                .get(index)
+                .map(|i| i.overcharge_price)
+                .unwrap_or(0),
             None => 0,
         }
     }
 
     pub fn sell_item_count(&self, index: usize) -> i16 {
-        self.sell_items.get(index).map(|i| i.item.count).unwrap_or(1)
+        self.sell_items
+            .get(index)
+            .map(|i| i.item.count)
+            .unwrap_or(1)
     }
 
     pub fn sell_item_remaining(&self, index: usize) -> i16 {
         let total = self.sell_item_count(index);
-        let in_cart: i16 = self.cart.iter()
+        let in_cart: i16 = self
+            .cart
+            .iter()
             .filter(|c| c.source_index == index)
             .map(|c| c.quantity)
             .sum();
@@ -192,25 +226,41 @@ impl NpcShopData {
         let buy_items: Vec<ShopBuyItem> = items
             .into_iter()
             .map(|(item_id, price, discount_price, item_type)| {
-                let name = data_table.item_name.as_ref()
+                let name = data_table
+                    .item_name
+                    .as_ref()
                     .map(|t| t.get_name_or_id(item_id))
                     .unwrap_or_else(|| format!("Item #{item_id}"));
-                let resource_name = data_table.item_resource.as_ref()
+                let resource_name = data_table
+                    .item_resource
+                    .as_ref()
                     .and_then(|t| t.get_resource_name(item_id).map(|s| s.to_string()));
                 ShopBuyItem {
                     item: Item {
-                        index: 0, item_id, item_type, count: 1,
-                        is_identified: true, is_damaged: false, refining_level: 0,
-                        slot: [0; 4], location: 0, wear_state: 0,
-                        name, resource_name,
+                        index: 0,
+                        item_id,
+                        item_type: ItemType::from_value(item_type as usize),
+                        count: 1,
+                        is_identified: true,
+                        is_damaged: false,
+                        refining_level: 0,
+                        slot: [0; 4],
+                        location: 0,
+                        wear_state: 0,
+                        name,
+                        resource_name,
                     },
-                    price, discount_price,
+                    price,
+                    discount_price,
                 }
             })
             .collect();
         let shop_npc_id = if npc_id != 0 { npc_id } else { fallback_npc_id };
         self.open_buy(shop_npc_id, buy_items);
-        self.buy_items.iter().filter_map(|i| i.item.icon_path()).collect()
+        self.buy_items
+            .iter()
+            .filter_map(|i| i.item.icon_path())
+            .collect()
     }
 
     pub fn apply_sell_list(
@@ -226,13 +276,17 @@ impl NpcShopData {
                 let inv_item = inventory.get_item(index as u16)?;
                 Some(ShopSellItem {
                     item: inv_item.clone(),
-                    price, overcharge_price,
+                    price,
+                    overcharge_price,
                 })
             })
             .collect();
         let shop_npc_id = if npc_id != 0 { npc_id } else { fallback_npc_id };
         self.open_sell(shop_npc_id, sell_items);
-        self.sell_items.iter().filter_map(|i| i.item.icon_path()).collect()
+        self.sell_items
+            .iter()
+            .filter_map(|i| i.item.icon_path())
+            .collect()
     }
 
     pub fn apply_buy_result(&mut self, result: u8) -> &'static str {
@@ -253,7 +307,10 @@ impl NpcShopData {
         }
     }
 
-    pub fn resolve_resource_names(&mut self, table: &crate::item_resource_table::ItemResourceTable) {
+    pub fn resolve_resource_names(
+        &mut self,
+        table: &crate::item_resource_table::ItemResourceTable,
+    ) {
         for buy_item in &mut self.buy_items {
             buy_item.item.resolve_resource_name(table);
         }
@@ -275,12 +332,13 @@ impl NpcShopData {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use models::enums::item::ItemType;
 
     fn make_item(item_id: u16, name: &str) -> Item {
         Item {
             index: 0,
             item_id,
-            item_type: 0,
+            item_type: ItemType::Healing,
             count: 1,
             is_identified: true,
             is_damaged: false,
@@ -295,21 +353,51 @@ mod tests {
 
     fn sample_buy_items() -> Vec<ShopBuyItem> {
         vec![
-            ShopBuyItem { item: make_item(501, "Red Potion"), price: 50, discount_price: 50 },
-            ShopBuyItem { item: make_item(502, "Orange Potion"), price: 200, discount_price: 200 },
-            ShopBuyItem { item: { let mut i = make_item(1201, "Knife"); i.item_type = 3; i }, price: 50000, discount_price: 50000 },
+            ShopBuyItem {
+                item: make_item(501, "Red Potion"),
+                price: 50,
+                discount_price: 50,
+            },
+            ShopBuyItem {
+                item: make_item(502, "Orange Potion"),
+                price: 200,
+                discount_price: 200,
+            },
+            ShopBuyItem {
+                item: {
+                    let mut i = make_item(1201, "Knife");
+                    i.item_type = ItemType::Etc;
+                    i
+                },
+                price: 50000,
+                discount_price: 50000,
+            },
         ]
     }
 
     fn sample_sell_items() -> Vec<ShopSellItem> {
         vec![
             ShopSellItem {
-                item: { let mut i = make_item(501, "Red Potion"); i.index = 1; i.count = 10; i.resource_name = Some("빨간포션".into()); i },
-                price: 25, overcharge_price: 25,
+                item: {
+                    let mut i = make_item(501, "Red Potion");
+                    i.index = 1;
+                    i.count = 10;
+                    i.resource_name = Some("빨간포션".into());
+                    i
+                },
+                price: 25,
+                overcharge_price: 25,
             },
             ShopSellItem {
-                item: { let mut i = make_item(1201, "Stiletto"); i.index = 5; i.count = 1; i.resource_name = Some("스틸레토".into()); i },
-                price: 5000, overcharge_price: 5500,
+                item: {
+                    let mut i = make_item(1201, "Stiletto");
+                    i.index = 5;
+                    i.count = 1;
+                    i.resource_name = Some("스틸레토".into());
+                    i
+                },
+                price: 5000,
+                overcharge_price: 5500,
             },
         ]
     }

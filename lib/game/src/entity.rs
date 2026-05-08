@@ -1,11 +1,12 @@
 use models::enums::class::JobName;
+use models::enums::item::ItemType;
 use models::enums::weapon::WeaponType;
 use models::enums::EnumWithNumberValue;
 use ragnarok_formats::act::SpriteAnimationState;
 
 use crate::movement::MovementState;
 use crate::scheduled_hit::ScheduledHitQueue;
-use crate::sprite_path::{dual_wield_type, weapon_view_id_to_type};
+use crate::sprite_path::weapon_view_id_to_type;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntityType {
@@ -55,7 +56,10 @@ impl EmotionState {
     pub const DISPLAY_DURATION: f32 = 2.5;
 
     pub fn new(emotion_type: u8) -> Self {
-        Self { emotion_type, elapsed: 0.0 }
+        Self {
+            emotion_type,
+            elapsed: 0.0,
+        }
     }
 
     pub fn is_expired(&self) -> bool {
@@ -72,7 +76,10 @@ impl ChatBubbleState {
     pub const DISPLAY_DURATION: f32 = 5.0;
 
     pub fn new(message: String) -> Self {
-        Self { message, elapsed: 0.0 }
+        Self {
+            message,
+            elapsed: 0.0,
+        }
     }
 
     pub fn is_expired(&self) -> bool {
@@ -126,31 +133,49 @@ pub struct Entity {
 
 impl Entity {
     pub fn new(
-        id: u32, entity_type: EntityType, job: u16, sex: u8, head: u16,
-        hair_color: u16, weapon: u16, head_top: u16, head_mid: u16,
-        head_bottom: u16, shield: u16, x: u16, y: u16, direction: u8, speed: u16,
+        id: u32,
+        entity_type: EntityType,
+        job: u16,
+        sex: u8,
+        head: u16,
+        hair_color: u16,
+        weapon: u16,
+        head_top: u16,
+        head_mid: u16,
+        head_bottom: u16,
+        shield: u16,
+        x: u16,
+        y: u16,
+        direction: u8,
+        speed: u16,
     ) -> Self {
-        let (weapon_type, shield) = if entity_type == EntityType::Player {
-            let right = weapon_view_id_to_type(weapon);
-            let left = weapon_view_id_to_type(shield);
-            match (right, left) {
-                (Some(r), Some(l)) => (dual_wield_type(r, l).or(right), 0),
-                _ => (right, shield),
-            }
+        let weapon_type = if entity_type == EntityType::Player {
+            weapon_view_id_to_type(weapon)
         } else {
-            (None, shield)
+            None
         };
         let mut movement = MovementState::new(x, y);
         movement.set_speed(speed);
         Self {
-            id, entity_type, job, sex, head, hair_color, cloth_color: 0,
+            id,
+            entity_type,
+            job,
+            sex,
+            head,
+            hair_color,
+            cloth_color: 0,
             weapon: weapon_type,
-            head_top, head_mid, head_bottom, shield,
+            head_top,
+            head_mid,
+            head_bottom,
+            shield,
             name: None,
             name_requested: false,
             hp: None,
             max_hp: None,
-            direction, head_dir: direction, speed,
+            direction,
+            head_dir: direction,
+            speed,
             state: EntityState::Standing,
             state_timer: 0.0,
             cast_total_duration: 0.0,
@@ -171,8 +196,38 @@ impl Entity {
         }
     }
 
-    pub fn new_player(id: u32, job: u16, sex: u8, head: u16, hair_color: u16, weapon: u16, head_top: u16, head_mid: u16, head_bottom: u16, shield: u16, x: u16, y: u16, direction: u8) -> Self {
-        Self::new(id, EntityType::Player, job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom, shield, x, y, direction, 150)
+    pub fn new_player(
+        id: u32,
+        job: u16,
+        sex: u8,
+        head: u16,
+        hair_color: u16,
+        weapon: u16,
+        head_top: u16,
+        head_mid: u16,
+        head_bottom: u16,
+        shield: u16,
+        x: u16,
+        y: u16,
+        direction: u8,
+    ) -> Self {
+        Self::new(
+            id,
+            EntityType::Player,
+            job,
+            sex,
+            head,
+            hair_color,
+            weapon,
+            head_top,
+            head_mid,
+            head_bottom,
+            shield,
+            x,
+            y,
+            direction,
+            150,
+        )
     }
 
     pub fn update_state(&mut self, dt: f32) {
@@ -206,9 +261,7 @@ impl Entity {
                     return;
                 }
                 match self.state {
-                    EntityState::Attacking
-                        if self.entity_type == EntityType::Player =>
-                    {
+                    EntityState::Attacking if self.entity_type == EntityType::Player => {
                         self.state = EntityState::ReadyFight;
                         self.state_timer = self.attack_motion_duration;
                     }
@@ -233,7 +286,10 @@ impl Entity {
     pub fn enter_hurt(&mut self, duration_secs: f32) {
         if matches!(
             self.state,
-            EntityState::Dead | EntityState::Attacking | EntityState::SkillExec | EntityState::Casting
+            EntityState::Dead
+                | EntityState::Attacking
+                | EntityState::SkillExec
+                | EntityState::Casting
         ) {
             return;
         }
@@ -310,7 +366,10 @@ impl Entity {
     }
 
     pub fn start_vanish_fade(&mut self) {
-        self.fade = Some(EntityFade { elapsed: 0.0, duration: VANISH_FADE_DURATION });
+        self.fade = Some(EntityFade {
+            elapsed: 0.0,
+            duration: VANISH_FADE_DURATION,
+        });
     }
 
     pub fn alpha(&self) -> f32 {
@@ -352,16 +411,35 @@ impl Entity {
         Self::wear_location_to_sprite_type_for(wear_location, None)
     }
 
-    pub fn wear_location_to_sprite_type_for(wear_location: u16, item_type: Option<u8>) -> Option<u8> {
-        const ITEM_TYPE_WEAPON: u8 = 5;
-        if wear_location & 256 != 0 { Some(4) }       // HeadTop
-        else if wear_location & 512 != 0 { Some(5) }  // HeadMid
-        else if wear_location & 1 != 0 { Some(3) }    // HeadLow
-        else if wear_location & 2 != 0 { Some(2) }    // Weapon (HandRight, also two-handed)
-        else if wear_location & 32 != 0 {
-            if item_type == Some(ITEM_TYPE_WEAPON) { Some(2) } else { Some(8) }
+    pub fn wear_location_to_sprite_type_for(
+        wear_location: u16,
+        item_type: Option<ItemType>,
+    ) -> Option<u8> {
+        if wear_location & 256 != 0 {
+            Some(4)
         }
-        else { None }
+        // HeadTop
+        else if wear_location & 512 != 0 {
+            Some(5)
+        }
+        // HeadMid
+        else if wear_location & 1 != 0 {
+            Some(3)
+        }
+        // HeadLow
+        else if wear_location & 2 != 0 {
+            Some(2)
+        }
+        // Weapon (HandRight, also two-handed)
+        else if wear_location & 32 != 0 {
+            if item_type == Some(ItemType::Weapon) {
+                Some(2)
+            } else {
+                Some(8)
+            }
+        } else {
+            None
+        }
     }
 
     pub fn hp_percentage(&self) -> Option<f32> {
@@ -386,7 +464,9 @@ impl Entity {
                 EntityState::SkillExec => self.skill_exec_action_index(),
             },
             EntityType::Monster | EntityType::Npc => match self.state {
-                EntityState::Standing | EntityState::Sitting | EntityState::Pickup
+                EntityState::Standing
+                | EntityState::Sitting
+                | EntityState::Pickup
                 | EntityState::ReadyFight => 0,
                 EntityState::Moving => 1,
                 EntityState::Attacking | EntityState::Casting | EntityState::SkillExec => 2,
@@ -445,8 +525,11 @@ impl Entity {
         };
         let is_female = self.sex == 0;
         match job {
-            JobName::Novice | JobName::NoviceHigh | JobName::BabyNovice
-            | JobName::SuperNovice | JobName::SuperBaby => {
+            JobName::Novice
+            | JobName::NoviceHigh
+            | JobName::BabyNovice
+            | JobName::SuperNovice
+            | JobName::SuperBaby => {
                 if is_female {
                     match weapon {
                         WeaponType::Dagger => 11,
@@ -502,7 +585,9 @@ impl Entity {
                 }
             }
             JobName::Blacksmith | JobName::Whitesmith | JobName::BabyBlacksmith => match weapon {
-                WeaponType::Sword1H | WeaponType::Axe1H | WeaponType::Axe2H | WeaponType::Mace => 11,
+                WeaponType::Sword1H | WeaponType::Axe1H | WeaponType::Axe2H | WeaponType::Mace => {
+                    11
+                }
                 _ => 10,
             },
             JobName::Hunter | JobName::Sniper | JobName::BabyHunter => match weapon {
@@ -511,8 +596,12 @@ impl Entity {
             },
             JobName::Assassin | JobName::AssassinCross | JobName::BabyAssassin => match weapon {
                 WeaponType::Katar
-                | WeaponType::DoubleDd | WeaponType::DoubleSs | WeaponType::DoubleAa
-                | WeaponType::DoubleDs | WeaponType::DoubleDa | WeaponType::DoubleSa => 11,
+                | WeaponType::DoubleDd
+                | WeaponType::DoubleSs
+                | WeaponType::DoubleAa
+                | WeaponType::DoubleDs
+                | WeaponType::DoubleDa
+                | WeaponType::DoubleSa => 11,
                 _ => 10,
             },
             JobName::Crusader | JobName::Paladin | JobName::BabyCrusader => match weapon {
@@ -524,7 +613,10 @@ impl Entity {
                 _ => 10,
             },
             JobName::Sage | JobName::Professor | JobName::BabySage => match weapon {
-                WeaponType::Book | WeaponType::Staff | WeaponType::Staff2H | WeaponType::Spear2H => 11,
+                WeaponType::Book
+                | WeaponType::Staff
+                | WeaponType::Staff2H
+                | WeaponType::Spear2H => 11,
                 _ => 10,
             },
             JobName::Rogue | JobName::Stalker | JobName::BabyRogue => match weapon {
@@ -532,7 +624,9 @@ impl Entity {
                 _ => 10,
             },
             JobName::Alchemist | JobName::Creator | JobName::BabyAlchemist => match weapon {
-                WeaponType::Sword1H | WeaponType::Axe1H | WeaponType::Axe2H | WeaponType::Mace => 11,
+                WeaponType::Sword1H | WeaponType::Axe1H | WeaponType::Axe2H | WeaponType::Mace => {
+                    11
+                }
                 _ => 10,
             },
             JobName::Bard | JobName::Clown | JobName::BabyBard => match weapon {
@@ -580,7 +674,16 @@ mod tests {
     }
 
     fn make_path_node(x: u16, y: u16, is_diagonal: bool) -> PathNode {
-        PathNode { id: 0, parent_id: 0, x, y, g_cost: 0, f_cost: 0, is_open: false, is_diagonal }
+        PathNode {
+            id: 0,
+            parent_id: 0,
+            x,
+            y,
+            g_cost: 0,
+            f_cost: 0,
+            is_open: false,
+            is_diagonal,
+        }
     }
 
     #[test]
@@ -616,7 +719,23 @@ mod tests {
 
     #[test]
     fn action_index_maps_states_to_monster_sprite_actions() {
-        let mut e = Entity::new(2, EntityType::Monster, 1002, 0, 0, 0, 0, 0, 0, 0, 0, 100, 100, 0, 200);
+        let mut e = Entity::new(
+            2,
+            EntityType::Monster,
+            1002,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            100,
+            100,
+            0,
+            200,
+        );
         assert_eq!(e.action_index(), 0);
         e.state = EntityState::Moving;
         assert_eq!(e.action_index(), 1);
@@ -643,7 +762,10 @@ mod tests {
     #[test]
     fn hurt_cancels_movement_and_recovers_to_standing() {
         let mut e = make_entity();
-        let path = vec![make_path_node(101, 100, false), make_path_node(102, 100, false)];
+        let path = vec![
+            make_path_node(101, 100, false),
+            make_path_node(102, 100, false),
+        ];
         e.movement.start_move(path, 0.0);
         assert!(e.movement.is_moving());
 
@@ -793,7 +915,10 @@ mod tests {
     #[test]
     fn enter_casting_stops_movement() {
         let mut e = make_entity();
-        let path = vec![make_path_node(101, 100, false), make_path_node(102, 100, false)];
+        let path = vec![
+            make_path_node(101, 100, false),
+            make_path_node(102, 100, false),
+        ];
         e.movement.start_move(path, 0.0);
         assert!(e.movement.is_moving());
 
@@ -832,7 +957,23 @@ mod tests {
 
     #[test]
     fn attack_expires_to_standing_for_monster() {
-        let mut e = Entity::new(2, EntityType::Monster, 1002, 0, 0, 0, 0, 0, 0, 0, 0, 100, 100, 0, 200);
+        let mut e = Entity::new(
+            2,
+            EntityType::Monster,
+            1002,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            100,
+            100,
+            0,
+            200,
+        );
         e.enter_attack(0.5);
         e.update_state(0.6);
         assert_eq!(e.state, EntityState::Standing);
@@ -893,10 +1034,29 @@ mod tests {
 
     #[test]
     fn death_fade_alpha_decreases_linearly() {
-        let mut e = Entity::new(1, EntityType::Monster, 1002, 0, 0, 0, 0, 0, 0, 0, 0, 100, 100, 0, 200);
+        let mut e = Entity::new(
+            1,
+            EntityType::Monster,
+            1002,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            100,
+            100,
+            0,
+            200,
+        );
         assert!((e.alpha() - 1.0).abs() < f32::EPSILON);
 
-        e.fade = Some(super::EntityFade { elapsed: 0.0, duration: DEATH_FADE_DURATION });
+        e.fade = Some(super::EntityFade {
+            elapsed: 0.0,
+            duration: DEATH_FADE_DURATION,
+        });
         assert!((e.alpha() - 1.0).abs() < f32::EPSILON);
 
         e.fade.as_mut().unwrap().elapsed = 3.06;

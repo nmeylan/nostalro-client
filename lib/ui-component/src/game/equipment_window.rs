@@ -81,6 +81,12 @@ pub struct EquipmentWindow {
     paperdoll_insert_index: Option<usize>,
 }
 
+impl Default for EquipmentWindow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EquipmentWindow {
     pub fn new() -> Self {
         Self {
@@ -359,8 +365,8 @@ impl InGameWindow for EquipmentWindow {
                 }
             }
 
-            if let Some(loc) = highlight_location {
-                if loc & InventoryData::slot_mask(slot.location) != 0 {
+            if let Some(loc) = highlight_location
+                && loc & InventoryData::slot_mask(slot.location) != 0 {
                     if grf {
                         let (v, idx) = draw::quad_vertices(icon_rect.x, icon_rect.y, icon_rect.w, icon_rect.h, [1.0, 1.0, 1.0, 1.0]);
                         ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(ITEM_INVERT_TEX.to_string()) });
@@ -369,24 +375,20 @@ impl InGameWindow for EquipmentWindow {
                         ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
                     }
                 }
-            }
 
         }
 
         // Drop zone: accept drags from inventory (equip)
         let content_rect = Rect::new(win.x, content_y, win_w, content_h);
-        if let Some((source_id, item_index)) = ui.drop_zone(content_rect) {
-            if source_id == INV_WINDOW_ID {
-                if let Some(item) = inventory.get_item(item_index as u16) {
-                    if item.is_equipment() && !item.is_equipped() {
+        if let Some((source_id, item_index)) = ui.drop_zone(content_rect)
+            && source_id == INV_WINDOW_ID
+                && let Some(item) = inventory.get_item(item_index as u16)
+                    && item.is_equipment() && !item.is_equipped() {
                         events.push(GameEvent::RequestEquipItem {
                             index: item.index,
                             location: item.equip_location(),
                         });
                     }
-                }
-            }
-        }
 
         ui.has_grf_textures = prev_grf;
         events

@@ -194,8 +194,8 @@ impl App {
             }
         }
 
-        if let Some(renderer) = &mut self.renderer {
-            if let Some(gat) = &self.game.gat {
+        if let Some(renderer) = &mut self.renderer
+            && let Some(gat) = &self.game.gat {
                 let mut grid = GridSelectorRenderer::new(
                     &renderer.device.device,
                     &renderer.device.queue,
@@ -213,7 +213,6 @@ impl App {
                 );
                 renderer.grid_selector = Some(grid);
             }
-        }
     }
 
     fn position_camera_at(&mut self, cell_x: f32, cell_y: f32) {

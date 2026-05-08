@@ -53,6 +53,12 @@ pub struct HotkeyBarWindow {
     resize_start: Option<u8>,
 }
 
+impl Default for HotkeyBarWindow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HotkeyBarWindow {
     pub fn new() -> Self {
         Self {
@@ -84,7 +90,7 @@ impl HotkeyBarWindow {
             HotkeySlotContent::Skill { level, .. } => {
                 if level > 0 { Some(format!("{level}")) } else { None }
             }
-            HotkeySlotContent::Item { item_id, inventory_index } => {
+            HotkeySlotContent::Item { item_id: _, inventory_index } => {
                 let count: i16 = character.inventory.all_items().iter()
                     .filter(|i| i.index == inventory_index)
                     .map(|i| i.count)
@@ -161,14 +167,14 @@ impl HotkeyBarWindow {
             events.push(GameEvent::RequestHotkeyChange {
                 index: slot_index as u16,
                 is_skill: is_skill != 0,
-                id: id,
+                id,
                 count,
             });
             let (is_skill, id, count) = character.hotkeys.to_server_format(item_index);
             events.push(GameEvent::RequestHotkeyChange {
                 index: item_index as u16,
                 is_skill: is_skill != 0,
-                id: id,
+                id,
                 count,
             });
         }
@@ -297,15 +303,14 @@ impl InGameWindow for HotkeyBarWindow {
             self.resize_start = Some(visible_rows as u8);
             ui.cancel_window_drag(HOTKEY_BAR_WINDOW_ID);
         }
-        if resize.dragging {
-            if let Some(start_rows) = self.resize_start {
+        if resize.dragging
+            && let Some(start_rows) = self.resize_start {
                 let new_rows = (start_rows as f32 + resize.delta_y / ROW_H).round() as i32;
                 let new_rows = new_rows.clamp(1, HOTKEY_ROWS as i32) as u8;
                 if new_rows != visible_rows as u8 {
                     character.hotkeys.set_visible_rows(new_rows);
                 }
             }
-        }
 
         let tc = text_color(has_grf);
 
@@ -368,8 +373,8 @@ impl InGameWindow for HotkeyBarWindow {
                     }
 
                     // Cooldown overlay for skill slots
-                    if let HotkeySlotContent::Skill { skill_id, .. } = content {
-                        if character.cooldowns.is_on_cooldown(skill_id, ui.elapsed_secs) {
+                    if let HotkeySlotContent::Skill { skill_id, .. } = content
+                        && character.cooldowns.is_on_cooldown(skill_id, ui.elapsed_secs) {
                             let icon_x = cell_rect.x + (SLOT_W - ICON_SIZE) / 2.0 - SLOT_MARGIN;
                             // Darken icon
                             let (v, idx) = draw::quad_vertices(icon_x, cell_rect.y, ICON_SIZE, ICON_SIZE, [0.0, 0.0, 0.0, 0.45]);
@@ -400,7 +405,6 @@ impl InGameWindow for HotkeyBarWindow {
                                 ui.text(tx, ty, &time_text, [1.0, 1.0, 1.0, 1.0]);
                             }
                         }
-                    }
 
                     if resp.double_clicked() {
                         self.execute_slot(slot_index, character, &mut events, ui.elapsed_secs);
@@ -473,11 +477,10 @@ impl InGameWindow for HotkeyBarWindow {
                     if visible_rows > 2 {
                         self.execute_slot(HOTKEY_COLS * 2 + col, character, &mut events, ui.elapsed_secs);
                     }
-                } else if let Some(col) = ROW4_CHARS.iter().position(|&c| c == lower) {
-                    if visible_rows > 3 {
+                } else if let Some(col) = ROW4_CHARS.iter().position(|&c| c == lower)
+                    && visible_rows > 3 {
                         self.execute_slot(HOTKEY_COLS * 3 + col, character, &mut events, ui.elapsed_secs);
                     }
-                }
             }
         }
 

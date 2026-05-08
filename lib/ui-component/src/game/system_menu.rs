@@ -61,6 +61,12 @@ pub struct SystemMenu {
     btn_size: (f32, f32),
 }
 
+impl Default for SystemMenu {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SystemMenu {
     pub fn new() -> Self {
         Self {
