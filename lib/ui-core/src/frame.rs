@@ -603,6 +603,17 @@ impl<'a> UiFrame<'a> {
         }
     }
 
+    pub fn text_centered(&mut self, x: f32, y: f32, width: f32, content: &str, color: [f32; 4]) {
+        let tw = self.atlas.measure_text(content);
+        let cx = x + (width - tw) * 0.5;
+        self.text(cx, y, content, color);
+    }
+
+    pub fn text_right(&mut self, right_x: f32, y: f32, content: &str, color: [f32; 4]) {
+        let tw = self.atlas.measure_text(content);
+        self.text(right_x - tw, y, content, color);
+    }
+
     pub fn colored_text(&mut self, x: f32, y: f32, content: &str, default_color: [f32; 4]) {
         let (v, i) = draw::colored_text_vertices(content, x, y, default_color, self.atlas);
         if !v.is_empty() {

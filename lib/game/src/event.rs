@@ -447,6 +447,11 @@ pub enum GameEvent {
     // UI lifecycle
     DialogClosed,
 
+    // Window toggle (from basic info menu buttons)
+    ToggleInventory,
+    ToggleEquipment,
+    ToggleSkills,
+
     // No-op acknowledgement (packet parsed but no action needed yet)
     Acknowledged,
 }

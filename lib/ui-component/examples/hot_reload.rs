@@ -19,6 +19,7 @@ use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::system_menu::SystemMenu;
+use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
 use ragnarok_ui_component::helper::dialog_container::DialogContainer;
 use ragnarok_ui_component::Window;
 
@@ -96,7 +97,7 @@ impl HotLib {
 }
 
 const GAME_COMPONENTS: &[&str] = &[
-    "inventory", "npc_shop_buy", "npc_shop_sell", "npc_dialog", "equipment", "system_menu", "confirm_dialog", "chat", "dialog_container", "item_info", "skill_tree", "card_insert", "hotkey_bar",
+    "inventory", "npc_shop_buy", "npc_shop_sell", "npc_dialog", "equipment", "system_menu", "confirm_dialog", "chat", "dialog_container", "item_info", "skill_tree", "card_insert", "hotkey_bar", "basic_info",
 ];
 const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
 
@@ -117,6 +118,7 @@ fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
         "item_info" => ItemInfoWindow::grf_texture_paths(),
         "skill_tree" => SkillTreeWindow::grf_texture_paths(),
         "card_insert" => vec![],
+        "basic_info" => BasicInfoWindow::grf_texture_paths(),
         "hotkey_bar" => {
             let mut paths = HotkeyBarWindow::grf_texture_paths();
             paths.extend(InventoryWindow::grf_texture_paths());

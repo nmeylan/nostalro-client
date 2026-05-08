@@ -1,3 +1,4 @@
+pub mod basic_info_window;
 pub mod card_insert_dialog;
 pub mod chat_window;
 pub mod confirm_dialog;

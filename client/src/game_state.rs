@@ -19,6 +19,7 @@ use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::state::StateCache;
+use ragnarok_ui_component::game::basic_info_window::{BasicInfoWindow, BASIC_INFO_WINDOW_ID};
 use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
 use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
@@ -82,6 +83,7 @@ pub struct GameState {
     pub item_info_window: ItemInfoWindow,
     pub item_pickup_notification: ItemPickupNotification,
     pub skill_tree_window: SkillTreeWindow,
+    pub basic_info_window: BasicInfoWindow,
     pub hotkey_bar: HotkeyBarWindow,
     pub damage_numbers: DamageNumberManager,
     pub damage_number_textures: Option<SpriteTextures>,
@@ -111,9 +113,19 @@ impl GameState {
         // Modal windows block interaction with z-ordered windows behind them
         self.npc_shop.setup_modal(ui);
 
-        // Build z-orderable windows in persisted order (back-to-front)
+        // Basic info window — built before z-orderable windows so it renders behind them
+        events.extend(
+            self.basic_info_window
+                .build(ui, &mut self.character, &self.data_table),
+        );
+
+        // Build z-orderable windows in persisted order (back-to-front).
+        // Include basic_info at the bottom so it gets properly occluded
+        // when a z-orderable window overlaps it.
         let z_order = ui.get_z_order();
-        ui.compute_hovered_window(&z_order);
+        let mut z_order_with_bg = vec![BASIC_INFO_WINDOW_ID];
+        z_order_with_bg.extend(&z_order);
+        ui.compute_hovered_window(&z_order_with_bg);
         for &win_id in &z_order {
             self.build_window(win_id, ui, &mut events);
         }
@@ -332,6 +344,7 @@ impl GameState {
             noshift_mode: false,
             noctrl_mode: true,
             attack_is_locked: false,
+            basic_info_window: BasicInfoWindow::new(),
             item_info_window: ItemInfoWindow::new(),
             item_pickup_notification: ItemPickupNotification::new(),
             skill_tree_window: SkillTreeWindow::new(),
