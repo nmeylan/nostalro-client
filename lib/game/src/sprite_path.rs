@@ -121,14 +121,23 @@ fn weapon_suffix(weapon_type: WeaponType) -> &'static str {
         WeaponType::Whip => "_채찍",
         WeaponType::Book => "_책",
         WeaponType::Katar => "_카타르_카타르",
+        WeaponType::DoubleDd => "_단검_단검",
+        WeaponType::DoubleSs => "_검_검",
+        WeaponType::DoubleAa => "_도끼_도끼",
+        WeaponType::DoubleDs => "_단검_검",
+        WeaponType::DoubleDa => "_단검_도끼",
+        WeaponType::DoubleSa => "_검_도끼",
         _ => "_검",
     }
 }
 
-/// Converts a packet weapon view ID to a WeaponType.
-/// Returns None for view_id 0 (unarmed) or unknown values.
-pub fn weapon_view_id_to_type(view_id: u16) -> Option<WeaponType> {
-    match view_id {
+/// Converts a packet weapon value to a WeaponType.
+/// The value may be a raw view_id (0–17) or an item_id when the server
+/// has no ViewID configured for the weapon.  When an item_id is received
+/// it is resolved to a weapon type via standard item_id ranges.
+pub fn weapon_view_id_to_type(id: u16) -> Option<WeaponType> {
+    dbg!("weapon view", id);
+    match id {
         0 => None,
         1 => Some(WeaponType::Dagger),
         2 => Some(WeaponType::Sword1H),
@@ -146,7 +155,64 @@ pub fn weapon_view_id_to_type(view_id: u16) -> Option<WeaponType> {
         14 => Some(WeaponType::Whip),
         15 => Some(WeaponType::Book),
         16 => Some(WeaponType::Katar),
-        17 => Some(WeaponType::Staff2H),
+        23 => Some(WeaponType::Staff2H),
+        25 => Some(WeaponType::DoubleDd),
+        26 => Some(WeaponType::DoubleSs),
+        27 => Some(WeaponType::DoubleAa),
+        28 => Some(WeaponType::DoubleDs),
+        29 => Some(WeaponType::DoubleDa),
+        30 => Some(WeaponType::DoubleSa),
+        _ => weapon_type_from_item_id(id),
+    }
+}
+
+// Fallback when server sends item_id instead of view_id.
+fn weapon_type_from_item_id(id: u16) -> Option<WeaponType> {
+    if id < 1100 {
+        return None;
+    }
+    if (1116..=1118).contains(&id) { return Some(WeaponType::Sword2H); }
+    if (1314..=1315).contains(&id) { return Some(WeaponType::Axe2H); }
+    if (1410..=1412).contains(&id) { return Some(WeaponType::Spear2H); }
+    if (1472..=1473).contains(&id) { return Some(WeaponType::Staff); }
+    if id == 1599 { return Some(WeaponType::Mace); }
+    match id {
+        1100..1150 => Some(WeaponType::Sword1H),
+        1150..1200 => Some(WeaponType::Sword2H),
+        1200..1250 => Some(WeaponType::Dagger),
+        1250..1300 => Some(WeaponType::Katar),
+        1300..1350 => Some(WeaponType::Axe1H),
+        1350..1400 => Some(WeaponType::Axe2H),
+        1400..1450 => Some(WeaponType::Spear1H),
+        1450..1500 => Some(WeaponType::Spear2H),
+        1500..1550 => Some(WeaponType::Mace),
+        1550..1600 => Some(WeaponType::Book),
+        1600..1650 => Some(WeaponType::Staff),
+        1700..1750 => Some(WeaponType::Bow),
+        1800..1850 => Some(WeaponType::Knuckle),
+        1900..1950 => Some(WeaponType::Musical),
+        1950..2000 => Some(WeaponType::Whip),
+        2000..2050 => Some(WeaponType::Staff2H),
+        13000..13050 => Some(WeaponType::Dagger),
+        _ => None,
+    }
+}
+
+/// Combines two single-hand weapon types into the dual-wield weapon type.
+pub fn dual_wield_type(right: WeaponType, left: WeaponType) -> Option<WeaponType> {
+    match (right, left) {
+        (WeaponType::Dagger, WeaponType::Dagger) => Some(WeaponType::DoubleDd),
+        (WeaponType::Sword1H, WeaponType::Sword1H) => Some(WeaponType::DoubleSs),
+        (WeaponType::Axe1H, WeaponType::Axe1H) => Some(WeaponType::DoubleAa),
+        (WeaponType::Dagger, WeaponType::Sword1H) | (WeaponType::Sword1H, WeaponType::Dagger) => {
+            Some(WeaponType::DoubleDs)
+        }
+        (WeaponType::Dagger, WeaponType::Axe1H) | (WeaponType::Axe1H, WeaponType::Dagger) => {
+            Some(WeaponType::DoubleDa)
+        }
+        (WeaponType::Sword1H, WeaponType::Axe1H) | (WeaponType::Axe1H, WeaponType::Sword1H) => {
+            Some(WeaponType::DoubleSa)
+        }
         _ => None,
     }
 }
@@ -291,6 +357,19 @@ mod tests {
         assert_eq!(weapon_view_id_to_type(2), Some(WeaponType::Sword1H));
         assert_eq!(weapon_view_id_to_type(11), Some(WeaponType::Bow));
         assert_eq!(weapon_view_id_to_type(16), Some(WeaponType::Katar));
+        assert_eq!(weapon_view_id_to_type(25), Some(WeaponType::DoubleDd));
+        assert_eq!(weapon_view_id_to_type(30), Some(WeaponType::DoubleSa));
+    }
+
+    #[test]
+    fn weapon_item_id_fallback() {
+        assert_eq!(weapon_view_id_to_type(1101), Some(WeaponType::Sword1H));
+        assert_eq!(weapon_view_id_to_type(1201), Some(WeaponType::Dagger));
+        assert_eq!(weapon_view_id_to_type(1701), Some(WeaponType::Bow));
+        assert_eq!(weapon_view_id_to_type(1250), Some(WeaponType::Katar));
+        assert_eq!(weapon_view_id_to_type(1450), Some(WeaponType::Spear2H));
+        assert_eq!(weapon_view_id_to_type(1116), Some(WeaponType::Sword2H));
+        assert!(weapon_view_id_to_type(999).is_none());
     }
 
     #[test]

@@ -169,9 +169,9 @@ impl App {
                     gid,
                     sprite_type,
                     value,
-                    ..
+                    value2,
                 } => {
-                    self.handle_entity_sprite_changed(gid, sprite_type, value);
+                    self.handle_entity_sprite_changed(gid, sprite_type, value, value2);
                 }
                 GameEvent::EntityEmotion { gid, emotion_type } => {
                     self.game.entities.apply_entity_emotion(gid, emotion_type);

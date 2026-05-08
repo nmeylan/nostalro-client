@@ -256,38 +256,48 @@ impl App {
         }
     }
 
-    pub(super) fn handle_entity_sprite_changed(&mut self, gid: u32, sprite_type: u8, value: u16) {
+    pub(super) fn handle_entity_sprite_changed(&mut self, gid: u32, sprite_type: u8, value: u16, value2: u16) {
         if let Some(entity) = self.game.entities.get_mut(gid) {
-            entity.apply_sprite_change(sprite_type, value);
-            let (
-                job,
-                sex,
-                head,
-                weapon,
-                shield,
-                head_top,
-                head_mid,
-                head_bottom,
-                hair_color,
-                cloth_color,
-            ) = {
-                (
-                    entity.job,
-                    entity.sex,
-                    entity.head,
-                    entity.weapon.map(|w| w as u16).unwrap_or(0),
-                    entity.shield,
-                    entity.head_top,
-                    entity.head_mid,
-                    entity.head_bottom,
-                    entity.hair_color,
-                    entity.cloth_color,
-                )
-            };
+            if sprite_type == 2 {
+                // LOOK_WEAPON: value=right hand, value2=left hand (weapon or shield)
+                let right_type = ragnarok_game::sprite_path::weapon_view_id_to_type(value);
+                let left_type = ragnarok_game::sprite_path::weapon_view_id_to_type(value2);
+                match (right_type, left_type) {
+                    (Some(r), Some(l)) => {
+                        entity.weapon = ragnarok_game::sprite_path::dual_wield_type(r, l).or(Some(r));
+                        entity.shield = 0;
+                    }
+                    (Some(_), None) => {
+                        entity.weapon = right_type;
+                        entity.shield = value2;
+                    }
+                    (None, Some(_)) => {
+                        entity.weapon = left_type;
+                        entity.shield = 0;
+                    }
+                    (None, None) => {
+                        entity.weapon = None;
+                        entity.shield = value2;
+                    }
+                }
+            } else {
+                entity.apply_sprite_change(sprite_type, value);
+            }
+            let weapon_type = entity.weapon;
+            let (job, sex, head, shield, head_top, head_mid, head_bottom, hair_color, cloth_color) = (
+                entity.job,
+                entity.sex,
+                entity.head,
+                entity.shield,
+                entity.head_top,
+                entity.head_mid,
+                entity.head_bottom,
+                entity.hair_color,
+                entity.cloth_color,
+            );
             let entity_type = entity.entity_type;
             let is_player = self.game.entities.player_id() == Some(gid);
             if is_player {
-                let weapon_type = ragnarok_game::sprite_path::weapon_view_id_to_type(weapon);
                 self.load_player_sprite(
                     gid,
                     job,
@@ -308,7 +318,7 @@ impl App {
                     job,
                     sex,
                     head,
-                    weapon,
+                    0,
                     shield,
                     head_top,
                     head_mid,

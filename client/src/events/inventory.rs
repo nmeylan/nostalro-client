@@ -116,14 +116,17 @@ impl App {
                 .character
                 .inventory
                 .update_wear_state(index, wear_location);
+            let item_type = self.game.character.inventory.get_item(index).map(|i| i.item_type);
             if view_id != 0
-                && let Some(sprite_type) = Entity::wear_location_to_sprite_type(wear_location)
-                    && let Some(player_id) = self.game.entities.player_id() {
-                        if let Some(entity) = self.game.entities.get_mut(player_id) {
-                            entity.apply_sprite_change(sprite_type, view_id);
-                        }
-                        self.reload_player_sprite(player_id);
-                    }
+                && let Some(sprite_type) =
+                    Entity::wear_location_to_sprite_type_for(wear_location, item_type)
+                && let Some(player_id) = self.game.entities.player_id()
+            {
+                if let Some(entity) = self.game.entities.get_mut(player_id) {
+                    entity.apply_sprite_change(sprite_type, view_id);
+                }
+                self.reload_player_sprite(player_id);
+            }
         }
     }
 
@@ -140,14 +143,22 @@ impl App {
             success,
         );
         if success {
+            let item_type = self
+                .game
+                .character
+                .inventory
+                .get_item(index)
+                .map(|i| i.item_type);
             self.game.character.inventory.clear_wear_state(index);
-            if let Some(sprite_type) = Entity::wear_location_to_sprite_type(wear_location)
-                && let Some(player_id) = self.game.entities.player_id() {
-                    if let Some(entity) = self.game.entities.get_mut(player_id) {
-                        entity.apply_sprite_change(sprite_type, 0);
-                    }
-                    self.reload_player_sprite(player_id);
+            if let Some(sprite_type) =
+                Entity::wear_location_to_sprite_type_for(wear_location, item_type)
+                && let Some(player_id) = self.game.entities.player_id()
+            {
+                if let Some(entity) = self.game.entities.get_mut(player_id) {
+                    entity.apply_sprite_change(sprite_type, 0);
                 }
+                self.reload_player_sprite(player_id);
+            }
         }
     }
 

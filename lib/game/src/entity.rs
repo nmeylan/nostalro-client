@@ -5,7 +5,7 @@ use ragnarok_formats::act::SpriteAnimationState;
 
 use crate::movement::MovementState;
 use crate::scheduled_hit::ScheduledHitQueue;
-use crate::sprite_path::weapon_view_id_to_type;
+use crate::sprite_path::{dual_wield_type, weapon_view_id_to_type};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntityType {
@@ -130,10 +130,15 @@ impl Entity {
         hair_color: u16, weapon: u16, head_top: u16, head_mid: u16,
         head_bottom: u16, shield: u16, x: u16, y: u16, direction: u8, speed: u16,
     ) -> Self {
-        let weapon_type = if entity_type == EntityType::Player {
-            weapon_view_id_to_type(weapon)
+        let (weapon_type, shield) = if entity_type == EntityType::Player {
+            let right = weapon_view_id_to_type(weapon);
+            let left = weapon_view_id_to_type(shield);
+            match (right, left) {
+                (Some(r), Some(l)) => (dual_wield_type(r, l).or(right), 0),
+                _ => (right, shield),
+            }
         } else {
-            None
+            (None, shield)
         };
         let mut movement = MovementState::new(x, y);
         movement.set_speed(speed);
@@ -344,11 +349,18 @@ impl Entity {
     }
 
     pub fn wear_location_to_sprite_type(wear_location: u16) -> Option<u8> {
+        Self::wear_location_to_sprite_type_for(wear_location, None)
+    }
+
+    pub fn wear_location_to_sprite_type_for(wear_location: u16, item_type: Option<u8>) -> Option<u8> {
+        const ITEM_TYPE_WEAPON: u8 = 5;
         if wear_location & 256 != 0 { Some(4) }       // HeadTop
         else if wear_location & 512 != 0 { Some(5) }  // HeadMid
         else if wear_location & 1 != 0 { Some(3) }    // HeadLow
-        else if wear_location & 2 != 0 { Some(2) }    // Weapon (HandRight)
-        else if wear_location & 32 != 0 { Some(8) }   // Shield (HandLeft)
+        else if wear_location & 2 != 0 { Some(2) }    // Weapon (HandRight, also two-handed)
+        else if wear_location & 32 != 0 {
+            if item_type == Some(ITEM_TYPE_WEAPON) { Some(2) } else { Some(8) }
+        }
         else { None }
     }
 

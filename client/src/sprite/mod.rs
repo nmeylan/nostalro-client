@@ -18,14 +18,13 @@ impl App {
         let job = entity.job;
         let sex = entity.sex;
         let head = entity.head;
-        let weapon = entity.weapon.map(|w| w as u16).unwrap_or(0);
+        let weapon_type = entity.weapon;
         let shield = entity.shield;
         let head_top = entity.head_top;
         let head_mid = entity.head_mid;
         let head_bottom = entity.head_bottom;
         let hair_color = entity.hair_color;
         let cloth_color = entity.cloth_color;
-        let weapon_type = weapon_view_id_to_type(weapon);
         self.load_player_sprite(
             gid, job, sex, head, hair_color, cloth_color, weapon_type, head_top, head_mid,
             head_bottom, shield,

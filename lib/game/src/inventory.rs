@@ -508,6 +508,22 @@ mod tests {
     }
 
     #[test]
+    fn wear_location_to_sprite_type_disambiguates_hand_left() {
+        use crate::entity::Entity;
+
+        // HandLeft + Weapon item routes to weapon slot.
+        assert_eq!(
+            Entity::wear_location_to_sprite_type_for(32, Some(5)),
+            Some(2),
+        );
+        // HandLeft + Armor item routes to shield slot.
+        assert_eq!(
+            Entity::wear_location_to_sprite_type_for(32, Some(4)),
+            Some(8),
+        );
+    }
+
+    #[test]
     fn insert_card_fills_first_empty_slot() {
         let mut inv = InventoryData::new();
         let mut equip = make_equip_item(1, 1101, 2);
