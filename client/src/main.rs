@@ -30,8 +30,9 @@ use ragnarok_network::{
     build_npc_input_string_packet, build_npc_menu_select_packet, build_npc_next_packet,
     build_pickup_item_packet, build_purchase_item_list_packet, build_reqname_packet,
     build_restart_packet, build_select_char_packet, build_sell_item_list_packet,
-    build_shortcut_key_change_packet, build_unequip_item_packet, build_upgrade_skill_packet,
-    build_use_item_packet, build_use_skill_packet, ip_u32_to_string, network_loop,
+    build_shortcut_key_change_packet, build_stat_change_packet,
+    build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_use_skill_packet,
+    ip_u32_to_string, network_loop,
 };
 use ragnarok_renderer::{
     EffectSpriteCache, GridSelectorRenderer, Renderer, SpriteVertex, StrEffectCache, UiDrawCall,
@@ -565,6 +566,9 @@ impl App {
                     self.channel
                         .send_packet(build_upgrade_skill_packet(skill_id, self.config.packetver));
                 }
+                GameEvent::RequestStatChange { status_id, amount } => {
+                    self.channel.send_packet(build_stat_change_packet(status_id, amount, self.config.packetver));
+                }
                 GameEvent::HotkeyListReceived { slots } => {
                     self.game
                         .character
@@ -674,6 +678,9 @@ impl App {
                 }
                 GameEvent::ToggleSkills => {
                     self.game.character.skills.toggle();
+                }
+                GameEvent::ToggleStatusWindow => {
+                    self.game.status_window.toggle();
                 }
                 _ => {}
             }

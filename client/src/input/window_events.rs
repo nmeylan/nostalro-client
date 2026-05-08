@@ -142,6 +142,9 @@ impl App {
                 PhysicalKey::Code(KeyCode::KeyS) if self.input.alt_pressed => {
                     self.game.character.skills.toggle();
                 }
+                PhysicalKey::Code(KeyCode::KeyA) if self.input.alt_pressed => {
+                    self.game.status_window.toggle();
+                }
                 _ => {}
             }
         }

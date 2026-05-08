@@ -246,6 +246,14 @@ pub fn build_upgrade_skill_packet(skill_id: u16, packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_stat_change_packet(status_id: u16, amount: u8, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzStatusChange::new(packetver);
+    pkt.set_status_id(status_id);
+    pkt.set_change_amount(amount);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_shortcut_key_change_packet(
     index: u16,
     is_skill: i8,

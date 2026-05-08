@@ -341,9 +341,9 @@ impl App {
                     self.handle_parameter_changed(var_id, value);
                 }
                 GameEvent::StatusChanged {
-                    status_type, base, ..
+                    status_type, base, bonus,
                 } => {
-                    self.game.character.apply_status_changed(status_type, base);
+                    self.game.character.apply_status_changed(status_type, base, bonus);
                 }
                 GameEvent::AttackRangeChanged { range } => {
                     self.game.attack_range = range;

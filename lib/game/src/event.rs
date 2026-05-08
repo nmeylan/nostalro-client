@@ -416,6 +416,15 @@ pub enum GameEvent {
         skill_id: u16,
     },
 
+    // Stats (client → server)
+    RequestStatChange {
+        status_id: u16,
+        amount: u8,
+    },
+
+    // UI (client-internal)
+    ToggleStatusWindow,
+
     // Hotkeys (server → client)
     HotkeyListReceived {
         slots: Vec<(i8, u32, i16)>,

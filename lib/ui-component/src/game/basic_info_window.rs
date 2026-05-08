@@ -73,13 +73,11 @@ const BTN_PARTY: ButtonTextures = ButtonTextures {
     pressed: "data/texture/유저인터페이스/basic_interface/btn_friend_on.bmp",
 };
 
-// Layout constants matching robrowser V0 CSS
 const WIN_W: f32 = 280.0;
 const WIN_H_LARGE: f32 = 120.0;
 const WIN_H_SMALL: f32 = 33.0;
 const TITLE_H: f32 = 17.0;
 
-// HP/SP bar layout (from robrowser CSS)
 const HP_BAR_X: f32 = 110.0;
 const HP_BAR_Y: f32 = 22.0;
 const SP_BAR_Y: f32 = 43.0;
@@ -625,6 +623,7 @@ impl BasicInfoWindow {
                     BTN_EQUIP_ID => events.push(GameEvent::ToggleEquipment),
                     BTN_INVENTORY_ID => events.push(GameEvent::ToggleInventory),
                     BTN_SKILL_ID => events.push(GameEvent::ToggleSkills),
+                    BTN_STATUS_ID => events.push(GameEvent::ToggleStatusWindow),
                     _ => {}
                 }
             }

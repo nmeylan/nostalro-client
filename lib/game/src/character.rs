@@ -31,6 +31,34 @@ pub struct Character {
     pub int: u8,
     pub dex: u8,
     pub luk: u8,
+    // Bonus from gear/buffs (signed, applied on top of base stat)
+    pub str_bonus: i16,
+    pub agi_bonus: i16,
+    pub vit_bonus: i16,
+    pub int_bonus: i16,
+    pub dex_bonus: i16,
+    pub luk_bonus: i16,
+    // Status point cost to raise each stat by 1
+    pub str_cost: u16,
+    pub agi_cost: u16,
+    pub vit_cost: u16,
+    pub int_cost: u16,
+    pub dex_cost: u16,
+    pub luk_cost: u16,
+    // Combat stats
+    pub atk1: i32,
+    pub atk2: i32,
+    pub matk1: i32,
+    pub matk2: i32,
+    pub def1: i32,
+    pub def2: i32,
+    pub mdef1: i32,
+    pub mdef2: i32,
+    pub hit: i32,
+    pub flee1: i32,
+    pub flee2: i32,
+    pub critical: i32,
+    pub aspd: i32,
 }
 
 impl Default for Character {
@@ -66,6 +94,31 @@ impl Character {
             int: 0,
             dex: 0,
             luk: 0,
+            str_bonus: 0,
+            agi_bonus: 0,
+            vit_bonus: 0,
+            int_bonus: 0,
+            dex_bonus: 0,
+            luk_bonus: 0,
+            str_cost: 0,
+            agi_cost: 0,
+            vit_cost: 0,
+            int_cost: 0,
+            dex_cost: 0,
+            luk_cost: 0,
+            atk1: 0,
+            atk2: 0,
+            matk1: 0,
+            matk2: 0,
+            def1: 0,
+            def2: 0,
+            mdef1: 0,
+            mdef2: 0,
+            hit: 0,
+            flee1: 0,
+            flee2: 0,
+            critical: 0,
+            aspd: 0,
         }
     }
 
@@ -147,22 +200,41 @@ impl Character {
             StatusTypes::Statuspoint => self.status_point = value as u32,
             StatusTypes::Nextbaseexp => self.next_base_exp = value as u32,
             StatusTypes::Nextjobexp => self.next_job_exp = value as u32,
+            StatusTypes::StrNextLevelIncreaseCost => self.str_cost = value as u16,
+            StatusTypes::AgiNextLevelIncreaseCost => self.agi_cost = value as u16,
+            StatusTypes::VitNextLevelIncreaseCost => self.vit_cost = value as u16,
+            StatusTypes::IntNextLevelIncreaseCost => self.int_cost = value as u16,
+            StatusTypes::DexNextLevelIncreaseCost => self.dex_cost = value as u16,
+            StatusTypes::LukNextLevelIncreaseCost => self.luk_cost = value as u16,
+            StatusTypes::Atk1 => self.atk1 = value,
+            StatusTypes::Atk2 => self.atk2 = value,
+            StatusTypes::Matk1 => self.matk1 = value,
+            StatusTypes::Matk2 => self.matk2 = value,
+            StatusTypes::Def1 => self.def1 = value,
+            StatusTypes::Def2 => self.def2 = value,
+            StatusTypes::Mdef1 => self.mdef1 = value,
+            StatusTypes::Mdef2 => self.mdef2 = value,
+            StatusTypes::Hit => self.hit = value,
+            StatusTypes::Flee1 => self.flee1 = value,
+            StatusTypes::Flee2 => self.flee2 = value,
+            StatusTypes::Critical => self.critical = value,
+            StatusTypes::Aspd => self.aspd = value,
             _ => {}
         }
         None
     }
 
-    pub fn apply_status_changed(&mut self, status_type: u32, base: i32) {
+    pub fn apply_status_changed(&mut self, status_type: u32, base: i32, bonus: i32) {
         use models::enums::EnumWithNumberValue;
         use models::enums::status::StatusTypes;
         if let Ok(status) = StatusTypes::try_from_value(status_type as usize) {
             match status {
-                StatusTypes::Str => self.str = base as u8,
-                StatusTypes::Agi => self.agi = base as u8,
-                StatusTypes::Vit => self.vit = base as u8,
-                StatusTypes::Int => self.int = base as u8,
-                StatusTypes::Dex => self.dex = base as u8,
-                StatusTypes::Luk => self.luk = base as u8,
+                StatusTypes::Str => { self.str = base as u8; self.str_bonus = bonus as i16; }
+                StatusTypes::Agi => { self.agi = base as u8; self.agi_bonus = bonus as i16; }
+                StatusTypes::Vit => { self.vit = base as u8; self.vit_bonus = bonus as i16; }
+                StatusTypes::Int => { self.int = base as u8; self.int_bonus = bonus as i16; }
+                StatusTypes::Dex => { self.dex = base as u8; self.dex_bonus = bonus as i16; }
+                StatusTypes::Luk => { self.luk = base as u8; self.luk_bonus = bonus as i16; }
                 _ => {}
             }
         }
@@ -199,6 +271,18 @@ impl Character {
         self.int = 0;
         self.dex = 0;
         self.luk = 0;
+        self.str_bonus = 0; self.agi_bonus = 0; self.vit_bonus = 0;
+        self.int_bonus = 0; self.dex_bonus = 0; self.luk_bonus = 0;
+        self.str_cost = 0; self.agi_cost = 0; self.vit_cost = 0;
+        self.int_cost = 0; self.dex_cost = 0; self.luk_cost = 0;
+        self.atk1 = 0; self.atk2 = 0;
+        self.matk1 = 0; self.matk2 = 0;
+        self.def1 = 0; self.def2 = 0;
+        self.mdef1 = 0; self.mdef2 = 0;
+        self.hit = 0;
+        self.flee1 = 0; self.flee2 = 0;
+        self.critical = 0;
+        self.aspd = 0;
     }
 }
 
@@ -295,11 +379,13 @@ mod tests {
     #[test]
     fn status_changed_updates_base_stats() {
         let mut char = Character::new();
-        char.apply_status_changed(13, 50); // STR
+        char.apply_status_changed(13, 50, 5); // STR base 50, bonus 5
         assert_eq!(char.str, 50);
-        char.apply_status_changed(14, 30); // AGI
+        assert_eq!(char.str_bonus, 5);
+        char.apply_status_changed(14, 30, 0); // AGI
         assert_eq!(char.agi, 30);
-        char.apply_status_changed(17, 99); // DEX
+        char.apply_status_changed(17, 99, -2); // DEX with negative bonus
         assert_eq!(char.dex, 99);
+        assert_eq!(char.dex_bonus, -2);
     }
 }
