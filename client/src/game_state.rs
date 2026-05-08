@@ -19,18 +19,18 @@ use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::state::StateCache;
-use ragnarok_ui_component::game::basic_info_window::{BasicInfoWindow, BASIC_INFO_WINDOW_ID};
+use ragnarok_ui_component::game::basic_info_window::{BASIC_INFO_WINDOW_ID, BasicInfoWindow};
 use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
 use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
-use ragnarok_ui_component::game::equipment_window::{EquipmentWindow, EQ_WINDOW_ID};
-use ragnarok_ui_component::game::hotkey_bar::{HotkeyBarWindow, HOTKEY_BAR_WINDOW_ID};
-use ragnarok_ui_component::game::inventory_window::{InventoryWindow, INV_WINDOW_ID};
+use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
+use ragnarok_ui_component::game::hotkey_bar::{HOTKEY_BAR_WINDOW_ID, HotkeyBarWindow};
+use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
-use ragnarok_ui_component::game::skill_tree_window::{SkillTreeWindow, SKILL_WINDOW_ID};
+use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::{InGameWindow, Window};
 
@@ -367,9 +367,10 @@ impl GameState {
             self.equipment_window.set_minimized(entry.collapsed);
         }
         if let Some(entry) = window_state.get(&SKILL_WINDOW_ID.0)
-            && entry.open {
-                self.character.skills.open();
-            }
+            && entry.open
+        {
+            self.character.skills.open();
+        }
         if let Some(entry) = window_state.get(&chat_window::CHAT_WINDOW_ID.0) {
             let size_index = if !entry.open {
                 0

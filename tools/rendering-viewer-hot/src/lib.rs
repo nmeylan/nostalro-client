@@ -3,8 +3,8 @@ static GLOBAL: std::alloc::System = std::alloc::System;
 
 use ragnarok_formats::act::ActFile;
 use ragnarok_game::damage_number::{
-    DamageNumber, DamageNumberManager, DamageNumberQuad, DamageNumberRenderEntry,
-    DamageNumberType, build_damage_number_quads,
+    DamageNumber, DamageNumberManager, DamageNumberQuad, DamageNumberRenderEntry, DamageNumberType,
+    build_damage_number_quads,
 };
 use ragnarok_game::scheduled_hit::ScheduledHit as GameHit;
 
@@ -50,16 +50,36 @@ impl State {
     fn trigger_scenario(&mut self, scenario: u8) {
         match scenario {
             1 => {
-                self.damage_numbers.emit(1, self.direction, &GameHit::single(self.damage_value, 0, false), false);
+                self.damage_numbers.emit(
+                    1,
+                    self.direction,
+                    &GameHit::single(self.damage_value, 0, false),
+                    false,
+                );
             }
             2 => {
-                self.damage_numbers.emit(2, self.direction, &GameHit::single(self.damage_value, 1, false), false);
+                self.damage_numbers.emit(
+                    2,
+                    self.direction,
+                    &GameHit::single(self.damage_value, 1, false),
+                    false,
+                );
             }
             3 => {
-                self.damage_numbers.emit(3, self.direction, &GameHit::single(self.damage_value, 0, true), false);
+                self.damage_numbers.emit(
+                    3,
+                    self.direction,
+                    &GameHit::single(self.damage_value, 0, true),
+                    false,
+                );
             }
             4 => {
-                self.damage_numbers.emit(4, self.direction, &GameHit::single(self.damage_value, 0, false), true);
+                self.damage_numbers.emit(
+                    4,
+                    self.direction,
+                    &GameHit::single(self.damage_value, 0, false),
+                    true,
+                );
             }
             5 => {
                 let per_hit = self.damage_value / 3;
@@ -86,14 +106,23 @@ impl State {
                 }
             }
             7 => {
-                self.damage_numbers.emit(7, self.direction, &GameHit::single(-(self.damage_value), 0, false), false);
+                self.damage_numbers.emit(
+                    7,
+                    self.direction,
+                    &GameHit::single(-(self.damage_value), 0, false),
+                    false,
+                );
             }
             8 => {
-                self.damage_numbers.emit(8, self.direction, &GameHit::single(0, 0, false), false);
+                self.damage_numbers
+                    .emit(8, self.direction, &GameHit::single(0, 0, false), false);
             }
             9 => {
                 self.damage_numbers.add(DamageNumber::new(
-                    9, 0, DamageNumberType::Lucky, self.direction,
+                    9,
+                    0,
+                    DamageNumberType::Lucky,
+                    self.direction,
                 ));
             }
             0 => {
@@ -110,14 +139,19 @@ impl State {
         self.scheduled_hits.retain_mut(|scheduled| {
             scheduled.delay -= dt;
             if scheduled.delay <= 0.0 {
-                ready.push((scheduled.entity_id, scheduled.hit, scheduled.is_player_target));
+                ready.push((
+                    scheduled.entity_id,
+                    scheduled.hit,
+                    scheduled.is_player_target,
+                ));
                 false
             } else {
                 true
             }
         });
         for (entity_id, hit, is_player_target) in ready {
-            self.damage_numbers.emit(entity_id, self.direction, &hit, is_player_target);
+            self.damage_numbers
+                .emit(entity_id, self.direction, &hit, is_player_target);
         }
     }
 }
@@ -142,7 +176,12 @@ pub unsafe extern "C" fn hot_destroy(state_ptr: *mut ()) {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn hot_trigger(state_ptr: *mut (), scenario: u8, damage_value: i32, direction: u8) {
+pub unsafe extern "C" fn hot_trigger(
+    state_ptr: *mut (),
+    scenario: u8,
+    damage_value: i32,
+    direction: u8,
+) {
     let state = unsafe { &mut *(state_ptr as *mut State) };
     state.damage_value = damage_value;
     state.direction = direction;
@@ -200,7 +239,10 @@ pub unsafe extern "C" fn hot_build(state_ptr: *mut (), out_quads: *mut Vec<Damag
         None => return,
     };
 
-    let entries: Vec<DamageNumberRenderEntry> = state.damage_numbers.numbers.iter()
+    let entries: Vec<DamageNumberRenderEntry> = state
+        .damage_numbers
+        .numbers
+        .iter()
         .filter_map(|dmg| {
             let (sx, sy) = entity_screen_pos(dmg.entity_id);
             let data = dmg.render_data()?;

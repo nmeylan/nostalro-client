@@ -20,22 +20,20 @@ static FOG_TABLE: OnceLock<Option<FogTable>> = OnceLock::new();
 
 fn fog_table(grf: &GrfArchive) -> Option<&'static FogTable> {
     FOG_TABLE
-        .get_or_init(|| {
-            match grf.read_file("data/fogparametertable.txt") {
-                Ok(data) => match FogTable::parse(&data) {
-                    Ok(table) => {
-                        tracing::info!("Loaded fog table ({} entries)", table.entries.len());
-                        Some(table)
-                    }
-                    Err(e) => {
-                        tracing::warn!("Failed to parse fog table: {e}");
-                        None
-                    }
-                },
+        .get_or_init(|| match grf.read_file("data/fogparametertable.txt") {
+            Ok(data) => match FogTable::parse(&data) {
+                Ok(table) => {
+                    tracing::info!("Loaded fog table ({} entries)", table.entries.len());
+                    Some(table)
+                }
                 Err(e) => {
-                    tracing::info!("No fog table in GRF: {e}");
+                    tracing::warn!("Failed to parse fog table: {e}");
                     None
                 }
+            },
+            Err(e) => {
+                tracing::info!("No fog table in GRF: {e}");
+                None
             }
         })
         .as_ref()
@@ -76,7 +74,11 @@ pub fn load_map_data(grf: &GrfArchive, map_name: &str) -> Option<MapData> {
 
     println!(
         "Map: {map_name} ({}x{}, {} textures, {} surfaces, {} lightmaps)",
-        gnd.width, gnd.height, gnd.textures.len(), gnd.surfaces.len(), gnd.lightmaps.len()
+        gnd.width,
+        gnd.height,
+        gnd.textures.len(),
+        gnd.surfaces.len(),
+        gnd.lightmaps.len()
     );
 
     let mut gat_file = None;
@@ -84,14 +86,21 @@ pub fn load_map_data(grf: &GrfArchive, map_name: &str) -> Option<MapData> {
 
     let gat_path = format!("data/{map_name}.gat");
     if let Ok(gat_data) = grf.read_file(&gat_path)
-        && let Ok(gat) = GatFile::parse(&gat_data) {
-            coordinates = Some(MapCoordinates::new(
-                gnd.zoom, gat.width, gat.height, gnd.width, gnd.height,
-            ));
-            gat_file = Some(gat);
-        }
+        && let Ok(gat) = GatFile::parse(&gat_data)
+    {
+        coordinates = Some(MapCoordinates::new(
+            gnd.zoom, gat.width, gat.height, gnd.width, gnd.height,
+        ));
+        gat_file = Some(gat);
+    }
 
     let fog = fog_table(grf).and_then(|table| table.get(&format!("{map_name}.rsw")));
 
-    Some(MapData { rsw, gnd, gat: gat_file, coordinates, fog })
+    Some(MapData {
+        rsw,
+        gnd,
+        gat: gat_file,
+        coordinates,
+        fog,
+    })
 }

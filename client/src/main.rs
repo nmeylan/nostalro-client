@@ -8,32 +8,30 @@ mod overlay;
 mod scene;
 mod sprite;
 
-use std::collections::HashMap;
 use config::Config;
 use game_state::GameState;
 use input::InputState;
-use ragnarok_game::skill::SkillTargetType;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::{
-    CursorType, PendingSkillTarget, RenderEntry, RenderEntryKind, cursor_type_for_cell, hovered_entity_cursor_type,
+    CursorType, PendingSkillTarget, RenderEntry, RenderEntryKind, cursor_type_for_cell,
+    hovered_entity_cursor_type,
 };
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::name_table::NameTable;
+use ragnarok_game::skill::SkillTargetType;
 use ragnarok_game::{map_loader, sprite_loader};
 use ragnarok_network::{
-    KeepaliveMode, NetworkCommand, build_action_request_packet, build_char_enter_packet,
-    build_chat_packet, build_contact_npc_packet, build_drop_item_packet, build_equip_item_packet,
-    build_login_packet, build_npc_close_packet,
-    build_card_composition_list_packet, build_card_composition_packet,
-    build_npc_deal_type_packet, build_npc_input_number_packet, build_npc_input_string_packet,
-    build_npc_menu_select_packet, build_npc_next_packet, build_pickup_item_packet,
-    build_purchase_item_list_packet, build_reqname_packet,
+    KeepaliveMode, NetworkCommand, build_action_request_packet, build_card_composition_list_packet,
+    build_card_composition_packet, build_char_enter_packet, build_chat_packet,
+    build_contact_npc_packet, build_drop_item_packet, build_equip_item_packet, build_login_packet,
+    build_npc_close_packet, build_npc_deal_type_packet, build_npc_input_number_packet,
+    build_npc_input_string_packet, build_npc_menu_select_packet, build_npc_next_packet,
+    build_pickup_item_packet, build_purchase_item_list_packet, build_reqname_packet,
     build_restart_packet, build_select_char_packet, build_sell_item_list_packet,
-    build_shortcut_key_change_packet,
-    build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_use_skill_packet,
-    ip_u32_to_string, network_loop,
+    build_shortcut_key_change_packet, build_unequip_item_packet, build_upgrade_skill_packet,
+    build_use_item_packet, build_use_skill_packet, ip_u32_to_string, network_loop,
 };
 use ragnarok_renderer::{
     EffectSpriteCache, GridSelectorRenderer, Renderer, SpriteVertex, StrEffectCache, UiDrawCall,
@@ -45,6 +43,7 @@ use ragnarok_ui::state::StateCache;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::{LoginFocus, LoginWindow};
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
+use std::collections::HashMap;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -111,7 +110,9 @@ struct App {
 
 impl App {
     fn new(config: Config) -> Self {
-        let saved_window_positions = config.window_state.iter()
+        let saved_window_positions = config
+            .window_state
+            .iter()
             .map(|(&id, entry)| (id, entry.position))
             .collect();
         Self {
@@ -149,23 +150,28 @@ impl App {
         self.game.map_coords = map_data.coordinates;
         self.game.gat = map_data.gat;
 
-        self.game.effects = ragnarok_game::effects::EffectManager::from_rsw(
-            &map_data.rsw, &map_data.gnd,
-        );
+        self.game.effects =
+            ragnarok_game::effects::EffectManager::from_rsw(&map_data.rsw, &map_data.gnd);
 
         if let Some(renderer) = &mut self.renderer {
             let fog = if self.config.fog { map_data.fog } else { None };
             renderer.load_map(&map_data.gnd, &map_data.rsw, grf, fog);
 
             // Preload sprite assets used by spawned effect emitters once.
-            let mut paths: Vec<&str> = self.game.effects.emitters.iter().filter_map(|e| {
-                use ragnarok_game::effect_table::EffectKind;
-                match &e.kind {
-                    EffectKind::Spr { sprite_path, .. } => Some(*sprite_path),
-                    EffectKind::Smoke3D { sprite_path, .. } => Some(*sprite_path),
-                    EffectKind::Str { .. } => None,
-                }
-            }).collect();
+            let mut paths: Vec<&str> = self
+                .game
+                .effects
+                .emitters
+                .iter()
+                .filter_map(|e| {
+                    use ragnarok_game::effect_table::EffectKind;
+                    match &e.kind {
+                        EffectKind::Spr { sprite_path, .. } => Some(*sprite_path),
+                        EffectKind::Smoke3D { sprite_path, .. } => Some(*sprite_path),
+                        EffectKind::Str { .. } => None,
+                    }
+                })
+                .collect();
             paths.sort();
             paths.dedup();
             for path in paths {
@@ -178,7 +184,11 @@ impl App {
                 );
             }
 
-            let mut str_names: Vec<String> = self.game.effects.emitters.iter()
+            let mut str_names: Vec<String> = self
+                .game
+                .effects
+                .emitters
+                .iter()
                 .filter_map(|e| e.str_file.clone())
                 .collect();
             str_names.sort();
@@ -195,24 +205,25 @@ impl App {
         }
 
         if let Some(renderer) = &mut self.renderer
-            && let Some(gat) = &self.game.gat {
-                let mut grid = GridSelectorRenderer::new(
-                    &renderer.device.device,
-                    &renderer.device.queue,
-                    renderer.device.surface_format,
-                    &renderer.global_uniforms,
-                    &mut renderer.texture_cache,
-                    grf,
-                );
-                grid.build_grid_mesh(
-                    &renderer.device.device,
-                    gat,
-                    map_data.gnd.width,
-                    map_data.gnd.height,
-                    map_data.gnd.zoom,
-                );
-                renderer.grid_selector = Some(grid);
-            }
+            && let Some(gat) = &self.game.gat
+        {
+            let mut grid = GridSelectorRenderer::new(
+                &renderer.device.device,
+                &renderer.device.queue,
+                renderer.device.surface_format,
+                &renderer.global_uniforms,
+                &mut renderer.texture_cache,
+                grf,
+            );
+            grid.build_grid_mesh(
+                &renderer.device.device,
+                gat,
+                map_data.gnd.width,
+                map_data.gnd.height,
+                map_data.gnd.zoom,
+            );
+            renderer.grid_selector = Some(grid);
+        }
     }
 
     fn position_camera_at(&mut self, cell_x: f32, cell_y: f32) {
@@ -270,7 +281,6 @@ impl App {
         });
     }
 
-
     #[allow(clippy::too_many_arguments)]
     fn handle_floor_item_appeared(
         &mut self,
@@ -287,13 +297,15 @@ impl App {
         let elapsed = self.start_time.elapsed().as_secs_f32();
         let name = self
             .game
-            .data_table.item_name
+            .data_table
+            .item_name
             .as_ref()
             .map(|t| t.get_name_or_id_for(item_id, is_identified))
             .unwrap_or_else(|| format!("Item #{item_id}"));
         let resource_name = self
             .game
-            .data_table.item_resource
+            .data_table
+            .item_resource
             .as_ref()
             .and_then(|t| t.get_resource_name_for(item_id, is_identified))
             .map(|s| s.to_string());
@@ -327,23 +339,24 @@ impl App {
 
         // Load item SPR/ACT sprite
         if let Some(res_name) = &resource_name
-            && let (Some(grf), Some(renderer)) = (&self.grf, &self.renderer) {
-                let base = format!("data/sprite/아이템/{res_name}");
-                let spr_path = format!("{base}.spr");
-                let act_path = format!("{base}.act");
-                if let Some(data) = sprite_loader::load_sprite_data(grf, &spr_path, &act_path) {
-                    let tex = upload_sprite_textures(
-                        &data.images,
-                        data.indexed_count,
-                        &renderer.device.device,
-                        &renderer.device.queue,
-                        &renderer.texture_cache.bind_group_layout,
-                    );
-                    self.game
-                        .floor_item_sprites
-                        .insert(id, (Rc::new(tex), data.act));
-                }
+            && let (Some(grf), Some(renderer)) = (&self.grf, &self.renderer)
+        {
+            let base = format!("data/sprite/아이템/{res_name}");
+            let spr_path = format!("{base}.spr");
+            let act_path = format!("{base}.act");
+            if let Some(data) = sprite_loader::load_sprite_data(grf, &spr_path, &act_path) {
+                let tex = upload_sprite_textures(
+                    &data.images,
+                    data.indexed_count,
+                    &renderer.device.device,
+                    &renderer.device.queue,
+                    &renderer.texture_cache.bind_group_layout,
+                );
+                self.game
+                    .floor_item_sprites
+                    .insert(id, (Rc::new(tex), data.act));
             }
+        }
     }
 
     fn handle_ui_events(&mut self, events: Vec<GameEvent>, event_loop: &ActiveEventLoop) {
@@ -352,24 +365,29 @@ impl App {
                 GameEvent::RequestLogin { username, password } => {
                     let addr = format!("{}:{}", self.config.login_ip, self.config.login_port);
                     self.channel.send_cmd(NetworkCommand::Connect(addr));
-                    self.channel.send_packet(build_login_packet(&username, &password, self.config.packetver));
+                    self.channel.send_packet(build_login_packet(
+                        &username,
+                        &password,
+                        self.config.packetver,
+                    ));
                 }
                 GameEvent::RequestSelectServer { index } => {
                     if let Some(server_win) = &self.server_list_window
-                        && let Some(server) = server_win.servers.get(index) {
-                            let addr = format!("{}:{}", ip_u32_to_string(server.ip), server.port);
-                            self.channel.send_cmd(NetworkCommand::Disconnect);
-                            self.channel.send_cmd(NetworkCommand::Connect(addr.clone()));
-                            if let Some(session) = &mut self.game.login_session {
-                                session.char_server_addr = Some(addr);
-                                self.channel.send_packet(build_char_enter_packet(session));
-                                self.channel.send_cmd(NetworkCommand::SetKeepalive(
-                                    KeepaliveMode::CharServer {
-                                        account_id: session.account_id,
-                                    },
-                                ));
-                            }
+                        && let Some(server) = server_win.servers.get(index)
+                    {
+                        let addr = format!("{}:{}", ip_u32_to_string(server.ip), server.port);
+                        self.channel.send_cmd(NetworkCommand::Disconnect);
+                        self.channel.send_cmd(NetworkCommand::Connect(addr.clone()));
+                        if let Some(session) = &mut self.game.login_session {
+                            session.char_server_addr = Some(addr);
+                            self.channel.send_packet(build_char_enter_packet(session));
+                            self.channel.send_cmd(NetworkCommand::SetKeepalive(
+                                KeepaliveMode::CharServer {
+                                    account_id: session.account_id,
+                                },
+                            ));
                         }
+                    }
                 }
                 GameEvent::RequestSelectCharacter { slot } => {
                     if let Some(char_win) = &self.char_select_window {
@@ -379,7 +397,8 @@ impl App {
                             .find(|c| c.slot == slot as i8)
                             .cloned();
                     }
-                    self.channel.send_packet(build_select_char_packet(slot, self.config.packetver));
+                    self.channel
+                        .send_packet(build_select_char_packet(slot, self.config.packetver));
                 }
                 GameEvent::BackToServerSelect => {
                     self.game.app_state = AppState::ServerSelect;
@@ -397,46 +416,76 @@ impl App {
                 }
                 GameEvent::BackToCharacterSelect => {
                     self.game.system_menu.open = false;
-                    self.channel.send_packet(build_restart_packet(self.config.packetver));
+                    self.channel
+                        .send_packet(build_restart_packet(self.config.packetver));
                 }
                 GameEvent::QuitGame => {
                     self.channel.send_cmd(NetworkCommand::Disconnect);
                     event_loop.exit();
                 }
                 GameEvent::RequestNpcContact { npc_id } => {
-                    self.channel.send_packet(build_contact_npc_packet(npc_id, self.config.packetver));
+                    self.channel
+                        .send_packet(build_contact_npc_packet(npc_id, self.config.packetver));
                 }
                 GameEvent::RequestNpcNext { npc_id } => {
-                    self.channel.send_packet(build_npc_next_packet(npc_id, self.config.packetver));
+                    self.channel
+                        .send_packet(build_npc_next_packet(npc_id, self.config.packetver));
                 }
                 GameEvent::RequestNpcClose { npc_id } => {
-                    self.channel.send_packet(build_npc_close_packet(npc_id, self.config.packetver));
+                    self.channel
+                        .send_packet(build_npc_close_packet(npc_id, self.config.packetver));
                 }
                 GameEvent::RequestNpcMenuSelect { npc_id, choice } => {
-                    self.channel.send_packet(build_npc_menu_select_packet(npc_id, choice, self.config.packetver));
+                    self.channel.send_packet(build_npc_menu_select_packet(
+                        npc_id,
+                        choice,
+                        self.config.packetver,
+                    ));
                 }
                 GameEvent::RequestNpcInputNumber { npc_id, value } => {
-                    self.channel.send_packet(build_npc_input_number_packet(npc_id, value, self.config.packetver));
+                    self.channel.send_packet(build_npc_input_number_packet(
+                        npc_id,
+                        value,
+                        self.config.packetver,
+                    ));
                 }
                 GameEvent::RequestNpcInputString { npc_id, text } => {
-                    self.channel.send_packet(build_npc_input_string_packet(npc_id, &text, self.config.packetver));
+                    self.channel.send_packet(build_npc_input_string_packet(
+                        npc_id,
+                        &text,
+                        self.config.packetver,
+                    ));
                 }
                 GameEvent::RequestNpcDealType { npc_id, deal_type } => {
-                    self.channel.send_packet(build_npc_deal_type_packet(npc_id, deal_type, self.config.packetver));
+                    self.channel.send_packet(build_npc_deal_type_packet(
+                        npc_id,
+                        deal_type,
+                        self.config.packetver,
+                    ));
                 }
                 GameEvent::RequestNpcShopBuy { items } => {
-                    self.channel.send_packet(build_purchase_item_list_packet(&items, self.config.packetver));
+                    self.channel.send_packet(build_purchase_item_list_packet(
+                        &items,
+                        self.config.packetver,
+                    ));
                 }
                 GameEvent::RequestNpcShopSell { items } => {
-                    self.channel.send_packet(build_sell_item_list_packet(&items, self.config.packetver));
+                    self.channel
+                        .send_packet(build_sell_item_list_packet(&items, self.config.packetver));
                 }
                 GameEvent::RequestNpcShopClose => {
                     match self.game.npc_shop.shop.mode {
                         Some(ragnarok_game::npc_shop::NpcShopMode::Buy) => {
-                            self.channel.send_packet(build_purchase_item_list_packet(&[], self.config.packetver));
+                            self.channel.send_packet(build_purchase_item_list_packet(
+                                &[],
+                                self.config.packetver,
+                            ));
                         }
                         Some(ragnarok_game::npc_shop::NpcShopMode::Sell) => {
-                            self.channel.send_packet(build_sell_item_list_packet(&[], self.config.packetver));
+                            self.channel.send_packet(build_sell_item_list_packet(
+                                &[],
+                                self.config.packetver,
+                            ));
                         }
                         None => {}
                     }
@@ -450,19 +499,34 @@ impl App {
                     }
                 }
                 GameEvent::ShowCardInfo { item_id } => {
-                    self.game.item_info_window.show_card(item_id, &self.game.data_table);
+                    self.game
+                        .item_info_window
+                        .show_card(item_id, &self.game.data_table);
                     let tex_paths = self.game.item_info_window.pending_card_texture_paths();
                     self.preload_item_icons(tex_paths);
                 }
                 GameEvent::ShowCardIllustration { item_id } => {
-                    let name = self.game.data_table.item_name.as_ref()
+                    let name = self
+                        .game
+                        .data_table
+                        .item_name
+                        .as_ref()
                         .map(|t| t.get_name_or_id(item_id))
                         .unwrap_or_else(|| format!("Item #{item_id}"));
-                    let illust_path = self.game.data_table.card_illustration.as_ref()
+                    let illust_path = self
+                        .game
+                        .data_table
+                        .card_illustration
+                        .as_ref()
                         .and_then(|t| t.illustration_path(item_id));
                     if let Some(path) = illust_path {
-                        self.game.item_info_window.show_illustration(item_id, name, path);
-                        let tex_paths = self.game.item_info_window.pending_illustration_texture_paths();
+                        self.game
+                            .item_info_window
+                            .show_illustration(item_id, name, path);
+                        let tex_paths = self
+                            .game
+                            .item_info_window
+                            .pending_illustration_texture_paths();
                         self.preload_item_icons(tex_paths);
                     }
                 }
@@ -473,61 +537,114 @@ impl App {
                         .as_ref()
                         .map(|s| s.account_id)
                         .unwrap_or(0);
-                    self.channel.send_packet(build_use_item_packet(index, account_id, self.config.packetver));
+                    self.channel.send_packet(build_use_item_packet(
+                        index,
+                        account_id,
+                        self.config.packetver,
+                    ));
                 }
                 GameEvent::RequestEquipItem { index, location } => {
-                    self.channel.send_packet(build_equip_item_packet(index, location, self.config.packetver));
+                    self.channel.send_packet(build_equip_item_packet(
+                        index,
+                        location,
+                        self.config.packetver,
+                    ));
                 }
                 GameEvent::RequestUnequipItem { index } => {
-                    self.channel.send_packet(build_unequip_item_packet(index, self.config.packetver));
+                    self.channel
+                        .send_packet(build_unequip_item_packet(index, self.config.packetver));
                 }
                 GameEvent::RequestDropItem { index, count } => {
-                    self.channel.send_packet(build_drop_item_packet(index, count, self.config.packetver));
+                    self.channel.send_packet(build_drop_item_packet(
+                        index,
+                        count,
+                        self.config.packetver,
+                    ));
                 }
                 GameEvent::RequestSkillLevelUp { skill_id } => {
-                    self.channel.send_packet(build_upgrade_skill_packet(skill_id, self.config.packetver));
+                    self.channel
+                        .send_packet(build_upgrade_skill_packet(skill_id, self.config.packetver));
                 }
                 GameEvent::HotkeyListReceived { slots } => {
-                    self.game.character.hotkeys.set_from_server(&slots, self.game.character.inventory.all_items());
+                    self.game
+                        .character
+                        .hotkeys
+                        .set_from_server(&slots, self.game.character.inventory.all_items());
                 }
-                GameEvent::RequestHotkeyChange { index, is_skill, id, count } => {
+                GameEvent::RequestHotkeyChange {
+                    index,
+                    is_skill,
+                    id,
+                    count,
+                } => {
                     let is_skill_i8 = if is_skill { 1i8 } else { 0i8 };
-                    self.channel.send_packet(build_shortcut_key_change_packet(index, is_skill_i8, id, count, self.config.packetver));
+                    self.channel.send_packet(build_shortcut_key_change_packet(
+                        index,
+                        is_skill_i8,
+                        id,
+                        count,
+                        self.config.packetver,
+                    ));
                 }
                 GameEvent::RequestUseSkill { skill_id, level } => {
-                    let skill_target_type = self.game.character.skills.get_skill(skill_id)
+                    let skill_target_type = self
+                        .game
+                        .character
+                        .skills
+                        .get_skill(skill_id)
                         .map(|s| s.skill_target_type)
                         .unwrap_or(SkillTargetType::Target);
                     match skill_target_type {
                         SkillTargetType::MySelf => {
                             let target_id = self.game.entities.player_id().unwrap_or(0);
-                            self.channel.send_packet(build_use_skill_packet(skill_id, level, target_id, self.config.packetver));
+                            self.channel.send_packet(build_use_skill_packet(
+                                skill_id,
+                                level,
+                                target_id,
+                                self.config.packetver,
+                            ));
                         }
                         SkillTargetType::Target => {
-                            self.game.pending_skill_target = Some(PendingSkillTarget::Entity { skill_id, level });
+                            self.game.pending_skill_target =
+                                Some(PendingSkillTarget::Entity { skill_id, level });
                             self.game.pending_skill_id = Some(skill_id);
                             self.game.pending_skill_level = Some(level);
                         }
                         SkillTargetType::Ground | SkillTargetType::Trap => {
-                            self.game.pending_skill_target = Some(PendingSkillTarget::Ground { skill_id, level });
+                            self.game.pending_skill_target =
+                                Some(PendingSkillTarget::Ground { skill_id, level });
                         }
                         _ => {
-                            tracing::debug!("Skill target type {:?} not yet supported for skill {skill_id}", skill_target_type);
+                            tracing::debug!(
+                                "Skill target type {:?} not yet supported for skill {skill_id}",
+                                skill_target_type
+                            );
                         }
                     }
                 }
                 GameEvent::RequestPickupItem { id } => {
-                    self.channel.send_packet(build_pickup_item_packet(id, self.config.packetver));
+                    self.channel
+                        .send_packet(build_pickup_item_packet(id, self.config.packetver));
                     if let Some(entity) = self.game.entities.player_mut() {
                         entity.enter_pickup(0.5);
                     }
                 }
                 GameEvent::RequestCardInsertList { card_index } => {
                     self.game.pending_card_composition_index = Some(card_index);
-                    self.channel.send_packet(build_card_composition_list_packet(card_index, self.config.packetver));
+                    self.channel.send_packet(build_card_composition_list_packet(
+                        card_index,
+                        self.config.packetver,
+                    ));
                 }
-                GameEvent::RequestCardInsert { card_index, equip_index } => {
-                    self.channel.send_packet(build_card_composition_packet(card_index, equip_index, self.config.packetver));
+                GameEvent::RequestCardInsert {
+                    card_index,
+                    equip_index,
+                } => {
+                    self.channel.send_packet(build_card_composition_packet(
+                        card_index,
+                        equip_index,
+                        self.config.packetver,
+                    ));
                     self.game.pending_card_composition_index = None;
                 }
                 GameEvent::RequestSendChat { message } => {
@@ -541,7 +658,8 @@ impl App {
                             .map(|c| c.name.as_str())
                             .unwrap_or("Unknown");
                         let full_msg = format!("{char_name} : {message}");
-                        self.channel.send_packet(build_chat_packet(&full_msg, self.config.packetver));
+                        self.channel
+                            .send_packet(build_chat_packet(&full_msg, self.config.packetver));
                     }
                 }
                 GameEvent::Disconnected(ref reason) if reason == "User exit" => {
@@ -575,9 +693,10 @@ impl App {
         self.channel.send_cmd(NetworkCommand::Disconnect);
         self.channel.send_cmd(NetworkCommand::Connect(addr.clone()));
         self.channel.send_packet(build_char_enter_packet(session));
-        self.channel.send_cmd(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer {
-            account_id: session.account_id,
-        }));
+        self.channel
+            .send_cmd(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer {
+                account_id: session.account_id,
+            }));
         // Switch to CharacterSelect immediately; char_select_window is None
         // until CharacterListReceived arrives, so the screen will be blank briefly
         self.game.app_state = AppState::CharacterSelect;
@@ -594,7 +713,11 @@ impl App {
                     } else {
                         2u8
                     };
-                    self.channel.send_packet(build_action_request_packet(0, action, self.config.packetver));
+                    self.channel.send_packet(build_action_request_packet(
+                        0,
+                        action,
+                        self.config.packetver,
+                    ));
                 }
             }
             "/doridori" => {
@@ -605,12 +728,16 @@ impl App {
             "/noshift" | "/ns" => {
                 self.game.noshift_mode = !self.game.noshift_mode;
                 let status = if self.game.noshift_mode { "ON" } else { "OFF" };
-                self.game.chat_window.add_system(format!("No-shift mode: {status}"));
+                self.game
+                    .chat_window
+                    .add_system(format!("No-shift mode: {status}"));
             }
             "/noctrl" | "/nc" => {
                 self.game.noctrl_mode = !self.game.noctrl_mode;
                 let status = if self.game.noctrl_mode { "ON" } else { "OFF" };
-                self.game.chat_window.add_system(format!("No-ctrl mode: {status}"));
+                self.game
+                    .chat_window
+                    .add_system(format!("No-ctrl mode: {status}"));
             }
             _ => {
                 self.game
@@ -707,10 +834,9 @@ impl App {
                         initial_focus,
                         &self.saved_window_positions,
                     );
-                    let events = self.game.build_in_game_ui(
-                        &mut ui,
-                        &|name| renderer.texture_cache.texture_size(name),
-                    );
+                    let events = self.game.build_in_game_ui(&mut ui, &|name| {
+                        renderer.texture_cache.texture_size(name)
+                    });
 
                     let any_hovered = ui.any_hovered;
                     let any_interactive = ui.any_interactive_hovered;
@@ -736,14 +862,15 @@ impl App {
         });
 
         if let Some(renderer) = &mut self.renderer
-            && let Some(grid) = &mut renderer.grid_selector {
-                if let Some(corners) = hover_corners {
-                    grid.update_hover(&renderer.device.queue, corners);
-                    grid.set_hover_visible(true);
-                } else {
-                    grid.set_hover_visible(false);
-                }
+            && let Some(grid) = &mut renderer.grid_selector
+        {
+            if let Some(corners) = hover_corners {
+                grid.update_hover(&renderer.device.queue, corners);
+                grid.set_hover_visible(true);
+            } else {
+                grid.set_hover_visible(false);
             }
+        }
 
         hovered
     }
@@ -911,7 +1038,6 @@ impl App {
         self.game.cursor_animation.set_cursor_type(cursor);
         hovered_entity_id
     }
-
 }
 
 impl ApplicationHandler for App {
@@ -976,14 +1102,17 @@ impl ApplicationHandler for App {
                         Some(ragnarok_game::item_slot_count_table::ItemSlotCountTable::load(&grf));
                     self.game.data_table.card_name =
                         Some(ragnarok_game::card_name_table::CardNameTable::load(&grf));
-                    self.game.data_table.card_illustration =
-                        Some(ragnarok_game::card_illustration_table::CardIllustrationTable::load(&grf));
-                    self.game.data_table.item_description =
-                        Some(ragnarok_game::item_description_table::ItemDescriptionTable::load(&grf));
+                    self.game.data_table.card_illustration = Some(
+                        ragnarok_game::card_illustration_table::CardIllustrationTable::load(&grf),
+                    );
+                    self.game.data_table.item_description = Some(
+                        ragnarok_game::item_description_table::ItemDescriptionTable::load(&grf),
+                    );
                     self.game.data_table.skill_name =
                         Some(ragnarok_game::skill_name_table::SkillNameTable::load(&grf));
-                    self.game.data_table.skill_description =
-                        Some(ragnarok_game::skill_description_table::SkillDescriptionTable::load(&grf));
+                    self.game.data_table.skill_description = Some(
+                        ragnarok_game::skill_description_table::SkillDescriptionTable::load(&grf),
+                    );
                     self.game.data_table.skill_tree =
                         Some(ragnarok_game::skill_tree_table::SkillTreeTable::load(&grf));
                     self.game.data_table.skill_use_level =
@@ -1039,10 +1168,12 @@ impl ApplicationHandler for App {
                 self.game.hovered_entity_id = hovered_entity_id;
                 if let Some(entity_id) = hovered_entity_id
                     && let Some(entity) = self.game.entities.get_mut(entity_id)
-                        && !entity.name_requested {
-                            entity.name_requested = true;
-                            self.channel.send_packet(build_reqname_packet(entity_id, self.config.packetver));
-                        }
+                    && !entity.name_requested
+                {
+                    entity.name_requested = true;
+                    self.channel
+                        .send_packet(build_reqname_packet(entity_id, self.config.packetver));
+                }
 
                 let hovered_floor_item_id = if hovered_entity_id.is_none()
                     && !ui_any_hovered
@@ -1072,21 +1203,27 @@ impl ApplicationHandler for App {
                 let lock_cursor_clips = self.build_lock_cursor_clips(delta, &render_list);
 
                 let world_overlay_calls = self.build_world_overlays(
-                    &render_list, &floor_item_render_list,
-                    hovered_entity_id, hovered_floor_item_id,
+                    &render_list,
+                    &floor_item_render_list,
+                    hovered_entity_id,
+                    hovered_floor_item_id,
                 );
                 let skill_level_calls = self.build_skill_overlay();
 
                 self.compose_and_render(
-                    &render_list, &floor_item_render_list, elapsed,
-                    cursor_clips, lock_cursor_clips,
-                    world_overlay_calls, skill_level_calls, ui_draw_calls,
+                    &render_list,
+                    &floor_item_render_list,
+                    elapsed,
+                    cursor_clips,
+                    lock_cursor_clips,
+                    world_overlay_calls,
+                    skill_level_calls,
+                    ui_draw_calls,
                 );
 
                 if let Some(ui_ctx) = &mut self.ui_context {
                     ui_ctx.begin_frame();
                 }
-
 
                 if let Some(window) = &self.window {
                     window.request_redraw();

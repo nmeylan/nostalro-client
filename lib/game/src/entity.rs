@@ -1,7 +1,7 @@
+use models::enums::EnumWithNumberValue;
 use models::enums::class::JobName;
 use models::enums::item::ItemType;
 use models::enums::weapon::WeaponType;
-use models::enums::EnumWithNumberValue;
 use ragnarok_formats::act::SpriteAnimationState;
 
 use crate::movement::MovementState;
@@ -480,7 +480,7 @@ impl Entity {
     /// SKILL action (index 12) starts at frame 1 (frame 0 is static pose),
     /// attack-type actions start at frame 0.
     pub fn skill_exec_start_frame(&self) -> usize {
-        use crate::skill_action::{skill_motion_type, SkillMotionType};
+        use crate::skill_action::{SkillMotionType, skill_motion_type};
         match self.active_skill_id {
             Some(id) => match skill_motion_type(id) {
                 SkillMotionType::Skill | SkillMotionType::Sing | SkillMotionType::Dance => 1,
@@ -491,7 +491,7 @@ impl Entity {
     }
 
     fn skill_exec_action_index(&self) -> usize {
-        use crate::skill_action::{skill_motion_type, SkillMotionType};
+        use crate::skill_action::{SkillMotionType, skill_motion_type};
         let skill_id = match self.active_skill_id {
             Some(id) => id,
             None => return 12,

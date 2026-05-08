@@ -9,7 +9,9 @@ pub struct StateCache {
 
 impl StateCache {
     pub fn new() -> Self {
-        Self { map: HashMap::new() }
+        Self {
+            map: HashMap::new(),
+        }
     }
 
     pub fn get_or_default<T: Any + Default>(&mut self, id: WidgetId) -> &mut T {
@@ -36,10 +38,12 @@ impl StateCache {
 
     pub fn extract_window_positions(&self) -> HashMap<u32, [f32; 2]> {
         let ws_type = TypeId::of::<WindowState>();
-        self.map.iter()
+        self.map
+            .iter()
             .filter_map(|((wid, tid), val)| {
                 if *tid == ws_type {
-                    val.downcast_ref::<WindowState>().map(|ws| (wid.0, [ws.x, ws.y]))
+                    val.downcast_ref::<WindowState>()
+                        .map(|ws| (wid.0, [ws.x, ws.y]))
                 } else {
                     None
                 }

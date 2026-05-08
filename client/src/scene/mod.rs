@@ -7,8 +7,8 @@ use ragnarok_renderer::effect_sprite::SpriteEffectEmitter;
 use ragnarok_renderer::str_effect::StrEmitterInput;
 use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_renderer::{
-    SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad,
-    build_emitter_batches, build_str_effect_batches, collect_sprite_effect_draws, scale_clip_vertices,
+    SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad, build_emitter_batches,
+    build_str_effect_batches, collect_sprite_effect_draws, scale_clip_vertices,
 };
 
 impl App {
@@ -31,7 +31,9 @@ impl App {
             .chain(floor_item_render_list.iter())
             .collect();
         unified_list.sort_by(|a, b| {
-            b.depth.partial_cmp(&a.depth).unwrap_or(std::cmp::Ordering::Equal)
+            b.depth
+                .partial_cmp(&a.depth)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         for entry in &unified_list {
@@ -47,7 +49,9 @@ impl App {
                         if !is_fading {
                             let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
                             let mut shadow = sprite.build_shadow_batches(
-                                entry.screen_anchor, entry.depth, shadow_scale,
+                                entry.screen_anchor,
+                                entry.depth,
+                                shadow_scale,
                             );
                             sprite_batches.append(&mut shadow);
                         }
@@ -77,7 +81,8 @@ impl App {
                         ) {
                             let action_idx = emo.emotion_type as usize;
                             if action_idx < emo_act.actions.len() {
-                                let delay_ms = emo_act.delays
+                                let delay_ms = emo_act
+                                    .delays
                                     .get(action_idx)
                                     .map(|d| d * 25.0)
                                     .filter(|d| *d > 0.0)
@@ -90,21 +95,24 @@ impl App {
                                 };
                                 if motion_idx < motion_count {
                                     let motion = &emo_act.actions[action_idx].motions[motion_idx];
-                                    let emo_center = [
-                                        entry.screen_anchor[0],
-                                        entry.screen_anchor[1] - 100.0,
-                                    ];
+                                    let emo_center =
+                                        [entry.screen_anchor[0], entry.screen_anchor[1] - 100.0];
                                     for clip in &motion.clips {
-                                        if let Some((vertices, indices, tex_idx)) =
-                                            build_clip_quad(clip, emo_tex, emo_center, entry.depth, [0, 0])
-                                            && tex_idx < emo_tex.bind_groups.len() {
-                                                sprite_batches.push(SpriteBatch {
-                                                    vertices,
-                                                    indices,
-                                                    texture: &emo_tex.bind_groups[tex_idx],
-                                                    additive: false,
-                                                });
-                                            }
+                                        if let Some((vertices, indices, tex_idx)) = build_clip_quad(
+                                            clip,
+                                            emo_tex,
+                                            emo_center,
+                                            entry.depth,
+                                            [0, 0],
+                                        ) && tex_idx < emo_tex.bind_groups.len()
+                                        {
+                                            sprite_batches.push(SpriteBatch {
+                                                vertices,
+                                                indices,
+                                                texture: &emo_tex.bind_groups[tex_idx],
+                                                additive: false,
+                                            });
+                                        }
                                     }
                                 }
                             }
@@ -113,64 +121,66 @@ impl App {
                 }
                 RenderEntryKind::FloorItem => {
                     if let Some(floor_item) = self.game.floor_items.get(&entry.id)
-                        && let Some((tex, act)) = self.game.floor_item_sprites.get(&entry.id) {
-                            let y_offset = if floor_item.is_falling {
-                                let t = (elapsed - floor_item.drop_time) * 1000.0 / 24.0;
-                                let fall_y = -15.0 + (-0.6 + 0.083 * t as f64) * t as f64;
-                                (fall_y.min(0.0) as f32) * entry.sprite_scale
+                        && let Some((tex, act)) = self.game.floor_item_sprites.get(&entry.id)
+                    {
+                        let y_offset = if floor_item.is_falling {
+                            let t = (elapsed - floor_item.drop_time) * 1000.0 / 24.0;
+                            let fall_y = -15.0 + (-0.6 + 0.083 * t as f64) * t as f64;
+                            (fall_y.min(0.0) as f32) * entry.sprite_scale
+                        } else {
+                            0.0
+                        };
+
+                        let blink_frame = ((elapsed * 1000.0 / 24.0) as u32) % 92;
+                        let blink_active = blink_frame >= 90;
+
+                        let center = [entry.screen_anchor[0], entry.screen_anchor[1] + y_offset];
+
+                        if !act.actions.is_empty() {
+                            let action = &act.actions[0];
+                            let motion_count = action.motions.len();
+                            let delay_ms = act
+                                .delays
+                                .first()
+                                .map(|d| d * 25.0)
+                                .filter(|d| *d > 0.0)
+                                .unwrap_or(150.0);
+                            let item_elapsed = elapsed - floor_item.drop_time;
+                            let motion_idx = if motion_count > 0 {
+                                ((item_elapsed * 1000.0) / delay_ms) as usize % motion_count
                             } else {
-                                0.0
+                                0
                             };
-
-                            let blink_frame = ((elapsed * 1000.0 / 24.0) as u32) % 92;
-                            let blink_active = blink_frame >= 90;
-
-                            let center = [
-                                entry.screen_anchor[0],
-                                entry.screen_anchor[1] + y_offset,
-                            ];
-
-                            if !act.actions.is_empty() {
-                                let action = &act.actions[0];
-                                let motion_count = action.motions.len();
-                                let delay_ms = act.delays
-                                    .first()
-                                    .map(|d| d * 25.0)
-                                    .filter(|d| *d > 0.0)
-                                    .unwrap_or(150.0);
-                                let item_elapsed = elapsed - floor_item.drop_time;
-                                let motion_idx = if motion_count > 0 {
-                                    ((item_elapsed * 1000.0) / delay_ms) as usize % motion_count
-                                } else {
-                                    0
-                                };
-                                if motion_idx < motion_count {
-                                    let motion = &action.motions[motion_idx];
-                                    for clip in &motion.clips {
-                                        if let Some((mut vertices, indices, tex_idx)) =
-                                            build_clip_quad(clip, tex, center, entry.depth, [0, 0])
-                                        {
-                                            scale_clip_vertices(
-                                                &mut vertices, center, entry.sprite_scale, entry.depth_gradient,
-                                            );
-                                            if blink_active {
-                                                for v in &mut vertices {
-                                                    v.color = [1.0, 1.0, 1.0, 1.0];
-                                                }
+                            if motion_idx < motion_count {
+                                let motion = &action.motions[motion_idx];
+                                for clip in &motion.clips {
+                                    if let Some((mut vertices, indices, tex_idx)) =
+                                        build_clip_quad(clip, tex, center, entry.depth, [0, 0])
+                                    {
+                                        scale_clip_vertices(
+                                            &mut vertices,
+                                            center,
+                                            entry.sprite_scale,
+                                            entry.depth_gradient,
+                                        );
+                                        if blink_active {
+                                            for v in &mut vertices {
+                                                v.color = [1.0, 1.0, 1.0, 1.0];
                                             }
-                                            if tex_idx < tex.bind_groups.len() {
-                                                sprite_batches.push(SpriteBatch {
-                                                    vertices,
-                                                    indices,
-                                                    texture: &tex.bind_groups[tex_idx],
-                                                    additive: false,
-                                                });
-                                            }
+                                        }
+                                        if tex_idx < tex.bind_groups.len() {
+                                            sprite_batches.push(SpriteBatch {
+                                                vertices,
+                                                indices,
+                                                texture: &tex.bind_groups[tex_idx],
+                                                additive: false,
+                                            });
                                         }
                                     }
                                 }
                             }
                         }
+                    }
                 }
             }
         }
@@ -179,39 +189,51 @@ impl App {
         let mut paperdoll_calls: Vec<UiDrawCall> = Vec::new();
         if let Some(center) = self.game.equipment_window.character_center()
             && let Some(player_id) = self.game.entities.player_id()
-                && let Some(sprite) = self.game.sprites.get(&player_id) {
-                    let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
-                    let batches = sprite.build_batches(&idle_anim, None, 0, center, 0.0, 1.0, 0.0);
-                    for batch in batches {
-                        let idx = inline_textures.len();
-                        inline_textures.push(batch.texture);
-                        paperdoll_calls.push(UiDrawCall {
-                            vertices: batch.vertices.iter().map(|sv| UiVertex {
-                                position: [sv.position[0], sv.position[1]],
-                                tex_coord: sv.tex_coord,
-                                color: sv.color,
-                            }).collect(),
-                            indices: batch.indices,
-                            texture: UiTextureRef::Inline(idx),
-                        });
-                    }
-                }
+            && let Some(sprite) = self.game.sprites.get(&player_id)
+        {
+            let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
+            let batches = sprite.build_batches(&idle_anim, None, 0, center, 0.0, 1.0, 0.0);
+            for batch in batches {
+                let idx = inline_textures.len();
+                inline_textures.push(batch.texture);
+                paperdoll_calls.push(UiDrawCall {
+                    vertices: batch
+                        .vertices
+                        .iter()
+                        .map(|sv| UiVertex {
+                            position: [sv.position[0], sv.position[1]],
+                            tex_coord: sv.tex_coord,
+                            color: sv.color,
+                        })
+                        .collect(),
+                    indices: batch.indices,
+                    texture: UiTextureRef::Inline(idx),
+                });
+            }
+        }
 
         {
-            use ragnarok_game::damage_number::{DamageNumberRenderEntry, build_damage_number_quads};
-            let entries: Vec<DamageNumberRenderEntry> = self.game.damage_numbers.numbers.iter_mut()
+            use ragnarok_game::damage_number::{
+                DamageNumberRenderEntry, build_damage_number_quads,
+            };
+            let entries: Vec<DamageNumberRenderEntry> = self
+                .game
+                .damage_numbers
+                .numbers
+                .iter_mut()
                 .filter_map(|dmg| {
-                    let (screen_x, screen_y, scale) = if let Some(entry) = render_list.iter().find(|e| e.id == dmg.entity_id) {
-                        let pos = (
-                            entry.screen_anchor[0],
-                            entry.screen_anchor[1] - entry.head_offset,
-                            entry.sprite_scale,
-                        );
-                        dmg.last_screen_pos = Some(pos);
-                        pos
-                    } else {
-                        dmg.last_screen_pos?
-                    };
+                    let (screen_x, screen_y, scale) =
+                        if let Some(entry) = render_list.iter().find(|e| e.id == dmg.entity_id) {
+                            let pos = (
+                                entry.screen_anchor[0],
+                                entry.screen_anchor[1] - entry.head_offset,
+                                entry.sprite_scale,
+                            );
+                            dmg.last_screen_pos = Some(pos);
+                            pos
+                        } else {
+                            dmg.last_screen_pos?
+                        };
                     let data = dmg.render_data()?;
                     Some(DamageNumberRenderEntry {
                         entity_id: dmg.entity_id,
@@ -222,13 +244,19 @@ impl App {
                     })
                 })
                 .collect();
-            if let (Some(num_tex), Some(num_act)) = (&self.game.damage_number_textures, &self.game.damage_number_act) {
+            if let (Some(num_tex), Some(num_act)) = (
+                &self.game.damage_number_textures,
+                &self.game.damage_number_act,
+            ) {
                 let quads = build_damage_number_quads(
                     &entries,
                     num_act,
                     &num_tex.sizes,
                     num_tex.indexed_count,
-                    self.game.damage_msg_textures.as_ref().map(|t| t.sizes.as_slice()),
+                    self.game
+                        .damage_msg_textures
+                        .as_ref()
+                        .map(|t| t.sizes.as_slice()),
                 );
                 ragnarok_renderer::render_damage_number_quads(
                     &quads,
@@ -277,7 +305,11 @@ impl App {
             let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
             let emitter_inputs = crate::scene::build_sprite_effect_inputs(&self.game.effects);
             let effect_draws = collect_sprite_effect_draws(
-                &emitter_inputs, &self.effect_sprites, &renderer.camera, screen_w, screen_h,
+                &emitter_inputs,
+                &self.effect_sprites,
+                &renderer.camera,
+                screen_w,
+                screen_h,
             );
             let mut effect_batches = build_emitter_batches(&effect_draws);
 
@@ -308,7 +340,10 @@ pub(crate) fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteE
     let mut inputs = Vec::new();
     for emitter in &effects.emitters {
         match &emitter.kind {
-            EffectKind::Spr { sprite_path, duration_ms } => {
+            EffectKind::Spr {
+                sprite_path,
+                duration_ms,
+            } => {
                 inputs.push(SpriteEffectEmitter::Spr {
                     sprite_path,
                     duration_ms: *duration_ms,
@@ -318,8 +353,15 @@ pub(crate) fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteE
                     anim_time: emitter.anim_time,
                 });
             }
-            EffectKind::Smoke3D { sprite_path, alpha_max, anim_speed, .. } => {
-                let particles = emitter.particles.iter()
+            EffectKind::Smoke3D {
+                sprite_path,
+                alpha_max,
+                anim_speed,
+                ..
+            } => {
+                let particles = emitter
+                    .particles
+                    .iter()
                     .map(|p| (p.position, p.age, p.lifetime))
                     .collect();
                 inputs.push(SpriteEffectEmitter::Smoke3D {
@@ -343,7 +385,9 @@ pub(crate) fn build_str_emitter_inputs(effects: &EffectManager) -> Vec<StrEmitte
         if !matches!(emitter.kind, EffectKind::Str { .. }) {
             continue;
         }
-        let Some(name) = emitter.str_file.as_deref() else { continue };
+        let Some(name) = emitter.str_file.as_deref() else {
+            continue;
+        };
         inputs.push(StrEmitterInput {
             str_name: name,
             position: emitter.position,

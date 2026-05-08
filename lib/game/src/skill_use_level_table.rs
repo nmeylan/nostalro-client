@@ -20,7 +20,10 @@ impl SkillUseLevelTable {
             .map(|data| lua_table::parse_level_use_skill_sp_table(&data))
             .unwrap_or_default();
 
-        tracing::info!("Loaded skill use level table: {} entries", sp_per_level.len());
+        tracing::info!(
+            "Loaded skill use level table: {} entries",
+            sp_per_level.len()
+        );
         Self { sp_per_level }
     }
 
@@ -43,7 +46,10 @@ mod tests {
     #[test]
     fn supports_level_select_and_sp_lookup() {
         let mut entries = HashMap::new();
-        entries.insert("SM_BASH".to_string(), vec![8, 8, 8, 8, 8, 15, 15, 15, 15, 15]);
+        entries.insert(
+            "SM_BASH".to_string(),
+            vec![8, 8, 8, 8, 8, 15, 15, 15, 15, 15],
+        );
         let table = SkillUseLevelTable::from_entries(entries);
 
         assert!(table.supports_level_select("SM_BASH"));

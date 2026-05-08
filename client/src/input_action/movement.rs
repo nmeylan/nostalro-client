@@ -12,7 +12,10 @@ impl App {
             Some(e) => e.movement.cell_position(),
             None => return,
         };
-        let (px, py) = self.game.entities.player()
+        let (px, py) = self
+            .game
+            .entities
+            .player()
             .map(|e| e.movement.cell_position())
             .unwrap_or((0, 0));
 
@@ -31,7 +34,11 @@ impl App {
     }
 
     pub(crate) fn send_attack_packet(&self, target_id: u32) {
-        self.channel.send_packet(build_action_request_packet(target_id, 7, self.config.packetver));
+        self.channel.send_packet(build_action_request_packet(
+            target_id,
+            7,
+            self.config.packetver,
+        ));
     }
 
     pub(crate) fn try_move_toward(
@@ -47,10 +54,16 @@ impl App {
             None => return false,
         };
         if let Some(move_action) = try_move_to_range(gat, px, py, target_x, target_y, range) {
-            let is_moving = self.game.entities.player()
+            let is_moving = self
+                .game
+                .entities
+                .player()
                 .is_some_and(|p| p.movement.is_moving());
             if is_moving {
-                let dest_changed = self.game.entities.player()
+                let dest_changed = self
+                    .game
+                    .entities
+                    .player()
                     .and_then(|p| p.movement.destination())
                     .is_none_or(|(dx, dy)| dx != move_action.dest_x || dy != move_action.dest_y);
                 if dest_changed {

@@ -20,15 +20,19 @@ const ACCNAME_PATHS: &[&str] = &[
 
 impl AccessoryTable {
     pub fn empty() -> Self {
-        Self { entries: HashMap::new() }
+        Self {
+            entries: HashMap::new(),
+        }
     }
 
     pub fn load_from_grf(grf: &GrfArchive) -> Self {
-        let id_content = ACCESSORY_ID_PATHS.iter()
+        let id_content = ACCESSORY_ID_PATHS
+            .iter()
             .find_map(|path| grf.read_file(path).ok())
             .map(|data| lua_table::decode_euc_kr(&data));
 
-        let name_content = ACCNAME_PATHS.iter()
+        let name_content = ACCNAME_PATHS
+            .iter()
             .find_map(|path| grf.read_file(path).ok())
             .map(|data| lua_table::decode_euc_kr(&data));
 
@@ -39,8 +43,12 @@ impl AccessoryTable {
         }
 
         // Fallback: built-in table covers classic-era headgear
-        tracing::info!("No lua files in GRF, using built-in accessory table ({} entries)", BUILTIN_ACCESSORY_TABLE.len());
-        let entries = BUILTIN_ACCESSORY_TABLE.iter()
+        tracing::info!(
+            "No lua files in GRF, using built-in accessory table ({} entries)",
+            BUILTIN_ACCESSORY_TABLE.len()
+        );
+        let entries = BUILTIN_ACCESSORY_TABLE
+            .iter()
             .map(|&(id, suffix)| (id, suffix.to_string()))
             .collect();
         Self { entries }
@@ -56,7 +64,9 @@ impl AccessoryTable {
 
     /// Returns sorted list of (view_id, suffix) for browsing.
     pub fn sorted_entries(&self) -> Vec<(u16, &str)> {
-        let mut entries: Vec<_> = self.entries.iter()
+        let mut entries: Vec<_> = self
+            .entries
+            .iter()
             .map(|(&id, s)| (id, s.as_str()))
             .collect();
         entries.sort_by_key(|(id, _)| *id);
@@ -66,9 +76,14 @@ impl AccessoryTable {
     /// Next valid view_id after current (wraps to 0 = none).
     pub fn next_id(&self, current: u16) -> u16 {
         let sorted = self.sorted_entries();
-        if sorted.is_empty() { return 0; }
-        if current == 0 { return sorted[0].0; }
-        sorted.iter()
+        if sorted.is_empty() {
+            return 0;
+        }
+        if current == 0 {
+            return sorted[0].0;
+        }
+        sorted
+            .iter()
             .find(|(id, _)| *id > current)
             .map(|(id, _)| *id)
             .unwrap_or(0)
@@ -77,9 +92,15 @@ impl AccessoryTable {
     /// Previous valid view_id before current (wraps to last, then 0 = none).
     pub fn prev_id(&self, current: u16) -> u16 {
         let sorted = self.sorted_entries();
-        if sorted.is_empty() { return 0; }
-        if current == 0 { return sorted.last().map(|(id, _)| *id).unwrap_or(0); }
-        sorted.iter().rev()
+        if sorted.is_empty() {
+            return 0;
+        }
+        if current == 0 {
+            return sorted.last().map(|(id, _)| *id).unwrap_or(0);
+        }
+        sorted
+            .iter()
+            .rev()
             .find(|(id, _)| *id < current)
             .map(|(id, _)| *id)
             .unwrap_or(0)

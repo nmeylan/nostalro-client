@@ -11,8 +11,20 @@ pub struct MapCoordinates {
 }
 
 impl MapCoordinates {
-    pub fn new(zoom: f32, gat_width: i32, gat_height: i32, gnd_width: i32, gnd_height: i32) -> Self {
-        Self { zoom, gat_width, gat_height, gnd_width, gnd_height }
+    pub fn new(
+        zoom: f32,
+        gat_width: i32,
+        gat_height: i32,
+        gnd_width: i32,
+        gnd_height: i32,
+    ) -> Self {
+        Self {
+            zoom,
+            gat_width,
+            gat_height,
+            gnd_width,
+            gnd_height,
+        }
     }
 
     pub fn zoom(&self) -> f32 {

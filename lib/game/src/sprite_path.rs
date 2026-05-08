@@ -171,11 +171,21 @@ fn weapon_type_from_item_id(id: u16) -> Option<WeaponType> {
     if id < 1100 {
         return None;
     }
-    if (1116..=1118).contains(&id) { return Some(WeaponType::Sword2H); }
-    if (1314..=1315).contains(&id) { return Some(WeaponType::Axe2H); }
-    if (1410..=1412).contains(&id) { return Some(WeaponType::Spear2H); }
-    if (1472..=1473).contains(&id) { return Some(WeaponType::Staff); }
-    if id == 1599 { return Some(WeaponType::Mace); }
+    if (1116..=1118).contains(&id) {
+        return Some(WeaponType::Sword2H);
+    }
+    if (1314..=1315).contains(&id) {
+        return Some(WeaponType::Axe2H);
+    }
+    if (1410..=1412).contains(&id) {
+        return Some(WeaponType::Spear2H);
+    }
+    if (1472..=1473).contains(&id) {
+        return Some(WeaponType::Staff);
+    }
+    if id == 1599 {
+        return Some(WeaponType::Mace);
+    }
     match id {
         1100..1150 => Some(WeaponType::Sword1H),
         1150..1200 => Some(WeaponType::Sword2H),
@@ -293,10 +303,7 @@ mod tests {
 
     #[test]
     fn knight_male_path() {
-        assert_eq!(
-            body_sprite_path(7, 1),
-            "data/sprite/인간족/몸통/남/기사_남"
-        );
+        assert_eq!(body_sprite_path(7, 1), "data/sprite/인간족/몸통/남/기사_남");
     }
 
     #[test]
@@ -333,18 +340,12 @@ mod tests {
 
     #[test]
     fn head_male_path() {
-        assert_eq!(
-            head_sprite_path(1, 1),
-            "data/sprite/인간족/머리통/남/1_남"
-        );
+        assert_eq!(head_sprite_path(1, 1), "data/sprite/인간족/머리통/남/1_남");
     }
 
     #[test]
     fn head_female_path() {
-        assert_eq!(
-            head_sprite_path(3, 0),
-            "data/sprite/인간족/머리통/여/3_여"
-        );
+        assert_eq!(head_sprite_path(3, 0), "data/sprite/인간족/머리통/여/3_여");
     }
 
     #[test]
@@ -414,10 +415,7 @@ mod tests {
 
     #[test]
     fn body_palette_path_formats_correctly() {
-        assert_eq!(
-            body_palette_path(1, 1, 3),
-            "data/palette/몸/검사_남_3.pal"
-        );
+        assert_eq!(body_palette_path(1, 1, 3), "data/palette/몸/검사_남_3.pal");
         assert_eq!(
             body_palette_path(0, 0, 1),
             "data/palette/몸/초보자_여_1.pal"

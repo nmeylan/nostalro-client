@@ -1,6 +1,6 @@
-mod device;
 pub mod camera;
 pub mod damage_number;
+mod device;
 pub mod effect_sprite;
 pub mod font_atlas;
 pub mod global_uniforms;
@@ -13,21 +13,28 @@ pub mod texture;
 pub mod ui_renderer;
 pub mod water;
 
-pub use device::{RenderDevice, block_on};
 pub use camera::Camera;
+pub use device::{RenderDevice, block_on};
 pub use global_uniforms::{FogUniform, GlobalUniforms, LightUniform, PointLightGpu};
 
+pub use damage_number::render_damage_number_quads;
+pub use effect_sprite::{
+    EffectSpriteCache, EffectSpriteEntry, EmitterDraw, SpriteEffectEmitter, build_emitter_batches,
+    collect_sprite_effect_draws, project_billboard,
+};
+pub use font_atlas::FontAtlas;
 pub use grid_selector::GridSelectorRenderer;
 pub use ground::GroundRenderer;
 pub use model::ModelRenderer;
-pub use water::WaterRenderer;
-pub use texture::TextureCache;
-pub use font_atlas::FontAtlas;
-pub use sprite::{SpriteRenderer, SpriteVertex, SpriteBatch, SpriteTextures, SpriteUniforms, build_clip_quad, upload_sprite_textures, build_composite_clips, CompositeClips, ClipQuad, scale_clip_vertices, EntitySprite, build_entity_sprite};
-pub use ui_renderer::{UiRenderer, UiVertex, UiDrawCommand};
-pub use damage_number::render_damage_number_quads;
-pub use effect_sprite::{EffectSpriteCache, EffectSpriteEntry, EmitterDraw, SpriteEffectEmitter, build_emitter_batches, collect_sprite_effect_draws, project_billboard};
+pub use sprite::{
+    ClipQuad, CompositeClips, EntitySprite, SpriteBatch, SpriteRenderer, SpriteTextures,
+    SpriteUniforms, SpriteVertex, build_clip_quad, build_composite_clips, build_entity_sprite,
+    scale_clip_vertices, upload_sprite_textures,
+};
 pub use str_effect::{StrEffectCache, StrEffectEntry, StrEmitterInput, build_str_effect_batches};
+pub use texture::TextureCache;
+pub use ui_renderer::{UiDrawCommand, UiRenderer, UiVertex};
+pub use water::WaterRenderer;
 pub use wgpu;
 
 use ragnarok_formats::fog_table::FogEntry;
@@ -71,7 +78,11 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub async fn new(window: Arc<winit::window::Window>, font_px_height: f32, dpi_scale: f32) -> Self {
+    pub async fn new(
+        window: Arc<winit::window::Window>,
+        font_px_height: f32,
+        dpi_scale: f32,
+    ) -> Self {
         let device = RenderDevice::new(window).await;
         let camera = Camera {
             aspect: device.surface_config.width as f32 / device.surface_config.height as f32,
@@ -146,14 +157,12 @@ impl Renderer {
     ) {
         let scale = 120.0 * gnd.zoom;
         let fog_uniform = match fog {
-            Some(entry) => {
-                FogUniform {
-                    color: [entry.color[0], entry.color[1], entry.color[2], 1.0],
-                    near: entry.near * scale,
-                    far: entry.far * scale,
-                    factor: entry.factor,
-                    enabled: 1.0,
-                }
+            Some(entry) => FogUniform {
+                color: [entry.color[0], entry.color[1], entry.color[2], 1.0],
+                near: entry.near * scale,
+                far: entry.far * scale,
+                factor: entry.factor,
+                enabled: 1.0,
             },
             None => FogUniform::default(),
         };
@@ -206,12 +215,7 @@ impl Renderer {
                             l.position[2] * scale_factor + center_z,
                             0.0,
                         ],
-                        color_range: [
-                            l.color[0],
-                            l.color[1],
-                            l.color[2],
-                            l.range * scale_factor,
-                        ],
+                        color_range: [l.color[0], l.color[1], l.color[2], l.range * scale_factor],
                     })
                 } else {
                     None
@@ -262,9 +266,11 @@ impl Renderer {
     pub fn preload_textures(&mut self, paths: &[&str], grf: &GrfArchive) -> bool {
         let mut all_loaded = true;
         for path in paths {
-            if self.texture_cache.get_or_load(
-                path, grf, &self.device.device, &self.device.queue, true,
-            ).is_none() {
+            if self
+                .texture_cache
+                .get_or_load(path, grf, &self.device.device, &self.device.queue, true)
+                .is_none()
+            {
                 all_loaded = false;
             }
         }
@@ -277,12 +283,21 @@ impl Renderer {
             self.camera.aspect = width as f32 / height as f32;
             let logical_w = width as f32 / self.dpi_scale;
             let logical_h = height as f32 / self.dpi_scale;
-            self.sprite_renderer.resize(&self.device.queue, logical_w, logical_h);
-            self.ui_renderer.resize(&self.device.queue, logical_w, logical_h);
+            self.sprite_renderer
+                .resize(&self.device.queue, logical_w, logical_h);
+            self.ui_renderer
+                .resize(&self.device.queue, logical_w, logical_h);
         }
     }
 
-    pub fn render(&mut self, ui_draw_calls: &[UiDrawCall], sprite_batches: &[SpriteBatch], cursor_batches: &[SpriteBatch], inline_textures: &[&wgpu::BindGroup], elapsed: f32) {
+    pub fn render(
+        &mut self,
+        ui_draw_calls: &[UiDrawCall],
+        sprite_batches: &[SpriteBatch],
+        cursor_batches: &[SpriteBatch],
+        inline_textures: &[&wgpu::BindGroup],
+        elapsed: f32,
+    ) {
         self.global_uniforms
             .update_camera(&self.device.queue, &self.camera);
 
@@ -347,7 +362,12 @@ impl Renderer {
                 grid.render(&mut pass, &self.global_uniforms, &self.texture_cache);
             }
             if let Some(water) = &self.water_renderer {
-                water.render(&mut pass, &self.global_uniforms, &self.texture_cache, elapsed);
+                water.render(
+                    &mut pass,
+                    &self.global_uniforms,
+                    &self.texture_cache,
+                    elapsed,
+                );
             }
         }
 
@@ -365,9 +385,7 @@ impl Renderer {
 
         // Submit 3D + sprites so sprite_renderer's write_buffer is flushed
         // before cursor reuses the same buffers.
-        self.device
-            .queue
-            .submit(std::iter::once(encoder.finish()));
+        self.device.queue.submit(std::iter::once(encoder.finish()));
 
         let mut encoder = self
             .device
@@ -382,10 +400,10 @@ impl Renderer {
                     let bind_group = match &call.texture {
                         UiTextureRef::FontAtlas => &self.font_atlas_bind_group,
                         UiTextureRef::White => &self.white_bind_group,
-                        UiTextureRef::Named(name) => {
-                            self.texture_cache.get(name)
-                                .unwrap_or(&self.white_bind_group)
-                        }
+                        UiTextureRef::Named(name) => self
+                            .texture_cache
+                            .get(name)
+                            .unwrap_or(&self.white_bind_group),
                         UiTextureRef::Inline(idx) => inline_textures[*idx],
                     };
                     UiDrawCommand {
@@ -417,9 +435,7 @@ impl Renderer {
             );
         }
 
-        self.device
-            .queue
-            .submit(std::iter::once(encoder.finish()));
+        self.device.queue.submit(std::iter::once(encoder.finish()));
         output.present();
     }
 

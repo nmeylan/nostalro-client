@@ -4,7 +4,9 @@ use ragnarok_formats::rsw::{RswFile, RswObject};
 use std::path::Path;
 
 fn main() {
-    let grf_path = std::env::args().nth(1).unwrap_or_else(|| "data/data.grf".into());
+    let grf_path = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "data/data.grf".into());
     let maps: Vec<String> = std::env::args().skip(2).collect();
     let grf = GrfArchive::open(Path::new(&grf_path)).expect("open grf");
 
@@ -99,8 +101,16 @@ fn main() {
                 let wz = l.position[2] * scale_factor + center_z;
                 println!(
                     "    light raw=[{:.1},{:.1},{:.1}] -> world=[{:.1},{:.1},{:.1}] range={:.1} color=[{:.2},{:.2},{:.2}]",
-                    l.position[0], l.position[1], l.position[2], wx, wy, wz, l.range,
-                    l.color[0], l.color[1], l.color[2],
+                    l.position[0],
+                    l.position[1],
+                    l.position[2],
+                    wx,
+                    wy,
+                    wz,
+                    l.range,
+                    l.color[0],
+                    l.color[1],
+                    l.color[2],
                 );
                 shown += 1;
                 if shown >= 3 {

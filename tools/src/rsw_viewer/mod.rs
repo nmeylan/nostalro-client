@@ -10,12 +10,11 @@ use ragnarok_game::effect_table::EffectKind;
 use ragnarok_game::effects::EffectManager;
 use ragnarok_game::map_loader::{self, MapData};
 use ragnarok_renderer::effect_sprite::{
-    EffectSpriteCache, SpriteEffectEmitter, build_emitter_batches,
-    collect_sprite_effect_draws,
+    EffectSpriteCache, SpriteEffectEmitter, build_emitter_batches, collect_sprite_effect_draws,
 };
-use ragnarok_renderer::str_effect::{StrEffectCache, StrEmitterInput, build_str_effect_batches};
 use ragnarok_renderer::font_atlas::FontAtlas;
-use ragnarok_renderer::{block_on, UiDrawCall};
+use ragnarok_renderer::str_effect::{StrEffectCache, StrEmitterInput, build_str_effect_batches};
+use ragnarok_renderer::{UiDrawCall, block_on};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -178,8 +177,7 @@ impl HotLib {
                 lib.get(b"hot_get_overrides").ok()?;
             let build_overlay: libloading::Symbol<HotBuildOverlayFn> =
                 lib.get(b"hot_build_overlay").ok()?;
-            let set_target: libloading::Symbol<HotSetTargetFn> =
-                lib.get(b"hot_set_target").ok()?;
+            let set_target: libloading::Symbol<HotSetTargetFn> = lib.get(b"hot_set_target").ok()?;
 
             (
                 *create,
@@ -322,7 +320,11 @@ impl HotLib {
         let mut out = [0i32, 0];
         let mut valid: u8 = 0;
         unsafe { (self.get_hover_cell_fn)(self.state, &mut out as *mut _, &mut valid as *mut _) };
-        if valid != 0 { Some((out[0], out[1])) } else { None }
+        if valid != 0 {
+            Some((out[0], out[1]))
+        } else {
+            None
+        }
     }
 
     /// Click-to-move: set a new camera target (world-space position).
@@ -517,13 +519,16 @@ impl App {
             {
                 renderer.load_map(&data.gnd, &data.rsw, &grf, data.fog);
 
-                let mut paths: Vec<&str> = self.effects.emitters.iter().filter_map(|e| {
-                    match &e.kind {
+                let mut paths: Vec<&str> = self
+                    .effects
+                    .emitters
+                    .iter()
+                    .filter_map(|e| match &e.kind {
                         EffectKind::Spr { sprite_path, .. } => Some(*sprite_path),
                         EffectKind::Smoke3D { sprite_path, .. } => Some(*sprite_path),
                         EffectKind::Str { .. } => None,
-                    }
-                }).collect();
+                    })
+                    .collect();
                 paths.sort();
                 paths.dedup();
                 for path in paths {
@@ -536,7 +541,10 @@ impl App {
                     );
                 }
 
-                let mut str_names: Vec<String> = self.effects.emitters.iter()
+                let mut str_names: Vec<String> = self
+                    .effects
+                    .emitters
+                    .iter()
                     .filter_map(|e| e.str_file.clone())
                     .collect();
                 str_names.sort();
@@ -559,19 +567,11 @@ impl App {
                 let wgpu_device = &renderer.device.device;
                 if let Some(grid_sel) = &mut renderer.grid_selector {
                     grid_sel.show_grid = true;
-                    grid_sel.build_grid_mesh(
-                        wgpu_device,
-                        gat,
-                        gnd_width,
-                        gnd_height,
-                        gnd_zoom,
-                    );
+                    grid_sel.build_grid_mesh(wgpu_device, gat, gnd_width, gnd_height, gnd_zoom);
                 }
             }
 
-            tracing::info!(
-                "Map loaded successfully: {map_name} ({gnd_width}x{gnd_height})"
-            );
+            tracing::info!("Map loaded successfully: {map_name} ({gnd_width}x{gnd_height})");
 
             if let Some(window) = &self.window {
                 window.set_title(&format!("RSW Viewer — {map_name}"));
@@ -825,13 +825,21 @@ impl App {
         let screen_h = height / renderer.dpi_scale;
         let emitter_inputs = build_sprite_effect_inputs(&self.effects);
         let effect_draws = collect_sprite_effect_draws(
-            &emitter_inputs, &self.effect_sprites, &renderer.camera, screen_w, screen_h,
+            &emitter_inputs,
+            &self.effect_sprites,
+            &renderer.camera,
+            screen_w,
+            screen_h,
         );
         let mut sprite_batches = build_emitter_batches(&effect_draws);
 
         let str_inputs = build_str_emitter_inputs(&self.effects);
         let mut str_batches = build_str_effect_batches(
-            &str_inputs, &self.str_effects, &renderer.camera, screen_w, screen_h,
+            &str_inputs,
+            &self.str_effects,
+            &renderer.camera,
+            screen_w,
+            screen_h,
         );
         sprite_batches.append(&mut str_batches);
 
@@ -1018,10 +1026,8 @@ impl ApplicationHandler for App {
                         // Click-to-move: center the camera on the hovered cell.
                         if let Some(hot) = &self.hot_lib
                             && let Some((cx, cy)) = hot.get_hover_cell()
-                            && let Some(coords) = self
-                                .map_data
-                                .as_ref()
-                                .and_then(|m| m.coordinates.as_ref())
+                            && let Some(coords) =
+                                self.map_data.as_ref().and_then(|m| m.coordinates.as_ref())
                         {
                             let (wx, _wy, wz) =
                                 coords.cell_to_world(cx as f32 + 0.5, cy as f32 + 0.5);
@@ -1081,7 +1087,10 @@ fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteEffectEmitte
     let mut inputs = Vec::new();
     for emitter in &effects.emitters {
         match &emitter.kind {
-            EffectKind::Spr { sprite_path, duration_ms } => {
+            EffectKind::Spr {
+                sprite_path,
+                duration_ms,
+            } => {
                 inputs.push(SpriteEffectEmitter::Spr {
                     sprite_path,
                     duration_ms: *duration_ms,
@@ -1091,8 +1100,15 @@ fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteEffectEmitte
                     anim_time: emitter.anim_time,
                 });
             }
-            EffectKind::Smoke3D { sprite_path, alpha_max, anim_speed, .. } => {
-                let particles = emitter.particles.iter()
+            EffectKind::Smoke3D {
+                sprite_path,
+                alpha_max,
+                anim_speed,
+                ..
+            } => {
+                let particles = emitter
+                    .particles
+                    .iter()
                     .map(|p| (p.position, p.age, p.lifetime))
                     .collect();
                 inputs.push(SpriteEffectEmitter::Smoke3D {
@@ -1116,7 +1132,9 @@ fn build_str_emitter_inputs(effects: &EffectManager) -> Vec<StrEmitterInput<'_>>
         if !matches!(emitter.kind, EffectKind::Str { .. }) {
             continue;
         }
-        let Some(name) = emitter.str_file.as_deref() else { continue };
+        let Some(name) = emitter.str_file.as_deref() else {
+            continue;
+        };
         inputs.push(StrEmitterInput {
             str_name: name,
             position: emitter.position,

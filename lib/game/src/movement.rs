@@ -45,7 +45,11 @@ impl MovementState {
         let dx = self.path[0].x as f32 - self.step_start_x;
         let dy = self.path[0].y as f32 - self.step_start_y;
         let actual_dist = (dx * dx + dy * dy).sqrt();
-        let normal_dist = if self.path[0].is_diagonal { std::f32::consts::SQRT_2 } else { 1.0 };
+        let normal_dist = if self.path[0].is_diagonal {
+            std::f32::consts::SQRT_2
+        } else {
+            1.0
+        };
         self.step_duration = if actual_dist > 0.01 {
             full_duration * (actual_dist / normal_dist)
         } else {
@@ -153,13 +157,13 @@ fn direction_from_delta(dx: f32, dy: f32) -> Option<u8> {
         return None;
     }
     let dir = match (dx.partial_cmp(&0.0), dy.partial_cmp(&0.0)) {
-        (Some(std::cmp::Ordering::Equal), Some(std::cmp::Ordering::Greater)) => 0,   // S
-        (Some(std::cmp::Ordering::Less), Some(std::cmp::Ordering::Greater)) => 1,    // SW
-        (Some(std::cmp::Ordering::Less), Some(std::cmp::Ordering::Equal)) => 2,      // W
-        (Some(std::cmp::Ordering::Less), Some(std::cmp::Ordering::Less)) => 3,       // NW
-        (Some(std::cmp::Ordering::Equal), Some(std::cmp::Ordering::Less)) => 4,      // N
-        (Some(std::cmp::Ordering::Greater), Some(std::cmp::Ordering::Less)) => 5,    // NE
-        (Some(std::cmp::Ordering::Greater), Some(std::cmp::Ordering::Equal)) => 6,   // E
+        (Some(std::cmp::Ordering::Equal), Some(std::cmp::Ordering::Greater)) => 0, // S
+        (Some(std::cmp::Ordering::Less), Some(std::cmp::Ordering::Greater)) => 1,  // SW
+        (Some(std::cmp::Ordering::Less), Some(std::cmp::Ordering::Equal)) => 2,    // W
+        (Some(std::cmp::Ordering::Less), Some(std::cmp::Ordering::Less)) => 3,     // NW
+        (Some(std::cmp::Ordering::Equal), Some(std::cmp::Ordering::Less)) => 4,    // N
+        (Some(std::cmp::Ordering::Greater), Some(std::cmp::Ordering::Less)) => 5,  // NE
+        (Some(std::cmp::Ordering::Greater), Some(std::cmp::Ordering::Equal)) => 6, // E
         (Some(std::cmp::Ordering::Greater), Some(std::cmp::Ordering::Greater)) => 7, // SE
         _ => return None,
     };
@@ -251,7 +255,10 @@ mod tests {
         assert!(!movement.is_moving());
 
         let (x, y) = movement.update(1.0);
-        assert!((x - 0.5).abs() < 0.01, "should stay at stopped position, got x={x}");
+        assert!(
+            (x - 0.5).abs() < 0.01,
+            "should stay at stopped position, got x={x}"
+        );
         assert!(y.abs() < 0.01);
         assert!(!movement.is_moving());
     }
@@ -259,10 +266,7 @@ mod tests {
     #[test]
     fn set_position_clears_movement_state() {
         let mut movement = MovementState::new(0, 0);
-        let path = vec![
-            make_path_node(1, 0, false),
-            make_path_node(2, 0, false),
-        ];
+        let path = vec![make_path_node(1, 0, false), make_path_node(2, 0, false)];
         movement.start_move(path, 0.0);
         assert!(movement.is_moving());
 
@@ -270,8 +274,14 @@ mod tests {
         assert!(!movement.is_moving());
 
         let (x, y) = movement.update(1.0);
-        assert!((x - 50.0).abs() < 0.01, "should stay at new position, got x={x}");
-        assert!((y - 50.0).abs() < 0.01, "should stay at new position, got y={y}");
+        assert!(
+            (x - 50.0).abs() < 0.01,
+            "should stay at new position, got x={x}"
+        );
+        assert!(
+            (y - 50.0).abs() < 0.01,
+            "should stay at new position, got y={y}"
+        );
     }
 
     #[test]
@@ -282,7 +292,10 @@ mod tests {
 
         movement.update(0.075);
         let (x, _) = movement.position();
-        assert!((x - 0.5).abs() < 0.01, "position() should return smooth value, got x={x}");
+        assert!(
+            (x - 0.5).abs() < 0.01,
+            "position() should return smooth value, got x={x}"
+        );
         assert_eq!(movement.cell_position(), (1, 0));
     }
 

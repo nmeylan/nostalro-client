@@ -2,7 +2,9 @@ use std::io::{Cursor, Read};
 
 use byteorder::{LittleEndian as LE, ReadBytesExt};
 
-use crate::{FormatError, Mat3, Vec3, read_string, read_length_string, read_vec3, version_at_least};
+use crate::{
+    FormatError, Mat3, Vec3, read_length_string, read_string, read_vec3, version_at_least,
+};
 
 pub struct TexVertex {
     pub color: u32,
@@ -254,8 +256,16 @@ fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, Forma
             None
         };
 
-        let vertex_ids = [r.read_u16::<LE>()?, r.read_u16::<LE>()?, r.read_u16::<LE>()?];
-        let tex_vertex_ids = [r.read_u16::<LE>()?, r.read_u16::<LE>()?, r.read_u16::<LE>()?];
+        let vertex_ids = [
+            r.read_u16::<LE>()?,
+            r.read_u16::<LE>()?,
+            r.read_u16::<LE>()?,
+        ];
+        let tex_vertex_ids = [
+            r.read_u16::<LE>()?,
+            r.read_u16::<LE>()?,
+            r.read_u16::<LE>()?,
+        ];
         let texture_index = r.read_u16::<LE>()?;
         let padding = r.read_u16::<LE>()?;
         let two_sided = r.read_i32::<LE>()?;
@@ -350,9 +360,15 @@ fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, Forma
                         value: r.read_f32::<LE>()?,
                     });
                 }
-                keyframes.push(TextureKeyframeData { operation_type, frames });
+                keyframes.push(TextureKeyframeData {
+                    operation_type,
+                    frames,
+                });
             }
-            tkfs.push(TexturesKeyframeData { texture_index, keyframes });
+            tkfs.push(TexturesKeyframeData {
+                texture_index,
+                keyframes,
+            });
         }
         tkfs
     } else {

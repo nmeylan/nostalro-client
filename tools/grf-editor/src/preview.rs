@@ -65,12 +65,10 @@ impl BmpPreview {
         let mut pixels = img.into_raw();
         ragnarok_formats::apply_magenta_transparency(&mut pixels);
 
-        let color_image = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &pixels);
-        self.texture = Some(ctx.load_texture(
-            "bmp_preview",
-            color_image,
-            egui::TextureOptions::NEAREST,
-        ));
+        let color_image =
+            egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &pixels);
+        self.texture =
+            Some(ctx.load_texture("bmp_preview", color_image, egui::TextureOptions::NEAREST));
         self.dimensions = Some((w, h));
     }
 
@@ -87,7 +85,9 @@ impl BmpPreview {
 
         let (orig_w, orig_h) = self.dimensions.unwrap();
         let available = ui.available_size();
-        let scale = (available.x / orig_w as f32).min(available.y / orig_h as f32).min(1.0);
+        let scale = (available.x / orig_w as f32)
+            .min(available.y / orig_h as f32)
+            .min(1.0);
         let display_size = egui::vec2(orig_w as f32 * scale, orig_h as f32 * scale);
 
         ui.vertical_centered(|ui| {

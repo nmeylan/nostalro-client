@@ -1,10 +1,10 @@
-use models::enums::class::JobName;
-use models::enums::{EnumWithNumberValue, EnumWithStringValue};
 use crate::cooldown::CooldownTracker;
 use crate::event::CharacterInfo;
 use crate::hotkey::HotkeyBar;
 use crate::inventory::InventoryData;
 use crate::skill::SkillList;
+use models::enums::class::JobName;
+use models::enums::{EnumWithNumberValue, EnumWithStringValue};
 
 pub struct Character {
     pub inventory: InventoryData,
@@ -119,8 +119,8 @@ impl Character {
     }
 
     pub fn apply_parameter_changed(&mut self, var_id: u16, value: i32) -> Option<u16> {
-        use models::enums::status::StatusTypes;
         use models::enums::EnumWithNumberValue;
+        use models::enums::status::StatusTypes;
         let Ok(status) = StatusTypes::try_from_value(var_id as usize) else {
             return None;
         };
@@ -153,8 +153,8 @@ impl Character {
     }
 
     pub fn apply_status_changed(&mut self, status_type: u32, base: i32) {
-        use models::enums::status::StatusTypes;
         use models::enums::EnumWithNumberValue;
+        use models::enums::status::StatusTypes;
         if let Ok(status) = StatusTypes::try_from_value(status_type as usize) {
             match status {
                 StatusTypes::Str => self.str = base as u8,
@@ -203,8 +203,8 @@ impl Character {
 }
 
 pub fn job_class_name(class_id: u16) -> &'static str {
-    use models::enums::class::JobName;
     use models::enums::EnumWithNumberValue;
+    use models::enums::class::JobName;
     match JobName::try_from_value(class_id as usize) {
         Ok(job) => match job {
             JobName::Novice => "Novice",

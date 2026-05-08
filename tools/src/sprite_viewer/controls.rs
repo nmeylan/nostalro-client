@@ -138,7 +138,9 @@ pub fn build_status_draw_calls(
         .unwrap_or("?");
     let pause_str = if paused { " [paused]" } else { "" };
     let motion = motion + 1;
-    let text = format!("Act: {action} ({action_name})  Dir: {direction}  Frame: {motion}/{motion_count}{pause_str}");
+    let text = format!(
+        "Act: {action} ({action_name})  Dir: {direction}  Frame: {motion}/{motion_count}{pause_str}"
+    );
 
     let text_w = atlas.measure_text(&text);
     let box_w = text_w + STATUS_PADDING * 2.0;

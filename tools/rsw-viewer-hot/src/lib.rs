@@ -180,11 +180,10 @@ impl State {
     fn handle_mouse_drag(&mut self, dx: f32, dy: f32, _button: u8) {
         const ORBIT_SENSITIVITY: f32 = 0.005;
         self.yaw -= dx * ORBIT_SENSITIVITY;
-        self.pitch = (self.pitch - dy * ORBIT_SENSITIVITY)
-            .clamp(0.1, std::f32::consts::FRAC_PI_2 - 0.01);
+        self.pitch =
+            (self.pitch - dy * ORBIT_SENSITIVITY).clamp(0.1, std::f32::consts::FRAC_PI_2 - 0.01);
     }
 }
-
 
 // === FFI exports ===
 

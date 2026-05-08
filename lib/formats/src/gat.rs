@@ -1,8 +1,8 @@
 use std::io::{Cursor, Read};
 
 use byteorder::{LittleEndian as LE, ReadBytesExt};
-use models::enums::cell::CellType;
 use models::enums::EnumWithMaskValueU16;
+use models::enums::cell::CellType;
 
 use crate::FormatError;
 
@@ -38,7 +38,9 @@ impl GatCell {
 fn raw_cell_to_flags(raw: i32) -> u16 {
     match raw {
         0 | 2 | 4 | 6 => CellType::Walkable.as_flag() | CellType::Shootable.as_flag(),
-        3 => CellType::Walkable.as_flag() | CellType::Shootable.as_flag() | CellType::Water.as_flag(),
+        3 => {
+            CellType::Walkable.as_flag() | CellType::Shootable.as_flag() | CellType::Water.as_flag()
+        }
         5 => CellType::Shootable.as_flag(),
         _ => 0,
     }
@@ -56,7 +58,12 @@ impl GatFile {
         let mut r = Cursor::new(data);
         let (version, width, height) = Self::parse_header(&mut r)?;
         let cells = Self::parse_cells(&mut r, width, height)?;
-        Ok(GatFile { version, width, height, cells })
+        Ok(GatFile {
+            version,
+            width,
+            height,
+            cells,
+        })
     }
 
     fn parse_header(r: &mut Cursor<&[u8]>) -> Result<((u8, u8), i32, i32), FormatError> {
@@ -72,7 +79,11 @@ impl GatFile {
         Ok(((ver_major, ver_minor), width, height))
     }
 
-    fn parse_cells(r: &mut Cursor<&[u8]>, width: i32, height: i32) -> Result<Vec<GatCell>, FormatError> {
+    fn parse_cells(
+        r: &mut Cursor<&[u8]>,
+        width: i32,
+        height: i32,
+    ) -> Result<Vec<GatCell>, FormatError> {
         let cell_count = (width as usize) * (height as usize);
         let mut cells = Vec::with_capacity(cell_count);
         for _ in 0..cell_count {
@@ -128,10 +139,10 @@ mod tests {
     #[test]
     fn parse_2x2_gat_and_check_walkability_and_height() {
         let cells = [
-            (0.0, 2.0, 4.0, 6.0, 0), // (0,0) walkable ground
-            (1.0, 1.0, 1.0, 1.0, 1), // (1,0) unwalkable
+            (0.0, 2.0, 4.0, 6.0, 0),     // (0,0) walkable ground
+            (1.0, 1.0, 1.0, 1.0, 1),     // (1,0) unwalkable
             (10.0, 10.0, 10.0, 10.0, 3), // (0,1) walkable water
-            (5.0, 5.0, 5.0, 5.0, 5), // (1,1) shootable cliff
+            (5.0, 5.0, 5.0, 5.0, 5),     // (1,1) shootable cliff
         ];
         let data = build_gat_bytes(2, 2, &cells);
         let gat = GatFile::parse(&data).unwrap();

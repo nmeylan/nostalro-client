@@ -2,8 +2,8 @@ use std::io::{Cursor, Read};
 
 use byteorder::{LittleEndian as LE, ReadBytesExt};
 
-use crate::{Color, FormatError, version_at_least};
 use crate::act::ActFile;
+use crate::{Color, FormatError, version_at_least};
 
 pub struct SpriteData {
     pub images: Vec<RgbaImageData>,
@@ -42,7 +42,11 @@ impl SprImage {
             data[offset + 2] = c[2];
             data[offset + 3] = 255;
         }
-        RgbaImageData { width: w, height: h, data }
+        RgbaImageData {
+            width: w,
+            height: h,
+            data,
+        }
     }
 
     pub fn swizzle_pixel_bytes(&self) -> RgbaImageData {
@@ -54,13 +58,17 @@ impl SprImage {
             for x in 0..w as usize {
                 let src = (y * w as usize + x) * 4;
                 let dst = (dst_y * w as usize + x) * 4;
-                data[dst] = self.data[src + 3];     // R
+                data[dst] = self.data[src + 3]; // R
                 data[dst + 1] = self.data[src + 2]; // G
                 data[dst + 2] = self.data[src + 1]; // B
-                data[dst + 3] = self.data[src];     // A
+                data[dst + 3] = self.data[src]; // A
             }
         }
-        RgbaImageData { width: w, height: h, data }
+        RgbaImageData {
+            width: w,
+            height: h,
+            data,
+        }
     }
 }
 
@@ -113,7 +121,11 @@ impl SprFile {
                 raw
             };
 
-            indexed_sprites.push(SprImage { width, height, data });
+            indexed_sprites.push(SprImage {
+                width,
+                height,
+                data,
+            });
         }
 
         let mut rgba_sprites = Vec::with_capacity(rgba_image_count);
@@ -123,7 +135,11 @@ impl SprFile {
             let byte_count = width as usize * height as usize * 4;
             let mut data = vec![0u8; byte_count];
             r.read_exact(&mut data)?;
-            rgba_sprites.push(SprImage { width, height, data });
+            rgba_sprites.push(SprImage {
+                width,
+                height,
+                data,
+            });
         }
 
         let palette = if version_at_least(version, 1, 1) {
@@ -148,8 +164,13 @@ impl SprFile {
         self.to_rgba_images_with_palette(None)
     }
 
-    pub fn to_rgba_images_with_palette(&self, override_palette: Option<&[Color; 256]>) -> (Vec<RgbaImageData>, usize) {
-        let palette = override_palette.or(self.palette.as_ref()).expect("SPR file has no palette");
+    pub fn to_rgba_images_with_palette(
+        &self,
+        override_palette: Option<&[Color; 256]>,
+    ) -> (Vec<RgbaImageData>, usize) {
+        let palette = override_palette
+            .or(self.palette.as_ref())
+            .expect("SPR file has no palette");
         let mut images = Vec::with_capacity(self.indexed_sprites.len() + self.rgba_sprites.len());
         for sprite in &self.indexed_sprites {
             images.push(sprite.apply_palette(palette));
@@ -170,7 +191,11 @@ fn decompress_indexed(data: &[u8], pixel_count: usize) -> Vec<u8> {
     while i < data.len() && next < pixel_count {
         if data[i] == 0 {
             i += 1;
-            let count = if i < data.len() { (data[i] as usize).max(1) } else { 1 };
+            let count = if i < data.len() {
+                (data[i] as usize).max(1)
+            } else {
+                1
+            };
             // zeros are already written (vec initialized to 0)
             next += count;
         } else {
@@ -198,7 +223,8 @@ mod tests {
     #[test]
     fn apply_palette_transparent_and_magenta() {
         let sprite = SprImage {
-            width: 3, height: 1,
+            width: 3,
+            height: 1,
             data: vec![0, 1, 2],
         };
         let mut palette = [[0u8; 4]; 256];
@@ -218,7 +244,8 @@ mod tests {
     #[test]
     fn swizzle_pixel_bytes_swizzle() {
         let sprite = SprImage {
-            width: 1, height: 1,
+            width: 1,
+            height: 1,
             data: vec![200, 50, 100, 150], // A=200, B=50, G=100, R=150
         };
         let img = sprite.swizzle_pixel_bytes();
@@ -228,12 +255,13 @@ mod tests {
     #[test]
     fn swizzle_flips_rows_vertically() {
         let sprite = SprImage {
-            width: 2, height: 2,
+            width: 2,
+            height: 2,
             data: vec![
                 // row 0 (top in file = bottom in image): px(0,0) ABGR, px(1,0) ABGR
-                255, 10, 20, 30,   255, 40, 50, 60,
+                255, 10, 20, 30, 255, 40, 50, 60,
                 // row 1 (bottom in file = top in image): px(0,1) ABGR, px(1,1) ABGR
-                255, 70, 80, 90,   255, 100, 110, 120,
+                255, 70, 80, 90, 255, 100, 110, 120,
             ],
         };
         let img = sprite.swizzle_pixel_bytes();
@@ -285,7 +313,8 @@ mod tests {
     fn override_palette_changes_indexed_sprite_colors() {
         let mut data = Vec::new();
         data.extend_from_slice(b"SP");
-        data.push(1); data.push(2); // version 2.1
+        data.push(1);
+        data.push(2); // version 2.1
         data.extend_from_slice(&1u16.to_le_bytes()); // 1 indexed
         data.extend_from_slice(&1u16.to_le_bytes()); // 1 rgba
         // indexed: 1x1, pixel index=1

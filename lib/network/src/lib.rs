@@ -8,7 +8,18 @@ use connection::{Connection, ConnectionError};
 use handler::dispatch_packet;
 pub use helpers::{encode_pos, ip_u32_to_string};
 use ragnarok_game::event::GameEvent;
-pub use sender::{build_action_request_packet, build_card_composition_list_packet, build_card_composition_packet, build_char_enter_packet, build_chat_packet, build_contact_npc_packet, build_drop_item_packet, build_equip_item_packet, build_login_packet, build_map_loaded_packet, build_npc_close_packet, build_npc_deal_type_packet, build_npc_input_number_packet, build_npc_input_string_packet, build_npc_menu_select_packet, build_npc_next_packet, build_pickup_item_packet, build_purchase_item_list_packet, build_reqname_packet, build_request_move_packet, build_restart_packet, build_select_char_packet, build_sell_item_list_packet, build_shortcut_key_change_packet, build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet, build_zone_enter_packet};
+pub use sender::{
+    build_action_request_packet, build_card_composition_list_packet, build_card_composition_packet,
+    build_char_enter_packet, build_chat_packet, build_contact_npc_packet, build_drop_item_packet,
+    build_equip_item_packet, build_login_packet, build_map_loaded_packet, build_npc_close_packet,
+    build_npc_deal_type_packet, build_npc_input_number_packet, build_npc_input_string_packet,
+    build_npc_menu_select_packet, build_npc_next_packet, build_pickup_item_packet,
+    build_purchase_item_list_packet, build_reqname_packet, build_request_move_packet,
+    build_restart_packet, build_select_char_packet, build_sell_item_list_packet,
+    build_shortcut_key_change_packet, build_unequip_item_packet, build_upgrade_skill_packet,
+    build_use_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet,
+    build_zone_enter_packet,
+};
 use session::{Session, SessionState};
 use std::collections::VecDeque;
 use std::time::Instant;
@@ -50,7 +61,10 @@ pub async fn network_loop(
 
     loop {
         // Drain delayed events that are ready
-        while delayed_events.front().is_some_and(|(t, _)| *t <= Instant::now()) {
+        while delayed_events
+            .front()
+            .is_some_and(|(t, _)| *t <= Instant::now())
+        {
             let (_, event) = delayed_events.pop_front().unwrap();
             let _ = event_tx.send(event);
         }

@@ -1,3 +1,4 @@
+use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
@@ -5,7 +6,6 @@ use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::state::StateCache;
 use ragnarok_ui::text_input::TextInput;
-use crate::{Window, InGameWindow};
 
 pub const CHAT_WINDOW_ID: WidgetId = WidgetId(300);
 const INPUT_ID: WidgetId = WidgetId(301);
@@ -53,7 +53,15 @@ const TOOLBAR_H: f32 = 17.0;
 // 3 lines per step
 const SIZE_STEP: f32 = LINE_H * 3.0;
 // Index 0 = hidden, 1 = collapsed (input only), 2..6 = message area heights
-const SIZE_CYCLE: [f32; 7] = [0.0, 0.0, SIZE_STEP, SIZE_STEP * 2.0, SIZE_STEP * 3.0, SIZE_STEP * 4.0, SIZE_STEP * 5.0];
+const SIZE_CYCLE: [f32; 7] = [
+    0.0,
+    0.0,
+    SIZE_STEP,
+    SIZE_STEP * 2.0,
+    SIZE_STEP * 3.0,
+    SIZE_STEP * 4.0,
+    SIZE_STEP * 5.0,
+];
 const DEFAULT_SIZE_INDEX: usize = 5;
 
 const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
@@ -212,7 +220,8 @@ impl ChatWindow {
     }
 
     pub fn get_size_index(&self, state: &StateCache) -> usize {
-        state.get::<ChatWindowState>(CHAT_WINDOW_ID)
+        state
+            .get::<ChatWindowState>(CHAT_WINDOW_ID)
             .map(|s| s.size_index)
             .unwrap_or(DEFAULT_SIZE_INDEX)
     }
@@ -222,11 +231,17 @@ impl ChatWindow {
     }
 
     pub fn contains_point(&self, x: f32, y: f32) -> bool {
-        self.bounding_rect.as_ref().is_some_and(|r| r.contains(x, y))
+        self.bounding_rect
+            .as_ref()
+            .is_some_and(|r| r.contains(x, y))
     }
 
     pub fn add_message(&mut self, text: String, color: [f32; 4], channel: ChatChannel) {
-        self.messages.push(ChatLine { text, color, channel });
+        self.messages.push(ChatLine {
+            text,
+            color,
+            channel,
+        });
         if self.messages.len() > MAX_MESSAGES {
             self.messages.remove(0);
         }
@@ -244,10 +259,19 @@ impl ChatWindow {
         self.add_message(message, YELLOW, ChatChannel::System);
     }
 
-    fn draw_visual_lines(&self, ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, scroll_offset: usize, visual_lines: &[(String, [f32; 4])]) {
+    fn draw_visual_lines(
+        &self,
+        ui: &mut UiFrame,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        scroll_offset: usize,
+        visual_lines: &[(String, [f32; 4])],
+    ) {
         use ragnarok_ui::draw;
-        let line_h = LINE_H ;
-        let padding = PADDING ;
+        let line_h = LINE_H;
+        let padding = PADDING;
 
         // Semi-transparent background
         let bg_color = [0.0, 0.0, 0.0, 0.8];
@@ -269,11 +293,19 @@ impl ChatWindow {
         }
     }
 
-    fn draw_scrollbar_filtered(&self, ui: &mut UiFrame, x: f32, y: f32, h: f32, scroll_offset: usize, total: usize) {
+    fn draw_scrollbar_filtered(
+        &self,
+        ui: &mut UiFrame,
+        x: f32,
+        y: f32,
+        h: f32,
+        scroll_offset: usize,
+        total: usize,
+    ) {
         use ragnarok_ui::draw;
-        let line_h = LINE_H ;
-        let scrollbar_w = SCROLLBAR_W ;
-        let scroll_btn_h = SCROLL_BTN_H ;
+        let line_h = LINE_H;
+        let scrollbar_w = SCROLLBAR_W;
+        let scroll_btn_h = SCROLL_BTN_H;
 
         let max_lines = (h / line_h) as usize;
         let max_scroll = total.saturating_sub(max_lines);
@@ -290,7 +322,9 @@ impl ChatWindow {
         // Up button
         let up_rect = Rect::new(x, y, scrollbar_w, scroll_btn_h);
         let up_response = ui.interact(SCROLL_UP_ID, up_rect);
-        if up_response.hovered() { ui.any_interactive_hovered = true; }
+        if up_response.hovered() {
+            ui.any_interactive_hovered = true;
+        }
         if self.has_grf_textures {
             let (v, i) = draw::quad_vertices(x, y, scrollbar_w, scroll_btn_h, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(draw::DrawCall {
@@ -299,37 +333,58 @@ impl ChatWindow {
                 texture: draw::TextureRef::Named(SCROLL_UP.to_string()),
             });
         } else {
-            let color = if up_response.hovered() { [0.5, 0.5, 0.6, 1.0] } else { [0.3, 0.3, 0.4, 1.0] };
+            let color = if up_response.hovered() {
+                [0.5, 0.5, 0.6, 1.0]
+            } else {
+                [0.3, 0.3, 0.4, 1.0]
+            };
             let (v, i) = draw::quad_vertices(x, y, scrollbar_w, scroll_btn_h, color);
             ui.draw_calls.push(draw::DrawCall {
                 vertices: v.to_vec(),
                 indices: i.to_vec(),
                 texture: draw::TextureRef::White,
             });
-            ui.text(x + (3.0), y + ui.atlas.line_height, "\u{25B2}", [0.8, 0.8, 0.8, 1.0]);
+            ui.text(
+                x + (3.0),
+                y + ui.atlas.line_height,
+                "\u{25B2}",
+                [0.8, 0.8, 0.8, 1.0],
+            );
         }
 
         // Down button
         let down_y = y + h - scroll_btn_h;
         let down_rect = Rect::new(x, down_y, scrollbar_w, scroll_btn_h);
         let down_response = ui.interact(SCROLL_DOWN_ID, down_rect);
-        if down_response.hovered() { ui.any_interactive_hovered = true; }
+        if down_response.hovered() {
+            ui.any_interactive_hovered = true;
+        }
         if self.has_grf_textures {
-            let (v, i) = draw::quad_vertices(x, down_y, scrollbar_w, scroll_btn_h, [1.0, 1.0, 1.0, 1.0]);
+            let (v, i) =
+                draw::quad_vertices(x, down_y, scrollbar_w, scroll_btn_h, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(draw::DrawCall {
                 vertices: v.to_vec(),
                 indices: i.to_vec(),
                 texture: draw::TextureRef::Named(SCROLL_DOWN.to_string()),
             });
         } else {
-            let color = if down_response.hovered() { [0.5, 0.5, 0.6, 1.0] } else { [0.3, 0.3, 0.4, 1.0] };
+            let color = if down_response.hovered() {
+                [0.5, 0.5, 0.6, 1.0]
+            } else {
+                [0.3, 0.3, 0.4, 1.0]
+            };
             let (v, i) = draw::quad_vertices(x, down_y, scrollbar_w, scroll_btn_h, color);
             ui.draw_calls.push(draw::DrawCall {
                 vertices: v.to_vec(),
                 indices: i.to_vec(),
                 texture: draw::TextureRef::White,
             });
-            ui.text(x + (3.0), down_y + ui.atlas.line_height, "\u{25BC}", [0.8, 0.8, 0.8, 1.0]);
+            ui.text(
+                x + (3.0),
+                down_y + ui.atlas.line_height,
+                "\u{25BC}",
+                [0.8, 0.8, 0.8, 1.0],
+            );
         }
 
         // Handle scroll button clicks
@@ -354,18 +409,35 @@ impl ChatWindow {
             let thumb_rect = Rect::new(x, thumb_y, scrollbar_w, thumb_h);
             let t = ui.drag_handle(SCROLL_THUMB_ID, thumb_rect, true);
             if t.started {
-                ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).drag_start_scroll = scroll_offset as f32;
+                ui.state
+                    .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+                    .drag_start_scroll = scroll_offset as f32;
             }
             if t.dragging {
-                let start = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).drag_start_scroll;
+                let start = ui
+                    .state
+                    .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+                    .drag_start_scroll;
                 let delta_scroll = -(t.delta_y / track_h) * max_scroll as f32;
                 let offset = (start + delta_scroll).round().clamp(0.0, max_scroll as f32);
-                ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).scroll_offset = offset as usize;
+                ui.state
+                    .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+                    .scroll_offset = offset as usize;
             }
 
             let thumb_active = t.dragging || t.hovered;
-            let thumb_color = if thumb_active { [0.6, 0.6, 0.7, 0.9] } else { [0.5, 0.5, 0.6, 0.8] };
-            let (v, i) = draw::quad_vertices(x + (2.0), thumb_y, scrollbar_w - (4.0), thumb_h, thumb_color);
+            let thumb_color = if thumb_active {
+                [0.6, 0.6, 0.7, 0.9]
+            } else {
+                [0.5, 0.5, 0.6, 0.8]
+            };
+            let (v, i) = draw::quad_vertices(
+                x + (2.0),
+                thumb_y,
+                scrollbar_w - (4.0),
+                thumb_h,
+                thumb_color,
+            );
             ui.draw_calls.push(draw::DrawCall {
                 vertices: v.to_vec(),
                 indices: i.to_vec(),
@@ -374,11 +446,19 @@ impl ChatWindow {
         }
     }
 
-    fn draw_toolbar(&self, ui: &mut UiFrame, x: f32, y: f32, w: f32, filter: ChatFilter, locked: bool) {
+    fn draw_toolbar(
+        &self,
+        ui: &mut UiFrame,
+        x: f32,
+        y: f32,
+        w: f32,
+        filter: ChatFilter,
+        locked: bool,
+    ) {
         use ragnarok_ui::draw;
-        let toolbar_h = TOOLBAR_H ;
-        let btn_size = TOOLBAR_BTN_SIZE ;
-        let btn_gap = TOOLBAR_BTN_GAP ;
+        let toolbar_h = TOOLBAR_H;
+        let btn_size = TOOLBAR_BTN_SIZE;
+        let btn_gap = TOOLBAR_BTN_GAP;
 
         // Toolbar background
         let bg_color = [0.0, 0.0, 0.0, 0.3];
@@ -398,19 +478,39 @@ impl ChatWindow {
         btn_x -= btn_size;
         let lock_rect = Rect::new(btn_x, y, btn_size, toolbar_h);
         let lock_resp = ui.interact(LOCK_BTN_ID, lock_rect);
-        if lock_resp.hovered() { ui.any_interactive_hovered = true; }
+        if lock_resp.hovered() {
+            ui.any_interactive_hovered = true;
+        }
         if self.has_grf_textures {
-            let tex = if locked { LOCK_DRAG_BTN } else { UNLOCK_DRAG_BTN };
-            let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, btn_size, btn_size, [1.0, 1.0, 1.0, 1.0]);
+            let tex = if locked {
+                LOCK_DRAG_BTN
+            } else {
+                UNLOCK_DRAG_BTN
+            };
+            let (v, i) = draw::quad_vertices(
+                btn_x,
+                btn_visual_y,
+                btn_size,
+                btn_size,
+                [1.0, 1.0, 1.0, 1.0],
+            );
             ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(), indices: i.to_vec(),
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
                 texture: draw::TextureRef::Named(tex.to_string()),
             });
         } else {
-            let color = if locked { [0.6, 0.3, 0.3, 1.0] } else if lock_resp.hovered() { [0.5, 0.5, 0.6, 1.0] } else { [0.3, 0.3, 0.4, 1.0] };
+            let color = if locked {
+                [0.6, 0.3, 0.3, 1.0]
+            } else if lock_resp.hovered() {
+                [0.5, 0.5, 0.6, 1.0]
+            } else {
+                [0.3, 0.3, 0.4, 1.0]
+            };
             let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, btn_size, btn_size, color);
             ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(), indices: i.to_vec(),
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
                 texture: draw::TextureRef::White,
             });
         }
@@ -420,18 +520,32 @@ impl ChatWindow {
         btn_x -= btn_size;
         let min_rect = Rect::new(btn_x, y, btn_size, toolbar_h);
         let min_resp = ui.interact(MINIMIZE_BTN_ID, min_rect);
-        if min_resp.hovered() { ui.any_interactive_hovered = true; }
+        if min_resp.hovered() {
+            ui.any_interactive_hovered = true;
+        }
         if self.has_grf_textures {
-            let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, btn_size, btn_size, [1.0, 1.0, 1.0, 1.0]);
+            let (v, i) = draw::quad_vertices(
+                btn_x,
+                btn_visual_y,
+                btn_size,
+                btn_size,
+                [1.0, 1.0, 1.0, 1.0],
+            );
             ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(), indices: i.to_vec(),
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
                 texture: draw::TextureRef::Named(MINIMIZE_BTN.to_string()),
             });
         } else {
-            let color = if min_resp.hovered() { [0.5, 0.5, 0.6, 1.0] } else { [0.3, 0.3, 0.4, 1.0] };
+            let color = if min_resp.hovered() {
+                [0.5, 0.5, 0.6, 1.0]
+            } else {
+                [0.3, 0.3, 0.4, 1.0]
+            };
             let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, btn_size, btn_size, color);
             ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(), indices: i.to_vec(),
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
                 texture: draw::TextureRef::White,
             });
         }
@@ -442,20 +556,38 @@ impl ChatWindow {
         btn_x -= mode_w;
         let mode_rect = Rect::new(btn_x, y, mode_w, toolbar_h);
         let mode_resp = ui.interact(CHATMODE_BTN_ID, mode_rect);
-        if mode_resp.hovered() { ui.any_interactive_hovered = true; }
-        let chat_mode_on = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).chat_mode_on;
+        if mode_resp.hovered() {
+            ui.any_interactive_hovered = true;
+        }
+        let chat_mode_on = ui
+            .state
+            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+            .chat_mode_on;
         if self.has_grf_textures {
-            let tex = if chat_mode_on { CHATMODE_ON } else { CHATMODE_OFF };
-            let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, mode_w, btn_size, [1.0, 1.0, 1.0, 1.0]);
+            let tex = if chat_mode_on {
+                CHATMODE_ON
+            } else {
+                CHATMODE_OFF
+            };
+            let (v, i) =
+                draw::quad_vertices(btn_x, btn_visual_y, mode_w, btn_size, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(), indices: i.to_vec(),
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
                 texture: draw::TextureRef::Named(tex.to_string()),
             });
         } else {
-            let color = if chat_mode_on { [0.3, 0.6, 0.3, 1.0] } else if mode_resp.hovered() { [0.5, 0.5, 0.6, 1.0] } else { [0.3, 0.3, 0.4, 1.0] };
+            let color = if chat_mode_on {
+                [0.3, 0.6, 0.3, 1.0]
+            } else if mode_resp.hovered() {
+                [0.5, 0.5, 0.6, 1.0]
+            } else {
+                [0.3, 0.3, 0.4, 1.0]
+            };
             let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, mode_w, btn_size, color);
             ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(), indices: i.to_vec(),
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
                 texture: draw::TextureRef::White,
             });
         }
@@ -465,36 +597,62 @@ impl ChatWindow {
         btn_x -= btn_size;
         let size_rect = Rect::new(btn_x, y, btn_size, toolbar_h);
         let size_resp = ui.interact(SIZE_BTN_ID, size_rect);
-        if size_resp.hovered() { ui.any_interactive_hovered = true; }
+        if size_resp.hovered() {
+            ui.any_interactive_hovered = true;
+        }
         if self.has_grf_textures {
-            let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, btn_size, btn_size, [1.0, 1.0, 1.0, 1.0]);
+            let (v, i) = draw::quad_vertices(
+                btn_x,
+                btn_visual_y,
+                btn_size,
+                btn_size,
+                [1.0, 1.0, 1.0, 1.0],
+            );
             ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(), indices: i.to_vec(),
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
                 texture: draw::TextureRef::Named(SYS_BASE_OFF.to_string()),
             });
         } else {
-            let color = if size_resp.hovered() { [0.5, 0.5, 0.6, 1.0] } else { [0.3, 0.3, 0.4, 1.0] };
+            let color = if size_resp.hovered() {
+                [0.5, 0.5, 0.6, 1.0]
+            } else {
+                [0.3, 0.3, 0.4, 1.0]
+            };
             let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, btn_size, btn_size, color);
             ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(), indices: i.to_vec(),
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
                 texture: draw::TextureRef::White,
             });
         }
         btn_x -= btn_gap;
 
         // Filter button with label
-        let filter_w = 24.0 ;
+        let filter_w = 24.0;
         btn_x -= filter_w;
         let filter_rect = Rect::new(btn_x, y, filter_w, toolbar_h);
         let filter_resp = ui.interact(FILTER_BTN_ID, filter_rect);
-        if filter_resp.hovered() { ui.any_interactive_hovered = true; }
-        let color = if filter_resp.hovered() { [0.5, 0.5, 0.6, 1.0] } else { [0.3, 0.3, 0.4, 1.0] };
+        if filter_resp.hovered() {
+            ui.any_interactive_hovered = true;
+        }
+        let color = if filter_resp.hovered() {
+            [0.5, 0.5, 0.6, 1.0]
+        } else {
+            [0.3, 0.3, 0.4, 1.0]
+        };
         let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, filter_w, btn_size, color);
         ui.draw_calls.push(draw::DrawCall {
-            vertices: v.to_vec(), indices: i.to_vec(),
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
             texture: draw::TextureRef::White,
         });
-        ui.text(btn_x + (2.0), btn_visual_y + ui.atlas.line_height, filter.label(), [0.8, 0.8, 0.8, 1.0]);
+        ui.text(
+            btn_x + (2.0),
+            btn_visual_y + ui.atlas.line_height,
+            filter.label(),
+            [0.8, 0.8, 0.8, 1.0],
+        );
 
         // Handle button clicks
         if lock_resp.clicked() {
@@ -545,12 +703,15 @@ impl ChatWindow {
             texture: draw::TextureRef::White,
         });
     }
-
 }
 
 impl Window for ChatWindow {
-    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
-    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+    fn has_grf_textures(&self) -> bool {
+        self.has_grf_textures
+    }
+    fn set_has_grf_textures(&mut self, value: bool) {
+        self.has_grf_textures = value;
+    }
 
     fn grf_texture_paths() -> Vec<&'static str> {
         vec![
@@ -574,14 +735,19 @@ impl Window for ChatWindow {
 }
 
 impl InGameWindow for ChatWindow {
-    fn build(&mut self, ui: &mut UiFrame, character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
+    fn build(
+        &mut self,
+        ui: &mut UiFrame,
+        character: &mut Character,
+        _data: &DataTable,
+    ) -> Vec<GameEvent> {
         let mut events = Vec::new();
         let screen_h = ui.ctx.screen_height;
-        let input_h = INPUT_H ;
-        let toolbar_h = TOOLBAR_H ;
-        let padding = PADDING ;
-        let line_h = LINE_H ;
-        let scrollbar_w = SCROLLBAR_W ;
+        let input_h = INPUT_H;
+        let toolbar_h = TOOLBAR_H;
+        let padding = PADDING;
+        let line_h = LINE_H;
+        let scrollbar_w = SCROLLBAR_W;
         let max_msg_h = screen_h - input_h - (50.0);
 
         // Initialize or read persistent state
@@ -590,7 +756,7 @@ impl InGameWindow for ChatWindow {
             let idx = self.initial_size_index.take().unwrap_or(DEFAULT_SIZE_INDEX);
             state.size_index = idx;
             state.msg_area_h = SIZE_CYCLE[idx];
-            state.chat_w = DEFAULT_CHAT_W ;
+            state.chat_w = DEFAULT_CHAT_W;
             state.pos_x = padding;
             let default_h = SIZE_CYCLE[idx] + toolbar_h + input_h;
             state.pos_y = screen_h - default_h - padding;
@@ -614,23 +780,46 @@ impl InGameWindow for ChatWindow {
         }
 
         let show_messages = size_index >= 2 && msg_area_h > 0.0;
-        let total_h = if show_messages { msg_area_h + toolbar_h + input_h } else { toolbar_h + input_h };
-        let chat_x = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).pos_x;
-        let chat_y = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).pos_y;
+        let total_h = if show_messages {
+            msg_area_h + toolbar_h + input_h
+        } else {
+            toolbar_h + input_h
+        };
+        let chat_x = ui
+            .state
+            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+            .pos_x;
+        let chat_y = ui
+            .state
+            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+            .pos_y;
 
         // Read lock state for drag gating
-        let drag_locked = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).locked;
+        let drag_locked = ui
+            .state
+            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+            .locked;
 
         // Height drag handle (between message area and input)
         if show_messages {
             let handle_center_y = chat_y + msg_area_h;
-            let handle_rect = Rect::new(chat_x, handle_center_y - DRAG_HIT_AREA / 2.0, chat_w, DRAG_HIT_AREA);
+            let handle_rect = Rect::new(
+                chat_x,
+                handle_center_y - DRAG_HIT_AREA / 2.0,
+                chat_w,
+                DRAG_HIT_AREA,
+            );
             let h = ui.drag_handle(HEIGHT_DRAG_ID, handle_rect, !drag_locked);
             if h.started {
-                ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).drag_start_msg_h = msg_area_h;
+                ui.state
+                    .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+                    .drag_start_msg_h = msg_area_h;
             }
             if h.dragging {
-                let start = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).drag_start_msg_h;
+                let start = ui
+                    .state
+                    .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+                    .drag_start_msg_h;
                 msg_area_h = (start - h.delta_y).clamp(MIN_MSG_AREA_H, max_msg_h);
             }
             let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
@@ -642,13 +831,23 @@ impl InGameWindow for ChatWindow {
         // Width drag handle (right edge)
         {
             let right_edge_x = chat_x + chat_w;
-            let handle_rect = Rect::new(right_edge_x - DRAG_HIT_AREA / 2.0, chat_y, DRAG_HIT_AREA, total_h);
+            let handle_rect = Rect::new(
+                right_edge_x - DRAG_HIT_AREA / 2.0,
+                chat_y,
+                DRAG_HIT_AREA,
+                total_h,
+            );
             let w = ui.drag_handle(WIDTH_DRAG_ID, handle_rect, !drag_locked);
             if w.started {
-                ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).drag_start_chat_w = chat_w;
+                ui.state
+                    .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+                    .drag_start_chat_w = chat_w;
             }
             if w.dragging {
-                let start = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).drag_start_chat_w;
+                let start = ui
+                    .state
+                    .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+                    .drag_start_chat_w;
                 chat_w = (start + w.delta_x).clamp(MIN_CHAT_W, MAX_CHAT_W);
             }
             let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
@@ -659,15 +858,31 @@ impl InGameWindow for ChatWindow {
 
         // Recalculate layout after resize drag
         let show_messages = size_index >= 2 && msg_area_h > 0.0;
-        let total_h = if show_messages { msg_area_h + toolbar_h + input_h } else { toolbar_h + input_h };
-        let chat_x = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).pos_x;
-        let chat_y = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).pos_y;
+        let total_h = if show_messages {
+            msg_area_h + toolbar_h + input_h
+        } else {
+            toolbar_h + input_h
+        };
+        let chat_x = ui
+            .state
+            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+            .pos_x;
+        let chat_y = ui
+            .state
+            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+            .pos_y;
 
         self.bounding_rect = Some(Rect::new(chat_x, chat_y, chat_w, total_h));
 
         ui.ensure_in_z_order(CHAT_WINDOW_ID);
         ui.enter_window(CHAT_WINDOW_ID, self.bounding_rect.unwrap());
-        if !ui.is_current_window_occluded() && ui.ctx.mouse_clicked && self.bounding_rect.unwrap().contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
+        if !ui.is_current_window_occluded()
+            && ui.ctx.mouse_clicked
+            && self
+                .bounding_rect
+                .unwrap()
+                .contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
+        {
             ui.bring_to_front(CHAT_WINDOW_ID);
         }
 
@@ -695,7 +910,11 @@ impl InGameWindow for ChatWindow {
                     self.input.cursor_pos = 0;
                     if message == "/battlemode" || message == "/bm" {
                         character.hotkeys.toggle_battle_mode();
-                        let status = if character.hotkeys.battle_mode() { "ON" } else { "OFF" };
+                        let status = if character.hotkeys.battle_mode() {
+                            "ON"
+                        } else {
+                            "OFF"
+                        };
                         self.add_system(format!("Battle Mode {status}"));
                     } else {
                         events.push(GameEvent::RequestSendChat { message });
@@ -756,7 +975,9 @@ impl InGameWindow for ChatWindow {
         let locked = state.locked;
 
         // Filter messages for display
-        let filtered: Vec<&ChatLine> = self.messages.iter()
+        let filtered: Vec<&ChatLine> = self
+            .messages
+            .iter()
             .filter(|line| filter.passes(line.channel))
             .collect();
 
@@ -764,9 +985,15 @@ impl InGameWindow for ChatWindow {
             // Wrap messages into visual lines
             let text_area_w = chat_w - padding * 2.0;
             let atlas = ui.atlas;
-            let visual_lines: Vec<(String, [f32; 4])> = filtered.iter()
+            let visual_lines: Vec<(String, [f32; 4])> = filtered
+                .iter()
                 .flat_map(|line| {
-                    let wrapped = ragnarok_ui::draw::word_wrap(&line.text, text_area_w, |t| atlas.measure_text(t), false);
+                    let wrapped = ragnarok_ui::draw::word_wrap(
+                        &line.text,
+                        text_area_w,
+                        |t| atlas.measure_text(t),
+                        false,
+                    );
                     let color = line.color;
                     wrapped.into_iter().map(move |w| (w, color))
                 })
@@ -784,13 +1011,32 @@ impl InGameWindow for ChatWindow {
                 let max_scroll = total_visual.saturating_sub(max_lines);
                 let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
                 let delta = ui.ctx.scroll_delta.round() as isize;
-                let new_offset = (state.scroll_offset as isize + delta).clamp(0, max_scroll as isize);
+                let new_offset =
+                    (state.scroll_offset as isize + delta).clamp(0, max_scroll as isize);
                 state.scroll_offset = new_offset as usize;
             }
 
-            let scroll_offset = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).scroll_offset;
-            self.draw_visual_lines(ui, chat_x, chat_y, chat_w, msg_area_h, scroll_offset, &visual_lines);
-            self.draw_scrollbar_filtered(ui, chat_x + chat_w - scrollbar_w, chat_y, msg_area_h, scroll_offset, total_visual);
+            let scroll_offset = ui
+                .state
+                .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+                .scroll_offset;
+            self.draw_visual_lines(
+                ui,
+                chat_x,
+                chat_y,
+                chat_w,
+                msg_area_h,
+                scroll_offset,
+                &visual_lines,
+            );
+            self.draw_scrollbar_filtered(
+                ui,
+                chat_x + chat_w - scrollbar_w,
+                chat_y,
+                msg_area_h,
+                scroll_offset,
+                total_visual,
+            );
             self.draw_height_handle(ui, chat_x, chat_y + msg_area_h, chat_w);
         }
 
@@ -804,7 +1050,10 @@ impl InGameWindow for ChatWindow {
         if !drag_locked {
             let toolbar_rect = Rect::new(chat_x, toolbar_y, chat_w, toolbar_h);
             let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
-            if toolbar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) && ui.ctx.mouse_clicked && !state.dragging {
+            if toolbar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
+                && ui.ctx.mouse_clicked
+                && !state.dragging
+            {
                 state.dragging = true;
                 state.drag_offset_x = ui.ctx.mouse_x - state.pos_x;
                 state.drag_offset_y = ui.ctx.mouse_y - state.pos_y;
@@ -835,11 +1084,27 @@ impl InGameWindow for ChatWindow {
             // Compute input rects — scale to match DIALOG_BG texture layout when available
             let (whisper_rect, msg_rect, input_bg) = if self.has_grf_textures {
                 let scale = chat_w / (DIALOG_BG_W);
-                let wr = Rect::new(chat_x + (DIALOG_BG_WHISPER_X) * scale, input_y, (DIALOG_BG_WHISPER_W) * scale, input_h);
-                let mr = Rect::new(chat_x + (DIALOG_BG_MSG_X) * scale, input_y, (DIALOG_BG_MSG_W) * scale, input_h);
+                let wr = Rect::new(
+                    chat_x + (DIALOG_BG_WHISPER_X) * scale,
+                    input_y,
+                    (DIALOG_BG_WHISPER_W) * scale,
+                    input_h,
+                );
+                let mr = Rect::new(
+                    chat_x + (DIALOG_BG_MSG_X) * scale,
+                    input_y,
+                    (DIALOG_BG_MSG_W) * scale,
+                    input_h,
+                );
 
                 let input_row = Rect::new(chat_x, input_y, chat_w, input_h);
-                let (v, i) = ragnarok_ui::draw::quad_vertices(input_row.x, input_row.y, input_row.w, input_row.h, [1.0; 4]);
+                let (v, i) = ragnarok_ui::draw::quad_vertices(
+                    input_row.x,
+                    input_row.y,
+                    input_row.w,
+                    input_row.h,
+                    [1.0; 4],
+                );
                 ui.draw_calls.push(ragnarok_ui::draw::DrawCall {
                     vertices: v.to_vec(),
                     indices: i.to_vec(),
@@ -847,7 +1112,7 @@ impl InGameWindow for ChatWindow {
                 });
                 (wr, mr, TextInputBg::Transparent)
             } else {
-                let wr = Rect::new(chat_x, input_y, WHISPER_INPUT_W , input_h);
+                let wr = Rect::new(chat_x, input_y, WHISPER_INPUT_W, input_h);
                 let msg_x = chat_x + (WHISPER_INPUT_W) + (INPUT_GAP);
                 let msg_w = chat_w - (WHISPER_INPUT_W) - (INPUT_GAP);
                 let mr = Rect::new(msg_x, input_y, msg_w, input_h);
@@ -864,7 +1129,12 @@ impl InGameWindow for ChatWindow {
             }
 
             // Whisper target input (left)
-            ui.text_input(WHISPER_INPUT_ID, whisper_rect, &mut self.whisper_target, input_bg);
+            ui.text_input(
+                WHISPER_INPUT_ID,
+                whisper_rect,
+                &mut self.whisper_target,
+                input_bg,
+            );
 
             // Message input (right)
             ui.text_input(INPUT_ID, msg_rect, &mut self.input, input_bg);
@@ -882,12 +1152,17 @@ mod tests {
     use crate::InGameWindow;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
+    use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-    use ragnarok_renderer::font_atlas::FontAtlas;
 
-    fn make_frame<'a>(ctx: &'a UiContext, atlas: &'a FontAtlas, state: &'a mut StateCache) -> UiFrame<'a> {
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+    fn make_frame<'a>(
+        ctx: &'a UiContext,
+        atlas: &'a FontAtlas,
+        state: &'a mut StateCache,
+    ) -> UiFrame<'a> {
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
@@ -1036,7 +1311,10 @@ mod tests {
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         chat.build(&mut ui, &mut character, &data);
-        let initial_h = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().msg_area_h;
+        let initial_h = state
+            .get::<ChatWindowState>(CHAT_WINDOW_ID)
+            .unwrap()
+            .msg_area_h;
 
         // Click on the height drag handle (at the boundary between msg area and toolbar)
         let handle_y = 600.0 - TOOLBAR_H - INPUT_H - PADDING;
@@ -1056,8 +1334,16 @@ mod tests {
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         chat.build(&mut ui, &mut character, &data);
 
-        let new_h = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().msg_area_h;
-        assert!(new_h > initial_h, "Height should increase when dragging up: {} > {}", new_h, initial_h);
+        let new_h = state
+            .get::<ChatWindowState>(CHAT_WINDOW_ID)
+            .unwrap()
+            .msg_area_h;
+        assert!(
+            new_h > initial_h,
+            "Height should increase when dragging up: {} > {}",
+            new_h,
+            initial_h
+        );
     }
 
     #[test]
@@ -1095,7 +1381,12 @@ mod tests {
         chat.build(&mut ui, &mut character, &data);
 
         let new_w = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().chat_w;
-        assert!(new_w > initial_w, "Width should increase when dragging right: {} > {}", new_w, initial_w);
+        assert!(
+            new_w > initial_w,
+            "Width should increase when dragging right: {} > {}",
+            new_w,
+            initial_w
+        );
     }
 
     #[test]
@@ -1131,7 +1422,12 @@ mod tests {
         chat.build(&mut ui, &mut character, &data);
 
         let w = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().chat_w;
-        assert!(w <= MAX_CHAT_W, "Width should be clamped to max: {} <= {}", w, MAX_CHAT_W);
+        assert!(
+            w <= MAX_CHAT_W,
+            "Width should be clamped to max: {} <= {}",
+            w,
+            MAX_CHAT_W
+        );
     }
 
     #[test]
@@ -1154,7 +1450,9 @@ mod tests {
         chat.build(&mut ui, &mut character, &data);
 
         // Manually set scroll_offset to a huge value
-        state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).scroll_offset = 500;
+        state
+            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+            .scroll_offset = 500;
 
         // Scroll up with mouse wheel while over chat - should clamp
         let rect = chat.bounding_rect.unwrap();
@@ -1165,10 +1463,18 @@ mod tests {
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         chat.build(&mut ui, &mut character, &data);
 
-        let offset = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().scroll_offset;
+        let offset = state
+            .get::<ChatWindowState>(CHAT_WINDOW_ID)
+            .unwrap()
+            .scroll_offset;
         let max_lines = (SIZE_CYCLE[DEFAULT_SIZE_INDEX] / LINE_H) as usize;
         let max_scroll = 50_usize.saturating_sub(max_lines);
-        assert!(offset <= max_scroll, "Scroll offset should be clamped: {} <= {}", offset, max_scroll);
+        assert!(
+            offset <= max_scroll,
+            "Scroll offset should be clamped: {} <= {}",
+            offset,
+            max_scroll
+        );
     }
 
     #[test]
@@ -1189,7 +1495,13 @@ mod tests {
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         chat.build(&mut ui, &mut character, &data);
 
-        assert_eq!(state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().scroll_offset, 0);
+        assert_eq!(
+            state
+                .get::<ChatWindowState>(CHAT_WINDOW_ID)
+                .unwrap()
+                .scroll_offset,
+            0
+        );
 
         // Scroll up (positive delta) while hovering over message area
         let rect = chat.bounding_rect.unwrap();
@@ -1200,7 +1512,10 @@ mod tests {
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         chat.build(&mut ui, &mut character, &data);
 
-        let offset = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().scroll_offset;
+        let offset = state
+            .get::<ChatWindowState>(CHAT_WINDOW_ID)
+            .unwrap()
+            .scroll_offset;
         assert_eq!(offset, 3, "Scroll offset should increase by 3");
     }
 
@@ -1208,35 +1523,65 @@ mod tests {
     fn filter_cycles_and_filters_messages() {
         let mut chat = ChatWindow::new();
         chat.add_chat("public msg".to_string());
-        chat.add_message("party msg".to_string(), [0.5, 0.5, 1.0, 1.0], ChatChannel::Party);
-        chat.add_message("guild msg".to_string(), [0.5, 1.0, 0.5, 1.0], ChatChannel::Guild);
+        chat.add_message(
+            "party msg".to_string(),
+            [0.5, 0.5, 1.0, 1.0],
+            ChatChannel::Party,
+        );
+        chat.add_message(
+            "guild msg".to_string(),
+            [0.5, 1.0, 0.5, 1.0],
+            ChatChannel::Guild,
+        );
         chat.add_system("system msg".to_string());
 
         let filter_all = ChatFilter::All;
-        assert_eq!(chat.messages.iter().filter(|m| filter_all.passes(m.channel)).count(), 4);
+        assert_eq!(
+            chat.messages
+                .iter()
+                .filter(|m| filter_all.passes(m.channel))
+                .count(),
+            4
+        );
 
         let filter_pub = ChatFilter::Public;
-        let pub_msgs: Vec<_> = chat.messages.iter().filter(|m| filter_pub.passes(m.channel)).collect();
+        let pub_msgs: Vec<_> = chat
+            .messages
+            .iter()
+            .filter(|m| filter_pub.passes(m.channel))
+            .collect();
         assert_eq!(pub_msgs.len(), 2); // public + system
         assert_eq!(pub_msgs[0].text, "public msg");
         assert_eq!(pub_msgs[1].text, "system msg");
 
         let filter_party = ChatFilter::Party;
-        let party_msgs: Vec<_> = chat.messages.iter().filter(|m| filter_party.passes(m.channel)).collect();
+        let party_msgs: Vec<_> = chat
+            .messages
+            .iter()
+            .filter(|m| filter_party.passes(m.channel))
+            .collect();
         assert_eq!(party_msgs.len(), 2); // party + system
 
         let filter_guild = ChatFilter::Guild;
-        let guild_msgs: Vec<_> = chat.messages.iter().filter(|m| filter_guild.passes(m.channel)).collect();
+        let guild_msgs: Vec<_> = chat
+            .messages
+            .iter()
+            .filter(|m| filter_guild.passes(m.channel))
+            .collect();
         assert_eq!(guild_msgs.len(), 2); // guild + system
     }
 
     #[test]
     fn filter_cycles_through_all_modes() {
         let mut f = ChatFilter::All;
-        f = f.next(); assert_eq!(f, ChatFilter::Public);
-        f = f.next(); assert_eq!(f, ChatFilter::Party);
-        f = f.next(); assert_eq!(f, ChatFilter::Guild);
-        f = f.next(); assert_eq!(f, ChatFilter::All);
+        f = f.next();
+        assert_eq!(f, ChatFilter::Public);
+        f = f.next();
+        assert_eq!(f, ChatFilter::Party);
+        f = f.next();
+        assert_eq!(f, ChatFilter::Guild);
+        f = f.next();
+        assert_eq!(f, ChatFilter::All);
     }
 
     #[test]
@@ -1254,7 +1599,9 @@ mod tests {
         chat.build(&mut ui, &mut character, &data);
 
         // Set locked
-        state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).locked = true;
+        state
+            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+            .locked = true;
         let initial_w = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().chat_w;
 
         // Try to drag width
@@ -1411,15 +1758,32 @@ mod tests {
         // Press Tab - should switch to whisper input
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_tab = true;
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
-        let mut ui = UiFrame::new(&ctx, &atlas, &mut state, 0.0, false, Some(INPUT_ID), positions);
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
+        let mut ui = UiFrame::new(
+            &ctx,
+            &atlas,
+            &mut state,
+            0.0,
+            false,
+            Some(INPUT_ID),
+            positions,
+        );
         chat.build(&mut ui, &mut character, &data);
         assert_eq!(ui.focused(), Some(WHISPER_INPUT_ID));
 
         // Press Tab again - should switch back to message input
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_tab = true;
-        let mut ui = UiFrame::new(&ctx, &atlas, &mut state, 0.0, false, Some(WHISPER_INPUT_ID), positions);
+        let mut ui = UiFrame::new(
+            &ctx,
+            &atlas,
+            &mut state,
+            0.0,
+            false,
+            Some(WHISPER_INPUT_ID),
+            positions,
+        );
         chat.build(&mut ui, &mut character, &data);
         assert_eq!(ui.focused(), Some(INPUT_ID));
     }

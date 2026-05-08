@@ -1,8 +1,8 @@
+use crate::Window;
+use crate::helper::dialog_container::DialogContainer;
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
-use crate::Window;
-use crate::helper::dialog_container::DialogContainer;
 
 pub const OK_BTN: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/btn_ok.bmp",
@@ -98,10 +98,18 @@ impl NumberInputDialog {
         self.input.text.parse().ok()
     }
 
-    pub fn win_id(&self) -> WidgetId { WidgetId(self.base_id.0 + ID_WINDOW) }
-    fn input_id(&self) -> WidgetId { WidgetId(self.base_id.0 + ID_INPUT) }
-    fn ok_id(&self) -> WidgetId { WidgetId(self.base_id.0 + ID_OK) }
-    fn cancel_id(&self) -> WidgetId { WidgetId(self.base_id.0 + ID_CANCEL) }
+    pub fn win_id(&self) -> WidgetId {
+        WidgetId(self.base_id.0 + ID_WINDOW)
+    }
+    fn input_id(&self) -> WidgetId {
+        WidgetId(self.base_id.0 + ID_INPUT)
+    }
+    fn ok_id(&self) -> WidgetId {
+        WidgetId(self.base_id.0 + ID_OK)
+    }
+    fn cancel_id(&self) -> WidgetId {
+        WidgetId(self.base_id.0 + ID_CANCEL)
+    }
 
     pub fn build(&mut self, ui: &mut UiFrame) -> NumberInputResult {
         if self.escape_cancels && ui.ctx.key_escape {
@@ -117,7 +125,8 @@ impl NumberInputDialog {
 
         // Background
         self.container.has_grf_textures = self.has_grf_textures;
-        self.container.draw(&mut ui.draw_calls, dx, dy, dw, dh, [1.0, 1.0, 1.0, 1.0]);
+        self.container
+            .draw(&mut ui.draw_calls, dx, dy, dw, dh, [1.0, 1.0, 1.0, 1.0]);
 
         let text_color = self.container.text_color();
 
@@ -131,9 +140,17 @@ impl NumberInputDialog {
 
         // Input + OK [+ Cancel]
         let (btn_w, btn_h) = self.btn_size;
-        let cancel_space = if self.show_cancel { btn_w + BTN_SPACING } else { 0.0 };
+        let cancel_space = if self.show_cancel {
+            btn_w + BTN_SPACING
+        } else {
+            0.0
+        };
         let input_w = dw - PADDING_X * 2.0 - btn_w - cancel_space - BTN_SPACING * 2.0;
-        let input_bg = if self.has_grf_textures { TextInputBg::Gray } else { TextInputBg::Default };
+        let input_bg = if self.has_grf_textures {
+            TextInputBg::Gray
+        } else {
+            TextInputBg::Default
+        };
 
         let input_id = self.input_id();
         let ok_id = self.ok_id();
@@ -163,12 +180,15 @@ impl NumberInputDialog {
 
         NumberInputResult::None
     }
-
 }
 
 impl Window for NumberInputDialog {
-    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
-    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+    fn has_grf_textures(&self) -> bool {
+        self.has_grf_textures
+    }
+    fn set_has_grf_textures(&mut self, value: bool) {
+        self.has_grf_textures = value;
+    }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(OK_BTN.normal) {
@@ -180,8 +200,12 @@ impl Window for NumberInputDialog {
     fn grf_texture_paths() -> Vec<&'static str> {
         let mut paths = DialogContainer::grf_texture_paths();
         paths.extend_from_slice(&[
-            OK_BTN.normal, OK_BTN.hover, OK_BTN.pressed,
-            CANCEL_BTN.normal, CANCEL_BTN.hover, CANCEL_BTN.pressed,
+            OK_BTN.normal,
+            OK_BTN.hover,
+            OK_BTN.pressed,
+            CANCEL_BTN.normal,
+            CANCEL_BTN.hover,
+            CANCEL_BTN.pressed,
         ]);
         paths
     }
@@ -190,14 +214,15 @@ impl Window for NumberInputDialog {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-    use ragnarok_renderer::font_atlas::FontAtlas;
 
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 

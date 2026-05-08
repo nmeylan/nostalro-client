@@ -1,12 +1,12 @@
 use crate::App;
-use models::enums::item::ItemType;
 use models::enums::EnumWithNumberValue;
+use models::enums::item::ItemType;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::entity::Entity;
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
 use ragnarok_game::item::Item;
-use ragnarok_ui_component::game::card_insert_dialog::{CardInsertDialog, EligibleItem};
 use ragnarok_ui_component::Window as UiWindow;
+use ragnarok_ui_component::game::card_insert_dialog::{CardInsertDialog, EligibleItem};
 
 impl App {
     pub(super) fn handle_inventory_normal_items(&mut self, items: Vec<NormalItemData>) {
@@ -118,7 +118,12 @@ impl App {
                 .character
                 .inventory
                 .update_wear_state(index, wear_location);
-            let item_type = self.game.character.inventory.get_item(index).map(|i| i.item_type);
+            let item_type = self
+                .game
+                .character
+                .inventory
+                .get_item(index)
+                .map(|i| i.item_type);
             if view_id != 0
                 && let Some(sprite_type) =
                     Entity::wear_location_to_sprite_type_for(wear_location, item_type)
@@ -197,9 +202,10 @@ impl App {
         dialog.open(card_index, card_name, eligible);
         dialog.has_grf_textures = self.game.card_insert_dialog_has_grf_textures;
         if dialog.has_grf_textures
-            && let Some(renderer) = &self.renderer {
-                dialog.set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
-            }
+            && let Some(renderer) = &self.renderer
+        {
+            dialog.set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
+        }
         let tex_paths = dialog.pending_texture_paths();
         self.game.card_insert_dialog = Some(dialog);
         self.preload_item_icons(tex_paths);

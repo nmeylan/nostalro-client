@@ -1,11 +1,11 @@
-use std::collections::{HashMap, HashSet};
-use std::fmt::Display;
 use crate::context::UiContext;
 use crate::draw::{self, DrawCall, TextureRef};
 use crate::rect::Rect;
 use crate::state::StateCache;
 use crate::text_input::TextInput;
 use ragnarok_renderer::font_atlas::FontAtlas;
+use std::collections::{HashMap, HashSet};
+use std::fmt::Display;
 
 #[derive(Clone, Copy)]
 pub enum TextInputBg<'a> {
@@ -69,11 +69,21 @@ pub struct Response {
 }
 
 impl Response {
-    pub fn clicked(&self) -> bool { self.clicked }
-    pub fn double_clicked(&self) -> bool { self.double_clicked }
-    pub fn right_clicked(&self) -> bool { self.right_clicked }
-    pub fn hovered(&self) -> bool { self.hovered }
-    pub fn has_focus(&self) -> bool { self.has_focus }
+    pub fn clicked(&self) -> bool {
+        self.clicked
+    }
+    pub fn double_clicked(&self) -> bool {
+        self.double_clicked
+    }
+    pub fn right_clicked(&self) -> bool {
+        self.right_clicked
+    }
+    pub fn hovered(&self) -> bool {
+        self.hovered
+    }
+    pub fn has_focus(&self) -> bool {
+        self.has_focus
+    }
 }
 
 pub const RESIZE_HANDLE_TEX: &str = "data/texture/유저인터페이스/btn_resize.bmp";
@@ -218,7 +228,10 @@ impl<'a> UiFrame<'a> {
             if let Some(pos) = z.order.iter().position(|&(id, _)| id == front_id) {
                 let entry = z.order.remove(pos);
                 // Move to end of its category
-                let insert_pos = z.order.iter().rposition(|&(_, o)| o == entry.1)
+                let insert_pos = z
+                    .order
+                    .iter()
+                    .rposition(|&(_, o)| o == entry.1)
                     .map(|p| p + 1)
                     .unwrap_or(z.order.len());
                 z.order.insert(insert_pos, entry);
@@ -251,7 +264,9 @@ impl<'a> UiFrame<'a> {
     pub fn compute_hovered_window(&mut self, z_order: &[WidgetId]) {
         self.z_order_snapshot = z_order.to_vec();
 
-        let wr = self.state.get_or_default::<WindowRects>(WINDOW_RECTS_STATE_ID);
+        let wr = self
+            .state
+            .get_or_default::<WindowRects>(WINDOW_RECTS_STATE_ID);
         wr.prev_rects = std::mem::take(&mut wr.current_rects);
         wr.prev_non_interactable = std::mem::take(&mut wr.non_interactable);
 
@@ -273,14 +288,18 @@ impl<'a> UiFrame<'a> {
     /// Mark the start of a window's widget building and record its rect for hit-testing.
     pub fn enter_window(&mut self, id: WidgetId, rect: Rect) {
         self.current_window = Some(id);
-        let wr = self.state.get_or_default::<WindowRects>(WINDOW_RECTS_STATE_ID);
+        let wr = self
+            .state
+            .get_or_default::<WindowRects>(WINDOW_RECTS_STATE_ID);
         wr.current_rects.insert(id, rect);
     }
 
     /// Mark a window as non-interactable (clicks pass through to windows behind it).
     pub fn enter_window_passthrough(&mut self, id: WidgetId, rect: Rect) {
         self.current_window = Some(id);
-        let wr = self.state.get_or_default::<WindowRects>(WINDOW_RECTS_STATE_ID);
+        let wr = self
+            .state
+            .get_or_default::<WindowRects>(WINDOW_RECTS_STATE_ID);
         wr.current_rects.insert(id, rect);
         wr.non_interactable.insert(id);
     }
@@ -311,13 +330,25 @@ impl<'a> UiFrame<'a> {
     }
 
     pub fn window(&mut self, id: WidgetId, w: f32, h: f32, title_bar_h: f32) -> Rect {
-        self.window_at(id, w, h, title_bar_h,
+        self.window_at(
+            id,
+            w,
+            h,
+            title_bar_h,
             ((self.ctx.screen_width - w) / 2.0).floor(),
             ((self.ctx.screen_height - h) / 2.0).floor(),
         )
     }
 
-    pub fn window_at(&mut self, id: WidgetId, w: f32, h: f32, title_bar_h: f32, default_x: f32, default_y: f32) -> Rect {
+    pub fn window_at(
+        &mut self,
+        id: WidgetId,
+        w: f32,
+        h: f32,
+        title_bar_h: f32,
+        default_x: f32,
+        default_y: f32,
+    ) -> Rect {
         let state = self.state.get_or_default::<WindowState>(id);
         if !state.initialized {
             if let Some(pos) = self.saved_positions.get(&id.0) {
@@ -331,7 +362,8 @@ impl<'a> UiFrame<'a> {
         }
 
         let title_bar = Rect::new(state.x, state.y, w, title_bar_h);
-        let wants_drag = self.ctx.mouse_clicked && title_bar.contains(self.ctx.mouse_x, self.ctx.mouse_y);
+        let wants_drag =
+            self.ctx.mouse_clicked && title_bar.contains(self.ctx.mouse_x, self.ctx.mouse_y);
         let drag_offset = if wants_drag {
             Some((self.ctx.mouse_x - state.x, self.ctx.mouse_y - state.y))
         } else {
@@ -355,7 +387,10 @@ impl<'a> UiFrame<'a> {
         self.enter_window(id, rect);
 
         let is_occluded = self.is_window_occluded(id);
-        if !is_occluded && self.ctx.mouse_clicked && rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) {
+        if !is_occluded
+            && self.ctx.mouse_clicked
+            && rect.contains(self.ctx.mouse_x, self.ctx.mouse_y)
+        {
             self.bring_to_front(id);
         }
 
@@ -394,11 +429,21 @@ impl<'a> UiFrame<'a> {
             self.focus = Some(id);
         }
         let has_focus = self.focus == Some(id);
-        Response { clicked, double_clicked, right_clicked, hovered, has_focus }
+        Response {
+            clicked,
+            double_clicked,
+            right_clicked,
+            hovered,
+            has_focus,
+        }
     }
 
     pub fn button(
-        &mut self, id: WidgetId, rect: Rect, textures: &ButtonTextures, fallback_label: &str,
+        &mut self,
+        id: WidgetId,
+        rect: Rect,
+        textures: &ButtonTextures,
+        fallback_label: &str,
     ) -> Response {
         let response = self.interact(id, rect);
         if response.hovered {
@@ -414,7 +459,8 @@ impl<'a> UiFrame<'a> {
             } else {
                 textures.normal
             };
-            let (verts, indices) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, [1.0, 1.0, 1.0, 1.0]);
+            let (verts, indices) =
+                draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, [1.0, 1.0, 1.0, 1.0]);
             self.draw_calls.push(DrawCall {
                 vertices: verts.to_vec(),
                 indices: indices.to_vec(),
@@ -454,9 +500,14 @@ impl<'a> UiFrame<'a> {
             let tw = self.atlas.measure_text(fallback_label);
             let tx = rect.x + (rect.w - tw) / 2.0;
             let ty = rect.y + rect.h - (self.atlas.line_height / 2.0);
-            let (v, i) = draw::text_vertices(fallback_label, tx, ty, [1.0, 1.0, 1.0, 1.0], self.atlas);
+            let (v, i) =
+                draw::text_vertices(fallback_label, tx, ty, [1.0, 1.0, 1.0, 1.0], self.atlas);
             if !v.is_empty() {
-                self.draw_calls.push(DrawCall { vertices: v, indices: i, texture: TextureRef::FontAtlas });
+                self.draw_calls.push(DrawCall {
+                    vertices: v,
+                    indices: i,
+                    texture: TextureRef::FontAtlas,
+                });
             }
         }
 
@@ -464,7 +515,11 @@ impl<'a> UiFrame<'a> {
     }
 
     pub fn text_input(
-        &mut self, id: WidgetId, rect: Rect, state: &mut TextInput, bg: TextInputBg,
+        &mut self,
+        id: WidgetId,
+        rect: Rect,
+        state: &mut TextInput,
+        bg: TextInputBg,
     ) -> Response {
         let response = self.interact(id, rect);
         if response.hovered {
@@ -499,7 +554,8 @@ impl<'a> UiFrame<'a> {
         let dark_text = !matches!(bg, TextInputBg::Default);
         match bg {
             TextInputBg::Texture(tex_name) => {
-                let (verts, indices) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, [1.0, 1.0, 1.0, 1.0]);
+                let (verts, indices) =
+                    draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, [1.0, 1.0, 1.0, 1.0]);
                 self.draw_calls.push(DrawCall {
                     vertices: verts.to_vec(),
                     indices: indices.to_vec(),
@@ -512,7 +568,8 @@ impl<'a> UiFrame<'a> {
                 } else {
                     [0.1, 0.1, 0.15, 1.0]
                 };
-                let (verts, indices) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, bg_color);
+                let (verts, indices) =
+                    draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, bg_color);
                 self.draw_calls.push(DrawCall {
                     vertices: verts.to_vec(),
                     indices: indices.to_vec(),
@@ -540,8 +597,9 @@ impl<'a> UiFrame<'a> {
                 }
             }
             TextInputBg::Gray => {
-               let bg_color = [0.15, 0.15, 0.2, 0.3];
-                let (verts, indices) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, bg_color);
+                let bg_color = [0.15, 0.15, 0.2, 0.3];
+                let (verts, indices) =
+                    draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, bg_color);
                 self.draw_calls.push(DrawCall {
                     vertices: verts.to_vec(),
                     indices: indices.to_vec(),
@@ -567,7 +625,11 @@ impl<'a> UiFrame<'a> {
         let clip_right = rect.x + rect.w - padding;
 
         if !text.is_empty() {
-            let text_color = if dark_text { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
+            let text_color = if dark_text {
+                [0.0, 0.0, 0.0, 1.0]
+            } else {
+                [1.0, 1.0, 1.0, 1.0]
+            };
             let (verts, indices) = draw::text_vertices_clipped(
                 &text, text_x, text_y, text_color, self.atlas, clip_left, clip_right,
             );
@@ -584,8 +646,13 @@ impl<'a> UiFrame<'a> {
         if response.has_focus && (self.elapsed_secs % 1.0) < 0.5 {
             let cursor_x = (text_x + cursor_px).clamp(clip_left, clip_right);
             let caret_y = rect.y + (rect.h - self.atlas.ascent) / 2.0;
-            let caret_color = if dark_text { [0.0, 0.0, 0.0, 1.0] } else { [1.0, 1.0, 1.0, 1.0] };
-            let (v, i) = draw::quad_vertices(cursor_x, caret_y, 1.0, self.atlas.ascent, caret_color);
+            let caret_color = if dark_text {
+                [0.0, 0.0, 0.0, 1.0]
+            } else {
+                [1.0, 1.0, 1.0, 1.0]
+            };
+            let (v, i) =
+                draw::quad_vertices(cursor_x, caret_y, 1.0, self.atlas.ascent, caret_color);
             self.draw_calls.push(DrawCall {
                 vertices: v.to_vec(),
                 indices: i.to_vec(),
@@ -599,7 +666,11 @@ impl<'a> UiFrame<'a> {
     pub fn text(&mut self, x: f32, y: f32, content: &str, color: [f32; 4]) {
         let (v, i) = draw::text_vertices(content, x, y, color, self.atlas);
         if !v.is_empty() {
-            self.draw_calls.push(DrawCall { vertices: v, indices: i, texture: TextureRef::FontAtlas });
+            self.draw_calls.push(DrawCall {
+                vertices: v,
+                indices: i,
+                texture: TextureRef::FontAtlas,
+            });
         }
     }
 
@@ -617,7 +688,11 @@ impl<'a> UiFrame<'a> {
     pub fn colored_text(&mut self, x: f32, y: f32, content: &str, default_color: [f32; 4]) {
         let (v, i) = draw::colored_text_vertices(content, x, y, default_color, self.atlas);
         if !v.is_empty() {
-            self.draw_calls.push(DrawCall { vertices: v, indices: i, texture: TextureRef::FontAtlas });
+            self.draw_calls.push(DrawCall {
+                vertices: v,
+                indices: i,
+                texture: TextureRef::FontAtlas,
+            });
         }
     }
 
@@ -627,11 +702,25 @@ impl<'a> UiFrame<'a> {
         let pad = 4.0;
         let tx = anchor_x + 12.0;
         let ty = anchor_y + 8.0;
-        let (v, idx) = draw::quad_vertices(tx - pad, ty, tw + pad * 2.0, th + pad * 2.0, [0.0, 0.0, 0.0, 0.85]);
-        self.tooltip_draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
+        let (v, idx) = draw::quad_vertices(
+            tx - pad,
+            ty,
+            tw + pad * 2.0,
+            th + pad * 2.0,
+            [0.0, 0.0, 0.0, 0.85],
+        );
+        self.tooltip_draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: idx.to_vec(),
+            texture: TextureRef::White,
+        });
         let (v, i) = draw::text_vertices(text, tx, ty + th, [1.0, 1.0, 1.0, 1.0], self.atlas);
         if !v.is_empty() {
-            self.tooltip_draw_calls.push(DrawCall { vertices: v, indices: i, texture: TextureRef::FontAtlas });
+            self.tooltip_draw_calls.push(DrawCall {
+                vertices: v,
+                indices: i,
+                texture: TextureRef::FontAtlas,
+            });
         }
     }
 
@@ -650,7 +739,8 @@ impl<'a> UiFrame<'a> {
     /// Tracks drag state on a rect, returns pixel delta from drag start.
     /// No drawing — caller renders their own visual. Pass `enabled=false` to prevent new drags.
     pub fn drag_handle(&mut self, id: WidgetId, rect: Rect, enabled: bool) -> DragResponse {
-        let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) && !self.is_current_window_occluded();
+        let hovered =
+            rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) && !self.is_current_window_occluded();
         if hovered {
             self.any_hovered = true;
             self.any_interactive_hovered = true;
@@ -670,13 +760,22 @@ impl<'a> UiFrame<'a> {
         }
 
         let (delta_x, delta_y) = if state.dragging {
-            (self.ctx.mouse_x - state.start_mouse_x, self.ctx.mouse_y - state.start_mouse_y)
+            (
+                self.ctx.mouse_x - state.start_mouse_x,
+                self.ctx.mouse_y - state.start_mouse_y,
+            )
         } else {
             (0.0, 0.0)
         };
         let dragging = state.dragging;
 
-        DragResponse { delta_x, delta_y, started, dragging, hovered }
+        DragResponse {
+            delta_x,
+            delta_y,
+            started,
+            dragging,
+            hovered,
+        }
     }
 
     /// Corner resize handle with GRF texture or fallback visual.
@@ -692,7 +791,11 @@ impl<'a> UiFrame<'a> {
                 texture: TextureRef::Named(RESIZE_HANDLE_TEX.to_string()),
             });
         } else {
-            let c = if resp.hovered { [0.7, 0.7, 0.8, 1.0] } else { [0.4, 0.4, 0.5, 1.0] };
+            let c = if resp.hovered {
+                [0.7, 0.7, 0.8, 1.0]
+            } else {
+                [0.4, 0.4, 0.5, 1.0]
+            };
             let (v, i) = draw::quad_vertices(
                 rect.x + rect.w * 0.5,
                 rect.y + rect.h * 0.5,
@@ -712,8 +815,11 @@ impl<'a> UiFrame<'a> {
 
     /// Call on mouse_clicked over a draggable widget to begin tracking a potential drag.
     pub fn drag_source(
-        &mut self, source_id: WidgetId, item_index: usize,
-        icon_texture: Option<String>, icon_size: (f32, f32),
+        &mut self,
+        source_id: WidgetId,
+        item_index: usize,
+        icon_texture: Option<String>,
+        icon_size: (f32, f32),
     ) {
         let drag = self.state.get_or_default::<DragState>(DRAG_STATE_ID);
         drag.pending = true;
@@ -743,7 +849,8 @@ impl<'a> UiFrame<'a> {
 
     /// Register a drop zone. Returns (source_id, item_index) when a drag is released over this rect.
     pub fn drop_zone(&mut self, rect: Rect) -> Option<(WidgetId, usize)> {
-        let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) && !self.is_current_window_occluded();
+        let hovered =
+            rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) && !self.is_current_window_occluded();
         let drag = self.state.get_or_default::<DragState>(DRAG_STATE_ID);
         if drag.active && !self.ctx.mouse_down && hovered {
             let result = (drag.source_id, drag.item_index);
@@ -764,7 +871,10 @@ impl<'a> UiFrame<'a> {
         }
         if !self.ctx.mouse_down {
             let cancelled = if drag.active {
-                Some(DragCancelledInfo { source_id: drag.source_id, item_index: drag.item_index })
+                Some(DragCancelledInfo {
+                    source_id: drag.source_id,
+                    item_index: drag.item_index,
+                })
             } else {
                 None
             };
@@ -789,7 +899,8 @@ impl<'a> UiFrame<'a> {
             if let Some(tex) = icon {
                 let (v, i) = draw::quad_vertices(x, y, w, h, [1.0, 1.0, 1.0, 0.8]);
                 self.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(), indices: i.to_vec(),
+                    vertices: v.to_vec(),
+                    indices: i.to_vec(),
                     texture: TextureRef::Named(tex),
                 });
             }
@@ -805,7 +916,12 @@ mod tests {
     use crate::state::StateCache;
     use ragnarok_renderer::font_atlas::FontAtlas;
 
-    fn make_frame<'a>(ctx: &'a UiContext, atlas: &'a FontAtlas, state: &'a mut StateCache, saved_positions: &'a HashMap<u32, [f32; 2]>) -> UiFrame<'a> {
+    fn make_frame<'a>(
+        ctx: &'a UiContext,
+        atlas: &'a FontAtlas,
+        state: &'a mut StateCache,
+        saved_positions: &'a HashMap<u32, [f32; 2]>,
+    ) -> UiFrame<'a> {
         UiFrame::new(ctx, atlas, state, 0.0, false, None, saved_positions)
     }
 
@@ -1050,7 +1166,11 @@ mod tests {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let rect = Rect::new(10.0, 10.0, 100.0, 30.0);
-        let textures = ButtonTextures { normal: "n", hover: "h", pressed: "p" };
+        let textures = ButtonTextures {
+            normal: "n",
+            hover: "h",
+            pressed: "p",
+        };
         let positions = HashMap::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -1149,7 +1269,13 @@ mod tests {
         let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let cancelled = ui.draw_drag_icon();
         assert!(!ui.is_dragging());
-        assert_eq!(cancelled, Some(DragCancelledInfo { source_id: source, item_index: 0 }));
+        assert_eq!(
+            cancelled,
+            Some(DragCancelledInfo {
+                source_id: source,
+                item_index: 0
+            })
+        );
     }
 
     #[test]
@@ -1288,8 +1414,14 @@ mod tests {
         ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
         let widget_in_a = WidgetId(101);
         let r = ui.interact(widget_in_a, Rect::new(100.0, 100.0, 100.0, 50.0));
-        assert!(!r.hovered(), "widget in background window should not be hovered");
-        assert!(!r.clicked(), "widget in background window should not be clicked");
+        assert!(
+            !r.hovered(),
+            "widget in background window should not be hovered"
+        );
+        assert!(
+            !r.clicked(),
+            "widget in background window should not be clicked"
+        );
 
         ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
         let widget_in_b = WidgetId(201);
@@ -1324,8 +1456,14 @@ mod tests {
         ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
         let widget_in_a = WidgetId(101);
         let r = ui.interact(widget_in_a, Rect::new(60.0, 100.0, 80.0, 50.0));
-        assert!(r.hovered(), "widget in non-overlapping area should be hovered");
-        assert!(r.clicked(), "widget in non-overlapping area should be clicked");
+        assert!(
+            r.hovered(),
+            "widget in non-overlapping area should be hovered"
+        );
+        assert!(
+            r.clicked(),
+            "widget in non-overlapping area should be clicked"
+        );
     }
 
     #[test]
@@ -1393,11 +1531,17 @@ mod tests {
 
         ui.enter_window(id_mid, Rect::new(50.0, 50.0, 200.0, 150.0));
         let r = ui.interact(WidgetId(101), Rect::new(60.0, 60.0, 100.0, 50.0));
-        assert!(!r.clicked(), "widget in Middle window should be blocked by Foreground");
+        assert!(
+            !r.clicked(),
+            "widget in Middle window should be blocked by Foreground"
+        );
 
         ui.enter_window(id_fg, Rect::new(50.0, 50.0, 200.0, 150.0));
         let r = ui.interact(WidgetId(201), Rect::new(60.0, 60.0, 100.0, 50.0));
-        assert!(r.clicked(), "widget in Foreground window should be clickable");
+        assert!(
+            r.clicked(),
+            "widget in Foreground window should be clickable"
+        );
     }
 
     #[test]
@@ -1427,8 +1571,14 @@ mod tests {
 
         ui.enter_window(id_win, Rect::new(50.0, 50.0, 200.0, 150.0));
         let r = ui.interact(WidgetId(101), Rect::new(80.0, 80.0, 100.0, 30.0));
-        assert!(r.hovered(), "widget below passthrough window should be hovered");
-        assert!(r.clicked(), "widget below passthrough window should be clickable");
+        assert!(
+            r.hovered(),
+            "widget below passthrough window should be hovered"
+        );
+        assert!(
+            r.clicked(),
+            "widget below passthrough window should be clickable"
+        );
     }
 
     #[test]
@@ -1466,7 +1616,10 @@ mod tests {
         ui.enter_window(id_modal, Rect::new(300.0, 300.0, 100.0, 100.0));
         // Mouse is NOT over the modal window, so it shouldn't be hovered
         let r = ui.interact(WidgetId(201), Rect::new(310.0, 310.0, 50.0, 50.0));
-        assert!(!r.hovered(), "modal widget not under mouse should not be hovered");
+        assert!(
+            !r.hovered(),
+            "modal widget not under mouse should not be hovered"
+        );
     }
 
     #[test]

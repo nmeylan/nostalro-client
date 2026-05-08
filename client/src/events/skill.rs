@@ -38,7 +38,9 @@ impl App {
             ActionType::Skill if count > 1 => count as u16,
             _ => 1,
         };
-        tracing::info!("SkillDamage: skill_id={skill_id}, src_gid={src_gid}, count={count}, action={action:?}, effective_count={effective_count}");
+        tracing::info!(
+            "SkillDamage: skill_id={skill_id}, src_gid={src_gid}, count={count}, action={action:?}, effective_count={effective_count}"
+        );
 
         let suppress_flinch = matches!(
             action,
@@ -64,11 +66,13 @@ impl App {
         // Show chat bubble on caster (e.g., "SM_BASH !!")
         if let Some(name) = skill_name
             && let Some(entity) = self.game.entities.get_mut(src_gid)
-                && entity.entity_type != ragnarok_game::entity::EntityType::Monster {
-                    entity.chat_bubble = Some(ragnarok_game::entity::ChatBubbleState::new(
-                        format!("{} !!", name),
-                    ));
-                }
+            && entity.entity_type != ragnarok_game::entity::EntityType::Monster
+        {
+            entity.chat_bubble = Some(ragnarok_game::entity::ChatBubbleState::new(format!(
+                "{} !!",
+                name
+            )));
+        }
 
         let delay_time = (attack_mt as f32 / 2000.0).max(0.0);
         let per_hit_damage = if effective_count > 1 && damage > 0 {
@@ -108,7 +112,9 @@ impl App {
         let replays_caster = skill_id == SkillEnum::AsSonicblow.id() as u16
             || skill_id == SkillEnum::ChChaincrush.id() as u16
             || skill_id == SkillEnum::CgArrowvulcan.id() as u16;
-        tracing::info!("SkillDamage replay check: replays_caster={replays_caster}, effective_count={effective_count}");
+        tracing::info!(
+            "SkillDamage replay check: replays_caster={replays_caster}, effective_count={effective_count}"
+        );
         if replays_caster && effective_count > 1 {
             if let Some(caster) = self.game.entities.get_mut(src_gid) {
                 for i in 1..effective_count {

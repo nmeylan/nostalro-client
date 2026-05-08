@@ -1,11 +1,11 @@
+use crate::helper::window_chrome::text_color;
+use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-use crate::{Window, InGameWindow};
-use crate::helper::window_chrome::text_color;
 
 pub const BASIC_INFO_WINDOW_ID: WidgetId = WidgetId(1400);
 const MINI_BTN_ID: WidgetId = WidgetId(1401);
@@ -96,7 +96,7 @@ const EXP_BAR_W: f32 = 100.0;
 const EXP_BAR_H: f32 = 4.0;
 
 // Menu buttons area (right side)
-const BUTTONS_RIGHT: f32 = 8.0;  // padding from right edge
+const BUTTONS_RIGHT: f32 = 8.0; // padding from right edge
 const BUTTONS_TOP: f32 = 18.0;
 const MENU_BTN_W: f32 = 30.0;
 const MENU_BTN_H: f32 = 20.0;
@@ -176,7 +176,8 @@ impl BasicInfoWindow {
         // Left cap
         let (v, i) = draw::quad_vertices(x, y, cap_w, cap_h, white);
         ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(), indices: i.to_vec(),
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
             texture: TextureRef::Named(left_tex.to_string()),
         });
 
@@ -184,7 +185,8 @@ impl BasicInfoWindow {
         if mid_w > 0.0 {
             let (v, i) = draw::quad_vertices(x + cap_w, y, mid_w, cap_h, white);
             ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(), indices: i.to_vec(),
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
                 texture: TextureRef::Named(mid_tex.to_string()),
             });
         }
@@ -192,7 +194,8 @@ impl BasicInfoWindow {
         // Right cap
         let (v, i) = draw::quad_vertices(x + cap_w + mid_w, y, cap_w, cap_h, white);
         ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(), indices: i.to_vec(),
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
             texture: TextureRef::Named(right_tex.to_string()),
         });
     }
@@ -211,52 +214,85 @@ impl BasicInfoWindow {
         // Background track
         let bg_color = [0.15, 0.15, 0.15, 0.9];
         let (v, i) = draw::quad_vertices(x, y, w, h, bg_color);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
 
         // Shadow
         if shadow_pct > 0.0 {
             let sw = (w * shadow_pct.clamp(0.0, 1.0)).max(0.0);
             let (v, i) = draw::quad_vertices(x, y, sw, h, shadow_color);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
         }
 
         // Fill
         if fill_pct > 0.0 {
             let fw = (w * fill_pct.clamp(0.0, 1.0)).max(0.0);
             let (v, i) = draw::quad_vertices(x, y, fw, h, fill_color);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
         }
     }
 
-    fn draw_exp_bar(
-        ui: &mut UiFrame,
-        x: f32,
-        y: f32,
-        fill_pct: f32,
-        grf: bool,
-    ) {
+    fn draw_exp_bar(ui: &mut UiFrame, x: f32, y: f32, fill_pct: f32, grf: bool) {
         if grf {
             // Border
             let border_color = [0.69, 0.69, 0.69, 1.0];
             let (v, i) = draw::quad_vertices(x, y, EXP_BAR_W + 2.0, EXP_BAR_H + 2.0, border_color);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
             // White bg
             let (v, i) = draw::quad_vertices(x + 1.0, y + 1.0, EXP_BAR_W, EXP_BAR_H, [1.0; 4]);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
         } else {
-            let (v, i) = draw::quad_vertices(x, y, EXP_BAR_W + 2.0, EXP_BAR_H + 2.0, [0.3, 0.3, 0.35, 0.9]);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            let (v, i) = draw::quad_vertices(
+                x,
+                y,
+                EXP_BAR_W + 2.0,
+                EXP_BAR_H + 2.0,
+                [0.3, 0.3, 0.35, 0.9],
+            );
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
         }
         // Fill
         if fill_pct > 0.0 {
             let fw = (EXP_BAR_W * fill_pct.clamp(0.0, 1.0)).floor();
             let fill_color = [0.26, 0.38, 0.65, 1.0]; // #4262a5
             let (v, i) = draw::quad_vertices(x + 1.0, y + 1.0, fw, EXP_BAR_H, fill_color);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
         }
     }
 
-    fn build_large(&mut self, ui: &mut UiFrame, character: &mut Character, win: Rect) -> Vec<GameEvent> {
+    fn build_large(
+        &mut self,
+        ui: &mut UiFrame,
+        character: &mut Character,
+        win: Rect,
+    ) -> Vec<GameEvent> {
         let mut events = Vec::new();
         let grf = self.has_grf_textures;
         let tc = text_color(grf);
@@ -268,31 +304,55 @@ impl BasicInfoWindow {
         if grf && self.bg_size.0 > 0.0 {
             let (v, i) = draw::quad_vertices(x, y, self.bg_size.0, self.bg_size.1, [1.0; 4]);
             ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(), indices: i.to_vec(),
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
                 texture: TextureRef::Named(BG_TEX.to_string()),
             });
         } else {
             let (v, i) = draw::quad_vertices(x, y, WIN_W, WIN_H_LARGE, [0.12, 0.12, 0.18, 0.92]);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
             let bc = [0.4, 0.4, 0.5, 1.0];
             for (bx, by, bw, bh) in [
-                (x, y, WIN_W, 1.0), (x, y, 1.0, WIN_H_LARGE),
-                (x + WIN_W - 1.0, y, 1.0, WIN_H_LARGE), (x, y + WIN_H_LARGE - 1.0, WIN_W, 1.0),
+                (x, y, WIN_W, 1.0),
+                (x, y, 1.0, WIN_H_LARGE),
+                (x + WIN_W - 1.0, y, 1.0, WIN_H_LARGE),
+                (x, y + WIN_H_LARGE - 1.0, WIN_W, 1.0),
             ] {
                 let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: i.to_vec(),
+                    texture: TextureRef::White,
+                });
             }
         }
 
         // Close button (top-left)
         let close_rect = Rect::new(x + 4.0, y + 3.0, self.sys_btn_size.0, self.sys_btn_size.1);
         let close_resp = ui.interact(CLOSE_BTN_ID, close_rect);
-        if close_resp.hovered() { ui.any_interactive_hovered = true; }
+        if close_resp.hovered() {
+            ui.any_interactive_hovered = true;
+        }
         if grf {
-            let tex = if close_resp.hovered() { SYS_BASE_ON } else { SYS_BASE_OFF };
-            let (v, i) = draw::quad_vertices(close_rect.x, close_rect.y, self.sys_btn_size.0, self.sys_btn_size.1, [1.0; 4]);
+            let tex = if close_resp.hovered() {
+                SYS_BASE_ON
+            } else {
+                SYS_BASE_OFF
+            };
+            let (v, i) = draw::quad_vertices(
+                close_rect.x,
+                close_rect.y,
+                self.sys_btn_size.0,
+                self.sys_btn_size.1,
+                [1.0; 4],
+            );
             ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(), indices: i.to_vec(),
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
                 texture: TextureRef::Named(tex.to_string()),
             });
         }
@@ -301,26 +361,58 @@ impl BasicInfoWindow {
         ui.text(x + 18.0, y + 13.0, "Basic Info", tc);
 
         // Minimize button (top-right)
-        let mini_rect = Rect::new(x + WIN_W - 2.0 - self.sys_btn_size.0, y + 3.0, self.sys_btn_size.0, self.sys_btn_size.1);
+        let mini_rect = Rect::new(
+            x + WIN_W - 2.0 - self.sys_btn_size.0,
+            y + 3.0,
+            self.sys_btn_size.0,
+            self.sys_btn_size.1,
+        );
         let mini_resp = ui.interact(MINI_BTN_ID, mini_rect);
-        if mini_resp.hovered() { ui.any_interactive_hovered = true; }
-        if mini_resp.clicked() { self.minimized = true; }
+        if mini_resp.hovered() {
+            ui.any_interactive_hovered = true;
+        }
+        if mini_resp.clicked() {
+            self.minimized = true;
+        }
         if grf {
-            let tex = if mini_resp.hovered() { SYS_MINI_ON } else { SYS_MINI_OFF };
-            let (v, i) = draw::quad_vertices(mini_rect.x, mini_rect.y, self.sys_btn_size.0, self.sys_btn_size.1, [1.0; 4]);
+            let tex = if mini_resp.hovered() {
+                SYS_MINI_ON
+            } else {
+                SYS_MINI_OFF
+            };
+            let (v, i) = draw::quad_vertices(
+                mini_rect.x,
+                mini_rect.y,
+                self.sys_btn_size.0,
+                self.sys_btn_size.1,
+                [1.0; 4],
+            );
             ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(), indices: i.to_vec(),
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
                 texture: TextureRef::Named(tex.to_string()),
             });
         } else {
-            let c = if mini_resp.hovered() { [0.8, 0.8, 0.9, 1.0] } else { [0.5, 0.5, 0.6, 1.0] };
+            let c = if mini_resp.hovered() {
+                [0.8, 0.8, 0.9, 1.0]
+            } else {
+                [0.5, 0.5, 0.6, 1.0]
+            };
             let (v, i) = draw::quad_vertices(mini_rect.x, mini_rect.y, 11.0, 11.0, c);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
             ui.text(mini_rect.x + 2.0, mini_rect.y + 9.0, "_", tc);
         }
 
         // Name (left side)
-        let name = if character.name.is_empty() { "Unknown" } else { &character.name };
+        let name = if character.name.is_empty() {
+            "Unknown"
+        } else {
+            &character.name
+        };
         ui.text(x + 10.0, y + 30.0, name, tc);
 
         // Job name (left side, below name)
@@ -334,19 +426,50 @@ impl BasicInfoWindow {
 
         ui.text(x + 90.0, y + 39.0, "HP", tc);
         if grf {
-            Self::draw_bar_grf(ui, x + HP_BAR_X, y + HP_BAR_Y, hp_pct, is_red, self.bar_cap_size);
+            Self::draw_bar_grf(
+                ui,
+                x + HP_BAR_X,
+                y + HP_BAR_Y,
+                hp_pct,
+                is_red,
+                self.bar_cap_size,
+            );
         } else {
-            let hp_fill = if is_red { [0.8, 0.2, 0.2, 1.0] } else { [0.2, 0.4, 0.8, 1.0] };
-            Self::draw_bar_fallback(ui, x + HP_BAR_X, y + HP_BAR_Y, BAR_W, BAR_H, hp_pct, self.hp_shadow, hp_fill, [0.4, 0.4, 0.6, 0.7]);
+            let hp_fill = if is_red {
+                [0.8, 0.2, 0.2, 1.0]
+            } else {
+                [0.2, 0.4, 0.8, 1.0]
+            };
+            Self::draw_bar_fallback(
+                ui,
+                x + HP_BAR_X,
+                y + HP_BAR_Y,
+                BAR_W,
+                BAR_H,
+                hp_pct,
+                self.hp_shadow,
+                hp_fill,
+                [0.4, 0.4, 0.6, 0.7],
+            );
         }
         // HP text centered below bar
         let hp_text = format!("{} / {}", character.hp, character.max_hp);
-        ui.text_centered(x + HP_BAR_X, y + HP_BAR_Y + BAR_H + 1.0, BAR_W, &hp_text, tc);
+        ui.text_centered(
+            x + HP_BAR_X,
+            y + HP_BAR_Y + BAR_H + 1.0,
+            BAR_W,
+            &hp_text,
+            tc,
+        );
 
         // HP tooltip
         let hp_bar_rect = Rect::new(x + HP_BAR_X, y + HP_BAR_Y, BAR_W, BAR_H + 10.0);
         if hp_bar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
-            ui.tooltip(ui.ctx.mouse_x, ui.ctx.mouse_y, &format!("HP: {} / {}", character.hp, character.max_hp));
+            ui.tooltip(
+                ui.ctx.mouse_x,
+                ui.ctx.mouse_y,
+                &format!("HP: {} / {}", character.hp, character.max_hp),
+            );
         }
 
         // SP bar
@@ -355,17 +478,44 @@ impl BasicInfoWindow {
 
         ui.text(x + 90.0, y + 59.0, "SP", tc);
         if grf {
-            Self::draw_bar_grf(ui, x + HP_BAR_X, y + SP_BAR_Y, sp_pct, false, self.bar_cap_size);
+            Self::draw_bar_grf(
+                ui,
+                x + HP_BAR_X,
+                y + SP_BAR_Y,
+                sp_pct,
+                false,
+                self.bar_cap_size,
+            );
         } else {
             let sp_fill = [0.2, 0.7, 0.3, 1.0];
-            Self::draw_bar_fallback(ui, x + HP_BAR_X, y + SP_BAR_Y, BAR_W, BAR_H, sp_pct, self.sp_shadow, sp_fill, [0.3, 0.5, 0.3, 0.7]);
+            Self::draw_bar_fallback(
+                ui,
+                x + HP_BAR_X,
+                y + SP_BAR_Y,
+                BAR_W,
+                BAR_H,
+                sp_pct,
+                self.sp_shadow,
+                sp_fill,
+                [0.3, 0.5, 0.3, 0.7],
+            );
         }
         let sp_text = format!("{} / {}", character.sp, character.max_sp);
-        ui.text_centered(x + HP_BAR_X, y + SP_BAR_Y + BAR_H + 1.0, BAR_W, &sp_text, tc);
+        ui.text_centered(
+            x + HP_BAR_X,
+            y + SP_BAR_Y + BAR_H + 1.0,
+            BAR_W,
+            &sp_text,
+            tc,
+        );
 
         let sp_bar_rect = Rect::new(x + HP_BAR_X, y + SP_BAR_Y, BAR_W, BAR_H + 10.0);
         if sp_bar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
-            ui.tooltip(ui.ctx.mouse_x, ui.ctx.mouse_y, &format!("SP: {} / {}", character.sp, character.max_sp));
+            ui.tooltip(
+                ui.ctx.mouse_x,
+                ui.ctx.mouse_y,
+                &format!("SP: {} / {}", character.sp, character.max_sp),
+            );
         }
 
         // Base Level + EXP bar
@@ -374,11 +524,25 @@ impl BasicInfoWindow {
         let base_exp_pct = character.base_exp_percentage();
         Self::draw_exp_bar(ui, x + EXP_BAR_X, y + EXP_BAR_Y, base_exp_pct, grf);
         let exp_text = format!("{:.1}%", (base_exp_pct * 1000.0).floor() * 0.1);
-        ui.text(x + EXP_BAR_X + EXP_BAR_W + 6.0, y + EXP_BAR_Y + EXP_BAR_H + 1.0, &exp_text, tc);
+        ui.text(
+            x + EXP_BAR_X + EXP_BAR_W + 6.0,
+            y + EXP_BAR_Y + EXP_BAR_H + 1.0,
+            &exp_text,
+            tc,
+        );
 
-        let exp_bar_rect = Rect::new(x + EXP_BAR_X, y + EXP_BAR_Y, EXP_BAR_W + 2.0, EXP_BAR_H + 2.0);
+        let exp_bar_rect = Rect::new(
+            x + EXP_BAR_X,
+            y + EXP_BAR_Y,
+            EXP_BAR_W + 2.0,
+            EXP_BAR_H + 2.0,
+        );
         if exp_bar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
-            ui.tooltip(ui.ctx.mouse_x, ui.ctx.mouse_y, &format!("Exp. {} / {}", character.base_exp, character.next_base_exp));
+            ui.tooltip(
+                ui.ctx.mouse_x,
+                ui.ctx.mouse_y,
+                &format!("Exp. {} / {}", character.base_exp, character.next_base_exp),
+            );
         }
 
         // Job Level + EXP bar
@@ -387,18 +551,36 @@ impl BasicInfoWindow {
         let job_exp_pct = character.job_exp_percentage();
         Self::draw_exp_bar(ui, x + EXP_BAR_X, y + JEXP_BAR_Y, job_exp_pct, grf);
         let jexp_text = format!("{:.1}%", (job_exp_pct * 1000.0).floor() * 0.1);
-        ui.text(x + EXP_BAR_X + EXP_BAR_W + 6.0, y + JEXP_BAR_Y + EXP_BAR_H + 1.0, &jexp_text, tc);
+        ui.text(
+            x + EXP_BAR_X + EXP_BAR_W + 6.0,
+            y + JEXP_BAR_Y + EXP_BAR_H + 1.0,
+            &jexp_text,
+            tc,
+        );
 
-        let jexp_bar_rect = Rect::new(x + EXP_BAR_X, y + JEXP_BAR_Y, EXP_BAR_W + 2.0, EXP_BAR_H + 2.0);
+        let jexp_bar_rect = Rect::new(
+            x + EXP_BAR_X,
+            y + JEXP_BAR_Y,
+            EXP_BAR_W + 2.0,
+            EXP_BAR_H + 2.0,
+        );
         if jexp_bar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
-            ui.tooltip(ui.ctx.mouse_x, ui.ctx.mouse_y, &format!("JExp. {} / {}", character.job_exp, character.next_job_exp));
+            ui.tooltip(
+                ui.ctx.mouse_x,
+                ui.ctx.mouse_y,
+                &format!("JExp. {} / {}", character.job_exp, character.next_job_exp),
+            );
         }
 
         // Weight / Zeny line
         let weight = character.inventory.weight;
         let max_weight = character.inventory.max_weight;
         let weight_over = max_weight > 0 && weight as f32 / max_weight as f32 >= 0.5;
-        let weight_color = if weight_over { [1.0, 0.0, 0.0, 1.0] } else { tc };
+        let weight_color = if weight_over {
+            [1.0, 0.0, 0.0, 1.0]
+        } else {
+            tc
+        };
         let weight_text = format!("Weight : {} / {}", weight / 10, max_weight / 10);
         ui.text(x + 5.0, y + 115.0, &weight_text, weight_color);
 
@@ -414,13 +596,25 @@ impl BasicInfoWindow {
         let row_y = |row: usize| y + BUTTONS_TOP + row as f32 * (btn_h + MENU_BTN_SPACING_Y);
 
         let menu_buttons: &[(WidgetId, f32, f32, &ButtonTextures, &str)] = &[
-            (BTN_OPTION_ID,    col1_x, row_y(0), &BTN_OPTION, "Option"),
-            (BTN_STATUS_ID,    col2_x, row_y(0), &BTN_STATUS, "Status"),
-            (BTN_EQUIP_ID,     col1_x, row_y(1), &BTN_EQUIP,  "Equipment (Alt+Q)"),
-            (BTN_INVENTORY_ID, col2_x, row_y(1), &BTN_ITEM,   "Inventory (Alt+E)"),
-            (BTN_MAP_ID,       col1_x, row_y(2), &BTN_MAP,    "Map"),
-            (BTN_SKILL_ID,     col2_x, row_y(2), &BTN_SKILL,  "Skills (Alt+S)"),
-            (BTN_PARTY_ID,     col1_x, row_y(3), &BTN_PARTY,  "Party"),
+            (BTN_OPTION_ID, col1_x, row_y(0), &BTN_OPTION, "Option"),
+            (BTN_STATUS_ID, col2_x, row_y(0), &BTN_STATUS, "Status"),
+            (
+                BTN_EQUIP_ID,
+                col1_x,
+                row_y(1),
+                &BTN_EQUIP,
+                "Equipment (Alt+Q)",
+            ),
+            (
+                BTN_INVENTORY_ID,
+                col2_x,
+                row_y(1),
+                &BTN_ITEM,
+                "Inventory (Alt+E)",
+            ),
+            (BTN_MAP_ID, col1_x, row_y(2), &BTN_MAP, "Map"),
+            (BTN_SKILL_ID, col2_x, row_y(2), &BTN_SKILL, "Skills (Alt+S)"),
+            (BTN_PARTY_ID, col1_x, row_y(3), &BTN_PARTY, "Party"),
         ];
 
         for &(id, bx, by, textures, tooltip_text) in menu_buttons {
@@ -442,7 +636,12 @@ impl BasicInfoWindow {
         events
     }
 
-    fn build_small(&mut self, ui: &mut UiFrame, character: &mut Character, win: Rect) -> Vec<GameEvent> {
+    fn build_small(
+        &mut self,
+        ui: &mut UiFrame,
+        character: &mut Character,
+        win: Rect,
+    ) -> Vec<GameEvent> {
         let grf = self.has_grf_textures;
         let tc = text_color(grf);
         let x = win.x;
@@ -450,55 +649,105 @@ impl BasicInfoWindow {
 
         // Background
         if grf && self.bg_mini_size.0 > 0.0 {
-            let (v, i) = draw::quad_vertices(x, y, self.bg_mini_size.0, self.bg_mini_size.1, [1.0; 4]);
+            let (v, i) =
+                draw::quad_vertices(x, y, self.bg_mini_size.0, self.bg_mini_size.1, [1.0; 4]);
             ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(), indices: i.to_vec(),
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
                 texture: TextureRef::Named(BG_MINI_TEX.to_string()),
             });
         } else {
             let (v, i) = draw::quad_vertices(x, y, WIN_W, WIN_H_SMALL, [0.12, 0.12, 0.18, 0.92]);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
             let bc = [0.4, 0.4, 0.5, 1.0];
             for (bx, by, bw, bh) in [
-                (x, y, WIN_W, 1.0), (x, y, 1.0, WIN_H_SMALL),
-                (x + WIN_W - 1.0, y, 1.0, WIN_H_SMALL), (x, y + WIN_H_SMALL - 1.0, WIN_W, 1.0),
+                (x, y, WIN_W, 1.0),
+                (x, y, 1.0, WIN_H_SMALL),
+                (x + WIN_W - 1.0, y, 1.0, WIN_H_SMALL),
+                (x, y + WIN_H_SMALL - 1.0, WIN_W, 1.0),
             ] {
                 let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: i.to_vec(),
+                    texture: TextureRef::White,
+                });
             }
         }
 
         // Name (top-left)
-        let name = if character.name.is_empty() { "Unknown" } else { &character.name };
+        let name = if character.name.is_empty() {
+            "Unknown"
+        } else {
+            &character.name
+        };
         ui.text(x + 18.0, y + 12.0, name, tc);
 
         // Expand button (top-right)
-        let mini_rect = Rect::new(x + WIN_W - 2.0 - self.sys_btn_size.0, y + 3.0, self.sys_btn_size.0, self.sys_btn_size.1);
+        let mini_rect = Rect::new(
+            x + WIN_W - 2.0 - self.sys_btn_size.0,
+            y + 3.0,
+            self.sys_btn_size.0,
+            self.sys_btn_size.1,
+        );
         let mini_resp = ui.interact(MINI_BTN_ID, mini_rect);
-        if mini_resp.hovered() { ui.any_interactive_hovered = true; }
-        if mini_resp.clicked() { self.minimized = false; }
+        if mini_resp.hovered() {
+            ui.any_interactive_hovered = true;
+        }
+        if mini_resp.clicked() {
+            self.minimized = false;
+        }
         if grf {
-            let tex = if mini_resp.hovered() { SYS_MINI_ON } else { SYS_MINI_OFF };
-            let (v, i) = draw::quad_vertices(mini_rect.x, mini_rect.y, self.sys_btn_size.0, self.sys_btn_size.1, [1.0; 4]);
+            let tex = if mini_resp.hovered() {
+                SYS_MINI_ON
+            } else {
+                SYS_MINI_OFF
+            };
+            let (v, i) = draw::quad_vertices(
+                mini_rect.x,
+                mini_rect.y,
+                self.sys_btn_size.0,
+                self.sys_btn_size.1,
+                [1.0; 4],
+            );
             ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(), indices: i.to_vec(),
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
                 texture: TextureRef::Named(tex.to_string()),
             });
         } else {
-            let c = if mini_resp.hovered() { [0.8, 0.8, 0.9, 1.0] } else { [0.5, 0.5, 0.6, 1.0] };
+            let c = if mini_resp.hovered() {
+                [0.8, 0.8, 0.9, 1.0]
+            } else {
+                [0.5, 0.5, 0.6, 1.0]
+            };
             let (v, i) = draw::quad_vertices(mini_rect.x, mini_rect.y, 11.0, 11.0, c);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
             ui.text(mini_rect.x + 1.0, mini_rect.y + 9.0, "+", tc);
         }
 
         // Compact info line (top-right area)
         let job_name = character.job_class_name();
         let exp_pct = character.base_exp_percentage() * 100.0;
-        let info_text = format!("Lv.{} / {} / Lv.{} / Exp. {:.1}%", character.base_level, job_name, character.job_level, exp_pct);
+        let info_text = format!(
+            "Lv.{} / {} / Lv.{} / Exp. {:.1}%",
+            character.base_level, job_name, character.job_level, exp_pct
+        );
         ui.text_right(x + WIN_W - 18.0, y + 12.0, &info_text, tc);
 
         // HP / SP line
-        let hp_sp_text = format!("HP. {} / {} | SP. {} / {}", character.hp, character.max_hp, character.sp, character.max_sp);
+        let hp_sp_text = format!(
+            "HP. {} / {} | SP. {} / {}",
+            character.hp, character.max_hp, character.sp, character.max_sp
+        );
         ui.text_right(x + WIN_W - 5.0, y + 28.0, &hp_sp_text, tc);
 
         Vec::new()
@@ -506,8 +755,12 @@ impl BasicInfoWindow {
 }
 
 impl Window for BasicInfoWindow {
-    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
-    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+    fn has_grf_textures(&self) -> bool {
+        self.has_grf_textures
+    }
+    fn set_has_grf_textures(&mut self, value: bool) {
+        self.has_grf_textures = value;
+    }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(BG_TEX) {
@@ -529,18 +782,32 @@ impl Window for BasicInfoWindow {
 
     fn grf_texture_paths() -> Vec<&'static str> {
         vec![
-            BG_TEX, BG_MINI_TEX,
-            BAR_RED_LEFT, BAR_RED_MID, BAR_RED_RIGHT,
-            BAR_BLUE_LEFT, BAR_BLUE_MID, BAR_BLUE_RIGHT,
-            SYS_BASE_OFF, SYS_BASE_ON,
-            SYS_MINI_OFF, SYS_MINI_ON,
-            BTN_OPTION.normal, BTN_OPTION.hover,
-            BTN_STATUS.normal, BTN_STATUS.hover,
-            BTN_EQUIP.normal, BTN_EQUIP.hover,
-            BTN_ITEM.normal, BTN_ITEM.hover,
-            BTN_MAP.normal, BTN_MAP.hover,
-            BTN_SKILL.normal, BTN_SKILL.hover,
-            BTN_PARTY.normal, BTN_PARTY.hover,
+            BG_TEX,
+            BG_MINI_TEX,
+            BAR_RED_LEFT,
+            BAR_RED_MID,
+            BAR_RED_RIGHT,
+            BAR_BLUE_LEFT,
+            BAR_BLUE_MID,
+            BAR_BLUE_RIGHT,
+            SYS_BASE_OFF,
+            SYS_BASE_ON,
+            SYS_MINI_OFF,
+            SYS_MINI_ON,
+            BTN_OPTION.normal,
+            BTN_OPTION.hover,
+            BTN_STATUS.normal,
+            BTN_STATUS.hover,
+            BTN_EQUIP.normal,
+            BTN_EQUIP.hover,
+            BTN_ITEM.normal,
+            BTN_ITEM.hover,
+            BTN_MAP.normal,
+            BTN_MAP.hover,
+            BTN_SKILL.normal,
+            BTN_SKILL.hover,
+            BTN_PARTY.normal,
+            BTN_PARTY.hover,
         ]
     }
 }
@@ -555,7 +822,11 @@ impl InGameWindow for BasicInfoWindow {
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
 
-        let win_h = if self.minimized { WIN_H_SMALL } else { WIN_H_LARGE };
+        let win_h = if self.minimized {
+            WIN_H_SMALL
+        } else {
+            WIN_H_LARGE
+        };
         let win = ui.window_at(BASIC_INFO_WINDOW_ID, WIN_W, win_h, TITLE_H, 0.0, 0.0);
 
         let win_rect = Rect::new(win.x, win.y, WIN_W, win_h);

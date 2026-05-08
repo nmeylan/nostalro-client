@@ -52,7 +52,12 @@ impl ServerTimeClock {
     }
 
     /// Same as `on_server_tick` but uses RTT EMA for the half-RTT offset.
-    pub fn on_server_tick_enhanced(&mut self, server_tick: u32, local_now_ms: u32, local_send_time_ms: u32) {
+    pub fn on_server_tick_enhanced(
+        &mut self,
+        server_tick: u32,
+        local_now_ms: u32,
+        local_send_time_ms: u32,
+    ) {
         let rtt = local_now_ms.saturating_sub(local_send_time_ms);
         if rtt < 1000 {
             self.last_rtt = rtt;

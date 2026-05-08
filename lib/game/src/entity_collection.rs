@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::entity::{EntityType, EmotionState, Entity, EntityState};
+use crate::entity::{EmotionState, Entity, EntityState, EntityType};
 use crate::movement::direction_from_positions;
 
 pub struct EntityCollection {
@@ -174,13 +174,14 @@ impl EntityCollection {
     /// Shows a "SkillName !!" chat bubble on the entity.
     fn show_skill_chat_bubble(&mut self, gid: u32, skill_name: Option<String>) {
         if let Some(name) = skill_name
-            && let Some(entity) = self.entities.get_mut(&gid) {
-                // Only show for players/NPCs, not monsters
-                if entity.entity_type != EntityType::Monster {
-                    entity.chat_bubble =
-                        Some(crate::entity::ChatBubbleState::new(format!("{} !!", name)));
-                }
+            && let Some(entity) = self.entities.get_mut(&gid)
+        {
+            // Only show for players/NPCs, not monsters
+            if entity.entity_type != EntityType::Monster {
+                entity.chat_bubble =
+                    Some(crate::entity::ChatBubbleState::new(format!("{} !!", name)));
             }
+        }
     }
 
     pub fn apply_ground_skill(&mut self, skill_id: u16, src_gid: u32, x: i16, y: i16) {

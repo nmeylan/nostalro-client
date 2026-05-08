@@ -94,7 +94,10 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyTime>() {
-        return vec![GameEvent::ServerTick { server_tick: p.time, local_send_time_ms: 0 }];
+        return vec![GameEvent::ServerTick {
+            server_tick: p.time,
+            local_send_time_ms: 0,
+        }];
     }
 
     // Entity spawn packets
@@ -112,7 +115,9 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             head_mid: p.accessory3,
             head_bottom: p.accessory,
             hair_color: p.headpalette,
-            x, y, direction: dir,
+            x,
+            y,
+            direction: dir,
             body_state: p.body_state,
         }];
     }
@@ -130,7 +135,9 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             head_mid: p.accessory3 as u16,
             head_bottom: p.accessory as u16,
             hair_color: p.headpalette as u16,
-            x, y, direction: dir,
+            x,
+            y,
+            direction: dir,
             body_state: p.body_state,
         }];
     }
@@ -148,7 +155,9 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             head_mid: p.accessory3 as u16,
             head_bottom: p.accessory as u16,
             hair_color: p.headpalette as u16,
-            x, y, direction: dir,
+            x,
+            y,
+            direction: dir,
             body_state: p.body_state,
         }];
     }
@@ -167,7 +176,9 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             head_mid: p.accessory3,
             head_bottom: p.accessory,
             hair_color: p.headpalette,
-            x, y, direction: dir,
+            x,
+            y,
+            direction: dir,
             body_state: p.body_state,
         }];
     }
@@ -187,13 +198,17 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
                 head_mid: p.accessory3 as u16,
                 head_bottom: p.accessory as u16,
                 hair_color: p.headpalette as u16,
-                x: x1, y: y1, direction: 0,
+                x: x1,
+                y: y1,
+                direction: 0,
                 body_state: p.body_state,
             },
             GameEvent::EntityMoved {
                 gid: p.gid,
-                start_x: x1, start_y: y1,
-                dest_x: x2, dest_y: y2,
+                start_x: x1,
+                start_y: y1,
+                dest_x: x2,
+                dest_y: y2,
                 start_time: p.move_start_time,
             },
         ];
@@ -204,8 +219,10 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         let (x1, y1, x2, y2) = decode_pos2(&p.move_data);
         return vec![GameEvent::EntityMoved {
             gid: p.gid,
-            start_x: x1, start_y: y1,
-            dest_x: x2, dest_y: y2,
+            start_x: x1,
+            start_y: y1,
+            dest_x: x2,
+            dest_y: y2,
             start_time: p.move_start_time,
         }];
     }
@@ -270,7 +287,10 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     // Chat messages
     if let Some(p) = any.downcast_ref::<PacketZcNotifyChat>() {
         let message: String = p.msg.chars().take_while(|c| *c != '\0').collect();
-        return vec![GameEvent::ChatMessage { gid: p.gid, message }];
+        return vec![GameEvent::ChatMessage {
+            gid: p.gid,
+            message,
+        }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyPlayerchat>() {
         let message: String = p.msg.chars().take_while(|c| *c != '\0').collect();
@@ -285,15 +305,24 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
 
     // Entity despawn
     if let Some(p) = any.downcast_ref::<PacketZcNotifyVanish>() {
-        return vec![GameEvent::EntityVanished { gid: p.gid, vanish_type: VanishType::from_value(p.atype as usize) }];
+        return vec![GameEvent::EntityVanished {
+            gid: p.gid,
+            vanish_type: VanishType::from_value(p.atype as usize),
+        }];
     }
 
     // Character stats & parameters
     if let Some(p) = any.downcast_ref::<PacketZcParChange>() {
-        return vec![GameEvent::ParameterChanged { var_id: p.var_id, value: p.count }];
+        return vec![GameEvent::ParameterChanged {
+            var_id: p.var_id,
+            value: p.count,
+        }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcLongparChange>() {
-        return vec![GameEvent::ParameterChanged { var_id: p.var_id, value: p.amount }];
+        return vec![GameEvent::ParameterChanged {
+            var_id: p.var_id,
+            value: p.amount,
+        }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcStatusValues>() {
         return vec![GameEvent::StatusChanged {
@@ -312,7 +341,9 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcAttackRange>() {
-        return vec![GameEvent::AttackRangeChanged { range: p.current_att_range }];
+        return vec![GameEvent::AttackRangeChanged {
+            range: p.current_att_range,
+        }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcSpriteChange2>() {
         return vec![GameEvent::EntitySpriteChanged {
@@ -449,7 +480,10 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     // NPC dialog
     if let Some(p) = any.downcast_ref::<PacketZcSayDialog>() {
         let text: String = p.msg.chars().take_while(|c| *c != '\0').collect();
-        return vec![GameEvent::NpcDialogText { npc_id: p.naid, text }];
+        return vec![GameEvent::NpcDialogText {
+            npc_id: p.naid,
+            text,
+        }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcWaitDialog>() {
         return vec![GameEvent::NpcDialogNext { npc_id: p.naid }];
@@ -459,11 +493,15 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcMenuList>() {
         let raw_msg: String = p.msg.chars().take_while(|c| *c != '\0').collect();
-        let items: Vec<String> = raw_msg.split(':')
+        let items: Vec<String> = raw_msg
+            .split(':')
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
             .collect();
-        return vec![GameEvent::NpcDialogMenu { npc_id: p.naid, items }];
+        return vec![GameEvent::NpcDialogMenu {
+            npc_id: p.naid,
+            items,
+        }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcOpenEditdlg>() {
         return vec![GameEvent::NpcInputNumber { npc_id: p.naid }];
@@ -477,15 +515,19 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
 
     // NPC shop
     if let Some(p) = any.downcast_ref::<PacketZcPcPurchaseItemlist>() {
-        let items = p.item_list.iter().map(|item| {
-            (item.itid, item.price, item.discountprice, item.atype)
-        }).collect();
+        let items = p
+            .item_list
+            .iter()
+            .map(|item| (item.itid, item.price, item.discountprice, item.atype))
+            .collect();
         return vec![GameEvent::NpcShopBuyList { npc_id: 0, items }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcPcSellItemlist>() {
-        let items = p.item_list.iter().map(|item| {
-            (item.index, item.price, item.overchargeprice)
-        }).collect();
+        let items = p
+            .item_list
+            .iter()
+            .map(|item| (item.index, item.price, item.overchargeprice))
+            .collect();
         return vec![GameEvent::NpcShopSellList { npc_id: 0, items }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcPcPurchaseResult>() {
@@ -497,131 +539,210 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
 
     // Inventory
     if let Some(p) = any.downcast_ref::<PacketZcNormalItemlist>() {
-        let items = p.item_info.iter().map(|i| NormalItemData {
-            index: i.index, item_id: i.itid, item_type: i.atype,
-            is_identified: i.is_identified, count: i.count, wear_state: i.wear_state,
-        }).collect();
+        let items = p
+            .item_info
+            .iter()
+            .map(|i| NormalItemData {
+                index: i.index,
+                item_id: i.itid,
+                item_type: i.atype,
+                is_identified: i.is_identified,
+                count: i.count,
+                wear_state: i.wear_state,
+            })
+            .collect();
         return vec![GameEvent::InventoryNormalItems { items }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcEquipmentItemlist>() {
-        let items = p.item_info.iter().map(|i| EquipmentItemData {
-            index: i.index, item_id: i.itid, item_type: i.atype,
-            is_identified: i.is_identified, location: i.location,
-            wear_state: i.wear_state, is_damaged: i.is_damaged,
-            refining_level: i.refining_level,
-            slot: [i.slot.card1, i.slot.card2, i.slot.card3, i.slot.card4],
-        }).collect();
+        let items = p
+            .item_info
+            .iter()
+            .map(|i| EquipmentItemData {
+                index: i.index,
+                item_id: i.itid,
+                item_type: i.atype,
+                is_identified: i.is_identified,
+                location: i.location,
+                wear_state: i.wear_state,
+                is_damaged: i.is_damaged,
+                refining_level: i.refining_level,
+                slot: [i.slot.card1, i.slot.card2, i.slot.card3, i.slot.card4],
+            })
+            .collect();
         return vec![GameEvent::InventoryEquipmentItems { items }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcItemPickupAck>() {
         return vec![GameEvent::InventoryItemPickup {
-            index: p.index, item_id: p.itid, count: p.count, item_type: p.atype,
-            is_identified: p.is_identified, is_damaged: p.is_damaged,
+            index: p.index,
+            item_id: p.itid,
+            count: p.count,
+            item_type: p.atype,
+            is_identified: p.is_identified,
+            is_damaged: p.is_damaged,
             refining_level: p.refining_level,
             slot: [p.slot.card1, p.slot.card2, p.slot.card3, p.slot.card4],
-            location: p.location, result: p.result,
+            location: p.location,
+            result: p.result,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcItemPickupAck2>() {
         return vec![GameEvent::InventoryItemPickup {
-            index: p.index, item_id: p.itid, count: p.count, item_type: p.atype,
-            is_identified: p.is_identified, is_damaged: p.is_damaged,
+            index: p.index,
+            item_id: p.itid,
+            count: p.count,
+            item_type: p.atype,
+            is_identified: p.is_identified,
+            is_damaged: p.is_damaged,
             refining_level: p.refining_level,
             slot: [p.slot.card1, p.slot.card2, p.slot.card3, p.slot.card4],
-            location: p.location, result: p.result,
+            location: p.location,
+            result: p.result,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcItemPickupAck3>() {
         return vec![GameEvent::InventoryItemPickup {
-            index: p.index, item_id: p.itid, count: p.count, item_type: p.atype,
-            is_identified: p.is_identified, is_damaged: p.is_damaged,
+            index: p.index,
+            item_id: p.itid,
+            count: p.count,
+            item_type: p.atype,
+            is_identified: p.is_identified,
+            is_damaged: p.is_damaged,
             refining_level: p.refining_level,
             slot: [p.slot.card1, p.slot.card2, p.slot.card3, p.slot.card4],
-            location: p.location, result: p.result,
+            location: p.location,
+            result: p.result,
         }];
     }
     // Normal item list v2/v3
     if let Some(p) = any.downcast_ref::<PacketZcNormalItemlist2>() {
-        let items = p.item_info.iter().map(|i| NormalItemData {
-            index: i.index, item_id: i.itid, item_type: i.atype,
-            is_identified: i.is_identified, count: i.count, wear_state: i.wear_state,
-        }).collect();
+        let items = p
+            .item_info
+            .iter()
+            .map(|i| NormalItemData {
+                index: i.index,
+                item_id: i.itid,
+                item_type: i.atype,
+                is_identified: i.is_identified,
+                count: i.count,
+                wear_state: i.wear_state,
+            })
+            .collect();
         return vec![GameEvent::InventoryNormalItems { items }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNormalItemlist3>() {
-        let items = p.item_info.iter().map(|i| NormalItemData {
-            index: i.index, item_id: i.itid, item_type: i.atype,
-            is_identified: i.is_identified, count: i.count, wear_state: i.wear_state,
-        }).collect();
+        let items = p
+            .item_info
+            .iter()
+            .map(|i| NormalItemData {
+                index: i.index,
+                item_id: i.itid,
+                item_type: i.atype,
+                is_identified: i.is_identified,
+                count: i.count,
+                wear_state: i.wear_state,
+            })
+            .collect();
         return vec![GameEvent::InventoryNormalItems { items }];
     }
     // Equipment item list v2/v3
     if let Some(p) = any.downcast_ref::<PacketZcEquipmentItemlist2>() {
-        let items = p.item_info.iter().map(|i| EquipmentItemData {
-            index: i.index, item_id: i.itid, item_type: i.atype,
-            is_identified: i.is_identified, location: i.location,
-            wear_state: i.wear_state, is_damaged: i.is_damaged,
-            refining_level: i.refining_level,
-            slot: [i.slot.card1, i.slot.card2, i.slot.card3, i.slot.card4],
-        }).collect();
+        let items = p
+            .item_info
+            .iter()
+            .map(|i| EquipmentItemData {
+                index: i.index,
+                item_id: i.itid,
+                item_type: i.atype,
+                is_identified: i.is_identified,
+                location: i.location,
+                wear_state: i.wear_state,
+                is_damaged: i.is_damaged,
+                refining_level: i.refining_level,
+                slot: [i.slot.card1, i.slot.card2, i.slot.card3, i.slot.card4],
+            })
+            .collect();
         return vec![GameEvent::InventoryEquipmentItems { items }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcEquipmentItemlist3>() {
-        let items = p.item_info.iter().map(|i| EquipmentItemData {
-            index: i.index, item_id: i.itid, item_type: i.atype,
-            is_identified: i.is_identified, location: i.location,
-            wear_state: i.wear_state, is_damaged: i.is_damaged,
-            refining_level: i.refining_level,
-            slot: [i.slot.card1, i.slot.card2, i.slot.card3, i.slot.card4],
-        }).collect();
+        let items = p
+            .item_info
+            .iter()
+            .map(|i| EquipmentItemData {
+                index: i.index,
+                item_id: i.itid,
+                item_type: i.atype,
+                is_identified: i.is_identified,
+                location: i.location,
+                wear_state: i.wear_state,
+                is_damaged: i.is_damaged,
+                refining_level: i.refining_level,
+                slot: [i.slot.card1, i.slot.card2, i.slot.card3, i.slot.card4],
+            })
+            .collect();
         return vec![GameEvent::InventoryEquipmentItems { items }];
     }
     // Use item ack v1/v2
     if let Some(p) = any.downcast_ref::<PacketZcUseItemAck>() {
         return vec![GameEvent::InventoryUseItemResult {
-            index: p.index, count: p.count, success: p.result,
+            index: p.index,
+            count: p.count,
+            success: p.result,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcUseItemAck2>() {
         return vec![GameEvent::InventoryUseItemResult {
-            index: p.index, count: p.count, success: p.result,
+            index: p.index,
+            count: p.count,
+            success: p.result,
         }];
     }
     // Arrow/ammo equip notification
     if let Some(p) = any.downcast_ref::<PacketZcEquipArrow>() {
-        return vec![GameEvent::InventoryArrowEquipped { index: p.index as u16 }];
+        return vec![GameEvent::InventoryArrowEquipped {
+            index: p.index as u16,
+        }];
     }
     // Equip/unequip ack v1/v2
     if let Some(p) = any.downcast_ref::<PacketZcReqWearEquipAck>() {
         return vec![GameEvent::InventoryEquipResult {
-            index: p.index, wear_location: p.wear_location, view_id: p.view_id,
+            index: p.index,
+            wear_location: p.wear_location,
+            view_id: p.view_id,
             success: p.result == 1,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcReqWearEquipAck2>() {
         return vec![GameEvent::InventoryEquipResult {
-            index: p.index, wear_location: p.wear_location, view_id: p.view_id,
+            index: p.index,
+            wear_location: p.wear_location,
+            view_id: p.view_id,
             success: p.result == 0,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcReqTakeoffEquipAck>() {
         return vec![GameEvent::InventoryUnequipResult {
-            index: p.index, wear_location: p.wear_location, success: p.result == 0,
+            index: p.index,
+            wear_location: p.wear_location,
+            success: p.result == 0,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcReqTakeoffEquipAck2>() {
         return vec![GameEvent::InventoryUnequipResult {
-            index: p.index, wear_location: p.wear_location, success: p.result == 0,
+            index: p.index,
+            wear_location: p.wear_location,
+            success: p.result == 0,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcItemThrowAck>() {
         return vec![GameEvent::InventoryItemRemoved {
-            index: p.index, count: p.count,
+            index: p.index,
+            count: p.count,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcDeleteItemFromBody>() {
         return vec![GameEvent::InventoryItemRemoved {
-            index: p.index, count: p.count,
+            index: p.index,
+            count: p.count,
         }];
     }
 
@@ -643,16 +764,28 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     // Floor items
     if let Some(p) = any.downcast_ref::<PacketZcItemFallEntry>() {
         return vec![GameEvent::FloorItemAppeared {
-            id: p.itaid, item_id: p.itid, is_identified: p.is_identified,
-            x: p.x_pos, y: p.y_pos, sub_x: p.sub_x, sub_y: p.sub_y,
-            count: p.count, is_falling: true,
+            id: p.itaid,
+            item_id: p.itid,
+            is_identified: p.is_identified,
+            x: p.x_pos,
+            y: p.y_pos,
+            sub_x: p.sub_x,
+            sub_y: p.sub_y,
+            count: p.count,
+            is_falling: true,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcItemEntry>() {
         return vec![GameEvent::FloorItemAppeared {
-            id: p.itaid, item_id: p.itid, is_identified: p.is_identified,
-            x: p.x_pos, y: p.y_pos, sub_x: p.sub_x, sub_y: p.sub_y,
-            count: p.count, is_falling: false,
+            id: p.itaid,
+            item_id: p.itid,
+            is_identified: p.is_identified,
+            x: p.x_pos,
+            y: p.y_pos,
+            sub_x: p.sub_x,
+            sub_y: p.sub_y,
+            count: p.count,
+            is_falling: false,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcItemDisappear>() {
@@ -674,18 +807,22 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::Acknowledged];
     }
     if let Some(p) = any.downcast_ref::<PacketZcSkillinfoList>() {
-        let skills = p.skill_list.iter().map(|s| {
-            let name: String = s.skill_name.iter().take_while(|c| **c != '\0').collect();
-            SkillInfo {
-                id: s.skid as u16,
-                name,
-                level: s.level,
-                sp_cost: s.spcost,
-                attack_range: s.attack_range,
-                upgradable: s.upgradable != 0,
-                skill_target_type: SkillTargetType::from_value(s.atype as usize),
-            }
-        }).collect();
+        let skills = p
+            .skill_list
+            .iter()
+            .map(|s| {
+                let name: String = s.skill_name.iter().take_while(|c| **c != '\0').collect();
+                SkillInfo {
+                    id: s.skid as u16,
+                    name,
+                    level: s.level,
+                    sp_cost: s.spcost,
+                    attack_range: s.attack_range,
+                    upgradable: s.upgradable != 0,
+                    skill_target_type: SkillTargetType::from_value(s.atype as usize),
+                }
+            })
+            .collect();
         return vec![GameEvent::SkillListReceived { skills }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcSkillinfoUpdate>() {
@@ -707,7 +844,12 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcAddSkill>() {
-        let name: String = p.data.skill_name.iter().take_while(|c| **c != '\0').collect();
+        let name: String = p
+            .data
+            .skill_name
+            .iter()
+            .take_while(|c| **c != '\0')
+            .collect();
         return vec![GameEvent::SkillAdded {
             skill: SkillInfo {
                 id: p.data.skid as u16,
@@ -721,13 +863,17 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcShortcutKeyListV2>() {
-        let slots: Vec<(i8, u32, i16)> = p.short_cut_key.iter()
+        let slots: Vec<(i8, u32, i16)> = p
+            .short_cut_key
+            .iter()
             .map(|k| (k.is_skill, k.id, k.count))
             .collect();
         return vec![GameEvent::HotkeyListReceived { slots }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcShortcutKeyList>() {
-        let slots: Vec<(i8, u32, i16)> = p.short_cut_key.iter()
+        let slots: Vec<(i8, u32, i16)> = p
+            .short_cut_key
+            .iter()
             .map(|k| (k.is_skill, k.id, k.count))
             .collect();
         return vec![GameEvent::HotkeyListReceived { slots }];
@@ -814,8 +960,10 @@ mod tests {
         let mut pkt = PacketZcNotifyPlayermove::new(packetver);
         pkt.set_move_start_time(5000);
         // Encode (100, 200) -> (110, 210) into move_data
-        let x1: u16 = 100; let y1: u16 = 200;
-        let x2: u16 = 110; let y2: u16 = 210;
+        let x1: u16 = 100;
+        let y1: u16 = 200;
+        let x2: u16 = 110;
+        let y2: u16 = 210;
         let b0 = (x1 >> 2) as u8;
         let b1 = ((x1 << 6) as u8) | ((y1 >> 4) as u8);
         let b2 = ((y1 << 4) as u8) | ((x2 >> 6) as u8);
@@ -827,7 +975,13 @@ mod tests {
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            GameEvent::PlayerMoved { start_x, start_y, dest_x, dest_y, start_time } => {
+            GameEvent::PlayerMoved {
+                start_x,
+                start_y,
+                dest_x,
+                dest_y,
+                start_time,
+            } => {
                 assert_eq!((*start_x, *start_y), (100, 200));
                 assert_eq!((*dest_x, *dest_y), (110, 210));
                 assert_eq!(*start_time, 5000);
@@ -879,8 +1033,10 @@ mod tests {
         let mut pkt = PacketZcNotifyMove::new(packetver);
         pkt.set_gid(99);
         pkt.set_move_start_time(7000);
-        let x1: u16 = 50; let y1: u16 = 60;
-        let x2: u16 = 55; let y2: u16 = 65;
+        let x1: u16 = 50;
+        let y1: u16 = 60;
+        let x2: u16 = 55;
+        let y2: u16 = 65;
         let b0 = (x1 >> 2) as u8;
         let b1 = ((x1 << 6) as u8) | ((y1 >> 4) as u8);
         let b2 = ((y1 << 4) as u8) | ((x2 >> 6) as u8);
@@ -892,7 +1048,14 @@ mod tests {
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            GameEvent::EntityMoved { gid, start_x, start_y, dest_x, dest_y, start_time } => {
+            GameEvent::EntityMoved {
+                gid,
+                start_x,
+                start_y,
+                dest_x,
+                dest_y,
+                start_time,
+            } => {
                 assert_eq!(*gid, 99);
                 assert_eq!((*start_x, *start_y), (50, 60));
                 assert_eq!((*dest_x, *dest_y), (55, 65));
@@ -935,7 +1098,15 @@ mod tests {
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            GameEvent::EntityAction { gid, target_gid, action, damage, attack_mt, attacked_mt, .. } => {
+            GameEvent::EntityAction {
+                gid,
+                target_gid,
+                action,
+                damage,
+                attack_mt,
+                attacked_mt,
+                ..
+            } => {
                 assert_eq!(*gid, 50);
                 assert_eq!(*target_gid, 99);
                 assert_eq!(*action, ActionType::AttackMultiple);
@@ -1104,7 +1275,12 @@ mod tests {
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            GameEvent::EntitySpriteChanged { gid, sprite_type, value, value2 } => {
+            GameEvent::EntitySpriteChanged {
+                gid,
+                sprite_type,
+                value,
+                value2,
+            } => {
                 assert_eq!(*gid, 150000);
                 assert_eq!(*sprite_type, 2);
                 assert_eq!(*value, 1);
@@ -1159,7 +1335,14 @@ mod tests {
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            GameEvent::SkillCasting { gid, target_gid, skill_id, delay_ms, x, y } => {
+            GameEvent::SkillCasting {
+                gid,
+                target_gid,
+                skill_id,
+                delay_ms,
+                x,
+                y,
+            } => {
                 assert_eq!(*gid, 150000);
                 assert_eq!(*target_gid, 200000);
                 assert_eq!(*skill_id, 10);
@@ -1259,13 +1442,19 @@ mod tests {
         pkt.fill_raw();
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
-        assert!(matches!(&result[0], GameEvent::NpcDialogNext { npc_id: 500 }));
+        assert!(matches!(
+            &result[0],
+            GameEvent::NpcDialogNext { npc_id: 500 }
+        ));
 
         let mut pkt = PacketZcCloseDialog::new(packetver);
         pkt.set_naid(500);
         pkt.fill_raw();
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
-        assert!(matches!(&result[0], GameEvent::NpcDialogClose { npc_id: 500 }));
+        assert!(matches!(
+            &result[0],
+            GameEvent::NpcDialogClose { npc_id: 500 }
+        ));
     }
 }

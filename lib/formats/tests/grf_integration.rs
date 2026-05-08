@@ -96,9 +96,12 @@ fn open_v1_grf_and_read_file() {
     let Some(grf) = open_v1_grf() else { return };
     assert!(grf.file_count() > 0);
 
-    let gat_file = grf.find_first_with_extension(".gat")
+    let gat_file = grf
+        .find_first_with_extension(".gat")
         .expect("v1 GRF should contain at least one .gat file");
-    let data = grf.read_file(gat_file).expect("failed to read .gat from v1 GRF");
+    let data = grf
+        .read_file(gat_file)
+        .expect("failed to read .gat from v1 GRF");
     let gat = GatFile::parse(&data).expect("failed to parse .gat from v1 GRF");
     assert!(gat.width > 0 && gat.height > 0);
 }

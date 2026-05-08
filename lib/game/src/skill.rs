@@ -34,11 +34,18 @@ pub struct SkillData {
 
 impl SkillData {
     pub fn icon_path(&self) -> String {
-        format!("data/texture/유저인터페이스/item/{}.bmp", self.name.to_lowercase())
+        format!(
+            "data/texture/유저인터페이스/item/{}.bmp",
+            self.name.to_lowercase()
+        )
     }
 
     pub fn use_level(&self) -> i16 {
-        if self.level <= 0 { 0 } else { self.selected_level.clamp(1, self.level) }
+        if self.level <= 0 {
+            0
+        } else {
+            self.selected_level.clamp(1, self.level)
+        }
     }
 
     pub fn decrement_use_level(&mut self) {

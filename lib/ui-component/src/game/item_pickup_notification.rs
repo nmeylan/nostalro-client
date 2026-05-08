@@ -1,10 +1,10 @@
+use crate::helper::dialog_container::DialogContainer;
+use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::UiFrame;
-use crate::{Window, InGameWindow};
-use crate::helper::dialog_container::DialogContainer;
 
 const DISPLAY_DURATION: f32 = 3.0;
 const FADE_OUT_DURATION: f32 = 1.0;
@@ -49,16 +49,21 @@ impl ItemPickupNotification {
         });
     }
 
-
     pub fn is_empty(&self) -> bool {
         self.entry.is_none()
     }
-
 }
 
 impl InGameWindow for ItemPickupNotification {
-    fn build(&mut self, ui: &mut UiFrame, _character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
-        let Some(entry) = &mut self.entry else { return vec![] };
+    fn build(
+        &mut self,
+        ui: &mut UiFrame,
+        _character: &mut Character,
+        _data: &DataTable,
+    ) -> Vec<GameEvent> {
+        let Some(entry) = &mut self.entry else {
+            return vec![];
+        };
 
         let start = *entry.start_time.get_or_insert(ui.elapsed_secs);
         let age = ui.elapsed_secs - start;
@@ -85,7 +90,14 @@ impl InGameWindow for ItemPickupNotification {
         let x = ((ui.ctx.screen_width - bar_w) / 2.0).floor();
         let y = TOP_Y;
 
-        self.container.draw(&mut ui.draw_calls, x, y, bar_w, bar_h, [1.0, 1.0, 1.0, alpha]);
+        self.container.draw(
+            &mut ui.draw_calls,
+            x,
+            y,
+            bar_w,
+            bar_h,
+            [1.0, 1.0, 1.0, alpha],
+        );
 
         if let Some(icon_path) = &entry.icon_texture {
             let ix = x + PADDING;
@@ -108,8 +120,12 @@ impl InGameWindow for ItemPickupNotification {
 }
 
 impl Window for ItemPickupNotification {
-    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
-    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+    fn has_grf_textures(&self) -> bool {
+        self.has_grf_textures
+    }
+    fn set_has_grf_textures(&mut self, value: bool) {
+        self.has_grf_textures = value;
+    }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         self.container.has_grf_textures = true;
@@ -130,11 +146,14 @@ mod tests {
     use ragnarok_ui::state::StateCache;
 
     fn make_frame_with_elapsed<'a>(
-        ctx: &'a UiContext, state: &'a mut StateCache, elapsed: f32,
+        ctx: &'a UiContext,
+        state: &'a mut StateCache,
+        elapsed: f32,
     ) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, elapsed, false, None, positions)
     }
 

@@ -2,7 +2,6 @@
 ///
 /// Each type maps to a sprite action index, color tint, and animation curve
 /// matching the original game behavior.
-
 use crate::scheduled_hit::{DamageMessage, ScheduledHit};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,7 +36,6 @@ const DIGIT_SPACING: f32 = 8.0;
 const FRAME_MS: f32 = 24.0;
 
 impl DamageNumberType {
-
     pub fn color(&self) -> [f32; 3] {
         match self {
             Self::Critical | Self::Combo | Self::ComboFinal => [0.9, 0.9, 0.15],
@@ -46,7 +44,6 @@ impl DamageNumberType {
             _ => [1.0, 1.0, 1.0],
         }
     }
-
 
     pub fn is_total(&self) -> bool {
         matches!(self, Self::ComboFinal | Self::MultiHitTotal)
@@ -64,7 +61,7 @@ impl DamageNumberType {
         match self {
             Self::Combo | Self::MultiHit => 0.45,
             Self::Miss | Self::Lucky => 80.0 * FRAME_MS / 1000.0, // 1.92s (stateCnt > 80 in original)
-            _ => 120.0 * FRAME_MS / 1000.0,                        // 2.88s
+            _ => 120.0 * FRAME_MS / 1000.0,                       // 2.88s
         }
     }
 }
@@ -81,7 +78,14 @@ pub struct DamageNumber {
 
 impl DamageNumber {
     pub fn new(entity_id: u32, value: i32, number_type: DamageNumberType, direction: u8) -> Self {
-        Self { entity_id, value, number_type, elapsed: 0.0, direction, last_screen_pos: None }
+        Self {
+            entity_id,
+            value,
+            number_type,
+            elapsed: 0.0,
+            direction,
+            last_screen_pos: None,
+        }
     }
 
     pub fn is_expired(&self) -> bool {
@@ -97,22 +101,20 @@ impl DamageNumber {
     pub fn y_offset(&self) -> f32 {
         let f = self.frame();
         match self.number_type {
-            DamageNumberType::ComboFinal | DamageNumberType::MultiHitTotal => {
-                f * 0.1
-            }
-            DamageNumberType::Combo | DamageNumberType::MultiHit => {
-                self.elapsed * 2.0
-            }
-            DamageNumberType::Miss => {
-                f * 0.54
-            }
+            DamageNumberType::ComboFinal | DamageNumberType::MultiHitTotal => f * 0.1,
+            DamageNumberType::Combo | DamageNumberType::MultiHit => self.elapsed * 2.0,
+            DamageNumberType::Miss => f * 0.54,
             DamageNumberType::Lucky => {
                 let perc = self.elapsed / self.number_type.duration();
                 perc * 7.0
             }
             DamageNumberType::Heal => {
                 let perc = self.elapsed / self.number_type.duration();
-                if perc < 0.4 { 0.0 } else { (perc - 0.4) * 300.0 }
+                if perc < 0.4 {
+                    0.0
+                } else {
+                    (perc - 0.4) * 300.0
+                }
             }
             _ => {
                 // Parabolic: rises fast then slows. Original: orgY+8 - cnt*(2.0 - cnt/30)
@@ -148,18 +150,14 @@ impl DamageNumber {
                 let growth = (self.elapsed / 0.15).min(1.0);
                 0.1 + growth * 3.65
             }
-            DamageNumberType::Critical => {
-                (5.0 - f * 0.24).max(1.3)
-            }
+            DamageNumberType::Critical => (5.0 - f * 0.24).max(1.3),
             DamageNumberType::Miss => 1.0,
             DamageNumberType::Lucky => 1.0,
             DamageNumberType::Heal => {
                 let perc = self.elapsed / self.number_type.duration();
                 ((1.0 - perc * 2.0) * 3.0).max(0.8)
             }
-            _ => {
-                (5.0 - f * 0.24).max(1.2)
-            }
+            _ => (5.0 - f * 0.24).max(1.2),
         }
     }
 
@@ -168,8 +166,11 @@ impl DamageNumber {
         let f = self.frame();
         let alpha_255 = match self.number_type {
             DamageNumberType::ComboFinal | DamageNumberType::MultiHitTotal => {
-                
-                if f < FRAME_MS / 2.0 { 250.0 } else { 250.0 - (f - FRAME_MS / 2.0) * 2.0 }
+                if f < FRAME_MS / 2.0 {
+                    250.0
+                } else {
+                    250.0 - (f - FRAME_MS / 2.0) * 2.0
+                }
             }
             DamageNumberType::Combo | DamageNumberType::MultiHit => {
                 // alpha = 1.0 - (elapsed / 3.0)
@@ -295,7 +296,10 @@ pub fn build_damage_number_quads(
                 let x = base_x - sw / 2.0;
                 let y = base_y - sh / 2.0;
                 quads.push(DamageNumberQuad {
-                    x, y, w: sw, h: sh,
+                    x,
+                    y,
+                    w: sw,
+                    h: sh,
                     color: [cr, cg, cb, alpha],
                     source: TextureSource::Message,
                     tex_idx: frame_idx,
@@ -309,20 +313,24 @@ pub fn build_damage_number_quads(
         // Critical: render critbg behind digits
         if dmg.is_critical
             && let Some(msg_sz) = msg_sizes
-                && MSG_FRAME_CRITBG < msg_sz.len() {
-                    let (tw, th) = msg_sz[MSG_FRAME_CRITBG];
-                    let crit_zoom = 0.6 * zoom;
-                    let sw = tw as f32 * crit_zoom;
-                    let sh = th as f32 * crit_zoom;
-                    let x = base_x - sw / 2.0;
-                    let y = base_y - sh / 2.0 - 6.0 * s;
-                    quads.push(DamageNumberQuad {
-                        x, y, w: sw, h: sh,
-                        color: [0.66, 0.66, 0.66, alpha],
-                        source: TextureSource::Message,
-                        tex_idx: MSG_FRAME_CRITBG,
-                    });
-                }
+            && MSG_FRAME_CRITBG < msg_sz.len()
+        {
+            let (tw, th) = msg_sz[MSG_FRAME_CRITBG];
+            let crit_zoom = 0.6 * zoom;
+            let sw = tw as f32 * crit_zoom;
+            let sh = th as f32 * crit_zoom;
+            let x = base_x - sw / 2.0;
+            let y = base_y - sh / 2.0 - 6.0 * s;
+            quads.push(DamageNumberQuad {
+                x,
+                y,
+                w: sw,
+                h: sh,
+                color: [0.66, 0.66, 0.66, alpha],
+                source: TextureSource::Message,
+                tex_idx: MSG_FRAME_CRITBG,
+            });
+        }
 
         for (i, &digit) in dmg.digits.iter().enumerate() {
             let motion_idx = digit as usize;
@@ -356,13 +364,15 @@ pub fn build_damage_number_quads(
             let y = base_y - sh / 2.0;
 
             quads.push(DamageNumberQuad {
-                x, y, w: sw, h: sh,
+                x,
+                y,
+                w: sw,
+                h: sh,
                 color: [cr, cg, cb, alpha],
                 source: TextureSource::Number,
                 tex_idx,
             });
         }
-
     }
     quads
 }
@@ -379,38 +389,66 @@ impl Default for DamageNumberManager {
 
 impl DamageNumberManager {
     pub fn new() -> Self {
-        Self { numbers: Vec::new() }
+        Self {
+            numbers: Vec::new(),
+        }
     }
 
     pub fn add(&mut self, number: DamageNumber) {
         // Combo/total types replace previous non-final combo numbers on the same entity
         let removes_combo = number.number_type.is_total() || number.number_type.is_combo();
         if removes_combo {
-            self.numbers.retain(|n| {
-                !(n.entity_id == number.entity_id && n.number_type.is_combo())
-            });
+            self.numbers
+                .retain(|n| !(n.entity_id == number.entity_id && n.number_type.is_combo()));
         }
         self.numbers.push(number);
     }
 
-    pub fn emit(&mut self, entity_id: u32, direction: u8, hit: &ScheduledHit, is_player_target: bool) {
+    pub fn emit(
+        &mut self,
+        entity_id: u32,
+        direction: u8,
+        hit: &ScheduledHit,
+        is_player_target: bool,
+    ) {
         let is_multi_hit = matches!(hit.message, DamageMessage::AttackedMultiHit { .. });
         let is_skill = hit.skill_id > 0;
 
         if hit.damage == 0 && !is_multi_hit {
-            self.add(DamageNumber::new(entity_id, 0, DamageNumberType::Miss, direction));
+            self.add(DamageNumber::new(
+                entity_id,
+                0,
+                DamageNumberType::Miss,
+                direction,
+            ));
             return;
         }
 
         if is_multi_hit {
             self.add(DamageNumber::new(
-                entity_id, hit.damage, DamageNumberType::Skill, direction,
+                entity_id,
+                hit.damage,
+                DamageNumberType::Skill,
+                direction,
             ));
             let running_total = hit.damage * (hit.hit_index as i32 + 1);
             let combo_type = if hit.is_last_hit {
-                if is_skill { DamageNumberType::ComboFinal } else { DamageNumberType::MultiHitTotal }
-            } else if is_skill { DamageNumberType::Combo } else { DamageNumberType::MultiHit };
-            self.add(DamageNumber::new(entity_id, running_total, combo_type, direction));
+                if is_skill {
+                    DamageNumberType::ComboFinal
+                } else {
+                    DamageNumberType::MultiHitTotal
+                }
+            } else if is_skill {
+                DamageNumberType::Combo
+            } else {
+                DamageNumberType::MultiHit
+            };
+            self.add(DamageNumber::new(
+                entity_id,
+                running_total,
+                combo_type,
+                direction,
+            ));
         } else {
             let number_type = if hit.is_critical {
                 DamageNumberType::Critical
@@ -424,7 +462,10 @@ impl DamageNumberManager {
                 DamageNumberType::Normal
             };
             self.add(DamageNumber::new(
-                entity_id, hit.damage.abs(), number_type, direction,
+                entity_id,
+                hit.damage.abs(),
+                number_type,
+                direction,
             ));
         }
     }
@@ -533,7 +574,11 @@ mod tests {
         // Removed combo for entity 1, kept combo for entity 2, added the total
         assert_eq!(mgr.numbers.len(), 2);
         assert!(mgr.numbers.iter().any(|n| n.entity_id == 2));
-        assert!(mgr.numbers.iter().any(|n| n.number_type == DamageNumberType::ComboFinal));
+        assert!(
+            mgr.numbers
+                .iter()
+                .any(|n| n.number_type == DamageNumberType::ComboFinal)
+        );
     }
 
     #[test]

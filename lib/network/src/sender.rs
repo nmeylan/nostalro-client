@@ -167,13 +167,16 @@ pub fn build_npc_deal_type_packet(npc_id: u32, deal_type: u8, packetver: u32) ->
 
 pub fn build_purchase_item_list_packet(items: &[(i16, u16)], packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzPcPurchaseItemlist::new(packetver);
-    let item_list: Vec<CzPurchaseItem> = items.iter().map(|(count, item_id)| {
-        let mut item = CzPurchaseItem::new(packetver);
-        item.set_count(*count);
-        item.set_itid(*item_id);
-        item.fill_raw();
-        item
-    }).collect();
+    let item_list: Vec<CzPurchaseItem> = items
+        .iter()
+        .map(|(count, item_id)| {
+            let mut item = CzPurchaseItem::new(packetver);
+            item.set_count(*count);
+            item.set_itid(*item_id);
+            item.fill_raw();
+            item
+        })
+        .collect();
     pkt.set_packet_length((4 + items.len() * 4) as i16);
     pkt.set_item_list(item_list);
     pkt.fill_raw();
@@ -182,13 +185,16 @@ pub fn build_purchase_item_list_packet(items: &[(i16, u16)], packetver: u32) -> 
 
 pub fn build_sell_item_list_packet(items: &[(i16, i16)], packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzPcSellItemlist::new(packetver);
-    let item_list: Vec<CzSellItem> = items.iter().map(|(index, count)| {
-        let mut item = CzSellItem::new(packetver);
-        item.set_index(*index);
-        item.set_count(*count);
-        item.fill_raw();
-        item
-    }).collect();
+    let item_list: Vec<CzSellItem> = items
+        .iter()
+        .map(|(index, count)| {
+            let mut item = CzSellItem::new(packetver);
+            item.set_index(*index);
+            item.set_count(*count);
+            item.fill_raw();
+            item
+        })
+        .collect();
     pkt.set_packet_length((4 + items.len() * 4) as i16);
     pkt.set_item_list(item_list);
     pkt.fill_raw();
@@ -240,7 +246,13 @@ pub fn build_upgrade_skill_packet(skill_id: u16, packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
-pub fn build_shortcut_key_change_packet(index: u16, is_skill: i8, id: u32, count: i16, packetver: u32) -> Vec<u8> {
+pub fn build_shortcut_key_change_packet(
+    index: u16,
+    is_skill: i8,
+    id: u32,
+    count: i16,
+    packetver: u32,
+) -> Vec<u8> {
     let mut pkt = PacketCzShortcutKeyChange::new(packetver);
     pkt.set_index(index);
     let mut key = ShortCutKey::new(packetver);
@@ -268,7 +280,12 @@ pub fn build_card_composition_packet(card_index: u16, equip_index: u16, packetve
     pkt.raw
 }
 
-pub fn build_use_skill_packet(skill_id: u16, level: i16, target_id: u32, packetver: u32) -> Vec<u8> {
+pub fn build_use_skill_packet(
+    skill_id: u16,
+    level: i16,
+    target_id: u32,
+    packetver: u32,
+) -> Vec<u8> {
     let mut pkt = PacketCzUseSkill::new(packetver);
     pkt.set_selected_level(level);
     pkt.set_skid(skill_id);
@@ -277,7 +294,13 @@ pub fn build_use_skill_packet(skill_id: u16, level: i16, target_id: u32, packetv
     pkt.raw
 }
 
-pub fn build_use_skill_to_ground_packet(skill_id: u16, level: i16, x: i16, y: i16, packetver: u32) -> Vec<u8> {
+pub fn build_use_skill_to_ground_packet(
+    skill_id: u16,
+    level: i16,
+    x: i16,
+    y: i16,
+    packetver: u32,
+) -> Vec<u8> {
     let mut pkt = PacketCzUseSkillToground::new(packetver);
     pkt.set_selected_level(level);
     pkt.set_skid(skill_id);

@@ -60,15 +60,29 @@ impl GroundRenderer {
         }
 
         // Build lightmap atlas
-        let lightmap_bind_group =
-            build_lightmap_atlas(&gnd.lightmaps, device, queue, &texture_cache.bind_group_layout);
+        let lightmap_bind_group = build_lightmap_atlas(
+            &gnd.lightmaps,
+            device,
+            queue,
+            &texture_cache.bind_group_layout,
+        );
 
         // Build mesh grouped by texture
         let atlas_dim = lightmap_atlas_dim(gnd.lightmaps.len());
         let (vertices, indices, batches) = build_mesh(gnd, atlas_dim);
 
-        let vertex_buffer = create_buffer(device, "ground_vertices", &vertices, wgpu::BufferUsages::VERTEX);
-        let index_buffer = create_buffer(device, "ground_indices", &indices, wgpu::BufferUsages::INDEX);
+        let vertex_buffer = create_buffer(
+            device,
+            "ground_vertices",
+            &vertices,
+            wgpu::BufferUsages::VERTEX,
+        );
+        let index_buffer = create_buffer(
+            device,
+            "ground_indices",
+            &indices,
+            wgpu::BufferUsages::INDEX,
+        );
 
         let pipeline = create_pipeline(
             device,
@@ -171,10 +185,19 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                     },
                 ];
 
-                let entry = texture_quads.entry(tex_name).or_insert_with(|| (Vec::new(), Vec::new()));
+                let entry = texture_quads
+                    .entry(tex_name)
+                    .or_insert_with(|| (Vec::new(), Vec::new()));
                 let base = entry.0.len() as u32;
                 entry.0.extend_from_slice(&verts);
-                entry.1.extend_from_slice(&[base, base + 1, base + 2, base + 2, base + 1, base + 3]);
+                entry.1.extend_from_slice(&[
+                    base,
+                    base + 1,
+                    base + 2,
+                    base + 2,
+                    base + 1,
+                    base + 3,
+                ]);
             }
 
             // Front wall
@@ -198,16 +221,49 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                 let lm_uvs = lightmap_uvs(surface.lightmap_id, atlas_dim);
 
                 let verts = [
-                    GroundVertex { position: positions[0], normal, tex_coord: [surface.tex_u[0], surface.tex_v[0]], lightmap_coord: lm_uvs[0], color },
-                    GroundVertex { position: positions[1], normal, tex_coord: [surface.tex_u[1], surface.tex_v[1]], lightmap_coord: lm_uvs[1], color },
-                    GroundVertex { position: positions[2], normal, tex_coord: [surface.tex_u[2], surface.tex_v[2]], lightmap_coord: lm_uvs[2], color },
-                    GroundVertex { position: positions[3], normal, tex_coord: [surface.tex_u[3], surface.tex_v[3]], lightmap_coord: lm_uvs[3], color },
+                    GroundVertex {
+                        position: positions[0],
+                        normal,
+                        tex_coord: [surface.tex_u[0], surface.tex_v[0]],
+                        lightmap_coord: lm_uvs[0],
+                        color,
+                    },
+                    GroundVertex {
+                        position: positions[1],
+                        normal,
+                        tex_coord: [surface.tex_u[1], surface.tex_v[1]],
+                        lightmap_coord: lm_uvs[1],
+                        color,
+                    },
+                    GroundVertex {
+                        position: positions[2],
+                        normal,
+                        tex_coord: [surface.tex_u[2], surface.tex_v[2]],
+                        lightmap_coord: lm_uvs[2],
+                        color,
+                    },
+                    GroundVertex {
+                        position: positions[3],
+                        normal,
+                        tex_coord: [surface.tex_u[3], surface.tex_v[3]],
+                        lightmap_coord: lm_uvs[3],
+                        color,
+                    },
                 ];
 
-                let entry = texture_quads.entry(tex_name).or_insert_with(|| (Vec::new(), Vec::new()));
+                let entry = texture_quads
+                    .entry(tex_name)
+                    .or_insert_with(|| (Vec::new(), Vec::new()));
                 let base = entry.0.len() as u32;
                 entry.0.extend_from_slice(&verts);
-                entry.1.extend_from_slice(&[base, base + 1, base + 2, base + 2, base + 1, base + 3]);
+                entry.1.extend_from_slice(&[
+                    base,
+                    base + 1,
+                    base + 2,
+                    base + 2,
+                    base + 1,
+                    base + 3,
+                ]);
             }
 
             // Right wall
@@ -231,16 +287,49 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                 let lm_uvs = lightmap_uvs(surface.lightmap_id, atlas_dim);
 
                 let verts = [
-                    GroundVertex { position: positions[0], normal, tex_coord: [surface.tex_u[0], surface.tex_v[0]], lightmap_coord: lm_uvs[0], color },
-                    GroundVertex { position: positions[1], normal, tex_coord: [surface.tex_u[1], surface.tex_v[1]], lightmap_coord: lm_uvs[1], color },
-                    GroundVertex { position: positions[2], normal, tex_coord: [surface.tex_u[2], surface.tex_v[2]], lightmap_coord: lm_uvs[2], color },
-                    GroundVertex { position: positions[3], normal, tex_coord: [surface.tex_u[3], surface.tex_v[3]], lightmap_coord: lm_uvs[3], color },
+                    GroundVertex {
+                        position: positions[0],
+                        normal,
+                        tex_coord: [surface.tex_u[0], surface.tex_v[0]],
+                        lightmap_coord: lm_uvs[0],
+                        color,
+                    },
+                    GroundVertex {
+                        position: positions[1],
+                        normal,
+                        tex_coord: [surface.tex_u[1], surface.tex_v[1]],
+                        lightmap_coord: lm_uvs[1],
+                        color,
+                    },
+                    GroundVertex {
+                        position: positions[2],
+                        normal,
+                        tex_coord: [surface.tex_u[2], surface.tex_v[2]],
+                        lightmap_coord: lm_uvs[2],
+                        color,
+                    },
+                    GroundVertex {
+                        position: positions[3],
+                        normal,
+                        tex_coord: [surface.tex_u[3], surface.tex_v[3]],
+                        lightmap_coord: lm_uvs[3],
+                        color,
+                    },
                 ];
 
-                let entry = texture_quads.entry(tex_name).or_insert_with(|| (Vec::new(), Vec::new()));
+                let entry = texture_quads
+                    .entry(tex_name)
+                    .or_insert_with(|| (Vec::new(), Vec::new()));
                 let base = entry.0.len() as u32;
                 entry.0.extend_from_slice(&verts);
-                entry.1.extend_from_slice(&[base, base + 1, base + 2, base + 2, base + 1, base + 3]);
+                entry.1.extend_from_slice(&[
+                    base,
+                    base + 1,
+                    base + 2,
+                    base + 2,
+                    base + 1,
+                    base + 3,
+                ]);
             }
         }
     }
@@ -268,7 +357,10 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
 
 fn texture_name_for_surface(gnd: &GndFile, surface: &GndSurface) -> String {
     if surface.texture_id >= 0 && (surface.texture_id as usize) < gnd.textures.len() {
-        format!("data/texture/{}", &gnd.textures[surface.texture_id as usize])
+        format!(
+            "data/texture/{}",
+            &gnd.textures[surface.texture_id as usize]
+        )
     } else {
         String::new()
     }

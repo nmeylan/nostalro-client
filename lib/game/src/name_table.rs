@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+use ragnarok_formats::builtin_name_table::BUILTIN_NAME_TABLE;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::lua_table;
-use ragnarok_formats::builtin_name_table::BUILTIN_NAME_TABLE;
 
 pub struct NameTable {
     entries: HashMap<u16, String>,
@@ -38,8 +38,12 @@ impl NameTable {
             return Self { entries };
         }
 
-        tracing::info!("No identity lua in GRF, using builtin name table ({} entries)", BUILTIN_NAME_TABLE.len());
-        let entries = BUILTIN_NAME_TABLE.iter()
+        tracing::info!(
+            "No identity lua in GRF, using builtin name table ({} entries)",
+            BUILTIN_NAME_TABLE.len()
+        );
+        let entries = BUILTIN_NAME_TABLE
+            .iter()
             .map(|&(id, name)| (id, name.to_string()))
             .collect();
         Self { entries }
@@ -56,11 +60,19 @@ fn parse_jt_assignments(content: &str) -> HashMap<u16, String> {
     let mut map = HashMap::new();
     for line in content.lines() {
         let line = line.trim();
-        if line.starts_with("--") || line.is_empty() || line.starts_with("{") || line.starts_with("}") {
+        if line.starts_with("--")
+            || line.is_empty()
+            || line.starts_with("{")
+            || line.starts_with("}")
+        {
             continue;
         }
         if let Some((name_part, value_part)) = line.split_once('=') {
-            let name = name_part.trim().trim_end_matches(']').trim_start_matches('[').trim();
+            let name = name_part
+                .trim()
+                .trim_end_matches(']')
+                .trim_start_matches('[')
+                .trim();
             let value_str = value_part.trim().trim_end_matches(',').trim();
             if let Ok(id) = value_str.parse::<u16>() {
                 let sprite_name = name.strip_prefix("JT_").unwrap_or(name);
@@ -88,7 +100,8 @@ mod tests {
     #[test]
     fn builtin_table_has_common_entries() {
         let table = NameTable {
-            entries: BUILTIN_NAME_TABLE.iter()
+            entries: BUILTIN_NAME_TABLE
+                .iter()
                 .map(|&(id, name)| (id, name.to_string()))
                 .collect(),
         };

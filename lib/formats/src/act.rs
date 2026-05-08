@@ -68,8 +68,12 @@ impl ActFile {
             for _ in 0..motion_count {
                 let mut range1 = [0i32; 4];
                 let mut range2 = [0i32; 4];
-                for v in &mut range1 { *v = r.read_i32::<LE>()?; }
-                for v in &mut range2 { *v = r.read_i32::<LE>()?; }
+                for v in &mut range1 {
+                    *v = r.read_i32::<LE>()?;
+                }
+                for v in &mut range2 {
+                    *v = r.read_i32::<LE>()?;
+                }
 
                 let clip_count = r.read_u32::<LE>()? as usize;
                 let mut clips = Vec::with_capacity(clip_count);
@@ -79,23 +83,24 @@ impl ActFile {
                     let sprite_index = r.read_i32::<LE>()?;
                     let mirror = r.read_u32::<LE>()?;
 
-                    let (color, zoom_x, zoom_y, angle, sprite_type) = if version_at_least(version, 2, 0) {
-                        let color_u32 = r.read_u32::<LE>()?;
-                        let color = color_u32.to_le_bytes();
+                    let (color, zoom_x, zoom_y, angle, sprite_type) =
+                        if version_at_least(version, 2, 0) {
+                            let color_u32 = r.read_u32::<LE>()?;
+                            let color = color_u32.to_le_bytes();
 
-                        let (zoom_x, zoom_y) = if version_at_least(version, 2, 4) {
-                            (r.read_f32::<LE>()?, r.read_f32::<LE>()?)
+                            let (zoom_x, zoom_y) = if version_at_least(version, 2, 4) {
+                                (r.read_f32::<LE>()?, r.read_f32::<LE>()?)
+                            } else {
+                                let zoom = r.read_f32::<LE>()?;
+                                (zoom, zoom)
+                            };
+
+                            let angle = r.read_i32::<LE>()?;
+                            let sprite_type = r.read_u32::<LE>()?;
+                            (color, zoom_x, zoom_y, angle, sprite_type)
                         } else {
-                            let zoom = r.read_f32::<LE>()?;
-                            (zoom, zoom)
+                            ([255, 255, 255, 255], 1.0, 1.0, 0, 0)
                         };
-
-                        let angle = r.read_i32::<LE>()?;
-                        let sprite_type = r.read_u32::<LE>()?;
-                        (color, zoom_x, zoom_y, angle, sprite_type)
-                    } else {
-                        ([255, 255, 255, 255], 1.0, 1.0, 0, 0)
-                    };
 
                     let (width, height) = if version_at_least(version, 2, 5) {
                         (Some(r.read_u32::<LE>()?), Some(r.read_u32::<LE>()?))
@@ -104,9 +109,17 @@ impl ActFile {
                     };
 
                     clips.push(SpriteFrame {
-                        x, y, sprite_index, mirror, color,
-                        zoom_x, zoom_y, angle, sprite_type,
-                        width, height,
+                        x,
+                        y,
+                        sprite_index,
+                        mirror,
+                        color,
+                        zoom_x,
+                        zoom_y,
+                        angle,
+                        sprite_type,
+                        width,
+                        height,
                     });
                 }
 
@@ -132,7 +145,13 @@ impl ActFile {
                     Vec::new()
                 };
 
-                motions.push(Motion { range1, range2, clips, event_id, attach_points });
+                motions.push(Motion {
+                    range1,
+                    range2,
+                    clips,
+                    event_id,
+                    attach_points,
+                });
             }
             actions.push(Action { motions });
         }
@@ -158,12 +177,20 @@ impl ActFile {
             Vec::new()
         };
 
-        Ok(ActFile { version, actions, events, delays })
+        Ok(ActFile {
+            version,
+            actions,
+            events,
+            delays,
+        })
     }
 }
 
 pub fn attachment_offset(body_motion: &Motion, head_motion: &Motion) -> (i32, i32) {
-    match (body_motion.attach_points.first(), head_motion.attach_points.first()) {
+    match (
+        body_motion.attach_points.first(),
+        head_motion.attach_points.first(),
+    ) {
         (Some(body), Some(head)) => (body.x - head.x, body.y - head.y),
         _ => (0, 0),
     }
@@ -389,7 +416,11 @@ impl SpriteAnimationState {
 
         let delay_ms = if let Some(total_ms) = self.motion_speed_override_ms {
             // Distribute total animation time evenly across all frames
-            if motion_count > 0 { total_ms / motion_count as f32 } else { 150.0 }
+            if motion_count > 0 {
+                total_ms / motion_count as f32
+            } else {
+                150.0
+            }
         } else if action_idx < act.delays.len() {
             let d = act.delays[action_idx] * 25.0;
             if d > 0.0 { d } else { 150.0 }
@@ -479,9 +510,16 @@ mod tests {
 
     fn make_motion_with_attach(x: i32, y: i32) -> Motion {
         Motion {
-            range1: [0; 4], range2: [0; 4],
-            clips: Vec::new(), event_id: -1,
-            attach_points: vec![AnchorPoint { ignored: 0, x, y, attribute: 0 }],
+            range1: [0; 4],
+            range2: [0; 4],
+            clips: Vec::new(),
+            event_id: -1,
+            attach_points: vec![AnchorPoint {
+                ignored: 0,
+                x,
+                y,
+                attribute: 0,
+            }],
         }
     }
 
@@ -496,8 +534,10 @@ mod tests {
     fn head_offset_missing_attach_points() {
         let with_attach = make_motion_with_attach(10, 20);
         let without_attach = Motion {
-            range1: [0; 4], range2: [0; 4],
-            clips: Vec::new(), event_id: -1,
+            range1: [0; 4],
+            range2: [0; 4],
+            clips: Vec::new(),
+            event_id: -1,
             attach_points: Vec::new(),
         };
         assert_eq!(attachment_offset(&without_attach, &with_attach), (0, 0));
@@ -505,15 +545,19 @@ mod tests {
     }
 
     fn make_act(action_count: usize, motions_per_action: usize) -> ActFile {
-        let actions: Vec<Action> = (0..action_count).map(|_| {
-            Action {
-                motions: (0..motions_per_action).map(|_| Motion {
-                    range1: [0; 4], range2: [0; 4],
-                    clips: Vec::new(), event_id: -1,
-                    attach_points: Vec::new(),
-                }).collect(),
-            }
-        }).collect();
+        let actions: Vec<Action> = (0..action_count)
+            .map(|_| Action {
+                motions: (0..motions_per_action)
+                    .map(|_| Motion {
+                        range1: [0; 4],
+                        range2: [0; 4],
+                        clips: Vec::new(),
+                        event_id: -1,
+                        attach_points: Vec::new(),
+                    })
+                    .collect(),
+            })
+            .collect();
         ActFile {
             version: (2, 5),
             actions,

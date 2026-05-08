@@ -9,10 +9,10 @@ use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::sprite::{SpriteTextures, upload_sprite_textures};
 use ragnarok_renderer::texture::{self, TextureCache};
 use ragnarok_renderer::ui_renderer::{UiDrawCommand, UiRenderer};
-use ragnarok_renderer::{RenderDevice, UiDrawCall, UiTextureRef, block_on, render_damage_number_quads};
-use ragnarok_tools::rendering_viewer::controls::{
-    self, Background, Scenario, ViewerAction,
+use ragnarok_renderer::{
+    RenderDevice, UiDrawCall, UiTextureRef, block_on, render_damage_number_quads,
 };
+use ragnarok_tools::rendering_viewer::controls::{self, Background, Scenario, ViewerAction};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -28,7 +28,16 @@ type HotDestroyFn = unsafe extern "C" fn(*mut ());
 type HotTriggerFn = unsafe extern "C" fn(*mut (), u8, i32, u8);
 type HotUpdateFn = unsafe extern "C" fn(*mut (), f32);
 type HotBuildFn = unsafe extern "C" fn(*mut (), *mut Vec<DamageNumberQuad>);
-type HotInitSpritesFn = unsafe extern "C" fn(*mut (), *const u8, usize, *const (u32, u32), usize, usize, *const (u32, u32), usize);
+type HotInitSpritesFn = unsafe extern "C" fn(
+    *mut (),
+    *const u8,
+    usize,
+    *const (u32, u32),
+    usize,
+    usize,
+    *const (u32, u32),
+    usize,
+);
 
 struct HotLib {
     _lib: libloading::Library,
@@ -56,12 +65,21 @@ impl HotLib {
             let trigger: libloading::Symbol<HotTriggerFn> = lib.get(b"hot_trigger").ok()?;
             let build: libloading::Symbol<HotBuildFn> = lib.get(b"hot_build").ok()?;
             let destroy: libloading::Symbol<HotDestroyFn> = lib.get(b"hot_destroy").ok()?;
-            let init_sprites: libloading::Symbol<HotInitSpritesFn> = lib.get(b"hot_init_sprites").ok()?;
+            let init_sprites: libloading::Symbol<HotInitSpritesFn> =
+                lib.get(b"hot_init_sprites").ok()?;
             (*create, *update, *trigger, *build, *destroy, *init_sprites)
         };
 
         let state = (create_fn)();
-        Some(Self { _lib: lib, state, update_fn, trigger_fn, build_fn, destroy_fn, init_sprites_fn })
+        Some(Self {
+            _lib: lib,
+            state,
+            update_fn,
+            trigger_fn,
+            build_fn,
+            destroy_fn,
+            init_sprites_fn,
+        })
     }
 
     fn unload(mut self) {
@@ -111,10 +129,7 @@ impl HotLib {
 
 fn find_dylib() -> PathBuf {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let target_dir = manifest_dir
-        .parent().unwrap()
-        .join("target")
-        .join("debug");
+    let target_dir = manifest_dir.parent().unwrap().join("target").join("debug");
 
     #[cfg(target_os = "linux")]
     let name = "librendering_viewer_hot.so";
@@ -286,7 +301,11 @@ impl App {
                 self.direction = (self.direction + 1) % 8;
             }
             ViewerAction::PrevDirection => {
-                self.direction = if self.direction == 0 { 7 } else { self.direction - 1 };
+                self.direction = if self.direction == 0 {
+                    7
+                } else {
+                    self.direction - 1
+                };
             }
             ViewerAction::SpeedUp => {
                 self.speed = (self.speed + 0.25).min(5.0);
@@ -302,48 +321,51 @@ impl App {
 
     fn check_hot_reload(&mut self) {
         if let Some(mtime) = dylib_mtime(&self.dylib_path)
-            && mtime > self.last_dylib_mtime {
-                self.last_dylib_mtime = mtime;
-                self.reload_counter += 1;
-                let ext = format!("hot{}.so", self.reload_counter);
-                let tmp_path = self.dylib_path.with_extension(&ext);
-                if std::fs::copy(&self.dylib_path, &tmp_path).is_err() {
-                    eprintln!("Failed to copy dylib to temp file");
-                    return;
-                }
+            && mtime > self.last_dylib_mtime
+        {
+            self.last_dylib_mtime = mtime;
+            self.reload_counter += 1;
+            let ext = format!("hot{}.so", self.reload_counter);
+            let tmp_path = self.dylib_path.with_extension(&ext);
+            if std::fs::copy(&self.dylib_path, &tmp_path).is_err() {
+                eprintln!("Failed to copy dylib to temp file");
+                return;
+            }
 
-                eprintln!("Reloading dylib...");
+            eprintln!("Reloading dylib...");
 
-                if let Some(old) = self.hot_lib.take() {
-                    old.unload();
-                }
+            if let Some(old) = self.hot_lib.take() {
+                old.unload();
+            }
 
-                match HotLib::load(&tmp_path) {
-                    Some(new_lib) => {
-                        self.hot_lib = Some(new_lib);
-                        self.hot_init_sprites();
-                        if let Some(hot) = &self.hot_lib {
-                            hot.trigger(0, self.damage_value, self.direction);
-                        }
-                        eprintln!("Reload complete.");
+            match HotLib::load(&tmp_path) {
+                Some(new_lib) => {
+                    self.hot_lib = Some(new_lib);
+                    self.hot_init_sprites();
+                    if let Some(hot) = &self.hot_lib {
+                        hot.trigger(0, self.damage_value, self.direction);
                     }
-                    None => {
-                        eprintln!("Failed to load new dylib, falling back to original");
-                        self.hot_lib = HotLib::load(&self.dylib_path);
-                        self.hot_init_sprites();
-                    }
+                    eprintln!("Reload complete.");
                 }
-
-                if self.reload_counter > 1 {
-                    let prev_ext = format!("hot{}.so", self.reload_counter - 1);
-                    let prev = self.dylib_path.with_extension(prev_ext);
-                    let _ = std::fs::remove_file(prev);
+                None => {
+                    eprintln!("Failed to load new dylib, falling back to original");
+                    self.hot_lib = HotLib::load(&self.dylib_path);
+                    self.hot_init_sprites();
                 }
             }
+
+            if self.reload_counter > 1 {
+                let prev_ext = format!("hot{}.so", self.reload_counter - 1);
+                let prev = self.dylib_path.with_extension(prev_ext);
+                let _ = std::fs::remove_file(prev);
+            }
+        }
     }
 
     fn hot_init_sprites(&self) {
-        if let (Some(hot), Some(num_tex), Some(act_data)) = (&self.hot_lib, &self.num_textures, &self.num_act_data) {
+        if let (Some(hot), Some(num_tex), Some(act_data)) =
+            (&self.hot_lib, &self.num_textures, &self.num_act_data)
+        {
             hot.init_sprites(
                 act_data,
                 &num_tex.sizes,
@@ -354,7 +376,9 @@ impl App {
     }
 
     fn render_frame(&mut self) {
-        if self.device.is_none() { return; }
+        if self.device.is_none() {
+            return;
+        }
 
         self.check_hot_reload();
 
@@ -435,10 +459,16 @@ impl App {
                 let label_x = sx - label_w / 2.0;
                 let label_y = sy + 30.0;
                 let (tv, ti) = ragnarok_ui::draw::text_vertices(
-                    label, label_x, label_y, [0.7, 0.7, 0.7, 0.6], atlas,
+                    label,
+                    label_x,
+                    label_y,
+                    [0.7, 0.7, 0.7, 0.6],
+                    atlas,
                 );
                 draw_calls.push(UiDrawCall {
-                    vertices: tv, indices: ti, texture: UiTextureRef::FontAtlas,
+                    vertices: tv,
+                    indices: ti,
+                    texture: UiTextureRef::FontAtlas,
                 });
             }
 
@@ -446,16 +476,24 @@ impl App {
             draw_calls.append(&mut legend);
 
             let mut status = controls::build_status_draw_calls(
-                atlas, width, self.damage_value, self.direction, self.speed, self.paused,
+                atlas,
+                width,
+                self.damage_value,
+                self.direction,
+                self.speed,
+                self.paused,
             );
             draw_calls.append(&mut status);
         }
 
         // Resolve textures and render
         if let (Some(ui_renderer), Some(font_bg), Some(white_bg)) = (
-            &mut self.ui_renderer, &self.font_atlas_bind_group, &self.white_bind_group,
+            &mut self.ui_renderer,
+            &self.font_atlas_bind_group,
+            &self.white_bind_group,
         ) {
-            let resolved: Vec<UiDrawCommand> = draw_calls.iter()
+            let resolved: Vec<UiDrawCommand> = draw_calls
+                .iter()
                 .map(|call| {
                     let bind_group = match &call.texture {
                         UiTextureRef::FontAtlas => font_bg,
@@ -531,7 +569,6 @@ impl ApplicationHandler for App {
         self.ui_renderer = Some(ui_renderer);
         self.texture_cache = Some(tex_cache);
 
-
         self.last_frame = Instant::now();
         self.device = Some(device);
         self.window = Some(window);
@@ -567,11 +604,7 @@ impl ApplicationHandler for App {
                 if let Some(device) = &mut self.device {
                     device.resize(size.width, size.height);
                     if let Some(ui_renderer) = &mut self.ui_renderer {
-                        ui_renderer.resize(
-                            &device.queue,
-                            size.width as f32,
-                            size.height as f32,
-                        );
+                        ui_renderer.resize(&device.queue, size.width as f32, size.height as f32);
                     }
                 }
             }
@@ -612,7 +645,6 @@ fn main() {
         }
         i += 1;
     }
-
 
     let event_loop = EventLoop::new().unwrap();
     let mut app = App::new(grf_path);

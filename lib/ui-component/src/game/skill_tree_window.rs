@@ -9,8 +9,7 @@ use ragnarok_ui::rect::Rect;
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 use crate::helper::window_chrome::{
-    TITLEBAR_TEX, FOOTER_TEX,
-    draw_titlebar, draw_container, draw_footer, text_color,
+    FOOTER_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_titlebar, text_color,
 };
 use crate::{InGameWindow, Window};
 
@@ -113,11 +112,21 @@ impl Window for SkillTreeWindow {
         Self: Sized,
     {
         let mut paths = vec![
-            TITLEBAR_TEX, FOOTER_TEX, CLOSE_OFF_TEX, CLOSE_ON_TEX,
-            ARW_LEFT_TEX, ARW_RIGHT_TEX,
-            LEVELUP_BTN.normal, LEVELUP_BTN.hover, LEVELUP_BTN.pressed,
-            USE_BTN.normal, USE_BTN.hover, USE_BTN.pressed,
-            CLOSE_BTN.normal, CLOSE_BTN.hover, CLOSE_BTN.pressed,
+            TITLEBAR_TEX,
+            FOOTER_TEX,
+            CLOSE_OFF_TEX,
+            CLOSE_ON_TEX,
+            ARW_LEFT_TEX,
+            ARW_RIGHT_TEX,
+            LEVELUP_BTN.normal,
+            LEVELUP_BTN.hover,
+            LEVELUP_BTN.pressed,
+            USE_BTN.normal,
+            USE_BTN.hover,
+            USE_BTN.pressed,
+            CLOSE_BTN.normal,
+            CLOSE_BTN.hover,
+            CLOSE_BTN.pressed,
         ];
         paths.extend(scrollbar::grf_texture_paths());
         paths.extend(DialogContainer::grf_texture_paths());
@@ -146,14 +155,7 @@ impl InGameWindow for SkillTreeWindow {
         let content_h = VISIBLE_ROWS as f32 * ROW_H;
         let win_h = TITLE_H + content_h + FOOTER_H;
 
-        let win_rect = ui.window_at(
-            SKILL_WINDOW_ID,
-            WIN_W,
-            win_h,
-            TITLE_H,
-            400.0,
-            100.0,
-        );
+        let win_rect = ui.window_at(SKILL_WINDOW_ID, WIN_W, win_h, TITLE_H, 400.0, 100.0);
         let x = win_rect.x;
         let y = win_rect.y;
 
@@ -170,7 +172,11 @@ impl InGameWindow for SkillTreeWindow {
         let close_rect = Rect::new(close_x, close_y, 11.0, 11.0);
         let close_resp = ui.interact(SKILL_CLOSE_BTN_ID, close_rect);
         if has_grf {
-            let tex = if close_resp.hovered() { CLOSE_ON_TEX } else { CLOSE_OFF_TEX };
+            let tex = if close_resp.hovered() {
+                CLOSE_ON_TEX
+            } else {
+                CLOSE_OFF_TEX
+            };
             let (v, i) = draw::quad_vertices(close_x, close_y, 11.0, 11.0, [1.0; 4]);
             ui.draw_calls.push(DrawCall {
                 vertices: v.to_vec(),
@@ -224,7 +230,9 @@ impl InGameWindow for SkillTreeWindow {
         let skill_area_w = WIN_W - SCROLLBAR_W - PAD_X * 2.0 - 1.0;
 
         // Collect visible skill IDs to avoid borrowing character.skills for the whole loop
-        let visible_skill_ids: Vec<u16> = character.skills.skills()
+        let visible_skill_ids: Vec<u16> = character
+            .skills
+            .skills()
             .iter()
             .skip(self.scroll_offset)
             .take(VISIBLE_ROWS)
@@ -262,9 +270,7 @@ impl InGameWindow for SkillTreeWindow {
                 } else {
                     [0.3, 0.3, 0.4, 0.3]
                 };
-                let (v, idx) = draw::quad_vertices(
-                    x + PAD_X, row_y, skill_area_w, ROW_H, hover_bg,
-                );
+                let (v, idx) = draw::quad_vertices(x + PAD_X, row_y, skill_area_w, ROW_H, hover_bg);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: idx.to_vec(),
@@ -301,7 +307,9 @@ impl InGameWindow for SkillTreeWindow {
             let level_color = [tc[0] * 0.7, tc[1] * 0.7, tc[2] * 0.7, tc[3]];
             let is_level_selectable = skill.skill_target_type != SkillTargetType::Passive
                 && skill.level > 0
-                && data.skill_use_level.as_ref()
+                && data
+                    .skill_use_level
+                    .as_ref()
                     .is_some_and(|t| t.supports_level_select(&skill.name));
 
             if is_level_selectable {
@@ -320,7 +328,11 @@ impl InGameWindow for SkillTreeWindow {
                         texture: TextureRef::Named(ARW_LEFT_TEX.to_string()),
                     });
                 } else {
-                    let c = if left_resp.hovered() { [1.0, 1.0, 0.5, 1.0] } else { level_color };
+                    let c = if left_resp.hovered() {
+                        [1.0, 1.0, 0.5, 1.0]
+                    } else {
+                        level_color
+                    };
                     ui.text(name_x, level_y, "<", c);
                 }
                 if left_resp.clicked() {
@@ -343,7 +355,11 @@ impl InGameWindow for SkillTreeWindow {
                         texture: TextureRef::Named(ARW_RIGHT_TEX.to_string()),
                     });
                 } else {
-                    let c = if right_resp.hovered() { [1.0, 1.0, 0.5, 1.0] } else { level_color };
+                    let c = if right_resp.hovered() {
+                        [1.0, 1.0, 0.5, 1.0]
+                    } else {
+                        level_color
+                    };
                     ui.text(right_x, level_y, ">", c);
                 }
                 if right_resp.clicked() {
@@ -360,7 +376,9 @@ impl InGameWindow for SkillTreeWindow {
             if skill.skill_target_type == SkillTargetType::Passive {
                 ui.text(type_x, type_y, "Passive", tc);
             } else if is_level_selectable {
-                let sp = data.skill_use_level.as_ref()
+                let sp = data
+                    .skill_use_level
+                    .as_ref()
                     .and_then(|t| t.sp_at_level(&skill.name, skill.use_level()))
                     .unwrap_or(skill.sp_cost);
                 let type_text = format!("Sp : {}", sp);
@@ -380,14 +398,15 @@ impl InGameWindow for SkillTreeWindow {
                 let btn_resp = ui.button(btn_id, btn_rect, &LEVELUP_BTN, "+");
 
                 if btn_resp.clicked() {
-                    events.push(GameEvent::RequestSkillLevelUp {
-                        skill_id: skill.id,
-                    });
+                    events.push(GameEvent::RequestSkillLevelUp { skill_id: skill.id });
                 }
             }
 
             // Drag source for usable skills (non-passive, learned)
-            if row_resp.clicked() && skill.level > 0 && skill.skill_target_type != SkillTargetType::Passive {
+            if row_resp.clicked()
+                && skill.level > 0
+                && skill.skill_target_type != SkillTargetType::Passive
+            {
                 ui.drag_source(
                     SKILL_WINDOW_ID,
                     skill.id as usize,
@@ -426,14 +445,18 @@ impl InGameWindow for SkillTreeWindow {
 
                 let tooltip_text = tooltip_lines.join("\n");
                 let tooltip_max_w: f32 = 220.0;
-                let wrapped = draw::word_wrap(&tooltip_text, tooltip_max_w, |t| {
-                    ui.atlas.measure_text(&draw::strip_color_codes(t))
-                }, false);
+                let wrapped = draw::word_wrap(
+                    &tooltip_text,
+                    tooltip_max_w,
+                    |t| ui.atlas.measure_text(&draw::strip_color_codes(t)),
+                    false,
+                );
 
                 let line_h = ui.atlas.line_height;
                 let pad = 8.0;
                 let text_h = wrapped.len() as f32 * line_h;
-                let max_line_w = wrapped.iter()
+                let max_line_w = wrapped
+                    .iter()
                     .map(|l| ui.atlas.measure_text(&draw::strip_color_codes(l)))
                     .fold(0.0f32, f32::max);
                 let box_w = max_line_w + pad * 2.0;
@@ -444,14 +467,18 @@ impl InGameWindow for SkillTreeWindow {
 
                 self.tooltip_container.draw(
                     &mut ui.tooltip_draw_calls,
-                    tx, ty, box_w, box_h,
+                    tx,
+                    ty,
+                    box_w,
+                    box_h,
                     [1.0; 4],
                 );
 
                 let text_color = self.tooltip_container.text_color();
                 let mut text_y = ty + pad + line_h;
                 for line in &wrapped {
-                    let (v, i) = draw::colored_text_vertices(line, tx + pad, text_y, text_color, ui.atlas);
+                    let (v, i) =
+                        draw::colored_text_vertices(line, tx + pad, text_y, text_color, ui.atlas);
                     if !v.is_empty() {
                         ui.tooltip_draw_calls.push(DrawCall {
                             vertices: v,

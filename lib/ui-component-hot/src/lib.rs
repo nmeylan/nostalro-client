@@ -3,12 +3,11 @@
 #[global_allocator]
 static GLOBAL: std::alloc::System = std::alloc::System;
 
-use std::collections::HashMap;
-use models::enums::item::ItemType;
 use models::enums::EnumWithNumberValue;
+use models::enums::item::ItemType;
+use ragnarok_game::card_illustration_table::CardIllustrationTable;
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
-use ragnarok_game::card_illustration_table::CardIllustrationTable;
 use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo};
 use ragnarok_game::item::Item;
 use ragnarok_game::item_description_table::ItemDescriptionTable;
@@ -21,21 +20,22 @@ use ragnarok_ui::rect::Rect;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::LoginWindow;
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
+use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
 use ragnarok_ui_component::game::card_insert_dialog::{CardInsertDialog, EligibleItem};
 use ragnarok_ui_component::game::chat_window::ChatWindow;
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
+use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
 use ragnarok_ui_component::game::inventory_window::InventoryWindow;
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
-use ragnarok_ui_component::game::number_input::{NumberInputDialog, NumberInputConfig};
-use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
+use ragnarok_ui_component::game::number_input::{NumberInputConfig, NumberInputDialog};
 use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
-use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
 use ragnarok_ui_component::game::system_menu::SystemMenu;
-use ragnarok_ui_component::{Window, InGameWindow};
+use ragnarok_ui_component::{InGameWindow, Window};
+use std::collections::HashMap;
 
 const GAME_COMPONENTS: &[&str] = &[
     "inventory",
@@ -162,7 +162,11 @@ fn create_single(name: &str) -> State {
             for item in inventory_test_items() {
                 character.inventory.add_item(item);
             }
-            State::Inventory { inv, character, data: DataTable::new() }
+            State::Inventory {
+                inv,
+                character,
+                data: DataTable::new(),
+            }
         }
         "npc_shop" => {
             let buy_items = shop_buy_test_items();
@@ -191,7 +195,11 @@ fn create_single(name: &str) -> State {
             chat.add_chat("[Archer]: WTB Composite Bow +5".into());
             chat.add_chat("^FF0000[System]: Server maintenance in 30 minutes.".into());
             chat.add_chat("[Mage]: Trading Fire Bolt 10 for Cold Bolt 10".into());
-            State::Chat { chat, character: Character::new(), data: DataTable::new() }
+            State::Chat {
+                chat,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
         }
         "npc_dialog" => {
             let mut npc = NpcDialog::new();
@@ -200,7 +208,11 @@ fn create_single(name: &str) -> State {
                 "Hello adventurer!\nWelcome to Prontera.\nHow can I help you today?",
             );
             npc.dialog.wait_for_next(100);
-            State::NpcDialog { npc, character: Character::new(), data: DataTable::new() }
+            State::NpcDialog {
+                npc,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
         }
         "confirm_dialog" => State::ConfirmDialog {
             dialog: ConfirmDialog::new("Are you sure you want to quit?"),
@@ -325,12 +337,20 @@ fn create_single(name: &str) -> State {
             for item in items {
                 character.inventory.add_item(item);
             }
-            State::Equipment { equip, character, data: DataTable::new() }
+            State::Equipment {
+                equip,
+                character,
+                data: DataTable::new(),
+            }
         }
         "system_menu" => {
             let mut menu = SystemMenu::new();
             menu.open = false;
-            State::SystemMenu { menu, character: Character::new(), data: DataTable::new() }
+            State::SystemMenu {
+                menu,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
         }
         "char_select" => {
             let characters = vec![
@@ -424,23 +444,29 @@ fn create_single(name: &str) -> State {
             let mut slot_entries = HashMap::new();
             slot_entries.insert(1701u16, 3u8);
             let mut desc_entries = HashMap::new();
-            desc_entries.insert(1701u16, vec![
-                "A bow with 3 card slots.".to_string(),
-                "Class:^0000FF Weapon^000000".to_string(),
-                "Attack:^777777 15^000000".to_string(),
-                "Weight:^777777 50^000000".to_string(),
-                "Weapon Level:^777777 1^000000".to_string(),
-                "Required Level:^777777 4^000000".to_string(),
-                "Applicable Job:^777777 Archer class^000000".to_string(),
-            ]);
-            desc_entries.insert(4025u16, vec![
-                "A card with a picture".to_string(),
-                "of a Goblin on it.".to_string(),
-                "ATK+10, CRIT+5".to_string(),
-                "Class:^0000FF Card^000000".to_string(),
-                "Compound on:^777777 Weapon^000000".to_string(),
-                "Weight:^777777 1^000000".to_string(),
-            ]);
+            desc_entries.insert(
+                1701u16,
+                vec![
+                    "A bow with 3 card slots.".to_string(),
+                    "Class:^0000FF Weapon^000000".to_string(),
+                    "Attack:^777777 15^000000".to_string(),
+                    "Weight:^777777 50^000000".to_string(),
+                    "Weapon Level:^777777 1^000000".to_string(),
+                    "Required Level:^777777 4^000000".to_string(),
+                    "Applicable Job:^777777 Archer class^000000".to_string(),
+                ],
+            );
+            desc_entries.insert(
+                4025u16,
+                vec![
+                    "A card with a picture".to_string(),
+                    "of a Goblin on it.".to_string(),
+                    "ATK+10, CRIT+5".to_string(),
+                    "Class:^0000FF Card^000000".to_string(),
+                    "Compound on:^777777 Weapon^000000".to_string(),
+                    "Weight:^777777 1^000000".to_string(),
+                ],
+            );
             let mut name_identified = HashMap::new();
             name_identified.insert(1701u16, "Bow".to_string());
             name_identified.insert(4025u16, "Goblin Card".to_string());
@@ -448,7 +474,10 @@ fn create_single(name: &str) -> State {
             illust_entries.insert(4025u16, "고블린카드".to_string());
             let data = DataTable {
                 item_slot_count: Some(ItemSlotCountTable::from_entries(slot_entries)),
-                item_description: Some(ItemDescriptionTable::from_entries(desc_entries, HashMap::new())),
+                item_description: Some(ItemDescriptionTable::from_entries(
+                    desc_entries,
+                    HashMap::new(),
+                )),
                 item_resource: None,
                 item_name: Some(ItemNameTable::from_entries(name_identified, HashMap::new())),
                 card_illustration: Some(CardIllustrationTable::from_entries(illust_entries)),
@@ -471,22 +500,72 @@ fn create_single(name: &str) -> State {
             };
             let mut win = ItemInfoWindow::new();
             win.show(&bow, &data);
-            State::ItemInfo { win, character: Character::new(), data, item: bow }
+            State::ItemInfo {
+                win,
+                character: Character::new(),
+                data,
+                item: bow,
+            }
         }
         "skill_tree" => {
             use ragnarok_game::skill::{SkillData, SkillTargetType};
             use ragnarok_game::skill_name_table::SkillNameTable;
-            use ragnarok_game::skill_tree_table::{SkillTreeTable, SkillTreeEntry};
+            use ragnarok_game::skill_tree_table::{SkillTreeEntry, SkillTreeTable};
 
             let mut character = Character::new();
             character.skill_point = 5;
             character.skills.open();
             character.skills.set_skills(vec![
-                SkillData { id: 1, name: "SM_SWORD".into(), level: 10, selected_level: 10, sp_cost: 0, attack_range: 0, upgradable: false, skill_target_type: SkillTargetType::Passive },
-                SkillData { id: 2, name: "SM_RECOVERY".into(), level: 5, selected_level: 5, sp_cost: 0, attack_range: 0, upgradable: true, skill_target_type: SkillTargetType::Passive },
-                SkillData { id: 3, name: "SM_BASH".into(), level: 5, selected_level: 5, sp_cost: 8, attack_range: 1, upgradable: true, skill_target_type: SkillTargetType::Target },
-                SkillData { id: 4, name: "SM_PROVOKE".into(), level: 3, selected_level: 3, sp_cost: 4, attack_range: 9, upgradable: true, skill_target_type: SkillTargetType::Target },
-                SkillData { id: 5, name: "SM_ENDURE".into(), level: 0, selected_level: 0, sp_cost: 10, attack_range: 0, upgradable: true, skill_target_type: SkillTargetType::Ground },
+                SkillData {
+                    id: 1,
+                    name: "SM_SWORD".into(),
+                    level: 10,
+                    selected_level: 10,
+                    sp_cost: 0,
+                    attack_range: 0,
+                    upgradable: false,
+                    skill_target_type: SkillTargetType::Passive,
+                },
+                SkillData {
+                    id: 2,
+                    name: "SM_RECOVERY".into(),
+                    level: 5,
+                    selected_level: 5,
+                    sp_cost: 0,
+                    attack_range: 0,
+                    upgradable: true,
+                    skill_target_type: SkillTargetType::Passive,
+                },
+                SkillData {
+                    id: 3,
+                    name: "SM_BASH".into(),
+                    level: 5,
+                    selected_level: 5,
+                    sp_cost: 8,
+                    attack_range: 1,
+                    upgradable: true,
+                    skill_target_type: SkillTargetType::Target,
+                },
+                SkillData {
+                    id: 4,
+                    name: "SM_PROVOKE".into(),
+                    level: 3,
+                    selected_level: 3,
+                    sp_cost: 4,
+                    attack_range: 9,
+                    upgradable: true,
+                    skill_target_type: SkillTargetType::Target,
+                },
+                SkillData {
+                    id: 5,
+                    name: "SM_ENDURE".into(),
+                    level: 0,
+                    selected_level: 0,
+                    sp_cost: 10,
+                    attack_range: 0,
+                    upgradable: true,
+                    skill_target_type: SkillTargetType::Ground,
+                },
             ]);
 
             let mut skill_names = HashMap::new();
@@ -503,21 +582,80 @@ fn create_single(name: &str) -> State {
             skill_names.insert("NV_BASIC".into(), "Basic Skill".into());
 
             let mut trees = HashMap::new();
-            trees.insert(0, vec![
-                SkillTreeEntry { skill_name: "NV_BASIC".into(), position: 0, max_level: 9, prerequisite_positions: vec![] },
-            ]);
-            trees.insert(1, vec![
-                SkillTreeEntry { skill_name: "SM_SWORD".into(), position: 1, max_level: 10, prerequisite_positions: vec![] },
-                SkillTreeEntry { skill_name: "SM_RECOVERY".into(), position: 2, max_level: 10, prerequisite_positions: vec![] },
-                SkillTreeEntry { skill_name: "SM_BASH".into(), position: 3, max_level: 10, prerequisite_positions: vec![] },
-                SkillTreeEntry { skill_name: "SM_PROVOKE".into(), position: 4, max_level: 10, prerequisite_positions: vec![] },
-                SkillTreeEntry { skill_name: "SM_AUTOBERSERK".into(), position: 5, max_level: 1, prerequisite_positions: vec![] },
-                SkillTreeEntry { skill_name: "SM_MOVINGRECOVERY".into(), position: 6, max_level: 1, prerequisite_positions: vec![] },
-                SkillTreeEntry { skill_name: "SM_TWOHAND".into(), position: 8, max_level: 10, prerequisite_positions: vec![1] },
-                SkillTreeEntry { skill_name: "SM_MAGNUM".into(), position: 10, max_level: 10, prerequisite_positions: vec![3] },
-                SkillTreeEntry { skill_name: "SM_ENDURE".into(), position: 11, max_level: 10, prerequisite_positions: vec![4] },
-                SkillTreeEntry { skill_name: "SM_FATALBLOW".into(), position: 12, max_level: 1, prerequisite_positions: vec![] },
-            ]);
+            trees.insert(
+                0,
+                vec![SkillTreeEntry {
+                    skill_name: "NV_BASIC".into(),
+                    position: 0,
+                    max_level: 9,
+                    prerequisite_positions: vec![],
+                }],
+            );
+            trees.insert(
+                1,
+                vec![
+                    SkillTreeEntry {
+                        skill_name: "SM_SWORD".into(),
+                        position: 1,
+                        max_level: 10,
+                        prerequisite_positions: vec![],
+                    },
+                    SkillTreeEntry {
+                        skill_name: "SM_RECOVERY".into(),
+                        position: 2,
+                        max_level: 10,
+                        prerequisite_positions: vec![],
+                    },
+                    SkillTreeEntry {
+                        skill_name: "SM_BASH".into(),
+                        position: 3,
+                        max_level: 10,
+                        prerequisite_positions: vec![],
+                    },
+                    SkillTreeEntry {
+                        skill_name: "SM_PROVOKE".into(),
+                        position: 4,
+                        max_level: 10,
+                        prerequisite_positions: vec![],
+                    },
+                    SkillTreeEntry {
+                        skill_name: "SM_AUTOBERSERK".into(),
+                        position: 5,
+                        max_level: 1,
+                        prerequisite_positions: vec![],
+                    },
+                    SkillTreeEntry {
+                        skill_name: "SM_MOVINGRECOVERY".into(),
+                        position: 6,
+                        max_level: 1,
+                        prerequisite_positions: vec![],
+                    },
+                    SkillTreeEntry {
+                        skill_name: "SM_TWOHAND".into(),
+                        position: 8,
+                        max_level: 10,
+                        prerequisite_positions: vec![1],
+                    },
+                    SkillTreeEntry {
+                        skill_name: "SM_MAGNUM".into(),
+                        position: 10,
+                        max_level: 10,
+                        prerequisite_positions: vec![3],
+                    },
+                    SkillTreeEntry {
+                        skill_name: "SM_ENDURE".into(),
+                        position: 11,
+                        max_level: 10,
+                        prerequisite_positions: vec![4],
+                    },
+                    SkillTreeEntry {
+                        skill_name: "SM_FATALBLOW".into(),
+                        position: 12,
+                        max_level: 1,
+                        prerequisite_positions: vec![],
+                    },
+                ],
+            );
 
             let data = DataTable {
                 skill_name: Some(SkillNameTable::from_entries(skill_names)),
@@ -527,34 +665,68 @@ fn create_single(name: &str) -> State {
 
             let win = SkillTreeWindow::new();
 
-            State::SkillTree { win, character, data }
+            State::SkillTree {
+                win,
+                character,
+                data,
+            }
         }
         "card_insert" => {
             let eligible = vec![
-                EligibleItem { inventory_index: 1, display_name: "+7 Sword [3]".into(), icon_path: None },
-                EligibleItem { inventory_index: 2, display_name: "Bow [2]".into(), icon_path: None },
-                EligibleItem { inventory_index: 3, display_name: "+5 Guard [1]".into(), icon_path: None },
-                EligibleItem { inventory_index: 4, display_name: "Chain Mail [1]".into(), icon_path: None },
-                EligibleItem { inventory_index: 5, display_name: "Sandals [1]".into(), icon_path: None },
-                EligibleItem { inventory_index: 6, display_name: "Hood [1]".into(), icon_path: None },
-                EligibleItem { inventory_index: 7, display_name: "Muffler [1]".into(), icon_path: None },
+                EligibleItem {
+                    inventory_index: 1,
+                    display_name: "+7 Sword [3]".into(),
+                    icon_path: None,
+                },
+                EligibleItem {
+                    inventory_index: 2,
+                    display_name: "Bow [2]".into(),
+                    icon_path: None,
+                },
+                EligibleItem {
+                    inventory_index: 3,
+                    display_name: "+5 Guard [1]".into(),
+                    icon_path: None,
+                },
+                EligibleItem {
+                    inventory_index: 4,
+                    display_name: "Chain Mail [1]".into(),
+                    icon_path: None,
+                },
+                EligibleItem {
+                    inventory_index: 5,
+                    display_name: "Sandals [1]".into(),
+                    icon_path: None,
+                },
+                EligibleItem {
+                    inventory_index: 6,
+                    display_name: "Hood [1]".into(),
+                    icon_path: None,
+                },
+                EligibleItem {
+                    inventory_index: 7,
+                    display_name: "Muffler [1]".into(),
+                    icon_path: None,
+                },
             ];
             let mut dialog = CardInsertDialog::new();
             dialog.open(10, "Poring Card".into(), eligible);
-            State::CardInsert { dialog, character: Character::new(), data: DataTable::new() }
+            State::CardInsert {
+                dialog,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
         }
         "dialog_container" => {
             let mut notification = ItemPickupNotification::new();
             notification.show("Sticky Mucus".to_string(), 1, None);
-            State::DialogContainerDemo {
-                notification,
-            }
+            State::DialogContainerDemo { notification }
         }
         "hotkey_bar" => {
             use ragnarok_game::hotkey::HotkeySlotContent;
             use ragnarok_game::skill::{SkillData, SkillTargetType};
             use ragnarok_game::skill_name_table::SkillNameTable;
-            use ragnarok_game::skill_tree_table::{SkillTreeTable, SkillTreeEntry};
+            use ragnarok_game::skill_tree_table::{SkillTreeEntry, SkillTreeTable};
 
             let mut character = Character::new();
 
@@ -566,15 +738,72 @@ fn create_single(name: &str) -> State {
             character.skill_point = 5;
             character.skills.open();
             character.skills.set_skills(vec![
-                SkillData { id: 43, name: "AC_OWL".into(), level: 10, selected_level: 10, sp_cost: 0, attack_range: 0, upgradable: false, skill_target_type: SkillTargetType::Passive },
-                SkillData { id: 44, name: "AC_VULTURE".into(), level: 10, selected_level: 10, sp_cost: 0, attack_range: 0, upgradable: false, skill_target_type: SkillTargetType::Passive },
-                SkillData { id: 45, name: "AC_CONCENTRATION".into(), level: 10, selected_level: 10, sp_cost: 15, attack_range: 0, upgradable: true, skill_target_type: SkillTargetType::Ground },
-                SkillData { id: 46, name: "AC_DOUBLE".into(), level: 10, selected_level: 10, sp_cost: 12, attack_range: 9, upgradable: true, skill_target_type: SkillTargetType::Target },
-                SkillData { id: 47, name: "AC_SHOWER".into(), level: 10, selected_level: 10, sp_cost: 15, attack_range: 9, upgradable: true, skill_target_type: SkillTargetType::Target },
+                SkillData {
+                    id: 43,
+                    name: "AC_OWL".into(),
+                    level: 10,
+                    selected_level: 10,
+                    sp_cost: 0,
+                    attack_range: 0,
+                    upgradable: false,
+                    skill_target_type: SkillTargetType::Passive,
+                },
+                SkillData {
+                    id: 44,
+                    name: "AC_VULTURE".into(),
+                    level: 10,
+                    selected_level: 10,
+                    sp_cost: 0,
+                    attack_range: 0,
+                    upgradable: false,
+                    skill_target_type: SkillTargetType::Passive,
+                },
+                SkillData {
+                    id: 45,
+                    name: "AC_CONCENTRATION".into(),
+                    level: 10,
+                    selected_level: 10,
+                    sp_cost: 15,
+                    attack_range: 0,
+                    upgradable: true,
+                    skill_target_type: SkillTargetType::Ground,
+                },
+                SkillData {
+                    id: 46,
+                    name: "AC_DOUBLE".into(),
+                    level: 10,
+                    selected_level: 10,
+                    sp_cost: 12,
+                    attack_range: 9,
+                    upgradable: true,
+                    skill_target_type: SkillTargetType::Target,
+                },
+                SkillData {
+                    id: 47,
+                    name: "AC_SHOWER".into(),
+                    level: 10,
+                    selected_level: 10,
+                    sp_cost: 15,
+                    attack_range: 9,
+                    upgradable: true,
+                    skill_target_type: SkillTargetType::Target,
+                },
             ]);
 
-            character.hotkeys.set_slot(0, HotkeySlotContent::Skill { skill_id: 46, level: 10 });
-            character.hotkeys.set_slot(1, HotkeySlotContent::Item { item_id: 501, inventory_index: 0 });
+            character.hotkeys.set_slot(
+                0,
+                HotkeySlotContent::Skill {
+                    skill_id: 46,
+                    level: 10,
+                },
+            );
+            character.hotkeys.set_slot(
+                1,
+                HotkeySlotContent::Item {
+                    item_id: 501,
+                    inventory_index: 0,
+                },
+            );
 
             let mut skill_names = HashMap::new();
             skill_names.insert("AC_OWL".into(), "Owl's Eye".into());
@@ -585,16 +814,50 @@ fn create_single(name: &str) -> State {
             skill_names.insert("NV_BASIC".into(), "Basic Skill".into());
 
             let mut trees = HashMap::new();
-            trees.insert(0, vec![
-                SkillTreeEntry { skill_name: "NV_BASIC".into(), position: 0, max_level: 9, prerequisite_positions: vec![] },
-            ]);
-            trees.insert(3, vec![
-                SkillTreeEntry { skill_name: "AC_OWL".into(), position: 1, max_level: 10, prerequisite_positions: vec![] },
-                SkillTreeEntry { skill_name: "AC_VULTURE".into(), position: 2, max_level: 10, prerequisite_positions: vec![] },
-                SkillTreeEntry { skill_name: "AC_CONCENTRATION".into(), position: 3, max_level: 10, prerequisite_positions: vec![] },
-                SkillTreeEntry { skill_name: "AC_DOUBLE".into(), position: 4, max_level: 10, prerequisite_positions: vec![2] },
-                SkillTreeEntry { skill_name: "AC_SHOWER".into(), position: 5, max_level: 10, prerequisite_positions: vec![4] },
-            ]);
+            trees.insert(
+                0,
+                vec![SkillTreeEntry {
+                    skill_name: "NV_BASIC".into(),
+                    position: 0,
+                    max_level: 9,
+                    prerequisite_positions: vec![],
+                }],
+            );
+            trees.insert(
+                3,
+                vec![
+                    SkillTreeEntry {
+                        skill_name: "AC_OWL".into(),
+                        position: 1,
+                        max_level: 10,
+                        prerequisite_positions: vec![],
+                    },
+                    SkillTreeEntry {
+                        skill_name: "AC_VULTURE".into(),
+                        position: 2,
+                        max_level: 10,
+                        prerequisite_positions: vec![],
+                    },
+                    SkillTreeEntry {
+                        skill_name: "AC_CONCENTRATION".into(),
+                        position: 3,
+                        max_level: 10,
+                        prerequisite_positions: vec![],
+                    },
+                    SkillTreeEntry {
+                        skill_name: "AC_DOUBLE".into(),
+                        position: 4,
+                        max_level: 10,
+                        prerequisite_positions: vec![2],
+                    },
+                    SkillTreeEntry {
+                        skill_name: "AC_SHOWER".into(),
+                        position: 5,
+                        max_level: 10,
+                        prerequisite_positions: vec![4],
+                    },
+                ],
+            );
 
             let data = DataTable {
                 skill_name: Some(SkillNameTable::from_entries(skill_names)),
@@ -667,7 +930,12 @@ fn grf_init_single(
             inv.has_grf_textures = true;
             inv.set_texture_sizes(size_fn);
         }
-        State::NpcShop { shop, buy_items, sell_items, .. } => {
+        State::NpcShop {
+            shop,
+            buy_items,
+            sell_items,
+            ..
+        } => {
             if let Some(table) = table {
                 shop.shop.resolve_resource_names(table);
                 for item in buy_items.iter_mut() {
@@ -703,7 +971,9 @@ fn grf_init_single(
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
-        State::Equipment { equip, character, .. } => {
+        State::Equipment {
+            equip, character, ..
+        } => {
             if let Some(table) = table {
                 character.inventory.resolve_resource_names(table);
             }
@@ -718,19 +988,24 @@ fn grf_init_single(
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
-        State::ItemInfo { win, data, item, .. } => {
+        State::ItemInfo {
+            win, data, item, ..
+        } => {
             if let Some(table) = table {
                 item.resolve_resource_name(table);
                 // Card icon paths also need the resource table
                 if data.item_resource.is_none() {
                     let mut entries = HashMap::new();
                     for &card_id in &item.slot {
-                        if card_id != 0 && card_id != 0xFFFF
-                            && let Some(name) = table.get_resource_name(card_id) {
-                                entries.insert(card_id, name.to_string());
-                            }
+                        if card_id != 0
+                            && card_id != 0xFFFF
+                            && let Some(name) = table.get_resource_name(card_id)
+                        {
+                            entries.insert(card_id, name.to_string());
+                        }
                     }
-                    data.item_resource = Some(ItemResourceTable::from_entries(entries, HashMap::new()));
+                    data.item_resource =
+                        Some(ItemResourceTable::from_entries(entries, HashMap::new()));
                 }
                 win.close();
                 win.show(item, data);
@@ -750,7 +1025,11 @@ fn grf_init_single(
             notification.container.has_grf_textures = true;
             notification.set_texture_sizes(size_fn);
         }
-        State::HotkeyBarDemo { hotkey_win, character, data } => {
+        State::HotkeyBarDemo {
+            hotkey_win,
+            character,
+            data,
+        } => {
             if let Some(table) = table {
                 character.inventory.resolve_resource_names(table);
                 if data.item_resource.is_none() {
@@ -760,7 +1039,8 @@ fn grf_init_single(
                             entries.insert(item.item_id, name.to_string());
                         }
                     }
-                    data.item_resource = Some(ItemResourceTable::from_entries(entries, HashMap::new()));
+                    data.item_resource =
+                        Some(ItemResourceTable::from_entries(entries, HashMap::new()));
                 }
             }
             hotkey_win.has_grf_textures = true;
@@ -807,7 +1087,11 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
 
 fn build_single(state: &mut State, ui: &mut UiFrame) {
     match state {
-        State::Inventory { inv, character, data } => {
+        State::Inventory {
+            inv,
+            character,
+            data,
+        } => {
             inv.build(ui, character, data);
         }
         State::NpcShop {
@@ -821,7 +1105,11 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             add_button(ui, "Toggle shop", WidgetId(799), 200.0, 10.0, |_ui| {
                 *is_sell = !*is_sell;
             });
-            let desired = if *is_sell { NpcShopMode::Sell } else { NpcShopMode::Buy };
+            let desired = if *is_sell {
+                NpcShopMode::Sell
+            } else {
+                NpcShopMode::Buy
+            };
             if shop.shop.mode != Some(desired) {
                 if *is_sell {
                     shop.shop.open_sell(100, sell_items.clone());
@@ -834,10 +1122,18 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
         State::Login { login } => {
             login.build(ui);
         }
-        State::Chat { chat, character, data } => {
+        State::Chat {
+            chat,
+            character,
+            data,
+        } => {
             chat.build(ui, character, data);
         }
-        State::NpcDialog { npc, character, data } => {
+        State::NpcDialog {
+            npc,
+            character,
+            data,
+        } => {
             npc.build(ui, character, data);
         }
         State::ConfirmDialog { dialog, open } => {
@@ -846,7 +1142,7 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
                 if result != ragnarok_ui_component::game::confirm_dialog::ConfirmResult::None {
                     *open = false;
                 }
-            } 
+            }
         }
         State::NumberInput { dialog } => {
             dialog.build(ui);
@@ -854,10 +1150,18 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
         State::ServerList { win } => {
             win.build(ui);
         }
-        State::Equipment { equip, character, data } => {
+        State::Equipment {
+            equip,
+            character,
+            data,
+        } => {
             equip.build(ui, character, data);
         }
-        State::SystemMenu { menu, character, data } => {
+        State::SystemMenu {
+            menu,
+            character,
+            data,
+        } => {
             add_button(ui, "Open system Dialog", WidgetId(599), 10.0, 10.0, |_ui| {
                 menu.open = true;
             });
@@ -867,7 +1171,12 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
         State::CharSelect { win } => {
             win.build(ui);
         }
-        State::ItemInfo { win, character, data, .. } => {
+        State::ItemInfo {
+            win,
+            character,
+            data,
+            ..
+        } => {
             let events = win.build(ui, character, data);
             for event in events {
                 match event {
@@ -875,10 +1184,14 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
                         win.show_card(item_id, data);
                     }
                     GameEvent::ShowCardIllustration { item_id } => {
-                        let name = data.item_name.as_ref()
+                        let name = data
+                            .item_name
+                            .as_ref()
                             .map(|t| t.get_name_or_id(item_id))
                             .unwrap_or_else(|| format!("Item #{item_id}"));
-                        let illust_path = data.card_illustration.as_ref()
+                        let illust_path = data
+                            .card_illustration
+                            .as_ref()
                             .and_then(|t| t.illustration_path(item_id));
                         if let Some(path) = illust_path {
                             win.show_illustration(item_id, name, path);
@@ -888,24 +1201,39 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
                 }
             }
         }
-        State::SkillTree { win, character, data } => {
+        State::SkillTree {
+            win,
+            character,
+            data,
+        } => {
             win.build(ui, character, data);
         }
-        State::CardInsert { dialog, character, data } => {
+        State::CardInsert {
+            dialog,
+            character,
+            data,
+        } => {
             dialog.build(ui, character, data);
         }
-        State::DialogContainerDemo {  notification } => {
+        State::DialogContainerDemo { notification } => {
             let mut character = Character::new();
             notification.build(ui, &mut character, &DataTable::default());
         }
-        State::HotkeyBarDemo { hotkey_win, character, data } => {
+        State::HotkeyBarDemo {
+            hotkey_win,
+            character,
+            data,
+        } => {
             hotkey_win.build(ui, character, data);
         }
-        State::BasicInfoDemo { win, character, data } => {
+        State::BasicInfoDemo {
+            win,
+            character,
+            data,
+        } => {
             win.build(ui, character, data);
         }
         State::Category { components } => {
-
             // Build z-orderable windows in persisted order (back-to-front)
             let z_order = ui.get_z_order();
             ui.compute_hovered_window(&z_order);
@@ -920,9 +1248,10 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             // Build z-orderable windows not yet in z-order
             for comp in components.iter_mut() {
                 if let Some(id) = z_order_id(comp)
-                    && !z_order.contains(&id) {
-                        build_single(comp, ui);
-                    }
+                    && !z_order.contains(&id)
+                {
+                    build_single(comp, ui);
+                }
             }
             // Build non-z-orderable windows (always on top)
             for comp in components.iter_mut() {

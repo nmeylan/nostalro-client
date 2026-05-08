@@ -242,11 +242,20 @@ fn parse_table_entries(content: &str, prefix: &str) -> HashMap<String, String> {
             continue;
         }
         // Match: [ACCESSORY_IDs.ACCESSORY_NAME] = "value"
-        let Some(rest) = line.strip_prefix('[') else { continue };
-        let Some((key_part, value_part)) = rest.split_once(']') else { continue };
-        let name = key_part.trim().strip_prefix(prefix).unwrap_or(key_part.trim());
+        let Some(rest) = line.strip_prefix('[') else {
+            continue;
+        };
+        let Some((key_part, value_part)) = rest.split_once(']') else {
+            continue;
+        };
+        let name = key_part
+            .trim()
+            .strip_prefix(prefix)
+            .unwrap_or(key_part.trim());
 
-        let Some((_, val_rest)) = value_part.split_once('=') else { continue };
+        let Some((_, val_rest)) = value_part.split_once('=') else {
+            continue;
+        };
         let val = val_rest.trim().trim_end_matches(',').trim();
         if val.starts_with('"') && val.ends_with('"') {
             let inner = &val[1..val.len() - 1];

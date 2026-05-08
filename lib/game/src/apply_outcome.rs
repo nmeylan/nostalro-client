@@ -28,10 +28,15 @@ pub enum ApplyOutcome {
         head_bottom: u16,
         shield: u16,
     },
-    ReloadPlayerSprite { gid: u32 },
+    ReloadPlayerSprite {
+        gid: u32,
+    },
     PreloadItemIcons(Vec<String>),
     LoadMap(String),
-    PositionCamera { x: f32, y: f32 },
+    PositionCamera {
+        x: f32,
+        y: f32,
+    },
     EmitDamageNumber {
         target_gid: u32,
         damage: i32,

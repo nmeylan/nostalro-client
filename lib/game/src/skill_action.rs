@@ -167,46 +167,94 @@ mod tests {
 
     #[test]
     fn attack_skills_return_attack() {
-        assert_eq!(skill_motion_type(SkillEnum::SmBash.id() as u16), SkillMotionType::Attack);
-        assert_eq!(skill_motion_type(SkillEnum::AcDouble.id() as u16), SkillMotionType::Attack);
-        assert_eq!(skill_motion_type(SkillEnum::AsSonicblow.id() as u16), SkillMotionType::Attack);
-        assert_eq!(skill_motion_type(SkillEnum::LkSpiralpierce.id() as u16), SkillMotionType::Attack);
+        assert_eq!(
+            skill_motion_type(SkillEnum::SmBash.id() as u16),
+            SkillMotionType::Attack
+        );
+        assert_eq!(
+            skill_motion_type(SkillEnum::AcDouble.id() as u16),
+            SkillMotionType::Attack
+        );
+        assert_eq!(
+            skill_motion_type(SkillEnum::AsSonicblow.id() as u16),
+            SkillMotionType::Attack
+        );
+        assert_eq!(
+            skill_motion_type(SkillEnum::LkSpiralpierce.id() as u16),
+            SkillMotionType::Attack
+        );
     }
 
     #[test]
     fn bard_musical_strike_returns_attack2() {
-        assert_eq!(skill_motion_type(SkillEnum::BaMusicalstrike.id() as u16), SkillMotionType::Attack2);
-        assert_eq!(skill_motion_type(SkillEnum::CgArrowvulcan.id() as u16), SkillMotionType::Attack2);
+        assert_eq!(
+            skill_motion_type(SkillEnum::BaMusicalstrike.id() as u16),
+            SkillMotionType::Attack2
+        );
+        assert_eq!(
+            skill_motion_type(SkillEnum::CgArrowvulcan.id() as u16),
+            SkillMotionType::Attack2
+        );
     }
 
     #[test]
     fn throw_skills_return_throw() {
-        assert_eq!(skill_motion_type(SkillEnum::KnSpearboomerang.id() as u16), SkillMotionType::Throw);
-        assert_eq!(skill_motion_type(SkillEnum::TfThrowstone.id() as u16), SkillMotionType::Throw);
+        assert_eq!(
+            skill_motion_type(SkillEnum::KnSpearboomerang.id() as u16),
+            SkillMotionType::Throw
+        );
+        assert_eq!(
+            skill_motion_type(SkillEnum::TfThrowstone.id() as u16),
+            SkillMotionType::Throw
+        );
     }
 
     #[test]
     fn trap_skills_return_pickup() {
-        assert_eq!(skill_motion_type(SkillEnum::HtLandmine.id() as u16), SkillMotionType::Pickup);
-        assert_eq!(skill_motion_type(SkillEnum::HtAnklesnare.id() as u16), SkillMotionType::Pickup);
+        assert_eq!(
+            skill_motion_type(SkillEnum::HtLandmine.id() as u16),
+            SkillMotionType::Pickup
+        );
+        assert_eq!(
+            skill_motion_type(SkillEnum::HtAnklesnare.id() as u16),
+            SkillMotionType::Pickup
+        );
     }
 
     #[test]
     fn bard_songs_return_sing() {
-        assert_eq!(skill_motion_type(SkillEnum::BaPoembragi.id() as u16), SkillMotionType::Sing);
-        assert_eq!(skill_motion_type(SkillEnum::BaAppleidun.id() as u16), SkillMotionType::Sing);
+        assert_eq!(
+            skill_motion_type(SkillEnum::BaPoembragi.id() as u16),
+            SkillMotionType::Sing
+        );
+        assert_eq!(
+            skill_motion_type(SkillEnum::BaAppleidun.id() as u16),
+            SkillMotionType::Sing
+        );
     }
 
     #[test]
     fn dancer_skills_return_dance() {
-        assert_eq!(skill_motion_type(SkillEnum::DcFortunekiss.id() as u16), SkillMotionType::Dance);
-        assert_eq!(skill_motion_type(SkillEnum::BdLullaby.id() as u16), SkillMotionType::Dance);
+        assert_eq!(
+            skill_motion_type(SkillEnum::DcFortunekiss.id() as u16),
+            SkillMotionType::Dance
+        );
+        assert_eq!(
+            skill_motion_type(SkillEnum::BdLullaby.id() as u16),
+            SkillMotionType::Dance
+        );
     }
 
     #[test]
     fn stand_skills_return_stand() {
-        assert_eq!(skill_motion_type(SkillEnum::CrAutoguard.id() as u16), SkillMotionType::Stand);
-        assert_eq!(skill_motion_type(SkillEnum::LkParrying.id() as u16), SkillMotionType::Stand);
+        assert_eq!(
+            skill_motion_type(SkillEnum::CrAutoguard.id() as u16),
+            SkillMotionType::Stand
+        );
+        assert_eq!(
+            skill_motion_type(SkillEnum::LkParrying.id() as u16),
+            SkillMotionType::Stand
+        );
     }
 
     #[test]
@@ -216,6 +264,9 @@ mod tests {
 
     #[test]
     fn heal_defaults_to_skill() {
-        assert_eq!(skill_motion_type(SkillEnum::AlHeal.id() as u16), SkillMotionType::Skill);
+        assert_eq!(
+            skill_motion_type(SkillEnum::AlHeal.id() as u16),
+            SkillMotionType::Skill
+        );
     }
 }

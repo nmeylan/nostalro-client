@@ -84,7 +84,10 @@ impl GndFile {
                     let mut skip = vec![0u8; skip_count];
                     r.read_exact(&mut skip)?;
                 }
-                lightmaps.push(Lightmap { intensity, specular });
+                lightmaps.push(Lightmap {
+                    intensity,
+                    specular,
+                });
             } else {
                 // v < 1.7: skip lightmap data
                 let skip_count = lmap_pixel_count * 4;
@@ -103,13 +106,23 @@ impl GndFile {
         for _ in 0..surface_count {
             let mut u = [0f32; 4];
             let mut v = [0f32; 4];
-            for val in &mut u { *val = r.read_f32::<LE>()?; }
-            for val in &mut v { *val = r.read_f32::<LE>()?; }
+            for val in &mut u {
+                *val = r.read_f32::<LE>()?;
+            }
+            for val in &mut v {
+                *val = r.read_f32::<LE>()?;
+            }
             let texture_id = r.read_i16::<LE>()?;
             let lightmap_id = r.read_i16::<LE>()?;
             let mut color_bgra = [0u8; 4];
             r.read_exact(&mut color_bgra)?;
-            surfaces.push(GndSurface { tex_u: u, tex_v: v, texture_id, lightmap_id, color_bgra });
+            surfaces.push(GndSurface {
+                tex_u: u,
+                tex_v: v,
+                texture_id,
+                lightmap_id,
+                color_bgra,
+            });
         }
 
         // Cells
@@ -122,13 +135,24 @@ impl GndFile {
             let height_ne = r.read_f32::<LE>()?;
 
             let (up, south, east) = if version_at_least(version, 1, 7) {
-                (r.read_i32::<LE>()?, r.read_i32::<LE>()?, r.read_i32::<LE>()?)
+                (
+                    r.read_i32::<LE>()?,
+                    r.read_i32::<LE>()?,
+                    r.read_i32::<LE>()?,
+                )
             } else {
-                (r.read_i16::<LE>()? as i32, r.read_i16::<LE>()? as i32, r.read_i16::<LE>()? as i32)
+                (
+                    r.read_i16::<LE>()? as i32,
+                    r.read_i16::<LE>()? as i32,
+                    r.read_i16::<LE>()? as i32,
+                )
             };
 
             cells.push(GndCell {
-                height_sw, height_se, height_nw, height_ne,
+                height_sw,
+                height_se,
+                height_nw,
+                height_ne,
                 surface_up: up,
                 surface_south: south,
                 surface_east: east,
@@ -177,7 +201,9 @@ mod tests {
     fn parse_v1_6_uses_i16_surface_indices() {
         let mut data = build_gnd_header((1, 6), 1, 1);
         // 1 cell with i16 surface indices
-        for _ in 0..4 { data.extend_from_slice(&1.0f32.to_le_bytes()); }
+        for _ in 0..4 {
+            data.extend_from_slice(&1.0f32.to_le_bytes());
+        }
         data.extend_from_slice(&0i16.to_le_bytes()); // top
         data.extend_from_slice(&(-1i16).to_le_bytes()); // front
         data.extend_from_slice(&(-1i16).to_le_bytes()); // right
@@ -190,7 +216,9 @@ mod tests {
     #[test]
     fn parse_v1_7_uses_i32_surface_indices() {
         let mut data = build_gnd_header((1, 7), 1, 1);
-        for _ in 0..4 { data.extend_from_slice(&2.0f32.to_le_bytes()); }
+        for _ in 0..4 {
+            data.extend_from_slice(&2.0f32.to_le_bytes());
+        }
         data.extend_from_slice(&5i32.to_le_bytes()); // top
         data.extend_from_slice(&(-1i32).to_le_bytes()); // front
         data.extend_from_slice(&3i32.to_le_bytes()); // right

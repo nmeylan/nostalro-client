@@ -183,11 +183,7 @@ impl CursorAnimationState {
 
         let delay_ms = if action_idx < act.delays.len() {
             let d = act.delays[action_idx] * 25.0;
-            if d > 0.0 {
-                d
-            } else {
-                150.0
-            }
+            if d > 0.0 { d } else { 150.0 }
         } else {
             150.0
         };

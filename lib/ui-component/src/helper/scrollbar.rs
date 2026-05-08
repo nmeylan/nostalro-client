@@ -30,7 +30,9 @@ pub fn scrollbar(
     visible_rows: usize,
     max_scroll: usize,
     content_rect: Rect,
-    x: f32, y: f32, h: f32,
+    x: f32,
+    y: f32,
+    h: f32,
 ) -> usize {
     let mut offset = offset.min(max_scroll);
 
@@ -44,19 +46,37 @@ pub fn scrollbar(
 
     // Track background
     let (v, i) = draw::quad_vertices(x, y, SCROLLBAR_W, h, [0.0, 0.0, 0.0, 0.3]);
-    ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+    ui.draw_calls.push(DrawCall {
+        vertices: v.to_vec(),
+        indices: i.to_vec(),
+        texture: TextureRef::White,
+    });
 
     // Up button
     let up_rect = Rect::new(x, y, SCROLLBAR_W, SCROLL_BTN_H);
     let up_response = ui.interact(ids.up, up_rect);
-    if up_response.hovered() { ui.any_interactive_hovered = true; }
+    if up_response.hovered() {
+        ui.any_interactive_hovered = true;
+    }
     if has_grf {
         let (v, i) = draw::quad_vertices(x, y, SCROLLBAR_W, SCROLL_BTN_H, [1.0, 1.0, 1.0, 1.0]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(SCROLL_UP_TEX.to_string()) });
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::Named(SCROLL_UP_TEX.to_string()),
+        });
     } else {
-        let color = if up_response.hovered() { [0.5, 0.5, 0.6, 1.0] } else { [0.3, 0.3, 0.4, 1.0] };
+        let color = if up_response.hovered() {
+            [0.5, 0.5, 0.6, 1.0]
+        } else {
+            [0.3, 0.3, 0.4, 1.0]
+        };
         let (v, i) = draw::quad_vertices(x, y, SCROLLBAR_W, SCROLL_BTN_H, color);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
     }
     if up_response.clicked() && offset > 0 {
         offset -= 1;
@@ -66,14 +86,29 @@ pub fn scrollbar(
     let down_y = y + h - SCROLL_BTN_H;
     let down_rect = Rect::new(x, down_y, SCROLLBAR_W, SCROLL_BTN_H);
     let down_response = ui.interact(ids.down, down_rect);
-    if down_response.hovered() { ui.any_interactive_hovered = true; }
+    if down_response.hovered() {
+        ui.any_interactive_hovered = true;
+    }
     if has_grf {
-        let (v, i) = draw::quad_vertices(x, down_y, SCROLLBAR_W, SCROLL_BTN_H, [1.0, 1.0, 1.0, 1.0]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(SCROLL_DOWN_TEX.to_string()) });
+        let (v, i) =
+            draw::quad_vertices(x, down_y, SCROLLBAR_W, SCROLL_BTN_H, [1.0, 1.0, 1.0, 1.0]);
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::Named(SCROLL_DOWN_TEX.to_string()),
+        });
     } else {
-        let color = if down_response.hovered() { [0.5, 0.5, 0.6, 1.0] } else { [0.3, 0.3, 0.4, 1.0] };
+        let color = if down_response.hovered() {
+            [0.5, 0.5, 0.6, 1.0]
+        } else {
+            [0.3, 0.3, 0.4, 1.0]
+        };
         let (v, i) = draw::quad_vertices(x, down_y, SCROLLBAR_W, SCROLL_BTN_H, color);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
     }
     if down_response.clicked() && offset < max_scroll {
         offset += 1;
@@ -90,7 +125,9 @@ pub fn scrollbar(
 
         let thumb_rect = Rect::new(x, thumb_y, SCROLLBAR_W, thumb_h);
         let hovered = thumb_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y);
-        if hovered { ui.any_interactive_hovered = true; }
+        if hovered {
+            ui.any_interactive_hovered = true;
+        }
         let mouse_clicked = ui.ctx.mouse_clicked;
         let mouse_down = ui.ctx.mouse_down;
 
@@ -119,9 +156,17 @@ pub fn scrollbar(
             offset = ns.clamp(0, max_scroll as i32) as usize;
         }
 
-        let thumb_color = if thumb_active { [0.6, 0.6, 0.7, 0.9] } else { [0.5, 0.5, 0.6, 0.8] };
+        let thumb_color = if thumb_active {
+            [0.6, 0.6, 0.7, 0.9]
+        } else {
+            [0.5, 0.5, 0.6, 0.8]
+        };
         let (v, i) = draw::quad_vertices(x + 2.0, thumb_y, SCROLLBAR_W - 4.0, thumb_h, thumb_color);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
     }
 
     offset
@@ -134,17 +179,26 @@ pub fn grf_texture_paths() -> Vec<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_ui::context::UiContext;
     use ragnarok_renderer::font_atlas::FontAtlas;
+    use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
 
-    fn make_frame<'a>(ctx: &'a UiContext, atlas: &'a FontAtlas, state: &'a mut StateCache) -> UiFrame<'a> {
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+    fn make_frame<'a>(
+        ctx: &'a UiContext,
+        atlas: &'a FontAtlas,
+        state: &'a mut StateCache,
+    ) -> UiFrame<'a> {
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
     fn ids() -> ScrollbarIds {
-        ScrollbarIds { up: WidgetId(900), down: WidgetId(901), thumb: WidgetId(902) }
+        ScrollbarIds {
+            up: WidgetId(900),
+            down: WidgetId(901),
+            thumb: WidgetId(902),
+        }
     }
 
     #[test]

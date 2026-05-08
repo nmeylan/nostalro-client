@@ -26,7 +26,11 @@ impl CooldownTracker {
 
     pub fn set_skill_cooldown(&mut self, skill_id: u16, duration_secs: f32, now: f32) {
         let end = now + duration_secs;
-        if let Some(entry) = self.skill_cooldowns.iter_mut().find(|(id, _)| *id == skill_id) {
+        if let Some(entry) = self
+            .skill_cooldowns
+            .iter_mut()
+            .find(|(id, _)| *id == skill_id)
+        {
             if end > entry.1 {
                 entry.1 = end;
             }

@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use ragnarok_formats::grf::GrfArchive;
+use std::collections::HashMap;
 
 pub struct TextureCache {
     textures: HashMap<String, wgpu::BindGroup>,
@@ -10,28 +10,27 @@ pub struct TextureCache {
 
 impl TextureCache {
     pub fn new(device: &wgpu::Device, dpi_scale: f32) -> Self {
-        let bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("texture"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        },
-                        count: None,
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("texture"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
                     },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                ],
-            });
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        });
 
         Self {
             textures: HashMap::new(),
@@ -87,14 +86,41 @@ impl TextureCache {
                 if dpi_upscale && self.dpi_scale > 1.0 {
                     let phys_w = (logical_w as f32 * self.dpi_scale) as u32;
                     let phys_h = (logical_h as f32 * self.dpi_scale) as u32;
-                    let upscaled = image::imageops::resize(&img, phys_w, phys_h, image::imageops::FilterType::CatmullRom);
+                    let upscaled = image::imageops::resize(
+                        &img,
+                        phys_w,
+                        phys_h,
+                        image::imageops::FilterType::CatmullRom,
+                    );
                     // Linear sampling avoids triangle-diagonal UV precision artifacts
                     // that cause shearing with Nearest at fractional DPI scales
-                    create_texture_bind_group_filtered(device, queue, &upscaled, &self.bind_group_layout, name, wgpu::FilterMode::Linear, wgpu::AddressMode::ClampToEdge)
+                    create_texture_bind_group_filtered(
+                        device,
+                        queue,
+                        &upscaled,
+                        &self.bind_group_layout,
+                        name,
+                        wgpu::FilterMode::Linear,
+                        wgpu::AddressMode::ClampToEdge,
+                    )
                 } else if dpi_upscale {
-                    create_texture_bind_group_filtered(device, queue, &img, &self.bind_group_layout, name, wgpu::FilterMode::Nearest, wgpu::AddressMode::ClampToEdge)
+                    create_texture_bind_group_filtered(
+                        device,
+                        queue,
+                        &img,
+                        &self.bind_group_layout,
+                        name,
+                        wgpu::FilterMode::Nearest,
+                        wgpu::AddressMode::ClampToEdge,
+                    )
                 } else {
-                    create_texture_bind_group_nearest(device, queue, &img, &self.bind_group_layout, name)
+                    create_texture_bind_group_nearest(
+                        device,
+                        queue,
+                        &img,
+                        &self.bind_group_layout,
+                        name,
+                    )
                 }
             } else {
                 create_texture_bind_group(device, queue, &img, &self.bind_group_layout, name)
@@ -141,7 +167,15 @@ pub fn create_texture_bind_group(
     layout: &wgpu::BindGroupLayout,
     label: &str,
 ) -> wgpu::BindGroup {
-    create_texture_bind_group_filtered(device, queue, img, layout, label, wgpu::FilterMode::Linear, wgpu::AddressMode::Repeat)
+    create_texture_bind_group_filtered(
+        device,
+        queue,
+        img,
+        layout,
+        label,
+        wgpu::FilterMode::Linear,
+        wgpu::AddressMode::Repeat,
+    )
 }
 
 pub fn create_texture_bind_group_nearest(
@@ -151,7 +185,15 @@ pub fn create_texture_bind_group_nearest(
     layout: &wgpu::BindGroupLayout,
     label: &str,
 ) -> wgpu::BindGroup {
-    create_texture_bind_group_filtered(device, queue, img, layout, label, wgpu::FilterMode::Nearest, wgpu::AddressMode::Repeat)
+    create_texture_bind_group_filtered(
+        device,
+        queue,
+        img,
+        layout,
+        label,
+        wgpu::FilterMode::Nearest,
+        wgpu::AddressMode::Repeat,
+    )
 }
 
 pub fn create_font_atlas_bind_group(
@@ -162,8 +204,15 @@ pub fn create_font_atlas_bind_group(
     label: &str,
 ) -> wgpu::BindGroup {
     create_texture_bind_group_from_rgba(
-        device, queue, img.as_raw(), img.width(), img.height(),
-        layout, label, wgpu::FilterMode::Linear, wgpu::TextureFormat::Rgba8Unorm,
+        device,
+        queue,
+        img.as_raw(),
+        img.width(),
+        img.height(),
+        layout,
+        label,
+        wgpu::FilterMode::Linear,
+        wgpu::TextureFormat::Rgba8Unorm,
         wgpu::AddressMode::ClampToEdge,
     )
 }
@@ -248,5 +297,16 @@ fn create_texture_bind_group_filtered(
     filter: wgpu::FilterMode,
     address_mode: wgpu::AddressMode,
 ) -> wgpu::BindGroup {
-    create_texture_bind_group_from_rgba(device, queue, img.as_raw(), img.width(), img.height(), layout, label, filter, wgpu::TextureFormat::Rgba8UnormSrgb, address_mode)
+    create_texture_bind_group_from_rgba(
+        device,
+        queue,
+        img.as_raw(),
+        img.width(),
+        img.height(),
+        layout,
+        label,
+        filter,
+        wgpu::TextureFormat::Rgba8UnormSrgb,
+        address_mode,
+    )
 }

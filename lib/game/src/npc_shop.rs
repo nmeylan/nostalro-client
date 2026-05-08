@@ -1,6 +1,6 @@
 use crate::item::Item;
-use models::enums::item::ItemType;
 use models::enums::EnumWithNumberValue;
+use models::enums::item::ItemType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NpcShopMode {

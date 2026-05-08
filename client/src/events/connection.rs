@@ -4,13 +4,13 @@ use ragnarok_game::app_state::AppState;
 use ragnarok_game::entity::Entity;
 use ragnarok_game::sprite_path::weapon_view_id_to_type;
 use ragnarok_network::{
-    build_map_loaded_packet, build_zone_enter_packet, ip_u32_to_string, KeepaliveMode,
-    NetworkCommand,
+    KeepaliveMode, NetworkCommand, build_map_loaded_packet, build_zone_enter_packet,
+    ip_u32_to_string,
 };
+use ragnarok_ui_component::Window as UiWindow;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
-use ragnarok_ui_component::Window as UiWindow;
 use winit::event_loop::ActiveEventLoop;
 
 impl App {
@@ -247,27 +247,26 @@ impl App {
             .filter(|e| e.movement.is_moving())
             .and_then(|e| e.movement.destination())
             .is_some_and(|(dx, dy)| dx == dest_x && dy == dest_y);
-        if !already_moving_to_dest
-            && let Some(gat) = &self.game.gat {
-                let (sx, sy) = self
+        if !already_moving_to_dest && let Some(gat) = &self.game.gat {
+            let (sx, sy) = self
+                .game
+                .entities
+                .player()
+                .map(|e| e.movement.cell_position())
+                .unwrap_or((start_x, start_y));
+            let path = ragnarok_game::path::path_search(gat, sx, sy, dest_x, dest_y);
+            if !path.is_empty() {
+                let local_ms = self.start_time.elapsed().as_millis() as u32;
+                let move_start = self
                     .game
-                    .entities
-                    .player()
-                    .map(|e| e.movement.cell_position())
-                    .unwrap_or((start_x, start_y));
-                let path = ragnarok_game::path::path_search(gat, sx, sy, dest_x, dest_y);
-                if !path.is_empty() {
-                    let local_ms = self.start_time.elapsed().as_millis() as u32;
-                    let move_start = self
-                        .game
-                        .server_time
-                        .server_to_local_secs(start_time, local_ms);
-                    if let Some(entity) = self.game.entities.player_mut() {
-                        entity.movement.set_position(sx as f32, sy as f32);
-                        entity.movement.start_move(path, move_start);
-                    }
+                    .server_time
+                    .server_to_local_secs(start_time, local_ms);
+                if let Some(entity) = self.game.entities.player_mut() {
+                    entity.movement.set_position(sx as f32, sy as f32);
+                    entity.movement.start_move(path, move_start);
                 }
             }
+        }
     }
 
     pub(super) fn handle_server_tick(&mut self, server_tick: u32, local_send_time_ms: u32) {

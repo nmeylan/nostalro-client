@@ -1,3 +1,7 @@
+use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
+use crate::helper::dialog_container::DialogContainer;
+use crate::helper::scrollbar::{self, ScrollbarIds};
+use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
@@ -6,10 +10,6 @@ use ragnarok_ui::draw::{self, DrawCall, TextureRef, strip_color_codes, word_wrap
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
-use crate::{Window, InGameWindow};
-use crate::helper::dialog_container::DialogContainer;
-use crate::helper::scrollbar::{self, ScrollbarIds};
-use super::number_input::{NumberInputDialog, NumberInputConfig, NumberInputResult};
 
 const OVERLAY_ID: WidgetId = WidgetId(600);
 const NEXT_BTN_ID: WidgetId = WidgetId(601);
@@ -106,12 +106,15 @@ impl NpcDialog {
             win_size: (280.0, 120.0),
         }
     }
-
 }
 
 impl Window for NpcDialog {
-    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
-    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+    fn has_grf_textures(&self) -> bool {
+        self.has_grf_textures
+    }
+    fn set_has_grf_textures(&mut self, value: bool) {
+        self.has_grf_textures = value;
+    }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(NEXT_BTN.normal) {
@@ -127,12 +130,24 @@ impl Window for NpcDialog {
         let mut paths = DialogContainer::grf_texture_paths();
         paths.extend_from_slice(&[
             WIN_TEXTURE,
-            NEXT_BTN.normal, NEXT_BTN.hover, NEXT_BTN.pressed,
-            CLOSE_BTN.normal, CLOSE_BTN.hover, CLOSE_BTN.pressed,
-            OK_BTN.normal, OK_BTN.hover, OK_BTN.pressed,
-            CANCEL_BTN.normal, CANCEL_BTN.hover, CANCEL_BTN.pressed,
-            BUY_BTN.normal, BUY_BTN.hover, BUY_BTN.pressed,
-            SELL_BTN.normal, SELL_BTN.hover, SELL_BTN.pressed,
+            NEXT_BTN.normal,
+            NEXT_BTN.hover,
+            NEXT_BTN.pressed,
+            CLOSE_BTN.normal,
+            CLOSE_BTN.hover,
+            CLOSE_BTN.pressed,
+            OK_BTN.normal,
+            OK_BTN.hover,
+            OK_BTN.pressed,
+            CANCEL_BTN.normal,
+            CANCEL_BTN.hover,
+            CANCEL_BTN.pressed,
+            BUY_BTN.normal,
+            BUY_BTN.hover,
+            BUY_BTN.pressed,
+            SELL_BTN.normal,
+            SELL_BTN.hover,
+            SELL_BTN.pressed,
         ]);
         paths.extend_from_slice(&scrollbar::grf_texture_paths());
         paths
@@ -140,7 +155,12 @@ impl Window for NpcDialog {
 }
 
 impl InGameWindow for NpcDialog {
-    fn build(&mut self, ui: &mut UiFrame, _character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
+    fn build(
+        &mut self,
+        ui: &mut UiFrame,
+        _character: &mut Character,
+        _data: &DataTable,
+    ) -> Vec<GameEvent> {
         if !self.dialog.is_open() {
             return Vec::new();
         }
@@ -181,9 +201,7 @@ impl InGameWindow for NpcDialog {
                 if ui.ctx.key_up && self.dialog.selected_menu_index > 0 {
                     self.dialog.selected_menu_index -= 1;
                 }
-                if ui.ctx.key_down
-                    && self.dialog.selected_menu_index + 1 < total_items
-                {
+                if ui.ctx.key_down && self.dialog.selected_menu_index + 1 < total_items {
                     self.dialog.selected_menu_index += 1;
                 }
                 if ui.ctx.key_up || ui.ctx.key_down {
@@ -260,16 +278,19 @@ impl InGameWindow for NpcDialog {
         let has_text = !self.dialog.text.is_empty();
         let menu_only = state == NpcDialogState::WaitingForMenu && !has_text;
 
-        let padding = PADDING ;
-        let dialog_w = DIALOG_W ;
+        let padding = PADDING;
+        let dialog_w = DIALOG_W;
 
         if !menu_only {
             // Compute dialog height based on content
             let text_area_w = dialog_w - padding * 2.0;
-            let wrapped_lines = word_wrap(&self.dialog.text, text_area_w, |t| {
-                ui.atlas.measure_text(&strip_color_codes(t))
-            }, false);
-            let text_line_h = TEXT_LINE_HEIGHT ;
+            let wrapped_lines = word_wrap(
+                &self.dialog.text,
+                text_area_w,
+                |t| ui.atlas.measure_text(&strip_color_codes(t)),
+                false,
+            );
+            let text_line_h = TEXT_LINE_HEIGHT;
             let text_h = (wrapped_lines.len().max(1) as f32) * text_line_h;
 
             let input_h = if state == NpcDialogState::WaitingForStringInput {
@@ -287,10 +308,17 @@ impl InGameWindow for NpcDialog {
             );
             let btn_area_h = if has_button { btn_h + padding } else { 0.0 };
 
-            let dialog_h = (padding + text_h + input_h + btn_area_h + padding).max(DIALOG_H );
+            let dialog_h = (padding + text_h + input_h + btn_area_h + padding).max(DIALOG_H);
 
             // Dialog background
-            self.container.draw(&mut ui.draw_calls, dx, dy, dialog_w, dialog_h, [1.0, 1.0, 1.0, 0.95]);
+            self.container.draw(
+                &mut ui.draw_calls,
+                dx,
+                dy,
+                dialog_w,
+                dialog_h,
+                [1.0, 1.0, 1.0, 0.95],
+            );
 
             // Text content
             let text_color = self.container.text_color();
@@ -303,12 +331,8 @@ impl InGameWindow for NpcDialog {
             // String input (inline in dialog)
             if state == NpcDialogState::WaitingForStringInput {
                 let input_y = text_y + padding;
-                let input_rect = Rect::new(
-                    dx + padding,
-                    input_y,
-                    text_area_w - btn_w - padding,
-                    22.0,
-                );
+                let input_rect =
+                    Rect::new(dx + padding, input_y, text_area_w - btn_w - padding, 22.0);
                 if ui.focused() != Some(INPUT_ID) {
                     ui.set_focus(INPUT_ID);
                 }
@@ -341,9 +365,9 @@ impl InGameWindow for NpcDialog {
                 1,
                 btn_w,
                 btn_h,
-                BTN_BOTTOM ,
-                BTN_FIRST_RIGHT ,
-                BTN_SPACING ,
+                BTN_BOTTOM,
+                BTN_FIRST_RIGHT,
+                BTN_SPACING,
             );
 
             if state == NpcDialogState::WaitingForNext {
@@ -412,9 +436,9 @@ impl NpcDialog {
     fn build_menu_window(&mut self, ui: &mut UiFrame, dx: f32) -> Vec<GameEvent> {
         let mut events = Vec::new();
         let (btn_w, btn_h) = self.btn_size;
-        let menu_w = MENU_W ;
-        let padding = PADDING ;
-        let menu_item_h = MENU_ITEM_HEIGHT ;
+        let menu_w = MENU_W;
+        let padding = PADDING;
+        let menu_item_h = MENU_ITEM_HEIGHT;
         let text_area_w = menu_w - padding * 2.0;
 
         let total_items = self.dialog.menu_items.len();
@@ -422,15 +446,26 @@ impl NpcDialog {
         let needs_scroll = total_items > MENU_VISIBLE_ROWS;
         let content_h = visible_rows as f32 * menu_item_h;
 
-        let menu_y = (ui.ctx.screen_height / 2.0 + (76.0)).max(376.0 ).floor();
-        let menu_h = (padding + content_h + padding + btn_h + padding).max(MENU_MIN_H );
+        let menu_y = (ui.ctx.screen_height / 2.0 + (76.0)).max(376.0).floor();
+        let menu_h = (padding + content_h + padding + btn_h + padding).max(MENU_MIN_H);
 
-        self.container.draw(&mut ui.draw_calls, dx, menu_y, menu_w, menu_h, [1.0, 1.0, 1.0, 0.95]);
+        self.container.draw(
+            &mut ui.draw_calls,
+            dx,
+            menu_y,
+            menu_w,
+            menu_h,
+            [1.0, 1.0, 1.0, 0.95],
+        );
 
         let text_color = self.container.text_color();
         let offset = self.dialog.menu_scroll_offset;
         let end_idx = (offset + MENU_VISIBLE_ROWS).min(total_items);
-        let item_text_w = if needs_scroll { text_area_w - scrollbar::SCROLLBAR_W } else { text_area_w };
+        let item_text_w = if needs_scroll {
+            text_area_w - scrollbar::SCROLLBAR_W
+        } else {
+            text_area_w
+        };
 
         for idx in offset..end_idx {
             let row = idx - offset;
@@ -438,7 +473,9 @@ impl NpcDialog {
             let item_rect = Rect::new(dx + padding, item_y, item_text_w, menu_item_h);
             let widget_id = WidgetId(MENU_BASE_ID + idx as u32);
             let response = ui.interact(widget_id, item_rect);
-            if response.hovered() { ui.any_interactive_hovered = true; }
+            if response.hovered() {
+                ui.any_interactive_hovered = true;
+            }
 
             let is_selected = idx == self.dialog.selected_menu_index;
 
@@ -499,9 +536,9 @@ impl NpcDialog {
             2,
             btn_w,
             btn_h,
-            BTN_BOTTOM ,
-            BTN_FIRST_RIGHT ,
-            BTN_SPACING ,
+            BTN_BOTTOM,
+            BTN_FIRST_RIGHT,
+            BTN_SPACING,
         );
 
         let cancel = ui.button(CANCEL_BTN_ID, menu_btns[0], &CANCEL_BTN, "Cancel");
@@ -571,15 +608,15 @@ impl NpcDialog {
             3,
             btn_w,
             btn_h,
-            BTN_BOTTOM ,
-            BTN_FIRST_RIGHT ,
-            BTN_SPACING ,
+            BTN_BOTTOM,
+            BTN_FIRST_RIGHT,
+            BTN_SPACING,
         );
 
         // Text aligned to the left
         let message = "Please select a Deal type";
         let (text_y, text_x) =
-            container.text_dialog_alignment(PADDING , btns[0].y, ui.atlas.line_height);
+            container.text_dialog_alignment(PADDING, btns[0].y, ui.atlas.line_height);
         let text_color = if self.has_grf_textures {
             [0.0, 0.0, 0.0, 1.0]
         } else {
@@ -615,7 +652,6 @@ impl NpcDialog {
 
         events
     }
-
 }
 
 #[cfg(test)]
@@ -631,7 +667,8 @@ mod tests {
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
@@ -757,12 +794,18 @@ mod tests {
         ctx2.scroll_delta = -1.0; // scroll down
         let mut ui2 = make_frame(&ctx2, &mut state);
         npc.build(&mut ui2, &mut character, &data);
-        assert_eq!(npc.dialog.menu_scroll_offset, 1, "mouse wheel should scroll down");
+        assert_eq!(
+            npc.dialog.menu_scroll_offset, 1,
+            "mouse wheel should scroll down"
+        );
 
         // Third frame: no input — offset must NOT reset to 0
         let ctx3 = UiContext::new(800.0, 600.0);
         let mut ui3 = make_frame(&ctx3, &mut state);
         npc.build(&mut ui3, &mut character, &data);
-        assert_eq!(npc.dialog.menu_scroll_offset, 1, "scroll offset must persist across frames");
+        assert_eq!(
+            npc.dialog.menu_scroll_offset, 1,
+            "scroll offset must persist across frames"
+        );
     }
 }

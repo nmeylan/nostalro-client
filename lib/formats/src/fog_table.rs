@@ -41,7 +41,15 @@ impl FogTable {
             let factor = tokens[i + 4].parse::<f32>().ok();
 
             if let (Some(near), Some(far), Some(color), Some(factor)) = (near, far, color, factor) {
-                entries.insert(key, FogEntry { near, far, color, factor });
+                entries.insert(
+                    key,
+                    FogEntry {
+                        near,
+                        far,
+                        color,
+                        factor,
+                    },
+                );
             }
             i += 5;
         }
@@ -50,13 +58,18 @@ impl FogTable {
     }
 
     pub fn get(&self, map_filename: &str) -> Option<FogEntry> {
-        self.entries.get(&map_filename.to_ascii_lowercase()).copied()
+        self.entries
+            .get(&map_filename.to_ascii_lowercase())
+            .copied()
     }
 }
 
 fn parse_hex_color(s: &str) -> Option<[f32; 3]> {
     let s = s.trim();
-    let s = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")).unwrap_or(s);
+    let s = s
+        .strip_prefix("0x")
+        .or_else(|| s.strip_prefix("0X"))
+        .unwrap_or(s);
     let value = u64::from_str_radix(s, 16).ok()?;
     let rgb = (value & 0x00FF_FFFF) as u32;
     let r = ((rgb >> 16) & 0xFF) as f32 / 255.0;

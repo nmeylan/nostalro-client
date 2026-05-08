@@ -49,15 +49,26 @@ pub fn upload_sprite_textures(
             format!("spr_rgba_{}", i - indexed_count)
         };
         let bg = create_texture_bind_group_from_rgba(
-            device, queue, &img.data, img.width, img.height, layout, &label,
-            wgpu::FilterMode::Nearest, wgpu::TextureFormat::Rgba8UnormSrgb,
+            device,
+            queue,
+            &img.data,
+            img.width,
+            img.height,
+            layout,
+            &label,
+            wgpu::FilterMode::Nearest,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
             wgpu::AddressMode::ClampToEdge,
         );
         sizes.push((img.width, img.height));
         bind_groups.push(bg);
     }
 
-    SpriteTextures { bind_groups, sizes, indexed_count }
+    SpriteTextures {
+        bind_groups,
+        sizes,
+        indexed_count,
+    }
 }
 
 #[repr(C)]
@@ -162,20 +173,40 @@ impl SpriteRenderer {
             },
         };
         let pipeline = Self::create_pipeline(
-            device, surface_format, &uniform_bind_group_layout,
-            texture_bind_group_layout, shader_source, alpha, true,
+            device,
+            surface_format,
+            &uniform_bind_group_layout,
+            texture_bind_group_layout,
+            shader_source,
+            alpha,
+            true,
         );
         let pipeline_no_depth = Self::create_pipeline(
-            device, surface_format, &uniform_bind_group_layout,
-            texture_bind_group_layout, shader_source, alpha, false,
+            device,
+            surface_format,
+            &uniform_bind_group_layout,
+            texture_bind_group_layout,
+            shader_source,
+            alpha,
+            false,
         );
         let pipeline_additive = Self::create_pipeline(
-            device, surface_format, &uniform_bind_group_layout,
-            texture_bind_group_layout, shader_source, additive, true,
+            device,
+            surface_format,
+            &uniform_bind_group_layout,
+            texture_bind_group_layout,
+            shader_source,
+            additive,
+            true,
         );
         let pipeline_additive_no_depth = Self::create_pipeline(
-            device, surface_format, &uniform_bind_group_layout,
-            texture_bind_group_layout, shader_source, additive, false,
+            device,
+            surface_format,
+            &uniform_bind_group_layout,
+            texture_bind_group_layout,
+            shader_source,
+            additive,
+            false,
         );
 
         Self {
@@ -274,20 +305,40 @@ impl SpriteRenderer {
             },
         };
         self.pipeline = Self::create_pipeline(
-            device, surface_format, &self.uniform_bind_group_layout,
-            texture_layout, shader_source, alpha, true,
+            device,
+            surface_format,
+            &self.uniform_bind_group_layout,
+            texture_layout,
+            shader_source,
+            alpha,
+            true,
         );
         self.pipeline_no_depth = Self::create_pipeline(
-            device, surface_format, &self.uniform_bind_group_layout,
-            texture_layout, shader_source, alpha, false,
+            device,
+            surface_format,
+            &self.uniform_bind_group_layout,
+            texture_layout,
+            shader_source,
+            alpha,
+            false,
         );
         self.pipeline_additive = Self::create_pipeline(
-            device, surface_format, &self.uniform_bind_group_layout,
-            texture_layout, shader_source, additive, true,
+            device,
+            surface_format,
+            &self.uniform_bind_group_layout,
+            texture_layout,
+            shader_source,
+            additive,
+            true,
         );
         self.pipeline_additive_no_depth = Self::create_pipeline(
-            device, surface_format, &self.uniform_bind_group_layout,
-            texture_layout, shader_source, additive, false,
+            device,
+            surface_format,
+            &self.uniform_bind_group_layout,
+            texture_layout,
+            shader_source,
+            additive,
+            false,
         );
     }
 
@@ -385,16 +436,18 @@ impl SpriteRenderer {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: depth_view.map(|dv| wgpu::RenderPassDepthStencilAttachment {
-                    view: dv,
-                    depth_ops: Some(wgpu::Operations {
-                        load: match clear_color {
-                            Some(_) => wgpu::LoadOp::Clear(1.0),
-                            None => wgpu::LoadOp::Load,
-                        },
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
+                depth_stencil_attachment: depth_view.map(|dv| {
+                    wgpu::RenderPassDepthStencilAttachment {
+                        view: dv,
+                        depth_ops: Some(wgpu::Operations {
+                            load: match clear_color {
+                                Some(_) => wgpu::LoadOp::Clear(1.0),
+                                None => wgpu::LoadOp::Load,
+                            },
+                            store: wgpu::StoreOp::Store,
+                        }),
+                        stencil_ops: None,
+                    }
                 }),
                 ..Default::default()
             });
@@ -405,7 +458,11 @@ impl SpriteRenderer {
             pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
             let mut current_additive = false;
-            let initial_pipeline = if has_depth { &self.pipeline } else { &self.pipeline_no_depth };
+            let initial_pipeline = if has_depth {
+                &self.pipeline
+            } else {
+                &self.pipeline_no_depth
+            };
             pass.set_pipeline(initial_pipeline);
 
             for batch in &draw_batches {
@@ -472,7 +529,11 @@ pub fn build_clip_quad(
     let cx = screen_anchor[0] + (clip.x + offset[0]) as f32;
     let cy = screen_anchor[1] + (clip.y + offset[1]) as f32;
 
-    let (mut u0, u1) = if clip.mirror != 0 { (1.0, 0.0) } else { (0.0, 1.0) };
+    let (mut u0, u1) = if clip.mirror != 0 {
+        (1.0, 0.0)
+    } else {
+        (0.0, 1.0)
+    };
     let (v0, v1) = (0.0f32, 1.0f32);
     let _ = &mut u0; // suppress unused_mut
 
@@ -486,31 +547,30 @@ pub fn build_clip_quad(
     // Corner offsets relative to center
     let corners = [
         [-half_w, -half_h],
-        [ half_w, -half_h],
-        [ half_w,  half_h],
-        [-half_w,  half_h],
+        [half_w, -half_h],
+        [half_w, half_h],
+        [-half_w, half_h],
     ];
 
     let angle = -(clip.angle as f32).to_radians();
     let cos_a = angle.cos();
     let sin_a = angle.sin();
 
-    let uvs = [
-        [u0, v0],
-        [u1, v0],
-        [u1, v1],
-        [u0, v1],
-    ];
+    let uvs = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
 
-    let vertices: Vec<SpriteVertex> = corners.iter().zip(uvs.iter()).map(|(corner, uv)| {
-        let rx = corner[0] * cos_a - corner[1] * sin_a;
-        let ry = corner[0] * sin_a + corner[1] * cos_a;
-        SpriteVertex {
-            position: [cx + rx, cy + ry, depth],
-            tex_coord: *uv,
-            color,
-        }
-    }).collect();
+    let vertices: Vec<SpriteVertex> = corners
+        .iter()
+        .zip(uvs.iter())
+        .map(|(corner, uv)| {
+            let rx = corner[0] * cos_a - corner[1] * sin_a;
+            let ry = corner[0] * sin_a + corner[1] * cos_a;
+            SpriteVertex {
+                position: [cx + rx, cy + ry, depth],
+                tex_coord: *uv,
+                color,
+            }
+        })
+        .collect();
 
     let indices = vec![0, 1, 2, 0, 2, 3];
 
@@ -548,10 +608,12 @@ pub fn build_composite_clips(
 
     let mut body = Vec::new();
     for clip in &body_motion.clips {
-        if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, &entity.body_textures, screen_anchor, depth, [0, 0])
-            && tex_idx < entity.body_textures.bind_groups.len() {
-                body.push((vertices, indices, tex_idx));
-            }
+        if let Some((vertices, indices, tex_idx)) =
+            build_clip_quad(clip, &entity.body_textures, screen_anchor, depth, [0, 0])
+            && tex_idx < entity.body_textures.bind_groups.len()
+        {
+            body.push((vertices, indices, tex_idx));
+        }
     }
 
     let mut head = Vec::new();
@@ -567,10 +629,12 @@ pub fn build_composite_clips(
             let head_motion = &head_action.motions[head_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, head_motion);
             for clip in &head_motion.clips {
-                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, head_tex, screen_anchor, depth, [off_x, off_y])
-                    && tex_idx < head_tex.bind_groups.len() {
-                        head.push((vertices, indices, tex_idx));
-                    }
+                if let Some((vertices, indices, tex_idx)) =
+                    build_clip_quad(clip, head_tex, screen_anchor, depth, [off_x, off_y])
+                    && tex_idx < head_tex.bind_groups.len()
+                {
+                    head.push((vertices, indices, tex_idx));
+                }
             }
         }
     }
@@ -599,10 +663,12 @@ pub fn build_composite_clips(
                 let hg_motion = &hg_action.motions[hg_motion_idx];
                 let (off_x, off_y) = attachment_offset(body_motion, hg_motion);
                 for clip in &hg_motion.clips {
-                    if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, tex, screen_anchor, depth, [off_x, off_y])
-                        && tex_idx < tex.bind_groups.len() {
-                            clips.push((vertices, indices, tex_idx));
-                        }
+                    if let Some((vertices, indices, tex_idx)) =
+                        build_clip_quad(clip, tex, screen_anchor, depth, [off_x, off_y])
+                        && tex_idx < tex.bind_groups.len()
+                    {
+                        clips.push((vertices, indices, tex_idx));
+                    }
                 }
             }
         }
@@ -610,16 +676,37 @@ pub fn build_composite_clips(
     }
 
     let headgear_bottom = build_headgear_clips(
-        entity.headgear_bottom_act.as_ref(), entity.headgear_bottom_textures.as_ref(),
-        action_idx, motion_idx, head_dir, is_idle_or_sit, body_motion, screen_anchor, depth,
+        entity.headgear_bottom_act.as_ref(),
+        entity.headgear_bottom_textures.as_ref(),
+        action_idx,
+        motion_idx,
+        head_dir,
+        is_idle_or_sit,
+        body_motion,
+        screen_anchor,
+        depth,
     );
     let headgear_mid = build_headgear_clips(
-        entity.headgear_mid_act.as_ref(), entity.headgear_mid_textures.as_ref(),
-        action_idx, motion_idx, head_dir, is_idle_or_sit, body_motion, screen_anchor, depth,
+        entity.headgear_mid_act.as_ref(),
+        entity.headgear_mid_textures.as_ref(),
+        action_idx,
+        motion_idx,
+        head_dir,
+        is_idle_or_sit,
+        body_motion,
+        screen_anchor,
+        depth,
     );
     let headgear_top = build_headgear_clips(
-        entity.headgear_top_act.as_ref(), entity.headgear_top_textures.as_ref(),
-        action_idx, motion_idx, head_dir, is_idle_or_sit, body_motion, screen_anchor, depth,
+        entity.headgear_top_act.as_ref(),
+        entity.headgear_top_textures.as_ref(),
+        action_idx,
+        motion_idx,
+        head_dir,
+        is_idle_or_sit,
+        body_motion,
+        screen_anchor,
+        depth,
     );
 
     let mut weapon = Vec::new();
@@ -631,10 +718,12 @@ pub fn build_composite_clips(
             let weapon_motion = &weapon_action.motions[weapon_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, weapon_motion);
             for clip in &weapon_motion.clips {
-                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, weapon_tex, screen_anchor, depth, [off_x, off_y])
-                    && tex_idx < weapon_tex.bind_groups.len() {
-                        weapon.push((vertices, indices, tex_idx));
-                    }
+                if let Some((vertices, indices, tex_idx)) =
+                    build_clip_quad(clip, weapon_tex, screen_anchor, depth, [off_x, off_y])
+                    && tex_idx < weapon_tex.bind_groups.len()
+                {
+                    weapon.push((vertices, indices, tex_idx));
+                }
             }
         }
     }
@@ -648,18 +737,33 @@ pub fn build_composite_clips(
             let shield_motion = &shield_action.motions[shield_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, shield_motion);
             for clip in &shield_motion.clips {
-                if let Some((vertices, indices, tex_idx)) = build_clip_quad(clip, shield_tex, screen_anchor, depth, [off_x, off_y])
-                    && tex_idx < shield_tex.bind_groups.len() {
-                        shield.push((vertices, indices, tex_idx));
-                    }
+                if let Some((vertices, indices, tex_idx)) =
+                    build_clip_quad(clip, shield_tex, screen_anchor, depth, [off_x, off_y])
+                    && tex_idx < shield_tex.bind_groups.len()
+                {
+                    shield.push((vertices, indices, tex_idx));
+                }
             }
         }
     }
 
-    Some(CompositeClips { body, head, headgear_bottom, headgear_mid, headgear_top, weapon, shield })
+    Some(CompositeClips {
+        body,
+        head,
+        headgear_bottom,
+        headgear_mid,
+        headgear_top,
+        weapon,
+        shield,
+    })
 }
 
-pub fn scale_clip_vertices(vertices: &mut [SpriteVertex], center: [f32; 2], scale: f32, depth_gradient: f32) {
+pub fn scale_clip_vertices(
+    vertices: &mut [SpriteVertex],
+    center: [f32; 2],
+    scale: f32,
+    depth_gradient: f32,
+) {
     for v in vertices {
         v.position[0] = center[0] + (v.position[0] - center[0]) * scale;
         v.position[1] = center[1] + (v.position[1] - center[1]) * scale;
@@ -714,13 +818,17 @@ pub fn build_entity_sprite(
     shield: Option<SpriteData>,
     shadow: Option<SpriteData>,
 ) -> EntitySprite {
-    let body_textures = upload_sprite_textures(&body.images, body.indexed_count, device, queue, layout);
+    let body_textures =
+        upload_sprite_textures(&body.images, body.indexed_count, device, queue, layout);
     let body_act = body.act;
     let (head_textures, head_act) = upload_optional(head, device, queue, layout);
     let (weapon_textures, weapon_act) = upload_optional(weapon, device, queue, layout);
-    let (headgear_top_textures, headgear_top_act) = upload_optional(headgear_top, device, queue, layout);
-    let (headgear_mid_textures, headgear_mid_act) = upload_optional(headgear_mid, device, queue, layout);
-    let (headgear_bottom_textures, headgear_bottom_act) = upload_optional(headgear_bottom, device, queue, layout);
+    let (headgear_top_textures, headgear_top_act) =
+        upload_optional(headgear_top, device, queue, layout);
+    let (headgear_mid_textures, headgear_mid_act) =
+        upload_optional(headgear_mid, device, queue, layout);
+    let (headgear_bottom_textures, headgear_bottom_act) =
+        upload_optional(headgear_bottom, device, queue, layout);
     let (shield_textures, shield_act) = upload_optional(shield, device, queue, layout);
     let (shadow_textures, shadow_act) = upload_optional(shadow, device, queue, layout);
 
@@ -766,16 +874,27 @@ impl EntitySprite {
             None => animation.flat_action_index(&self.body_act),
         };
 
-        let clips = build_composite_clips(self, action_idx, animation.motion_index(), head_dir, screen_anchor, depth);
+        let clips = build_composite_clips(
+            self,
+            action_idx,
+            animation.motion_index(),
+            head_dir,
+            screen_anchor,
+            depth,
+        );
 
         let (mut min_x, mut min_y, mut max_x, mut max_y) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
         let mut has_vertices = false;
 
         if let Some(clips) = clips {
             let all_groups: [&Vec<ClipQuad>; 7] = [
-                &clips.body, &clips.head,
-                &clips.headgear_bottom, &clips.headgear_mid, &clips.headgear_top,
-                &clips.weapon, &clips.shield,
+                &clips.body,
+                &clips.head,
+                &clips.headgear_bottom,
+                &clips.headgear_mid,
+                &clips.headgear_top,
+                &clips.weapon,
+                &clips.shield,
             ];
             for group in all_groups {
                 for (vertices, _, _) in group {
@@ -837,21 +956,20 @@ impl EntitySprite {
             None => animation.direction() % action_count,
         };
 
-        let Some(clips) = build_composite_clips(
-            self,
-            idle_action_idx,
-            0,
-            head_dir,
-            screen_anchor,
-            depth,
-        ) else {
+        let Some(clips) =
+            build_composite_clips(self, idle_action_idx, 0, head_dir, screen_anchor, depth)
+        else {
             return 40.0 * scale;
         };
 
         let all_groups: [&Vec<ClipQuad>; 7] = [
-            &clips.body, &clips.head,
-            &clips.headgear_bottom, &clips.headgear_mid, &clips.headgear_top,
-            &clips.weapon, &clips.shield,
+            &clips.body,
+            &clips.head,
+            &clips.headgear_bottom,
+            &clips.headgear_mid,
+            &clips.headgear_top,
+            &clips.weapon,
+            &clips.shield,
         ];
         let mut min_y = f32::MAX;
         let mut has_vertices = false;
@@ -889,7 +1007,12 @@ impl EntitySprite {
         };
 
         let Some(clips) = build_composite_clips(
-            self, action_idx, animation.motion_index(), head_dir, screen_anchor, depth,
+            self,
+            action_idx,
+            animation.motion_index(),
+            head_dir,
+            screen_anchor,
+            depth,
         ) else {
             return Vec::new();
         };
@@ -903,7 +1026,12 @@ impl EntitySprite {
         if let Some(shield_tex) = &self.shield_textures {
             for (mut vertices, indices, tex_idx) in clips.shield {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                shield_batches.push(SpriteBatch { vertices, indices, texture: &shield_tex.bind_groups[tex_idx], additive: false });
+                shield_batches.push(SpriteBatch {
+                    vertices,
+                    indices,
+                    texture: &shield_tex.bind_groups[tex_idx],
+                    additive: false,
+                });
             }
         }
 
@@ -913,36 +1041,66 @@ impl EntitySprite {
 
         for (mut vertices, indices, tex_idx) in clips.body {
             scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-            batches.push(SpriteBatch { vertices, indices, texture: &self.body_textures.bind_groups[tex_idx], additive: false });
+            batches.push(SpriteBatch {
+                vertices,
+                indices,
+                texture: &self.body_textures.bind_groups[tex_idx],
+                additive: false,
+            });
         }
         if let Some(head_tex) = &self.head_textures {
             for (mut vertices, indices, tex_idx) in clips.head {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                batches.push(SpriteBatch { vertices, indices, texture: &head_tex.bind_groups[tex_idx], additive: false });
+                batches.push(SpriteBatch {
+                    vertices,
+                    indices,
+                    texture: &head_tex.bind_groups[tex_idx],
+                    additive: false,
+                });
             }
         }
         if let Some(hg_tex) = &self.headgear_bottom_textures {
             for (mut vertices, indices, tex_idx) in clips.headgear_bottom {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx], additive: false });
+                batches.push(SpriteBatch {
+                    vertices,
+                    indices,
+                    texture: &hg_tex.bind_groups[tex_idx],
+                    additive: false,
+                });
             }
         }
         if let Some(hg_tex) = &self.headgear_mid_textures {
             for (mut vertices, indices, tex_idx) in clips.headgear_mid {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx], additive: false });
+                batches.push(SpriteBatch {
+                    vertices,
+                    indices,
+                    texture: &hg_tex.bind_groups[tex_idx],
+                    additive: false,
+                });
             }
         }
         if let Some(hg_tex) = &self.headgear_top_textures {
             for (mut vertices, indices, tex_idx) in clips.headgear_top {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                batches.push(SpriteBatch { vertices, indices, texture: &hg_tex.bind_groups[tex_idx], additive: false });
+                batches.push(SpriteBatch {
+                    vertices,
+                    indices,
+                    texture: &hg_tex.bind_groups[tex_idx],
+                    additive: false,
+                });
             }
         }
         if let Some(weapon_tex) = &self.weapon_textures {
             for (mut vertices, indices, tex_idx) in clips.weapon {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                batches.push(SpriteBatch { vertices, indices, texture: &weapon_tex.bind_groups[tex_idx], additive: false });
+                batches.push(SpriteBatch {
+                    vertices,
+                    indices,
+                    texture: &weapon_tex.bind_groups[tex_idx],
+                    additive: false,
+                });
             }
         }
         if !shield_behind {
@@ -960,16 +1118,25 @@ impl EntitySprite {
     ) -> Vec<SpriteBatch<'_>> {
         let mut batches = Vec::new();
         if let (Some(shadow_act), Some(shadow_tex)) = (&self.shadow_act, &self.shadow_textures)
-            && !shadow_act.actions.is_empty() && !shadow_act.actions[0].motions.is_empty() {
-                let shadow_motion = &shadow_act.actions[0].motions[0];
-                for clip in &shadow_motion.clips {
-                    if let Some((mut vertices, indices, tex_idx)) = build_clip_quad(clip, shadow_tex, screen_anchor, depth, [0, 0])
-                        && tex_idx < shadow_tex.bind_groups.len() {
-                            scale_clip_vertices(&mut vertices, screen_anchor, scale, 0.0);
-                            batches.push(SpriteBatch { vertices, indices, texture: &shadow_tex.bind_groups[tex_idx], additive: false });
-                        }
+            && !shadow_act.actions.is_empty()
+            && !shadow_act.actions[0].motions.is_empty()
+        {
+            let shadow_motion = &shadow_act.actions[0].motions[0];
+            for clip in &shadow_motion.clips {
+                if let Some((mut vertices, indices, tex_idx)) =
+                    build_clip_quad(clip, shadow_tex, screen_anchor, depth, [0, 0])
+                    && tex_idx < shadow_tex.bind_groups.len()
+                {
+                    scale_clip_vertices(&mut vertices, screen_anchor, scale, 0.0);
+                    batches.push(SpriteBatch {
+                        vertices,
+                        indices,
+                        texture: &shadow_tex.bind_groups[tex_idx],
+                        additive: false,
+                    });
                 }
             }
+        }
         batches
     }
 }
@@ -990,13 +1157,21 @@ mod tests {
     #[test]
     fn build_clip_quad_basic_indexed_sprite() {
         let clip = SpriteFrame {
-            x: 0, y: 0, sprite_index: 0, mirror: 0,
+            x: 0,
+            y: 0,
+            sprite_index: 0,
+            mirror: 0,
             color: [255, 255, 255, 255],
-            zoom_x: 1.0, zoom_y: 1.0, angle: 0,
-            sprite_type: 0, width: None, height: None,
+            zoom_x: 1.0,
+            zoom_y: 1.0,
+            angle: 0,
+            sprite_type: 0,
+            width: None,
+            height: None,
         };
         let textures = dummy_textures();
-        let (verts, indices, tex_idx) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.5, [0, 0]).unwrap();
+        let (verts, indices, tex_idx) =
+            build_clip_quad(&clip, &textures, [100.0, 100.0], 0.5, [0, 0]).unwrap();
 
         assert_eq!(tex_idx, 0);
         assert_eq!(verts.len(), 4);
@@ -1013,13 +1188,21 @@ mod tests {
     #[test]
     fn build_clip_quad_rgba_sprite_with_offset() {
         let clip = SpriteFrame {
-            x: 10, y: -5, sprite_index: 0, mirror: 0,
+            x: 10,
+            y: -5,
+            sprite_index: 0,
+            mirror: 0,
             color: [255, 255, 255, 255],
-            zoom_x: 1.0, zoom_y: 1.0, angle: 0,
-            sprite_type: 1, width: None, height: None,
+            zoom_x: 1.0,
+            zoom_y: 1.0,
+            angle: 0,
+            sprite_type: 1,
+            width: None,
+            height: None,
         };
         let textures = dummy_textures();
-        let (_, _, tex_idx) = build_clip_quad(&clip, &textures, [200.0, 200.0], 0.0, [0, 0]).unwrap();
+        let (_, _, tex_idx) =
+            build_clip_quad(&clip, &textures, [200.0, 200.0], 0.0, [0, 0]).unwrap();
         // sprite_type 1 → indexed_count(2) + 0 = 2
         assert_eq!(tex_idx, 2);
     }
@@ -1027,10 +1210,17 @@ mod tests {
     #[test]
     fn build_clip_quad_mirrored_flips_uvs() {
         let clip = SpriteFrame {
-            x: 0, y: 0, sprite_index: 0, mirror: 1,
+            x: 0,
+            y: 0,
+            sprite_index: 0,
+            mirror: 1,
             color: [255, 255, 255, 255],
-            zoom_x: 1.0, zoom_y: 1.0, angle: 0,
-            sprite_type: 0, width: None, height: None,
+            zoom_x: 1.0,
+            zoom_y: 1.0,
+            angle: 0,
+            sprite_type: 0,
+            width: None,
+            height: None,
         };
         let textures = dummy_textures();
         let (verts, _, _) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0, [0, 0]).unwrap();
@@ -1042,10 +1232,17 @@ mod tests {
     #[test]
     fn build_clip_quad_negative_index_returns_none() {
         let clip = SpriteFrame {
-            x: 0, y: 0, sprite_index: -1, mirror: 0,
+            x: 0,
+            y: 0,
+            sprite_index: -1,
+            mirror: 0,
             color: [255, 255, 255, 255],
-            zoom_x: 1.0, zoom_y: 1.0, angle: 0,
-            sprite_type: 0, width: None, height: None,
+            zoom_x: 1.0,
+            zoom_y: 1.0,
+            angle: 0,
+            sprite_type: 0,
+            width: None,
+            height: None,
         };
         let textures = dummy_textures();
         assert!(build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0, [0, 0]).is_none());
@@ -1054,10 +1251,17 @@ mod tests {
     #[test]
     fn build_clip_quad_with_zoom_scales_dimensions() {
         let clip = SpriteFrame {
-            x: 0, y: 0, sprite_index: 0, mirror: 0,
+            x: 0,
+            y: 0,
+            sprite_index: 0,
+            mirror: 0,
             color: [255, 255, 255, 255],
-            zoom_x: 2.0, zoom_y: 0.5, angle: 0,
-            sprite_type: 0, width: None, height: None,
+            zoom_x: 2.0,
+            zoom_y: 0.5,
+            angle: 0,
+            sprite_type: 0,
+            width: None,
+            height: None,
         };
         let textures = dummy_textures();
         let (verts, _, _) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0, [0, 0]).unwrap();

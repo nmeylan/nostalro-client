@@ -291,12 +291,11 @@ impl App {
                 }
                 tracing::debug!(
                     "LOOK_WEAPON: gid={gid} value={value} value2={value2} left_is_weapon={left_hand_is_weapon} → weapon={:?} shield={}",
-                    entity.weapon, entity.shield
+                    entity.weapon,
+                    entity.shield
                 );
             } else {
-                tracing::debug!(
-                    "SpriteChange: gid={gid} type={sprite_type} value={value}"
-                );
+                tracing::debug!("SpriteChange: gid={gid} type={sprite_type} value={value}");
                 entity.apply_sprite_change(sprite_type, value);
             }
             let weapon_type = entity.weapon;

@@ -38,7 +38,10 @@ mod tests {
         let mut entries = HashMap::new();
         entries.insert(
             "SM_BASH".to_string(),
-            vec!["Hits a single target.".to_string(), "Lv 1: ATK 130%".to_string()],
+            vec![
+                "Hits a single target.".to_string(),
+                "Lv 1: ATK 130%".to_string(),
+            ],
         );
         let table = SkillDescriptionTable::from_entries(entries);
 

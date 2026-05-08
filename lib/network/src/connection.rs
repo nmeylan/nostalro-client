@@ -28,7 +28,11 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub async fn connect(addr: &str, trace_packets_send: bool, trace_packets_recv: bool) -> io::Result<Self> {
+    pub async fn connect(
+        addr: &str,
+        trace_packets_send: bool,
+        trace_packets_recv: bool,
+    ) -> io::Result<Self> {
         let stream = TcpStream::connect(addr).await?;
         let (reader, writer) = stream.into_split();
         Ok(Self {
@@ -36,15 +40,13 @@ impl Connection {
             writer,
             recv_buffer: Vec::with_capacity(4096),
             trace_packets_send,
-            trace_packets_recv
+            trace_packets_recv,
         })
     }
 
     pub async fn send_packet(&mut self, data: &[u8], packetver: u32) -> io::Result<()> {
         if self.trace_packets_send {
-            let result = panic::catch_unwind(|| {
-                packets_parser::parse(data, packetver)
-            });
+            let result = panic::catch_unwind(|| packets_parser::parse(data, packetver));
             if let Ok(packet) = result {
                 tracing::info!("send packet: {:?}", packet.name());
             }
@@ -60,7 +62,8 @@ impl Connection {
         if packets_parser::is_variable_length(packet_id, packetver) {
             return true;
         }
-        matches!(packet_id,
+        matches!(
+            packet_id,
             [0x8d, 0x00] | // ZC_NOTIFY_CHAT
             [0x8e, 0x00] | // ZC_NOTIFY_PLAYERCHAT
             [0x92, 0x00] | // ZC_NPCACK_SERVERMOVE
@@ -89,7 +92,7 @@ impl Connection {
             [0xe7, 0x02] | // ZC_MAPPROPERTY
             [0x47, 0x01] | // ZC_AUTORUN_SKILL
             [0x3b, 0x0a] | // ZC_HAT_EFFECT
-            [0x1f, 0x08]   // ZC_BROADCAST4
+            [0x1f, 0x08] // ZC_BROADCAST4
         )
     }
 
@@ -138,7 +141,10 @@ impl Connection {
         data
     }
 
-    pub async fn recv_packets(&mut self, packetver: u32) -> Result<Vec<Box<dyn Packet>>, ConnectionError> {
+    pub async fn recv_packets(
+        &mut self,
+        packetver: u32,
+    ) -> Result<Vec<Box<dyn Packet>>, ConnectionError> {
         let mut buf = [0u8; 4096];
         let n = self.reader.read(&mut buf).await?;
         if n == 0 {
@@ -147,8 +153,11 @@ impl Connection {
         self.recv_buffer.extend_from_slice(&buf[..n]);
 
         // Log every TCP read to diagnose missing packets
-        tracing::info!("TCP read: {n} bytes, buffer_total={}, first_16={:02x?}",
-            self.recv_buffer.len(), &buf[..n.min(16)]);
+        tracing::info!(
+            "TCP read: {n} bytes, buffer_total={}, first_16={:02x?}",
+            self.recv_buffer.len(),
+            &buf[..n.min(16)]
+        );
 
         let mut packets = Vec::new();
         let mut offset = 0;
@@ -175,15 +184,17 @@ impl Connection {
             } else {
                 &remaining
             };
-            let result = panic::catch_unwind(|| {
-                packets_parser::parse(parse_buf, packetver)
-            });
+            let result = panic::catch_unwind(|| packets_parser::parse(parse_buf, packetver));
             match result {
                 Ok(packet) => {
                     if packet.name() == "Unknown" {
                         let skip = Self::estimate_packet_len(&remaining);
-                        tracing::info!("skipping unknown packet 0x{:02x}{:02x} ({skip} bytes), buffer_remaining={}",
-                               remaining[0], remaining[1], remaining.len());
+                        tracing::info!(
+                            "skipping unknown packet 0x{:02x}{:02x} ({skip} bytes), buffer_remaining={}",
+                            remaining[0],
+                            remaining[1],
+                            remaining.len()
+                        );
                         if self.trace_packets_recv {
                             let dump_len = skip.min(remaining.len());
                             tracing::debug!("unknown packet dump: {:02x?}", &remaining[..dump_len]);
@@ -193,17 +204,23 @@ impl Connection {
                     }
                     let consumed = packet.raw().len();
                     if self.trace_packets_recv {
-                        tracing::info!("recv {} ({consumed} bytes, remaining={})", packet.name(), remaining.len());
+                        tracing::info!(
+                            "recv {} ({consumed} bytes, remaining={})",
+                            packet.name(),
+                            remaining.len()
+                        );
                         // tracing::debug!("packet dump {}: {:02x?}", packet.name(), packet.raw());
                     }
                     offset += consumed;
                     packets.push(packet);
                 }
                 Err(_) => {
-                    tracing::warn!("packet parse panic at offset {offset}, buffer_len={}, first_bytes=0x{:02x}{:02x}",
+                    tracing::warn!(
+                        "packet parse panic at offset {offset}, buffer_len={}, first_bytes=0x{:02x}{:02x}",
                         self.recv_buffer.len(),
                         remaining.first().copied().unwrap_or(0),
-                        remaining.get(1).copied().unwrap_or(0));
+                        remaining.get(1).copied().unwrap_or(0)
+                    );
                     // Skip past the bad data to avoid permanently blocking the buffer
                     let skip = Self::estimate_packet_len(&remaining);
                     offset += skip;

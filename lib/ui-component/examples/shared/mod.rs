@@ -1,8 +1,3 @@
-use std::collections::HashMap;
-use std::path::Path;
-use std::sync::Arc;
-use std::time::Instant;
-use tracing::warn;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::item_resource_table::ItemResourceTable;
 use ragnarok_renderer::font_atlas::FontAtlas;
@@ -12,11 +7,18 @@ use ragnarok_renderer::{RenderDevice, UiTextureRef, block_on};
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::UiFrame;
 use ragnarok_ui::state::StateCache;
+use ragnarok_ui_component::game::{
+    equipment_window, inventory_window, npc_shop, skill_tree_window,
+};
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::Arc;
+use std::time::Instant;
+use tracing::warn;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
-use ragnarok_ui_component::game::{equipment_window, inventory_window, npc_shop, skill_tree_window};
 
 struct Gpu {
     device: RenderDevice,
@@ -135,17 +137,23 @@ impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
             &positions,
         );
 
-        let texture_size = |name: &str| -> Option<(u32, u32)> {
-            gpu.texture_cache.texture_size(name)
+        let texture_size =
+            |name: &str| -> Option<(u32, u32)> { gpu.texture_cache.texture_size(name) };
+        let mut ctx = ExampleCtx {
+            ui,
+            texture_size: &texture_size,
+            item_resource_table: self.item_resource_table.as_ref(),
         };
-        let mut ctx = ExampleCtx { ui, texture_size: &texture_size, item_resource_table: self.item_resource_table.as_ref() };
         (self.build_fn)(&mut ctx);
 
         let draw_calls = std::mem::take(&mut ctx.ui.draw_calls);
         drop(ctx);
 
         let view = output.texture.create_view(&Default::default());
-        let mut encoder = gpu.device.device.create_command_encoder(&Default::default());
+        let mut encoder = gpu
+            .device
+            .device
+            .create_command_encoder(&Default::default());
 
         // Clear pass
         encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -174,7 +182,11 @@ impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
                 if let UiTextureRef::Named(name) = &call.texture {
                     if gpu.texture_cache.get(name).is_none() {
                         gpu.texture_cache.get_or_load(
-                            name, grf, &gpu.device.device, &gpu.device.queue, true,
+                            name,
+                            grf,
+                            &gpu.device.device,
+                            &gpu.device.queue,
+                            true,
                         );
                     }
                 }
@@ -188,8 +200,7 @@ impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
                     UiTextureRef::FontAtlas => &gpu.font_atlas_bind_group,
                     UiTextureRef::White => &gpu.white_bind_group,
                     UiTextureRef::Named(name) => {
-                        gpu.texture_cache.get(name)
-                            .unwrap_or(&gpu.white_bind_group)
+                        gpu.texture_cache.get(name).unwrap_or(&gpu.white_bind_group)
                     }
                     UiTextureRef::Inline(_) => &gpu.white_bind_group,
                 };
@@ -263,9 +274,10 @@ impl<F: FnMut(&mut ExampleCtx)> ApplicationHandler for UiExampleApp<F> {
                 Ok(grf) => {
                     let mut all_loaded = true;
                     for path in &self.texture_paths {
-                        if tex_cache.get_or_load(
-                            path, &grf, &device.device, &device.queue, true,
-                        ).is_none() {
+                        if tex_cache
+                            .get_or_load(path, &grf, &device.device, &device.queue, true)
+                            .is_none()
+                        {
                             eprintln!("Not able to load {path}");
                             all_loaded = false;
                         }

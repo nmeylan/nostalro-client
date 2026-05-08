@@ -7,29 +7,71 @@ pub fn quad_vertices(x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) -> ([UiVer
 }
 
 /// Quad from explicit corner coordinates — avoids float drift from `x + w` recomputation
-pub fn quad_from_bounds(x0: f32, y0: f32, x1: f32, y1: f32, color: [f32; 4]) -> ([UiVertex; 4], [u32; 6]) {
+pub fn quad_from_bounds(
+    x0: f32,
+    y0: f32,
+    x1: f32,
+    y1: f32,
+    color: [f32; 4],
+) -> ([UiVertex; 4], [u32; 6]) {
     let uv_min = [0.0, 0.0];
     let uv_max = [1.0, 1.0];
     let verts = [
-        UiVertex { position: [x0, y0], tex_coord: [uv_min[0], uv_min[1]], color },
-        UiVertex { position: [x1, y0], tex_coord: [uv_max[0], uv_min[1]], color },
-        UiVertex { position: [x0, y1], tex_coord: [uv_min[0], uv_max[1]], color },
-        UiVertex { position: [x1, y1], tex_coord: [uv_max[0], uv_max[1]], color },
+        UiVertex {
+            position: [x0, y0],
+            tex_coord: [uv_min[0], uv_min[1]],
+            color,
+        },
+        UiVertex {
+            position: [x1, y0],
+            tex_coord: [uv_max[0], uv_min[1]],
+            color,
+        },
+        UiVertex {
+            position: [x0, y1],
+            tex_coord: [uv_min[0], uv_max[1]],
+            color,
+        },
+        UiVertex {
+            position: [x1, y1],
+            tex_coord: [uv_max[0], uv_max[1]],
+            color,
+        },
     ];
     let indices = [0, 1, 2, 2, 1, 3];
     (verts, indices)
 }
 
 pub fn quad_vertices_uv(
-    x: f32, y: f32, w: f32, h: f32,
-    uv_min: [f32; 2], uv_max: [f32; 2],
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    uv_min: [f32; 2],
+    uv_max: [f32; 2],
     color: [f32; 4],
 ) -> ([UiVertex; 4], [u32; 6]) {
     let verts = [
-        UiVertex { position: [x, y], tex_coord: [uv_min[0], uv_min[1]], color },
-        UiVertex { position: [x + w, y], tex_coord: [uv_max[0], uv_min[1]], color },
-        UiVertex { position: [x, y + h], tex_coord: [uv_min[0], uv_max[1]], color },
-        UiVertex { position: [x + w, y + h], tex_coord: [uv_max[0], uv_max[1]], color },
+        UiVertex {
+            position: [x, y],
+            tex_coord: [uv_min[0], uv_min[1]],
+            color,
+        },
+        UiVertex {
+            position: [x + w, y],
+            tex_coord: [uv_max[0], uv_min[1]],
+            color,
+        },
+        UiVertex {
+            position: [x, y + h],
+            tex_coord: [uv_min[0], uv_max[1]],
+            color,
+        },
+        UiVertex {
+            position: [x + w, y + h],
+            tex_coord: [uv_max[0], uv_max[1]],
+            color,
+        },
     ];
     let indices = [0, 1, 2, 2, 1, 3];
     (verts, indices)
@@ -52,12 +94,20 @@ pub fn parse_color_codes<'a>(text: &'a str, default_color: [f32; 4]) -> Vec<Colo
             let hex = &text[i + 1..i + 7];
             if hex.bytes().all(|b| b.is_ascii_hexdigit()) {
                 if i > seg_start {
-                    spans.push(ColoredSpan { text: &text[seg_start..i], color: current_color });
+                    spans.push(ColoredSpan {
+                        text: &text[seg_start..i],
+                        color: current_color,
+                    });
                 }
                 let r = u8::from_str_radix(&hex[0..2], 16).unwrap();
                 let g = u8::from_str_radix(&hex[2..4], 16).unwrap();
                 let b = u8::from_str_radix(&hex[4..6], 16).unwrap();
-                current_color = [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, default_color[3]];
+                current_color = [
+                    r as f32 / 255.0,
+                    g as f32 / 255.0,
+                    b as f32 / 255.0,
+                    default_color[3],
+                ];
                 i += 7;
                 seg_start = i;
                 continue;
@@ -67,7 +117,10 @@ pub fn parse_color_codes<'a>(text: &'a str, default_color: [f32; 4]) -> Vec<Colo
     }
 
     if seg_start < bytes.len() {
-        spans.push(ColoredSpan { text: &text[seg_start..], color: current_color });
+        spans.push(ColoredSpan {
+            text: &text[seg_start..],
+            color: current_color,
+        });
     }
 
     spans
@@ -94,7 +147,11 @@ pub fn strip_color_codes(text: &str) -> String {
 }
 
 pub fn colored_text_vertices(
-    text: &str, x: f32, y: f32, default_color: [f32; 4], atlas: &FontAtlas,
+    text: &str,
+    x: f32,
+    y: f32,
+    default_color: [f32; 4],
+    atlas: &FontAtlas,
 ) -> (Vec<UiVertex>, Vec<u32>) {
     let spans = parse_color_codes(text, default_color);
     let mut vertices = Vec::new();
@@ -111,8 +168,12 @@ pub fn colored_text_vertices(
 
                 let base = vertices.len() as u32;
                 let (verts, idxs) = quad_vertices_uv(
-                    gx, gy, glyph.size[0], glyph.size[1],
-                    glyph.uv_min, glyph.uv_max,
+                    gx,
+                    gy,
+                    glyph.size[0],
+                    glyph.size[1],
+                    glyph.uv_min,
+                    glyph.uv_max,
                     span.color,
                 );
                 vertices.extend_from_slice(&verts);
@@ -127,13 +188,22 @@ pub fn colored_text_vertices(
 }
 
 pub fn text_vertices(
-    text: &str, x: f32, y: f32, color: [f32; 4], atlas: &FontAtlas,
+    text: &str,
+    x: f32,
+    y: f32,
+    color: [f32; 4],
+    atlas: &FontAtlas,
 ) -> (Vec<UiVertex>, Vec<u32>) {
     text_vertices_clipped(text, x, y, color, atlas, f32::NEG_INFINITY, f32::INFINITY)
 }
 
 pub fn text_vertices_scaled(
-    text: &str, x: f32, y: f32, color: [f32; 4], atlas: &FontAtlas, scale: f32,
+    text: &str,
+    x: f32,
+    y: f32,
+    color: [f32; 4],
+    atlas: &FontAtlas,
+    scale: f32,
 ) -> (Vec<UiVertex>, Vec<u32>) {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
@@ -149,11 +219,7 @@ pub fn text_vertices_scaled(
             let gh = glyph.size[1] * scale;
 
             let base = vertices.len() as u32;
-            let (verts, idxs) = quad_vertices_uv(
-                gx, gy, gw, gh,
-                glyph.uv_min, glyph.uv_max,
-                color,
-            );
+            let (verts, idxs) = quad_vertices_uv(gx, gy, gw, gh, glyph.uv_min, glyph.uv_max, color);
             vertices.extend_from_slice(&verts);
             indices.extend(idxs.iter().map(|i| i + base));
         }
@@ -165,8 +231,13 @@ pub fn text_vertices_scaled(
 }
 
 pub fn text_vertices_clipped(
-    text: &str, x: f32, y: f32, color: [f32; 4], atlas: &FontAtlas,
-    clip_left: f32, clip_right: f32,
+    text: &str,
+    x: f32,
+    y: f32,
+    color: [f32; 4],
+    atlas: &FontAtlas,
+    clip_left: f32,
+    clip_right: f32,
 ) -> (Vec<UiVertex>, Vec<u32>) {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
@@ -205,8 +276,12 @@ pub fn text_vertices_clipped(
 
                 let base = vertices.len() as u32;
                 let (verts, idxs) = quad_vertices_uv(
-                    draw_x, gy, draw_w, glyph.size[1],
-                    [uv_left, glyph.uv_min[1]], [uv_right, glyph.uv_max[1]],
+                    draw_x,
+                    gy,
+                    draw_w,
+                    glyph.size[1],
+                    [uv_left, glyph.uv_min[1]],
+                    [uv_right, glyph.uv_max[1]],
                     color,
                 );
                 vertices.extend_from_slice(&verts);
@@ -220,7 +295,12 @@ pub fn text_vertices_clipped(
     (vertices, indices)
 }
 
-pub fn word_wrap(text: &str, max_width: f32, measure: impl Fn(&str) -> f32, truncate: bool) -> Vec<String> {
+pub fn word_wrap(
+    text: &str,
+    max_width: f32,
+    measure: impl Fn(&str) -> f32,
+    truncate: bool,
+) -> Vec<String> {
     let mut lines = Vec::new();
     for paragraph in text.split('\n') {
         if paragraph.is_empty() {

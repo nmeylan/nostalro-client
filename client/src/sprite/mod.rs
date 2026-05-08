@@ -1,13 +1,13 @@
 mod cursor;
 mod effects;
 
-use std::rc::Rc;
 use crate::App;
-use ragnarok_game::entity::EntityType;
-use ragnarok_game::sprite_path::{entity_sprite_base_path, weapon_view_id_to_type};
-use ragnarok_game::sprite_loader;
-use ragnarok_renderer::build_entity_sprite;
 use models::enums::weapon::WeaponType;
+use ragnarok_game::entity::EntityType;
+use ragnarok_game::sprite_loader;
+use ragnarok_game::sprite_path::{entity_sprite_base_path, weapon_view_id_to_type};
+use ragnarok_renderer::build_entity_sprite;
+use std::rc::Rc;
 
 impl App {
     pub(crate) fn reload_player_sprite(&mut self, gid: u32) {
@@ -26,8 +26,17 @@ impl App {
         let hair_color = entity.hair_color;
         let cloth_color = entity.cloth_color;
         self.load_player_sprite(
-            gid, job, sex, head, hair_color, cloth_color, weapon_type, head_top, head_mid,
-            head_bottom, shield,
+            gid,
+            job,
+            sex,
+            head,
+            hair_color,
+            cloth_color,
+            weapon_type,
+            head_top,
+            head_mid,
+            head_bottom,
+            shield,
         );
     }
 
@@ -51,10 +60,25 @@ impl App {
             _ => return,
         };
         let empty_table = ragnarok_game::accessory_table::AccessoryTable::empty();
-        let accessory_table = self.game.data_table.accessory.as_ref().unwrap_or(&empty_table);
+        let accessory_table = self
+            .game
+            .data_table
+            .accessory
+            .as_ref()
+            .unwrap_or(&empty_table);
         let data = match sprite_loader::load_player_sprite_data(
-            grf, accessory_table, job, sex, head, hair_color, cloth_color, weapon, head_top,
-            head_mid, head_bottom, shield_id,
+            grf,
+            accessory_table,
+            job,
+            sex,
+            head,
+            hair_color,
+            cloth_color,
+            weapon,
+            head_top,
+            head_mid,
+            head_bottom,
+            shield_id,
         ) {
             Some(d) => d,
             None => return,
@@ -63,8 +87,14 @@ impl App {
             &renderer.device.device,
             &renderer.device.queue,
             &renderer.texture_cache.bind_group_layout,
-            data.body, data.head, data.weapon, data.headgear_top, data.headgear_mid,
-            data.headgear_bottom, data.shield, data.shadow,
+            data.body,
+            data.head,
+            data.weapon,
+            data.headgear_top,
+            data.headgear_mid,
+            data.headgear_bottom,
+            data.shield,
+            data.shadow,
         ));
         self.game.sprites.insert(gid, sprite);
     }
@@ -94,8 +124,17 @@ impl App {
             EntityType::Player => {
                 let weapon_type = weapon_view_id_to_type(weapon);
                 self.load_player_sprite(
-                    gid, job, sex, head, hair_color, 0, weapon_type, head_top, head_mid,
-                    head_bottom, shield,
+                    gid,
+                    job,
+                    sex,
+                    head,
+                    hair_color,
+                    0,
+                    weapon_type,
+                    head_top,
+                    head_mid,
+                    head_bottom,
+                    shield,
                 );
             }
             EntityType::Npc | EntityType::Monster => {
@@ -127,7 +166,14 @@ impl App {
                     &renderer.device.device,
                     &renderer.device.queue,
                     &renderer.texture_cache.bind_group_layout,
-                    data.body, None, None, None, None, None, None, data.shadow,
+                    data.body,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    data.shadow,
                 ));
                 self.game.sprite_cache.insert(cache_key, Rc::clone(&sprite));
                 self.game.sprites.insert(gid, sprite);
@@ -147,18 +193,50 @@ impl App {
             })
             .map(|e| {
                 (
-                    e.id, e.entity_type, e.job, e.sex, e.head, e.head_top, e.head_mid,
-                    e.head_bottom, e.shield, e.hair_color, e.direction,
+                    e.id,
+                    e.entity_type,
+                    e.job,
+                    e.sex,
+                    e.head,
+                    e.head_top,
+                    e.head_mid,
+                    e.head_bottom,
+                    e.shield,
+                    e.hair_color,
+                    e.direction,
                 )
             })
             .collect();
-        for (gid, entity_type, job, sex, head, head_top, head_mid, head_bottom, shield, hair_color, direction) in &missing {
+        for (
+            gid,
+            entity_type,
+            job,
+            sex,
+            head,
+            head_top,
+            head_mid,
+            head_bottom,
+            shield,
+            hair_color,
+            direction,
+        ) in &missing
+        {
             tracing::info!(
                 "Retrying sprite load for entity gid={gid} job={job} type={entity_type:?}"
             );
             self.load_entity_sprite(
-                *gid, *entity_type, *job, *sex, *head, 0, *shield, *head_top, *head_mid,
-                *head_bottom, *hair_color, *direction,
+                *gid,
+                *entity_type,
+                *job,
+                *sex,
+                *head,
+                0,
+                *shield,
+                *head_top,
+                *head_mid,
+                *head_bottom,
+                *hair_color,
+                *direction,
             );
             if !self.game.sprites.contains_key(gid) {
                 self.game.failed_sprite_loads.insert(*gid);

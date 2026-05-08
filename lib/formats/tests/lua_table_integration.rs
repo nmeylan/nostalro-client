@@ -11,7 +11,11 @@ fn parse_real_accessory_lua_files() {
     let table = lua_table::build_accessory_table(&id_content, &name_content);
 
     // Real file has ~1200 entries
-    assert!(table.len() > 500, "expected many entries, got {}", table.len());
+    assert!(
+        table.len() > 500,
+        "expected many entries, got {}",
+        table.len()
+    );
 
     // ACCESSORY_GOGGLES = 1 → "_고글"
     assert_eq!(table.get(&1).map(|s| s.as_str()), Some("_고글"));
@@ -27,7 +31,11 @@ fn parse_real_idnum2itemresnametable() {
 
     let table = lua_table::parse_item_res_table(data);
 
-    assert!(table.len() > 1000, "expected many entries, got {}", table.len());
+    assert!(
+        table.len() > 1000,
+        "expected many entries, got {}",
+        table.len()
+    );
 
     // Verify a known entry exists (item 501 = Red Potion)
     assert!(table.get(&501).is_some(), "expected item 501 to exist");

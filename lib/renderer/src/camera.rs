@@ -51,7 +51,14 @@ impl Camera {
     }
 
     /// Project a world position to screen coordinates. Returns None if behind camera.
-    pub fn world_to_screen(&self, wx: f32, wy: f32, wz: f32, screen_w: f32, screen_h: f32) -> Option<(f32, f32)> {
+    pub fn world_to_screen(
+        &self,
+        wx: f32,
+        wy: f32,
+        wz: f32,
+        screen_w: f32,
+        screen_h: f32,
+    ) -> Option<(f32, f32)> {
         let clip = self.view_projection() * glam::Vec4::new(wx, wy, wz, 1.0);
         if clip.w <= 0.0 {
             return None;
@@ -63,7 +70,14 @@ impl Camera {
     }
 
     /// Project a world position to screen coordinates plus NDC depth for depth testing.
-    pub fn world_to_screen_with_depth(&self, wx: f32, wy: f32, wz: f32, screen_w: f32, screen_h: f32) -> Option<(f32, f32, f32, f32)> {
+    pub fn world_to_screen_with_depth(
+        &self,
+        wx: f32,
+        wy: f32,
+        wz: f32,
+        screen_w: f32,
+        screen_h: f32,
+    ) -> Option<(f32, f32, f32, f32)> {
         let clip = self.view_projection() * glam::Vec4::new(wx, wy, wz, 1.0);
         if clip.w <= 0.0 {
             return None;
@@ -94,7 +108,13 @@ impl Camera {
     }
 
     /// Unproject screen coordinates to a world-space ray (origin, direction).
-    pub fn screen_to_ray(&self, screen_x: f32, screen_y: f32, screen_w: f32, screen_h: f32) -> (glam::Vec3, glam::Vec3) {
+    pub fn screen_to_ray(
+        &self,
+        screen_x: f32,
+        screen_y: f32,
+        screen_w: f32,
+        screen_h: f32,
+    ) -> (glam::Vec3, glam::Vec3) {
         let ndc_x = (2.0 * screen_x / screen_w) - 1.0;
         let ndc_y = 1.0 - (2.0 * screen_y / screen_h);
         let inv_vp = self.view_projection().inverse();
@@ -147,12 +167,7 @@ mod tests {
     fn view_projection_transforms_target_near_center() {
         let camera = Camera::default();
         let vp = camera.view_projection();
-        let clip = vp * glam::Vec4::new(
-            camera.target.x,
-            camera.target.y,
-            camera.target.z,
-            1.0,
-        );
+        let clip = vp * glam::Vec4::new(camera.target.x, camera.target.y, camera.target.z, 1.0);
         let ndc = clip.truncate() / clip.w;
         // Target should project near screen center
         assert!(ndc.x.abs() < 0.1, "ndc.x = {}", ndc.x);
@@ -231,7 +246,10 @@ mod tests {
                 "at distance {distance}: world bias = {approx_world_bias}, expected {VIEW_SPACE_BIAS}"
             );
             assert!(ndc_bias > 0.0);
-            assert!(ndc_bias < 0.01, "ndc_bias too large at distance {distance}: {ndc_bias}");
+            assert!(
+                ndc_bias < 0.01,
+                "ndc_bias too large at distance {distance}: {ndc_bias}"
+            );
         }
     }
 

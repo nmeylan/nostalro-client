@@ -43,16 +43,15 @@ mod tests {
 
     #[test]
     fn encode_decode_pos_roundtrip() {
-        let cases = [
-            (100, 200, 3),
-            (0, 0, 0),
-            (1023, 1023, 15),
-            (512, 384, 7),
-        ];
+        let cases = [(100, 200, 3), (0, 0, 0), (1023, 1023, 15), (512, 384, 7)];
         for (x, y, dir) in cases {
             let encoded = encode_pos(x, y, dir);
             let (dx, dy, ddir) = decode_pos(&encoded);
-            assert_eq!((dx, dy, ddir), (x, y, dir), "roundtrip failed for ({x}, {y}, {dir})");
+            assert_eq!(
+                (dx, dy, ddir),
+                (x, y, dir),
+                "roundtrip failed for ({x}, {y}, {dir})"
+            );
         }
     }
 

@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use ab_glyph::{Font, FontRef, ScaleFont};
+use std::collections::HashMap;
 
 const FALLBACK_FONT: &[u8] = include_bytes!("fonts/NotoSans-Regular.ttf");
 const CJK_FONT_PATH: &str = "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc";
@@ -33,7 +33,9 @@ impl FontAtlas {
         match std::fs::read(CJK_FONT_PATH) {
             Ok(data) => Self::build_with_extra_chars(&data, px_height, dpi_scale, extra_chars),
             Err(_) => {
-                tracing::warn!("CJK font not found at {CJK_FONT_PATH}, Korean text will not render");
+                tracing::warn!(
+                    "CJK font not found at {CJK_FONT_PATH}, Korean text will not render"
+                );
                 Self::build(FALLBACK_FONT, px_height, dpi_scale)
             }
         }
@@ -45,7 +47,12 @@ impl FontAtlas {
         Self::build_with_extra_chars(font_data, px_height, dpi_scale, &[])
     }
 
-    pub fn build_with_extra_chars(font_data: &[u8], px_height: f32, dpi_scale: f32, extra_chars: &[char]) -> Self {
+    pub fn build_with_extra_chars(
+        font_data: &[u8],
+        px_height: f32,
+        dpi_scale: f32,
+        extra_chars: &[char],
+    ) -> Self {
         let physical_height = px_height * dpi_scale;
         let font = FontRef::try_from_slice(font_data).expect("invalid font data");
         let scaled = font.as_scaled(physical_height);
@@ -59,11 +66,17 @@ impl FontAtlas {
                 chars.push(ch);
             }
         }
-        let mut glyph_renders: Vec<(char, ab_glyph::GlyphId, Option<ab_glyph::OutlinedGlyph>, f32)> = Vec::new();
+        let mut glyph_renders: Vec<(
+            char,
+            ab_glyph::GlyphId,
+            Option<ab_glyph::OutlinedGlyph>,
+            f32,
+        )> = Vec::new();
 
         for &ch in &chars {
             let glyph_id = font.glyph_id(ch);
-            let glyph = glyph_id.with_scale_and_position(physical_height, ab_glyph::point(0.0, 0.0));
+            let glyph =
+                glyph_id.with_scale_and_position(physical_height, ab_glyph::point(0.0, 0.0));
             let outlined = font.outline_glyph(glyph);
             let advance = scaled.h_advance(glyph_id);
             glyph_renders.push((ch, glyph_id, outlined, advance));
@@ -71,19 +84,25 @@ impl FontAtlas {
 
         // Shelf-pack: estimate atlas size
         let padding = 1;
-        let max_glyph_width = glyph_renders.iter()
+        let max_glyph_width = glyph_renders
+            .iter()
             .filter_map(|(_, _, og, _)| og.as_ref().map(|g| g.px_bounds().width() as u32 + padding))
             .max()
             .unwrap_or(1);
-        let total_area: u32 = glyph_renders.iter()
-            .filter_map(|(_, _, og, _)| og.as_ref().map(|g| {
-                let b = g.px_bounds();
-                (b.width() as u32 + padding) * (b.height() as u32 + padding)
-            }))
+        let total_area: u32 = glyph_renders
+            .iter()
+            .filter_map(|(_, _, og, _)| {
+                og.as_ref().map(|g| {
+                    let b = g.px_bounds();
+                    (b.width() as u32 + padding) * (b.height() as u32 + padding)
+                })
+            })
             .sum();
 
         // 1.5x margin accounts for shelf-packing row waste
-        let mut atlas_size = ((total_area as f64 * 1.5).sqrt().ceil() as u32).next_power_of_two().max(64);
+        let mut atlas_size = ((total_area as f64 * 1.5).sqrt().ceil() as u32)
+            .next_power_of_two()
+            .max(64);
         if atlas_size < max_glyph_width + padding {
             atlas_size = (max_glyph_width + padding).next_power_of_two();
         }
@@ -128,25 +147,31 @@ impl FontAtlas {
                 });
 
                 let inv = 1.0 / atlas_size as f32;
-                glyphs_map.insert(*ch, GlyphInfo {
-                    uv_min: [ox as f32 * inv, oy as f32 * inv],
-                    uv_max: [(ox + gw) as f32 * inv, (oy + gh) as f32 * inv],
-                    offset: [bounds.min.x / dpi_scale, bounds.min.y / dpi_scale],
-                    size: [gw as f32 / dpi_scale, gh as f32 / dpi_scale],
-                    advance: *advance / dpi_scale,
-                });
+                glyphs_map.insert(
+                    *ch,
+                    GlyphInfo {
+                        uv_min: [ox as f32 * inv, oy as f32 * inv],
+                        uv_max: [(ox + gw) as f32 * inv, (oy + gh) as f32 * inv],
+                        offset: [bounds.min.x / dpi_scale, bounds.min.y / dpi_scale],
+                        size: [gw as f32 / dpi_scale, gh as f32 / dpi_scale],
+                        advance: *advance / dpi_scale,
+                    },
+                );
 
                 cursor_x += gw + padding;
                 row_height = row_height.max(gh);
             } else {
                 // Whitespace glyph
-                glyphs_map.insert(*ch, GlyphInfo {
-                    uv_min: [0.0, 0.0],
-                    uv_max: [0.0, 0.0],
-                    offset: [0.0, 0.0],
-                    size: [0.0, 0.0],
-                    advance: *advance / dpi_scale,
-                });
+                glyphs_map.insert(
+                    *ch,
+                    GlyphInfo {
+                        uv_min: [0.0, 0.0],
+                        uv_max: [0.0, 0.0],
+                        offset: [0.0, 0.0],
+                        size: [0.0, 0.0],
+                        advance: *advance / dpi_scale,
+                    },
+                );
             }
         }
 
@@ -165,7 +190,9 @@ impl FontAtlas {
     }
 
     pub fn glyph(&self, ch: char) -> &GlyphInfo {
-        self.glyphs.get(&ch).unwrap_or_else(|| self.glyphs.get(&'?').unwrap())
+        self.glyphs
+            .get(&ch)
+            .unwrap_or_else(|| self.glyphs.get(&'?').unwrap())
     }
 
     pub fn measure_text(&self, text: &str) -> f32 {
@@ -185,7 +212,11 @@ mod tests {
     fn atlas_contains_all_ascii_printable() {
         let a = atlas();
         for b in 32u8..127 {
-            assert!(a.glyphs.contains_key(&(b as char)), "missing char {}", b as char);
+            assert!(
+                a.glyphs.contains_key(&(b as char)),
+                "missing char {}",
+                b as char
+            );
         }
     }
 

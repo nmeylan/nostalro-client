@@ -37,7 +37,9 @@ fn insert_path(
     let name = parts[depth];
     let is_leaf = depth == parts.len() - 1;
 
-    let existing = children.iter().position(|c| c.name == name && c.is_dir == !is_leaf);
+    let existing = children
+        .iter()
+        .position(|c| c.name == name && c.is_dir == !is_leaf);
 
     if is_leaf {
         let full_path = parts.join("/");
@@ -52,7 +54,13 @@ fn insert_path(
             file_index: Some(file_index),
         });
     } else if let Some(pos) = existing {
-        insert_path(&mut children[pos].children, parts, depth + 1, file_index, next_id);
+        insert_path(
+            &mut children[pos].children,
+            parts,
+            depth + 1,
+            file_index,
+            next_id,
+        );
     } else {
         let full_path = parts[..=depth].join("/") + "/";
         let id = *next_id;
@@ -71,9 +79,7 @@ fn insert_path(
 }
 
 fn sort_tree(children: &mut [TreeNode]) {
-    children.sort_by(|a, b| {
-        b.is_dir.cmp(&a.is_dir).then_with(|| a.name.cmp(&b.name))
-    });
+    children.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then_with(|| a.name.cmp(&b.name)));
     for child in children.iter_mut() {
         if child.is_dir {
             sort_tree(&mut child.children);

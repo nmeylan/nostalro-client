@@ -33,7 +33,10 @@ fn resolve_encryption(flags: u8, compressed_size: u32) -> Option<(bool, usize)> 
         let digits = {
             let mut d = 0;
             let mut rest = compressed_size;
-            while rest > 0 { rest /= 10; d += 1; }
+            while rest > 0 {
+                rest /= 10;
+                d += 1;
+            }
             if d < 1 { 1 } else { d }
         };
         let cycle = match digits {
@@ -57,7 +60,10 @@ fn apply_decryption(data: &mut [u8], header_only: bool, cycle: usize) {
     let mut non_des_count: usize = 0;
 
     // Process aligned blocks
-    for (block_idx, block) in data[..aligned_len].chunks_exact_mut(DES_BLOCK_LEN).enumerate() {
+    for (block_idx, block) in data[..aligned_len]
+        .chunks_exact_mut(DES_BLOCK_LEN)
+        .enumerate()
+    {
         process_block(block, block_idx, header_only, cycle, &mut non_des_count);
     }
 
@@ -65,12 +71,24 @@ fn apply_decryption(data: &mut [u8], header_only: bool, cycle: usize) {
     if remainder > 0 {
         let mut padded = [0u8; DES_BLOCK_LEN];
         padded[..remainder].copy_from_slice(&data[aligned_len..]);
-        process_block(&mut padded, aligned_len / DES_BLOCK_LEN, header_only, cycle, &mut non_des_count);
+        process_block(
+            &mut padded,
+            aligned_len / DES_BLOCK_LEN,
+            header_only,
+            cycle,
+            &mut non_des_count,
+        );
         data[aligned_len..].copy_from_slice(&padded[..remainder]);
     }
 }
 
-fn process_block(block: &mut [u8], block_idx: usize, header_only: bool, cycle: usize, non_des_count: &mut usize) {
+fn process_block(
+    block: &mut [u8],
+    block_idx: usize,
+    header_only: bool,
+    cycle: usize,
+    non_des_count: &mut usize,
+) {
     let is_header = block_idx < ENCRYPTED_HEADER_LEN;
     let is_cycle_hit = !header_only && cycle > 0 && block_idx % cycle == 0;
 
@@ -249,15 +267,11 @@ mod g_des {
         let b5 = (block & 0x0000000442000000) << 14;
         let b6 = (block & 0x0000000001800000) << 37;
         let b7 = (block & 0x0000000004000000) << 24;
-        let b8 = (block & 0x0000020280015000)
-            .wrapping_mul(0x0000020080800083)
-            & 0x02000A6400000000;
-        let b9 = (block.rotate_left(29) & 0x01001400000000AA)
-            .wrapping_mul(0x0000210210008081)
+        let b8 = (block & 0x0000020280015000).wrapping_mul(0x0000020080800083) & 0x02000A6400000000;
+        let b9 = (block.rotate_left(29) & 0x01001400000000AA).wrapping_mul(0x0000210210008081)
             & 0x0902C01200000000;
-        let b10 = (block & 0x0000000910040000)
-            .wrapping_mul(0x0000000C04000020)
-            & 0x8410010000000000;
+        let b10 =
+            (block & 0x0000000910040000).wrapping_mul(0x0000000C04000020) & 0x8410010000000000;
         b1 | b2 | b3 | b4 | b5 | b6 | b7 | b8 | b9 | b10
     }
 }

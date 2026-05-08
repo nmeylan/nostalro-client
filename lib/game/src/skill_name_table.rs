@@ -48,7 +48,10 @@ mod tests {
         let table = SkillNameTable::from_entries(entries);
 
         assert_eq!(table.get_display_name("SM_BASH"), Some("Bash"));
-        assert_eq!(table.get_display_name_or_internal("AL_HEAL"), "Heal".to_string());
+        assert_eq!(
+            table.get_display_name_or_internal("AL_HEAL"),
+            "Heal".to_string()
+        );
         assert_eq!(
             table.get_display_name_or_internal("UNKNOWN_SKILL"),
             "UNKNOWN_SKILL".to_string()

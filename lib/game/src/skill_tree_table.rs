@@ -199,7 +199,10 @@ MG_FIREWALL#19#6#12#10@
         let trees = parse_skill_tree_view(content);
         let tree = trees.get(&2).unwrap();
 
-        let safetywall = tree.iter().find(|e| e.skill_name == "MG_SAFETYWALL").unwrap();
+        let safetywall = tree
+            .iter()
+            .find(|e| e.skill_name == "MG_SAFETYWALL")
+            .unwrap();
         assert_eq!(safetywall.max_level, 10);
         assert_eq!(safetywall.prerequisite_positions, vec![4, 11]);
 

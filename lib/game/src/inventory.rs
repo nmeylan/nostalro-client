@@ -1,9 +1,9 @@
+use crate::item::InventoryTab;
+use crate::item::Item;
+use crate::item_resource_table::ItemResourceTable;
+pub use models::enums::item::EquipmentLocation;
 use models::enums::item::ItemType;
 use models::enums::{EnumWithMaskValueU64, EnumWithNumberValue};
-pub use models::enums::item::EquipmentLocation;
-use crate::item::Item;
-use crate::item::InventoryTab;
-use crate::item_resource_table::ItemResourceTable;
 
 #[derive(Debug)]
 pub struct InventoryData {
@@ -103,14 +103,18 @@ impl InventoryData {
 
     pub fn insert_card(&mut self, equip_index: u16, card_item_id: u16) {
         if let Some(item) = self.items.iter_mut().find(|i| i.index == equip_index)
-            && let Some(slot) = item.slot.iter_mut().find(|s| **s == 0) {
-                *slot = card_item_id;
-            }
+            && let Some(slot) = item.slot.iter_mut().find(|s| **s == 0)
+        {
+            *slot = card_item_id;
+        }
     }
 
     pub fn filtered_items(&self) -> Vec<&Item> {
-        self.items.iter()
-            .filter(|item| item.tab() == self.active_tab && (!item.is_equipped() || item.is_ammunition()))
+        self.items
+            .iter()
+            .filter(|item| {
+                item.tab() == self.active_tab && (!item.is_equipped() || item.is_ammunition())
+            })
             .collect()
     }
 
@@ -133,13 +137,21 @@ impl InventoryData {
         }
     }
 
-    pub fn apply_normal_items(&mut self, items: Vec<NormalItemData>, data_table: &crate::data_table::DataTable) -> Vec<String> {
+    pub fn apply_normal_items(
+        &mut self,
+        items: Vec<NormalItemData>,
+        data_table: &crate::data_table::DataTable,
+    ) -> Vec<String> {
         for info in items {
-            let name = data_table.item_name.as_ref()
+            let name = data_table
+                .item_name
+                .as_ref()
                 .map(|t| t.get_name_or_id_for(info.item_id, info.is_identified))
                 .unwrap_or_else(|| format!("Item #{}", info.item_id));
-            let resource_name = data_table.item_resource.as_ref()
-                .and_then(|t| t.get_resource_name_for(info.item_id, info.is_identified).map(|s| s.to_string()));
+            let resource_name = data_table.item_resource.as_ref().and_then(|t| {
+                t.get_resource_name_for(info.item_id, info.is_identified)
+                    .map(|s| s.to_string())
+            });
             self.add_item(Item {
                 index: info.index as u16,
                 item_id: info.item_id,
@@ -155,16 +167,27 @@ impl InventoryData {
                 resource_name,
             });
         }
-        self.items.iter().filter_map(|item| item.icon_path()).collect()
+        self.items
+            .iter()
+            .filter_map(|item| item.icon_path())
+            .collect()
     }
 
-    pub fn apply_equipment_items(&mut self, items: Vec<EquipmentItemData>, data_table: &crate::data_table::DataTable) -> Vec<String> {
+    pub fn apply_equipment_items(
+        &mut self,
+        items: Vec<EquipmentItemData>,
+        data_table: &crate::data_table::DataTable,
+    ) -> Vec<String> {
         for info in items {
-            let name = data_table.item_name.as_ref()
+            let name = data_table
+                .item_name
+                .as_ref()
                 .map(|t| t.get_name_or_id_for(info.item_id, info.is_identified))
                 .unwrap_or_else(|| format!("Item #{}", info.item_id));
-            let resource_name = data_table.item_resource.as_ref()
-                .and_then(|t| t.get_resource_name_for(info.item_id, info.is_identified).map(|s| s.to_string()));
+            let resource_name = data_table.item_resource.as_ref().and_then(|t| {
+                t.get_resource_name_for(info.item_id, info.is_identified)
+                    .map(|s| s.to_string())
+            });
             self.add_item(Item {
                 index: info.index as u16,
                 item_id: info.item_id,
@@ -180,56 +203,92 @@ impl InventoryData {
                 resource_name,
             });
         }
-        self.items.iter().filter_map(|item| item.icon_path()).collect()
+        self.items
+            .iter()
+            .filter_map(|item| item.icon_path())
+            .collect()
     }
 
     pub fn apply_item_pickup(
         &mut self,
-        index: u16, item_id: u16, count: u16, item_type: ItemType,
-        is_identified: bool, is_damaged: bool, refining_level: u8,
-        slot: [u16; 4], location: u16, result: u8,
+        index: u16,
+        item_id: u16,
+        count: u16,
+        item_type: ItemType,
+        is_identified: bool,
+        is_damaged: bool,
+        refining_level: u8,
+        slot: [u16; 4],
+        location: u16,
+        result: u8,
         data_table: &crate::data_table::DataTable,
     ) -> Option<(String, u16, Option<String>)> {
         if result != 0 {
             return None;
         }
-        let name = data_table.item_name.as_ref()
+        let name = data_table
+            .item_name
+            .as_ref()
             .map(|t| t.get_name_or_id_for(item_id, is_identified))
             .unwrap_or_else(|| format!("Item #{item_id}"));
-        let resource_name = data_table.item_resource.as_ref()
-            .and_then(|t| t.get_resource_name_for(item_id, is_identified).map(|s| s.to_string()));
+        let resource_name = data_table.item_resource.as_ref().and_then(|t| {
+            t.get_resource_name_for(item_id, is_identified)
+                .map(|s| s.to_string())
+        });
         self.add_item(Item {
-            index, item_id, item_type,
+            index,
+            item_id,
+            item_type,
             count: count as i16,
-            is_identified, is_damaged, refining_level, slot, location,
+            is_identified,
+            is_damaged,
+            refining_level,
+            slot,
+            location,
             wear_state: 0,
             name: name.clone(),
             resource_name,
         });
         let icon_path = self.get_item(index).and_then(|item| item.icon_path());
-        let formatted_name = self.get_item(index)
-            .map(|item| crate::display_name::format_equipment_display_name(
-                item,
-                data_table.item_slot_count.as_ref(),
-                data_table.card_name.as_ref(),
-            ))
+        let formatted_name = self
+            .get_item(index)
+            .map(|item| {
+                crate::display_name::format_equipment_display_name(
+                    item,
+                    data_table.item_slot_count.as_ref(),
+                    data_table.card_name.as_ref(),
+                )
+            })
             .unwrap_or(name);
         Some((formatted_name, count, icon_path))
     }
 
-    pub fn apply_equip_result(&mut self, index: u16, wear_location: u16, view_id: u16, success: bool) -> Option<(u8, u16)> {
+    pub fn apply_equip_result(
+        &mut self,
+        index: u16,
+        wear_location: u16,
+        view_id: u16,
+        success: bool,
+    ) -> Option<(u8, u16)> {
         if !success {
             return None;
         }
         self.update_wear_state(index, wear_location);
         if view_id != 0
-            && let Some(sprite_type) = crate::entity::Entity::wear_location_to_sprite_type(wear_location) {
-                return Some((sprite_type, view_id));
-            }
+            && let Some(sprite_type) =
+                crate::entity::Entity::wear_location_to_sprite_type(wear_location)
+        {
+            return Some((sprite_type, view_id));
+        }
         None
     }
 
-    pub fn apply_unequip_result(&mut self, index: u16, wear_location: u16, success: bool) -> Option<u8> {
+    pub fn apply_unequip_result(
+        &mut self,
+        index: u16,
+        wear_location: u16,
+        success: bool,
+    ) -> Option<u8> {
         if !success {
             return None;
         }
@@ -237,7 +296,12 @@ impl InventoryData {
         crate::entity::Entity::wear_location_to_sprite_type(wear_location)
     }
 
-    pub fn apply_card_insert_result(&mut self, equip_index: u16, card_index: u16, result: u8) -> bool {
+    pub fn apply_card_insert_result(
+        &mut self,
+        equip_index: u16,
+        card_index: u16,
+        result: u8,
+    ) -> bool {
         if result == 0 {
             let card_item_id = self.get_item(card_index).map(|c| c.item_id).unwrap_or(0);
             self.subtract_item_count(card_index, 1);
@@ -331,10 +395,10 @@ mod tests {
 
         // Add mixed items: healing (type 0), weapon (type 4), card (type 6)
         inv.add_item(make_normal_item(1, 501, 0, 10)); // Red Potion - usable
-        inv.add_item(make_normal_item(2, 502, 2, 5));   // Orange Potion - usable
-        inv.add_item(make_equip_item(3, 1201, 2));       // Knife - equip
-        inv.add_item(make_normal_item(4, 4001, 6, 1));   // Card - etc
-        inv.add_item(make_normal_item(5, 7001, 3, 50));  // Etc item
+        inv.add_item(make_normal_item(2, 502, 2, 5)); // Orange Potion - usable
+        inv.add_item(make_equip_item(3, 1201, 2)); // Knife - equip
+        inv.add_item(make_normal_item(4, 4001, 6, 1)); // Card - etc
+        inv.add_item(make_normal_item(5, 7001, 3, 50)); // Etc item
 
         // Tab filtering
         inv.active_tab = InventoryTab::Usable;
@@ -389,7 +453,7 @@ mod tests {
         let mut inv = InventoryData::new();
 
         // Pickup adds to correct tab
-        inv.add_item(make_normal_item(10, 501, 0, 1));  // healing -> Usable
+        inv.add_item(make_normal_item(10, 501, 0, 1)); // healing -> Usable
         inv.add_item(make_normal_item(11, 1101, 4, 1)); // weapon -> Equip
         inv.add_item(make_normal_item(12, 7001, 3, 1)); // etc -> Etc
         inv.add_item(make_normal_item(13, 1750, 10, 100)); // ammo -> Etc
@@ -418,7 +482,7 @@ mod tests {
     #[test]
     fn equipped_in_slot_lookup() {
         let mut inv = InventoryData::new();
-        inv.add_item(make_equip_item(3, 1201, 2));  // Knife, location=HandRight
+        inv.add_item(make_equip_item(3, 1201, 2)); // Knife, location=HandRight
         inv.add_item(make_equip_item(5, 2101, 16)); // Armor, location=Armor
 
         // Nothing equipped yet
@@ -444,18 +508,33 @@ mod tests {
     fn headgear_equipped_in_slot() {
         let mut inv = InventoryData::new();
         // HeadTop mask=256, HeadMid mask=512, HeadLow mask=1
-        inv.add_item(make_equip_item(10, 2220, 256));   // Hat → HeadTop
-        inv.add_item(make_equip_item(11, 5001, 512));   // Sunglasses → HeadMid
-        inv.add_item(make_equip_item(12, 5100, 1));     // Mouth mask → HeadLow
+        inv.add_item(make_equip_item(10, 2220, 256)); // Hat → HeadTop
+        inv.add_item(make_equip_item(11, 5001, 512)); // Sunglasses → HeadMid
+        inv.add_item(make_equip_item(12, 5100, 1)); // Mouth mask → HeadLow
 
         // Equip all three
         inv.update_wear_state(10, 256);
         inv.update_wear_state(11, 512);
         inv.update_wear_state(12, 1);
 
-        assert_eq!(inv.equipped_in_slot(EquipmentLocation::HeadTop).unwrap().index, 10);
-        assert_eq!(inv.equipped_in_slot(EquipmentLocation::HeadMid).unwrap().index, 11);
-        assert_eq!(inv.equipped_in_slot(EquipmentLocation::HeadLow).unwrap().index, 12);
+        assert_eq!(
+            inv.equipped_in_slot(EquipmentLocation::HeadTop)
+                .unwrap()
+                .index,
+            10
+        );
+        assert_eq!(
+            inv.equipped_in_slot(EquipmentLocation::HeadMid)
+                .unwrap()
+                .index,
+            11
+        );
+        assert_eq!(
+            inv.equipped_in_slot(EquipmentLocation::HeadLow)
+                .unwrap()
+                .index,
+            12
+        );
 
         // Multi-slot headgear (HeadTop+HeadMid = 256|512 = 768)
         inv.clear_wear_state(10);
@@ -463,9 +542,24 @@ mod tests {
         inv.add_item(make_equip_item(13, 2230, 768));
         inv.update_wear_state(13, 768);
 
-        assert_eq!(inv.equipped_in_slot(EquipmentLocation::HeadTop).unwrap().index, 13);
-        assert_eq!(inv.equipped_in_slot(EquipmentLocation::HeadMid).unwrap().index, 13);
-        assert_eq!(inv.equipped_in_slot(EquipmentLocation::HeadLow).unwrap().index, 12);
+        assert_eq!(
+            inv.equipped_in_slot(EquipmentLocation::HeadTop)
+                .unwrap()
+                .index,
+            13
+        );
+        assert_eq!(
+            inv.equipped_in_slot(EquipmentLocation::HeadMid)
+                .unwrap()
+                .index,
+            13
+        );
+        assert_eq!(
+            inv.equipped_in_slot(EquipmentLocation::HeadLow)
+                .unwrap()
+                .index,
+            12
+        );
     }
 
     #[test]
@@ -488,7 +582,10 @@ mod tests {
         assert_eq!(inv.filtered_items().len(), 1);
 
         // Also findable via equipped_in_slot
-        assert_eq!(inv.equipped_in_slot(EquipmentLocation::Ammo).unwrap().index, 20);
+        assert_eq!(
+            inv.equipped_in_slot(EquipmentLocation::Ammo).unwrap().index,
+            20
+        );
 
         // Unequip — still visible
         inv.clear_wear_state(20);

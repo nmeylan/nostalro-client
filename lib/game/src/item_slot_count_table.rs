@@ -25,7 +25,9 @@ impl ItemSlotCountTable {
             return Self { entries };
         }
         tracing::warn!("No item slot count table found in GRF");
-        Self { entries: HashMap::new() }
+        Self {
+            entries: HashMap::new(),
+        }
     }
 
     pub fn get_slot_count(&self, item_id: u16) -> u8 {

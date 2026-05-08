@@ -23,28 +23,113 @@ pub enum BrowserTab {
 }
 
 const TOWN_NAMES: &[&str] = &[
-    "prontera", "geffen", "payon", "alberta", "morocc", "izlude", "aldebaran",
-    "comodo", "umbala", "amatsu", "gonryun", "louyang", "ayothaya", "hugel",
-    "einbroch", "einbech", "lighthalzen", "yuno", "veins", "rachel", "moscovia",
-    "brasilis", "dewata", "malangdo", "eclage", "manuk", "splendide",
+    "prontera",
+    "geffen",
+    "payon",
+    "alberta",
+    "morocc",
+    "izlude",
+    "aldebaran",
+    "comodo",
+    "umbala",
+    "amatsu",
+    "gonryun",
+    "louyang",
+    "ayothaya",
+    "hugel",
+    "einbroch",
+    "einbech",
+    "lighthalzen",
+    "yuno",
+    "veins",
+    "rachel",
+    "moscovia",
+    "brasilis",
+    "dewata",
+    "malangdo",
+    "eclage",
+    "manuk",
+    "splendide",
 ];
 
 const DUNGEON_PREFIXES: &[&str] = &[
-    "abyss_", "alde_dun", "anthell", "ayo_dun", "beach_dun", "c_tower", "cmd_fild07",
-    "ein_dun", "gef_dun", "gefenia", "gl_", "gld_dun", "gon_dun", "hu_fild05",
-    "ice_dun", "iz_dun", "juperos_", "kh_dun", "lhz_dun", "lou_dun", "mag_dun",
-    "moc_pryd", "moc_prydb1", "mjo_", "mjolnir_", "mosk_dun", "nameless_n",
-    "odin_tem", "orcsdun", "pay_dun", "prt_maze", "prt_sewb", "ra_san", "ra_temin",
-    "schg_dun", "tha_t", "thor_v", "treasure", "tur_dun", "um_dun", "xmas_dun",
-    "yuno_fild03", "abbey", "1@cata", "2@cata", "1@gl_", "2@gl_",
+    "abyss_",
+    "alde_dun",
+    "anthell",
+    "ayo_dun",
+    "beach_dun",
+    "c_tower",
+    "cmd_fild07",
+    "ein_dun",
+    "gef_dun",
+    "gefenia",
+    "gl_",
+    "gld_dun",
+    "gon_dun",
+    "hu_fild05",
+    "ice_dun",
+    "iz_dun",
+    "juperos_",
+    "kh_dun",
+    "lhz_dun",
+    "lou_dun",
+    "mag_dun",
+    "moc_pryd",
+    "moc_prydb1",
+    "mjo_",
+    "mjolnir_",
+    "mosk_dun",
+    "nameless_n",
+    "odin_tem",
+    "orcsdun",
+    "pay_dun",
+    "prt_maze",
+    "prt_sewb",
+    "ra_san",
+    "ra_temin",
+    "schg_dun",
+    "tha_t",
+    "thor_v",
+    "treasure",
+    "tur_dun",
+    "um_dun",
+    "xmas_dun",
+    "yuno_fild03",
+    "abbey",
+    "1@cata",
+    "2@cata",
+    "1@gl_",
+    "2@gl_",
 ];
 
 const FIELD_PREFIXES: &[&str] = &[
-    "prt_fild", "gef_fild", "pay_fild", "moc_fild", "cmd_fild", "xmas_fild",
-    "ein_fild", "lhz_fild", "yuno_fild", "iz_int", "izlu2dun", "mjolnir_",
-    "ayo_fild", "ama_fild", "gon_fild", "lou_fild", "umbala", "hu_fild",
-    "ra_fild", "ve_fild", "mosk_fild", "bra_fild", "dew_fild", "spl_fild",
-    "man_fild", "ecl_fild", "n_castle",
+    "prt_fild",
+    "gef_fild",
+    "pay_fild",
+    "moc_fild",
+    "cmd_fild",
+    "xmas_fild",
+    "ein_fild",
+    "lhz_fild",
+    "yuno_fild",
+    "iz_int",
+    "izlu2dun",
+    "mjolnir_",
+    "ayo_fild",
+    "ama_fild",
+    "gon_fild",
+    "lou_fild",
+    "umbala",
+    "hu_fild",
+    "ra_fild",
+    "ve_fild",
+    "mosk_fild",
+    "bra_fild",
+    "dew_fild",
+    "spl_fild",
+    "man_fild",
+    "ecl_fild",
+    "n_castle",
 ];
 
 struct TabData {
@@ -77,9 +162,7 @@ impl MapBrowser {
             .into_iter()
             .filter_map(|p| {
                 let stripped = p.strip_prefix("data/").unwrap_or(&p);
-                stripped
-                    .strip_suffix(".rsw")
-                    .map(|n| n.to_string())
+                stripped.strip_suffix(".rsw").map(|n| n.to_string())
             })
             .collect();
         all_names.sort();
@@ -100,7 +183,13 @@ impl MapBrowser {
 
         let mut browser = Self {
             all_names,
-            tabs: TabData { active: BrowserTab::Towns, towns, dungeons, fields, other },
+            tabs: TabData {
+                active: BrowserTab::Towns,
+                towns,
+                dungeons,
+                fields,
+                other,
+            },
             items: Vec::new(),
             filtered: Vec::new(),
             filter_text: String::new(),
@@ -215,8 +304,7 @@ impl MapBrowser {
             .iter()
             .enumerate()
             .filter(|(_, name_idx)| {
-                needle.is_empty()
-                    || self.all_names[**name_idx].to_lowercase().contains(&needle)
+                needle.is_empty() || self.all_names[**name_idx].to_lowercase().contains(&needle)
             })
             .map(|(i, _)| i)
             .collect();
@@ -380,20 +468,28 @@ mod tests {
 
         // Towns tab is default.
         assert_eq!(b.active_tab(), BrowserTab::Towns);
-        assert!(b.items.iter().map(|&i| &b.all_names[i]).any(|n| n == "prontera"));
-        assert!(b.items.iter().map(|&i| &b.all_names[i]).any(|n| n == "geffen"));
+        assert!(
+            b.items
+                .iter()
+                .map(|&i| &b.all_names[i])
+                .any(|n| n == "prontera")
+        );
+        assert!(
+            b.items
+                .iter()
+                .map(|&i| &b.all_names[i])
+                .any(|n| n == "geffen")
+        );
 
         // Dungeons: gef_dun00 (prefix) + abbey01 (prefix); in_sphinx1 falls through to Other.
         b.switch_tab(BrowserTab::Dungeons);
-        let dungeon_names: Vec<&str> =
-            b.items.iter().map(|&i| b.all_names[i].as_str()).collect();
+        let dungeon_names: Vec<&str> = b.items.iter().map(|&i| b.all_names[i].as_str()).collect();
         assert!(dungeon_names.contains(&"gef_dun00"));
         assert!(dungeon_names.contains(&"abbey01"));
 
         // Fields: prt_fild01 by prefix.
         b.switch_tab(BrowserTab::Fields);
-        let field_names: Vec<&str> =
-            b.items.iter().map(|&i| b.all_names[i].as_str()).collect();
+        let field_names: Vec<&str> = b.items.iter().map(|&i| b.all_names[i].as_str()).collect();
         assert!(field_names.contains(&"prt_fild01"));
 
         // Filter on the active tab.
@@ -404,8 +500,7 @@ mod tests {
 
         // Other tab catches uncategorized maps.
         b.switch_tab(BrowserTab::Other);
-        let other_names: Vec<&str> =
-            b.items.iter().map(|&i| b.all_names[i].as_str()).collect();
+        let other_names: Vec<&str> = b.items.iter().map(|&i| b.all_names[i].as_str()).collect();
         assert!(other_names.contains(&"some_arena"));
         assert!(other_names.contains(&"in_sphinx1"));
     }

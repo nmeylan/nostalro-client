@@ -1,6 +1,6 @@
-use std::panic;
 use models::enums::class::JobName;
 use models::enums::{EnumWithNumberValue, EnumWithStringValue};
+use std::panic;
 
 pub fn job_class_name(class: u16) -> String {
     let result = panic::catch_unwind(|| {

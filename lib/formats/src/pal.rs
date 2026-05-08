@@ -12,7 +12,12 @@ impl PalFile {
         let mut colors = [[0u8; 4]; 256];
         for i in 0..256 {
             let offset = i * 4;
-            colors[i] = [data[offset], data[offset + 1], data[offset + 2], data[offset + 3]];
+            colors[i] = [
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ];
         }
         Ok(PalFile { colors })
     }

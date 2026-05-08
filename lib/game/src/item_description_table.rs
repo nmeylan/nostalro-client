@@ -16,14 +16,19 @@ impl ItemDescriptionTable {
         identified: HashMap<u16, Vec<String>>,
         unidentified: HashMap<u16, Vec<String>>,
     ) -> Self {
-        Self { identified, unidentified }
+        Self {
+            identified,
+            unidentified,
+        }
     }
 
     pub fn load(grf: &GrfArchive) -> Self {
-        let identified = grf.read_file(IDENTIFIED_PATH)
+        let identified = grf
+            .read_file(IDENTIFIED_PATH)
             .map(|data| lua_table::parse_item_description_table(&data))
             .unwrap_or_default();
-        let unidentified = grf.read_file(UNIDENTIFIED_PATH)
+        let unidentified = grf
+            .read_file(UNIDENTIFIED_PATH)
             .map(|data| lua_table::parse_item_description_table(&data))
             .unwrap_or_default();
 
@@ -33,14 +38,18 @@ impl ItemDescriptionTable {
             unidentified.len(),
         );
 
-        Self { identified, unidentified }
+        Self {
+            identified,
+            unidentified,
+        }
     }
 
     pub fn get(&self, item_id: u16, is_identified: bool) -> Option<&[String]> {
         if is_identified {
             self.identified.get(&item_id).map(|v| v.as_slice())
         } else {
-            self.unidentified.get(&item_id)
+            self.unidentified
+                .get(&item_id)
                 .or_else(|| self.identified.get(&item_id))
                 .map(|v| v.as_slice())
         }
@@ -53,14 +62,20 @@ mod tests {
 
     fn make_table() -> ItemDescriptionTable {
         let mut identified = HashMap::new();
-        identified.insert(501, vec![
-            "A red potion.".to_string(),
-            "Class:^0000FF Restorative^000000".to_string(),
-        ]);
+        identified.insert(
+            501,
+            vec![
+                "A red potion.".to_string(),
+                "Class:^0000FF Restorative^000000".to_string(),
+            ],
+        );
         identified.insert(1201, vec!["A dagger.".to_string()]);
         let mut unidentified = HashMap::new();
         unidentified.insert(1201, vec!["An unknown weapon.".to_string()]);
-        ItemDescriptionTable { identified, unidentified }
+        ItemDescriptionTable {
+            identified,
+            unidentified,
+        }
     }
 
     #[test]

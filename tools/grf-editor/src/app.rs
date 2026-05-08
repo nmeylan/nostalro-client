@@ -30,8 +30,11 @@ impl LoadedGrf {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| "unknown".to_string());
         let file_list = archive.file_list();
-        let indexed_names: Vec<(usize, &str)> =
-            file_list.iter().enumerate().map(|(i, f)| (i, f.name.as_str())).collect();
+        let indexed_names: Vec<(usize, &str)> = file_list
+            .iter()
+            .enumerate()
+            .map(|(i, f)| (i, f.name.as_str()))
+            .collect();
         let tree = tree::build_tree(&indexed_names);
         let visible_files = (0..file_list.len()).collect();
 
@@ -52,8 +55,12 @@ impl LoadedGrf {
 
     fn refresh(&mut self) {
         self.file_list = self.archive.file_list();
-        let indexed_names: Vec<(usize, &str)> =
-            self.file_list.iter().enumerate().map(|(i, f)| (i, f.name.as_str())).collect();
+        let indexed_names: Vec<(usize, &str)> = self
+            .file_list
+            .iter()
+            .enumerate()
+            .map(|(i, f)| (i, f.name.as_str()))
+            .collect();
         self.tree = tree::build_tree(&indexed_names);
         self.selected_file = None;
         self.update_visible_files();
@@ -274,22 +281,34 @@ impl GrfEditorApp {
             }
 
             let has_grf = self.archives.get(self.active_tab).is_some();
-            let is_writable = self.archives.get(self.active_tab)
+            let is_writable = self
+                .archives
+                .get(self.active_tab)
                 .is_some_and(|g| g.archive.is_writable());
-            let is_dirty = self.archives.get(self.active_tab)
-                .is_some_and(|g| g.dirty);
-            let has_selection = self.archives.get(self.active_tab)
+            let is_dirty = self.archives.get(self.active_tab).is_some_and(|g| g.dirty);
+            let has_selection = self
+                .archives
+                .get(self.active_tab)
                 .is_some_and(|g| g.selected_file.is_some());
 
             ui.separator();
 
-            if ui.add_enabled(is_writable, egui::Button::new("Add Files")).clicked() {
+            if ui
+                .add_enabled(is_writable, egui::Button::new("Add Files"))
+                .clicked()
+            {
                 self.action_add_files();
             }
-            if ui.add_enabled(has_selection, egui::Button::new("Extract")).clicked() {
+            if ui
+                .add_enabled(has_selection, egui::Button::new("Extract"))
+                .clicked()
+            {
                 self.action_extract();
             }
-            if ui.add_enabled(has_selection && is_writable, egui::Button::new("Remove")).clicked() {
+            if ui
+                .add_enabled(has_selection && is_writable, egui::Button::new("Remove"))
+                .clicked()
+            {
                 if let Some(grf) = self.archives.get(self.active_tab) {
                     if grf.selected_file.is_some() {
                         self.confirm_delete = grf.selected_file;
@@ -299,10 +318,16 @@ impl GrfEditorApp {
 
             ui.separator();
 
-            if ui.add_enabled(is_dirty && is_writable, egui::Button::new("Save")).clicked() {
+            if ui
+                .add_enabled(is_dirty && is_writable, egui::Button::new("Save"))
+                .clicked()
+            {
                 self.action_save();
             }
-            if ui.add_enabled(has_grf && is_writable, egui::Button::new("Repack")).clicked() {
+            if ui
+                .add_enabled(has_grf && is_writable, egui::Button::new("Repack"))
+                .clicked()
+            {
                 self.action_repack();
             }
         });
@@ -383,12 +408,15 @@ impl GrfEditorApp {
         };
 
         let tree_nodes = grf.tree.clone();
-        let (_response, actions) = TreeView::new(ui.make_persistent_id("grf_tree"))
-            .show_state(ui, &mut grf.tree_state, |builder| {
+        let (_response, actions) = TreeView::new(ui.make_persistent_id("grf_tree")).show_state(
+            ui,
+            &mut grf.tree_state,
+            |builder| {
                 for child in &tree_nodes {
                     tree::add_tree_node(child, builder);
                 }
-            });
+            },
+        );
 
         for action in actions {
             if let Action::SetSelected(selected) = action {
@@ -485,7 +513,8 @@ impl GrfEditorApp {
             return;
         }
 
-        grf.preview.update(ctx, grf.selected_file, &grf.file_list, &grf.archive);
+        grf.preview
+            .update(ctx, grf.selected_file, &grf.file_list, &grf.archive);
         let has_preview = grf.preview.has_preview();
         let default_height = if has_preview { 300.0 } else { 120.0 };
         let preview = &grf.preview;

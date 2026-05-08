@@ -1,8 +1,8 @@
+use crate::Window;
+use ragnarok_game::event::{GameEvent, ServerInfo};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-use ragnarok_game::event::{GameEvent, ServerInfo};
-use crate::Window;
 
 // Fallback layout constants (used when no GRF textures)
 const FALLBACK_WIN_W: f32 = 280.0;
@@ -70,14 +70,16 @@ impl ServerListWindow {
         // Keyboard navigation
         if ui.ctx.key_down
             && let Some(idx) = self.selected_index
-                && idx + 1 < self.servers.len() {
-                    self.selected_index = Some(idx + 1);
-                }
+            && idx + 1 < self.servers.len()
+        {
+            self.selected_index = Some(idx + 1);
+        }
         if ui.ctx.key_up
             && let Some(idx) = self.selected_index
-                && idx > 0 {
-                    self.selected_index = Some(idx - 1);
-                }
+            && idx > 0
+        {
+            self.selected_index = Some(idx - 1);
+        }
 
         if self.has_grf_textures {
             self.build_grf(ui, &mut events);
@@ -86,7 +88,9 @@ impl ServerListWindow {
         }
 
         if ui.ctx.key_enter && self.selected_index.is_some() {
-            events.push(GameEvent::RequestSelectServer { index: self.selected_index.unwrap() });
+            events.push(GameEvent::RequestSelectServer {
+                index: self.selected_index.unwrap(),
+            });
         }
         if ui.ctx.key_escape {
             events.push(GameEvent::BackToLogin);
@@ -98,15 +102,16 @@ impl ServerListWindow {
     fn build_grf(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
         let (win_w, win_h) = self.win_size;
         let (btn_w, btn_h) = self.btn_size;
-        let header_h = HEADER_H ;
-        let list_x = LIST_X ;
-        let row_h = ROW_H ;
+        let header_h = HEADER_H;
+        let list_x = LIST_X;
+        let row_h = ROW_H;
         let win = ui.window(WINDOW_ID, win_w, win_h, header_h);
 
         // Window background texture
         let (v, i) = draw::quad_vertices(win.x, win.y, win_w, win_h, [1.0, 1.0, 1.0, 1.0]);
         ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(), indices: i.to_vec(),
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
             texture: TextureRef::Named(WIN_TEXTURE.to_string()),
         });
 
@@ -114,8 +119,18 @@ impl ServerListWindow {
         let list_w = win_w - list_x * 2.0;
         let list_h = win_h - header_h - (LIST_BOTTOM);
         let list_rect = Rect::new(win.x + list_x, win.y + header_h, list_w, list_h);
-        let (v, i) = draw::quad_vertices(list_rect.x, list_rect.y, list_rect.w, list_rect.h, LIST_BG_COLOR);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        let (v, i) = draw::quad_vertices(
+            list_rect.x,
+            list_rect.y,
+            list_rect.w,
+            list_rect.h,
+            LIST_BG_COLOR,
+        );
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
 
         // List area border
         let b = 1.0;
@@ -126,7 +141,11 @@ impl ServerListWindow {
             (list_rect.x + list_rect.w - b, list_rect.y, b, list_rect.h),
         ] {
             let (v, i) = draw::quad_vertices(bx, by, bw, bh, LIST_BORDER_COLOR);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
         }
 
         // Server rows
@@ -138,33 +157,62 @@ impl ServerListWindow {
             }
             let row_rect = Rect::new(list_rect.x + 1.0, row_y, list_w - 2.0, row_h);
             let row = ui.interact(WidgetId(WINDOW_ID.0 + 10 + idx as u32), row_rect);
-            if row.hovered() { ui.any_interactive_hovered = true; }
+            if row.hovered() {
+                ui.any_interactive_hovered = true;
+            }
             if row.clicked() {
                 self.selected_index = Some(idx);
             }
 
             if self.selected_index == Some(idx) {
-                let (v, i) = draw::quad_vertices(row_rect.x, row_rect.y, row_rect.w, row_rect.h, SELECTED_COLOR);
-                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+                let (v, i) = draw::quad_vertices(
+                    row_rect.x,
+                    row_rect.y,
+                    row_rect.w,
+                    row_rect.h,
+                    SELECTED_COLOR,
+                );
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: i.to_vec(),
+                    texture: TextureRef::White,
+                });
             }
 
             let text_y = row_y + row_h - (3.0);
-            ui.text(list_rect.x + (ROW_PAD_LEFT), text_y, &server.name, text_color);
+            ui.text(
+                list_rect.x + (ROW_PAD_LEFT),
+                text_y,
+                &server.name,
+                text_color,
+            );
 
             let count = format!("{}", server.user_count);
             let count_w = ui.atlas.measure_text(&count);
-            ui.text(list_rect.x + list_w - (ROW_PAD_LEFT) - count_w - (2.0), text_y, &count, text_color);
+            ui.text(
+                list_rect.x + list_w - (ROW_PAD_LEFT) - count_w - (2.0),
+                text_y,
+                &count,
+                text_color,
+            );
         }
 
         // OK / Cancel buttons (positioned from right/bottom, matching original client)
         let btn_y = win.y + win_h - (BTN_BOTTOM) - btn_h;
         let ok_rect = Rect::new(win.x + win_w - (OK_BTN_RIGHT) - btn_w, btn_y, btn_w, btn_h);
-        let cancel_rect = Rect::new(win.x + win_w - (CANCEL_BTN_RIGHT) - btn_w, btn_y, btn_w, btn_h);
+        let cancel_rect = Rect::new(
+            win.x + win_w - (CANCEL_BTN_RIGHT) - btn_w,
+            btn_y,
+            btn_w,
+            btn_h,
+        );
         let ok = ui.button(OK_ID, ok_rect, &OK_BTN, "OK");
         let cancel = ui.button(CANCEL_ID, cancel_rect, &CANCEL_BTN, "Cancel");
 
         if ok.clicked() && self.selected_index.is_some() {
-            events.push(GameEvent::RequestSelectServer { index: self.selected_index.unwrap() });
+            events.push(GameEvent::RequestSelectServer {
+                index: self.selected_index.unwrap(),
+            });
         }
         if cancel.clicked() {
             events.push(GameEvent::BackToLogin);
@@ -172,19 +220,23 @@ impl ServerListWindow {
     }
 
     fn build_fallback(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
-        let row_h = ROW_H ;
-        let btn_w = FALLBACK_BTN_W ;
-        let btn_h = FALLBACK_BTN_H ;
-        let win_w = FALLBACK_WIN_W ;
+        let row_h = ROW_H;
+        let btn_w = FALLBACK_BTN_W;
+        let btn_h = FALLBACK_BTN_H;
+        let win_w = FALLBACK_WIN_W;
         let list_h = self.servers.len() as f32 * row_h;
-        let padding = 8.0 ;
-        let title_h = 30.0 ;
+        let padding = 8.0;
+        let title_h = 30.0;
         let win_h = title_h + list_h + padding + btn_h + padding;
-        let win = ui.window(WINDOW_ID, win_w, win_h, FALLBACK_TITLE_BAR_H );
+        let win = ui.window(WINDOW_ID, win_w, win_h, FALLBACK_TITLE_BAR_H);
 
         // Window background
         let (v, i) = draw::quad_vertices(win.x, win.y, win.w, win_h, [0.08, 0.08, 0.12, 0.95]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
 
         // Border
         let border_color = [0.4, 0.4, 0.5, 1.0];
@@ -196,7 +248,11 @@ impl ServerListWindow {
             (win.x + win.w - b, win.y, b, win_h),
         ] {
             let (v, i) = draw::quad_vertices(bx, by, bw, bh, border_color);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
         }
 
         // Title
@@ -212,7 +268,9 @@ impl ServerListWindow {
             let row_y = list_y + idx as f32 * row_h;
             let row_rect = Rect::new(win.x + padding, row_y, win.w - padding * 2.0, row_h);
             let row = ui.interact(WidgetId(WINDOW_ID.0 + 10 + idx as u32), row_rect);
-            if row.hovered() { ui.any_interactive_hovered = true; }
+            if row.hovered() {
+                ui.any_interactive_hovered = true;
+            }
             if row.clicked() {
                 self.selected_index = Some(idx);
             }
@@ -225,21 +283,36 @@ impl ServerListWindow {
                 [0.0, 0.0, 0.0, 0.0]
             };
             if bg_color[3] > 0.0 {
-                let (v, i) = draw::quad_vertices(row_rect.x, row_rect.y, row_rect.w, row_rect.h, bg_color);
-                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+                let (v, i) =
+                    draw::quad_vertices(row_rect.x, row_rect.y, row_rect.w, row_rect.h, bg_color);
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: i.to_vec(),
+                    texture: TextureRef::White,
+                });
             }
 
             let text_y = row_y + (row_h + ui.atlas.line_height) / 2.0 - (2.0);
-            ui.text(win.x + padding + (4.0), text_y, &server.name, [1.0, 1.0, 1.0, 1.0]);
+            ui.text(
+                win.x + padding + (4.0),
+                text_y,
+                &server.name,
+                [1.0, 1.0, 1.0, 1.0],
+            );
 
             let count = format!("{}", server.user_count);
             let count_w = ui.atlas.measure_text(&count);
-            ui.text(win.x + win.w - padding - (4.0) - count_w, text_y, &count, [0.7, 0.7, 0.7, 1.0]);
+            ui.text(
+                win.x + win.w - padding - (4.0) - count_w,
+                text_y,
+                &count,
+                [0.7, 0.7, 0.7, 1.0],
+            );
         }
 
         // OK / Cancel buttons (centered)
         let btn_y = list_y + list_h + padding;
-        let btn_spacing = 8.0 ;
+        let btn_spacing = 8.0;
         let total_btn_w = btn_w * 2.0 + btn_spacing;
         let btn_start_x = win.x + (win.w - total_btn_w) / 2.0;
 
@@ -249,18 +322,23 @@ impl ServerListWindow {
         let cancel = ui.button(CANCEL_ID, cancel_rect, &CANCEL_BTN, "Cancel");
 
         if ok.clicked() && self.selected_index.is_some() {
-            events.push(GameEvent::RequestSelectServer { index: self.selected_index.unwrap() });
+            events.push(GameEvent::RequestSelectServer {
+                index: self.selected_index.unwrap(),
+            });
         }
         if cancel.clicked() {
             events.push(GameEvent::BackToLogin);
         }
     }
-
 }
 
 impl Window for ServerListWindow {
-    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
-    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+    fn has_grf_textures(&self) -> bool {
+        self.has_grf_textures
+    }
+    fn set_has_grf_textures(&mut self, value: bool) {
+        self.has_grf_textures = value;
+    }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(WIN_TEXTURE) {
@@ -287,22 +365,38 @@ impl Window for ServerListWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-    use ragnarok_renderer::font_atlas::FontAtlas;
 
     fn make_servers() -> Vec<ServerInfo> {
         vec![
-            ServerInfo { ip: 0x0100007F, port: 6121, name: "Loki".into(), user_count: 42 },
-            ServerInfo { ip: 0x0100007F, port: 6122, name: "Thor".into(), user_count: 17 },
-            ServerInfo { ip: 0x0100007F, port: 6123, name: "Odin".into(), user_count: 5 },
+            ServerInfo {
+                ip: 0x0100007F,
+                port: 6121,
+                name: "Loki".into(),
+                user_count: 42,
+            },
+            ServerInfo {
+                ip: 0x0100007F,
+                port: 6122,
+                name: "Thor".into(),
+                user_count: 17,
+            },
+            ServerInfo {
+                ip: 0x0100007F,
+                port: 6123,
+                name: "Odin".into(),
+                user_count: 5,
+            },
         ]
     }
 
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
@@ -358,7 +452,11 @@ mod tests {
         let mut ui = make_frame(&ctx, &mut state);
         let events = win.build(&mut ui);
 
-        assert!(events.iter().any(|e| matches!(e, GameEvent::RequestSelectServer { index: 1 })));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestSelectServer { index: 1 }))
+        );
     }
 
     #[test]

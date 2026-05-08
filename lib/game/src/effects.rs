@@ -64,7 +64,9 @@ impl Default for EffectManager {
 
 impl EffectManager {
     pub fn empty() -> Self {
-        Self { emitters: Vec::new() }
+        Self {
+            emitters: Vec::new(),
+        }
     }
 
     /// Walk the RSW objects and spawn one emitter per `RswObject::Effect`
@@ -79,7 +81,9 @@ impl EffectManager {
         let mut emitters = Vec::new();
         let mut skipped = 0usize;
         for obj in &rsw.objects {
-            let RswObject::Effect(eff) = obj else { continue };
+            let RswObject::Effect(eff) = obj else {
+                continue;
+            };
             let Some(kind) = effect_kind(eff.effect_type) else {
                 skipped += 1;
                 continue;
@@ -92,15 +96,20 @@ impl EffectManager {
                 }
                 EffectKind::Smoke3D { .. } => {
                     // param[0] = size percentage, param[1] = emission delay modifier
-                    let sz = if eff.param[0] > 0.0 { eff.param[0] / 100.0 } else { 1.0 };
+                    let sz = if eff.param[0] > 0.0 {
+                        eff.param[0] / 100.0
+                    } else {
+                        1.0
+                    };
                     ([1.0, 1.0, 1.0, 1.0], sz)
                 }
                 EffectKind::Str { .. } => ([1.0, 1.0, 1.0, 1.0], 1.0),
             };
             let str_file = match &kind {
-                EffectKind::Str { file_pattern, rand_range } => {
-                    Some(resolve_str_file(file_pattern, *rand_range))
-                }
+                EffectKind::Str {
+                    file_pattern,
+                    rand_range,
+                } => Some(resolve_str_file(file_pattern, *rand_range)),
                 _ => None,
             };
             let y_offset = match &kind {
@@ -145,7 +154,11 @@ impl EffectManager {
 
             match emitter.kind {
                 EffectKind::Smoke3D {
-                    duration_ms, pos_z_start, burst_count_range, speed_range, ..
+                    duration_ms,
+                    pos_z_start,
+                    burst_count_range,
+                    speed_range,
+                    ..
                 } => {
                     let lifetime = (duration_ms / 1000.0).max(1e-3);
 
@@ -225,15 +238,24 @@ mod tests {
             gat_file: String::new(),
             source_file: None,
             water: WaterSettings {
-                level: None, water_type: None, wave_height: None,
-                wave_speed: None, wave_pitch: None, anim_speed: None,
+                level: None,
+                water_type: None,
+                wave_height: None,
+                wave_speed: None,
+                wave_pitch: None,
+                anim_speed: None,
             },
             light: LightSettings {
-                longitude: None, latitude: None, diffuse: None,
-                ambient: None, shadow_map_alpha: None,
+                longitude: None,
+                latitude: None,
+                diffuse: None,
+                ambient: None,
+                shadow_map_alpha: None,
             },
-            ground_top: None, ground_bottom: None,
-            ground_left: None, ground_right: None,
+            ground_top: None,
+            ground_bottom: None,
+            ground_left: None,
+            ground_right: None,
             objects,
         }
     }
@@ -241,19 +263,32 @@ mod tests {
     fn make_gnd() -> GndFile {
         GndFile {
             version: (1, 7),
-            width: 10, height: 10, zoom: 10.0,
-            textures: vec![], lightmaps: vec![],
+            width: 10,
+            height: 10,
+            zoom: 10.0,
+            textures: vec![],
+            lightmaps: vec![],
             surfaces: vec![],
-            cells: (0..100).map(|_| ragnarok_formats::gnd::GndCell {
-                height_sw: 0.0, height_se: 0.0, height_nw: 0.0, height_ne: 0.0,
-                surface_up: -1, surface_south: -1, surface_east: -1,
-            }).collect(),
+            cells: (0..100)
+                .map(|_| ragnarok_formats::gnd::GndCell {
+                    height_sw: 0.0,
+                    height_se: 0.0,
+                    height_nw: 0.0,
+                    height_ne: 0.0,
+                    surface_up: -1,
+                    surface_south: -1,
+                    surface_east: -1,
+                })
+                .collect(),
         }
     }
 
     fn make_rsw(effects: Vec<(u32, [f32; 3])>) -> RswFile {
         make_rsw_with_params(
-            effects.into_iter().map(|(t, pos)| (t, pos, [0.0; 4])).collect()
+            effects
+                .into_iter()
+                .map(|(t, pos)| (t, pos, [0.0; 4]))
+                .collect(),
         )
     }
 
@@ -280,10 +315,10 @@ mod tests {
     #[test]
     fn manager_spawns_known_effects_and_simulates_smoke() {
         let rsw = make_rsw(vec![
-            (47, [0.0, 0.0, 0.0]),    // torch (SPR)
-            (44, [10.0, 0.0, 10.0]),  // smoke (3D)
-            (109, [0.0, 0.0, 0.0]),   // bubble (STR — kept but not rendered)
-            (9999, [0.0, 0.0, 0.0]),  // unknown — dropped
+            (47, [0.0, 0.0, 0.0]),   // torch (SPR)
+            (44, [10.0, 0.0, 10.0]), // smoke (3D)
+            (109, [0.0, 0.0, 0.0]),  // bubble (STR — kept but not rendered)
+            (9999, [0.0, 0.0, 0.0]), // unknown — dropped
         ]);
         let gnd = make_gnd();
 
@@ -293,10 +328,15 @@ mod tests {
         // After advancing time, the 3D smoke emitter should have particles
         // but the SPR torch and STR bubble should not (no particle sim).
         mgr.update(0.1);
-        let smoke = mgr.emitters.iter()
+        let smoke = mgr
+            .emitters
+            .iter()
             .find(|e| matches!(e.kind, EffectKind::Smoke3D { .. }))
             .expect("smoke emitter");
-        assert!(!smoke.particles.is_empty(), "smoke should have particles after update");
+        assert!(
+            !smoke.particles.is_empty(),
+            "smoke should have particles after update"
+        );
 
         for emitter in &mgr.emitters {
             if !matches!(emitter.kind, EffectKind::Smoke3D { .. }) {

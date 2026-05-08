@@ -59,7 +59,8 @@ impl TextInput {
     }
 
     fn byte_offset(&self, char_index: usize) -> usize {
-        self.text.char_indices()
+        self.text
+            .char_indices()
             .nth(char_index)
             .map(|(i, _)| i)
             .unwrap_or(self.text.len())

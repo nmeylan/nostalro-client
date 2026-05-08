@@ -28,7 +28,6 @@ pub struct DataTable {
 }
 
 impl DataTable {
-
     pub fn new() -> Self {
         Self {
             name: None,

@@ -230,11 +230,12 @@ impl GlobalUniforms {
         let payload: &[PointLightGpu] = if lights.is_empty() { &sentinel } else { lights };
 
         if payload.len() > self.point_light_capacity {
-            self.point_light_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("point_lights"),
-                contents: bytemuck::cast_slice(payload),
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            });
+            self.point_light_buffer =
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("point_lights"),
+                    contents: bytemuck::cast_slice(payload),
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                });
             self.point_light_capacity = payload.len();
             self.bind_group = Self::create_bind_group(
                 device,

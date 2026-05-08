@@ -57,7 +57,13 @@ impl App {
             bar_y = y;
             if self.game.entities.is_player(entity_id) {
                 let sp_y = y + HP_BAR_HEIGHT;
-                render_bar(entry.screen_anchor[0], sp_y, self.game.character.sp_percentage(), SP_BAR_COLOR, calls);
+                render_bar(
+                    entry.screen_anchor[0],
+                    sp_y,
+                    self.game.character.sp_percentage(),
+                    SP_BAR_COLOR,
+                    calls,
+                );
                 bar_y = sp_y;
             }
         }
@@ -65,7 +71,14 @@ impl App {
             let text_width = renderer.font_atlas.measure_text(name);
             let text_x = entry.screen_anchor[0] - text_width / 2.0;
             let text_y = bar_y + HP_BAR_HEIGHT + 13.0;
-            build_outlined_text(name, text_x, text_y, entity_name_color(entity.entity_type), &renderer.font_atlas, calls);
+            build_outlined_text(
+                name,
+                text_x,
+                text_y,
+                entity_name_color(entity.entity_type),
+                &renderer.font_atlas,
+                calls,
+            );
         }
     }
 
@@ -82,33 +95,42 @@ impl App {
             return;
         }
         let ratio = self.game.character.hp_percentage();
-        if let Some(entry) = render_list.iter().find(|e| Some(e.id) == self.game.entities.player_id()) {
+        if let Some(entry) = render_list
+            .iter()
+            .find(|e| Some(e.id) == self.game.entities.player_id())
+        {
             let (_x, y) = render_hp_bar(entry, ratio, EntityType::Player, calls);
-            render_bar(entry.screen_anchor[0], y + HP_BAR_HEIGHT, self.game.character.sp_percentage(), SP_BAR_COLOR, calls);
+            render_bar(
+                entry.screen_anchor[0],
+                y + HP_BAR_HEIGHT,
+                self.game.character.sp_percentage(),
+                SP_BAR_COLOR,
+                calls,
+            );
         }
     }
 
-    fn build_cast_bars(
-        &self,
-        render_list: &[RenderEntry],
-        calls: &mut Vec<UiDrawCall>,
-    ) {
+    fn build_cast_bars(&self, render_list: &[RenderEntry], calls: &mut Vec<UiDrawCall>) {
         for entry in render_list {
             if let Some(entity) = self.game.entities.get(entry.id)
-                && entity.state == EntityState::Casting && entity.cast_total_duration > 0.0 {
-                    let progress = 1.0 - (entity.state_timer / entity.cast_total_duration);
-                    let cast_bar_y = entry.screen_anchor[1] - entry.head_offset - HP_BAR_HEIGHT - 2.0;
-                    let cast_color = [0.0, 0.8, 0.0, 1.0];
-                    render_bar(entry.screen_anchor[0], cast_bar_y, progress, cast_color, calls);
-                }
+                && entity.state == EntityState::Casting
+                && entity.cast_total_duration > 0.0
+            {
+                let progress = 1.0 - (entity.state_timer / entity.cast_total_duration);
+                let cast_bar_y = entry.screen_anchor[1] - entry.head_offset - HP_BAR_HEIGHT - 2.0;
+                let cast_color = [0.0, 0.8, 0.0, 1.0];
+                render_bar(
+                    entry.screen_anchor[0],
+                    cast_bar_y,
+                    progress,
+                    cast_color,
+                    calls,
+                );
+            }
         }
     }
 
-    fn build_chat_bubbles(
-        &self,
-        render_list: &[RenderEntry],
-        calls: &mut Vec<UiDrawCall>,
-    ) {
+    fn build_chat_bubbles(&self, render_list: &[RenderEntry], calls: &mut Vec<UiDrawCall>) {
         let renderer = match &self.renderer {
             Some(r) => r,
             None => return,
@@ -124,13 +146,17 @@ impl App {
             };
 
             let padding = 4.0;
-            let lines = ragnarok_ui::draw::word_wrap(&bubble.message, 150.0, |t| {
-                renderer.font_atlas.measure_text(t)
-            }, false);
+            let lines = ragnarok_ui::draw::word_wrap(
+                &bubble.message,
+                150.0,
+                |t| renderer.font_atlas.measure_text(t),
+                false,
+            );
 
             let line_h = renderer.font_atlas.line_height;
             let total_h = line_h * lines.len() as f32 + padding * 2.0;
-            let widest = lines.iter()
+            let widest = lines
+                .iter()
                 .map(|l| renderer.font_atlas.measure_text(l))
                 .fold(0.0_f32, f32::max);
             let box_w = widest + padding * 2.0;
@@ -138,7 +164,11 @@ impl App {
             let box_y = entry.screen_anchor[1] - entry.head_offset - 5.0 - total_h;
 
             let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
-                box_x, box_y, box_w, total_h, [0.0, 0.0, 0.0, 0.8],
+                box_x,
+                box_y,
+                box_w,
+                total_h,
+                [0.0, 0.0, 0.0, 0.8],
             );
             calls.push(UiDrawCall {
                 vertices: bg_verts.to_vec(),
@@ -151,7 +181,11 @@ impl App {
                 let lx = entry.screen_anchor[0] - line_w / 2.0;
                 let ly = box_y + padding + line_h / 2.0 + line_h * i as f32;
                 let (verts, indices) = ragnarok_ui::draw::text_vertices(
-                    line, lx, ly, [1.0, 1.0, 1.0, 1.0], &renderer.font_atlas,
+                    line,
+                    lx,
+                    ly,
+                    [1.0, 1.0, 1.0, 1.0],
+                    &renderer.font_atlas,
                 );
                 if !verts.is_empty() {
                     calls.push(UiDrawCall {
@@ -198,8 +232,10 @@ impl App {
         let padding = 3.0;
 
         let (bg_v, bg_i) = ragnarok_ui::draw::quad_vertices(
-            text_x - padding, text_y - padding - 12.0,
-            text_w + padding * 2.0, 12.0 + padding * 2.0,
+            text_x - padding,
+            text_y - padding - 12.0,
+            text_w + padding * 2.0,
+            12.0 + padding * 2.0,
             [0.0, 0.0, 0.0, 0.85],
         );
         calls.push(UiDrawCall {
@@ -209,7 +245,11 @@ impl App {
         });
 
         let (verts, indices) = ragnarok_ui::draw::text_vertices(
-            &tooltip, text_x, text_y, [1.0, 1.0, 1.0, 1.0], &renderer.font_atlas,
+            &tooltip,
+            text_x,
+            text_y,
+            [1.0, 1.0, 1.0, 1.0],
+            &renderer.font_atlas,
         );
         if !verts.is_empty() {
             calls.push(UiDrawCall {
@@ -275,11 +315,21 @@ impl App {
         let text = format!("Lv {}", pending.level());
         let text_x = mx as f32 + 20.0;
         let text_y = my as f32 + 2.0;
-        build_outlined_text(&text, text_x, text_y, [1.0, 1.0, 1.0, 1.0], &renderer.font_atlas, &mut calls);
+        build_outlined_text(
+            &text,
+            text_x,
+            text_y,
+            [1.0, 1.0, 1.0, 1.0],
+            &renderer.font_atlas,
+            &mut calls,
+        );
 
         let skill_id = pending.skill_id();
         if let Some(skill_data) = self.game.character.skills.get_skill(skill_id) {
-            let display_name = self.game.data_table.skill_name
+            let display_name = self
+                .game
+                .data_table
+                .skill_name
                 .as_ref()
                 .map(|t| t.get_display_name_or_internal(&skill_data.name))
                 .unwrap_or_else(|| skill_data.name.clone());
@@ -298,9 +348,8 @@ impl App {
             let box_x = ((screen_w - box_w) / 2.0).floor();
             let box_y = 80.0;
 
-            let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
-                box_x, box_y, box_w, box_h, [0.0, 0.0, 0.0, 0.8],
-            );
+            let (bg_verts, bg_idx) =
+                ragnarok_ui::draw::quad_vertices(box_x, box_y, box_w, box_h, [0.0, 0.0, 0.0, 0.8]);
             calls.push(UiDrawCall {
                 vertices: bg_verts.to_vec(),
                 indices: bg_idx.to_vec(),
@@ -310,7 +359,11 @@ impl App {
             let tx = box_x + padding;
             let ty = box_y + padding + line_h / 2.0;
             let (verts, indices) = ragnarok_ui::draw::text_vertices(
-                &banner_text, tx, ty, [0.0, 1.0, 0.0, 1.0], &renderer.font_atlas,
+                &banner_text,
+                tx,
+                ty,
+                [0.0, 1.0, 0.0, 1.0],
+                &renderer.font_atlas,
             );
             if !verts.is_empty() {
                 calls.push(UiDrawCall {
@@ -336,12 +389,18 @@ fn entity_name_color(entity_type: EntityType) -> [f32; 4] {
 fn hp_bar_color(ratio: f32, entity_type: EntityType) -> [f32; 4] {
     match entity_type {
         EntityType::Monster => {
-            if ratio >= 0.25 { [1.0, 0.0, 0.906, 1.0] }
-            else { [1.0, 1.0, 0.0, 1.0] }
+            if ratio >= 0.25 {
+                [1.0, 0.0, 0.906, 1.0]
+            } else {
+                [1.0, 1.0, 0.0, 1.0]
+            }
         }
         _ => {
-            if ratio >= 0.25 { [0.063, 0.937, 0.129, 1.0] }
-            else { [1.0, 0.0, 0.0, 1.0] }
+            if ratio >= 0.25 {
+                [0.063, 0.937, 0.129, 1.0]
+            } else {
+                [1.0, 0.0, 0.0, 1.0]
+            }
         }
     }
 }
@@ -355,7 +414,11 @@ fn render_bar(
 ) {
     let border_x = center_x - HP_BAR_WIDTH / 2.0;
     let (border_verts, border_idx) = ragnarok_ui::draw::quad_vertices(
-        border_x, y, HP_BAR_WIDTH, HP_BAR_HEIGHT, [0.063, 0.094, 0.612, 1.0],
+        border_x,
+        y,
+        HP_BAR_WIDTH,
+        HP_BAR_HEIGHT,
+        [0.063, 0.094, 0.612, 1.0],
     );
     draw_calls.push(UiDrawCall {
         vertices: border_verts.to_vec(),
@@ -363,7 +426,10 @@ fn render_bar(
         texture: UiTextureRef::White,
     });
     let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
-        border_x + 1.0, y + 1.0, HP_BAR_WIDTH - 2.0, HP_BAR_HEIGHT - 2.0,
+        border_x + 1.0,
+        y + 1.0,
+        HP_BAR_WIDTH - 2.0,
+        HP_BAR_HEIGHT - 2.0,
         [0.259, 0.259, 0.259, 1.0],
     );
     draw_calls.push(UiDrawCall {
@@ -374,7 +440,11 @@ fn render_bar(
     let fill_ratio = ratio.clamp(0.0, 1.0);
     let fill_w = (HP_BAR_WIDTH - 2.0) * fill_ratio;
     let (fill_verts, fill_idx) = ragnarok_ui::draw::quad_vertices(
-        border_x + 1.0, y + 1.0, fill_w, HP_BAR_HEIGHT - 2.0, fill_color,
+        border_x + 1.0,
+        y + 1.0,
+        fill_w,
+        HP_BAR_HEIGHT - 2.0,
+        fill_color,
     );
     draw_calls.push(UiDrawCall {
         vertices: fill_verts.to_vec(),
@@ -391,7 +461,13 @@ fn render_hp_bar(
 ) -> (f32, f32) {
     let center_x = entry.screen_anchor[0];
     let y = entry.pick_bounds[3];
-    render_bar(center_x, y, ratio, hp_bar_color(ratio, entity_type), draw_calls);
+    render_bar(
+        center_x,
+        y,
+        ratio,
+        hp_bar_color(ratio, entity_type),
+        draw_calls,
+    );
     (center_x, y)
 }
 
@@ -405,9 +481,8 @@ fn build_outlined_text(
 ) {
     let outline_color = [0.0, 0.0, 0.0, 1.0];
     for &(dx, dy) in &[(-1.0_f32, 0.0_f32), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0)] {
-        let (verts, indices) = ragnarok_ui::draw::text_vertices(
-            text, x + dx, y + dy, outline_color, font_atlas,
-        );
+        let (verts, indices) =
+            ragnarok_ui::draw::text_vertices(text, x + dx, y + dy, outline_color, font_atlas);
         if !verts.is_empty() {
             calls.push(UiDrawCall {
                 vertices: verts,

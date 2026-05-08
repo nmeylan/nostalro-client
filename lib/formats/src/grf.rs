@@ -52,7 +52,10 @@ fn parse_grf(file: &mut File) -> Result<(HashMap<String, GrfEntry>, u64), Format
     let version = u32::from_le_bytes(header_buf[42..46].try_into().unwrap());
 
     if !(0x100..=0x200).contains(&version) {
-        return Err(FormatError::UnsupportedVersion((version >> 8) as u8, version as u8));
+        return Err(FormatError::UnsupportedVersion(
+            (version >> 8) as u8,
+            version as u8,
+        ));
     }
 
     let file_data_end_offset = HEADER_SIZE as u64 + file_table_offset as u64;
@@ -293,29 +296,33 @@ impl GrfArchive {
 
     pub fn find_first_with_extension(&self, extension: &str) -> Option<&str> {
         let ext = extension.to_lowercase();
-        self.entries.keys()
+        self.entries
+            .keys()
             .find(|name| name.ends_with(&ext))
             .map(|s| s.as_str())
     }
 
     pub fn files_with_extension(&self, extension: &str) -> Vec<&str> {
         let ext = extension.to_lowercase();
-        self.entries.keys()
+        self.entries
+            .keys()
             .filter(|name| name.ends_with(&ext))
             .map(|s| s.as_str())
             .collect()
     }
 
     pub fn file_list(&self) -> Vec<GrfFileInfo> {
-        let mut list: Vec<GrfFileInfo> = self.entries.iter().map(|(name, entry)| {
-            GrfFileInfo {
+        let mut list: Vec<GrfFileInfo> = self
+            .entries
+            .iter()
+            .map(|(name, entry)| GrfFileInfo {
                 name: name.clone(),
                 compressed_size: entry.compressed_size,
                 compressed_size_aligned: entry.compressed_size_aligned,
                 uncompressed_size: entry.uncompressed_size,
                 flags: entry.flags,
-            }
-        }).collect();
+            })
+            .collect();
         list.sort_by(|a, b| a.name.cmp(&b.name));
         list
     }
@@ -359,7 +366,10 @@ fn read_u32_le(file: &mut File) -> Result<u32, FormatError> {
     Ok(u32::from_le_bytes(buf))
 }
 
-fn parse_v2_entries(file: &mut File, file_count: usize) -> Result<HashMap<String, GrfEntry>, FormatError> {
+fn parse_v2_entries(
+    file: &mut File,
+    file_count: usize,
+) -> Result<HashMap<String, GrfEntry>, FormatError> {
     let table_compressed_size = read_u32_le(file)?;
     let table_uncompressed_size = read_u32_le(file)?;
 
@@ -389,18 +399,31 @@ fn parse_v2_entries(file: &mut File, file_count: usize) -> Result<HashMap<String
         }
 
         let compressed_size = u32::from_le_bytes(table[pos..pos + 4].try_into().unwrap());
-        let compressed_size_aligned = u32::from_le_bytes(table[pos + 4..pos + 8].try_into().unwrap());
+        let compressed_size_aligned =
+            u32::from_le_bytes(table[pos + 4..pos + 8].try_into().unwrap());
         let uncompressed_size = u32::from_le_bytes(table[pos + 8..pos + 12].try_into().unwrap());
         let flags = table[pos + 12];
         let offset = u32::from_le_bytes(table[pos + 13..pos + 17].try_into().unwrap());
         pos += 17;
 
-        entries.insert(name, GrfEntry { compressed_size, compressed_size_aligned, uncompressed_size, flags, offset });
+        entries.insert(
+            name,
+            GrfEntry {
+                compressed_size,
+                compressed_size_aligned,
+                uncompressed_size,
+                flags,
+                offset,
+            },
+        );
     }
     Ok(entries)
 }
 
-fn parse_v1_entries(file: &mut File, file_count: usize) -> Result<HashMap<String, GrfEntry>, FormatError> {
+fn parse_v1_entries(
+    file: &mut File,
+    file_count: usize,
+) -> Result<HashMap<String, GrfEntry>, FormatError> {
     let mut table = Vec::new();
     file.read_to_end(&mut table)?;
 
@@ -438,7 +461,9 @@ fn parse_v1_entries(file: &mut File, file_count: usize) -> Result<HashMap<String
         let entry_type = table[ofs2 + 12];
         let offset = u32::from_le_bytes(table[ofs2 + 13..ofs2 + 17].try_into().unwrap());
 
-        let compressed_size = raw_compressed.wrapping_sub(uncompressed_size).wrapping_sub(715);
+        let compressed_size = raw_compressed
+            .wrapping_sub(uncompressed_size)
+            .wrapping_sub(715);
         let compressed_size_aligned = raw_aligned.wrapping_sub(37579);
         let flags = if entry_type & 0x01 != 0 {
             encryption_flags_for_extension(&name) | 0x01
@@ -452,7 +477,16 @@ fn parse_v1_entries(file: &mut File, file_count: usize) -> Result<HashMap<String
             continue;
         }
 
-        entries.insert(name, GrfEntry { compressed_size, compressed_size_aligned, uncompressed_size, flags, offset });
+        entries.insert(
+            name,
+            GrfEntry {
+                compressed_size,
+                compressed_size_aligned,
+                uncompressed_size,
+                flags,
+                offset,
+            },
+        );
     }
     Ok(entries)
 }

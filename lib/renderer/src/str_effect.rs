@@ -144,7 +144,9 @@ fn load_str_texture(
         }
     }
 
-    Some(create_texture_bind_group(device, queue, &rgba, layout, path))
+    Some(create_texture_bind_group(
+        device, queue, &rgba, layout, path,
+    ))
 }
 
 struct LayerAnim {

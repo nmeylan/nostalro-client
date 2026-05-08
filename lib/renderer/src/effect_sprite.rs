@@ -5,7 +5,9 @@ use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::spr::SprFile;
 
 use crate::camera::Camera;
-use crate::sprite::{SpriteBatch, SpriteTextures, build_clip_quad, scale_clip_vertices, upload_sprite_textures};
+use crate::sprite::{
+    SpriteBatch, SpriteTextures, build_clip_quad, scale_clip_vertices, upload_sprite_textures,
+};
 
 /// Loaded effect sprite (SPR + ACT + GPU-uploaded textures), shared across
 /// all emitters that point at the same `sprite_path`.
@@ -28,7 +30,9 @@ impl Default for EffectSpriteCache {
 
 impl EffectSpriteCache {
     pub fn new() -> Self {
-        Self { entries: HashMap::new() }
+        Self {
+            entries: HashMap::new(),
+        }
     }
 
     /// Load `<path>.spr` + `<path>.act` from the GRF and upload textures.
@@ -79,7 +83,8 @@ impl EffectSpriteCache {
 
         let (images, indexed_count) = spr.to_rgba_images();
         let textures = upload_sprite_textures(&images, indexed_count, device, queue, layout);
-        self.entries.insert(path.to_string(), EffectSpriteEntry { textures, act });
+        self.entries
+            .insert(path.to_string(), EffectSpriteEntry { textures, act });
         true
     }
 
@@ -101,9 +106,7 @@ pub struct EmitterDraw<'a> {
 /// Build sprite batches for a list of emitter draw entries. The caller is
 /// responsible for animation timing (selecting `motion_index`) and per-
 /// particle alpha (encoded in `color[3]`).
-pub fn build_emitter_batches<'a>(
-    draws: &[EmitterDraw<'a>],
-) -> Vec<SpriteBatch<'a>> {
+pub fn build_emitter_batches<'a>(draws: &[EmitterDraw<'a>]) -> Vec<SpriteBatch<'a>> {
     let mut batches = Vec::new();
     for draw in draws {
         if draw.sprite.act.actions.is_empty() {
@@ -115,9 +118,13 @@ pub fn build_emitter_batches<'a>(
         }
         let motion = &action.motions[draw.motion_index % action.motions.len()];
         for clip in &motion.clips {
-            let Some((mut vertices, indices, tex_idx)) =
-                build_clip_quad(clip, &draw.sprite.textures, draw.screen_anchor, draw.depth, [0, 0])
-            else {
+            let Some((mut vertices, indices, tex_idx)) = build_clip_quad(
+                clip,
+                &draw.sprite.textures,
+                draw.screen_anchor,
+                draw.depth,
+                [0, 0],
+            ) else {
                 continue;
             };
             if tex_idx >= draw.sprite.textures.bind_groups.len() {
@@ -150,7 +157,11 @@ pub fn project_billboard(
     screen_h: f32,
 ) -> Option<([f32; 2], f32, f32)> {
     let (sx, sy, ndc_z, _clip_w) = camera.world_to_screen_with_depth(
-        world_pos[0], world_pos[1], world_pos[2], screen_w, screen_h,
+        world_pos[0],
+        world_pos[1],
+        world_pos[2],
+        screen_w,
+        screen_h,
     )?;
     let ppu = camera.perspective_scale(world_pos[0], world_pos[1], world_pos[2], screen_h);
     Some(([sx, sy], ndc_z, ppu))
@@ -190,16 +201,27 @@ pub fn collect_sprite_effect_draws<'a>(
     for emitter in emitters {
         match emitter {
             SpriteEffectEmitter::Spr {
-                sprite_path, duration_ms, position, color, size_scale, anim_time,
+                sprite_path,
+                duration_ms,
+                position,
+                color,
+                size_scale,
+                anim_time,
             } => {
-                let Some(sprite) = cache.get(sprite_path) else { continue };
+                let Some(sprite) = cache.get(sprite_path) else {
+                    continue;
+                };
                 let Some((anchor, depth, ppu)) =
                     project_billboard(camera, *position, screen_w, screen_h)
-                else { continue };
+                else {
+                    continue;
+                };
                 let sprite_scale = ppu / 7.5;
                 let action = sprite.act.actions.first();
                 let motion_count = action.map(|a| a.motions.len()).unwrap_or(0);
-                if motion_count == 0 { continue; }
+                if motion_count == 0 {
+                    continue;
+                }
                 let act_delay_ms = sprite.act.delays.first().copied().unwrap_or(0.0) * 25.0;
                 let frame_delay_ms = if act_delay_ms > 0.0 {
                     act_delay_ms
@@ -217,20 +239,33 @@ pub fn collect_sprite_effect_draws<'a>(
                 });
             }
             SpriteEffectEmitter::Smoke3D {
-                sprite_path, alpha_max, color, size_scale, anim_speed, particles,
+                sprite_path,
+                alpha_max,
+                color,
+                size_scale,
+                anim_speed,
+                particles,
             } => {
-                let Some(sprite) = cache.get(sprite_path) else { continue };
+                let Some(sprite) = cache.get(sprite_path) else {
+                    continue;
+                };
                 let action = sprite.act.actions.first();
                 let motion_count = action.map(|a| a.motions.len()).unwrap_or(0);
-                if motion_count == 0 { continue; }
+                if motion_count == 0 {
+                    continue;
+                }
                 let frames_per_sec = 60.0 / anim_speed.max(1.0);
                 for &(pos, age, lifetime) in particles {
                     let t = (age / lifetime).clamp(0.0, 1.0);
                     let alpha = (1.0 - t) * alpha_max;
-                    if alpha <= 0.01 { continue; }
+                    if alpha <= 0.01 {
+                        continue;
+                    }
                     let Some((anchor, depth, ppu)) =
                         project_billboard(camera, pos, screen_w, screen_h)
-                    else { continue };
+                    else {
+                        continue;
+                    };
                     let sprite_scale = ppu / 7.5;
                     let motion_index = (age * frames_per_sec) as usize % motion_count;
                     draws.push(EmitterDraw {
@@ -245,7 +280,10 @@ pub fn collect_sprite_effect_draws<'a>(
             }
         }
     }
-    draws.sort_by(|a, b| b.depth.partial_cmp(&a.depth).unwrap_or(std::cmp::Ordering::Equal));
+    draws.sort_by(|a, b| {
+        b.depth
+            .partial_cmp(&a.depth)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     draws
 }
-

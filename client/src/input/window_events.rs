@@ -1,13 +1,13 @@
-use std::collections::HashMap;
-use winit::dpi::PhysicalSize;
-use winit::event::{ElementState, KeyEvent, Modifiers, MouseButton, MouseScrollDelta};
-use winit::event_loop::ActiveEventLoop;
-use winit::keyboard::{KeyCode, PhysicalKey};
 use crate::App;
 use crate::config::WindowStateEntry;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::entity::EntityState;
 use ragnarok_network::build_action_request_packet;
+use std::collections::HashMap;
+use winit::dpi::PhysicalSize;
+use winit::event::{ElementState, KeyEvent, Modifiers, MouseButton, MouseScrollDelta};
+use winit::event_loop::ActiveEventLoop;
+use winit::keyboard::{KeyCode, PhysicalKey};
 
 impl App {
     pub(crate) fn handle_close_requested(&mut self, event_loop: &ActiveEventLoop) {
@@ -15,13 +15,15 @@ impl App {
         let open_collapsed = self.game.extract_window_state(&self.ui_state_cache);
         let mut window_state = HashMap::new();
         for (id, pos) in &positions {
-            let (open, collapsed) = open_collapsed.get(id)
-                .copied().unwrap_or((false, false));
-            window_state.insert(*id, WindowStateEntry {
-                position: *pos,
-                open,
-                collapsed,
-            });
+            let (open, collapsed) = open_collapsed.get(id).copied().unwrap_or((false, false));
+            window_state.insert(
+                *id,
+                WindowStateEntry {
+                    position: *pos,
+                    open,
+                    collapsed,
+                },
+            );
         }
         self.config.window_state = window_state;
         self.config.hotkey_visible_rows = self.game.character.hotkeys.visible_rows();
@@ -91,16 +93,15 @@ impl App {
     }
 
     pub(crate) fn handle_mouse_wheel(&mut self, delta: MouseScrollDelta) {
-        if self.game.app_state == AppState::InGame
-            && !self.input.ui_hovered {
-                let scroll = match delta {
-                    MouseScrollDelta::LineDelta(_, y) => y,
-                    MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
-                };
-                if let Some(renderer) = &mut self.renderer {
-                    super::handle_camera_zoom(&mut renderer.camera, scroll);
-                }
+        if self.game.app_state == AppState::InGame && !self.input.ui_hovered {
+            let scroll = match delta {
+                MouseScrollDelta::LineDelta(_, y) => y,
+                MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
+            };
+            if let Some(renderer) = &mut self.renderer {
+                super::handle_camera_zoom(&mut renderer.camera, scroll);
             }
+        }
     }
 
     pub(crate) fn handle_keyboard_input(&mut self, event: KeyEvent) {
@@ -112,9 +113,10 @@ impl App {
             match event.physical_key {
                 PhysicalKey::Code(KeyCode::F11) => {
                     if let Some(renderer) = &mut self.renderer
-                        && let Some(grid) = &mut renderer.grid_selector {
-                            grid.show_grid = !grid.show_grid;
-                        }
+                        && let Some(grid) = &mut renderer.grid_selector
+                    {
+                        grid.show_grid = !grid.show_grid;
+                    }
                     self.game.debug_show_pick_bounds = !self.game.debug_show_pick_bounds;
                 }
                 PhysicalKey::Code(KeyCode::Insert) => {

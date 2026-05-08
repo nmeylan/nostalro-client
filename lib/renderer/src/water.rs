@@ -73,9 +73,14 @@ impl WaterRenderer {
         let anim_speed = water.anim_speed.unwrap_or(3) as f32;
 
         // Load water textures
-        let texture_names: Vec<String> = (0..WATER_FRAMES).map(|i| {
-            format!("data/texture/\u{C6CC}\u{D130}/water{}{:02}.jpg", water_type, i)
-        }).collect();
+        let texture_names: Vec<String> = (0..WATER_FRAMES)
+            .map(|i| {
+                format!(
+                    "data/texture/\u{C6CC}\u{D130}/water{}{:02}.jpg",
+                    water_type, i
+                )
+            })
+            .collect();
         for name in &texture_names {
             texture_cache.get_or_load(name, grf, device, queue, false);
         }
@@ -85,8 +90,14 @@ impl WaterRenderer {
             return None;
         }
 
-        let vertex_buffer = create_buffer(device, "water_vertices", &vertices, wgpu::BufferUsages::VERTEX);
-        let index_buffer = create_buffer(device, "water_indices", &indices, wgpu::BufferUsages::INDEX);
+        let vertex_buffer = create_buffer(
+            device,
+            "water_vertices",
+            &vertices,
+            wgpu::BufferUsages::VERTEX,
+        );
+        let index_buffer =
+            create_buffer(device, "water_indices", &indices, wgpu::BufferUsages::INDEX);
 
         let uniforms = WaterUniforms {
             wave_height,
@@ -104,19 +115,20 @@ impl WaterRenderer {
             })
         };
 
-        let uniform_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("water_uniforms"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-        });
+        let uniform_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("water_uniforms"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
 
         let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("water_uniforms"),
@@ -203,7 +215,8 @@ pub fn build_water_mesh(gnd: &GndFile, water_y: f32) -> (Vec<WaterVertex>, Vec<u
                 continue;
             }
 
-            let avg_height = (cell.height_sw + cell.height_se + cell.height_nw + cell.height_ne) / 4.0;
+            let avg_height =
+                (cell.height_sw + cell.height_se + cell.height_nw + cell.height_ne) / 4.0;
             // In native RO coords, more negative = higher; skip cells far above water
             if avg_height < water_y - 5.0 * zoom {
                 continue;
@@ -218,10 +231,22 @@ pub fn build_water_mesh(gnd: &GndFile, water_y: f32) -> (Vec<WaterVertex>, Vec<u
             let v1 = ((y + 1) as f32 % WATER_TEXTURE_REPEAT) / WATER_TEXTURE_REPEAT;
 
             let base = vertices.len() as u32;
-            vertices.push(WaterVertex { position: [wx,        water_y, wz],        tex_coord: [u0, v0] });
-            vertices.push(WaterVertex { position: [wx + zoom, water_y, wz],        tex_coord: [u1, v0] });
-            vertices.push(WaterVertex { position: [wx,        water_y, wz + zoom], tex_coord: [u0, v1] });
-            vertices.push(WaterVertex { position: [wx + zoom, water_y, wz + zoom], tex_coord: [u1, v1] });
+            vertices.push(WaterVertex {
+                position: [wx, water_y, wz],
+                tex_coord: [u0, v0],
+            });
+            vertices.push(WaterVertex {
+                position: [wx + zoom, water_y, wz],
+                tex_coord: [u1, v0],
+            });
+            vertices.push(WaterVertex {
+                position: [wx, water_y, wz + zoom],
+                tex_coord: [u0, v1],
+            });
+            vertices.push(WaterVertex {
+                position: [wx + zoom, water_y, wz + zoom],
+                tex_coord: [u1, v1],
+            });
 
             indices.extend_from_slice(&[base, base + 1, base + 2, base + 2, base + 1, base + 3]);
         }
@@ -324,15 +349,17 @@ mod tests {
                 lightmap_id: 0,
                 color_bgra: [255; 4],
             }],
-            cells: (0..cell_count).map(|_| GndCell {
-                height_sw: cell_height,
-                height_se: cell_height,
-                height_nw: cell_height,
-                height_ne: cell_height,
-                surface_up: 0,
-                surface_south: -1,
-                surface_east: -1,
-            }).collect(),
+            cells: (0..cell_count)
+                .map(|_| GndCell {
+                    height_sw: cell_height,
+                    height_se: cell_height,
+                    height_nw: cell_height,
+                    height_ne: cell_height,
+                    surface_up: 0,
+                    surface_south: -1,
+                    surface_east: -1,
+                })
+                .collect(),
         }
     }
 

@@ -30,10 +30,19 @@ mod tests {
     #[test]
     fn world_position_computes_correctly() {
         let item = FloorItem {
-            id: 1, item_id: 501, is_identified: true,
-            x: 100, y: 200, sub_x: 6, sub_y: 3,
-            count: 1, name: String::new(), resource_name: None,
-            drop_time: 0.0, is_falling: false, initial_y: 0.0,
+            id: 1,
+            item_id: 501,
+            is_identified: true,
+            x: 100,
+            y: 200,
+            sub_x: 6,
+            sub_y: 3,
+            count: 1,
+            name: String::new(),
+            resource_name: None,
+            drop_time: 0.0,
+            is_falling: false,
+            initial_y: 0.0,
         };
         let (wx, wy) = item.world_position();
         // sub_x=6 → 6/16 = 0.375, sub_y=3 → 3/16 = 0.1875
@@ -44,10 +53,19 @@ mod tests {
     #[test]
     fn world_position_zero_sub_cell() {
         let item = FloorItem {
-            id: 1, item_id: 501, is_identified: true,
-            x: 50, y: 75, sub_x: 0, sub_y: 0,
-            count: 1, name: String::new(), resource_name: None,
-            drop_time: 0.0, is_falling: false, initial_y: 0.0,
+            id: 1,
+            item_id: 501,
+            is_identified: true,
+            x: 50,
+            y: 75,
+            sub_x: 0,
+            sub_y: 0,
+            count: 1,
+            name: String::new(),
+            resource_name: None,
+            drop_time: 0.0,
+            is_falling: false,
+            initial_y: 0.0,
         };
         let (wx, wy) = item.world_position();
         assert!((wx - 50.0).abs() < 0.001);

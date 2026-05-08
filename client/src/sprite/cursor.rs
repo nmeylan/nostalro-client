@@ -1,8 +1,8 @@
 use crate::App;
 use crate::ClipData;
+use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::cursor::{CursorType, RenderEntry};
 use ragnarok_game::sprite_loader;
-use ragnarok_formats::grf::GrfArchive;
 use ragnarok_renderer::{build_clip_quad, upload_sprite_textures};
 
 impl App {
@@ -57,14 +57,19 @@ impl App {
         for clip in &motion.clips {
             if let Some((vertices, indices, tex_idx)) =
                 build_clip_quad(clip, cursor_tex, [mx as f32, my as f32], 0.0, [0, 0])
-                && tex_idx < cursor_tex.bind_groups.len() {
-                    clips.push((vertices, indices, tex_idx));
-                }
+                && tex_idx < cursor_tex.bind_groups.len()
+            {
+                clips.push((vertices, indices, tex_idx));
+            }
         }
         clips
     }
 
-    pub(crate) fn build_lock_cursor_clips(&mut self, dt: f32, render_list: &[RenderEntry]) -> Vec<ClipData> {
+    pub(crate) fn build_lock_cursor_clips(
+        &mut self,
+        dt: f32,
+        render_list: &[RenderEntry],
+    ) -> Vec<ClipData> {
         let target_id = match self.game.attack_target_id {
             Some(id) => id,
             None => return Vec::new(),
@@ -78,7 +83,8 @@ impl App {
             None => return Vec::new(),
         };
 
-        let screen_pos = render_list.iter()
+        let screen_pos = render_list
+            .iter()
             .find(|e| e.id == target_id)
             .map(|e| e.screen_anchor);
         let [sx, sy] = match screen_pos {
@@ -86,7 +92,9 @@ impl App {
             None => return Vec::new(),
         };
 
-        self.game.lock_cursor_animation.set_cursor_type(CursorType::SemiLock);
+        self.game
+            .lock_cursor_animation
+            .set_cursor_type(CursorType::SemiLock);
         self.game.lock_cursor_animation.update(dt, cursor_act);
         let action_idx = self.game.lock_cursor_animation.action_index();
         let action_idx = if action_idx < cursor_act.actions.len() {
@@ -105,9 +113,10 @@ impl App {
         for clip in &motion.clips {
             if let Some((vertices, indices, tex_idx)) =
                 build_clip_quad(clip, cursor_tex, [sx, sy], 0.0, [0, 0])
-                && tex_idx < cursor_tex.bind_groups.len() {
-                    clips.push((vertices, indices, tex_idx));
-                }
+                && tex_idx < cursor_tex.bind_groups.len()
+            {
+                clips.push((vertices, indices, tex_idx));
+            }
         }
         clips
     }

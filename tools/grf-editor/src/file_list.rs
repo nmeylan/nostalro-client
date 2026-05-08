@@ -73,18 +73,12 @@ pub fn show_file_list(
                         if ui.selectable_label(is_selected, &file.name).clicked() {
                             *selected_file = Some(file_idx);
                         }
-                        ui.with_layout(
-                            egui::Layout::right_to_left(egui::Align::Center),
-                            |ui| {
-                                ui.label(format_size(file.uncompressed_size));
-                            },
-                        );
-                        ui.with_layout(
-                            egui::Layout::right_to_left(egui::Align::Center),
-                            |ui| {
-                                ui.label(format_size(file.compressed_size));
-                            },
-                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(format_size(file.uncompressed_size));
+                        });
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(format_size(file.compressed_size));
+                        });
                         ui.end_row();
                     }
                 });
@@ -117,8 +111,7 @@ pub fn show_file_info(ui: &mut egui::Ui, file: &GrfFileInfo) {
             ui.end_row();
 
             if file.uncompressed_size > 0 {
-                let ratio =
-                    file.compressed_size as f64 / file.uncompressed_size as f64 * 100.0;
+                let ratio = file.compressed_size as f64 / file.uncompressed_size as f64 * 100.0;
                 ui.strong("Ratio:");
                 ui.label(format!("{:.1}%", ratio));
                 ui.end_row();

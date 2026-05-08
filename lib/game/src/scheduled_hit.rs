@@ -23,11 +23,37 @@ pub struct ScheduledHit {
 
 impl ScheduledHit {
     pub fn single(damage: i32, skill_id: u16, is_critical: bool) -> Self {
-        Self { message: DamageMessage::Attacked, damage, fire_at: 0.0, attacker_gid: 0, skill_id, is_last_hit: true, is_critical, hit_index: 0, attacked_mt_secs: 0.288 }
+        Self {
+            message: DamageMessage::Attacked,
+            damage,
+            fire_at: 0.0,
+            attacker_gid: 0,
+            skill_id,
+            is_last_hit: true,
+            is_critical,
+            hit_index: 0,
+            attacked_mt_secs: 0.288,
+        }
     }
 
-    pub fn multi_hit(damage: i32, total_damage: i32, skill_id: u16, hit_index: u16, is_last_hit: bool) -> Self {
-        Self { message: DamageMessage::AttackedMultiHit { total_damage }, damage, fire_at: 0.0, attacker_gid: 0, skill_id, is_last_hit, is_critical: false, hit_index, attacked_mt_secs: 0.288 }
+    pub fn multi_hit(
+        damage: i32,
+        total_damage: i32,
+        skill_id: u16,
+        hit_index: u16,
+        is_last_hit: bool,
+    ) -> Self {
+        Self {
+            message: DamageMessage::AttackedMultiHit { total_damage },
+            damage,
+            fire_at: 0.0,
+            attacker_gid: 0,
+            skill_id,
+            is_last_hit,
+            is_critical: false,
+            hit_index,
+            attacked_mt_secs: 0.288,
+        }
     }
 }
 

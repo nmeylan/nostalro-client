@@ -26,7 +26,10 @@ impl CardNameTable {
             prefix_names.len(),
             postfix_ids.len()
         );
-        Self { prefix_names, postfix_ids }
+        Self {
+            prefix_names,
+            postfix_ids,
+        }
     }
 
     pub fn get_card_name(&self, card_id: u16) -> Option<&str> {
@@ -39,7 +42,10 @@ impl CardNameTable {
 
     #[cfg(test)]
     pub fn from_data(prefix_names: HashMap<u16, String>, postfix_ids: HashSet<u16>) -> Self {
-        Self { prefix_names, postfix_ids }
+        Self {
+            prefix_names,
+            postfix_ids,
+        }
     }
 }
 

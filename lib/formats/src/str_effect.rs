@@ -73,9 +73,13 @@ impl StrEffectFile {
                 let offset = [r.read_f32::<LE>()?, r.read_f32::<LE>()?];
 
                 let mut tex_coords = [0f32; 8];
-                for v in &mut tex_coords { *v = r.read_f32::<LE>()?; }
+                for v in &mut tex_coords {
+                    *v = r.read_f32::<LE>()?;
+                }
                 let mut positions = [0f32; 8];
-                for v in &mut positions { *v = r.read_f32::<LE>()?; }
+                for v in &mut positions {
+                    *v = r.read_f32::<LE>()?;
+                }
 
                 let texture_index = r.read_f32::<LE>()?;
                 let animation_mode = r.read_i32::<LE>()?;
@@ -83,16 +87,28 @@ impl StrEffectFile {
                 let angle = r.read_f32::<LE>()?;
 
                 let mut color = [0f32; 4];
-                for v in &mut color { *v = r.read_f32::<LE>()?; }
+                for v in &mut color {
+                    *v = r.read_f32::<LE>()?;
+                }
 
                 let blend_src = r.read_i32::<LE>()?;
                 let blend_dst = r.read_i32::<LE>()?;
                 let multi_texture = r.read_i32::<LE>()?;
 
                 frames.push(EffectFrame {
-                    frame_index, frame_type, offset, tex_coords, positions,
-                    texture_index, animation_mode, delay, angle, color,
-                    blend_src, blend_dst, multi_texture,
+                    frame_index,
+                    frame_type,
+                    offset,
+                    tex_coords,
+                    positions,
+                    texture_index,
+                    animation_mode,
+                    delay,
+                    angle,
+                    color,
+                    blend_src,
+                    blend_dst,
+                    multi_texture,
                 });
             }
 

@@ -519,8 +519,17 @@ impl CharacterInfo {
     pub fn from_neo_union(info: &CharacterInfoNeoUnion, packetver: u32) -> Self {
         tracing::debug!(
             "CharInfo raw: gid={} class={} level={} joblevel={} name_raw={:?} slot={} hp={}/{} sp={}/{} speed={}",
-            info.gid, info.class, info.level, info.joblevel,
-            &info.name_raw[..16], info.char_num, info.hp, info.maxhp, info.sp, info.maxsp, info.speed,
+            info.gid,
+            info.class,
+            info.level,
+            info.joblevel,
+            &info.name_raw[..16],
+            info.char_num,
+            info.hp,
+            info.maxhp,
+            info.sp,
+            info.maxsp,
+            info.speed,
         );
         let name: String = info.name.iter().take_while(|c| **c != '\0').collect();
         let map: String = if packetver >= 20100720 {

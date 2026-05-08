@@ -1,7 +1,7 @@
 use crate::App;
 use ragnarok_game::cursor::PendingSkillTarget;
 use ragnarok_game::entity::{EntityState, EntityType};
-use ragnarok_game::path::{try_move_to};
+use ragnarok_game::path::try_move_to;
 use ragnarok_network::{
     build_contact_npc_packet, build_pickup_item_packet, build_request_move_packet,
     build_use_skill_packet, build_use_skill_to_ground_packet,
@@ -13,29 +13,45 @@ impl App {
             return;
         }
         if let Some(entity) = self.game.entities.player()
-            && matches!(entity.state, EntityState::Casting | EntityState::SkillExec) {
-                return;
-            }
+            && matches!(entity.state, EntityState::Casting | EntityState::SkillExec)
+        {
+            return;
+        }
         // Skill targeting mode: consume pending skill on click
         if let Some(pending) = self.game.pending_skill_target.take() {
             let mut skill_cast = false;
             match pending {
                 PendingSkillTarget::Entity { skill_id, level } => {
                     if let Some(entity_id) = self.game.hovered_entity_id {
-                        let target_pos = self.game.entities.get(entity_id)
+                        let target_pos = self
+                            .game
+                            .entities
+                            .get(entity_id)
                             .map(|e| e.movement.cell_position())
                             .unwrap_or((0, 0));
-                        let (px, py) = self.game.entities.player()
+                        let (px, py) = self
+                            .game
+                            .entities
+                            .player()
                             .map(|e| e.movement.cell_position())
                             .unwrap_or((0, 0));
-                        let skill_range = self.game.character.skills.get_skill(skill_id)
+                        let skill_range = self
+                            .game
+                            .character
+                            .skills
+                            .get_skill(skill_id)
                             .map(|s| s.attack_range as i32)
                             .unwrap_or(1);
                         let dx = (px as i32 - target_pos.0 as i32).abs();
                         let dy = (py as i32 - target_pos.1 as i32).abs();
                         let dist = dx.max(dy);
                         if dist <= skill_range {
-                            self.channel.send_packet(build_use_skill_packet(skill_id, level, entity_id, self.config.packetver));
+                            self.channel.send_packet(build_use_skill_packet(
+                                skill_id,
+                                level,
+                                entity_id,
+                                self.config.packetver,
+                            ));
                             skill_cast = true;
                         } else {
                             let dest_x = target_pos.0 as i32;
@@ -50,7 +66,13 @@ impl App {
                 }
                 PendingSkillTarget::Ground { skill_id, level } => {
                     if let Some((cx, cy)) = self.hovered_cell() {
-                        self.channel.send_packet(build_use_skill_to_ground_packet(skill_id, level, cx as i16, cy as i16, self.config.packetver));
+                        self.channel.send_packet(build_use_skill_to_ground_packet(
+                            skill_id,
+                            level,
+                            cx as i16,
+                            cy as i16,
+                            self.config.packetver,
+                        ));
                     }
                     skill_cast = true;
                 }
@@ -74,7 +96,8 @@ impl App {
                 let dx = (px as i32 - floor_item.x as i32).unsigned_abs();
                 let dy = (py as i32 - floor_item.y as i32).unsigned_abs();
                 if dx <= 1 && dy <= 1 {
-                    self.channel.send_packet(build_pickup_item_packet(item_id, self.config.packetver));
+                    self.channel
+                        .send_packet(build_pickup_item_packet(item_id, self.config.packetver));
                     if let Some(entity) = self.game.entities.player_mut() {
                         entity.enter_pickup(0.5);
                     }
@@ -100,23 +123,27 @@ impl App {
         // Click on NPC to talk
         if let Some(entity_id) = self.game.hovered_entity_id
             && let Some(entity) = self.game.entities.get(entity_id)
-                && entity.entity_type == EntityType::Npc && entity.job != 45 {
-                    self.channel.send_packet(build_contact_npc_packet(entity_id, self.config.packetver));
-                    return;
-                }
+            && entity.entity_type == EntityType::Npc
+            && entity.job != 45
+        {
+            self.channel
+                .send_packet(build_contact_npc_packet(entity_id, self.config.packetver));
+            return;
+        }
         // Click on monster to attack (always), or player (shift or noshift mode)
         if let Some(entity_id) = self.game.hovered_entity_id
-            && let Some(entity) = self.game.entities.get(entity_id) {
-                let should_attack = match entity.entity_type {
-                    EntityType::Monster => !self.input.shift_pressed,
-                    EntityType::Player => self.input.shift_pressed || self.game.noshift_mode,
-                    _ => false,
-                };
-                if should_attack {
-                    self.initiate_attack(entity_id);
-                    return;
-                }
+            && let Some(entity) = self.game.entities.get(entity_id)
+        {
+            let should_attack = match entity.entity_type {
+                EntityType::Monster => !self.input.shift_pressed,
+                EntityType::Player => self.input.shift_pressed || self.game.noshift_mode,
+                _ => false,
+            };
+            if should_attack {
+                self.initiate_attack(entity_id);
+                return;
             }
+        }
         self.game.attack_target_id = None;
         self.game.pending_pickup_item_id = None;
         let (dest_x, dest_y) = match self.hovered_cell() {

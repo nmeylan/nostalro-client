@@ -52,10 +52,17 @@ impl GridSelectorRenderer {
         grf: &GrfArchive,
     ) -> Self {
         let texture_name = "data/texture/grid.tga".to_string();
-        if texture_cache.get_or_load(&texture_name, grf, device, queue, false).is_none() {
+        if texture_cache
+            .get_or_load(&texture_name, grf, device, queue, false)
+            .is_none()
+        {
             let img = generate_grid_border_texture();
             let bind_group = crate::texture::create_texture_bind_group(
-                device, queue, &img, &texture_cache.bind_group_layout, "grid_fallback",
+                device,
+                queue,
+                &img,
+                &texture_cache.bind_group_layout,
+                "grid_fallback",
             );
             texture_cache.insert(&texture_name, bind_group, img.width(), img.height());
         }
@@ -164,7 +171,14 @@ impl GridSelectorRenderer {
                     color,
                 });
 
-                indices.extend_from_slice(&[base, base + 1, base + 2, base + 2, base + 1, base + 3]);
+                indices.extend_from_slice(&[
+                    base,
+                    base + 1,
+                    base + 2,
+                    base + 2,
+                    base + 1,
+                    base + 3,
+                ]);
             }
         }
 
@@ -176,16 +190,20 @@ impl GridSelectorRenderer {
         }
 
         use wgpu::util::DeviceExt;
-        self.grid_vertex_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("grid_overlay_vertices"),
-            contents: bytemuck::cast_slice(&vertices),
-            usage: wgpu::BufferUsages::VERTEX,
-        }));
-        self.grid_index_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("grid_overlay_indices"),
-            contents: bytemuck::cast_slice(&indices),
-            usage: wgpu::BufferUsages::INDEX,
-        }));
+        self.grid_vertex_buffer = Some(device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("grid_overlay_vertices"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            },
+        ));
+        self.grid_index_buffer = Some(device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("grid_overlay_indices"),
+                contents: bytemuck::cast_slice(&indices),
+                usage: wgpu::BufferUsages::INDEX,
+            },
+        ));
         self.grid_index_count = indices.len() as u32;
     }
 
@@ -198,15 +216,18 @@ impl GridSelectorRenderer {
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &global_uniforms.bind_group, &[]);
 
-        let Some(tex_bg) = texture_cache.get(&self.texture_name) else { return };
+        let Some(tex_bg) = texture_cache.get(&self.texture_name) else {
+            return;
+        };
         pass.set_bind_group(1, tex_bg, &[]);
 
         if self.show_grid
-            && let (Some(vb), Some(ib)) = (&self.grid_vertex_buffer, &self.grid_index_buffer) {
-                pass.set_vertex_buffer(0, vb.slice(..));
-                pass.set_index_buffer(ib.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(0..self.grid_index_count, 0, 0..1);
-            }
+            && let (Some(vb), Some(ib)) = (&self.grid_vertex_buffer, &self.grid_index_buffer)
+        {
+            pass.set_vertex_buffer(0, vb.slice(..));
+            pass.set_index_buffer(ib.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..self.grid_index_count, 0, 0..1);
+        }
 
         if self.hover_visible {
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -222,7 +243,8 @@ fn generate_grid_border_texture() -> image::RgbaImage {
     let mut img = image::RgbaImage::new(SIZE, SIZE);
     for y in 0..SIZE {
         for x in 0..SIZE {
-            let on_border = !(BORDER..SIZE - BORDER).contains(&x) || !(BORDER..SIZE - BORDER).contains(&y);
+            let on_border =
+                !(BORDER..SIZE - BORDER).contains(&x) || !(BORDER..SIZE - BORDER).contains(&y);
             let alpha = if on_border { 255 } else { 0 };
             img.put_pixel(x, y, image::Rgba([255, 255, 255, alpha]));
         }
@@ -243,10 +265,7 @@ fn create_pipeline(
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("grid_selector"),
-        bind_group_layouts: &[
-            global_bind_group_layout,
-            texture_bind_group_layout,
-        ],
+        bind_group_layouts: &[global_bind_group_layout, texture_bind_group_layout],
         immediate_size: 0,
     });
 

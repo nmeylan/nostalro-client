@@ -1,6 +1,6 @@
 use crate::App;
 use ragnarok_formats::act::{MotionType, SpriteActionType};
-use ragnarok_game::entity::{EntityFade, EntityState, EntityType, DEATH_FADE_DURATION};
+use ragnarok_game::entity::{DEATH_FADE_DURATION, EntityFade, EntityState, EntityType};
 
 impl App {
     pub(crate) fn update_entity_state(&mut self, delta: f32) {
@@ -38,7 +38,9 @@ impl App {
                             0
                         }
                     });
-                    entity.animation.play(action, duration * 1000.0, start_frame);
+                    entity
+                        .animation
+                        .play(action, duration * 1000.0, start_frame);
                 } else if entity.state == EntityState::Casting {
                     entity.animation.set_action(action, MotionType::Static);
                     entity.animation.set_direction(entity.direction);
@@ -68,7 +70,10 @@ impl App {
                 && entity.scheduled_hits.is_empty()
                 && entity.entity_type != EntityType::Player
             {
-                entity.fade = Some(EntityFade { elapsed: 0.0, duration: DEATH_FADE_DURATION });
+                entity.fade = Some(EntityFade {
+                    elapsed: 0.0,
+                    duration: DEATH_FADE_DURATION,
+                });
             }
 
             if let Some(ref mut fade) = entity.fade {
@@ -76,7 +81,10 @@ impl App {
             }
         }
 
-        let expired: Vec<u32> = self.game.entities.iter()
+        let expired: Vec<u32> = self
+            .game
+            .entities
+            .iter()
             .filter(|e| e.should_remove())
             .map(|e| e.id)
             .collect();

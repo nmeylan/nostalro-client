@@ -2,11 +2,11 @@ pub mod act;
 pub mod builtin_accessory_table;
 pub mod builtin_name_table;
 pub mod fog_table;
-pub mod lua_table;
 pub mod gat;
 pub mod gnd;
 pub mod grf;
 pub mod imf;
+pub mod lua_table;
 mod mixcrypt;
 pub mod pal;
 pub mod rsm;
@@ -38,7 +38,9 @@ impl std::fmt::Display for FormatError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             FormatError::InvalidMagic => write!(f, "invalid magic signature"),
-            FormatError::UnsupportedVersion(maj, min) => write!(f, "unsupported version {maj}.{min}"),
+            FormatError::UnsupportedVersion(maj, min) => {
+                write!(f, "unsupported version {maj}.{min}")
+            }
             FormatError::UnexpectedEof => write!(f, "unexpected end of file"),
             FormatError::DecompressionFailed(msg) => write!(f, "decompression failed: {msg}"),
             FormatError::InvalidString => write!(f, "invalid string encoding"),
@@ -84,7 +86,10 @@ pub(crate) fn read_string(cursor: &mut Cursor<&[u8]>, len: usize) -> Result<Stri
 }
 
 #[allow(dead_code)]
-pub(crate) fn read_string_lossy(cursor: &mut Cursor<&[u8]>, len: usize) -> Result<String, FormatError> {
+pub(crate) fn read_string_lossy(
+    cursor: &mut Cursor<&[u8]>,
+    len: usize,
+) -> Result<String, FormatError> {
     let mut buf = vec![0u8; len];
     cursor.read_exact(&mut buf)?;
     let trimmed = buf.split(|&b| b == 0).next().unwrap_or(&buf);

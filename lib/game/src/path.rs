@@ -33,7 +33,10 @@ pub fn compute_destination_within_range(
     let dir_x = (dx as f64 / max_dist) * range as f64;
     let dir_y = (dy as f64 / max_dist) * range as f64;
 
-    (target_x + dir_x.round() as i32, target_y + dir_y.round() as i32)
+    (
+        target_x + dir_x.round() as i32,
+        target_y + dir_y.round() as i32,
+    )
 }
 
 /// Try to move to a cell within `range` of `(dest_x, dest_y)` in the direction
@@ -104,11 +107,7 @@ pub fn path_search(
     destination_x: u16,
     destination_y: u16,
 ) -> Vec<PathNode> {
-    let cells: Vec<u16> = gat
-        .cells
-        .iter()
-        .map(|c| c.cell_flags)
-        .collect();
+    let cells: Vec<u16> = gat.cells.iter().map(|c| c.cell_flags).collect();
     movement::path::path_search_client_side_algorithm(
         gat.width as u16,
         gat.height as u16,

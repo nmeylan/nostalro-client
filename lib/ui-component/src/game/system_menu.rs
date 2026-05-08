@@ -1,11 +1,11 @@
+use super::confirm_dialog::{ConfirmDialog, ConfirmResult};
+use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-use crate::{Window, InGameWindow};
-use super::confirm_dialog::{ConfirmDialog, ConfirmResult};
 
 const BG_ID: WidgetId = WidgetId(510);
 const RESUME_ID: WidgetId = WidgetId(500);
@@ -41,7 +41,9 @@ const QUIT_BTN: ButtonTextures = ButtonTextures {
 };
 // Fallback-only button (no GRF texture for "Option")
 const DUMMY_BTN: ButtonTextures = ButtonTextures {
-    normal: "", hover: "", pressed: "",
+    normal: "",
+    hover: "",
+    pressed: "",
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,12 +81,15 @@ impl SystemMenu {
             btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
         }
     }
-
 }
 
 impl Window for SystemMenu {
-    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
-    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+    fn has_grf_textures(&self) -> bool {
+        self.has_grf_textures
+    }
+    fn set_has_grf_textures(&mut self, value: bool) {
+        self.has_grf_textures = value;
+    }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(RESUME_BTN.normal) {
@@ -100,9 +105,15 @@ impl Window for SystemMenu {
     fn grf_texture_paths() -> Vec<&'static str> {
         let mut paths = vec![
             WIN_TEXTURE,
-            RESUME_BTN.normal, RESUME_BTN.hover, RESUME_BTN.pressed,
-            CHARSELECT_BTN.normal, CHARSELECT_BTN.hover, CHARSELECT_BTN.pressed,
-            QUIT_BTN.normal, QUIT_BTN.hover, QUIT_BTN.pressed,
+            RESUME_BTN.normal,
+            RESUME_BTN.hover,
+            RESUME_BTN.pressed,
+            CHARSELECT_BTN.normal,
+            CHARSELECT_BTN.hover,
+            CHARSELECT_BTN.pressed,
+            QUIT_BTN.normal,
+            QUIT_BTN.hover,
+            QUIT_BTN.pressed,
         ];
         paths.extend(ConfirmDialog::grf_texture_paths());
         paths
@@ -110,11 +121,19 @@ impl Window for SystemMenu {
 }
 
 impl InGameWindow for SystemMenu {
-    fn build(&mut self, ui: &mut UiFrame, _character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
+    fn build(
+        &mut self,
+        ui: &mut UiFrame,
+        _character: &mut Character,
+        _data: &DataTable,
+    ) -> Vec<GameEvent> {
         let mut events = Vec::new();
 
         // Toggle menu on Escape (only when no confirm dialog is showing)
-        if self.allow_escape_toggle && ui.ctx.key_escape && self.pending_confirm == PendingConfirm::None {
+        if self.allow_escape_toggle
+            && ui.ctx.key_escape
+            && self.pending_confirm == PendingConfirm::None
+        {
             self.open = !self.open;
             if !self.open {
                 return events;
@@ -134,7 +153,9 @@ impl InGameWindow for SystemMenu {
             match self.confirm_dialog.build(ui) {
                 ConfirmResult::Ok => {
                     match self.pending_confirm {
-                        PendingConfirm::CharacterSelect => events.push(GameEvent::BackToCharacterSelect),
+                        PendingConfirm::CharacterSelect => {
+                            events.push(GameEvent::BackToCharacterSelect)
+                        }
                         PendingConfirm::QuitGame => events.push(GameEvent::QuitGame),
                         PendingConfirm::None => {}
                     }
@@ -176,20 +197,44 @@ impl SystemMenu {
 
         // Titlebar texture at top (actual size, not stretched)
         let titlebar_x = mx + (menu_w - titlebar_w) / 2.0;
-        let (v, i) = draw::quad_vertices(titlebar_x, my, titlebar_w, titlebar_h, [1.0, 1.0, 1.0, 1.0]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::Named(WIN_TEXTURE.to_string()) });
+        let (v, i) =
+            draw::quad_vertices(titlebar_x, my, titlebar_w, titlebar_h, [1.0, 1.0, 1.0, 1.0]);
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::Named(WIN_TEXTURE.to_string()),
+        });
 
         // White body below titlebar
         let body_y = my + titlebar_h;
         let (v, i) = draw::quad_vertices(mx, body_y, menu_w, body_h, [1.0, 1.0, 1.0, 1.0]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
 
         let btn_x = mx + (menu_w - btn_w) / 2.0;
         let btn_y = |idx: usize| body_y + body_padding_top + idx as f32 * (btn_h + grf_btn_spacing);
 
-        let charselect = ui.button(CHARSELECT_ID, Rect::new(btn_x, btn_y(0), btn_w, btn_h), &CHARSELECT_BTN, "Character Select");
-        let quit = ui.button(QUIT_ID, Rect::new(btn_x, btn_y(1), btn_w, btn_h), &QUIT_BTN, "Quit Game");
-        let resume = ui.button(RESUME_ID, Rect::new(btn_x, btn_y(2), btn_w, btn_h), &RESUME_BTN, "Resume");
+        let charselect = ui.button(
+            CHARSELECT_ID,
+            Rect::new(btn_x, btn_y(0), btn_w, btn_h),
+            &CHARSELECT_BTN,
+            "Character Select",
+        );
+        let quit = ui.button(
+            QUIT_ID,
+            Rect::new(btn_x, btn_y(1), btn_w, btn_h),
+            &QUIT_BTN,
+            "Quit Game",
+        );
+        let resume = ui.button(
+            RESUME_ID,
+            Rect::new(btn_x, btn_y(2), btn_w, btn_h),
+            &RESUME_BTN,
+            "Resume",
+        );
 
         if resume.clicked() {
             self.open = false;
@@ -208,7 +253,11 @@ impl SystemMenu {
 
         // Background
         let (v, i) = draw::quad_vertices(mx, my, MENU_W, MENU_H, [0.2, 0.2, 0.28, 0.95]);
-        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
         let border_color = [0.5, 0.5, 0.6, 1.0];
         for (bx, by, bw, bh) in [
             (mx, my, MENU_W, 1.0),
@@ -217,17 +266,41 @@ impl SystemMenu {
             (mx + MENU_W - 1.0, my, 1.0, MENU_H),
         ] {
             let (v, i) = draw::quad_vertices(bx, by, bw, bh, border_color);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
         }
 
         // Buttons
         let btn_x = mx + (MENU_W - FALLBACK_BTN_W) / 2.0;
         let btn_y = |idx: usize| my + PADDING_TOP + idx as f32 * (FALLBACK_BTN_H + BTN_SPACING);
 
-        let resume = ui.button(RESUME_ID, Rect::new(btn_x, btn_y(0), FALLBACK_BTN_W, FALLBACK_BTN_H), &DUMMY_BTN, "Resume");
-        let option = ui.button(OPTION_ID, Rect::new(btn_x, btn_y(1), FALLBACK_BTN_W, FALLBACK_BTN_H), &DUMMY_BTN, "Option");
-        let charselect = ui.button(CHARSELECT_ID, Rect::new(btn_x, btn_y(2), FALLBACK_BTN_W, FALLBACK_BTN_H), &DUMMY_BTN, "Character Select");
-        let quit = ui.button(QUIT_ID, Rect::new(btn_x, btn_y(3), FALLBACK_BTN_W, FALLBACK_BTN_H), &DUMMY_BTN, "Quit Game");
+        let resume = ui.button(
+            RESUME_ID,
+            Rect::new(btn_x, btn_y(0), FALLBACK_BTN_W, FALLBACK_BTN_H),
+            &DUMMY_BTN,
+            "Resume",
+        );
+        let option = ui.button(
+            OPTION_ID,
+            Rect::new(btn_x, btn_y(1), FALLBACK_BTN_W, FALLBACK_BTN_H),
+            &DUMMY_BTN,
+            "Option",
+        );
+        let charselect = ui.button(
+            CHARSELECT_ID,
+            Rect::new(btn_x, btn_y(2), FALLBACK_BTN_W, FALLBACK_BTN_H),
+            &DUMMY_BTN,
+            "Character Select",
+        );
+        let quit = ui.button(
+            QUIT_ID,
+            Rect::new(btn_x, btn_y(3), FALLBACK_BTN_W, FALLBACK_BTN_H),
+            &DUMMY_BTN,
+            "Quit Game",
+        );
 
         if resume.clicked() {
             self.open = false;
@@ -246,14 +319,15 @@ impl SystemMenu {
 mod tests {
     use super::*;
     use crate::InGameWindow;
+    use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-    use ragnarok_renderer::font_atlas::FontAtlas;
 
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
@@ -269,12 +343,14 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true; menu.build(&mut ui, &mut character, &data);
+        menu.allow_escape_toggle = true;
+        menu.build(&mut ui, &mut character, &data);
         assert!(menu.open);
 
         // Escape again closes it
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true; menu.build(&mut ui, &mut character, &data);
+        menu.allow_escape_toggle = true;
+        menu.build(&mut ui, &mut character, &data);
         assert!(!menu.open);
     }
 
@@ -288,7 +364,8 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = false; menu.build(&mut ui, &mut character, &data);
+        menu.allow_escape_toggle = false;
+        menu.build(&mut ui, &mut character, &data);
         assert!(!menu.open);
     }
 
@@ -309,7 +386,8 @@ mod tests {
         ctx.mouse_y = btn_y + FALLBACK_BTN_H / 2.0;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true; menu.build(&mut ui, &mut character, &data);
+        menu.allow_escape_toggle = true;
+        menu.build(&mut ui, &mut character, &data);
         assert!(!menu.open);
     }
 
@@ -324,12 +402,14 @@ mod tests {
         // Click Character Select button (index 2)
         let mut ctx = UiContext::new(800.0, 600.0);
         let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - FALLBACK_BTN_W) / 2.0;
-        let btn_y = ((600.0 - MENU_H) / 2.0).floor() + PADDING_TOP + 2.0 * (FALLBACK_BTN_H + BTN_SPACING);
+        let btn_y =
+            ((600.0 - MENU_H) / 2.0).floor() + PADDING_TOP + 2.0 * (FALLBACK_BTN_H + BTN_SPACING);
         ctx.mouse_x = btn_x + FALLBACK_BTN_W / 2.0;
         ctx.mouse_y = btn_y + FALLBACK_BTN_H / 2.0;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true; let events = menu.build(&mut ui, &mut character, &data);
+        menu.allow_escape_toggle = true;
+        let events = menu.build(&mut ui, &mut character, &data);
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::CharacterSelect);
 
@@ -337,8 +417,13 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true; let events = menu.build(&mut ui, &mut character, &data);
-        assert!(events.iter().any(|e| matches!(e, GameEvent::BackToCharacterSelect)));
+        menu.allow_escape_toggle = true;
+        let events = menu.build(&mut ui, &mut character, &data);
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::BackToCharacterSelect))
+        );
         assert!(!menu.open);
     }
 
@@ -353,12 +438,14 @@ mod tests {
         // Click Quit button (index 3)
         let mut ctx = UiContext::new(800.0, 600.0);
         let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - FALLBACK_BTN_W) / 2.0;
-        let btn_y = ((600.0 - MENU_H) / 2.0).floor() + PADDING_TOP + 3.0 * (FALLBACK_BTN_H + BTN_SPACING);
+        let btn_y =
+            ((600.0 - MENU_H) / 2.0).floor() + PADDING_TOP + 3.0 * (FALLBACK_BTN_H + BTN_SPACING);
         ctx.mouse_x = btn_x + FALLBACK_BTN_W / 2.0;
         ctx.mouse_y = btn_y + FALLBACK_BTN_H / 2.0;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true; let events = menu.build(&mut ui, &mut character, &data);
+        menu.allow_escape_toggle = true;
+        let events = menu.build(&mut ui, &mut character, &data);
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::QuitGame);
 
@@ -366,7 +453,8 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true; let events = menu.build(&mut ui, &mut character, &data);
+        menu.allow_escape_toggle = true;
+        let events = menu.build(&mut ui, &mut character, &data);
         assert!(events.iter().any(|e| matches!(e, GameEvent::QuitGame)));
         assert!(!menu.open);
     }
@@ -384,7 +472,8 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true; let events = menu.build(&mut ui, &mut character, &data);
+        menu.allow_escape_toggle = true;
+        let events = menu.build(&mut ui, &mut character, &data);
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::None);
         assert!(menu.open);

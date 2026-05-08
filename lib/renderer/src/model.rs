@@ -81,9 +81,17 @@ impl ModelRenderer {
         texture_cache: &mut TextureCache,
         surface_format: wgpu::TextureFormat,
     ) -> Option<Self> {
-        let rsw_models: Vec<_> = rsw.objects.iter().filter_map(|obj| {
-            if let RswObject::Model(m) = obj { Some(m) } else { None }
-        }).collect();
+        let rsw_models: Vec<_> = rsw
+            .objects
+            .iter()
+            .filter_map(|obj| {
+                if let RswObject::Model(m) = obj {
+                    Some(m)
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         if rsw_models.is_empty() {
             return None;
@@ -91,21 +99,29 @@ impl ModelRenderer {
 
         let start = std::time::Instant::now();
 
-        let (vertices, indices, batches) = build_mesh(
-            &rsw_models, gnd, grf, texture_cache, device, queue,
-        );
+        let (vertices, indices, batches) =
+            build_mesh(&rsw_models, gnd, grf, texture_cache, device, queue);
 
         tracing::info!(
             "Loaded {} model instances ({} verts, {} batches) in {:.1}s",
-            rsw_models.len(), vertices.len(), batches.len(), start.elapsed().as_secs_f32(),
+            rsw_models.len(),
+            vertices.len(),
+            batches.len(),
+            start.elapsed().as_secs_f32(),
         );
 
         if vertices.is_empty() {
             return None;
         }
 
-        let vertex_buffer = create_buffer(device, "model_vertices", &vertices, wgpu::BufferUsages::VERTEX);
-        let index_buffer = create_buffer(device, "model_indices", &indices, wgpu::BufferUsages::INDEX);
+        let vertex_buffer = create_buffer(
+            device,
+            "model_vertices",
+            &vertices,
+            wgpu::BufferUsages::VERTEX,
+        );
+        let index_buffer =
+            create_buffer(device, "model_indices", &indices, wgpu::BufferUsages::INDEX);
 
         let pipeline = create_pipeline(
             device,
@@ -114,7 +130,12 @@ impl ModelRenderer {
             &texture_cache.bind_group_layout,
         );
 
-        Some(Self { pipeline, vertex_buffer, index_buffer, batches })
+        Some(Self {
+            pipeline,
+            vertex_buffer,
+            index_buffer,
+            batches,
+        })
     }
 
     pub fn render<'a>(
@@ -186,16 +207,20 @@ fn build_mesh(
         }
 
         let instance_matrix = build_instance_matrix(rsw_model, scale_factor, center_x, center_z);
-        let alpha = rsm_cache.get(&rsm_path)
+        let alpha = rsm_cache
+            .get(&rsm_path)
             .and_then(|r| r.as_ref())
             .and_then(|r| r.alpha)
             .map(|a| a as f32 / 255.0)
             .unwrap_or(1.0);
 
-        rsm_instances.entry(rsm_path).or_default().push(ModelInstance {
-            instance_matrix,
-            alpha,
-        });
+        rsm_instances
+            .entry(rsm_path)
+            .or_default()
+            .push(ModelInstance {
+                instance_matrix,
+                alpha,
+            });
     }
 
     // Compile all models into texture-grouped vertices
@@ -306,13 +331,17 @@ fn calc_bounding_box(rsm: &RsmFile) -> (BoundingBox, Vec<glam::Mat4>) {
     let is_only = rsm.nodes.len() == 1;
 
     // Build name → index map for hierarchy
-    let name_to_idx: HashMap<&str, usize> = rsm.nodes.iter().enumerate()
+    let name_to_idx: HashMap<&str, usize> = rsm
+        .nodes
+        .iter()
+        .enumerate()
         .map(|(i, n)| (n.name.as_str(), i))
         .collect();
 
     // Find root node(s)
     let root_indices: Vec<usize> = if !rsm.root_node_names.is_empty() {
-        rsm.root_node_names.iter()
+        rsm.root_node_names
+            .iter()
             .filter_map(|name| name_to_idx.get(name.as_str()).copied())
             .collect()
     } else {
@@ -332,8 +361,8 @@ fn calc_bounding_box(rsm: &RsmFile) -> (BoundingBox, Vec<glam::Mat4>) {
         let node = &nodes[node_idx];
 
         // Accumulate: parent × translate(translation2) × rotation × scale
-        let mut accumulated = parent_matrix
-            * glam::Mat4::from_translation(vec3_from_arr(&node.translation2));
+        let mut accumulated =
+            parent_matrix * glam::Mat4::from_translation(vec3_from_arr(&node.translation2));
 
         // Apply rotation: static axis-angle or first keyframe quaternion
         if node.rot_keyframes.is_empty() {
@@ -358,10 +387,9 @@ fn calc_bounding_box(rsm: &RsmFile) -> (BoundingBox, Vec<glam::Mat4>) {
 
         // Local matrix for bounding box: accumulated × [offset] × mat3
         let mut local = accumulated;
-        if !is_only
-            && let Some(offset) = node.translation1 {
-                local *= glam::Mat4::from_translation(vec3_from_arr(&offset));
-            }
+        if !is_only && let Some(offset) = node.translation1 {
+            local *= glam::Mat4::from_translation(vec3_from_arr(&offset));
+        }
         local *= mat3_to_mat4(&node.local_transform);
 
         // Transform all vertices to compute bounds
@@ -374,13 +402,29 @@ fn calc_bounding_box(rsm: &RsmFile) -> (BoundingBox, Vec<glam::Mat4>) {
         // Recurse to children
         for (i, child) in nodes.iter().enumerate() {
             if i != node_idx && child.parent_name == node.name && node.name != node.parent_name {
-                traverse(i, accumulated, nodes, name_to_idx, node_matrices, bbox, is_only);
+                traverse(
+                    i,
+                    accumulated,
+                    nodes,
+                    name_to_idx,
+                    node_matrices,
+                    bbox,
+                    is_only,
+                );
             }
         }
     }
 
     for &root_idx in &root_indices {
-        traverse(root_idx, glam::Mat4::IDENTITY, &rsm.nodes, &name_to_idx, &mut node_matrices, &mut bbox, is_only);
+        traverse(
+            root_idx,
+            glam::Mat4::IDENTITY,
+            &rsm.nodes,
+            &name_to_idx,
+            &mut node_matrices,
+            &mut bbox,
+            is_only,
+        );
     }
 
     // Guard against models with no vertices (bbox stays at infinity → NaN center)
@@ -405,25 +449,28 @@ fn compile_node(
     texture_quads: &mut HashMap<String, (Vec<ModelVertex>, Vec<u32>)>,
 ) {
     // Build compile matrix: translate(-center) × node_matrix × [offset] × mat3
-    let mut matrix = glam::Mat4::from_translation(glam::Vec3::new(
-        -bbox.center.x,
-        -bbox.max.y,
-        -bbox.center.z,
-    )) * *node_matrix;
+    let mut matrix =
+        glam::Mat4::from_translation(glam::Vec3::new(-bbox.center.x, -bbox.max.y, -bbox.center.z))
+            * *node_matrix;
 
-    if !is_only
-        && let Some(offset) = node.translation1 {
-            matrix *= glam::Mat4::from_translation(vec3_from_arr(&offset));
-        }
+    if !is_only && let Some(offset) = node.translation1 {
+        matrix *= glam::Mat4::from_translation(vec3_from_arr(&offset));
+    }
 
     matrix *= mat3_to_mat4(&node.local_transform);
 
     // Final model-view matrix
     let model_view = *instance_matrix * matrix;
-    let normal_sign = if model_view.determinant() < 0.0 { -1.0 } else { 1.0 };
+    let normal_sign = if model_view.determinant() < 0.0 {
+        -1.0
+    } else {
+        1.0
+    };
 
     // Transform all vertices to world space
-    let world_verts: Vec<glam::Vec3> = node.vertices.iter()
+    let world_verts: Vec<glam::Vec3> = node
+        .vertices
+        .iter()
         .map(|v| model_view.transform_point3(vec3_from_arr(v)))
         .collect();
 
@@ -452,7 +499,9 @@ fn compile_node(
         let normal = edge1.cross(edge2).normalize_or_zero() * normal_sign;
         let n = [normal.x, normal.y, normal.z];
 
-        let entry = texture_quads.entry(tex_path).or_insert_with(|| (Vec::new(), Vec::new()));
+        let entry = texture_quads
+            .entry(tex_path)
+            .or_insert_with(|| (Vec::new(), Vec::new()));
         let base = entry.0.len() as u32;
 
         for i in 0..3 {
@@ -480,17 +529,18 @@ fn compile_node(
 fn resolve_texture_name(rsm: &RsmFile, node: &RsmNode, face_texture_index: u16) -> String {
     if !node.texture_names.is_empty() {
         // v >= 2.3: per-node texture names
-        node.texture_names.get(face_texture_index as usize)
+        node.texture_names
+            .get(face_texture_index as usize)
             .cloned()
             .unwrap_or_default()
     } else {
         // v < 2.3: global textures via indirection
-        let tex_id = node.texture_ids.get(face_texture_index as usize)
+        let tex_id = node
+            .texture_ids
+            .get(face_texture_index as usize)
             .copied()
             .unwrap_or(0) as usize;
-        rsm.textures.get(tex_id)
-            .cloned()
-            .unwrap_or_default()
+        rsm.textures.get(tex_id).cloned().unwrap_or_default()
     }
 }
 
@@ -642,11 +692,7 @@ mod tests {
                 rotation_angle: Some(0.0),
                 rotation_axis: Some([0.0, 1.0, 0.0]),
                 scale: Some([1.0, 1.0, 1.0]),
-                vertices: vec![
-                    [-1.0, -1.0, -1.0],
-                    [1.0, 1.0, 1.0],
-                    [0.0, 0.0, 0.0],
-                ],
+                vertices: vec![[-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], [0.0, 0.0, 0.0]],
                 tex_vertices: vec![],
                 faces: vec![],
                 scale_keyframes: vec![],
@@ -660,6 +706,10 @@ mod tests {
         assert_eq!(matrices.len(), 1);
         assert!((bbox.min.x - (-1.0)).abs() < 0.01, "min.x={}", bbox.min.x);
         assert!((bbox.max.x - 1.0).abs() < 0.01, "max.x={}", bbox.max.x);
-        assert!((bbox.center.x - 0.0).abs() < 0.01, "center.x={}", bbox.center.x);
+        assert!(
+            (bbox.center.x - 0.0).abs() < 0.01,
+            "center.x={}",
+            bbox.center.x
+        );
     }
 }

@@ -16,14 +16,19 @@ impl ItemNameTable {
         identified_entries: HashMap<u16, String>,
         unidentified_entries: HashMap<u16, String>,
     ) -> Self {
-        Self { identified_entries, unidentified_entries }
+        Self {
+            identified_entries,
+            unidentified_entries,
+        }
     }
 
     pub fn load(grf: &GrfArchive) -> Self {
-        let identified_entries = grf.read_file(IDENTIFIED_PATH)
+        let identified_entries = grf
+            .read_file(IDENTIFIED_PATH)
             .map(|data| lua_table::parse_item_name_table(&data))
             .unwrap_or_default();
-        let unidentified_entries = grf.read_file(UNIDENTIFIED_PATH)
+        let unidentified_entries = grf
+            .read_file(UNIDENTIFIED_PATH)
             .map(|data| lua_table::parse_item_name_table(&data))
             .unwrap_or_default();
 
@@ -33,7 +38,10 @@ impl ItemNameTable {
             unidentified_entries.len(),
         );
 
-        Self { identified_entries, unidentified_entries }
+        Self {
+            identified_entries,
+            unidentified_entries,
+        }
     }
 
     pub fn get_name(&self, item_id: u16) -> Option<&str> {
@@ -41,18 +49,21 @@ impl ItemNameTable {
     }
 
     pub fn get_name_or_id(&self, item_id: u16) -> String {
-        self.identified_entries.get(&item_id)
+        self.identified_entries
+            .get(&item_id)
             .cloned()
             .unwrap_or_else(|| format!("Item #{item_id}"))
     }
 
     pub fn get_name_or_id_for(&self, item_id: u16, is_identified: bool) -> String {
         if is_identified {
-            self.identified_entries.get(&item_id)
+            self.identified_entries
+                .get(&item_id)
                 .cloned()
                 .unwrap_or_else(|| format!("Item #{item_id}"))
         } else {
-            self.unidentified_entries.get(&item_id)
+            self.unidentified_entries
+                .get(&item_id)
                 .or_else(|| self.identified_entries.get(&item_id))
                 .cloned()
                 .unwrap_or_else(|| format!("Item #{item_id}"))
@@ -70,7 +81,10 @@ mod tests {
         identified.insert(1201, "Knife".to_string());
         let mut unidentified = HashMap::new();
         unidentified.insert(1201, "Unknown Weapon".to_string());
-        ItemNameTable { identified_entries: identified, unidentified_entries: unidentified }
+        ItemNameTable {
+            identified_entries: identified,
+            unidentified_entries: unidentified,
+        }
     }
 
     #[test]

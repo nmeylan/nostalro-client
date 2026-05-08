@@ -1,27 +1,27 @@
 #[path = "shared/mod.rs"]
 mod shared;
 
-use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 use libloading::{Library, Symbol};
 use ragnarok_game::item_resource_table::ItemResourceTable;
 use ragnarok_ui::frame::UiFrame;
+use ragnarok_ui_component::Window;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::LoginWindow;
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
+use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
 use ragnarok_ui_component::game::chat_window::ChatWindow;
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
 use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
 use ragnarok_ui_component::game::inventory_window::InventoryWindow;
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
-use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
+use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
 use ragnarok_ui_component::game::system_menu::SystemMenu;
-use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
 use ragnarok_ui_component::helper::dialog_container::DialogContainer;
-use ragnarok_ui_component::Window;
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 // Force system allocator so host and dylib share the same heap.
 // A cdylib gets its own Rust runtime; without this, Vec/String
@@ -66,7 +66,13 @@ impl HotLib {
 
         let state = unsafe { (create_fn)(example_name.as_ptr(), example_name.len()) };
 
-        Some(Self { _lib: lib, state, build_fn, destroy_fn, grf_init_fn })
+        Some(Self {
+            _lib: lib,
+            state,
+            build_fn,
+            destroy_fn,
+            grf_init_fn,
+        })
     }
 
     /// Destroy state using current dylib's destroy function, then drop the Library.
@@ -97,7 +103,20 @@ impl HotLib {
 }
 
 const GAME_COMPONENTS: &[&str] = &[
-    "inventory", "npc_shop_buy", "npc_shop_sell", "npc_dialog", "equipment", "system_menu", "confirm_dialog", "chat", "dialog_container", "item_info", "skill_tree", "card_insert", "hotkey_bar", "basic_info",
+    "inventory",
+    "npc_shop_buy",
+    "npc_shop_sell",
+    "npc_dialog",
+    "equipment",
+    "system_menu",
+    "confirm_dialog",
+    "chat",
+    "dialog_container",
+    "item_info",
+    "skill_tree",
+    "card_insert",
+    "hotkey_bar",
+    "basic_info",
 ];
 const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
 
@@ -140,7 +159,8 @@ fn grf_texture_paths(example_name: &str) -> Vec<&'static str> {
         "account" => ACCOUNT_COMPONENTS,
         _ => return grf_texture_paths_single(example_name),
     };
-    let mut paths: Vec<&'static str> = names.iter()
+    let mut paths: Vec<&'static str> = names
+        .iter()
         .flat_map(|n| grf_texture_paths_single(n))
         .collect();
     paths.sort_unstable();
@@ -150,8 +170,10 @@ fn grf_texture_paths(example_name: &str) -> Vec<&'static str> {
 
 fn find_dylib() -> PathBuf {
     let target_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent().unwrap()
-        .parent().unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
         .join("target")
         .join("debug");
 
@@ -195,8 +217,8 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
 
-    let mut hot_lib = HotLib::load(&dylib_path, &example_name)
-        .expect("Failed to load initial dylib");
+    let mut hot_lib =
+        HotLib::load(&dylib_path, &example_name).expect("Failed to load initial dylib");
     let mut last_mtime = dylib_mtime(&dylib_path).unwrap_or(SystemTime::UNIX_EPOCH);
     let mut grf_initialized = false;
     let mut reload_counter = 0u64;
@@ -277,14 +299,13 @@ unsafe extern "C" fn texture_size_trampoline(
     out_w: *mut u32,
     out_h: *mut u32,
 ) -> bool {
-    let name = unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(name_ptr, name_len)) };
+    let name =
+        unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(name_ptr, name_len)) };
     let cache_ptr = TEXTURE_SIZE_CACHE.get();
     if cache_ptr.is_null() {
         return false;
     }
-    let closure_ref = unsafe {
-        &**(cache_ptr as *const &dyn Fn(&str) -> Option<(u32, u32)>)
-    };
+    let closure_ref = unsafe { &**(cache_ptr as *const &dyn Fn(&str) -> Option<(u32, u32)>) };
     match closure_ref(name) {
         Some((w, h)) => {
             unsafe {
