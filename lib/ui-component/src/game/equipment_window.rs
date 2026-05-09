@@ -1,8 +1,3 @@
-use super::inventory_window::INV_WINDOW_ID;
-use crate::helper::window_chrome::{
-    SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_titlebar, text_color,
-};
-use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
@@ -11,6 +6,12 @@ use ragnarok_game::inventory::{EquipmentLocation, InventoryData};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
+use crate::{Window, InGameWindow};
+use crate::helper::window_chrome::{
+    TITLEBAR_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
+    draw_sys_button, draw_titlebar, text_color,
+};
+use super::inventory_window::INV_WINDOW_ID;
 
 const ITEM_INVERT_TEX: &str = "data/texture/유저인터페이스/basic_interface/item_invert.bmp";
 
@@ -54,74 +55,19 @@ struct EquipSlot {
 
 const EQUIP_SLOTS: &[EquipSlot] = &[
     // Left column
-    EquipSlot {
-        label: "Head Top",
-        location: EquipmentLocation::HeadTop,
-        col: 0,
-        row: 0,
-    },
-    EquipSlot {
-        label: "Head Low",
-        location: EquipmentLocation::HeadLow,
-        col: 0,
-        row: 1,
-    },
-    EquipSlot {
-        label: "Weapon",
-        location: EquipmentLocation::HandRight,
-        col: 0,
-        row: 2,
-    },
-    EquipSlot {
-        label: "Garment",
-        location: EquipmentLocation::Garment,
-        col: 0,
-        row: 3,
-    },
-    EquipSlot {
-        label: "Accessory",
-        location: EquipmentLocation::AccessoryLeft,
-        col: 0,
-        row: 4,
-    },
+    EquipSlot { label: "Head Top", location: EquipmentLocation::HeadTop, col: 0, row: 0 },
+    EquipSlot { label: "Head Low", location: EquipmentLocation::HeadLow, col: 0, row: 1 },
+    EquipSlot { label: "Weapon", location: EquipmentLocation::HandRight, col: 0, row: 2 },
+    EquipSlot { label: "Garment", location: EquipmentLocation::Garment, col: 0, row: 3 },
+    EquipSlot { label: "Accessory", location: EquipmentLocation::AccessoryLeft, col: 0, row: 4 },
     // Right column
-    EquipSlot {
-        label: "Head Mid",
-        location: EquipmentLocation::HeadMid,
-        col: 1,
-        row: 0,
-    },
-    EquipSlot {
-        label: "Armor",
-        location: EquipmentLocation::Armor,
-        col: 1,
-        row: 1,
-    },
-    EquipSlot {
-        label: "Shield",
-        location: EquipmentLocation::HandLeft,
-        col: 1,
-        row: 2,
-    },
-    EquipSlot {
-        label: "Shoes",
-        location: EquipmentLocation::Shoes,
-        col: 1,
-        row: 3,
-    },
-    EquipSlot {
-        label: "Accessory",
-        location: EquipmentLocation::AccessoryRight,
-        col: 1,
-        row: 4,
-    },
+    EquipSlot { label: "Head Mid", location: EquipmentLocation::HeadMid, col: 1, row: 0 },
+    EquipSlot { label: "Armor", location: EquipmentLocation::Armor, col: 1, row: 1 },
+    EquipSlot { label: "Shield", location: EquipmentLocation::HandLeft, col: 1, row: 2 },
+    EquipSlot { label: "Shoes", location: EquipmentLocation::Shoes, col: 1, row: 3 },
+    EquipSlot { label: "Accessory", location: EquipmentLocation::AccessoryRight, col: 1, row: 4 },
     // Center column (ammo, positioned at top of center area)
-    EquipSlot {
-        label: "Ammo",
-        location: EquipmentLocation::Ammo,
-        col: 2,
-        row: 0,
-    },
+    EquipSlot { label: "Ammo", location: EquipmentLocation::Ammo, col: 2, row: 0 },
 ];
 
 pub struct EquipmentWindow {
@@ -180,15 +126,12 @@ impl EquipmentWindow {
     pub fn toggle(&mut self) {
         self.open = !self.open;
     }
+
 }
 
 impl Window for EquipmentWindow {
-    fn has_grf_textures(&self) -> bool {
-        self.has_grf_textures
-    }
-    fn set_has_grf_textures(&mut self, value: bool) {
-        self.has_grf_textures = value;
-    }
+    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
+    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(EQUIP_BG_TEX) {
@@ -198,15 +141,10 @@ impl Window for EquipmentWindow {
 
     fn grf_texture_paths() -> Vec<&'static str> {
         vec![
-            TITLEBAR_TEX,
-            EQUIP_BG_TEX,
-            ITEM_INVERT_TEX,
-            SYS_BASE_OFF_TEX,
-            SYS_BASE_ON_TEX,
-            CLOSE_OFF_TEX,
-            CLOSE_ON_TEX,
-            MINI_OFF_TEX,
-            MINI_ON_TEX,
+            TITLEBAR_TEX, EQUIP_BG_TEX, ITEM_INVERT_TEX,
+            SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
+            CLOSE_OFF_TEX, CLOSE_ON_TEX,
+            MINI_OFF_TEX, MINI_ON_TEX,
         ]
     }
 }
@@ -230,26 +168,19 @@ impl InGameWindow for EquipmentWindow {
 
         let mut events = Vec::new();
 
+
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
 
         let grf = self.has_grf_textures;
         let text_color = text_color(grf);
 
-        let win_w = WIN_W;
-        let content_h = if self.bg_size.1 > 0.0 {
-            self.bg_size.1
-        } else {
-            CONTENT_H
-        };
-        let win_h = if self.minimized {
-            TITLE_H
-        } else {
-            (TITLE_H) + content_h
-        };
+        let win_w = WIN_W ;
+        let content_h = if self.bg_size.1 > 0.0 { self.bg_size.1 } else { CONTENT_H  };
+        let win_h = if self.minimized { TITLE_H  } else { (TITLE_H) + content_h };
 
         let default_x = 0.0;
-        let default_y = 210.0;
+        let default_y = 210.0 ;
         let win = ui.window_at(EQ_WINDOW_ID, win_w, win_h, TITLE_H, default_x, default_y);
 
         // Block clicks through window
@@ -257,52 +188,24 @@ impl InGameWindow for EquipmentWindow {
         ui.interact(EQ_WINDOW_ID, win_rect);
 
         // -- Titlebar --
-        draw_titlebar(ui, win.x, win.y, win_w, TITLE_H, grf);
-        ui.text(
-            win.x + (17.0),
-            win.y + (TITLE_H) - (3.0),
-            "Equipment",
-            text_color,
-        );
+        draw_titlebar(ui, win.x, win.y, win_w, TITLE_H , grf);
+        ui.text(win.x + (17.0), win.y + (TITLE_H) - (3.0), "Equipment", text_color);
 
         // Minimize button (left of close button)
-        let btn_size = MINI_BTN_SIZE;
+        let btn_size = MINI_BTN_SIZE ;
         let mini_rect = Rect::new(
             win.x + win_w - btn_size * 2.0 - (6.0),
             win.y + ((TITLE_H) - btn_size) / 2.0,
-            btn_size,
-            btn_size,
+            btn_size, btn_size,
         );
         let mini_resp = ui.interact(EQ_MINI_BTN_ID, mini_rect);
-        if mini_resp.hovered() {
-            ui.any_interactive_hovered = true;
-        }
-        if grf {
-            let tex = if mini_resp.hovered() {
-                MINI_ON_TEX
-            } else {
-                MINI_OFF_TEX
-            };
-            let (v, idx) = draw::quad_vertices(
-                mini_rect.x,
-                mini_rect.y,
-                btn_size,
-                btn_size,
-                [1.0, 1.0, 1.0, 1.0],
-            );
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: idx.to_vec(),
-                texture: TextureRef::Named(tex.to_string()),
-            });
-        } else {
-            let c = if mini_resp.hovered() {
-                [0.8, 0.8, 0.2, 1.0]
-            } else {
-                text_color
-            };
-            ui.text(mini_rect.x + (2.0), mini_rect.y + btn_size - (1.0), "_", c);
-        }
+        if mini_resp.hovered() { ui.any_interactive_hovered = true; }
+        draw_sys_button(
+            ui, mini_rect, (btn_size, btn_size),
+            mini_resp.hovered(), grf,
+            MINI_ON_TEX, MINI_OFF_TEX,
+            Some('_'), [0.8, 0.8, 0.2, 1.0], text_color,
+        );
         if mini_resp.clicked() {
             self.minimized = !self.minimized;
         }
@@ -311,44 +214,16 @@ impl InGameWindow for EquipmentWindow {
         let close_rect = Rect::new(
             win.x + win_w - btn_size - (3.0),
             win.y + ((TITLE_H) - btn_size) / 2.0,
-            btn_size,
-            btn_size,
+            btn_size, btn_size,
         );
         let close_resp = ui.interact(EQ_CLOSE_BTN_ID, close_rect);
-        if close_resp.hovered() {
-            ui.any_interactive_hovered = true;
-        }
-        if grf {
-            let tex = if close_resp.hovered() {
-                CLOSE_ON_TEX
-            } else {
-                CLOSE_OFF_TEX
-            };
-            let (v, idx) = draw::quad_vertices(
-                close_rect.x,
-                close_rect.y,
-                btn_size,
-                btn_size,
-                [1.0, 1.0, 1.0, 1.0],
-            );
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: idx.to_vec(),
-                texture: TextureRef::Named(tex.to_string()),
-            });
-        } else {
-            let c = if close_resp.hovered() {
-                [1.0, 0.3, 0.3, 1.0]
-            } else {
-                text_color
-            };
-            ui.text(
-                close_rect.x + (2.0),
-                close_rect.y + btn_size - (1.0),
-                "x",
-                c,
-            );
-        }
+        if close_resp.hovered() { ui.any_interactive_hovered = true; }
+        draw_sys_button(
+            ui, close_rect, (btn_size, btn_size),
+            close_resp.hovered(), grf,
+            CLOSE_ON_TEX, CLOSE_OFF_TEX,
+            Some('x'), [1.0, 0.3, 0.3, 1.0], text_color,
+        );
         if close_resp.clicked() {
             self.open = false;
             ui.has_grf_textures = prev_grf;
@@ -363,21 +238,11 @@ impl InGameWindow for EquipmentWindow {
         // -- Content background (equipwin_bg.bmp) --
         let content_y = win.y + (TITLE_H);
         if grf {
-            let (v, idx) =
-                draw::quad_vertices(win.x, content_y, win_w, content_h, [1.0, 1.0, 1.0, 1.0]);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: idx.to_vec(),
-                texture: TextureRef::Named(EQUIP_BG_TEX.to_string()),
-            });
+            let (v, idx) = draw::quad_vertices(win.x, content_y, win_w, content_h, [1.0, 1.0, 1.0, 1.0]);
+            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(EQUIP_BG_TEX.to_string()) });
         } else {
-            let (v, idx) =
-                draw::quad_vertices(win.x, content_y, win_w, content_h, [0.12, 0.12, 0.18, 0.95]);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: idx.to_vec(),
-                texture: TextureRef::White,
-            });
+            let (v, idx) = draw::quad_vertices(win.x, content_y, win_w, content_h, [0.12, 0.12, 0.18, 0.95]);
+            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
             let bc = [0.4, 0.4, 0.5, 1.0];
             for (bx, by, bw, bh) in [
                 (win.x, content_y, 1.0, content_h),
@@ -385,11 +250,7 @@ impl InGameWindow for EquipmentWindow {
                 (win.x, content_y + content_h - 1.0, win_w, 1.0),
             ] {
                 let (v, idx) = draw::quad_vertices(bx, by, bw, bh, bc);
-                ui.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(),
-                    indices: idx.to_vec(),
-                    texture: TextureRef::White,
-                });
+                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
             }
         }
 
@@ -400,22 +261,21 @@ impl InGameWindow for EquipmentWindow {
         self.paperdoll_insert_index = Some(ui.draw_calls.len());
 
         // Highlight valid slots when dragging an equipment item from inventory
-        let highlight_location: Option<u16> = ui
-            .drag_info()
+        let highlight_location: Option<u16> = ui.drag_info()
             .filter(|(src, _)| *src == INV_WINDOW_ID)
             .and_then(|(_, idx)| inventory.get_item(idx as u16))
             .filter(|item| item.is_equipment() && !item.is_equipped())
             .map(|item| item.equip_location());
 
         // -- Equipment slots --
-        let side_col_w = SIDE_COL_W;
-        let icon = ICON_SIZE;
+        let side_col_w = SIDE_COL_W ;
+        let icon = ICON_SIZE ;
 
         for (i, slot) in EQUIP_SLOTS.iter().enumerate() {
             let (slot_x, slot_w) = match slot.col {
-                0 => (win.x, side_col_w),                      // Left column
-                1 => (win.x + win_w - side_col_w, side_col_w), // Right column
-                _ => (win.x + side_col_w, (CENTER_COL_W)),     // Center column
+                0 => (win.x, side_col_w),                          // Left column
+                1 => (win.x + win_w - side_col_w, side_col_w),     // Right column
+                _ => (win.x + side_col_w, (CENTER_COL_W)),        // Center column
             };
             let slot_y = content_y + slot.row as f32 * slot_h;
 
@@ -448,42 +308,27 @@ impl InGameWindow for EquipmentWindow {
             if let Some(item) = inventory.equipped_in_slot(slot.location) {
                 // Item icon
                 if let Some(icon_path) = item.icon_path() {
-                    let (v, idx) = draw::quad_vertices(
-                        icon_rect.x,
-                        icon_rect.y,
-                        icon_rect.w,
-                        icon_rect.h,
-                        [1.0, 1.0, 1.0, 1.0],
-                    );
-                    ui.draw_calls.push(DrawCall {
-                        vertices: v.to_vec(),
-                        indices: idx.to_vec(),
-                        texture: TextureRef::Named(icon_path),
-                    });
+                    let (v, idx) = draw::quad_vertices(icon_rect.x, icon_rect.y, icon_rect.w, icon_rect.h, [1.0, 1.0, 1.0, 1.0]);
+                    ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(icon_path) });
                 }
 
-                let display_name =
-                    format_equipment_display_name(item, slot_count_table, card_name_table);
+                let display_name = format_equipment_display_name(
+                    item, slot_count_table, card_name_table,
+                );
                 // Item name (wrapped if too long)
                 if show_text {
-                    let mut lines = draw::word_wrap(
-                        &display_name,
-                        TEXT_MAX_W,
-                        |t| ui.atlas.measure_text(t),
-                        true,
-                    );
+                    let mut lines = draw::word_wrap(&display_name, TEXT_MAX_W, |t| ui.atlas.measure_text(t), true);
                     lines.reverse();
                     let line_h = ui.atlas.line_height - 2.0;
-                    let mut block_bottom = slot_y + slot_h;
+                    let mut block_bottom = slot_y + slot_h ;
 
                     if lines.len() == 3 {
                         block_bottom += 8.0;
                     }
 
-                    let line_space = 1.0 * lines.len() as f32 - 1.0;
+                    let line_space = 1.0 * lines.len() as f32- 1.0;
                     for (j, line) in lines.iter().enumerate() {
-                        let ly = block_bottom - (j as f32 + 1.0) * (line_h - line_space)
-                            + (line_h - line_space) / 2.0;
+                        let ly = block_bottom - (j as f32 + 1.0) * (line_h - line_space) + (line_h - line_space) / 2.0;
                         if right_align {
                             let text_w = ui.atlas.measure_text(line);
                             ui.text(text_x - text_w, ly, line, text_color);
@@ -497,12 +342,7 @@ impl InGameWindow for EquipmentWindow {
 
                 // Begin drag on click (to unequip by dragging to inventory)
                 if response.clicked() {
-                    ui.drag_source(
-                        EQ_WINDOW_ID,
-                        item.index as usize,
-                        item.icon_path(),
-                        (ICON_SIZE, ICON_SIZE),
-                    );
+                    ui.drag_source(EQ_WINDOW_ID, item.index as usize, item.icon_path(), (ICON_SIZE, ICON_SIZE));
                     clicked = true;
                 }
 
@@ -517,60 +357,34 @@ impl InGameWindow for EquipmentWindow {
                     clicked = true;
                 }
                 if !clicked && response.hovered() {
-                    ui.tooltip(
-                        icon_rect.x,
-                        icon_rect.y - ui.atlas.line_height - 16.0,
-                        &display_name,
-                    );
+                    ui.tooltip(icon_rect.x, icon_rect.y - ui.atlas.line_height - 16.0, &display_name);
                 }
             }
 
             if let Some(loc) = highlight_location
-                && loc & InventoryData::slot_mask(slot.location) != 0
-            {
-                if grf {
-                    let (v, idx) = draw::quad_vertices(
-                        icon_rect.x,
-                        icon_rect.y,
-                        icon_rect.w,
-                        icon_rect.h,
-                        [1.0, 1.0, 1.0, 1.0],
-                    );
-                    ui.draw_calls.push(DrawCall {
-                        vertices: v.to_vec(),
-                        indices: idx.to_vec(),
-                        texture: TextureRef::Named(ITEM_INVERT_TEX.to_string()),
-                    });
-                } else {
-                    let (v, idx) = draw::quad_vertices(
-                        icon_rect.x,
-                        icon_rect.y,
-                        icon_rect.w,
-                        icon_rect.h,
-                        [0.20, 0.42, 0.88, 0.35],
-                    );
-                    ui.draw_calls.push(DrawCall {
-                        vertices: v.to_vec(),
-                        indices: idx.to_vec(),
-                        texture: TextureRef::White,
-                    });
+                && loc & InventoryData::slot_mask(slot.location) != 0 {
+                    if grf {
+                        let (v, idx) = draw::quad_vertices(icon_rect.x, icon_rect.y, icon_rect.w, icon_rect.h, [1.0, 1.0, 1.0, 1.0]);
+                        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(ITEM_INVERT_TEX.to_string()) });
+                    } else {
+                        let (v, idx) = draw::quad_vertices(icon_rect.x, icon_rect.y, icon_rect.w, icon_rect.h, [0.20, 0.42, 0.88, 0.35]);
+                        ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
+                    }
                 }
-            }
+
         }
 
         // Drop zone: accept drags from inventory (equip)
         let content_rect = Rect::new(win.x, content_y, win_w, content_h);
         if let Some((source_id, item_index)) = ui.drop_zone(content_rect)
             && source_id == INV_WINDOW_ID
-            && let Some(item) = inventory.get_item(item_index as u16)
-            && item.is_equipment()
-            && !item.is_equipped()
-        {
-            events.push(GameEvent::RequestEquipItem {
-                index: item.index,
-                location: item.equip_location(),
-            });
-        }
+                && let Some(item) = inventory.get_item(item_index as u16)
+                    && item.is_equipment() && !item.is_equipped() {
+                        events.push(GameEvent::RequestEquipItem {
+                            index: item.index,
+                            location: item.equip_location(),
+                        });
+                    }
 
         ui.has_grf_textures = prev_grf;
         events

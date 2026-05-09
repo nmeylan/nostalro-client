@@ -33,6 +33,8 @@ use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::number_input::{NumberInputConfig, NumberInputDialog};
 use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
+use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
+use ragnarok_ui_component::game::status_window::{StatusWindow, STATUS_WINDOW_ID};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::{InGameWindow, Window};
 use std::collections::HashMap;
@@ -52,6 +54,7 @@ const GAME_COMPONENTS: &[&str] = &[
     "card_insert",
     "hotkey_bar",
     "basic_info",
+    "status",
 ];
 const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
 
@@ -131,6 +134,11 @@ enum State {
     },
     BasicInfoDemo {
         win: BasicInfoWindow,
+        character: Character,
+        data: DataTable,
+    },
+    StatusDemo {
+        win: StatusWindow,
         character: Character,
         data: DataTable,
     },
@@ -873,23 +881,53 @@ fn create_single(name: &str) -> State {
         }
         "basic_info" => {
             let mut character = Character::new();
-            character.name = "Swordsman".into();
+            character.name = "Walkiry".into();
             character.class = 1;
             character.base_level = 42;
             character.job_level = 30;
             character.hp = 2350;
             character.max_hp = 3200;
-            character.sp = 85;
+            character.sp = 5;
             character.max_sp = 120;
             character.base_exp = 185000;
             character.next_base_exp = 300000;
             character.job_exp = 42000;
             character.next_job_exp = 80000;
-            character.inventory.weight = 1250;
-            character.inventory.max_weight = 3000;
+            character.inventory.weight = 12500;
+            character.inventory.max_weight = 30000;
             character.inventory.zeny = 1234567;
             State::BasicInfoDemo {
                 win: BasicInfoWindow::new(),
+                character,
+                data: DataTable::new(),
+            }
+        }
+        "status" => {
+            let mut character = Character::new();
+            character.name = "Swordsman".into();
+            character.class = 1;
+            character.base_level = 42;
+            character.job_level = 30;
+            character.status_point = 12;
+            character.skill_point = 3;
+            character.str = 35; character.str_bonus = 5; character.str_cost = 6;
+            character.agi = 22; character.agi_bonus = 0; character.agi_cost = 4;
+            character.vit = 28; character.vit_bonus = 2; character.vit_cost = 5;
+            character.int = 10; character.int_bonus = 0; character.int_cost = 3;
+            character.dex = 18; character.dex_bonus = -1; character.dex_cost = 4;
+            character.luk = 5;  character.luk_bonus = 0; character.luk_cost = 2;
+            character.atk1 = 250; character.atk2 = 30;
+            character.matk1 = 35; character.matk2 = 40;
+            character.def1 = 18; character.def2 = 5;
+            character.mdef1 = 4; character.mdef2 = 2;
+            character.hit = 122;
+            character.flee1 = 95; character.flee2 = 10;
+            character.critical = 8;
+            character.aspd = 1500;
+            let mut win = StatusWindow::new();
+            win.toggle();
+            State::StatusDemo {
+                win,
                 character,
                 data: DataTable::new(),
             }
@@ -1050,6 +1088,10 @@ fn grf_init_single(
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
+        State::StatusDemo { win, .. } => {
+            win.has_grf_textures = true;
+            win.set_texture_sizes(size_fn);
+        }
         State::Category { components } => {
             for component in components.iter_mut() {
                 grf_init_single(component, size_fn, table);
@@ -1081,6 +1123,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Inventory { .. } => Some(WidgetId(800)),
         State::Equipment { .. } => Some(WidgetId(900)),
         State::SkillTree { .. } => Some(WidgetId(1000)),
+        State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
         _ => None,
     }
 }
@@ -1231,6 +1274,9 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             character,
             data,
         } => {
+            win.build(ui, character, data);
+        }
+        State::StatusDemo { win, character, data } => {
             win.build(ui, character, data);
         }
         State::Category { components } => {

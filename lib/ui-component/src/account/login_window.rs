@@ -1,9 +1,9 @@
-use crate::Window;
-use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
+use ragnarok_game::event::GameEvent;
+use crate::Window;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LoginFocus {
@@ -91,7 +91,7 @@ impl LoginWindow {
             ((FALLBACK_BTN_W), (FALLBACK_BTN_H))
         };
         let field_w = win_w - (FIELD_X) - (FIELD_RIGHT_MARGIN);
-        let win = ui.window(WINDOW_ID, win_w, win_h, TITLE_BAR_H);
+        let win = ui.window(WINDOW_ID, win_w, win_h, TITLE_BAR_H );
 
         // Tab cycles focus
         if ui.ctx.key_tab {
@@ -108,16 +108,14 @@ impl LoginWindow {
 
         // Window background
         if self.has_grf_textures {
-            let (verts, indices) =
-                draw::quad_vertices(win.x, win.y, win.w, win.h, [1.0, 1.0, 1.0, 1.0]);
+            let (verts, indices) = draw::quad_vertices(win.x, win.y, win.w, win.h, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(DrawCall {
                 vertices: verts.to_vec(),
                 indices: indices.to_vec(),
                 texture: TextureRef::Named(WIN_TEXTURE.to_string()),
             });
         } else {
-            let (verts, indices) =
-                draw::quad_vertices(win.x, win.y, win.w, win.h, [0.08, 0.08, 0.12, 0.95]);
+            let (verts, indices) = draw::quad_vertices(win.x, win.y, win.w, win.h, [0.08, 0.08, 0.12, 0.95]);
             ui.draw_calls.push(DrawCall {
                 vertices: verts.to_vec(),
                 indices: indices.to_vec(),
@@ -142,13 +140,9 @@ impl LoginWindow {
         }
 
         // Text inputs
-        let input_bg = if self.has_grf_textures {
-            TextInputBg::Texture(INPUT_TEXTURE)
-        } else {
-            TextInputBg::Default
-        };
-        let username_rect = Rect::new(win.x + (FIELD_X), win.y + (USERNAME_Y), field_w, FIELD_H);
-        let password_rect = Rect::new(win.x + (FIELD_X), win.y + (PASSWORD_Y), field_w, FIELD_H);
+        let input_bg = if self.has_grf_textures { TextInputBg::Texture(INPUT_TEXTURE) } else { TextInputBg::Default };
+        let username_rect = Rect::new(win.x + (FIELD_X), win.y + (USERNAME_Y), field_w, FIELD_H );
+        let password_rect = Rect::new(win.x + (FIELD_X), win.y + (PASSWORD_Y), field_w, FIELD_H );
         ui.text_input(USERNAME_ID, username_rect, &mut self.username, input_bg);
         ui.text_input(PASSWORD_ID, password_rect, &mut self.password, input_bg);
 
@@ -161,18 +155,8 @@ impl LoginWindow {
 
         // Buttons (positioned from right/bottom edges, matching original client)
         let btn_y = win.y + win_h - (BTN_BOTTOM) - btn_h;
-        let connect_rect = Rect::new(
-            win.x + win_w - (CONNECT_BTN_RIGHT) - btn_w,
-            btn_y,
-            btn_w,
-            btn_h,
-        );
-        let exit_rect = Rect::new(
-            win.x + win_w - (EXIT_BTN_RIGHT) - btn_w,
-            btn_y,
-            btn_w,
-            btn_h,
-        );
+        let connect_rect = Rect::new(win.x + win_w - (CONNECT_BTN_RIGHT) - btn_w, btn_y, btn_w, btn_h);
+        let exit_rect = Rect::new(win.x + win_w - (EXIT_BTN_RIGHT) - btn_w, btn_y, btn_w, btn_h);
         let connect = ui.button(CONNECT_ID, connect_rect, &CONNECT_BTN, "Connect");
         let exit = ui.button(EXIT_ID, exit_rect, &EXIT_BTN, "Exit");
 
@@ -204,15 +188,12 @@ impl LoginWindow {
     pub fn set_error(&mut self, msg: &str) {
         self.error_message = Some(msg.to_string());
     }
+
 }
 
 impl Window for LoginWindow {
-    fn has_grf_textures(&self) -> bool {
-        self.has_grf_textures
-    }
-    fn set_has_grf_textures(&mut self, value: bool) {
-        self.has_grf_textures = value;
-    }
+    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
+    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(WIN_TEXTURE) {
@@ -240,9 +221,9 @@ impl Window for LoginWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
+    use ragnarok_renderer::font_atlas::FontAtlas;
 
     fn make_ctx() -> UiContext {
         UiContext::new(800.0, 600.0)
@@ -251,8 +232,7 @@ mod tests {
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, Some(USERNAME_ID), positions)
     }
 

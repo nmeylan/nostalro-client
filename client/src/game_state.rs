@@ -31,6 +31,7 @@ use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotificatio
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
+use ragnarok_ui_component::game::status_window::{StatusWindow, STATUS_WINDOW_ID};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::{InGameWindow, Window};
 
@@ -84,6 +85,7 @@ pub struct GameState {
     pub item_pickup_notification: ItemPickupNotification,
     pub skill_tree_window: SkillTreeWindow,
     pub basic_info_window: BasicInfoWindow,
+    pub status_window: StatusWindow,
     pub hotkey_bar: HotkeyBarWindow,
     pub damage_numbers: DamageNumberManager,
     pub damage_number_textures: Option<SpriteTextures>,
@@ -100,6 +102,7 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     INV_WINDOW_ID,
     EQ_WINDOW_ID,
     SKILL_WINDOW_ID,
+    STATUS_WINDOW_ID,
 ];
 
 impl GameState {
@@ -289,6 +292,13 @@ impl GameState {
                     &self.data_table,
                 ));
             }
+            STATUS_WINDOW_ID => {
+                events.extend(self.status_window.build(
+                    ui,
+                    &mut self.character,
+                    &self.data_table,
+                ));
+            }
             _ => {}
         }
     }
@@ -341,6 +351,7 @@ impl GameState {
             noctrl_mode: true,
             attack_is_locked: false,
             basic_info_window: BasicInfoWindow::new(),
+            status_window: StatusWindow::new(),
             item_info_window: ItemInfoWindow::new(),
             item_pickup_notification: ItemPickupNotification::new(),
             skill_tree_window: SkillTreeWindow::new(),

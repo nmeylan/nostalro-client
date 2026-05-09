@@ -2,6 +2,48 @@ use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::UiFrame;
 use ragnarok_ui::rect::Rect;
 
+/// Draw a textured quad (GRF mode only — no fallback). Replaces inline draw_tex pattern.
+pub fn draw_textured_quad(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, path: &str) {
+    let (v, i) = draw::quad_vertices(x, y, w, h, [1.0; 4]);
+    ui.draw_calls.push(DrawCall {
+        vertices: v.to_vec(),
+        indices: i.to_vec(),
+        texture: TextureRef::Named(path.to_string()),
+    });
+}
+
+/// Draw an interactive system button.
+/// GRF mode: renders on/off textures based on hover.
+/// Non-GRF mode: renders colored quad with optional fallback character text.
+pub fn draw_sys_button(
+    ui: &mut UiFrame,
+    rect: Rect,
+    size: (f32, f32),
+    hovered: bool,
+    has_grf: bool,
+    on_tex: &str,
+    off_tex: &str,
+    fallback_char: Option<char>,
+    hover_color: [f32; 4],
+    normal_color: [f32; 4],
+) {
+    if has_grf {
+        let tex = if hovered { on_tex } else { off_tex };
+        draw_textured_quad(ui, rect.x, rect.y, size.0, size.1, tex);
+    } else {
+        let c = if hovered { hover_color } else { normal_color };
+        let (v, i) = draw::quad_vertices(rect.x, rect.y, size.0, size.1, c);
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
+        if let Some(ch) = fallback_char {
+            ui.text(rect.x + 2.0, rect.y + size.1 - 1.0, &ch.to_string(), c);
+        }
+    }
+}
+
 pub const TITLEBAR_TEX: &str = "data/texture/유저인터페이스/basic_interface/titlebar_mid.bmp";
 pub const ITEMWIN_MID_TEX: &str = "data/texture/유저인터페이스/basic_interface/itemwin_mid.bmp";
 pub const FOOTER_TEX: &str = "data/texture/유저인터페이스/basic_interface/btnbar_mid2.bmp";
@@ -16,6 +58,7 @@ pub fn text_color(has_grf: bool) -> [f32; 4] {
     }
 }
 
+/// Draw a window title bar.
 pub fn draw_titlebar(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bool) {
     if has_grf {
         let (v, i) = draw::quad_vertices(x, y, w, h, [1.0, 1.0, 1.0, 1.0]);

@@ -37,10 +37,11 @@ echo ""
 
 # Start cargo-watch in background to rebuild dylib on changes
 cargo watch \
-    -w lib/ui-component/src \
-    -w lib/ui-component-hot/src \
-    -w lib/ui-core/src \
-    -s "cargo build -p ragnarok-ui-component-hot" &
+	--no-vcs-ignores \
+	-w lib/ui-component/src \
+	-w lib/ui-component-hot/src \
+	-w lib/ui-core/src \
+	-s "cargo build -p ragnarok-ui-component-hot" &
 WATCH_PID=$!
 
 trap "kill $WATCH_PID 2>/dev/null; exit" INT TERM

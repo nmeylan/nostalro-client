@@ -16,7 +16,7 @@ pub use sender::{
     build_npc_menu_select_packet, build_npc_next_packet, build_pickup_item_packet,
     build_purchase_item_list_packet, build_reqname_packet, build_request_move_packet,
     build_restart_packet, build_select_char_packet, build_sell_item_list_packet,
-    build_shortcut_key_change_packet, build_unequip_item_packet, build_upgrade_skill_packet,
+    build_shortcut_key_change_packet, build_stat_change_packet, build_unequip_item_packet, build_upgrade_skill_packet,
     build_use_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet,
     build_zone_enter_packet,
 };

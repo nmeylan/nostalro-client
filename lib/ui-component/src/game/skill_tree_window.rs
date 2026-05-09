@@ -7,9 +7,10 @@ use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
 use crate::helper::dialog_container::DialogContainer;
-use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
+use crate::helper::scrollbar::{self, ScrollbarIds, SCROLLBAR_W};
 use crate::helper::window_chrome::{
-    FOOTER_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_titlebar, text_color,
+    draw_container, draw_footer, draw_sys_button, draw_titlebar, text_color, FOOTER_TEX,
+    TITLEBAR_TEX,
 };
 use crate::{InGameWindow, Window};
 
@@ -171,32 +172,18 @@ impl InGameWindow for SkillTreeWindow {
         let close_y = y + 3.0;
         let close_rect = Rect::new(close_x, close_y, 11.0, 11.0);
         let close_resp = ui.interact(SKILL_CLOSE_BTN_ID, close_rect);
-        if has_grf {
-            let tex = if close_resp.hovered() {
-                CLOSE_ON_TEX
-            } else {
-                CLOSE_OFF_TEX
-            };
-            let (v, i) = draw::quad_vertices(close_x, close_y, 11.0, 11.0, [1.0; 4]);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::Named(tex.to_string()),
-            });
-        } else {
-            let color = if close_resp.hovered() {
-                [0.8, 0.2, 0.2, 1.0]
-            } else {
-                [0.5, 0.5, 0.6, 1.0]
-            };
-            let (v, i) = draw::quad_vertices(close_x, close_y, 11.0, 11.0, color);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-            ui.text(close_x + 2.0, close_y + 10.0, "x", [1.0; 4]);
-        }
+        draw_sys_button(
+            ui,
+            close_rect,
+            (11.0, 11.0),
+            close_resp.hovered(),
+            has_grf,
+            CLOSE_ON_TEX,
+            CLOSE_OFF_TEX,
+            Some('x'),
+            [0.8, 0.2, 0.2, 1.0],
+            [0.5, 0.5, 0.6, 1.0],
+        );
         if close_resp.clicked() {
             character.skills.close();
             return events;
