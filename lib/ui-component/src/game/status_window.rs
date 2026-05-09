@@ -1,11 +1,13 @@
+use crate::helper::window_chrome::{
+    draw_sys_button, draw_textured_quad, draw_titlebar, text_color,
+};
+use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-use crate::{Window, InGameWindow};
-use crate::helper::window_chrome::text_color;
 
 pub const STATUS_WINDOW_ID: WidgetId = WidgetId(1500);
 const CLOSE_BTN_ID: WidgetId = WidgetId(1501);
@@ -35,14 +37,14 @@ const WIN_H: f32 = TITLE_H + PANEL_H;
 // Layout from WinStatsV0.css. All offsets relative to window origin.
 // Stats column: rows of 16px height starting at panel top + 23 = 17 + 23 = 40
 const ROW_H: f32 = 16.0;
-const ROWS_TOP: f32 = TITLE_H + 23.0;          // 40
-const TEXT_BASELINE_OFF: f32 = 13.0;            // baseline offset within a 16-tall row
+const ROWS_TOP: f32 = TITLE_H + 2.0;
+const TEXT_BASELINE_OFF: f32 = 13.0; // baseline offset within a 16-tall row
 
-const STATS_LEFT: f32 = 53.0;     // left:53px
-const BONUS_LEFT: f32 = 70.0;     // left:70px
-const UP_LEFT: f32 = 89.0;        // .up left:89px, top:18px (so first arrow y = TITLE_H + 18 + 5 = 40)
-const UP_TOP: f32 = TITLE_H + 18.0 + 5.0; // first arrow top y; subsequent +(11+5)=16
-const REQ_LEFT: f32 = 96.0;       // requirement (cost) left:96px width:12px right-aligned
+const STATS_LEFT: f32 = 53.0; // left:53px
+const BONUS_LEFT: f32 = 70.0; // left:70px
+const UP_LEFT: f32 = 89.0; // .up left:89px, top:18px (so first arrow y = TITLE_H + 18 + 5 = 40)
+const UP_TOP: f32 = TITLE_H + 6.0; // first arrow top y; subsequent +(11+5)=16
+const REQ_LEFT: f32 = 96.0; // requirement (cost) left:96px width:12px right-aligned
 const REQ_WIDTH: f32 = 12.0;
 
 // column1: top:23px, right:87px  → right_edge_x = WIN_W - 87 = 193
@@ -61,10 +63,17 @@ const STAT_ID_LUK: u16 = 18;
 pub struct StatusWindow {
     pub has_grf_textures: bool,
     visible: bool,
+    minimized: bool,
     bg_size: (f32, f32),
     titlebar_size: (f32, f32),
     sys_btn_size: (f32, f32),
     arrow_size: (f32, f32),
+}
+
+impl Default for StatusWindow {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl StatusWindow {
@@ -72,6 +81,7 @@ impl StatusWindow {
         Self {
             has_grf_textures: false,
             visible: false,
+            minimized: false,
             bg_size: (WIN_W, PANEL_H),
             titlebar_size: (12.0, TITLE_H),
             sys_btn_size: (11.0, 11.0),
@@ -79,11 +89,27 @@ impl StatusWindow {
         }
     }
 
-    pub fn toggle(&mut self) { self.visible = !self.visible; }
-    pub fn is_visible(&self) -> bool { self.visible }
+    pub fn is_minimized(&self) -> bool {
+        self.minimized
+    }
+
+    pub fn set_minimized(&mut self, value: bool) {
+        self.minimized = value;
+    }
+
+    pub fn toggle(&mut self) {
+        self.visible = !self.visible;
+    }
+    pub fn is_visible(&self) -> bool {
+        self.visible
+    }
 
     fn fmt_signed(v: i32) -> String {
-        if v >= 0 { format!("+ {}", v) } else { format!("- {}", -v) }
+        if v >= 0 {
+            format!("+ {}", v)
+        } else {
+            format!("- {}", -v)
+        }
     }
 
     /// Pre-renewal stat-up cost: floor((stat - 1) / 10) + 2.
@@ -97,35 +123,15 @@ impl StatusWindow {
             ((stat as u16 - 1) / 10) + 2
         }
     }
-
-    fn draw_tex(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, path: &str) {
-        let (v, i) = draw::quad_vertices(x, y, w, h, [1.0; 4]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(), indices: i.to_vec(),
-            texture: TextureRef::Named(path.to_string()),
-        });
-    }
-
-    fn draw_titlebar(&self, ui: &mut UiFrame, x: f32, y: f32) {
-        if self.has_grf_textures {
-            // Repeat the 12-wide titlebar tile across WIN_W
-            let tile_w = self.titlebar_size.0.max(1.0);
-            let mut cx = 0.0_f32;
-            while cx < WIN_W {
-                let w = (WIN_W - cx).min(tile_w);
-                Self::draw_tex(ui, x + cx, y, w, TITLE_H, TITLEBAR_TEX);
-                cx += tile_w;
-            }
-        } else {
-            let (v, i) = draw::quad_vertices(x, y, WIN_W, TITLE_H, [0.18, 0.18, 0.24, 1.0]);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-        }
-    }
 }
 
 impl Window for StatusWindow {
-    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
-    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+    fn has_grf_textures(&self) -> bool {
+        self.has_grf_textures
+    }
+    fn set_has_grf_textures(&mut self, value: bool) {
+        self.has_grf_textures = value;
+    }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(BG_TEX) {
@@ -144,10 +150,14 @@ impl Window for StatusWindow {
 
     fn grf_texture_paths() -> Vec<&'static str> {
         vec![
-            BG_TEX, TITLEBAR_TEX,
-            SYS_CLOSE_OFF, SYS_CLOSE_ON,
-            SYS_MINI_OFF, SYS_MINI_ON,
-            ARW_RIGHT, ARW_RIGHT_ON,
+            BG_TEX,
+            TITLEBAR_TEX,
+            SYS_CLOSE_OFF,
+            SYS_CLOSE_ON,
+            SYS_MINI_OFF,
+            SYS_MINI_ON,
+            ARW_RIGHT,
+            ARW_RIGHT_ON,
         ]
     }
 }
@@ -168,32 +178,15 @@ impl InGameWindow for StatusWindow {
         let grf = self.has_grf_textures;
         let tc = text_color(grf);
 
-        let win = ui.window_at(STATUS_WINDOW_ID, WIN_W, WIN_H, TITLE_H, 60.0, 140.0);
+        let win_h = if self.minimized { TITLE_H } else { WIN_H };
+        let win = ui.window_at(STATUS_WINDOW_ID, WIN_W, win_h, TITLE_H, 60.0, 140.0);
         let win_rect = Rect::new(win.x, win.y, WIN_W, WIN_H);
         ui.interact(STATUS_WINDOW_ID, win_rect);
         let x = win.x;
         let y = win.y;
 
         // ===== Title bar =====
-        self.draw_titlebar(ui, x, y);
-
-        // ===== Panel background (textures contain baked stat labels) =====
-        if grf {
-            Self::draw_tex(ui, x, y + TITLE_H, WIN_W, PANEL_H, BG_TEX);
-        } else {
-            let (v, i) = draw::quad_vertices(x, y + TITLE_H, WIN_W, PANEL_H, [0.10, 0.10, 0.14, 0.95]);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-            // Print the stat labels in fallback mode since the BG won't have them
-            for (i, label) in ["STR", "AGI", "VIT", "INT", "DEX", "LUK"].iter().enumerate() {
-                ui.text(x + 10.0, y + ROWS_TOP + i as f32 * ROW_H + TEXT_BASELINE_OFF, label, tc);
-            }
-            for (i, label) in ["ATK", "MATK", "HIT", "CRIT"].iter().enumerate() {
-                ui.text(x + 110.0, y + ROWS_TOP + i as f32 * ROW_H + TEXT_BASELINE_OFF, label, tc);
-            }
-            for (i, label) in ["DEF", "MDEF", "FLEE", "ASPD", "Status pts"].iter().enumerate() {
-                ui.text(x + 195.0, y + ROWS_TOP + i as f32 * ROW_H + TEXT_BASELINE_OFF, label, tc);
-            }
-        }
+        draw_titlebar(ui, win.x, win.y, WIN_W, TITLE_H, grf);
 
         // ===== Title text =====
         ui.text(x + 18.0, y + 13.0, "Status", tc);
@@ -207,42 +200,140 @@ impl InGameWindow for StatusWindow {
         // Close
         let close_rect = Rect::new(close_x, y + 3.0, sys_w, sys_h);
         let close_resp = ui.interact(CLOSE_BTN_ID, close_rect);
-        if close_resp.hovered() { ui.any_interactive_hovered = true; }
-        if close_resp.clicked() { self.visible = false; }
-        if grf {
-            let tex = if close_resp.hovered() { SYS_CLOSE_ON } else { SYS_CLOSE_OFF };
-            Self::draw_tex(ui, close_rect.x, close_rect.y, sys_w, sys_h, tex);
-        } else {
-            let c = if close_resp.hovered() { [0.9, 0.4, 0.4, 1.0] } else { [0.6, 0.3, 0.3, 1.0] };
-            let (v, i) = draw::quad_vertices(close_rect.x, close_rect.y, sys_w, sys_h, c);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-            ui.text(close_rect.x + 2.0, close_rect.y + 9.0, "x", [1.0; 4]);
+        if close_resp.hovered() {
+            ui.any_interactive_hovered = true;
         }
+        if close_resp.clicked() {
+            self.visible = false;
+        }
+
+        draw_sys_button(
+            ui,
+            close_rect,
+            (sys_w, sys_h),
+            close_resp.hovered(),
+            grf,
+            SYS_CLOSE_ON,
+            SYS_CLOSE_OFF,
+            Some('x'),
+            [0.9, 0.4, 0.4, 1.0],
+            [0.6, 0.3, 0.3, 1.0],
+        );
 
         // Mini (also closes for now — same behavior)
         let mini_rect = Rect::new(mini_x, y + 3.0, sys_w, sys_h);
         let mini_resp = ui.interact(MINI_BTN_ID, mini_rect);
-        if mini_resp.hovered() { ui.any_interactive_hovered = true; }
-        if mini_resp.clicked() { self.visible = false; }
-        if grf {
-            let tex = if mini_resp.hovered() { SYS_MINI_ON } else { SYS_MINI_OFF };
-            Self::draw_tex(ui, mini_rect.x, mini_rect.y, sys_w, sys_h, tex);
-        } else {
-            let c = if mini_resp.hovered() { [0.8, 0.8, 0.9, 1.0] } else { [0.5, 0.5, 0.6, 1.0] };
-            let (v, i) = draw::quad_vertices(mini_rect.x, mini_rect.y, sys_w, sys_h, c);
-            ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: i.to_vec(), texture: TextureRef::White });
-            ui.text(mini_rect.x + 2.0, mini_rect.y + 9.0, "_", tc);
+        if mini_resp.hovered() {
+            ui.any_interactive_hovered = true;
+        }
+        if mini_resp.clicked() {
+            self.minimized = !self.minimized;
+        }
+        draw_sys_button(
+            ui,
+            mini_rect,
+            (sys_w, sys_h),
+            mini_resp.hovered(),
+            grf,
+            SYS_MINI_ON,
+            SYS_MINI_OFF,
+            Some('_'),
+            [0.8, 0.8, 0.9, 1.0],
+            [0.5, 0.5, 0.6, 1.0],
+        );
+        if self.minimized {
+            ui.has_grf_textures = prev_grf;
+            return events;
         }
 
-        // ===== Stats column (STR/AGI/VIT/INT/DEX/LUK) =====
+        // ===== Panel background (textures contain baked stat labels) =====
+        if grf {
+            draw_textured_quad(ui, x, y + TITLE_H, WIN_W, PANEL_H, BG_TEX);
+        } else {
+            let (v, i) =
+                draw::quad_vertices(x, y + TITLE_H, WIN_W, PANEL_H, [0.10, 0.10, 0.14, 0.95]);
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
+            // Print the stat labels in fallback mode since the BG won't have them
+            for (i, label) in ["STR", "AGI", "VIT", "INT", "DEX", "LUK"]
+                .iter()
+                .enumerate()
+            {
+                ui.text(
+                    x + 10.0,
+                    y + ROWS_TOP + i as f32 * ROW_H + TEXT_BASELINE_OFF,
+                    label,
+                    tc,
+                );
+            }
+            for (i, label) in ["ATK", "MATK", "HIT", "CRIT"].iter().enumerate() {
+                ui.text(
+                    x + 110.0,
+                    y + ROWS_TOP + i as f32 * ROW_H + TEXT_BASELINE_OFF,
+                    label,
+                    tc,
+                );
+            }
+            for (i, label) in ["DEF", "MDEF", "FLEE", "ASPD", "Status pts"]
+                .iter()
+                .enumerate()
+            {
+                ui.text(
+                    x + 195.0,
+                    y + ROWS_TOP + i as f32 * ROW_H + TEXT_BASELINE_OFF,
+                    label,
+                    tc,
+                );
+            }
+        }
+
         let status_point = character.status_point;
         let rows: [(WidgetId, u8, i16, u16, u16); 6] = [
-            (UP_STR_ID, character.str, character.str_bonus, character.str_cost, STAT_ID_STR),
-            (UP_AGI_ID, character.agi, character.agi_bonus, character.agi_cost, STAT_ID_AGI),
-            (UP_VIT_ID, character.vit, character.vit_bonus, character.vit_cost, STAT_ID_VIT),
-            (UP_INT_ID, character.int, character.int_bonus, character.int_cost, STAT_ID_INT),
-            (UP_DEX_ID, character.dex, character.dex_bonus, character.dex_cost, STAT_ID_DEX),
-            (UP_LUK_ID, character.luk, character.luk_bonus, character.luk_cost, STAT_ID_LUK),
+            (
+                UP_STR_ID,
+                character.str,
+                character.str_bonus,
+                character.str_cost,
+                STAT_ID_STR,
+            ),
+            (
+                UP_AGI_ID,
+                character.agi,
+                character.agi_bonus,
+                character.agi_cost,
+                STAT_ID_AGI,
+            ),
+            (
+                UP_VIT_ID,
+                character.vit,
+                character.vit_bonus,
+                character.vit_cost,
+                STAT_ID_VIT,
+            ),
+            (
+                UP_INT_ID,
+                character.int,
+                character.int_bonus,
+                character.int_cost,
+                STAT_ID_INT,
+            ),
+            (
+                UP_DEX_ID,
+                character.dex,
+                character.dex_bonus,
+                character.dex_cost,
+                STAT_ID_DEX,
+            ),
+            (
+                UP_LUK_ID,
+                character.luk,
+                character.luk_bonus,
+                character.luk_cost,
+                STAT_ID_LUK,
+            ),
         ];
 
         let arr_w = self.arrow_size.0;
@@ -254,7 +345,12 @@ impl InGameWindow for StatusWindow {
             // base value
             ui.text(x + STATS_LEFT, baseline, &base.to_string(), tc);
             if bonus != 0 {
-                ui.text(x + BONUS_LEFT, baseline, &Self::fmt_signed(bonus as i32), tc);
+                ui.text(
+                    x + BONUS_LEFT,
+                    baseline,
+                    &Self::fmt_signed(bonus as i32),
+                    tc,
+                );
             }
             // up arrow — visible when status_point can cover the cost
             let can_raise = (display_cost as u32) <= status_point;
@@ -263,21 +359,43 @@ impl InGameWindow for StatusWindow {
                 let arr_y = y + UP_TOP + i as f32 * (arr_h + 5.0);
                 let arr_rect = Rect::new(x + UP_LEFT, arr_y, arr_w, arr_h);
                 let resp = ui.interact(up_id, arr_rect);
-                if resp.hovered() { ui.any_interactive_hovered = true; }
+                if resp.hovered() {
+                    ui.any_interactive_hovered = true;
+                }
                 if resp.clicked() {
-                    events.push(GameEvent::RequestStatChange { status_id, amount: 1 });
+                    events.push(GameEvent::RequestStatChange {
+                        status_id,
+                        amount: 1,
+                    });
                 }
                 if grf {
-                    let tex = if resp.hovered() { ARW_RIGHT_ON } else { ARW_RIGHT };
-                    Self::draw_tex(ui, arr_rect.x, arr_rect.y, arr_w, arr_h, tex);
+                    let tex = if resp.hovered() {
+                        ARW_RIGHT_ON
+                    } else {
+                        ARW_RIGHT
+                    };
+                    draw_textured_quad(ui, arr_rect.x, arr_rect.y, arr_w, arr_h, tex);
                 } else {
-                    let c = if resp.hovered() { [0.95, 0.95, 0.4, 1.0] } else { [0.7, 0.7, 0.3, 1.0] };
+                    let c = if resp.hovered() {
+                        [0.95, 0.95, 0.4, 1.0]
+                    } else {
+                        [0.7, 0.7, 0.3, 1.0]
+                    };
                     let (v, ii) = draw::quad_vertices(arr_rect.x, arr_rect.y, arr_w, arr_h, c);
-                    ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: ii.to_vec(), texture: TextureRef::White });
+                    ui.draw_calls.push(DrawCall {
+                        vertices: v.to_vec(),
+                        indices: ii.to_vec(),
+                        texture: TextureRef::White,
+                    });
                 }
             }
             // cost (right-aligned in 12px box at REQ_LEFT)
-            ui.text_right(x + REQ_LEFT + REQ_WIDTH, baseline, &display_cost.to_string(), tc);
+            ui.text_right(
+                x + REQ_LEFT + REQ_WIDTH,
+                baseline,
+                &display_cost.to_string(),
+                tc,
+            );
         }
 
         // ===== Combat column 1 (right edge x+193) =====

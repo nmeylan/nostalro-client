@@ -1,16 +1,16 @@
 use super::equipment_window::EQ_WINDOW_ID;
-use crate::helper::window_chrome::{
-    FOOTER_TEX, ITEMWIN_MID_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container,
-    draw_footer, draw_titlebar, text_color,
-};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::GameEvent;
-use ragnarok_game::item::{InventoryTab, Item};
+use ragnarok_game::item::{Item, InventoryTab};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{RESIZE_HANDLE_TEX, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
+use crate::helper::window_chrome::{
+    TITLEBAR_TEX, ITEMWIN_MID_TEX, FOOTER_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
+    draw_sys_button, draw_titlebar, draw_container, draw_footer, text_color,
+};
 
 // -- Widget IDs --
 pub const INV_WINDOW_ID: WidgetId = WidgetId(800);
@@ -31,8 +31,8 @@ const ICON_SIZE: f32 = 24.0;
 const ICON_PAD: f32 = 4.0;
 const TITLE_H: f32 = 17.0;
 const FOOTER_H: f32 = 19.0;
+use crate::{Window, InGameWindow};
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
-use crate::{InGameWindow, Window};
 const PAD_X: f32 = 12.0;
 const PAD_Y: f32 = 4.0;
 const RESIZE_SIZE: f32 = 13.0;
@@ -106,15 +106,12 @@ impl InventoryWindow {
         let win_h = (TITLE_H) + (PAD_Y) + grid_h + (PAD_Y) + (FOOTER_H);
         (win_w, win_h, tab_strip_w)
     }
+
 }
 
 impl Window for InventoryWindow {
-    fn has_grf_textures(&self) -> bool {
-        self.has_grf_textures
-    }
-    fn set_has_grf_textures(&mut self, value: bool) {
-        self.has_grf_textures = value;
-    }
+    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
+    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(TAB_USABLE_TEX) {
@@ -144,12 +141,7 @@ impl Window for InventoryWindow {
 }
 
 impl InGameWindow for InventoryWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        character: &mut Character,
-        data: &DataTable,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, character: &mut Character, data: &DataTable) -> Vec<GameEvent> {
         if !character.inventory.is_open() {
             return Vec::new();
         }
@@ -157,6 +149,7 @@ impl InGameWindow for InventoryWindow {
         let slot_count_table = data.item_slot_count.as_ref();
         let card_name_table = data.card_name.as_ref();
         let mut events = Vec::new();
+
 
         let scrollbar_w = SCROLLBAR_W;
         let prev_grf = ui.has_grf_textures;
@@ -197,32 +190,18 @@ impl InGameWindow for InventoryWindow {
         if mini_resp.hovered() {
             ui.any_interactive_hovered = true;
         }
-        if grf {
-            let tex = if mini_resp.hovered() {
-                MINI_ON_TEX
-            } else {
-                MINI_OFF_TEX
-            };
-            let (v, idx) = draw::quad_vertices(
-                mini_rect.x,
-                mini_rect.y,
-                mini_size,
-                mini_size,
-                [1.0, 1.0, 1.0, 1.0],
-            );
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: idx.to_vec(),
-                texture: TextureRef::Named(tex.to_string()),
-            });
-        } else {
-            let c = if mini_resp.hovered() {
-                [0.8, 0.8, 0.2, 1.0]
-            } else {
-                text_color
-            };
-            ui.text(mini_rect.x + (2.0), mini_rect.y + mini_size - (1.0), "_", c);
-        }
+        draw_sys_button(
+            ui,
+            mini_rect,
+            (mini_size, mini_size),
+            mini_resp.hovered(),
+            grf,
+            MINI_ON_TEX,
+            MINI_OFF_TEX,
+            Some('_'),
+            [0.8, 0.8, 0.2, 1.0],
+            text_color,
+        );
         if mini_resp.clicked() {
             self.minimized = !self.minimized;
         }
@@ -239,37 +218,18 @@ impl InGameWindow for InventoryWindow {
         if close_resp.hovered() {
             ui.any_interactive_hovered = true;
         }
-        if grf {
-            let tex = if close_resp.hovered() {
-                CLOSE_ON_TEX
-            } else {
-                CLOSE_OFF_TEX
-            };
-            let (v, idx) = draw::quad_vertices(
-                close_rect.x,
-                close_rect.y,
-                close_size,
-                close_size,
-                [1.0, 1.0, 1.0, 1.0],
-            );
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: idx.to_vec(),
-                texture: TextureRef::Named(tex.to_string()),
-            });
-        } else {
-            let close_color = if close_resp.hovered() {
-                [1.0, 0.3, 0.3, 1.0]
-            } else {
-                text_color
-            };
-            ui.text(
-                close_rect.x + (2.0),
-                close_rect.y + close_size - (1.0),
-                "x",
-                close_color,
-            );
-        }
+        draw_sys_button(
+            ui,
+            close_rect,
+            (close_size, close_size),
+            close_resp.hovered(),
+            grf,
+            CLOSE_ON_TEX,
+            CLOSE_OFF_TEX,
+            Some('x'),
+            [1.0, 0.3, 0.3, 1.0],
+            text_color,
+        );
         if close_resp.clicked() {
             character.inventory.close();
             ui.has_grf_textures = prev_grf;
@@ -352,7 +312,8 @@ impl InGameWindow for InventoryWindow {
                     } else {
                         [0.67, 0.67, 0.67, 1.0]
                     };
-                    let (v, idx) = draw::quad_vertices(cx + pad, cy + pad, icon, icon, tint);
+                    let (v, idx) =
+                        draw::quad_vertices(cx + pad, cy + pad, icon, icon, tint);
                     ui.draw_calls.push(DrawCall {
                         vertices: v.to_vec(),
                         indices: idx.to_vec(),
@@ -369,8 +330,7 @@ impl InGameWindow for InventoryWindow {
                 ui.text(count_x, count_y, &count_str, [0.0, 0.0, 0.0, 1.0]);
 
                 if response.hovered() {
-                    let display_name =
-                        format_equipment_display_name(item, slot_count_table, card_name_table);
+                    let display_name = format_equipment_display_name(item, slot_count_table, card_name_table);
                     let tooltip_text = if item.count > 1 {
                         format!("{display_name} {} ea", item.count)
                     } else {
@@ -405,9 +365,7 @@ impl InGameWindow for InventoryWindow {
                             });
                         }
                     } else if item.is_card() {
-                        events.push(GameEvent::RequestCardInsertList {
-                            card_index: item.index,
-                        });
+                        events.push(GameEvent::RequestCardInsertList { card_index: item.index });
                     } else {
                         events.push(GameEvent::RequestUseItem { index: item.index });
                     }
@@ -423,12 +381,11 @@ impl InGameWindow for InventoryWindow {
             self.grid_rows as f32 * CELL_SIZE,
         );
         if let Some((source_id, item_index)) = ui.drop_zone(grid_rect)
-            && source_id == EQ_WINDOW_ID
-        {
-            events.push(GameEvent::RequestUnequipItem {
-                index: item_index as u16,
-            });
-        }
+            && source_id == EQ_WINDOW_ID {
+                events.push(GameEvent::RequestUnequipItem {
+                    index: item_index as u16,
+                });
+            }
 
         // -- Scrollbar (only when needed) --
         if total_rows > self.grid_rows {
@@ -565,24 +522,24 @@ impl InGameWindow for InventoryWindow {
             self.resize_start = Some((self.grid_cols, self.grid_rows));
         }
         if resize.dragging
-            && let Some((start_cols, start_rows)) = self.resize_start
-        {
-            let new_cols = (start_cols as f32 + resize.delta_x / CELL_SIZE).round() as i32;
-            let new_rows = (start_rows as f32 + resize.delta_y / CELL_SIZE).round() as i32;
-            let new_cols = new_cols.clamp(MIN_COLS as i32, MAX_COLS as i32) as usize;
-            let new_rows = new_rows.clamp(MIN_ROWS as i32, MAX_ROWS as i32) as usize;
-            if new_cols != self.grid_cols || new_rows != self.grid_rows {
-                self.grid_cols = new_cols;
-                self.grid_rows = new_rows;
-                let total_rows = (filtered_count + self.grid_cols - 1) / self.grid_cols.max(1);
-                let max_scroll = total_rows.saturating_sub(self.grid_rows);
-                if self.scroll_offset > max_scroll {
-                    self.scroll_offset = max_scroll;
+            && let Some((start_cols, start_rows)) = self.resize_start {
+                let new_cols = (start_cols as f32 + resize.delta_x / CELL_SIZE).round() as i32;
+                let new_rows = (start_rows as f32 + resize.delta_y / CELL_SIZE).round() as i32;
+                let new_cols = new_cols.clamp(MIN_COLS as i32, MAX_COLS as i32) as usize;
+                let new_rows = new_rows.clamp(MIN_ROWS as i32, MAX_ROWS as i32) as usize;
+                if new_cols != self.grid_cols || new_rows != self.grid_rows {
+                    self.grid_cols = new_cols;
+                    self.grid_rows = new_rows;
+                    let total_rows = (filtered_count + self.grid_cols - 1) / self.grid_cols.max(1);
+                    let max_scroll = total_rows.saturating_sub(self.grid_rows);
+                    if self.scroll_offset > max_scroll {
+                        self.scroll_offset = max_scroll;
+                    }
                 }
             }
-        }
 
         ui.has_grf_textures = prev_grf;
         events
     }
 }
+

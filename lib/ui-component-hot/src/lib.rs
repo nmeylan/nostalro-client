@@ -881,20 +881,20 @@ fn create_single(name: &str) -> State {
         }
         "basic_info" => {
             let mut character = Character::new();
-            character.name = "Swordsman".into();
+            character.name = "Walkiry".into();
             character.class = 1;
             character.base_level = 42;
             character.job_level = 30;
             character.hp = 2350;
             character.max_hp = 3200;
-            character.sp = 85;
+            character.sp = 5;
             character.max_sp = 120;
             character.base_exp = 185000;
             character.next_base_exp = 300000;
             character.job_exp = 42000;
             character.next_job_exp = 80000;
-            character.inventory.weight = 1250;
-            character.inventory.max_weight = 3000;
+            character.inventory.weight = 12500;
+            character.inventory.max_weight = 30000;
             character.inventory.zeny = 1234567;
             State::BasicInfoDemo {
                 win: BasicInfoWindow::new(),

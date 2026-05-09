@@ -1,4 +1,4 @@
-use crate::helper::window_chrome::text_color;
+use crate::helper::window_chrome::{draw_sys_button, text_color};
 use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
@@ -335,25 +335,18 @@ impl BasicInfoWindow {
         if close_resp.hovered() {
             ui.any_interactive_hovered = true;
         }
-        if grf {
-            let tex = if close_resp.hovered() {
-                SYS_BASE_ON
-            } else {
-                SYS_BASE_OFF
-            };
-            let (v, i) = draw::quad_vertices(
-                close_rect.x,
-                close_rect.y,
-                self.sys_btn_size.0,
-                self.sys_btn_size.1,
-                [1.0; 4],
-            );
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::Named(tex.to_string()),
-            });
-        }
+        draw_sys_button(
+            ui,
+            close_rect,
+            (self.sys_btn_size.0, self.sys_btn_size.1),
+            close_resp.hovered(),
+            grf,
+            SYS_BASE_ON,
+            SYS_BASE_OFF,
+            None,
+            [1.0; 4],
+            [1.0; 4],
+        );
 
         // Title
         ui.text(x + 18.0, y + 13.0, "Basic Info", tc);
@@ -372,38 +365,18 @@ impl BasicInfoWindow {
         if mini_resp.clicked() {
             self.minimized = true;
         }
-        if grf {
-            let tex = if mini_resp.hovered() {
-                SYS_MINI_ON
-            } else {
-                SYS_MINI_OFF
-            };
-            let (v, i) = draw::quad_vertices(
-                mini_rect.x,
-                mini_rect.y,
-                self.sys_btn_size.0,
-                self.sys_btn_size.1,
-                [1.0; 4],
-            );
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::Named(tex.to_string()),
-            });
-        } else {
-            let c = if mini_resp.hovered() {
-                [0.8, 0.8, 0.9, 1.0]
-            } else {
-                [0.5, 0.5, 0.6, 1.0]
-            };
-            let (v, i) = draw::quad_vertices(mini_rect.x, mini_rect.y, 11.0, 11.0, c);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-            ui.text(mini_rect.x + 2.0, mini_rect.y + 9.0, "_", tc);
-        }
+        draw_sys_button(
+            ui,
+            mini_rect,
+            (self.sys_btn_size.0, self.sys_btn_size.1),
+            mini_resp.hovered(),
+            grf,
+            SYS_MINI_ON,
+            SYS_MINI_OFF,
+            Some('_'),
+            [0.8, 0.8, 0.9, 1.0],
+            [0.5, 0.5, 0.6, 1.0],
+        );
 
         // Name (left side)
         let name = if character.name.is_empty() {
@@ -454,7 +427,7 @@ impl BasicInfoWindow {
         let hp_text = format!("{} / {}", character.hp, character.max_hp);
         ui.text_centered(
             x + HP_BAR_X,
-            y + HP_BAR_Y + BAR_H + 1.0,
+            y + HP_BAR_Y + BAR_H * 2.0 + 1.0,
             BAR_W,
             &hp_text,
             tc,
@@ -464,9 +437,9 @@ impl BasicInfoWindow {
         let hp_bar_rect = Rect::new(x + HP_BAR_X, y + HP_BAR_Y, BAR_W, BAR_H + 10.0);
         if hp_bar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
             ui.tooltip(
-                ui.ctx.mouse_x,
+                ui.ctx.mouse_x+ 10.0,
                 ui.ctx.mouse_y,
-                &format!("HP: {} / {}", character.hp, character.max_hp),
+                &format!("{:.1}%", hp_pct * 100.0),
             );
         }
 
@@ -501,7 +474,7 @@ impl BasicInfoWindow {
         let sp_text = format!("{} / {}", character.sp, character.max_sp);
         ui.text_centered(
             x + HP_BAR_X,
-            y + SP_BAR_Y + BAR_H + 1.0,
+            y + SP_BAR_Y + BAR_H * 2.0 + 1.0,
             BAR_W,
             &sp_text,
             tc,
@@ -510,9 +483,9 @@ impl BasicInfoWindow {
         let sp_bar_rect = Rect::new(x + HP_BAR_X, y + SP_BAR_Y, BAR_W, BAR_H + 10.0);
         if sp_bar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
             ui.tooltip(
-                ui.ctx.mouse_x,
+                ui.ctx.mouse_x + 10.0,
                 ui.ctx.mouse_y,
-                &format!("SP: {} / {}", character.sp, character.max_sp),
+                &format!("{:.1}%", sp_pct * 100.0),
             );
         }
 
@@ -522,12 +495,6 @@ impl BasicInfoWindow {
         let base_exp_pct = character.base_exp_percentage();
         Self::draw_exp_bar(ui, x + EXP_BAR_X, y + EXP_BAR_Y, base_exp_pct, grf);
         let exp_text = format!("{:.1}%", (base_exp_pct * 1000.0).floor() * 0.1);
-        ui.text(
-            x + EXP_BAR_X + EXP_BAR_W + 6.0,
-            y + EXP_BAR_Y + EXP_BAR_H + 1.0,
-            &exp_text,
-            tc,
-        );
 
         let exp_bar_rect = Rect::new(
             x + EXP_BAR_X,
@@ -537,9 +504,9 @@ impl BasicInfoWindow {
         );
         if exp_bar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
             ui.tooltip(
-                ui.ctx.mouse_x,
+                ui.ctx.mouse_x+ 10.0,
                 ui.ctx.mouse_y,
-                &format!("Exp. {} / {}", character.base_exp, character.next_base_exp),
+               &exp_text,
             );
         }
 
@@ -549,12 +516,6 @@ impl BasicInfoWindow {
         let job_exp_pct = character.job_exp_percentage();
         Self::draw_exp_bar(ui, x + EXP_BAR_X, y + JEXP_BAR_Y, job_exp_pct, grf);
         let jexp_text = format!("{:.1}%", (job_exp_pct * 1000.0).floor() * 0.1);
-        ui.text(
-            x + EXP_BAR_X + EXP_BAR_W + 6.0,
-            y + JEXP_BAR_Y + EXP_BAR_H + 1.0,
-            &jexp_text,
-            tc,
-        );
 
         let jexp_bar_rect = Rect::new(
             x + EXP_BAR_X,
@@ -564,9 +525,9 @@ impl BasicInfoWindow {
         );
         if jexp_bar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
             ui.tooltip(
-                ui.ctx.mouse_x,
+                ui.ctx.mouse_x+ 10.0,
                 ui.ctx.mouse_y,
-                &format!("JExp. {} / {}", character.job_exp, character.next_job_exp),
+                &jexp_text,
             );
         }
 
@@ -580,10 +541,11 @@ impl BasicInfoWindow {
             tc
         };
         let weight_text = format!("Weight : {} / {}", weight / 10, max_weight / 10);
+        let weight_width = ui.atlas.measure_text(&weight_text);
         ui.text(x + 5.0, y + 115.0, &weight_text, weight_color);
 
         let zeny_text = format!("Zeny : {}", format_zeny(character.inventory.zeny));
-        ui.text(x + 145.0, y + 115.0, &zeny_text, tc);
+        ui.text(x + 5.0 + weight_width + 8.0, y + 115.0, &zeny_text, tc);
 
         // Menu buttons (right side, 2 columns)
         let btn_w = self.menu_btn_size.0;
@@ -700,38 +662,18 @@ impl BasicInfoWindow {
         if mini_resp.clicked() {
             self.minimized = false;
         }
-        if grf {
-            let tex = if mini_resp.hovered() {
-                SYS_MINI_ON
-            } else {
-                SYS_MINI_OFF
-            };
-            let (v, i) = draw::quad_vertices(
-                mini_rect.x,
-                mini_rect.y,
-                self.sys_btn_size.0,
-                self.sys_btn_size.1,
-                [1.0; 4],
-            );
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::Named(tex.to_string()),
-            });
-        } else {
-            let c = if mini_resp.hovered() {
-                [0.8, 0.8, 0.9, 1.0]
-            } else {
-                [0.5, 0.5, 0.6, 1.0]
-            };
-            let (v, i) = draw::quad_vertices(mini_rect.x, mini_rect.y, 11.0, 11.0, c);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-            ui.text(mini_rect.x + 1.0, mini_rect.y + 9.0, "+", tc);
-        }
+        draw_sys_button(
+            ui,
+            mini_rect,
+            (self.sys_btn_size.0, self.sys_btn_size.1),
+            mini_resp.hovered(),
+            grf,
+            SYS_MINI_ON,
+            SYS_MINI_OFF,
+            Some('+'),
+            [0.8, 0.8, 0.9, 1.0],
+            [0.5, 0.5, 0.6, 1.0],
+        );
 
         // Compact info line (top-right area)
         let job_name = character.job_class_name();

@@ -1,15 +1,15 @@
-use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
-use crate::helper::window_chrome::{
-    FOOTER_TEX, ITEMWIN_MID_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_titlebar,
-    text_color,
-};
-use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
+use crate::{Window, InGameWindow};
+use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
+use crate::helper::window_chrome::{
+    TITLEBAR_TEX, ITEMWIN_MID_TEX, FOOTER_TEX,
+    draw_titlebar, draw_container, draw_footer, text_color,
+};
 
 const OVERLAY_ID: WidgetId = WidgetId(1100);
 pub const CARD_INSERT_WINDOW_ID: WidgetId = WidgetId(1101);
@@ -98,8 +98,7 @@ impl CardInsertDialog {
     }
 
     pub fn pending_texture_paths(&self) -> Vec<String> {
-        self.eligible_items
-            .iter()
+        self.eligible_items.iter()
             .filter_map(|item| item.icon_path.clone())
             .collect()
     }
@@ -113,12 +112,8 @@ impl CardInsertDialog {
 }
 
 impl Window for CardInsertDialog {
-    fn has_grf_textures(&self) -> bool {
-        self.has_grf_textures
-    }
-    fn set_has_grf_textures(&mut self, value: bool) {
-        self.has_grf_textures = value;
-    }
+    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
+    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(OK_BTN.normal) {
@@ -131,12 +126,8 @@ impl Window for CardInsertDialog {
             TITLEBAR_TEX,
             ITEMWIN_MID_TEX,
             FOOTER_TEX,
-            OK_BTN.normal,
-            OK_BTN.hover,
-            OK_BTN.pressed,
-            CANCEL_BTN.normal,
-            CANCEL_BTN.hover,
-            CANCEL_BTN.pressed,
+            OK_BTN.normal, OK_BTN.hover, OK_BTN.pressed,
+            CANCEL_BTN.normal, CANCEL_BTN.hover, CANCEL_BTN.pressed,
         ];
         paths.extend(scrollbar::grf_texture_paths());
         paths
@@ -144,12 +135,7 @@ impl Window for CardInsertDialog {
 }
 
 impl InGameWindow for CardInsertDialog {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, _character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
         if !self.open {
             return vec![];
         }
@@ -167,11 +153,9 @@ impl InGameWindow for CardInsertDialog {
             let equip_index = self.eligible_items[idx].inventory_index;
             let card_index = self.card_index;
             self.close();
-            return vec![GameEvent::RequestCardInsert {
-                card_index,
-                equip_index,
-            }];
+            return vec![GameEvent::RequestCardInsert { card_index, equip_index }];
         }
+
 
         // Window dimensions
         let item_count = self.eligible_items.len();
@@ -184,12 +168,7 @@ impl InGameWindow for CardInsertDialog {
         draw_titlebar(ui, win.x, win.y, WIN_W, TITLE_H, grf);
         let title = format!("Card Insert - {}", self.card_name);
         let title_text_color = text_color(grf);
-        ui.text(
-            win.x + 20.0,
-            win.y + TITLE_H - 4.0,
-            &title,
-            title_text_color,
-        );
+        ui.text(win.x + 20.0, win.y + TITLE_H - 4.0, &title, title_text_color);
 
         // Container
         let container_y = win.y + TITLE_H;
@@ -205,18 +184,12 @@ impl InGameWindow for CardInsertDialog {
             let sb_x = win.x + WIN_W - SCROLLBAR_W - 1.0;
             self.scroll_offset = scrollbar::scrollbar(
                 ui,
-                ScrollbarIds {
-                    up: SCROLL_UP_ID,
-                    down: SCROLL_DOWN_ID,
-                    thumb: SCROLL_THUMB_ID,
-                },
+                ScrollbarIds { up: SCROLL_UP_ID, down: SCROLL_DOWN_ID, thumb: SCROLL_THUMB_ID },
                 self.scroll_offset,
                 visible,
                 max_scroll,
                 content_rect,
-                sb_x,
-                container_y,
-                container_h,
+                sb_x, container_y, container_h,
             );
         }
 
@@ -239,8 +212,7 @@ impl InGameWindow for CardInsertDialog {
             if let Some(icon_path) = &item.icon_path {
                 let ix = win.x + PAD_LEFT + ICON_OFFSET_X;
                 let iy = ry + ICON_OFFSET_Y;
-                let (v, idx) =
-                    draw::quad_vertices(ix, iy, ICON_SIZE, ICON_SIZE, [1.0, 1.0, 1.0, 1.0]);
+                let (v, idx) = draw::quad_vertices(ix, iy, ICON_SIZE, ICON_SIZE, [1.0, 1.0, 1.0, 1.0]);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: idx.to_vec(),
@@ -251,31 +223,11 @@ impl InGameWindow for CardInsertDialog {
             // Selection highlight
             let is_selected = self.selected_index == Some(list_idx);
             if is_selected {
-                let (v, idx) = draw::quad_vertices(
-                    row_rect.x,
-                    ry,
-                    row_content_w,
-                    ITEM_ROW_H,
-                    [0.3, 0.5, 0.8, 0.3],
-                );
-                ui.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(),
-                    indices: idx.to_vec(),
-                    texture: TextureRef::White,
-                });
+                let (v, idx) = draw::quad_vertices(row_rect.x, ry, row_content_w, ITEM_ROW_H, [0.3, 0.5, 0.8, 0.3]);
+                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
             } else if response.hovered() {
-                let (v, idx) = draw::quad_vertices(
-                    row_rect.x,
-                    ry,
-                    row_content_w,
-                    ITEM_ROW_H,
-                    [0.4, 0.4, 0.6, 0.2],
-                );
-                ui.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(),
-                    indices: idx.to_vec(),
-                    texture: TextureRef::White,
-                });
+                let (v, idx) = draw::quad_vertices(row_rect.x, ry, row_content_w, ITEM_ROW_H, [0.4, 0.4, 0.6, 0.2]);
+                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
             }
 
             // Item name
@@ -289,10 +241,7 @@ impl InGameWindow for CardInsertDialog {
                 let equip_index = item.inventory_index;
                 let card_index = self.card_index;
                 self.close();
-                return vec![GameEvent::RequestCardInsert {
-                    card_index,
-                    equip_index,
-                }];
+                return vec![GameEvent::RequestCardInsert { card_index, equip_index }];
             }
         }
 
@@ -303,14 +252,7 @@ impl InGameWindow for CardInsertDialog {
         // OK / Cancel buttons
         let (btn_w, btn_h) = self.btn_size;
         let footer_rect = Rect::new(win.x, footer_y, WIN_W, FOOTER_H);
-        let btns = footer_rect.buttons_bottom_right(
-            2,
-            btn_w,
-            btn_h,
-            BTN_BOTTOM,
-            BTN_FIRST_RIGHT,
-            BTN_SPACING,
-        );
+        let btns = footer_rect.buttons_bottom_right(2, btn_w, btn_h, BTN_BOTTOM, BTN_FIRST_RIGHT, BTN_SPACING);
 
         let cancel = ui.button(CANCEL_BTN_ID, btns[0], &CANCEL_BTN, "Cancel");
         let ok = ui.button(OK_BTN_ID, btns[1], &OK_BTN, "OK");
@@ -320,16 +262,12 @@ impl InGameWindow for CardInsertDialog {
             events.push(GameEvent::DialogClosed);
         }
         if ok.clicked()
-            && let Some(idx) = self.selected_index
-        {
-            let equip_index = self.eligible_items[idx].inventory_index;
-            let card_index = self.card_index;
-            self.close();
-            events.push(GameEvent::RequestCardInsert {
-                card_index,
-                equip_index,
-            });
-        }
+            && let Some(idx) = self.selected_index {
+                let equip_index = self.eligible_items[idx].inventory_index;
+                let card_index = self.card_index;
+                self.close();
+                events.push(GameEvent::RequestCardInsert { card_index, equip_index });
+            }
 
         events
     }
@@ -338,30 +276,21 @@ impl InGameWindow for CardInsertDialog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
+    use ragnarok_renderer::font_atlas::FontAtlas;
 
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
     fn test_items() -> Vec<EligibleItem> {
         vec![
-            EligibleItem {
-                inventory_index: 1,
-                display_name: "Sword [3]".into(),
-                icon_path: None,
-            },
-            EligibleItem {
-                inventory_index: 2,
-                display_name: "Bow [2]".into(),
-                icon_path: None,
-            },
+            EligibleItem { inventory_index: 1, display_name: "Sword [3]".into(), icon_path: None },
+            EligibleItem { inventory_index: 2, display_name: "Bow [2]".into(), icon_path: None },
         ]
     }
 
@@ -398,13 +327,7 @@ mod tests {
         let events = dialog.build(&mut ui, &mut character, &data);
 
         assert!(!dialog.is_open());
-        assert!(events.iter().any(|e| matches!(
-            e,
-            GameEvent::RequestCardInsert {
-                card_index: 10,
-                equip_index: 1
-            }
-        )));
+        assert!(events.iter().any(|e| matches!(e, GameEvent::RequestCardInsert { card_index: 10, equip_index: 1 })));
     }
 
     #[test]

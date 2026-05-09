@@ -1,10 +1,3 @@
-use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
-use crate::helper::dialog_container::DialogContainer;
-use crate::helper::window_chrome::{
-    FOOTER_TEX, ITEMWIN_MID_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container,
-    draw_footer, draw_titlebar, text_color,
-};
-use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
@@ -12,6 +5,13 @@ use ragnarok_game::npc_shop::{NpcShopData, NpcShopMode};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, RESIZE_HANDLE_TEX, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
+use crate::{Window, InGameWindow};
+use crate::helper::dialog_container::DialogContainer;
+use super::number_input::{NumberInputDialog, NumberInputConfig, NumberInputResult};
+use crate::helper::window_chrome::{
+    ITEMWIN_MID_TEX, TITLEBAR_TEX, FOOTER_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
+    draw_titlebar, draw_container, draw_footer, text_color,
+};
 
 // -- Widget IDs --
 pub const OVERLAY_ID: WidgetId = WidgetId(700);
@@ -96,15 +96,12 @@ impl NpcShop {
             container: DialogContainer::new(),
         }
     }
+
 }
 
 impl Window for NpcShop {
-    fn has_grf_textures(&self) -> bool {
-        self.has_grf_textures
-    }
-    fn set_has_grf_textures(&mut self, value: bool) {
-        self.has_grf_textures = value;
-    }
+    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
+    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(OK_BTN.normal) {
@@ -147,12 +144,7 @@ impl InGameWindow for NpcShop {
         ui.set_modal(&modal_ids);
     }
 
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, _character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
         if !self.shop.is_open() {
             return Vec::new();
         }
@@ -212,16 +204,15 @@ impl InGameWindow for NpcShop {
 
         // Handle drag-drop: item dropped on output window opens qty popup
         if let Some((source_id, item_idx)) = ui.drop_zone(output_rect)
-            && source_id == INPUT_WIN_ID
-        {
-            if self.shop.mode == Some(NpcShopMode::Sell)
-                && self.shop.sell_item_remaining(item_idx) <= 1
-            {
-                self.shop.add_to_cart(item_idx, 1);
-            } else {
-                self.open_qty_popup(item_idx);
+            && source_id == INPUT_WIN_ID {
+                if self.shop.mode == Some(NpcShopMode::Sell)
+                    && self.shop.sell_item_remaining(item_idx) <= 1
+                {
+                    self.shop.add_to_cart(item_idx, 1);
+                } else {
+                    self.open_qty_popup(item_idx);
+                }
             }
-        }
 
         if self.qty_popup.is_some() {
             self.build_quantity_popup(ui);
@@ -322,7 +313,8 @@ impl NpcShop {
                 } else {
                     [0.67, 0.67, 0.67, 1.0]
                 };
-                let (v, idx) = draw::quad_vertices(ix, iy, icon_size, icon_size, tint);
+                let (v, idx) =
+                    draw::quad_vertices(ix, iy, icon_size, icon_size, tint);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: idx.to_vec(),
@@ -424,12 +416,10 @@ impl NpcShop {
             self.resize_start_rows = Some(self.input_visible_rows);
         }
         if resize.dragging
-            && let Some(start_rows) = self.resize_start_rows
-        {
-            let new = (start_rows as f32 + resize.delta_y / row_h).round() as i32;
-            self.input_visible_rows =
-                new.clamp(INPUT_MIN_ROWS as i32, INPUT_MAX_ROWS as i32) as usize;
-        }
+            && let Some(start_rows) = self.resize_start_rows {
+                let new = (start_rows as f32 + resize.delta_y / row_h).round() as i32;
+                self.input_visible_rows = new.clamp(INPUT_MIN_ROWS as i32, INPUT_MAX_ROWS as i32) as usize;
+            }
 
         win
     }
@@ -524,7 +514,8 @@ impl NpcShop {
                 } else {
                     [0.67, 0.67, 0.67, 1.0]
                 };
-                let (v, idx) = draw::quad_vertices(ix, iy, icon_size, icon_size, tint);
+                let (v, idx) =
+                    draw::quad_vertices(ix, iy, icon_size, icon_size, tint);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: idx.to_vec(),
@@ -720,6 +711,7 @@ impl NpcShop {
         self.input_visible_rows = INPUT_DEFAULT_ROWS;
         self.resize_start_rows = None;
     }
+
 }
 
 fn format_zeny(amount: i32) -> String {
@@ -741,8 +733,6 @@ fn format_zeny(amount: i32) -> String {
 mod tests {
     use super::*;
     use crate::InGameWindow;
-    use models::enums::EnumWithNumberValue;
-    use models::enums::item::ItemType;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
     use ragnarok_game::item::Item;
@@ -754,8 +744,7 @@ mod tests {
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
@@ -766,18 +755,10 @@ mod tests {
             100,
             vec![ShopBuyItem {
                 item: Item {
-                    index: 0,
-                    item_id: 501,
-                    item_type: ItemType::from_value(0),
-                    count: 1,
-                    is_identified: true,
-                    is_damaged: false,
-                    refining_level: 0,
-                    slot: [0; 4],
-                    location: 0,
-                    wear_state: 0,
-                    name: "Red Potion".into(),
-                    resource_name: None,
+                    index: 0, item_id: 501, item_type: 0, count: 1,
+                    is_identified: true, is_damaged: false, refining_level: 0,
+                    slot: [0; 4], location: 0, wear_state: 0,
+                    name: "Red Potion".into(), resource_name: None,
                 },
                 price: 50,
                 discount_price: 50,
@@ -805,18 +786,10 @@ mod tests {
             100,
             vec![ShopBuyItem {
                 item: Item {
-                    index: 0,
-                    item_id: 501,
-                    item_type: ItemType::from_value(0),
-                    count: 1,
-                    is_identified: true,
-                    is_damaged: false,
-                    refining_level: 0,
-                    slot: [0; 4],
-                    location: 0,
-                    wear_state: 0,
-                    name: "Red Potion".into(),
-                    resource_name: None,
+                    index: 0, item_id: 501, item_type: 0, count: 1,
+                    is_identified: true, is_damaged: false, refining_level: 0,
+                    slot: [0; 4], location: 0, wear_state: 0,
+                    name: "Red Potion".into(), resource_name: None,
                 },
                 price: 50,
                 discount_price: 50,
