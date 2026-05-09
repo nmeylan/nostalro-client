@@ -8,6 +8,7 @@ pub mod hotkey_bar;
 pub mod inventory_window;
 pub mod item_info_window;
 pub mod item_pickup_notification;
+pub mod minimap_window;
 pub mod npc_dialog;
 pub mod npc_shop;
 pub mod number_input;

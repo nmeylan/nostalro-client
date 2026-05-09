@@ -682,6 +682,9 @@ impl App {
                 GameEvent::ToggleStatusWindow => {
                     self.game.status_window.toggle();
                 }
+                GameEvent::ToggleMinimap => {
+                    self.game.minimap_window.cycle_visibility();
+                }
                 _ => {}
             }
         }

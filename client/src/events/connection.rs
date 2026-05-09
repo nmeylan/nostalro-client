@@ -165,11 +165,25 @@ impl App {
             preload_window(&mut self.game.skill_tree_window, renderer, grf);
             preload_window(&mut self.game.hotkey_bar, renderer, grf);
             preload_window(&mut self.game.basic_info_window, renderer, grf);
+            preload_window(&mut self.game.minimap_window, renderer, grf);
             preload_window(&mut self.game.status_window, renderer, grf);
             self.game.drop_dialog_has_grf_textures =
                 renderer.preload_textures(&DropQuantityDialog::grf_texture_paths(), grf);
             self.game.card_insert_dialog_has_grf_textures =
                 renderer.preload_textures(&CardInsertDialog::grf_texture_paths(), grf);
+
+            if let Some(current_map) = &self.game.current_map {
+                let minimap_path =
+                    format!("data/texture/유저인터페이스/map/{}.bmp", current_map);
+                if renderer.preload_textures(&[minimap_path.as_str()], grf) {
+                    self.game
+                        .minimap_window
+                        .set_map_texture(Some(minimap_path));
+                } else {
+                    tracing::warn!("Minimap texture not found: {minimap_path}");
+                    self.game.minimap_window.set_map_texture(None);
+                }
+            }
         }
 
         if let Some(info) = &self.game.selected_character {
@@ -207,7 +221,7 @@ impl App {
         if self.game.current_map.as_deref() != Some(&map_name) {
             tracing::info!("Different map, clearing entities");
             self.load_map(&map_name);
-            self.game.current_map = Some(map_name);
+            self.game.current_map = Some(map_name.clone());
             let player_sprite = self
                 .game
                 .entities
@@ -222,6 +236,19 @@ impl App {
             if let (Some(pid), Some(sprite)) = (self.game.entities.player_id(), player_sprite) {
                 self.game.sprites.insert(pid, sprite);
             }
+
+            if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
+                let minimap_path =
+                    format!("data/texture/유저인터페이스/map/{}.bmp", map_name);
+                if renderer.preload_textures(&[minimap_path.as_str()], grf) {
+                    self.game
+                        .minimap_window
+                        .set_map_texture(Some(minimap_path));
+                } else {
+                    self.game.minimap_window.set_map_texture(None);
+                }
+            }
+            self.game.minimap_window.on_map_changed();
         }
         if let Some(entity) = self.game.entities.player_mut() {
             entity.movement.set_position(x as f32, y as f32);

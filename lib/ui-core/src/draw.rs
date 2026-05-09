@@ -77,6 +77,53 @@ pub fn quad_vertices_uv(
     (verts, indices)
 }
 
+pub fn quad_vertices_rotated(
+    cx: f32,
+    cy: f32,
+    size: f32,
+    angle_rad: f32,
+    color: [f32; 4],
+) -> ([UiVertex; 4], [u32; 6]) {
+    let half = size / 2.0;
+    let cos = angle_rad.cos();
+    let sin = angle_rad.sin();
+    // Corners relative to center: TL, TR, BL, BR
+    let corners = [
+        (-half, -half),
+        (half, -half),
+        (-half, half),
+        (half, half),
+    ];
+    let verts = [
+        UiVertex {
+            position: [cx + corners[0].0 * cos - corners[0].1 * sin,
+                        cy + corners[0].0 * sin + corners[0].1 * cos],
+            tex_coord: [0.0, 0.0],
+            color,
+        },
+        UiVertex {
+            position: [cx + corners[1].0 * cos - corners[1].1 * sin,
+                        cy + corners[1].0 * sin + corners[1].1 * cos],
+            tex_coord: [1.0, 0.0],
+            color,
+        },
+        UiVertex {
+            position: [cx + corners[2].0 * cos - corners[2].1 * sin,
+                        cy + corners[2].0 * sin + corners[2].1 * cos],
+            tex_coord: [0.0, 1.0],
+            color,
+        },
+        UiVertex {
+            position: [cx + corners[3].0 * cos - corners[3].1 * sin,
+                        cy + corners[3].0 * sin + corners[3].1 * cos],
+            tex_coord: [1.0, 1.0],
+            color,
+        },
+    ];
+    let indices = [0, 1, 2, 2, 1, 3];
+    (verts, indices)
+}
+
 pub struct ColoredSpan<'a> {
     pub text: &'a str,
     pub color: [f32; 4],

@@ -19,6 +19,7 @@ use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::state::StateCache;
+use ragnarok_game::entity::EntityType;
 use ragnarok_ui_component::game::basic_info_window::{BASIC_INFO_WINDOW_ID, BasicInfoWindow};
 use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
 use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
@@ -28,6 +29,7 @@ use ragnarok_ui_component::game::hotkey_bar::{HOTKEY_BAR_WINDOW_ID, HotkeyBarWin
 use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
+use ragnarok_ui_component::game::minimap_window::{MarkerType, MinimapMarker, MinimapWindow};
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
@@ -87,6 +89,7 @@ pub struct GameState {
     pub basic_info_window: BasicInfoWindow,
     pub status_window: StatusWindow,
     pub hotkey_bar: HotkeyBarWindow,
+    pub minimap_window: MinimapWindow,
     pub damage_numbers: DamageNumberManager,
     pub damage_number_textures: Option<SpriteTextures>,
     pub damage_number_act: Option<ragnarok_formats::act::ActFile>,
@@ -134,6 +137,38 @@ impl GameState {
         self.hotkey_bar.chat_is_active = self.chat_window.is_active();
         events.extend(
             self.hotkey_bar
+                .build(ui, &mut self.character, &self.data_table),
+        );
+
+        // Minimap (always visible, not z-orderable)
+        if let Some(player) = self.entities.player() {
+            self.minimap_window.player_position = Some(player.movement.position());
+            self.minimap_window.player_direction = player.direction;
+        }
+        if let Some(coords) = &self.map_coords {
+            self.minimap_window.map_width = coords.gat_width();
+            self.minimap_window.map_height = coords.gat_height();
+        }
+        self.minimap_window.map_name = self.current_map.clone();
+        self.minimap_window.entity_markers.clear();
+        for entity in self.entities.iter() {
+            if Some(entity.id) == self.entities.player_id() {
+                continue;
+            }
+            if entity.entity_type == EntityType::Npc {
+                let (ex, ey) = entity.movement.position();
+                let marker_type = if entity.job == 45 {
+                    MarkerType::WarpPortal
+                } else {
+                    MarkerType::Npc
+                };
+                self.minimap_window
+                    .entity_markers
+                    .push(MinimapMarker { x: ex, y: ey, marker_type });
+            }
+        }
+        events.extend(
+            self.minimap_window
                 .build(ui, &mut self.character, &self.data_table),
         );
 
@@ -356,6 +391,7 @@ impl GameState {
             item_pickup_notification: ItemPickupNotification::new(),
             skill_tree_window: SkillTreeWindow::new(),
             hotkey_bar: HotkeyBarWindow::new(),
+            minimap_window: MinimapWindow::new(),
             damage_numbers: DamageNumberManager::new(),
             damage_number_textures: None,
             damage_number_act: None,

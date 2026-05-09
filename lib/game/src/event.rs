@@ -460,6 +460,7 @@ pub enum GameEvent {
     ToggleInventory,
     ToggleEquipment,
     ToggleSkills,
+    ToggleMinimap,
 
     // No-op acknowledgement (packet parsed but no action needed yet)
     Acknowledged,

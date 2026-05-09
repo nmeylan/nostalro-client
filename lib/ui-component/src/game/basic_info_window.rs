@@ -584,6 +584,7 @@ impl BasicInfoWindow {
                 match id {
                     BTN_EQUIP_ID => events.push(GameEvent::ToggleEquipment),
                     BTN_INVENTORY_ID => events.push(GameEvent::ToggleInventory),
+                    BTN_MAP_ID => events.push(GameEvent::ToggleMinimap),
                     BTN_SKILL_ID => events.push(GameEvent::ToggleSkills),
                     BTN_STATUS_ID => events.push(GameEvent::ToggleStatusWindow),
                     _ => {}

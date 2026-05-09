@@ -31,6 +31,14 @@ impl MapCoordinates {
         self.zoom
     }
 
+    pub fn gat_width(&self) -> i32 {
+        self.gat_width
+    }
+
+    pub fn gat_height(&self) -> i32 {
+        self.gat_height
+    }
+
     /// Convert GAT cell position to world coordinates (wx, wy, wz).
     /// Accepts fractional cell values (e.g. cell + 0.5 for cell center).
     pub fn cell_to_world(&self, cell_x: f32, cell_y: f32) -> (f32, f32, f32) {

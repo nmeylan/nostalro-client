@@ -107,6 +107,15 @@ impl App {
     pub(crate) fn handle_keyboard_input(&mut self, event: KeyEvent) {
         if event.state == ElementState::Pressed
             && self.game.app_state == AppState::InGame
+            && event.physical_key == PhysicalKey::Code(KeyCode::Tab)
+            && self.input.ctrl_pressed
+        {
+            self.game.minimap_window.cycle_visibility();
+            return;
+        }
+
+        if event.state == ElementState::Pressed
+            && self.game.app_state == AppState::InGame
             && !self.game.chat_window.is_active()
             && !self.game.system_menu.open
         {
