@@ -38,6 +38,7 @@ const JOB_LIST: &[(u16, &str)] = &[
     (10, "Blacksmith"),
     (11, "Hunter"),
     (12, "Assassin"),
+    (13, "Peco Knight"),
     (14, "Crusader"),
     (15, "Monk"),
     (16, "Sage"),
@@ -45,6 +46,7 @@ const JOB_LIST: &[(u16, &str)] = &[
     (18, "Alchemist"),
     (19, "Bard"),
     (20, "Dancer"),
+    (21, "Peco Crusader"),
     (23, "Super Novice"),
     (4008, "Lord Knight"),
     (4009, "High Priest"),
@@ -52,6 +54,7 @@ const JOB_LIST: &[(u16, &str)] = &[
     (4011, "Whitesmith"),
     (4012, "Sniper"),
     (4013, "Assassin Cross"),
+    (4014, "Peco Lord Knight"),
     (4015, "Paladin"),
     (4016, "Champion"),
     (4017, "Professor"),
@@ -59,6 +62,7 @@ const JOB_LIST: &[(u16, &str)] = &[
     (4019, "Creator"),
     (4020, "Clown"),
     (4021, "Gypsy"),
+    (4022, "Peco Paladin"),
 ];
 
 struct TabData {
