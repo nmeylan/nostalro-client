@@ -4,7 +4,7 @@ use ragnarok_game::effect_table::EffectKind;
 use ragnarok_game::effects::EffectManager;
 use ragnarok_game::shadow::shadow_size;
 use ragnarok_renderer::effect_sprite::SpriteEffectEmitter;
-use ragnarok_renderer::str_effect::StrEmitterInput;
+use ragnarok_renderer::effect::StrEmitterInput;
 use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_renderer::{
     SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad, build_emitter_batches,
@@ -313,7 +313,15 @@ impl App {
             );
             let mut effect_batches = build_emitter_batches(&effect_draws);
 
-            let str_inputs = build_str_emitter_inputs(&self.game.effects);
+            let mut str_inputs = build_str_emitter_inputs(&self.game.effects);
+            let holder_str_snapshots = self.effect_holder.collect_str_emitters(&|_| None);
+            for snap in &holder_str_snapshots {
+                str_inputs.push(StrEmitterInput {
+                    str_name: &snap.name,
+                    position: snap.position,
+                    anim_time: snap.anim_time,
+                });
+            }
             let mut str_batches = build_str_effect_batches(
                 &str_inputs,
                 &self.str_effects,

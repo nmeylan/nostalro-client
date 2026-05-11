@@ -13,7 +13,7 @@ use ragnarok_renderer::effect_sprite::{
     EffectSpriteCache, SpriteEffectEmitter, build_emitter_batches, collect_sprite_effect_draws,
 };
 use ragnarok_renderer::font_atlas::FontAtlas;
-use ragnarok_renderer::str_effect::{StrEffectCache, StrEmitterInput, build_str_effect_batches};
+use ragnarok_renderer::effect::{StrEffectCache, StrEmitterInput, build_str_effect_batches};
 use ragnarok_renderer::{UiDrawCall, block_on};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;

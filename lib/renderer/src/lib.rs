@@ -1,6 +1,7 @@
 pub mod camera;
 pub mod damage_number;
 mod device;
+pub mod effect;
 pub mod effect_sprite;
 pub mod font_atlas;
 pub mod global_uniforms;
@@ -8,7 +9,6 @@ pub mod grid_selector;
 pub mod ground;
 pub mod model;
 pub mod sprite;
-pub mod str_effect;
 pub mod texture;
 pub mod ui_renderer;
 pub mod water;
@@ -31,7 +31,10 @@ pub use sprite::{
     SpriteUniforms, SpriteVertex, build_clip_quad, build_composite_clips, build_entity_sprite,
     scale_clip_vertices, upload_sprite_textures,
 };
-pub use str_effect::{StrEffectCache, StrEffectEntry, StrEmitterInput, build_str_effect_batches};
+pub use effect::{
+    BlendKind, StrEffectCache, StrEffectEntry, StrEmitterInput, build_str_effect_batches,
+    d3d_blend_to_wgpu,
+};
 pub use texture::TextureCache;
 pub use ui_renderer::{UiDrawCommand, UiRenderer, UiVertex};
 pub use water::WaterRenderer;

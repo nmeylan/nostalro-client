@@ -867,6 +867,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "effect-viewer-hot"
+version = "0.1.0"
+dependencies = [
+ "ragnarok-formats",
+ "ragnarok-game",
+ "ragnarok-renderer",
+ "ragnarok-ui",
+]
+
+[[package]]
 name = "eframe"
 version = "0.33.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

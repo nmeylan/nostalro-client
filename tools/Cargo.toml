@@ -20,6 +20,10 @@ name = "rsw-viewer"
 path = "src/bin/rsw_viewer.rs"
 
 [[bin]]
+name = "effect-viewer"
+path = "src/bin/effect_viewer.rs"
+
+[[bin]]
 name = "dump-rsw-lights"
 path = "src/bin/dump_rsw_lights.rs"
 

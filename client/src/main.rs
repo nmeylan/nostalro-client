@@ -35,10 +35,12 @@ use ragnarok_network::{
     build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_use_skill_packet,
     ip_u32_to_string, network_loop,
 };
+use ragnarok_game::effect::EffectQueue;
 use ragnarok_renderer::{
     EffectSpriteCache, GridSelectorRenderer, Renderer, SpriteVertex, StrEffectCache, UiDrawCall,
     block_on, upload_sprite_textures,
 };
+use ragnarok_renderer::effect::EffectHolder;
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::state::StateCache;
@@ -98,6 +100,12 @@ struct App {
     renderer: Option<Renderer>,
     effect_sprites: EffectSpriteCache,
     str_effects: StrEffectCache,
+    /// Runtime store for skill/level-up/refining/custom effects spawned via
+    /// the new pipeline. Ambient (RSW) effects still flow through
+    /// `game.effects` (`EffectManager`) for now.
+    effect_holder: EffectHolder,
+    /// Queue triggers push spawn requests into; drained each frame.
+    effect_queue: EffectQueue,
     grf: Option<GrfArchive>,
     input: InputState,
     ui_context: Option<UiContext>,
@@ -125,6 +133,8 @@ impl App {
             renderer: None,
             effect_sprites: EffectSpriteCache::new(),
             str_effects: StrEffectCache::new(),
+            effect_holder: EffectHolder::new(),
+            effect_queue: EffectQueue::new(),
             grf: None,
             input: InputState::new(),
             ui_context: None,

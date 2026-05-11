@@ -4,6 +4,7 @@ mod items;
 mod movement;
 
 use crate::App;
+use ragnarok_renderer::effect::EffectUpdateCtx;
 
 impl App {
     pub(crate) fn run_game_updates(&mut self, delta: f32, elapsed: f32) {
@@ -21,5 +22,8 @@ impl App {
         self.update_sprite_animation(delta);
         self.update_fades(delta);
         self.game.effects.update(delta);
+
+        self.effect_holder.drain_queue(&mut self.effect_queue);
+        self.effect_holder.update(&EffectUpdateCtx { dt: delta });
     }
 }
