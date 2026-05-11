@@ -15,7 +15,7 @@ impl App {
             Some(e) => e,
             None => return,
         };
-        let job = entity.job;
+        let job = ragnarok_game::sprite_path::visual_job(entity.job, entity.effect_state);
         let sex = entity.sex;
         let head = entity.head;
         let weapon_type = entity.weapon;
@@ -66,6 +66,7 @@ impl App {
             .accessory
             .as_ref()
             .unwrap_or(&empty_table);
+        tracing::debug!("load_player_sprite: gid={gid} job={job} sex={sex}");
         let data = match sprite_loader::load_player_sprite_data(
             grf,
             accessory_table,
@@ -81,7 +82,10 @@ impl App {
             shield_id,
         ) {
             Some(d) => d,
-            None => return,
+            None => {
+                tracing::warn!("load_player_sprite: failed to load sprite data for gid={gid} job={job}");
+                return;
+            }
         };
         let sprite = Rc::new(build_entity_sprite(
             &renderer.device.device,
@@ -195,7 +199,7 @@ impl App {
                 (
                     e.id,
                     e.entity_type,
-                    e.job,
+                    ragnarok_game::sprite_path::visual_job(e.job, e.effect_state),
                     e.sex,
                     e.head,
                     e.head_top,
@@ -210,7 +214,7 @@ impl App {
         for (
             gid,
             entity_type,
-            job,
+            sprite_job,
             sex,
             head,
             head_top,
@@ -222,12 +226,12 @@ impl App {
         ) in &missing
         {
             tracing::info!(
-                "Retrying sprite load for entity gid={gid} job={job} type={entity_type:?}"
+                "Retrying sprite load for entity gid={gid} job={sprite_job} type={entity_type:?}"
             );
             self.load_entity_sprite(
                 *gid,
                 *entity_type,
-                *job,
+                *sprite_job,
                 *sex,
                 *head,
                 0,

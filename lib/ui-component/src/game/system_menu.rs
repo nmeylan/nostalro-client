@@ -1,3 +1,6 @@
+use std::cell::Cell;
+use std::rc::Rc;
+
 use super::confirm_dialog::{ConfirmDialog, ConfirmResult};
 use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
@@ -59,6 +62,8 @@ pub struct SystemMenu {
     pub allow_escape_toggle: bool,
     pending_confirm: PendingConfirm,
     confirm_dialog: ConfirmDialog,
+    /// Output parameter for the confirm dialog result.
+    confirm_dialog_out_param: Rc<Cell<Option<ConfirmResult>>>,
     win_size: (f32, f32),
     btn_size: (f32, f32),
 }
@@ -76,7 +81,8 @@ impl SystemMenu {
             has_grf_textures: false,
             allow_escape_toggle: false,
             pending_confirm: PendingConfirm::None,
-            confirm_dialog: ConfirmDialog::new("Are you sure?"),
+            confirm_dialog: ConfirmDialog::new(),
+            confirm_dialog_out_param: Rc::new(Cell::new(None)),
             win_size: (MENU_W, MENU_H),
             btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
         }
@@ -150,22 +156,34 @@ impl InGameWindow for SystemMenu {
 
         // Handle confirmation dialog if pending
         if self.pending_confirm != PendingConfirm::None {
-            match self.confirm_dialog.build(ui) {
-                ConfirmResult::Ok => {
-                    match self.pending_confirm {
-                        PendingConfirm::CharacterSelect => {
-                            events.push(GameEvent::BackToCharacterSelect)
+            let pending = self.pending_confirm;
+            let out_param = Rc::clone(&self.confirm_dialog_out_param);
+            self.confirm_dialog_out_param.set(None);
+            self.confirm_dialog
+                .show("Are you sure?", true, move |result| {
+                    out_param.set(Some(result));
+                });
+            self.confirm_dialog.build(ui);
+            if let Some(result) = self.confirm_dialog_out_param.get() {
+                match result {
+                    ConfirmResult::Ok => {
+                        match pending {
+                            PendingConfirm::CharacterSelect => {
+                                events.push(GameEvent::BackToCharacterSelect)
+                            }
+                            PendingConfirm::QuitGame => events.push(GameEvent::QuitGame),
+                            PendingConfirm::None => {}
                         }
-                        PendingConfirm::QuitGame => events.push(GameEvent::QuitGame),
-                        PendingConfirm::None => {}
+                        self.pending_confirm = PendingConfirm::None;
+                        self.open = false;
                     }
-                    self.pending_confirm = PendingConfirm::None;
-                    self.open = false;
+                    ConfirmResult::Cancel => {
+                        self.pending_confirm = PendingConfirm::None;
+                    }
                 }
-                ConfirmResult::Cancel => {
-                    self.pending_confirm = PendingConfirm::None;
-                }
-                ConfirmResult::None => {}
+            } else if ui.ctx.key_escape {
+                // ESC without cancel button acts as cancel
+                self.pending_confirm = PendingConfirm::None;
             }
             return events;
         }
@@ -413,17 +431,27 @@ mod tests {
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::CharacterSelect);
 
-        // Press Enter to confirm
+        // Press Enter to confirm (simulates button click via mouse)
+        // OK button is rightmost of two buttons (Cancel, OK)
         let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.key_enter = true;
+        let dialog_w: f32 = 220.0;
+        let dialog_h: f32 = 40.0;
+        let dx = ((800.0 - dialog_w) / 2.0).floor();
+        let dy = ((600.0 - dialog_h) / 2.0).floor();
+        let btn_w = 42.0;
+        let btn_h = 20.0;
+        // With 2 buttons right-aligned: OK is at far right, Cancel is to its left
+        let btn_x = dx + dialog_w - 5.0 - btn_w * 2.0 - 3.0;
+        let btn_y = dy + dialog_h - 4.0 - btn_h;
+        ctx.mouse_x = btn_x + btn_w / 2.0;
+        ctx.mouse_y = btn_y + btn_h / 2.0;
+        ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
         let events = menu.build(&mut ui, &mut character, &data);
-        assert!(
-            events
-                .iter()
-                .any(|e| matches!(e, GameEvent::BackToCharacterSelect))
-        );
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, GameEvent::BackToCharacterSelect)));
         assert!(!menu.open);
     }
 
@@ -449,9 +477,20 @@ mod tests {
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::QuitGame);
 
-        // Press Enter to confirm
+        // Click OK button to confirm
         let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.key_enter = true;
+        let dialog_w: f32 = 220.0;
+        let dialog_h: f32 = 40.0;
+        let dx = ((800.0 - dialog_w) / 2.0).floor();
+        let dy = ((600.0 - dialog_h) / 2.0).floor();
+        let btn_w = 42.0;
+        let btn_h = 20.0;
+        // With 2 buttons right-aligned: OK is at far right, Cancel is to its left
+        let btn_x = dx + dialog_w - 5.0 - btn_w * 2.0 - 3.0;
+        let btn_y = dy + dialog_h - 4.0 - btn_h;
+        ctx.mouse_x = btn_x + btn_w / 2.0;
+        ctx.mouse_y = btn_y + btn_h / 2.0;
+        ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
         let events = menu.build(&mut ui, &mut character, &data);
@@ -468,9 +507,20 @@ mod tests {
         let mut character = Character::new();
         let data = DataTable::new();
 
-        // Press Escape to cancel the confirm dialog
+        // Click Cancel button to cancel the confirm dialog
         let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.key_escape = true;
+        let dialog_w: f32 = 220.0;
+        let dialog_h: f32 = 40.0;
+        let dx = ((800.0 - dialog_w) / 2.0).floor();
+        let dy = ((600.0 - dialog_h) / 2.0).floor();
+        let btn_w = 42.0;
+        let btn_h = 20.0;
+        // Cancel button is left of OK (rightmost button)
+        let cancel_btn_x = dx + dialog_w - 5.0 - btn_w;
+        let cancel_btn_y = dy + dialog_h - 4.0 - btn_h;
+        ctx.mouse_x = cancel_btn_x + btn_w / 2.0;
+        ctx.mouse_y = cancel_btn_y + btn_h / 2.0;
+        ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
         let events = menu.build(&mut ui, &mut character, &data);

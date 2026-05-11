@@ -33,7 +33,6 @@ use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::number_input::{NumberInputConfig, NumberInputDialog};
 use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
-use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
 use ragnarok_ui_component::game::status_window::{StatusWindow, STATUS_WINDOW_ID};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::{InGameWindow, Window};
@@ -223,7 +222,7 @@ fn create_single(name: &str) -> State {
             }
         }
         "confirm_dialog" => State::ConfirmDialog {
-            dialog: ConfirmDialog::new("Are you sure you want to quit?"),
+            dialog: ConfirmDialog::new(),
             open: false,
         },
         "number_input" => State::NumberInput {
@@ -388,6 +387,7 @@ fn create_single(name: &str) -> State {
                     int: 10,
                     dex: 20,
                     luk: 10,
+                    effect_state: 0,
                 },
                 CharacterInfo {
                     gid: 2,
@@ -415,6 +415,7 @@ fn create_single(name: &str) -> State {
                     int: 60,
                     dex: 40,
                     luk: 5,
+                    effect_state: 0,
                 },
                 CharacterInfo {
                     gid: 3,
@@ -442,6 +443,7 @@ fn create_single(name: &str) -> State {
                     int: 15,
                     dex: 55,
                     luk: 30,
+                    effect_state: 0,
                 },
             ];
             State::CharSelect {
@@ -1180,9 +1182,9 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             npc.build(ui, character, data);
         }
         State::ConfirmDialog { dialog, open } => {
-            if *open {
-                let result = dialog.build(ui);
-                if result != ragnarok_ui_component::game::confirm_dialog::ConfirmResult::None {
+            if *open && dialog.state.is_some() {
+                dialog.build(ui);
+                if dialog.state.is_none() {
                     *open = false;
                 }
             }

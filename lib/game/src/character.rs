@@ -59,6 +59,7 @@ pub struct Character {
     pub flee2: i32,
     pub critical: i32,
     pub aspd: i32,
+    pub effect_state: i32,
 }
 
 impl Default for Character {
@@ -119,6 +120,7 @@ impl Character {
             flee2: 0,
             critical: 0,
             aspd: 0,
+            effect_state: 0,
         }
     }
 
@@ -137,6 +139,7 @@ impl Character {
         self.int = info.int;
         self.dex = info.dex;
         self.luk = info.luk;
+        self.effect_state = info.effect_state;
     }
 
     pub fn hp_percentage(&self) -> f32 {
@@ -283,6 +286,7 @@ impl Character {
         self.flee1 = 0; self.flee2 = 0;
         self.critical = 0;
         self.aspd = 0;
+        self.effect_state = 0;
     }
 }
 

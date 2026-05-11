@@ -225,6 +225,9 @@ pub fn load_weapon_sprite(
     if result.is_some() {
         return result;
     }
+    if let Some(base_job) = crate::sprite_path::unmounted_job(job) {
+        return load_weapon_sprite(grf, base_job, sex, weapon_type);
+    }
     if let Some(base_job) = crate::sprite_path::transcendent_to_base_class(job) {
         use models::enums::EnumWithNumberValue;
         let fallback_path = weapon_sprite_path(base_job.value() as u16, sex, weapon_type);
@@ -264,11 +267,17 @@ pub fn load_shield_sprite(grf: &GrfArchive, view_id: u16, job: u16, sex: u8) -> 
         &format!("{base_path}.spr"),
         &format!("{base_path}.act"),
     );
-    tracing::debug!(
-        "load_shield_sprite: view_id={view_id} numeric_path={base_path} loaded={}",
-        result.is_some()
-    );
-    result
+    if result.is_some() {
+        tracing::debug!(
+            "load_shield_sprite: view_id={view_id} numeric_path={base_path} loaded={}",
+            result.is_some()
+        );
+        return result;
+    }
+    if let Some(base_job) = crate::sprite_path::unmounted_job(job) {
+        return load_shield_sprite(grf, view_id, base_job, sex);
+    }
+    None
 }
 
 pub struct PlayerSpriteData {

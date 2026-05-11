@@ -88,6 +88,7 @@ pub enum GameEvent {
         y: u16,
         direction: u8,
         body_state: i16,
+        effect_state: i32,
     },
     EntityMoved {
         gid: u32,
@@ -130,6 +131,10 @@ pub enum GameEvent {
         gid: u32,
         hp: u32,
         max_hp: u32,
+    },
+    EntityOptionChanged {
+        gid: u32,
+        effect_state: i32,
     },
 
     // Stats & parameters
@@ -453,6 +458,9 @@ pub enum GameEvent {
         item_id: u16,
     },
 
+    // Option removal (dismount peco, remove cart/falcon, etc.)
+    RequestRemoveOption,
+
     // UI lifecycle
     DialogClosed,
 
@@ -523,6 +531,7 @@ pub struct CharacterInfo {
     pub int: u8,
     pub dex: u8,
     pub luk: u8,
+    pub effect_state: i32,
 }
 
 impl CharacterInfo {
@@ -580,6 +589,7 @@ impl CharacterInfo {
             int: info.int,
             dex: info.dex,
             luk: info.luk,
+            effect_state: info.effectstate,
         }
     }
 }

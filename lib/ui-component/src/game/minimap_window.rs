@@ -71,6 +71,12 @@ pub struct MinimapWindow {
     pub minimap_texture_path: Option<String>,
 }
 
+impl Default for MinimapWindow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MinimapWindow {
     pub fn new() -> Self {
         Self {
@@ -141,7 +147,7 @@ impl MinimapWindow {
         }
         let rel_x = (nx - uv_min[0]) / u_span;
         let rel_y = (ny - uv_min[1]) / v_span;
-        if rel_x < 0.0 || rel_x > 1.0 || rel_y < 0.0 || rel_y > 1.0 {
+        if !(0.0..=1.0).contains(&rel_x) || !(0.0..=1.0).contains(&rel_y) {
             return None;
         }
         Some((
@@ -272,8 +278,8 @@ impl InGameWindow for MinimapWindow {
         }
 
         // Player arrow
-        if let Some((px, py)) = self.player_position {
-            if let Some((sx, sy)) = self.map_to_screen(px, py, uv_min, uv_max, x, y) {
+        if let Some((px, py)) = self.player_position
+            && let Some((sx, sy)) = self.map_to_screen(px, py, uv_min, uv_max, x, y) {
                 let angle = Self::direction_angle(self.player_direction);
                 let color = [1.0, 1.0, 1.0, alpha];
                 let (v, i) = draw::quad_vertices_rotated(sx, sy, ARROW_SIZE, angle, color);
@@ -283,7 +289,6 @@ impl InGameWindow for MinimapWindow {
                     texture: TextureRef::Named(MAP_ARROW_TEX.to_string()),
                 });
             }
-        }
 
         // Zoom +/- buttons overlaid on top-right corner of map
         let zoom_x = x + MAP_AREA_SIZE - ZOOM_BTN_SIZE;

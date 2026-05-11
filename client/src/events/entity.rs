@@ -5,7 +5,7 @@ use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::entity::{Entity, EntityState};
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
-use ragnarok_game::sprite_path::entity_type_from_job;
+use ragnarok_game::sprite_path::{entity_type_from_job, visual_job, OPTION_RIDING};
 
 impl App {
     #[allow(clippy::too_many_arguments)]
@@ -26,12 +26,19 @@ impl App {
         y: u16,
         direction: u8,
         body_state: i16,
+        effect_state: i32,
     ) {
         if self.game.entities.player_id() == Some(gid) {
+            if effect_state != 0 {
+                self.handle_entity_option_changed(gid, effect_state);
+            }
             return;
         }
         if let Some(existing) = self.game.entities.get_mut(gid) {
             existing.movement.set_speed(speed);
+            if existing.effect_state != effect_state {
+                self.handle_entity_option_changed(gid, effect_state);
+            }
             return;
         }
         let entity_type = entity_type_from_job(job);
@@ -52,14 +59,16 @@ impl App {
             direction,
             speed,
         );
+        entity.effect_state = effect_state;
         if body_state == 2 {
             entity.state = EntityState::Sitting;
         }
         self.game.entities.insert(entity);
+        let sprite_job = visual_job(job, effect_state);
         self.load_entity_sprite(
             gid,
             entity_type,
-            job,
+            sprite_job,
             sex,
             head,
             weapon,
@@ -256,6 +265,67 @@ impl App {
         }
     }
 
+    pub(super) fn handle_entity_option_changed(&mut self, gid: u32, effect_state: i32) {
+        tracing::debug!("EntityOptionChanged: gid={gid} effect_state=0x{effect_state:08x}");
+        if self.game.entities.is_player(gid) {
+            self.game.character.effect_state = effect_state;
+        }
+        if let Some(entity) = self.game.entities.get_mut(gid) {
+            let old_riding = (entity.effect_state & OPTION_RIDING) != 0;
+            let new_riding = (effect_state & OPTION_RIDING) != 0;
+            tracing::debug!("  old_effect=0x{:08x} old_riding={old_riding} new_riding={new_riding} job={}", entity.effect_state, entity.job);
+            entity.effect_state = effect_state;
+            if old_riding != new_riding {
+                let sprite_job = visual_job(entity.job, effect_state);
+                let (sex, head, shield, head_top, head_mid, head_bottom, hair_color) = (
+                    entity.sex,
+                    entity.head,
+                    entity.shield,
+                    entity.head_top,
+                    entity.head_mid,
+                    entity.head_bottom,
+                    entity.hair_color,
+                );
+                let entity_type = entity.entity_type;
+                let is_player = self.game.entities.player_id() == Some(gid);
+                if is_player {
+                    let (weapon, cloth_color) = {
+                        let e = self.game.entities.get(gid).unwrap();
+                        (e.weapon, e.cloth_color)
+                    };
+                    self.load_player_sprite(
+                        gid,
+                        sprite_job,
+                        sex,
+                        head,
+                        hair_color,
+                        cloth_color,
+                        weapon,
+                        head_top,
+                        head_mid,
+                        head_bottom,
+                        shield,
+                    );
+                } else {
+                    self.load_entity_sprite(
+                        gid,
+                        entity_type,
+                        sprite_job,
+                        sex,
+                        head,
+                        0,
+                        shield,
+                        head_top,
+                        head_mid,
+                        head_bottom,
+                        hair_color,
+                        0,
+                    );
+                }
+            }
+        }
+    }
+
     pub(super) fn handle_entity_sprite_changed(
         &mut self,
         gid: u32,
@@ -299,8 +369,8 @@ impl App {
                 entity.apply_sprite_change(sprite_type, value);
             }
             let weapon_type = entity.weapon;
-            let (job, sex, head, shield, head_top, head_mid, head_bottom, hair_color, cloth_color) = (
-                entity.job,
+            let sprite_job = visual_job(entity.job, entity.effect_state);
+            let (sex, head, shield, head_top, head_mid, head_bottom, hair_color, cloth_color) = (
                 entity.sex,
                 entity.head,
                 entity.shield,
@@ -315,7 +385,7 @@ impl App {
             if is_player {
                 self.load_player_sprite(
                     gid,
-                    job,
+                    sprite_job,
                     sex,
                     head,
                     hair_color,
@@ -330,7 +400,7 @@ impl App {
                 self.load_entity_sprite(
                     gid,
                     entity_type,
-                    job,
+                    sprite_job,
                     sex,
                     head,
                     0,

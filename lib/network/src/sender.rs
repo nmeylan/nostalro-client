@@ -317,3 +317,9 @@ pub fn build_use_skill_to_ground_packet(
     pkt.fill_raw();
     pkt.raw
 }
+
+pub fn build_remove_option_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqCartoff::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}

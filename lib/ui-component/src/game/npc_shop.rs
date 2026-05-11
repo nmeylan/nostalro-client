@@ -735,6 +735,7 @@ mod tests {
     use crate::InGameWindow;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
+    use models::enums::item::ItemType;
     use ragnarok_game::item::Item;
     use ragnarok_game::npc_shop::ShopBuyItem;
     use ragnarok_renderer::font_atlas::FontAtlas;
@@ -755,7 +756,7 @@ mod tests {
             100,
             vec![ShopBuyItem {
                 item: Item {
-                    index: 0, item_id: 501, item_type: 0, count: 1,
+                    index: 0, item_id: 501, item_type: ItemType::Healing, count: 1,
                     is_identified: true, is_damaged: false, refining_level: 0,
                     slot: [0; 4], location: 0, wear_state: 0,
                     name: "Red Potion".into(), resource_name: None,
@@ -786,7 +787,7 @@ mod tests {
             100,
             vec![ShopBuyItem {
                 item: Item {
-                    index: 0, item_id: 501, item_type: 0, count: 1,
+                    index: 0, item_id: 501, item_type: ItemType::Healing, count: 1,
                     is_identified: true, is_damaged: false, refining_level: 0,
                     slot: [0; 4], location: 0, wear_state: 0,
                     name: "Red Potion".into(), resource_name: None,

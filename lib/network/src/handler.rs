@@ -119,6 +119,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             y,
             direction: dir,
             body_state: p.body_state,
+            effect_state: p.effect_state,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyStandentry>() {
@@ -139,6 +140,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             y,
             direction: dir,
             body_state: p.body_state,
+            effect_state: p.effect_state as i32,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyNewentry>() {
@@ -159,6 +161,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             y,
             direction: dir,
             body_state: p.body_state,
+            effect_state: p.effect_state as i32,
         }];
     }
     // MoveEntry8: entity entering view while already moving — treat as spawn at pos_dir
@@ -180,6 +183,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             y,
             direction: dir,
             body_state: p.body_state,
+            effect_state: p.effect_state,
         }];
     }
     // MoveEntry9: entity entering view while already moving — spawn + start movement
@@ -202,6 +206,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
                 y: y1,
                 direction: 0,
                 body_state: p.body_state,
+                effect_state: p.effect_state as i32,
             },
             GameEvent::EntityMoved {
                 gid: p.gid,
@@ -398,6 +403,12 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             }];
         }
         return vec![GameEvent::Acknowledged];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcStateChange3>() {
+        return vec![GameEvent::EntityOptionChanged {
+            gid: p.aid,
+            effect_state: p.effect_state,
+        }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifySkill>() {
         let name = SkillEnum::from_id(p.skid as u32).to_name().to_string();
@@ -1456,5 +1467,26 @@ mod tests {
             &result[0],
             GameEvent::NpcDialogClose { npc_id: 500 }
         ));
+    }
+
+    #[test]
+    fn dispatch_state_change3_returns_entity_option_changed() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcStateChange3::new(packetver);
+        pkt.set_aid(150000);
+        pkt.set_body_state(0);
+        pkt.set_health_state(0);
+        pkt.set_effect_state(0x20); // OPTION_RIDING
+        pkt.set_is_pkmode_on(false);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::EntityOptionChanged { gid, effect_state } => {
+                assert_eq!(*gid, 150000);
+                assert_eq!(*effect_state, 0x20);
+            }
+            other => panic!("expected EntityOptionChanged, got {other:?}"),
+        }
     }
 }

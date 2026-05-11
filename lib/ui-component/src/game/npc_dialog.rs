@@ -6,7 +6,7 @@ use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::npc_dialog::{NpcDialogData, NpcDialogState};
-use ragnarok_ui::draw::{self, DrawCall, TextureRef, strip_color_codes, word_wrap};
+use ragnarok_ui::draw::{self, strip_color_codes, word_wrap, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
@@ -768,6 +768,7 @@ mod tests {
         assert_eq!(npc.dialog.selected_menu_index, 6);
         assert_eq!(npc.dialog.menu_scroll_offset, 2);
     }
+
 
     #[test]
     fn menu_mouse_wheel_scrolls_and_persists() {

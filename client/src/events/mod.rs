@@ -97,6 +97,7 @@ impl App {
                     y,
                     direction,
                     body_state,
+                    effect_state,
                 } => {
                     self.handle_entity_spawned(
                         gid,
@@ -114,6 +115,7 @@ impl App {
                         y,
                         direction,
                         body_state,
+                        effect_state,
                     );
                 }
                 GameEvent::EntityMoved {
@@ -164,6 +166,9 @@ impl App {
                 }
                 GameEvent::EntityHpChanged { gid, hp, max_hp } => {
                     self.handle_entity_hp_changed(gid, hp, max_hp);
+                }
+                GameEvent::EntityOptionChanged { gid, effect_state } => {
+                    self.handle_entity_option_changed(gid, effect_state);
                 }
                 GameEvent::EntitySpriteChanged {
                     gid,

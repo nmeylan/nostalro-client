@@ -36,6 +36,7 @@ use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeW
 use ragnarok_ui_component::game::status_window::{StatusWindow, STATUS_WINDOW_ID};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::{InGameWindow, Window};
+use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 
 pub struct GameState {
     pub app_state: AppState,
@@ -59,6 +60,7 @@ pub struct GameState {
     pub equipment_window: EquipmentWindow,
     pub inventory_window: InventoryWindow,
     pub npc_dialog: NpcDialog,
+    pub confirm_dialog: ConfirmDialog,
     pub npc_shop: NpcShop,
     pub system_menu: SystemMenu,
     pub hovered_entity_id: Option<u32>,
@@ -97,6 +99,10 @@ pub struct GameState {
     pub damage_msg_act: Option<ragnarok_formats::act::ActFile>,
     pub debug_show_pick_bounds: bool,
     pub effects: EffectManager,
+    /// Set to true when disconnect dialog is shown.
+    pub disconnect_dialog_shown: bool,
+    /// Set to true after disconnect dialog is confirmed/cancelled.
+    pub pending_disconnect_exit: bool,
 }
 
 const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
@@ -172,7 +178,7 @@ impl GameState {
                 .build(ui, &mut self.character, &self.data_table),
         );
 
-        // Always-on-top windows (not z-orderable)
+
         let npc_dialog_open = self.npc_dialog.dialog.is_open();
         events.extend(
             self.npc_dialog
@@ -203,6 +209,16 @@ impl GameState {
             &mut self.character,
             &self.data_table,
         ));
+
+        // Always-on-top: confirm dialog (for disconnect notification)
+        let had_disconnect_dialog = self.disconnect_dialog_shown
+            && self.confirm_dialog.state.is_some();
+        self.confirm_dialog.build(ui);
+        if had_disconnect_dialog && self.confirm_dialog.state.is_none() {
+            // Disconnect dialog was just closed
+            self.pending_disconnect_exit = true;
+            self.disconnect_dialog_shown = false;
+        }
 
         ui.flush_tooltips();
 
@@ -361,6 +377,7 @@ impl GameState {
             equipment_window: EquipmentWindow::new(),
             inventory_window: InventoryWindow::new(),
             npc_dialog: NpcDialog::new(),
+            confirm_dialog: ConfirmDialog::new(),
             npc_shop: NpcShop::new(),
             system_menu: SystemMenu::new(),
             hovered_entity_id: None,
@@ -392,6 +409,8 @@ impl GameState {
             skill_tree_window: SkillTreeWindow::new(),
             hotkey_bar: HotkeyBarWindow::new(),
             minimap_window: MinimapWindow::new(),
+            disconnect_dialog_shown: false,
+            pending_disconnect_exit: false,
             damage_numbers: DamageNumberManager::new(),
             damage_number_textures: None,
             damage_number_act: None,

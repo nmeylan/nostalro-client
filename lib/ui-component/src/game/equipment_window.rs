@@ -3,6 +3,7 @@ use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::inventory::{EquipmentLocation, InventoryData};
+use ragnarok_game::sprite_path::OPTION_REMOVABLE_MASK;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -14,11 +15,13 @@ use crate::helper::window_chrome::{
 use super::inventory_window::INV_WINDOW_ID;
 
 const ITEM_INVERT_TEX: &str = "data/texture/유저인터페이스/basic_interface/item_invert.bmp";
+const BTN_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/btn_off.bmp";
 
 // -- Widget IDs --
 pub const EQ_WINDOW_ID: WidgetId = WidgetId(900);
 const EQ_CLOSE_BTN_ID: WidgetId = WidgetId(901);
 const EQ_MINI_BTN_ID: WidgetId = WidgetId(902);
+const EQ_REMOVE_OPTION_BTN_ID: WidgetId = WidgetId(903);
 const EQ_SLOT_BASE_ID: u32 = 910;
 
 // -- Layout (matches official RO client: 3-column layout) --
@@ -34,6 +37,7 @@ const CENTER_COL_W: f32 = 50.0;
 const ICON_SIZE: f32 = 24.0;
 const SLOT_ROWS: usize = 5;
 const TEXT_MAX_W: f32 = SIDE_COL_W - ICON_SIZE - 4.0 - 3.0;
+const REMOVE_OPTION_BTN_SIZE: f32 = 36.0;
 
 // -- GRF textures --
 const EQUIP_BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/equipwin_bg.bmp";
@@ -141,7 +145,7 @@ impl Window for EquipmentWindow {
 
     fn grf_texture_paths() -> Vec<&'static str> {
         vec![
-            TITLEBAR_TEX, EQUIP_BG_TEX, ITEM_INVERT_TEX,
+            TITLEBAR_TEX, EQUIP_BG_TEX, ITEM_INVERT_TEX, BTN_OFF_TEX,
             SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
             CLOSE_OFF_TEX, CLOSE_ON_TEX,
             MINI_OFF_TEX, MINI_ON_TEX,
@@ -259,6 +263,26 @@ impl InGameWindow for EquipmentWindow {
         let character_y = content_y + content_h - slot_h;
         self.character_center = Some([character_x, character_y]);
         self.paperdoll_insert_index = Some(ui.draw_calls.len());
+
+        if character.effect_state & OPTION_REMOVABLE_MASK != 0 {
+            let btn_x = win.x + SIDE_COL_W + (CENTER_COL_W - REMOVE_OPTION_BTN_SIZE) / 2.0;
+            let btn_y = win.y + content_h - slot_h;
+            let btn_rect = Rect::new(btn_x, btn_y, REMOVE_OPTION_BTN_SIZE, REMOVE_OPTION_BTN_SIZE);
+            let resp = ui.interact(EQ_REMOVE_OPTION_BTN_ID, btn_rect);
+            if resp.hovered() { ui.any_interactive_hovered = true; }
+            if grf {
+                let (v, idx) = draw::quad_vertices(btn_rect.x, btn_rect.y, btn_rect.w, btn_rect.h, [1.0, 1.0, 1.0, 1.0]);
+                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::Named(BTN_OFF_TEX.to_string()) });
+            } else {
+                let color = if resp.hovered() { [0.6, 0.2, 0.2, 1.0] } else { [0.4, 0.15, 0.15, 1.0] };
+                let (v, idx) = draw::quad_vertices(btn_rect.x, btn_rect.y, btn_rect.w, btn_rect.h, color);
+                ui.draw_calls.push(DrawCall { vertices: v.to_vec(), indices: idx.to_vec(), texture: TextureRef::White });
+                ui.text(btn_rect.x + 8.0, btn_rect.y + 12.0, "Off", [1.0, 1.0, 1.0, 1.0]);
+            }
+            if resp.clicked() {
+                events.push(GameEvent::RequestRemoveOption);
+            }
+        }
 
         // Highlight valid slots when dragging an equipment item from inventory
         let highlight_location: Option<u16> = ui.drag_info()

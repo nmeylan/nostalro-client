@@ -28,8 +28,9 @@ use ragnarok_network::{
     build_contact_npc_packet, build_drop_item_packet, build_equip_item_packet, build_login_packet,
     build_npc_close_packet, build_npc_deal_type_packet, build_npc_input_number_packet,
     build_npc_input_string_packet, build_npc_menu_select_packet, build_npc_next_packet,
-    build_pickup_item_packet, build_purchase_item_list_packet, build_reqname_packet,
-    build_restart_packet, build_select_char_packet, build_sell_item_list_packet,
+    build_pickup_item_packet, build_purchase_item_list_packet, build_remove_option_packet,
+    build_reqname_packet, build_restart_packet, build_select_char_packet,
+    build_sell_item_list_packet,
     build_shortcut_key_change_packet, build_stat_change_packet,
     build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_use_skill_packet,
     ip_u32_to_string, network_loop,
@@ -80,6 +81,7 @@ impl GameChannel {
             let _ = tx.send(cmd);
         }
     }
+
 
     fn drain_events(&mut self) -> Vec<GameEvent> {
         self.event_rx
@@ -561,6 +563,10 @@ impl App {
                         count,
                         self.config.packetver,
                     ));
+                }
+                GameEvent::RequestRemoveOption => {
+                    self.channel
+                        .send_packet(build_remove_option_packet(self.config.packetver));
                 }
                 GameEvent::RequestSkillLevelUp { skill_id } => {
                     self.channel
@@ -1160,6 +1166,11 @@ impl ApplicationHandler for App {
                     self.build_ui(elapsed);
                 self.input.ui_hovered = ui_any_hovered;
                 self.handle_ui_events(ui_events, event_loop);
+
+                // Check for disconnect dialog exit
+                if self.game.pending_disconnect_exit {
+                    event_loop.exit();
+                }
                 let now = Instant::now();
                 let raw_delta = now.duration_since(self.last_frame_instant).as_secs_f32();
                 self.last_frame_instant = now;

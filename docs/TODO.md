@@ -5,6 +5,7 @@ TODO:
 - ~~Shield sprite~~ (done — render order fix for direction-based layering)
 - ~~Headgear/accessories~~ (done — three-layer system: top/mid/bottom)
 - Mount/Peco (costume job swap, loads mounted body sprite)
+- cart
 - ~~Other players / NPCs / monsters entity sprites~~ (done — entity collection manages Player/NPC/Monster types)
 - ~~Doridori head animation~~ (done — head_dir from server selects head/headgear motion)
 - Divide attachment offset by clip zoom for weapons/accessories (original compensates when sprClip zoom != 1.0)
@@ -26,16 +27,16 @@ TODO:
 
 # UI
 - ~~Chat box (normal, whisper, party, guild channels)~~
-- Status window (stats, stat allocation)
+- ~~Status window (stats, stat allocation)~~
 - ~~Inventory window~~
 - ~~Equipment window~~
 - ~~Skill window (skill tree, skill levels)~~
 - ~~Hotkey/shortcut bar (F1-F9 skills/items)~~
-- Minimap
+- ~~Minimap~~
 - ~~basic info window~~
 - ~~NPC dialog box (text, menu choices, number input)~~
 - ~~NPC shop (buy/sell)~~
-- Trade window (player-to-player)
+- Auto Trade window (player-to-player)
 - Vending (player shop setup + buying)
 - Party window
 - Guild window (members, positions, skills, emblem, notices)
@@ -100,7 +101,7 @@ TODO:
 - Skill packets (cast, execute, ground target)
 - ~~NPC packets (dialog, menu, shop, close)~~
 - ~~Entity spawn/despawn/update packets~~ (done — full spawn/move/vanish/act handling)
-- Status change packets
+- ~~Status change packets~~
 - Party/guild packets
 - Trade/vending packets
 - Quest packets

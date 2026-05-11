@@ -32,6 +32,39 @@ pub fn entity_sprite_base_path(name_table: &NameTable, job: u16) -> Option<Strin
     }
 }
 
+pub const OPTION_FALCON: i32 = 0x10;
+pub const OPTION_RIDING: i32 = 0x20;
+pub const OPTION_CART_MASK: i32 = 0x08 | 0x80 | 0x100 | 0x200 | 0x400;
+pub const OPTION_REMOVABLE_MASK: i32 = OPTION_FALCON | OPTION_RIDING | OPTION_CART_MASK;
+
+pub fn mounted_job(job: u16) -> Option<u16> {
+    match job {
+        7 => Some(13),
+        14 => Some(21),
+        4008 => Some(4014),
+        4015 => Some(4022),
+        _ => None,
+    }
+}
+
+pub fn visual_job(job: u16, effect_state: i32) -> u16 {
+    if (effect_state & OPTION_RIDING) != 0 {
+        mounted_job(job).unwrap_or(job)
+    } else {
+        job
+    }
+}
+
+pub fn unmounted_job(job: u16) -> Option<u16> {
+    match job {
+        13 => Some(7),
+        21 => Some(14),
+        4014 => Some(4008),
+        4022 => Some(4015),
+        _ => None,
+    }
+}
+
 fn job_name_kr(job_class: u16) -> &'static str {
     match job_class {
         0 => "초보자",
@@ -47,6 +80,7 @@ fn job_name_kr(job_class: u16) -> &'static str {
         10 => "제철공",
         11 => "헌터",
         12 => "어세신",
+        13 => "페코페코_기사",
         14 => "크루세이더",
         15 => "몽크",
         16 => "세이지",
@@ -54,6 +88,7 @@ fn job_name_kr(job_class: u16) -> &'static str {
         18 => "연금술사",
         19 => "바드",
         20 => "무희",
+        21 => "신페코크루세이더",
         23 => "슈퍼노비스",
         // Transcendent 1st classes reuse base sprites
         4001 => "초보자",
@@ -70,6 +105,7 @@ fn job_name_kr(job_class: u16) -> &'static str {
         4011 => "화이트스미스",
         4012 => "스나이퍼",
         4013 => "어쌔신크로스",
+        4014 => "로드페코",
         4015 => "팔라딘",
         4016 => "챔피온",
         4017 => "프로페서",
@@ -77,6 +113,7 @@ fn job_name_kr(job_class: u16) -> &'static str {
         4019 => "크리에이터",
         4020 => "클라운",
         4021 => "집시",
+        4022 => "페코팔라딘",
         _ => "초보자",
     }
 }
@@ -481,5 +518,41 @@ mod tests {
     fn shield_sprite_path_with_item_id() {
         let path = shield_sprite_path(2103, 12, 1);
         assert_eq!(path.unwrap(), "data/sprite/방패/어세신/어세신_남_버클러");
+    }
+
+    #[test]
+    fn visual_job_with_riding() {
+        assert_eq!(visual_job(7, OPTION_RIDING), 13);
+        assert_eq!(visual_job(14, OPTION_RIDING), 21);
+        assert_eq!(visual_job(4008, OPTION_RIDING), 4014);
+        assert_eq!(visual_job(4015, OPTION_RIDING), 4022);
+        // Non-mountable class returns original job
+        assert_eq!(visual_job(0, OPTION_RIDING), 0);
+        assert_eq!(visual_job(12, OPTION_RIDING), 12);
+        // No riding flag returns original job
+        assert_eq!(visual_job(7, 0), 7);
+        assert_eq!(visual_job(14, 0), 14);
+        // Other flags don't trigger mount
+        assert_eq!(visual_job(7, 0x01), 7);
+    }
+
+    #[test]
+    fn mounted_job_sprite_paths() {
+        assert_eq!(
+            body_sprite_path(13, 1),
+            "data/sprite/인간족/몸통/남/페코페코_기사_남"
+        );
+        assert_eq!(
+            body_sprite_path(21, 0),
+            "data/sprite/인간족/몸통/여/신페코크루세이더_여"
+        );
+        assert_eq!(
+            body_sprite_path(4014, 1),
+            "data/sprite/인간족/몸통/남/로드페코_남"
+        );
+        assert_eq!(
+            body_sprite_path(4022, 1),
+            "data/sprite/인간족/몸통/남/페코팔라딘_남"
+        );
     }
 }

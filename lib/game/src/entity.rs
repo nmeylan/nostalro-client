@@ -129,6 +129,7 @@ pub struct Entity {
     /// all scheduled hits to finish their hurt animation first.
     pub pending_death: bool,
     pub just_spawned: bool,
+    pub effect_state: i32,
 }
 
 impl Entity {
@@ -193,6 +194,7 @@ impl Entity {
             fade: None,
             pending_death: false,
             just_spawned: true,
+            effect_state: 0,
         }
     }
 

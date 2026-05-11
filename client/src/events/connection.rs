@@ -47,7 +47,7 @@ impl App {
             .send_cmd(NetworkCommand::SetKeepalive(KeepaliveMode::MapServer));
     }
 
-    pub(super) fn handle_restart_ack(&mut self) {
+    pub(crate) fn handle_restart_ack(&mut self) {
         self.char_select_window = None;
         self.game.character.clear();
         self.game.entities.clear();
@@ -93,7 +93,7 @@ impl App {
             .as_ref()
             .map(|s| s.account_id)
             .unwrap_or(0);
-        let (job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom, shield_id) = self
+        let (job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom, shield_id, effect_state) = self
             .game
             .selected_character
             .as_ref()
@@ -113,11 +113,12 @@ impl App {
                     c.head_mid,
                     c.head_bottom,
                     c.shield,
+                    c.effect_state,
                 )
             })
-            .unwrap_or((0, session_sex, 0, 0, 0, 0, 0, 0, 0));
+            .unwrap_or((0, session_sex, 0, 0, 0, 0, 0, 0, 0, 0));
 
-        let entity = Entity::new_player(
+        let mut entity = Entity::new_player(
             account_id,
             job,
             sex,
@@ -132,13 +133,15 @@ impl App {
             y,
             dir,
         );
+        entity.effect_state = effect_state;
         self.game.entities.set_player_id(account_id);
         self.game.entities.insert(entity);
 
+        let sprite_job = ragnarok_game::sprite_path::visual_job(job, effect_state);
         let weapon_type = weapon_view_id_to_type(weapon);
         self.load_player_sprite(
             account_id,
-            job,
+            sprite_job,
             sex,
             head,
             hair_color,
@@ -313,17 +316,18 @@ impl App {
     }
 
     pub(super) fn handle_disconnected(&mut self, reason: String, event_loop: &ActiveEventLoop) {
-        self.game.server_time.reset();
-        self.game.character.inventory.clear();
-        self.game.floor_items.clear();
-        self.game.floor_item_sprites.clear();
-        self.game.waiting_item_throw_ack = false;
-        self.game.drop_quantity_dialog = None;
-        self.game.card_insert_dialog = None;
-        self.game.pending_card_composition_index = None;
-        self.game.pending_pickup_item_id = None;
+
         if reason == "User exit" {
             event_loop.exit();
+        } else if self.game.app_state == AppState::InGame {
+            // Show disconnect notification dialog
+            let reason_clone = reason.clone();
+            self.game.disconnect_dialog_shown = true;
+            self.game.confirm_dialog.show(
+                &format!("Disconnected from server: {reason_clone}"),
+                false,
+                |_| {},
+            );
         } else {
             self.login_window
                 .set_error(&format!("Disconnected: {reason}"));
