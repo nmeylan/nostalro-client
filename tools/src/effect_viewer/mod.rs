@@ -45,7 +45,8 @@ pub struct Args {
 #[derive(Clone, Copy, Default)]
 struct ViewerFlags {
     paused: u8,
-    _pad0: [u8; 3],
+    show_info: u8,
+    _pad0: [u8; 2],
     speed_x100: u32,
     selected_effect_id: u16,
     _pad1: [u8; 2],
@@ -60,18 +61,32 @@ struct PendingSpawn {
     world_pos: [f32; 3],
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+struct CameraView {
+    target: [f32; 3],
+    yaw: f32,
+    pitch: f32,
+    distance: f32,
+}
+
 const ACTION_NEXT_EFFECT: u32 = 1;
 const ACTION_PREV_EFFECT: u32 = 2;
 const ACTION_RESPAWN: u32 = 3;
 const ACTION_TOGGLE_PAUSE: u32 = 4;
 const ACTION_SPEED_UP: u32 = 5;
 const ACTION_SPEED_DOWN: u32 = 6;
+const ACTION_SHOW_CONTROLS: u32 = 7;
+const ACTION_CLOSE_INFO_PANEL: u32 = 8;
+const ACTION_RESET_CAMERA: u32 = 9;
 
 type HotCreateFn = extern "C" fn() -> *mut ();
 type HotDestroyFn = unsafe extern "C" fn(*mut ());
 type HotUpdateFn = unsafe extern "C" fn(*mut (), f32);
 type HotOnActionFn = unsafe extern "C" fn(*mut (), u32);
+type HotOnMouseWheelFn = unsafe extern "C" fn(*mut (), f32);
 type HotGetFlagsFn = unsafe extern "C" fn(*mut (), *mut ViewerFlags);
+type HotGetCameraFn = unsafe extern "C" fn(*mut (), *mut CameraView);
 type HotTakePendingFn = unsafe extern "C" fn(*mut (), *mut PendingSpawn);
 type HotBuildOverlayFn =
     unsafe extern "C" fn(*mut (), *const FontAtlas, f32, f32, *mut Vec<UiDrawCall>);
@@ -81,7 +96,9 @@ struct HotLib {
     state: *mut (),
     update_fn: HotUpdateFn,
     on_action_fn: HotOnActionFn,
+    on_mouse_wheel_fn: HotOnMouseWheelFn,
     get_flags_fn: HotGetFlagsFn,
+    get_camera_fn: HotGetCameraFn,
     take_pending_fn: HotTakePendingFn,
     build_overlay_fn: HotBuildOverlayFn,
     destroy_fn: HotDestroyFn,
@@ -96,15 +113,17 @@ impl HotLib {
                 return None;
             }
         };
-        let (create, destroy, update, on_action, get_flags, take_pending, build_overlay) = unsafe {
+        let (create, destroy, update, on_action, on_wheel, get_flags, get_camera, take_pending, build_overlay) = unsafe {
             let c: libloading::Symbol<HotCreateFn> = lib.get(b"hot_create").ok()?;
             let d: libloading::Symbol<HotDestroyFn> = lib.get(b"hot_destroy").ok()?;
             let u: libloading::Symbol<HotUpdateFn> = lib.get(b"hot_update").ok()?;
             let a: libloading::Symbol<HotOnActionFn> = lib.get(b"hot_on_action").ok()?;
+            let w: libloading::Symbol<HotOnMouseWheelFn> = lib.get(b"hot_on_mouse_wheel").ok()?;
             let f: libloading::Symbol<HotGetFlagsFn> = lib.get(b"hot_get_flags").ok()?;
+            let cam: libloading::Symbol<HotGetCameraFn> = lib.get(b"hot_get_camera").ok()?;
             let t: libloading::Symbol<HotTakePendingFn> = lib.get(b"hot_take_pending_spawn").ok()?;
             let b: libloading::Symbol<HotBuildOverlayFn> = lib.get(b"hot_build_overlay").ok()?;
-            (*c, *d, *u, *a, *f, *t, *b)
+            (*c, *d, *u, *a, *w, *f, *cam, *t, *b)
         };
         let state = (create)();
         Some(Self {
@@ -112,7 +131,9 @@ impl HotLib {
             state,
             update_fn: update,
             on_action_fn: on_action,
+            on_mouse_wheel_fn: on_wheel,
             get_flags_fn: get_flags,
+            get_camera_fn: get_camera,
             take_pending_fn: take_pending,
             build_overlay_fn: build_overlay,
             destroy_fn: destroy,
@@ -132,6 +153,16 @@ impl HotLib {
 
     fn on_action(&self, code: u32) {
         unsafe { (self.on_action_fn)(self.state, code) };
+    }
+
+    fn on_mouse_wheel(&self, dy: f32) {
+        unsafe { (self.on_mouse_wheel_fn)(self.state, dy) };
+    }
+
+    fn camera(&self) -> CameraView {
+        let mut out = CameraView::default();
+        unsafe { (self.get_camera_fn)(self.state, &mut out) };
+        out
     }
 
     fn flags(&self) -> ViewerFlags {
@@ -353,6 +384,15 @@ impl App {
             return;
         };
 
+        // Sync cdylib camera state onto the renderer's camera.
+        if let Some(hot) = &self.hot_lib {
+            let v = hot.camera();
+            renderer.camera.target = glam::Vec3::from(v.target);
+            renderer.camera.yaw = v.yaw;
+            renderer.camera.pitch = v.pitch;
+            renderer.camera.distance = v.distance;
+        }
+
         let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
         let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
 
@@ -432,18 +472,34 @@ impl ApplicationHandler for App {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
                 if let Some(renderer) = &mut self.renderer {
-                    renderer.device.resize(size.width, size.height);
+                    // Renderer::resize also resizes the UI + sprite pipelines'
+                    // viewports — without it the legend / overlay positions
+                    // computed from `screen_h - …` end up off-screen after
+                    // winit's initial Resized event.
+                    renderer.resize(size.width, size.height);
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state != ElementState::Pressed {
                     return;
                 }
-                let action = match event.logical_key.as_ref() {
-                    Key::Named(NamedKey::Escape) => {
+                // Esc closes any open info panel first; only quits if no panel is open.
+                if matches!(event.logical_key.as_ref(), Key::Named(NamedKey::Escape)) {
+                    let panel_open = self
+                        .hot_lib
+                        .as_ref()
+                        .map(|h| h.flags().show_info != 0)
+                        .unwrap_or(false);
+                    if panel_open {
+                        if let Some(hot) = &self.hot_lib {
+                            hot.on_action(ACTION_CLOSE_INFO_PANEL);
+                        }
+                    } else {
                         event_loop.exit();
-                        return;
                     }
+                    return;
+                }
+                let action = match event.logical_key.as_ref() {
                     Key::Named(NamedKey::Space) | Key::Named(NamedKey::ArrowRight) => {
                         Some(ACTION_NEXT_EFFECT)
                     }
@@ -453,12 +509,23 @@ impl ApplicationHandler for App {
                         "p" | "P" => Some(ACTION_TOGGLE_PAUSE),
                         "+" | "=" => Some(ACTION_SPEED_UP),
                         "-" | "_" => Some(ACTION_SPEED_DOWN),
+                        "c" | "C" => Some(ACTION_RESET_CAMERA),
+                        "1" | "?" => Some(ACTION_SHOW_CONTROLS),
                         _ => None,
                     },
                     _ => None,
                 };
                 if let (Some(code), Some(hot)) = (action, &self.hot_lib) {
                     hot.on_action(code);
+                }
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                let dy = match delta {
+                    winit::event::MouseScrollDelta::LineDelta(_, y) => y,
+                    winit::event::MouseScrollDelta::PixelDelta(p) => (p.y as f32) / 20.0,
+                };
+                if let Some(hot) = &self.hot_lib {
+                    hot.on_mouse_wheel(dy);
                 }
             }
             WindowEvent::RedrawRequested => {

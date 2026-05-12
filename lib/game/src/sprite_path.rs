@@ -310,7 +310,7 @@ pub fn shield_sprite_path(view_id: u16, job_class: u16, sex: u8) -> Option<Strin
     Some(format!("data/sprite/방패/{job}/{job}_{sex_str}_{shield}"))
 }
 
-/// Numeric path format used by some GRFs (e.g. dhxj-style)
+/// Numeric path format used by some GRFs (e.g. reference-style)
 pub fn shield_sprite_path_numeric(view_id: u16, job_class: u16, sex: u8) -> String {
     let job = job_name_kr(job_class);
     let sex_str = sex_kr(sex);

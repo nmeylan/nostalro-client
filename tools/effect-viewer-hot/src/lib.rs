@@ -15,6 +15,9 @@ pub const ACTION_RESPAWN: u32 = 3;
 pub const ACTION_TOGGLE_PAUSE: u32 = 4;
 pub const ACTION_SPEED_UP: u32 = 5;
 pub const ACTION_SPEED_DOWN: u32 = 6;
+pub const ACTION_SHOW_CONTROLS: u32 = 7;
+pub const ACTION_CLOSE_INFO_PANEL: u32 = 8;
+pub const ACTION_RESET_CAMERA: u32 = 9;
 
 // === C-ABI POD types (host duplicates exactly) ===
 
@@ -22,7 +25,9 @@ pub const ACTION_SPEED_DOWN: u32 = 6;
 #[derive(Clone, Copy, Default)]
 pub struct ViewerFlags {
     pub paused: u8,
-    pub _pad0: [u8; 3],
+    /// Mirrors `InfoPanel`: 0 = None, 1 = Controls.
+    pub show_info: u8,
+    pub _pad0: [u8; 2],
     pub speed_x100: u32,
     pub selected_effect_id: u16,
     pub _pad1: [u8; 2],
@@ -35,6 +40,15 @@ pub struct PendingSpawn {
     pub valid: u8,
     pub _pad: u8,
     pub world_pos: [f32; 3],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct CameraView {
+    pub target: [f32; 3],
+    pub yaw: f32,
+    pub pitch: f32,
+    pub distance: f32,
 }
 
 // === Internal state ===
@@ -58,6 +72,12 @@ const PICKABLE: &[(EffectId, &str)] = &[
     (EffectId::GrimTooth, "GrimTooth (Custom)"),
 ];
 
+#[derive(Clone, Copy, PartialEq)]
+enum InfoPanel {
+    None = 0,
+    Controls = 1,
+}
+
 struct State {
     paused: bool,
     speed: f32,
@@ -66,6 +86,24 @@ struct State {
     /// Set to Some(...) when an effect should be spawned; host reads this
     /// once per frame via `hot_take_pending_spawn`.
     pending_spawn: Option<EffectId>,
+    show_info: InfoPanel,
+
+    // Orbit camera around the spawn point.
+    target: [f32; 3],
+    yaw: f32,
+    pitch: f32,
+    distance: f32,
+}
+
+impl State {
+    fn default_camera(&mut self) {
+        // Match Camera::default() so the initial view is consistent with the
+        // renderer's untouched camera.
+        self.target = [0.0, 0.0, 0.0];
+        self.yaw = 0.0;
+        self.pitch = 55_f32.to_radians();
+        self.distance = 200.0;
+    }
 }
 
 impl State {
@@ -75,6 +113,11 @@ impl State {
 
     fn current_label(&self) -> &'static str {
         PICKABLE[self.selection].1
+    }
+
+    fn zoom(&mut self, factor: f32) {
+        // factor > 1 → out; factor < 1 → in. Clamp to keep the camera useful.
+        self.distance = (self.distance * factor).clamp(20.0, 2000.0);
     }
 
     fn cycle(&mut self, forward: bool) {
@@ -96,13 +139,19 @@ impl State {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn hot_create() -> *mut () {
-    let state = State {
+    let mut state = State {
         paused: false,
         speed: 1.0,
         selection: 0,
         // Spawn the first effect on startup so something is visible immediately.
         pending_spawn: Some(PICKABLE[0].0),
+        show_info: InfoPanel::None,
+        target: [0.0; 3],
+        yaw: 0.0,
+        pitch: 0.0,
+        distance: 0.0,
     };
+    state.default_camera();
     Box::into_raw(Box::new(state)) as *mut ()
 }
 
@@ -129,8 +178,39 @@ pub unsafe extern "C" fn hot_on_action(state_ptr: *mut (), action_code: u32) {
         ACTION_TOGGLE_PAUSE => state.paused = !state.paused,
         ACTION_SPEED_UP => state.speed = (state.speed + 0.25).min(4.0),
         ACTION_SPEED_DOWN => state.speed = (state.speed - 0.25).max(0.1),
+        ACTION_SHOW_CONTROLS => {
+            state.show_info = match state.show_info {
+                InfoPanel::Controls => InfoPanel::None,
+                _ => InfoPanel::Controls,
+            };
+        }
+        ACTION_CLOSE_INFO_PANEL => state.show_info = InfoPanel::None,
+        ACTION_RESET_CAMERA => state.default_camera(),
         _ => {}
     }
+}
+
+/// Mouse wheel: positive `dy` = scroll up = zoom in (closer to target).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_on_mouse_wheel(state_ptr: *mut (), dy: f32) {
+    let state = unsafe { &mut *(state_ptr as *mut State) };
+    if dy > 0.0 {
+        state.zoom(0.9);
+    } else if dy < 0.0 {
+        state.zoom(1.1);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_get_camera(state_ptr: *mut (), out: *mut CameraView) {
+    let state = unsafe { &*(state_ptr as *const State) };
+    let v = CameraView {
+        target: state.target,
+        yaw: state.yaw,
+        pitch: state.pitch,
+        distance: state.distance,
+    };
+    unsafe { *out = v };
 }
 
 #[unsafe(no_mangle)]
@@ -138,7 +218,8 @@ pub unsafe extern "C" fn hot_get_flags(state_ptr: *mut (), out: *mut ViewerFlags
     let state = unsafe { &*(state_ptr as *const State) };
     let f = ViewerFlags {
         paused: state.paused as u8,
-        _pad0: [0; 3],
+        show_info: state.show_info as u8,
+        _pad0: [0; 2],
         speed_x100: (state.speed * 100.0) as u32,
         selected_effect_id: state.current_effect().as_u16(),
         _pad1: [0; 2],
@@ -179,6 +260,9 @@ pub unsafe extern "C" fn hot_build_overlay(
 
     out.extend(build_status(atlas, screen_w, state));
     out.extend(build_legend(atlas, screen_h));
+    if state.show_info == InfoPanel::Controls {
+        out.extend(build_controls_panel(atlas, screen_w, screen_h));
+    }
 }
 
 // === Overlay builders ===
@@ -192,10 +276,32 @@ const BG_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.5];
 const LEGEND: &[(&str, &str)] = &[
     ("→ / Space", "Next effect"),
     ("←", "Previous effect"),
-    ("R", "Respawn current"),
+    ("R", "Respawn"),
     ("P", "Pause / resume"),
     ("+ / -", "Speed up / down"),
-    ("Esc", "Quit"),
+    ("Scroll", "Zoom in / out"),
+    ("C", "Reset camera"),
+    ("1 / ?", "Toggle controls panel"),
+    ("Esc", "Quit / close panel"),
+];
+
+const CONTROLS_LINES: &[&str] = &[
+    "Picker:",
+    "  → / Space    Next effect",
+    "  ←            Previous effect",
+    "  R            Respawn current effect at origin",
+    "",
+    "Playback:",
+    "  P            Pause / resume",
+    "  + / -        Speed up / down (0.1x – 4.0x)",
+    "",
+    "Camera:",
+    "  Scroll       Zoom in / out",
+    "  C            Reset camera to default",
+    "",
+    "Window:",
+    "  1 / ?        Toggle this panel",
+    "  Esc          Close panel (or quit if none open)",
 ];
 
 fn build_status(atlas: &FontAtlas, screen_w: f32, state: &State) -> Vec<UiDrawCall> {
@@ -225,6 +331,45 @@ fn build_status(atlas: &FontAtlas, screen_w: f32, state: &State) -> Vec<UiDrawCa
         indices: ti,
         texture: UiTextureRef::FontAtlas,
     });
+    calls
+}
+
+fn build_controls_panel(atlas: &FontAtlas, screen_w: f32, screen_h: f32) -> Vec<UiDrawCall> {
+    let mut calls = Vec::new();
+    let box_w = 360.0;
+    let box_h = (CONTROLS_LINES.len() as f32 + 2.0) * LINE_HEIGHT + PADDING * 2.0;
+    let box_x = (screen_w - box_w) / 2.0;
+    let box_y = (screen_h - box_h) / 2.0;
+
+    let (bv, bi) = quad_vertices(box_x, box_y, box_w, box_h, BG_COLOR);
+    calls.push(UiDrawCall {
+        vertices: bv.to_vec(),
+        indices: bi.to_vec(),
+        texture: UiTextureRef::White,
+    });
+
+    let (tv, ti) = text_vertices(
+        "=== Effect Viewer Controls ===",
+        box_x + PADDING,
+        box_y + PADDING,
+        KEY_COLOR,
+        atlas,
+    );
+    calls.push(UiDrawCall {
+        vertices: tv,
+        indices: ti,
+        texture: UiTextureRef::FontAtlas,
+    });
+
+    for (i, line) in CONTROLS_LINES.iter().enumerate() {
+        let y = box_y + PADDING + LINE_HEIGHT * 1.5 + i as f32 * LINE_HEIGHT;
+        let (lv, li) = text_vertices(line, box_x + PADDING, y, DESC_COLOR, atlas);
+        calls.push(UiDrawCall {
+            vertices: lv,
+            indices: li,
+            texture: UiTextureRef::FontAtlas,
+        });
+    }
     calls
 }
 

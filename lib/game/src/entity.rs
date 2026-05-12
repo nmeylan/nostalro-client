@@ -311,8 +311,8 @@ impl Entity {
     }
 
     /// Caster attack replay for multi-hit skills (Sonic Blow, Chain Crush, Arrow Vulcan).
-    /// Starts at frame 4 (weapon swing), matching original game's AM_WILL_BE_ATTACK
-    /// with m_curMotion=4, m_motionSpeed=1.
+    /// Starts at frame 4 (weapon swing), matching the original game's attack motion
+    /// at motion 4, motion speed 1.
     pub fn enter_attack_replay(&mut self, skill_id: u16) {
         if self.state == EntityState::Dead {
             return;

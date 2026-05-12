@@ -32,7 +32,7 @@ pub enum DamageNumberType {
 
 const DIGIT_SPACING: f32 = 8.0;
 
-/// One stateCnt tick = 24ms in the original game
+/// One animation tick = 24ms in the original game
 const FRAME_MS: f32 = 24.0;
 
 impl DamageNumberType {
@@ -60,7 +60,7 @@ impl DamageNumberType {
     pub fn duration(&self) -> f32 {
         match self {
             Self::Combo | Self::MultiHit => 0.45,
-            Self::Miss | Self::Lucky => 80.0 * FRAME_MS / 1000.0, // 1.92s (stateCnt > 80 in original)
+            Self::Miss | Self::Lucky => 80.0 * FRAME_MS / 1000.0, // 1.92s (expires after 80 ticks)
             _ => 120.0 * FRAME_MS / 1000.0,                       // 2.88s
         }
     }
@@ -92,7 +92,7 @@ impl DamageNumber {
         self.elapsed >= self.number_type.duration()
     }
 
-    /// stateCnt equivalent: elapsed_ms / 24
+    /// Animation tick count: elapsed_ms / 24
     fn frame(&self) -> f32 {
         self.elapsed * 1000.0 / FRAME_MS
     }
@@ -117,7 +117,7 @@ impl DamageNumber {
                 }
             }
             _ => {
-                // Parabolic: rises fast then slows. Original: orgY+8 - cnt*(2.0 - cnt/30)
+                // Parabolic: rises fast then slows, then eases back down
                 -8.0 + f * (2.0 - f / 30.0)
             }
         }
@@ -142,7 +142,7 @@ impl DamageNumber {
         let f = self.frame();
         match self.number_type {
             DamageNumberType::ComboFinal | DamageNumberType::MultiHitTotal => {
-                // Original: m_zoom += stateCnt*0.18 (quadratic accumulation from 0.5)
+                // Quadratic grow from 0.5, accelerating with each tick
                 (0.5 + 0.09 * f * f).min(3.0)
             }
             DamageNumberType::Combo | DamageNumberType::MultiHit => {

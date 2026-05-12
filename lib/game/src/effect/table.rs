@@ -1,6 +1,6 @@
 //! Lookup from `EffectId` to its `EffectSpec`. Hand-populated stub matching
 //! the sample IDs in `id.rs`; full table will be code-generated from
-//! dhxj's `durationTable` and effect classifications.
+//! the original's `durationTable` and effect classifications.
 
 use super::id::EffectId;
 use super::spec::{CustomFamily, EffectSpec};
