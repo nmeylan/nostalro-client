@@ -1,107 +1,71 @@
-//! Lookup from `EffectId` to its `EffectSpec`. Hand-populated stub matching
-//! the sample IDs in `id.rs`; full table will be code-generated from
-//! the original's `durationTable` and effect classifications.
+//! Per-`EffectId` `EffectSpec` lookup.
+//!
+//! The default for every id is `EffectSpec::Str { file: <derived>, duration_ms: default_duration_ms(id) }`.
+//! The match below overrides specific ids to point at:
+//!   * a custom family (Aura, Wall, Cylinder, ...) → renders via `make_custom`
+//!   * a different STR file name (when the lowercased EF_ identifier
+//!     doesn't match the GRF file name)
+//!   * an SPR-looping ambient sprite
+//!
+//! Add new overrides as effects get their visual classification confirmed
+//! against the original game. Anything not listed here uses the data-driven default.
 
-use super::id::EffectId;
+use super::generated::{EffectId, default_duration_ms, default_str_file};
 use super::spec::{CustomFamily, EffectSpec};
 
 pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
     Some(match id {
+        // --- Custom families ---
+        EffectId::Level99 | EffectId::Level992 | EffectId::Level993 | EffectId::Level994
+        | EffectId::Level995 | EffectId::Level996 => EffectSpec::Custom {
+            family: CustomFamily::Aura,
+            duration_ms: default_duration_ms(id),
+        },
+        EffectId::Icewall => EffectSpec::Custom {
+            family: CustomFamily::Wall,
+            duration_ms: default_duration_ms(id),
+        },
+        EffectId::Earthspike => EffectSpec::Custom {
+            family: CustomFamily::SpikeRow,
+            duration_ms: default_duration_ms(id),
+        },
+        EffectId::Grimtooth | EffectId::Grimtoothatk => EffectSpec::Custom {
+            family: CustomFamily::SpikeRow,
+            duration_ms: default_duration_ms(id),
+        },
+        EffectId::Magnus => EffectSpec::Custom {
+            family: CustomFamily::CylinderPillar,
+            duration_ms: default_duration_ms(id),
+        },
+        EffectId::Grandcross | EffectId::Grandcross2 => EffectSpec::Custom {
+            family: CustomFamily::CrossBeam,
+            duration_ms: default_duration_ms(id),
+        },
+        EffectId::Stormgust => EffectSpec::Custom {
+            family: CustomFamily::Bespoke(EffectId::Stormgust),
+            duration_ms: default_duration_ms(id),
+        },
+
+        // --- Map ambient SPR loops ---
         EffectId::Torch => EffectSpec::Spr {
             sprite: "data/sprite/이팩트/불꽃",
             duration_ms: u32::MAX,
         },
-        EffectId::ChimneySmoke => EffectSpec::Spr {
-            sprite: "data/sprite/이팩트/연기",
-            duration_ms: u32::MAX,
-        },
-        EffectId::Bubble => EffectSpec::Str {
-            file: "bubble",
-            duration_ms: 2000,
-        },
-        EffectId::GasPush => EffectSpec::Str {
-            file: "gaspush",
-            duration_ms: 1500,
-        },
-        EffectId::Spring => EffectSpec::Str {
+
+        // Hand-curated STR filename overrides (when the original STR file isn't
+        // simply the lowercased EF_ name).
+        EffectId::Springtrap => EffectSpec::Str {
             file: "spring",
-            duration_ms: 1500,
+            duration_ms: default_duration_ms(id),
         },
 
-        EffectId::Hit1 | EffectId::Hit2 | EffectId::Hit3 => EffectSpec::Custom {
-            family: CustomFamily::RadialBurst,
-            duration_ms: 300,
-        },
-
-        EffectId::FireBolt => EffectSpec::Str {
-            file: "fire_bolt",
-            duration_ms: 800,
-        },
-        EffectId::ColdBolt => EffectSpec::Custom {
-            family: CustomFamily::SpikeRow,
-            duration_ms: 800,
-        },
-        EffectId::LightningBolt => EffectSpec::Str {
-            file: "lightning_bolt",
-            duration_ms: 800,
-        },
-        EffectId::IceWall => EffectSpec::Custom {
-            family: CustomFamily::Wall,
-            duration_ms: 20_000,
-        },
-        EffectId::EarthSpike => EffectSpec::Custom {
-            family: CustomFamily::SpikeRow,
-            duration_ms: 1200,
-        },
-        EffectId::GrimTooth => EffectSpec::Custom {
-            family: CustomFamily::SpikeRow,
-            duration_ms: 1000,
-        },
-        EffectId::MagnusExorcismus => EffectSpec::Custom {
-            family: CustomFamily::CylinderPillar,
-            duration_ms: 4000,
-        },
-        EffectId::GrandCross => EffectSpec::Custom {
-            family: CustomFamily::CrossBeam,
-            duration_ms: 1500,
-        },
-        EffectId::LordOfVermillion => EffectSpec::Custom {
-            family: CustomFamily::Bespoke(EffectId::LordOfVermillion),
-            duration_ms: 5000,
-        },
-        EffectId::StormGust => EffectSpec::Custom {
-            family: CustomFamily::Bespoke(EffectId::StormGust),
-            duration_ms: 4500,
-        },
-
-        EffectId::Level99 => EffectSpec::Custom {
-            family: CustomFamily::Aura,
-            duration_ms: u32::MAX,
-        },
-        EffectId::Lvup => EffectSpec::Str {
-            file: "lvup",
-            duration_ms: 2000,
-        },
-        EffectId::JobLvup => EffectSpec::Str {
-            file: "joblvup",
-            duration_ms: 2000,
-        },
-        EffectId::RefineOk => EffectSpec::Str {
-            file: "refineok",
-            duration_ms: 1500,
-        },
-        EffectId::RefineFail => EffectSpec::Str {
-            file: "refinefail",
-            duration_ms: 1500,
-        },
-
-        EffectId::Potion1 => EffectSpec::Str {
-            file: "potion1",
-            duration_ms: 600,
-        },
-        EffectId::Potion2 => EffectSpec::Str {
-            file: "potion2",
-            duration_ms: 600,
+        // --- Everything else: default to STR with a name derived from the
+        // id. If the GRF doesn't contain that file, StrEffectCache::load
+        // logs a warning and the effect doesn't render — that's the
+        // graceful failure mode for unmapped IDs. ---
+        _ => EffectSpec::Str {
+            file: default_str_file(id),
+            duration_ms: default_duration_ms(id),
         },
     })
 }
@@ -111,7 +75,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn known_ids_resolve_to_specs() {
+    fn lv99_resolves_to_aura_family() {
         assert!(matches!(
             effect_spec(EffectId::Level99),
             Some(EffectSpec::Custom {
@@ -119,31 +83,25 @@ mod tests {
                 ..
             })
         ));
-        assert!(matches!(
-            effect_spec(EffectId::IceWall),
-            Some(EffectSpec::Custom {
-                family: CustomFamily::Wall,
-                ..
-            })
-        ));
+    }
+
+    #[test]
+    fn known_str_files_resolve() {
         assert!(matches!(
             effect_spec(EffectId::Bubble),
-            Some(EffectSpec::Str { .. })
+            Some(EffectSpec::Str { file: "bubble", .. })
         ));
         assert!(matches!(
-            effect_spec(EffectId::Torch),
-            Some(EffectSpec::Spr { .. })
+            effect_spec(EffectId::Lvup),
+            Some(EffectSpec::Str { file: "lvup", .. })
         ));
     }
 
     #[test]
-    fn bespoke_family_carries_id() {
-        match effect_spec(EffectId::LordOfVermillion).unwrap() {
-            EffectSpec::Custom {
-                family: CustomFamily::Bespoke(id),
-                ..
-            } => assert_eq!(id, EffectId::LordOfVermillion),
-            other => panic!("expected Bespoke, got {other:?}"),
-        }
+    fn torch_is_an_spr_loop() {
+        assert!(matches!(
+            effect_spec(EffectId::Torch),
+            Some(EffectSpec::Spr { .. })
+        ));
     }
 }

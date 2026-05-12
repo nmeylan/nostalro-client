@@ -23,9 +23,10 @@ use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_game::effect::{EffectId, EffectQueue};
+use ragnarok_game::effect::{EffectId, EffectQueue, EffectSpec, effect_spec};
 use ragnarok_renderer::effect::{
-    EffectHolder, EffectUpdateCtx, StrEffectCache, StrEmitterInput, build_str_effect_batches,
+    EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, StrEffectCache, StrEmitterInput,
+    build_billboard_batches, build_str_effect_batches,
 };
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{Renderer, UiDrawCall, block_on};
@@ -79,12 +80,17 @@ const ACTION_SPEED_DOWN: u32 = 6;
 const ACTION_SHOW_CONTROLS: u32 = 7;
 const ACTION_CLOSE_INFO_PANEL: u32 = 8;
 const ACTION_RESET_CAMERA: u32 = 9;
+const ACTION_PAGE_DOWN: u32 = 10;
+const ACTION_PAGE_UP: u32 = 11;
+const ACTION_HOME: u32 = 12;
+const ACTION_END: u32 = 13;
 
 type HotCreateFn = extern "C" fn() -> *mut ();
 type HotDestroyFn = unsafe extern "C" fn(*mut ());
 type HotUpdateFn = unsafe extern "C" fn(*mut (), f32);
 type HotOnActionFn = unsafe extern "C" fn(*mut (), u32);
 type HotOnMouseWheelFn = unsafe extern "C" fn(*mut (), f32);
+type HotOnCharInputFn = unsafe extern "C" fn(*mut (), u32);
 type HotGetFlagsFn = unsafe extern "C" fn(*mut (), *mut ViewerFlags);
 type HotGetCameraFn = unsafe extern "C" fn(*mut (), *mut CameraView);
 type HotTakePendingFn = unsafe extern "C" fn(*mut (), *mut PendingSpawn);
@@ -97,6 +103,7 @@ struct HotLib {
     update_fn: HotUpdateFn,
     on_action_fn: HotOnActionFn,
     on_mouse_wheel_fn: HotOnMouseWheelFn,
+    on_char_input_fn: HotOnCharInputFn,
     get_flags_fn: HotGetFlagsFn,
     get_camera_fn: HotGetCameraFn,
     take_pending_fn: HotTakePendingFn,
@@ -113,17 +120,18 @@ impl HotLib {
                 return None;
             }
         };
-        let (create, destroy, update, on_action, on_wheel, get_flags, get_camera, take_pending, build_overlay) = unsafe {
+        let (create, destroy, update, on_action, on_wheel, on_char, get_flags, get_camera, take_pending, build_overlay) = unsafe {
             let c: libloading::Symbol<HotCreateFn> = lib.get(b"hot_create").ok()?;
             let d: libloading::Symbol<HotDestroyFn> = lib.get(b"hot_destroy").ok()?;
             let u: libloading::Symbol<HotUpdateFn> = lib.get(b"hot_update").ok()?;
             let a: libloading::Symbol<HotOnActionFn> = lib.get(b"hot_on_action").ok()?;
             let w: libloading::Symbol<HotOnMouseWheelFn> = lib.get(b"hot_on_mouse_wheel").ok()?;
+            let ch: libloading::Symbol<HotOnCharInputFn> = lib.get(b"hot_on_char_input").ok()?;
             let f: libloading::Symbol<HotGetFlagsFn> = lib.get(b"hot_get_flags").ok()?;
             let cam: libloading::Symbol<HotGetCameraFn> = lib.get(b"hot_get_camera").ok()?;
             let t: libloading::Symbol<HotTakePendingFn> = lib.get(b"hot_take_pending_spawn").ok()?;
             let b: libloading::Symbol<HotBuildOverlayFn> = lib.get(b"hot_build_overlay").ok()?;
-            (*c, *d, *u, *a, *w, *f, *cam, *t, *b)
+            (*c, *d, *u, *a, *w, *ch, *f, *cam, *t, *b)
         };
         let state = (create)();
         Some(Self {
@@ -132,6 +140,7 @@ impl HotLib {
             update_fn: update,
             on_action_fn: on_action,
             on_mouse_wheel_fn: on_wheel,
+            on_char_input_fn: on_char,
             get_flags_fn: get_flags,
             get_camera_fn: get_camera,
             take_pending_fn: take_pending,
@@ -157,6 +166,10 @@ impl HotLib {
 
     fn on_mouse_wheel(&self, dy: f32) {
         unsafe { (self.on_mouse_wheel_fn)(self.state, dy) };
+    }
+
+    fn on_char_input(&self, codepoint: u32) {
+        unsafe { (self.on_char_input_fn)(self.state, codepoint) };
     }
 
     fn camera(&self) -> CameraView {
@@ -194,39 +207,10 @@ impl HotLib {
     }
 }
 
-/// Reverse-lookup a u16 onto an `EffectId` variant. Linear over the variant
-/// list — fine for ~20 entries; will be a generated table when `EffectId`
-/// scales to ~1000.
+/// Reverse-lookup a u16 onto an `EffectId` variant. Delegates to the
+/// generated table (821 variants, sparse discriminants up to 2027).
 fn effect_id_from_u16(value: u16) -> Option<EffectId> {
-    use EffectId::*;
-    const ALL: &[EffectId] = &[
-        Torch,
-        ChimneySmoke,
-        Bubble,
-        GasPush,
-        Spring,
-        Hit1,
-        Hit2,
-        Hit3,
-        FireBolt,
-        ColdBolt,
-        LightningBolt,
-        IceWall,
-        EarthSpike,
-        GrimTooth,
-        MagnusExorcismus,
-        GrandCross,
-        LordOfVermillion,
-        StormGust,
-        Level99,
-        Lvup,
-        JobLvup,
-        RefineOk,
-        RefineFail,
-        Potion1,
-        Potion2,
-    ];
-    ALL.iter().copied().find(|e| e.as_u16() == value)
+    EffectId::from_u16(value)
 }
 
 fn find_dylib() -> PathBuf {
@@ -253,6 +237,10 @@ struct App {
     str_effects: StrEffectCache,
     effect_holder: EffectHolder,
     effect_queue: EffectQueue,
+    /// 1x1 white bind group, owned by App (not the renderer) so it can be
+    /// referenced from sprite batches without conflicting with the mutable
+    /// borrow taken by `Renderer::render`.
+    white_bind_group: Option<wgpu::BindGroup>,
     last_frame: Instant,
     hot_lib: Option<HotLib>,
     dylib_path: PathBuf,
@@ -276,6 +264,7 @@ impl App {
             str_effects: StrEffectCache::new(),
             effect_holder: EffectHolder::new(),
             effect_queue: EffectQueue::new(),
+            white_bind_group: None,
             last_frame: Instant::now(),
             hot_lib,
             dylib_path,
@@ -328,30 +317,39 @@ impl App {
         let Some((effect_id, pos)) = hot.take_pending_spawn() else {
             return;
         };
+        // Viewer convention: each picker spawn is the user asking to see
+        // *just* this effect. Clear anything still alive so persistent
+        // effects (Aura) don't pile up as we cycle through the list.
+        self.effect_holder.clear();
+        // Lazy-load the STR file for this effect, if any, before pushing
+        // the spawn. The holder won't actually render anything until its
+        // bind groups are present in the cache.
+        self.ensure_str_loaded_for(effect_id);
         self.effect_queue
             .spawn_at(effect_id, [pos[0], pos[1], pos[2]]);
     }
 
-    fn ensure_str_loaded(&mut self) {
-        // Eagerly preload STR files for any EffectSpec::Str entries in the
-        // pickable list. Cheap to do once per app start.
-        let names: Vec<&'static str> = effect_str_names();
+    /// If `effect_id` resolves to an `EffectSpec::Str`, make sure its STR
+    /// file is in the cache. Failures are remembered so we don't retry
+    /// every time the user cycles back to the same id.
+    fn ensure_str_loaded_for(&mut self, id: EffectId) {
+        let Some(EffectSpec::Str { file, .. }) = effect_spec(id) else {
+            return;
+        };
+        if self.attempted_str_files.contains(file) {
+            return;
+        }
+        self.attempted_str_files.insert(file.to_string());
         let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) else {
             return;
         };
-        for name in names {
-            if self.attempted_str_files.contains(name) {
-                continue;
-            }
-            self.attempted_str_files.insert(name.to_string());
-            self.str_effects.load(
-                name,
-                grf,
-                &mut renderer.texture_cache,
-                &renderer.device.device,
-                &renderer.device.queue,
-            );
-        }
+        self.str_effects.load(
+            file,
+            grf,
+            &mut renderer.texture_cache,
+            &renderer.device.device,
+            &renderer.device.queue,
+        );
     }
 
     fn render_frame(&mut self) {
@@ -406,13 +404,40 @@ impl App {
                 anim_time: s.anim_time,
             })
             .collect();
-        let sprite_batches = build_str_effect_batches(
+        let mut sprite_batches = build_str_effect_batches(
             &str_inputs,
             &self.str_effects,
             &renderer.camera,
             screen_w,
             screen_h,
         );
+
+        // Custom-effect primitives (currently: Aura). Build a draw list from
+        // every active custom effect, then turn the list into sprite batches
+        // via the billboard primitive renderer.
+        let mut effect_draws = EffectDrawList::new();
+        let render_ctx = EffectRenderCtx {
+            camera: &renderer.camera,
+            screen_w,
+            screen_h,
+            elapsed: 0.0,
+        };
+        self.effect_holder
+            .collect_custom_draws(&mut effect_draws, &render_ctx);
+        if let Some(fallback) = &self.white_bind_group {
+            let mut primitive_batches = build_billboard_batches(
+                &effect_draws,
+                &renderer.camera,
+                screen_w,
+                screen_h,
+                fallback,
+                // Named-texture lookup intentionally returns None for now —
+                // Aura uses the fallback. Wire up named GRF textures here
+                // when fx/* effects need them.
+                |_name| None,
+            );
+            sprite_batches.append(&mut primitive_batches);
+        }
 
         // cdylib overlay
         let mut ui_calls: Vec<UiDrawCall> = Vec::new();
@@ -422,23 +447,6 @@ impl App {
 
         renderer.render(&ui_calls, &sprite_batches, &[], &[], 0.0);
     }
-}
-
-/// STR file names referenced by the pickable list in the cdylib. Hand-curated
-/// for stage 1; replaced by a code-generated table later.
-fn effect_str_names() -> Vec<&'static str> {
-    vec![
-        "bubble",
-        "gaspush",
-        "spring",
-        "fire_bolt",
-        "lightning_bolt",
-        "lvup",
-        "joblvup",
-        "refineok",
-        "refinefail",
-        "potion1",
-    ]
 }
 
 impl ApplicationHandler for App {
@@ -452,6 +460,18 @@ impl ApplicationHandler for App {
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
         let renderer = block_on(Renderer::new(window.clone(), 14.0, 1.0));
 
+        // App-owned 1x1 white bind group for the billboard primitive
+        // fallback. See `App::white_bind_group` doc for why this is on App
+        // rather than reusing `renderer.white_bind_group`.
+        let white_img = image::RgbaImage::from_pixel(1, 1, image::Rgba([255, 255, 255, 255]));
+        let white_bind_group = ragnarok_renderer::texture::create_texture_bind_group(
+            &renderer.device.device,
+            &renderer.device.queue,
+            &white_img,
+            &renderer.texture_cache.bind_group_layout,
+            "effect_viewer_white",
+        );
+
         match GrfArchive::open(Path::new(&self.grf_path)) {
             Ok(grf) => self.grf = Some(grf),
             Err(e) => {
@@ -462,9 +482,9 @@ impl ApplicationHandler for App {
         }
 
         self.renderer = Some(renderer);
+        self.white_bind_group = Some(white_bind_group);
         self.window = Some(window);
         self.last_frame = Instant::now();
-        self.ensure_str_loaded();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -504,13 +524,27 @@ impl ApplicationHandler for App {
                         Some(ACTION_NEXT_EFFECT)
                     }
                     Key::Named(NamedKey::ArrowLeft) => Some(ACTION_PREV_EFFECT),
+                    Key::Named(NamedKey::PageDown) => Some(ACTION_PAGE_DOWN),
+                    Key::Named(NamedKey::PageUp) => Some(ACTION_PAGE_UP),
+                    Key::Named(NamedKey::Home) => Some(ACTION_HOME),
+                    Key::Named(NamedKey::End) => Some(ACTION_END),
                     Key::Character(c) => match c {
+                        // Reserved single-purpose keys (don't get forwarded
+                        // as char input — they're commands).
                         "r" | "R" => Some(ACTION_RESPAWN),
                         "p" | "P" => Some(ACTION_TOGGLE_PAUSE),
                         "+" | "=" => Some(ACTION_SPEED_UP),
                         "-" | "_" => Some(ACTION_SPEED_DOWN),
                         "c" | "C" => Some(ACTION_RESET_CAMERA),
                         "1" | "?" => Some(ACTION_SHOW_CONTROLS),
+                        // Anything else that's a single letter: forward as
+                        // a "jump to letter" command to the picker.
+                        s if s.len() == 1 && s.chars().next().unwrap().is_ascii_alphabetic() => {
+                            if let Some(hot) = &self.hot_lib {
+                                hot.on_char_input(s.chars().next().unwrap() as u32);
+                            }
+                            None
+                        }
                         _ => None,
                     },
                     _ => None,

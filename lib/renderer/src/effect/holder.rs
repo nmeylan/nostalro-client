@@ -129,6 +129,13 @@ impl EffectHolder {
         self.effects.retain(|e| e.handle != handle);
     }
 
+    /// Drop every live effect. Used by the effect viewer when the user
+    /// cycles to a new picker entry so old (persistent) effects don't
+    /// accumulate.
+    pub fn clear(&mut self) {
+        self.effects.clear();
+    }
+
     pub fn update(&mut self, ctx: &EffectUpdateCtx) {
         let dt = ctx.dt;
         self.effects.retain_mut(|e| {
@@ -231,12 +238,13 @@ mod tests {
     #[test]
     fn spawning_an_str_effect_runs_until_duration_expires() {
         let mut h = EffectHolder::new();
-        // Bubble: STR, 2000 ms
+        // Override the data-driven duration so the test doesn't depend on
+        // whatever the original's duration table happens to set Bubble to.
         let handle = h
             .spawn(
                 EffectId::Bubble,
                 Attach::WorldPos([0.0, 0.0, 0.0]),
-                None,
+                Some(2000),
                 None,
             )
             .expect("spawn");
@@ -255,9 +263,9 @@ mod tests {
     #[test]
     fn custom_effect_with_no_impl_does_not_spawn() {
         let mut h = EffectHolder::new();
-        // IceWall maps to CustomFamily::Wall which has no Rust impl yet.
+        // Icewall maps to CustomFamily::Wall which has no Rust impl yet.
         let result = h.spawn(
-            EffectId::IceWall,
+            EffectId::Icewall,
             Attach::WorldPos([0.0, 0.0, 0.0]),
             None,
             None,
@@ -271,7 +279,7 @@ mod tests {
         let mut h = EffectHolder::new();
         let mut q = EffectQueue::new();
         q.spawn_at(EffectId::Bubble, [1.0, 2.0, 3.0]);
-        q.spawn_at(EffectId::GasPush, [0.0, 0.0, 0.0]);
+        q.spawn_at(EffectId::Gaspush, [0.0, 0.0, 0.0]);
         h.drain_queue(&mut q);
         assert_eq!(h.len(), 2);
         assert!(q.pending.is_empty());

@@ -11,6 +11,7 @@ members = [
     "tools",
     "tools/grf-editor",
     "tools/effect-viewer-hot",
+    "tools/gen-effect-table",
     "tools/rendering-viewer-hot",
     "tools/rsw-viewer-hot",
     "lib/ui-component-hot",

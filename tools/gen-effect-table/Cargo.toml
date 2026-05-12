@@ -1,0 +1,12 @@
+[package]
+name = "gen-effect-table"
+version = "0.1.0"
+edition = "2024"
+
+# One-shot generator binary. Parses the original's effects-enum.txt / effects-source.txt and
+# emits Rust source under lib/game/src/effect/. Run by hand when re-syncing
+# from the reference data; not part of the regular build.
+
+[[bin]]
+name = "gen-effect-table"
+path = "src/main.rs"

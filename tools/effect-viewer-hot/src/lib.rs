@@ -3,7 +3,7 @@
 #[global_allocator]
 static GLOBAL: std::alloc::System = std::alloc::System;
 
-use ragnarok_game::effect::EffectId;
+use ragnarok_game::effect::{ALL_EFFECT_IDS, EffectId, effect_ef_name, effect_name};
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
 use ragnarok_ui::draw::{quad_vertices, text_vertices};
@@ -18,6 +18,10 @@ pub const ACTION_SPEED_DOWN: u32 = 6;
 pub const ACTION_SHOW_CONTROLS: u32 = 7;
 pub const ACTION_CLOSE_INFO_PANEL: u32 = 8;
 pub const ACTION_RESET_CAMERA: u32 = 9;
+pub const ACTION_PAGE_DOWN: u32 = 10;
+pub const ACTION_PAGE_UP: u32 = 11;
+pub const ACTION_HOME: u32 = 12;
+pub const ACTION_END: u32 = 13;
 
 // === C-ABI POD types (host duplicates exactly) ===
 
@@ -53,24 +57,12 @@ pub struct CameraView {
 
 // === Internal state ===
 
-/// Hand-curated list of effects available in the picker. Matches the
-/// `EffectId` enum in `lib/game/src/effect/id.rs` — when that enum grows
-/// (Phase B XML port) this list will be code-generated.
-const PICKABLE: &[(EffectId, &str)] = &[
-    (EffectId::Bubble, "Bubble (STR)"),
-    (EffectId::GasPush, "GasPush (STR)"),
-    (EffectId::Spring, "Spring (STR)"),
-    (EffectId::FireBolt, "FireBolt (STR)"),
-    (EffectId::LightningBolt, "LightningBolt (STR)"),
-    (EffectId::Lvup, "Lvup (STR)"),
-    (EffectId::JobLvup, "JobLvup (STR)"),
-    (EffectId::RefineOk, "RefineOk (STR)"),
-    (EffectId::RefineFail, "RefineFail (STR)"),
-    (EffectId::Potion1, "Potion1 (STR)"),
-    (EffectId::Level99, "Lv99 Aura (Custom)"),
-    (EffectId::IceWall, "IceWall (Custom)"),
-    (EffectId::GrimTooth, "GrimTooth (Custom)"),
-];
+/// Picker draws from `ALL_EFFECT_IDS` directly — every `EF_*` ID is
+/// selectable (~821 variants today). Names + EF_ aliases come from the
+/// generated helpers.
+
+/// How many list entries to skip when paging.
+const PAGE_SIZE: usize = 25;
 
 #[derive(Clone, Copy, PartialEq)]
 enum InfoPanel {
@@ -108,11 +100,18 @@ impl State {
 
 impl State {
     fn current_effect(&self) -> EffectId {
-        PICKABLE[self.selection].0
+        ALL_EFFECT_IDS[self.selection]
     }
 
-    fn current_label(&self) -> &'static str {
-        PICKABLE[self.selection].1
+    fn current_label(&self) -> String {
+        let id = self.current_effect();
+        format!(
+            "{} ({})  [{}/{}]",
+            effect_name(id),
+            effect_ef_name(id),
+            self.selection + 1,
+            ALL_EFFECT_IDS.len(),
+        )
     }
 
     fn zoom(&mut self, factor: f32) {
@@ -121,12 +120,32 @@ impl State {
     }
 
     fn cycle(&mut self, forward: bool) {
-        let n = PICKABLE.len();
+        let n = ALL_EFFECT_IDS.len();
         self.selection = if forward {
             (self.selection + 1) % n
         } else {
             (self.selection + n - 1) % n
         };
+        self.pending_spawn = Some(self.current_effect());
+    }
+
+    fn page(&mut self, forward: bool) {
+        let n = ALL_EFFECT_IDS.len();
+        self.selection = if forward {
+            (self.selection + PAGE_SIZE).min(n - 1)
+        } else {
+            self.selection.saturating_sub(PAGE_SIZE)
+        };
+        self.pending_spawn = Some(self.current_effect());
+    }
+
+    fn jump_home(&mut self) {
+        self.selection = 0;
+        self.pending_spawn = Some(self.current_effect());
+    }
+
+    fn jump_end(&mut self) {
+        self.selection = ALL_EFFECT_IDS.len() - 1;
         self.pending_spawn = Some(self.current_effect());
     }
 
@@ -144,7 +163,7 @@ pub extern "C" fn hot_create() -> *mut () {
         speed: 1.0,
         selection: 0,
         // Spawn the first effect on startup so something is visible immediately.
-        pending_spawn: Some(PICKABLE[0].0),
+        pending_spawn: Some(ALL_EFFECT_IDS[0]),
         show_info: InfoPanel::None,
         target: [0.0; 3],
         yaw: 0.0,
@@ -174,6 +193,10 @@ pub unsafe extern "C" fn hot_on_action(state_ptr: *mut (), action_code: u32) {
     match action_code {
         ACTION_NEXT_EFFECT => state.cycle(true),
         ACTION_PREV_EFFECT => state.cycle(false),
+        ACTION_PAGE_DOWN => state.page(true),
+        ACTION_PAGE_UP => state.page(false),
+        ACTION_HOME => state.jump_home(),
+        ACTION_END => state.jump_end(),
         ACTION_RESPAWN => state.respawn(),
         ACTION_TOGGLE_PAUSE => state.paused = !state.paused,
         ACTION_SPEED_UP => state.speed = (state.speed + 0.25).min(4.0),
@@ -187,6 +210,34 @@ pub unsafe extern "C" fn hot_on_action(state_ptr: *mut (), action_code: u32) {
         ACTION_CLOSE_INFO_PANEL => state.show_info = InfoPanel::None,
         ACTION_RESET_CAMERA => state.default_camera(),
         _ => {}
+    }
+}
+
+/// Jump the picker cursor to the first effect whose Pascal name starts with
+/// `ch` (case-insensitive). No-op if no match.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_on_char_input(state_ptr: *mut (), codepoint: u32) {
+    let state = unsafe { &mut *(state_ptr as *mut State) };
+    let Some(c) = char::from_u32(codepoint).filter(|c| c.is_ascii_alphabetic()) else {
+        return;
+    };
+    let target = c.to_ascii_lowercase();
+    // Search starts AFTER the current position so consecutive presses cycle
+    // through all effects with the same starting letter (mirrors typical
+    // file-manager behavior).
+    let n = ALL_EFFECT_IDS.len();
+    for offset in 1..=n {
+        let idx = (state.selection + offset) % n;
+        let id = ALL_EFFECT_IDS[idx];
+        if effect_name(id)
+            .chars()
+            .next()
+            .is_some_and(|c| c.to_ascii_lowercase() == target)
+        {
+            state.selection = idx;
+            state.pending_spawn = Some(id);
+            return;
+        }
     }
 }
 
@@ -276,19 +327,25 @@ const BG_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.5];
 const LEGEND: &[(&str, &str)] = &[
     ("→ / Space", "Next effect"),
     ("←", "Previous effect"),
+    ("PgDn / PgUp", "Jump 25"),
+    ("Home / End", "First / last"),
+    ("a-z", "Jump to letter"),
     ("R", "Respawn"),
-    ("P", "Pause / resume"),
-    ("+ / -", "Speed up / down"),
-    ("Scroll", "Zoom in / out"),
+    ("P", "Pause"),
+    ("+ / -", "Speed"),
+    ("Scroll", "Zoom"),
     ("C", "Reset camera"),
-    ("1 / ?", "Toggle controls panel"),
+    ("? / 1", "Toggle controls"),
     ("Esc", "Quit / close panel"),
 ];
 
 const CONTROLS_LINES: &[&str] = &[
-    "Picker:",
-    "  → / Space    Next effect",
-    "  ←            Previous effect",
+    "Picker (821 effects):",
+    "  → / Space    Next effect (wraps)",
+    "  ←            Previous effect (wraps)",
+    "  PgDn / PgUp  Jump 25 entries forward / back",
+    "  Home / End   Jump to first / last effect",
+    "  a-z          Jump to next effect starting with that letter",
     "  R            Respawn current effect at origin",
     "",
     "Playback:",

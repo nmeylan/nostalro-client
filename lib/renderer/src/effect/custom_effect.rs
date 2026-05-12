@@ -55,11 +55,11 @@ pub struct CustomParams {
 /// (the holder spawn path) should log and skip in that case.
 pub fn make_custom(
     family: CustomFamily,
-    _params: &CustomParams,
+    params: &CustomParams,
 ) -> Option<Box<dyn CustomEffect>> {
     match family {
-        CustomFamily::Aura
-        | CustomFamily::GroundRing
+        CustomFamily::Aura => Some(Box::new(super::fx::aura::Aura::new(params))),
+        CustomFamily::GroundRing
         | CustomFamily::CastCircle
         | CustomFamily::SpikeRow
         | CustomFamily::Wall

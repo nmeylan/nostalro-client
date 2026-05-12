@@ -138,6 +138,11 @@ fn load_str_texture(
     };
 
     let mut rgba = img.to_rgba8();
+    // STR textures use two transparency conventions:
+    //   - magenta (FF00FF) for BMP color-keyed pixels (RO convention)
+    //   - pure black for additive-blend layers (also key off black so the
+    //     background doesn't add brightness)
+    ragnarok_formats::apply_magenta_transparency(rgba.as_mut());
     for px in rgba.pixels_mut() {
         if px[0] == 0 && px[1] == 0 && px[2] == 0 {
             px[3] = 0;
@@ -156,6 +161,14 @@ struct LayerAnim {
     color: [f32; 4],
     angle: f32,
     offset: [f32; 2],
+    /// D3DBLEND source factor for this frame. Unused today — the sprite
+    /// pipeline's two blend states only key off `blend_dst`. Wired when we
+    /// add a dedicated effect-primitive pipeline that honors both factors.
+    #[allow(dead_code)]
+    blend_src: i32,
+    /// D3DBLEND destination factor for this frame. `6` (D3DBLEND_INVSRCALPHA)
+    /// triggers alpha blending; anything else stays additive.
+    blend_dst: i32,
 }
 
 fn calculate_layer_anim(layer: &EffectLayer, key_index: f32) -> LayerAnim {
@@ -166,6 +179,8 @@ fn calculate_layer_anim(layer: &EffectLayer, key_index: f32) -> LayerAnim {
         color: [1.0; 4],
         angle: 0.0,
         offset: [0.0; 2],
+        blend_src: 5,
+        blend_dst: 2,
     };
 
     let frames = &layer.frames;
@@ -218,6 +233,8 @@ fn calculate_layer_anim(layer: &EffectLayer, key_index: f32) -> LayerAnim {
             color: from.color,
             angle: from.angle,
             offset: from.offset,
+            blend_src: from.blend_src,
+            blend_dst: from.blend_dst,
         };
     }
 
@@ -259,6 +276,8 @@ fn calculate_layer_anim(layer: &EffectLayer, key_index: f32) -> LayerAnim {
         color,
         angle,
         offset,
+        blend_src: from.blend_src,
+        blend_dst: from.blend_dst,
     }
 }
 
@@ -361,11 +380,20 @@ pub fn build_str_effect_batches<'a>(
                 });
             }
 
+            // Per-frame D3D blend factor → SpriteBatch's binary additive/alpha
+            // toggle. The sprite renderer today only exposes two pipelines:
+            //   * additive: (SrcAlpha, One)
+            //   * alpha:    (SrcAlpha, OneMinusSrcAlpha)
+            // D3DBLEND_INVSRCALPHA = 6, which is the giveaway for normal alpha
+            // blending. Anything else collapses to additive (glow). When we
+            // grow a dedicated effect-primitive pipeline (Phase C-2) we'll
+            // honor the full (src, dst) pair.
+            let additive = anim.blend_dst != 6;
             batches.push(SpriteBatch {
                 vertices,
                 indices: vec![0, 1, 2, 1, 3, 2],
                 texture,
-                additive: true,
+                additive,
             });
         }
     }

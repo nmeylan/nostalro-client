@@ -1,4 +1,4 @@
-use super::id::EffectId;
+use super::generated::EffectId;
 
 /// How an effect should be positioned in the world.
 #[derive(Clone, Copy, Debug, PartialEq)]

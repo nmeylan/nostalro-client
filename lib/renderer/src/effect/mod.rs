@@ -1,6 +1,8 @@
 pub mod blend;
 pub mod custom_effect;
+pub mod fx;
 pub mod holder;
+pub mod primitives;
 pub mod str_pipeline;
 
 pub use blend::{BlendKind, d3d_blend_to_wgpu};
@@ -8,6 +10,7 @@ pub use custom_effect::{
     CustomEffect, CustomParams, EffectRenderCtx, EffectStatus, EffectUpdateCtx, make_custom,
 };
 pub use holder::{EffectHandle, EffectHolder};
+pub use primitives::build_billboard_batches;
 pub use str_pipeline::{
     StrEffectCache, StrEffectEntry, StrEmitterInput, build_str_effect_batches,
 };
