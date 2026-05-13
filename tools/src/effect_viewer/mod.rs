@@ -25,8 +25,8 @@ use std::time::{Instant, SystemTime};
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::effect::{EffectId, EffectQueue, EffectSpec, effect_spec};
 use ragnarok_renderer::effect::{
-    EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, StrEffectCache, StrEmitterInput,
-    build_billboard_batches, build_str_effect_batches,
+    EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, SpawnStatus, StrEffectCache,
+    StrEmitterInput, build_billboard_batches, build_str_effect_batches,
 };
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{Renderer, UiDrawCall, block_on};
@@ -40,7 +40,7 @@ pub struct Args {
     pub grf_path: String,
 }
 
-// === FFI types — must match `tools/effect-viewer-hot/src/lib.rs` exactly ===
+// === FFI types - must match `tools/effect-viewer-hot/src/lib.rs` exactly ===
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -84,6 +84,8 @@ const ACTION_PAGE_DOWN: u32 = 10;
 const ACTION_PAGE_UP: u32 = 11;
 const ACTION_HOME: u32 = 12;
 const ACTION_END: u32 = 13;
+const ACTION_NEXT_FILTER: u32 = 14;
+const ACTION_PREV_FILTER: u32 = 15;
 
 type HotCreateFn = extern "C" fn() -> *mut ();
 type HotDestroyFn = unsafe extern "C" fn(*mut ());
@@ -94,8 +96,24 @@ type HotOnCharInputFn = unsafe extern "C" fn(*mut (), u32);
 type HotGetFlagsFn = unsafe extern "C" fn(*mut (), *mut ViewerFlags);
 type HotGetCameraFn = unsafe extern "C" fn(*mut (), *mut CameraView);
 type HotTakePendingFn = unsafe extern "C" fn(*mut (), *mut PendingSpawn);
+type HotSetLastStatusFn = unsafe extern "C" fn(*mut (), u8);
 type HotBuildOverlayFn =
     unsafe extern "C" fn(*mut (), *const FontAtlas, f32, f32, *mut Vec<UiDrawCall>);
+
+const STATUS_UNKNOWN: u8 = 0;
+const STATUS_RENDERING: u8 = 1;
+const STATUS_STR_FILE_MISSING: u8 = 2;
+const STATUS_CUSTOM_NOT_IMPL: u8 = 3;
+const STATUS_NO_SPEC: u8 = 4;
+
+fn spawn_status_to_u8(status: SpawnStatus) -> u8 {
+    match status {
+        SpawnStatus::Rendering => STATUS_RENDERING,
+        SpawnStatus::StrFileMissing => STATUS_STR_FILE_MISSING,
+        SpawnStatus::CustomNotImpl => STATUS_CUSTOM_NOT_IMPL,
+        SpawnStatus::NoSpec => STATUS_NO_SPEC,
+    }
+}
 
 struct HotLib {
     _lib: libloading::Library,
@@ -107,6 +125,7 @@ struct HotLib {
     get_flags_fn: HotGetFlagsFn,
     get_camera_fn: HotGetCameraFn,
     take_pending_fn: HotTakePendingFn,
+    set_last_status_fn: HotSetLastStatusFn,
     build_overlay_fn: HotBuildOverlayFn,
     destroy_fn: HotDestroyFn,
 }
@@ -120,7 +139,7 @@ impl HotLib {
                 return None;
             }
         };
-        let (create, destroy, update, on_action, on_wheel, on_char, get_flags, get_camera, take_pending, build_overlay) = unsafe {
+        let (create, destroy, update, on_action, on_wheel, on_char, get_flags, get_camera, take_pending, set_last_status, build_overlay) = unsafe {
             let c: libloading::Symbol<HotCreateFn> = lib.get(b"hot_create").ok()?;
             let d: libloading::Symbol<HotDestroyFn> = lib.get(b"hot_destroy").ok()?;
             let u: libloading::Symbol<HotUpdateFn> = lib.get(b"hot_update").ok()?;
@@ -130,8 +149,9 @@ impl HotLib {
             let f: libloading::Symbol<HotGetFlagsFn> = lib.get(b"hot_get_flags").ok()?;
             let cam: libloading::Symbol<HotGetCameraFn> = lib.get(b"hot_get_camera").ok()?;
             let t: libloading::Symbol<HotTakePendingFn> = lib.get(b"hot_take_pending_spawn").ok()?;
+            let s: libloading::Symbol<HotSetLastStatusFn> = lib.get(b"hot_set_last_status").ok()?;
             let b: libloading::Symbol<HotBuildOverlayFn> = lib.get(b"hot_build_overlay").ok()?;
-            (*c, *d, *u, *a, *w, *ch, *f, *cam, *t, *b)
+            (*c, *d, *u, *a, *w, *ch, *f, *cam, *t, *s, *b)
         };
         let state = (create)();
         Some(Self {
@@ -144,9 +164,14 @@ impl HotLib {
             get_flags_fn: get_flags,
             get_camera_fn: get_camera,
             take_pending_fn: take_pending,
+            set_last_status_fn: set_last_status,
             build_overlay_fn: build_overlay,
             destroy_fn: destroy,
         })
+    }
+
+    fn set_last_status(&self, status: u8) {
+        unsafe { (self.set_last_status_fn)(self.state, status) };
     }
 
     fn unload(mut self) {
@@ -378,6 +403,15 @@ impl App {
         self.effect_holder.drain_queue(&mut self.effect_queue);
         self.effect_holder.update(&EffectUpdateCtx { dt: scaled_dt });
 
+        let status_code = self
+            .effect_holder
+            .last_spawn_status(|name| self.str_effects.get(name).is_some())
+            .map(spawn_status_to_u8)
+            .unwrap_or(STATUS_UNKNOWN);
+        if let Some(hot) = &self.hot_lib {
+            hot.set_last_status(status_code);
+        }
+
         let Some(renderer) = &mut self.renderer else {
             return;
         };
@@ -431,7 +465,7 @@ impl App {
                 screen_w,
                 screen_h,
                 fallback,
-                // Named-texture lookup intentionally returns None for now —
+                // Named-texture lookup intentionally returns None for now -
                 // Aura uses the fallback. Wire up named GRF textures here
                 // when fx/* effects need them.
                 |_name| None,
@@ -493,7 +527,7 @@ impl ApplicationHandler for App {
             WindowEvent::Resized(size) => {
                 if let Some(renderer) = &mut self.renderer {
                     // Renderer::resize also resizes the UI + sprite pipelines'
-                    // viewports — without it the legend / overlay positions
+                    // viewports - without it the legend / overlay positions
                     // computed from `screen_h - …` end up off-screen after
                     // winit's initial Resized event.
                     renderer.resize(size.width, size.height);
@@ -530,13 +564,15 @@ impl ApplicationHandler for App {
                     Key::Named(NamedKey::End) => Some(ACTION_END),
                     Key::Character(c) => match c {
                         // Reserved single-purpose keys (don't get forwarded
-                        // as char input — they're commands).
+                        // as char input - they're commands).
                         "r" | "R" => Some(ACTION_RESPAWN),
                         "p" | "P" => Some(ACTION_TOGGLE_PAUSE),
                         "+" | "=" => Some(ACTION_SPEED_UP),
                         "-" | "_" => Some(ACTION_SPEED_DOWN),
                         "c" | "C" => Some(ACTION_RESET_CAMERA),
                         "1" | "?" => Some(ACTION_SHOW_CONTROLS),
+                        "]" => Some(ACTION_NEXT_FILTER),
+                        "[" => Some(ACTION_PREV_FILTER),
                         // Anything else that's a single letter: forward as
                         // a "jump to letter" command to the picker.
                         s if s.len() == 1 && s.chars().next().unwrap().is_ascii_alphabetic() => {

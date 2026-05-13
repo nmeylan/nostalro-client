@@ -36,7 +36,7 @@ pub trait CustomEffect: Send {
 
 /// Caller-provided parameters for a custom effect instance. Today this is a
 /// single shared shape; if a family needs a larger / richer parameter set we
-/// extend this struct rather than introducing a per-family variant — most
+/// extend this struct rather than introducing a per-family variant - most
 /// fields are optional.
 #[derive(Clone, Debug, Default)]
 pub struct CustomParams {
@@ -51,7 +51,7 @@ pub struct CustomParams {
 }
 
 /// Build a concrete custom-effect instance for the requested family. Returns
-/// `None` for families that don't have a Rust implementation yet — callers
+/// `None` for families that don't have a Rust implementation yet - callers
 /// (the holder spawn path) should log and skip in that case.
 pub fn make_custom(
     family: CustomFamily,
@@ -59,15 +59,64 @@ pub fn make_custom(
 ) -> Option<Box<dyn CustomEffect>> {
     match family {
         CustomFamily::Aura => Some(Box::new(super::fx::aura::Aura::new(params))),
-        CustomFamily::GroundRing
-        | CustomFamily::CastCircle
-        | CustomFamily::SpikeRow
-        | CustomFamily::Wall
-        | CustomFamily::CylinderPillar
-        | CustomFamily::CrossBeam
-        | CustomFamily::SplineProjectile
-        | CustomFamily::RadialBurst
-        | CustomFamily::ScreenFlash
-        | CustomFamily::Bespoke(_) => None,
+        CustomFamily::GroundRing => {
+            Some(Box::new(super::fx::ground_ring::GroundRing::new(params)))
+        }
+        CustomFamily::CastCircle => {
+            Some(Box::new(super::fx::cast_circle::CastCircle::new(params)))
+        }
+        CustomFamily::SpikeRow => {
+            Some(Box::new(super::fx::spike_row::SpikeRow::new(params)))
+        }
+        CustomFamily::Wall => Some(Box::new(super::fx::wall::Wall::new(params))),
+        CustomFamily::CylinderPillar => Some(Box::new(
+            super::fx::cylinder_pillar::CylinderPillar::new(params),
+        )),
+        CustomFamily::CrossBeam => {
+            Some(Box::new(super::fx::cross_beam::CrossBeam::new(params)))
+        }
+        CustomFamily::SplineProjectile => Some(Box::new(
+            super::fx::spline_projectile::SplineProjectile::new(params),
+        )),
+        CustomFamily::RadialBurst => {
+            Some(Box::new(super::fx::radial_burst::RadialBurst::new(params)))
+        }
+        CustomFamily::ScreenFlash => {
+            Some(Box::new(super::fx::screen_flash::ScreenFlash::new(params)))
+        }
+        CustomFamily::FlatQuad => {
+            Some(Box::new(super::fx::flat_quad::FlatQuad::new(params)))
+        }
+        CustomFamily::HealBurst => {
+            Some(Box::new(super::fx::heal_burst::HealBurst::new(params)))
+        }
+        CustomFamily::MeleeImpact => {
+            Some(Box::new(super::fx::melee_impact::MeleeImpact::new(params)))
+        }
+        CustomFamily::AirSwirl => {
+            Some(Box::new(super::fx::air_swirl::AirSwirl::new(params)))
+        }
+        CustomFamily::StatusOrb => {
+            Some(Box::new(super::fx::status_orb::StatusOrb::new(params)))
+        }
+        CustomFamily::FloatingSpirit => Some(Box::new(
+            super::fx::floating_spirit::FloatingSpirit::new(params),
+        )),
+        CustomFamily::Waterfall => {
+            Some(Box::new(super::fx::waterfall::Waterfall::new(params)))
+        }
+        CustomFamily::Bespoke(_) => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ragnarok_game::effect::EffectId;
+
+    #[test]
+    fn unknown_bespoke_returns_none() {
+        let result = make_custom(CustomFamily::Bespoke(EffectId::Bubble), &CustomParams::default());
+        assert!(result.is_none());
     }
 }

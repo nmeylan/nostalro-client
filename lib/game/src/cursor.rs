@@ -393,7 +393,7 @@ mod tests {
         let mut entities = EntityCollection::new();
         entities.insert(make_entity(10, EntityType::Monster, 1002));
         entities.insert(make_entity(20, EntityType::Npc, 100));
-        // Both at same screen anchor — closest anchor distance is equal, first candidate wins
+        // Both at same screen anchor - closest anchor distance is equal, first candidate wins
         let list = vec![
             entry(10, 400.0, 350.0, 0.8, 1.0),
             entry(20, 400.0, 350.0, 0.3, 1.0),
@@ -415,7 +415,7 @@ mod tests {
             entry(10, 400.0, 330.0, 0.8, 1.0),
             entry(20, 400.0, 370.0, 0.3, 1.0),
         ];
-        // Mouse at (400, 300) — closer to interior mob anchor (330) than front mob (370)
+        // Mouse at (400, 300) - closer to interior mob anchor (330) than front mob (370)
         assert_eq!(
             hovered_entity_cursor_type((400.0, 300.0), &entities, &list),
             Some((CursorType::Attack, 10)),

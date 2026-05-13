@@ -10,7 +10,7 @@ use super::super::{BlendKind, EffectDrawList, EffectPrimitiveDraw};
 ///   * Texture: callers resolve names via `texture_lookup` (typically a
 ///     closure over an App-owned `TextureCache`). Returning `None` falls
 ///     back to `fallback_texture`. Keeping the cache *out* of this function
-///     lets callers control the borrow scope — the renderer's own
+///     lets callers control the borrow scope - the renderer's own
 ///     `TextureCache` field would otherwise hold an immutable borrow on the
 ///     renderer that prevents calling `Renderer::render(&mut self, …)`.
 ///   * Blend: `BlendKind::Additive` or `Raw { dst != Zero }` → additive

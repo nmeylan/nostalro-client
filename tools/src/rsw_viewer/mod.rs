@@ -29,7 +29,7 @@ pub struct Args {
     pub map_name: Option<String>,
 }
 
-// === FFI types — must match `tools/rsw-viewer-hot/src/lib.rs` exactly ===
+// === FFI types - must match `tools/rsw-viewer-hot/src/lib.rs` exactly ===
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -574,7 +574,7 @@ impl App {
             tracing::info!("Map loaded successfully: {map_name} ({gnd_width}x{gnd_height})");
 
             if let Some(window) = &self.window {
-                window.set_title(&format!("RSW Viewer — {map_name}"));
+                window.set_title(&format!("RSW Viewer - {map_name}"));
             }
         } else {
             tracing::error!("Failed to load map '{map_name}'");

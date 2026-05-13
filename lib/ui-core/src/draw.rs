@@ -6,7 +6,7 @@ pub fn quad_vertices(x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) -> ([UiVer
     quad_vertices_uv(x, y, w, h, [0.0, 0.0], [1.0, 1.0], color)
 }
 
-/// Quad from explicit corner coordinates — avoids float drift from `x + w` recomputation
+/// Quad from explicit corner coordinates - avoids float drift from `x + w` recomputation
 pub fn quad_from_bounds(
     x0: f32,
     y0: f32,

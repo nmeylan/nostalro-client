@@ -20,7 +20,7 @@ fn parse_args() -> effect_viewer::Args {
                 }
             }
             "--help" | "-h" => {
-                println!("Effect Viewer — hot-reloadable effect playback tool");
+                println!("Effect Viewer - hot-reloadable effect playback tool");
                 println!();
                 println!("Usage: effect-viewer [--grf <path>]");
                 println!();
@@ -36,7 +36,7 @@ fn parse_args() -> effect_viewer::Args {
                 println!("  Esc            Quit");
                 println!();
                 println!("Hot reload:");
-                println!("  Edit and recompile tools/effect-viewer-hot/ — the running");
+                println!("  Edit and recompile tools/effect-viewer-hot/ - the running");
                 println!("  viewer picks up the new .so on its next render frame.");
                 std::process::exit(0);
             }

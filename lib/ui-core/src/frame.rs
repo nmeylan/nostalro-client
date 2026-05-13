@@ -304,7 +304,7 @@ impl<'a> UiFrame<'a> {
         wr.non_interactable.insert(id);
     }
 
-    /// Set modal windows — all windows NOT in this group are occluded regardless of mouse position.
+    /// Set modal windows - all windows NOT in this group are occluded regardless of mouse position.
     pub fn set_modal(&mut self, ids: &[WidgetId]) {
         self.modal_layers = ids.to_vec();
     }
@@ -395,7 +395,7 @@ impl<'a> UiFrame<'a> {
         }
 
         // Start drag after releasing the state borrow above.
-        // Cancel any earlier window's drag — last (topmost) window wins.
+        // Cancel any earlier window's drag - last (topmost) window wins.
         if !is_occluded {
             if let Some((ox, oy)) = drag_offset {
                 if let Some(prev_id) = self.drag_started_this_frame {
@@ -737,7 +737,7 @@ impl<'a> UiFrame<'a> {
     }
 
     /// Tracks drag state on a rect, returns pixel delta from drag start.
-    /// No drawing — caller renders their own visual. Pass `enabled=false` to prevent new drags.
+    /// No drawing - caller renders their own visual. Pass `enabled=false` to prevent new drags.
     pub fn drag_handle(&mut self, id: WidgetId, rect: Rect, enabled: bool) -> DragResponse {
         let hovered =
             rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) && !self.is_current_window_occluded();
@@ -971,7 +971,7 @@ mod tests {
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (350.0, 270.0));
 
-        // Frame 4: release mouse — position stays
+        // Frame 4: release mouse - position stays
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 400.0;
         ctx.mouse_y = 280.0;
@@ -1004,7 +1004,7 @@ mod tests {
         ui.window_at(id_a, 200.0, 100.0, 25.0, 100.0, 100.0);
         ui.window_at(id_b, 200.0, 100.0, 25.0, 100.0, 100.0);
 
-        // Frame 3: move mouse — only window B (last processed, topmost) should move
+        // Frame 3: move mouse - only window B (last processed, topmost) should move
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 200.0;
         ctx.mouse_y = 150.0;
@@ -1050,14 +1050,14 @@ mod tests {
         assert!(!r.clicked());
         assert!(!r.has_focus());
 
-        // Click on A — should be clicked + focused
+        // Click on A - should be clicked + focused
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let r = ui.interact(id_a, rect_a);
         assert!(r.clicked());
         assert!(r.has_focus());
 
-        // Next frame: no click, mouse on B — A retains focus, B is hovered
+        // Next frame: no click, mouse on B - A retains focus, B is hovered
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 65.0;
@@ -1069,7 +1069,7 @@ mod tests {
         assert!(rb.hovered());
         assert!(!rb.clicked());
 
-        // Click on B — focus moves to B
+        // Click on B - focus moves to B
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let ra = ui.interact(id_a, rect_a);
@@ -1078,7 +1078,7 @@ mod tests {
         assert!(rb.has_focus());
         assert!(rb.clicked());
 
-        // Click outside both rects — no response
+        // Click outside both rects - no response
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 200.0;
         ctx.mouse_y = 200.0;
@@ -1113,7 +1113,7 @@ mod tests {
         let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         ui.window(id, 200.0, 100.0, 25.0);
 
-        // Frame 3: move mouse — position should not change
+        // Frame 3: move mouse - position should not change
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 500.0;
         ctx.mouse_y = 400.0;
@@ -1130,13 +1130,13 @@ mod tests {
         let rect = Rect::new(10.0, 10.0, 100.0, 30.0);
         let positions = HashMap::new();
 
-        // Mouse outside — any_hovered stays false
+        // Mouse outside - any_hovered stays false
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         ui.interact(WidgetId(1), rect);
         assert!(!ui.any_hovered);
 
-        // Mouse inside — any_hovered becomes true
+        // Mouse inside - any_hovered becomes true
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 25.0;
@@ -1207,7 +1207,7 @@ mod tests {
         let drop_rect = Rect::new(200.0, 0.0, 200.0, 100.0);
         let positions = HashMap::new();
 
-        // Frame 1: click on source item at (50, 50) — starts pending drag
+        // Frame 1: click on source item at (50, 50) - starts pending drag
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 50.0;
@@ -1218,7 +1218,7 @@ mod tests {
         assert!(!ui.is_dragging());
         ui.draw_drag_icon();
 
-        // Frame 2: mouse moves past threshold while held — drag becomes active
+        // Frame 2: mouse moves past threshold while held - drag becomes active
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 60.0;
         ctx.mouse_y = 50.0;
@@ -1227,7 +1227,7 @@ mod tests {
         ui.draw_drag_icon();
         assert!(ui.is_dragging());
 
-        // Frame 3: mouse released over drop zone — drop_zone returns payload
+        // Frame 3: mouse released over drop zone - drop_zone returns payload
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 300.0;
         ctx.mouse_y = 50.0;
@@ -1264,7 +1264,7 @@ mod tests {
         ui.draw_drag_icon();
         assert!(ui.is_dragging());
 
-        // Release mouse — draw_drag_icon returns cancel info
+        // Release mouse - draw_drag_icon returns cancel info
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let cancelled = ui.draw_drag_icon();
@@ -1305,7 +1305,7 @@ mod tests {
         ui.draw_drag_icon();
         assert!(ui.is_dragging());
 
-        // Release over drop zone — drop_zone consumes, draw_drag_icon returns None
+        // Release over drop zone - drop_zone consumes, draw_drag_icon returns None
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 300.0;
         ctx.mouse_y = 50.0;
@@ -1492,7 +1492,7 @@ mod tests {
         ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
         ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
 
-        // Frame 3: z-order should still be [A, B] — A should NOT have been brought to front
+        // Frame 3: z-order should still be [A, B] - A should NOT have been brought to front
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let z = ui.get_z_order();
@@ -1560,7 +1560,7 @@ mod tests {
         ui.ensure_in_z_order_with(id_tooltip, WindowOrder::Tooltip);
         ui.enter_window_passthrough(id_tooltip, Rect::new(80.0, 80.0, 100.0, 30.0));
 
-        // Frame 2: click in tooltip area — should pass through to window below
+        // Frame 2: click in tooltip area - should pass through to window below
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 100.0;
         ctx.mouse_y = 90.0;
@@ -1641,7 +1641,7 @@ mod tests {
         let z = ui.get_z_order();
         assert_eq!(z, vec![id_a, id_b, id_fg]);
 
-        // Bring A to front — should go to end of Middle, not past Foreground
+        // Bring A to front - should go to end of Middle, not past Foreground
         ui.bring_to_front(id_a);
         let z = ui.get_z_order();
         assert_eq!(z, vec![id_b, id_a, id_fg]);

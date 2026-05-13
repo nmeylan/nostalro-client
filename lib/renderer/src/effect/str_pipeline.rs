@@ -161,7 +161,7 @@ struct LayerAnim {
     color: [f32; 4],
     angle: f32,
     offset: [f32; 2],
-    /// D3DBLEND source factor for this frame. Unused today — the sprite
+    /// D3DBLEND source factor for this frame. Unused today - the sprite
     /// pipeline's two blend states only key off `blend_dst`. Wired when we
     /// add a dedicated effect-primitive pipeline that honors both factors.
     #[allow(dead_code)]

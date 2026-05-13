@@ -1,6 +1,6 @@
 //! Lv99 / persistent aura. Three layered billboards at increasing radii
 //! around the entity, with a slow pulse. Currently uses the fallback white
-//! texture tinted yellow/orange/red — when GRF aura textures are loaded the
+//! texture tinted yellow/orange/red - when GRF aura textures are loaded the
 //! `params.texture` override can drop them into each layer.
 
 use crate::effect::custom_effect::{CustomEffect, CustomParams, EffectRenderCtx};

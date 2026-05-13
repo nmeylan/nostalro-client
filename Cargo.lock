@@ -1313,6 +1313,10 @@ dependencies = [
 [[package]]
 name = "gen-effect-table"
 version = "0.1.0"
+dependencies = [
+ "ragnarok-formats",
+ "ragnarok-game",
+]
 
 [[package]]
 name = "gethostname"

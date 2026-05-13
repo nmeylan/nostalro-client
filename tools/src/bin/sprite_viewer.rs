@@ -168,7 +168,7 @@ impl App {
         self.browser = Some(browser);
 
         if let Some(window) = &self.window {
-            window.set_title(&format!("Sprite Viewer — {path}"));
+            window.set_title(&format!("Sprite Viewer - {path}"));
         }
     }
 
@@ -217,7 +217,7 @@ impl App {
         ));
 
         if let Some(window) = &self.window {
-            window.set_title(&format!("Sprite Viewer — {path}"));
+            window.set_title(&format!("Sprite Viewer - {path}"));
         }
     }
 
@@ -301,7 +301,7 @@ impl App {
                 "None".into()
             };
             window.set_title(&format!(
-                "Sprite Viewer — job:{} sex:{} head:{} weapon:{weapon_str} headgear:{hg_str} shield:{shield_str}",
+                "Sprite Viewer - job:{} sex:{} head:{} weapon:{weapon_str} headgear:{hg_str} shield:{shield_str}",
                 self.composite_job, self.composite_sex, self.composite_head,
             ));
         }

@@ -3,12 +3,14 @@
 #[global_allocator]
 static GLOBAL: std::alloc::System = std::alloc::System;
 
-use ragnarok_game::effect::{ALL_EFFECT_IDS, EffectId, effect_ef_name, effect_name};
+use ragnarok_game::effect::{
+    ALL_EFFECT_IDS, CustomFamily, EffectId, EffectSpec, effect_ef_name, effect_name, effect_spec,
+};
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
 use ragnarok_ui::draw::{quad_vertices, text_vertices};
 
-// === Action codes (FFI contract — host duplicates these) ===
+// === Action codes (FFI contract - host duplicates these) ===
 pub const ACTION_NEXT_EFFECT: u32 = 1;
 pub const ACTION_PREV_EFFECT: u32 = 2;
 pub const ACTION_RESPAWN: u32 = 3;
@@ -22,6 +24,8 @@ pub const ACTION_PAGE_DOWN: u32 = 10;
 pub const ACTION_PAGE_UP: u32 = 11;
 pub const ACTION_HOME: u32 = 12;
 pub const ACTION_END: u32 = 13;
+pub const ACTION_NEXT_FILTER: u32 = 14;
+pub const ACTION_PREV_FILTER: u32 = 15;
 
 // === C-ABI POD types (host duplicates exactly) ===
 
@@ -57,7 +61,7 @@ pub struct CameraView {
 
 // === Internal state ===
 
-/// Picker draws from `ALL_EFFECT_IDS` directly — every `EF_*` ID is
+/// Picker draws from `ALL_EFFECT_IDS` directly - every `EF_*` ID is
 /// selectable (~821 variants today). Names + EF_ aliases come from the
 /// generated helpers.
 
@@ -70,15 +74,152 @@ enum InfoPanel {
     Controls = 1,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum Filter {
+    All,
+    Str,
+    StrHybrid,
+    Spr,
+    Bespoke,
+    Aura,
+    GroundRing,
+    CastCircle,
+    SpikeRow,
+    Wall,
+    CylinderPillar,
+    CrossBeam,
+    SplineProjectile,
+    RadialBurst,
+    ScreenFlash,
+    FlatQuad,
+    HealBurst,
+    MeleeImpact,
+    AirSwirl,
+    StatusOrb,
+    FloatingSpirit,
+    Waterfall,
+}
+
+const FILTERS: &[Filter] = &[
+    Filter::All,
+    Filter::Str,
+    Filter::StrHybrid,
+    Filter::Spr,
+    Filter::Bespoke,
+    Filter::Aura,
+    Filter::GroundRing,
+    Filter::CastCircle,
+    Filter::SpikeRow,
+    Filter::Wall,
+    Filter::CylinderPillar,
+    Filter::CrossBeam,
+    Filter::SplineProjectile,
+    Filter::RadialBurst,
+    Filter::ScreenFlash,
+    Filter::FlatQuad,
+    Filter::HealBurst,
+    Filter::MeleeImpact,
+    Filter::AirSwirl,
+    Filter::StatusOrb,
+    Filter::FloatingSpirit,
+    Filter::Waterfall,
+];
+
+fn filter_label(f: Filter) -> &'static str {
+    match f {
+        Filter::All => "All",
+        Filter::Str => "Str",
+        Filter::StrHybrid => "StrHybrid",
+        Filter::Spr => "Spr",
+        Filter::Bespoke => "Bespoke",
+        Filter::Aura => "Aura",
+        Filter::GroundRing => "GroundRing",
+        Filter::CastCircle => "CastCircle",
+        Filter::SpikeRow => "SpikeRow",
+        Filter::Wall => "Wall",
+        Filter::CylinderPillar => "CylinderPillar",
+        Filter::CrossBeam => "CrossBeam",
+        Filter::SplineProjectile => "SplineProjectile",
+        Filter::RadialBurst => "RadialBurst",
+        Filter::ScreenFlash => "ScreenFlash",
+        Filter::FlatQuad => "FlatQuad",
+        Filter::HealBurst => "HealBurst",
+        Filter::MeleeImpact => "MeleeImpact",
+        Filter::AirSwirl => "AirSwirl",
+        Filter::StatusOrb => "StatusOrb",
+        Filter::FloatingSpirit => "FloatingSpirit",
+        Filter::Waterfall => "Waterfall",
+    }
+}
+
+fn filter_to_family(f: Filter) -> Option<CustomFamily> {
+    Some(match f {
+        Filter::Aura => CustomFamily::Aura,
+        Filter::GroundRing => CustomFamily::GroundRing,
+        Filter::CastCircle => CustomFamily::CastCircle,
+        Filter::SpikeRow => CustomFamily::SpikeRow,
+        Filter::Wall => CustomFamily::Wall,
+        Filter::CylinderPillar => CustomFamily::CylinderPillar,
+        Filter::CrossBeam => CustomFamily::CrossBeam,
+        Filter::SplineProjectile => CustomFamily::SplineProjectile,
+        Filter::RadialBurst => CustomFamily::RadialBurst,
+        Filter::ScreenFlash => CustomFamily::ScreenFlash,
+        Filter::FlatQuad => CustomFamily::FlatQuad,
+        Filter::HealBurst => CustomFamily::HealBurst,
+        Filter::MeleeImpact => CustomFamily::MeleeImpact,
+        Filter::AirSwirl => CustomFamily::AirSwirl,
+        Filter::StatusOrb => CustomFamily::StatusOrb,
+        Filter::FloatingSpirit => CustomFamily::FloatingSpirit,
+        Filter::Waterfall => CustomFamily::Waterfall,
+        _ => return None,
+    })
+}
+
+fn filter_matches(f: Filter, id: EffectId) -> bool {
+    if matches!(f, Filter::All) {
+        return true;
+    }
+    let Some(spec) = effect_spec(id) else {
+        return false;
+    };
+    let target = filter_to_family(f);
+    match (f, spec) {
+        (Filter::Str, EffectSpec::Str { .. }) => true,
+        (Filter::StrHybrid, EffectSpec::StrHybrid { .. }) => true,
+        (Filter::Spr, EffectSpec::Spr { .. }) => true,
+        (
+            Filter::Bespoke,
+            EffectSpec::Custom {
+                family: CustomFamily::Bespoke(_),
+                ..
+            },
+        ) => true,
+        (_, EffectSpec::Custom { family, .. }) => target == Some(family),
+        (_, EffectSpec::StrHybrid { family, .. }) => target == Some(family),
+        _ => false,
+    }
+}
+
+fn build_filtered(filter: Filter) -> Vec<EffectId> {
+    ALL_EFFECT_IDS
+        .iter()
+        .copied()
+        .filter(|id| filter_matches(filter, *id))
+        .collect()
+}
+
 struct State {
     paused: bool,
     speed: f32,
-    /// Index into PICKABLE.
+    /// Index into `filtered_ids`.
     selection: usize,
+    filter_idx: usize,
+    filtered_ids: Vec<EffectId>,
     /// Set to Some(...) when an effect should be spawned; host reads this
     /// once per frame via `hot_take_pending_spawn`.
     pending_spawn: Option<EffectId>,
     show_info: InfoPanel,
+    last_status: u8,
 
     // Orbit camera around the spawn point.
     target: [f32; 3],
@@ -99,58 +240,90 @@ impl State {
 }
 
 impl State {
-    fn current_effect(&self) -> EffectId {
-        ALL_EFFECT_IDS[self.selection]
+    fn current_effect(&self) -> Option<EffectId> {
+        self.filtered_ids.get(self.selection).copied()
+    }
+
+    fn current_filter(&self) -> Filter {
+        FILTERS[self.filter_idx]
     }
 
     fn current_label(&self) -> String {
-        let id = self.current_effect();
+        let Some(id) = self.current_effect() else {
+            return format!(
+                "(no effects in {} filter)",
+                filter_label(self.current_filter())
+            );
+        };
         format!(
             "{} ({})  [{}/{}]",
             effect_name(id),
             effect_ef_name(id),
             self.selection + 1,
-            ALL_EFFECT_IDS.len(),
+            self.filtered_ids.len(),
         )
     }
 
     fn zoom(&mut self, factor: f32) {
-        // factor > 1 → out; factor < 1 → in. Clamp to keep the camera useful.
         self.distance = (self.distance * factor).clamp(20.0, 2000.0);
     }
 
     fn cycle(&mut self, forward: bool) {
-        let n = ALL_EFFECT_IDS.len();
+        let n = self.filtered_ids.len();
+        if n == 0 {
+            return;
+        }
         self.selection = if forward {
             (self.selection + 1) % n
         } else {
             (self.selection + n - 1) % n
         };
-        self.pending_spawn = Some(self.current_effect());
+        self.pending_spawn = self.current_effect();
     }
 
     fn page(&mut self, forward: bool) {
-        let n = ALL_EFFECT_IDS.len();
+        let n = self.filtered_ids.len();
+        if n == 0 {
+            return;
+        }
         self.selection = if forward {
             (self.selection + PAGE_SIZE).min(n - 1)
         } else {
             self.selection.saturating_sub(PAGE_SIZE)
         };
-        self.pending_spawn = Some(self.current_effect());
+        self.pending_spawn = self.current_effect();
     }
 
     fn jump_home(&mut self) {
+        if self.filtered_ids.is_empty() {
+            return;
+        }
         self.selection = 0;
-        self.pending_spawn = Some(self.current_effect());
+        self.pending_spawn = self.current_effect();
     }
 
     fn jump_end(&mut self) {
-        self.selection = ALL_EFFECT_IDS.len() - 1;
-        self.pending_spawn = Some(self.current_effect());
+        if self.filtered_ids.is_empty() {
+            return;
+        }
+        self.selection = self.filtered_ids.len() - 1;
+        self.pending_spawn = self.current_effect();
     }
 
     fn respawn(&mut self) {
-        self.pending_spawn = Some(self.current_effect());
+        self.pending_spawn = self.current_effect();
+    }
+
+    fn cycle_filter(&mut self, forward: bool) {
+        let n = FILTERS.len();
+        self.filter_idx = if forward {
+            (self.filter_idx + 1) % n
+        } else {
+            (self.filter_idx + n - 1) % n
+        };
+        self.filtered_ids = build_filtered(self.current_filter());
+        self.selection = 0;
+        self.pending_spawn = self.current_effect();
     }
 }
 
@@ -158,13 +331,17 @@ impl State {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn hot_create() -> *mut () {
+    let filtered_ids = build_filtered(Filter::All);
+    let first = filtered_ids.first().copied();
     let mut state = State {
         paused: false,
         speed: 1.0,
         selection: 0,
-        // Spawn the first effect on startup so something is visible immediately.
-        pending_spawn: Some(ALL_EFFECT_IDS[0]),
+        filter_idx: 0,
+        filtered_ids,
+        pending_spawn: first,
         show_info: InfoPanel::None,
+        last_status: 0,
         target: [0.0; 3],
         yaw: 0.0,
         pitch: 0.0,
@@ -184,7 +361,7 @@ pub unsafe extern "C" fn hot_destroy(state_ptr: *mut ()) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hot_update(state_ptr: *mut (), _dt: f32) {
     let _state = unsafe { &mut *(state_ptr as *mut State) };
-    // No time-driven state in the cdylib yet — host owns the holder + clock.
+    // No time-driven state in the cdylib yet - host owns the holder + clock.
 }
 
 #[unsafe(no_mangle)]
@@ -209,6 +386,8 @@ pub unsafe extern "C" fn hot_on_action(state_ptr: *mut (), action_code: u32) {
         }
         ACTION_CLOSE_INFO_PANEL => state.show_info = InfoPanel::None,
         ACTION_RESET_CAMERA => state.default_camera(),
+        ACTION_NEXT_FILTER => state.cycle_filter(true),
+        ACTION_PREV_FILTER => state.cycle_filter(false),
         _ => {}
     }
 }
@@ -225,10 +404,13 @@ pub unsafe extern "C" fn hot_on_char_input(state_ptr: *mut (), codepoint: u32) {
     // Search starts AFTER the current position so consecutive presses cycle
     // through all effects with the same starting letter (mirrors typical
     // file-manager behavior).
-    let n = ALL_EFFECT_IDS.len();
+    let n = state.filtered_ids.len();
+    if n == 0 {
+        return;
+    }
     for offset in 1..=n {
         let idx = (state.selection + offset) % n;
-        let id = ALL_EFFECT_IDS[idx];
+        let id = state.filtered_ids[idx];
         if effect_name(id)
             .chars()
             .next()
@@ -272,7 +454,7 @@ pub unsafe extern "C" fn hot_get_flags(state_ptr: *mut (), out: *mut ViewerFlags
         show_info: state.show_info as u8,
         _pad0: [0; 2],
         speed_x100: (state.speed * 100.0) as u32,
-        selected_effect_id: state.current_effect().as_u16(),
+        selected_effect_id: state.current_effect().map(|id| id.as_u16()).unwrap_or(u16::MAX),
         _pad1: [0; 2],
     };
     unsafe { *out = f };
@@ -292,6 +474,12 @@ pub unsafe extern "C" fn hot_take_pending_spawn(state_ptr: *mut (), out: *mut Pe
         None => PendingSpawn::default(),
     };
     unsafe { *out = result };
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_set_last_status(state_ptr: *mut (), status: u8) {
+    let state = unsafe { &mut *(state_ptr as *mut State) };
+    state.last_status = status;
 }
 
 #[unsafe(no_mangle)]
@@ -325,11 +513,12 @@ const DESC_COLOR: [f32; 4] = [0.7, 0.7, 0.7, 0.7];
 const BG_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.5];
 
 const LEGEND: &[(&str, &str)] = &[
-    ("→ / Space", "Next effect"),
-    ("←", "Previous effect"),
+    ("-> / Space", "Next effect"),
+    ("<-", "Previous effect"),
     ("PgDn / PgUp", "Jump 25"),
     ("Home / End", "First / last"),
     ("a-z", "Jump to letter"),
+    ("[ / ]", "Filter -/+"),
     ("R", "Respawn"),
     ("P", "Pause"),
     ("+ / -", "Speed"),
@@ -340,17 +529,22 @@ const LEGEND: &[(&str, &str)] = &[
 ];
 
 const CONTROLS_LINES: &[&str] = &[
-    "Picker (821 effects):",
-    "  → / Space    Next effect (wraps)",
-    "  ←            Previous effect (wraps)",
+    "Picker:",
+    "  -> / Space   Next effect (wraps)",
+    "  <-           Previous effect (wraps)",
     "  PgDn / PgUp  Jump 25 entries forward / back",
     "  Home / End   Jump to first / last effect",
     "  a-z          Jump to next effect starting with that letter",
     "  R            Respawn current effect at origin",
     "",
+    "Filter:",
+    "  ]            Next filter (All, Str, StrHybrid, Spr, Bespoke,",
+    "               then each CustomFamily)",
+    "  [            Previous filter",
+    "",
     "Playback:",
     "  P            Pause / resume",
-    "  + / -        Speed up / down (0.1x – 4.0x)",
+    "  + / -        Speed up / down (0.1x - 4.0x)",
     "",
     "Camera:",
     "  Scroll       Zoom in / out",
@@ -363,15 +557,28 @@ const CONTROLS_LINES: &[&str] = &[
 
 fn build_status(atlas: &FontAtlas, screen_w: f32, state: &State) -> Vec<UiDrawCall> {
     let pause_str = if state.paused { " [PAUSED]" } else { "" };
+    let filter = state.current_filter();
+    let filter_text = format!(
+        "Filter: {} ({})",
+        filter_label(filter),
+        state.filtered_ids.len()
+    );
     let text = format!(
         "Effect: {}  Speed: {:.2}x{}",
         state.current_label(),
         state.speed,
         pause_str
     );
+    let (badge_label, badge_color) = status_badge(state.last_status);
+    let gap = "  ";
     let text_w = atlas.measure_text(&text);
-    let box_w = text_w + PADDING * 2.0;
-    let box_h = LINE_HEIGHT + PADDING * 2.0;
+    let gap_w = atlas.measure_text(gap);
+    let badge_w = atlas.measure_text(badge_label);
+    let filter_w = atlas.measure_text(&filter_text);
+    let line1_w = text_w + gap_w + badge_w;
+    let inner_w = line1_w.max(filter_w);
+    let box_w = inner_w + PADDING * 2.0;
+    let box_h = LINE_HEIGHT * 2.0 + PADDING * 2.0;
     let box_x = (screen_w - box_w) / 2.0;
     let box_y = PADDING;
 
@@ -388,7 +595,44 @@ fn build_status(atlas: &FontAtlas, screen_w: f32, state: &State) -> Vec<UiDrawCa
         indices: ti,
         texture: UiTextureRef::FontAtlas,
     });
+    let badge_x = box_x + PADDING + text_w + gap_w;
+    let (cv, ci) = text_vertices(badge_label, badge_x, box_y + PADDING, badge_color, atlas);
+    calls.push(UiDrawCall {
+        vertices: cv,
+        indices: ci,
+        texture: UiTextureRef::FontAtlas,
+    });
+    let (fv, fi) = text_vertices(
+        &filter_text,
+        box_x + PADDING,
+        box_y + PADDING + LINE_HEIGHT,
+        FILTER_COLOR,
+        atlas,
+    );
+    calls.push(UiDrawCall {
+        vertices: fv,
+        indices: fi,
+        texture: UiTextureRef::FontAtlas,
+    });
     calls
+}
+
+const FILTER_COLOR: [f32; 4] = [0.6, 0.85, 1.0, 0.85];
+
+pub const STATUS_UNKNOWN: u8 = 0;
+pub const STATUS_RENDERING: u8 = 1;
+pub const STATUS_STR_FILE_MISSING: u8 = 2;
+pub const STATUS_CUSTOM_NOT_IMPL: u8 = 3;
+pub const STATUS_NO_SPEC: u8 = 4;
+
+fn status_badge(code: u8) -> (&'static str, [f32; 4]) {
+    match code {
+        STATUS_RENDERING => ("[OK rendering]", [0.4, 1.0, 0.4, 1.0]),
+        STATUS_STR_FILE_MISSING => ("[!! STR file missing]", [1.0, 0.85, 0.2, 1.0]),
+        STATUS_CUSTOM_NOT_IMPL => ("[XX custom not impl]", [1.0, 0.3, 0.3, 1.0]),
+        STATUS_NO_SPEC => ("[-- no spec]", [0.6, 0.6, 0.6, 1.0]),
+        STATUS_UNKNOWN | _ => ("", [1.0, 1.0, 1.0, 1.0]),
+    }
 }
 
 fn build_controls_panel(atlas: &FontAtlas, screen_w: f32, screen_h: f32) -> Vec<UiDrawCall> {

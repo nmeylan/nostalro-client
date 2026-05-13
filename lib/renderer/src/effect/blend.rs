@@ -9,9 +9,9 @@
 pub enum BlendKind {
     /// `src.rgb * src.a + dst.rgb * (1 - src.a)`
     Alpha,
-    /// `src.rgb * src.a + dst.rgb` — used by most STR layers, auras, sparks.
+    /// `src.rgb * src.a + dst.rgb` - used by most STR layers, auras, sparks.
     Additive,
-    /// `src.rgb * dst.rgb` — darkening / shadow overlays.
+    /// `src.rgb * dst.rgb` - darkening / shadow overlays.
     Multiply,
     /// Raw D3D source/dest factor pair from an STR frame.
     Raw { src: i32, dst: i32 },

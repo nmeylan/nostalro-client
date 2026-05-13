@@ -11,12 +11,20 @@ pub enum Attach {
     Projectile { from: u32, to: u32 },
 }
 
-/// What "kind" of effect this is — selects which subsystem renders it.
+/// What "kind" of effect this is - selects which subsystem renders it.
 #[derive(Clone, Debug)]
 pub enum EffectSpec {
     /// Single STR file played once.
     Str {
         file: &'static str,
+        duration_ms: u32,
+    },
+    /// STR animation plus a supplementary custom-primitive layer running
+    /// alongside it. The original game uses both for a handful of skills
+    /// (e.g. Stormgust = stormgust.str + spike-row ice shards).
+    StrHybrid {
+        file: &'static str,
+        family: CustomFamily,
         duration_ms: u32,
     },
     /// Family-dispatched custom effect (Aura, GroundRing, SpikeRow, ...).
@@ -48,6 +56,13 @@ pub enum CustomFamily {
     SplineProjectile,
     RadialBurst,
     ScreenFlash,
-    /// Truly bespoke effect — `EffectId` distinguishes which one.
+    FlatQuad,
+    HealBurst,
+    MeleeImpact,
+    AirSwirl,
+    StatusOrb,
+    FloatingSpirit,
+    Waterfall,
+    /// Truly bespoke effect - `EffectId` distinguishes which one.
     Bespoke(EffectId),
 }

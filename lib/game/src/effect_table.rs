@@ -42,7 +42,7 @@ pub enum EffectKind {
     /// `file_pattern` may contain `%d` which the renderer should replace
     /// with a value uniformly drawn from `rand_range[0]..=rand_range[1]`.
     ///
-    /// **Renderer support is out of scope** — emitters created from this
+    /// **Renderer support is out of scope** - emitters created from this
     /// variant are skipped at draw time. Kept here so the data path
     /// (RSW → table → manager) is wired and can be exercised later when an
     /// STR animation pass is added.
@@ -53,11 +53,11 @@ pub enum EffectKind {
 }
 
 /// Map an RSW effect type id to its kind. Returns `None` for ids the client
-/// does not need to render — the manager ignores those, matching the
+/// does not need to render - the manager ignores those, matching the
 /// original game's behavior of silently skipping unimplemented effects.
 pub fn effect_kind(effect_type: u32) -> Option<EffectKind> {
     match effect_type {
-        // EF_SMOKE — chimney smoke
+        // EF_SMOKE - chimney smoke
         44 => Some(EffectKind::Smoke3D {
             sprite_path: "data/sprite/이팩트/굴뚝연기",
             duration_ms: 833.0,
@@ -69,17 +69,17 @@ pub fn effect_kind(effect_type: u32) -> Option<EffectKind> {
             speed_range: (0.3, 0.5),
             anim_speed: 4.0,
         }),
-        // EF_TORCH — torch flame
+        // EF_TORCH - torch flame
         47 => Some(EffectKind::Spr {
             sprite_path: "data/sprite/이팩트/torch_01",
             duration_ms: 250.0,
         }),
-        // EF_BUBBLE — bybalan Blue bubbles (iz_dun04)
+        // EF_BUBBLE - bybalan Blue bubbles (iz_dun04)
         109 => Some(EffectKind::Str {
             file_pattern: "bubble%d",
             rand_range: Some((1, 4)),
         }),
-        // EF_GASPUSH — Giearth trap gas
+        // EF_GASPUSH - Giearth trap gas
         110 => Some(EffectKind::Str {
             file_pattern: "gaspush",
             rand_range: None,

@@ -493,7 +493,7 @@ fn create_single(name: &str) -> State {
                 card_illustration: Some(CardIllustrationTable::from_entries(illust_entries)),
                 ..DataTable::new()
             };
-            // resource_name: None — resolved from GRF's ItemResourceTable in grf_init_single
+            // resource_name: None - resolved from GRF's ItemResourceTable in grf_init_single
             let bow = Item {
                 index: 0,
                 item_id: 1701,

@@ -579,7 +579,7 @@ mod tests {
         inv.active_tab = InventoryTab::Etc;
         assert_eq!(inv.filtered_items().len(), 1);
 
-        // Equip ammo — it should remain visible in Etc tab
+        // Equip ammo - it should remain visible in Etc tab
         inv.update_wear_state(20, InventoryData::slot_mask(EquipmentLocation::Ammo));
         assert!(inv.get_item(20).unwrap().is_equipped());
         assert_eq!(inv.filtered_items().len(), 1);
@@ -590,7 +590,7 @@ mod tests {
             20
         );
 
-        // Unequip — still visible
+        // Unequip - still visible
         inv.clear_wear_state(20);
         assert!(!inv.get_item(20).unwrap().is_equipped());
         assert_eq!(inv.filtered_items().len(), 1);

@@ -10,7 +10,9 @@
 //! Add new overrides as effects get their visual classification confirmed
 //! against the original game. Anything not listed here uses the data-driven default.
 
-use super::generated::{EffectId, default_duration_ms, default_str_file};
+use super::generated::{
+    EffectId, classified_family, default_duration_ms, default_str_file, str_file_override,
+};
 use super::spec::{CustomFamily, EffectSpec};
 
 pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
@@ -23,6 +25,37 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
         EffectId::Icewall => EffectSpec::Custom {
             family: CustomFamily::Wall,
+            duration_ms: default_duration_ms(id),
+        },
+        EffectId::Pneuma
+        | EffectId::Landprotector
+        | EffectId::Warpzone
+        | EffectId::Warpzone2
+        | EffectId::Barrier => EffectSpec::Custom {
+            family: CustomFamily::GroundRing,
+            duration_ms: default_duration_ms(id),
+        },
+        EffectId::Beginspell
+        | EffectId::Beginspell2
+        | EffectId::Beginspell3
+        | EffectId::Beginspell4
+        | EffectId::Beginspell5
+        | EffectId::Beginspell6
+        | EffectId::Beginspell7
+        | EffectId::Beginspell8
+        | EffectId::Beginspellred
+        | EffectId::Beginspellwhite
+        | EffectId::BeginspellN
+        | EffectId::Beginasura
+        | EffectId::Beginasura1
+        | EffectId::Beginasura2
+        | EffectId::Beginasura3
+        | EffectId::Beginasura4
+        | EffectId::Beginasura5
+        | EffectId::Beginasura6
+        | EffectId::Beginasura7
+        | EffectId::Beginasura11 => EffectSpec::Custom {
+            family: CustomFamily::CastCircle,
             duration_ms: default_duration_ms(id),
         },
         EffectId::Earthspike => EffectSpec::Custom {
@@ -41,8 +74,9 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             family: CustomFamily::CrossBeam,
             duration_ms: default_duration_ms(id),
         },
-        EffectId::Stormgust => EffectSpec::Custom {
-            family: CustomFamily::Bespoke(EffectId::Stormgust),
+        EffectId::Stormgust => EffectSpec::StrHybrid {
+            file: str_file_override(id).unwrap_or("stormgust"),
+            family: CustomFamily::SpikeRow,
             duration_ms: default_duration_ms(id),
         },
 
@@ -59,15 +93,25 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             duration_ms: default_duration_ms(id),
         },
 
-        // --- Everything else: default to STR with a name derived from the
-        // id. If the GRF doesn't contain that file, StrEffectCache::load
-        // logs a warning and the effect doesn't render — that's the
-        // graceful failure mode for unmapped IDs. ---
-        _ => EffectSpec::Str {
-            file: default_str_file(id),
-            duration_ms: default_duration_ms(id),
-        },
+        _ => default_spec(id),
     })
+}
+
+fn default_spec(id: EffectId) -> EffectSpec {
+    let duration_ms = default_duration_ms(id);
+    match (str_file_override(id), classified_family(id)) {
+        (Some(file), Some(family)) => EffectSpec::StrHybrid {
+            file,
+            family,
+            duration_ms,
+        },
+        (Some(file), None) => EffectSpec::Str { file, duration_ms },
+        (None, Some(family)) => EffectSpec::Custom { family, duration_ms },
+        (None, None) => EffectSpec::Str {
+            file: default_str_file(id),
+            duration_ms,
+        },
+    }
 }
 
 #[cfg(test)]
@@ -93,7 +137,7 @@ mod tests {
         ));
         assert!(matches!(
             effect_spec(EffectId::Lvup),
-            Some(EffectSpec::Str { file: "lvup", .. })
+            Some(EffectSpec::Str { file: "LevelUP", .. })
         ));
     }
 
@@ -102,6 +146,28 @@ mod tests {
         assert!(matches!(
             effect_spec(EffectId::Torch),
             Some(EffectSpec::Spr { .. })
+        ));
+    }
+
+    #[test]
+    fn stormgust_is_str_hybrid() {
+        assert!(matches!(
+            effect_spec(EffectId::Stormgust),
+            Some(EffectSpec::StrHybrid {
+                family: CustomFamily::SpikeRow,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn bash_falls_through_to_classified_custom() {
+        // EF_BASH has no STR file in the original game but does have a
+        // custom dispatch - the classifier picks a family, no hand
+        // override needed.
+        assert!(matches!(
+            effect_spec(EffectId::Bash),
+            Some(EffectSpec::Custom { .. })
         ));
     }
 }

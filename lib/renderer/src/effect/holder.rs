@@ -14,7 +14,7 @@ use super::custom_effect::{
 };
 use super::EffectDrawList;
 
-/// Owned snapshot of a live STR effect — handed to `build_str_effect_batches`
+/// Owned snapshot of a live STR effect - handed to `build_str_effect_batches`
 /// by callers that need a borrow-free view of the holder's STR effects.
 pub struct StrSnapshot {
     pub name: String,
@@ -25,11 +25,34 @@ pub struct StrSnapshot {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct EffectHandle(u64);
 
+#[derive(Clone, Debug)]
+pub enum SpawnOutcome {
+    Custom,
+    Str { name: String },
+    Hybrid { name: String },
+    Spr,
+    CustomNotImpl,
+    NoSpec,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpawnStatus {
+    Rendering,
+    StrFileMissing,
+    CustomNotImpl,
+    NoSpec,
+}
+
 enum HeldPayload {
     Custom(Box<dyn CustomEffect>),
     /// Single-shot STR effect. Anim time accumulates in `age`; the render
     /// step projects via the existing `build_str_effect_batches` path.
     Str { name: String },
+    /// STR animation with an additional custom-primitive overlay.
+    Hybrid {
+        name: String,
+        custom: Box<dyn CustomEffect>,
+    },
     /// Looping single SPR billboard (torches, simple ambient).
     Spr {
         #[allow(dead_code)] // wired in Phase D
@@ -49,6 +72,7 @@ struct HeldEffect {
 pub struct EffectHolder {
     next_id: u64,
     effects: Vec<HeldEffect>,
+    last_spawn: Option<SpawnOutcome>,
 }
 
 impl EffectHolder {
@@ -65,21 +89,59 @@ impl EffectHolder {
         override_duration_ms: Option<u32>,
         tint: Option<[f32; 4]>,
     ) -> Option<EffectHandle> {
-        let spec = effect_spec(effect_id)?;
+        let Some(spec) = effect_spec(effect_id) else {
+            self.last_spawn = Some(SpawnOutcome::NoSpec);
+            return None;
+        };
         let payload = match &spec {
-            EffectSpec::Str { file, .. } => HeldPayload::Str {
-                name: (*file).to_string(),
-            },
-            EffectSpec::Spr { sprite, .. } => HeldPayload::Spr {
-                sprite: (*sprite).to_string(),
-            },
+            EffectSpec::Str { file, .. } => {
+                self.last_spawn = Some(SpawnOutcome::Str {
+                    name: (*file).to_string(),
+                });
+                HeldPayload::Str {
+                    name: (*file).to_string(),
+                }
+            }
+            EffectSpec::Spr { sprite, .. } => {
+                self.last_spawn = Some(SpawnOutcome::Spr);
+                HeldPayload::Spr {
+                    sprite: (*sprite).to_string(),
+                }
+            }
             EffectSpec::Custom { family, .. } => {
                 let params = build_params(*family, &attach, tint);
                 match make_custom(*family, &params) {
-                    Some(c) => HeldPayload::Custom(c),
+                    Some(c) => {
+                        self.last_spawn = Some(SpawnOutcome::Custom);
+                        HeldPayload::Custom(c)
+                    }
                     None => {
+                        self.last_spawn = Some(SpawnOutcome::CustomNotImpl);
                         tracing::debug!(
                             "EffectHolder: no implementation for family {:?} (effect {:?})",
+                            family,
+                            effect_id
+                        );
+                        return None;
+                    }
+                }
+            }
+            EffectSpec::StrHybrid { file, family, .. } => {
+                let params = build_params(*family, &attach, tint);
+                match make_custom(*family, &params) {
+                    Some(c) => {
+                        self.last_spawn = Some(SpawnOutcome::Hybrid {
+                            name: (*file).to_string(),
+                        });
+                        HeldPayload::Hybrid {
+                            name: (*file).to_string(),
+                            custom: c,
+                        }
+                    }
+                    None => {
+                        self.last_spawn = Some(SpawnOutcome::CustomNotImpl);
+                        tracing::debug!(
+                            "EffectHolder: no impl for hybrid family {:?} (effect {:?})",
                             family,
                             effect_id
                         );
@@ -92,7 +154,8 @@ impl EffectHolder {
         let duration_ms = override_duration_ms.unwrap_or_else(|| match spec {
             EffectSpec::Str { duration_ms, .. }
             | EffectSpec::Spr { duration_ms, .. }
-            | EffectSpec::Custom { duration_ms, .. } => duration_ms,
+            | EffectSpec::Custom { duration_ms, .. }
+            | EffectSpec::StrHybrid { duration_ms, .. } => duration_ms,
         });
         let duration = if duration_ms == u32::MAX {
             f32::INFINITY
@@ -145,45 +208,52 @@ impl EffectHolder {
             }
             match &mut e.payload {
                 HeldPayload::Custom(c) => c.update(ctx) == EffectStatus::Running,
+                HeldPayload::Hybrid { custom, .. } => custom.update(ctx) == EffectStatus::Running,
                 HeldPayload::Str { .. } => true,
                 HeldPayload::Spr { .. } => true,
             }
         });
     }
 
-    /// Append primitive draws for live custom effects. STR/Spr collection
-    /// is wired in Phase D when the renderer's render-pass plumbing lands.
+    /// Append primitive draws for live custom and hybrid effects. STR/Spr
+    /// collection is wired in Phase D when the renderer's render-pass
+    /// plumbing lands.
     pub fn collect_custom_draws(
         &self,
         out: &mut EffectDrawList,
         ctx: &EffectRenderCtx,
     ) {
         for e in &self.effects {
-            if let HeldPayload::Custom(c) = &e.payload {
-                c.collect_draws(out, ctx);
+            match &e.payload {
+                HeldPayload::Custom(c) => c.collect_draws(out, ctx),
+                HeldPayload::Hybrid { custom, .. } => custom.collect_draws(out, ctx),
+                _ => {}
             }
         }
     }
 
     /// Snapshot of every live STR effect (name + resolved world position +
     /// elapsed anim time). Renderer consumes this and feeds it into
-    /// `build_str_effect_batches`.
+    /// `build_str_effect_batches`. Hybrid effects also emit a snapshot for
+    /// their STR layer.
     pub fn collect_str_emitters(
         &self,
         resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
     ) -> Vec<StrSnapshot> {
         self.effects
             .iter()
-            .filter_map(|e| match &e.payload {
-                HeldPayload::Str { name } => {
-                    let pos = resolve_position(&e.attach, resolve_entity)?;
-                    Some(StrSnapshot {
-                        name: name.clone(),
-                        position: pos,
-                        anim_time: e.age,
-                    })
-                }
-                _ => None,
+            .filter_map(|e| {
+                let name = match &e.payload {
+                    HeldPayload::Str { name } => name,
+                    HeldPayload::Hybrid { name, .. } => name,
+                    _ => return None,
+                };
+                let pos = resolve_position(&e.attach, resolve_entity)?;
+                Some(StrSnapshot {
+                    name: name.clone(),
+                    position: pos,
+                    anim_time: e.age,
+                })
             })
             .collect()
     }
@@ -194,6 +264,25 @@ impl EffectHolder {
 
     pub fn is_empty(&self) -> bool {
         self.effects.is_empty()
+    }
+
+    pub fn last_spawn_outcome(&self) -> Option<&SpawnOutcome> {
+        self.last_spawn.as_ref()
+    }
+
+    pub fn last_spawn_status(&self, str_in_cache: impl Fn(&str) -> bool) -> Option<SpawnStatus> {
+        Some(match self.last_spawn.as_ref()? {
+            SpawnOutcome::Custom | SpawnOutcome::Spr => SpawnStatus::Rendering,
+            SpawnOutcome::Str { name } | SpawnOutcome::Hybrid { name } => {
+                if str_in_cache(name) {
+                    SpawnStatus::Rendering
+                } else {
+                    SpawnStatus::StrFileMissing
+                }
+            }
+            SpawnOutcome::CustomNotImpl => SpawnStatus::CustomNotImpl,
+            SpawnOutcome::NoSpec => SpawnStatus::NoSpec,
+        })
     }
 }
 
@@ -261,17 +350,33 @@ mod tests {
     }
 
     #[test]
-    fn custom_effect_with_no_impl_does_not_spawn() {
+    fn custom_effect_with_impl_spawns_and_reports_rendering() {
         let mut h = EffectHolder::new();
-        // Icewall maps to CustomFamily::Wall which has no Rust impl yet.
-        let result = h.spawn(
+        let handle = h.spawn(
             EffectId::Icewall,
             Attach::WorldPos([0.0, 0.0, 0.0]),
-            None,
+            Some(500),
             None,
         );
-        assert!(result.is_none());
-        assert!(h.is_empty());
+        assert!(handle.is_some());
+        assert_eq!(h.last_spawn_status(|_| false), Some(SpawnStatus::Rendering));
+    }
+
+    #[test]
+    fn str_spawn_status_depends_on_cache_lookup() {
+        let mut h = EffectHolder::new();
+        h.spawn(
+            EffectId::Bubble,
+            Attach::WorldPos([0.0, 0.0, 0.0]),
+            Some(1000),
+            None,
+        )
+        .expect("spawn");
+        assert_eq!(h.last_spawn_status(|_| true), Some(SpawnStatus::Rendering));
+        assert_eq!(
+            h.last_spawn_status(|_| false),
+            Some(SpawnStatus::StrFileMissing)
+        );
     }
 
     #[test]

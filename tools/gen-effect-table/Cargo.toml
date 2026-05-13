@@ -10,3 +10,7 @@ edition = "2024"
 [[bin]]
 name = "gen-effect-table"
 path = "src/main.rs"
+
+[dependencies]
+ragnarok-game = { path = "../../lib/game" }
+ragnarok-formats = { path = "../../lib/formats" }

@@ -9,14 +9,14 @@ pub use blend::{BlendKind, d3d_blend_to_wgpu};
 pub use custom_effect::{
     CustomEffect, CustomParams, EffectRenderCtx, EffectStatus, EffectUpdateCtx, make_custom,
 };
-pub use holder::{EffectHandle, EffectHolder};
+pub use holder::{EffectHandle, EffectHolder, SpawnOutcome, SpawnStatus};
 pub use primitives::build_billboard_batches;
 pub use str_pipeline::{
     StrEffectCache, StrEffectEntry, StrEmitterInput, build_str_effect_batches,
 };
 
 /// One renderable primitive emitted by an effect. Effects don't depend on
-/// wgpu types directly — they describe what they want drawn, and the effect
+/// wgpu types directly - they describe what they want drawn, and the effect
 /// render pass turns each variant into pipeline calls.
 #[derive(Clone, Debug)]
 pub enum EffectPrimitiveDraw {

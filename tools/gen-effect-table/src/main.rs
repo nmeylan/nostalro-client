@@ -3,10 +3,10 @@
 //! `lib/game/src/effect/generated.rs`.
 //!
 //! The generated file exposes:
-//!   * `pub enum EffectId { ... }`            — every effect variant
-//!   * `pub fn default_duration_ms(id) -> u32` — derived from SET_DURATION
-//!   * `pub const ALL_EFFECT_IDS: &[EffectId]` — for iteration / picker UIs
-//!   * `pub fn from_u16(value) -> Option<EffectId>` — reverse lookup
+//!   * `pub enum EffectId { ... }`            - every effect variant
+//!   * `pub fn default_duration_ms(id) -> u32` - derived from SET_DURATION
+//!   * `pub const ALL_EFFECT_IDS: &[EffectId]` - for iteration / picker UIs
+//!   * `pub fn from_u16(value) -> Option<EffectId>` - reverse lookup
 //!
 //! Discriminants match the implicit enum ordering (EF_HIT1 = 0,
 //! EF_HIT2 = 1, ...). Centisecond durations from the original game are converted to
@@ -29,21 +29,32 @@ const DEFAULT_H: &str = "../../../reference/effects-enum.txt";
 const DEFAULT_CPP: &str = "../../../reference/effects-source.txt";
 const DEFAULT_OUT: &str = "../../lib/game/src/effect/generated.rs";
 
+mod audit;
+mod classify;
+
 fn main() -> ExitCode {
     let mut h_path = PathBuf::from(DEFAULT_H);
     let mut cpp_path = PathBuf::from(DEFAULT_CPP);
     let mut out_path = PathBuf::from(DEFAULT_OUT);
+    let mut audit_grf: Option<PathBuf> = None;
+    let mut classify_mode = false;
+    let mut effects_source2_path = PathBuf::from("../../../reference/effects-source2.txt");
 
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--effect-enum" => h_path = args.next().expect("--effect-enum needs a path").into(),
             "--effect-source" => cpp_path = args.next().expect("--effect-source needs a path").into(),
+            "--effect-source2" => effects_source2_path = args.next().expect("--effect-source2 needs a path").into(),
             "--out" => out_path = args.next().expect("--out needs a path").into(),
+            "--audit" => audit_grf = Some(args.next().expect("--audit needs a path").into()),
+            "--classify" => classify_mode = true,
             "--help" | "-h" => {
-                println!("gen-effect-table — port the EF_* enum to Rust");
+                println!("gen-effect-table - port the EF_* enum to Rust");
                 println!("Usage:");
                 println!("  cargo run -p gen-effect-table -- [--effect-enum PATH] [--effect-source PATH] [--out PATH]");
+                println!("  cargo run -p gen-effect-table -- --audit PATH_TO_GRF");
+                println!("  cargo run -p gen-effect-table -- --classify [--effect-source PATH] [--effect-source2 PATH]");
                 return ExitCode::SUCCESS;
             }
             other => {
@@ -51,6 +62,13 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             }
         }
+    }
+
+    if classify_mode {
+        return classify::run(&cpp_path, &effects_source2_path);
+    }
+    if let Some(grf) = audit_grf {
+        return audit::run(&grf);
     }
 
     let h_bytes = match std::fs::read(&h_path) {
@@ -68,7 +86,7 @@ fn main() -> ExitCode {
         }
     };
 
-    // The files are ISO-8859 / EUC-KR — we only care about ASCII identifiers
+    // The files are ISO-8859 / EUC-KR - we only care about ASCII identifiers
     // and digits, so a lossy UTF-8 view is sufficient.
     let h_text = String::from_utf8_lossy(&h_bytes).into_owned();
     let cpp_text = String::from_utf8_lossy(&cpp_bytes).into_owned();
@@ -90,7 +108,13 @@ fn main() -> ExitCode {
     let durations_cs = extract_set_durations(&cpp_text);
     eprintln!("parsed {} SET_DURATION entries", durations_cs.len());
 
-    let output = emit_rust(&entries, &durations_cs);
+    let str_filenames = parse_str_filenames(&cpp_text);
+    eprintln!("parsed {} STR filename mappings", str_filenames.len());
+
+    let families = classify::classify_efs(&cpp_path, &effects_source2_path);
+    eprintln!("classified {} EF_* dispatched effects", families.len());
+
+    let output = emit_rust(&entries, &durations_cs, &str_filenames, &families);
     if let Err(e) = std::fs::write(&out_path, output) {
         eprintln!("failed to write {}: {e}", out_path.display());
         return ExitCode::FAILURE;
@@ -175,7 +199,7 @@ fn parse_enum_entries(text: &str) -> Result<Vec<EnumEntry>, String> {
             None => (item, None),
         };
         if !name.starts_with("EF_") || !name.chars().all(is_ident_char) {
-            // Non-EF identifier (defensive) — skip but don't bump value.
+            // Non-EF identifier (defensive) - skip but don't bump value.
             continue;
         }
         if name == "EF_TEST" {
@@ -291,6 +315,62 @@ fn strip_line_comment(line: &str) -> &str {
     }
 }
 
+// Fallthrough: pending case labels accumulate until `break;`, then all get
+// bound to the last sprintf seen - matching C's runtime overwrite semantics
+// on the shared StrName buffer. Format-string sprintfs ("Bubble%d.str") are
+// skipped; the random-variant cases need hand overrides.
+fn parse_str_filenames(cpp: &str) -> HashMap<String, String> {
+    let mut out: HashMap<String, String> = HashMap::new();
+    let mut case_stack: Vec<String> = Vec::new();
+    let mut last_str: Option<String> = None;
+
+    for raw in cpp.lines() {
+        let line = strip_line_comment(raw).trim();
+
+        if let Some(rest) = line.strip_prefix("case") {
+            if rest.starts_with(|c: char| c.is_whitespace()) {
+                let rest = rest.trim_start();
+                let end = rest
+                    .find(|c: char| !is_ident_char(c))
+                    .unwrap_or(rest.len());
+                let name = &rest[..end];
+                if name.starts_with("EF_") {
+                    case_stack.push(name.to_string());
+                    continue;
+                }
+            }
+        }
+
+        if let Some(start) = line.find("sprintf(StrName") {
+            let after = &line[start + "sprintf(StrName".len()..];
+            if let Some(quote) = after.find('"') {
+                let body = &after[quote + 1..];
+                if let Some(end) = body.find('"') {
+                    let lit = &body[..end];
+                    if !lit.is_empty() && !lit.contains('%') {
+                        let bare = lit.strip_suffix(".str").unwrap_or(lit);
+                        if !bare.is_empty() {
+                            last_str = Some(bare.to_string());
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+
+        if line.starts_with("break") {
+            if let Some(s) = last_str.take() {
+                for name in case_stack.drain(..) {
+                    out.insert(name, s.clone());
+                }
+            } else {
+                case_stack.clear();
+            }
+        }
+    }
+    out
+}
+
 /// Convert `EF_FIRE_BOLT` → `FireBolt`, `EF_HIT1` → `Hit1`, `EF_LVUP` → `Lvup`.
 /// Names that would start with a digit after stripping `EF_` get an `Ef`
 /// prefix (`EF_4WAYBODY` → `Ef4Waybody`) since Rust identifiers can't lead
@@ -318,7 +398,12 @@ fn to_pascal_case(ef_name: &str) -> String {
     }
 }
 
-fn emit_rust(entries: &[EnumEntry], durations: &HashMap<String, u32>) -> String {
+fn emit_rust(
+    entries: &[EnumEntry],
+    durations: &HashMap<String, u32>,
+    str_overrides: &HashMap<String, String>,
+    classified_families: &HashMap<String, &'static str>,
+) -> String {
     let mut s = String::new();
     s.push_str("//! GENERATED by `cargo run -p gen-effect-table`. Do not edit by hand.\n");
     s.push_str("//! Source: reference/effects-enum.txt (EF_* enum) + reference/effects-source.txt (SET_DURATION).\n");
@@ -389,7 +474,7 @@ fn emit_rust(entries: &[EnumEntry], durations: &HashMap<String, u32>) -> String 
     s.push_str("    }\n");
     s.push_str("}\n\n");
 
-    // Original EF_* identifier — handy for cross-referencing.
+    // Original EF_* identifier - handy for cross-referencing.
     s.push_str("/// Original `EF_*` identifier.\n");
     s.push_str("pub fn effect_ef_name(id: EffectId) -> &'static str {\n");
     s.push_str("    match id {\n");
@@ -404,11 +489,11 @@ fn emit_rust(entries: &[EnumEntry], durations: &HashMap<String, u32>) -> String 
 
     // Default STR filename. Convention: lowercase EF_ name with the `EF_`
     // prefix stripped. Many of the original game's STR effects do follow this naming
-    // (e.g. EF_BUBBLE → bubble.str); the rest fall back gracefully —
+    // (e.g. EF_BUBBLE → bubble.str); the rest fall back gracefully -
     // StrEffectCache::load logs a warning and the effect simply doesn't
     // render. The hand-curated overrides in `table.rs` fix the cases that
     // need a non-trivial mapping.
-    s.push_str("/// Default STR filename (without `.str`) — lowercase EF_ name.\n");
+    s.push_str("/// Default STR filename (without `.str`) - lowercase EF_ name.\n");
     s.push_str("pub fn default_str_file(id: EffectId) -> &'static str {\n");
     s.push_str("    match id {\n");
     for (pascal, ef_orig, _, _) in &variants {
@@ -422,7 +507,45 @@ fn emit_rust(entries: &[EnumEntry], durations: &HashMap<String, u32>) -> String 
         ));
     }
     s.push_str("    }\n");
+    s.push_str("}\n\n");
+
+    s.push_str("pub fn str_file_override(id: EffectId) -> Option<&'static str> {\n");
+    s.push_str("    Some(match id {\n");
+    let mut emitted = 0usize;
+    for (pascal, ef_orig, _, _) in &variants {
+        if let Some(name) = str_overrides.get(ef_orig) {
+            s.push_str(&format!(
+                "        EffectId::{} => \"{}\",\n",
+                pascal, name
+            ));
+            emitted += 1;
+        }
+    }
+    s.push_str("        _ => return None,\n");
+    s.push_str("    })\n");
+    s.push_str("}\n\n");
+    eprintln!("emitted {emitted} str_file_override entries");
+
+    s.push_str("use super::spec::CustomFamily;\n\n");
+    s.push_str("pub fn classified_family(id: EffectId) -> Option<CustomFamily> {\n");
+    s.push_str("    Some(match id {\n");
+    let mut fam_emitted = 0usize;
+    for (pascal, ef_orig, _, _) in &variants {
+        if let Some(family) = classified_families.get(ef_orig) {
+            if *family == "Bespoke" {
+                continue;
+            }
+            s.push_str(&format!(
+                "        EffectId::{} => CustomFamily::{},\n",
+                pascal, family
+            ));
+            fam_emitted += 1;
+        }
+    }
+    s.push_str("        _ => return None,\n");
+    s.push_str("    })\n");
     s.push_str("}\n");
+    eprintln!("emitted {fam_emitted} classified_family entries");
 
     s
 }
@@ -500,6 +623,63 @@ mod tests {
         // EF_ALIAS would share discriminant 0 with EF_A → dropped.
         let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
         assert_eq!(names, vec!["EF_A", "EF_B"]);
+    }
+
+    #[test]
+    fn parse_str_filenames_handles_simple_cases() {
+        let cpp = r#"
+            switch (m_type) {
+                case EF_SELECTRING:
+                    sprintf(StrName, "selectring.str");
+                    break;
+                case EF_HIT8:
+                    sprintf(StrName, "hit2.str");
+                    break;
+            }
+        "#;
+        let m = parse_str_filenames(cpp);
+        assert_eq!(m.get("EF_SELECTRING").map(|s| s.as_str()), Some("selectring"));
+        assert_eq!(m.get("EF_HIT8").map(|s| s.as_str()), Some("hit2"));
+    }
+
+    #[test]
+    fn parse_str_filenames_handles_if_else_last_wins() {
+        let cpp = r#"
+            case EF_ANGELUS:
+                if (mini) {
+                    sprintf(StrName, "jong_mini.str");
+                } else {
+                    sprintf(StrName, "Angelus.str");
+                }
+                break;
+        "#;
+        let m = parse_str_filenames(cpp);
+        assert_eq!(m.get("EF_ANGELUS").map(|s| s.as_str()), Some("Angelus"));
+    }
+
+    #[test]
+    fn parse_str_filenames_handles_fallthrough() {
+        let cpp = r#"
+            case EF_A:
+            case EF_B:
+                sprintf(StrName, "shared.str");
+                break;
+        "#;
+        let m = parse_str_filenames(cpp);
+        assert_eq!(m.get("EF_A").map(|s| s.as_str()), Some("shared"));
+        assert_eq!(m.get("EF_B").map(|s| s.as_str()), Some("shared"));
+    }
+
+    #[test]
+    fn parse_str_filenames_skips_format_strings_and_empty() {
+        let cpp = r#"
+            sprintf(StrName, "");
+            case EF_METEOR:
+                sprintf(StrName, "Meteor%d.str", random(3) + 1);
+                break;
+        "#;
+        let m = parse_str_filenames(cpp);
+        assert!(m.get("EF_METEOR").is_none());
     }
 
     #[test]
