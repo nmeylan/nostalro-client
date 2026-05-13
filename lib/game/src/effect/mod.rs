@@ -1,37 +1,41 @@
-pub mod effect_queue;
+pub mod draw;
 pub mod effect_id;
+pub mod effect_queue;
+pub mod effect_trait;
+pub mod effects;
+pub mod factory;
 pub mod spec;
 pub mod str_aliases;
 pub mod table;
 
-pub use effect_queue::{EffectQueue, SpawnRequest};
+pub use draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 pub use effect_id::{
     classified_family, default_duration_ms, default_str_file, effect_ef_name, effect_name,
     skill_effect, EffectId, ALL_EFFECT_IDS,
 };
-pub use spec::{
-    Attach, CustomFamily, CustomFamilyParams, EffectBlend, EffectSpec, GroundRingParams,
-};
+pub use effect_queue::{EffectQueue, SpawnRequest};
+pub use effect_trait::{CameraView, Effect, EffectRenderCtx, EffectUpdateCtx};
+pub use factory::{is_implemented, make_effect};
+pub use spec::{Attach, CustomFamily, EffectSpec};
 pub use str_aliases::str_aliases;
 pub use table::effect_spec;
 
-/// Distinct GRF texture paths referenced by any `EffectSpec::Custom` in the
-/// effect table. Empty-string textures are skipped. Used by the renderer to
-/// preload effect textures at app boot so first-spawn doesn't hitch.
+/// Distinct GRF texture paths used by `Custom`-payload effects, for renderer
+/// preload at app boot. Walks each implemented effect module's `TEXTURES`
+/// constant; deprecated overlay textures from the family path aren't covered
+/// here and load on first spawn.
 pub fn effect_texture_paths() -> Vec<String> {
     let mut seen = std::collections::BTreeSet::new();
-    for &id in ALL_EFFECT_IDS {
-        let Some(spec) = effect_spec(id) else {
-            continue;
-        };
-        let EffectSpec::Custom { params, .. } = spec else {
-            continue;
-        };
-        match params {
-            CustomFamilyParams::GroundRing(p) if !p.texture.is_empty() => {
-                seen.insert(format!("data/texture/effect/{}", p.texture));
-            }
-            _ => {}
+    let texture_lists: &[&[&str]] = &[
+        effects::warp::TEXTURES,
+        effects::magnum_break::TEXTURES,
+        effects::bottom_sanc::TEXTURES,
+        effects::warp_zone::TEXTURES,
+        effects::land_protector::TEXTURES,
+    ];
+    for list in texture_lists {
+        for name in *list {
+            seen.insert(format!("data/texture/effect/{name}"));
         }
     }
     seen.into_iter().collect()
@@ -53,11 +57,9 @@ mod tests {
             paths.iter().all(|p| p.starts_with("data/texture/effect/")),
             "all entries are GRF effect paths",
         );
-        // Hand-curated rows landed in `table.rs` — at least the five GroundRing
-        // overrides should appear here.
         assert!(
-            paths.iter().any(|p| p.ends_with("magic_target.tga")),
-            "Warp texture is included",
+            paths.iter().any(|p| p.ends_with("ring_yellow.tga")),
+            "Warp's texture is included",
         );
     }
 }

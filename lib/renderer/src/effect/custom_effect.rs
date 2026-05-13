@@ -1,19 +1,14 @@
-//! Custom (non-STR) effect trait + family registry.
+//! Deprecated family-based custom-effect dispatch.
 //!
-//! Each variant of [`ragnarok_game::effect::CustomFamily`] maps to one Rust
-//! module under `lib/renderer/src/effect/fx/`. [`make_custom`] is the single
-//! dispatch point; new families add a match arm here.
+//! This is the *old* path that backs `EffectSpec::StrHybrid`'s `family`
+//! overlay (and bespoke families still pending migration). New work uses
+//! `ragnarok_game::effect::make_effect` instead. Both paths coexist until
+//! slice F.
 
-use ragnarok_game::effect::{CustomFamily, CustomFamilyParams, GroundRingParams};
+use ragnarok_game::effect::CustomFamily;
+pub use ragnarok_game::effect::{EffectDrawList, EffectStatus};
 
-use super::EffectDrawList;
 use crate::camera::Camera;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EffectStatus {
-    Running,
-    Dead,
-}
 
 pub struct EffectUpdateCtx {
     pub dt: f32,
@@ -26,24 +21,21 @@ pub struct EffectRenderCtx<'a> {
     pub elapsed: f32,
 }
 
-/// What every custom-effect implementation provides. The game-side
-/// [`ragnarok_game::effect::ActiveEffect`] trait wraps a `Box<dyn CustomEffect>`
-/// when bridging into the holder.
+/// Old behavior contract for renderer-side `fx/*` modules. New effects
+/// implement `ragnarok_game::effect::Effect` instead.
 pub trait CustomEffect: Send {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus;
     fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx);
 }
 
-/// Caller-provided parameters shared across families. Per-family data lives in
-/// [`CustomFamilyParams`] on the spec and is passed alongside.
+/// Caller-provided parameters shared across families.
 #[derive(Clone, Debug, Default)]
 pub struct CustomParams {
     /// World-space spawn position (most effects).
     pub world_pos: [f32; 3],
     /// Optional target position for line-shaped effects (Grimtooth, Grand Cross).
     pub target_pos: Option<[f32; 3]>,
-    /// Override of the default texture path for the family (legacy path —
-    /// per-family params override this where present).
+    /// Override of the default texture path for the family.
     pub texture: Option<&'static str>,
     /// Tint applied on top of the family's default color.
     pub tint: Option<[f32; 4]>,
@@ -55,20 +47,9 @@ pub struct CustomParams {
 pub fn make_custom(
     family: CustomFamily,
     params: &CustomParams,
-    family_params: &CustomFamilyParams,
 ) -> Option<Box<dyn CustomEffect>> {
     match family {
         CustomFamily::Aura => Some(Box::new(super::fx::aura::Aura::new(params))),
-        CustomFamily::GroundRing => {
-            let ring = match family_params {
-                CustomFamilyParams::GroundRing(p) => *p,
-                CustomFamilyParams::Default => GroundRingParams::DEFAULT,
-            };
-            Some(Box::new(super::fx::ground_ring::GroundRing::new(
-                params.world_pos,
-                &ring,
-            )))
-        }
         CustomFamily::CastCircle => {
             Some(Box::new(super::fx::cast_circle::CastCircle::new(params)))
         }
@@ -126,7 +107,6 @@ mod tests {
         let result = make_custom(
             CustomFamily::Bespoke(EffectId::Bubble),
             &CustomParams::default(),
-            &CustomFamilyParams::Default,
         );
         assert!(result.is_none());
     }

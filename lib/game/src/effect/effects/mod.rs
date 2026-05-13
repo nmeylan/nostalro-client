@@ -1,0 +1,11 @@
+//! Per-effect implementations of [`super::effect_trait::Effect`].
+//!
+//! Each effect lives in its own module (or shares a module with sibling
+//! variants that reuse the same struct via parameter sets). The factory
+//! ([`super::factory::make_effect`]) is the single dispatch point.
+
+pub mod bottom_sanc;
+pub mod land_protector;
+pub mod magnum_break;
+pub mod warp;
+pub mod warp_zone;

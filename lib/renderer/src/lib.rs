@@ -77,7 +77,8 @@ pub struct Renderer {
     /// same encoder without an intermediate submit. Will be retired in C-2
     /// when effects move to dedicated primitive pipelines.
     pub effect_sprite_renderer: SpriteRenderer,
-    pub effect_ring_renderer: effect::RingRenderer,
+    pub effect_ground_disc_renderer: effect::GroundDiscRenderer,
+    pub effect_frustum_renderer: effect::FrustumRenderer,
     pub ui_renderer: UiRenderer,
     pub font_atlas: FontAtlas,
     pub font_atlas_bind_group: wgpu::BindGroup,
@@ -137,7 +138,13 @@ impl Renderer {
             logical_h,
             include_str!("shaders/sprite.wgsl"),
         );
-        let effect_ring_renderer = effect::RingRenderer::new(
+        let effect_ground_disc_renderer = effect::GroundDiscRenderer::new(
+            &device.device,
+            device.surface_format,
+            &global_uniforms.bind_group_layout,
+            &texture_cache.bind_group_layout,
+        );
+        let effect_frustum_renderer = effect::FrustumRenderer::new(
             &device.device,
             device.surface_format,
             &global_uniforms.bind_group_layout,
@@ -163,7 +170,8 @@ impl Renderer {
             grid_selector: None,
             sprite_renderer,
             effect_sprite_renderer,
-            effect_ring_renderer,
+            effect_ground_disc_renderer,
+            effect_frustum_renderer,
             ui_renderer,
             font_atlas,
             font_atlas_bind_group,
@@ -454,17 +462,30 @@ impl Renderer {
             );
         }
 
-        // Dispatch dedicated primitives from the effect draw list. Ring is
-        // first; later primitives (Cylinder, LineStrip, …) get their own
-        // dispatch block here in subsequent slices.
-        let has_rings = effect_draws
+        // Dispatch dedicated primitives from the effect draw list. New
+        // primitives (Cylinder, LineStrip, …) get their own dispatch block
+        // here in subsequent slices.
+        let has_ground_discs = effect_draws
             .primitives
             .iter()
-            .any(|p| matches!(p, effect::EffectPrimitiveDraw::Ring { .. }));
-        if has_rings {
-            let texture_cache = &self.texture_cache;
+            .any(|p| matches!(p, effect::EffectPrimitiveDraw::GroundDisc { .. }));
+        let has_frustums = effect_draws
+            .primitives
+            .iter()
+            .any(|p| matches!(p, effect::EffectPrimitiveDraw::Frustum { .. }));
+        let texture_lookup = |name: &str| -> Option<&wgpu::BindGroup> {
+            // Effect texture params store the bare filename
+            // (e.g. `ring_yellow.tga`); preload + cache uses the
+            // full GRF path (`data/texture/effect/<name>`).
+            if name.is_empty() {
+                return None;
+            }
+            let full = format!("data/texture/effect/{name}");
+            self.texture_cache.get(&full)
+        };
+        if has_ground_discs {
             let fallback = &self.white_bind_group;
-            self.effect_ring_renderer.render(
+            self.effect_ground_disc_renderer.render(
                 &mut encoder,
                 &view,
                 &self.device.depth_view,
@@ -474,16 +495,22 @@ impl Renderer {
                 &self.camera,
                 effect_draws,
                 fallback,
-                |name| {
-                    // Effect texture params store the bare filename
-                    // (e.g. `magic_target.tga`); preload + cache uses the
-                    // full GRF path (`data/texture/effect/<name>`).
-                    if name.is_empty() {
-                        return None;
-                    }
-                    let full = format!("data/texture/effect/{name}");
-                    texture_cache.get(&full)
-                },
+                texture_lookup,
+            );
+        }
+        if has_frustums {
+            let fallback = &self.white_bind_group;
+            self.effect_frustum_renderer.render(
+                &mut encoder,
+                &view,
+                &self.device.depth_view,
+                &self.device.device,
+                &self.device.queue,
+                &self.global_uniforms.bind_group,
+                &self.camera,
+                effect_draws,
+                fallback,
+                texture_lookup,
             );
         }
 

@@ -1,19 +1,45 @@
 //! Runtime store of currently-active effects.
 //!
-//! Lives in the renderer crate because the most complex variant
-//! (`Box<dyn CustomEffect>`) is renderer-side. Game-side triggers push
-//! [`ragnarok_game::effect::SpawnRequest`]s into a [`SpawnQueue`]; the holder
-//! drains that queue each frame and constructs the runtime instances.
+//! Game-side triggers push [`ragnarok_game::effect::SpawnRequest`]s into a
+//! [`EffectQueue`]; the holder drains that queue each frame and constructs
+//! the runtime instances.
+//!
+//! Two custom-effect paths coexist during the redesign:
+//!   * **factory path** — `EffectSpec::Custom` dispatches through
+//!     `ragnarok_game::effect::make_effect` to a `Box<dyn Effect>` living in
+//!     the game crate. This is the path new effects use.
+//!   * **legacy family path** — `EffectSpec::StrHybrid`'s overlay still goes
+//!     through [`super::custom_effect::make_custom`] to a
+//!     `Box<dyn CustomEffect>` in `fx/*`. Deleted in slice F.
+
+use std::sync::Arc;
 
 use ragnarok_game::effect::{
-    Attach, CustomFamily, CustomFamilyParams, EffectId, EffectQueue, EffectSpec, SpawnRequest,
-    effect_spec,
+    Attach, CameraView as GameCameraView, Effect as GameEffect, EffectDrawList, EffectId,
+    EffectQueue, EffectRenderCtx as GameEffectRenderCtx, EffectSpec, EffectStatus,
+    EffectUpdateCtx as GameEffectUpdateCtx, SpawnRequest, effect_spec, make_effect,
 };
 
 use super::custom_effect::{
-    CustomEffect, CustomParams, EffectRenderCtx, EffectStatus, EffectUpdateCtx, make_custom,
+    CustomEffect, CustomParams, EffectRenderCtx, EffectUpdateCtx, make_custom,
 };
-use super::EffectDrawList;
+
+/// Pluggable backend for custom-effect dispatch. The default path links the
+/// game crate's `make_effect` statically; tooling that needs hot reload
+/// (the effect viewer) supplies a wrapper around its cdylib so effect
+/// implementations live behind the dlsym boundary and can be swapped at
+/// runtime. Drop semantics: `drop_handle` must release the cdylib-owned
+/// `Box<dyn Effect>`; `drop_all` is called by [`EffectHolder::clear`] and
+/// by tooling just before a reload.
+pub trait ExternalCustomBackend: Send + Sync {
+    fn spawn(&self, effect_id: u16, world_pos: [f32; 3]) -> u64;
+    /// Returns `true` while the effect is still running, `false` once it
+    /// has signalled death.
+    fn update(&self, handle: u64, dt: f32) -> bool;
+    fn collect(&self, handle: u64, ctx: &GameEffectRenderCtx, out: &mut EffectDrawList);
+    fn drop_handle(&self, handle: u64);
+    fn drop_all(&self);
+}
 
 /// Owned snapshot of a live STR effect - handed to `build_str_effect_batches`
 /// by callers that need a borrow-free view of the holder's STR effects.
@@ -28,12 +54,7 @@ pub struct EffectHandle(u64);
 
 #[derive(Clone, Debug)]
 pub enum SpawnOutcome {
-    Custom {
-        /// Per-family texture path the effect would like the renderer to use
-        /// (may be empty if the family doesn't specify one). Used by
-        /// `last_spawn_status` to surface missing-texture cases.
-        texture: Option<String>,
-    },
+    Custom,
     Str {
         name: String,
     },
@@ -49,17 +70,20 @@ pub enum SpawnOutcome {
 pub enum SpawnStatus {
     Rendering,
     StrFileMissing,
-    CustomTextureMissing,
     CustomNotImpl,
     NoSpec,
 }
 
 enum HeldPayload {
-    Custom(Box<dyn CustomEffect>),
+    /// Factory-built effect (new path).
+    Custom(Box<dyn GameEffect>),
+    /// Custom effect whose `Box<dyn Effect>` lives in an external (hot-
+    /// reloadable) backend. The holder only keeps the opaque handle.
+    CustomExternal { handle: u64 },
     /// Single-shot STR effect. Anim time accumulates in `age`; the render
     /// step projects via the existing `build_str_effect_batches` path.
     Str { name: String },
-    /// STR animation with an additional custom-primitive overlay.
+    /// STR animation with an additional family-overlay layer (legacy path).
     Hybrid {
         name: String,
         custom: Box<dyn CustomEffect>,
@@ -84,11 +108,27 @@ pub struct EffectHolder {
     next_id: u64,
     effects: Vec<HeldEffect>,
     last_spawn: Option<SpawnOutcome>,
+    /// When set, `EffectSpec::Custom` spawns are routed through this backend
+    /// instead of the statically-linked `make_effect`. Tooling owns the
+    /// concrete implementation; production code leaves it `None`.
+    external_backend: Option<Arc<dyn ExternalCustomBackend>>,
 }
 
 impl EffectHolder {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Install (or remove) an external custom-effect backend. Drops every
+    /// live external effect first so the old backend's handles are released
+    /// before its function pointers are torn down. Internal `Custom` and
+    /// non-Custom effects are left untouched.
+    pub fn set_external_backend(&mut self, backend: Option<Arc<dyn ExternalCustomBackend>>) {
+        if let Some(old) = &self.external_backend {
+            self.effects.retain(|e| !matches!(e.payload, HeldPayload::CustomExternal { .. }));
+            old.drop_all();
+        }
+        self.external_backend = backend;
     }
 
     /// Spawn directly by `EffectId`. Used by the effect viewer and any
@@ -119,29 +159,44 @@ impl EffectHolder {
                     sprite: (*sprite).to_string(),
                 }
             }
-            EffectSpec::Custom { family, params: family_params, .. } => {
-                let params = build_params(*family, &attach, tint);
-                match make_custom(*family, &params, family_params) {
-                    Some(c) => {
-                        self.last_spawn = Some(SpawnOutcome::Custom {
-                            texture: family_texture(family_params),
-                        });
-                        HeldPayload::Custom(c)
-                    }
-                    None => {
+            EffectSpec::Custom { .. } => {
+                if let Some(backend) = &self.external_backend {
+                    let world_pos = match attach {
+                        Attach::WorldPos(p) => p,
+                        Attach::Entity(_) | Attach::Projectile { .. } => [0.0; 3],
+                    };
+                    let handle = backend.spawn(effect_id as u16, world_pos);
+                    if handle != 0 {
+                        self.last_spawn = Some(SpawnOutcome::Custom);
+                        HeldPayload::CustomExternal { handle }
+                    } else {
                         self.last_spawn = Some(SpawnOutcome::CustomNotImpl);
                         tracing::debug!(
-                            "EffectHolder: no implementation for family {:?} (effect {:?})",
-                            family,
+                            "EffectHolder: external backend has no impl for {:?}",
                             effect_id
                         );
                         return None;
                     }
+                } else {
+                    match make_effect(effect_id, attach) {
+                        Some(e) => {
+                            self.last_spawn = Some(SpawnOutcome::Custom);
+                            HeldPayload::Custom(e)
+                        }
+                        None => {
+                            self.last_spawn = Some(SpawnOutcome::CustomNotImpl);
+                            tracing::debug!(
+                                "EffectHolder: no factory impl for {:?}",
+                                effect_id
+                            );
+                            return None;
+                        }
+                    }
                 }
             }
             EffectSpec::StrHybrid { file, family, .. } => {
-                let params = build_params(*family, &attach, tint);
-                match make_custom(*family, &params, &CustomFamilyParams::Default) {
+                let params = build_params(&attach, tint);
+                match make_custom(*family, &params) {
                     Some(c) => {
                         self.last_spawn = Some(SpawnOutcome::Hybrid {
                             name: (*file).to_string(),
@@ -152,13 +207,14 @@ impl EffectHolder {
                         }
                     }
                     None => {
-                        self.last_spawn = Some(SpawnOutcome::CustomNotImpl);
-                        tracing::debug!(
-                            "EffectHolder: no impl for hybrid family {:?} (effect {:?})",
-                            family,
-                            effect_id
-                        );
-                        return None;
+                        // Fall back to STR-only playback when the family
+                        // overlay isn't implemented.
+                        self.last_spawn = Some(SpawnOutcome::Str {
+                            name: (*file).to_string(),
+                        });
+                        HeldPayload::Str {
+                            name: (*file).to_string(),
+                        }
                     }
                 }
             }
@@ -202,29 +258,56 @@ impl EffectHolder {
     }
 
     pub fn despawn(&mut self, handle: EffectHandle) {
-        self.effects.retain(|e| e.handle != handle);
+        let backend = self.external_backend.as_ref().cloned();
+        self.effects.retain(|e| {
+            if e.handle != handle {
+                return true;
+            }
+            if let (HeldPayload::CustomExternal { handle: h }, Some(b)) = (&e.payload, &backend) {
+                b.drop_handle(*h);
+            }
+            false
+        });
     }
 
     /// Drop every live effect. Used by the effect viewer when the user
     /// cycles to a new picker entry so old (persistent) effects don't
     /// accumulate.
     pub fn clear(&mut self) {
+        if let Some(b) = &self.external_backend {
+            b.drop_all();
+        }
         self.effects.clear();
     }
 
     pub fn update(&mut self, ctx: &EffectUpdateCtx) {
         let dt = ctx.dt;
+        let game_ctx = GameEffectUpdateCtx { dt };
+        let backend = self.external_backend.clone();
         self.effects.retain_mut(|e| {
             e.age += dt;
-            if e.age >= e.duration {
-                return false;
-            }
-            match &mut e.payload {
-                HeldPayload::Custom(c) => c.update(ctx) == EffectStatus::Running,
-                HeldPayload::Hybrid { custom, .. } => custom.update(ctx) == EffectStatus::Running,
+            let expired = e.age >= e.duration;
+            let alive = match &mut e.payload {
+                HeldPayload::Custom(c) => c.update(&game_ctx) == EffectStatus::Running,
+                HeldPayload::CustomExternal { handle } => backend
+                    .as_ref()
+                    .map(|b| b.update(*handle, dt))
+                    .unwrap_or(false),
+                HeldPayload::Hybrid { custom, .. } => {
+                    custom.update(ctx) == EffectStatus::Running
+                }
                 HeldPayload::Str { .. } => true,
                 HeldPayload::Spr { .. } => true,
+            };
+            if !alive || expired {
+                if let (HeldPayload::CustomExternal { handle }, Some(b)) =
+                    (&e.payload, &backend)
+                {
+                    b.drop_handle(*handle);
+                }
+                return false;
             }
+            true
         });
     }
 
@@ -236,9 +319,24 @@ impl EffectHolder {
         out: &mut EffectDrawList,
         ctx: &EffectRenderCtx,
     ) {
+        let game_ctx = GameEffectRenderCtx {
+            camera: GameCameraView {
+                eye: ctx.camera.eye().to_array(),
+                target: ctx.camera.target.to_array(),
+                up: glam::Vec3::NEG_Y.to_array(),
+            },
+            screen_w: ctx.screen_w,
+            screen_h: ctx.screen_h,
+            elapsed: ctx.elapsed,
+        };
         for e in &self.effects {
             match &e.payload {
-                HeldPayload::Custom(c) => c.collect_draws(out, ctx),
+                HeldPayload::Custom(c) => c.collect_draws(out, &game_ctx),
+                HeldPayload::CustomExternal { handle } => {
+                    if let Some(b) = &self.external_backend {
+                        b.collect(*handle, &game_ctx, out);
+                    }
+                }
                 HeldPayload::Hybrid { custom, .. } => custom.collect_draws(out, ctx),
                 _ => {}
             }
@@ -283,22 +381,16 @@ impl EffectHolder {
         self.last_spawn.as_ref()
     }
 
-    /// Resolve the last spawn outcome into a `SpawnStatus`. Callers pass two
-    /// closures so the holder can poll the renderer's caches without holding
-    /// a borrow on them.
+    /// Resolve the last spawn outcome into a `SpawnStatus`. Callers pass one
+    /// closure so the holder can poll the renderer's STR cache without
+    /// holding a borrow on it.
     pub fn last_spawn_status(
         &self,
         str_in_cache: impl Fn(&str) -> bool,
-        texture_in_cache: impl Fn(&str) -> bool,
     ) -> Option<SpawnStatus> {
         Some(match self.last_spawn.as_ref()? {
             SpawnOutcome::Spr => SpawnStatus::Rendering,
-            SpawnOutcome::Custom { texture } => match texture.as_deref() {
-                Some(name) if !name.is_empty() && !texture_in_cache(name) => {
-                    SpawnStatus::CustomTextureMissing
-                }
-                _ => SpawnStatus::Rendering,
-            },
+            SpawnOutcome::Custom => SpawnStatus::Rendering,
             SpawnOutcome::Str { name } | SpawnOutcome::Hybrid { name } => {
                 if str_in_cache(name) {
                     SpawnStatus::Rendering
@@ -309,17 +401,6 @@ impl EffectHolder {
             SpawnOutcome::CustomNotImpl => SpawnStatus::CustomNotImpl,
             SpawnOutcome::NoSpec => SpawnStatus::NoSpec,
         })
-    }
-}
-
-/// GRF path the family params would like rendered (None if the family has no
-/// per-effect texture). Mirrors `effect_texture_paths` on the game side.
-fn family_texture(params: &CustomFamilyParams) -> Option<String> {
-    match params {
-        CustomFamilyParams::GroundRing(p) if !p.texture.is_empty() => {
-            Some(format!("data/texture/effect/{}", p.texture))
-        }
-        _ => None,
     }
 }
 
@@ -334,11 +415,7 @@ fn resolve_position(
     }
 }
 
-fn build_params(
-    _family: CustomFamily,
-    attach: &Attach,
-    tint: Option<[f32; 4]>,
-) -> CustomParams {
+fn build_params(attach: &Attach, tint: Option<[f32; 4]>) -> CustomParams {
     let (world_pos, target_pos) = match attach {
         Attach::WorldPos(p) => (*p, None),
         Attach::Entity(_) => ([0.0; 3], None),
@@ -365,7 +442,8 @@ mod tests {
     fn spawning_an_str_effect_runs_until_duration_expires() {
         let mut h = EffectHolder::new();
         // Override the data-driven duration so the test doesn't depend on
-        // whatever the original's duration table happens to set Bubble to.
+        // whatever duration the original game happens to set Bubble
+        // to.
         let handle = h
             .spawn(
                 EffectId::Bubble,
@@ -382,12 +460,24 @@ mod tests {
         h.update(&ctx(1.5));
         assert!(h.is_empty(), "should have expired after total 2.5s");
 
-        // Despawning a stale handle is harmless.
         h.despawn(handle);
     }
 
     #[test]
-    fn custom_effect_with_impl_spawns_and_reports_rendering() {
+    fn factory_dispatched_warp_spawns_and_reports_rendering() {
+        let mut h = EffectHolder::new();
+        let handle = h.spawn(
+            EffectId::Warp,
+            Attach::WorldPos([0.0, 0.0, 0.0]),
+            Some(500),
+            None,
+        );
+        assert!(handle.is_some());
+        assert_eq!(h.last_spawn_status(|_| false), Some(SpawnStatus::Rendering));
+    }
+
+    #[test]
+    fn factory_unimplemented_custom_reports_not_impl() {
         let mut h = EffectHolder::new();
         let handle = h.spawn(
             EffectId::Icewall,
@@ -395,10 +485,10 @@ mod tests {
             Some(500),
             None,
         );
-        assert!(handle.is_some());
+        assert!(handle.is_none());
         assert_eq!(
-            h.last_spawn_status(|_| false, |_| false),
-            Some(SpawnStatus::Rendering)
+            h.last_spawn_status(|_| false),
+            Some(SpawnStatus::CustomNotImpl)
         );
     }
 
@@ -412,34 +502,10 @@ mod tests {
             None,
         )
         .expect("spawn");
+        assert_eq!(h.last_spawn_status(|_| true), Some(SpawnStatus::Rendering));
         assert_eq!(
-            h.last_spawn_status(|_| true, |_| false),
-            Some(SpawnStatus::Rendering)
-        );
-        assert_eq!(
-            h.last_spawn_status(|_| false, |_| false),
+            h.last_spawn_status(|_| false),
             Some(SpawnStatus::StrFileMissing)
-        );
-    }
-
-    #[test]
-    fn custom_with_texture_reports_missing_when_not_in_cache() {
-        let mut h = EffectHolder::new();
-        // EF_WARP has a hand-curated GroundRing texture override.
-        h.spawn(
-            EffectId::Warp,
-            Attach::WorldPos([0.0, 0.0, 0.0]),
-            Some(1000),
-            None,
-        )
-        .expect("spawn");
-        assert_eq!(
-            h.last_spawn_status(|_| false, |_| false),
-            Some(SpawnStatus::CustomTextureMissing)
-        );
-        assert_eq!(
-            h.last_spawn_status(|_| false, |_| true),
-            Some(SpawnStatus::Rendering)
         );
     }
 

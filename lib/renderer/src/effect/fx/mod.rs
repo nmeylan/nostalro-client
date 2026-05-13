@@ -11,7 +11,6 @@ pub mod cross_beam;
 pub mod cylinder_pillar;
 pub mod flat_quad;
 pub mod floating_spirit;
-pub mod ground_ring;
 pub mod heal_burst;
 pub mod melee_impact;
 pub mod radial_burst;

@@ -4,8 +4,13 @@
 static GLOBAL: std::alloc::System = std::alloc::System;
 
 use ragnarok_game::effect::{
-    ALL_EFFECT_IDS, CustomFamily, EffectId, EffectSpec, effect_ef_name, effect_name, effect_spec,
+    ALL_EFFECT_IDS, Attach, Effect as GameEffect, EffectDrawList, EffectId,
+    EffectRenderCtx as GameEffectRenderCtx, EffectSpec, EffectStatus,
+    EffectUpdateCtx as GameEffectUpdateCtx, effect_ef_name, effect_name, effect_spec,
+    make_effect,
 };
+use std::collections::HashMap;
+use std::sync::Mutex;
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
 use ragnarok_ui::draw::{quad_vertices, text_vertices};
@@ -59,9 +64,52 @@ pub struct CameraView {
     pub distance: f32,
 }
 
+/// Snapshot of every field the host needs to carry across a hot-reload so the
+/// new dylib's `State` resumes where the old one left off. `magic` + `version`
+/// let the host abandon the restore cleanly if the cdylib bumps the layout
+/// between rebuilds.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct PersistentState {
+    pub magic: u32,
+    pub version: u32,
+    pub selected_effect_id: u16,
+    pub filter_idx: u16,
+    pub paused: u8,
+    pub show_info: u8,
+    pub _pad: [u8; 2],
+    pub speed_x100: u32,
+    pub target: [f32; 3],
+    pub yaw: f32,
+    pub pitch: f32,
+    pub distance: f32,
+}
+
+impl Default for PersistentState {
+    fn default() -> Self {
+        Self {
+            magic: 0,
+            version: 0,
+            selected_effect_id: u16::MAX,
+            filter_idx: 0,
+            paused: 0,
+            show_info: 0,
+            _pad: [0; 2],
+            speed_x100: 100,
+            target: [0.0; 3],
+            yaw: 0.0,
+            pitch: 0.0,
+            distance: 0.0,
+        }
+    }
+}
+
+pub const PERSISTENT_STATE_MAGIC: u32 = 0x45565053; // 'EVPS' little-endian
+pub const PERSISTENT_STATE_VERSION: u32 = 1;
+
 // === Internal state ===
 
-/// Picker draws from `ALL_EFFECT_IDS` directly - every `EF_*` ID is
+/// Picker draws from `ALL_EFFECT_IDS` directly - every original game `EF_*` ID is
 /// selectable (~821 variants today). Names + EF_ aliases come from the
 /// generated helpers.
 
@@ -80,24 +128,7 @@ enum Filter {
     Str,
     StrHybrid,
     Spr,
-    Bespoke,
-    Aura,
-    GroundRing,
-    CastCircle,
-    SpikeRow,
-    Wall,
-    CylinderPillar,
-    CrossBeam,
-    SplineProjectile,
-    RadialBurst,
-    ScreenFlash,
-    FlatQuad,
-    HealBurst,
-    MeleeImpact,
-    AirSwirl,
-    StatusOrb,
-    FloatingSpirit,
-    Waterfall,
+    Custom,
 }
 
 const FILTERS: &[Filter] = &[
@@ -105,24 +136,7 @@ const FILTERS: &[Filter] = &[
     Filter::Str,
     Filter::StrHybrid,
     Filter::Spr,
-    Filter::Bespoke,
-    Filter::Aura,
-    Filter::GroundRing,
-    Filter::CastCircle,
-    Filter::SpikeRow,
-    Filter::Wall,
-    Filter::CylinderPillar,
-    Filter::CrossBeam,
-    Filter::SplineProjectile,
-    Filter::RadialBurst,
-    Filter::ScreenFlash,
-    Filter::FlatQuad,
-    Filter::HealBurst,
-    Filter::MeleeImpact,
-    Filter::AirSwirl,
-    Filter::StatusOrb,
-    Filter::FloatingSpirit,
-    Filter::Waterfall,
+    Filter::Custom,
 ];
 
 fn filter_label(f: Filter) -> &'static str {
@@ -131,48 +145,8 @@ fn filter_label(f: Filter) -> &'static str {
         Filter::Str => "Str",
         Filter::StrHybrid => "StrHybrid",
         Filter::Spr => "Spr",
-        Filter::Bespoke => "Bespoke",
-        Filter::Aura => "Aura",
-        Filter::GroundRing => "GroundRing",
-        Filter::CastCircle => "CastCircle",
-        Filter::SpikeRow => "SpikeRow",
-        Filter::Wall => "Wall",
-        Filter::CylinderPillar => "CylinderPillar",
-        Filter::CrossBeam => "CrossBeam",
-        Filter::SplineProjectile => "SplineProjectile",
-        Filter::RadialBurst => "RadialBurst",
-        Filter::ScreenFlash => "ScreenFlash",
-        Filter::FlatQuad => "FlatQuad",
-        Filter::HealBurst => "HealBurst",
-        Filter::MeleeImpact => "MeleeImpact",
-        Filter::AirSwirl => "AirSwirl",
-        Filter::StatusOrb => "StatusOrb",
-        Filter::FloatingSpirit => "FloatingSpirit",
-        Filter::Waterfall => "Waterfall",
+        Filter::Custom => "Custom",
     }
-}
-
-fn filter_to_family(f: Filter) -> Option<CustomFamily> {
-    Some(match f {
-        Filter::Aura => CustomFamily::Aura,
-        Filter::GroundRing => CustomFamily::GroundRing,
-        Filter::CastCircle => CustomFamily::CastCircle,
-        Filter::SpikeRow => CustomFamily::SpikeRow,
-        Filter::Wall => CustomFamily::Wall,
-        Filter::CylinderPillar => CustomFamily::CylinderPillar,
-        Filter::CrossBeam => CustomFamily::CrossBeam,
-        Filter::SplineProjectile => CustomFamily::SplineProjectile,
-        Filter::RadialBurst => CustomFamily::RadialBurst,
-        Filter::ScreenFlash => CustomFamily::ScreenFlash,
-        Filter::FlatQuad => CustomFamily::FlatQuad,
-        Filter::HealBurst => CustomFamily::HealBurst,
-        Filter::MeleeImpact => CustomFamily::MeleeImpact,
-        Filter::AirSwirl => CustomFamily::AirSwirl,
-        Filter::StatusOrb => CustomFamily::StatusOrb,
-        Filter::FloatingSpirit => CustomFamily::FloatingSpirit,
-        Filter::Waterfall => CustomFamily::Waterfall,
-        _ => return None,
-    })
 }
 
 fn filter_matches(f: Filter, id: EffectId) -> bool {
@@ -182,22 +156,13 @@ fn filter_matches(f: Filter, id: EffectId) -> bool {
     let Some(spec) = effect_spec(id) else {
         return false;
     };
-    let target = filter_to_family(f);
-    match (f, spec) {
-        (Filter::Str, EffectSpec::Str { .. }) => true,
-        (Filter::StrHybrid, EffectSpec::StrHybrid { .. }) => true,
-        (Filter::Spr, EffectSpec::Spr { .. }) => true,
-        (
-            Filter::Bespoke,
-            EffectSpec::Custom {
-                family: CustomFamily::Bespoke(_),
-                ..
-            },
-        ) => true,
-        (_, EffectSpec::Custom { family, .. }) => target == Some(family),
-        (_, EffectSpec::StrHybrid { family, .. }) => target == Some(family),
-        _ => false,
-    }
+    matches!(
+        (f, spec),
+        (Filter::Str, EffectSpec::Str { .. })
+            | (Filter::StrHybrid, EffectSpec::StrHybrid { .. })
+            | (Filter::Spr, EffectSpec::Spr { .. })
+            | (Filter::Custom, EffectSpec::Custom { .. })
+    )
 }
 
 fn build_filtered(filter: Filter) -> Vec<EffectId> {
@@ -226,6 +191,12 @@ struct State {
     yaw: f32,
     pitch: f32,
     distance: f32,
+
+    /// Hot-reloadable effect registry. The host holds u64 handles only;
+    /// `Box<dyn Effect>` ownership stays in this cdylib so it can be torn
+    /// down before the dylib unloads.
+    effects: Mutex<HashMap<u64, Box<dyn GameEffect>>>,
+    next_effect_handle: Mutex<u64>,
 }
 
 impl State {
@@ -346,6 +317,10 @@ pub extern "C" fn hot_create() -> *mut () {
         yaw: 0.0,
         pitch: 0.0,
         distance: 0.0,
+        effects: Mutex::new(HashMap::new()),
+        // Reserve 0 as "invalid handle" so the host can use 0 to signal
+        // spawn failure across the FFI boundary.
+        next_effect_handle: Mutex::new(1),
     };
     state.default_camera();
     Box::into_raw(Box::new(state)) as *mut ()
@@ -468,6 +443,77 @@ pub unsafe extern "C" fn hot_set_selected_effect_id(state_ptr: *mut (), effect_i
         state.selection = idx;
         state.pending_spawn = Some(id);
     }
+}
+
+/// Writes the dylib's persistent state into `out` so the host can carry it
+/// across an unload/load cycle. Host treats the struct as opaque: it copies
+/// the bytes out, destroys the old dylib, loads the new one, then hands the
+/// bytes to `hot_restore_state`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_snapshot_state(state_ptr: *mut (), out: *mut PersistentState) {
+    let state = unsafe { &*(state_ptr as *const State) };
+    let snap = PersistentState {
+        magic: PERSISTENT_STATE_MAGIC,
+        version: PERSISTENT_STATE_VERSION,
+        selected_effect_id: state
+            .current_effect()
+            .map(|id| id.as_u16())
+            .unwrap_or(u16::MAX),
+        filter_idx: state.filter_idx as u16,
+        paused: state.paused as u8,
+        show_info: state.show_info as u8,
+        _pad: [0; 2],
+        speed_x100: (state.speed * 100.0) as u32,
+        target: state.target,
+        yaw: state.yaw,
+        pitch: state.pitch,
+        distance: state.distance,
+    };
+    unsafe { *out = snap };
+}
+
+/// Restore a previously snapshotted state. Returns 1 on success, 0 if the
+/// snapshot's magic/version don't match (host should leave the fresh state
+/// untouched in that case). Re-queues a spawn for the restored effect so the
+/// next frame's `poll_pending_spawn` repopulates the holder after the host
+/// cleared it for the unload.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_restore_state(state_ptr: *mut (), snap: *const PersistentState) -> u8 {
+    if snap.is_null() {
+        return 0;
+    }
+    let snap = unsafe { &*snap };
+    if snap.magic != PERSISTENT_STATE_MAGIC || snap.version != PERSISTENT_STATE_VERSION {
+        return 0;
+    }
+    let state = unsafe { &mut *(state_ptr as *mut State) };
+
+    let filter_idx = (snap.filter_idx as usize).min(FILTERS.len().saturating_sub(1));
+    state.filter_idx = filter_idx;
+    state.filtered_ids = build_filtered(state.current_filter());
+
+    state.selection = match EffectId::from_u16(snap.selected_effect_id) {
+        Some(id) => state
+            .filtered_ids
+            .iter()
+            .position(|x| *x == id)
+            .unwrap_or(0),
+        None => 0,
+    };
+
+    state.paused = snap.paused != 0;
+    state.show_info = match snap.show_info {
+        1 => InfoPanel::Controls,
+        _ => InfoPanel::None,
+    };
+    state.speed = (snap.speed_x100 as f32 / 100.0).clamp(0.1, 4.0);
+    state.target = snap.target;
+    state.yaw = snap.yaw;
+    state.pitch = snap.pitch;
+    state.distance = snap.distance;
+
+    state.pending_spawn = state.current_effect();
+    1
 }
 
 #[unsafe(no_mangle)]
@@ -702,4 +748,123 @@ fn build_legend(atlas: &FontAtlas, screen_h: f32) -> Vec<UiDrawCall> {
         });
     }
     calls
+}
+
+// === Hot-reloadable custom-effect registry ===
+//
+// The host's `EffectHolder` calls into these symbols whenever the spec is
+// `EffectSpec::Custom`, so each effect's update + collect_draws runs out of
+// THIS cdylib's text. When the dylib is replaced, the host drops all
+// registry handles (via `hot_drop_all_effects`) before unloading.
+
+/// Construct a custom effect by id. Returns 0 if the id has no factory arm.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_spawn_custom_effect(
+    state_ptr: *mut (),
+    effect_id: u16,
+    world_pos: *const [f32; 3],
+) -> u64 {
+    let state = unsafe { &*(state_ptr as *const State) };
+    let Some(id) = EffectId::from_u16(effect_id) else {
+        return 0;
+    };
+    let world_pos = if world_pos.is_null() {
+        [0.0; 3]
+    } else {
+        unsafe { *world_pos }
+    };
+    let Some(effect) = make_effect(id, Attach::WorldPos(world_pos)) else {
+        return 0;
+    };
+    let mut next = state.next_effect_handle.lock().unwrap();
+    let handle = *next;
+    *next = next.wrapping_add(1).max(1);
+    drop(next);
+    state.effects.lock().unwrap().insert(handle, effect);
+    handle
+}
+
+/// Advance a registered effect by `dt`. Returns 1 if the effect signalled
+/// `EffectStatus::Dead` (the host then calls `hot_drop_effect`), 0 if the
+/// effect is still running or the handle is unknown.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_update_custom_effect(
+    state_ptr: *mut (),
+    handle: u64,
+    dt: f32,
+) -> u8 {
+    let state = unsafe { &*(state_ptr as *const State) };
+    let mut effects = state.effects.lock().unwrap();
+    let Some(effect) = effects.get_mut(&handle) else {
+        return 1;
+    };
+    let status = effect.update(&GameEffectUpdateCtx { dt });
+    matches!(status, EffectStatus::Dead) as u8
+}
+
+/// Collect primitive draws for a registered effect, appending them to the
+/// host-provided draw list. `ctx_ffi` carries the renderer-agnostic camera
+/// + screen dims; if null we substitute defaults (good enough for picker
+/// previews that don't drive billboard orientation).
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct EffectRenderCtxFfi {
+    pub eye: [f32; 3],
+    pub target: [f32; 3],
+    pub up: [f32; 3],
+    pub screen_w: f32,
+    pub screen_h: f32,
+    pub elapsed: f32,
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_collect_custom_draws(
+    state_ptr: *mut (),
+    handle: u64,
+    ctx_ffi: *const EffectRenderCtxFfi,
+    out: *mut EffectDrawList,
+) {
+    let state = unsafe { &*(state_ptr as *const State) };
+    let effects = state.effects.lock().unwrap();
+    let Some(effect) = effects.get(&handle) else {
+        return;
+    };
+    let ctx = if ctx_ffi.is_null() {
+        GameEffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 0.0,
+            screen_h: 0.0,
+            elapsed: 0.0,
+        }
+    } else {
+        let c = unsafe { &*ctx_ffi };
+        GameEffectRenderCtx {
+            camera: ragnarok_game::effect::CameraView {
+                eye: c.eye,
+                target: c.target,
+                up: c.up,
+            },
+            screen_w: c.screen_w,
+            screen_h: c.screen_h,
+            elapsed: c.elapsed,
+        }
+    };
+    let out = unsafe { &mut *out };
+    effect.collect_draws(out, &ctx);
+}
+
+/// Drop a single effect by handle.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_drop_custom_effect(state_ptr: *mut (), handle: u64) {
+    let state = unsafe { &*(state_ptr as *const State) };
+    state.effects.lock().unwrap().remove(&handle);
+}
+
+/// Drop every registered effect. Called by the host immediately before
+/// unloading the dylib, so no in-flight effects survive into the new dylib
+/// (their vtables would otherwise dangle).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_drop_all_custom_effects(state_ptr: *mut ()) {
+    let state = unsafe { &*(state_ptr as *const State) };
+    state.effects.lock().unwrap().clear();
 }

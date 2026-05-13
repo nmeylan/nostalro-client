@@ -30,9 +30,11 @@ use ragnarok_game::effect::{
 };
 
 use crate::sprite_viewer::browser::SpriteBrowser;
+use ragnarok_game::effect::EffectRenderCtx as GameEffectRenderCtx;
 use ragnarok_renderer::effect::{
-    EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, SpawnStatus, StrEffectCache,
-    StrEmitterInput, build_billboard_batches, build_str_effect_batches,
+    EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, ExternalCustomBackend,
+    SpawnStatus, StrEffectCache, StrEmitterInput, build_billboard_batches,
+    build_str_effect_batches,
 };
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{Renderer, UiDrawCall, block_on};
@@ -77,6 +79,42 @@ struct CameraView {
     distance: f32,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct PersistentState {
+    magic: u32,
+    version: u32,
+    selected_effect_id: u16,
+    filter_idx: u16,
+    paused: u8,
+    show_info: u8,
+    _pad: [u8; 2],
+    speed_x100: u32,
+    target: [f32; 3],
+    yaw: f32,
+    pitch: f32,
+    distance: f32,
+}
+
+impl Default for PersistentState {
+    fn default() -> Self {
+        Self {
+            magic: 0,
+            version: 0,
+            selected_effect_id: u16::MAX,
+            filter_idx: 0,
+            paused: 0,
+            show_info: 0,
+            _pad: [0; 2],
+            speed_x100: 100,
+            target: [0.0; 3],
+            yaw: 0.0,
+            pitch: 0.0,
+            distance: 0.0,
+        }
+    }
+}
+
 const ACTION_NEXT_EFFECT: u32 = 1;
 const ACTION_PREV_EFFECT: u32 = 2;
 const ACTION_RESPAWN: u32 = 3;
@@ -106,26 +144,46 @@ type HotBuildOverlayFn =
     unsafe extern "C" fn(*mut (), *const FontAtlas, f32, f32, *mut Vec<UiDrawCall>);
 type HotGetFilteredIdsFn = unsafe extern "C" fn(*mut (), *mut Vec<u16>);
 type HotSetSelectedEffectIdFn = unsafe extern "C" fn(*mut (), u16);
+type HotSnapshotStateFn = unsafe extern "C" fn(*mut (), *mut PersistentState);
+type HotRestoreStateFn = unsafe extern "C" fn(*mut (), *const PersistentState) -> u8;
+
+// Effect-registry FFI (handle = 0 = invalid / spawn failed).
+type HotSpawnCustomEffectFn =
+    unsafe extern "C" fn(*mut (), u16, *const [f32; 3]) -> u64;
+type HotUpdateCustomEffectFn = unsafe extern "C" fn(*mut (), u64, f32) -> u8;
+type HotCollectCustomDrawsFn =
+    unsafe extern "C" fn(*mut (), u64, *const EffectRenderCtxFfi, *mut EffectDrawList);
+type HotDropCustomEffectFn = unsafe extern "C" fn(*mut (), u64);
+type HotDropAllCustomEffectsFn = unsafe extern "C" fn(*mut ());
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+struct EffectRenderCtxFfi {
+    eye: [f32; 3],
+    target: [f32; 3],
+    up: [f32; 3],
+    screen_w: f32,
+    screen_h: f32,
+    elapsed: f32,
+}
 
 const STATUS_UNKNOWN: u8 = 0;
 const STATUS_RENDERING: u8 = 1;
 const STATUS_STR_FILE_MISSING: u8 = 2;
 const STATUS_CUSTOM_NOT_IMPL: u8 = 3;
 const STATUS_NO_SPEC: u8 = 4;
-const STATUS_CUSTOM_TEXTURE_MISSING: u8 = 5;
 
 fn spawn_status_to_u8(status: SpawnStatus) -> u8 {
     match status {
         SpawnStatus::Rendering => STATUS_RENDERING,
         SpawnStatus::StrFileMissing => STATUS_STR_FILE_MISSING,
-        SpawnStatus::CustomTextureMissing => STATUS_CUSTOM_TEXTURE_MISSING,
         SpawnStatus::CustomNotImpl => STATUS_CUSTOM_NOT_IMPL,
         SpawnStatus::NoSpec => STATUS_NO_SPEC,
     }
 }
 
 struct HotLib {
-    _lib: libloading::Library,
+    lib: Arc<libloading::Library>,
     state: *mut (),
     update_fn: HotUpdateFn,
     on_action_fn: HotOnActionFn,
@@ -137,7 +195,79 @@ struct HotLib {
     build_overlay_fn: HotBuildOverlayFn,
     get_filtered_ids_fn: HotGetFilteredIdsFn,
     set_selected_effect_id_fn: HotSetSelectedEffectIdFn,
+    snapshot_state_fn: HotSnapshotStateFn,
+    restore_state_fn: HotRestoreStateFn,
     destroy_fn: HotDestroyFn,
+    spawn_custom_effect_fn: HotSpawnCustomEffectFn,
+    update_custom_effect_fn: HotUpdateCustomEffectFn,
+    collect_custom_draws_fn: HotCollectCustomDrawsFn,
+    drop_custom_effect_fn: HotDropCustomEffectFn,
+    drop_all_custom_effects_fn: HotDropAllCustomEffectsFn,
+}
+
+/// `ExternalCustomBackend` impl wired to a loaded `HotLib`. The Arc'd
+/// `libloading::Library` is held here too so the dylib stays mapped for as
+/// long as anything holds a reference to this backend — `EffectHolder::clear`
+/// drops the backend before the host unloads the new dylib instance.
+struct HotLibEffectBackend {
+    _lib: Arc<libloading::Library>,
+    state: *mut (),
+    spawn_fn: HotSpawnCustomEffectFn,
+    update_fn: HotUpdateCustomEffectFn,
+    collect_fn: HotCollectCustomDrawsFn,
+    drop_fn: HotDropCustomEffectFn,
+    drop_all_fn: HotDropAllCustomEffectsFn,
+}
+
+// SAFETY: every cdylib FFI entrypoint takes the `state` pointer and we never
+// share &mut access across threads; the cdylib's internal effect registry is
+// guarded by `Mutex<HashMap<...>>`. Both the host and the cdylib run their
+// shared types under the same `#[global_allocator] = System` (the cdylib
+// forces it).
+unsafe impl Send for HotLibEffectBackend {}
+unsafe impl Sync for HotLibEffectBackend {}
+
+impl ExternalCustomBackend for HotLibEffectBackend {
+    fn spawn(&self, effect_id: u16, world_pos: [f32; 3]) -> u64 {
+        unsafe { (self.spawn_fn)(self.state, effect_id, &world_pos as *const _) }
+    }
+
+    fn update(&self, handle: u64, dt: f32) -> bool {
+        let dead = unsafe { (self.update_fn)(self.state, handle, dt) };
+        dead == 0
+    }
+
+    fn collect(
+        &self,
+        handle: u64,
+        ctx: &GameEffectRenderCtx,
+        out: &mut EffectDrawList,
+    ) {
+        let ffi = EffectRenderCtxFfi {
+            eye: ctx.camera.eye,
+            target: ctx.camera.target,
+            up: ctx.camera.up,
+            screen_w: ctx.screen_w,
+            screen_h: ctx.screen_h,
+            elapsed: ctx.elapsed,
+        };
+        unsafe {
+            (self.collect_fn)(
+                self.state,
+                handle,
+                &ffi as *const EffectRenderCtxFfi,
+                out as *mut EffectDrawList,
+            )
+        };
+    }
+
+    fn drop_handle(&self, handle: u64) {
+        unsafe { (self.drop_fn)(self.state, handle) };
+    }
+
+    fn drop_all(&self) {
+        unsafe { (self.drop_all_fn)(self.state) };
+    }
 }
 
 impl HotLib {
@@ -149,51 +279,84 @@ impl HotLib {
                 return None;
             }
         };
-        let (
-            create,
-            destroy,
-            update,
-            on_action,
-            on_wheel,
-            get_flags,
-            get_camera,
-            take_pending,
-            set_last_status,
-            build_overlay,
-            get_filtered_ids,
-            set_selected_effect_id,
-        ) = unsafe {
-            let c: libloading::Symbol<HotCreateFn> = lib.get(b"hot_create").ok()?;
-            let d: libloading::Symbol<HotDestroyFn> = lib.get(b"hot_destroy").ok()?;
-            let u: libloading::Symbol<HotUpdateFn> = lib.get(b"hot_update").ok()?;
-            let a: libloading::Symbol<HotOnActionFn> = lib.get(b"hot_on_action").ok()?;
-            let w: libloading::Symbol<HotOnMouseWheelFn> = lib.get(b"hot_on_mouse_wheel").ok()?;
-            let f: libloading::Symbol<HotGetFlagsFn> = lib.get(b"hot_get_flags").ok()?;
-            let cam: libloading::Symbol<HotGetCameraFn> = lib.get(b"hot_get_camera").ok()?;
-            let t: libloading::Symbol<HotTakePendingFn> = lib.get(b"hot_take_pending_spawn").ok()?;
-            let s: libloading::Symbol<HotSetLastStatusFn> = lib.get(b"hot_set_last_status").ok()?;
-            let b: libloading::Symbol<HotBuildOverlayFn> = lib.get(b"hot_build_overlay").ok()?;
-            let gf: libloading::Symbol<HotGetFilteredIdsFn> =
-                lib.get(b"hot_get_filtered_ids").ok()?;
-            let ss: libloading::Symbol<HotSetSelectedEffectIdFn> =
-                lib.get(b"hot_set_selected_effect_id").ok()?;
-            (*c, *d, *u, *a, *w, *f, *cam, *t, *s, *b, *gf, *ss)
-        };
-        let state = (create)();
-        Some(Self {
-            _lib: lib,
-            state,
-            update_fn: update,
-            on_action_fn: on_action,
-            on_mouse_wheel_fn: on_wheel,
-            get_flags_fn: get_flags,
-            get_camera_fn: get_camera,
-            take_pending_fn: take_pending,
-            set_last_status_fn: set_last_status,
-            build_overlay_fn: build_overlay,
-            get_filtered_ids_fn: get_filtered_ids,
-            set_selected_effect_id_fn: set_selected_effect_id,
-            destroy_fn: destroy,
+        unsafe {
+            let create_fn = *lib.get::<HotCreateFn>(b"hot_create").ok()?;
+            let destroy_fn = *lib.get::<HotDestroyFn>(b"hot_destroy").ok()?;
+            let update_fn = *lib.get::<HotUpdateFn>(b"hot_update").ok()?;
+            let on_action_fn = *lib.get::<HotOnActionFn>(b"hot_on_action").ok()?;
+            let on_mouse_wheel_fn =
+                *lib.get::<HotOnMouseWheelFn>(b"hot_on_mouse_wheel").ok()?;
+            let get_flags_fn = *lib.get::<HotGetFlagsFn>(b"hot_get_flags").ok()?;
+            let get_camera_fn = *lib.get::<HotGetCameraFn>(b"hot_get_camera").ok()?;
+            let take_pending_fn =
+                *lib.get::<HotTakePendingFn>(b"hot_take_pending_spawn").ok()?;
+            let set_last_status_fn =
+                *lib.get::<HotSetLastStatusFn>(b"hot_set_last_status").ok()?;
+            let build_overlay_fn =
+                *lib.get::<HotBuildOverlayFn>(b"hot_build_overlay").ok()?;
+            let get_filtered_ids_fn =
+                *lib.get::<HotGetFilteredIdsFn>(b"hot_get_filtered_ids").ok()?;
+            let set_selected_effect_id_fn = *lib
+                .get::<HotSetSelectedEffectIdFn>(b"hot_set_selected_effect_id")
+                .ok()?;
+            let snapshot_state_fn =
+                *lib.get::<HotSnapshotStateFn>(b"hot_snapshot_state").ok()?;
+            let restore_state_fn =
+                *lib.get::<HotRestoreStateFn>(b"hot_restore_state").ok()?;
+            let spawn_custom_effect_fn = *lib
+                .get::<HotSpawnCustomEffectFn>(b"hot_spawn_custom_effect")
+                .ok()?;
+            let update_custom_effect_fn = *lib
+                .get::<HotUpdateCustomEffectFn>(b"hot_update_custom_effect")
+                .ok()?;
+            let collect_custom_draws_fn = *lib
+                .get::<HotCollectCustomDrawsFn>(b"hot_collect_custom_draws")
+                .ok()?;
+            let drop_custom_effect_fn = *lib
+                .get::<HotDropCustomEffectFn>(b"hot_drop_custom_effect")
+                .ok()?;
+            let drop_all_custom_effects_fn = *lib
+                .get::<HotDropAllCustomEffectsFn>(b"hot_drop_all_custom_effects")
+                .ok()?;
+            let state = (create_fn)();
+            Some(Self {
+                lib: Arc::new(lib),
+                state,
+                update_fn,
+                on_action_fn,
+                on_mouse_wheel_fn,
+                get_flags_fn,
+                get_camera_fn,
+                take_pending_fn,
+                set_last_status_fn,
+                build_overlay_fn,
+                get_filtered_ids_fn,
+                set_selected_effect_id_fn,
+                snapshot_state_fn,
+                restore_state_fn,
+                destroy_fn,
+                spawn_custom_effect_fn,
+                update_custom_effect_fn,
+                collect_custom_draws_fn,
+                drop_custom_effect_fn,
+                drop_all_custom_effects_fn,
+            })
+        }
+    }
+
+    /// Build an `ExternalCustomBackend` that routes custom-effect dispatch
+    /// through this dylib. The returned Arc holds a reference to the
+    /// `libloading::Library` so the dylib stays mapped for the backend's
+    /// lifetime — drop the Arc before unloading.
+    fn make_effect_backend(&self) -> Arc<HotLibEffectBackend> {
+        Arc::new(HotLibEffectBackend {
+            _lib: Arc::clone(&self.lib),
+            state: self.state,
+            spawn_fn: self.spawn_custom_effect_fn,
+            update_fn: self.update_custom_effect_fn,
+            collect_fn: self.collect_custom_draws_fn,
+            drop_fn: self.drop_custom_effect_fn,
+            drop_all_fn: self.drop_all_custom_effects_fn,
         })
     }
 
@@ -228,6 +391,17 @@ impl HotLib {
 
     fn set_selected_effect_id(&self, id: u16) {
         unsafe { (self.set_selected_effect_id_fn)(self.state, id) };
+    }
+
+    fn snapshot_state(&self) -> PersistentState {
+        let mut out = PersistentState::default();
+        unsafe { (self.snapshot_state_fn)(self.state, &mut out) };
+        out
+    }
+
+    fn restore_state(&self, snap: &PersistentState) -> bool {
+        let ok = unsafe { (self.restore_state_fn)(self.state, snap as *const _) };
+        ok != 0
     }
 
     fn camera(&self) -> CameraView {
@@ -322,13 +496,21 @@ impl App {
         let dylib_path = find_dylib();
         let last_dylib_mtime = dylib_mtime(&dylib_path).unwrap_or(SystemTime::UNIX_EPOCH);
         let hot_lib = HotLib::load(&dylib_path);
+        let mut effect_holder = EffectHolder::new();
+        // Route custom-effect dispatch through the dylib so an edit to
+        // `effects/*.rs` only requires rebuilding `effect-viewer-hot` to take
+        // effect (the host's `make_effect` symbol is unused once the backend
+        // is installed).
+        if let Some(hot) = &hot_lib {
+            effect_holder.set_external_backend(Some(hot.make_effect_backend()));
+        }
         Self {
             window: None,
             renderer: None,
             grf: None,
             grf_path: args.grf_path,
             str_effects: StrEffectCache::new(),
-            effect_holder: EffectHolder::new(),
+            effect_holder,
             effect_queue: EffectQueue::new(),
             white_bind_group: None,
             last_frame: Instant::now(),
@@ -437,17 +619,35 @@ impl App {
             return;
         }
         eprintln!("Reloading dylib...");
+        let saved_state = self.hot_lib.as_ref().map(|h| h.snapshot_state());
+        // Drop every live external-backend effect BEFORE we tear down the old
+        // dylib — otherwise the registry's vtables would point at unmapped
+        // code. `set_external_backend(None)` also calls `drop_all` on the old
+        // backend, so the cdylib's HashMap is empty before we drop the Arc.
+        self.effect_holder.set_external_backend(None);
         if let Some(old) = self.hot_lib.take() {
             old.unload();
         }
         match HotLib::load(&tmp) {
             Some(new) => {
+                if let Some(snap) = &saved_state {
+                    new.restore_state(snap);
+                }
+                self.effect_holder
+                    .set_external_backend(Some(new.make_effect_backend()));
                 self.hot_lib = Some(new);
                 eprintln!("Reload complete.");
             }
             None => {
                 eprintln!("Failed to load new dylib; falling back to original.");
                 self.hot_lib = HotLib::load(&self.dylib_path);
+                if let Some(hot) = &self.hot_lib {
+                    if let Some(snap) = &saved_state {
+                        hot.restore_state(snap);
+                    }
+                    self.effect_holder
+                        .set_external_backend(Some(hot.make_effect_backend()));
+                }
             }
         }
         if self.reload_counter > 1 {
@@ -536,15 +736,7 @@ impl App {
 
         let status_code = self
             .effect_holder
-            .last_spawn_status(
-                |name| self.str_effects.get(name).is_some(),
-                |name| {
-                    self.renderer
-                        .as_ref()
-                        .map(|r| r.texture_cache.get(name).is_some())
-                        .unwrap_or(false)
-                },
-            )
+            .last_spawn_status(|name| self.str_effects.get(name).is_some())
             .map(spawn_status_to_u8)
             .unwrap_or(STATUS_UNKNOWN);
         if let Some(hot) = &self.hot_lib {
