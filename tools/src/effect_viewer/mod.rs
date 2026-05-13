@@ -23,7 +23,7 @@ use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_game::effect::{EffectId, EffectQueue, EffectSpec, effect_spec};
+use ragnarok_game::effect::{EffectId, EffectQueue, EffectSpec, effect_spec, str_aliases};
 use ragnarok_renderer::effect::{
     EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, SpawnStatus, StrEffectCache,
     StrEmitterInput, build_billboard_batches, build_str_effect_batches,
@@ -354,12 +354,15 @@ impl App {
             .spawn_at(effect_id, [pos[0], pos[1], pos[2]]);
     }
 
-    /// If `effect_id` resolves to an `EffectSpec::Str`, make sure its STR
-    /// file is in the cache. Failures are remembered so we don't retry
-    /// every time the user cycles back to the same id.
+    /// If `effect_id` resolves to an `EffectSpec::Str` or `StrHybrid`, make
+    /// sure its STR file is in the cache. Tries the primary name first, then
+    /// auto-derived aliases. Failures are remembered so we don't retry
+    /// every cycle.
     fn ensure_str_loaded_for(&mut self, id: EffectId) {
-        let Some(EffectSpec::Str { file, .. }) = effect_spec(id) else {
-            return;
+        let file = match effect_spec(id) {
+            Some(EffectSpec::Str { file, .. }) => file,
+            Some(EffectSpec::StrHybrid { file, .. }) => file,
+            _ => return,
         };
         if self.attempted_str_files.contains(file) {
             return;
@@ -368,8 +371,10 @@ impl App {
         let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) else {
             return;
         };
+        let aliases = str_aliases(id);
         self.str_effects.load(
             file,
+            aliases,
             grf,
             &mut renderer.texture_cache,
             &renderer.device.device,
@@ -438,7 +443,7 @@ impl App {
                 anim_time: s.anim_time,
             })
             .collect();
-        let mut sprite_batches = build_str_effect_batches(
+        let mut effect_batches = build_str_effect_batches(
             &str_inputs,
             &self.str_effects,
             &renderer.camera,
@@ -470,7 +475,7 @@ impl App {
                 // when fx/* effects need them.
                 |_name| None,
             );
-            sprite_batches.append(&mut primitive_batches);
+            effect_batches.append(&mut primitive_batches);
         }
 
         // cdylib overlay
@@ -479,7 +484,7 @@ impl App {
             hot.build_overlay(&renderer.font_atlas, screen_w, screen_h, &mut ui_calls);
         }
 
-        renderer.render(&ui_calls, &sprite_batches, &[], &[], 0.0);
+        renderer.render(&ui_calls, &effect_batches, &effect_draws, &[], &[], &[], 0.0);
     }
 }
 

@@ -209,6 +209,7 @@ impl App {
             for name in &str_names {
                 self.str_effects.load(
                     name,
+                    &[],
                     grf,
                     &mut renderer.texture_cache,
                     &renderer.device.device,

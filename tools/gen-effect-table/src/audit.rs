@@ -3,7 +3,9 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_game::effect::{ALL_EFFECT_IDS, CustomFamily, EffectSpec, effect_spec};
+use ragnarok_game::effect::{
+    ALL_EFFECT_IDS, CustomFamily, EffectSpec, effect_spec, str_aliases,
+};
 
 pub fn run(grf_path: &Path) -> ExitCode {
     let grf = match GrfArchive::open(grf_path) {
@@ -29,16 +31,14 @@ pub fn run(grf_path: &Path) -> ExitCode {
         match effect_spec(id) {
             None => no_spec += 1,
             Some(EffectSpec::Str { file, .. }) => {
-                let path = format!("data/texture/effect/{file}.str");
-                if grf.file_exists(&path) {
+                if resolves_in_grf(&grf, file, str_aliases(id)) {
                     str_present += 1;
                 } else {
                     str_missing += 1;
                 }
             }
             Some(EffectSpec::StrHybrid { file, family, .. }) => {
-                let path = format!("data/texture/effect/{file}.str");
-                if grf.file_exists(&path) {
+                if resolves_in_grf(&grf, file, str_aliases(id)) {
                     hybrid_present += 1;
                 } else {
                     hybrid_missing += 1;
@@ -102,6 +102,11 @@ pub fn run(grf_path: &Path) -> ExitCode {
     }
 
     ExitCode::SUCCESS
+}
+
+fn resolves_in_grf(grf: &GrfArchive, primary: &str, aliases: &[&str]) -> bool {
+    let probe = |n: &str| grf.file_exists(&format!("data/texture/effect/{n}.str"));
+    probe(primary) || aliases.iter().any(|a| probe(a))
 }
 
 fn family_has_impl(family: CustomFamily) -> bool {

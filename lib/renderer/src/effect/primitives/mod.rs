@@ -6,5 +6,7 @@
 //! WGSL shaders, instanced strips, etc.) they'll grow their own batch type.
 
 pub mod billboard;
+pub mod ring;
 
 pub use billboard::build_billboard_batches;
+pub use ring::RingRenderer;

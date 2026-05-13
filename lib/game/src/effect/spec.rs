@@ -30,6 +30,7 @@ pub enum EffectSpec {
     /// Family-dispatched custom effect (Aura, GroundRing, SpikeRow, ...).
     Custom {
         family: CustomFamily,
+        params: CustomFamilyParams,
         duration_ms: u32,
     },
     /// Single looping SPR billboard (torches, simple ambient).
@@ -42,8 +43,6 @@ pub enum EffectSpec {
 /// Identifier for the custom-effect family. Each variant is implemented by
 /// exactly one Rust module under `lib/renderer/src/effect/fx/`.
 ///
-/// The renderer crate's `make_custom()` matches on this enum to construct
-/// the concrete `CustomEffect` for an `EffectSpec::Custom` entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CustomFamily {
     Aura,
@@ -65,4 +64,49 @@ pub enum CustomFamily {
     Waterfall,
     /// Truly bespoke effect - `EffectId` distinguishes which one.
     Bespoke(EffectId),
+}
+
+/// Per-family parameter bundle. One variant per `CustomFamily` that has a
+/// data-driven primitive renderer; families without per-effect parameters use
+/// `Default` and the family stub falls back to its own constants.
+#[derive(Clone, Debug)]
+pub enum CustomFamilyParams {
+    GroundRing(GroundRingParams),
+    Default,
+}
+
+/// Blend mode for a custom-effect primitive. Mirrors the renderer's
+/// `BlendKind` for the two variants we use from game-side tables.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EffectBlend {
+    Alpha,
+    Additive,
+}
+
+/// Per-effect parameters for the `GroundRing` family.
+#[derive(Clone, Copy, Debug)]
+pub struct GroundRingParams {
+    /// GRF path under `data/texture/effect/`. Empty string = fallback white.
+    pub texture: &'static str,
+    pub radius: f32,
+    /// `>= radius` → filled disc; otherwise the inner radius is `radius - thickness`.
+    pub thickness: f32,
+    pub rotation_deg_per_sec: f32,
+    pub color: [f32; 4],
+    pub blend: EffectBlend,
+    pub fade_in_ms: u16,
+    pub fade_out_ms: u16,
+}
+
+impl GroundRingParams {
+    pub const DEFAULT: Self = Self {
+        texture: "",
+        radius: 14.0,
+        thickness: 14.0,
+        rotation_deg_per_sec: 30.0,
+        color: [0.6, 0.85, 1.0, 0.55],
+        blend: EffectBlend::Additive,
+        fade_in_ms: 0,
+        fade_out_ms: 0,
+    };
 }

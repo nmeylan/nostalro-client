@@ -42,6 +42,7 @@ impl StrEffectCache {
     pub fn load(
         &mut self,
         name: &str,
+        aliases: &[&str],
         grf: &GrfArchive,
         texture_cache: &mut TextureCache,
         device: &wgpu::Device,
@@ -50,53 +51,69 @@ impl StrEffectCache {
         if self.entries.contains_key(name) {
             return true;
         }
-
-        let str_path = format!("data/texture/effect/{name}.str");
-        let str_bytes = match grf.read_file(&str_path) {
-            Ok(d) => d,
-            Err(e) => {
-                tracing::warn!("STR file missing: {str_path} ({e})");
-                return false;
+        // Try the primary first, then each alias. The cache keys by primary —
+        // so once any candidate resolves, future lookups by primary find it.
+        let mut last_err: Option<String> = None;
+        for candidate in std::iter::once(name).chain(aliases.iter().copied()) {
+            match try_load(candidate, grf, texture_cache, device, queue) {
+                Ok(entry) => {
+                    if candidate != name {
+                        tracing::debug!("STR resolved via alias: {name} -> {candidate}");
+                    }
+                    self.entries.insert(name.to_string(), entry);
+                    return true;
+                }
+                Err(e) => last_err = Some(e),
             }
-        };
-        let str_file = match StrEffectFile::parse(&str_bytes) {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::warn!("STR parse failed: {str_path} ({e})");
-                return false;
-            }
-        };
-
-        let layout = &texture_cache.bind_group_layout;
-        let mut texture_paths = Vec::with_capacity(str_file.layers.len());
-        let mut bind_groups = Vec::with_capacity(str_file.layers.len());
-        for layer in &str_file.layers {
-            let mut paths = Vec::with_capacity(layer.textures.len());
-            let mut bgs: Vec<Option<wgpu::BindGroup>> = Vec::with_capacity(layer.textures.len());
-            for tex_name in &layer.textures {
-                let tex_path = format!("data/texture/effect/{tex_name}");
-                let bg = load_str_texture(&tex_path, grf, device, queue, layout);
-                bgs.push(bg);
-                paths.push(tex_path);
-            }
-            texture_paths.push(paths);
-            bind_groups.push(bgs);
         }
-
-        self.entries.insert(
-            name.to_string(),
-            StrEffectEntry {
-                str_file,
-                texture_paths,
-                bind_groups,
-            },
+        tracing::warn!(
+            "STR file missing (tried {} name(s)): {} ({})",
+            1 + aliases.len(),
+            name,
+            last_err.unwrap_or_default()
         );
-        true
+        false
     }
 
     pub fn get(&self, name: &str) -> Option<&StrEffectEntry> {
         self.entries.get(name)
     }
+}
+
+fn try_load(
+    name: &str,
+    grf: &GrfArchive,
+    texture_cache: &mut TextureCache,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+) -> Result<StrEffectEntry, String> {
+    let str_path = format!("data/texture/effect/{name}.str");
+    let str_bytes = grf
+        .read_file(&str_path)
+        .map_err(|e| format!("{str_path}: {e}"))?;
+    let str_file = StrEffectFile::parse(&str_bytes).map_err(|e| format!("parse: {e}"))?;
+
+    let layout = &texture_cache.bind_group_layout;
+    let mut texture_paths = Vec::with_capacity(str_file.layers.len());
+    let mut bind_groups = Vec::with_capacity(str_file.layers.len());
+    for layer in &str_file.layers {
+        let mut paths = Vec::with_capacity(layer.textures.len());
+        let mut bgs: Vec<Option<wgpu::BindGroup>> = Vec::with_capacity(layer.textures.len());
+        for tex_name in &layer.textures {
+            let tex_path = format!("data/texture/effect/{tex_name}");
+            let bg = load_str_texture(&tex_path, grf, device, queue, layout);
+            bgs.push(bg);
+            paths.push(tex_path);
+        }
+        texture_paths.push(paths);
+        bind_groups.push(bgs);
+    }
+
+    Ok(StrEffectEntry {
+        str_file,
+        texture_paths,
+        bind_groups,
+    })
 }
 
 fn load_str_texture(

@@ -4,7 +4,7 @@
 //! module under `lib/renderer/src/effect/fx/`. [`make_custom`] is the single
 //! dispatch point; new families add a match arm here.
 
-use ragnarok_game::effect::CustomFamily;
+use ragnarok_game::effect::{CustomFamily, CustomFamilyParams, GroundRingParams};
 
 use super::EffectDrawList;
 use crate::camera::Camera;
@@ -34,17 +34,16 @@ pub trait CustomEffect: Send {
     fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx);
 }
 
-/// Caller-provided parameters for a custom effect instance. Today this is a
-/// single shared shape; if a family needs a larger / richer parameter set we
-/// extend this struct rather than introducing a per-family variant - most
-/// fields are optional.
+/// Caller-provided parameters shared across families. Per-family data lives in
+/// [`CustomFamilyParams`] on the spec and is passed alongside.
 #[derive(Clone, Debug, Default)]
 pub struct CustomParams {
     /// World-space spawn position (most effects).
     pub world_pos: [f32; 3],
     /// Optional target position for line-shaped effects (Grimtooth, Grand Cross).
     pub target_pos: Option<[f32; 3]>,
-    /// Override of the default texture path for the family.
+    /// Override of the default texture path for the family (legacy path —
+    /// per-family params override this where present).
     pub texture: Option<&'static str>,
     /// Tint applied on top of the family's default color.
     pub tint: Option<[f32; 4]>,
@@ -56,11 +55,19 @@ pub struct CustomParams {
 pub fn make_custom(
     family: CustomFamily,
     params: &CustomParams,
+    family_params: &CustomFamilyParams,
 ) -> Option<Box<dyn CustomEffect>> {
     match family {
         CustomFamily::Aura => Some(Box::new(super::fx::aura::Aura::new(params))),
         CustomFamily::GroundRing => {
-            Some(Box::new(super::fx::ground_ring::GroundRing::new(params)))
+            let ring = match family_params {
+                CustomFamilyParams::GroundRing(p) => *p,
+                CustomFamilyParams::Default => GroundRingParams::DEFAULT,
+            };
+            Some(Box::new(super::fx::ground_ring::GroundRing::new(
+                params.world_pos,
+                &ring,
+            )))
         }
         CustomFamily::CastCircle => {
             Some(Box::new(super::fx::cast_circle::CastCircle::new(params)))
@@ -116,7 +123,11 @@ mod tests {
 
     #[test]
     fn unknown_bespoke_returns_none() {
-        let result = make_custom(CustomFamily::Bespoke(EffectId::Bubble), &CustomParams::default());
+        let result = make_custom(
+            CustomFamily::Bespoke(EffectId::Bubble),
+            &CustomParams::default(),
+            &CustomFamilyParams::Default,
+        );
         assert!(result.is_none());
     }
 }

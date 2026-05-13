@@ -10,7 +10,7 @@ pub use custom_effect::{
     CustomEffect, CustomParams, EffectRenderCtx, EffectStatus, EffectUpdateCtx, make_custom,
 };
 pub use holder::{EffectHandle, EffectHolder, SpawnOutcome, SpawnStatus};
-pub use primitives::build_billboard_batches;
+pub use primitives::{RingRenderer, build_billboard_batches};
 pub use str_pipeline::{
     StrEffectCache, StrEffectEntry, StrEmitterInput, build_str_effect_batches,
 };

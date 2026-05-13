@@ -1,0 +1,181 @@
+//! Hand-curated alias lists for STR effect filenames.
+//!
+//! Edit freely; hand additions belong at the top.
+
+use super::generated::EffectId;
+
+pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
+    match id {
+        // Hand additions on top of the imported seed.
+        EffectId::Lvup | EffectId::Levelup => &["h_levelup"], // EF_LVUP / EF_LEVELUP - base level up
+        EffectId::Joblevelup => &["joblvup"], // EF_JOBLEVELUP - same visual as EF_JOBLVUP
+
+        // ----- auto-extracted, keyed by EF_NAME -----
+        EffectId::Angel => &["angel"],             // EF_ANGEL
+        EffectId::Angelus => &["angelus"],         // EF_ANGELUS
+        EffectId::Arrowshot => &["arrowshot"],     // EF_ARROWSHOT
+        EffectId::Aspersio => &["aspersio"],       // EF_ASPERSIO
+        EffectId::Assumptio2 => &["asum"],         // EF_ASSUMPTIO2
+        EffectId::Autocounter => &["autocounter"], // EF_AUTOCOUNTER
+        EffectId::Baku => &["fire dragon"],        // EF_BAKU
+        EffectId::Benedictio => &["benedictio"],   // EF_BENEDICTIO
+        EffectId::Blastminebomb => &["blastmine"], // EF_BLASTMINEBOMB
+        EffectId::Bleeding => &["wideb"],          // EF_BLEEDING
+        EffectId::Bowlingself => &["bowling"],     // EF_BOWLINGSELF
+        EffectId::Brandish2 => &["brandish2"],     // EF_BRANDISH2
+        EffectId::Bubble => &["bubble1", "bubble2", "bubble3", "bubble4"], // EF_BUBBLE
+        EffectId::Bullseye => &["불스아이"],       // EF_BULLSEYE
+        EffectId::Cartboost => &["cart"],          // EF_CARTBOOST
+        EffectId::Cartrevolution => &["cartrevolution"], // EF_CARTREVOLUTION
+        EffectId::Chaincombo => &["연환"],         // EF_CHAINCOMBO
+        EffectId::Claymore => &["claymore"],       // EF_CLAYMORE
+        EffectId::Coin => &["maemor"],             // EF_COIN
+        EffectId::Comboattack1 => &["yunta_1"],    // EF_COMBOATTACK1
+        EffectId::Comboattack2 => &["yunta_2"],    // EF_COMBOATTACK2
+        EffectId::Comboattack3 => &["yunta_3"],    // EF_COMBOATTACK3
+        EffectId::Comboattack4 => &["yunta_4"],    // EF_COMBOATTACK4
+        EffectId::Comboattack5 => &["yunta_5"],    // EF_COMBOATTACK5
+        EffectId::Concentration => &["concentration"], // EF_CONCENTRATION
+        EffectId::CookingFail => &["cook_fail"],   // EF_COOKING_FAIL
+        EffectId::CookingOk => &["cook_suc"],      // EF_COOKING_OK
+        EffectId::Crashearth => &["crashearth"],   // EF_CRASHEARTH
+        EffectId::Criticalwound => &["cwound"],    // EF_CRITICALWOUND
+        EffectId::Cure => &["cure"],               // EF_CURE
+        EffectId::Deffender => &["deffender"],     // EF_DEFFENDER
+        EffectId::Devil => &["devil"],             // EF_DEVIL
+        EffectId::Devotion => &["devotion"],       // EF_DEVOTION
+        EffectId::Dispell => &["디스펠"],          // EF_DISPELL
+        EffectId::Dragonfear => &["dragon_h"],     // EF_DRAGONFEAR
+        EffectId::Earthhit => &["earthhit"],       // EF_EARTHHIT
+        EffectId::Firehit | EffectId::Firehit2 => &["firehit1", "firehit2", "firehit3"], // EF_FIREHIT / EF_FIREHIT2
+        EffectId::Firepillar => &["firepillar"], // EF_FIREPILLAR
+        EffectId::Firepillarbomb => &["firepillarbomb"], // EF_FIREPILLARBOMB
+        EffectId::Firewall => &["firewall1", "firewall2"], // EF_FIREWALL
+        EffectId::Flamelauncher => &["enc_fire"], // EF_FLAMELAUNCHER
+        EffectId::Flowerleaf => &["flower_leaf"], // EF_FLOWERLEAF
+        EffectId::Food01 => &["food_str"],       // EF_FOOD01
+        EffectId::Food02 => &["food_int"],       // EF_FOOD02
+        EffectId::Food03 => &["food_vit"],       // EF_FOOD03
+        EffectId::Food04 => &["food_agi"],       // EF_FOOD04
+        EffectId::Food05 => &["food_dex"],       // EF_FOOD05
+        EffectId::Food06 => &["food_luk"],       // EF_FOOD06
+        EffectId::Freeze => &["freeze"],         // EF_FREEZE
+        EffectId::Freezed => &["freezed"],       // EF_FREEZED
+        EffectId::Freezing => &["freezing"],     // EF_FREEZING
+        EffectId::Frostweapon => &["enc_ice"],   // EF_FROSTWEAPON
+        EffectId::Gaspush => &["gaspush"],       // EF_GASPUSH
+        EffectId::Glasswall => &["safetywall"],  // EF_GLASSWALL
+        EffectId::Gloria => &["gloria"],         // EF_GLORIA
+        EffectId::Guidedattack => &["homing"],   // EF_GUIDEDATTACK
+        EffectId::Hamidefence => &["defense"],   // EF_HAMIDEFENCE
+        EffectId::Hapgyeok => &["itempokjuk"],   // EF_HAPGYEOK
+        EffectId::Hflimoon1 => &["moonlight_1"], // EF_HFLIMOON1
+        EffectId::Hflimoon2 => &["moonlight_2"], // EF_HFLIMOON2
+        EffectId::Hflimoon3 => &["moonlight_3"], // EF_HFLIMOON3
+        EffectId::Holycross => &["holy_cross"],  // EF_HOLYCROSS
+        EffectId::Holyhit => &["holyhit"],       // EF_HOLYHIT
+        EffectId::HoUp => &["h_levelup"],        // EF_HO_UP
+        EffectId::Hyousensou => &["freeze"],     // EF_HYOUSENSOU
+        EffectId::Hyousyouraku => &["icy"],      // EF_HYOUSYOURAKU
+        EffectId::Icecrash => &["icecrash"],     // EF_ICECRASH
+        EffectId::Impositio => &["impositio"],   // EF_IMPOSITIO
+        EffectId::Invenom => &["invenom"],       // EF_INVENOM
+        EffectId::Itempokjuk => &["itempokjuk"], // EF_ITEMPOKJUK
+        EffectId::Joblvup | EffectId::Joblvup50 => &["joblvup"], // EF_JOBLVUP / EF_JOBLVUP50
+        EffectId::Keeping => &["keeping"],       // EF_KEEPING
+        EffectId::Kouenka => &["firehit"],       // EF_KOUENKA
+        EffectId::Kyrie => &["kyrie"],           // EF_KYRIE
+        EffectId::Lamadan => &["ramadan"],       // EF_LAMADAN
+        EffectId::Lexaeterna => &["lexaeterna"], // EF_LEXAETERNA
+        EffectId::Lexdivina => &["lexdivina"],   // EF_LEXDIVINA
+        EffectId::Lightbolt => &["windhit1", "windhit2", "windhit3"], // EF_LIGHTBOLT
+        EffectId::Lightningloader => &["enc_wind"], // EF_LIGHTNINGLOADER
+        EffectId::Lkconcentration => &["twohand"], // EF_LKCONCENTRATION
+        EffectId::Lord => &["lord"],             // EF_LORD
+        EffectId::Loud => &["loud"],             // EF_LOUD
+        EffectId::Magicalatthit => &["magical"], // EF_MAGICALATTHIT
+        EffectId::Magicrod => &["매직로드"],     // EF_MAGICROD
+        EffectId::Magnificat => &["magnificat"], // EF_MAGNIFICAT
+        EffectId::Magnus => &["magnus"],         // EF_MAGNUS
+        EffectId::Mapae => &["mapae"],           // EF_MAPAE
+        EffectId::Maxpower => &["maximizepower"], // EF_MAXPOWER
+        EffectId::Meltdown => &["melt"],         // EF_MELTDOWN
+        EffectId::Mentalbreak => &["mentalbreak"], // EF_MENTALBREAK
+        EffectId::Meteorstorm => &["meteor1", "meteor2", "meteor3", "meteor4"], // EF_METEORSTORM
+        EffectId::Mochi => &["찹쌀떡"],          // EF_MOCHI
+        EffectId::Mvp => &["mvp"],               // EF_MVP
+        EffectId::Perfection => &["weaponperfection"], // EF_PERFECTION
+        EffectId::Petrifyattack => &["stonecurse"], // EF_PETRIFYATTACK
+        EffectId::PharmacyFail => &["p_failed"], // EF_PHARMACY_FAIL
+        EffectId::PharmacyOk => &["p_success"],  // EF_PHARMACY_OK
+        EffectId::Pierceself => &["pierce"],     // EF_PIERCESELF
+        EffectId::Pneuma => &["pneuma1", "pneuma2", "pneuma3"], // EF_PNEUMA
+        EffectId::Poisonattack => &["poison"],   // EF_POISONATTACK
+        EffectId::Poisonreact | EffectId::Poisonreact2 => &["poisonreact_1st"], // EF_POISONREACT / EF_POISONREACT2
+        EffectId::PokBirth
+        | EffectId::PokChristmas
+        | EffectId::PokLove
+        | EffectId::PokValen
+        | EffectId::PokWhite => &["itempokjuk"], // EF_POK_*
+        EffectId::Pong => &["pong1", "pong2", "pong3"],                         // EF_PONG
+        EffectId::Potion1 => &["빨간포션"],                                     // EF_POTION1
+        EffectId::Potion2 => &["주홍포션"],                                     // EF_POTION2
+        EffectId::Potion3 => &["노란포션"],                                     // EF_POTION3
+        EffectId::Potion4 => &["하얀포션"],                                     // EF_POTION4
+        EffectId::Potion5 => &["파란포션"],                                     // EF_POTION5
+        EffectId::Potion6 => &["초록포션"],                                     // EF_POTION6
+        EffectId::Potion7 => &["fruit"],                                        // EF_POTION7
+        EffectId::Potion8 => &["fruit_"],                                       // EF_POTION8
+        EffectId::Potion => &["각성"],                                          // EF_POTION_
+        EffectId::PotionBerserk => &["버서크"],                                 // EF_POTION_BERSERK
+        EffectId::PotionCon => &["집중"],                                       // EF_POTION_CON
+        EffectId::Providence => &["providence"],                                // EF_PROVIDENCE
+        EffectId::Provoke => &["provoke"],                                      // EF_PROVOKE
+        EffectId::Quagmire => &["quagmire"],                                    // EF_QUAGMIRE
+        EffectId::Recovery => &["recovery"],                                    // EF_RECOVERY
+        EffectId::Refinefail => &["bs_refinefailed"],                           // EF_REFINEFAIL
+        EffectId::Refineok => &["bs_refinesuccess"],                            // EF_REFINEOK
+        EffectId::Rejectsword => &["sword"],                                    // EF_REJECTSWORD
+        EffectId::Repairweapon => &["repairweapon"],                            // EF_REPAIRWEAPON
+        EffectId::Resurrection => &["resurrection"],                            // EF_RESURRECTION
+        EffectId::Sanctuary => &["sanctuary"],                                  // EF_SANCTUARY
+        EffectId::Sandman => &["sandman"],                                      // EF_SANDMAN
+        EffectId::Seismicweapon => &["enc_earth"],                              // EF_SEISMICWEAPON
+        EffectId::Shieldcharge => &["shield_charge"],                           // EF_SHIELDCHARGE
+        EffectId::Shockwavehit => &["shockwavehit"],                            // EF_SHOCKWAVEHIT
+        EffectId::Signum => &["cross"],                                         // EF_SIGNUM
+        EffectId::Silenceattack => &["silence"],                                // EF_SILENCEATTACK
+        EffectId::Skidtrap => &["skidtrap"],                                    // EF_SKIDTRAP
+        EffectId::Sleepattack => &["sleep"],                                    // EF_SLEEPATTACK
+        EffectId::Slowpoison => &["slowp"],                                     // EF_SLOWPOISON
+        EffectId::Sonicblow2 => &["sonicblow"],                                 // EF_SONICBLOW2
+        EffectId::Soulburn => &["소울번"],                                      // EF_SOULBURN
+        EffectId::Soulchange => &["사람효과"],                                  // EF_SOULCHANGE
+        EffectId::Spearbmrself => &["spearboomerang"],                          // EF_SPEARBMRSELF
+        EffectId::Spearquicken => &["twohand"],                                 // EF_SPEARQUICKEN
+        EffectId::Spearstabself => &["spearstab"],                              // EF_SPEARSTABSELF
+        EffectId::Spellbreaker => &["spell"],                                   // EF_SPELLBREAKER
+        EffectId::Splasher => &["venomsplasher"],                               // EF_SPLASHER
+        EffectId::Springtrap => &["spring"],                                    // EF_SPRINGTRAP
+        EffectId::Stealcoin => &["steal_coin"],                                 // EF_STEALCOIN
+        EffectId::Stonecurse => &["stonecurse"],                                // EF_STONECURSE
+        EffectId::Stormgust => &["stormgust"],                                  // EF_STORMGUST
+        EffectId::Striparmor => &["strip_armor"],                               // EF_STRIPARMOR
+        EffectId::Striphelm => &["strip_helm"],                                 // EF_STRIPHELM
+        EffectId::Stripshield => &["strip_shield"],                             // EF_STRIPSHIELD
+        EffectId::Stripweapon => &["strip_weapon"],                             // EF_STRIPWEAPON
+        EffectId::Stunattack => &["stun"],                                      // EF_STUNATTACK
+        EffectId::Suffragium => &["suffragium"],                                // EF_SUFFRAGIUM
+        EffectId::Suicide => &["suicide"],                                      // EF_SUICIDE
+        EffectId::SuiExplosion => &["sui_explosion"],                           // EF_SUI_EXPLOSION
+        EffectId::Thunderstorm | EffectId::Thunderstorm2 => &["thunderstorm"], // EF_THUNDERSTORM / EF_THUNDERSTORM2
+        EffectId::Trackcasting => &["트랙킹"],                                 // EF_TRACKCASTING
+        EffectId::Twohandquicken => &["twohand"],                              // EF_TWOHANDQUICKEN
+        EffectId::Venomdust => &["venomdust"],                                 // EF_VENOMDUST
+        EffectId::Wideconfuse => &["dfear"],                                   // EF_WIDECONFUSE
+        EffectId::Windhit => &["windhit1", "windhit2", "windhit3"],            // EF_WINDHIT
+        EffectId::Yufitel => &["ufidel", "thunder_ball0001"],                  // EF_YUFITEL
+        EffectId::Yufitelhit => &["ufidel_pang"],                              // EF_YUFITELHIT
+        _ => &[],
+    }
+}

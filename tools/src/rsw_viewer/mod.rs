@@ -552,6 +552,7 @@ impl App {
                 for name in &str_names {
                     self.str_effects.load(
                         name,
+                        &[],
                         &grf,
                         &mut renderer.texture_cache,
                         &renderer.device.device,
@@ -831,7 +832,7 @@ impl App {
             screen_w,
             screen_h,
         );
-        let mut sprite_batches = build_emitter_batches(&effect_draws);
+        let mut effect_batches = build_emitter_batches(&effect_draws);
 
         let str_inputs = build_str_emitter_inputs(&self.effects);
         let mut str_batches = build_str_effect_batches(
@@ -841,7 +842,7 @@ impl App {
             screen_w,
             screen_h,
         );
-        sprite_batches.append(&mut str_batches);
+        effect_batches.append(&mut str_batches);
 
         let mut draw_calls: Vec<UiDrawCall> = Vec::new();
         if let Some(browser) = &self.browser {
@@ -850,7 +851,16 @@ impl App {
             hot.build_overlay(&renderer.font_atlas, width, height, &mut draw_calls);
         }
 
-        renderer.render(&draw_calls, &sprite_batches, &[], &[], elapsed);
+        let empty_effect_draws = ragnarok_renderer::effect::EffectDrawList::new();
+        renderer.render(
+            &draw_calls,
+            &effect_batches,
+            &empty_effect_draws,
+            &[],
+            &[],
+            &[],
+            elapsed,
+        );
     }
 }
 

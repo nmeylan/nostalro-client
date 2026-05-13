@@ -72,6 +72,12 @@ pub struct Renderer {
     pub water_renderer: Option<WaterRenderer>,
     pub grid_selector: Option<GridSelectorRenderer>,
     pub sprite_renderer: SpriteRenderer,
+    /// Dedicated sprite-pipeline instance for the effect-world pass. Owns its
+    /// own vertex/index buffers so we can render effects + entities in the
+    /// same encoder without an intermediate submit. Will be retired in C-2
+    /// when effects move to dedicated primitive pipelines.
+    pub effect_sprite_renderer: SpriteRenderer,
+    pub effect_ring_renderer: effect::RingRenderer,
     pub ui_renderer: UiRenderer,
     pub font_atlas: FontAtlas,
     pub font_atlas_bind_group: wgpu::BindGroup,
@@ -123,6 +129,20 @@ impl Renderer {
             logical_h,
             include_str!("shaders/sprite.wgsl"),
         );
+        let effect_sprite_renderer = SpriteRenderer::new(
+            &device.device,
+            device.surface_format,
+            &texture_cache.bind_group_layout,
+            logical_w,
+            logical_h,
+            include_str!("shaders/sprite.wgsl"),
+        );
+        let effect_ring_renderer = effect::RingRenderer::new(
+            &device.device,
+            device.surface_format,
+            &global_uniforms.bind_group_layout,
+            &texture_cache.bind_group_layout,
+        );
 
         let ui_renderer = UiRenderer::new(
             &device.device,
@@ -142,6 +162,8 @@ impl Renderer {
             water_renderer: None,
             grid_selector: None,
             sprite_renderer,
+            effect_sprite_renderer,
+            effect_ring_renderer,
             ui_renderer,
             font_atlas,
             font_atlas_bind_group,
@@ -296,6 +318,8 @@ impl Renderer {
     pub fn render(
         &mut self,
         ui_draw_calls: &[UiDrawCall],
+        effect_sprite_batches: &[SpriteBatch],
+        effect_draws: &effect::EffectDrawList,
         sprite_batches: &[SpriteBatch],
         cursor_batches: &[SpriteBatch],
         inline_textures: &[&wgpu::BindGroup],
@@ -374,6 +398,46 @@ impl Renderer {
             }
         }
 
+        // Effect-world pass: STR + custom-fx primitives, depth-read no
+        // depth-write, between the 3D pass and the entity sprite pass.
+        // Uses a dedicated SpriteRenderer instance so its vertex buffer
+        // doesn't collide with the entity pass below in the same encoder.
+        if !effect_sprite_batches.is_empty() {
+            self.effect_sprite_renderer.render(
+                &mut encoder,
+                &view,
+                Some(&self.device.depth_view),
+                &self.device.device,
+                &self.device.queue,
+                None,
+                effect_sprite_batches,
+            );
+        }
+
+        // Dispatch dedicated primitives from the effect draw list. Ring is
+        // first; later primitives (Cylinder, LineStrip, …) get their own
+        // dispatch block here in subsequent slices.
+        let has_rings = effect_draws
+            .primitives
+            .iter()
+            .any(|p| matches!(p, effect::EffectPrimitiveDraw::Ring { .. }));
+        if has_rings {
+            let texture_cache = &self.texture_cache;
+            let fallback = &self.white_bind_group;
+            self.effect_ring_renderer.render(
+                &mut encoder,
+                &view,
+                &self.device.depth_view,
+                &self.device.device,
+                &self.device.queue,
+                &self.global_uniforms.bind_group,
+                &self.camera,
+                effect_draws,
+                fallback,
+                |name| texture_cache.get(name),
+            );
+        }
+
         if !sprite_batches.is_empty() {
             self.sprite_renderer.render(
                 &mut encoder,
@@ -386,8 +450,8 @@ impl Renderer {
             );
         }
 
-        // Submit 3D + sprites so sprite_renderer's write_buffer is flushed
-        // before cursor reuses the same buffers.
+        // Submit 3D + effects + sprites so sprite_renderer's write_buffer is
+        // flushed before cursor reuses the same buffers.
         self.device.queue.submit(std::iter::once(encoder.finish()));
 
         let mut encoder = self

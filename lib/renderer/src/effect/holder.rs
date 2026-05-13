@@ -6,7 +6,8 @@
 //! drains that queue each frame and constructs the runtime instances.
 
 use ragnarok_game::effect::{
-    Attach, CustomFamily, EffectId, EffectQueue, EffectSpec, SpawnRequest, effect_spec,
+    Attach, CustomFamily, CustomFamilyParams, EffectId, EffectQueue, EffectSpec, SpawnRequest,
+    effect_spec,
 };
 
 use super::custom_effect::{
@@ -27,18 +28,28 @@ pub struct EffectHandle(u64);
 
 #[derive(Clone, Debug)]
 pub enum SpawnOutcome {
-    Custom,
-    Str { name: String },
-    Hybrid { name: String },
+    Custom {
+        /// Per-family texture path the effect would like the renderer to use
+        /// (may be empty if the family doesn't specify one). Used by
+        /// `last_spawn_status` to surface missing-texture cases.
+        texture: Option<String>,
+    },
+    Str {
+        name: String,
+    },
+    Hybrid {
+        name: String,
+    },
     Spr,
     CustomNotImpl,
     NoSpec,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SpawnStatus {
     Rendering,
     StrFileMissing,
+    CustomTextureMissing,
     CustomNotImpl,
     NoSpec,
 }
@@ -108,11 +119,13 @@ impl EffectHolder {
                     sprite: (*sprite).to_string(),
                 }
             }
-            EffectSpec::Custom { family, .. } => {
+            EffectSpec::Custom { family, params: family_params, .. } => {
                 let params = build_params(*family, &attach, tint);
-                match make_custom(*family, &params) {
+                match make_custom(*family, &params, family_params) {
                     Some(c) => {
-                        self.last_spawn = Some(SpawnOutcome::Custom);
+                        self.last_spawn = Some(SpawnOutcome::Custom {
+                            texture: family_texture(family_params),
+                        });
                         HeldPayload::Custom(c)
                     }
                     None => {
@@ -128,7 +141,7 @@ impl EffectHolder {
             }
             EffectSpec::StrHybrid { file, family, .. } => {
                 let params = build_params(*family, &attach, tint);
-                match make_custom(*family, &params) {
+                match make_custom(*family, &params, &CustomFamilyParams::Default) {
                     Some(c) => {
                         self.last_spawn = Some(SpawnOutcome::Hybrid {
                             name: (*file).to_string(),
@@ -270,9 +283,22 @@ impl EffectHolder {
         self.last_spawn.as_ref()
     }
 
-    pub fn last_spawn_status(&self, str_in_cache: impl Fn(&str) -> bool) -> Option<SpawnStatus> {
+    /// Resolve the last spawn outcome into a `SpawnStatus`. Callers pass two
+    /// closures so the holder can poll the renderer's caches without holding
+    /// a borrow on them.
+    pub fn last_spawn_status(
+        &self,
+        str_in_cache: impl Fn(&str) -> bool,
+        texture_in_cache: impl Fn(&str) -> bool,
+    ) -> Option<SpawnStatus> {
         Some(match self.last_spawn.as_ref()? {
-            SpawnOutcome::Custom | SpawnOutcome::Spr => SpawnStatus::Rendering,
+            SpawnOutcome::Spr => SpawnStatus::Rendering,
+            SpawnOutcome::Custom { texture } => match texture.as_deref() {
+                Some(name) if !name.is_empty() && !texture_in_cache(name) => {
+                    SpawnStatus::CustomTextureMissing
+                }
+                _ => SpawnStatus::Rendering,
+            },
             SpawnOutcome::Str { name } | SpawnOutcome::Hybrid { name } => {
                 if str_in_cache(name) {
                     SpawnStatus::Rendering
@@ -283,6 +309,17 @@ impl EffectHolder {
             SpawnOutcome::CustomNotImpl => SpawnStatus::CustomNotImpl,
             SpawnOutcome::NoSpec => SpawnStatus::NoSpec,
         })
+    }
+}
+
+/// GRF path the family params would like rendered (None if the family has no
+/// per-effect texture). Mirrors `effect_texture_paths` on the game side.
+fn family_texture(params: &CustomFamilyParams) -> Option<String> {
+    match params {
+        CustomFamilyParams::GroundRing(p) if !p.texture.is_empty() => {
+            Some(format!("data/texture/effect/{}", p.texture))
+        }
+        _ => None,
     }
 }
 
