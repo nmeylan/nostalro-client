@@ -392,37 +392,6 @@ pub unsafe extern "C" fn hot_on_action(state_ptr: *mut (), action_code: u32) {
     }
 }
 
-/// Jump the picker cursor to the first effect whose Pascal name starts with
-/// `ch` (case-insensitive). No-op if no match.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn hot_on_char_input(state_ptr: *mut (), codepoint: u32) {
-    let state = unsafe { &mut *(state_ptr as *mut State) };
-    let Some(c) = char::from_u32(codepoint).filter(|c| c.is_ascii_alphabetic()) else {
-        return;
-    };
-    let target = c.to_ascii_lowercase();
-    // Search starts AFTER the current position so consecutive presses cycle
-    // through all effects with the same starting letter (mirrors typical
-    // file-manager behavior).
-    let n = state.filtered_ids.len();
-    if n == 0 {
-        return;
-    }
-    for offset in 1..=n {
-        let idx = (state.selection + offset) % n;
-        let id = state.filtered_ids[idx];
-        if effect_name(id)
-            .chars()
-            .next()
-            .is_some_and(|c| c.to_ascii_lowercase() == target)
-        {
-            state.selection = idx;
-            state.pending_spawn = Some(id);
-            return;
-        }
-    }
-}
-
 /// Mouse wheel: positive `dy` = scroll up = zoom in (closer to target).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hot_on_mouse_wheel(state_ptr: *mut (), dy: f32) {
@@ -476,6 +445,31 @@ pub unsafe extern "C" fn hot_take_pending_spawn(state_ptr: *mut (), out: *mut Pe
     unsafe { *out = result };
 }
 
+/// Writes the currently filtered effect IDs (sorted as the dylib stores them)
+/// into the host-provided Vec. Used by the host browser overlay to build its
+/// item list without duplicating filter logic.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_get_filtered_ids(state_ptr: *mut (), out: *mut Vec<u16>) {
+    let state = unsafe { &*(state_ptr as *const State) };
+    let out = unsafe { &mut *out };
+    out.clear();
+    out.extend(state.filtered_ids.iter().map(|id| id.as_u16()));
+}
+
+/// Host-initiated selection: jump the picker to the given effect id within the
+/// current filter and queue a spawn. No-op if the id isn't in the filter.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_set_selected_effect_id(state_ptr: *mut (), effect_id: u16) {
+    let state = unsafe { &mut *(state_ptr as *mut State) };
+    let Some(id) = EffectId::from_u16(effect_id) else {
+        return;
+    };
+    if let Some(idx) = state.filtered_ids.iter().position(|x| *x == id) {
+        state.selection = idx;
+        state.pending_spawn = Some(id);
+    }
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hot_set_last_status(state_ptr: *mut (), status: u8) {
     let state = unsafe { &mut *(state_ptr as *mut State) };
@@ -513,37 +507,36 @@ const DESC_COLOR: [f32; 4] = [0.7, 0.7, 0.7, 0.7];
 const BG_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.5];
 
 const LEGEND: &[(&str, &str)] = &[
-    ("-> / Space", "Next effect"),
-    ("<-", "Previous effect"),
+    ("-> / <-", "Next / prev effect"),
+    ("Up / Down", "Filter -/+"),
     ("PgDn / PgUp", "Jump 25"),
     ("Home / End", "First / last"),
-    ("a-z", "Jump to letter"),
-    ("[ / ]", "Filter -/+"),
-    ("R", "Respawn"),
-    ("P", "Pause"),
+    ("Tab", "Browser"),
+    ("R", "Replay"),
+    ("Space", "Pause"),
     ("+ / -", "Speed"),
     ("Scroll", "Zoom"),
     ("C", "Reset camera"),
-    ("? / 1", "Toggle controls"),
+    ("1", "Toggle controls"),
     ("Esc", "Quit / close panel"),
 ];
 
 const CONTROLS_LINES: &[&str] = &[
     "Picker:",
-    "  -> / Space   Next effect (wraps)",
+    "  ->           Next effect (wraps)",
     "  <-           Previous effect (wraps)",
     "  PgDn / PgUp  Jump 25 entries forward / back",
     "  Home / End   Jump to first / last effect",
-    "  a-z          Jump to next effect starting with that letter",
-    "  R            Respawn current effect at origin",
+    "  Tab          Open browser (filter by typing, Enter to pick)",
+    "  R            Replay current effect at origin",
     "",
     "Filter:",
-    "  ]            Next filter (All, Str, StrHybrid, Spr, Bespoke,",
+    "  Down         Next filter (All, Str, StrHybrid, Spr, Bespoke,",
     "               then each CustomFamily)",
-    "  [            Previous filter",
+    "  Up           Previous filter",
     "",
     "Playback:",
-    "  P            Pause / resume",
+    "  Space        Pause / resume",
     "  + / -        Speed up / down (0.1x - 4.0x)",
     "",
     "Camera:",
@@ -551,7 +544,7 @@ const CONTROLS_LINES: &[&str] = &[
     "  C            Reset camera to default",
     "",
     "Window:",
-    "  1 / ?        Toggle this panel",
+    "  1            Toggle this panel",
     "  Esc          Close panel (or quit if none open)",
 ];
 
@@ -624,11 +617,13 @@ pub const STATUS_RENDERING: u8 = 1;
 pub const STATUS_STR_FILE_MISSING: u8 = 2;
 pub const STATUS_CUSTOM_NOT_IMPL: u8 = 3;
 pub const STATUS_NO_SPEC: u8 = 4;
+pub const STATUS_CUSTOM_TEXTURE_MISSING: u8 = 5;
 
 fn status_badge(code: u8) -> (&'static str, [f32; 4]) {
     match code {
         STATUS_RENDERING => ("[OK rendering]", [0.4, 1.0, 0.4, 1.0]),
         STATUS_STR_FILE_MISSING => ("[!! STR file missing]", [1.0, 0.85, 0.2, 1.0]),
+        STATUS_CUSTOM_TEXTURE_MISSING => ("[!! texture missing]", [1.0, 0.85, 0.2, 1.0]),
         STATUS_CUSTOM_NOT_IMPL => ("[XX custom not impl]", [1.0, 0.3, 0.3, 1.0]),
         STATUS_NO_SPEC => ("[-- no spec]", [0.6, 0.6, 0.6, 1.0]),
         STATUS_UNKNOWN | _ => ("", [1.0, 1.0, 1.0, 1.0]),

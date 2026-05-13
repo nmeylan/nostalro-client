@@ -170,6 +170,9 @@ impl App {
             let fog = if self.config.fog { map_data.fog } else { None };
             renderer.load_map(&map_data.gnd, &map_data.rsw, grf, fog);
 
+            let effect_textures = ragnarok_game::effect::effect_texture_paths();
+            renderer.preload_effect_textures(&effect_textures, grf);
+
             // Preload sprite assets used by spawned effect emitters once.
             let mut paths: Vec<&str> = self
                 .game

@@ -396,7 +396,10 @@ mod tests {
             None,
         );
         assert!(handle.is_some());
-        assert_eq!(h.last_spawn_status(|_| false), Some(SpawnStatus::Rendering));
+        assert_eq!(
+            h.last_spawn_status(|_| false, |_| false),
+            Some(SpawnStatus::Rendering)
+        );
     }
 
     #[test]
@@ -409,10 +412,34 @@ mod tests {
             None,
         )
         .expect("spawn");
-        assert_eq!(h.last_spawn_status(|_| true), Some(SpawnStatus::Rendering));
         assert_eq!(
-            h.last_spawn_status(|_| false),
+            h.last_spawn_status(|_| true, |_| false),
+            Some(SpawnStatus::Rendering)
+        );
+        assert_eq!(
+            h.last_spawn_status(|_| false, |_| false),
             Some(SpawnStatus::StrFileMissing)
+        );
+    }
+
+    #[test]
+    fn custom_with_texture_reports_missing_when_not_in_cache() {
+        let mut h = EffectHolder::new();
+        // EF_WARP has a hand-curated GroundRing texture override.
+        h.spawn(
+            EffectId::Warp,
+            Attach::WorldPos([0.0, 0.0, 0.0]),
+            Some(1000),
+            None,
+        )
+        .expect("spawn");
+        assert_eq!(
+            h.last_spawn_status(|_| false, |_| false),
+            Some(SpawnStatus::CustomTextureMissing)
+        );
+        assert_eq!(
+            h.last_spawn_status(|_| false, |_| true),
+            Some(SpawnStatus::Rendering)
         );
     }
 

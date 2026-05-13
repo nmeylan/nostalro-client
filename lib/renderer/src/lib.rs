@@ -288,6 +288,46 @@ impl Renderer {
         );
     }
 
+    /// Load each `data/texture/effect/<name>` entry into the texture cache,
+    /// applying the keyed-transparency conventions used by STR effect textures
+    /// (magenta → transparent, pure black → transparent for additive
+    /// rendering). Missing files log once via `tracing::warn` and skip.
+    pub fn preload_effect_textures(&mut self, paths: &[String], grf: &GrfArchive) {
+        let mut loaded: Vec<&str> = Vec::new();
+        let mut missing: Vec<&str> = Vec::new();
+        for path in paths {
+            if self.texture_cache.get(path).is_some() {
+                loaded.push(path);
+                continue;
+            }
+            match texture::load_keyed_texture(
+                path,
+                grf,
+                &self.device.device,
+                &self.device.queue,
+                &self.texture_cache.bind_group_layout,
+            ) {
+                Some((bind_group, w, h)) => {
+                    self.texture_cache.insert(path, bind_group, w, h);
+                    loaded.push(path);
+                }
+                None => missing.push(path),
+            }
+        }
+        eprintln!(
+            "[effect-preload] {} loaded, {} missing (of {} requested)",
+            loaded.len(),
+            missing.len(),
+            paths.len()
+        );
+        for p in &loaded {
+            eprintln!("[effect-preload]   ok    {p}");
+        }
+        for p in &missing {
+            eprintln!("[effect-preload]   MISS  {p}");
+        }
+    }
+
     pub fn preload_textures(&mut self, paths: &[&str], grf: &GrfArchive) -> bool {
         let mut all_loaded = true;
         for path in paths {
@@ -434,7 +474,16 @@ impl Renderer {
                 &self.camera,
                 effect_draws,
                 fallback,
-                |name| texture_cache.get(name),
+                |name| {
+                    // Effect texture params store the bare filename
+                    // (e.g. `magic_target.tga`); preload + cache uses the
+                    // full GRF path (`data/texture/effect/<name>`).
+                    if name.is_empty() {
+                        return None;
+                    }
+                    let full = format!("data/texture/effect/{name}");
+                    texture_cache.get(&full)
+                },
             );
         }
 

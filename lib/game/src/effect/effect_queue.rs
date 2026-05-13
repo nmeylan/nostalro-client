@@ -8,7 +8,7 @@
 //! Keeping spawns one-way via a queue means the game crate never needs to
 //! know about renderer types (CustomEffect, wgpu, etc).
 
-use super::generated::EffectId;
+use super::effect_id::EffectId;
 use super::spec::Attach;
 
 /// One request to spawn a single effect.

@@ -1,13 +1,13 @@
 pub mod effect_queue;
-pub mod generated;
+pub mod effect_id;
 pub mod spec;
 pub mod str_aliases;
 pub mod table;
 
 pub use effect_queue::{EffectQueue, SpawnRequest};
-pub use generated::{
-    ALL_EFFECT_IDS, EffectId, classified_family, default_duration_ms, default_str_file,
-    effect_ef_name, effect_name, str_file_override,
+pub use effect_id::{
+    classified_family, default_duration_ms, default_str_file, effect_ef_name, effect_name,
+    skill_effect, EffectId, ALL_EFFECT_IDS,
 };
 pub use spec::{
     Attach, CustomFamily, CustomFamilyParams, EffectBlend, EffectSpec, GroundRingParams,
@@ -35,4 +35,29 @@ pub fn effect_texture_paths() -> Vec<String> {
         }
     }
     seen.into_iter().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn effect_texture_paths_returns_unique_names() {
+        let paths = effect_texture_paths();
+        let mut sorted = paths.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(paths.len(), sorted.len(), "no duplicates");
+        assert!(paths.iter().all(|p| !p.is_empty()), "no empty entries");
+        assert!(
+            paths.iter().all(|p| p.starts_with("data/texture/effect/")),
+            "all entries are GRF effect paths",
+        );
+        // Hand-curated rows landed in `table.rs` — at least the five GroundRing
+        // overrides should appear here.
+        assert!(
+            paths.iter().any(|p| p.ends_with("magic_target.tga")),
+            "Warp texture is included",
+        );
+    }
 }

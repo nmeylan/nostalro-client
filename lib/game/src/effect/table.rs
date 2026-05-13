@@ -10,18 +10,21 @@
 //! Add new overrides as effects get their visual classification confirmed
 //! against the original game. Anything not listed here uses the data-driven default.
 
-use super::generated::{
-    EffectId, classified_family, default_duration_ms, default_str_file, str_file_override,
+use super::effect_id::{
+    classified_family, default_duration_ms, default_str_file, EffectId,
 };
-use super::spec::{
-    CustomFamily, CustomFamilyParams, EffectBlend, EffectSpec, GroundRingParams,
-};
+use super::spec::{CustomFamily, CustomFamilyParams, EffectBlend, EffectSpec, GroundRingParams};
+use super::str_aliases::str_aliases;
 
 pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
     Some(match id {
         // --- Custom families ---
-        EffectId::Level99 | EffectId::Level992 | EffectId::Level993 | EffectId::Level994
-        | EffectId::Level995 | EffectId::Level996 => EffectSpec::Custom {
+        EffectId::Level99
+        | EffectId::Level992
+        | EffectId::Level993
+        | EffectId::Level994
+        | EffectId::Level995
+        | EffectId::Level996 => EffectSpec::Custom {
             family: CustomFamily::Aura,
             params: CustomFamilyParams::Default,
             duration_ms: default_duration_ms(id),
@@ -32,81 +35,102 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             duration_ms: default_duration_ms(id),
         },
 
-        // --- GroundRing per-effect parameters (hand-curated) ---
+        // --- GroundRing per-effect parameters (hand-curated, textures verified
+        //     against the original game's effect source) ---
+        // EF_WARP: yellow ring portal. The original game's Warp() emits a 3D circle
+        // with innerSize=10 and growing radius, textured RING_YELLOW.TGA.
         EffectId::Warp => EffectSpec::Custom {
             family: CustomFamily::GroundRing,
             params: CustomFamilyParams::GroundRing(GroundRingParams {
-                texture: "magic_target.tga",
+                texture: "ring_yellow.tga",
                 radius: 12.0,
                 thickness: 12.0,
                 rotation_deg_per_sec: 60.0,
-                color: [1.0, 1.0, 1.0, 0.9],
+                color: [1.0, 1.0, 1.0, 0.78],
                 blend: EffectBlend::Additive,
                 fade_in_ms: 100,
                 fade_out_ms: 200,
             }),
             duration_ms: default_duration_ms(id),
         },
-        EffectId::Pneuma => EffectSpec::Custom {
+        // EF_MAGNUMBREAK: yellow expanding shockwave (original game's MagnumBreak()).
+        EffectId::Magnumbreak => EffectSpec::Custom {
             family: CustomFamily::GroundRing,
             params: CustomFamilyParams::GroundRing(GroundRingParams {
-                texture: "pneuma1.tga",
-                radius: 16.0,
-                thickness: 16.0,
-                rotation_deg_per_sec: 20.0,
-                color: [1.0, 1.0, 1.0, 0.85],
+                texture: "ring_yellow.tga",
+                radius: 22.0,
+                thickness: 22.0,
+                rotation_deg_per_sec: 90.0,
+                color: [1.0, 1.0, 1.0, 0.95],
                 blend: EffectBlend::Additive,
-                fade_in_ms: 150,
-                fade_out_ms: 250,
+                fade_in_ms: 50,
+                fade_out_ms: 200,
             }),
             duration_ms: default_duration_ms(id),
         },
+        // EF_LANDPROTECTOR: the original game routes to VOLCANO("effect\\ring_white.tga").
         EffectId::Landprotector => EffectSpec::Custom {
             family: CustomFamily::GroundRing,
             params: CustomFamilyParams::GroundRing(GroundRingParams {
-                texture: "magnu1.tga",
+                texture: "ring_white.tga",
                 radius: 20.0,
                 thickness: 20.0,
                 rotation_deg_per_sec: 25.0,
-                color: [1.0, 0.85, 0.4, 0.9],
+                color: [1.0, 1.0, 1.0, 0.9],
                 blend: EffectBlend::Additive,
                 fade_in_ms: 200,
                 fade_out_ms: 300,
             }),
             duration_ms: default_duration_ms(id),
         },
-        EffectId::Magnumbreak => EffectSpec::Custom {
-            family: CustomFamily::GroundRing,
-            params: CustomFamilyParams::GroundRing(GroundRingParams {
-                texture: "magnu1.tga",
-                radius: 22.0,
-                thickness: 22.0,
-                rotation_deg_per_sec: 90.0,
-                color: [1.0, 0.5, 0.2, 0.95],
-                blend: EffectBlend::Additive,
-                fade_in_ms: 80,
-                fade_out_ms: 200,
-            }),
-            duration_ms: default_duration_ms(id),
-        },
+        // EF_BOTTOM_SANC: the original game routes to Bottom_Magnus("effect\\alpha_down.tga", 1).
         EffectId::BottomSanc => EffectSpec::Custom {
             family: CustomFamily::GroundRing,
             params: CustomFamilyParams::GroundRing(GroundRingParams {
-                texture: "sanc1.tga",
+                texture: "alpha_down.tga",
                 radius: 24.0,
                 thickness: 24.0,
                 rotation_deg_per_sec: 15.0,
-                color: [1.0, 1.0, 0.7, 0.9],
+                color: [1.0, 1.0, 1.0, 0.85],
                 blend: EffectBlend::Additive,
                 fade_in_ms: 300,
                 fade_out_ms: 400,
             }),
             duration_ms: default_duration_ms(id),
         },
+        // EF_WARPZONE: the original game's WarpZone() emits a 3D circle textured
+        // "effect\\alpha_down.tga".
+        EffectId::Warpzone => EffectSpec::Custom {
+            family: CustomFamily::GroundRing,
+            params: CustomFamilyParams::GroundRing(GroundRingParams {
+                texture: "alpha_down.tga",
+                radius: 15.0,
+                thickness: 15.0,
+                rotation_deg_per_sec: 20.0,
+                color: [1.0, 1.0, 1.0, 0.5],
+                blend: EffectBlend::Additive,
+                fade_in_ms: 150,
+                fade_out_ms: 200,
+            }),
+            duration_ms: default_duration_ms(id),
+        },
+        // EF_WARPZONE2: the original game routes to WarpZone2("effect\\ring_blue.tga").
+        EffectId::Warpzone2 => EffectSpec::Custom {
+            family: CustomFamily::GroundRing,
+            params: CustomFamilyParams::GroundRing(GroundRingParams {
+                texture: "ring_blue.tga",
+                radius: 15.0,
+                thickness: 15.0,
+                rotation_deg_per_sec: 30.0,
+                color: [1.0, 1.0, 1.0, 0.85],
+                blend: EffectBlend::Additive,
+                fade_in_ms: 100,
+                fade_out_ms: 200,
+            }),
+            duration_ms: default_duration_ms(id),
+        },
 
-        EffectId::Warpzone
-        | EffectId::Warpzone2
-        | EffectId::Barrier => EffectSpec::Custom {
+        EffectId::Barrier => EffectSpec::Custom {
             family: CustomFamily::GroundRing,
             params: CustomFamilyParams::Default,
             duration_ms: default_duration_ms(id),
@@ -155,12 +179,6 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             params: CustomFamilyParams::Default,
             duration_ms: default_duration_ms(id),
         },
-        EffectId::Stormgust => EffectSpec::StrHybrid {
-            file: str_file_override(id).unwrap_or("stormgust"),
-            family: CustomFamily::SpikeRow,
-            duration_ms: default_duration_ms(id),
-        },
-
         // --- Map ambient SPR loops ---
         EffectId::Torch => EffectSpec::Spr {
             sprite: "data/sprite/이팩트/불꽃",
@@ -180,7 +198,8 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
 
 fn default_spec(id: EffectId) -> EffectSpec {
     let duration_ms = default_duration_ms(id);
-    match (str_file_override(id), classified_family(id)) {
+    let primary = str_aliases(id).first().copied();
+    match (primary, classified_family(id)) {
         (Some(file), Some(family)) => EffectSpec::StrHybrid {
             file,
             family,
@@ -218,11 +237,14 @@ mod tests {
     fn known_str_files_resolve() {
         assert!(matches!(
             effect_spec(EffectId::Bubble),
-            Some(EffectSpec::Str { file: "bubble", .. })
+            Some(EffectSpec::Str { file: "bubble1", .. })
         ));
         assert!(matches!(
             effect_spec(EffectId::Lvup),
-            Some(EffectSpec::Str { file: "LevelUP", .. })
+            Some(EffectSpec::Str {
+                file: "LevelUP",
+                ..
+            })
         ));
     }
 

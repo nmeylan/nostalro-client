@@ -28,10 +28,11 @@ fn parse_args() -> effect_viewer::Args {
                 println!("  --grf <path>   Path to the GRF file (defaults to {DEFAULT_GRF_PATH})");
                 println!();
                 println!("Controls:");
-                println!("  → / Space      Next effect");
-                println!("  ←              Previous effect");
-                println!("  R              Respawn current");
-                println!("  P              Pause / resume");
+                println!("  → / ←          Next / prev effect");
+                println!("  ↑ / ↓          Prev / next filter family");
+                println!("  Tab            Open browser (filter by typing, Enter to pick)");
+                println!("  R              Replay current");
+                println!("  Space          Pause / resume");
                 println!("  + / -          Speed up / down");
                 println!("  Esc            Quit");
                 println!();

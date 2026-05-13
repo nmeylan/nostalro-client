@@ -18,12 +18,18 @@
 //!   * Sidebar picker UI (instead of cycle key)
 //!   * Camera orbit controls
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_game::effect::{EffectId, EffectQueue, EffectSpec, effect_spec, str_aliases};
+use ragnarok_game::effect::{
+    EffectId, EffectQueue, EffectSpec, effect_ef_name, effect_name, effect_spec,
+    effect_texture_paths, str_aliases,
+};
+
+use crate::sprite_viewer::browser::SpriteBrowser;
 use ragnarok_renderer::effect::{
     EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, SpawnStatus, StrEffectCache,
     StrEmitterInput, build_billboard_batches, build_str_effect_batches,
@@ -92,24 +98,27 @@ type HotDestroyFn = unsafe extern "C" fn(*mut ());
 type HotUpdateFn = unsafe extern "C" fn(*mut (), f32);
 type HotOnActionFn = unsafe extern "C" fn(*mut (), u32);
 type HotOnMouseWheelFn = unsafe extern "C" fn(*mut (), f32);
-type HotOnCharInputFn = unsafe extern "C" fn(*mut (), u32);
 type HotGetFlagsFn = unsafe extern "C" fn(*mut (), *mut ViewerFlags);
 type HotGetCameraFn = unsafe extern "C" fn(*mut (), *mut CameraView);
 type HotTakePendingFn = unsafe extern "C" fn(*mut (), *mut PendingSpawn);
 type HotSetLastStatusFn = unsafe extern "C" fn(*mut (), u8);
 type HotBuildOverlayFn =
     unsafe extern "C" fn(*mut (), *const FontAtlas, f32, f32, *mut Vec<UiDrawCall>);
+type HotGetFilteredIdsFn = unsafe extern "C" fn(*mut (), *mut Vec<u16>);
+type HotSetSelectedEffectIdFn = unsafe extern "C" fn(*mut (), u16);
 
 const STATUS_UNKNOWN: u8 = 0;
 const STATUS_RENDERING: u8 = 1;
 const STATUS_STR_FILE_MISSING: u8 = 2;
 const STATUS_CUSTOM_NOT_IMPL: u8 = 3;
 const STATUS_NO_SPEC: u8 = 4;
+const STATUS_CUSTOM_TEXTURE_MISSING: u8 = 5;
 
 fn spawn_status_to_u8(status: SpawnStatus) -> u8 {
     match status {
         SpawnStatus::Rendering => STATUS_RENDERING,
         SpawnStatus::StrFileMissing => STATUS_STR_FILE_MISSING,
+        SpawnStatus::CustomTextureMissing => STATUS_CUSTOM_TEXTURE_MISSING,
         SpawnStatus::CustomNotImpl => STATUS_CUSTOM_NOT_IMPL,
         SpawnStatus::NoSpec => STATUS_NO_SPEC,
     }
@@ -121,12 +130,13 @@ struct HotLib {
     update_fn: HotUpdateFn,
     on_action_fn: HotOnActionFn,
     on_mouse_wheel_fn: HotOnMouseWheelFn,
-    on_char_input_fn: HotOnCharInputFn,
     get_flags_fn: HotGetFlagsFn,
     get_camera_fn: HotGetCameraFn,
     take_pending_fn: HotTakePendingFn,
     set_last_status_fn: HotSetLastStatusFn,
     build_overlay_fn: HotBuildOverlayFn,
+    get_filtered_ids_fn: HotGetFilteredIdsFn,
+    set_selected_effect_id_fn: HotSetSelectedEffectIdFn,
     destroy_fn: HotDestroyFn,
 }
 
@@ -139,19 +149,35 @@ impl HotLib {
                 return None;
             }
         };
-        let (create, destroy, update, on_action, on_wheel, on_char, get_flags, get_camera, take_pending, set_last_status, build_overlay) = unsafe {
+        let (
+            create,
+            destroy,
+            update,
+            on_action,
+            on_wheel,
+            get_flags,
+            get_camera,
+            take_pending,
+            set_last_status,
+            build_overlay,
+            get_filtered_ids,
+            set_selected_effect_id,
+        ) = unsafe {
             let c: libloading::Symbol<HotCreateFn> = lib.get(b"hot_create").ok()?;
             let d: libloading::Symbol<HotDestroyFn> = lib.get(b"hot_destroy").ok()?;
             let u: libloading::Symbol<HotUpdateFn> = lib.get(b"hot_update").ok()?;
             let a: libloading::Symbol<HotOnActionFn> = lib.get(b"hot_on_action").ok()?;
             let w: libloading::Symbol<HotOnMouseWheelFn> = lib.get(b"hot_on_mouse_wheel").ok()?;
-            let ch: libloading::Symbol<HotOnCharInputFn> = lib.get(b"hot_on_char_input").ok()?;
             let f: libloading::Symbol<HotGetFlagsFn> = lib.get(b"hot_get_flags").ok()?;
             let cam: libloading::Symbol<HotGetCameraFn> = lib.get(b"hot_get_camera").ok()?;
             let t: libloading::Symbol<HotTakePendingFn> = lib.get(b"hot_take_pending_spawn").ok()?;
             let s: libloading::Symbol<HotSetLastStatusFn> = lib.get(b"hot_set_last_status").ok()?;
             let b: libloading::Symbol<HotBuildOverlayFn> = lib.get(b"hot_build_overlay").ok()?;
-            (*c, *d, *u, *a, *w, *ch, *f, *cam, *t, *s, *b)
+            let gf: libloading::Symbol<HotGetFilteredIdsFn> =
+                lib.get(b"hot_get_filtered_ids").ok()?;
+            let ss: libloading::Symbol<HotSetSelectedEffectIdFn> =
+                lib.get(b"hot_set_selected_effect_id").ok()?;
+            (*c, *d, *u, *a, *w, *f, *cam, *t, *s, *b, *gf, *ss)
         };
         let state = (create)();
         Some(Self {
@@ -160,12 +186,13 @@ impl HotLib {
             update_fn: update,
             on_action_fn: on_action,
             on_mouse_wheel_fn: on_wheel,
-            on_char_input_fn: on_char,
             get_flags_fn: get_flags,
             get_camera_fn: get_camera,
             take_pending_fn: take_pending,
             set_last_status_fn: set_last_status,
             build_overlay_fn: build_overlay,
+            get_filtered_ids_fn: get_filtered_ids,
+            set_selected_effect_id_fn: set_selected_effect_id,
             destroy_fn: destroy,
         })
     }
@@ -193,8 +220,14 @@ impl HotLib {
         unsafe { (self.on_mouse_wheel_fn)(self.state, dy) };
     }
 
-    fn on_char_input(&self, codepoint: u32) {
-        unsafe { (self.on_char_input_fn)(self.state, codepoint) };
+    fn get_filtered_ids(&self) -> Vec<u16> {
+        let mut out: Vec<u16> = Vec::new();
+        unsafe { (self.get_filtered_ids_fn)(self.state, &mut out) };
+        out
+    }
+
+    fn set_selected_effect_id(&self, id: u16) {
+        unsafe { (self.set_selected_effect_id_fn)(self.state, id) };
     }
 
     fn camera(&self) -> CameraView {
@@ -274,6 +307,14 @@ struct App {
     /// STR file names already requested through the cache (failures included)
     /// so we don't retry every frame.
     attempted_str_files: std::collections::HashSet<String>,
+    /// Effect picker overlay reusing the sprite-viewer browser UI. Populated
+    /// each time the user opens it (Tab) from the dylib's current filter, so
+    /// it always reflects whatever family is active.
+    browser: Option<SpriteBrowser>,
+    /// Maps the browser's displayed strings back to `EffectId` so a pick
+    /// resolves to the original effect (browser sorts items alphabetically).
+    browser_lookup: HashMap<String, EffectId>,
+    ctrl_pressed: bool,
 }
 
 impl App {
@@ -296,6 +337,86 @@ impl App {
             last_dylib_mtime,
             reload_counter: 0,
             attempted_str_files: std::collections::HashSet::new(),
+            browser: None,
+            browser_lookup: HashMap::new(),
+            ctrl_pressed: false,
+        }
+    }
+
+    fn browser_is_open(&self) -> bool {
+        self.browser.as_ref().is_some_and(|b| b.open)
+    }
+
+    fn open_browser(&mut self) {
+        let Some(hot) = &self.hot_lib else { return };
+        let ids = hot.get_filtered_ids();
+        self.browser_lookup.clear();
+        let mut items: Vec<String> = Vec::with_capacity(ids.len());
+        for raw in ids {
+            let Some(id) = effect_id_from_u16(raw) else {
+                continue;
+            };
+            let label = format!("{} ({}) [{}]", effect_name(id), effect_ef_name(id), raw);
+            self.browser_lookup.insert(label.clone(), id);
+            items.push(label);
+        }
+        let mut browser = SpriteBrowser::new(items, "effects");
+        if let Some(renderer) = &self.renderer {
+            let h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+            browser.update_visible_rows(h);
+        }
+        self.browser = Some(browser);
+    }
+
+    fn handle_browser_key(&mut self, key: &Key) {
+        let ctrl = self.ctrl_pressed;
+        let Some(browser) = &mut self.browser else {
+            return;
+        };
+        match key.as_ref() {
+            Key::Named(NamedKey::Escape) | Key::Named(NamedKey::Tab) => {
+                browser.open = false;
+            }
+            Key::Named(NamedKey::Enter) => {
+                self.handle_browser_select();
+            }
+            Key::Named(NamedKey::ArrowUp) => browser.handle_up(),
+            Key::Named(NamedKey::ArrowDown) => browser.handle_down(),
+            Key::Named(NamedKey::PageUp) => browser.handle_page_up(),
+            Key::Named(NamedKey::PageDown) => browser.handle_page_down(),
+            Key::Named(NamedKey::Backspace) => browser.handle_backspace(),
+            Key::Character(ch) => {
+                if ctrl && ch == "v" {
+                    if let Ok(mut clipboard) = arboard::Clipboard::new()
+                        && let Ok(text) = clipboard.get_text()
+                    {
+                        browser.handle_paste(&text);
+                    }
+                    return;
+                }
+                for c in ch.chars() {
+                    if !c.is_control() {
+                        browser.handle_char(c);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_browser_select(&mut self) {
+        let Some(browser) = &mut self.browser else {
+            return;
+        };
+        let Some(selected) = browser.selected_item().map(|s| s.to_string()) else {
+            return;
+        };
+        browser.open = false;
+        let Some(&id) = self.browser_lookup.get(&selected) else {
+            return;
+        };
+        if let Some(hot) = &self.hot_lib {
+            hot.set_selected_effect_id(id.as_u16());
         }
     }
 
@@ -372,9 +493,14 @@ impl App {
             return;
         };
         let aliases = str_aliases(id);
+        let fallbacks = if aliases.first().copied() == Some(file) {
+            &aliases[1..]
+        } else {
+            aliases
+        };
         self.str_effects.load(
             file,
-            aliases,
+            fallbacks,
             grf,
             &mut renderer.texture_cache,
             &renderer.device.device,
@@ -410,7 +536,15 @@ impl App {
 
         let status_code = self
             .effect_holder
-            .last_spawn_status(|name| self.str_effects.get(name).is_some())
+            .last_spawn_status(
+                |name| self.str_effects.get(name).is_some(),
+                |name| {
+                    self.renderer
+                        .as_ref()
+                        .map(|r| r.texture_cache.get(name).is_some())
+                        .unwrap_or(false)
+                },
+            )
             .map(spawn_status_to_u8)
             .unwrap_or(STATUS_UNKNOWN);
         if let Some(hot) = &self.hot_lib {
@@ -478,10 +612,16 @@ impl App {
             effect_batches.append(&mut primitive_batches);
         }
 
-        // cdylib overlay
+        // cdylib overlay (status + legend + controls). Browser, when open,
+        // is drawn on top by the host.
         let mut ui_calls: Vec<UiDrawCall> = Vec::new();
         if let Some(hot) = &self.hot_lib {
             hot.build_overlay(&renderer.font_atlas, screen_w, screen_h, &mut ui_calls);
+        }
+        if let Some(browser) = &self.browser
+            && browser.open
+        {
+            ui_calls.extend(browser.build_draw_calls(&renderer.font_atlas, screen_w, screen_h));
         }
 
         renderer.render(&ui_calls, &effect_batches, &effect_draws, &[], &[], &[], 0.0);
@@ -520,6 +660,12 @@ impl ApplicationHandler for App {
             }
         }
 
+        let mut renderer = renderer;
+        if let Some(grf) = &self.grf {
+            let paths = effect_texture_paths();
+            renderer.preload_effect_textures(&paths, grf);
+        }
+
         self.renderer = Some(renderer);
         self.white_bind_group = Some(white_bind_group);
         self.window = Some(window);
@@ -537,9 +683,17 @@ impl ApplicationHandler for App {
                     // winit's initial Resized event.
                     renderer.resize(size.width, size.height);
                 }
+                if let (Some(browser), Some(renderer)) = (&mut self.browser, &self.renderer) {
+                    let h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+                    browser.update_visible_rows(h);
+                }
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state != ElementState::Pressed {
+                    return;
+                }
+                if self.browser_is_open() {
+                    self.handle_browser_key(&event.logical_key);
                     return;
                 }
                 // Esc closes any open info panel first; only quits if no panel is open.
@@ -558,34 +712,26 @@ impl ApplicationHandler for App {
                     }
                     return;
                 }
+                if matches!(event.logical_key.as_ref(), Key::Named(NamedKey::Tab)) {
+                    self.open_browser();
+                    return;
+                }
                 let action = match event.logical_key.as_ref() {
-                    Key::Named(NamedKey::Space) | Key::Named(NamedKey::ArrowRight) => {
-                        Some(ACTION_NEXT_EFFECT)
-                    }
+                    Key::Named(NamedKey::Space) => Some(ACTION_TOGGLE_PAUSE),
+                    Key::Named(NamedKey::ArrowRight) => Some(ACTION_NEXT_EFFECT),
                     Key::Named(NamedKey::ArrowLeft) => Some(ACTION_PREV_EFFECT),
+                    Key::Named(NamedKey::ArrowDown) => Some(ACTION_NEXT_FILTER),
+                    Key::Named(NamedKey::ArrowUp) => Some(ACTION_PREV_FILTER),
                     Key::Named(NamedKey::PageDown) => Some(ACTION_PAGE_DOWN),
                     Key::Named(NamedKey::PageUp) => Some(ACTION_PAGE_UP),
                     Key::Named(NamedKey::Home) => Some(ACTION_HOME),
                     Key::Named(NamedKey::End) => Some(ACTION_END),
                     Key::Character(c) => match c {
-                        // Reserved single-purpose keys (don't get forwarded
-                        // as char input - they're commands).
                         "r" | "R" => Some(ACTION_RESPAWN),
-                        "p" | "P" => Some(ACTION_TOGGLE_PAUSE),
                         "+" | "=" => Some(ACTION_SPEED_UP),
                         "-" | "_" => Some(ACTION_SPEED_DOWN),
                         "c" | "C" => Some(ACTION_RESET_CAMERA),
-                        "1" | "?" => Some(ACTION_SHOW_CONTROLS),
-                        "]" => Some(ACTION_NEXT_FILTER),
-                        "[" => Some(ACTION_PREV_FILTER),
-                        // Anything else that's a single letter: forward as
-                        // a "jump to letter" command to the picker.
-                        s if s.len() == 1 && s.chars().next().unwrap().is_ascii_alphabetic() => {
-                            if let Some(hot) = &self.hot_lib {
-                                hot.on_char_input(s.chars().next().unwrap() as u32);
-                            }
-                            None
-                        }
+                        "1" => Some(ACTION_SHOW_CONTROLS),
                         _ => None,
                     },
                     _ => None,
@@ -593,6 +739,9 @@ impl ApplicationHandler for App {
                 if let (Some(code), Some(hot)) = (action, &self.hot_lib) {
                     hot.on_action(code);
                 }
+            }
+            WindowEvent::ModifiersChanged(modifiers) => {
+                self.ctrl_pressed = modifiers.state().control_key();
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 let dy = match delta {
