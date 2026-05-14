@@ -2,26 +2,16 @@
 //!
 //! Game-side triggers push [`ragnarok_game::effect::SpawnRequest`]s into a
 //! [`EffectQueue`]; the holder drains that queue each frame and constructs
-//! the runtime instances.
-//!
-//! Two custom-effect paths coexist during the redesign:
-//!   * **factory path** — `EffectSpec::Custom` dispatches through
-//!     `ragnarok_game::effect::make_effect` to a `Box<dyn Effect>` living in
-//!     the game crate. This is the path new effects use.
-//!   * **legacy family path** — `EffectSpec::StrHybrid`'s overlay still goes
-//!     through [`super::custom_effect::make_custom`] to a
-//!     `Box<dyn CustomEffect>` in `fx/*`. Deleted in slice F.
+//! the runtime instances. `EffectSpec::Custom` dispatches through
+//! [`ragnarok_game::effect::make_effect`] to a `Box<dyn Effect>` living in
+//! the game crate; tooling can swap that for an [`ExternalCustomBackend`]
+//! to load effects from a hot-reload cdylib.
 
 use std::sync::Arc;
 
 use ragnarok_game::effect::{
-    Attach, CameraView as GameCameraView, Effect as GameEffect, EffectDrawList, EffectId,
-    EffectQueue, EffectRenderCtx as GameEffectRenderCtx, EffectSpec, EffectStatus,
-    EffectUpdateCtx as GameEffectUpdateCtx, SpawnRequest, effect_spec, make_effect,
-};
-
-use super::custom_effect::{
-    CustomEffect, CustomParams, EffectRenderCtx, EffectUpdateCtx, make_custom,
+    Attach, Effect as GameEffect, EffectDrawList, EffectId, EffectQueue, EffectRenderCtx,
+    EffectSpec, EffectStatus, EffectUpdateCtx, SpawnRequest, effect_spec, make_effect,
 };
 
 /// Pluggable backend for custom-effect dispatch. The default path links the
@@ -36,7 +26,7 @@ pub trait ExternalCustomBackend: Send + Sync {
     /// Returns `true` while the effect is still running, `false` once it
     /// has signalled death.
     fn update(&self, handle: u64, dt: f32) -> bool;
-    fn collect(&self, handle: u64, ctx: &GameEffectRenderCtx, out: &mut EffectDrawList);
+    fn collect(&self, handle: u64, ctx: &EffectRenderCtx, out: &mut EffectDrawList);
     fn drop_handle(&self, handle: u64);
     fn drop_all(&self);
 }
@@ -55,12 +45,7 @@ pub struct EffectHandle(u64);
 #[derive(Clone, Debug)]
 pub enum SpawnOutcome {
     Custom,
-    Str {
-        name: String,
-    },
-    Hybrid {
-        name: String,
-    },
+    Str { name: String },
     Spr,
     CustomNotImpl,
     NoSpec,
@@ -83,11 +68,6 @@ enum HeldPayload {
     /// Single-shot STR effect. Anim time accumulates in `age`; the render
     /// step projects via the existing `build_str_effect_batches` path.
     Str { name: String },
-    /// STR animation with an additional family-overlay layer (legacy path).
-    Hybrid {
-        name: String,
-        custom: Box<dyn CustomEffect>,
-    },
     /// Looping single SPR billboard (torches, simple ambient).
     Spr {
         #[allow(dead_code)] // wired in Phase D
@@ -138,7 +118,6 @@ impl EffectHolder {
         effect_id: EffectId,
         attach: Attach,
         override_duration_ms: Option<u32>,
-        tint: Option<[f32; 4]>,
     ) -> Option<EffectHandle> {
         let Some(spec) = effect_spec(effect_id) else {
             self.last_spawn = Some(SpawnOutcome::NoSpec);
@@ -194,37 +173,12 @@ impl EffectHolder {
                     }
                 }
             }
-            EffectSpec::StrHybrid { file, family, .. } => {
-                let params = build_params(&attach, tint);
-                match make_custom(*family, &params) {
-                    Some(c) => {
-                        self.last_spawn = Some(SpawnOutcome::Hybrid {
-                            name: (*file).to_string(),
-                        });
-                        HeldPayload::Hybrid {
-                            name: (*file).to_string(),
-                            custom: c,
-                        }
-                    }
-                    None => {
-                        // Fall back to STR-only playback when the family
-                        // overlay isn't implemented.
-                        self.last_spawn = Some(SpawnOutcome::Str {
-                            name: (*file).to_string(),
-                        });
-                        HeldPayload::Str {
-                            name: (*file).to_string(),
-                        }
-                    }
-                }
-            }
         };
 
         let duration_ms = override_duration_ms.unwrap_or_else(|| match spec {
             EffectSpec::Str { duration_ms, .. }
             | EffectSpec::Spr { duration_ms, .. }
-            | EffectSpec::Custom { duration_ms, .. }
-            | EffectSpec::StrHybrid { duration_ms, .. } => duration_ms,
+            | EffectSpec::Custom { duration_ms, .. } => duration_ms,
         });
         let duration = if duration_ms == u32::MAX {
             f32::INFINITY
@@ -251,9 +205,8 @@ impl EffectHolder {
                 effect_id,
                 attach,
                 override_duration_ms,
-                tint,
             } = req;
-            self.spawn(effect_id, attach, override_duration_ms, tint);
+            self.spawn(effect_id, attach, override_duration_ms);
         }
     }
 
@@ -282,20 +235,16 @@ impl EffectHolder {
 
     pub fn update(&mut self, ctx: &EffectUpdateCtx) {
         let dt = ctx.dt;
-        let game_ctx = GameEffectUpdateCtx { dt };
         let backend = self.external_backend.clone();
         self.effects.retain_mut(|e| {
             e.age += dt;
             let expired = e.age >= e.duration;
             let alive = match &mut e.payload {
-                HeldPayload::Custom(c) => c.update(&game_ctx) == EffectStatus::Running,
+                HeldPayload::Custom(c) => c.update(ctx) == EffectStatus::Running,
                 HeldPayload::CustomExternal { handle } => backend
                     .as_ref()
                     .map(|b| b.update(*handle, dt))
                     .unwrap_or(false),
-                HeldPayload::Hybrid { custom, .. } => {
-                    custom.update(ctx) == EffectStatus::Running
-                }
                 HeldPayload::Str { .. } => true,
                 HeldPayload::Spr { .. } => true,
             };
@@ -311,33 +260,21 @@ impl EffectHolder {
         });
     }
 
-    /// Append primitive draws for live custom and hybrid effects. STR/Spr
-    /// collection is wired in Phase D when the renderer's render-pass
-    /// plumbing lands.
+    /// Append primitive draws for live custom effects. STR/Spr collection
+    /// is wired in Phase D when the renderer's render-pass plumbing lands.
     pub fn collect_custom_draws(
         &self,
         out: &mut EffectDrawList,
         ctx: &EffectRenderCtx,
     ) {
-        let game_ctx = GameEffectRenderCtx {
-            camera: GameCameraView {
-                eye: ctx.camera.eye().to_array(),
-                target: ctx.camera.target.to_array(),
-                up: glam::Vec3::NEG_Y.to_array(),
-            },
-            screen_w: ctx.screen_w,
-            screen_h: ctx.screen_h,
-            elapsed: ctx.elapsed,
-        };
         for e in &self.effects {
             match &e.payload {
-                HeldPayload::Custom(c) => c.collect_draws(out, &game_ctx),
+                HeldPayload::Custom(c) => c.collect_draws(out, ctx),
                 HeldPayload::CustomExternal { handle } => {
                     if let Some(b) = &self.external_backend {
-                        b.collect(*handle, &game_ctx, out);
+                        b.collect(*handle, ctx, out);
                     }
                 }
-                HeldPayload::Hybrid { custom, .. } => custom.collect_draws(out, ctx),
                 _ => {}
             }
         }
@@ -345,8 +282,7 @@ impl EffectHolder {
 
     /// Snapshot of every live STR effect (name + resolved world position +
     /// elapsed anim time). Renderer consumes this and feeds it into
-    /// `build_str_effect_batches`. Hybrid effects also emit a snapshot for
-    /// their STR layer.
+    /// `build_str_effect_batches`.
     pub fn collect_str_emitters(
         &self,
         resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
@@ -356,7 +292,6 @@ impl EffectHolder {
             .filter_map(|e| {
                 let name = match &e.payload {
                     HeldPayload::Str { name } => name,
-                    HeldPayload::Hybrid { name, .. } => name,
                     _ => return None,
                 };
                 let pos = resolve_position(&e.attach, resolve_entity)?;
@@ -391,7 +326,7 @@ impl EffectHolder {
         Some(match self.last_spawn.as_ref()? {
             SpawnOutcome::Spr => SpawnStatus::Rendering,
             SpawnOutcome::Custom => SpawnStatus::Rendering,
-            SpawnOutcome::Str { name } | SpawnOutcome::Hybrid { name } => {
+            SpawnOutcome::Str { name } => {
                 if str_in_cache(name) {
                     SpawnStatus::Rendering
                 } else {
@@ -415,20 +350,6 @@ fn resolve_position(
     }
 }
 
-fn build_params(attach: &Attach, tint: Option<[f32; 4]>) -> CustomParams {
-    let (world_pos, target_pos) = match attach {
-        Attach::WorldPos(p) => (*p, None),
-        Attach::Entity(_) => ([0.0; 3], None),
-        Attach::Projectile { .. } => ([0.0; 3], None),
-    };
-    CustomParams {
-        world_pos,
-        target_pos,
-        texture: None,
-        tint,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -449,7 +370,6 @@ mod tests {
                 EffectId::Bubble,
                 Attach::WorldPos([0.0, 0.0, 0.0]),
                 Some(2000),
-                None,
             )
             .expect("spawn");
         assert_eq!(h.len(), 1);
@@ -470,7 +390,6 @@ mod tests {
             EffectId::Warp,
             Attach::WorldPos([0.0, 0.0, 0.0]),
             Some(500),
-            None,
         );
         assert!(handle.is_some());
         assert_eq!(h.last_spawn_status(|_| false), Some(SpawnStatus::Rendering));
@@ -483,7 +402,6 @@ mod tests {
             EffectId::Icewall,
             Attach::WorldPos([0.0, 0.0, 0.0]),
             Some(500),
-            None,
         );
         assert!(handle.is_none());
         assert_eq!(
@@ -499,7 +417,6 @@ mod tests {
             EffectId::Bubble,
             Attach::WorldPos([0.0, 0.0, 0.0]),
             Some(1000),
-            None,
         )
         .expect("spawn");
         assert_eq!(h.last_spawn_status(|_| true), Some(SpawnStatus::Rendering));

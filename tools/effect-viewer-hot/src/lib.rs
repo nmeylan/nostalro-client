@@ -136,24 +136,16 @@ enum InfoPanel {
 enum Filter {
     All,
     Str,
-    StrHybrid,
     Spr,
     Custom,
 }
 
-const FILTERS: &[Filter] = &[
-    Filter::All,
-    Filter::Str,
-    Filter::StrHybrid,
-    Filter::Spr,
-    Filter::Custom,
-];
+const FILTERS: &[Filter] = &[Filter::All, Filter::Str, Filter::Spr, Filter::Custom];
 
 fn filter_label(f: Filter) -> &'static str {
     match f {
         Filter::All => "All",
         Filter::Str => "Str",
-        Filter::StrHybrid => "StrHybrid",
         Filter::Spr => "Spr",
         Filter::Custom => "Custom",
     }
@@ -169,7 +161,6 @@ fn filter_matches(f: Filter, id: EffectId) -> bool {
     matches!(
         (f, spec),
         (Filter::Str, EffectSpec::Str { .. })
-            | (Filter::StrHybrid, EffectSpec::StrHybrid { .. })
             | (Filter::Spr, EffectSpec::Spr { .. })
             | (Filter::Custom, EffectSpec::Custom { .. })
     )
@@ -630,6 +621,7 @@ const LEGEND: &[(&str, &str)] = &[
     ("Right drag", "Orbit"),
     ("[ / ]", "FOV -/+"),
     ("C", "Reset camera"),
+    ("B", "Toggle background"),
     ("1", "Toggle controls"),
     ("Esc", "Quit / close panel"),
 ];
@@ -644,7 +636,7 @@ const CONTROLS_LINES: &[&str] = &[
     "  R            Replay current effect at origin",
     "",
     "Filter:",
-    "  Down         Next filter (All, Str, StrHybrid, Spr, Custom)",
+    "  Down         Next filter (All, Str, Spr, Custom)",
     "  Up           Previous filter",
     "",
     "Playback:",
@@ -658,6 +650,7 @@ const CONTROLS_LINES: &[&str] = &[
     "  C            Reset camera to default",
     "",
     "Window:",
+    "  B            Toggle background (blue / black)",
     "  1            Toggle this panel",
     "  Esc          Close panel (or quit if none open)",
 ];

@@ -7,11 +7,9 @@
 //!     doesn't match the GRF file name)
 //!   * an SPR-looping ambient sprite
 
-use super::effect_id::{
-    classified_family, default_duration_ms, default_str_file, EffectId,
-};
+use super::effect_id::{default_duration_ms, default_str_file, EffectId};
 use super::effects::{bottom_sanctuary_pillar, magnum_break, volcano, warp};
-use super::spec::{CustomFamily, EffectSpec};
+use super::spec::EffectSpec;
 use super::str_aliases::str_aliases;
 
 pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
@@ -121,22 +119,11 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
 
 fn default_spec(id: EffectId) -> EffectSpec {
     let duration_ms = default_duration_ms(id);
-    let primary = str_aliases(id).first().copied();
-    let family = classified_family(id)
-        .filter(|f| !matches!(f, CustomFamily::Bespoke(_)));
-    match (primary, family) {
-        (Some(file), Some(family)) => EffectSpec::StrHybrid {
-            file,
-            family,
-            duration_ms,
-        },
-        (Some(file), None) => EffectSpec::Str { file, duration_ms },
-        (None, Some(_)) => EffectSpec::Custom { duration_ms },
-        (None, None) => EffectSpec::Str {
-            file: default_str_file(id),
-            duration_ms,
-        },
-    }
+    let file = str_aliases(id)
+        .first()
+        .copied()
+        .unwrap_or_else(|| default_str_file(id));
+    EffectSpec::Str { file, duration_ms }
 }
 
 #[cfg(test)]
@@ -175,13 +162,12 @@ mod tests {
     }
 
     #[test]
-    fn stormgust_is_str_hybrid() {
+    fn stormgust_resolves_to_str_only() {
+        // Pre-slice-F this was `StrHybrid` with a `SpikeRow` overlay; the
+        // overlay is gone, the STR file plays alone.
         assert!(matches!(
             effect_spec(EffectId::Stormgust),
-            Some(EffectSpec::StrHybrid {
-                family: CustomFamily::SpikeRow,
-                ..
-            })
+            Some(EffectSpec::Str { .. })
         ));
     }
 

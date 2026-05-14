@@ -6,7 +6,7 @@
 //! id up in `effect_spec()`, and constructs the actual effect.
 //!
 //! Keeping spawns one-way via a queue means the game crate never needs to
-//! know about renderer types (CustomEffect, wgpu, etc).
+//! know about renderer types (wgpu, etc).
 
 use super::effect_id::EffectId;
 use super::spec::Attach;
@@ -19,8 +19,6 @@ pub struct SpawnRequest {
     /// Override the duration from `effect_spec()` (e.g. server-driven
     /// Ice Wall lifetime). `None` means use the default.
     pub override_duration_ms: Option<u32>,
-    /// Optional tint applied on top of the family's default color.
-    pub tint: Option<[f32; 4]>,
 }
 
 #[derive(Default)]
@@ -42,7 +40,6 @@ impl EffectQueue {
             effect_id,
             attach: Attach::WorldPos(world_pos),
             override_duration_ms: None,
-            tint: None,
         });
     }
 
@@ -51,7 +48,6 @@ impl EffectQueue {
             effect_id,
             attach: Attach::Entity(entity_id),
             override_duration_ms: None,
-            tint: None,
         });
     }
 

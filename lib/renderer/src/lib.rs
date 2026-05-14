@@ -85,6 +85,7 @@ pub struct Renderer {
     pub white_bind_group: wgpu::BindGroup,
     pub font_px_height: f32,
     pub dpi_scale: f32,
+    pub clear_color: wgpu::Color,
 }
 
 impl Renderer {
@@ -178,6 +179,12 @@ impl Renderer {
             white_bind_group,
             font_px_height,
             dpi_scale,
+            clear_color: wgpu::Color {
+                r: 0.392,
+                g: 0.584,
+                b: 0.929,
+                a: 1.0,
+            },
         }
     }
 
@@ -413,12 +420,7 @@ impl Renderer {
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.392,
-                            g: 0.584,
-                            b: 0.929,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(self.clear_color),
                         store: wgpu::StoreOp::Store,
                     },
                 })],

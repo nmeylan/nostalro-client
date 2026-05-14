@@ -695,14 +695,13 @@ impl App {
             .spawn_at(effect_id, [pos[0], pos[1], pos[2]]);
     }
 
-    /// If `effect_id` resolves to an `EffectSpec::Str` or `StrHybrid`, make
-    /// sure its STR file is in the cache. Tries the primary name first, then
+    /// If `effect_id` resolves to an `EffectSpec::Str`, make sure its STR
+    /// file is in the cache. Tries the primary name first, then
     /// auto-derived aliases. Failures are remembered so we don't retry
     /// every cycle.
     fn ensure_str_loaded_for(&mut self, id: EffectId) {
         let file = match effect_spec(id) {
             Some(EffectSpec::Str { file, .. }) => file,
-            Some(EffectSpec::StrHybrid { file, .. }) => file,
             _ => return,
         };
         if self.attempted_str_files.contains(file) {
@@ -807,7 +806,11 @@ impl App {
         // via the billboard primitive renderer.
         let mut effect_draws = EffectDrawList::new();
         let render_ctx = EffectRenderCtx {
-            camera: &renderer.camera,
+            camera: ragnarok_game::effect::CameraView {
+                eye: renderer.camera.eye().to_array(),
+                target: renderer.camera.target.to_array(),
+                up: glam::Vec3::NEG_Y.to_array(),
+            },
             screen_w,
             screen_h,
             elapsed: 0.0,
@@ -931,6 +934,23 @@ impl ApplicationHandler for App {
                 }
                 if matches!(event.logical_key.as_ref(), Key::Named(NamedKey::Tab)) {
                     self.open_browser();
+                    return;
+                }
+                if matches!(event.logical_key.as_ref(), Key::Character("b") | Key::Character("B"))
+                {
+                    if let Some(renderer) = &mut self.renderer {
+                        let blue = wgpu::Color {
+                            r: 0.392,
+                            g: 0.584,
+                            b: 0.929,
+                            a: 1.0,
+                        };
+                        renderer.clear_color = if renderer.clear_color == wgpu::Color::BLACK {
+                            blue
+                        } else {
+                            wgpu::Color::BLACK
+                        };
+                    }
                     return;
                 }
                 let action = match event.logical_key.as_ref() {

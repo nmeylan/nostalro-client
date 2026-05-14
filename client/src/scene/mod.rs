@@ -336,7 +336,11 @@ impl App {
             // dedicated primitives like Ring go via the new render path.
             let mut effect_draws = ragnarok_renderer::effect::EffectDrawList::new();
             let render_ctx = ragnarok_renderer::effect::EffectRenderCtx {
-                camera: &renderer.camera,
+                camera: ragnarok_game::effect::CameraView {
+                    eye: renderer.camera.eye().to_array(),
+                    target: renderer.camera.target.to_array(),
+                    up: [0.0, -1.0, 0.0],
+                },
                 screen_w,
                 screen_h,
                 elapsed,

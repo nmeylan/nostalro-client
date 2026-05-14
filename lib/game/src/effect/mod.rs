@@ -10,13 +10,13 @@ pub mod table;
 
 pub use draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 pub use effect_id::{
-    classified_family, default_duration_ms, default_str_file, effect_ef_name, effect_name,
+    default_duration_ms, default_str_file, effect_ef_name, effect_name,
     skill_effect, EffectId, ALL_EFFECT_IDS,
 };
 pub use effect_queue::{EffectQueue, SpawnRequest};
 pub use effect_trait::{CameraView, Effect, EffectRenderCtx, EffectUpdateCtx};
 pub use factory::{is_implemented, make_effect};
-pub use spec::{Attach, CustomFamily, EffectSpec};
+pub use spec::{Attach, EffectSpec};
 pub use str_aliases::str_aliases;
 pub use table::effect_spec;
 

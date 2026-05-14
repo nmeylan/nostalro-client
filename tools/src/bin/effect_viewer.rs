@@ -34,6 +34,7 @@ fn parse_args() -> effect_viewer::Args {
                 println!("  R              Replay current");
                 println!("  Space          Pause / resume");
                 println!("  + / -          Speed up / down");
+                println!("  B              Toggle background (blue / black)");
                 println!("  Esc            Quit");
                 println!();
                 println!("Hot reload:");
