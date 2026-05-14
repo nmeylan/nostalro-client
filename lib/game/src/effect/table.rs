@@ -10,7 +10,7 @@
 use super::effect_id::{
     classified_family, default_duration_ms, default_str_file, EffectId,
 };
-use super::effects::{bottom_sanc, land_protector, magnum_break, warp};
+use super::effects::{bottom_sanctuary_pillar, magnum_break, volcano, warp};
 use super::spec::{CustomFamily, EffectSpec};
 use super::str_aliases::str_aliases;
 
@@ -34,14 +34,30 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // skill cell expires (table value already 99990 ms, but pin it via
         // the effect module so it stays load-bearing on the constant).
         EffectId::BottomSanc => EffectSpec::Custom {
-            duration_ms: bottom_sanc::TOTAL_DURATION_MS,
+            duration_ms: bottom_sanctuary_pillar::TOTAL_DURATION_MS,
         },
 
-        // LandProtector's visible burst is one cycle of the four GI ring
-        // emitters (~110 frames @ 60fps ≈ 1.83s); the table value 9990ms
-        // outlives the animation and leaves a dead spawn lingering.
+        // VOLCANO family — visible burst is one cycle of the four flame
+        // emitters; the duration table values (3000ms / 9990ms) outlive the
+        // animation and leave dead spawns lingering. Pin each variant to its
+        // own VolcanoParams-derived total instead.
         EffectId::Landprotector => EffectSpec::Custom {
-            duration_ms: land_protector::TOTAL_DURATION_MS,
+            duration_ms: volcano::LANDPROTECTOR.total_duration_ms(),
+        },
+        EffectId::Volcano => EffectSpec::Custom {
+            duration_ms: volcano::VOLCANO.total_duration_ms(),
+        },
+        EffectId::Deluge => EffectSpec::Custom {
+            duration_ms: volcano::DELUGE.total_duration_ms(),
+        },
+        EffectId::Violentgale => EffectSpec::Custom {
+            duration_ms: volcano::VIOLENTGALE.total_duration_ms(),
+        },
+        EffectId::Ganbantein => EffectSpec::Custom {
+            duration_ms: volcano::GANBANTEIN.total_duration_ms(),
+        },
+        EffectId::Gumgang3 => EffectSpec::Custom {
+            duration_ms: volcano::GUMGANG3.total_duration_ms(),
         },
 
         // --- Factory-dispatched custom effects ---

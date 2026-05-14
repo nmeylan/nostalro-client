@@ -49,10 +49,11 @@ pub fn make_custom(
     params: &CustomParams,
 ) -> Option<Box<dyn CustomEffect>> {
     match family {
-        CustomFamily::Aura => Some(Box::new(super::fx::aura::Aura::new(params))),
-        CustomFamily::CastCircle => {
-            Some(Box::new(super::fx::cast_circle::CastCircle::new(params)))
-        }
+        // Aura and CastCircle migrated to the game crate's factory in slice E
+        // (see `ragnarok_game::effect::effects::{aura, cast_circle}`). The
+        // StrHybrid fallback in the holder degrades to STR-only playback for
+        // any remaining family-classified ids that hit this branch.
+        CustomFamily::Aura | CustomFamily::CastCircle => None,
         CustomFamily::SpikeRow => {
             Some(Box::new(super::fx::spike_row::SpikeRow::new(params)))
         }

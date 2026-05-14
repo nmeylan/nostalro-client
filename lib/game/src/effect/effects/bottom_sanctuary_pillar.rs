@@ -2,16 +2,16 @@
 //! Reference: original game `Bottom_Magnus("alpha_down.tga", 1)`
 //! at line 16847. Visible reference: `ro-effects/effects/imgs/300-350/317.gif`.
 //!
-//! original game launches a single rising-rect primitive whose first vertex color carries a
-//! 4-sided pillar:
-//!   * `height[0] = height[1] = 2.5` — square base width
-//!   * `max_height = 16` — vertical extent
-//!   * start alpha 120, fade timing 1880 — start alpha + fade timing
-//!   * `rot_start_deg = 0`, `full_display_angle_deg = random(360)` — initial Y rotation
-//!     randomised per spawn
-//!   * parent duration is the master's lifetime (table value is
-//!     `99990 ms`), so the pillar is effectively permanent until the
-//!     Sanctuary cell dies.
+//! A single rising 4-sided pillar:
+//!   * square base width 2.5
+//!   * vertical extent 16
+//!   * start alpha 120 with a long fade timing
+//!   * an initial Y rotation randomised per spawn
+//!   * the parent's lifetime is the effect's lifetime (the table value
+//!     is `99990 ms`), so the pillar is effectively permanent until
+//!     the Sanctuary cell dies — it persists for the skill's whole
+//!     duration rather than playing a one-shot animation, matching the
+//!     sustained look in the reference gif.
 //!
 //! We render it as a 4-sided `Frustum` rotating slowly around the vertical
 //! axis. The pillar's texture (`alpha_down.tga`) is horizontally banded; the
@@ -27,16 +27,16 @@ pub const TEXTURES: &[&str] = &[TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 /// Lifetime kept in lockstep with the spec's `duration_ms`; the effect is a
-/// "permanent" sustained skill effect on the original client.
+/// "permanent" sustained skill effect in the original game.
 pub const TOTAL_DURATION_MS: u32 = 99_990;
 
 /// Square pillar — `sides == 4`.
 const SIDES: u32 = 4;
-/// Pillar half-extent on the X / Z plane (original game `height[0..2] = 2.5`).
+/// Pillar half-extent on the X / Z plane.
 const BASE_RADIUS: f32 = 2.5;
-/// original game `max_height` for F1 == 1.
+/// Pillar vertical extent for F1 == 1.
 const PILLAR_HEIGHT: f32 = 16.0;
-/// baseline alpha of 120 / 255 — the pillar holds at this level.
+/// `120 / 255` baseline alpha — the pillar holds at this level.
 const BASE_ALPHA: f32 = 120.0 / 255.0;
 /// Frames to ramp from 0 to BASE_ALPHA at spawn — matches the gif fade-in.
 const FADE_IN_FRAMES: f32 = 15.0;
@@ -44,14 +44,14 @@ const FADE_IN_FRAMES: f32 = 15.0;
 /// every ~120 frames ≈ 2 s of wall-clock spin).
 const ROT_DEG_PER_FRAME: f32 = 3.0;
 
-pub struct BottomSancEffect {
+pub struct BottomSanctuaryPillarEffect {
     world_pos: [f32; 3],
     age: f32,
     /// Random initial Y rotation, in radians. Stays constant per instance.
     initial_rotation: f32,
 }
 
-impl BottomSancEffect {
+impl BottomSanctuaryPillarEffect {
     pub fn new(attach: Attach) -> Self {
         let world_pos = match attach {
             Attach::WorldPos(p) => p,
@@ -70,7 +70,7 @@ impl BottomSancEffect {
     }
 }
 
-impl Effect for BottomSancEffect {
+impl Effect for BottomSanctuaryPillarEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.age += ctx.dt;
         let total_s = TOTAL_DURATION_MS as f32 / 1000.0;
@@ -119,19 +119,19 @@ mod tests {
         }
     }
 
-    fn draws(effect: &BottomSancEffect) -> Vec<EffectPrimitiveDraw> {
+    fn draws(effect: &BottomSanctuaryPillarEffect) -> Vec<EffectPrimitiveDraw> {
         let mut list = EffectDrawList::new();
         effect.collect_draws(&mut list, &render_ctx());
         list.primitives
     }
 
-    fn step(effect: &mut BottomSancEffect, dt: f32) {
+    fn step(effect: &mut BottomSanctuaryPillarEffect, dt: f32) {
         effect.update(&EffectUpdateCtx { dt });
     }
 
     #[test]
     fn emits_a_square_frustum() {
-        let mut bs = BottomSancEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut bs = BottomSanctuaryPillarEffect::new(Attach::WorldPos([0.0; 3]));
         step(&mut bs, 0.0);
         match &draws(&bs)[0] {
             EffectPrimitiveDraw::Frustum {
@@ -151,7 +151,7 @@ mod tests {
 
     #[test]
     fn rotation_advances_over_time() {
-        let mut bs = BottomSancEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut bs = BottomSanctuaryPillarEffect::new(Attach::WorldPos([0.0; 3]));
         step(&mut bs, 0.0);
         let r0 = match &draws(&bs)[0] {
             EffectPrimitiveDraw::Frustum { rotation, .. } => *rotation,
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn alpha_ramps_in_then_holds() {
-        let mut bs = BottomSancEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut bs = BottomSanctuaryPillarEffect::new(Attach::WorldPos([0.0; 3]));
         step(&mut bs, 0.0);
         let a0 = match &draws(&bs)[0] {
             EffectPrimitiveDraw::Frustum { color, .. } => color[3],
@@ -184,7 +184,7 @@ mod tests {
 
     #[test]
     fn runs_for_full_duration() {
-        let mut bs = BottomSancEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut bs = BottomSanctuaryPillarEffect::new(Attach::WorldPos([0.0; 3]));
         let s = bs.update(&EffectUpdateCtx { dt: 1.0 });
         assert!(matches!(s, EffectStatus::Running));
     }

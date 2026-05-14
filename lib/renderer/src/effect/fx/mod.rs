@@ -5,8 +5,6 @@
 //! [`super::custom_effect::make_custom`].
 
 pub mod air_swirl;
-pub mod aura;
-pub mod cast_circle;
 pub mod cross_beam;
 pub mod cylinder_pillar;
 pub mod flat_quad;

@@ -31,6 +31,8 @@ pub const ACTION_HOME: u32 = 12;
 pub const ACTION_END: u32 = 13;
 pub const ACTION_NEXT_FILTER: u32 = 14;
 pub const ACTION_PREV_FILTER: u32 = 15;
+pub const ACTION_FOV_NARROWER: u32 = 16;
+pub const ACTION_FOV_WIDER: u32 = 17;
 
 // === C-ABI POD types (host duplicates exactly) ===
 
@@ -62,6 +64,10 @@ pub struct CameraView {
     pub yaw: f32,
     pub pitch: f32,
     pub distance: f32,
+    /// Vertical field-of-view in radians. The host applies this each frame so
+    /// the effect viewer's preferred wider FOV doesn't bleed across other
+    /// tools sharing the renderer's `Camera::default()`.
+    pub fov_y: f32,
 }
 
 /// Snapshot of every field the host needs to carry across a hot-reload so the
@@ -83,6 +89,7 @@ pub struct PersistentState {
     pub yaw: f32,
     pub pitch: f32,
     pub distance: f32,
+    pub fov_y: f32,
 }
 
 impl Default for PersistentState {
@@ -100,12 +107,15 @@ impl Default for PersistentState {
             yaw: 0.0,
             pitch: 0.0,
             distance: 0.0,
+            fov_y: 0.0,
         }
     }
 }
 
 pub const PERSISTENT_STATE_MAGIC: u32 = 0x45565053; // 'EVPS' little-endian
-pub const PERSISTENT_STATE_VERSION: u32 = 1;
+/// Bumped to 2 when the camera profile grew a `fov_y` field. Older
+/// snapshots are discarded by the version check in `hot_restore_state`.
+pub const PERSISTENT_STATE_VERSION: u32 = 2;
 
 // === Internal state ===
 
@@ -191,6 +201,10 @@ struct State {
     yaw: f32,
     pitch: f32,
     distance: f32,
+    /// Vertical field-of-view in radians. The renderer's `Camera::default()`
+    /// uses 15° (long telephoto, tuned for the isometric map) which crowds a
+    /// single effect at the origin; the viewer overrides this to a wider FOV.
+    fov_y: f32,
 
     /// Hot-reloadable effect registry. The host holds u64 handles only;
     /// `Box<dyn Effect>` ownership stays in this cdylib so it can be torn
@@ -199,14 +213,44 @@ struct State {
     next_effect_handle: Mutex<u64>,
 }
 
+/// Lower / upper bounds for camera zoom (world units). Range chosen so the
+/// smallest effects (radius ~1.5) still fill a sensible fraction of the
+/// viewport at `DISTANCE_MIN`, and the largest auras (radius ~26) still leave
+/// generous margin at `DISTANCE_MAX`.
+const DISTANCE_MIN: f32 = 30.0;
+const DISTANCE_MAX: f32 = 800.0;
+/// Lower / upper bounds for vertical FOV (radians).
+const FOV_MIN: f32 = 15_f32 * std::f32::consts::PI / 180.0;
+const FOV_MAX: f32 = 85_f32 * std::f32::consts::PI / 180.0;
+/// Right-drag sensitivity (radians per pixel) for orbit yaw/pitch.
+const ORBIT_SENSITIVITY: f32 = 0.005;
+
 impl State {
     fn default_camera(&mut self) {
-        // Match Camera::default() so the initial view is consistent with the
-        // renderer's untouched camera.
+        // Effect-viewer profile: wider FOV + larger distance than the map
+        // camera so a typical effect occupies a comfortable fraction of the
+        // viewport instead of crowding it. With fov_y = 55° and distance =
+        // 120, the visible height at the target is ~125 world units — a
+        // 26-unit Aura billboard reads at ~20% of the screen, leaving room
+        // around it. Pitch stays low enough (28°) for vertical primitives
+        // (cones, pillars) to read as 3D rather than concentric rings.
         self.target = [0.0, 0.0, 0.0];
         self.yaw = 0.0;
-        self.pitch = 55_f32.to_radians();
-        self.distance = 200.0;
+        self.pitch = 28_f32.to_radians();
+        self.distance = 120.0;
+        self.fov_y = 55_f32.to_radians();
+    }
+
+    fn adjust_fov(&mut self, factor: f32) {
+        self.fov_y = (self.fov_y * factor).clamp(FOV_MIN, FOV_MAX);
+    }
+
+    fn orbit(&mut self, dx: f32, dy: f32) {
+        use std::f32::consts::FRAC_PI_2;
+        self.yaw -= dx * ORBIT_SENSITIVITY;
+        // Clamp pitch just shy of poles to avoid the up vector degenerating
+        // when the eye crosses through the world's Y axis.
+        self.pitch = (self.pitch - dy * ORBIT_SENSITIVITY).clamp(0.05, FRAC_PI_2 - 0.05);
     }
 }
 
@@ -236,7 +280,7 @@ impl State {
     }
 
     fn zoom(&mut self, factor: f32) {
-        self.distance = (self.distance * factor).clamp(20.0, 2000.0);
+        self.distance = (self.distance * factor).clamp(DISTANCE_MIN, DISTANCE_MAX);
     }
 
     fn cycle(&mut self, forward: bool) {
@@ -317,6 +361,7 @@ pub extern "C" fn hot_create() -> *mut () {
         yaw: 0.0,
         pitch: 0.0,
         distance: 0.0,
+        fov_y: 0.0,
         effects: Mutex::new(HashMap::new()),
         // Reserve 0 as "invalid handle" so the host can use 0 to signal
         // spawn failure across the FFI boundary.
@@ -363,6 +408,8 @@ pub unsafe extern "C" fn hot_on_action(state_ptr: *mut (), action_code: u32) {
         ACTION_RESET_CAMERA => state.default_camera(),
         ACTION_NEXT_FILTER => state.cycle_filter(true),
         ACTION_PREV_FILTER => state.cycle_filter(false),
+        ACTION_FOV_NARROWER => state.adjust_fov(0.9),
+        ACTION_FOV_WIDER => state.adjust_fov(1.1),
         _ => {}
     }
 }
@@ -378,6 +425,15 @@ pub unsafe extern "C" fn hot_on_mouse_wheel(state_ptr: *mut (), dy: f32) {
     }
 }
 
+/// Right-drag orbit: `dx` and `dy` in pixels since the last cursor sample.
+/// `button` is reserved for future left-vs-right disambiguation (the host
+/// already filters); the dylib treats every drag as an orbit.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_on_mouse_drag(state_ptr: *mut (), dx: f32, dy: f32, _button: u8) {
+    let state = unsafe { &mut *(state_ptr as *mut State) };
+    state.orbit(dx, dy);
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hot_get_camera(state_ptr: *mut (), out: *mut CameraView) {
     let state = unsafe { &*(state_ptr as *const State) };
@@ -386,6 +442,7 @@ pub unsafe extern "C" fn hot_get_camera(state_ptr: *mut (), out: *mut CameraView
         yaw: state.yaw,
         pitch: state.pitch,
         distance: state.distance,
+        fov_y: state.fov_y,
     };
     unsafe { *out = v };
 }
@@ -468,6 +525,7 @@ pub unsafe extern "C" fn hot_snapshot_state(state_ptr: *mut (), out: *mut Persis
         yaw: state.yaw,
         pitch: state.pitch,
         distance: state.distance,
+        fov_y: state.fov_y,
     };
     unsafe { *out = snap };
 }
@@ -511,6 +569,13 @@ pub unsafe extern "C" fn hot_restore_state(state_ptr: *mut (), snap: *const Pers
     state.yaw = snap.yaw;
     state.pitch = snap.pitch;
     state.distance = snap.distance;
+    // FOV may legitimately be 0 in a future schema bump; fall back to the
+    // viewer's default if so.
+    state.fov_y = if snap.fov_y > 0.0 {
+        snap.fov_y
+    } else {
+        35_f32.to_radians()
+    };
 
     state.pending_spawn = state.current_effect();
     1
@@ -562,6 +627,8 @@ const LEGEND: &[(&str, &str)] = &[
     ("Space", "Pause"),
     ("+ / -", "Speed"),
     ("Scroll", "Zoom"),
+    ("Right drag", "Orbit"),
+    ("[ / ]", "FOV -/+"),
     ("C", "Reset camera"),
     ("1", "Toggle controls"),
     ("Esc", "Quit / close panel"),
@@ -577,8 +644,7 @@ const CONTROLS_LINES: &[&str] = &[
     "  R            Replay current effect at origin",
     "",
     "Filter:",
-    "  Down         Next filter (All, Str, StrHybrid, Spr, Bespoke,",
-    "               then each CustomFamily)",
+    "  Down         Next filter (All, Str, StrHybrid, Spr, Custom)",
     "  Up           Previous filter",
     "",
     "Playback:",
@@ -586,7 +652,9 @@ const CONTROLS_LINES: &[&str] = &[
     "  + / -        Speed up / down (0.1x - 4.0x)",
     "",
     "Camera:",
-    "  Scroll       Zoom in / out",
+    "  Scroll       Zoom in / out (distance)",
+    "  Right drag   Orbit yaw / pitch",
+    "  [  /  ]      Narrow / widen FOV",
     "  C            Reset camera to default",
     "",
     "Window:",

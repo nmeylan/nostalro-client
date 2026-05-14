@@ -29,9 +29,11 @@ pub fn effect_texture_paths() -> Vec<String> {
     let texture_lists: &[&[&str]] = &[
         effects::warp::TEXTURES,
         effects::magnum_break::TEXTURES,
-        effects::bottom_sanc::TEXTURES,
+        effects::bottom_sanctuary_pillar::TEXTURES,
         effects::warp_zone::TEXTURES,
-        effects::land_protector::TEXTURES,
+        effects::volcano::TEXTURES,
+        effects::aura::TEXTURES,
+        effects::cast_circle::TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {

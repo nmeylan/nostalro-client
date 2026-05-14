@@ -77,6 +77,7 @@ struct CameraView {
     yaw: f32,
     pitch: f32,
     distance: f32,
+    fov_y: f32,
 }
 
 #[repr(C)]
@@ -94,6 +95,7 @@ struct PersistentState {
     yaw: f32,
     pitch: f32,
     distance: f32,
+    fov_y: f32,
 }
 
 impl Default for PersistentState {
@@ -111,6 +113,7 @@ impl Default for PersistentState {
             yaw: 0.0,
             pitch: 0.0,
             distance: 0.0,
+            fov_y: 0.0,
         }
     }
 }
@@ -130,12 +133,15 @@ const ACTION_HOME: u32 = 12;
 const ACTION_END: u32 = 13;
 const ACTION_NEXT_FILTER: u32 = 14;
 const ACTION_PREV_FILTER: u32 = 15;
+const ACTION_FOV_NARROWER: u32 = 16;
+const ACTION_FOV_WIDER: u32 = 17;
 
 type HotCreateFn = extern "C" fn() -> *mut ();
 type HotDestroyFn = unsafe extern "C" fn(*mut ());
 type HotUpdateFn = unsafe extern "C" fn(*mut (), f32);
 type HotOnActionFn = unsafe extern "C" fn(*mut (), u32);
 type HotOnMouseWheelFn = unsafe extern "C" fn(*mut (), f32);
+type HotOnMouseDragFn = unsafe extern "C" fn(*mut (), f32, f32, u8);
 type HotGetFlagsFn = unsafe extern "C" fn(*mut (), *mut ViewerFlags);
 type HotGetCameraFn = unsafe extern "C" fn(*mut (), *mut CameraView);
 type HotTakePendingFn = unsafe extern "C" fn(*mut (), *mut PendingSpawn);
@@ -188,6 +194,7 @@ struct HotLib {
     update_fn: HotUpdateFn,
     on_action_fn: HotOnActionFn,
     on_mouse_wheel_fn: HotOnMouseWheelFn,
+    on_mouse_drag_fn: HotOnMouseDragFn,
     get_flags_fn: HotGetFlagsFn,
     get_camera_fn: HotGetCameraFn,
     take_pending_fn: HotTakePendingFn,
@@ -286,6 +293,8 @@ impl HotLib {
             let on_action_fn = *lib.get::<HotOnActionFn>(b"hot_on_action").ok()?;
             let on_mouse_wheel_fn =
                 *lib.get::<HotOnMouseWheelFn>(b"hot_on_mouse_wheel").ok()?;
+            let on_mouse_drag_fn =
+                *lib.get::<HotOnMouseDragFn>(b"hot_on_mouse_drag").ok()?;
             let get_flags_fn = *lib.get::<HotGetFlagsFn>(b"hot_get_flags").ok()?;
             let get_camera_fn = *lib.get::<HotGetCameraFn>(b"hot_get_camera").ok()?;
             let take_pending_fn =
@@ -325,6 +334,7 @@ impl HotLib {
                 update_fn,
                 on_action_fn,
                 on_mouse_wheel_fn,
+                on_mouse_drag_fn,
                 get_flags_fn,
                 get_camera_fn,
                 take_pending_fn,
@@ -381,6 +391,10 @@ impl HotLib {
 
     fn on_mouse_wheel(&self, dy: f32) {
         unsafe { (self.on_mouse_wheel_fn)(self.state, dy) };
+    }
+
+    fn on_mouse_drag(&self, dx: f32, dy: f32, button: u8) {
+        unsafe { (self.on_mouse_drag_fn)(self.state, dx, dy, button) };
     }
 
     fn get_filtered_ids(&self) -> Vec<u16> {
@@ -489,6 +503,9 @@ struct App {
     /// resolves to the original effect (browser sorts items alphabetically).
     browser_lookup: HashMap<String, EffectId>,
     ctrl_pressed: bool,
+    mouse_pos: (f32, f32),
+    last_mouse: (f32, f32),
+    mouse_down_right: bool,
 }
 
 impl App {
@@ -522,6 +539,9 @@ impl App {
             browser: None,
             browser_lookup: HashMap::new(),
             ctrl_pressed: false,
+            mouse_pos: (0.0, 0.0),
+            last_mouse: (0.0, 0.0),
+            mouse_down_right: false,
         }
     }
 
@@ -747,13 +767,18 @@ impl App {
             return;
         };
 
-        // Sync cdylib camera state onto the renderer's camera.
+        // Sync cdylib camera state onto the renderer's camera. The effect
+        // viewer carries its own `fov_y` so it doesn't inherit the map
+        // camera's narrow telephoto default.
         if let Some(hot) = &self.hot_lib {
             let v = hot.camera();
             renderer.camera.target = glam::Vec3::from(v.target);
             renderer.camera.yaw = v.yaw;
             renderer.camera.pitch = v.pitch;
             renderer.camera.distance = v.distance;
+            if v.fov_y > 0.0 {
+                renderer.camera.fov_y = v.fov_y;
+            }
         }
 
         let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
@@ -924,6 +949,8 @@ impl ApplicationHandler for App {
                         "-" | "_" => Some(ACTION_SPEED_DOWN),
                         "c" | "C" => Some(ACTION_RESET_CAMERA),
                         "1" => Some(ACTION_SHOW_CONTROLS),
+                        "[" | "{" => Some(ACTION_FOV_NARROWER),
+                        "]" | "}" => Some(ACTION_FOV_WIDER),
                         _ => None,
                     },
                     _ => None,
@@ -942,6 +969,25 @@ impl ApplicationHandler for App {
                 };
                 if let Some(hot) = &self.hot_lib {
                     hot.on_mouse_wheel(dy);
+                }
+            }
+            WindowEvent::MouseInput { button, state, .. } => {
+                if button == winit::event::MouseButton::Right {
+                    self.mouse_down_right = state == ElementState::Pressed;
+                    if self.mouse_down_right {
+                        self.last_mouse = self.mouse_pos;
+                    }
+                }
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.mouse_pos = (position.x as f32, position.y as f32);
+                if self.mouse_down_right {
+                    let dx = self.mouse_pos.0 - self.last_mouse.0;
+                    let dy = self.mouse_pos.1 - self.last_mouse.1;
+                    if let Some(hot) = &self.hot_lib {
+                        hot.on_mouse_drag(dx, dy, 0);
+                    }
+                    self.last_mouse = self.mouse_pos;
                 }
             }
             WindowEvent::RedrawRequested => {

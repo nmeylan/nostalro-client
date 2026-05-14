@@ -358,6 +358,12 @@ impl Renderer {
             let logical_h = height as f32 / self.dpi_scale;
             self.sprite_renderer
                 .resize(&self.device.queue, logical_w, logical_h);
+            // `effect_sprite_renderer` carries its own `SpriteUniforms`; if we
+            // skip it here its screen_size diverges from the camera's
+            // projection screen_w/h and billboards shift off-center after the
+            // first window resize.
+            self.effect_sprite_renderer
+                .resize(&self.device.queue, logical_w, logical_h);
             self.ui_renderer
                 .resize(&self.device.queue, logical_w, logical_h);
         }
