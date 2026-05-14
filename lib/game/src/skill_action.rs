@@ -20,7 +20,7 @@ pub enum SkillMotionType {
     Skill,
 }
 
-/// Maps a skill ID to its motion type, following the original game's GetSkillActionInfo().
+/// Unfortunately all skill cannot use Skill motion type
 pub fn skill_motion_type(skill_id: u16) -> SkillMotionType {
     use SkillMotionType::*;
 

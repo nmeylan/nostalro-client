@@ -1,7 +1,6 @@
 pub mod accessory_table;
 pub mod animation;
 pub mod app_state;
-pub mod apply_outcome;
 pub mod card_illustration_table;
 pub mod card_name_table;
 pub mod character;

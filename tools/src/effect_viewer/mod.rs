@@ -35,8 +35,7 @@ use crate::sprite_viewer::browser::SpriteBrowser;
 use ragnarok_game::effect::EffectRenderCtx as GameEffectRenderCtx;
 use ragnarok_renderer::effect::{
     EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, ExternalCustomBackend,
-    SpawnStatus, StrEffectCache, StrEmitterInput, build_billboard_batches,
-    build_str_effect_batches,
+    SpawnStatus, StrEffectCache, StrEmitterInput, build_str_effect_batches,
 };
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{Renderer, UiDrawCall, block_on};
@@ -547,6 +546,9 @@ struct App {
     mouse_pos: (f32, f32),
     last_mouse: (f32, f32),
     mouse_down_right: bool,
+    /// Set after the first triage log line so the markdown table header is
+    /// printed exactly once per viewer session.
+    triage_header_emitted: bool,
 }
 
 impl App {
@@ -583,6 +585,7 @@ impl App {
             mouse_pos: (0.0, 0.0),
             last_mouse: (0.0, 0.0),
             mouse_down_right: false,
+            triage_header_emitted: false,
         }
     }
 
@@ -724,6 +727,7 @@ impl App {
         let Some((effect_id, pos)) = hot.take_pending_spawn() else {
             return;
         };
+        self.emit_triage_row(effect_id);
         // Viewer convention: each picker spawn is the user asking to see
         // *just* this effect. Clear anything still alive so persistent
         // effects (Aura) don't pile up as we cycle through the list.
@@ -734,6 +738,54 @@ impl App {
         self.ensure_str_loaded_for(effect_id);
         self.effect_queue
             .spawn_at(effect_id, [pos[0], pos[1], pos[2]]);
+    }
+
+    /// Stderr a markdown table row describing the effect being spawned, so
+    /// the user can grep `EFFECT_TRIAGE` lines out of the viewer log and
+    /// paste them into a triage doc. Header row prints once per session.
+    fn emit_triage_row(&mut self, id: EffectId) {
+        if !self.triage_header_emitted {
+            eprintln!(
+                "EFFECT_TRIAGE | id | name | bucket | class | impl | str | dur_ms | primitive"
+            );
+            eprintln!("EFFECT_TRIAGE | --- | --- | --- | --- | --- | --- | --- | ---");
+            self.triage_header_emitted = true;
+        }
+        let id_num = id.value() as u32;
+        let bucket_start = (id_num / 50) * 50;
+        let bucket = format!("{}-{}", bucket_start, bucket_start + 50);
+        let class = if ragnarok_game::effect::buckets::is_hybrid(id) {
+            "Hybrid"
+        } else if ragnarok_game::effect::buckets::is_custom_bucket(id) {
+            "Custom"
+        } else if ragnarok_game::effect::buckets::is_noop_bucket(id) {
+            "Noop"
+        } else {
+            "DefaultStr"
+        };
+        let impl_flag = if ragnarok_game::effect::is_real_impl(id) {
+            "yes"
+        } else {
+            "no"
+        };
+        let str_field = {
+            let aliases = str_aliases(id);
+            if aliases.is_empty() {
+                "-".to_string()
+            } else {
+                aliases.join(",")
+            }
+        };
+        let dur_ms = match effect_spec(id) {
+            Some(EffectSpec::Custom { duration_ms }) => duration_ms.to_string(),
+            Some(EffectSpec::Str { duration_ms, .. }) => duration_ms.to_string(),
+            Some(EffectSpec::Spr { duration_ms, .. }) => duration_ms.to_string(),
+            Some(EffectSpec::Noop) | None => "-".to_string(),
+        };
+        eprintln!(
+            "EFFECT_TRIAGE | {} | EffectId::{:?} | {} | {} | {} | {} | {} | ?",
+            id_num, id, bucket, class, impl_flag, str_field, dur_ms,
+        );
     }
 
     /// Make sure any STR file the effect needs is in the cache. Covers two
@@ -857,7 +909,7 @@ impl App {
                 anim_time: s.anim_time,
             })
             .collect();
-        let mut effect_batches = build_str_effect_batches(
+        let effect_batches = build_str_effect_batches(
             &str_inputs,
             &self.str_effects,
             &renderer.camera,
@@ -881,20 +933,10 @@ impl App {
         };
         self.effect_holder
             .collect_custom_draws(&mut effect_draws, &render_ctx);
-        if let Some(fallback) = &self.white_bind_group {
-            let mut primitive_batches = build_billboard_batches(
-                &effect_draws,
-                &renderer.camera,
-                screen_w,
-                screen_h,
-                fallback,
-                // Named-texture lookup intentionally returns None for now -
-                // Aura uses the fallback. Wire up named GRF textures here
-                // when fx/* effects need them.
-                |_name| None,
-            );
-            effect_batches.append(&mut primitive_batches);
-        }
+        // Billboard batches are built inside `Renderer::render()` from
+        // `effect_draws`, using its internal texture_lookup against the
+        // preloaded GRF texture cache. The viewer only forwards STR-effect
+        // batches here.
 
         // cdylib overlay (status + legend + controls). Browser, when open,
         // is drawn on top by the host.

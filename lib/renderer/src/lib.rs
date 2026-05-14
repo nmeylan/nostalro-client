@@ -466,6 +466,28 @@ impl Renderer {
         // depth-write, between the 3D pass and the entity sprite pass.
         // Uses a dedicated SpriteRenderer instance so its vertex buffer
         // doesn't collide with the entity pass below in the same encoder.
+        //
+        // Billboard-primitive batches are built here (not by the caller) so
+        // their texture lookup sees the same preloaded GRF textures as the
+        // ground-disc / frustum / quad-horn dispatches below.
+        let texture_lookup = |name: &str| -> Option<&wgpu::BindGroup> {
+            // Effect texture params store the bare filename
+            // (e.g. `ring_yellow.tga`); preload + cache uses the
+            // full GRF path (`data/texture/effect/<name>`).
+            if name.is_empty() {
+                return None;
+            }
+            let full = format!("data/texture/effect/{name}");
+            self.texture_cache.get(&full)
+        };
+        let billboard_batches = effect::build_billboard_batches(
+            effect_draws,
+            &self.camera,
+            self.device.surface_config.width as f32 / self.dpi_scale,
+            self.device.surface_config.height as f32 / self.dpi_scale,
+            &self.white_bind_group,
+            texture_lookup,
+        );
         if !effect_sprite_batches.is_empty() {
             self.effect_sprite_renderer.render(
                 &mut encoder,
@@ -475,6 +497,17 @@ impl Renderer {
                 &self.device.queue,
                 None,
                 effect_sprite_batches,
+            );
+        }
+        if !billboard_batches.is_empty() {
+            self.effect_sprite_renderer.render(
+                &mut encoder,
+                &view,
+                Some(&self.device.depth_view),
+                &self.device.device,
+                &self.device.queue,
+                None,
+                &billboard_batches,
             );
         }
 
@@ -493,16 +526,6 @@ impl Renderer {
             .primitives
             .iter()
             .any(|p| matches!(p, effect::EffectPrimitiveDraw::QuadHorn { .. }));
-        let texture_lookup = |name: &str| -> Option<&wgpu::BindGroup> {
-            // Effect texture params store the bare filename
-            // (e.g. `ring_yellow.tga`); preload + cache uses the
-            // full GRF path (`data/texture/effect/<name>`).
-            if name.is_empty() {
-                return None;
-            }
-            let full = format!("data/texture/effect/{name}");
-            self.texture_cache.get(&full)
-        };
         if has_ground_discs {
             let fallback = &self.white_bind_group;
             self.effect_ground_disc_renderer.render(

@@ -10,7 +10,7 @@
 use models::enums::effect_id::EffectId;
 
 use super::buckets::{is_custom_bucket, is_noop_bucket};
-use super::effects::{bottom_sanctuary_pillar, magnum_break, stormgust, volcano, warp};
+use super::effects::{bottom_sanctuary_pillar, cast_circle, magnum_break, stormgust, volcano, warp};
 use super::spec::EffectSpec;
 use super::str_aliases::str_aliases;
 
@@ -67,19 +67,10 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             duration_ms: volcano::GUMGANG3.total_duration_ms(),
         },
 
-        // --- Factory-dispatched custom effects ---
-        // The factory picks the concrete implementation; the spec only
-        // carries the lifetime.
-        EffectId::Warpzone
-        | EffectId::Warpzone2
-        | EffectId::Level99
-        | EffectId::Level992
-        | EffectId::Level993
-        | EffectId::Level994
-        | EffectId::Level995
-        | EffectId::Level996
-        | EffectId::Icewall
-        | EffectId::Beginspell
+        // Cast-circle family — runs 40 frames at 60 fps;
+        // the generated default of 400 ms cuts the cylinder off before its
+        // fade-out completes.
+        EffectId::Beginspell
         | EffectId::Beginspell2
         | EffectId::Beginspell3
         | EffectId::Beginspell4
@@ -98,7 +89,22 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Beginasura5
         | EffectId::Beginasura6
         | EffectId::Beginasura7
-        | EffectId::Beginasura11
+        | EffectId::Beginasura11 => EffectSpec::Custom {
+            duration_ms: cast_circle::TOTAL_DURATION_MS,
+        },
+
+        // --- Factory-dispatched custom effects ---
+        // The factory picks the concrete implementation; the spec only
+        // carries the lifetime.
+        EffectId::Warpzone
+        | EffectId::Warpzone2
+        | EffectId::Level99
+        | EffectId::Level992
+        | EffectId::Level993
+        | EffectId::Level994
+        | EffectId::Level995
+        | EffectId::Level996
+        | EffectId::Icewall
         | EffectId::Earthspike
         | EffectId::Grimtooth
         | EffectId::Grimtoothatk
