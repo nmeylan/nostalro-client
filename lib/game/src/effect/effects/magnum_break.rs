@@ -1,5 +1,4 @@
 //! EF_MAGNUMBREAK — yellow ground shockwave + vertical explosion cone.
-//! Reference: original game `MagnumBreak()`.
 //!
 //! The parent emitter launches three primitives at frame 0:
 //!   * a ground ring tied to the parent's lifetime — `ring_yellow.tga`,
@@ -116,7 +115,7 @@ impl MagnumBreakEffect {
 
 impl Effect for MagnumBreakEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
-        self.age += ctx.dt;
+        self.age += ctx.delta;
         if self.age >= PARENT_DURATION_S {
             EffectStatus::Dead
         } else {
@@ -241,7 +240,7 @@ mod tests {
     }
 
     fn step(effect: &mut MagnumBreakEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { dt });
+        effect.update(&EffectUpdateCtx { delta: dt });
     }
 
     #[test]
@@ -319,7 +318,7 @@ mod tests {
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         while t < PARENT_DURATION_S * 2.0 {
-            status = mb.update(&EffectUpdateCtx { dt: 1.0 / 60.0 });
+            status = mb.update(&EffectUpdateCtx { delta: 1.0 / 60.0 });
             t += 1.0 / 60.0;
             if matches!(status, EffectStatus::Dead) {
                 break;

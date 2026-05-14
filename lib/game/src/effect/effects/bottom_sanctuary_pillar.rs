@@ -1,6 +1,5 @@
 //! EF_BOTTOM_SANC — sustained Sanctuary pillar at the caster's feet.
-//! Reference: original game `Bottom_Magnus("alpha_down.tga", 1)`
-//! at line 16847. Visible reference: `ro-effects/effects/imgs/300-350/317.gif`.
+//! Visible reference: `ro-effects/effects/imgs/300-350/317.gif`.
 //!
 //! A single rising 4-sided pillar:
 //!   * square base width 2.5
@@ -72,7 +71,7 @@ impl BottomSanctuaryPillarEffect {
 
 impl Effect for BottomSanctuaryPillarEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
-        self.age += ctx.dt;
+        self.age += ctx.delta;
         let total_s = TOTAL_DURATION_MS as f32 / 1000.0;
         if self.age >= total_s {
             EffectStatus::Dead
@@ -126,7 +125,7 @@ mod tests {
     }
 
     fn step(effect: &mut BottomSanctuaryPillarEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { dt });
+        effect.update(&EffectUpdateCtx { delta: dt });
     }
 
     #[test]
@@ -185,7 +184,7 @@ mod tests {
     #[test]
     fn runs_for_full_duration() {
         let mut bs = BottomSanctuaryPillarEffect::new(Attach::WorldPos([0.0; 3]));
-        let s = bs.update(&EffectUpdateCtx { dt: 1.0 });
+        let s = bs.update(&EffectUpdateCtx { delta: 1.0 });
         assert!(matches!(s, EffectStatus::Running));
     }
 }

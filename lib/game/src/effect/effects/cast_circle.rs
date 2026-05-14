@@ -88,7 +88,7 @@ impl CastCircleEffect {
 
 impl Effect for CastCircleEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
-        self.age += ctx.dt;
+        self.age += ctx.delta;
         // The cast-circle lifetime is gated by the holder via the spec's
         // duration. The struct itself never self-terminates.
         EffectStatus::Running
@@ -170,7 +170,7 @@ mod tests {
         let mut a = EffectDrawList::new();
         c.collect_draws(&mut a, &render_ctx());
         let uv_a = uv_of(&a.primitives[0]);
-        c.update(&EffectUpdateCtx { dt: 0.5 });
+        c.update(&EffectUpdateCtx { delta: 0.5 });
         let mut b = EffectDrawList::new();
         c.collect_draws(&mut b, &render_ctx());
         let uv_b = uv_of(&b.primitives[0]);
@@ -207,7 +207,7 @@ mod tests {
     fn never_self_terminates() {
         let mut c = CastCircleEffect::new(Attach::WorldPos([0.0; 3]), YELLOW);
         for _ in 0..200 {
-            assert_eq!(c.update(&EffectUpdateCtx { dt: 0.1 }), EffectStatus::Running);
+            assert_eq!(c.update(&EffectUpdateCtx { delta: 0.1 }), EffectStatus::Running);
         }
     }
 }

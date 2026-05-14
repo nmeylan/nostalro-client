@@ -111,7 +111,7 @@ dependencies = [
 [[package]]
 name = "accessor"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=0d000404#0d000404202c6ef7b71580742a71f93c904fce4a"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=b835240b#b835240bcc654e708eb35dae6b6e43b7921df5d4"
 dependencies = [
  "quote",
  "syn",
@@ -870,6 +870,7 @@ dependencies = [
 name = "effect-viewer-hot"
 version = "0.1.0"
 dependencies = [
+ "models",
  "ragnarok-formats",
  "ragnarok-game",
  "ragnarok-renderer",
@@ -1024,7 +1025,7 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 [[package]]
 name = "enum_macro"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=0d000404#0d000404202c6ef7b71580742a71f93c904fce4a"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=b835240b#b835240bcc654e708eb35dae6b6e43b7921df5d4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2016,7 +2017,7 @@ dependencies = [
 [[package]]
 name = "models"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=0d000404#0d000404202c6ef7b71580742a71f93c904fce4a"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=b835240b#b835240bcc654e708eb35dae6b6e43b7921df5d4"
 dependencies = [
  "accessor",
  "enum_macro",
@@ -2027,7 +2028,7 @@ dependencies = [
 [[package]]
 name = "movement"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=0d000404#0d000404202c6ef7b71580742a71f93c904fce4a"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=b835240b#b835240bcc654e708eb35dae6b6e43b7921df5d4"
 dependencies = [
  "packets",
  "tracing",
@@ -2538,7 +2539,7 @@ dependencies = [
 [[package]]
 name = "packets"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=0d000404#0d000404202c6ef7b71580742a71f93c904fce4a"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=b835240b#b835240bcc654e708eb35dae6b6e43b7921df5d4"
 dependencies = [
  "byteorder",
  "json-flat-parser",
@@ -2857,6 +2858,7 @@ dependencies = [
  "bytemuck",
  "glam",
  "image",
+ "models",
  "ragnarok-formats",
  "ragnarok-game",
  "tracing",
@@ -2873,6 +2875,7 @@ dependencies = [
  "glam",
  "image",
  "libloading",
+ "models",
  "notify",
  "ragnarok-formats",
  "ragnarok-game",

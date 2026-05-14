@@ -1,7 +1,4 @@
 //! EF_WARPZONE / EF_WARPZONE2 — looping portal pad.
-//! Reference: original game `WarpZone()`.
-//! Visible reference: `ro-effects/effects/imgs/50-100/61.gif`.
-//!
 //! The effect's frame counter wraps at frame 78, so the spawn pattern repeats
 //! every 78 frames (~1.3 s @ 60 fps). Each cycle emits:
 //!   * frame 0 — one base disc (`alpha_down.tga`, radius 15, duration 158,
@@ -154,12 +151,12 @@ impl WarpZoneEffect {
 
 impl Effect for WarpZoneEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
-        self.age += ctx.dt;
+        self.age += ctx.delta;
         for d in &mut self.base_discs {
-            d.age += ctx.dt;
+            d.age += ctx.delta;
         }
         for r in &mut self.inner_rings {
-            r.age += ctx.dt;
+            r.age += ctx.delta;
         }
 
         let still_spawning = self.age < self.params.total_duration_s;
@@ -241,7 +238,7 @@ mod tests {
     }
 
     fn step(effect: &mut WarpZoneEffect, dt: f32) -> EffectStatus {
-        effect.update(&EffectUpdateCtx { dt })
+        effect.update(&EffectUpdateCtx { delta: dt })
     }
 
     fn count_base(prims: &[EffectPrimitiveDraw]) -> usize {

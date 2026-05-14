@@ -33,6 +33,7 @@ ragnarok-formats = { workspace = true }
 ragnarok-renderer = { workspace = true }
 ragnarok-game = { workspace = true }
 ragnarok-ui = { workspace = true }
+models = { workspace = true }
 wgpu = { workspace = true }
 winit = { workspace = true }
 glam = { workspace = true }

@@ -79,6 +79,7 @@ pub struct Renderer {
     pub effect_sprite_renderer: SpriteRenderer,
     pub effect_ground_disc_renderer: effect::GroundDiscRenderer,
     pub effect_frustum_renderer: effect::FrustumRenderer,
+    pub effect_quad_horn_renderer: effect::QuadHornRenderer,
     pub ui_renderer: UiRenderer,
     pub font_atlas: FontAtlas,
     pub font_atlas_bind_group: wgpu::BindGroup,
@@ -151,6 +152,12 @@ impl Renderer {
             &global_uniforms.bind_group_layout,
             &texture_cache.bind_group_layout,
         );
+        let effect_quad_horn_renderer = effect::QuadHornRenderer::new(
+            &device.device,
+            device.surface_format,
+            &global_uniforms.bind_group_layout,
+            &texture_cache.bind_group_layout,
+        );
 
         let ui_renderer = UiRenderer::new(
             &device.device,
@@ -173,6 +180,7 @@ impl Renderer {
             effect_sprite_renderer,
             effect_ground_disc_renderer,
             effect_frustum_renderer,
+            effect_quad_horn_renderer,
             ui_renderer,
             font_atlas,
             font_atlas_bind_group,
@@ -481,6 +489,10 @@ impl Renderer {
             .primitives
             .iter()
             .any(|p| matches!(p, effect::EffectPrimitiveDraw::Frustum { .. }));
+        let has_quad_horns = effect_draws
+            .primitives
+            .iter()
+            .any(|p| matches!(p, effect::EffectPrimitiveDraw::QuadHorn { .. }));
         let texture_lookup = |name: &str| -> Option<&wgpu::BindGroup> {
             // Effect texture params store the bare filename
             // (e.g. `ring_yellow.tga`); preload + cache uses the
@@ -509,6 +521,21 @@ impl Renderer {
         if has_frustums {
             let fallback = &self.white_bind_group;
             self.effect_frustum_renderer.render(
+                &mut encoder,
+                &view,
+                &self.device.depth_view,
+                &self.device.device,
+                &self.device.queue,
+                &self.global_uniforms.bind_group,
+                &self.camera,
+                effect_draws,
+                fallback,
+                texture_lookup,
+            );
+        }
+        if has_quad_horns {
+            let fallback = &self.white_bind_group;
+            self.effect_quad_horn_renderer.render(
                 &mut encoder,
                 &view,
                 &self.device.depth_view,

@@ -18,7 +18,7 @@ pub struct CameraView {
 }
 
 pub struct EffectUpdateCtx {
-    pub dt: f32,
+    pub delta: f32,
 }
 
 pub struct EffectRenderCtx {
@@ -31,4 +31,11 @@ pub struct EffectRenderCtx {
 pub trait Effect: Send {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus;
     fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx);
+
+    /// STR animation that plays alongside this effect's primitives. Holder
+    /// emits a `StrSnapshot` for non-`None` returns each frame, attached to
+    /// the same world position. Default `None` — pure-primitive effects.
+    fn str_overlay(&self) -> Option<&'static str> {
+        None
+    }
 }

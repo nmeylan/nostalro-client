@@ -90,6 +90,41 @@ pub enum EffectPrimitiveDraw {
         color: [f32; 4],
         blend: BlendKind,
     },
+    /// Square-based pyramid spike — four outward-facing triangles meeting at
+    /// a single apex above the centre of a `2*size` × `2*size` base. Matches
+    /// the original game's quad-horn spike.
+    /// Used by Stormgust ice shards plus eight other effects in the
+    /// original game.
+    ///
+    /// Local frame: base square on the
+    /// local XY plane, apex at `(0, 0, height)` along local +Z. Rotations
+    /// use row-vector matrix conventions, so callers can pass the original
+    /// game's pitch / yaw values directly:
+    /// * `tilt_x_deg`  — pitch. 0° = horizontal along
+    ///   world +Z, 90° = straight UP (native RO), 100° = nearly vertical
+    ///   with slight backward lean (Stormgust), 270° = straight DOWN.
+    /// * `rotation_y_deg` — yaw. Rotates the tilted
+    ///   spike around the world up-axis to face a compass heading.
+    ///
+    /// `base` is the bottom-centre point in world coords; the unrotated
+    /// spike's apex sits at `base + (0, 0, height)`. This primitive uses
+    /// native RO `-Y = up`, so no Y flip is applied at world
+    /// output — `base[1]` lives directly in world Y.
+    ///
+    /// UV layout: each of the four triangles is a vertical strip
+    /// on the texture; base vertices at `v = 1`, apex at `v = 0`; `u`
+    /// advances by 0.2 per triangle starting at 0 (so the four strips
+    /// cover `[0, 0.8]`, leaving `[0.8, 1.0]` unused).
+    QuadHorn {
+        base: [f32; 3],
+        size: f32,
+        height: f32,
+        tilt_x_deg: f32,
+        rotation_y_deg: f32,
+        texture: &'static str,
+        color: [f32; 4],
+        blend: BlendKind,
+    },
     /// Vertical cylinder of light (Magnus, Sanctuary).
     Cylinder {
         base: [f32; 3],

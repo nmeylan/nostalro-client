@@ -1,5 +1,5 @@
+pub mod buckets;
 pub mod draw;
-pub mod effect_id;
 pub mod effect_queue;
 pub mod effect_trait;
 pub mod effects;
@@ -9,13 +9,9 @@ pub mod str_aliases;
 pub mod table;
 
 pub use draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-pub use effect_id::{
-    default_duration_ms, default_str_file, effect_ef_name, effect_name,
-    skill_effect, EffectId, ALL_EFFECT_IDS,
-};
 pub use effect_queue::{EffectQueue, SpawnRequest};
 pub use effect_trait::{CameraView, Effect, EffectRenderCtx, EffectUpdateCtx};
-pub use factory::{is_implemented, make_effect};
+pub use factory::{is_real_impl, make_effect};
 pub use spec::{Attach, EffectSpec};
 pub use str_aliases::str_aliases;
 pub use table::effect_spec;
@@ -34,6 +30,8 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::volcano::TEXTURES,
         effects::aura::TEXTURES,
         effects::cast_circle::TEXTURES,
+        effects::stormgust::TEXTURES,
+        effects::placeholder::TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {

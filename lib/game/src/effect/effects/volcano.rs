@@ -1,8 +1,5 @@
 //! VOLCANO family — four-emitter ground wreath of upward flame humps.
 //!
-//! Reference: original game `VOLCANO(tName, F1)` launching
-//! GI ring-2 cell rendered by the GI ring-2 emitter +
-//! the original game's 3D casting render. One helper, six effects:
 //!
 //! | EffectId         | Texture           | F1 | Visual                                |
 //! |------------------|-------------------|----|---------------------------------------|
@@ -20,13 +17,13 @@
 //! except the one centred on its rotation start. The texture's baked stripes
 //! are what produce the four-blade silhouette.
 //!
-//! `VolcanoParams` exposes the few scalars that the original game `F1` switch flips:
-//!   * `max_flame_tilt` — total flame length (scaled from the original `max_height`
-//!     by the same factor we apply to LandProtector; see lessons in the
-//!     plan doc about the original game's literal numbers being ~6× the gif).
+//! `VolcanoParams` exposes the few scalars that the original `F1` switch flips:
+//!   * `max_flame_tilt` — total flame length (scaled from the original game's max
+//!     height by the same factor we apply to LandProtector; the
+//!     original literal numbers are ~6× the gif).
 //!   * `initial_rise_angle_deg` — flame lean at frame 0.
 //!   * `alpha_ramp_up_per_frame` / `alpha_ramp_down_per_frame` — curve speeds.
-//!     `alpha_max` always reaches 200/255 (the original game's max alpha = 200).
+//!     `alpha_max` always reaches 200/255.
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -40,9 +37,9 @@ const MIN_RISE_ANGLE_DEG: f32 = 40.0;
 const RISE_DECAY_DEG_PER_FRAME: f32 = 1.0;
 const ROT_DEG_PER_FRAME: f32 = 3.0;
 const DISTANCE_GROWTH_PER_FRAME: f32 = 0.1;
-/// max alpha = 200; common to every VOLCANO variant.
+/// Peak alpha 200/255; common to every VOLCANO variant.
 const ALPHA_MAX: f32 = 200.0;
-/// 21 = the original game's subdivision count; we go a bit higher for a smoother hump.
+/// 21 ring divisions; we go a bit higher for a smoother hump.
 const SIDES: u32 = 21;
 /// One texture wrap per ring. The four-blade
 /// silhouette is carried by the texture stripes, not procedural geometry.
@@ -53,13 +50,13 @@ const UV_REPEAT: f32 = 1.0;
 pub struct VolcanoParams {
     pub texture: &'static str,
     /// Total flame extension (split into outward + upward by `rise_angle`).
-    /// LandProtector = 7.0 (original `max_height = 25` scaled to gif silhouette).
+    /// LandProtector = 7.0 (original max height 25 scaled to gif silhouette).
     pub max_flame_tilt: f32,
-    /// `rise_angle` starts here and decays at -1°/frame down to 40°.
+    /// Rise angle starts here and decays at -1°/frame down to 40°.
     pub initial_rise_angle_deg: f32,
-    /// start alpha += per_frame during ramp-up. Original game default = 20.
+    /// Alpha gained per frame during ramp-up. Original default = 20.
     pub alpha_ramp_up_per_frame: f32,
-    /// start alpha -= per_frame after hitting `ALPHA_MAX`. Original game default = 2.
+    /// Alpha lost per frame after hitting `ALPHA_MAX`. Original default = 2.
     pub alpha_ramp_down_per_frame: f32,
 }
 
@@ -107,8 +104,8 @@ pub const VIOLENTGALE: VolcanoParams = VolcanoParams {
     ..LANDPROTECTOR
 };
 
-/// EF_GANBANTEIN — `VOLCANO("ring_white.tga", 2)`. F1=2: the original game sets
-/// `max_height = 15` (vs 25), `rise_angle = 70` (vs 80) and a faster
+/// EF_GANBANTEIN — white wreath, F1=2: max height 15 (vs 25),
+/// rise angle 70 (vs 80) and a faster
 /// alpha-down (4/frame vs 2). Scaled to the same gif-silhouette factor we
 /// use for LandProtector.
 pub const GANBANTEIN: VolcanoParams = VolcanoParams {
@@ -119,8 +116,8 @@ pub const GANBANTEIN: VolcanoParams = VolcanoParams {
     alpha_ramp_down_per_frame: 4.0,
 };
 
-/// EF_GUMGANG3 — `VOLCANO("ring_yellow.tga", 1)`. F1=1: the original game halves the
-/// alpha-up speed (start alpha += 10 instead of 20), keeping the rest.
+/// EF_GUMGANG3 — yellow wreath, F1=1: halves the
+/// alpha-up speed (10/frame instead of 20), keeping the rest.
 pub const GUMGANG3: VolcanoParams = VolcanoParams {
     texture: "ring_yellow.tga",
     alpha_ramp_up_per_frame: 10.0,
@@ -167,7 +164,7 @@ impl VolcanoEffect {
 
 impl Effect for VolcanoEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
-        self.age += ctx.dt;
+        self.age += ctx.delta;
         let frame = self.age * FRAMES_PER_SECOND;
         if frame >= self.params.visible_frames() {
             EffectStatus::Dead
@@ -236,7 +233,7 @@ mod tests {
     }
 
     fn step(effect: &mut VolcanoEffect, dt: f32) -> EffectStatus {
-        effect.update(&EffectUpdateCtx { dt })
+        effect.update(&EffectUpdateCtx { delta: dt })
     }
 
     fn frustum_fields(prim: &EffectPrimitiveDraw) -> (f32, f32, f32, &'static str) {

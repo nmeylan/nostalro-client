@@ -17,7 +17,7 @@ pub enum EffectSpec {
         file: &'static str,
         duration_ms: u32,
     },
-    /// Behaviour dispatched by [`super::effect_id::EffectId`] via
+    /// Behaviour dispatched by `EffectId` via
     /// [`super::factory::make_effect`]. Per-effect parameters live inside the
     /// effect struct, not here.
     Custom { duration_ms: u32 },
@@ -26,4 +26,9 @@ pub enum EffectSpec {
         sprite: &'static str,
         duration_ms: u32,
     },
+    /// Effect with no rendering — original game has neither a sprintf STR
+    /// load nor primitive dispatch for this id (pass-through / data-only
+    /// effects: status markers, screen messages, no-op packet hooks).
+    /// Holder skips the spawn; viewers exclude it from listings.
+    Noop,
 }

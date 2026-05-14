@@ -8,7 +8,7 @@
 //! Keeping spawns one-way via a queue means the game crate never needs to
 //! know about renderer types (wgpu, etc).
 
-use super::effect_id::EffectId;
+use models::enums::effect_id::EffectId;
 use super::spec::Attach;
 
 /// One request to spawn a single effect.

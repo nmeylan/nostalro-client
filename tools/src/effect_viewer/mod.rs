@@ -24,9 +24,11 @@ use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 
 use ragnarok_formats::grf::GrfArchive;
+use models::enums::EnumWithNumberValue;
+use models::enums::EnumWithStringValue;
+use models::enums::effect_id::EffectId;
 use ragnarok_game::effect::{
-    EffectId, EffectQueue, EffectSpec, effect_ef_name, effect_name, effect_spec,
-    effect_texture_paths, str_aliases,
+    Attach, EffectQueue, EffectSpec, effect_spec, effect_texture_paths, str_aliases,
 };
 
 use crate::sprite_viewer::browser::SpriteBrowser;
@@ -135,6 +137,7 @@ const ACTION_NEXT_FILTER: u32 = 14;
 const ACTION_PREV_FILTER: u32 = 15;
 const ACTION_FOV_NARROWER: u32 = 16;
 const ACTION_FOV_WIDER: u32 = 17;
+const ACTION_STEP_FRAME: u32 = 18;
 
 type HotCreateFn = extern "C" fn() -> *mut ();
 type HotDestroyFn = unsafe extern "C" fn(*mut ());
@@ -145,6 +148,7 @@ type HotOnMouseDragFn = unsafe extern "C" fn(*mut (), f32, f32, u8);
 type HotGetFlagsFn = unsafe extern "C" fn(*mut (), *mut ViewerFlags);
 type HotGetCameraFn = unsafe extern "C" fn(*mut (), *mut CameraView);
 type HotTakePendingFn = unsafe extern "C" fn(*mut (), *mut PendingSpawn);
+type HotTakeStepRequestFn = unsafe extern "C" fn(*mut ()) -> u8;
 type HotSetLastStatusFn = unsafe extern "C" fn(*mut (), u8);
 type HotBuildOverlayFn =
     unsafe extern "C" fn(*mut (), *const FontAtlas, f32, f32, *mut Vec<UiDrawCall>);
@@ -178,6 +182,7 @@ const STATUS_RENDERING: u8 = 1;
 const STATUS_STR_FILE_MISSING: u8 = 2;
 const STATUS_CUSTOM_NOT_IMPL: u8 = 3;
 const STATUS_NO_SPEC: u8 = 4;
+const STATUS_NOOP: u8 = 5;
 
 fn spawn_status_to_u8(status: SpawnStatus) -> u8 {
     match status {
@@ -185,6 +190,7 @@ fn spawn_status_to_u8(status: SpawnStatus) -> u8 {
         SpawnStatus::StrFileMissing => STATUS_STR_FILE_MISSING,
         SpawnStatus::CustomNotImpl => STATUS_CUSTOM_NOT_IMPL,
         SpawnStatus::NoSpec => STATUS_NO_SPEC,
+        SpawnStatus::Noop => STATUS_NOOP,
     }
 }
 
@@ -198,6 +204,7 @@ struct HotLib {
     get_flags_fn: HotGetFlagsFn,
     get_camera_fn: HotGetCameraFn,
     take_pending_fn: HotTakePendingFn,
+    take_step_request_fn: HotTakeStepRequestFn,
     set_last_status_fn: HotSetLastStatusFn,
     build_overlay_fn: HotBuildOverlayFn,
     get_filtered_ids_fn: HotGetFilteredIdsFn,
@@ -224,6 +231,11 @@ struct HotLibEffectBackend {
     collect_fn: HotCollectCustomDrawsFn,
     drop_fn: HotDropCustomEffectFn,
     drop_all_fn: HotDropAllCustomEffectsFn,
+    /// Tracks the `EffectId` each live cdylib handle was spawned with so
+    /// `str_overlay` can be answered without FFI. `str_overlay` is a static
+    /// property of the effect type — the in-process factory returns the same
+    /// value as the cdylib's copy of the same source.
+    handle_ids: std::sync::Mutex<std::collections::HashMap<u64, u16>>,
 }
 
 // SAFETY: every cdylib FFI entrypoint takes the `state` pointer and we never
@@ -236,7 +248,14 @@ unsafe impl Sync for HotLibEffectBackend {}
 
 impl ExternalCustomBackend for HotLibEffectBackend {
     fn spawn(&self, effect_id: u16, world_pos: [f32; 3]) -> u64 {
-        unsafe { (self.spawn_fn)(self.state, effect_id, &world_pos as *const _) }
+        let handle = unsafe { (self.spawn_fn)(self.state, effect_id, &world_pos as *const _) };
+        if handle != 0 {
+            self.handle_ids
+                .lock()
+                .unwrap()
+                .insert(handle, effect_id);
+        }
+        handle
     }
 
     fn update(&self, handle: u64, dt: f32) -> bool {
@@ -268,11 +287,26 @@ impl ExternalCustomBackend for HotLibEffectBackend {
         };
     }
 
+    fn str_overlay(&self, handle: u64) -> Option<String> {
+        // Translate handle → effect_id → factory probe → str_overlay name.
+        // str_overlay is a static property of the effect type, so the
+        // in-process factory's answer matches the cdylib's.
+        let effect_id_u16 = *self.handle_ids.lock().unwrap().get(&handle)?;
+        let effect_id = EffectId::try_from_value(effect_id_u16 as usize).ok()?;
+        let probe = ragnarok_game::effect::factory::make_effect(
+            effect_id,
+            Attach::WorldPos([0.0, 0.0, 0.0]),
+        )?;
+        probe.str_overlay().map(|s| s.to_string())
+    }
+
     fn drop_handle(&self, handle: u64) {
+        self.handle_ids.lock().unwrap().remove(&handle);
         unsafe { (self.drop_fn)(self.state, handle) };
     }
 
     fn drop_all(&self) {
+        self.handle_ids.lock().unwrap().clear();
         unsafe { (self.drop_all_fn)(self.state) };
     }
 }
@@ -299,6 +333,9 @@ impl HotLib {
             let get_camera_fn = *lib.get::<HotGetCameraFn>(b"hot_get_camera").ok()?;
             let take_pending_fn =
                 *lib.get::<HotTakePendingFn>(b"hot_take_pending_spawn").ok()?;
+            let take_step_request_fn = *lib
+                .get::<HotTakeStepRequestFn>(b"hot_take_step_request")
+                .ok()?;
             let set_last_status_fn =
                 *lib.get::<HotSetLastStatusFn>(b"hot_set_last_status").ok()?;
             let build_overlay_fn =
@@ -338,6 +375,7 @@ impl HotLib {
                 get_flags_fn,
                 get_camera_fn,
                 take_pending_fn,
+                take_step_request_fn,
                 set_last_status_fn,
                 build_overlay_fn,
                 get_filtered_ids_fn,
@@ -367,6 +405,7 @@ impl HotLib {
             collect_fn: self.collect_custom_draws_fn,
             drop_fn: self.drop_custom_effect_fn,
             drop_all_fn: self.drop_all_custom_effects_fn,
+            handle_ids: std::sync::Mutex::new(std::collections::HashMap::new()),
         })
     }
 
@@ -430,6 +469,10 @@ impl HotLib {
         out
     }
 
+    fn take_step_request(&self) -> bool {
+        unsafe { (self.take_step_request_fn)(self.state) != 0 }
+    }
+
     fn take_pending_spawn(&self) -> Option<(EffectId, [f32; 3])> {
         let mut out = PendingSpawn::default();
         unsafe { (self.take_pending_fn)(self.state, &mut out) };
@@ -453,10 +496,8 @@ impl HotLib {
     }
 }
 
-/// Reverse-lookup a u16 onto an `EffectId` variant. Delegates to the
-/// generated table (821 variants, sparse discriminants up to 2027).
 fn effect_id_from_u16(value: u16) -> Option<EffectId> {
-    EffectId::from_u16(value)
+    EffectId::try_from_value(value as usize).ok()
 }
 
 fn find_dylib() -> PathBuf {
@@ -558,7 +599,7 @@ impl App {
             let Some(id) = effect_id_from_u16(raw) else {
                 continue;
             };
-            let label = format!("{} ({}) [{}]", effect_name(id), effect_ef_name(id), raw);
+            let label = format!("{:?} ({}) [{}]", id, id.as_str(), raw);
             self.browser_lookup.insert(label.clone(), id);
             items.push(label);
         }
@@ -618,7 +659,7 @@ impl App {
             return;
         };
         if let Some(hot) = &self.hot_lib {
-            hot.set_selected_effect_id(id.as_u16());
+            hot.set_selected_effect_id(id.value() as u16);
         }
     }
 
@@ -695,13 +736,27 @@ impl App {
             .spawn_at(effect_id, [pos[0], pos[1], pos[2]]);
     }
 
-    /// If `effect_id` resolves to an `EffectSpec::Str`, make sure its STR
-    /// file is in the cache. Tries the primary name first, then
-    /// auto-derived aliases. Failures are remembered so we don't retry
-    /// every cycle.
+    /// Make sure any STR file the effect needs is in the cache. Covers two
+    /// cases:
+    ///   * `EffectSpec::Str` — load the named file directly.
+    ///   * `EffectSpec::Custom` — query the factory for a throwaway
+    ///     instance; if it declares an `str_overlay()`, load that file too
+    ///     (hybrid effects like Stormgust). The throwaway instance is
+    ///     dropped immediately; the real spawn happens via the cdylib path.
+    /// Tries the primary name first, then known aliases.
+    /// Failures are remembered so we don't retry every cycle.
     fn ensure_str_loaded_for(&mut self, id: EffectId) {
-        let file = match effect_spec(id) {
+        let file: &'static str = match effect_spec(id) {
             Some(EffectSpec::Str { file, .. }) => file,
+            Some(EffectSpec::Custom { .. }) => {
+                let probe = ragnarok_game::effect::factory::make_effect(
+                    id,
+                    Attach::WorldPos([0.0, 0.0, 0.0]),
+                );
+                let Some(probe) = probe else { return };
+                let Some(overlay) = probe.str_overlay() else { return };
+                overlay
+            }
             _ => return,
         };
         if self.attempted_str_files.contains(file) {
@@ -743,7 +798,16 @@ impl App {
             .unwrap_or_default();
         let speed = (flags.speed_x100 as f32 / 100.0).max(0.0);
         let paused = flags.paused != 0;
-        let scaled_dt = if paused { 0.0 } else { dt * speed };
+        let step = paused
+            && self
+                .hot_lib
+                .as_ref()
+                .is_some_and(|h| h.take_step_request());
+        let scaled_dt = if paused {
+            if step { 1.0 / 60.0 } else { 0.0 }
+        } else {
+            dt * speed
+        };
 
         if let Some(hot) = &self.hot_lib {
             hot.update(scaled_dt);
@@ -751,7 +815,7 @@ impl App {
 
         // Drain spawn requests into the holder, then tick it.
         self.effect_holder.drain_queue(&mut self.effect_queue);
-        self.effect_holder.update(&EffectUpdateCtx { dt: scaled_dt });
+        self.effect_holder.update(&EffectUpdateCtx { delta: scaled_dt });
 
         let status_code = self
             .effect_holder
@@ -965,6 +1029,7 @@ impl ApplicationHandler for App {
                     Key::Named(NamedKey::End) => Some(ACTION_END),
                     Key::Character(c) => match c {
                         "r" | "R" => Some(ACTION_RESPAWN),
+                        "n" | "N" => Some(ACTION_STEP_FRAME),
                         "+" | "=" => Some(ACTION_SPEED_UP),
                         "-" | "_" => Some(ACTION_SPEED_DOWN),
                         "c" | "C" => Some(ACTION_RESET_CAMERA),

@@ -9,8 +9,9 @@
 
 use std::sync::Arc;
 
+use models::enums::effect_id::EffectId;
 use ragnarok_game::effect::{
-    Attach, Effect as GameEffect, EffectDrawList, EffectId, EffectQueue, EffectRenderCtx,
+    Attach, Effect as GameEffect, EffectDrawList, EffectQueue, EffectRenderCtx,
     EffectSpec, EffectStatus, EffectUpdateCtx, SpawnRequest, effect_spec, make_effect,
 };
 
@@ -27,6 +28,11 @@ pub trait ExternalCustomBackend: Send + Sync {
     /// has signalled death.
     fn update(&self, handle: u64, dt: f32) -> bool;
     fn collect(&self, handle: u64, ctx: &EffectRenderCtx, out: &mut EffectDrawList);
+    /// Optional STR overlay name for this effect instance. Default `None`;
+    /// hot-reload backends can probe their cdylib for the current overlay.
+    fn str_overlay(&self, _handle: u64) -> Option<String> {
+        None
+    }
     fn drop_handle(&self, handle: u64);
     fn drop_all(&self);
 }
@@ -49,6 +55,9 @@ pub enum SpawnOutcome {
     Spr,
     CustomNotImpl,
     NoSpec,
+    /// `EffectSpec::Noop` — original game has no visible behaviour for this
+    /// effect id. Holder treats the spawn as silently dropped.
+    Noop,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -57,6 +66,8 @@ pub enum SpawnStatus {
     StrFileMissing,
     CustomNotImpl,
     NoSpec,
+    /// Spec was `EffectSpec::Noop` — original game renders nothing.
+    Noop,
 }
 
 enum HeldPayload {
@@ -123,6 +134,10 @@ impl EffectHolder {
             self.last_spawn = Some(SpawnOutcome::NoSpec);
             return None;
         };
+        if matches!(spec, EffectSpec::Noop) {
+            self.last_spawn = Some(SpawnOutcome::Noop);
+            return None;
+        }
         let payload = match &spec {
             EffectSpec::Str { file, .. } => {
                 self.last_spawn = Some(SpawnOutcome::Str {
@@ -138,6 +153,7 @@ impl EffectHolder {
                     sprite: (*sprite).to_string(),
                 }
             }
+            EffectSpec::Noop => unreachable!("Noop handled above"),
             EffectSpec::Custom { .. } => {
                 if let Some(backend) = &self.external_backend {
                     let world_pos = match attach {
@@ -179,6 +195,7 @@ impl EffectHolder {
             EffectSpec::Str { duration_ms, .. }
             | EffectSpec::Spr { duration_ms, .. }
             | EffectSpec::Custom { duration_ms, .. } => duration_ms,
+            EffectSpec::Noop => unreachable!("Noop handled above"),
         });
         let duration = if duration_ms == u32::MAX {
             f32::INFINITY
@@ -234,7 +251,7 @@ impl EffectHolder {
     }
 
     pub fn update(&mut self, ctx: &EffectUpdateCtx) {
-        let dt = ctx.dt;
+        let dt = ctx.delta;
         let backend = self.external_backend.clone();
         self.effects.retain_mut(|e| {
             e.age += dt;
@@ -282,7 +299,8 @@ impl EffectHolder {
 
     /// Snapshot of every live STR effect (name + resolved world position +
     /// elapsed anim time). Renderer consumes this and feeds it into
-    /// `build_str_effect_batches`.
+    /// `build_str_effect_batches`. Custom effects that return `Some` from
+    /// `Effect::str_overlay` also contribute a snapshot.
     pub fn collect_str_emitters(
         &self,
         resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
@@ -290,13 +308,17 @@ impl EffectHolder {
         self.effects
             .iter()
             .filter_map(|e| {
-                let name = match &e.payload {
-                    HeldPayload::Str { name } => name,
+                let name: String = match &e.payload {
+                    HeldPayload::Str { name } => name.clone(),
+                    HeldPayload::Custom(c) => c.str_overlay()?.to_string(),
+                    HeldPayload::CustomExternal { handle } => {
+                        self.external_backend.as_ref()?.str_overlay(*handle)?
+                    }
                     _ => return None,
                 };
                 let pos = resolve_position(&e.attach, resolve_entity)?;
                 Some(StrSnapshot {
-                    name: name.clone(),
+                    name,
                     position: pos,
                     anim_time: e.age,
                 })
@@ -335,6 +357,7 @@ impl EffectHolder {
             }
             SpawnOutcome::CustomNotImpl => SpawnStatus::CustomNotImpl,
             SpawnOutcome::NoSpec => SpawnStatus::NoSpec,
+            SpawnOutcome::Noop => SpawnStatus::Noop,
         })
     }
 }
@@ -353,10 +376,11 @@ fn resolve_position(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_game::effect::{Attach, EffectId};
+    use models::enums::effect_id::EffectId;
+    use ragnarok_game::effect::Attach;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { dt }
+        EffectUpdateCtx { delta: dt }
     }
 
     #[test]
@@ -396,18 +420,18 @@ mod tests {
     }
 
     #[test]
-    fn factory_unimplemented_custom_reports_not_impl() {
+    fn factory_unimplemented_custom_falls_back_to_placeholder() {
+        // Icewall has a Custom spec but no real impl yet — the factory's
+        // placeholder catchall takes over so the spawn still succeeds and
+        // reports `Rendering`.
         let mut h = EffectHolder::new();
         let handle = h.spawn(
             EffectId::Icewall,
             Attach::WorldPos([0.0, 0.0, 0.0]),
             Some(500),
         );
-        assert!(handle.is_none());
-        assert_eq!(
-            h.last_spawn_status(|_| false),
-            Some(SpawnStatus::CustomNotImpl)
-        );
+        assert!(handle.is_some());
+        assert_eq!(h.last_spawn_status(|_| false), Some(SpawnStatus::Rendering));
     }
 
     #[test]
@@ -424,6 +448,47 @@ mod tests {
             h.last_spawn_status(|_| false),
             Some(SpawnStatus::StrFileMissing)
         );
+    }
+
+    #[test]
+    fn custom_effect_with_str_overlay_emits_snapshot() {
+        // Sociable test for the Slice G hybrid path: a Custom effect that
+        // declares an `str_overlay` must contribute a `StrSnapshot` alongside
+        // its primitive draws.
+        struct HybridFake;
+        impl GameEffect for HybridFake {
+            fn update(&mut self, _: &EffectUpdateCtx) -> EffectStatus {
+                EffectStatus::Running
+            }
+            fn collect_draws(&self, _: &mut EffectDrawList, _: &EffectRenderCtx) {}
+            fn str_overlay(&self) -> Option<&'static str> {
+                Some("stormgust")
+            }
+        }
+        let mut h = EffectHolder::new();
+        h.effects.push(HeldEffect {
+            handle: EffectHandle(1),
+            payload: HeldPayload::Custom(Box::new(HybridFake)),
+            attach: Attach::WorldPos([1.0, 2.0, 3.0]),
+            age: 0.5,
+            duration: 10.0,
+        });
+        let snaps = h.collect_str_emitters(&|_| None);
+        assert_eq!(snaps.len(), 1);
+        assert_eq!(snaps[0].name, "stormgust");
+        assert_eq!(snaps[0].position, [1.0, 2.0, 3.0]);
+        assert!((snaps[0].anim_time - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn custom_effect_without_overlay_emits_no_str_snapshot() {
+        // Warp is a Custom factory effect with no str_overlay — confirms the
+        // default `None` doesn't generate snapshots accidentally.
+        let mut h = EffectHolder::new();
+        h.spawn(EffectId::Warp, Attach::WorldPos([0.0, 0.0, 0.0]), Some(500))
+            .expect("spawn");
+        let snaps = h.collect_str_emitters(&|_| None);
+        assert!(snaps.is_empty());
     }
 
     #[test]

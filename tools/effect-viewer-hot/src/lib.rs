@@ -3,11 +3,13 @@
 #[global_allocator]
 static GLOBAL: std::alloc::System = std::alloc::System;
 
+use models::enums::EnumWithNumberValue;
+use models::enums::EnumWithStringValue;
+use models::enums::effect_id::EffectId;
 use ragnarok_game::effect::{
-    ALL_EFFECT_IDS, Attach, Effect as GameEffect, EffectDrawList, EffectId,
+    Attach, Effect as GameEffect, EffectDrawList,
     EffectRenderCtx as GameEffectRenderCtx, EffectSpec, EffectStatus,
-    EffectUpdateCtx as GameEffectUpdateCtx, effect_ef_name, effect_name, effect_spec,
-    make_effect,
+    EffectUpdateCtx as GameEffectUpdateCtx, effect_spec, make_effect,
 };
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -33,6 +35,7 @@ pub const ACTION_NEXT_FILTER: u32 = 14;
 pub const ACTION_PREV_FILTER: u32 = 15;
 pub const ACTION_FOV_NARROWER: u32 = 16;
 pub const ACTION_FOV_WIDER: u32 = 17;
+pub const ACTION_STEP_FRAME: u32 = 18;
 
 // === C-ABI POD types (host duplicates exactly) ===
 
@@ -152,12 +155,15 @@ fn filter_label(f: Filter) -> &'static str {
 }
 
 fn filter_matches(f: Filter, id: EffectId) -> bool {
-    if matches!(f, Filter::All) {
-        return true;
-    }
     let Some(spec) = effect_spec(id) else {
         return false;
     };
+    if matches!(spec, EffectSpec::Noop) {
+        return false;
+    }
+    if matches!(f, Filter::All) {
+        return true;
+    }
     matches!(
         (f, spec),
         (Filter::Str, EffectSpec::Str { .. })
@@ -167,9 +173,8 @@ fn filter_matches(f: Filter, id: EffectId) -> bool {
 }
 
 fn build_filtered(filter: Filter) -> Vec<EffectId> {
-    ALL_EFFECT_IDS
-        .iter()
-        .copied()
+    (0..=2027usize)
+        .filter_map(|v| EffectId::try_from_value(v).ok())
         .filter(|id| filter_matches(filter, *id))
         .collect()
 }
@@ -186,6 +191,10 @@ struct State {
     pending_spawn: Option<EffectId>,
     show_info: InfoPanel,
     last_status: u8,
+    /// Set by `ACTION_STEP_FRAME` while paused; the host consumes it via
+    /// `hot_take_step_request` to advance one 1/60s tick. Not persisted across
+    /// hot-reloads — stepping is per-keystroke and shouldn't survive a rebuild.
+    step_pending: bool,
 
     // Orbit camera around the spawn point.
     target: [f32; 3],
@@ -262,9 +271,9 @@ impl State {
             );
         };
         format!(
-            "{} ({})  [{}/{}]",
-            effect_name(id),
-            effect_ef_name(id),
+            "{:?} ({})  [{}/{}]",
+            id,
+            id.value(),
             self.selection + 1,
             self.filtered_ids.len(),
         )
@@ -348,6 +357,7 @@ pub extern "C" fn hot_create() -> *mut () {
         pending_spawn: first,
         show_info: InfoPanel::None,
         last_status: 0,
+        step_pending: false,
         target: [0.0; 3],
         yaw: 0.0,
         pitch: 0.0,
@@ -401,6 +411,11 @@ pub unsafe extern "C" fn hot_on_action(state_ptr: *mut (), action_code: u32) {
         ACTION_PREV_FILTER => state.cycle_filter(false),
         ACTION_FOV_NARROWER => state.adjust_fov(0.9),
         ACTION_FOV_WIDER => state.adjust_fov(1.1),
+        ACTION_STEP_FRAME => {
+            if state.paused {
+                state.step_pending = true;
+            }
+        }
         _ => {}
     }
 }
@@ -446,7 +461,7 @@ pub unsafe extern "C" fn hot_get_flags(state_ptr: *mut (), out: *mut ViewerFlags
         show_info: state.show_info as u8,
         _pad0: [0; 2],
         speed_x100: (state.speed * 100.0) as u32,
-        selected_effect_id: state.current_effect().map(|id| id.as_u16()).unwrap_or(u16::MAX),
+        selected_effect_id: state.current_effect().map(|id| id.value() as u16).unwrap_or(u16::MAX),
         _pad1: [0; 2],
     };
     unsafe { *out = f };
@@ -458,7 +473,7 @@ pub unsafe extern "C" fn hot_take_pending_spawn(state_ptr: *mut (), out: *mut Pe
     let state = unsafe { &mut *(state_ptr as *mut State) };
     let result = match state.pending_spawn.take() {
         Some(id) => PendingSpawn {
-            effect_id: id.as_u16(),
+            effect_id: id.value() as u16,
             valid: 1,
             _pad: 0,
             world_pos: [0.0, 0.0, 0.0],
@@ -466,6 +481,19 @@ pub unsafe extern "C" fn hot_take_pending_spawn(state_ptr: *mut (), out: *mut Pe
         None => PendingSpawn::default(),
     };
     unsafe { *out = result };
+}
+
+/// Pops the pending single-frame step request. Returns 1 if a step was
+/// queued (host should advance one 1/60s tick), 0 otherwise.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_take_step_request(state_ptr: *mut ()) -> u8 {
+    let state = unsafe { &mut *(state_ptr as *mut State) };
+    if state.step_pending {
+        state.step_pending = false;
+        1
+    } else {
+        0
+    }
 }
 
 /// Writes the currently filtered effect IDs (sorted as the dylib stores them)
@@ -476,7 +504,7 @@ pub unsafe extern "C" fn hot_get_filtered_ids(state_ptr: *mut (), out: *mut Vec<
     let state = unsafe { &*(state_ptr as *const State) };
     let out = unsafe { &mut *out };
     out.clear();
-    out.extend(state.filtered_ids.iter().map(|id| id.as_u16()));
+    out.extend(state.filtered_ids.iter().map(|id| id.value() as u16));
 }
 
 /// Host-initiated selection: jump the picker to the given effect id within the
@@ -484,7 +512,7 @@ pub unsafe extern "C" fn hot_get_filtered_ids(state_ptr: *mut (), out: *mut Vec<
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hot_set_selected_effect_id(state_ptr: *mut (), effect_id: u16) {
     let state = unsafe { &mut *(state_ptr as *mut State) };
-    let Some(id) = EffectId::from_u16(effect_id) else {
+    let Some(id) = EffectId::try_from_value(effect_id as usize).ok() else {
         return;
     };
     if let Some(idx) = state.filtered_ids.iter().position(|x| *x == id) {
@@ -505,7 +533,7 @@ pub unsafe extern "C" fn hot_snapshot_state(state_ptr: *mut (), out: *mut Persis
         version: PERSISTENT_STATE_VERSION,
         selected_effect_id: state
             .current_effect()
-            .map(|id| id.as_u16())
+            .map(|id| id.value() as u16)
             .unwrap_or(u16::MAX),
         filter_idx: state.filter_idx as u16,
         paused: state.paused as u8,
@@ -541,7 +569,7 @@ pub unsafe extern "C" fn hot_restore_state(state_ptr: *mut (), snap: *const Pers
     state.filter_idx = filter_idx;
     state.filtered_ids = build_filtered(state.current_filter());
 
-    state.selection = match EffectId::from_u16(snap.selected_effect_id) {
+    state.selection = match EffectId::try_from_value(snap.selected_effect_id as usize).ok() {
         Some(id) => state
             .filtered_ids
             .iter()
@@ -616,6 +644,7 @@ const LEGEND: &[(&str, &str)] = &[
     ("Tab", "Browser"),
     ("R", "Replay"),
     ("Space", "Pause"),
+    ("N", "Step frame"),
     ("+ / -", "Speed"),
     ("Scroll", "Zoom"),
     ("Right drag", "Orbit"),
@@ -641,6 +670,7 @@ const CONTROLS_LINES: &[&str] = &[
     "",
     "Playback:",
     "  Space        Pause / resume",
+    "  N            Step one frame (1/60s) while paused",
     "  + / -        Speed up / down (0.1x - 4.0x)",
     "",
     "Camera:",
@@ -826,7 +856,7 @@ pub unsafe extern "C" fn hot_spawn_custom_effect(
     world_pos: *const [f32; 3],
 ) -> u64 {
     let state = unsafe { &*(state_ptr as *const State) };
-    let Some(id) = EffectId::from_u16(effect_id) else {
+    let Some(id) = EffectId::try_from_value(effect_id as usize).ok() else {
         return 0;
     };
     let world_pos = if world_pos.is_null() {
@@ -859,7 +889,7 @@ pub unsafe extern "C" fn hot_update_custom_effect(
     let Some(effect) = effects.get_mut(&handle) else {
         return 1;
     };
-    let status = effect.update(&GameEffectUpdateCtx { dt });
+    let status = effect.update(&GameEffectUpdateCtx { delta: dt });
     matches!(status, EffectStatus::Dead) as u8
 }
 

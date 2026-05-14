@@ -1,22 +1,25 @@
 //! Single dispatch point from [`EffectId`] to a concrete [`Effect`]
-//! implementation. The match below grows as effects get implemented;
-//! [`make_effect`] returns `None` for ids that don't have one yet, and
-//! callers report them as `CustomNotImpl`.
+//! implementation. Real implementations have explicit arms in the match
+//! below; any remaining id whose spec resolves to `EffectSpec::Custom`
+//! falls into the placeholder catchall (pink billboard, plus the original
+//! game's STR overlay for the 12 StrHybrid ids).
 
-use super::effect_id::EffectId;
+use models::enums::effect_id::EffectId;
+use super::buckets::is_hybrid;
 use super::effect_trait::Effect;
 use super::effects;
 use super::spec::Attach;
+use super::str_aliases::str_aliases;
 
-/// Build a concrete custom-effect instance. Returns `None` for ids that
-/// aren't implemented yet — callers (the holder spawn path) should log and
-/// report `CustomNotImpl`.
+/// Build a concrete custom-effect instance. Ids with a real implementation
+/// hit an explicit arm below; anything else lands on the placeholder.
 pub fn make_effect(id: EffectId, attach: Attach) -> Option<Box<dyn Effect>> {
     Some(match id {
         EffectId::Warp => Box::new(effects::warp::WarpEffect::new(attach)),
         EffectId::Magnumbreak => {
             Box::new(effects::magnum_break::MagnumBreakEffect::new(attach))
         }
+        EffectId::Stormgust => Box::new(effects::stormgust::StormgustEffect::new(attach)),
         EffectId::BottomSanc => {
             Box::new(effects::bottom_sanctuary_pillar::BottomSanctuaryPillarEffect::new(attach))
         }
@@ -154,17 +157,27 @@ pub fn make_effect(id: EffectId, attach: Attach) -> Option<Box<dyn Effect>> {
             attach,
             effects::cast_circle::ASURA_CHAMPION,
         )),
-        _ => return None,
+        // Placeholder catchall. Hybrid ids (12 effects, e.g. Stormgust,
+        // Coin, Glasswall) declare an STR overlay so the original game's
+        // STR animation plays alongside the pink marker. Pure-custom ids
+        // (407 minus those with real impls above) get the marker only.
+        other if is_hybrid(other) => Box::new(effects::placeholder::HybridPlaceholderEffect::new(
+            attach,
+            str_aliases(other)[0],
+        )),
+        _ => Box::new(effects::placeholder::PlaceholderEffect::new(attach)),
     })
 }
 
-/// `make_effect` predicate without paying for construction. Same arms as
-/// `make_effect`; keep them in sync.
-pub fn is_implemented(id: EffectId) -> bool {
+/// `true` when [`make_effect`] returns a concrete (non-placeholder)
+/// implementation for `id`. Keep arms in sync with the explicit branches in
+/// `make_effect`.
+pub fn is_real_impl(id: EffectId) -> bool {
     matches!(
         id,
         EffectId::Warp
             | EffectId::Magnumbreak
+            | EffectId::Stormgust
             | EffectId::BottomSanc
             | EffectId::Warpzone
             | EffectId::Warpzone2
@@ -210,13 +223,23 @@ mod tests {
     fn warp_dispatches() {
         let e = make_effect(EffectId::Warp, Attach::WorldPos([0.0; 3]));
         assert!(e.is_some());
-        assert!(is_implemented(EffectId::Warp));
+        assert!(is_real_impl(EffectId::Warp));
     }
 
     #[test]
-    fn unimplemented_returns_none() {
-        // Pick a definitely-unimplemented id.
-        assert!(make_effect(EffectId::Hit2, Attach::WorldPos([0.0; 3])).is_none());
-        assert!(!is_implemented(EffectId::Hit2));
+    fn unimplemented_custom_falls_back_to_placeholder() {
+        // Hit2 is in the Custom bucket (original game dispatches it to PP_*) but
+        // doesn't yet have a real Rust impl — factory returns the pink
+        // placeholder, and `is_real_impl` reports false.
+        assert!(make_effect(EffectId::Hit2, Attach::WorldPos([0.0; 3])).is_some());
+        assert!(!is_real_impl(EffectId::Hit2));
+    }
+
+    #[test]
+    fn hybrid_placeholder_carries_str_overlay() {
+        // Coin is a StrHybrid id with no real impl — factory routes it
+        // through `HybridPlaceholderEffect` so its STR file still plays.
+        let e = make_effect(EffectId::Coin, Attach::WorldPos([0.0; 3])).unwrap();
+        assert_eq!(e.str_overlay(), Some(str_aliases(EffectId::Coin)[0]));
     }
 }
