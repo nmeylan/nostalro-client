@@ -18,6 +18,8 @@
 //!   * Sidebar picker UI (instead of cycle key)
 //!   * Camera orbit controls
 
+pub mod gif_export;
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -47,6 +49,13 @@ use winit::window::{Window, WindowAttributes, WindowId};
 
 pub struct Args {
     pub grf_path: String,
+}
+
+/// Batch-mode GIF export: render one effect at the cdylib's default camera
+/// and exit when the GIF is fully written. Window is created hidden.
+pub struct BatchExport {
+    pub effect_id: EffectId,
+    pub out_path: PathBuf,
 }
 
 // === FFI types - must match `tools/effect-viewer-hot/src/lib.rs` exactly ===
@@ -499,6 +508,15 @@ fn effect_id_from_u16(value: u16) -> Option<EffectId> {
     EffectId::try_from_value(value as usize).ok()
 }
 
+fn effect_duration_ms(id: EffectId) -> Option<u32> {
+    match effect_spec(id) {
+        Some(EffectSpec::Custom { duration_ms }) => Some(duration_ms),
+        Some(EffectSpec::Str { duration_ms, .. }) => Some(duration_ms),
+        Some(EffectSpec::Spr { duration_ms, .. }) => Some(duration_ms),
+        Some(EffectSpec::Noop) | None => None,
+    }
+}
+
 fn find_dylib() -> PathBuf {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let target_dir = manifest_dir.parent().unwrap().join("target").join("debug");
@@ -549,6 +567,15 @@ struct App {
     /// Set after the first triage log line so the markdown table header is
     /// printed exactly once per viewer session.
     triage_header_emitted: bool,
+    /// Active GIF export, when present. Set by the `E` key handler in
+    /// interactive mode or by `run_batch_export` for headless capture.
+    gif_session: Option<gif_export::GifSession>,
+    /// Batch-export configuration. When set, the app starts a GIF session
+    /// on first frame and exits when capture completes.
+    batch: Option<BatchExport>,
+    /// Set by the batch path once the GIF is finalized; the event loop
+    /// observes this on the next `RedrawRequested` and exits.
+    should_exit: bool,
 }
 
 impl App {
@@ -586,6 +613,9 @@ impl App {
             last_mouse: (0.0, 0.0),
             mouse_down_right: false,
             triage_header_emitted: false,
+            gif_session: None,
+            batch: None,
+            should_exit: false,
         }
     }
 
@@ -834,9 +864,71 @@ impl App {
         );
     }
 
+    /// Begin a GIF export for `effect_id`, writing to `out_path`. Clears
+    /// the current effect holder and respawns the effect at the world
+    /// origin so the recording starts from frame 0.
+    fn start_gif_export(&mut self, effect_id: EffectId, out_path: PathBuf) -> bool {
+        if self.gif_session.is_some() {
+            eprintln!("[gif] export already in progress, ignoring request");
+            return false;
+        }
+        let Some(renderer) = &self.renderer else {
+            eprintln!("[gif] renderer not initialised yet");
+            return false;
+        };
+        let format = renderer.device.surface_format;
+        let session = match gif_export::GifSession::begin(
+            &renderer.device.device,
+            format,
+            effect_id,
+            effect_duration_ms(effect_id),
+            out_path.clone(),
+        ) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("[gif] failed to begin export: {e}");
+                return false;
+            }
+        };
+        eprintln!(
+            "[gif] recording effect {} ({:?}) → {} ({} frames @ {} fps)",
+            effect_id.value(),
+            effect_id,
+            out_path.display(),
+            session.frames_total,
+            gif_export::GIF_FPS,
+        );
+        self.effect_holder.clear();
+        self.ensure_str_loaded_for(effect_id);
+        self.effect_queue.spawn_at(effect_id, [0.0, 0.0, 0.0]);
+        self.gif_session = Some(session);
+        true
+    }
+
+    /// Default output path for an interactive (E-key) export.
+    fn default_gif_out_path(effect_id: EffectId) -> PathBuf {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        PathBuf::from(format!("gif_export/{}_{}.gif", effect_id.value(), ts))
+    }
+
     fn render_frame(&mut self) {
         self.check_hot_reload();
-        self.poll_pending_spawn();
+        // During an active GIF export the spawn comes from `start_gif_export`,
+        // not from the cdylib's picker. Drain any pending spawn so the next
+        // frame doesn't pick it up, but otherwise leave the holder alone —
+        // letting `poll_pending_spawn` fire would clear our explicit spawn
+        // and replace it with the cdylib's currently-selected effect.
+        if self.gif_session.is_some() {
+            if let Some(hot) = &self.hot_lib {
+                let _ = hot.take_pending_spawn();
+            }
+        } else {
+            self.poll_pending_spawn();
+        }
 
         let now = Instant::now();
         let raw_dt = now.duration_since(self.last_frame).as_secs_f32();
@@ -855,7 +947,14 @@ impl App {
                 .hot_lib
                 .as_ref()
                 .is_some_and(|h| h.take_step_request());
-        let scaled_dt = if paused {
+        // When a GIF export is active, the simulation is driven by a fixed
+        // tick so the recording is deterministic regardless of vsync jitter
+        // or the user's pause/speed flags. The viewer also rebuilds the same
+        // frame for the surface below, so the user sees what is being
+        // captured in real time.
+        let scaled_dt = if self.gif_session.is_some() {
+            1.0 / gif_export::SIM_TICK_HZ
+        } else if paused {
             if step { 1.0 / 60.0 } else { 0.0 }
         } else {
             dt * speed
@@ -951,6 +1050,52 @@ impl App {
         }
 
         renderer.render(&ui_calls, &effect_batches, &effect_draws, &[], &[], &[], 0.0);
+
+        // GIF capture path: after the surface frame is presented, render the
+        // same simulation state into the offscreen capture target at 256x256
+        // with a black background and no HUD, then read it back as one GIF
+        // frame. The renderer's camera aspect is reset by the next surface
+        // render(), so we don't need to restore it here.
+        if let Some(session) = self.gif_session.as_mut() {
+            let capture_now = session.tick_should_capture();
+            if capture_now {
+                renderer.camera.aspect = 1.0;
+                let cap_w = gif_export::GIF_W as f32;
+                let cap_h = gif_export::GIF_H as f32;
+                let str_batches_capture = build_str_effect_batches(
+                    &str_inputs,
+                    &self.str_effects,
+                    &renderer.camera,
+                    cap_w,
+                    cap_h,
+                );
+                let color_view = session.target.color_view.clone();
+                let depth_view = session.target.depth_view.clone();
+                renderer.render_into(
+                    &color_view,
+                    &depth_view,
+                    gif_export::GIF_W,
+                    gif_export::GIF_H,
+                    wgpu::Color::BLACK,
+                    &[],
+                    &str_batches_capture,
+                    &effect_draws,
+                    &[],
+                    &[],
+                    &[],
+                    0.0,
+                );
+                session.write_current_frame(&renderer.device.device, &renderer.device.queue);
+            }
+            if session.is_complete() {
+                let out = session.out_path().clone();
+                eprintln!("[gif] export complete: {}", out.display());
+                self.gif_session = None;
+                if self.batch.is_some() {
+                    self.should_exit = true;
+                }
+            }
+        }
     }
 }
 
@@ -959,9 +1104,11 @@ impl ApplicationHandler for App {
         if self.window.is_some() {
             return;
         }
+        let batch_mode = self.batch.is_some();
         let attrs = WindowAttributes::default()
             .with_title("Effect Viewer")
-            .with_inner_size(winit::dpi::PhysicalSize::new(1024u32, 768u32));
+            .with_inner_size(winit::dpi::PhysicalSize::new(1024u32, 768u32))
+            .with_visible(!batch_mode);
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
         let renderer = block_on(Renderer::new(window.clone(), 14.0, 1.0));
 
@@ -996,6 +1143,17 @@ impl ApplicationHandler for App {
         self.white_bind_group = Some(white_bind_group);
         self.window = Some(window);
         self.last_frame = Instant::now();
+
+        // Batch mode: kick off the GIF export immediately so the first
+        // render_frame call (triggered by winit's initial RedrawRequested)
+        // already has a session running and ticks at gif-deterministic dt.
+        if let Some(batch) = self.batch.as_ref() {
+            let effect_id = batch.effect_id;
+            let out_path = batch.out_path.clone();
+            if !self.start_gif_export(effect_id, out_path) {
+                self.should_exit = true;
+            }
+        }
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -1040,6 +1198,21 @@ impl ApplicationHandler for App {
                 }
                 if matches!(event.logical_key.as_ref(), Key::Named(NamedKey::Tab)) {
                     self.open_browser();
+                    return;
+                }
+                if matches!(event.logical_key.as_ref(), Key::Character("e") | Key::Character("E"))
+                {
+                    let id_u16 = self
+                        .hot_lib
+                        .as_ref()
+                        .map(|h| h.snapshot_state().selected_effect_id)
+                        .unwrap_or(u16::MAX);
+                    if let Some(id) = effect_id_from_u16(id_u16) {
+                        let out = Self::default_gif_out_path(id);
+                        self.start_gif_export(id, out);
+                    } else {
+                        eprintln!("[gif] no effect currently selected");
+                    }
                     return;
                 }
                 if matches!(event.logical_key.as_ref(), Key::Character("b") | Key::Character("B"))
@@ -1119,6 +1292,10 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 self.render_frame();
+                if self.should_exit {
+                    event_loop.exit();
+                    return;
+                }
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
@@ -1137,6 +1314,26 @@ pub fn run(args: Args) {
         .init();
     let event_loop = EventLoop::new().unwrap();
     let mut app = App::new(args);
+    event_loop.run_app(&mut app).unwrap();
+}
+
+/// Batch GIF export. Creates a hidden window so wgpu can initialise its
+/// surface (the renderer's pipelines are baked against the surface format),
+/// loads the cdylib so the default camera matches what `C` would reset to
+/// in the interactive viewer, and exits when the GIF is fully written.
+pub fn run_batch_export(args: Args, effect_id: EffectId, out_path: PathBuf) {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
+    let event_loop = EventLoop::new().unwrap();
+    let mut app = App::new(args);
+    app.batch = Some(BatchExport {
+        effect_id,
+        out_path,
+    });
     event_loop.run_app(&mut app).unwrap();
 }
 

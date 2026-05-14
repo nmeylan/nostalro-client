@@ -394,13 +394,6 @@ impl Renderer {
         inline_textures: &[&wgpu::BindGroup],
         elapsed: f32,
     ) {
-        self.global_uniforms
-            .update_camera(&self.device.queue, &self.camera);
-
-        if let Some(water) = &self.water_renderer {
-            water.update(&self.device.queue, elapsed);
-        }
-
         let output = match self.device.surface.get_current_texture() {
             Ok(tex) => tex,
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
@@ -415,6 +408,68 @@ impl Renderer {
         };
 
         let view = output.texture.create_view(&Default::default());
+        let depth_view = self.device.depth_view.clone();
+        let phys_w = self.device.surface_config.width;
+        let phys_h = self.device.surface_config.height;
+        let clear = self.clear_color;
+        self.render_into(
+            &view,
+            &depth_view,
+            phys_w,
+            phys_h,
+            clear,
+            ui_draw_calls,
+            effect_sprite_batches,
+            effect_draws,
+            sprite_batches,
+            cursor_batches,
+            inline_textures,
+            elapsed,
+        );
+        output.present();
+    }
+
+    /// Render a full frame to caller-provided color + depth views. Used by
+    /// `render()` for the surface path and by offline capture (gif export)
+    /// for an in-memory target. The render pipelines are baked against
+    /// `self.device.surface_format`, so offscreen color targets must use
+    /// that format too.
+    pub fn render_into(
+        &mut self,
+        color_view: &wgpu::TextureView,
+        depth_view: &wgpu::TextureView,
+        physical_w: u32,
+        physical_h: u32,
+        clear_color: wgpu::Color,
+        ui_draw_calls: &[UiDrawCall],
+        effect_sprite_batches: &[SpriteBatch],
+        effect_draws: &effect::EffectDrawList,
+        sprite_batches: &[SpriteBatch],
+        cursor_batches: &[SpriteBatch],
+        inline_textures: &[&wgpu::BindGroup],
+        elapsed: f32,
+    ) {
+        if physical_w == 0 || physical_h == 0 {
+            return;
+        }
+        let logical_w = physical_w as f32 / self.dpi_scale;
+        let logical_h = physical_h as f32 / self.dpi_scale;
+        self.camera.aspect = physical_w as f32 / physical_h as f32;
+        self.sprite_renderer
+            .resize(&self.device.queue, logical_w, logical_h);
+        self.effect_sprite_renderer
+            .resize(&self.device.queue, logical_w, logical_h);
+        self.ui_renderer
+            .resize(&self.device.queue, logical_w, logical_h);
+
+        self.global_uniforms
+            .update_camera(&self.device.queue, &self.camera);
+
+        if let Some(water) = &self.water_renderer {
+            water.update(&self.device.queue, elapsed);
+        }
+
+        let view = color_view;
         let mut encoder = self
             .device
             .device
@@ -428,12 +483,12 @@ impl Renderer {
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(self.clear_color),
+                        load: wgpu::LoadOp::Clear(clear_color),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.device.depth_view,
+                    view: depth_view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
@@ -483,8 +538,8 @@ impl Renderer {
         let billboard_batches = effect::build_billboard_batches(
             effect_draws,
             &self.camera,
-            self.device.surface_config.width as f32 / self.dpi_scale,
-            self.device.surface_config.height as f32 / self.dpi_scale,
+            logical_w,
+            logical_h,
             &self.white_bind_group,
             texture_lookup,
         );
@@ -492,7 +547,7 @@ impl Renderer {
             self.effect_sprite_renderer.render(
                 &mut encoder,
                 &view,
-                Some(&self.device.depth_view),
+                Some(depth_view),
                 &self.device.device,
                 &self.device.queue,
                 None,
@@ -503,7 +558,7 @@ impl Renderer {
             self.effect_sprite_renderer.render(
                 &mut encoder,
                 &view,
-                Some(&self.device.depth_view),
+                Some(depth_view),
                 &self.device.device,
                 &self.device.queue,
                 None,
@@ -531,7 +586,7 @@ impl Renderer {
             self.effect_ground_disc_renderer.render(
                 &mut encoder,
                 &view,
-                &self.device.depth_view,
+                depth_view,
                 &self.device.device,
                 &self.device.queue,
                 &self.global_uniforms.bind_group,
@@ -546,7 +601,7 @@ impl Renderer {
             self.effect_frustum_renderer.render(
                 &mut encoder,
                 &view,
-                &self.device.depth_view,
+                depth_view,
                 &self.device.device,
                 &self.device.queue,
                 &self.global_uniforms.bind_group,
@@ -561,7 +616,7 @@ impl Renderer {
             self.effect_quad_horn_renderer.render(
                 &mut encoder,
                 &view,
-                &self.device.depth_view,
+                depth_view,
                 &self.device.device,
                 &self.device.queue,
                 &self.global_uniforms.bind_group,
@@ -576,7 +631,7 @@ impl Renderer {
             self.sprite_renderer.render(
                 &mut encoder,
                 &view,
-                Some(&self.device.depth_view),
+                Some(depth_view),
                 &self.device.device,
                 &self.device.queue,
                 None,
@@ -637,7 +692,6 @@ impl Renderer {
         }
 
         self.device.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
     }
 
     pub fn try_load_grf_font(&mut self, grf: &GrfArchive) {
