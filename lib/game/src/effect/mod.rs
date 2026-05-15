@@ -30,6 +30,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::volcano::TEXTURES,
         effects::aura::TEXTURES,
         effects::cast_circle::TEXTURES,
+        effects::begin_spell_6::TEXTURES,
         effects::stormgust::TEXTURES,
         effects::placeholder::TEXTURES,
     ];

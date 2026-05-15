@@ -268,7 +268,7 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Beginspell3 => 400,
         EffectId::Beginspell4 => 400,
         EffectId::Beginspell5 => 400,
-        EffectId::Beginspell6 => 400,
+        EffectId::Beginspell6 => 1100,
         EffectId::Beginspell7 => 400,
         EffectId::Lockon => 2000,
         EffectId::Warpzone => 2500,

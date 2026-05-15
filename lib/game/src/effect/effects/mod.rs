@@ -5,6 +5,7 @@
 //! ([`super::factory::make_effect`]) is the single dispatch point.
 
 pub mod aura;
+pub mod begin_spell_6;
 pub mod bottom_sanctuary_pillar;
 pub mod cast_circle;
 pub mod magnum_break;

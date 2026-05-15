@@ -101,10 +101,7 @@ pub fn make_effect(id: EffectId, attach: Attach) -> Option<Box<dyn Effect>> {
             attach,
             effects::cast_circle::EARTH,
         )),
-        EffectId::Beginspell6 => Box::new(effects::cast_circle::CastCircleEffect::new(
-            attach,
-            effects::cast_circle::HOLY,
-        )),
+        EffectId::Beginspell6 => Box::new(effects::begin_spell_6::BeginSpell6Effect::new(attach)),
         EffectId::Beginspell7 => Box::new(effects::cast_circle::CastCircleEffect::new(
             attach,
             effects::cast_circle::POISON,
