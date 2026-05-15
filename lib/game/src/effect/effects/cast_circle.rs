@@ -1,27 +1,38 @@
 //! `EF_BEGINSPELL*` / `EF_BEGINASURA*` — cast-circle aura under the caster.
 //!
-//! Reference 54.gif shows three distinct visual elements (the original
-//! `SAINTCASTING` → GI-1 source describes a tilted-cone primitive
-//! whose flared geometry doesn't match the kRO reference silhouette, so
-//! we build the look as a composite of primitives we have):
+//! The casting aura walks a closed strip around the FULL 360° ring at
+//! a fixed radius (4.1) with `rise_angle = 80°` measured from
+//! horizontal (i.e. the petals lean almost straight up). Each
+//! segment's bottom vertex sits on the ring, the top
+//! vertex is offset radially outward by `cos(rise)·height` and up by
+//! `sin(rise)·height`. Four sub-emitters stack at the
+//! same ring with different rotation starts (180°, 270°, 0°, 90° — 90°
+//! apart), different max-height, and staggered `process = -ec * 5`
+//! fade-ins. The four visible petals in the reference gif come from
+//! that 90°-apart starts pattern.
 //!
-//! 1. **Central vertical column** — a narrow constant-width pillar of
-//!    light rising from the caster's feet. Rendered as a single closed
-//!    [`Frustum`] with `bottom_size == top_size` (cylinder, no flare).
-//!    Grows from 0 to `COLUMN_HEIGHT` over the fade-in window.
+//! Mapping that onto the [`Frustum`] primitive (closed cone, centered on
+//! a vertical axis, supports a single sin-wave peak around its rim via
+//! `wave_amplitude` / `wave_frequency` / `wave_phase`):
 //!
-//! 2. **Ground base ring** — a flat dark band of light around the
-//!    caster's feet (the "shadow" the column rises from). Rendered as a
-//!    [`GroundDisc`] annulus at the caster's feet.
+//! 1. **Central vertical column** — narrow constant-width pillar of
+//!    light. Single closed [`Frustum`] with `bottom_size == top_size`
+//!    (cylinder). Grows over the fade-in window.
 //!
-//! 3. **Petals** — four small short tilted [`Frustum`] cones at radial
-//!    offsets, leaning outward (modelled after the original game's 4 sub-emitters
-//!    with `rise_angle ≈ 70°`). Staggered fade-ins make them appear in
-//!    sequence around the ring — that's the "wave around the circle"
-//!    feel.
+//! 2. **Ground base ring** — flat band around the caster's feet, the
+//!    "shadow" the column rises from. [`GroundDisc`] annulus.
 //!
-//! Total visible duration ≈ 56 frames (933 ms) — matches the original's clamp
-//! `duration >= 56` inside the saint-casting path.
+//! 3. **Petals** — four [`Frustum`]s, ALL centered on the column. Each
+//!    has `wave_frequency = 1` (one peak around its rim) and a distinct
+//!    `wave_phase` 90° apart so the four peaks land at four compass
+//!    headings. The wave goes from collapsed (top vertex on the bottom
+//!    ring → invisible) to full extension (top vertex displaced
+//!    radially outward + up by `max_height` along the rise tilt). The
+//!    whole phase array advances over time so the four peaks orbit the
+//!    column center.
+//!
+//! Total visible duration ≈ 56 frames (933 ms) — matches the original
+//! game's on-screen casting-aura lifetime.
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -33,13 +44,17 @@ pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) a
 
 const NUM_PETALS: usize = 4;
 
-/// Per-petal staggered fade-in delay in frames — first petal at 0,
-/// others arrive in sequence. Same offsets pattern the original game uses on
-/// `GI[ec].alpha_b`.
-const PETAL_FADE_IN_DELAYS: [f32; NUM_PETALS] = [22.0, 14.0, 7.0, 0.0];
+/// Per-petal staggered start in frames — original game uses
+/// `process = -ec * 5` for short casts, so ec=0 is visible immediately
+/// and each subsequent petal is delayed by 5 frames.
+const PETAL_FADE_IN_DELAYS: [f32; NUM_PETALS] = [0.0, 5.0, 10.0, 15.0];
 
-/// Compass headings of each petal around the caster — 90° apart.
-const PETAL_ROT_STARTS_DEG: [f32; NUM_PETALS] = [180.0, 270.0, 0.0, 90.0];
+/// Compass headings where each petal's wave-peak sits at frame 0 —
+/// 90° apart, matching the original game's per-slot start rotation
+/// (`{180, 270, 0, 90}` produces visible peaks at
+/// `rot_start_deg + 180 = {0, 90, 180, 270}` per the 3D casting render's middle
+/// segment).
+const PETAL_PEAK_HEADINGS_DEG: [f32; NUM_PETALS] = [0.0, 90.0, 180.0, 270.0];
 
 const ALPHA_MAX: f32 = 200.0 / 255.0;
 
@@ -58,20 +73,20 @@ const COLUMN_GROWTH_FRAMES: f32 = 12.0;
 const RING_UV_REPEAT: f32 = 1.0;
 /// Texture used for the flat ground band. `alpha_down.tga` is a radial
 /// gradient that fades to transparent at the outer edge — the original
-/// uses it on the 3D circle in the non-secondjob BeginSpell path.
+/// game uses it on the ground ring of the basic cast-circle.
 const RING_TEXTURE: &str = "alpha_down.tga";
 
 // ---------- Petals ----------
 
-const PETAL_SIDES: u32 = 12;
+const PETAL_SIDES: u32 = 24;
 const PETAL_UV_REPEAT: f32 = 1.0;
-/// Petal cone tilt from horizontal. Low value (35°) makes petals splay
-/// outward in a mostly horizontal arc — short curved flames at the base,
-/// matching the reference silhouette.
-const PETAL_RISE_ANGLE_DEG: f32 = 35.0;
-/// How fast the 4-petal ring rotates around the column (degrees/frame).
-/// Combined with the staggered fade-in, this gives the "rotating rune
-/// circle" sweep around the caster.
+/// Rise angle from horizontal — original game uses 80°, near-vertical
+/// with a small radial outward component. Maps onto `Frustum`'s
+/// `(delta_r, height)` tilt direction.
+const PETAL_RISE_ANGLE_DEG: f32 = 80.0;
+/// How fast the 4-petal phase array rotates around the column
+/// (degrees/frame). Combined with the staggered fade-in, this gives
+/// the "rotating rune circle" sweep around the caster.
 const PETAL_ROT_SPEED_DEG_PER_FRAME: f32 = 4.0;
 
 // ---------- Per-variant ----------
@@ -90,16 +105,14 @@ pub struct CastCircleParams {
     pub ring_radius: f32,
     /// Ground band thickness (`ring_radius` → solid disc).
     pub ring_thickness: f32,
-    /// Radial offset of each petal's base from the column center. The
-    /// four petals form a ring around the column; the whole ring rotates
-    /// over time via [`PETAL_ROT_SPEED_DEG_PER_FRAME`].
+    /// Radius of the ring on which each petal's bottom rim sits — the
+    /// `bottom_size` of every petal Frustum. The four petals share this
+    /// ring; their wave-peaks lie on it 90° apart.
     pub petal_distance: f32,
-    /// Per-petal max flame length (4 slightly different values give the
-    /// "uneven petals" silhouette).
+    /// Per-petal max flame length, in tilt-direction units (i.e. the
+    /// hypotenuse of the radial + vertical extension at the peak). Four
+    /// slightly different values give the "uneven petals" silhouette.
     pub petal_heights: [f32; NUM_PETALS],
-    /// Petal cone base radius. Small — petals are short outward-leaning
-    /// flames, not tall spikes.
-    pub petal_radius: f32,
 }
 
 const fn beg(texture: &'static str, r: f32, g: f32, b: f32) -> CastCircleParams {
@@ -112,7 +125,6 @@ const fn beg(texture: &'static str, r: f32, g: f32, b: f32) -> CastCircleParams 
         ring_thickness: 2.0,
         petal_distance: 3.0,
         petal_heights: [4.5, 4.0, 3.5, 3.0],
-        petal_radius: 0.5,
     }
 }
 
@@ -126,7 +138,6 @@ const fn asu(texture: &'static str, r: f32, g: f32, b: f32) -> CastCircleParams 
         ring_thickness: 2.5,
         petal_distance: 3.8,
         petal_heights: [5.5, 5.0, 4.5, 4.0],
-        petal_radius: 0.6,
     }
 }
 
@@ -158,7 +169,6 @@ pub const ASURA_CHAMPION: CastCircleParams = CastCircleParams {
     ring_thickness: 3.0,
     petal_distance: 4.5,
     petal_heights: [6.5, 6.0, 5.5, 5.0],
-    petal_radius: 0.7,
 };
 
 pub const TEXTURES: &[&str] = &[
@@ -260,15 +270,24 @@ impl Effect for CastCircleEffect {
             });
         }
 
-        // -------- Element 3: rotating ring of 4 outward-leaning petals -----
-        // Each petal sits at radial offset `petal_distance` from the
-        // column center; the whole ring rotates around the vertical axis
-        // at PETAL_ROT_SPEED_DEG_PER_FRAME. Petal cone tilts outward
-        // (rise_angle low → mostly horizontal sweep) so it reads as a
-        // short curved flame splaying away from the column.
+        // -------- Element 3: four wave-peaks orbiting the column ----------
+        // Each petal is a `Frustum` centered on the column. Its `rest`
+        // pose sits halfway between collapsed (top vertex on the bottom
+        // ring) and full extension (top vertex displaced radially out +
+        // up by `max_height` along the rise tilt). `wave_amplitude =
+        // tilt_len/2` then sweeps the rim between those two extremes
+        // along the (cos_rise, sin_rise) direction:
+        //   * at wave = +amp   → top vertex at full extension
+        //   * at wave = -amp   → top vertex collapsed onto the bottom ring
+        //
+        // With `wave_frequency = 1`, sin gives one peak + one collapsed
+        // antipode per revolution per Frustum. Four Frustums with
+        // `wave_phase` 90° apart produce four peaks, naturally centered
+        // on the column. The whole phase array advances over time so
+        // peaks orbit around the column center.
         let rise_rad = PETAL_RISE_ANGLE_DEG.to_radians();
         let (sin_rise, cos_rise) = rise_rad.sin_cos();
-        let spin_rad = (frame * PETAL_ROT_SPEED_DEG_PER_FRAME).to_radians();
+        let spin_deg = frame * PETAL_ROT_SPEED_DEG_PER_FRAME;
         for i in 0..NUM_PETALS {
             let local_age = frame - PETAL_FADE_IN_DELAYS[i];
             let local_life = TOTAL_FRAMES - PETAL_FADE_IN_DELAYS[i];
@@ -277,25 +296,34 @@ impl Effect for CastCircleEffect {
                 continue;
             }
             let max_h = self.params.petal_heights[i];
-            let heading_rad = PETAL_ROT_STARTS_DEG[i].to_radians() + spin_rad;
-            let (sin_h, cos_h) = heading_rad.sin_cos();
-            let base = [
-                self.world_pos[0] + self.params.petal_distance * cos_h,
-                self.world_pos[1],
-                self.world_pos[2] + self.params.petal_distance * sin_h,
-            ];
+            let full_delta_r = cos_rise * max_h;
+            let full_height = sin_rise * max_h;
+            let rest_top_size = self.params.petal_distance + full_delta_r * 0.5;
+            let rest_height = full_height * 0.5;
+            // tilt_len at peak = sqrt(delta_r² + height²) = max_h, so
+            // the wave amplitude that reaches both extremes from rest
+            // is max_h/2.
+            let wave_amp = max_h * 0.5;
+
+            // sin peaks at sin_arg = π/2. We want the peak to land at
+            // world angle θ = (PETAL_PEAK_HEADINGS_DEG[i] + spin_deg).
+            // Frustum's wave uses local_angle (= world_angle, since we
+            // pass `rotation = 0`); so wave_phase = π/2 - θ.
+            let peak_angle_rad = (PETAL_PEAK_HEADINGS_DEG[i] + spin_deg).to_radians();
+            let wave_phase = std::f32::consts::FRAC_PI_2 - peak_angle_rad;
+
             out.push(EffectPrimitiveDraw::Frustum {
-                base,
-                bottom_size: self.params.petal_radius,
-                top_size: self.params.petal_radius + cos_rise * max_h,
-                height: sin_rise * max_h,
+                base: self.world_pos,
+                bottom_size: self.params.petal_distance,
+                top_size: rest_top_size,
+                height: rest_height,
                 sides: PETAL_SIDES,
-                rotation: heading_rad,
+                rotation: 0.0,
                 uv_repeat: PETAL_UV_REPEAT,
                 uv_scroll: [0.0, 0.0],
-                wave_amplitude: 0.0,
+                wave_amplitude: wave_amp,
                 wave_frequency: 1.0,
-                wave_phase: 0.0,
+                wave_phase,
                 texture: self.params.texture,
                 color: [r, g, b, alpha],
                 blend: BlendKind::Additive,
@@ -337,62 +365,90 @@ mod tests {
         let mut c = CastCircleEffect::new(Attach::WorldPos([0.0; 3]), YELLOW);
         run_to(&mut c, 30.0);
         let prims = collect(&c);
-        let frustum_count = prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. })).count();
-        let disc_count = prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::GroundDisc { .. })).count();
-        // 1 column + 4 petals
-        assert_eq!(frustum_count, 1 + NUM_PETALS);
-        assert_eq!(disc_count, 1);
+        let columns = prims.iter().filter(|p| is_column(p)).count();
+        let petals = prims.iter().filter(|p| is_petal(p)).count();
+        let discs = prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::GroundDisc { .. })).count();
+        assert_eq!(columns, 1);
+        assert_eq!(petals, NUM_PETALS);
+        assert_eq!(discs, 1);
+    }
+
+    fn is_column(p: &EffectPrimitiveDraw) -> bool {
+        matches!(p, EffectPrimitiveDraw::Frustum {
+            bottom_size, top_size, wave_amplitude, ..
+        } if (bottom_size - top_size).abs() < 1e-4 && *wave_amplitude == 0.0)
+    }
+
+    fn is_petal(p: &EffectPrimitiveDraw) -> bool {
+        matches!(p, EffectPrimitiveDraw::Frustum { wave_amplitude, .. } if *wave_amplitude > 0.0)
     }
 
     #[test]
     fn column_has_constant_radius_no_flare() {
-        // Distinguishing the column from petals: it's the only Frustum
-        // with `bottom_size == top_size`.
         let mut c = CastCircleEffect::new(Attach::WorldPos([0.0; 3]), YELLOW);
         run_to(&mut c, 30.0);
-        let mut found_column = false;
+        let mut found = false;
         for prim in collect(&c) {
-            if let EffectPrimitiveDraw::Frustum { bottom_size, top_size, .. } = prim {
-                if (bottom_size - top_size).abs() < 1e-4 {
-                    found_column = true;
-                    assert!(bottom_size > 0.0);
-                }
+            if let EffectPrimitiveDraw::Frustum { bottom_size, top_size, wave_amplitude, .. } = prim
+                && (bottom_size - top_size).abs() < 1e-4
+                && wave_amplitude == 0.0
+            {
+                found = true;
+                assert!(bottom_size > 0.0);
             }
         }
-        assert!(found_column, "central column with bottom_size == top_size should exist");
+        assert!(found, "central column (no flare, no wave) should exist");
     }
 
     #[test]
-    fn petals_form_rotating_ring_around_column() {
-        // Petals sit on a circle of radius petal_distance around the
-        // column center, and the whole ring's rotation advances over
-        // time.
+    fn petals_centered_on_column_with_rotating_phases() {
+        // Each petal Frustum is centered on the caster (its base == the
+        // caster's world position) — "center of rotation is the column".
+        // The wave_phase array advances over time as the four peaks orbit.
         let caster = [10.0, 5.0, 20.0];
         let mut c = CastCircleEffect::new(Attach::WorldPos(caster), YELLOW);
         run_to(&mut c, 30.0);
         let snapshot_petals = |c: &CastCircleEffect| -> Vec<([f32; 3], f32)> {
             collect(c).into_iter().filter_map(|p| match p {
-                EffectPrimitiveDraw::Frustum { base, top_size, bottom_size, rotation, .. }
-                    if top_size > bottom_size + 1e-4 => Some((base, rotation)),
+                EffectPrimitiveDraw::Frustum { base, wave_amplitude, wave_phase, .. }
+                    if wave_amplitude > 0.0 => Some((base, wave_phase)),
                 _ => None,
             }).collect()
         };
         let early = snapshot_petals(&c);
         assert_eq!(early.len(), NUM_PETALS);
         for (base, _) in &early {
-            let dx = base[0] - caster[0];
-            let dz = base[2] - caster[2];
-            let r = (dx * dx + dz * dz).sqrt();
-            assert!((r - YELLOW.petal_distance).abs() < 1e-3,
-                "petal base should sit at radius {} from caster, got {} (base {:?})",
-                YELLOW.petal_distance, r, base);
+            assert!((base[0] - caster[0]).abs() < 1e-3, "petal X must equal caster X");
+            assert!((base[2] - caster[2]).abs() < 1e-3, "petal Z must equal caster Z");
         }
         run_to(&mut c, 40.0);
         let later = snapshot_petals(&c);
-        for (i, (_, rot_now)) in later.iter().enumerate() {
-            assert!((rot_now - early[i].1).abs() > 1e-3,
-                "petal {} rotation should advance over time ({} → {})",
-                i, early[i].1, rot_now);
+        for (i, (_, phase_now)) in later.iter().enumerate() {
+            assert!((phase_now - early[i].1).abs() > 1e-3,
+                "petal {} wave_phase should advance over time ({} → {})",
+                i, early[i].1, phase_now);
+        }
+    }
+
+    #[test]
+    fn petal_peaks_are_90deg_apart() {
+        // Once all four petals have faded in, their wave_phase values
+        // must be pairwise 90° apart (mod 360°) so the four peaks land
+        // at four compass headings around the column.
+        let mut c = CastCircleEffect::new(Attach::WorldPos([0.0; 3]), YELLOW);
+        run_to(&mut c, 25.0);
+        let phases: Vec<f32> = collect(&c).into_iter().filter_map(|p| match p {
+            EffectPrimitiveDraw::Frustum { wave_amplitude, wave_phase, .. }
+                if wave_amplitude > 0.0 => Some(wave_phase),
+            _ => None,
+        }).collect();
+        assert_eq!(phases.len(), NUM_PETALS);
+        for w in phases.windows(2) {
+            let two_pi = std::f32::consts::TAU;
+            let raw = ((w[0] - w[1]).abs() % two_pi + two_pi) % two_pi;
+            let d = raw.min(two_pi - raw);
+            assert!((d - std::f32::consts::FRAC_PI_2).abs() < 1e-3,
+                "adjacent petals must be 90° apart, got {}°", d.to_degrees());
         }
     }
 
@@ -400,15 +456,10 @@ mod tests {
     fn petals_appear_in_sequence_not_all_at_once() {
         let mut c = CastCircleEffect::new(Attach::WorldPos([0.0; 3]), YELLOW);
         run_to(&mut c, 1.0);
-        let count_petals = |c: &CastCircleEffect| -> usize {
-            collect(c).into_iter().filter(|p| matches!(p,
-                EffectPrimitiveDraw::Frustum { bottom_size, top_size, .. }
-                    if (top_size - bottom_size).abs() > 1e-4
-            )).count()
-        };
-        let early = count_petals(&c);
+        let count = |c: &CastCircleEffect| collect(c).iter().filter(|p| is_petal(p)).count();
+        let early = count(&c);
         run_to(&mut c, 30.0);
-        let peak = count_petals(&c);
+        let peak = count(&c);
         assert!(early < peak, "petals stagger in (early {} → peak {})", early, peak);
         assert_eq!(peak, NUM_PETALS);
     }
@@ -417,11 +468,9 @@ mod tests {
     fn column_grows_over_growth_window() {
         let mut c = CastCircleEffect::new(Attach::WorldPos([0.0; 3]), YELLOW);
         let height_of_column = |c: &CastCircleEffect| -> f32 {
-            collect(c).into_iter().find_map(|p| match p {
-                EffectPrimitiveDraw::Frustum { bottom_size, top_size, height, .. }
-                    if (bottom_size - top_size).abs() < 1e-4 => Some(height),
-                _ => None,
-            }).unwrap_or(0.0)
+            collect(c).into_iter().find_map(|p| if is_column(&p) {
+                if let EffectPrimitiveDraw::Frustum { height, .. } = p { Some(height) } else { None }
+            } else { None }).unwrap_or(0.0)
         };
         run_to(&mut c, 2.0);
         let h_early = height_of_column(&c);
