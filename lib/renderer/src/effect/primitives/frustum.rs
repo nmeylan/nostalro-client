@@ -56,11 +56,69 @@ impl FrustumRenderer {
         camera_bind_group_layout: &wgpu::BindGroupLayout,
         texture_bind_group_layout: &wgpu::BindGroupLayout,
     ) -> Self {
+        let (pipeline_alpha, pipeline_additive) = Self::build_pipelines(
+            device,
+            surface_format,
+            camera_bind_group_layout,
+            texture_bind_group_layout,
+            include_str!("../../shaders/effect_frustum.wgsl"),
+        );
+
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("frustum_vertices"),
+            size: (INITIAL_VERTEX_CAPACITY * std::mem::size_of::<FrustumVertex>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("frustum_indices"),
+            size: (INITIAL_INDEX_CAPACITY * std::mem::size_of::<u32>()) as u64,
+            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        Self {
+            pipeline_alpha,
+            pipeline_additive,
+            vertex_buffer,
+            index_buffer,
+            vertex_capacity: INITIAL_VERTEX_CAPACITY,
+            index_capacity: INITIAL_INDEX_CAPACITY,
+        }
+    }
+
+    /// Rebuild both pipelines from a runtime-supplied WGSL source. Used by
+    /// the effect viewer's hot-reload path; production code calls `new()`
+    /// once with the `include_str!`'d source.
+    pub fn recreate_pipelines(
+        &mut self,
+        device: &wgpu::Device,
+        surface_format: wgpu::TextureFormat,
+        camera_bind_group_layout: &wgpu::BindGroupLayout,
+        texture_bind_group_layout: &wgpu::BindGroupLayout,
+        shader_source: &str,
+    ) {
+        let (alpha, additive) = Self::build_pipelines(
+            device,
+            surface_format,
+            camera_bind_group_layout,
+            texture_bind_group_layout,
+            shader_source,
+        );
+        self.pipeline_alpha = alpha;
+        self.pipeline_additive = additive;
+    }
+
+    fn build_pipelines(
+        device: &wgpu::Device,
+        surface_format: wgpu::TextureFormat,
+        camera_bind_group_layout: &wgpu::BindGroupLayout,
+        texture_bind_group_layout: &wgpu::BindGroupLayout,
+        shader_source: &str,
+    ) -> (wgpu::RenderPipeline, wgpu::RenderPipeline) {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("effect_frustum"),
-            source: wgpu::ShaderSource::Wgsl(
-                include_str!("../../shaders/effect_frustum.wgsl").into(),
-            ),
+            source: wgpu::ShaderSource::Wgsl(shader_source.into()),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -87,28 +145,7 @@ impl FrustumRenderer {
             Self::create_pipeline(device, surface_format, &pipeline_layout, &shader, alpha);
         let pipeline_additive =
             Self::create_pipeline(device, surface_format, &pipeline_layout, &shader, additive);
-
-        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("frustum_vertices"),
-            size: (INITIAL_VERTEX_CAPACITY * std::mem::size_of::<FrustumVertex>()) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        let index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("frustum_indices"),
-            size: (INITIAL_INDEX_CAPACITY * std::mem::size_of::<u32>()) as u64,
-            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        Self {
-            pipeline_alpha,
-            pipeline_additive,
-            vertex_buffer,
-            index_buffer,
-            vertex_capacity: INITIAL_VERTEX_CAPACITY,
-            index_capacity: INITIAL_INDEX_CAPACITY,
-        }
+        (pipeline_alpha, pipeline_additive)
     }
 
     fn create_pipeline(

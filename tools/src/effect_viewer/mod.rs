@@ -34,6 +34,7 @@ use ragnarok_game::effect::{
 };
 
 use crate::sprite_viewer::browser::SpriteBrowser;
+use crate::sprite_viewer::shader_watcher::ShaderWatcher;
 use ragnarok_game::effect::EffectRenderCtx as GameEffectRenderCtx;
 use ragnarok_renderer::effect::{
     EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, ExternalCustomBackend,
@@ -183,6 +184,18 @@ struct EffectRenderCtxFfi {
     screen_w: f32,
     screen_h: f32,
     elapsed: f32,
+}
+
+/// Which renderer(s) a given shader file feeds. Used by `App` to dispatch a
+/// `ShaderWatcher` reload to the right `recreate_pipelines` call.
+#[derive(Clone, Copy)]
+enum ShaderTarget {
+    /// `effect_frustum.wgsl` — shared by `FrustumRenderer` and `QuadHornRenderer`.
+    EffectFrustum,
+    /// `effect_ground_disc.wgsl` — `GroundDiscRenderer`.
+    EffectGroundDisc,
+    /// `sprite.wgsl` — main `SpriteRenderer` and `effect_sprite_renderer`.
+    Sprite,
 }
 
 const STATUS_UNKNOWN: u8 = 0;
@@ -576,6 +589,10 @@ struct App {
     /// Set by the batch path once the GIF is finalized; the event loop
     /// observes this on the next `RedrawRequested` and exits.
     should_exit: bool,
+    /// One watcher per `.wgsl` file the effect viewer renders with. Each
+    /// fires independently; `render_frame` polls them and rebuilds the
+    /// matching pipelines on change.
+    shader_watchers: Vec<(ShaderWatcher, ShaderTarget)>,
 }
 
 impl App {
@@ -616,6 +633,7 @@ impl App {
             gif_session: None,
             batch: None,
             should_exit: false,
+            shader_watchers: Vec::new(),
         }
     }
 
@@ -915,8 +933,89 @@ impl App {
         PathBuf::from(format!("gif_export/{}_{}.gif", effect_id.value(), ts))
     }
 
+    /// Spawn one `ShaderWatcher` per shader file used by the effect viewer.
+    /// Failure to set up a watcher is logged but non-fatal — the viewer
+    /// still runs, just without hot reload for that file.
+    fn init_shader_watchers(&mut self) {
+        let shader_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../lib/renderer/src/shaders");
+        let targets: &[(&str, ShaderTarget)] = &[
+            ("effect_frustum.wgsl", ShaderTarget::EffectFrustum),
+            ("effect_ground_disc.wgsl", ShaderTarget::EffectGroundDisc),
+            ("sprite.wgsl", ShaderTarget::Sprite),
+        ];
+        for (filename, target) in targets {
+            match ShaderWatcher::new(&shader_dir, filename) {
+                Ok(w) => self.shader_watchers.push((w, *target)),
+                Err(e) => tracing::warn!(
+                    "Shader watcher unavailable for {}: {e}",
+                    filename
+                ),
+            }
+        }
+    }
+
+    /// Poll every watcher; if any fired, read its file from disk and rebuild
+    /// the matching renderer's pipelines.
+    fn poll_shader_reload(&mut self) {
+        let Some(renderer) = &mut self.renderer else {
+            return;
+        };
+        for (watcher, target) in &self.shader_watchers {
+            let Some(source) = watcher.check_and_reload() else {
+                continue;
+            };
+            let device = &renderer.device.device;
+            let surface_format = renderer.device.surface_format;
+            let camera_bgl = &renderer.global_uniforms.bind_group_layout;
+            let texture_bgl = &renderer.texture_cache.bind_group_layout;
+            match target {
+                ShaderTarget::EffectFrustum => {
+                    renderer.effect_frustum_renderer.recreate_pipelines(
+                        device,
+                        surface_format,
+                        camera_bgl,
+                        texture_bgl,
+                        &source,
+                    );
+                    renderer.effect_quad_horn_renderer.recreate_pipelines(
+                        device,
+                        surface_format,
+                        camera_bgl,
+                        texture_bgl,
+                        &source,
+                    );
+                }
+                ShaderTarget::EffectGroundDisc => {
+                    renderer.effect_ground_disc_renderer.recreate_pipelines(
+                        device,
+                        surface_format,
+                        camera_bgl,
+                        texture_bgl,
+                        &source,
+                    );
+                }
+                ShaderTarget::Sprite => {
+                    renderer.sprite_renderer.recreate_pipeline(
+                        device,
+                        surface_format,
+                        texture_bgl,
+                        &source,
+                    );
+                    renderer.effect_sprite_renderer.recreate_pipeline(
+                        device,
+                        surface_format,
+                        texture_bgl,
+                        &source,
+                    );
+                }
+            }
+        }
+    }
+
     fn render_frame(&mut self) {
         self.check_hot_reload();
+        self.poll_shader_reload();
         // During an active GIF export the spawn comes from `start_gif_export`,
         // not from the cdylib's picker. Drain any pending spawn so the next
         // frame doesn't pick it up, but otherwise leave the holder alone —
@@ -1143,6 +1242,7 @@ impl ApplicationHandler for App {
         self.white_bind_group = Some(white_bind_group);
         self.window = Some(window);
         self.last_frame = Instant::now();
+        self.init_shader_watchers();
 
         // Batch mode: kick off the GIF export immediately so the first
         // render_frame call (triggered by winit's initial RedrawRequested)

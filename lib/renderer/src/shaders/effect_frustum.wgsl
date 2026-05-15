@@ -33,7 +33,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let tex_color = textureSample(frustum_texture, frustum_sampler, in.tex_coord) * in.color;
-    if tex_color.a < 0.01 {
+    if tex_color.a < 0.06 {
         discard;
     }
     return tex_color;

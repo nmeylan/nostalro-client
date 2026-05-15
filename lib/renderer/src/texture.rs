@@ -180,7 +180,22 @@ pub fn load_keyed_texture(
 
     let w = rgba.width();
     let h = rgba.height();
-    let bg = create_texture_bind_group(device, queue, &rgba, layout, path);
+    let upscaled = image::imageops::resize(&rgba, w * 4, h * 4, image::imageops::FilterType::CatmullRom);
+    // Effect textures are already perceptual sRGB and must be sampled linearly:
+    // a second sRGB→linear decode on read darkens midtones and shifts tints
+    // when combined with the additive accumulation done by effect primitives.
+    let bg = create_texture_bind_group_from_rgba(
+        device,
+        queue,
+        upscaled.as_raw(),
+        upscaled.width(),
+        upscaled.height(),
+        layout,
+        path,
+        wgpu::FilterMode::Linear,
+        wgpu::TextureFormat::Rgba8Unorm,
+        wgpu::AddressMode::Repeat,
+    );
     Some((bg, w, h))
 }
 
