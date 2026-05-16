@@ -7,6 +7,7 @@ pub mod font_atlas;
 pub mod global_uniforms;
 pub mod grid_selector;
 pub mod ground;
+pub mod ground_proxy;
 pub mod model;
 pub mod sprite;
 pub mod texture;
@@ -25,6 +26,7 @@ pub use effect_sprite::{
 pub use font_atlas::FontAtlas;
 pub use grid_selector::GridSelectorRenderer;
 pub use ground::GroundRenderer;
+pub use ground_proxy::GroundProxyRenderer;
 pub use model::ModelRenderer;
 pub use sprite::{
     ClipQuad, CompositeClips, EntitySprite, SpriteBatch, SpriteRenderer, SpriteTextures,
@@ -68,6 +70,10 @@ pub struct Renderer {
     pub global_uniforms: GlobalUniforms,
     pub texture_cache: TextureCache,
     pub ground_renderer: Option<GroundRenderer>,
+    /// Debug/tooling stand-in for the real ground when no `.gnd` is loaded
+    /// (e.g. effect viewer). Drawn in place of `ground_renderer` so the
+    /// depth buffer carries a floor for effect primitives to clip against.
+    pub ground_proxy: Option<GroundProxyRenderer>,
     pub model_renderer: Option<ModelRenderer>,
     pub water_renderer: Option<WaterRenderer>,
     pub grid_selector: Option<GridSelectorRenderer>,
@@ -180,6 +186,7 @@ impl Renderer {
             global_uniforms,
             texture_cache,
             ground_renderer: None,
+            ground_proxy: None,
             model_renderer: None,
             water_renderer: None,
             grid_selector: None,
@@ -392,6 +399,23 @@ impl Renderer {
         }
     }
 
+    /// Install a debug checker floor at `y = 0`. Only drawn when no real
+    /// `ground_renderer` is loaded. Call once during setup (effect viewer,
+    /// gif exporter, …) so effect primitives have something to depth-test
+    /// against.
+    pub fn enable_ground_proxy(&mut self) {
+        if self.ground_proxy.is_some() {
+            return;
+        }
+        let proxy = GroundProxyRenderer::new(
+            &self.device.device,
+            self.device.surface_format,
+            &self.global_uniforms.bind_group_layout,
+        );
+        proxy.initialise(&self.device.queue);
+        self.ground_proxy = Some(proxy);
+    }
+
     pub fn render(
         &mut self,
         ui_draw_calls: &[UiDrawCall],
@@ -508,6 +532,8 @@ impl Renderer {
 
             if let Some(ground) = &self.ground_renderer {
                 ground.render(&mut pass, &self.global_uniforms, &self.texture_cache);
+            } else if let Some(proxy) = &self.ground_proxy {
+                proxy.render(&mut pass, &self.global_uniforms, &self.camera);
             }
             if let Some(model) = &self.model_renderer {
                 model.render(&mut pass, &self.global_uniforms, &self.texture_cache);

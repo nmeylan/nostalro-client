@@ -1237,6 +1237,11 @@ impl ApplicationHandler for App {
             let paths = effect_texture_paths();
             renderer.preload_effect_textures(&paths, grf);
         }
+        // Effect viewer never loads a real map, so install a debug checker
+        // floor at y=0. Effect primitives use depth-read against it so their
+        // lower halves (e.g. magnum break's sphere) get clipped at the
+        // ground plane the same way as in-game.
+        renderer.enable_ground_proxy();
 
         self.renderer = Some(renderer);
         self.white_bind_group = Some(white_bind_group);
