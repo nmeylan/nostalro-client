@@ -61,6 +61,12 @@ const EXPLOSION_ROT_DEG_PER_FRAME: f32 = 3.0;
 const EXPLOSION_SIDES_LAT: u32 = 5;
 /// Longitude segments — 36° arc → 360/36 = 10.
 const EXPLOSION_SIDES_LON: u32 = 10;
+/// Fraction of the sphere's radius the centre is sunk below `world_pos`.
+/// Native RO uses `-Y = up`, so sinking means adding a positive Y. Keeps
+/// the visible silhouette dome-shaped even when `world_pos.y` doesn't align
+/// with true ground level or the camera angle would otherwise expose the
+/// lower hemisphere. `0.5` → equator sits at the impact-point plane.
+const EXPLOSION_SINK_FRAC: f32 = 0.5;
 
 // Second (hardcoded-30-frame) ring — same params as the parent ring but with
 // a shorter lifetime.
@@ -168,8 +174,13 @@ impl Effect for MagnumBreakEffect {
             );
             let longitude_offset_rad =
                 (parent_frame * EXPLOSION_ROT_DEG_PER_FRAME).to_radians();
+            let sphere_center = [
+                self.world_pos[0],
+                self.world_pos[1] + explosion_radius * EXPLOSION_SINK_FRAC,
+                self.world_pos[2],
+            ];
             out.push(EffectPrimitiveDraw::Sphere {
-                center: self.world_pos,
+                center: sphere_center,
                 radius: explosion_radius,
                 sides_lat: EXPLOSION_SIDES_LAT,
                 sides_lon: EXPLOSION_SIDES_LON,
