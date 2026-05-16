@@ -1,15 +1,10 @@
-//! Frustum primitive — vertical "tube" between two coaxial rings.
+//! Sphere primitive — closed UV sphere mesh (or a partial spherical band).
 //!
-//! Used by effects whose silhouette is a vertical band of texture: Magnum
-//! Break's explosion cone, Sanctuary / Magnus pillars, Bottom-Sanc rotating
-//! pillar. Geometry is a closed triangle strip from a bottom polygon
-//! (`bottom_size` radius) up to a top polygon (`top_size` radius). When the
-//! two radii are equal it's a cylinder; when `top_size == 0` it's a cone.
-//! `sides == 4` gives a square pillar (Bottom-Sanc), high `sides` approximate
-//! a smooth circular tube.
-//!
-//! The texture wraps once around the lateral surface unless `rotation` shifts
-//! the seam; `v = 0` at the bottom, `v = 1` at the top.
+//! Latitude sweeps `-90°..+90°` over `sides_lat` segments, longitude sweeps
+//! `0°..360°` over `sides_lon`, two triangles per cell. Matches original
+//! game's `Render3DSphere`. `longitude_offset` shifts the longitude angle
+//! used for both geometry and UVs — drive it over time to reproduce the
+//! texture rotation speed.
 
 use crate::camera::Camera;
 use crate::device::DEPTH_FORMAT;
@@ -17,13 +12,13 @@ use crate::effect::{BlendKind, EffectDrawList, EffectPrimitiveDraw};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct FrustumVertex {
+struct SphereVertex {
     position: [f32; 3],
     tex_coord: [f32; 2],
     color: [f32; 4],
 }
 
-impl FrustumVertex {
+impl SphereVertex {
     const ATTRIBS: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![
         0 => Float32x3,
         1 => Float32x2,
@@ -40,7 +35,7 @@ impl FrustumVertex {
 const INITIAL_VERTEX_CAPACITY: usize = 512;
 const INITIAL_INDEX_CAPACITY: usize = 1024;
 
-pub struct FrustumRenderer {
+pub struct SphereRenderer {
     pipeline_alpha: wgpu::RenderPipeline,
     pipeline_additive: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
@@ -49,7 +44,7 @@ pub struct FrustumRenderer {
     index_capacity: usize,
 }
 
-impl FrustumRenderer {
+impl SphereRenderer {
     pub fn new(
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
@@ -61,17 +56,17 @@ impl FrustumRenderer {
             surface_format,
             camera_bind_group_layout,
             texture_bind_group_layout,
-            include_str!("../../shaders/effect_frustum.wgsl"),
+            include_str!("../../shaders/effect_sphere.wgsl"),
         );
 
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("frustum_vertices"),
-            size: (INITIAL_VERTEX_CAPACITY * std::mem::size_of::<FrustumVertex>()) as u64,
+            label: Some("sphere_vertices"),
+            size: (INITIAL_VERTEX_CAPACITY * std::mem::size_of::<SphereVertex>()) as u64,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         let index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("frustum_indices"),
+            label: Some("sphere_indices"),
             size: (INITIAL_INDEX_CAPACITY * std::mem::size_of::<u32>()) as u64,
             usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -87,9 +82,6 @@ impl FrustumRenderer {
         }
     }
 
-    /// Rebuild both pipelines from a runtime-supplied WGSL source. Used by
-    /// the effect viewer's hot-reload path; production code calls `new()`
-    /// once with the `include_str!`'d source.
     pub fn recreate_pipelines(
         &mut self,
         device: &wgpu::Device,
@@ -117,12 +109,12 @@ impl FrustumRenderer {
         shader_source: &str,
     ) -> (wgpu::RenderPipeline, wgpu::RenderPipeline) {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("effect_frustum"),
+            label: Some("effect_sphere"),
             source: wgpu::ShaderSource::Wgsl(shader_source.into()),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("effect_frustum"),
+            label: Some("effect_sphere"),
             bind_group_layouts: &[camera_bind_group_layout, texture_bind_group_layout],
             immediate_size: 0,
         });
@@ -156,12 +148,12 @@ impl FrustumRenderer {
         blend: wgpu::BlendState,
     ) -> wgpu::RenderPipeline {
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("effect_frustum"),
+            label: Some("effect_sphere"),
             layout: Some(pipeline_layout),
             vertex: wgpu::VertexState {
                 module: shader,
                 entry_point: Some("vs_main"),
-                buffers: &[FrustumVertex::LAYOUT],
+                buffers: &[SphereVertex::LAYOUT],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -200,12 +192,12 @@ impl FrustumRenderer {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         camera_bind_group: &wgpu::BindGroup,
-        camera: &Camera,
+        _camera: &Camera,
         list: &EffectDrawList,
         fallback_texture: &'a wgpu::BindGroup,
         texture_lookup: impl Fn(&str) -> Option<&'a wgpu::BindGroup>,
     ) {
-        let mut verts: Vec<FrustumVertex> = Vec::new();
+        let mut verts: Vec<SphereVertex> = Vec::new();
         let mut indices: Vec<u32> = Vec::new();
         struct DrawSpan<'a> {
             texture: &'a wgpu::BindGroup,
@@ -215,21 +207,14 @@ impl FrustumRenderer {
         }
         let mut spans: Vec<DrawSpan<'_>> = Vec::new();
 
-        let eye = camera.eye();
         for prim in &list.primitives {
-            let EffectPrimitiveDraw::Frustum {
-                base,
-                bottom_size,
-                top_size,
-                height,
-                sides,
-                rotation,
+            let EffectPrimitiveDraw::Sphere {
+                center,
+                radius,
+                sides_lat,
+                sides_lon,
+                longitude_offset,
                 uv_repeat,
-                uv_scroll,
-                wave_amplitude,
-                wave_frequency,
-                wave_phase,
-                cull_back,
                 texture,
                 color,
                 blend,
@@ -238,146 +223,58 @@ impl FrustumRenderer {
                 continue;
             };
 
-            let sides = (*sides).max(3);
-            if *bottom_size <= 0.0 && *top_size <= 0.0 {
+            if *radius <= 0.0 {
                 continue;
             }
-            if height.abs() <= 0.0 {
-                continue;
-            }
+            let lat_segs = (*sides_lat).max(2);
+            let lon_segs = (*sides_lon).max(3);
 
             let texture_bg = texture_lookup(texture).unwrap_or(fallback_texture);
             let additive = blend_is_additive(blend);
             let index_start = indices.len() as u32;
             let vert_base = verts.len() as u32;
 
-            let bottom_y = base[1];
-            // Native RO coordinates: -Y is up.
-            let top_y = base[1] - *height;
-            let full_span = std::f32::consts::TAU;
-            // `rotation` rotates the geometry around the vertical axis. The
-            // texture's u-coord is keyed to the segment index (`t`), not to
-            // world angle, so the texture pattern travels with the rotating
-            // geometry — the four flame stripes in `ring_white.tga`
-            // (LandProtector) and the four faces of a square pillar
-            // (BottomSanc) rotate as a whole instead of staying pinned to
-            // world cardinals while the mesh spins beneath them.
-            let geom_rotation = *rotation;
-            let uv_rep = *uv_repeat;
-            let scroll_v = uv_scroll[1];
-
-            // Per-segment wave displaces the top vertex along the cone's
-            // tilt direction (the unit vector from bottom-rim to top-rim).
-            // Matches the original game's `Rx = cos(rise) * height`,
-            // `Ry = sin(rise) * height` — taller wave peaks reach further
-            // outward as well as further up. For a cylinder (`top == bottom`)
-            // the radial component is zero so the wave only affects Y, which
-            // is what BottomSanc wants.
-            let delta_r = *top_size - *bottom_size;
-            let tilt_len = (delta_r * delta_r + height * height).sqrt();
-            let (radial_unit, vert_unit) = if tilt_len > 0.0 {
-                (delta_r / tilt_len, height / tilt_len)
-            } else {
-                (0.0, 1.0)
-            };
-
-            // `cull_back` produces the "open horseshoe" silhouette of a
-            // flat-flaring cast aura in late frames (SAINTCASTING) by
-            // fading the back of the cone out faster than the front. Other
-            // Frustum users (BottomSanc pillar, magnum-break dome, volcano
-            // flame ring) leave `cull_back == false` so both faces stay
-            // fully opaque.
-            //
-            // The fade is geometry-driven, not a binary cut: while the
-            // cone is more vertical than wide it reads as a tube and the
-            // whole ring stays at full alpha, so the bottom rim closes
-            // into a complete circle. As the cone flares (`top_size`
-            // grows, `height` shrinks) the radial flare overtakes the
-            // height, and segments whose outward radial points away from
-            // the camera fade out. The transition is continuous in both
-            // dimensions — the closing back-of-ring rotates and dims into
-            // the open horseshoe over multiple frames, matching the
-            // back-to-front handoff in the reference gif.
-            let radial_flare = (*top_size - *bottom_size).abs();
-            let flatness = radial_flare / (radial_flare + height.abs()).max(1e-3);
-            // The fade window is centred on the middle of the effect's
-            // lifetime so the early "expansion" phase keeps the full ring
-            // visible, the middle phase shows the back fading while the
-            // front holds, and the late phase shows only the front arc —
-            // the wave the reference gif describes (expansion → back
-            // fades → front remains).
-            //
-            // For BeginSpell6 the flatness curve is
-            // `cos(rise) / (cos(rise) + sin(rise))`, so rise=67° (frame 13)
-            // → 0.30, rise=47° (frame 33) → 0.48, rise=40° (frame 40) → 0.54.
-            const FADE_ONSET: f32 = 0.2;
-            const FADE_COMPLETE: f32 = 0.53;
-            let fade_strength = if *cull_back {
-                ((flatness - FADE_ONSET) / (FADE_COMPLETE - FADE_ONSET)).clamp(0.0, 1.0)
-            } else {
-                0.0
-            };
-            let eye_xz_x = eye.x - base[0];
-            let eye_xz_z = eye.z - base[2];
-            let eye_xz_len = (eye_xz_x * eye_xz_x + eye_xz_z * eye_xz_z)
-                .sqrt()
-                .max(1e-3);
-
-            for s in 0..=sides {
-                let t = s as f32 / sides as f32;
-                let local_angle = t * full_span;
-                let world_angle = local_angle + geom_rotation;
-                let (sin_a, cos_a) = world_angle.sin_cos();
-                let u = t * uv_rep + uv_scroll[0];
-
-                // Wave uses LOCAL angle so peaks stay locked to the cone's
-                // surface and visibly travel with the rotation. If we used
-                // `world_angle` here the wave's argument would advance at
-                // `wave_frequency × rotation_rate` per frame, making peaks
-                // flicker past every vertex many times per revolution.
-                let wave = *wave_amplitude
-                    * (local_angle * *wave_frequency + *wave_phase).sin();
-                let seg_top_size = top_size + wave * radial_unit;
-                let seg_top_y = top_y - wave * vert_unit; // -Y is up
-
-                // Per-segment fade: outward-radial · eye, normalised so
-                // front segments ≈ 1 and back segments ≈ 0. Squared so
-                // sides drop fast and only the camera-facing arc keeps
-                // near-full brightness; blended with 1 by `fade_strength`
-                // so steep cones stay uniformly opaque.
-                let outward_dot_xz = cos_a * eye_xz_x + sin_a * eye_xz_z;
-                let front_factor = ((outward_dot_xz / eye_xz_len) + 1.0) * 0.5;
-                let front_weight = front_factor * front_factor;
-                let segment_alpha = 1.0 - fade_strength * (1.0 - front_weight);
-                let mut seg_color = *color;
-                seg_color[3] *= segment_alpha;
-
-                verts.push(FrustumVertex {
-                    position: [
-                        base[0] + bottom_size * cos_a,
-                        bottom_y,
-                        base[2] + bottom_size * sin_a,
-                    ],
-                    tex_coord: [u, 1.0 + scroll_v],
-                    color: seg_color,
-                });
-                verts.push(FrustumVertex {
-                    position: [
-                        base[0] + seg_top_size * cos_a,
-                        seg_top_y,
-                        base[2] + seg_top_size * sin_a,
-                    ],
-                    tex_coord: [u, 0.0 + scroll_v],
-                    color: seg_color,
-                });
+            // Build a (lat_segs+1) × (lon_segs+1) vertex grid. Latitude phi
+            // sweeps -pi/2..pi/2 (south pole to north pole); longitude theta
+            // sweeps 0..2*pi. Native RO coords: -Y is up, so the north pole
+            // sits at center - radius * up.
+            let lat_count = lat_segs + 1;
+            let lon_count = lon_segs + 1;
+            for lat in 0..lat_count {
+                let v = lat as f32 / lat_segs as f32;
+                let phi =
+                    -std::f32::consts::FRAC_PI_2 + v * std::f32::consts::PI;
+                let (sin_phi, cos_phi) = phi.sin_cos();
+                let tv = v * uv_repeat[1];
+                for lon in 0..lon_count {
+                    let u = lon as f32 / lon_segs as f32;
+                    let theta = u * std::f32::consts::TAU + *longitude_offset;
+                    let (sin_theta, cos_theta) = theta.sin_cos();
+                    // Position: ring at latitude phi has horizontal radius
+                    // cos(phi)*r, vertical position sin(phi)*r along -Y.
+                    let px = center[0] + radius * cos_phi * cos_theta;
+                    let py = center[1] - radius * sin_phi;
+                    let pz = center[2] + radius * cos_phi * sin_theta;
+                    let tu = u * uv_repeat[0];
+                    verts.push(SphereVertex {
+                        position: [px, py, pz],
+                        tex_coord: [tu, tv],
+                        color: *color,
+                    });
+                }
             }
 
-            for s in 0..sides {
-                let b0 = vert_base + 2 * s;
-                let t0 = b0 + 1;
-                let b1 = vert_base + 2 * (s + 1);
-                let t1 = b1 + 1;
-                indices.extend_from_slice(&[b0, t0, b1, t0, t1, b1]);
+            // Two triangles per (lat, lon) cell.
+            for lat in 0..lat_segs {
+                for lon in 0..lon_segs {
+                    let row0 = lat * lon_count;
+                    let row1 = (lat + 1) * lon_count;
+                    let a = vert_base + row0 + lon;
+                    let b = vert_base + row0 + lon + 1;
+                    let c = vert_base + row1 + lon;
+                    let d = vert_base + row1 + lon + 1;
+                    indices.extend_from_slice(&[a, c, b, b, c, d]);
+                }
             }
 
             let index_count = indices.len() as u32 - index_start;
@@ -396,8 +293,8 @@ impl FrustumRenderer {
         if verts.len() > self.vertex_capacity {
             self.vertex_capacity = verts.len().next_power_of_two();
             self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("frustum_vertices"),
-                size: (self.vertex_capacity * std::mem::size_of::<FrustumVertex>()) as u64,
+                label: Some("sphere_vertices"),
+                size: (self.vertex_capacity * std::mem::size_of::<SphereVertex>()) as u64,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
@@ -405,7 +302,7 @@ impl FrustumRenderer {
         if indices.len() > self.index_capacity {
             self.index_capacity = indices.len().next_power_of_two();
             self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("frustum_indices"),
+                label: Some("sphere_indices"),
                 size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
                 usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
@@ -415,7 +312,7 @@ impl FrustumRenderer {
         queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&indices));
 
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("effect_frustum"),
+            label: Some("effect_sphere"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: target_view,
                 depth_slice: None,

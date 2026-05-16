@@ -86,6 +86,13 @@ pub enum EffectPrimitiveDraw {
         wave_amplitude: f32,
         wave_frequency: f32,
         wave_phase: f32,
+        /// When `true`, the renderer skips quads whose outward-facing normal
+        /// points away from the camera — back-face culling
+        /// for cones that should only show their outer surface
+        /// (e.g. the flat-flaring cast aura). Default `false`
+        /// preserves the existing behaviour where both faces of the cone
+        /// are visible (BottomSanc pillar, cast-circle petals).
+        cull_back: bool,
         texture: &'static str,
         color: [f32; 4],
         blend: BlendKind,
@@ -121,6 +128,33 @@ pub enum EffectPrimitiveDraw {
         height: f32,
         tilt_x_deg: f32,
         rotation_y_deg: f32,
+        texture: &'static str,
+        color: [f32; 4],
+        blend: BlendKind,
+    },
+    /// UV sphere centered at `center`. A closed mesh with latitude sweeping
+    /// `-90°..+90°` and
+    /// longitude sweeping `0°..360°`, two triangles per `(lat × lon)` cell.
+    ///
+    /// `sides_lat` / `sides_lon` are segment counts (the original game's
+    /// default `36°` arc gives `sides_lat = 5`, `sides_lon = 10`).
+    /// `longitude_offset` is added to every vertex's longitude angle in
+    /// radians — driving it over time slides the texture pattern around
+    /// the sphere, as in the original game.
+    ///
+    /// `uv_repeat` tiles the texture: `[u_repeat, v_repeat]`. v runs from 0
+    /// at the south pole to `v_repeat` at the north pole, u from 0 to
+    /// `u_repeat` around the equator.
+    ///
+    /// The lower hemisphere can sit below the impact ground plane — depth
+    /// testing against the ground geometry hides whatever portion is below.
+    Sphere {
+        center: [f32; 3],
+        radius: f32,
+        sides_lat: u32,
+        sides_lon: u32,
+        longitude_offset: f32,
+        uv_repeat: [f32; 2],
         texture: &'static str,
         color: [f32; 4],
         blend: BlendKind,

@@ -1,4 +1,4 @@
-//! EF_MAGNUMBREAK — yellow ground shockwave + vertical explosion cone.
+//! EF_MAGNUMBREAK — yellow ground shockwave + spherical explosion.
 //!
 //! The parent emitter launches three primitives at frame 0:
 //!   * a ground ring tied to the parent's lifetime — `ring_yellow.tga`,
@@ -10,10 +10,10 @@
 //!   * a second ground ring with a hardcoded 30-frame lifetime — the small
 //!     "after-ring" that snaps into existence as the main ring is still growing.
 //!
-//! We approximate the sphere with a `Frustum` primitive: bottom radius equal
-//! to the ground ring, top radius narrower, height roughly equal to the radius
-//! — the silhouette in the gif is closer to a vertical burst than a sphere
-//! when projected to screen anyway.
+//! The explosion is a full UV sphere centred at the impact point. Its lower
+//! hemisphere sits below the ground plane and is hidden by the depth test
+//! against ground geometry — what reaches the screen reads as a dome
+//! bursting upward, matching the original-game silhouette.
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -49,7 +49,7 @@ const FADE_IN_FRAMES: f32 = 15.0;
 const RING_FADE_OUT_FRAMES: f32 = PARENT_DURATION_FRAMES - 15.0;
 const RING_UV_REPEAT: f32 = 4.0;
 
-// Explosion frustum.
+// Explosion sphere — numbers verbatim.
 const EXPLOSION_INITIAL_RADIUS: f32 = 2.0;
 const EXPLOSION_RADIUS_SPEED_PER_FRAME: f32 = 1.15;
 const EXPLOSION_RADIUS_ACCEL_PER_FRAME2: f32 =
@@ -57,12 +57,10 @@ const EXPLOSION_RADIUS_ACCEL_PER_FRAME2: f32 =
 const EXPLOSION_PEAK_ALPHA: f32 = 180.0 / 255.0;
 /// Texture rotation in degrees per frame.
 const EXPLOSION_ROT_DEG_PER_FRAME: f32 = 3.0;
-/// Top radius as a fraction of the bottom — narrows the burst upward.
-const EXPLOSION_TOP_FACTOR: f32 = 0.4;
-/// Height as a multiple of the bottom radius. Vertical proportions tuned to
-/// the gif (the burst is roughly as tall as the ring is wide).
-const EXPLOSION_HEIGHT_FACTOR: f32 = 1.6;
-const EXPLOSION_SIDES: u32 = 16;
+/// Latitude segments — 36° arc → 180/36 = 5.
+const EXPLOSION_SIDES_LAT: u32 = 5;
+/// Longitude segments — 36° arc → 360/36 = 10.
+const EXPLOSION_SIDES_LON: u32 = 10;
 
 // Second (hardcoded-30-frame) ring — same params as the parent ring but with
 // a shorter lifetime.
@@ -154,7 +152,7 @@ impl Effect for MagnumBreakEffect {
             });
         }
 
-        // -- Explosion frustum --
+        // -- Explosion sphere --
         let explosion_radius = radius_at(
             EXPLOSION_INITIAL_RADIUS,
             EXPLOSION_RADIUS_SPEED_PER_FRAME,
@@ -168,19 +166,15 @@ impl Effect for MagnumBreakEffect {
                 RING_FADE_OUT_FRAMES,
                 PARENT_DURATION_FRAMES,
             );
-            let rotation_rad = (parent_frame * EXPLOSION_ROT_DEG_PER_FRAME).to_radians();
-            out.push(EffectPrimitiveDraw::Frustum {
-                base: self.world_pos,
-                bottom_size: explosion_radius,
-                top_size: explosion_radius * EXPLOSION_TOP_FACTOR,
-                height: explosion_radius * EXPLOSION_HEIGHT_FACTOR,
-                sides: EXPLOSION_SIDES,
-                rotation: rotation_rad,
-                uv_repeat: 1.0,
-                uv_scroll: [0.0, 0.0],
-                wave_amplitude: 0.0,
-                wave_frequency: 0.0,
-                wave_phase: 0.0,
+            let longitude_offset_rad =
+                (parent_frame * EXPLOSION_ROT_DEG_PER_FRAME).to_radians();
+            out.push(EffectPrimitiveDraw::Sphere {
+                center: self.world_pos,
+                radius: explosion_radius,
+                sides_lat: EXPLOSION_SIDES_LAT,
+                sides_lon: EXPLOSION_SIDES_LON,
+                longitude_offset: longitude_offset_rad,
+                uv_repeat: [1.0, 1.0],
                 texture: EXPLOSION_TEXTURE,
                 color: [1.0, 1.0, 1.0, explosion_alpha],
                 blend: BlendKind::Additive,
@@ -248,34 +242,54 @@ mod tests {
         let mut mb = MagnumBreakEffect::new(Attach::WorldPos([0.0; 3]));
         step(&mut mb, 0.0);
         let prims = draws(&mb);
-        assert_eq!(prims.len(), 3, "ring + cone + second ring");
+        assert_eq!(prims.len(), 3, "ring + sphere + second ring");
         assert!(matches!(prims[0], EffectPrimitiveDraw::GroundDisc { .. }));
-        assert!(matches!(prims[1], EffectPrimitiveDraw::Frustum { .. }));
+        assert!(matches!(prims[1], EffectPrimitiveDraw::Sphere { .. }));
         assert!(matches!(prims[2], EffectPrimitiveDraw::GroundDisc { .. }));
     }
 
     #[test]
-    fn ring_and_cone_grow_together() {
+    fn ring_and_sphere_grow_together() {
         let mut mb = MagnumBreakEffect::new(Attach::WorldPos([0.0; 3]));
         step(&mut mb, 0.0);
-        let (r0, c0) = match (&draws(&mb)[0], &draws(&mb)[1]) {
+        let (r0, s0) = match (&draws(&mb)[0], &draws(&mb)[1]) {
             (
                 EffectPrimitiveDraw::GroundDisc { radius, .. },
-                EffectPrimitiveDraw::Frustum { bottom_size, .. },
-            ) => (*radius, *bottom_size),
+                EffectPrimitiveDraw::Sphere { radius: sr, .. },
+            ) => (*radius, *sr),
             _ => unreachable!(),
         };
         // Halfway into parent life.
         step(&mut mb, PARENT_DURATION_S * 0.5);
-        let (r_mid, c_mid) = match (&draws(&mb)[0], &draws(&mb)[1]) {
+        let (r_mid, s_mid) = match (&draws(&mb)[0], &draws(&mb)[1]) {
             (
                 EffectPrimitiveDraw::GroundDisc { radius, .. },
-                EffectPrimitiveDraw::Frustum { bottom_size, .. },
-            ) => (*radius, *bottom_size),
+                EffectPrimitiveDraw::Sphere { radius: sr, .. },
+            ) => (*radius, *sr),
             _ => unreachable!(),
         };
         assert!(r_mid > r0);
-        assert!(c_mid > c0);
+        assert!(s_mid > s0);
+    }
+
+    #[test]
+    fn sphere_longitude_offset_advances_with_time() {
+        let mut mb = MagnumBreakEffect::new(Attach::WorldPos([0.0; 3]));
+        step(&mut mb, 0.0);
+        let off0 = match &draws(&mb)[1] {
+            EffectPrimitiveDraw::Sphere {
+                longitude_offset, ..
+            } => *longitude_offset,
+            _ => unreachable!(),
+        };
+        step(&mut mb, 10.0 / FRAMES_PER_SECOND);
+        let off1 = match &draws(&mb)[1] {
+            EffectPrimitiveDraw::Sphere {
+                longitude_offset, ..
+            } => *longitude_offset,
+            _ => unreachable!(),
+        };
+        assert!(off1 > off0, "longitude_offset advances each frame");
     }
 
     #[test]

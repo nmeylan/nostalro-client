@@ -67,7 +67,7 @@ const RESET_BLOCK_FRAMES_FROM_END: f32 = 30.0;
 /// `rot_start_deg`, and the base alpha.
 const NUM_EMITTERS: usize = 4;
 /// `GI[ec].max_height` for `ec ∈ 0..4` with `F1 == 0` (white variant).
-const MAX_HEIGHTS: [f32; NUM_EMITTERS] = [20.0, 19.0, 18.0, 17.0];
+const MAX_HEIGHTS: [f32; NUM_EMITTERS] = [17.0, 18.0, 19.0, 20.0];
 /// `GI[ec].rot_start` literals.
 const ROT_START_DEG: [f32; NUM_EMITTERS] = [180.0, 270.0, 0.0, 90.0];
 /// start alpha = time + offset.
@@ -83,10 +83,12 @@ const CONE_SIDES: u32 = 20;
 const CONE_UV_REPEAT: f32 = 1.0;
 /// `height[i]` swings ±30% around `max_h` per frame.
 const WAVE_REL_AMPLITUDE: f32 = 0.3;
-/// Time phase progresses each frame so the flame flicker animates. The
-/// original game's `pr` advances either 1 or 2 deg/frame depending on
-/// emitter index — we average to ~1.5 deg/frame.
-const WAVE_PHASE_PER_FRAME_DEG: f32 = 1.5;
+/// Per-emitter `pr` advance rates (degrees/frame). The original game alternates
+/// between 1 and 2 deg/frame across emitter indices, so each emitter's wave
+/// drifts to a different phase over time — at any given frame the 8 cones
+/// have different flame-tip heights and different peak-angle positions
+/// instead of all undulating in unison.
+const WAVE_PHASE_PER_FRAME_DEG: [f32; NUM_EMITTERS] = [1.0, 2.0, 1.0, 2.0];
 
 #[derive(Clone, Copy)]
 struct Emitter {
@@ -96,14 +98,17 @@ struct Emitter {
     /// Seam angle for the closed cone — the original game's rotation start.
     rot_start_deg: f32,
     max_height: f32,
-    /// `GI[ec].alpha_b` initial seed — used to renormalize back to [0, 1].
-    initial_alpha: f32,
+    /// Independent flame-flicker phase in radians. Advances by
+    /// `wave_phase_rate_rad` each frame so emitters drift apart visually.
+    wave_phase_rad: f32,
+    wave_phase_rate_rad: f32,
 }
 
 impl Emitter {
     fn step(&mut self) {
         self.distance += DISTANCE_GROW_PER_FRAME;
         self.rise_deg = (self.rise_deg - RISE_SHRINK_PER_FRAME).max(RISE_FLOOR_DEG);
+        self.wave_phase_rad += self.wave_phase_rate_rad;
 
         if self.distance >= ALPHA_REFILL_DISTANCE_GATE {
             self.alpha -= ALPHA_DRAIN_PER_FRAME;
@@ -121,12 +126,13 @@ impl Emitter {
         self.alpha = 0.0;
     }
 
+    /// Per-emitter alpha in [0, 1]. Uses the raw per-cell base alpha / 255
+    /// scale so the 4-emitter brightness staircase set by SAINTCASTING
+    /// (start alpha ∈ {180, 135, 90, 45} for `time=45`, halved-ish for `time=25`)
+    /// shows up as a real intensity gradient instead of every emitter
+    /// rendering at peak 1.0 and stacking to oversaturation.
     fn alpha_unit(&self) -> f32 {
-        if self.initial_alpha <= 0.0 {
-            0.0
-        } else {
-            (self.alpha / self.initial_alpha).clamp(0.0, 1.0)
-        }
+        (self.alpha / 255.0).clamp(0.0, 1.0)
     }
 }
 
@@ -143,20 +149,34 @@ impl BeginSpell6Effect {
             Attach::Entity(_) | Attach::Projectile { .. } => [0.0; 3],
         };
         let mut emitters = Vec::with_capacity(PASS_TIMES.len() * NUM_EMITTERS);
-        for pass_time in PASS_TIMES {
+        for (pass_idx, pass_time) in PASS_TIMES.iter().enumerate() {
             for ec in 0..NUM_EMITTERS {
                 let alpha = pass_time + ALPHA_OFFSET[ec];
+                // Spread initial phases across emitters so the
+                // `sin(wave_phase)` amplitude envelope is alive on day 1
+                // for every emitter — without the spread the four pass-1
+                // emitters all start at `sin(0) = 0` and the cone tops
+                // look perfectly flat until the phase rotates round.
+                // Pass 2 is offset another 90° so its four emitters
+                // don't trace the same envelope as pass 1.
+                let pass_offset_deg = if pass_idx == 0 { 0.0 } else { 90.0 };
+                let initial_phase_deg: f32 = pass_offset_deg + ec as f32 * 45.0;
                 emitters.push(Emitter {
                     distance: INIT_DISTANCE,
                     rise_deg: INIT_RISE_DEG,
                     alpha,
                     rot_start_deg: ROT_START_DEG[ec],
                     max_height: MAX_HEIGHTS[ec],
-                    initial_alpha: alpha,
+                    wave_phase_rad: initial_phase_deg.to_radians(),
+                    wave_phase_rate_rad: WAVE_PHASE_PER_FRAME_DEG[ec].to_radians(),
                 });
             }
         }
-        Self { world_pos, age: 0.0, emitters }
+        Self {
+            world_pos,
+            age: 0.0,
+            emitters,
+        }
     }
 
     fn frame(&self) -> f32 {
@@ -191,8 +211,7 @@ impl Effect for BeginSpell6Effect {
         if frame > TOTAL_FRAMES {
             return;
         }
-        let wave_phase_rad = (frame * WAVE_PHASE_PER_FRAME_DEG).to_radians();
-        for em in &self.emitters {
+        for (i, em) in self.emitters.iter().enumerate() {
             let alpha = em.alpha_unit();
             if alpha <= 0.0 {
                 continue;
@@ -204,7 +223,17 @@ impl Effect for BeginSpell6Effect {
             // `height[i] = max_h * (1 + sin(across)*0.3*sin(time))` — the
             // height swing is ±30% of max_h, scaled by the current vertical
             // component so the wave shrinks as the cone flattens.
-            let wave_amplitude = WAVE_REL_AMPLITUDE * height * wave_phase_rad.sin();
+            let wave_amplitude = WAVE_REL_AMPLITUDE * height * em.wave_phase_rad.sin();
+            // let color = if i == 1 {
+            //     [1.0, 0.0, 0.0, alpha]
+            // } else if i == 2 {
+            //     [0.0, 1.0, 0.0, alpha]
+            // } else if i == 3 {
+            //     [0.0, 0.0, 1.0, alpha]
+            // } else {
+            //     [1.0, 1.0, 1.0, alpha]
+            // };
+            let color = [1.0, 1.0, 1.0, alpha];
             out.push(EffectPrimitiveDraw::Frustum {
                 base: self.world_pos,
                 bottom_size: bottom,
@@ -216,9 +245,10 @@ impl Effect for BeginSpell6Effect {
                 uv_scroll: [0.0, 0.0],
                 wave_amplitude,
                 wave_frequency: 1.0,
-                wave_phase: wave_phase_rad,
+                wave_phase: em.wave_phase_rad,
+                cull_back: true,
                 texture: TEXTURE,
-                color: [1.0, 1.0, 1.0, alpha],
+                color,
                 blend: BlendKind::Additive,
             });
         }
@@ -341,7 +371,9 @@ mod tests {
         for _ in 0..(TOTAL_FRAMES as u32) {
             for p in draws(&e) {
                 if let EffectPrimitiveDraw::Frustum {
-                    wave_amplitude, height, ..
+                    wave_amplitude,
+                    height,
+                    ..
                 } = p
                 {
                     max_amp = max_amp.max(wave_amplitude.abs());

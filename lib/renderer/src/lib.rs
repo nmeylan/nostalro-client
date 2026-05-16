@@ -80,6 +80,7 @@ pub struct Renderer {
     pub effect_ground_disc_renderer: effect::GroundDiscRenderer,
     pub effect_frustum_renderer: effect::FrustumRenderer,
     pub effect_quad_horn_renderer: effect::QuadHornRenderer,
+    pub effect_sphere_renderer: effect::SphereRenderer,
     pub ui_renderer: UiRenderer,
     pub font_atlas: FontAtlas,
     pub font_atlas_bind_group: wgpu::BindGroup,
@@ -158,6 +159,12 @@ impl Renderer {
             &global_uniforms.bind_group_layout,
             &texture_cache.bind_group_layout,
         );
+        let effect_sphere_renderer = effect::SphereRenderer::new(
+            &device.device,
+            device.surface_format,
+            &global_uniforms.bind_group_layout,
+            &texture_cache.bind_group_layout,
+        );
 
         let ui_renderer = UiRenderer::new(
             &device.device,
@@ -181,6 +188,7 @@ impl Renderer {
             effect_ground_disc_renderer,
             effect_frustum_renderer,
             effect_quad_horn_renderer,
+            effect_sphere_renderer,
             ui_renderer,
             font_atlas,
             font_atlas_bind_group,
@@ -581,6 +589,10 @@ impl Renderer {
             .primitives
             .iter()
             .any(|p| matches!(p, effect::EffectPrimitiveDraw::QuadHorn { .. }));
+        let has_spheres = effect_draws
+            .primitives
+            .iter()
+            .any(|p| matches!(p, effect::EffectPrimitiveDraw::Sphere { .. }));
         if has_ground_discs {
             let fallback = &self.white_bind_group;
             self.effect_ground_disc_renderer.render(
@@ -614,6 +626,21 @@ impl Renderer {
         if has_quad_horns {
             let fallback = &self.white_bind_group;
             self.effect_quad_horn_renderer.render(
+                &mut encoder,
+                &view,
+                depth_view,
+                &self.device.device,
+                &self.device.queue,
+                &self.global_uniforms.bind_group,
+                &self.camera,
+                effect_draws,
+                fallback,
+                texture_lookup,
+            );
+        }
+        if has_spheres {
+            let fallback = &self.white_bind_group;
+            self.effect_sphere_renderer.render(
                 &mut encoder,
                 &view,
                 depth_view,

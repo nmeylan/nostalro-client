@@ -180,16 +180,21 @@ pub fn load_keyed_texture(
 
     let w = rgba.width();
     let h = rgba.height();
-    let upscaled = image::imageops::resize(&rgba, w * 4, h * 4, image::imageops::FilterType::CatmullRom);
-    // Effect textures are already perceptual sRGB and must be sampled linearly:
+    // Sample the native-resolution texture with `Nearest` filtering — flame
+    // textures (ring_*.tga, magic_*.tga) are small pixel-art with sharp
+    // feathered tips. Linear sampling + a previous CPU 4× CatmullRom upscale
+    // smoothed those tips into a blurry glow when the cone geometry
+    // stretched the small native pattern over a large surface.
+    //
+    // Effect textures are already perceptual sRGB and must NOT be re-decoded:
     // a second sRGB→linear decode on read darkens midtones and shifts tints
     // when combined with the additive accumulation done by effect primitives.
     let bg = create_texture_bind_group_from_rgba(
         device,
         queue,
-        upscaled.as_raw(),
-        upscaled.width(),
-        upscaled.height(),
+        rgba.as_raw(),
+        w,
+        h,
         layout,
         path,
         wgpu::FilterMode::Linear,

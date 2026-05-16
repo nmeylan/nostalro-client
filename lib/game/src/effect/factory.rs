@@ -56,6 +56,7 @@ pub fn make_effect(id: EffectId, attach: Attach) -> Option<Box<dyn Effect>> {
             effects::volcano::GUMGANG3,
         )),
 
+
         EffectId::Level99 => Box::new(effects::aura::AuraEffect::new(
             attach,
             effects::aura::LV99_LARGE,
