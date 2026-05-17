@@ -11,6 +11,7 @@ pub mod cast_circle;
 pub mod magnum_break;
 pub mod placeholder;
 pub mod stormgust;
+pub mod animated_texture_billboard;
 pub mod volcano;
 pub mod warp;
 pub mod warp_zone;

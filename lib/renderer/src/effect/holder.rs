@@ -56,6 +56,7 @@ pub struct SprSnapshot {
     pub size_scale: f32,
     pub anim_speed: f32,
     pub repeat: bool,
+    pub tint: [f32; 4],
 }
 
 /// Owned snapshot of a live `EffectSpec::SprBurst` instance — params for the
@@ -127,6 +128,7 @@ enum HeldPayload {
         size_scale: f32,
         anim_speed: f32,
         repeat: bool,
+        tint: [f32; 4],
     },
     /// Multi-particle SPR burst (chimney smoke, firefly, snow, …).
     SprBurst(BurstState),
@@ -198,6 +200,7 @@ impl EffectHolder {
                 size_scale,
                 anim_speed,
                 repeat,
+                tint,
                 ..
             } => {
                 self.last_spawn = Some(SpawnOutcome::Spr);
@@ -206,6 +209,7 @@ impl EffectHolder {
                     size_scale: *size_scale,
                     anim_speed: *anim_speed,
                     repeat: *repeat,
+                    tint: *tint,
                 }
             }
             EffectSpec::SprBurst { sprite, burst, .. } => {
@@ -415,6 +419,7 @@ impl EffectHolder {
                     size_scale,
                     anim_speed,
                     repeat,
+                    tint,
                 } = &e.payload
                 else {
                     return None;
@@ -433,6 +438,7 @@ impl EffectHolder {
                     size_scale: *size_scale,
                     anim_speed: *anim_speed,
                     repeat: *repeat,
+                    tint: *tint,
                 })
             })
             .collect()

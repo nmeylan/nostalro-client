@@ -147,6 +147,7 @@ fn bucket_default(id: EffectId) -> EffectSpec {
             size_scale: def.size_scale,
             anim_speed: def.anim_speed,
             repeat: def.repeat,
+            tint: def.tint,
         };
     }
     if let Some((sprite, burst)) = spr_burst_params(id) {
@@ -210,6 +211,7 @@ mod tests {
             size_scale,
             anim_speed,
             repeat,
+            tint,
         }) = effect_spec(EffectId::Torch)
         else {
             panic!("Torch should resolve to EffectSpec::Spr");
@@ -219,6 +221,7 @@ mod tests {
         assert_eq!(size_scale, 1.0);
         assert_eq!(anim_speed, 1.0);
         assert!(repeat);
+        assert_eq!(tint, [1.0, 1.0, 1.0, 1.0]);
     }
 
     #[test]
@@ -230,6 +233,7 @@ mod tests {
             size_scale,
             anim_speed,
             repeat,
+            tint,
         }) = effect_spec(EffectId::Aqua)
         else {
             panic!("Aqua should resolve to EffectSpec::Spr");
@@ -239,6 +243,7 @@ mod tests {
         assert_eq!(size_scale, 1.0);
         assert_eq!(anim_speed, 2.0);
         assert!(!repeat);
+        assert_eq!(tint, [1.0, 1.0, 1.0, 1.0]);
     }
 
     #[test]
@@ -253,6 +258,7 @@ mod tests {
             size_scale,
             anim_speed,
             repeat,
+            tint,
         }) = effect_spec(EffectId::Poisonhit)
         else {
             panic!("Poisonhit should resolve to EffectSpec::Spr");
@@ -262,6 +268,33 @@ mod tests {
         assert_eq!(size_scale, 1.5);
         assert_eq!(anim_speed, 2.0);
         assert!(!repeat);
+        assert_eq!(tint, [1.0, 1.0, 1.0, 1.0]);
+    }
+
+    #[test]
+    fn darkbreath_tints_red_and_overrides_table_duration() {
+        // green / blue are zeroed so DarkBreath renders pure red,
+        // and overrides the table value (500 frames → 5000 ms in our
+        // table) with duration 65 in the function body. The explicit
+        // table.rs arm pins the visible lifetime to ~1083 ms (65 frames
+        // at 60 fps).
+        let Some(EffectSpec::Spr {
+            sprite,
+            duration_ms,
+            size_scale,
+            anim_speed,
+            repeat,
+            tint,
+        }) = effect_spec(EffectId::Darkbreath)
+        else {
+            panic!("Darkbreath should resolve to EffectSpec::Spr");
+        };
+        assert_eq!(sprite, "data/sprite/이팩트/darkbreath");
+        assert_eq!(duration_ms, 1083);
+        assert!((size_scale - 0.8).abs() < 1e-6);
+        assert_eq!(anim_speed, 1.0);
+        assert!(repeat);
+        assert_eq!(tint, [1.0, 0.0, 0.0, 1.0]);
     }
 
     #[test]
@@ -500,7 +533,9 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Potion6 => 1000,
         EffectId::Potion7 => 1000,
         EffectId::Potion8 => 1000,
-        EffectId::Darkbreath => 5000,
+        // The original game overrides the table value (500) inside DarkBreath() with
+        // duration = 65 frames → 1083 ms at 60 fps.
+        EffectId::Darkbreath => 1083,
         EffectId::Deffender => 99990,
         EffectId::Keeping => 99990,
         EffectId::Summonslave => 5000,

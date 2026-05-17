@@ -36,6 +36,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::cast_circle::TEXTURES,
         effects::begin_spell_6::TEXTURES,
         effects::stormgust::TEXTURES,
+        effects::animated_texture_billboard::TEXTURES,
         effects::placeholder::TEXTURES,
     ];
     for list in texture_lists {

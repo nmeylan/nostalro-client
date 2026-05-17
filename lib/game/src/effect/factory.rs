@@ -155,6 +155,35 @@ pub fn make_effect(id: EffectId, attach: Attach) -> Option<Box<dyn Effect>> {
             attach,
             effects::cast_circle::ASURA_CHAMPION,
         )),
+
+        // Animated texture billboard — 13-frame .bmp texture cycle on a
+        // camera-facing billboard. Three colour variants share the
+        // effect with different texture lists.
+        EffectId::TorchRed => Box::new(
+            effects::animated_texture_billboard::AnimatedTextureBillboardEffect::new(
+                attach,
+                effects::animated_texture_billboard::TORCH_RED,
+            ),
+        ),
+        EffectId::TorchGreen => Box::new(
+            effects::animated_texture_billboard::AnimatedTextureBillboardEffect::new(
+                attach,
+                effects::animated_texture_billboard::TORCH_GREEN,
+            ),
+        ),
+        EffectId::TorchPurple => Box::new(
+            effects::animated_texture_billboard::AnimatedTextureBillboardEffect::new(
+                attach,
+                effects::animated_texture_billboard::TORCH_PURPLE,
+            ),
+        ),
+        EffectId::Dust => Box::new(
+            effects::animated_texture_billboard::AnimatedTextureBillboardEffect::new(
+                attach,
+                effects::animated_texture_billboard::DUST,
+            ),
+        ),
+
         // Placeholder catchall. Hybrid ids (12 effects, e.g. Stormgust,
         // Coin, Glasswall) declare an STR overlay so the original game's
         // STR animation plays alongside the pink marker. Pure-custom ids
@@ -210,6 +239,10 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Beginasura6
             | EffectId::Beginasura7
             | EffectId::Beginasura11
+            | EffectId::TorchRed
+            | EffectId::TorchGreen
+            | EffectId::TorchPurple
+            | EffectId::Dust
     )
 }
 
@@ -231,6 +264,32 @@ mod tests {
         // placeholder, and `is_real_impl` reports false.
         assert!(make_effect(EffectId::Hit2, Attach::WorldPos([0.0; 3])).is_some());
         assert!(!is_real_impl(EffectId::Hit2));
+    }
+
+    #[test]
+    fn torch_recolours_dispatch_to_animated_texture_billboard() {
+        // All three recolour variants resolve to a real impl. They must
+        // NOT fall through to the placeholder, otherwise the viewer would
+        // show the pink marker instead of the cycled bmp frames.
+        for id in [
+            EffectId::TorchRed,
+            EffectId::TorchGreen,
+            EffectId::TorchPurple,
+            EffectId::Dust,
+        ] {
+            assert!(
+                is_real_impl(id),
+                "{:?} must have a real factory impl",
+                id
+            );
+            let e = make_effect(id, Attach::WorldPos([0.0; 3])).unwrap();
+            assert_eq!(
+                e.str_overlay(),
+                None,
+                "{:?} is pure custom, no STR overlay",
+                id
+            );
+        }
     }
 
     #[test]
