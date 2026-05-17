@@ -12,6 +12,8 @@ use models::enums::effect_id::EffectId;
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effects::{bottom_sanctuary_pillar, cast_circle, magnum_break, stormgust, volcano, warp};
 use super::spec::EffectSpec;
+use super::spr_aliases::spr_aliases;
+use super::spr_burst::spr_burst_params;
 use super::str_aliases::str_aliases;
 
 pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
@@ -115,11 +117,11 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             duration_ms: default_duration_ms(id),
         },
 
-        // --- Map ambient SPR loops ---
-        EffectId::Torch => EffectSpec::Spr {
-            sprite: "data/sprite/이팩트/torch_01",
-            duration_ms: u32::MAX,
-        },
+        // SPR-billboard effects (Torch, Maple, Aqua, …) are resolved via
+        // [`spr_aliases`] + [`default_duration_ms`] in `bucket_default`.
+        // One-shot specs (e.g. Aqua at 1000 ms) cycle their .act once because
+        // the renderer maps the motion list across `duration_ms` and the
+        // holder kills the effect when duration elapses.
 
         // Hand-curated STR filename overrides (when the original game's STR file isn't
         // simply the lowercased EF_ identifier).
@@ -136,8 +138,23 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
 /// original game-derived buckets first (Noop / Custom), then default to STR.
 fn bucket_default(id: EffectId) -> EffectSpec {
     if is_noop_bucket(id) {
-        EffectSpec::Noop
-    } else if is_custom_bucket(id) {
+        return EffectSpec::Noop;
+    }
+    let spr = spr_aliases(id);
+    if !spr.is_empty() {
+        return EffectSpec::Spr {
+            sprite: spr[0],
+            duration_ms: default_duration_ms(id),
+        };
+    }
+    if let Some((sprite, burst)) = spr_burst_params(id) {
+        return EffectSpec::SprBurst {
+            sprite,
+            duration_ms: default_duration_ms(id),
+            burst,
+        };
+    }
+    if is_custom_bucket(id) {
         EffectSpec::Custom {
             duration_ms: default_duration_ms(id),
         }
@@ -181,9 +198,26 @@ mod tests {
 
     #[test]
     fn torch_is_an_spr_loop() {
+        // Routed via spr_aliases + default_duration_ms (no explicit table
+        // arm). Torch's duration must be infinite so the ambient torch keeps
+        // looping for the lifetime of the map.
         assert!(matches!(
             effect_spec(EffectId::Torch),
-            Some(EffectSpec::Spr { .. })
+            Some(EffectSpec::Spr {
+                sprite: "data/sprite/이팩트/torch_01",
+                duration_ms: u32::MAX,
+            })
+        ));
+    }
+
+    #[test]
+    fn aqua_is_a_one_shot_spr() {
+        assert!(matches!(
+            effect_spec(EffectId::Aqua),
+            Some(EffectSpec::Spr {
+                sprite: "data/sprite/이팩트/아쿠아플레이",
+                duration_ms: 1000,
+            })
         ));
     }
 
@@ -257,7 +291,10 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Smoke => 500,
         EffectId::Firefly => 1000,
         EffectId::Sandwind => 1800,
-        EffectId::Torch => 2500,
+        // Torch is an ambient looping emitter; original game's duration
+        // table value (2500) only applies to a fired-skill Torch, which the
+        // client never spawns.
+        EffectId::Torch => u32::MAX,
         EffectId::Spraypond => 1300,
         EffectId::Firehit => 500,
         EffectId::Firesplashhit => 500,

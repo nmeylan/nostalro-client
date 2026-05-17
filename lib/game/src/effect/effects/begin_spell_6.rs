@@ -277,7 +277,7 @@ mod tests {
     fn step_frames(e: &mut BeginSpell6Effect, n: u32) -> EffectStatus {
         let mut status = EffectStatus::Running;
         for _ in 0..n {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0 });
+            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None });
         }
         status
     }

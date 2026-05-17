@@ -188,7 +188,7 @@ mod tests {
         list.clear();
         // Quarter-period of the pulse — guaranteed off-zero crossing.
         let dt = (std::f32::consts::FRAC_PI_2) / LV99_LARGE.pulse_freq;
-        a.update(&EffectUpdateCtx { delta: dt });
+        a.update(&EffectUpdateCtx { delta: dt, camera_target: None });
         a.collect_draws(&mut list, &render_ctx());
         let s1 = billboard_size(&list.primitives[0]);
         assert!((s1 - s0).abs() > 1e-3, "size should oscillate: {s0} → {s1}");
@@ -215,7 +215,7 @@ mod tests {
     fn aura_stays_running_indefinitely() {
         let mut a = AuraEffect::new(Attach::WorldPos([0.0; 3]), LV99_LARGE);
         for _ in 0..1000 {
-            assert_eq!(a.update(&EffectUpdateCtx { delta: 0.1 }), EffectStatus::Running);
+            assert_eq!(a.update(&EffectUpdateCtx { delta: 0.1, camera_target: None }), EffectStatus::Running);
         }
     }
 }

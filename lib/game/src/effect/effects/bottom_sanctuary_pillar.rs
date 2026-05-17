@@ -126,7 +126,7 @@ mod tests {
     }
 
     fn step(effect: &mut BottomSanctuaryPillarEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt });
+        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None });
     }
 
     #[test]
@@ -185,7 +185,7 @@ mod tests {
     #[test]
     fn runs_for_full_duration() {
         let mut bs = BottomSanctuaryPillarEffect::new(Attach::WorldPos([0.0; 3]));
-        let s = bs.update(&EffectUpdateCtx { delta: 1.0 });
+        let s = bs.update(&EffectUpdateCtx { delta: 1.0, camera_target: None });
         assert!(matches!(s, EffectStatus::Running));
     }
 }

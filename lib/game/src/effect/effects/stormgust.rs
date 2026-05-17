@@ -349,7 +349,7 @@ mod tests {
     }
 
     fn step(effect: &mut StormgustEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt });
+        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None });
     }
 
     #[test]

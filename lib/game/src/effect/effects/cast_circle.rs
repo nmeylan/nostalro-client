@@ -340,7 +340,7 @@ mod tests {
         let current = c.frame();
         let delta = (target_frame - current) / FRAMES_PER_SECOND;
         if delta > 0.0 {
-            c.update(&EffectUpdateCtx { delta });
+            c.update(&EffectUpdateCtx { delta, camera_target: None });
         }
     }
 
@@ -431,7 +431,7 @@ mod tests {
     fn never_self_terminates() {
         let mut c = CastCircleEffect::new(Attach::WorldPos([0.0; 3]), YELLOW);
         for _ in 0..200 {
-            assert_eq!(c.update(&EffectUpdateCtx { delta: 0.1 }), EffectStatus::Running);
+            assert_eq!(c.update(&EffectUpdateCtx { delta: 0.1, camera_target: None }), EffectStatus::Running);
         }
     }
 }

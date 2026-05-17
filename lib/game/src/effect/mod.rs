@@ -5,6 +5,8 @@ pub mod effect_trait;
 pub mod effects;
 pub mod factory;
 pub mod spec;
+pub mod spr_aliases;
+pub mod spr_burst;
 pub mod str_aliases;
 pub mod table;
 
@@ -12,7 +14,9 @@ pub use draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 pub use effect_queue::{EffectQueue, SpawnRequest};
 pub use effect_trait::{CameraView, Effect, EffectRenderCtx, EffectUpdateCtx};
 pub use factory::{is_real_impl, make_effect};
-pub use spec::{Attach, EffectSpec};
+pub use spec::{Attach, EffectSpec, SprBurstParams};
+pub use spr_aliases::spr_aliases;
+pub use spr_burst::spr_burst_params;
 pub use str_aliases::str_aliases;
 pub use table::effect_spec;
 

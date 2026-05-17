@@ -17,8 +17,14 @@ pub struct CameraView {
     pub up: [f32; 3],
 }
 
+#[derive(Default)]
 pub struct EffectUpdateCtx {
     pub delta: f32,
+    /// Current camera target in world coordinates, when available. Used by
+    /// effects whose spawn point should follow the active view (snow, rain,
+    /// other camera-anchored ambient burst emitters). `None` for callers
+    /// that don't track a camera (most tests).
+    pub camera_target: Option<[f32; 3]>,
 }
 
 pub struct EffectRenderCtx {

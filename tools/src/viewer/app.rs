@@ -747,7 +747,7 @@ impl App {
 
         self.effect_holder.drain_queue(&mut self.effect_queue);
         self.effect_holder
-            .update(&EffectUpdateCtx { delta: sim_dt });
+            .update(&EffectUpdateCtx { delta: sim_dt, camera_target: None });
 
         let Some(renderer) = &mut self.renderer else {
             return;

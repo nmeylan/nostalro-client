@@ -889,7 +889,7 @@ pub unsafe extern "C" fn hot_update_custom_effect(
     let Some(effect) = effects.get_mut(&handle) else {
         return 1;
     };
-    let status = effect.update(&GameEffectUpdateCtx { delta: dt });
+    let status = effect.update(&GameEffectUpdateCtx { delta: dt, camera_target: None });
     matches!(status, EffectStatus::Dead) as u8
 }
 

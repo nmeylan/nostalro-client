@@ -245,7 +245,7 @@ mod tests {
     }
 
     fn step(effect: &mut MagnumBreakEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt });
+        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None });
     }
 
     #[test]
@@ -343,7 +343,7 @@ mod tests {
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         while t < PARENT_DURATION_S * 2.0 {
-            status = mb.update(&EffectUpdateCtx { delta: 1.0 / 60.0 });
+            status = mb.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None });
             t += 1.0 / 60.0;
             if matches!(status, EffectStatus::Dead) {
                 break;

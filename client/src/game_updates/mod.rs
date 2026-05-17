@@ -24,6 +24,6 @@ impl App {
         self.game.effects.update(delta);
 
         self.effect_holder.drain_queue(&mut self.effect_queue);
-        self.effect_holder.update(&EffectUpdateCtx { delta: delta });
+        self.effect_holder.update(&EffectUpdateCtx { delta: delta, camera_target: None });
     }
 }

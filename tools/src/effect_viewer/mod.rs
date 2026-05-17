@@ -529,6 +529,7 @@ fn effect_duration_ms(id: EffectId) -> Option<u32> {
         Some(EffectSpec::Custom { duration_ms }) => Some(duration_ms),
         Some(EffectSpec::Str { duration_ms, .. }) => Some(duration_ms),
         Some(EffectSpec::Spr { duration_ms, .. }) => Some(duration_ms),
+        Some(EffectSpec::SprBurst { duration_ms, .. }) => Some(duration_ms),
         Some(EffectSpec::Noop) | None => None,
     }
 }
@@ -837,6 +838,7 @@ impl App {
             Some(EffectSpec::Custom { duration_ms }) => duration_ms.to_string(),
             Some(EffectSpec::Str { duration_ms, .. }) => duration_ms.to_string(),
             Some(EffectSpec::Spr { duration_ms, .. }) => duration_ms.to_string(),
+            Some(EffectSpec::SprBurst { duration_ms, .. }) => duration_ms.to_string(),
             Some(EffectSpec::Noop) | None => "-".to_string(),
         };
         eprintln!(
@@ -854,10 +856,12 @@ impl App {
     ///     dropped immediately; the real spawn happens via the cdylib path.
     /// Tries the primary name first, then known aliases.
     /// Failures are remembered so we don't retry every cycle.
-    /// Lazy-load the SPR billboard for an `EffectSpec::Spr` effect.
+    /// Lazy-load the SPR billboard for an `EffectSpec::Spr` or `SprBurst` effect.
     fn ensure_spr_loaded_for(&mut self, id: EffectId) {
-        let Some(EffectSpec::Spr { sprite, .. }) = effect_spec(id) else {
-            return;
+        let sprite: &'static str = match effect_spec(id) {
+            Some(EffectSpec::Spr { sprite, .. }) => sprite,
+            Some(EffectSpec::SprBurst { sprite, .. }) => sprite,
+            _ => return,
         };
         if self.attempted_spr_files.contains(sprite) {
             return;
@@ -1094,9 +1098,17 @@ impl App {
             hot.update(scaled_dt);
         }
 
-        // Drain spawn requests into the holder, then tick it.
+        // Drain spawn requests into the holder, then tick it. Camera target
+        // lets camera-anchored SprBurst effects (Snow, etc.) follow the view.
         self.effect_holder.drain_queue(&mut self.effect_queue);
-        self.effect_holder.update(&EffectUpdateCtx { delta: scaled_dt });
+        let camera_target = self
+            .renderer
+            .as_ref()
+            .map(|r| r.camera.target.to_array());
+        self.effect_holder.update(&EffectUpdateCtx {
+            delta: scaled_dt,
+            camera_target,
+        });
 
         let status_code = self
             .effect_holder
@@ -1150,7 +1162,8 @@ impl App {
         // SPR-billboard snapshots → emitter inputs (Torch and the rest of the
         // Tier-A spec entries). Mirrors the RSW ambient path.
         let spr_snapshots = self.effect_holder.collect_spr_emitters(&|_| None);
-        let spr_inputs: Vec<SpriteEffectEmitter<'_>> = spr_snapshots
+        let burst_snapshots = self.effect_holder.collect_spr_burst_emitters(&|_| None);
+        let mut spr_inputs: Vec<SpriteEffectEmitter<'_>> = spr_snapshots
             .iter()
             .map(|s| SpriteEffectEmitter::Spr {
                 sprite_path: &s.sprite,
@@ -1161,6 +1174,14 @@ impl App {
                 anim_time: s.anim_time,
             })
             .collect();
+        spr_inputs.extend(burst_snapshots.iter().map(|b| SpriteEffectEmitter::Smoke3D {
+            sprite_path: &b.sprite,
+            alpha_max: b.alpha_max,
+            color: [1.0, 1.0, 1.0, 1.0],
+            size_scale: b.size_scale,
+            anim_speed: b.anim_speed,
+            particles: b.particles.clone(),
+        }));
         let spr_draws = collect_sprite_effect_draws(
             &spr_inputs,
             &self.effect_sprites,
