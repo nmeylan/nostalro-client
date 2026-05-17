@@ -835,12 +835,18 @@ impl App {
         let mut effect_batches = build_emitter_batches(&effect_draws);
 
         let str_inputs = build_str_emitter_inputs(&self.effects);
+        let zoom = self
+            .map_data
+            .as_ref()
+            .and_then(|m| m.coordinates.as_ref())
+            .map_or(10.0, |c| c.zoom());
         let mut str_batches = build_str_effect_batches(
             &str_inputs,
             &self.str_effects,
             &renderer.camera,
             screen_w,
             screen_h,
+            zoom,
         );
         effect_batches.append(&mut str_batches);
 

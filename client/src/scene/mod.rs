@@ -322,12 +322,18 @@ impl App {
                     anim_time: snap.anim_time,
                 });
             }
+            let zoom = self
+                .game
+                .map_coords
+                .as_ref()
+                .map_or(10.0, |c| c.zoom());
             let mut str_batches = build_str_effect_batches(
                 &str_inputs,
                 &self.str_effects,
                 &renderer.camera,
                 screen_w,
                 screen_h,
+                zoom,
             );
             effect_batches.append(&mut str_batches);
 

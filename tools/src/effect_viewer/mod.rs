@@ -1113,6 +1113,7 @@ impl App {
             &renderer.camera,
             screen_w,
             screen_h,
+            10.0,
         );
 
         // Custom-effect primitives (currently: Aura). Build a draw list from
@@ -1167,6 +1168,7 @@ impl App {
                     &renderer.camera,
                     cap_w,
                     cap_h,
+                    10.0,
                 );
                 let color_view = session.target.color_view.clone();
                 let depth_view = session.target.depth_view.clone();

@@ -306,12 +306,17 @@ pub struct StrEmitterInput<'a> {
 }
 
 /// Build sprite batches for STR effects projected to screen space.
+///
+/// `zoom` is the map's world-units-per-cell (from `MapCoordinates::zoom`).
+/// Callers without a map (e.g. standalone effect previewers) can pass `10.0`,
+/// the conventional default.
 pub fn build_str_effect_batches<'a>(
     emitters: &[StrEmitterInput<'_>],
     cache: &'a StrEffectCache,
     camera: &Camera,
     screen_w: f32,
     screen_h: f32,
+    zoom: f32,
 ) -> Vec<SpriteBatch<'a>> {
     let mut batches = Vec::new();
 
@@ -361,10 +366,11 @@ pub fn build_str_effect_batches<'a>(
             let cos_a = angle_rad.cos();
             let sin_a = angle_rad.sin();
 
-            // Original game uses pixel_ratio = 1/35 in cell units; one cell ≈ gnd.zoom
-            // world units (~10), and `ppu` = screen pixels per world unit. So
-            // screen_pixels = pos * (zoom/35) * ppu ≈ pos * ppu * 0.286.
-            let scale = ppu * 10.0 / 35.0;
+            // Match `sprite_projection::project_entity_screen`'s `ppu * zoom / 75`
+            // so STR effects and entity sprites share a world-units-per-pixel ratio.
+            // The `/35` reference (one cell = 35 STR pixels) is encoded by the
+            // sprite pipeline's `/75` divisor + the sprite art's authored size.
+            let scale = ppu * zoom / 75.0;
             let offset_x = (anim.offset[0] - 320.0) * scale;
             let offset_y = (anim.offset[1] - 320.0) * scale;
 

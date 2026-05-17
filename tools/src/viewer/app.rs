@@ -50,18 +50,18 @@ pub struct Args {
     pub direction: Option<u8>,
 }
 
-/// Effects offered by N/P cycling. Hand-picked so each one renders cleanly
-/// on a body anchor; broader coverage will come once the effect browser is
-/// merged in.
-const EFFECT_CYCLE: &[EffectId] = &[
-    EffectId::Magnumbreak,
-    EffectId::Heal,
-    EffectId::Aurablade,
-    EffectId::Bash,
-    EffectId::Endure,
-    EffectId::Blessing,
-    EffectId::Resurrection,
-];
+/// Build the list of effects N/P cycles through. Mirrors
+/// `tools/effect-viewer-hot`'s `build_filtered(Filter::All)`: every valid
+/// `EffectId` whose spec is non-`Noop`, in numeric order.
+fn build_effect_list() -> Vec<EffectId> {
+    (0..=2027usize)
+        .filter_map(|v| EffectId::try_from_value(v).ok())
+        .filter(|id| match effect_spec(*id) {
+            Some(EffectSpec::Noop) | None => false,
+            _ => true,
+        })
+        .collect()
+}
 
 pub struct App {
     args: Args,
@@ -87,6 +87,7 @@ pub struct App {
     effect_holder: EffectHolder,
     effect_queue: EffectQueue,
     str_effects: StrEffectCache,
+    effect_list: Vec<EffectId>,
     current_effect_idx: usize,
     current_effect_id: Option<EffectId>,
     current_effect_label: String,
@@ -130,6 +131,7 @@ impl App {
             effect_holder: EffectHolder::new(),
             effect_queue: EffectQueue::new(),
             str_effects: StrEffectCache::new(),
+            effect_list: build_effect_list(),
             current_effect_idx: 0,
             current_effect_id: None,
             current_effect_label: "(none)".to_string(),
@@ -363,6 +365,9 @@ impl App {
         self.effect_holder.clear();
         self.effect_queue.spawn_at(id, pos);
         self.current_effect_id = Some(id);
+        if let Some(idx) = self.effect_list.iter().position(|x| *x == id) {
+            self.current_effect_idx = idx;
+        }
         self.current_effect_label = format_effect_label(id);
         tracing::info!(
             "Spawning effect {} ({:?}) at {:?}",
@@ -685,22 +690,30 @@ impl App {
                 self.reload_shield();
             }
             ViewerAction::NextEffect => {
-                self.current_effect_idx = (self.current_effect_idx + 1) % EFFECT_CYCLE.len();
-                self.spawn_effect_on_character(EFFECT_CYCLE[self.current_effect_idx]);
+                let n = self.effect_list.len();
+                if n > 0 {
+                    self.current_effect_idx = (self.current_effect_idx + 1) % n;
+                    self.spawn_effect_on_character(self.effect_list[self.current_effect_idx]);
+                }
             }
             ViewerAction::PrevEffect => {
-                self.current_effect_idx = if self.current_effect_idx == 0 {
-                    EFFECT_CYCLE.len() - 1
-                } else {
-                    self.current_effect_idx - 1
-                };
-                self.spawn_effect_on_character(EFFECT_CYCLE[self.current_effect_idx]);
+                let n = self.effect_list.len();
+                if n > 0 {
+                    self.current_effect_idx = if self.current_effect_idx == 0 {
+                        n - 1
+                    } else {
+                        self.current_effect_idx - 1
+                    };
+                    self.spawn_effect_on_character(self.effect_list[self.current_effect_idx]);
+                }
             }
             ViewerAction::PlayEffect | ViewerAction::ReplayEffect => {
                 let id = self
                     .current_effect_id
-                    .unwrap_or(EFFECT_CYCLE[self.current_effect_idx]);
-                self.spawn_effect_on_character(id);
+                    .or_else(|| self.effect_list.get(self.current_effect_idx).copied());
+                if let Some(id) = id {
+                    self.spawn_effect_on_character(id);
+                }
             }
             ViewerAction::ResetCamera => {
                 let anchor = self
@@ -752,12 +765,18 @@ impl App {
                 anim_time: s.anim_time,
             })
             .collect();
+        let zoom = self
+            .map_data
+            .as_ref()
+            .and_then(|m| m.coordinates.as_ref())
+            .map_or(10.0, |c| c.zoom());
         let effect_batches = build_str_effect_batches(
             &str_inputs,
             &self.str_effects,
             &renderer.camera,
             screen_w,
             screen_h,
+            zoom,
         );
 
         let mut effect_draws = EffectDrawList::new();

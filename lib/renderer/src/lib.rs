@@ -10,6 +10,7 @@ pub mod ground;
 pub mod ground_proxy;
 pub mod model;
 pub mod sprite;
+pub mod sprite_projection;
 pub mod texture;
 pub mod ui_renderer;
 pub mod water;
@@ -48,6 +49,24 @@ use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::rsw::{RswFile, RswObject};
 use std::sync::Arc;
 
+/// Selects which floor (if any) the main pass renders. `RswMap` uses the
+/// real `ground_renderer`; `GroundProxy` uses the debug checker floor;
+/// `Clear` skips both so only `clear_color` shows through. Tooling like
+/// the unified viewer toggles this at runtime; the game and `rsw_viewer`
+/// rely on the default (`RswMap`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BackgroundMode {
+    Clear,
+    GroundProxy,
+    RswMap,
+}
+
+impl Default for BackgroundMode {
+    fn default() -> Self {
+        BackgroundMode::RswMap
+    }
+}
+
 /// Texture reference used by UI draw calls, resolved to bind groups at render time.
 pub enum UiTextureRef {
     FontAtlas,
@@ -70,9 +89,9 @@ pub struct Renderer {
     pub global_uniforms: GlobalUniforms,
     pub texture_cache: TextureCache,
     pub ground_renderer: Option<GroundRenderer>,
-    /// Debug/tooling stand-in for the real ground when no `.gnd` is loaded
-    /// (e.g. effect viewer). Drawn in place of `ground_renderer` so the
-    /// depth buffer carries a floor for effect primitives to clip against.
+    /// Debug/tooling stand-in for the real ground; renders when
+    /// `background_mode == GroundProxy`. Provides a floor for effect
+    /// primitives to depth-clip against when no real `.gnd` is loaded.
     pub ground_proxy: Option<GroundProxyRenderer>,
     pub model_renderer: Option<ModelRenderer>,
     pub water_renderer: Option<WaterRenderer>,
@@ -94,6 +113,7 @@ pub struct Renderer {
     pub font_px_height: f32,
     pub dpi_scale: f32,
     pub clear_color: wgpu::Color,
+    pub background_mode: BackgroundMode,
 }
 
 impl Renderer {
@@ -208,7 +228,12 @@ impl Renderer {
                 b: 0.929,
                 a: 1.0,
             },
+            background_mode: BackgroundMode::default(),
         }
+    }
+
+    pub fn set_background_mode(&mut self, mode: BackgroundMode) {
+        self.background_mode = mode;
     }
 
     pub fn load_map(
@@ -324,6 +349,8 @@ impl Renderer {
             &mut self.texture_cache,
             self.device.surface_format,
         );
+
+        self.background_mode = BackgroundMode::RswMap;
     }
 
     /// Load each `data/texture/effect/<name>` entry into the texture cache,
@@ -399,10 +426,9 @@ impl Renderer {
         }
     }
 
-    /// Install a debug checker floor at `y = 0`. Only drawn when no real
-    /// `ground_renderer` is loaded. Call once during setup (effect viewer,
-    /// gif exporter, …) so effect primitives have something to depth-test
-    /// against.
+    /// Install a debug checker floor at `y = 0`. Whether it actually
+    /// renders is controlled by `background_mode`; callers usually pair
+    /// this with `set_background_mode(BackgroundMode::GroundProxy)`.
     pub fn enable_ground_proxy(&mut self) {
         if self.ground_proxy.is_some() {
             return;
@@ -530,24 +556,32 @@ impl Renderer {
                 ..Default::default()
             });
 
-            if let Some(ground) = &self.ground_renderer {
-                ground.render(&mut pass, &self.global_uniforms, &self.texture_cache);
-            } else if let Some(proxy) = &self.ground_proxy {
-                proxy.render(&mut pass, &self.global_uniforms, &self.camera);
-            }
-            if let Some(model) = &self.model_renderer {
-                model.render(&mut pass, &self.global_uniforms, &self.texture_cache);
-            }
-            if let Some(grid) = &self.grid_selector {
-                grid.render(&mut pass, &self.global_uniforms, &self.texture_cache);
-            }
-            if let Some(water) = &self.water_renderer {
-                water.render(
-                    &mut pass,
-                    &self.global_uniforms,
-                    &self.texture_cache,
-                    elapsed,
-                );
+            match self.background_mode {
+                BackgroundMode::RswMap => {
+                    if let Some(ground) = &self.ground_renderer {
+                        ground.render(&mut pass, &self.global_uniforms, &self.texture_cache);
+                    }
+                    if let Some(model) = &self.model_renderer {
+                        model.render(&mut pass, &self.global_uniforms, &self.texture_cache);
+                    }
+                    if let Some(grid) = &self.grid_selector {
+                        grid.render(&mut pass, &self.global_uniforms, &self.texture_cache);
+                    }
+                    if let Some(water) = &self.water_renderer {
+                        water.render(
+                            &mut pass,
+                            &self.global_uniforms,
+                            &self.texture_cache,
+                            elapsed,
+                        );
+                    }
+                }
+                BackgroundMode::GroundProxy => {
+                    if let Some(proxy) = &self.ground_proxy {
+                        proxy.render(&mut pass, &self.global_uniforms, &self.camera);
+                    }
+                }
+                BackgroundMode::Clear => {}
             }
         }
 
@@ -765,6 +799,37 @@ impl Renderer {
                 tracing::info!("Loaded GRF font: {path}");
                 return;
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn background_mode_default_is_rsw_map() {
+        assert_eq!(BackgroundMode::default(), BackgroundMode::RswMap);
+    }
+
+    #[test]
+    fn background_mode_cycle_round_trip() {
+        // The unified viewer's B key advances RswMap -> GroundProxy -> Clear ->
+        // back. The renderer doesn't own the cycling, but the order matters
+        // because clients read this enum directly.
+        let mut mode = BackgroundMode::default();
+        let cycle = [
+            BackgroundMode::GroundProxy,
+            BackgroundMode::Clear,
+            BackgroundMode::RswMap,
+        ];
+        for expected in cycle {
+            mode = match mode {
+                BackgroundMode::RswMap => BackgroundMode::GroundProxy,
+                BackgroundMode::GroundProxy => BackgroundMode::Clear,
+                BackgroundMode::Clear => BackgroundMode::RswMap,
+            };
+            assert_eq!(mode, expected);
         }
     }
 }

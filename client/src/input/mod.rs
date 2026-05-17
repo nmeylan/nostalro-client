@@ -98,41 +98,4 @@ pub fn handle_camera_zoom(camera: &mut Camera, scroll: f32) {
     camera.distance = (camera.distance - scroll * 20.0).clamp(50.0, 1500.0);
 }
 
-pub fn entity_screen_params(
-    pos: (f32, f32),
-    gat: Option<&GatFile>,
-    coords: &MapCoordinates,
-    camera: &Camera,
-    screen_w: f32,
-    screen_h: f32,
-) -> Option<([f32; 2], f32, u8, f32, f32)> {
-    let (cell_x, cell_y) = pos;
-    let (wx, _, wz) = coords.cell_to_world(cell_x + 0.5, cell_y + 0.5);
-    let wy = gat.map_or(0.0, |gat| gat.get_height(cell_x + 0.5, cell_y + 0.5));
-
-    let (sx, sy, ndc_z_raw, clip_w) =
-        camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h)?;
-    // Scale bias to a constant view-space offset; fixed NDC bias grew to ~450 world units at max zoom
-    let ndc_z = ndc_z_raw - camera.near * 4.0 / (clip_w * clip_w);
-
-    // Per-vertex depth gradient: NDC depth change per screen pixel in Y.
-    // Head vertices (above feet) should have smaller depth (closer to camera).
-    // Use unbiased ndc_z_raw so the gradient reflects true perspective depth change.
-    let depth_gradient = camera
-        .world_to_screen_with_depth(wx, wy - 1.0, wz, screen_w, screen_h)
-        .map(|(_, sy_above, ndc_z_above, _)| {
-            let dy = sy_above - sy;
-            if dy.abs() > 1e-6 {
-                (ndc_z_above - ndc_z_raw) / dy
-            } else {
-                0.0
-            }
-        })
-        .unwrap_or(0.0);
-
-    let camera_dir = camera.direction_index();
-    let ppu = camera.perspective_scale(wx, wy, wz, screen_h);
-    let sprite_scale = ppu * coords.zoom() / 75.0;
-
-    Some(([sx, sy], ndc_z, camera_dir, sprite_scale, depth_gradient))
-}
+pub use ragnarok_renderer::sprite_projection::project_entity_screen as entity_screen_params;
