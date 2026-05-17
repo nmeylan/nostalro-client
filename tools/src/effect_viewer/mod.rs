@@ -1242,6 +1242,7 @@ impl ApplicationHandler for App {
         // lower halves (e.g. magnum break's sphere) get clipped at the
         // ground plane the same way as in-game.
         renderer.enable_ground_proxy();
+        renderer.set_background_mode(ragnarok_renderer::BackgroundMode::GroundProxy);
 
         self.renderer = Some(renderer);
         self.white_bind_group = Some(white_bind_group);
