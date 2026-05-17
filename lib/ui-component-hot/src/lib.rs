@@ -5,15 +5,10 @@ static GLOBAL: std::alloc::System = std::alloc::System;
 
 use models::enums::EnumWithNumberValue;
 use models::enums::item::ItemType;
-use ragnarok_game::card_illustration_table::CardIllustrationTable;
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo};
 use ragnarok_game::item::Item;
-use ragnarok_game::item_description_table::ItemDescriptionTable;
-use ragnarok_game::item_name_table::ItemNameTable;
-use ragnarok_game::item_resource_table::ItemResourceTable;
-use ragnarok_game::item_slot_count_table::ItemSlotCountTable;
 use ragnarok_game::npc_shop::{NpcShopMode, ShopBuyItem, ShopSellItem};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -37,6 +32,13 @@ use ragnarok_ui_component::game::status_window::{StatusWindow, STATUS_WINDOW_ID}
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::{InGameWindow, Window};
 use std::collections::HashMap;
+use ragnarok_game::data_table::card_illustration_table::CardIllustrationTable;
+use ragnarok_game::data_table::item_description_table::ItemDescriptionTable;
+use ragnarok_game::data_table::item_name_table::ItemNameTable;
+use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
+use ragnarok_game::data_table::item_slot_count_table::ItemSlotCountTable;
+use ragnarok_game::data_table::skill_name_table::SkillNameTable;
+use ragnarok_game::data_table::skill_tree_table::{SkillTreeEntry, SkillTreeTable};
 
 const GAME_COMPONENTS: &[&str] = &[
     "inventory",
@@ -519,8 +521,6 @@ fn create_single(name: &str) -> State {
         }
         "skill_tree" => {
             use ragnarok_game::skill::{SkillData, SkillTargetType};
-            use ragnarok_game::skill_name_table::SkillNameTable;
-            use ragnarok_game::skill_tree_table::{SkillTreeEntry, SkillTreeTable};
 
             let mut character = Character::new();
             character.skill_point = 5;
@@ -735,8 +735,6 @@ fn create_single(name: &str) -> State {
         "hotkey_bar" => {
             use ragnarok_game::hotkey::HotkeySlotContent;
             use ragnarok_game::skill::{SkillData, SkillTargetType};
-            use ragnarok_game::skill_name_table::SkillNameTable;
-            use ragnarok_game::skill_tree_table::{SkillTreeEntry, SkillTreeTable};
 
             let mut character = Character::new();
 

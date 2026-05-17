@@ -4,7 +4,6 @@ use std::time::Instant;
 
 use ragnarok_formats::act::{MotionType, SpriteActionType, SpriteAnimationState};
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_game::accessory_table::AccessoryTable;
 use ragnarok_game::sprite_loader::{self as game_sprite_loader};
 use ragnarok_game::sprite_path::weapon_view_id_to_type;
 use ragnarok_renderer::font_atlas::FontAtlas;
@@ -22,6 +21,7 @@ use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowAttributes, WindowId};
+use ragnarok_game::data_table::accessory_table::AccessoryTable;
 
 struct Args {
     grf_path: Option<String>,

@@ -15,7 +15,6 @@ use models::enums::effect_id::EffectId;
 use ragnarok_formats::act::{MotionType, SpriteAnimationState};
 use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_game::accessory_table::AccessoryTable;
 use ragnarok_game::effect::{
     Attach, EffectQueue, EffectSpec, effect_spec, effect_texture_paths, str_aliases,
 };
@@ -35,7 +34,7 @@ use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowAttributes, WindowId};
-
+use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use crate::sprite_viewer::browser::SpriteBrowser;
 use crate::viewer::controls::{ViewerAction, map_key};
 use crate::viewer::overlay::{self, StatusLine};

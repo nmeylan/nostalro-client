@@ -40,6 +40,9 @@ use ragnarok_renderer::effect::{
     EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, ExternalCustomBackend,
     SpawnStatus, StrEffectCache, StrEmitterInput, build_str_effect_batches,
 };
+use ragnarok_renderer::effect_sprite::{
+    EffectSpriteCache, SpriteEffectEmitter, build_emitter_batches, collect_sprite_effect_draws,
+};
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{Renderer, UiDrawCall, block_on};
 use winit::application::ApplicationHandler;
@@ -552,6 +555,9 @@ struct App {
     grf: Option<GrfArchive>,
     grf_path: String,
     str_effects: StrEffectCache,
+    effect_sprites: EffectSpriteCache,
+    /// SPR paths already attempted; we don't retry every frame.
+    attempted_spr_files: std::collections::HashSet<String>,
     effect_holder: EffectHolder,
     effect_queue: EffectQueue,
     /// 1x1 white bind group, owned by App (not the renderer) so it can be
@@ -614,6 +620,8 @@ impl App {
             grf: None,
             grf_path: args.grf_path,
             str_effects: StrEffectCache::new(),
+            effect_sprites: EffectSpriteCache::new(),
+            attempted_spr_files: std::collections::HashSet::new(),
             effect_holder,
             effect_queue: EffectQueue::new(),
             white_bind_group: None,
@@ -784,6 +792,7 @@ impl App {
         // the spawn. The holder won't actually render anything until its
         // bind groups are present in the cache.
         self.ensure_str_loaded_for(effect_id);
+        self.ensure_spr_loaded_for(effect_id);
         self.effect_queue
             .spawn_at(effect_id, [pos[0], pos[1], pos[2]]);
     }
@@ -845,6 +854,27 @@ impl App {
     ///     dropped immediately; the real spawn happens via the cdylib path.
     /// Tries the primary name first, then known aliases.
     /// Failures are remembered so we don't retry every cycle.
+    /// Lazy-load the SPR billboard for an `EffectSpec::Spr` effect.
+    fn ensure_spr_loaded_for(&mut self, id: EffectId) {
+        let Some(EffectSpec::Spr { sprite, .. }) = effect_spec(id) else {
+            return;
+        };
+        if self.attempted_spr_files.contains(sprite) {
+            return;
+        }
+        self.attempted_spr_files.insert(sprite.to_string());
+        let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) else {
+            return;
+        };
+        self.effect_sprites.load(
+            sprite,
+            grf,
+            &renderer.device.device,
+            &renderer.device.queue,
+            &renderer.texture_cache.bind_group_layout,
+        );
+    }
+
     fn ensure_str_loaded_for(&mut self, id: EffectId) {
         let file: &'static str = match effect_spec(id) {
             Some(EffectSpec::Str { file, .. }) => file,
@@ -918,6 +948,7 @@ impl App {
         );
         self.effect_holder.clear();
         self.ensure_str_loaded_for(effect_id);
+        self.ensure_spr_loaded_for(effect_id);
         self.effect_queue.spawn_at(effect_id, [0.0, 0.0, 0.0]);
         self.gif_session = Some(session);
         true
@@ -1107,7 +1138,7 @@ impl App {
                 anim_time: s.anim_time,
             })
             .collect();
-        let effect_batches = build_str_effect_batches(
+        let mut effect_batches = build_str_effect_batches(
             &str_inputs,
             &self.str_effects,
             &renderer.camera,
@@ -1115,6 +1146,29 @@ impl App {
             screen_h,
             10.0,
         );
+
+        // SPR-billboard snapshots → emitter inputs (Torch and the rest of the
+        // Tier-A spec entries). Mirrors the RSW ambient path.
+        let spr_snapshots = self.effect_holder.collect_spr_emitters(&|_| None);
+        let spr_inputs: Vec<SpriteEffectEmitter<'_>> = spr_snapshots
+            .iter()
+            .map(|s| SpriteEffectEmitter::Spr {
+                sprite_path: &s.sprite,
+                duration_ms: s.duration_ms,
+                position: s.position,
+                color: [1.0, 1.0, 1.0, 1.0],
+                size_scale: 1.0,
+                anim_time: s.anim_time,
+            })
+            .collect();
+        let spr_draws = collect_sprite_effect_draws(
+            &spr_inputs,
+            &self.effect_sprites,
+            &renderer.camera,
+            screen_w,
+            screen_h,
+        );
+        effect_batches.extend(build_emitter_batches(&spr_draws));
 
         // Custom-effect primitives (currently: Aura). Build a draw list from
         // every active custom effect, then turn the list into sprite batches
@@ -1162,7 +1216,7 @@ impl App {
                 renderer.camera.aspect = 1.0;
                 let cap_w = gif_export::GIF_W as f32;
                 let cap_h = gif_export::GIF_H as f32;
-                let str_batches_capture = build_str_effect_batches(
+                let mut capture_batches = build_str_effect_batches(
                     &str_inputs,
                     &self.str_effects,
                     &renderer.camera,
@@ -1170,6 +1224,14 @@ impl App {
                     cap_h,
                     10.0,
                 );
+                let spr_draws_capture = collect_sprite_effect_draws(
+                    &spr_inputs,
+                    &self.effect_sprites,
+                    &renderer.camera,
+                    cap_w,
+                    cap_h,
+                );
+                capture_batches.extend(build_emitter_batches(&spr_draws_capture));
                 let color_view = session.target.color_view.clone();
                 let depth_view = session.target.depth_view.clone();
                 renderer.render_into(
@@ -1179,7 +1241,7 @@ impl App {
                     gif_export::GIF_H,
                     wgpu::Color::BLACK,
                     &[],
-                    &str_batches_capture,
+                    &capture_batches,
                     &effect_draws,
                     &[],
                     &[],

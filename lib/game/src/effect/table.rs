@@ -117,7 +117,7 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
 
         // --- Map ambient SPR loops ---
         EffectId::Torch => EffectSpec::Spr {
-            sprite: "data/sprite/이팩트/불꽃",
+            sprite: "data/sprite/이팩트/torch_01",
             duration_ms: u32::MAX,
         },
 

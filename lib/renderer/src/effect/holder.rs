@@ -45,6 +45,15 @@ pub struct StrSnapshot {
     pub anim_time: f32,
 }
 
+/// Owned snapshot of a live SPR-billboard effect. Callers convert this into
+/// `SpriteEffectEmitter::Spr` and feed it through `collect_sprite_effect_draws`.
+pub struct SprSnapshot {
+    pub sprite: String,
+    pub position: [f32; 3],
+    pub anim_time: f32,
+    pub duration_ms: f32,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct EffectHandle(u64);
 
@@ -80,10 +89,7 @@ enum HeldPayload {
     /// step projects via the existing `build_str_effect_batches` path.
     Str { name: String },
     /// Looping single SPR billboard (torches, simple ambient).
-    Spr {
-        #[allow(dead_code)] // wired in Phase D
-        sprite: String,
-    },
+    Spr { sprite: String },
 }
 
 struct HeldEffect {
@@ -297,6 +303,35 @@ impl EffectHolder {
         }
     }
 
+    /// Snapshot of every live SPR-billboard effect. Caller converts each into
+    /// a `SpriteEffectEmitter::Spr` and pipes through
+    /// `collect_sprite_effect_draws` + `build_emitter_batches`.
+    pub fn collect_spr_emitters(
+        &self,
+        resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
+    ) -> Vec<SprSnapshot> {
+        self.effects
+            .iter()
+            .filter_map(|e| {
+                let HeldPayload::Spr { sprite } = &e.payload else {
+                    return None;
+                };
+                let pos = resolve_position(&e.attach, resolve_entity)?;
+                let duration_ms = if e.duration.is_finite() {
+                    e.duration * 1000.0
+                } else {
+                    1000.0
+                };
+                Some(SprSnapshot {
+                    sprite: sprite.clone(),
+                    position: pos,
+                    anim_time: e.age,
+                    duration_ms,
+                })
+            })
+            .collect()
+    }
+
     /// Snapshot of every live STR effect (name + resolved world position +
     /// elapsed anim time). Renderer consumes this and feeds it into
     /// `build_str_effect_batches`. Custom effects that return `Some` from
@@ -489,6 +524,26 @@ mod tests {
             .expect("spawn");
         let snaps = h.collect_str_emitters(&|_| None);
         assert!(snaps.is_empty());
+    }
+
+    #[test]
+    fn spr_spawn_emits_snapshot_with_sprite_and_anim_time() {
+        // Torch is the canonical Spr spec entry. After a spawn + tick the
+        // holder should yield exactly one SprSnapshot carrying the sprite
+        // path, the spawn position, and the accumulated anim time.
+        let mut h = EffectHolder::new();
+        h.spawn(
+            EffectId::Torch,
+            Attach::WorldPos([10.0, 20.0, 30.0]),
+            Some(2000),
+        )
+        .expect("spawn");
+        h.update(&ctx(0.25));
+        let snaps = h.collect_spr_emitters(&|_| None);
+        assert_eq!(snaps.len(), 1);
+        assert_eq!(snaps[0].sprite, "data/sprite/이팩트/torch_01");
+        assert_eq!(snaps[0].position, [10.0, 20.0, 30.0]);
+        assert!((snaps[0].anim_time - 0.25).abs() < 1e-6);
     }
 
     #[test]

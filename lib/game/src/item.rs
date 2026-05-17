@@ -1,6 +1,6 @@
-use crate::item_resource_table::ItemResourceTable;
 use models::enums::EnumWithMaskValueU64;
 use models::enums::item::{EquipmentLocation, ItemType};
+use crate::data_table::item_resource_table::ItemResourceTable;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InventoryTab {

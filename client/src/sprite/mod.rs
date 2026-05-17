@@ -8,6 +8,7 @@ use ragnarok_game::sprite_loader;
 use ragnarok_game::sprite_path::{entity_sprite_base_path, weapon_view_id_to_type};
 use ragnarok_renderer::build_entity_sprite;
 use std::rc::Rc;
+use ragnarok_game::data_table::accessory_table::AccessoryTable;
 
 impl App {
     pub(crate) fn reload_player_sprite(&mut self, gid: u32) {
@@ -59,7 +60,7 @@ impl App {
             (Some(g), Some(r)) => (g, r),
             _ => return,
         };
-        let empty_table = ragnarok_game::accessory_table::AccessoryTable::empty();
+        let empty_table = AccessoryTable::empty();
         let accessory_table = self
             .game
             .data_table

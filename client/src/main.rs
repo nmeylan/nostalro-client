@@ -19,7 +19,6 @@ use ragnarok_game::cursor::{
 };
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::event::GameEvent;
-use ragnarok_game::name_table::NameTable;
 use ragnarok_game::skill::SkillTargetType;
 use ragnarok_game::{map_loader, sprite_loader};
 use ragnarok_network::{
@@ -57,6 +56,19 @@ use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
+use ragnarok_game::data_table::accessory_table::AccessoryTable;
+use ragnarok_game::data_table::card_illustration_table::CardIllustrationTable;
+use ragnarok_game::data_table::card_name_table::CardNameTable;
+use ragnarok_game::data_table::item_description_table::ItemDescriptionTable;
+use ragnarok_game::data_table::item_name_table::ItemNameTable;
+use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
+use ragnarok_game::data_table::item_slot_count_table::ItemSlotCountTable;
+use ragnarok_game::data_table::name_table::NameTable;
+use ragnarok_game::data_table::skill_description_table::SkillDescriptionTable;
+use ragnarok_game::data_table::skill_name_table::SkillNameTable;
+use ragnarok_game::data_table::skill_tree_table::SkillTreeTable;
+use ragnarok_game::data_table::skill_use_level_table::SkillUseLevelTable;
+
 type ClipData = (Vec<SpriteVertex>, Vec<u32>, usize);
 
 struct GameChannel {
@@ -1121,32 +1133,32 @@ impl ApplicationHandler for App {
                     self.load_emotion_sprite(&grf);
                     self.load_damage_sprites(&grf);
                     self.game.data_table.accessory =
-                        Some(ragnarok_game::accessory_table::AccessoryTable::load_from_grf(&grf));
+                        Some(AccessoryTable::load_from_grf(&grf));
                     self.game.data_table.name = Some(NameTable::load(&grf));
                     self.game.data_table.item_name =
-                        Some(ragnarok_game::item_name_table::ItemNameTable::load(&grf));
+                        Some(ItemNameTable::load(&grf));
                     self.game.data_table.item_resource = Some(
-                        ragnarok_game::item_resource_table::ItemResourceTable::load(&grf),
+                        ItemResourceTable::load(&grf),
                     );
                     self.game.data_table.item_slot_count =
-                        Some(ragnarok_game::item_slot_count_table::ItemSlotCountTable::load(&grf));
+                        Some(ItemSlotCountTable::load(&grf));
                     self.game.data_table.card_name =
-                        Some(ragnarok_game::card_name_table::CardNameTable::load(&grf));
+                        Some(CardNameTable::load(&grf));
                     self.game.data_table.card_illustration = Some(
-                        ragnarok_game::card_illustration_table::CardIllustrationTable::load(&grf),
+                        CardIllustrationTable::load(&grf),
                     );
                     self.game.data_table.item_description = Some(
-                        ragnarok_game::item_description_table::ItemDescriptionTable::load(&grf),
+                        ItemDescriptionTable::load(&grf),
                     );
                     self.game.data_table.skill_name =
-                        Some(ragnarok_game::skill_name_table::SkillNameTable::load(&grf));
+                        Some(SkillNameTable::load(&grf));
                     self.game.data_table.skill_description = Some(
-                        ragnarok_game::skill_description_table::SkillDescriptionTable::load(&grf),
+                        SkillDescriptionTable::load(&grf),
                     );
                     self.game.data_table.skill_tree =
-                        Some(ragnarok_game::skill_tree_table::SkillTreeTable::load(&grf));
+                        Some(SkillTreeTable::load(&grf));
                     self.game.data_table.skill_use_level =
-                        Some(ragnarok_game::skill_use_level_table::SkillUseLevelTable::load(&grf));
+                        Some(SkillUseLevelTable::load(&grf));
                     self.grf = Some(grf);
                 }
                 Err(e) => {

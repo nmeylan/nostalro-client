@@ -720,6 +720,7 @@ mod tests {
     use super::*;
     use models::enums::EnumWithNumberValue;
     use models::enums::item::ItemType;
+    use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
 
     fn make_data_table() -> DataTable {
         DataTable::new()
@@ -853,7 +854,6 @@ mod tests {
     fn pending_card_texture_paths_returns_collection() {
         let mut win = ItemInfoWindow::new();
         use std::collections::HashMap;
-        use ragnarok_game::item_resource_table::ItemResourceTable;
         let data = DataTable {
             item_resource: Some(ItemResourceTable::from_entries(
                 {

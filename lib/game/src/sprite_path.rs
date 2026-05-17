@@ -1,9 +1,9 @@
 pub use models::enums::weapon::WeaponType;
 
 use crate::entity::EntityType;
-use crate::name_table::NameTable;
 use models::enums::class::JobName;
 use models::enums::EnumWithNumberValue;
+use crate::data_table::name_table::NameTable;
 
 pub fn entity_type_from_job(job: u16) -> EntityType {
     match job {

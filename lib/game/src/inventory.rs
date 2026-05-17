@@ -1,9 +1,9 @@
 use crate::item::InventoryTab;
 use crate::item::Item;
-use crate::item_resource_table::ItemResourceTable;
 pub use models::enums::item::EquipmentLocation;
 use models::enums::item::ItemType;
 use models::enums::{EnumWithMaskValueU64, EnumWithNumberValue};
+use crate::data_table::item_resource_table::ItemResourceTable;
 
 #[derive(Debug)]
 pub struct InventoryData {
