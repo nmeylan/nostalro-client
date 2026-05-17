@@ -175,6 +175,13 @@ pub enum SpriteEffectEmitter<'a> {
         position: [f32; 3],
         color: [f32; 4],
         size_scale: f32,
+        /// Animation speed: motion advances every N ticks at
+        /// 60 fps, so higher values slow the animation down. 1.0 = one
+        /// motion per game frame (16.67 ms each).
+        anim_speed: f32,
+        /// `true` loops the motion list; `false`
+        /// plays once and holds the final motion.
+        repeat: bool,
         anim_time: f32,
     },
     Smoke3D {
@@ -202,10 +209,12 @@ pub fn collect_sprite_effect_draws<'a>(
         match emitter {
             SpriteEffectEmitter::Spr {
                 sprite_path,
-                duration_ms,
+                duration_ms: _,
                 position,
                 color,
                 size_scale,
+                anim_speed,
+                repeat,
                 anim_time,
             } => {
                 let Some(sprite) = cache.get(sprite_path) else {
@@ -222,13 +231,17 @@ pub fn collect_sprite_effect_draws<'a>(
                 if motion_count == 0 {
                     continue;
                 }
-                let act_delay_ms = sprite.act.delays.first().copied().unwrap_or(0.0) * 25.0;
-                let frame_delay_ms = if act_delay_ms > 0.0 {
-                    act_delay_ms
+                // Effect sprites ignore the .act file's per-frame delay and
+                // instead advance motion every `anim_speed` ticks at 60 fps,
+                // matching the original game's animation cadence.
+                const FRAME_MS_60FPS: f32 = 1000.0 / 60.0;
+                let frame_delay_ms = FRAME_MS_60FPS * anim_speed.max(1.0);
+                let raw_motion = ((anim_time * 1000.0) / frame_delay_ms) as usize;
+                let motion_index = if *repeat {
+                    raw_motion % motion_count
                 } else {
-                    (duration_ms / motion_count as f32).max(1.0)
+                    raw_motion.min(motion_count - 1)
                 };
-                let motion_index = ((anim_time * 1000.0) / frame_delay_ms) as usize % motion_count;
                 draws.push(EmitterDraw {
                     sprite,
                     screen_anchor: anchor,

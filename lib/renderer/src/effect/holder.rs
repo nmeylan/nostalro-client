@@ -53,6 +53,9 @@ pub struct SprSnapshot {
     pub position: [f32; 3],
     pub anim_time: f32,
     pub duration_ms: f32,
+    pub size_scale: f32,
+    pub anim_speed: f32,
+    pub repeat: bool,
 }
 
 /// Owned snapshot of a live `EffectSpec::SprBurst` instance — params for the
@@ -118,8 +121,13 @@ enum HeldPayload {
     /// Single-shot STR effect. Anim time accumulates in `age`; the render
     /// step projects via the existing `build_str_effect_batches` path.
     Str { name: String },
-    /// Looping single SPR billboard (torches, simple ambient).
-    Spr { sprite: String },
+    /// Single SPR billboard (looping or one-shot, depending on `repeat`).
+    Spr {
+        sprite: String,
+        size_scale: f32,
+        anim_speed: f32,
+        repeat: bool,
+    },
     /// Multi-particle SPR burst (chimney smoke, firefly, snow, …).
     SprBurst(BurstState),
 }
@@ -185,10 +193,19 @@ impl EffectHolder {
                     name: (*file).to_string(),
                 }
             }
-            EffectSpec::Spr { sprite, .. } => {
+            EffectSpec::Spr {
+                sprite,
+                size_scale,
+                anim_speed,
+                repeat,
+                ..
+            } => {
                 self.last_spawn = Some(SpawnOutcome::Spr);
                 HeldPayload::Spr {
                     sprite: (*sprite).to_string(),
+                    size_scale: *size_scale,
+                    anim_speed: *anim_speed,
+                    repeat: *repeat,
                 }
             }
             EffectSpec::SprBurst { sprite, burst, .. } => {
@@ -393,7 +410,13 @@ impl EffectHolder {
         self.effects
             .iter()
             .filter_map(|e| {
-                let HeldPayload::Spr { sprite } = &e.payload else {
+                let HeldPayload::Spr {
+                    sprite,
+                    size_scale,
+                    anim_speed,
+                    repeat,
+                } = &e.payload
+                else {
                     return None;
                 };
                 let pos = resolve_position(&e.attach, resolve_entity)?;
@@ -407,6 +430,9 @@ impl EffectHolder {
                     position: pos,
                     anim_time: e.age,
                     duration_ms,
+                    size_scale: *size_scale,
+                    anim_speed: *anim_speed,
+                    repeat: *repeat,
                 })
             })
             .collect()

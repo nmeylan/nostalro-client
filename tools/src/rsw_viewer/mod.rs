@@ -1113,6 +1113,8 @@ fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteEffectEmitte
                     position: emitter.position,
                     color: emitter.color,
                     size_scale: emitter.size_scale,
+                    anim_speed: 1.0,
+                    repeat: true,
                     anim_time: emitter.anim_time,
                 });
             }

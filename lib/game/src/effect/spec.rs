@@ -21,10 +21,19 @@ pub enum EffectSpec {
     /// [`super::factory::make_effect`]. Per-effect parameters live inside the
     /// effect struct, not here.
     Custom { duration_ms: u32 },
-    /// Single looping SPR billboard (torches, simple ambient).
+    /// Single SPR billboard (torches, simple ambient, one-shot impacts).
+    ///
+    /// `size_scale` is the sprite scale (1.0 = native sprite
+    /// scale); `anim_speed` sets how fast the motion advances (every N
+    /// ticks at 60 fps, so 2.0 = animation runs half-speed); `repeat`
+    /// — when `false` the renderer clamps to the last motion
+    /// rather than looping.
     Spr {
         sprite: &'static str,
         duration_ms: u32,
+        size_scale: f32,
+        anim_speed: f32,
+        repeat: bool,
     },
     /// Burst of N animated SPR particles drifting along the Y axis with a
     /// fade-out tail. Used for chimney smoke, firefly puffs, and the rest of

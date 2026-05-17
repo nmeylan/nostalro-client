@@ -12,7 +12,7 @@ use models::enums::effect_id::EffectId;
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effects::{bottom_sanctuary_pillar, cast_circle, magnum_break, stormgust, volcano, warp};
 use super::spec::EffectSpec;
-use super::spr_aliases::spr_aliases;
+use super::spr_aliases::spr_def;
 use super::spr_burst::spr_burst_params;
 use super::str_aliases::str_aliases;
 
@@ -140,11 +140,13 @@ fn bucket_default(id: EffectId) -> EffectSpec {
     if is_noop_bucket(id) {
         return EffectSpec::Noop;
     }
-    let spr = spr_aliases(id);
-    if !spr.is_empty() {
+    if let Some(def) = spr_def(id) {
         return EffectSpec::Spr {
-            sprite: spr[0],
+            sprite: def.sprite,
             duration_ms: default_duration_ms(id),
+            size_scale: def.size_scale,
+            anim_speed: def.anim_speed,
+            repeat: def.repeat,
         };
     }
     if let Some((sprite, burst)) = spr_burst_params(id) {
@@ -198,27 +200,68 @@ mod tests {
 
     #[test]
     fn torch_is_an_spr_loop() {
-        // Routed via spr_aliases + default_duration_ms (no explicit table
-        // arm). Torch's duration must be infinite so the ambient torch keeps
-        // looping for the lifetime of the map.
-        assert!(matches!(
-            effect_spec(EffectId::Torch),
-            Some(EffectSpec::Spr {
-                sprite: "data/sprite/이팩트/torch_01",
-                duration_ms: u32::MAX,
-            })
-        ));
+        // Routed via spr_def + default_duration_ms. Torch's duration is
+        // infinite so the ambient torch keeps looping for the lifetime of
+        // the map; anim_speed = 1 because the ambient torch never sets an
+        // explicit speed (clamped to ≥1 in the recipe).
+        let Some(EffectSpec::Spr {
+            sprite,
+            duration_ms,
+            size_scale,
+            anim_speed,
+            repeat,
+        }) = effect_spec(EffectId::Torch)
+        else {
+            panic!("Torch should resolve to EffectSpec::Spr");
+        };
+        assert_eq!(sprite, "data/sprite/이팩트/torch_01");
+        assert_eq!(duration_ms, u32::MAX);
+        assert_eq!(size_scale, 1.0);
+        assert_eq!(anim_speed, 1.0);
+        assert!(repeat);
     }
 
     #[test]
     fn aqua_is_a_one_shot_spr() {
-        assert!(matches!(
-            effect_spec(EffectId::Aqua),
-            Some(EffectSpec::Spr {
-                sprite: "data/sprite/이팩트/아쿠아플레이",
-                duration_ms: 1000,
-            })
-        ));
+        // Original game's Aqua: anim speed=2, no anim repeat.
+        let Some(EffectSpec::Spr {
+            sprite,
+            duration_ms,
+            size_scale,
+            anim_speed,
+            repeat,
+        }) = effect_spec(EffectId::Aqua)
+        else {
+            panic!("Aqua should resolve to EffectSpec::Spr");
+        };
+        assert_eq!(sprite, "data/sprite/이팩트/아쿠아플레이");
+        assert_eq!(duration_ms, 1000);
+        assert_eq!(size_scale, 1.0);
+        assert_eq!(anim_speed, 2.0);
+        assert!(!repeat);
+    }
+
+    #[test]
+    fn poisonhit_uses_org_argb_size_anim_speed_and_one_shot() {
+        // PoisonHit uses size 1.5, anim speed 2 and plays once.
+        // The one-shot flag is load-bearing: looping
+        // the .act re-renders the impact frames instead of holding the
+        // final smoke puffs.
+        let Some(EffectSpec::Spr {
+            sprite,
+            duration_ms,
+            size_scale,
+            anim_speed,
+            repeat,
+        }) = effect_spec(EffectId::Poisonhit)
+        else {
+            panic!("Poisonhit should resolve to EffectSpec::Spr");
+        };
+        assert_eq!(sprite, "data/sprite/이팩트/poisonhit");
+        assert_eq!(duration_ms, 500);
+        assert_eq!(size_scale, 1.5);
+        assert_eq!(anim_speed, 2.0);
+        assert!(!repeat);
     }
 
     #[test]

@@ -1170,7 +1170,9 @@ impl App {
                 duration_ms: s.duration_ms,
                 position: s.position,
                 color: [1.0, 1.0, 1.0, 1.0],
-                size_scale: 1.0,
+                size_scale: s.size_scale,
+                anim_speed: s.anim_speed,
+                repeat: s.repeat,
                 anim_time: s.anim_time,
             })
             .collect();

@@ -259,7 +259,7 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::Memorize | EffectId::Mgattack1 | EffectId::MiniTetris
             | EffectId::MoveToSprite | EffectId::Night | EffectId::NpcStop2Del
             | EffectId::Piercebody | EffectId::Pinkbody | EffectId::PinkNumber
-            | EffectId::Poisonhit | EffectId::PokjukSound | EffectId::Pressedbody
+            | EffectId::PokjukSound | EffectId::Pressedbody
             | EffectId::PrintFoot | EffectId::Process2Begin | EffectId::Process2End
             | EffectId::PurpleNumber | EffectId::Quakebody | EffectId::Quakebody2
             | EffectId::Quakebody3 | EffectId::Quakebody4 | EffectId::Rain
