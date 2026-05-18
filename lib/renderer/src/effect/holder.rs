@@ -67,6 +67,10 @@ pub struct SprBurstSnapshot {
     pub size_scale: f32,
     pub alpha_max: f32,
     pub anim_speed: f32,
+    /// Linearly shrink the per-particle sprite to 0 over its lifetime.
+    pub size_shrink: bool,
+    /// Oscillate alpha around the linear fade envelope (twinkle).
+    pub twinkle: bool,
     pub particles: Vec<([f32; 3], f32, f32)>,
 }
 
@@ -400,6 +404,8 @@ impl EffectHolder {
                     size_scale: b.params.size,
                     alpha_max: b.params.alpha_max,
                     anim_speed: b.params.anim_speed,
+                    size_shrink: b.params.size_shrink,
+                    twinkle: b.params.twinkle,
                     particles,
                 })
             })
@@ -551,10 +557,17 @@ fn update_burst(
         b.cooldown_timer = 0.0;
     }
 
+    let gravity = b.params.gravity_world_per_sec2;
     b.particles.retain_mut(|p| {
         p.age += dt;
         if p.age >= p.lifetime {
             return false;
+        }
+        // Euler integration with optional gravity acceleration along Y.
+        // Positive `gravity` pulls toward +Y (down in native RO coords),
+        // matching the original game's gravity-particle fall.
+        if gravity != 0.0 {
+            p.velocity[1] += gravity * dt;
         }
         p.pos[0] += p.velocity[0] * dt;
         p.pos[1] += p.velocity[1] * dt;
@@ -582,6 +595,7 @@ fn spawn_burst(b: &mut BurstState, anchor: [f32; 3]) {
     let (slo, shi) = b.params.speed_range;
     let lifetime = (b.params.particle_lifetime_ms / 1000.0).max(1e-3);
     let radius = b.params.spawn_radius_xz;
+    let cone = b.params.cone_latitude_deg;
     for _ in 0..count {
         let r = (rand_u32() % 1000) as f32 / 1000.0;
         let speed = slo + r * (shi - slo);
@@ -594,16 +608,45 @@ fn spawn_burst(b: &mut BurstState, anchor: [f32; 3]) {
         } else {
             (0.0, 0.0)
         };
+        // Initial velocity. Vertical default matches the legacy
+        // chimney-smoke shape (negative Y = upward in native RO coords);
+        // when a cone is configured, the speed magnitude is mapped onto a
+        // 3D direction picked at spawn time: a longitude Y-rotation then a
+        // latitude X-rotation, matching the original game's gravity-particle
+        // emission spread.
+        let velocity = match cone {
+            None => [0.0, -speed * 60.0, 0.0],
+            Some((lat_min, lat_max)) => {
+                let lon_deg = (rand_u32() % 360_000) as f32 / 1000.0;
+                let lat_deg = {
+                    let t = (rand_u32() % 1000) as f32 / 1000.0;
+                    lat_min + t * (lat_max - lat_min)
+                };
+                let lon = lon_deg.to_radians();
+                // latitudes use -90+lat_deg from the horizontal, so
+                // a `lat_deg` of 90 = straight up. Convert to the
+                // standard "elevation from horizontal" form.
+                let elev = (lat_deg - 90.0).to_radians();
+                let speed_world = speed * 60.0;
+                // Elevation>0 means above horizontal; map that to -Y
+                // (upward) in native RO coords. The horizontal component
+                // is split between X and Z by `lon`.
+                let cos_e = elev.cos();
+                let sin_e = elev.sin();
+                [
+                    speed_world * cos_e * lon.cos(),
+                    -speed_world * sin_e,
+                    speed_world * cos_e * lon.sin(),
+                ]
+            }
+        };
         b.particles.push(BurstParticle {
             pos: [
                 anchor[0] + ox,
                 anchor[1] + b.params.pos_y_start,
                 anchor[2] + oz,
             ],
-            // Original game speed is per-frame at 60 fps; convert to
-            // per-second. Negative Y = upward in native RO coords; negative
-            // speed yields downward drift (Snow-like).
-            velocity: [0.0, -speed * 60.0, 0.0],
+            velocity,
             age: 0.0,
             lifetime,
         });
@@ -782,6 +825,49 @@ mod tests {
             );
             assert!((age - 0.1).abs() < 1e-5, "age should track dt");
         }
+    }
+
+    #[test]
+    fn steal_bursts_ten_gravity_arc_particles_that_scatter_in_xz() {
+        // Sociable test: Steal's recipe spawns 10 particles in a 3D cone.
+        // After one tick the snapshot should report ~10 particles with
+        // non-zero XZ spread (proof the cone direction is honored
+        // instead of the legacy pure-Y velocity). Size-shrink and
+        // gravity surface as flags / drift over a longer integration.
+        let mut h = EffectHolder::new();
+        h.spawn(EffectId::Steal, Attach::WorldPos([0.0, 0.0, 0.0]), None)
+            .expect("spawn");
+        h.update(&ctx(0.05));
+        let snaps = h.collect_spr_burst_emitters(&|_| None);
+        assert_eq!(snaps.len(), 1);
+        let snap = &snaps[0];
+        assert_eq!(snap.sprite, "data/sprite/이팩트/particle7");
+        assert!(snap.size_shrink, "Steal particles must shrink to 0");
+        assert!(!snap.twinkle, "Steal does not twinkle");
+        assert_eq!(snap.particles.len(), 10, "Steal spawns exactly 10 particles");
+        let any_xz_motion = snap
+            .particles
+            .iter()
+            .any(|(p, _, _)| p[0].abs() > 0.05 || p[2].abs() > 0.05);
+        assert!(
+            any_xz_motion,
+            "cone scatter should give at least one particle non-zero XZ drift after one tick"
+        );
+    }
+
+    #[test]
+    fn firefly_propagates_twinkle_and_cone_flags() {
+        // Sociable test: Firefly's spec turns the twinkle flag on.
+        // Verify the snapshot carries that flag through so the renderer's
+        // twinkle approximation kicks in.
+        let mut h = EffectHolder::new();
+        h.spawn(EffectId::Firefly, Attach::WorldPos([0.0, 0.0, 0.0]), None)
+            .expect("spawn");
+        h.update(&ctx(0.05));
+        let snaps = h.collect_spr_burst_emitters(&|_| None);
+        assert_eq!(snaps.len(), 1);
+        assert!(snaps[0].twinkle, "Firefly must surface PT_TWINKLE approximation");
+        assert!(!snaps[0].size_shrink, "Firefly does not shrink");
     }
 
     #[test]

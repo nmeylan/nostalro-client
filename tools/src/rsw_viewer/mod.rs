@@ -1135,6 +1135,8 @@ fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteEffectEmitte
                     color: emitter.color,
                     size_scale: emitter.size_scale,
                     anim_speed: *anim_speed,
+                    size_shrink: false,
+                    twinkle: false,
                     particles,
                 });
             }

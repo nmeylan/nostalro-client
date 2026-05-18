@@ -1,7 +1,17 @@
-//! Animated effect-texture — camera-facing billboard whose texture cycles
-//! through a fixed list every N game ticks. Drives the Torch recolour
-//! family (`TorchRed`, `TorchGreen`, `TorchPurple`) and would also fit any
-//! similar `EffectTextureSet_Animation(F1)` variant.
+//! Texture-cycling / static camera-facing billboard
+//! anchored to the master entity. Both modes share the quad geometry;
+//! the animated mode cycles a texture list every N game ticks, the
+//! static mode uses a single texture (modeled here as a 1-element list
+//! so the modulo collapses to 0).
+//!
+//! Animated drives the Torch recolour family (`TorchRed`, `TorchGreen`,
+//! `TorchPurple`) and Dust. Static drives the Glow family (`Glow1`,
+//! `Glow2`, `Glow11`, `Glow12`): distance=30, no Y offset, alpha=50/255,
+//! a square quad (corners spaced 90°), alpha blend with no
+//! tint applied. The static variant's slow
+//! view-axis roll and ±5% radius wobble are
+//! not
+//! reproduced — same simplification as the animated variant.
 //!
 //! Cadence and geometry:
 //!
@@ -56,6 +66,9 @@ const DEFAULT_DISTANCE: f32 = 20.0;
 const DEFAULT_DELTA_Y: f32 = -10.0;
 const TORCH_ALPHA: f32 = 130.0 / 255.0;
 const DUST_ALPHA: f32 = 100.0 / 255.0;
+const GLOW_DISTANCE: f32 = 30.0;
+const GLOW_ALPHA: f32 = 50.0 / 255.0;
+const GLOW_TCOUNT: u32 = 1;
 
 /// 13 frames of the red torch flame.
 pub const TORCH_RED_TEXTURES: &[&str] = &[
@@ -153,6 +166,46 @@ pub const DUST: Params = Params {
     alpha: DUST_ALPHA,
 };
 
+/// Static Glow variants — single-frame "lists" so the modulo in
+/// `texture_index` always picks index 0. `tcount=1` keeps the field
+/// non-zero (the divisor stays positive even though no advance happens).
+pub const GLOW_01_TEXTURES: &[&str] = &["glow01.bmp"];
+pub const GLOW_02_TEXTURES: &[&str] = &["glow02.bmp"];
+pub const GLOW_11_TEXTURES: &[&str] = &["glow11.bmp"];
+pub const GLOW_12_TEXTURES: &[&str] = &["glow12.bmp"];
+
+pub const GLOW_01: Params = Params {
+    textures: GLOW_01_TEXTURES,
+    tcount: GLOW_TCOUNT,
+    distance: GLOW_DISTANCE,
+    delta_y: 0.0,
+    alpha: GLOW_ALPHA,
+};
+
+pub const GLOW_02: Params = Params {
+    textures: GLOW_02_TEXTURES,
+    tcount: GLOW_TCOUNT,
+    distance: GLOW_DISTANCE,
+    delta_y: 0.0,
+    alpha: GLOW_ALPHA,
+};
+
+pub const GLOW_11: Params = Params {
+    textures: GLOW_11_TEXTURES,
+    tcount: GLOW_TCOUNT,
+    distance: GLOW_DISTANCE,
+    delta_y: 0.0,
+    alpha: GLOW_ALPHA,
+};
+
+pub const GLOW_12: Params = Params {
+    textures: GLOW_12_TEXTURES,
+    tcount: GLOW_TCOUNT,
+    distance: GLOW_DISTANCE,
+    delta_y: 0.0,
+    alpha: GLOW_ALPHA,
+};
+
 /// Concatenated texture list for `effect::effect_texture_paths` preload.
 pub const TEXTURES: &[&str] = &[
     "torch_red01.bmp",
@@ -203,6 +256,10 @@ pub const TEXTURES: &[&str] = &[
     "dust07.bmp",
     "dust08.bmp",
     "dust09.bmp",
+    "glow01.bmp",
+    "glow02.bmp",
+    "glow11.bmp",
+    "glow12.bmp",
 ];
 
 pub struct AnimatedTextureBillboardEffect {
@@ -326,7 +383,37 @@ mod tests {
         assert_eq!(TORCH_GREEN_TEXTURES.len(), 13);
         assert_eq!(TORCH_VIOLET_TEXTURES.len(), 13);
         assert_eq!(DUST_TEXTURES.len(), 9);
+        // Static Glow variants are single-frame (modulo collapses to 0).
+        assert_eq!(GLOW_01_TEXTURES.len(), 1);
+        assert_eq!(GLOW_02_TEXTURES.len(), 1);
+        assert_eq!(GLOW_11_TEXTURES.len(), 1);
+        assert_eq!(GLOW_12_TEXTURES.len(), 1);
         // Concatenated preload list = sum of all variants.
-        assert_eq!(TEXTURES.len(), 13 * 3 + 9);
+        assert_eq!(TEXTURES.len(), 13 * 3 + 9 + 4);
+    }
+
+    #[test]
+    fn glow_static_holds_single_texture_across_ticks_with_unit_quad_alpha() {
+        // Sociable test for the static Glow variant: spec'd
+        // params survive an update cycle (single texture, no cycling), the
+        // quad is anchored at master Y (no offset), uses the wider 30u
+        // distance, and renders at 50/255 alpha.
+        let mut e =
+            AnimatedTextureBillboardEffect::new(Attach::WorldPos([4.0, 50.0, 9.0]), GLOW_01);
+        for _ in 0..20 {
+            let mut list = EffectDrawList::new();
+            e.collect_draws(&mut list, &render_ctx());
+            let EffectPrimitiveDraw::Billboard {
+                pos, size, color, texture, ..
+            } = list.primitives[0]
+            else {
+                panic!("expected Billboard");
+            };
+            assert_eq!(texture, "glow01.bmp");
+            assert_eq!(pos, [4.0, 50.0, 9.0]);
+            assert!((size[0] - 30.0 * std::f32::consts::SQRT_2).abs() < 1e-4);
+            assert!((color[3] - 50.0 / 255.0).abs() < 1e-4);
+            e.update(&ctx(0.05));
+        }
     }
 }

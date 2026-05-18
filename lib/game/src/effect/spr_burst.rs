@@ -27,6 +27,39 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
                 spawn_radius_xz: 0.0,
                 period_frames: None,
                 follow_camera: false,
+                gravity_world_per_sec2: 0.0,
+                cone_latitude_deg: None,
+                size_shrink: false,
+                twinkle: false,
+            },
+        )),
+        // EnchantPoison: every 5 frames a single
+        // particle on a flat disc around the master (radius rand(6)+2,
+        // size 0.4..0.9, particle3.spr). The original recipe is shared by
+        // three ids: EF_PATTACK (1000 ms parent), EF_ENCHANTPOISON
+        // (2500 ms), EF_ENCHANTPOISON_FLOW (250 ms — re-anchors each
+        // frame, which our SprBurst pipeline already
+        // does because particles snapshot positions at spawn). Parent
+        // duration comes from `default_duration_ms`, not this struct.
+        EffectId::Pattack
+        | EffectId::Enchantpoison
+        | EffectId::EnchantpoisonFlow => Some((
+            "data/sprite/이팩트/particle3",
+            SprBurstParams {
+                particle_lifetime_ms: 666.0,
+                size: 0.65,
+                alpha_max: 1.0,
+                burst_count_range: (1, 1),
+                speed_range: (0.3, 0.6),
+                anim_speed: 4.0,
+                pos_y_start: 0.0,
+                spawn_radius_xz: 8.0,
+                period_frames: Some(5),
+                follow_camera: false,
+                gravity_world_per_sec2: 0.0,
+                cone_latitude_deg: None,
+                size_shrink: false,
+                twinkle: false,
             },
         )),
         // Detoxication: every 5 frames a single particle on a flat
@@ -45,6 +78,10 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
                 spawn_radius_xz: 8.0,
                 period_frames: Some(5),
                 follow_camera: false,
+                gravity_world_per_sec2: 0.0,
+                cone_latitude_deg: None,
+                size_shrink: false,
+                twinkle: false,
             },
         )),
         // Snow: 2 particles per frame spawned around the player
@@ -66,12 +103,20 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
                 spawn_radius_xz: 300.0,
                 period_frames: Some(1),
                 follow_camera: true,
+                gravity_world_per_sec2: 0.0,
+                cone_latitude_deg: None,
+                size_shrink: false,
+                twinkle: false,
             },
         )),
-        // Original game `FireFly()`: one particle at random spherical offset (radius
-        // 2..15), brief glow that fades. The curve/twinkle paths aren't
-        // simulated yet — the result is a stationary sparkle, which still
-        // reads as a firefly puff in a viewer test.
+        // FireFly: one particle at random 3D offset,
+        // drifting in a random direction with a curved path (periodic
+        // re-randomized heading) and twinkling (pulsing alpha). We
+        // approximate by: cone direction over the full sphere for the
+        // 3D drift, twinkle flag for the pulse, and the random XZ
+        // spawn-disc for the initial offset (close enough — the original
+        // game's "spawn anywhere on a sphere of radius 2..15" reads
+        // similar in a viewer).
         EffectId::Firefly => Some((
             "data/sprite/이팩트/particle1",
             SprBurstParams {
@@ -85,6 +130,42 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
                 spawn_radius_xz: 8.0,
                 period_frames: None,
                 follow_camera: false,
+                gravity_world_per_sec2: 0.0,
+                cone_latitude_deg: Some((-90.0, 90.0)),
+                size_shrink: false,
+                twinkle: true,
+            },
+        )),
+        // Steal: 10 gravity-driven particles at frame 0;
+        // each fires upward-ish at random longitude with latitude in the
+        // upper hemisphere, slows under gravity (initial rise speed
+        // -0.6..-1.5, accel positive), shrinks to 0 over duration (500ms
+        // default). Visible effect: gold coins flying out of the
+        // monster's chest and falling back.
+        EffectId::Steal => Some((
+            "data/sprite/이팩트/particle7",
+            SprBurstParams {
+                particle_lifetime_ms: 500.0,
+                size: 1.5,
+                alpha_max: 1.0,
+                burst_count_range: (10, 10),
+                speed_range: (0.5, 1.0),
+                anim_speed: 4.0,
+                pos_y_start: -10.0,
+                spawn_radius_xz: 0.0,
+                period_frames: None,
+                follow_camera: false,
+                // The original game's gravity accel plus initial rise
+                // speed integrate to particles slowing as they rise then falling.
+                // Net effect in native RO coords (positive Y = down): a
+                // ~30 unit/s² downward pull is a visible arc over the
+                // 500 ms lifetime.
+                gravity_world_per_sec2: 36.0,
+                // -90+40..-90+140 in latitudes = -50..50 from the
+                // horizontal plane — most particles go up, some sideways.
+                cone_latitude_deg: Some((40.0, 140.0)),
+                size_shrink: true,
+                twinkle: false,
             },
         )),
         _ => None,

@@ -184,6 +184,34 @@ pub fn make_effect(id: EffectId, attach: Attach) -> Option<Box<dyn Effect>> {
             ),
         ),
 
+        // EffectTextureSet(F1=14) — single static .bmp on the same quad as
+        // the animated torch family. distance=30, alpha=50/255, no Y
+        // offset; flag1[2]=4 → standard alpha quad.
+        EffectId::Glow1 => Box::new(
+            effects::animated_texture_billboard::AnimatedTextureBillboardEffect::new(
+                attach,
+                effects::animated_texture_billboard::GLOW_01,
+            ),
+        ),
+        EffectId::Glow2 => Box::new(
+            effects::animated_texture_billboard::AnimatedTextureBillboardEffect::new(
+                attach,
+                effects::animated_texture_billboard::GLOW_02,
+            ),
+        ),
+        EffectId::Glow11 => Box::new(
+            effects::animated_texture_billboard::AnimatedTextureBillboardEffect::new(
+                attach,
+                effects::animated_texture_billboard::GLOW_11,
+            ),
+        ),
+        EffectId::Glow12 => Box::new(
+            effects::animated_texture_billboard::AnimatedTextureBillboardEffect::new(
+                attach,
+                effects::animated_texture_billboard::GLOW_12,
+            ),
+        ),
+
         // Placeholder catchall. Hybrid ids (12 effects, e.g. Stormgust,
         // Coin, Glasswall) declare an STR overlay so the original game's
         // STR animation plays alongside the pink marker. Pure-custom ids
@@ -243,6 +271,10 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::TorchGreen
             | EffectId::TorchPurple
             | EffectId::Dust
+            | EffectId::Glow1
+            | EffectId::Glow2
+            | EffectId::Glow11
+            | EffectId::Glow12
     )
 }
 
@@ -268,14 +300,19 @@ mod tests {
 
     #[test]
     fn torch_recolours_dispatch_to_animated_texture_billboard() {
-        // All three recolour variants resolve to a real impl. They must
-        // NOT fall through to the placeholder, otherwise the viewer would
-        // show the pink marker instead of the cycled bmp frames.
+        // All recolour variants and the Glow family resolve to a real
+        // impl. They must NOT fall through to the placeholder, otherwise
+        // the viewer would show the pink marker instead of the cycled
+        // bmp frames.
         for id in [
             EffectId::TorchRed,
             EffectId::TorchGreen,
             EffectId::TorchPurple,
             EffectId::Dust,
+            EffectId::Glow1,
+            EffectId::Glow2,
+            EffectId::Glow11,
+            EffectId::Glow12,
         ] {
             assert!(
                 is_real_impl(id),

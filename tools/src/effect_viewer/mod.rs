@@ -1182,6 +1182,8 @@ impl App {
             color: [1.0, 1.0, 1.0, 1.0],
             size_scale: b.size_scale,
             anim_speed: b.anim_speed,
+            size_shrink: b.size_shrink,
+            twinkle: b.twinkle,
             particles: b.particles.clone(),
         }));
         let spr_draws = collect_sprite_effect_draws(

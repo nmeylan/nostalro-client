@@ -91,4 +91,25 @@ pub struct SprBurstParams {
     /// player's view regardless of where the effect packet originated.
     /// Falls back silently to the spawn-time Attach if the ctx is missing.
     pub follow_camera: bool,
+    /// Constant Y acceleration in world units / sec² applied each frame to
+    /// the particle's velocity. Positive = particles fall (Y grows) in
+    /// native RO coords. Mirrors the original game's gravity integration
+    /// on the falling-particle emitters (Steal). Default
+    /// 0 disables gravity.
+    pub gravity_world_per_sec2: f32,
+    /// When set, particles spawn with a 3D-cone initial velocity instead of
+    /// the default pure-Y axis. `(min_lat_deg, max_lat_deg)` are clamped
+    /// latitudes from the horizontal plane: `(40, 140)` matches Steal's
+    /// "mostly upward but spread" hemisphere. Longitude is always random
+    /// 0..360°. The cone speed magnitude is drawn from `speed_range`.
+    pub cone_latitude_deg: Option<(f32, f32)>,
+    /// When `true`, the rendered sprite size lerps linearly from `size` to
+    /// 0 over the particle's lifetime. Matches the shrinking
+    /// Steal-style emitters in the original game.
+    pub size_shrink: bool,
+    /// When `true`, alpha oscillates around the linear fade envelope
+    /// instead of monotonically fading. Approximation of the twinkle behavior —
+    /// not a per-keyframe match, but reproduces the firefly's visible
+    /// pulsing without a full keyframe-point vector.
+    pub twinkle: bool,
 }

@@ -190,6 +190,12 @@ pub enum SpriteEffectEmitter<'a> {
         color: [f32; 4],
         size_scale: f32,
         anim_speed: f32,
+        /// Linearly shrink each particle's rendered size to 0 over its
+        /// lifetime (Steal's gold-coin shrink).
+        size_shrink: bool,
+        /// Oscillate per-particle alpha around the linear fade envelope
+        /// (Firefly's pulsing approximation of a twinkle particle).
+        twinkle: bool,
         particles: Vec<([f32; 3], f32, f32)>,
     },
 }
@@ -257,6 +263,8 @@ pub fn collect_sprite_effect_draws<'a>(
                 color,
                 size_scale,
                 anim_speed,
+                size_shrink,
+                twinkle,
                 particles,
             } => {
                 let Some(sprite) = cache.get(sprite_path) else {
@@ -270,7 +278,17 @@ pub fn collect_sprite_effect_draws<'a>(
                 let frames_per_sec = 60.0 / anim_speed.max(1.0);
                 for &(pos, age, lifetime) in particles {
                     let t = (age / lifetime).clamp(0.0, 1.0);
-                    let alpha = (1.0 - t) * alpha_max;
+                    let envelope = (1.0 - t) * alpha_max;
+                    // Twinkle approximation: alpha = envelope × (0.4 +
+                    // 0.6 × sin²(age × 2.5Hz × 2π)). Keeps a visible base
+                    // glow while pulsing toward the envelope ceiling.
+                    let alpha = if *twinkle {
+                        let phase = age * 2.5 * std::f32::consts::TAU;
+                        let pulse = 0.4 + 0.6 * phase.sin().powi(2);
+                        envelope * pulse
+                    } else {
+                        envelope
+                    };
                     if alpha <= 0.01 {
                         continue;
                     }
@@ -280,12 +298,13 @@ pub fn collect_sprite_effect_draws<'a>(
                         continue;
                     };
                     let sprite_scale = ppu / 7.5;
+                    let per_particle_size = if *size_shrink { (1.0 - t).max(0.0) } else { 1.0 };
                     let motion_index = (age * frames_per_sec) as usize % motion_count;
                     draws.push(EmitterDraw {
                         sprite,
                         screen_anchor: anchor,
                         depth,
-                        sprite_scale: sprite_scale * size_scale,
+                        sprite_scale: sprite_scale * size_scale * per_particle_size,
                         motion_index,
                         color: [color[0], color[1], color[2], color[3] * alpha],
                     });
