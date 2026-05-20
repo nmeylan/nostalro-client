@@ -8,7 +8,8 @@ use ragnarok_renderer::effect::StrEmitterInput;
 use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_renderer::{
     SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad, build_emitter_batches,
-    build_str_effect_batches, collect_sprite_effect_draws, scale_clip_vertices,
+    build_str_effect_batches, collect_sprite_effect_draws,
+    collect_sprite_particle_emitter_draws, scale_clip_vertices,
 };
 
 impl App {
@@ -353,6 +354,20 @@ impl App {
             };
             self.effect_holder
                 .collect_custom_draws(&mut effect_draws, &render_ctx);
+
+            // Custom effects can emit `SpriteParticle` primitives for
+            // per-particle SPR billboards (Hit's debris, etc.). Project
+            // them now and append to the same sprite batch list as the
+            // emitter-driven Spr / Smoke3D draws so they share the
+            // sprite render pass.
+            let sprite_particle_draws = collect_sprite_particle_emitter_draws(
+                &effect_draws,
+                &self.effect_sprites,
+                &renderer.camera,
+                screen_w,
+                screen_h,
+            );
+            effect_batches.extend(build_emitter_batches(&sprite_particle_draws));
 
             renderer.render(
                 &all_ui_calls,

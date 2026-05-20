@@ -229,6 +229,8 @@ impl FrustumRenderer {
                 wave_amplitude,
                 wave_frequency,
                 wave_phase,
+                tilt_x_rad,
+                rotation_y_rad,
                 cull_back,
                 texture,
                 color,
@@ -236,6 +238,29 @@ impl FrustumRenderer {
             } = prim
             else {
                 continue;
+            };
+
+            // Pre-compute the tilt/rotation sin/cos used to remap each
+            // local-frame vertex into world space. When both are 0 the
+            // closure is the identity (existing vertical pillars and
+            // cones render byte-identically to before this field was
+            // added).
+            let (sin_tx, cos_tx) = tilt_x_rad.sin_cos();
+            let (sin_ry, cos_ry) = rotation_y_rad.sin_cos();
+            let transform_local = |lx: f32, ly: f32, lz: f32| -> [f32; 3] {
+                // X rotation (row-vector × row-major X matrix):
+                //   y' = y * cos_tx + z * sin_tx
+                //   z' = -y * sin_tx + z * cos_tx
+                let x1 = lx;
+                let y1 = ly * cos_tx + lz * sin_tx;
+                let z1 = -ly * sin_tx + lz * cos_tx;
+                // Y rotation around world Y axis through the base:
+                //   x'' = x * cos_ry - z * sin_ry
+                //   z'' = x * sin_ry + z * cos_ry
+                let x2 = x1 * cos_ry - z1 * sin_ry;
+                let y2 = y1;
+                let z2 = x1 * sin_ry + z1 * cos_ry;
+                [base[0] + x2, base[1] + y2, base[2] + z2]
             };
 
             let sides = (*sides).max(3);
@@ -251,9 +276,12 @@ impl FrustumRenderer {
             let index_start = indices.len() as u32;
             let vert_base = verts.len() as u32;
 
-            let bottom_y = base[1];
-            // Native RO coordinates: -Y is up.
-            let top_y = base[1] - *height;
+            // In LOCAL frame the bottom ring sits at y=0 and the top
+            // ring at y=-height (native RO -Y = up). The world Y values
+            // below are recomputed per-vertex by `transform_local` so
+            // tilt around X swings the cone's axis off vertical.
+            let bottom_local_y: f32 = 0.0;
+            let top_local_y_base: f32 = -*height;
             let full_span = std::f32::consts::TAU;
             // `rotation` rotates the geometry around the vertical axis. The
             // texture's u-coord is keyed to the segment index (`t`), not to
@@ -338,7 +366,7 @@ impl FrustumRenderer {
                 let wave = *wave_amplitude
                     * (local_angle * *wave_frequency + *wave_phase).sin();
                 let seg_top_size = top_size + wave * radial_unit;
-                let seg_top_y = top_y - wave * vert_unit; // -Y is up
+                let seg_top_local_y = top_local_y_base - wave * vert_unit; // -Y is up in local frame
 
                 // Per-segment fade: outward-radial · eye, normalised so
                 // front segments ≈ 1 and back segments ≈ 0. Squared so
@@ -353,20 +381,20 @@ impl FrustumRenderer {
                 seg_color[3] *= segment_alpha;
 
                 verts.push(FrustumVertex {
-                    position: [
-                        base[0] + bottom_size * cos_a,
-                        bottom_y,
-                        base[2] + bottom_size * sin_a,
-                    ],
+                    position: transform_local(
+                        bottom_size * cos_a,
+                        bottom_local_y,
+                        bottom_size * sin_a,
+                    ),
                     tex_coord: [u, 1.0 + scroll_v],
                     color: seg_color,
                 });
                 verts.push(FrustumVertex {
-                    position: [
-                        base[0] + seg_top_size * cos_a,
-                        seg_top_y,
-                        base[2] + seg_top_size * sin_a,
-                    ],
+                    position: transform_local(
+                        seg_top_size * cos_a,
+                        seg_top_local_y,
+                        seg_top_size * sin_a,
+                    ),
                     tex_coord: [u, 0.0 + scroll_v],
                     color: seg_color,
                 });

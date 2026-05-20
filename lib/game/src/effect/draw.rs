@@ -86,6 +86,27 @@ pub enum EffectPrimitiveDraw {
         wave_amplitude: f32,
         wave_frequency: f32,
         wave_phase: f32,
+        /// Tilt around the local X axis (radians), applied *after* the
+        /// local-frame vertices are built and *before* `rotation_y_deg`.
+        /// 0 = vertical pillar (default — preserves the existing
+        /// behaviour for BottomSanc, cast-circle, volcano, BeginSpell6).
+        /// the 3D cylinder for the Hit family sets latitude =
+        /// -90°` which corresponds to `tilt_x_rad = -π/2`, laying the
+        /// flared cone on its side so its axis points horizontally;
+        /// `rotation_y_rad` then aims that axis at a compass heading.
+        /// When `tilt_x_rad != 0`, `cull_back`'s outward-direction
+        /// calculation no longer matches the physical front/back of the
+        /// geometry — `cull_back: true` plus tilt is unsupported and will
+        /// produce arbitrary fading; current users with tilt always set
+        /// `cull_back: false`.
+        tilt_x_rad: f32,
+        /// Rotation around the world Y axis applied *after* `tilt_x_rad`,
+        /// rotating the whole tilted geometry around the vertical axis
+        /// through `base`. For a vertical pillar (`tilt_x_rad == 0`) this
+        /// is equivalent to `rotation` (both spin the geometry around the
+        /// cylinder's axis), but for a tilted cone this is the heading
+        /// the cone's tip points at.
+        rotation_y_rad: f32,
         /// When `true`, the renderer skips quads whose outward-facing normal
         /// points away from the camera — back-face culling
         /// for cones that should only show their outer surface
@@ -194,6 +215,36 @@ pub enum EffectPrimitiveDraw {
         control_points: Vec<[f32; 3]>,
         segments: u32,
         texture: &'static str,
+        color: [f32; 4],
+        blend: BlendKind,
+    },
+    /// Single animated SPR sprite billboard at a world position.
+    ///
+    /// Used by Custom effects (e.g. Hit's debris bursts) to emit one
+    /// sprite-textured billboard per particle per frame. The Custom
+    /// effect owns the per-frame position / motion-index / alpha logic;
+    /// the renderer's job is to look the sprite up in the
+    /// `EffectSpriteCache`, project the position to screen, and draw the
+    /// selected motion's clip quad. This is the per-primitive
+    /// counterpart to the `SpriteEffectEmitter::Smoke3D` path which is
+    /// driven from spec-level `EffectSpec::SprBurst` entries — the
+    /// difference is who chooses the particle's position: an emitter
+    /// (Smoke3D) or the Custom effect itself (SpriteParticle).
+    ///
+    /// `sprite_path` is the full GRF lookup path **without** extension,
+    /// e.g. `"data/sprite/이팩트/particle1"`.
+    /// `motion_index` selects which motion of the first action to
+    /// render; the renderer applies `% motion_count` so callers can
+    /// hand it a raw frame counter.
+    /// `size_scale` is a per-particle multiplier on top of the
+    /// renderer's per-pixel-unit scale.
+    /// `color` is multiplied with the sprite's own ARGB; setting alpha
+    /// drives the per-particle fade-out.
+    SpriteParticle {
+        sprite_path: &'static str,
+        position: [f32; 3],
+        motion_index: usize,
+        size_scale: f32,
         color: [f32; 4],
         blend: BlendKind,
     },

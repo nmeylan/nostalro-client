@@ -856,27 +856,42 @@ impl App {
     ///     dropped immediately; the real spawn happens via the cdylib path.
     /// Tries the primary name first, then known aliases.
     /// Failures are remembered so we don't retry every cycle.
-    /// Lazy-load the SPR billboard for an `EffectSpec::Spr` or `SprBurst` effect.
+    /// Lazy-load the SPR billboard(s) needed by this effect. For
+    /// `EffectSpec::Spr` / `SprBurst` it's the spec's `sprite` path;
+    /// for `EffectSpec::Custom` it's whatever sprite paths the effect
+    /// declares in its module's `SPRITES` constant (e.g. Hit's
+    /// particle1.spr). The viewer accumulates loaded paths so repeated
+    /// spawns don't retry parse failures.
     fn ensure_spr_loaded_for(&mut self, id: EffectId) {
-        let sprite: &'static str = match effect_spec(id) {
-            Some(EffectSpec::Spr { sprite, .. }) => sprite,
-            Some(EffectSpec::SprBurst { sprite, .. }) => sprite,
+        let mut sprites: Vec<&'static str> = Vec::new();
+        match effect_spec(id) {
+            Some(EffectSpec::Spr { sprite, .. }) => sprites.push(sprite),
+            Some(EffectSpec::SprBurst { sprite, .. }) => sprites.push(sprite),
+            Some(EffectSpec::Custom { .. }) => {
+                // Custom effects can also drive sprite billboards via
+                // SpriteParticle. Preload the aggregated paths so the
+                // first frame after spawn isn't silently empty.
+                sprites
+                    .extend(ragnarok_game::effect::custom_effect_sprite_paths());
+            }
             _ => return,
-        };
-        if self.attempted_spr_files.contains(sprite) {
-            return;
         }
-        self.attempted_spr_files.insert(sprite.to_string());
-        let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) else {
-            return;
-        };
-        self.effect_sprites.load(
-            sprite,
-            grf,
-            &renderer.device.device,
-            &renderer.device.queue,
-            &renderer.texture_cache.bind_group_layout,
-        );
+        for sprite in sprites {
+            if self.attempted_spr_files.contains(sprite) {
+                continue;
+            }
+            self.attempted_spr_files.insert(sprite.to_string());
+            let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) else {
+                return;
+            };
+            self.effect_sprites.load(
+                sprite,
+                grf,
+                &renderer.device.device,
+                &renderer.device.queue,
+                &renderer.texture_cache.bind_group_layout,
+            );
+        }
     }
 
     fn ensure_str_loaded_for(&mut self, id: EffectId) {
@@ -1211,6 +1226,19 @@ impl App {
         };
         self.effect_holder
             .collect_custom_draws(&mut effect_draws, &render_ctx);
+        // Custom effects can emit `SpriteParticle` primitives for
+        // per-particle SPR billboards (Hit's debris). Project them now
+        // and append to the sprite batch list so they share the sprite
+        // render pass with emitter-driven draws.
+        let sprite_particle_draws =
+            ragnarok_renderer::collect_sprite_particle_emitter_draws(
+                &effect_draws,
+                &self.effect_sprites,
+                &renderer.camera,
+                screen_w,
+                screen_h,
+            );
+        effect_batches.extend(build_emitter_batches(&sprite_particle_draws));
         // Billboard batches are built inside `Renderer::render()` from
         // `effect_draws`, using its internal texture_lookup against the
         // preloaded GRF texture cache. The viewer only forwards STR-effect
@@ -1257,6 +1285,15 @@ impl App {
                     cap_h,
                 );
                 capture_batches.extend(build_emitter_batches(&spr_draws_capture));
+                let sprite_particle_capture =
+                    ragnarok_renderer::collect_sprite_particle_emitter_draws(
+                        &effect_draws,
+                        &self.effect_sprites,
+                        &renderer.camera,
+                        cap_w,
+                        cap_h,
+                    );
+                capture_batches.extend(build_emitter_batches(&sprite_particle_capture));
                 let color_view = session.target.color_view.clone();
                 let depth_view = session.target.depth_view.clone();
                 renderer.render_into(

@@ -10,7 +10,7 @@
 use models::enums::effect_id::EffectId;
 
 use super::buckets::{is_custom_bucket, is_noop_bucket};
-use super::effects::{bottom_sanctuary_pillar, cast_circle, magnum_break, stormgust, volcano, warp};
+use super::effects::{bottom_sanctuary_pillar, cast_circle, hit, magnum_break, stormgust, volcano, warp};
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
 use super::spr_burst::spr_burst_params;
@@ -30,6 +30,20 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // value (300 ms) cuts the cone off before the ring finishes growing.
         EffectId::Magnumbreak => EffectSpec::Custom {
             duration_ms: magnum_break::TOTAL_DURATION_MS,
+        },
+
+        // Hit family — fires on every weapon swing. The cylinder ring
+        // dies at 10-15 frames but the debris bursts can live up to 30
+        // frames, so the spec needs the max of both rather than the
+        // table's 500 ms blanket value.
+        EffectId::Hit1 => EffectSpec::Custom {
+            duration_ms: hit::HIT1_TOTAL_DURATION_MS,
+        },
+        EffectId::Hit3 => EffectSpec::Custom {
+            duration_ms: hit::HIT3_TOTAL_DURATION_MS,
+        },
+        EffectId::Hit4 => EffectSpec::Custom {
+            duration_ms: hit::HIT4_TOTAL_DURATION_MS,
         },
 
         // Stormgust runs the STR cloud + 8 falling ice shards; default table

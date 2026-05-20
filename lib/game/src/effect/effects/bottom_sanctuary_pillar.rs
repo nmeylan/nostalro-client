@@ -98,6 +98,8 @@ impl Effect for BottomSanctuaryPillarEffect {
             wave_amplitude: 0.0,
             wave_frequency: 0.0,
             wave_phase: 0.0,
+            tilt_x_rad: 0.0,
+            rotation_y_rad: 0.0,
             cull_back: false,
             texture: TEXTURE,
             color: [1.0, 1.0, 1.0, alpha],

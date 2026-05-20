@@ -246,6 +246,8 @@ impl Effect for BeginSpell6Effect {
                 wave_amplitude,
                 wave_frequency: 1.0,
                 wave_phase: em.wave_phase_rad,
+                tilt_x_rad: 0.0,
+                rotation_y_rad: 0.0,
                 cull_back: true,
                 texture: TEXTURE,
                 color,

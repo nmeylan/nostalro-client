@@ -200,6 +200,11 @@ impl App {
                     }
                 })
                 .collect();
+            // Sprite paths used by Custom-effect modules (Hit's
+            // particle1, etc.) — same loader path as the RSW ambient
+            // emitter sprites above, just sourced from
+            // `custom_effect_sprite_paths()` aggregator.
+            paths.extend(ragnarok_game::effect::custom_effect_sprite_paths());
             paths.sort();
             paths.dedup();
             for path in paths {

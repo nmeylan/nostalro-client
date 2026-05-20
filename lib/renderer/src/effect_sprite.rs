@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::spr::SprFile;
+use ragnarok_game::effect::{BlendKind, EffectDrawList, EffectPrimitiveDraw};
 
 use crate::camera::Camera;
 use crate::sprite::{
@@ -101,6 +102,13 @@ pub struct EmitterDraw<'a> {
     pub sprite_scale: f32,
     pub motion_index: usize,
     pub color: [f32; 4],
+    /// `true` → additive blend (Hit debris, anything wanting overlap to
+    /// accumulate to brighter colors); `false` → standard alpha blend
+    /// (Smoke, Snow, Firefly — all the existing emitter callers).
+    /// particle1.spr is flagged additive in the original game, so its
+    /// emitters set this; the others use plain alpha. Verified against the
+    /// original game's on-screen blending.
+    pub additive: bool,
 }
 
 /// Build sprite batches for a list of emitter draw entries. The caller is
@@ -141,11 +149,70 @@ pub fn build_emitter_batches<'a>(draws: &[EmitterDraw<'a>]) -> Vec<SpriteBatch<'
                 vertices,
                 indices,
                 texture: &draw.sprite.textures.bind_groups[tex_idx],
-                additive: false,
+                additive: draw.additive,
             });
         }
     }
     batches
+}
+
+/// Walk an `EffectDrawList`, find every `EffectPrimitiveDraw::SpriteParticle`
+/// entry, and project each into an `EmitterDraw` ready for
+/// `build_emitter_batches`. Skips particles whose sprite isn't in the cache
+/// (caller is responsible for preloading the sprite paths declared in each
+/// effect module's `TEXTURES` / sprite list) and particles whose world
+/// position projects off-screen.
+///
+/// Callers append the returned `EmitterDraw` list to whatever they're
+/// already passing into `build_emitter_batches` — same path as the
+/// existing `Spr` / `Smoke3D` emitter draws, so the resulting sprite
+/// quads land in the same render pass with consistent depth and blend
+/// behaviour.
+pub fn collect_sprite_particle_emitter_draws<'a>(
+    list: &EffectDrawList,
+    cache: &'a EffectSpriteCache,
+    camera: &Camera,
+    screen_w: f32,
+    screen_h: f32,
+) -> Vec<EmitterDraw<'a>> {
+    let mut draws = Vec::new();
+    for prim in &list.primitives {
+        let EffectPrimitiveDraw::SpriteParticle {
+            sprite_path,
+            position,
+            motion_index,
+            size_scale,
+            color,
+            blend,
+        } = prim
+        else {
+            continue;
+        };
+        let additive = matches!(blend, BlendKind::Additive);
+        let Some(sprite) = cache.get(sprite_path) else {
+            continue;
+        };
+        let Some((anchor, depth, ppu)) = project_billboard(camera, *position, screen_w, screen_h)
+        else {
+            continue;
+        };
+        let action = sprite.act.actions.first();
+        let motion_count = action.map(|a| a.motions.len()).unwrap_or(0);
+        if motion_count == 0 {
+            continue;
+        }
+        let sprite_scale = (ppu / 7.5) * size_scale;
+        draws.push(EmitterDraw {
+            sprite,
+            screen_anchor: anchor,
+            depth,
+            sprite_scale,
+            motion_index: *motion_index % motion_count,
+            color: *color,
+            additive,
+        });
+    }
+    draws
 }
 
 /// Helper: project a world-space anchor into a screen anchor / depth /
@@ -255,6 +322,7 @@ pub fn collect_sprite_effect_draws<'a>(
                     sprite_scale: sprite_scale * size_scale,
                     motion_index,
                     color: *color,
+                    additive: false,
                 });
             }
             SpriteEffectEmitter::Smoke3D {
@@ -307,6 +375,7 @@ pub fn collect_sprite_effect_draws<'a>(
                         sprite_scale: sprite_scale * size_scale * per_particle_size,
                         motion_index,
                         color: [color[0], color[1], color[2], color[3] * alpha],
+                        additive: false,
                     });
                 }
             }

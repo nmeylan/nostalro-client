@@ -29,6 +29,7 @@ pub fn effect_texture_paths() -> Vec<String> {
     let texture_lists: &[&[&str]] = &[
         effects::warp::TEXTURES,
         effects::magnum_break::TEXTURES,
+        effects::hit::TEXTURES,
         effects::bottom_sanctuary_pillar::TEXTURES,
         effects::warp_zone::TEXTURES,
         effects::volcano::TEXTURES,
@@ -42,6 +43,24 @@ pub fn effect_texture_paths() -> Vec<String> {
     for list in texture_lists {
         for name in *list {
             seen.insert(format!("data/texture/effect/{name}"));
+        }
+    }
+    seen.into_iter().collect()
+}
+
+/// GRF sprite paths used by Custom-effect modules that emit
+/// `EffectPrimitiveDraw::SpriteParticle` entries. Callers preload these
+/// into the renderer's `EffectSpriteCache` so debris and other
+/// per-particle SPR billboards render the first frame they're emitted
+/// instead of silently skipping. Each effect module that uses
+/// SpriteParticle declares a `SPRITES` constant; this aggregator walks
+/// them so the preload list stays in sync with the source files.
+pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
+    let mut seen = std::collections::BTreeSet::new();
+    let sprite_lists: &[&[&str]] = &[effects::hit::SPRITES];
+    for list in sprite_lists {
+        for path in *list {
+            seen.insert(*path);
         }
     }
     seen.into_iter().collect()

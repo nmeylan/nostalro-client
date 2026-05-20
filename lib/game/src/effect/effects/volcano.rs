@@ -205,6 +205,8 @@ impl Effect for VolcanoEffect {
                 wave_amplitude: -self.params.max_flame_tilt,
                 wave_frequency: 0.5,
                 wave_phase: 0.0,
+                tilt_x_rad: 0.0,
+                rotation_y_rad: 0.0,
                 cull_back: false,
                 texture: self.params.texture,
                 color: [1.0, 1.0, 1.0, alpha],

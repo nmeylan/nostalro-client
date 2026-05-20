@@ -19,6 +19,15 @@ pub fn make_effect(id: EffectId, attach: Attach) -> Option<Box<dyn Effect>> {
         EffectId::Magnumbreak => {
             Box::new(effects::magnum_break::MagnumBreakEffect::new(attach))
         }
+
+        // Hit family — weapon-swing impact shockwave + debris.
+        // The cylinder ring + per-segment particle trails follow the
+        // recipe; impact direction is the spawn-time `angle`
+        // (currently defaulting to 0 since the spawn pipeline doesn't
+        // carry it yet, see hit::new_with_angle docs).
+        EffectId::Hit1 => Box::new(effects::hit::HitEffect::new(attach, effects::hit::HIT1)),
+        EffectId::Hit3 => Box::new(effects::hit::HitEffect::new(attach, effects::hit::HIT3)),
+        EffectId::Hit4 => Box::new(effects::hit::HitEffect::new(attach, effects::hit::HIT4)),
         EffectId::Stormgust => Box::new(effects::stormgust::StormgustEffect::new(attach)),
         EffectId::BottomSanc => {
             Box::new(effects::bottom_sanctuary_pillar::BottomSanctuaryPillarEffect::new(attach))
@@ -232,6 +241,9 @@ pub fn is_real_impl(id: EffectId) -> bool {
         id,
         EffectId::Warp
             | EffectId::Magnumbreak
+            | EffectId::Hit1
+            | EffectId::Hit3
+            | EffectId::Hit4
             | EffectId::Stormgust
             | EffectId::BottomSanc
             | EffectId::Warpzone
