@@ -297,6 +297,22 @@ pub fn make_effect(id: EffectId, attach: Attach) -> Option<Box<dyn Effect>> {
             effects::bottom_magnus::FOGWALL,
         )),
 
+        // BottomLight — 315° curtain-cone wall built from ~20 WorldQuad
+        // ribbon segments per frame. Same geometry for both ids; a flag
+        // picks the tint/blend.
+        EffectId::BottomEternalchaos => Box::new(
+            effects::bottom_light::BottomLightEffect::new(
+                attach,
+                effects::bottom_light::ETERNALCHAOS,
+            ),
+        ),
+        EffectId::BottomSiegfried => Box::new(
+            effects::bottom_light::BottomLightEffect::new(
+                attach,
+                effects::bottom_light::SIEGFRIED,
+            ),
+        ),
+
         // BottomVertical — vertical "curtain" strips via the
         // `EffectPrimitiveDraw::WorldQuad` primitive. 5 ids.
         EffectId::BottomDissonance => Box::new(
@@ -418,6 +434,8 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::BottomAssassincross
             | EffectId::BottomDontforgetme
             | EffectId::BottomServiceforyou
+            | EffectId::BottomEternalchaos
+            | EffectId::BottomSiegfried
     )
 }
 
@@ -483,6 +501,17 @@ mod tests {
             EffectId::BottomDontforgetme,
             EffectId::BottomServiceforyou,
         ] {
+            assert!(is_real_impl(id), "{:?} must have a real impl", id);
+            let e = make_effect(id, Attach::WorldPos([0.0; 3])).unwrap();
+            assert_eq!(e.str_overlay(), None);
+        }
+    }
+
+    #[test]
+    fn bottom_light_variants_dispatch_to_world_quad_curtain() {
+        // 2 BottomLight ids must land on the BottomLight custom effect
+        // (WorldQuad ribbon segments), not the placeholder.
+        for id in [EffectId::BottomEternalchaos, EffectId::BottomSiegfried] {
             assert!(is_real_impl(id), "{:?} must have a real impl", id);
             let e = make_effect(id, Attach::WorldPos([0.0; 3])).unwrap();
             assert_eq!(e.str_overlay(), None);
