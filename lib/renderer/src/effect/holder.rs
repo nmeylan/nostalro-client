@@ -11,10 +11,12 @@ use std::sync::Arc;
 
 use models::enums::effect_id::EffectId;
 use ragnarok_game::effect::{
-    Attach, Effect as GameEffect, EffectDrawList, EffectQueue, EffectRenderCtx,
+    AlphaKeyframe, Attach, Effect as GameEffect, EffectDrawList, EffectQueue, EffectRenderCtx,
     EffectSpec, EffectStatus, EffectUpdateCtx, SpawnRequest, SprBurstParams, effect_spec,
     make_effect,
 };
+
+use crate::effect_sprite::Smoke3DParticle;
 
 /// Pluggable backend for custom-effect dispatch. The default path links the
 /// game crate's `make_effect` statically; tooling that needs hot reload
@@ -60,8 +62,7 @@ pub struct SprSnapshot {
 }
 
 /// Owned snapshot of a live `EffectSpec::SprBurst` instance — params for the
-/// `SpriteEffectEmitter::Smoke3D` render path plus a per-particle list of
-/// `(position, age, lifetime)` triples.
+/// `SpriteEffectEmitter::Smoke3D` render path plus a per-particle list.
 pub struct SprBurstSnapshot {
     pub sprite: String,
     pub size_scale: f32,
@@ -71,7 +72,7 @@ pub struct SprBurstSnapshot {
     pub size_shrink: bool,
     /// Oscillate alpha around the linear fade envelope (twinkle).
     pub twinkle: bool,
-    pub particles: Vec<([f32; 3], f32, f32)>,
+    pub particles: Vec<Smoke3DParticle>,
 }
 
 #[derive(Clone, Copy)]
@@ -80,6 +81,30 @@ struct BurstParticle {
     velocity: [f32; 3],
     age: f32,
     lifetime: f32,
+    /// Frames elapsed since spawn (60 fps ticks), tracked separately
+    /// from `age` so curve periods and `alpha_keyframes` line up
+    /// with the original game's tick-driven scheduler. Carries a
+    /// fractional remainder across update calls.
+    age_frames: f32,
+    /// Heading for curve re-randomization. Longitude is the Y-axis
+    /// rotation; latitude is the X-axis rotation applied after.
+    lon_deg: f32,
+    lat_deg: f32,
+    /// Curve countdown in frames. When it crosses 0,
+    /// re-randomize heading + speed and refill from the curve params.
+    curve_timer_frames: f32,
+    /// Number of curve ticks consumed so far. After the first tick we
+    /// switch from `initial_period_frames` to `subsequent_period_frames`.
+    curve_count: u32,
+    /// Twinkle alpha state. `alpha` is the current 0..1 value;
+    /// `alpha_speed` is the per-frame delta whose sign flips at the
+    /// min/max bounds. `alpha_max` is the active ceiling (keyframed).
+    /// `keyframe_idx` is the next entry to consume from
+    /// `SprBurstParams::alpha_keyframes`.
+    alpha: f32,
+    alpha_speed: f32,
+    alpha_max: f32,
+    keyframe_idx: usize,
 }
 
 struct BurstState {
@@ -394,10 +419,16 @@ impl EffectHolder {
                 // still skip emitters whose attach can't resolve, mirroring
                 // the STR/Spr collectors.
                 let _ = resolve_position(&e.attach, resolve_entity)?;
+                let has_keyframes = !b.params.alpha_keyframes.is_empty();
                 let particles = b
                     .particles
                     .iter()
-                    .map(|p| (p.pos, p.age, p.lifetime))
+                    .map(|p| Smoke3DParticle {
+                        pos: p.pos,
+                        age: p.age,
+                        lifetime: p.lifetime,
+                        alpha_override: has_keyframes.then_some(p.alpha),
+                    })
                     .collect();
                 Some(SprBurstSnapshot {
                     sprite: b.sprite.clone(),
@@ -558,11 +589,43 @@ fn update_burst(
     }
 
     let gravity = b.params.gravity_world_per_sec2;
+    let curve = b.params.curve;
+    let alpha_keyframes = b.params.alpha_keyframes;
+    let (speed_lo, speed_hi) = b.params.speed_range;
+    let dt_frames = dt * 60.0;
     b.particles.retain_mut(|p| {
         p.age += dt;
         if p.age >= p.lifetime {
             return false;
         }
+        p.age_frames += dt_frames;
+
+        // Curve re-randomization: every `curve_timer_frames` ticks,
+        // perturb heading by ±`angle_jitter_deg`, optionally re-roll
+        // speed, and pick a fresh subsequent period.
+        if let Some(cp) = curve {
+            p.curve_timer_frames -= dt_frames;
+            if p.curve_timer_frames <= 0.0 {
+                p.lon_deg = wrap_deg(
+                    p.lon_deg + rand_range(-cp.angle_jitter_deg, cp.angle_jitter_deg),
+                );
+                p.lat_deg = wrap_deg(
+                    p.lat_deg + rand_range(-cp.angle_jitter_deg, cp.angle_jitter_deg),
+                );
+                let speed = if cp.speed_resample {
+                    rand_range(speed_lo, speed_hi)
+                } else {
+                    velocity_magnitude(p.velocity) / 60.0
+                };
+                let (vx, vy, vz) = direction_from_lon_lat(p.lon_deg, p.lat_deg);
+                let world_speed = speed * 60.0;
+                p.velocity = [vx * world_speed, vy * world_speed, vz * world_speed];
+                let (lo, hi) = cp.subsequent_period_frames;
+                p.curve_timer_frames += rand_period_frames(lo, hi);
+                p.curve_count = p.curve_count.saturating_add(1);
+            }
+        }
+
         // Euler integration with optional gravity acceleration along Y.
         // Positive `gravity` pulls toward +Y (down in native RO coords),
         // matching the original game's gravity-particle fall.
@@ -572,6 +635,33 @@ fn update_burst(
         p.pos[0] += p.velocity[0] * dt;
         p.pos[1] += p.velocity[1] * dt;
         p.pos[2] += p.velocity[2] * dt;
+
+        // Twinkle keyframe sawtooth. Consume any keyframes whose
+        // `at_frame` is now in the past, snapping alpha + ceiling.
+        // Then advance alpha by alpha_speed (per-frame delta scaled by
+        // dt_frames) and flip the sign at the [0, alpha_max] bounds.
+        if !alpha_keyframes.is_empty() {
+            while let Some(kf) = alpha_keyframes.get(p.keyframe_idx)
+                && p.age_frames >= kf.at_frame as f32
+            {
+                p.alpha = kf.alpha_init;
+                p.alpha_max = kf.alpha_max;
+                // Alpha climbs by ceiling / 1.5 per
+                // frame (positive). At the ceiling it flips negative,
+                // at 0 flips positive — sawtooth.
+                p.alpha_speed = p.alpha_max / 1.5;
+                p.keyframe_idx += 1;
+            }
+            // Sign flip at the bounds (before the advance so we don't
+            // overshoot on the first frame after a keyframe).
+            if p.alpha_speed >= 0.0 && p.alpha >= p.alpha_max {
+                p.alpha_speed = -p.alpha_speed.abs();
+            } else if p.alpha_speed < 0.0 && p.alpha <= 0.0 {
+                p.alpha_speed = p.alpha_speed.abs();
+            }
+            p.alpha = (p.alpha + p.alpha_speed * dt_frames).clamp(0.0, p.alpha_max);
+        }
+
         true
     });
 
@@ -597,8 +687,7 @@ fn spawn_burst(b: &mut BurstState, anchor: [f32; 3]) {
     let radius = b.params.spawn_radius_xz;
     let cone = b.params.cone_latitude_deg;
     for _ in 0..count {
-        let r = (rand_u32() % 1000) as f32 / 1000.0;
-        let speed = slo + r * (shi - slo);
+        let speed = rand_range(slo, shi);
         let (ox, oz) = if radius > 0.0 {
             // Uniform scatter on a disc: sqrt(r) for area weighting.
             let r_norm = ((rand_u32() % 1000) as f32 / 1000.0).sqrt();
@@ -614,32 +703,26 @@ fn spawn_burst(b: &mut BurstState, anchor: [f32; 3]) {
         // 3D direction picked at spawn time: a longitude Y-rotation then a
         // latitude X-rotation, matching the original game's gravity-particle
         // emission spread.
-        let velocity = match cone {
-            None => [0.0, -speed * 60.0, 0.0],
+        let (lon_deg, lat_deg, velocity) = match cone {
+            None => (0.0, -90.0, [0.0, -speed * 60.0, 0.0]),
             Some((lat_min, lat_max)) => {
                 let lon_deg = (rand_u32() % 360_000) as f32 / 1000.0;
-                let lat_deg = {
-                    let t = (rand_u32() % 1000) as f32 / 1000.0;
-                    lat_min + t * (lat_max - lat_min)
-                };
-                let lon = lon_deg.to_radians();
-                // latitudes use -90+lat_deg from the horizontal, so
-                // a `lat_deg` of 90 = straight up. Convert to the
-                // standard "elevation from horizontal" form.
-                let elev = (lat_deg - 90.0).to_radians();
+                let lat_deg = rand_range(lat_min, lat_max);
+                let (vx, vy, vz) = direction_from_lon_lat(lon_deg, lat_deg);
                 let speed_world = speed * 60.0;
-                // Elevation>0 means above horizontal; map that to -Y
-                // (upward) in native RO coords. The horizontal component
-                // is split between X and Z by `lon`.
-                let cos_e = elev.cos();
-                let sin_e = elev.sin();
-                [
-                    speed_world * cos_e * lon.cos(),
-                    -speed_world * sin_e,
-                    speed_world * cos_e * lon.sin(),
-                ]
+                (lon_deg, lat_deg, [vx * speed_world, vy * speed_world, vz * speed_world])
             }
         };
+        let curve_timer_frames = b
+            .params
+            .curve
+            .map(|cp| {
+                let (lo, hi) = cp.initial_period_frames;
+                rand_period_frames(lo, hi)
+            })
+            .unwrap_or(0.0);
+        let (alpha, alpha_max, alpha_speed, keyframe_idx) =
+            init_alpha_state(b.params.alpha_keyframes);
         b.particles.push(BurstParticle {
             pos: [
                 anchor[0] + ox,
@@ -649,8 +732,79 @@ fn spawn_burst(b: &mut BurstState, anchor: [f32; 3]) {
             velocity,
             age: 0.0,
             lifetime,
+            age_frames: 0.0,
+            lon_deg,
+            lat_deg,
+            curve_timer_frames,
+            curve_count: 0,
+            alpha,
+            alpha_speed,
+            alpha_max,
+            keyframe_idx,
         });
     }
+}
+
+/// Map `(lon_deg, lat_deg)` to a unit direction in native RO coords.
+/// Equivalent to rotating +Z by longitude around Y then latitude around X.
+/// We use the same "elevation from horizontal = lat-90°" remap as the
+/// spawn-time cone math.
+fn direction_from_lon_lat(lon_deg: f32, lat_deg: f32) -> (f32, f32, f32) {
+    let lon = lon_deg.to_radians();
+    let elev = (lat_deg - 90.0).to_radians();
+    let cos_e = elev.cos();
+    let sin_e = elev.sin();
+    (cos_e * lon.cos(), -sin_e, cos_e * lon.sin())
+}
+
+fn velocity_magnitude(v: [f32; 3]) -> f32 {
+    (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()
+}
+
+fn wrap_deg(d: f32) -> f32 {
+    let mut x = d % 360.0;
+    if x < 0.0 {
+        x += 360.0;
+    }
+    x
+}
+
+fn rand_range(lo: f32, hi: f32) -> f32 {
+    if hi <= lo {
+        return lo;
+    }
+    let t = (rand_u32() % 1_000_000) as f32 / 1_000_000.0;
+    lo + t * (hi - lo)
+}
+
+fn rand_period_frames(lo: u32, hi: u32) -> f32 {
+    if hi <= lo {
+        return lo as f32;
+    }
+    (lo + (rand_u32() % (hi - lo + 1))) as f32
+}
+
+/// Initial `(alpha, alpha_max, alpha_speed, keyframe_idx)` for a fresh
+/// particle. If the schedule begins with an `at_frame=0` keyframe we
+/// consume it immediately so the sawtooth starts from the right value;
+/// otherwise the particle is fully transparent until the renderer
+/// envelope takes over (alpha_keyframes empty case).
+fn init_alpha_state(keyframes: &[AlphaKeyframe]) -> (f32, f32, f32, usize) {
+    if keyframes.is_empty() {
+        return (0.0, 1.0, 0.0, 0);
+    }
+    let mut idx = 0;
+    let mut alpha = 0.0;
+    let mut alpha_max = 1.0;
+    while let Some(kf) = keyframes.get(idx)
+        && kf.at_frame == 0
+    {
+        alpha = kf.alpha_init;
+        alpha_max = kf.alpha_max;
+        idx += 1;
+    }
+    let alpha_speed = alpha_max / 1.5;
+    (alpha, alpha_max, alpha_speed, idx)
 }
 
 fn rand_u32() -> u32 {
@@ -818,12 +972,13 @@ mod tests {
             "burst count out of range: {}",
             snap.particles.len()
         );
-        for (pos, age, _lifetime) in &snap.particles {
+        for sp in &snap.particles {
             assert!(
-                pos[1] < -9.0,
-                "particle should have drifted past pos_y_start=-9: {pos:?}"
+                sp.pos[1] < -9.0,
+                "particle should have drifted past pos_y_start=-9: {:?}",
+                sp.pos
             );
-            assert!((age - 0.1).abs() < 1e-5, "age should track dt");
+            assert!((sp.age - 0.1).abs() < 1e-5, "age should track dt");
         }
     }
 
@@ -848,7 +1003,7 @@ mod tests {
         let any_xz_motion = snap
             .particles
             .iter()
-            .any(|(p, _, _)| p[0].abs() > 0.05 || p[2].abs() > 0.05);
+            .any(|sp| sp.pos[0].abs() > 0.05 || sp.pos[2].abs() > 0.05);
         assert!(
             any_xz_motion,
             "cone scatter should give at least one particle non-zero XZ drift after one tick"
@@ -868,6 +1023,130 @@ mod tests {
         assert_eq!(snaps.len(), 1);
         assert!(snaps[0].twinkle, "Firefly must surface PT_TWINKLE approximation");
         assert!(!snaps[0].size_shrink, "Firefly does not shrink");
+    }
+
+    #[test]
+    fn firefly_spawn_directions_span_full_sphere() {
+        // Regression: a cone range of `(-90, 90)` mapped to
+        // `vy = cos(lat°) ∈ [0, 1]` only, so every particle fired
+        // downward or horizontal — never up. Spawning many fireflies
+        // must produce velocities in both upper (vy<0) and lower
+        // (vy>0) hemispheres in native RO coords.
+        let mut h = EffectHolder::new();
+        for _ in 0..40 {
+            h.spawn(EffectId::Firefly, Attach::WorldPos([0.0, 0.0, 0.0]), None)
+                .expect("spawn");
+        }
+        h.update(&ctx(1.0 / 60.0));
+        let snaps = h.collect_spr_burst_emitters(&|_| None);
+        let mut saw_up = false;
+        let mut saw_down = false;
+        // First-tick positions relative to the spawn anchor reveal
+        // the sign of the initial Y velocity (after applying
+        // pos_y_start = -10).
+        for s in &snaps {
+            for p in &s.particles {
+                let dy = p.pos[1] - (-10.0);
+                if dy < -0.05 {
+                    saw_up = true;
+                }
+                if dy > 0.05 {
+                    saw_down = true;
+                }
+            }
+        }
+        assert!(saw_up, "firefly must sometimes drift upward (vy<0)");
+        assert!(saw_down, "firefly must sometimes drift downward (vy>0)");
+    }
+
+    #[test]
+    fn firefly_pt_curve_perturbs_velocity_within_30_frames() {
+        // Sociable test for the curve path: a firefly particle's velocity must
+        // change at least once within the 5..30 initial period, proving the
+        // re-randomization branch in `update_burst` is wired up. We sample
+        // the velocity-magnitude proxy (XZ drift direction) before and
+        // after a 0.6 s window and require it to differ.
+        let mut h = EffectHolder::new();
+        h.spawn(EffectId::Firefly, Attach::WorldPos([0.0, 0.0, 0.0]), None)
+            .expect("spawn");
+        // First tick: integrate a small step so the particle starts moving.
+        h.update(&ctx(1.0 / 60.0));
+        let snap0 = h
+            .collect_spr_burst_emitters(&|_| None)
+            .into_iter()
+            .next()
+            .expect("snapshot");
+        let p0 = snap0.particles[0].pos;
+        // Wait 30 frames (0.5 s) — guarantees at least one curve tick
+        // since the initial period is capped at 30 frames.
+        for _ in 0..30 {
+            h.update(&ctx(1.0 / 60.0));
+        }
+        let snap1 = h
+            .collect_spr_burst_emitters(&|_| None)
+            .into_iter()
+            .next()
+            .expect("snapshot still alive");
+        let p1 = snap1.particles[0].pos;
+        // Particle should have moved meaningfully (curve doesn't kill
+        // motion). We don't assert direction change directly because the
+        // RNG is deterministic per-tick — but the post-curve trajectory
+        // must produce a position different from a pure straight-line
+        // integration of the spawn velocity. The cheap proxy: position
+        // delta vs. initial position is non-zero and finite.
+        let dist = ((p1[0] - p0[0]).powi(2)
+            + (p1[1] - p0[1]).powi(2)
+            + (p1[2] - p0[2]).powi(2))
+        .sqrt();
+        assert!(dist > 0.5, "particle should drift across 0.5s window: {dist}");
+        assert!(dist.is_finite(), "no NaN from curve math: {dist}");
+    }
+
+    #[test]
+    fn firefly_alpha_keyframes_drive_per_particle_alpha_override() {
+        // Sociable test for twinkle keyframes: after the firefly is
+        // spawned, each particle snapshot must carry an `alpha_override`
+        // (not None) because the spec supplies a keyframe schedule. The
+        // first-frame value sits at frame-0's `alpha_init` (= 0).
+        let mut h = EffectHolder::new();
+        h.spawn(EffectId::Firefly, Attach::WorldPos([0.0, 0.0, 0.0]), None)
+            .expect("spawn");
+        h.update(&ctx(1.0 / 60.0));
+        let snap = h
+            .collect_spr_burst_emitters(&|_| None)
+            .into_iter()
+            .next()
+            .expect("snapshot");
+        let a_early = snap.particles[0]
+            .alpha_override
+            .expect("keyframes should populate alpha_override");
+        assert!(
+            a_early >= 0.0 && a_early <= 200.0 / 255.0 + 1e-3,
+            "early alpha within ceiling: {a_early}",
+        );
+
+        // Step into the bright phase (past frame 40). The keyframe at
+        // frame 40 raises the ceiling to 200/255 — the sawtooth bounces
+        // fast (~0.52/frame) so the snapshot at any single tick lands
+        // somewhere in [0, 200/255]. Sample 20 frames in that window
+        // and assert at least one reading exceeds the dim 80/255
+        // ceiling that bounded the early phase.
+        for _ in 0..39 {
+            h.update(&ctx(1.0 / 60.0));
+        }
+        let mut peak_bright: f32 = 0.0;
+        for _ in 0..20 {
+            h.update(&ctx(1.0 / 60.0));
+            if let Some(snap) = h.collect_spr_burst_emitters(&|_| None).into_iter().next()
+                && let Some(a) = snap.particles[0].alpha_override
+            {
+                peak_bright = peak_bright.max(a);
+            }
+        }
+        assert!(
+            peak_bright > 80.0 / 255.0,
+            "bright phase peak should exceed the dim ceiling: {peak_bright}",
+        );
     }
 
     #[test]

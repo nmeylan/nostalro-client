@@ -388,7 +388,9 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Blessing => 1500,
         EffectId::Incagidex => 1000,
         EffectId::Smoke => 500,
-        EffectId::Firefly => 1000,
+        // Firefly runs 140 frames (~2333 ms) on both the master and the
+        // particle layer.
+        EffectId::Firefly => 2333,
         EffectId::Sandwind => 1800,
         // Torch is an ambient looping emitter; original game's duration
         // table value (2500) only applies to a fired-skill Torch, which the

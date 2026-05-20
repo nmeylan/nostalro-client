@@ -410,7 +410,12 @@ pub(crate) fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteE
                 let particles = emitter
                     .particles
                     .iter()
-                    .map(|p| (p.position, p.age, p.lifetime))
+                    .map(|p| ragnarok_renderer::Smoke3DParticle {
+                        pos: p.position,
+                        age: p.age,
+                        lifetime: p.lifetime,
+                        alpha_override: None,
+                    })
                     .collect();
                 inputs.push(SpriteEffectEmitter::Smoke3D {
                     sprite_path,

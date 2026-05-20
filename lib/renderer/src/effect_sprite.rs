@@ -234,6 +234,18 @@ pub fn project_billboard(
     Some(([sx, sy], ndc_z, ppu))
 }
 
+/// Per-particle data for a `SpriteEffectEmitter::Smoke3D`. `alpha_override`
+/// is set when the holder has already computed the particle's
+/// instantaneous alpha (e.g. a twinkle keyframe sawtooth); the renderer
+/// uses it verbatim and skips the linear-fade-plus-sin² fallback.
+#[derive(Clone, Copy, Debug)]
+pub struct Smoke3DParticle {
+    pub pos: [f32; 3],
+    pub age: f32,
+    pub lifetime: f32,
+    pub alpha_override: Option<f32>,
+}
+
 /// Renderer-side description of a single SPR-based effect emitter.
 pub enum SpriteEffectEmitter<'a> {
     Spr {
@@ -261,9 +273,10 @@ pub enum SpriteEffectEmitter<'a> {
         /// lifetime (Steal's gold-coin shrink).
         size_shrink: bool,
         /// Oscillate per-particle alpha around the linear fade envelope
-        /// (Firefly's pulsing approximation of a twinkle particle).
+        /// (Firefly's pulsing twinkle). Ignored
+        /// when a particle supplies `alpha_override`.
         twinkle: bool,
-        particles: Vec<([f32; 3], f32, f32)>,
+        particles: Vec<Smoke3DParticle>,
     },
 }
 
@@ -344,18 +357,25 @@ pub fn collect_sprite_effect_draws<'a>(
                     continue;
                 }
                 let frames_per_sec = 60.0 / anim_speed.max(1.0);
-                for &(pos, age, lifetime) in particles {
+                for particle in particles {
+                    let Smoke3DParticle { pos, age, lifetime, alpha_override } = *particle;
                     let t = (age / lifetime).clamp(0.0, 1.0);
-                    let envelope = (1.0 - t) * alpha_max;
-                    // Twinkle approximation: alpha = envelope × (0.4 +
-                    // 0.6 × sin²(age × 2.5Hz × 2π)). Keeps a visible base
-                    // glow while pulsing toward the envelope ceiling.
-                    let alpha = if *twinkle {
-                        let phase = age * 2.5 * std::f32::consts::TAU;
-                        let pulse = 0.4 + 0.6 * phase.sin().powi(2);
-                        envelope * pulse
-                    } else {
-                        envelope
+                    let alpha = match alpha_override {
+                        Some(a) => a,
+                        None => {
+                            let envelope = (1.0 - t) * alpha_max;
+                            if *twinkle {
+                                // sin² pulse around the linear envelope —
+                                // legacy approximation for emitters with
+                                // no keyframe schedule (none currently
+                                // hit this branch with twinkle=true).
+                                let phase = age * 2.5 * std::f32::consts::TAU;
+                                let pulse = 0.4 + 0.6 * phase.sin().powi(2);
+                                envelope * pulse
+                            } else {
+                                envelope
+                            }
+                        }
                     };
                     if alpha <= 0.01 {
                         continue;

@@ -7,7 +7,17 @@
 
 use models::enums::effect_id::EffectId;
 
-use super::spec::SprBurstParams;
+use super::spec::{AlphaKeyframe, CurveParams, SprBurstParams};
+
+/// Firefly's alpha-keyframe schedule from the original game:
+/// frame 40 → (alpha 120/255, max 200/255); frame 100 → (0, 80/255).
+/// The implicit frame-0 entry (alpha 0, max 80/255) primes the
+/// sawtooth at spawn so the dim opening pulse matches.
+const FIREFLY_ALPHA_KEYFRAMES: &[AlphaKeyframe] = &[
+    AlphaKeyframe { at_frame: 0, alpha_init: 0.0, alpha_max: 80.0 / 255.0 },
+    AlphaKeyframe { at_frame: 40, alpha_init: 120.0 / 255.0, alpha_max: 200.0 / 255.0 },
+    AlphaKeyframe { at_frame: 100, alpha_init: 0.0, alpha_max: 80.0 / 255.0 },
+];
 
 pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> {
     match id {
@@ -31,6 +41,8 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
                 cone_latitude_deg: None,
                 size_shrink: false,
                 twinkle: false,
+                curve: None,
+                alpha_keyframes: &[],
             },
         )),
         // EnchantPoison: every 5 frames a single
@@ -60,6 +72,8 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
                 cone_latitude_deg: None,
                 size_shrink: false,
                 twinkle: false,
+                curve: None,
+                alpha_keyframes: &[],
             },
         )),
         // Detoxication: every 5 frames a single particle on a flat
@@ -82,6 +96,8 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
                 cone_latitude_deg: None,
                 size_shrink: false,
                 twinkle: false,
+                curve: None,
+                alpha_keyframes: &[],
             },
         )),
         // Snow: 2 particles per frame spawned around the player
@@ -107,6 +123,8 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
                 cone_latitude_deg: None,
                 size_shrink: false,
                 twinkle: false,
+                curve: None,
+                alpha_keyframes: &[],
             },
         )),
         // FireFly: one particle at random 3D offset,
@@ -131,9 +149,23 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
                 period_frames: None,
                 follow_camera: false,
                 gravity_world_per_sec2: 0.0,
-                cone_latitude_deg: Some((-90.0, 90.0)),
+                // Firefly's random longitude/latitude in the original
+                // game picks an isotropic 3D
+                // direction. `cone_latitude_deg` here is in the spawn
+                // formula's lat space where `vy = cos(lat°)`, so
+                // (0, 180) spans the full vertical hemisphere
+                // (cos(0)=+1 down to cos(180)=-1 up); paired with
+                // random longitude that's a full sphere.
+                cone_latitude_deg: Some((0.0, 180.0)),
                 size_shrink: false,
                 twinkle: true,
+                curve: Some(CurveParams {
+                    initial_period_frames: (5, 30),
+                    subsequent_period_frames: (5, 15),
+                    angle_jitter_deg: 40.0,
+                    speed_resample: true,
+                }),
+                alpha_keyframes: FIREFLY_ALPHA_KEYFRAMES,
             },
         )),
         // Steal: 10 gravity-driven particles at frame 0;
@@ -166,6 +198,8 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
                 cone_latitude_deg: Some((40.0, 140.0)),
                 size_shrink: true,
                 twinkle: false,
+                curve: None,
+                alpha_keyframes: &[],
             },
         )),
         _ => None,

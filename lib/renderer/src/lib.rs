@@ -21,8 +21,9 @@ pub use global_uniforms::{FogUniform, GlobalUniforms, LightUniform, PointLightGp
 
 pub use damage_number::render_damage_number_quads;
 pub use effect_sprite::{
-    EffectSpriteCache, EffectSpriteEntry, EmitterDraw, SpriteEffectEmitter, build_emitter_batches,
-    collect_sprite_effect_draws, collect_sprite_particle_emitter_draws, project_billboard,
+    EffectSpriteCache, EffectSpriteEntry, EmitterDraw, Smoke3DParticle, SpriteEffectEmitter,
+    build_emitter_batches, collect_sprite_effect_draws, collect_sprite_particle_emitter_draws,
+    project_billboard,
 };
 pub use font_atlas::FontAtlas;
 pub use grid_selector::GridSelectorRenderer;

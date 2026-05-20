@@ -14,7 +14,7 @@ pub use draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 pub use effect_queue::{EffectQueue, SpawnRequest};
 pub use effect_trait::{CameraView, Effect, EffectRenderCtx, EffectUpdateCtx};
 pub use factory::{is_real_impl, make_effect};
-pub use spec::{Attach, EffectSpec, SprBurstParams};
+pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBurstParams};
 pub use spr_aliases::{SprDef, spr_def};
 pub use spr_burst::spr_burst_params;
 pub use str_aliases::str_aliases;
