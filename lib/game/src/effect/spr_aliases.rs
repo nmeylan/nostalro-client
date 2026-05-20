@@ -99,6 +99,14 @@ pub fn spr_def(id: EffectId) -> Option<SprDef> {
             .with_size(0.8)
             .with_anim_speed(1.0)
             .with_tint([1.0, 0.0, 0.0, 1.0]),
+        // Thunderstorm2: use-original-argb tint, size 2.5, anim speed 2,
+        // looping for the full master duration. The original game
+        // overlays this on the standard thunder_storm STR, but the
+        // master switch routes by id so the SPR-only branch covers the
+        // gun-skill variant the server emits.
+        EffectId::Thunderstorm2 => SprDef::new("data/sprite/이팩트/thunder_storm")
+            .with_size(2.5)
+            .with_anim_speed(2.0),
         _ => return None,
     })
 }

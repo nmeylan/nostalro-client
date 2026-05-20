@@ -321,6 +321,47 @@ mod tests {
     }
 
     #[test]
+    fn batch2_billboards_route_to_spr_burst_variants() {
+        // Sociable test covering the Batch 2 routing wiring: three ids
+        // that used to fall through to the Custom placeholder now have
+        // real spec entries.
+        // Thunderstorm2: single SPR billboard (size 2.5, animSpeed 2).
+        let Some(EffectSpec::Spr {
+            sprite,
+            size_scale,
+            anim_speed,
+            duration_ms,
+            ..
+        }) = effect_spec(EffectId::Thunderstorm2)
+        else {
+            panic!("Thunderstorm2 should resolve to EffectSpec::Spr");
+        };
+        assert_eq!(sprite, "data/sprite/이팩트/thunder_storm");
+        assert!((size_scale - 2.5).abs() < 1e-6);
+        assert_eq!(anim_speed, 2.0);
+        assert_eq!(duration_ms, 3333);
+
+        // Slowpoison: periodic SprBurst with negative speed_range
+        // (downward drift) and pos_y_start = -20.
+        let Some(EffectSpec::SprBurst { sprite, burst, .. }) =
+            effect_spec(EffectId::Slowpoison)
+        else {
+            panic!("Slowpoison should resolve to EffectSpec::SprBurst");
+        };
+        assert_eq!(sprite, "data/sprite/이팩트/particle3");
+        assert_eq!(burst.period_frames, Some(5));
+        assert_eq!(burst.pos_y_start, -20.0);
+        assert!(burst.speed_range.1 < 0.0, "speed range stays negative for downward drift");
+
+        // Edp: faster cadence + smaller particles than EnchantPoison.
+        let Some(EffectSpec::SprBurst { burst, .. }) = effect_spec(EffectId::Edp) else {
+            panic!("Edp should resolve to EffectSpec::SprBurst");
+        };
+        assert_eq!(burst.period_frames, Some(3));
+        assert!((burst.size - 0.3).abs() < 1e-6);
+    }
+
+    #[test]
     fn stormgust_resolves_to_factory_custom_with_str_overlay() {
         // Slice G: Stormgust is a factory `Custom` effect whose
         // `str_overlay()` brings the STR cloud back alongside the QuadHorn
@@ -484,7 +525,8 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Freeze => 99990,
         EffectId::Freezed => 99990,
         EffectId::Icecrash => 99990,
-        EffectId::Slowpoison => 800,
+        // Original game: 80 frames @ 60 fps.
+        EffectId::Slowpoison => 1333,
         EffectId::Bottom2 => 3500,
         EffectId::Firepillaron => 80000,
         EffectId::Sandman => 99990,
@@ -841,7 +883,8 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Flowercast3 => 4000,
         EffectId::Mochi => 1000,
         EffectId::Lamadan => 1000,
-        EffectId::Edp => 1200,
+        // Original game: 120 frames @ 60 fps.
+        EffectId::Edp => 2000,
         EffectId::Shieldboomerang2 => 4990,
         EffectId::RgCoin2 => 3000,
         EffectId::Guard2 => 2000,
@@ -970,7 +1013,8 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Hyousensou => 2500,
         EffectId::BottomSuiton => 299990,
         EffectId::Stin4 => 2000,
-        EffectId::Thunderstorm2 => 2000,
+        // Original game: 200 frames @ 60 fps.
+        EffectId::Thunderstorm2 => 3333,
         EffectId::Chemical4 => 3000,
         EffectId::Stin5 => 2000,
         EffectId::MadnessBlue => 600,

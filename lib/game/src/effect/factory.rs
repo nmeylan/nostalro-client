@@ -230,6 +230,106 @@ pub fn make_effect(id: EffectId, attach: Attach) -> Option<Box<dyn Effect>> {
             ),
         ),
 
+        // BottomSong — 12 Bard/Dancer ground songs that share one
+        // ground-disc primitive with per-id texture and radius. The
+        // Magnus/Vertical/Light/LandProtector/Hermode songs look different
+        // and are deferred.
+        EffectId::BottomGospel => Box::new(effects::bottom_song::BottomSongEffect::new(
+            attach,
+            effects::bottom_song::GOSPEL,
+        )),
+        EffectId::BottomEvilland => Box::new(effects::bottom_song::BottomSongEffect::new(
+            attach,
+            effects::bottom_song::EVILLAND,
+        )),
+        EffectId::BottomFortunekiss => Box::new(effects::bottom_song::BottomSongEffect::new(
+            attach,
+            effects::bottom_song::FORTUNEKISS,
+        )),
+        EffectId::BottomLullaby => Box::new(effects::bottom_song::BottomSongEffect::new(
+            attach,
+            effects::bottom_song::LULLABY,
+        )),
+        EffectId::BottomRichmankim => Box::new(effects::bottom_song::BottomSongEffect::new(
+            attach,
+            effects::bottom_song::RICHMANKIM,
+        )),
+        EffectId::BottomDrumbattlefield => Box::new(effects::bottom_song::BottomSongEffect::new(
+            attach,
+            effects::bottom_song::DRUMBATTLEFIELD,
+        )),
+        EffectId::BottomRingnibelungen => Box::new(effects::bottom_song::BottomSongEffect::new(
+            attach,
+            effects::bottom_song::RINGNIBELUNGEN,
+        )),
+        EffectId::BottomIntoabyss => Box::new(effects::bottom_song::BottomSongEffect::new(
+            attach,
+            effects::bottom_song::INTOABYSS,
+        )),
+        EffectId::BottomWhistle => Box::new(effects::bottom_song::BottomSongEffect::new(
+            attach,
+            effects::bottom_song::WHISTLE,
+        )),
+        EffectId::BottomPoembragi => Box::new(effects::bottom_song::BottomSongEffect::new(
+            attach,
+            effects::bottom_song::POEMBRAGI,
+        )),
+        EffectId::BottomAppleidun => Box::new(effects::bottom_song::BottomSongEffect::new(
+            attach,
+            effects::bottom_song::APPLEIDUN,
+        )),
+        EffectId::BottomHumming => Box::new(effects::bottom_song::BottomSongEffect::new(
+            attach,
+            effects::bottom_song::HUMMING,
+        )),
+
+        // BottomMagnus — 4-sided square pillar via
+        // `EffectPrimitiveDraw::Frustum`. BottomSanc already has its own
+        // dedicated impl (`bottom_sanctuary_pillar.rs`) that renders a
+        // 24-sided cylinder; only Magnus and Fogwall land here.
+        // Both share the same pillar geometry, differing by tint.
+        EffectId::BottomMag => Box::new(effects::bottom_magnus::BottomMagnusEffect::new(
+            attach,
+            effects::bottom_magnus::MAGNUS,
+        )),
+        EffectId::BottomFogwall => Box::new(effects::bottom_magnus::BottomMagnusEffect::new(
+            attach,
+            effects::bottom_magnus::FOGWALL,
+        )),
+
+        // BottomVertical — vertical "curtain" strips via the
+        // `EffectPrimitiveDraw::WorldQuad` primitive. 5 ids.
+        EffectId::BottomDissonance => Box::new(
+            effects::bottom_vertical::BottomVerticalEffect::new(
+                attach,
+                effects::bottom_vertical::DISSONANCE,
+            ),
+        ),
+        EffectId::BottomUglydance => Box::new(
+            effects::bottom_vertical::BottomVerticalEffect::new(
+                attach,
+                effects::bottom_vertical::UGLYDANCE,
+            ),
+        ),
+        EffectId::BottomAssassincross => Box::new(
+            effects::bottom_vertical::BottomVerticalEffect::new(
+                attach,
+                effects::bottom_vertical::ASSASSINCROSS,
+            ),
+        ),
+        EffectId::BottomDontforgetme => Box::new(
+            effects::bottom_vertical::BottomVerticalEffect::new(
+                attach,
+                effects::bottom_vertical::DONTFORGETME,
+            ),
+        ),
+        EffectId::BottomServiceforyou => Box::new(
+            effects::bottom_vertical::BottomVerticalEffect::new(
+                attach,
+                effects::bottom_vertical::SERVICEFORYOU,
+            ),
+        ),
+
         // Placeholder catchall. Hybrid ids (12 effects, e.g. Stormgust,
         // Coin, Glasswall) declare an STR overlay so the original game's
         // STR animation plays alongside the pink marker. Pure-custom ids
@@ -299,6 +399,25 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Glow2
             | EffectId::Glow11
             | EffectId::Glow12
+            | EffectId::BottomGospel
+            | EffectId::BottomEvilland
+            | EffectId::BottomFortunekiss
+            | EffectId::BottomLullaby
+            | EffectId::BottomRichmankim
+            | EffectId::BottomDrumbattlefield
+            | EffectId::BottomRingnibelungen
+            | EffectId::BottomIntoabyss
+            | EffectId::BottomWhistle
+            | EffectId::BottomPoembragi
+            | EffectId::BottomAppleidun
+            | EffectId::BottomHumming
+            | EffectId::BottomMag
+            | EffectId::BottomFogwall
+            | EffectId::BottomDissonance
+            | EffectId::BottomUglydance
+            | EffectId::BottomAssassincross
+            | EffectId::BottomDontforgetme
+            | EffectId::BottomServiceforyou
     )
 }
 
@@ -337,6 +456,69 @@ mod tests {
             EffectId::Glow2,
             EffectId::Glow11,
             EffectId::Glow12,
+        ] {
+            assert!(
+                is_real_impl(id),
+                "{:?} must have a real factory impl",
+                id
+            );
+            let e = make_effect(id, Attach::WorldPos([0.0; 3])).unwrap();
+            assert_eq!(
+                e.str_overlay(),
+                None,
+                "{:?} is pure custom, no STR overlay",
+                id
+            );
+        }
+    }
+
+    #[test]
+    fn bottom_vertical_variants_dispatch_to_world_quad_strips() {
+        // 5 BottomVertical ids must land on the BottomVertical custom
+        // effect (WorldQuad primitives), not the placeholder.
+        for id in [
+            EffectId::BottomDissonance,
+            EffectId::BottomUglydance,
+            EffectId::BottomAssassincross,
+            EffectId::BottomDontforgetme,
+            EffectId::BottomServiceforyou,
+        ] {
+            assert!(is_real_impl(id), "{:?} must have a real impl", id);
+            let e = make_effect(id, Attach::WorldPos([0.0; 3])).unwrap();
+            assert_eq!(e.str_overlay(), None);
+        }
+    }
+
+    #[test]
+    fn bottom_magnus_variants_dispatch_to_frustum_pillar() {
+        // BottomMag + BottomFogwall must land on the BottomMagnus
+        // custom effect (Frustum sides=4), not the placeholder.
+        for id in [EffectId::BottomMag, EffectId::BottomFogwall] {
+            assert!(is_real_impl(id), "{:?} must have a real impl", id);
+            let e = make_effect(id, Attach::WorldPos([0.0; 3])).unwrap();
+            assert_eq!(e.str_overlay(), None);
+        }
+    }
+
+    #[test]
+    fn bottom_songs_dispatch_to_real_impl() {
+        // Sociable test: 12 BottomSong ids must route to the
+        // BottomSong custom effect rather than the pink placeholder.
+        // No STR overlay (Bard/Dancer songs aren't classified as
+        // StrHybrid in our table).
+        for id in [
+            EffectId::BottomGospel,
+            EffectId::BottomEvilland,
+            EffectId::BottomFortunekiss,
+            EffectId::BottomLullaby,
+            EffectId::BottomRichmankim,
+            EffectId::BottomDrumbattlefield,
+            EffectId::BottomRingnibelungen,
+            EffectId::BottomIntoabyss,
+            EffectId::BottomWhistle,
+            EffectId::BottomPoembragi,
+            EffectId::BottomAppleidun,
+            EffectId::BottomHumming,
         ] {
             assert!(
                 is_real_impl(id),

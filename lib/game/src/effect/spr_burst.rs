@@ -202,6 +202,57 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
                 alpha_keyframes: &[],
             },
         )),
+        // SlowPoison: every 5 frames a single
+        // particle on a flat disc around the master (radius
+        // 2..8), spawn 20 above ground, negative speed so the
+        // particle drifts downward. particle3.spr like the rest of
+        // the poison family. Master duration ≈ 80 frames in the original game.
+        EffectId::Slowpoison => Some((
+            "data/sprite/이팩트/particle3",
+            SprBurstParams {
+                particle_lifetime_ms: 666.0,
+                size: 0.65,
+                alpha_max: 1.0,
+                burst_count_range: (1, 1),
+                speed_range: (-0.6, -0.3),
+                anim_speed: 4.0,
+                pos_y_start: -20.0,
+                spawn_radius_xz: 8.0,
+                period_frames: Some(5),
+                follow_camera: false,
+                gravity_world_per_sec2: 0.0,
+                cone_latitude_deg: None,
+                size_shrink: false,
+                twinkle: false,
+                curve: None,
+                alpha_keyframes: &[],
+            },
+        )),
+        // EnchantPoison2 (= EF_EDP): every 3 frames
+        // a single particle on the standard particle3.spr disc.
+        // Smaller particles (0.2..0.4) and faster cadence than the
+        // base EnchantPoison entry, so this gets its own params.
+        EffectId::Edp => Some((
+            "data/sprite/이팩트/particle3",
+            SprBurstParams {
+                particle_lifetime_ms: 666.0,
+                size: 0.3,
+                alpha_max: 1.0,
+                burst_count_range: (1, 1),
+                speed_range: (0.3, 0.8),
+                anim_speed: 4.0,
+                pos_y_start: 0.0,
+                spawn_radius_xz: 8.0,
+                period_frames: Some(3),
+                follow_camera: false,
+                gravity_world_per_sec2: 0.0,
+                cone_latitude_deg: None,
+                size_shrink: false,
+                twinkle: false,
+                curve: None,
+                alpha_keyframes: &[],
+            },
+        )),
         _ => None,
     }
 }

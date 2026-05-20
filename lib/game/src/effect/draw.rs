@@ -256,6 +256,26 @@ pub enum EffectPrimitiveDraw {
         color: [f32; 4],
         blend: BlendKind,
     },
+    /// Textured quad anchored in world space by four explicit corner
+    /// points (not camera-facing).
+    ///
+    /// Used by effects whose silhouette is an arbitrary 3D rectangle —
+    /// most notably the Bard/Dancer Bottom_Vertical songs, which paint
+    /// thin vertical curtain strips anchored at two ground points and
+    /// extending straight up to `max_height` (original game's bottom2 prim via
+    /// the bottom-2 render).
+    ///
+    /// Corners are listed CCW when viewed from the "front" face; the
+    /// renderer disables back-face culling so both sides are visible
+    /// (matches the original game which always rendered these as
+    /// two-sided quads). UVs map per-corner in the same order.
+    WorldQuad {
+        corners: [[f32; 3]; 4],
+        uv: [[f32; 2]; 4],
+        texture: &'static str,
+        color: [f32; 4],
+        blend: BlendKind,
+    },
 }
 
 /// Collected primitive draws for a single frame. Effects push into this;

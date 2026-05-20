@@ -107,6 +107,7 @@ pub struct Renderer {
     pub effect_frustum_renderer: effect::FrustumRenderer,
     pub effect_quad_horn_renderer: effect::QuadHornRenderer,
     pub effect_sphere_renderer: effect::SphereRenderer,
+    pub effect_world_quad_renderer: effect::WorldQuadRenderer,
     pub ui_renderer: UiRenderer,
     pub font_atlas: FontAtlas,
     pub font_atlas_bind_group: wgpu::BindGroup,
@@ -192,6 +193,12 @@ impl Renderer {
             &global_uniforms.bind_group_layout,
             &texture_cache.bind_group_layout,
         );
+        let effect_world_quad_renderer = effect::WorldQuadRenderer::new(
+            &device.device,
+            device.surface_format,
+            &global_uniforms.bind_group_layout,
+            &texture_cache.bind_group_layout,
+        );
 
         let ui_renderer = UiRenderer::new(
             &device.device,
@@ -217,6 +224,7 @@ impl Renderer {
             effect_frustum_renderer,
             effect_quad_horn_renderer,
             effect_sphere_renderer,
+            effect_world_quad_renderer,
             ui_renderer,
             font_atlas,
             font_atlas_bind_group,
@@ -654,6 +662,10 @@ impl Renderer {
             .primitives
             .iter()
             .any(|p| matches!(p, effect::EffectPrimitiveDraw::Sphere { .. }));
+        let has_world_quads = effect_draws
+            .primitives
+            .iter()
+            .any(|p| matches!(p, effect::EffectPrimitiveDraw::WorldQuad { .. }));
         if has_ground_discs {
             let fallback = &self.white_bind_group;
             self.effect_ground_disc_renderer.render(
@@ -702,6 +714,21 @@ impl Renderer {
         if has_spheres {
             let fallback = &self.white_bind_group;
             self.effect_sphere_renderer.render(
+                &mut encoder,
+                &view,
+                depth_view,
+                &self.device.device,
+                &self.device.queue,
+                &self.global_uniforms.bind_group,
+                &self.camera,
+                effect_draws,
+                fallback,
+                texture_lookup,
+            );
+        }
+        if has_world_quads {
+            let fallback = &self.white_bind_group;
+            self.effect_world_quad_renderer.render(
                 &mut encoder,
                 &view,
                 depth_view,

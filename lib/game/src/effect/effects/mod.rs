@@ -6,7 +6,10 @@
 
 pub mod aura;
 pub mod begin_spell_6;
+pub mod bottom_magnus;
 pub mod bottom_sanctuary_pillar;
+pub mod bottom_song;
+pub mod bottom_vertical;
 pub mod cast_circle;
 pub mod hit;
 pub mod hit2;

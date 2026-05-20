@@ -29,6 +29,9 @@ pub fn effect_texture_paths() -> Vec<String> {
     let texture_lists: &[&[&str]] = &[
         effects::warp::TEXTURES,
         effects::magnum_break::TEXTURES,
+        effects::bottom_song::TEXTURES,
+        effects::bottom_magnus::TEXTURES,
+        effects::bottom_vertical::TEXTURES,
         effects::hit::TEXTURES,
         effects::hit2::TEXTURES,
         effects::hit5_6::TEXTURES,
