@@ -10,7 +10,7 @@
 use models::enums::effect_id::EffectId;
 
 use super::buckets::{is_custom_bucket, is_noop_bucket};
-use super::effects::{bottom_sanctuary_pillar, cast_circle, hit, hit2, magnum_break, stormgust, volcano, warp};
+use super::effects::{bottom_sanctuary_pillar, cast_circle, hit, hit2, hit5_6, magnum_break, stormgust, volcano, warp};
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
 use super::spr_burst::spr_burst_params;
@@ -47,6 +47,12 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
         EffectId::Hit4 => EffectSpec::Custom {
             duration_ms: hit::HIT4_TOTAL_DURATION_MS,
+        },
+        EffectId::Hit5 => EffectSpec::Custom {
+            duration_ms: hit5_6::HIT5_TOTAL_DURATION_MS,
+        },
+        EffectId::Hit6 => EffectSpec::Custom {
+            duration_ms: hit5_6::HIT6_TOTAL_DURATION_MS,
         },
 
         // Stormgust runs the STR cloud + 8 falling ice shards; default table

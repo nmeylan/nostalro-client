@@ -29,6 +29,14 @@ pub fn make_effect(id: EffectId, attach: Attach) -> Option<Box<dyn Effect>> {
         EffectId::Hit2 => Box::new(effects::hit2::Hit2Effect::new(attach)),
         EffectId::Hit3 => Box::new(effects::hit::HitEffect::new(attach, effects::hit::HIT3)),
         EffectId::Hit4 => Box::new(effects::hit::HitEffect::new(attach, effects::hit::HIT4)),
+        EffectId::Hit5 => Box::new(effects::hit5_6::HitCrossEffect::new(
+            attach,
+            effects::hit5_6::HIT5,
+        )),
+        EffectId::Hit6 => Box::new(effects::hit5_6::HitCrossEffect::new(
+            attach,
+            effects::hit5_6::HIT6,
+        )),
         EffectId::Stormgust => Box::new(effects::stormgust::StormgustEffect::new(attach)),
         EffectId::BottomSanc => {
             Box::new(effects::bottom_sanctuary_pillar::BottomSanctuaryPillarEffect::new(attach))
@@ -246,6 +254,8 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Hit2
             | EffectId::Hit3
             | EffectId::Hit4
+            | EffectId::Hit5
+            | EffectId::Hit6
             | EffectId::Stormgust
             | EffectId::BottomSanc
             | EffectId::Warpzone
@@ -307,10 +317,9 @@ mod tests {
     fn unimplemented_custom_falls_back_to_placeholder() {
         // Pick an EffectId in the Custom bucket that doesn't yet have a
         // real Rust impl — factory returns the pink placeholder and
-        // `is_real_impl` reports false. Hit5 fits the bill (Hit2's
-        // sibling, same `EF_HITn` family, still unimplemented).
-        assert!(make_effect(EffectId::Hit5, Attach::WorldPos([0.0; 3])).is_some());
-        assert!(!is_real_impl(EffectId::Hit5));
+        // `is_real_impl` reports false.
+        assert!(make_effect(EffectId::Aciddemon, Attach::WorldPos([0.0; 3])).is_some());
+        assert!(!is_real_impl(EffectId::Aciddemon));
     }
 
     #[test]
