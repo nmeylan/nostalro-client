@@ -16,6 +16,13 @@ use super::str_aliases::str_aliases;
 pub fn make_effect(id: EffectId, attach: Attach) -> Option<Box<dyn Effect>> {
     Some(match id {
         EffectId::Warp => Box::new(effects::warp::WarpEffect::new(attach)),
+        EffectId::Entry => Box::new(effects::entry::EntryEffect::new(attach)),
+        EffectId::Frostdiver => Box::new(
+            effects::frost_diver::FrostDiverEffect::new(attach, effects::frost_diver::FROSTDIVER),
+        ),
+        EffectId::Frostdiver2 => Box::new(
+            effects::frost_diver::FrostDiverEffect::new(attach, effects::frost_diver::FROSTDIVER2),
+        ),
         EffectId::Magnumbreak => {
             Box::new(effects::magnum_break::MagnumBreakEffect::new(attach))
         }
@@ -409,6 +416,9 @@ pub fn is_real_impl(id: EffectId) -> bool {
     matches!(
         id,
         EffectId::Warp
+            | EffectId::Entry
+            | EffectId::Frostdiver
+            | EffectId::Frostdiver2
             | EffectId::Magnumbreak
             | EffectId::Hit1
             | EffectId::Hit2

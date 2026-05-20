@@ -256,7 +256,7 @@ impl EffectHolder {
                 if let Some(backend) = &self.external_backend {
                     let world_pos = match attach {
                         Attach::WorldPos(p) => p,
-                        Attach::Entity(_) | Attach::Projectile { .. } => [0.0; 3],
+                        Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
                     };
                     let handle = backend.spawn(effect_id as u16, world_pos);
                     if handle != 0 {
@@ -555,6 +555,11 @@ fn resolve_position(
         Attach::WorldPos(p) => Some(*p),
         Attach::Entity(id) => resolve_entity(*id),
         Attach::Projectile { from, .. } => resolve_entity(*from),
+        // Trail effects (Frost Diver, projectile shards) snapshot both
+        // endpoints at spawn — anchor the holder on the caster-side
+        // (`from`) world position so the spawn marker lines up with the
+        // other variants.
+        Attach::Trail { from, .. } => Some(*from),
     }
 }
 
@@ -578,7 +583,7 @@ fn update_burst(
             // Burst particles snapshot their position at spawn; if the entity
             // resolver isn't available here we still want the burst to render
             // around the origin, matching the viewer's spawn convention.
-            Attach::Entity(_) | Attach::Projectile { .. } => [0.0; 3],
+            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
         }
     };
 

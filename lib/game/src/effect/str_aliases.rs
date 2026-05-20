@@ -829,5 +829,7 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Mgdef4 => &["mgdef4"],
         EffectId::DevilRed => &["devil_red"],
         EffectId::Decagilitybuf => &["decagilitybuf"],
+        EffectId::Energycoat => &["energycoat"],
+        EffectId::Venomdust2 => &["VenomDust2"],
     }
 }

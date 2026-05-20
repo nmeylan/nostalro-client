@@ -549,7 +549,7 @@ impl HitEffect {
     pub fn new_with_angle(attach: Attach, params: HitParams, angle_rad: f32) -> Self {
         let world_pos = match attach {
             Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } => [0.0; 3],
+            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
         };
         let total_duration_s = total_duration_ms(params) as f32 / 1000.0;
         let rng_state = 0x9E37_79B9

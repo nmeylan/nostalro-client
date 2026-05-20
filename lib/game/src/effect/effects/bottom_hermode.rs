@@ -82,7 +82,7 @@ impl BottomHermodeEffect {
     pub fn new(attach: Attach, params: BottomHermodeParams) -> Self {
         let world_pos = match attach {
             Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } => [0.0; 3],
+            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
         };
         let seed = position_hash(&world_pos);
         Self {

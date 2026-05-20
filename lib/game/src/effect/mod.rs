@@ -11,7 +11,7 @@ pub mod str_aliases;
 pub mod table;
 
 pub use draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-pub use effect_queue::{EffectQueue, SpawnRequest};
+pub use effect_queue::{EffectQueue, SpawnRequest, is_trail_effect};
 pub use effect_trait::{CameraView, Effect, EffectRenderCtx, EffectUpdateCtx};
 pub use factory::{is_real_impl, make_effect};
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBurstParams};
@@ -44,6 +44,8 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::volcano::TEXTURES,
         effects::aura::TEXTURES,
         effects::cast_circle::TEXTURES,
+        effects::entry::TEXTURES,
+        effects::frost_diver::TEXTURES,
         effects::begin_spell_6::TEXTURES,
         effects::stormgust::TEXTURES,
         effects::animated_texture_billboard::TEXTURES,

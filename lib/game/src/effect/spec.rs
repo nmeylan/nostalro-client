@@ -5,8 +5,17 @@ pub enum Attach {
     Entity(u32),
     /// Fixed world position (e.g. Ice Wall, ground rings).
     WorldPos([f32; 3]),
-    /// Projectile from one entity to another.
+    /// Projectile from one entity to another. Entity IDs — the renderer
+    /// holder resolves `from` to a world position each frame for any
+    /// effect that anchors on the caster.
     Projectile { from: u32, to: u32 },
+    /// Pre-resolved trail between two world points. Captured once at
+    /// spawn; effects that emit shards along a line (Frost Diver, future
+    /// arrow-shower style effects) read both endpoints from here. Spawn
+    /// callers translate `Projectile { from_entity, to_entity }` to
+    /// `Trail { from_world, to_world }` when the trail geometry needs
+    /// to live for longer than one frame.
+    Trail { from: [f32; 3], to: [f32; 3] },
 }
 
 /// What "kind" of effect this is - selects which subsystem renders it.

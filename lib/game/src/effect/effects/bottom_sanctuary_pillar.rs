@@ -54,7 +54,7 @@ impl BottomSanctuaryPillarEffect {
     pub fn new(attach: Attach) -> Self {
         let world_pos = match attach {
             Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } => [0.0; 3],
+            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
         };
         // Cheap deterministic-ish hash of the spawn position so successive
         // spawns at different cells get distinct rotations without pulling in

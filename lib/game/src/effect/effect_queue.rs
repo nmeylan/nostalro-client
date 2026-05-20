@@ -51,9 +51,36 @@ impl EffectQueue {
         });
     }
 
+    /// Spawn a projectile-trail effect whose primitives lay between two
+    /// pre-resolved world positions (caster → target). Frost Diver is
+    /// the canonical caller; future arrow-shower style effects route
+    /// through here as well.
+    pub fn spawn_trail(
+        &mut self,
+        effect_id: EffectId,
+        from: [f32; 3],
+        to: [f32; 3],
+    ) {
+        self.pending.push(SpawnRequest {
+            effect_id,
+            attach: Attach::Trail { from, to },
+            override_duration_ms: None,
+        });
+    }
+
     /// Caller takes ownership of the pending list; the queue is left empty.
     /// The renderer's holder calls this each frame.
     pub fn drain(&mut self) -> Vec<SpawnRequest> {
         std::mem::take(&mut self.pending)
     }
+}
+
+/// `true` if `id`'s custom-effect impl reads both endpoints of an
+/// `Attach::Trail`. Callers spawning trail-shaped effects (Frost
+/// Diver and any future projectile families) should route through
+/// [`EffectQueue::spawn_trail`]; ones that don't will see the
+/// cluster-mode fallback. Used by the effect viewer to construct
+/// a demo trail for IDs that need one.
+pub fn is_trail_effect(id: EffectId) -> bool {
+    matches!(id, EffectId::Frostdiver)
 }

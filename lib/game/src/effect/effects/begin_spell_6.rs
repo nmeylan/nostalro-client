@@ -146,7 +146,7 @@ impl BeginSpell6Effect {
     pub fn new(attach: Attach) -> Self {
         let world_pos = match attach {
             Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } => [0.0; 3],
+            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
         };
         let mut emitters = Vec::with_capacity(PASS_TIMES.len() * NUM_EMITTERS);
         for (pass_idx, pass_time) in PASS_TIMES.iter().enumerate() {

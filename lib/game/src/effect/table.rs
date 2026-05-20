@@ -10,7 +10,7 @@
 use models::enums::effect_id::EffectId;
 
 use super::buckets::{is_custom_bucket, is_noop_bucket};
-use super::effects::{bottom_sanctuary_pillar, cast_circle, hit, hit2, hit5_6, magnum_break, stormgust, volcano, warp};
+use super::effects::{bottom_sanctuary_pillar, cast_circle, entry, frost_diver, hit, hit2, hit5_6, magnum_break, stormgust, volcano, warp};
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
 use super::spr_burst::spr_burst_params;
@@ -67,6 +67,23 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // the effect module so it stays load-bearing on the constant).
         EffectId::BottomSanc => EffectSpec::Custom {
             duration_ms: bottom_sanctuary_pillar::TOTAL_DURATION_MS,
+        },
+
+        // Entry — two cylinders launched at frame 0; both die at frame
+        // 55 (~917 ms at 60 fps). Pin to the effect's constant so the
+        // spec stays in sync if we re-tune the duration.
+        EffectId::Entry => EffectSpec::Custom {
+            duration_ms: entry::TOTAL_DURATION_MS,
+        },
+
+        // Frost Diver family — QuadHorn ice spikes. FrostDiver2 is the
+        // one-shot 8-spike burst; FrostDiver staggers spawns across a
+        // shorter window. Both share `FrostDiverEffect` via params.
+        EffectId::Frostdiver => EffectSpec::Custom {
+            duration_ms: frost_diver::total_duration_ms(&frost_diver::FROSTDIVER),
+        },
+        EffectId::Frostdiver2 => EffectSpec::Custom {
+            duration_ms: frost_diver::total_duration_ms(&frost_diver::FROSTDIVER2),
         },
 
         // VOLCANO family — visible burst is one cycle of the four flame
@@ -157,12 +174,19 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
     })
 }
 
-/// Fall-through classification when no per-effect arm matches: consult the
-/// original game-derived buckets first (Noop / Custom), then default to STR.
+/// Fall-through classification when no per-effect arm matches.
+///
+/// Priority order:
+/// 1. SPR / SprBurst aliases (checked first — take priority over bucket class)
+/// 2. If a STR alias exists, use it — covers Noop effects whose STR files are
+///    real assets triggered via non-EF paths in the original game, AND Custom
+///    effects whose procedural implementation hasn't been written yet (the STR is a
+///    meaningful fallback; implemented Custom effects have explicit overrides
+///    in `effect_spec` and never reach here).
+/// 3. Remaining Noop bucket → `EffectSpec::Noop` (no visual asset at all).
+/// 4. Remaining Custom bucket → `EffectSpec::Custom` (procedural only, no STR).
+/// 5. Everything else → default STR spec.
 fn bucket_default(id: EffectId) -> EffectSpec {
-    if is_noop_bucket(id) {
-        return EffectSpec::Noop;
-    }
     if let Some(def) = spr_def(id) {
         return EffectSpec::Spr {
             sprite: def.sprite,
@@ -179,6 +203,12 @@ fn bucket_default(id: EffectId) -> EffectSpec {
             duration_ms: default_duration_ms(id),
             burst,
         };
+    }
+    if !str_aliases(id).is_empty() {
+        return default_str_spec(id);
+    }
+    if is_noop_bucket(id) {
+        return EffectSpec::Noop;
     }
     if is_custom_bucket(id) {
         EffectSpec::Custom {
@@ -378,6 +408,26 @@ mod tests {
         assert!(matches!(
             effect_spec(EffectId::Warp),
             Some(EffectSpec::Custom { .. })
+        ));
+    }
+
+    #[test]
+    fn str_alias_wins_over_noop_and_unimplemented_custom() {
+        // Tarotcard1 is in is_noop_bucket but has a real STR file → Str.
+        assert!(matches!(
+            effect_spec(EffectId::Tarotcard1),
+            Some(EffectSpec::Str { file: "tarotcard1", .. })
+        ));
+        // Stin (Estin) is in is_custom_bucket with no factory arm but has a
+        // STR alias → Str rather than Custom-not-impl.
+        assert!(matches!(
+            effect_spec(EffectId::Stin),
+            Some(EffectSpec::Str { file: "stin", .. })
+        ));
+        // SmaReady (Kaupe) — same situation as Stin.
+        assert!(matches!(
+            effect_spec(EffectId::SmaReady),
+            Some(EffectSpec::Str { file: "sma_ready", .. })
         ));
     }
 }
@@ -1215,5 +1265,7 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Mgdef4 => 2000,
         EffectId::DevilRed => 750,
         EffectId::Decagilitybuf => 4294967295,
+        EffectId::Energycoat => 3000,
+        EffectId::Venomdust2 => 99990,
     }
 }

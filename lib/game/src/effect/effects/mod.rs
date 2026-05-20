@@ -15,6 +15,8 @@ pub mod bottom_sanctuary_pillar;
 pub mod bottom_song;
 pub mod bottom_vertical;
 pub mod cast_circle;
+pub mod entry;
+pub mod frost_diver;
 pub mod hit;
 pub mod hit2;
 pub mod hit5_6;

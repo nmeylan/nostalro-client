@@ -144,7 +144,7 @@ impl HitCrossEffect {
     pub fn new(attach: Attach, params: HitCrossParams) -> Self {
         let world_pos = match attach {
             Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } => [0.0; 3],
+            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
         };
         let rng_state = 0x9E37_79B9
             ^ world_pos[0].to_bits()

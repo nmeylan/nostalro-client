@@ -30,7 +30,8 @@ use models::enums::EnumWithNumberValue;
 use models::enums::EnumWithStringValue;
 use models::enums::effect_id::EffectId;
 use ragnarok_game::effect::{
-    Attach, EffectQueue, EffectSpec, effect_spec, effect_texture_paths, str_aliases,
+    Attach, EffectQueue, EffectSpec, effect_spec, effect_texture_paths, is_trail_effect,
+    str_aliases,
 };
 
 use crate::sprite_viewer::browser::SpriteBrowser;
@@ -524,6 +525,19 @@ fn effect_id_from_u16(value: u16) -> Option<EffectId> {
     EffectId::try_from_value(value as usize).ok()
 }
 
+/// Build a demo (caster, target) world-coord pair for trail-shaped
+/// effects (e.g. Frost Diver). `world` is the user-picked spawn point;
+/// we treat it as the caster's feet and project the target a fixed
+/// distance along world +Z so the projectile trail is fully visible
+/// inside the GIF exporter's default camera framing. Real spawn callers
+/// supply actual caster→target positions and bypass this.
+fn demo_trail_endpoints(world: [f32; 3]) -> ([f32; 3], [f32; 3]) {
+    const TRAIL_DEMO_LEN: f32 = 22.0;
+    let from = world;
+    let to = [world[0], world[1], world[2] + TRAIL_DEMO_LEN];
+    (from, to)
+}
+
 fn effect_duration_ms(id: EffectId) -> Option<u32> {
     match effect_spec(id) {
         Some(EffectSpec::Custom { duration_ms }) => Some(duration_ms),
@@ -794,8 +808,13 @@ impl App {
         // bind groups are present in the cache.
         self.ensure_str_loaded_for(effect_id);
         self.ensure_spr_loaded_for(effect_id);
-        self.effect_queue
-            .spawn_at(effect_id, [pos[0], pos[1], pos[2]]);
+        let world = [pos[0], pos[1], pos[2]];
+        if is_trail_effect(effect_id) {
+            let (from, to) = demo_trail_endpoints(world);
+            self.effect_queue.spawn_trail(effect_id, from, to);
+        } else {
+            self.effect_queue.spawn_at(effect_id, world);
+        }
     }
 
     /// Stderr a markdown table row describing the effect being spawned, so
@@ -968,7 +987,12 @@ impl App {
         self.effect_holder.clear();
         self.ensure_str_loaded_for(effect_id);
         self.ensure_spr_loaded_for(effect_id);
-        self.effect_queue.spawn_at(effect_id, [0.0, 0.0, 0.0]);
+        if is_trail_effect(effect_id) {
+            let (from, to) = demo_trail_endpoints([0.0, 0.0, 0.0]);
+            self.effect_queue.spawn_trail(effect_id, from, to);
+        } else {
+            self.effect_queue.spawn_at(effect_id, [0.0, 0.0, 0.0]);
+        }
         self.gif_session = Some(session);
         true
     }
