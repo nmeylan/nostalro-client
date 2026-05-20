@@ -130,6 +130,18 @@ pub struct RingParams {
     /// compensate by using -10 for the whole family so it reads at
     /// torso level.
     pub y_offset: f32,
+    /// X-axis tilt applied to the cone before rendering. 0 leaves the
+    /// axis vertical (the Hit1 ring lies flat on the ground as a
+    /// horizontal disc). `-π/2` lays the cone on its side so its axis
+    /// runs horizontally — Hit3/Hit4's lens shaft then extends along
+    /// the heading direction like a beam of light, matching the
+    /// reference gif (`imgs/0-50/2.gif` frame 2).
+    ///
+    /// The original game tilts the whole
+    /// Hit family, but Hit1's flat-disc silhouette only reads correctly
+    /// in our renderer when the tilt is omitted (see the inline note in
+    /// `collect_draws`). So we keep Hit1 at 0 and only tilt Hit3/Hit4.
+    pub tilt_x_rad: f32,
     pub texture: &'static str,
     pub color: [f32; 4],
 }
@@ -226,6 +238,7 @@ pub const HIT1: HitParams = HitParams {
         initial_speed: 0.7,
         speed_accel: -(0.7 / 10.0) / 2.0,
         y_offset: -10.0,
+        tilt_x_rad: 0.0,
         texture: RING_BLUE,
         color: [1.0, 1.0, 1.0, 1.0],
     }],
@@ -303,6 +316,7 @@ pub const HIT3: HitParams = HitParams {
             initial_speed: 0.7,
             speed_accel: -(0.7 / 15.0) / 2.0,
             y_offset: -10.0,
+            tilt_x_rad: -std::f32::consts::FRAC_PI_2,
             texture: LENS2,
             color: [1.0, 1.0, 1.0, 1.0],
         },
@@ -320,6 +334,7 @@ pub const HIT3: HitParams = HitParams {
             initial_speed: 0.7,
             speed_accel: -(0.7 / 15.0) / 2.0,
             y_offset: -10.0,
+            tilt_x_rad: -std::f32::consts::FRAC_PI_2,
             texture: LENS2,
             color: [1.0, 1.0, 1.0, 1.0],
         },
@@ -362,6 +377,7 @@ pub const HIT4: HitParams = HitParams {
         initial_speed: 0.7,
         speed_accel: -(0.7 / 15.0) / 2.0,
         y_offset: -10.0,
+        tilt_x_rad: -std::f32::consts::FRAC_PI_2,
         texture: LENS2,
         color: [1.0, 1.0, 1.0, 1.0],
     }],
@@ -515,17 +531,15 @@ pub struct HitEffect {
 impl HitEffect {
     /// Spawn with a default heading. Until the spawn pipeline carries
     /// a real impact direction (the master entity's facing), the viewer
-    /// needs a heading that doesn't point straight away from the
-    /// camera (which would foreshorten the entire cone into a tiny
-    /// dot). The effect viewer's default camera looks at the origin
-    /// from yaw=0 with the world's +Z direction toward the viewer —
-    /// the worst case for an axis-aligned cone is heading=0 (cone
-    /// extends along -Z, away from the camera). We default to a 45°
-    /// heading so the cone projects diagonally across screen, which
-    /// also matches the diagonal silhouette in the original game's
-    /// reference gifs (`imgs/0-50/2.gif` / `3.gif`).
+    /// needs a heading that aims the cone across screen rather than
+    /// straight away (which would foreshorten the entire cone into a
+    /// tiny dot). `π/2` aims Hit3/Hit4's horizontal lens shaft along
+    /// world +X = screen-right, matching the silhouette of the
+    /// original game's reference gifs (`imgs/0-50/2.gif` /
+    /// `3.gif`). Hit1's ring is rotationally symmetric so the
+    /// default has no effect there.
     pub fn new(attach: Attach, params: HitParams) -> Self {
-        Self::new_with_angle(attach, params, std::f32::consts::FRAC_PI_4)
+        Self::new_with_angle(attach, params, std::f32::consts::FRAC_PI_2)
     }
 
     /// Spawn with an explicit impact heading. `angle_rad` is rotation
@@ -786,8 +800,13 @@ impl Effect for HitEffect {
                 wave_amplitude: 0.0,
                 wave_frequency: 1.0,
                 wave_phase: 0.0,
-                tilt_x_rad: 0.0,
-                rotation_y_rad: 0.0,
+                tilt_x_rad: ring.tilt_x_rad,
+                // Y-rotation aims the cone along the heading. Hit1's
+                // ring is rotationally symmetric (flat disc) so this
+                // is invisible there; Hit3/Hit4's tilted lens shaft
+                // rotates with `angle_rad` to extend along the impact
+                // direction.
+                rotation_y_rad: self.angle_rad,
                 cull_back: false,
                 texture: ring.texture,
                 color,
@@ -889,8 +908,12 @@ mod tests {
             base[1],
             spawn_y
         );
-        assert!((tilt_x_rad).abs() < 1e-5, "cylinder is vertical (tilt=0): got {tilt_x_rad}");
-        assert!((rotation_y_rad).abs() < 1e-5, "no Y-rotation: got {rotation_y_rad}");
+        assert!((tilt_x_rad).abs() < 1e-5, "Hit1 cylinder is vertical (tilt=0): got {tilt_x_rad}");
+        // Y-rotation echoes the heading angle (0.5) — invisible for
+        // Hit1's rotationally-symmetric flat disc but the field is
+        // still wired through for Hit3/Hit4 which need it to aim the
+        // tilted lens shaft along the impact direction.
+        assert!((rotation_y_rad - 0.5).abs() < 1e-5, "rotation_y_rad == angle_rad: got {rotation_y_rad}");
         // inner=5 at y=0 → Frustum bottom_size=inner=5.
         // outer=10 at y=-height size → Frustum top_size=outer=10.
         assert!((bottom_size - 5.0).abs() < 1e-4, "bottom_size=inner_size=5: {bottom_size}");
