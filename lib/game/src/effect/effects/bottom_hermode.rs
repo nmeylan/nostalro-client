@@ -37,7 +37,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const CUBE_HEIGHT_OFFSET: f32 = -12.0;
@@ -79,11 +78,7 @@ pub struct BottomHermodeEffect {
 }
 
 impl BottomHermodeEffect {
-    pub fn new(attach: Attach, params: BottomHermodeParams) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3], params: BottomHermodeParams) -> Self {
         let seed = position_hash(&world_pos);
         Self {
             world_pos,
@@ -259,7 +254,7 @@ mod tests {
         // Sociable test: 6 WorldQuad faces, all additive, all
         // referencing white02.bmp, sitting ~12 units above the actor
         // (native -Y up).
-        let mut e = BottomHermodeEffect::new(Attach::WorldPos([50.0, 5.0, 30.0]), HERMODE);
+        let mut e = BottomHermodeEffect::new([50.0, 5.0, 30.0], HERMODE);
         // Step past ramp-in so alpha > 0.
         step(&mut e, 0.5);
         let prims = draws(&e);
@@ -293,7 +288,7 @@ mod tests {
     #[test]
     fn hermode_top_and_bottom_faces_share_brightest_b_channel() {
         // The 250-B top + bottom faces should be the brightest of the 6.
-        let mut e = BottomHermodeEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), HERMODE);
+        let mut e = BottomHermodeEffect::new([0.0, 0.0, 0.0], HERMODE);
         step(&mut e, 1.0);
         let prims = draws(&e);
         let b_channels: Vec<f32> = prims
@@ -316,7 +311,7 @@ mod tests {
     fn hermode_cube_spins_over_time() {
         // After enough frames, the first upper corner should have moved
         // on its XZ circle.
-        let mut e = BottomHermodeEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), HERMODE);
+        let mut e = BottomHermodeEffect::new([0.0, 0.0, 0.0], HERMODE);
         step(&mut e, 0.5);
         let p_a = match &draws(&e)[0] {
             EffectPrimitiveDraw::WorldQuad { corners, .. } => corners[0],

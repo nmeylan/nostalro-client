@@ -19,7 +19,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 pub const TEXTURE: &str = "alpha_down.tga";
 pub const TEXTURES: &[&str] = &[TEXTURE];
@@ -51,11 +50,7 @@ pub struct BottomSanctuaryPillarEffect {
 }
 
 impl BottomSanctuaryPillarEffect {
-    pub fn new(attach: Attach) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3]) -> Self {
         // Cheap deterministic-ish hash of the spawn position so successive
         // spawns at different cells get distinct rotations without pulling in
         // a real RNG dependency.
@@ -133,7 +128,7 @@ mod tests {
 
     #[test]
     fn emits_a_square_frustum() {
-        let mut bs = BottomSanctuaryPillarEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut bs = BottomSanctuaryPillarEffect::new([0.0; 3]);
         step(&mut bs, 0.0);
         match &draws(&bs)[0] {
             EffectPrimitiveDraw::Frustum {
@@ -153,7 +148,7 @@ mod tests {
 
     #[test]
     fn rotation_advances_over_time() {
-        let mut bs = BottomSanctuaryPillarEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut bs = BottomSanctuaryPillarEffect::new([0.0; 3]);
         step(&mut bs, 0.0);
         let r0 = match &draws(&bs)[0] {
             EffectPrimitiveDraw::Frustum { rotation, .. } => *rotation,
@@ -169,7 +164,7 @@ mod tests {
 
     #[test]
     fn alpha_ramps_in_then_holds() {
-        let mut bs = BottomSanctuaryPillarEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut bs = BottomSanctuaryPillarEffect::new([0.0; 3]);
         step(&mut bs, 0.0);
         let a0 = match &draws(&bs)[0] {
             EffectPrimitiveDraw::Frustum { color, .. } => color[3],
@@ -186,7 +181,7 @@ mod tests {
 
     #[test]
     fn runs_for_full_duration() {
-        let mut bs = BottomSanctuaryPillarEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut bs = BottomSanctuaryPillarEffect::new([0.0; 3]);
         let s = bs.update(&EffectUpdateCtx { delta: 1.0, camera_target: None });
         assert!(matches!(s, EffectStatus::Running));
     }

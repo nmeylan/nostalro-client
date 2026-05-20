@@ -20,7 +20,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 pub const LENS2: &str = "lens2.tga";
 pub const TEXTURES: &[&str] = &[LENS2];
@@ -141,11 +140,7 @@ pub struct HitCrossEffect {
 }
 
 impl HitCrossEffect {
-    pub fn new(attach: Attach, params: HitCrossParams) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3], params: HitCrossParams) -> Self {
         let rng_state = 0x9E37_79B9
             ^ world_pos[0].to_bits()
             ^ world_pos[2].to_bits().rotate_left(13)
@@ -298,7 +293,7 @@ mod tests {
 
     #[test]
     fn spawns_two_petals_at_90deg_offset() {
-        let mut e = HitCrossEffect::new(Attach::WorldPos([0.0; 3]), HIT5);
+        let mut e = HitCrossEffect::new([0.0; 3], HIT5);
         e.update(&ctx(1.0 / 60.0));
         // Spawn pass ran on first update — the two petals must differ
         // by exactly π/2 (90°) at frame 0 (modulo the small first-tick
@@ -314,8 +309,8 @@ mod tests {
 
     #[test]
     fn hit5_petals_larger_than_hit6_petals() {
-        let mut h5 = HitCrossEffect::new(Attach::WorldPos([0.0; 3]), HIT5);
-        let mut h6 = HitCrossEffect::new(Attach::WorldPos([0.0; 3]), HIT6);
+        let mut h5 = HitCrossEffect::new([0.0; 3], HIT5);
+        let mut h6 = HitCrossEffect::new([0.0; 3], HIT6);
         h5.update(&ctx(0.0));
         h6.update(&ctx(0.0));
         // The narrower-of-Hit5 must still exceed the widest-of-Hit6,
@@ -333,7 +328,7 @@ mod tests {
 
     #[test]
     fn petals_rotate_and_resize_over_time() {
-        let mut e = HitCrossEffect::new(Attach::WorldPos([0.0; 3]), HIT5);
+        let mut e = HitCrossEffect::new([0.0; 3], HIT5);
         e.update(&ctx(0.0));
         let r0 = e.petals[0].roll_rad;
         let w0 = e.petals[0].width;
@@ -353,7 +348,7 @@ mod tests {
 
     #[test]
     fn effect_dies_after_duration() {
-        let mut e = HitCrossEffect::new(Attach::WorldPos([0.0; 3]), HIT5);
+        let mut e = HitCrossEffect::new([0.0; 3], HIT5);
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         // Hit5 duration = 17 frames ≈ 0.28 s; run for 1 s.

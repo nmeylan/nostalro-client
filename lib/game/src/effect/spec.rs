@@ -1,3 +1,34 @@
+/// Resolved spawn anchor passed to effect constructors via the factory.
+/// The renderer's `EffectHolder` resolves an `Attach` into one of these
+/// variants before invoking [`super::factory::make_effect`], so individual
+/// effects don't have to match on `Attach` themselves.
+///
+/// * `Point` covers `Attach::WorldPos` directly, and `Attach::Entity` /
+///   `Attach::Projectile` once the entity-to-world resolver has run. The
+///   overwhelming majority of effects only need this.
+/// * `Trail` carries both endpoints of a projectile-style effect (Frost
+///   Diver and the future arrow-shower family). Effects that don't care
+///   about the trail call [`EffectAnchor::point`] to collapse it back
+///   to the caster-side anchor.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum EffectAnchor {
+    /// Single resolved world position.
+    Point([f32; 3]),
+    /// Pre-resolved caster → target endpoints.
+    Trail { from: [f32; 3], to: [f32; 3] },
+}
+
+impl EffectAnchor {
+    /// Collapse to the caster-side anchor. Used by single-point effects
+    /// that don't care about the trail variant — `Point(p)` is `p`, and
+    /// `Trail { from, .. }` is `from`.
+    pub fn point(self) -> [f32; 3] {
+        match self {
+            EffectAnchor::Point(p) | EffectAnchor::Trail { from: p, .. } => p,
+        }
+    }
+}
+
 /// How an effect should be positioned in the world.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Attach {

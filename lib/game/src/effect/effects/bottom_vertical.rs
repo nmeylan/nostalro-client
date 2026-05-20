@@ -32,7 +32,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 #[derive(Clone, Copy, Debug)]
 pub struct BottomVerticalParams {
@@ -146,11 +145,7 @@ struct Strip {
 }
 
 impl BottomVerticalEffect {
-    pub fn new(attach: Attach, params: BottomVerticalParams) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3], params: BottomVerticalParams) -> Self {
         let (strips, strip_count) = build_strips(params.layout, &world_pos);
         Self {
             world_pos,
@@ -311,7 +306,7 @@ mod tests {
         // outer offset (the `pre` end). Confirms strip count + that
         // the `now` corners line up on the actor's column.
         let mut e = BottomVerticalEffect::new(
-            Attach::WorldPos([5.0, 0.0, 7.0]),
+            [5.0, 0.0, 7.0],
             DISSONANCE,
         );
         step(&mut e, FADE_IN_SECS);
@@ -337,7 +332,7 @@ mod tests {
     fn dontforgetme_emits_four_additive_green_strips() {
         // F1=2 → CrossedQuartet → 4 strips with green tint, additive.
         let mut e = BottomVerticalEffect::new(
-            Attach::WorldPos([0.0, 0.0, 0.0]),
+            [0.0, 0.0, 0.0],
             DONTFORGETME,
         );
         step(&mut e, FADE_IN_SECS);
@@ -363,7 +358,7 @@ mod tests {
         // strip" instead of a `#` cross because ec=0 and ec=1 sat on top
         // of each other (and same for ec=2/3).
         let mut e = BottomVerticalEffect::new(
-            Attach::WorldPos([12.0, 0.0, 34.0]),
+            [12.0, 0.0, 34.0],
             ASSASSINCROSS,
         );
         step(&mut e, FADE_IN_SECS);
@@ -393,7 +388,7 @@ mod tests {
         // F1=4 → PerpendicularPair → exactly 2 strips, one along X
         // (z=0 for both corners) and one along Z (x=0).
         let mut e = BottomVerticalEffect::new(
-            Attach::WorldPos([0.0, 0.0, 0.0]),
+            [0.0, 0.0, 0.0],
             SERVICEFORYOU,
         );
         step(&mut e, FADE_IN_SECS);

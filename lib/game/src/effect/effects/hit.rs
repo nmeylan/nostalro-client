@@ -45,7 +45,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 pub const RING_BLUE: &str = "ring_blue.tga";
 pub const LENS2: &str = "lens2.tga";
@@ -538,19 +537,15 @@ impl HitEffect {
     /// original game's reference gifs (`imgs/0-50/2.gif` /
     /// `3.gif`). Hit1's ring is rotationally symmetric so the
     /// default has no effect there.
-    pub fn new(attach: Attach, params: HitParams) -> Self {
-        Self::new_with_angle(attach, params, std::f32::consts::FRAC_PI_2)
+    pub fn new(world_pos: [f32; 3], params: HitParams) -> Self {
+        Self::new_with_angle(world_pos, params, std::f32::consts::FRAC_PI_2)
     }
 
     /// Spawn with an explicit impact heading. `angle_rad` is rotation
     /// around world +Y (CCW from world +X). The cylinder's flared tip
     /// and the forward-debris cone both point along this heading; the
     /// backward gravity cone (Hit1) points the opposite way.
-    pub fn new_with_angle(attach: Attach, params: HitParams, angle_rad: f32) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new_with_angle(world_pos: [f32; 3], params: HitParams, angle_rad: f32) -> Self {
         let total_duration_s = total_duration_ms(params) as f32 / 1000.0;
         let rng_state = 0x9E37_79B9
             ^ world_pos[0].to_bits()
@@ -875,7 +870,7 @@ mod tests {
         // equivalent 3D-speed direction in this codebase's
         // native RO frame is +Y = downward).
         let mut e = HitEffect::new_with_angle(
-            Attach::WorldPos([1.0, 2.0, 3.0]),
+            [1.0, 2.0, 3.0],
             HIT1,
             0.5, // angle_rad still recorded but unused for vertical cylinders
         );
@@ -958,7 +953,7 @@ mod tests {
         // height_speed/height_accel. After at least one tick both rings
         // should have non-zero height and render. Particles spawn
         // immediately so they always show.
-        let mut e = HitEffect::new(Attach::WorldPos([0.0; 3]), HIT3);
+        let mut e = HitEffect::new([0.0; 3], HIT3);
         // First tick — height integration applies height_accel then
         // height_speed. With height_speed_init=0.5, accel=0.2 for ring 1,
         // after one frame height_size = 0.5 + 0.2 = 0.7 > 0.
@@ -1004,8 +999,8 @@ mod tests {
         // heightAccel. After several ticks, Hit3's outer ring has
         // grown taller than Hit4's ring even though they share the
         // same outer_size=4.0.
-        let mut h3 = HitEffect::new(Attach::WorldPos([0.0; 3]), HIT3);
-        let mut h4 = HitEffect::new(Attach::WorldPos([0.0; 3]), HIT4);
+        let mut h3 = HitEffect::new([0.0; 3], HIT3);
+        let mut h4 = HitEffect::new([0.0; 3], HIT4);
         for _ in 0..5 {
             h3.update(&ctx(1.0 / 60.0));
             h4.update(&ctx(1.0 / 60.0));
@@ -1036,7 +1031,7 @@ mod tests {
         // spawn position (proof of 3D velocity integration), and after
         // several ticks the speed-decel should slow the motion.
         let mut e = HitEffect::new_with_angle(
-            Attach::WorldPos([0.0; 3]),
+            [0.0; 3],
             HIT1,
             0.0,
         );
@@ -1062,7 +1057,7 @@ mod tests {
         // positive Y-acceleration. After enough time the gravity_velocity_y
         // should have grown positive, indicating the particle has
         // transitioned from rising to falling.
-        let mut e = HitEffect::new(Attach::WorldPos([0.0; 3]), HIT1);
+        let mut e = HitEffect::new([0.0; 3], HIT1);
         e.update(&ctx(0.0));
         // Backward gravity particles are the last `count` particles in
         // the spawn order (forward burst first, backward second).
@@ -1096,7 +1091,7 @@ mod tests {
 
     #[test]
     fn effect_dies_after_total_duration() {
-        let mut e = HitEffect::new(Attach::WorldPos([0.0; 3]), HIT1);
+        let mut e = HitEffect::new([0.0; 3], HIT1);
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         // Total duration covers the longest particle's lifetime

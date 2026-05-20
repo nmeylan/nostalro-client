@@ -228,11 +228,7 @@ pub struct BottomSongEffect {
 }
 
 impl BottomSongEffect {
-    pub fn new(attach: Attach, params: BottomSongParams) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3], params: BottomSongParams) -> Self {
         let bob_phase = pseudo_random_angle(&world_pos);
         // Hash the spawn position to pick a texture from the pool. We
         // can't trust `params.textures` to be non-empty if a caller
@@ -343,7 +339,7 @@ mod tests {
         // `-Y` = up) so the icon hovers, matching `imgs/250-300/284.gif`.
         // X/Z stay locked to the actor; Y is `VERTICAL_OFFSET + bob` so
         // it lands within ±BOB_AMPLITUDE of the baseline.
-        let mut e = BottomSongEffect::new(Attach::WorldPos([5.0, 0.0, 7.0]), WHISTLE);
+        let mut e = BottomSongEffect::new([5.0, 0.0, 7.0], WHISTLE);
         step(&mut e, 1.0 / 60.0);
         let prims = draws(&e);
         assert_eq!(prims.len(), 1);
@@ -378,7 +374,7 @@ mod tests {
         // with RGB tint (200, 200, 100). Earlier impl forced every
         // BottomSong to BlendKind::Alpha + white — Richmankim looked
         // identical to every other song.
-        let mut e = BottomSongEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), RICHMANKIM);
+        let mut e = BottomSongEffect::new([0.0, 0.0, 0.0], RICHMANKIM);
         step(&mut e, FADE_IN_SECS);
         match &draws(&e)[0] {
             EffectPrimitiveDraw::Billboard { color, blend, .. } => {
@@ -402,7 +398,7 @@ mod tests {
         let mut chosen = HashSet::new();
         for i in 0..32 {
             let pos = [i as f32 * 1.7, 0.0, i as f32 * 2.3];
-            let e = BottomSongEffect::new(Attach::WorldPos(pos), POEMBRAGI);
+            let e = BottomSongEffect::new(pos, POEMBRAGI);
             chosen.insert(e.texture);
         }
         for tex in chosen.iter() {
@@ -424,7 +420,7 @@ mod tests {
         // (~4 seconds) yields both a peak above and a trough below the
         // baseline VERTICAL_OFFSET. Confirms the wobble plumbing is live
         // — without it the icon would sit static and read as broken.
-        let mut e = BottomSongEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), HUMMING);
+        let mut e = BottomSongEffect::new([0.0, 0.0, 0.0], HUMMING);
         let mut min_y: f32 = f32::INFINITY;
         let mut max_y: f32 = f32::NEG_INFINITY;
         for _ in 0..240 {
@@ -447,7 +443,7 @@ mod tests {
     fn bottom_song_alpha_fades_in_then_holds() {
         // Sociable test: spawn → step into the fade window, then well past
         // it, and check alpha climbs from 0 to BASE_ALPHA.
-        let mut e = BottomSongEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), LULLABY);
+        let mut e = BottomSongEffect::new([0.0, 0.0, 0.0], LULLABY);
         step(&mut e, 0.0);
         let a0 = match &draws(&e)[0] {
             EffectPrimitiveDraw::Billboard { color, .. } => color[3],

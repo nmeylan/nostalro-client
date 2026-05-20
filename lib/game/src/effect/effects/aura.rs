@@ -16,7 +16,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 /// Per-variant Aura parameters. Each EF_LEVEL99* maps to one [`AuraParams`].
 #[derive(Clone, Copy, Debug)]
@@ -105,11 +104,7 @@ pub struct AuraEffect {
 }
 
 impl AuraEffect {
-    pub fn new(attach: Attach, params: AuraParams) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3], params: AuraParams) -> Self {
         Self {
             params,
             world_pos,
@@ -168,7 +163,7 @@ mod tests {
 
     #[test]
     fn emits_a_single_billboard_at_spawn_position() {
-        let a = AuraEffect::new(Attach::WorldPos([3.0, -2.0, 5.0]), LV99_LARGE);
+        let a = AuraEffect::new([3.0, -2.0, 5.0], LV99_LARGE);
         let mut list = EffectDrawList::new();
         a.collect_draws(&mut list, &render_ctx());
         assert_eq!(list.len(), 1);
@@ -182,7 +177,7 @@ mod tests {
 
     #[test]
     fn pulse_changes_size_over_time() {
-        let mut a = AuraEffect::new(Attach::WorldPos([0.0; 3]), LV99_LARGE);
+        let mut a = AuraEffect::new([0.0; 3], LV99_LARGE);
         let mut list = EffectDrawList::new();
         a.collect_draws(&mut list, &render_ctx());
         let s0 = billboard_size(&list.primitives[0]);
@@ -214,7 +209,7 @@ mod tests {
 
     #[test]
     fn aura_stays_running_indefinitely() {
-        let mut a = AuraEffect::new(Attach::WorldPos([0.0; 3]), LV99_LARGE);
+        let mut a = AuraEffect::new([0.0; 3], LV99_LARGE);
         for _ in 0..1000 {
             assert_eq!(a.update(&EffectUpdateCtx { delta: 0.1, camera_target: None }), EffectStatus::Running);
         }

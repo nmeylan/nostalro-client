@@ -23,7 +23,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 pub const RING_TEXTURE: &str = "ring_blue.tga";
 pub const TEXTURES: &[&str] = &[RING_TEXTURE];
@@ -87,11 +86,7 @@ pub struct EntryEffect {
 }
 
 impl EntryEffect {
-    pub fn new(attach: Attach) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3]) -> Self {
         Self { world_pos, age: 0.0 }
     }
 
@@ -196,7 +191,7 @@ mod tests {
         // outer cone's flare shape (bottom narrower than top — the
         // chalice silhouette that produces the slanted sides visible in
         // the reference gif).
-        let mut e = EntryEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut e = EntryEffect::new([0.0; 3]);
         step(&mut e, 10.0 / FRAMES_PER_SECOND);
         let prims = draws(&e);
         assert_eq!(prims.len(), 2);
@@ -254,7 +249,7 @@ mod tests {
         // Sociable test: outer speed = 0.08/frame on the original game's outer
         // cone — top radius must grow monotonically from frame 0 → end,
         // while the bottom stays pinned at inner size 5.
-        let mut e = EntryEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut e = EntryEffect::new([0.0; 3]);
         step(&mut e, 0.0);
         let (b0, t0) = match &draws(&e)[0] {
             EffectPrimitiveDraw::Frustum { bottom_size, top_size, .. } => {
@@ -279,7 +274,7 @@ mod tests {
         // mid-life height is positive (swell) and end-of-life returns
         // back near zero (collapse). Locks the quadratic shape without
         // pinning exact values that drift with framerate.
-        let mut e = EntryEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut e = EntryEffect::new([0.0; 3]);
         // One tick in (frame ≈ 1), inner height has barely grown but is
         // emitted; capture as the "early" sample.
         step(&mut e, 1.0 / FRAMES_PER_SECOND);
@@ -308,7 +303,7 @@ mod tests {
 
     #[test]
     fn outer_alpha_fades_in_then_out() {
-        let mut e = EntryEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut e = EntryEffect::new([0.0; 3]);
         step(&mut e, 0.0);
         let a0 = match &draws(&e)[0] {
             EffectPrimitiveDraw::Frustum { color, .. } => color[3],
@@ -332,7 +327,7 @@ mod tests {
 
     #[test]
     fn dies_after_duration() {
-        let mut e = EntryEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut e = EntryEffect::new([0.0; 3]);
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         while t < DURATION_S * 2.0 {

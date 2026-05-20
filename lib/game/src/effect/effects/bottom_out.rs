@@ -31,7 +31,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const FADE_THRESHOLD_FRAMES: u32 = 10;
@@ -77,11 +76,7 @@ pub struct BottomOutEffect {
 }
 
 impl BottomOutEffect {
-    pub fn new(attach: Attach, params: BottomOutParams) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3], params: BottomOutParams) -> Self {
         let seed = position_hash(&world_pos);
         Self {
             world_pos,
@@ -210,7 +205,7 @@ mod tests {
         // Sociable test: two billboards centered on the actor XZ, blue
         // additive, half-size in [5, 11). Sampled inside the ramp-up
         // window so both cells are visible regardless of phase init.
-        let mut e = BottomOutEffect::new(Attach::WorldPos([12.0, 5.0, 34.0]), ROKISWEIL);
+        let mut e = BottomOutEffect::new([12.0, 5.0, 34.0], ROKISWEIL);
         // Step through several frames to give both cells time to be
         // past their ramp-in / phase init.
         step(&mut e, 0.2);
@@ -259,7 +254,7 @@ mod tests {
         //   * ramp-up alphas (frames 0..10 in phase) > 0
         //   * fade alphas reach 0 (or close to it) by end of cycle
         //   * Y offset is more negative (drifting up) during fade
-        let mut e = BottomOutEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), ROKISWEIL);
+        let mut e = BottomOutEffect::new([0.0, 0.0, 0.0], ROKISWEIL);
 
         let mut min_y = 0.0_f32;
         let mut max_alpha_seen = 0.0_f32;
@@ -286,7 +281,7 @@ mod tests {
         // visibly distinct sizes. Phase offsets are integers in [0,11)
         // so occasional collisions there are expected — sizes are the
         // stronger signal.
-        let e = BottomOutEffect::new(Attach::WorldPos([7.0, 0.0, 11.0]), ROKISWEIL);
+        let e = BottomOutEffect::new([7.0, 0.0, 11.0], ROKISWEIL);
         assert!(
             (e.cell_sizes[0] - e.cell_sizes[1]).abs() > 0.05,
             "cells should have distinct random sizes",

@@ -22,7 +22,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const E_DIVISION: usize = 21;
@@ -69,11 +68,7 @@ pub struct BottomLightEffect {
 }
 
 impl BottomLightEffect {
-    pub fn new(attach: Attach, params: BottomLightParams) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3], params: BottomLightParams) -> Self {
         let seed = position_hash(&world_pos);
         Self {
             world_pos,
@@ -218,7 +213,7 @@ mod tests {
         // Sociable test: 20 ribbon segments, yellow additive tint,
         // sine-arch peak reaches close to max_height, all anchored
         // above the actor's XZ column.
-        let mut e = BottomLightEffect::new(Attach::WorldPos([50.0, 0.0, 20.0]), ETERNALCHAOS);
+        let mut e = BottomLightEffect::new([50.0, 0.0, 20.0], ETERNALCHAOS);
         step(&mut e, 0.5);
         let prims = draws(&e);
         assert_eq!(prims.len(), 20, "20 ribbon segments per spawn");
@@ -247,7 +242,7 @@ mod tests {
 
     #[test]
     fn siegfried_uses_light_blue_additive_tint() {
-        let mut e = BottomLightEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), SIEGFRIED);
+        let mut e = BottomLightEffect::new([0.0, 0.0, 0.0], SIEGFRIED);
         step(&mut e, 0.5);
         let prims = draws(&e);
         assert!(!prims.is_empty());
@@ -264,7 +259,7 @@ mod tests {
     fn cone_rotates_over_time() {
         // After ~1.5s the rot_start phase has advanced enough to
         // displace the first base point on the XZ circle.
-        let mut e = BottomLightEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), ETERNALCHAOS);
+        let mut e = BottomLightEffect::new([0.0, 0.0, 0.0], ETERNALCHAOS);
         step(&mut e, 0.5);
         let p_a = match &draws(&e)[0] {
             EffectPrimitiveDraw::WorldQuad { corners, .. } => corners[0],

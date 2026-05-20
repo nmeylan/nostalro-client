@@ -29,6 +29,7 @@ use ragnarok_formats::grf::GrfArchive;
 use models::enums::EnumWithNumberValue;
 use models::enums::EnumWithStringValue;
 use models::enums::effect_id::EffectId;
+use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
     Attach, EffectQueue, EffectSpec, effect_spec, effect_texture_paths, is_trail_effect,
     str_aliases,
@@ -320,7 +321,7 @@ impl ExternalCustomBackend for HotLibEffectBackend {
         let effect_id = EffectId::try_from_value(effect_id_u16 as usize).ok()?;
         let probe = ragnarok_game::effect::factory::make_effect(
             effect_id,
-            Attach::WorldPos([0.0, 0.0, 0.0]),
+            EffectAnchor::Point([0.0, 0.0, 0.0]),
         )?;
         probe.str_overlay().map(|s| s.to_string())
     }
@@ -919,7 +920,7 @@ impl App {
             Some(EffectSpec::Custom { .. }) => {
                 let probe = ragnarok_game::effect::factory::make_effect(
                     id,
-                    Attach::WorldPos([0.0, 0.0, 0.0]),
+                    EffectAnchor::Point([0.0, 0.0, 0.0]),
                 );
                 let Some(probe) = probe else { return };
                 let Some(overlay) = probe.str_overlay() else { return };

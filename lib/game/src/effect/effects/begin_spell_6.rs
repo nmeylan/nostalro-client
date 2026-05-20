@@ -30,7 +30,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 pub const TEXTURE: &str = "ring_white.tga";
 pub const TEXTURES: &[&str] = &[TEXTURE];
@@ -143,11 +142,7 @@ pub struct BeginSpell6Effect {
 }
 
 impl BeginSpell6Effect {
-    pub fn new(attach: Attach) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3]) -> Self {
         let mut emitters = Vec::with_capacity(PASS_TIMES.len() * NUM_EMITTERS);
         for (pass_idx, pass_time) in PASS_TIMES.iter().enumerate() {
             for ec in 0..NUM_EMITTERS {
@@ -309,7 +304,7 @@ mod tests {
         // The whole point of this effect: `rise_angle` drops, so `top_size`
         // grows dramatically while `height` shrinks. Early frames are
         // narrow+tall; late frames are wide+short.
-        let mut e = BeginSpell6Effect::new(Attach::WorldPos([0.0; 3]));
+        let mut e = BeginSpell6Effect::new([0.0; 3]);
         step_frames(&mut e, 4);
         let early_top = widest_top(&draws(&e));
         let early_h = tallest(&draws(&e));
@@ -331,7 +326,7 @@ mod tests {
         // CastCircle's column uses `max_height = 250`, height ≈ 250. The
         // tallest emitter here is `sin(80°)*20 ≈ 19.7` at frame 0, smaller
         // every frame after — must never approach 250.
-        let mut e = BeginSpell6Effect::new(Attach::WorldPos([0.0; 3]));
+        let mut e = BeginSpell6Effect::new([0.0; 3]);
         for _ in 0..(TOTAL_FRAMES as u32) {
             assert!(
                 tallest(&draws(&e)) < 25.0,
@@ -346,7 +341,7 @@ mod tests {
         // `rot_start_deg` is set once and never advanced by the GI-1 primitive — every
         // emitted Frustum's `rotation` over the effect's lifetime must
         // belong to the finite set of initial `ROT_START_DEG` values.
-        let mut e = BeginSpell6Effect::new(Attach::WorldPos([0.0; 3]));
+        let mut e = BeginSpell6Effect::new([0.0; 3]);
         let allowed: Vec<f32> = ROT_START_DEG.iter().map(|d| d.to_radians()).collect();
         for _ in 0..(TOTAL_FRAMES as u32) {
             for p in draws(&e) {
@@ -367,7 +362,7 @@ mod tests {
         // some point during the cone's lifetime (it's a function of
         // `sin(wave_phase)` so it crosses zero, but the magnitude over the
         // effect must reach a meaningful fraction of `height`).
-        let mut e = BeginSpell6Effect::new(Attach::WorldPos([0.0; 3]));
+        let mut e = BeginSpell6Effect::new([0.0; 3]);
         let mut max_amp = 0.0_f32;
         let mut max_h = 0.0_f32;
         for _ in 0..(TOTAL_FRAMES as u32) {
@@ -392,7 +387,7 @@ mod tests {
 
     #[test]
     fn dies_after_total_duration() {
-        let mut e = BeginSpell6Effect::new(Attach::WorldPos([0.0; 3]));
+        let mut e = BeginSpell6Effect::new([0.0; 3]);
         for f in 0..(TOTAL_FRAMES as u32) {
             assert_eq!(
                 step_frames(&mut e, 1),
@@ -407,7 +402,7 @@ mod tests {
     fn spawns_eight_emitters() {
         // 2 SAINTCASTING passes × 4 emitters = 8 Frustums while all alpha
         // is nonzero (frame 0 — every emitter's alpha_b ≥ 25, alpha_unit > 0).
-        let e = BeginSpell6Effect::new(Attach::WorldPos([0.0; 3]));
+        let e = BeginSpell6Effect::new([0.0; 3]);
         let n = draws(&e)
             .iter()
             .filter(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. }))

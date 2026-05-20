@@ -16,7 +16,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 pub const BASE_TEXTURE: &str = "alpha_down.tga";
 pub const INNER_TEXTURE: &str = "ring_blue.tga";
@@ -132,11 +131,7 @@ pub struct WarpZoneEffect {
 }
 
 impl WarpZoneEffect {
-    pub fn new(attach: Attach, params: WarpZoneParams) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3], params: WarpZoneParams) -> Self {
         Self {
             world_pos,
             params,
@@ -256,7 +251,7 @@ mod tests {
 
     #[test]
     fn spawns_a_base_disc_and_inner_at_frame_zero() {
-        let mut wz = WarpZoneEffect::new(Attach::WorldPos([0.0; 3]), PARAMS_SUSTAINED);
+        let mut wz = WarpZoneEffect::new([0.0; 3], PARAMS_SUSTAINED);
         step(&mut wz, 0.0);
         let prims = draws(&wz);
         assert_eq!(count_base(&prims), 1);
@@ -265,7 +260,7 @@ mod tests {
 
     #[test]
     fn inner_ring_spawn_cadence_is_28_frames() {
-        let mut wz = WarpZoneEffect::new(Attach::WorldPos([0.0; 3]), PARAMS_SUSTAINED);
+        let mut wz = WarpZoneEffect::new([0.0; 3], PARAMS_SUSTAINED);
         step(&mut wz, 0.0);
         assert_eq!(count_inner(&draws(&wz)), 1);
         // Walk forward 28 frames → 2nd inner spawn.
@@ -277,7 +272,7 @@ mod tests {
 
     #[test]
     fn base_disc_respawns_each_cycle() {
-        let mut wz = WarpZoneEffect::new(Attach::WorldPos([0.0; 3]), PARAMS_SUSTAINED);
+        let mut wz = WarpZoneEffect::new([0.0; 3], PARAMS_SUSTAINED);
         step(&mut wz, 0.0);
         // After one cycle (78 frames) the previous base still lives (158-frame
         // duration) and a new one is spawned, so we see two simultaneously.
@@ -287,7 +282,7 @@ mod tests {
 
     #[test]
     fn burst_variant_stops_spawning_after_duration() {
-        let mut wz = WarpZoneEffect::new(Attach::WorldPos([0.0; 3]), PARAMS_BURST);
+        let mut wz = WarpZoneEffect::new([0.0; 3], PARAMS_BURST);
         let mut t = 0.0;
         while t < PARAMS_BURST.total_duration_s + 0.5 {
             step(&mut wz, 1.0 / 60.0);
@@ -309,7 +304,7 @@ mod tests {
 
     #[test]
     fn burst_variant_dies_after_subprimitives_finish() {
-        let mut wz = WarpZoneEffect::new(Attach::WorldPos([0.0; 3]), PARAMS_BURST);
+        let mut wz = WarpZoneEffect::new([0.0; 3], PARAMS_BURST);
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         // Walk well past spec duration + longest sub-life.

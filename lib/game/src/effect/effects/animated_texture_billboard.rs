@@ -35,7 +35,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 const FRAME_MS_60FPS: f32 = 1000.0 / 60.0;
 
@@ -269,11 +268,7 @@ pub struct AnimatedTextureBillboardEffect {
 }
 
 impl AnimatedTextureBillboardEffect {
-    pub fn new(attach: Attach, params: Params) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3], params: Params) -> Self {
         Self {
             world_pos,
             params,
@@ -343,7 +338,7 @@ mod tests {
         // the emitted Billboard's texture name cycles through every entry
         // in the texture list at the configured cadence (tcount=6 ticks =
         // 100 ms per step).
-        let mut e = AnimatedTextureBillboardEffect::new(Attach::WorldPos([0.0; 3]), TORCH_RED);
+        let mut e = AnimatedTextureBillboardEffect::new([0.0; 3], TORCH_RED);
         let mut seen = Vec::new();
         for _ in 0..TORCH_RED_TEXTURES.len() {
             let mut list = EffectDrawList::new();
@@ -366,7 +361,7 @@ mod tests {
         // Spawn at a known world position; one render should put the
         // billboard at world_y - 10 with side √2 × distance ≈ 28.28.
         let e =
-            AnimatedTextureBillboardEffect::new(Attach::WorldPos([5.0, 100.0, 7.0]), TORCH_GREEN);
+            AnimatedTextureBillboardEffect::new([5.0, 100.0, 7.0], TORCH_GREEN);
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         let EffectPrimitiveDraw::Billboard { pos, size, color, .. } = list.primitives[0]
@@ -400,7 +395,7 @@ mod tests {
         // quad is anchored at master Y (no offset), uses the wider 30u
         // distance, and renders at 50/255 alpha.
         let mut e =
-            AnimatedTextureBillboardEffect::new(Attach::WorldPos([4.0, 50.0, 9.0]), GLOW_01);
+            AnimatedTextureBillboardEffect::new([4.0, 50.0, 9.0], GLOW_01);
         for _ in 0..20 {
             let mut list = EffectDrawList::new();
             e.collect_draws(&mut list, &render_ctx());

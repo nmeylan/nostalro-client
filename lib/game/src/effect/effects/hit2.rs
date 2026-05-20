@@ -22,7 +22,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 pub const LENS1: &str = "lens1.tga";
 pub const LENS2: &str = "lens2.tga";
@@ -153,11 +152,7 @@ pub struct Hit2Effect {
 }
 
 impl Hit2Effect {
-    pub fn new(attach: Attach) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3]) -> Self {
         let rng_state = 0x9E37_79B9
             ^ world_pos[0].to_bits()
             ^ world_pos[2].to_bits().rotate_left(13);
@@ -319,7 +314,7 @@ mod tests {
 
     #[test]
     fn spawns_eight_petals_alternating_textures() {
-        let mut e = Hit2Effect::new(Attach::WorldPos([0.0; 3]));
+        let mut e = Hit2Effect::new([0.0; 3]);
         e.update(&ctx(0.0));
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
@@ -353,7 +348,7 @@ mod tests {
         // vertical-plane (XY) ring around it. Each petal's position
         // should be reachable from (origin_x, origin_y + Y_OFFSET_BASE)
         // via a small radial offset.
-        let mut e = Hit2Effect::new(Attach::WorldPos([10.0, 20.0, 30.0]));
+        let mut e = Hit2Effect::new([10.0, 20.0, 30.0]);
         e.update(&ctx(1.0 / 60.0));
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
@@ -382,7 +377,7 @@ mod tests {
 
     #[test]
     fn petal_width_shrinks_height_grows() {
-        let mut e = Hit2Effect::new(Attach::WorldPos([0.0; 3]));
+        let mut e = Hit2Effect::new([0.0; 3]);
         e.update(&ctx(0.0));
         let initial: Vec<(f32, f32)> =
             e.petals.iter().map(|p| (p.width, p.height)).collect();
@@ -403,7 +398,7 @@ mod tests {
 
     #[test]
     fn effect_dies_after_petals_finish() {
-        let mut e = Hit2Effect::new(Attach::WorldPos([0.0; 3]));
+        let mut e = Hit2Effect::new([0.0; 3]);
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         // Run for 2× the longest petal lifetime (30 frames = 0.5 s).

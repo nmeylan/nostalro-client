@@ -27,7 +27,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const NUM_EMITTERS: usize = 4;
@@ -139,11 +138,7 @@ pub struct VolcanoEffect {
 }
 
 impl VolcanoEffect {
-    pub fn new(attach: Attach, params: VolcanoParams) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3], params: VolcanoParams) -> Self {
         Self {
             params,
             world_pos,
@@ -255,7 +250,7 @@ mod tests {
     #[test]
     fn each_variant_emits_four_emitters_with_its_texture() {
         for params in [LANDPROTECTOR, VOLCANO, DELUGE, VIOLENTGALE, GANBANTEIN, GUMGANG3] {
-            let mut e = VolcanoEffect::new(Attach::WorldPos([0.0; 3]), params);
+            let mut e = VolcanoEffect::new([0.0; 3], params);
             step(&mut e, 1.0 / FRAMES_PER_SECOND);
             let prims = draws(&e);
             assert_eq!(prims.len(), NUM_EMITTERS, "{} should emit 4 frustums", params.texture);
@@ -268,8 +263,8 @@ mod tests {
 
     #[test]
     fn gumgang3_ramps_up_slower_than_landprotector() {
-        let mut lp = VolcanoEffect::new(Attach::WorldPos([0.0; 3]), LANDPROTECTOR);
-        let mut g3 = VolcanoEffect::new(Attach::WorldPos([0.0; 3]), GUMGANG3);
+        let mut lp = VolcanoEffect::new([0.0; 3], LANDPROTECTOR);
+        let mut g3 = VolcanoEffect::new([0.0; 3], GUMGANG3);
         // Sample at the same early time; LP should be brighter than G3.
         let dt = 5.0 / FRAMES_PER_SECOND;
         step(&mut lp, dt);
@@ -287,7 +282,7 @@ mod tests {
 
     #[test]
     fn ring_grows_and_rotates_over_time() {
-        let mut e = VolcanoEffect::new(Attach::WorldPos([0.0; 3]), LANDPROTECTOR);
+        let mut e = VolcanoEffect::new([0.0; 3], LANDPROTECTOR);
         step(&mut e, 1.0 / FRAMES_PER_SECOND);
         let (r0, rot0, _, _) = frustum_fields(&draws(&e)[0]);
         step(&mut e, (LANDPROTECTOR.visible_frames() / 2.0) / FRAMES_PER_SECOND);
@@ -298,7 +293,7 @@ mod tests {
 
     #[test]
     fn alpha_ramps_up_then_down() {
-        let mut e = VolcanoEffect::new(Attach::WorldPos([0.0; 3]), LANDPROTECTOR);
+        let mut e = VolcanoEffect::new([0.0; 3], LANDPROTECTOR);
         step(&mut e, 0.5 / FRAMES_PER_SECOND);
         let a_early = frustum_fields(&draws(&e)[0]).2;
         step(&mut e, (LANDPROTECTOR.ramp_up_frames() - 0.5) / FRAMES_PER_SECOND);
@@ -315,7 +310,7 @@ mod tests {
 
     #[test]
     fn effect_dies_after_visible_burst() {
-        let mut e = VolcanoEffect::new(Attach::WorldPos([0.0; 3]), LANDPROTECTOR);
+        let mut e = VolcanoEffect::new([0.0; 3], LANDPROTECTOR);
         let dt = (LANDPROTECTOR.visible_frames() + 1.0) / FRAMES_PER_SECOND;
         assert_eq!(step(&mut e, dt), EffectStatus::Dead);
     }

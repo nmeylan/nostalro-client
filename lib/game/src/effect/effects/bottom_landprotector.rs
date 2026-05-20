@@ -105,11 +105,7 @@ pub struct BottomLandProtectorEffect {
 }
 
 impl BottomLandProtectorEffect {
-    pub fn new(attach: Attach, params: BottomLandProtectorParams) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3], params: BottomLandProtectorParams) -> Self {
         let seed = position_hash(&world_pos);
         Self {
             world_pos,
@@ -214,7 +210,7 @@ mod tests {
         // (horizontal), at `actor.y - 2.0` (native -Y up), centred on
         // the actor's XZ.
         let mut e = BottomLandProtectorEffect::new(
-            Attach::WorldPos([12.0, 5.0, 34.0]),
+            [12.0, 5.0, 34.0],
             LA,
         );
         step(&mut e, 0.0);
@@ -260,7 +256,7 @@ mod tests {
         // (cos(225°), sin(225°)) ≈ (-0.707, -0.707) — distinct from
         // (+r, 0) that LA produces.
         let mut e =
-            BottomLandProtectorEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), RUNNER);
+            BottomLandProtectorEffect::new([0.0, 0.0, 0.0], RUNNER);
         step(&mut e, 0.0);
         let prims = draws(&e);
         let EffectPrimitiveDraw::WorldQuad {
@@ -284,7 +280,7 @@ mod tests {
         // because rx = distance*0.1*(sin(rise_angle)+1) ∈ [0, 2.4]
         // for distance=12.
         let pos = [100.0, 0.0, 100.0];
-        let mut e = BottomLandProtectorEffect::new(Attach::WorldPos(pos), SPIDER);
+        let mut e = BottomLandProtectorEffect::new(pos, SPIDER);
         step(&mut e, 0.0);
         let r_a = corner_radius(&draws(&e)[0], pos);
         step(&mut e, 1.5);

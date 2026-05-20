@@ -205,11 +205,7 @@ pub struct CastCircleEffect {
 }
 
 impl CastCircleEffect {
-    pub fn new(attach: Attach, params: CastCircleParams) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3], params: CastCircleParams) -> Self {
         Self {
             params,
             world_pos,
@@ -357,7 +353,7 @@ mod tests {
     #[test]
     fn emits_all_three_elements_at_peak() {
         // Column + ground disc + 4 flame rings = 6 primitives at peak.
-        let mut c = CastCircleEffect::new(Attach::WorldPos([0.0; 3]), YELLOW);
+        let mut c = CastCircleEffect::new([0.0; 3], YELLOW);
         run_to(&mut c, 30.0);
         let prims = collect(&c);
         let columns = prims.iter().filter(|p| is_column(p)).count();
@@ -381,7 +377,7 @@ mod tests {
         // The flame ring Frustums are centered on the caster and their
         // `rotation` advances over time as the stripes orbit.
         let caster = [10.0, 5.0, 20.0];
-        let mut c = CastCircleEffect::new(Attach::WorldPos(caster), YELLOW);
+        let mut c = CastCircleEffect::new(caster, YELLOW);
         run_to(&mut c, 30.0);
         let snapshot = |c: &CastCircleEffect| -> Option<([f32; 3], f32)> {
             collect(c).into_iter().find_map(|p| match p {
@@ -401,7 +397,7 @@ mod tests {
 
     #[test]
     fn column_grows_over_growth_window() {
-        let mut c = CastCircleEffect::new(Attach::WorldPos([0.0; 3]), YELLOW);
+        let mut c = CastCircleEffect::new([0.0; 3], YELLOW);
         let height_of_column = |c: &CastCircleEffect| -> f32 {
             collect(c).into_iter().find_map(|p| if is_column(&p) {
                 if let EffectPrimitiveDraw::Frustum { height, .. } = p { Some(height) } else { None }
@@ -433,7 +429,7 @@ mod tests {
 
     #[test]
     fn never_self_terminates() {
-        let mut c = CastCircleEffect::new(Attach::WorldPos([0.0; 3]), YELLOW);
+        let mut c = CastCircleEffect::new([0.0; 3], YELLOW);
         for _ in 0..200 {
             assert_eq!(c.update(&EffectUpdateCtx { delta: 0.1, camera_target: None }), EffectStatus::Running);
         }

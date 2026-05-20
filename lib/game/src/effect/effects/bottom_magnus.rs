@@ -29,7 +29,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 #[derive(Clone, Copy, Debug)]
 pub struct BottomMagnusParams {
@@ -88,11 +87,7 @@ pub struct BottomMagnusEffect {
 }
 
 impl BottomMagnusEffect {
-    pub fn new(attach: Attach, params: BottomMagnusParams) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3], params: BottomMagnusParams) -> Self {
         Self {
             world_pos,
             params,
@@ -165,7 +160,7 @@ mod tests {
         // Sociable test: MAGNUS spawns a Frustum with sides=4 (square
         // prism), white tint, alpha blend, height 50 — matches the
         // visible Magnus Exorcismus pillar.
-        let mut e = BottomMagnusEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), MAGNUS);
+        let mut e = BottomMagnusEffect::new([0.0, 0.0, 0.0], MAGNUS);
         step(&mut e, FADE_IN_SECS);
         match &draws(&e)[0] {
             EffectPrimitiveDraw::Frustum {
@@ -194,7 +189,7 @@ mod tests {
     fn fogwall_emits_additive_dark_pillar() {
         // Sociable test: FOGWALL is a smaller (32-unit) prism rendered
         // additively with a dark grey tint (80/255).
-        let mut e = BottomMagnusEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), FOGWALL);
+        let mut e = BottomMagnusEffect::new([0.0, 0.0, 0.0], FOGWALL);
         step(&mut e, FADE_IN_SECS);
         match &draws(&e)[0] {
             EffectPrimitiveDraw::Frustum {

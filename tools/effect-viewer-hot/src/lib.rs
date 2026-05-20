@@ -6,8 +6,9 @@ static GLOBAL: std::alloc::System = std::alloc::System;
 use models::enums::EnumWithNumberValue;
 use models::enums::EnumWithStringValue;
 use models::enums::effect_id::EffectId;
+use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
-    Attach, Effect as GameEffect, EffectDrawList,
+    Effect as GameEffect, EffectDrawList,
     EffectRenderCtx as GameEffectRenderCtx, EffectSpec, EffectStatus,
     EffectUpdateCtx as GameEffectUpdateCtx, effect_spec, make_effect,
 };
@@ -864,7 +865,7 @@ pub unsafe extern "C" fn hot_spawn_custom_effect(
     } else {
         unsafe { *world_pos }
     };
-    let Some(effect) = make_effect(id, Attach::WorldPos(world_pos)) else {
+    let Some(effect) = make_effect(id, EffectAnchor::Point(world_pos)) else {
         return 0;
     };
     let mut next = state.next_effect_handle.lock().unwrap();

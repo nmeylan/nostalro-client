@@ -15,8 +15,9 @@ use models::enums::effect_id::EffectId;
 use ragnarok_formats::act::{MotionType, SpriteAnimationState};
 use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::grf::GrfArchive;
+use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
-    Attach, EffectQueue, EffectSpec, effect_spec, effect_texture_paths, str_aliases,
+    EffectQueue, EffectSpec, effect_spec, effect_texture_paths, str_aliases,
 };
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::map_loader::{self, MapData};
@@ -454,7 +455,7 @@ impl App {
             Some(EffectSpec::Custom { .. }) => {
                 let probe = ragnarok_game::effect::factory::make_effect(
                     id,
-                    Attach::WorldPos([0.0, 0.0, 0.0]),
+                    EffectAnchor::Point([0.0, 0.0, 0.0]),
                 );
                 let Some(probe) = probe else { return };
                 let Some(overlay) = probe.str_overlay() else { return };

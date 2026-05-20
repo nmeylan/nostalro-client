@@ -11,7 +11,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 /// Soft-edged dot reused as the placeholder sprite. Already preloaded by
 /// `cast_circle` so no extra texture entry is needed.
@@ -31,11 +30,7 @@ pub struct PlaceholderEffect {
 }
 
 impl PlaceholderEffect {
-    pub fn new(attach: Attach) -> Self {
-        let origin = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(origin: [f32; 3]) -> Self {
         Self { origin }
     }
 }
@@ -68,9 +63,9 @@ pub struct HybridPlaceholderEffect {
 }
 
 impl HybridPlaceholderEffect {
-    pub fn new(attach: Attach, str_file: &'static str) -> Self {
+    pub fn new(world_pos: [f32; 3], str_file: &'static str) -> Self {
         Self {
-            inner: PlaceholderEffect::new(attach),
+            inner: PlaceholderEffect::new(world_pos),
             str_file,
         }
     }
@@ -105,7 +100,7 @@ mod tests {
 
     #[test]
     fn placeholder_emits_one_billboard() {
-        let mut e = PlaceholderEffect::new(Attach::WorldPos([10.0, 0.0, 20.0]));
+        let mut e = PlaceholderEffect::new([10.0, 0.0, 20.0]);
         assert_eq!(e.update(&EffectUpdateCtx { delta: 0.016, camera_target: None }), EffectStatus::Running);
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
@@ -116,7 +111,7 @@ mod tests {
     #[test]
     fn hybrid_placeholder_renders_pink_and_declares_str_overlay() {
         let e = HybridPlaceholderEffect::new(
-            Attach::WorldPos([0.0; 3]),
+            [0.0; 3],
             "stormgust",
         );
         assert_eq!(e.str_overlay(), Some("stormgust"));

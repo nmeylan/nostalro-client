@@ -17,7 +17,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 pub const RING_TEXTURE: &str = "ring_yellow.tga";
 pub const EXPLOSION_TEXTURE: &str = "bigbang.tga";
@@ -97,11 +96,7 @@ pub struct MagnumBreakEffect {
 }
 
 impl MagnumBreakEffect {
-    pub fn new(attach: Attach) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3]) -> Self {
         Self {
             world_pos,
             age: 0.0,
@@ -250,7 +245,7 @@ mod tests {
 
     #[test]
     fn emits_three_primitives_at_start() {
-        let mut mb = MagnumBreakEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut mb = MagnumBreakEffect::new([0.0; 3]);
         step(&mut mb, 0.0);
         let prims = draws(&mb);
         assert_eq!(prims.len(), 3, "ring + sphere + second ring");
@@ -261,7 +256,7 @@ mod tests {
 
     #[test]
     fn ring_and_sphere_grow_together() {
-        let mut mb = MagnumBreakEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut mb = MagnumBreakEffect::new([0.0; 3]);
         step(&mut mb, 0.0);
         let (r0, s0) = match (&draws(&mb)[0], &draws(&mb)[1]) {
             (
@@ -285,7 +280,7 @@ mod tests {
 
     #[test]
     fn sphere_longitude_offset_advances_with_time() {
-        let mut mb = MagnumBreakEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut mb = MagnumBreakEffect::new([0.0; 3]);
         step(&mut mb, 0.0);
         let off0 = match &draws(&mb)[1] {
             EffectPrimitiveDraw::Sphere {
@@ -305,7 +300,7 @@ mod tests {
 
     #[test]
     fn second_ring_disappears_after_30_frames() {
-        let mut mb = MagnumBreakEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut mb = MagnumBreakEffect::new([0.0; 3]);
         step(&mut mb, 0.0);
         assert_eq!(draws(&mb).len(), 3);
         // Past 30 frames the hardcoded second ring should be gone.
@@ -315,7 +310,7 @@ mod tests {
 
     #[test]
     fn alpha_fades_in_then_out() {
-        let mut mb = MagnumBreakEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut mb = MagnumBreakEffect::new([0.0; 3]);
         step(&mut mb, 0.0);
         let a0 = match &draws(&mb)[0] {
             EffectPrimitiveDraw::GroundDisc { color, .. } => color[3],
@@ -339,7 +334,7 @@ mod tests {
 
     #[test]
     fn dies_after_parent_duration() {
-        let mut mb = MagnumBreakEffect::new(Attach::WorldPos([0.0; 3]));
+        let mut mb = MagnumBreakEffect::new([0.0; 3]);
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         while t < PARENT_DURATION_S * 2.0 {

@@ -10,6 +10,7 @@
 use std::sync::Arc;
 
 use models::enums::effect_id::EffectId;
+use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
     AlphaKeyframe, Attach, Effect as GameEffect, EffectDrawList, EffectQueue, EffectRenderCtx,
     EffectSpec, EffectStatus, EffectUpdateCtx, SpawnRequest, SprBurstParams, effect_spec,
@@ -271,7 +272,51 @@ impl EffectHolder {
                         return None;
                     }
                 } else {
-                    match make_effect(effect_id, attach) {
+                    // Spawn-time `Attach::Entity` / `Attach::Projectile`
+                    // resolution: deferred. This direct-spawn path has no
+                    // entity table (effect viewer / GIF exporter / any
+                    // caller that doesn't track entities), so the
+                    // resolver returns `None` and those variants fall
+                    // back to the origin — matching the pre-refactor
+                    // behaviour exactly. The per-frame collectors
+                    // (`collect_spr_burst_emitters`, `collect_str_emitters`,
+                    // …) already take a resolver closure, so
+                    // entity-followed effects animate correctly once
+                    // alive.
+                    //
+                    // Two future paths for spawn-time entity resolution
+                    // (pick when the first real use case lands):
+                    //
+                    //   * **Option A — caller pre-resolves**. The
+                    //     network/game-runtime layer already holds the
+                    //     entity table; when it translates a packet
+                    //     to a `SpawnRequest` it passes
+                    //     `Attach::WorldPos(entity.pos)` for one-shot
+                    //     captures or `Attach::Trail { from, to }` for
+                    //     projectile shapes. `Attach::Entity(id)` is
+                    //     then reserved for follow-the-entity effects
+                    //     (auras, status markers) — the per-frame
+                    //     collectors handle those via their existing
+                    //     resolver argument. Under this convention
+                    //     this stub `|_id| None` is permanently
+                    //     correct: spawning with `Attach::Entity` here
+                    //     means "follow each frame", not "snapshot now".
+                    //
+                    //   * **Option B — `drain_queue` accepts a resolver**.
+                    //     If we want the queue path to snapshot
+                    //     `Attach::Entity` at spawn time as well (so
+                    //     packet handlers don't have to pre-resolve),
+                    //     introduce a private `spawn_with_resolver(..,
+                    //     resolve_entity: &dyn Fn(...) -> Option<..>)`
+                    //     and have `drain_queue(&mut q, resolver)`
+                    //     thread it through. `pub fn spawn` keeps its
+                    //     resolver-less signature for the
+                    //     viewer/GIF-export callers and delegates with
+                    //     `&|_id| None`. Touches exactly those two
+                    //     functions; every effect, the factory, and
+                    //     `SpawnRequest` stay as-is.
+                    let anchor = attach_to_anchor(attach, &|_id| None);
+                    match make_effect(effect_id, anchor) {
                         Some(e) => {
                             self.last_spawn = Some(SpawnOutcome::Custom);
                             HeldPayload::Custom(e)
@@ -560,6 +605,30 @@ fn resolve_position(
         // (`from`) world position so the spawn marker lines up with the
         // other variants.
         Attach::Trail { from, .. } => Some(*from),
+    }
+}
+
+/// Resolve `Attach` to the [`EffectAnchor`] shape the factory expects.
+/// `WorldPos`, `Entity`, and `Projectile` collapse to `Point` (the
+/// effect doesn't need both endpoints), while `Trail` preserves both
+/// endpoints so projectile-shaped effects can lay out their geometry
+/// along the line. Callers that can't resolve entity → world (e.g. the
+/// direct `spawn` entry point used by the effect viewer) pass a
+/// resolver that always returns `None`; that path falls back to the
+/// origin, matching the pre-refactor behaviour.
+fn attach_to_anchor(
+    attach: Attach,
+    resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
+) -> EffectAnchor {
+    match attach {
+        Attach::WorldPos(p) => EffectAnchor::Point(p),
+        Attach::Entity(id) => {
+            EffectAnchor::Point(resolve_entity(id).unwrap_or([0.0; 3]))
+        }
+        Attach::Projectile { from, .. } => {
+            EffectAnchor::Point(resolve_entity(from).unwrap_or([0.0; 3]))
+        }
+        Attach::Trail { from, to } => EffectAnchor::Trail { from, to },
     }
 }
 

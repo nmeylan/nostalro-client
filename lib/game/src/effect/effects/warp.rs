@@ -22,7 +22,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 pub const WARP_TEXTURE: &str = "ring_yellow.tga";
 pub const TEXTURES: &[&str] = &[WARP_TEXTURE];
@@ -100,11 +99,7 @@ pub struct WarpEffect {
 }
 
 impl WarpEffect {
-    pub fn new(attach: Attach) -> Self {
-        let world_pos = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(world_pos: [f32; 3]) -> Self {
         // First ring spawns at parent_age = 0 (frame 0).
         Self {
             world_pos,
@@ -191,14 +186,14 @@ mod tests {
 
     #[test]
     fn first_ring_spawns_immediately() {
-        let mut warp = WarpEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]));
+        let mut warp = WarpEffect::new([0.0, 0.0, 0.0]);
         step(&mut warp, 0.0);
         assert_eq!(draws(&warp).len(), 1);
     }
 
     #[test]
     fn ring_emits_full_tiled_disc() {
-        let mut warp = WarpEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]));
+        let mut warp = WarpEffect::new([0.0, 0.0, 0.0]);
         step(&mut warp, 0.0);
         match draws(&warp).remove(0) {
             EffectPrimitiveDraw::GroundDisc {
@@ -215,7 +210,7 @@ mod tests {
 
     #[test]
     fn spawns_four_rings_over_parent_lifetime() {
-        let mut warp = WarpEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]));
+        let mut warp = WarpEffect::new([0.0, 0.0, 0.0]);
         // First spawn at t=0.
         step(&mut warp, 0.0);
         assert_eq!(draws(&warp).len(), 1, "1st ring at frame 0");
@@ -240,7 +235,7 @@ mod tests {
 
     #[test]
     fn ring_radius_grows_then_fades() {
-        let mut warp = WarpEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]));
+        let mut warp = WarpEffect::new([0.0, 0.0, 0.0]);
         step(&mut warp, 0.0);
         let (r0, a0) = match &draws(&warp)[0] {
             EffectPrimitiveDraw::GroundDisc { radius, color, .. } => (*radius, color[3]),
@@ -267,7 +262,7 @@ mod tests {
 
     #[test]
     fn early_ring_is_filled_disc_late_ring_is_band() {
-        let mut warp = WarpEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]));
+        let mut warp = WarpEffect::new([0.0, 0.0, 0.0]);
         step(&mut warp, 0.0);
         match &draws(&warp)[0] {
             EffectPrimitiveDraw::GroundDisc {

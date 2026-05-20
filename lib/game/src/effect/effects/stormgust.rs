@@ -23,7 +23,6 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
 pub const ICE_TEXTURE: &str = "ice.tga";
 pub const TEXTURES: &[&str] = &[ICE_TEXTURE];
@@ -177,11 +176,7 @@ pub struct StormgustEffect {
 }
 
 impl StormgustEffect {
-    pub fn new(attach: Attach) -> Self {
-        let origin = match attach {
-            Attach::WorldPos(p) => p,
-            Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
-        };
+    pub fn new(origin: [f32; 3]) -> Self {
         Self {
             origin,
             age: 0.0,
@@ -356,13 +351,13 @@ mod tests {
     fn declares_stormgust_str_overlay() {
         // The Slice G hybrid-path validator: a factory Custom effect drives
         // the STR playback alongside its primitives.
-        let s = StormgustEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]));
+        let s = StormgustEffect::new([0.0, 0.0, 0.0]);
         assert_eq!(s.str_overlay(), Some(STR_OVERLAY));
     }
 
     #[test]
     fn no_spikes_before_first_spawn() {
-        let mut s = StormgustEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]));
+        let mut s = StormgustEffect::new([0.0, 0.0, 0.0]);
         // First spawn is at frame 58 ≈ 0.97 s. Tick to just before that.
         step(&mut s, 0.9);
         assert!(draws(&s).is_empty());
@@ -371,7 +366,7 @@ mod tests {
     #[test]
     fn spawns_eight_spikes_over_lifetime() {
         // 4 spawn events between frames 58 and 145, 2 spikes each = 8 total.
-        let mut s = StormgustEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]));
+        let mut s = StormgustEffect::new([0.0, 0.0, 0.0]);
         // Tick to just past the final spawn frame (~2.42 s) before any spike
         // has died — easiest to assert max spikes alive at once.
         step(&mut s, 2.45);
@@ -384,7 +379,7 @@ mod tests {
 
     #[test]
     fn spike_alpha_fades_near_end_of_life() {
-        let mut s = StormgustEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]));
+        let mut s = StormgustEffect::new([0.0, 0.0, 0.0]);
         step(&mut s, 1.0); // Just past first spawn at frame 58.
         let early = match draws(&s).first().unwrap() {
             EffectPrimitiveDraw::QuadHorn { color, .. } => color[3],
@@ -398,7 +393,7 @@ mod tests {
         // Run past the fade window of the first spike. First spike has
         // duration ≈ (215-58)/60 ≈ 2.62s, fade starts at 2.45s. We jump to
         // 2.55s into its life.
-        let mut s2 = StormgustEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]));
+        let mut s2 = StormgustEffect::new([0.0, 0.0, 0.0]);
         step(&mut s2, 58.0 / FRAMES_PER_SECOND + 0.01); // spawn first pair
         step(&mut s2, 2.55); // age first spike well into its fade
         let late = draws(&s2)
@@ -420,7 +415,7 @@ mod tests {
         // (~50 ms) along its apex direction, then freezes for the rest of
         // its lifetime. With apex pointing UP (tilt=10°), the spike rises
         // briefly — native RO -Y = up, so Y *decreases* during the window.
-        let mut s = StormgustEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]));
+        let mut s = StormgustEffect::new([0.0, 0.0, 0.0]);
         step(&mut s, 0.97);
         let pos_during = match draws(&s)[0] {
             EffectPrimitiveDraw::QuadHorn { base, .. } => base,

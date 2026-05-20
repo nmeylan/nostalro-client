@@ -210,8 +210,13 @@ pub struct FrostDiverEffect {
 }
 
 impl FrostDiverEffect {
-    pub fn new(attach: Attach, params: FrostDiverParams) -> Self {
-        let (origin, trail_anchors) = derive_anchors(&attach);
+    /// Construct a Frost Diver burst. `from`/`to` are the resolved
+    /// caster/target world positions. Calls with `from == to` (the
+    /// effect-viewer demo path and any caller that doesn't supply a
+    /// trail) collapse to cluster mode at `from`, matching the
+    /// historical `Attach::WorldPos` behaviour.
+    pub fn new(from: [f32; 3], to: [f32; 3], params: FrostDiverParams) -> Self {
+        let (origin, trail_anchors) = derive_anchors(from, to);
 
         let mut rng_state = 0x9E37_79B9
             ^ origin[0].to_bits()
@@ -322,40 +327,31 @@ impl FrostDiverEffect {
 /// the caster, stopping once the remaining distance to the target is
 /// `≤ TRAIL_STOP_DISTANCE`. Each cursor position becomes one spike's
 /// XZ anchor; spike Y stays on the caster's ground plane (`from[1]`).
-fn derive_anchors(attach: &Attach) -> ([f32; 3], Vec<[f32; 3]>) {
-    match attach {
-        Attach::Trail { from, to } => {
-            let dx = to[0] - from[0];
-            let dz = to[2] - from[2];
-            let total_dist = (dx * dx + dz * dz).sqrt();
-            if total_dist <= TRAIL_INITIAL_OFFSET {
-                // Caster and target are too close to draw a meaningful
-                // trail (most likely a self-cast or stub viewer call).
-                // Fall back to cluster mode at the caster's position.
-                return (*from, Vec::new());
-            }
-            // Unit vector caster → target on the XZ plane.
-            let ux = dx / total_dist;
-            let uz = dz / total_dist;
-            let mut anchors = Vec::new();
-            // cursor: distance-remaining-to-target. Starts at
-            // `total_dist - TRAIL_INITIAL_OFFSET`, decreases by
-            // `TRAIL_STEP_PER_FRAME` each iteration.
-            let mut remaining = total_dist - TRAIL_INITIAL_OFFSET;
-            while remaining > TRAIL_STOP_DISTANCE {
-                let along = total_dist - remaining;
-                anchors.push([
-                    from[0] + ux * along,
-                    from[1],
-                    from[2] + uz * along,
-                ]);
-                remaining -= TRAIL_STEP_PER_FRAME;
-            }
-            (*from, anchors)
-        }
-        Attach::WorldPos(p) => (*p, Vec::new()),
-        Attach::Entity(_) | Attach::Projectile { .. } => ([0.0; 3], Vec::new()),
+fn derive_anchors(from: [f32; 3], to: [f32; 3]) -> ([f32; 3], Vec<[f32; 3]>) {
+    let dx = to[0] - from[0];
+    let dz = to[2] - from[2];
+    let total_dist = (dx * dx + dz * dz).sqrt();
+    if total_dist <= TRAIL_INITIAL_OFFSET {
+        // Caster and target are too close to draw a meaningful trail
+        // (most likely a self-cast, the `from == to` collapse from the
+        // single-point factory fallback, or a viewer stub call). Fall
+        // back to cluster mode at the caster's position.
+        return (from, Vec::new());
     }
+    // Unit vector caster → target on the XZ plane.
+    let ux = dx / total_dist;
+    let uz = dz / total_dist;
+    let mut anchors = Vec::new();
+    // cursor: distance-remaining-to-target. Starts at
+    // `total_dist - TRAIL_INITIAL_OFFSET`, decreases by
+    // `TRAIL_STEP_PER_FRAME` each iteration.
+    let mut remaining = total_dist - TRAIL_INITIAL_OFFSET;
+    while remaining > TRAIL_STOP_DISTANCE {
+        let along = total_dist - remaining;
+        anchors.push([from[0] + ux * along, from[1], from[2] + uz * along]);
+        remaining -= TRAIL_STEP_PER_FRAME;
+    }
+    (from, anchors)
 }
 
 impl Effect for FrostDiverEffect {
@@ -447,7 +443,7 @@ mod tests {
         // once remaining ≤ 2.5. That schedules 9 spawns (20, 18, 16,
         // 14, 12, 10, 8, 6, 4 — next would be 2 ≤ 2.5).
         let to = [0.0, 0.0, 25.0];
-        let mut e = FrostDiverEffect::new(Attach::Trail { from, to }, FROSTDIVER);
+        let mut e = FrostDiverEffect::new(from, to, FROSTDIVER);
         // Burst-mode spawn-on-spawn schedule needs the update tick to
         // populate; step past the full burst window.
         step(&mut e, FROSTDIVER.burst_over_frames / FRAMES_PER_SECOND + 0.01);
@@ -482,22 +478,13 @@ mod tests {
         // caster→target distance — twice as far → roughly twice as
         // many spikes (one per cursor step).
         let from = [0.0, 0.0, 0.0];
-        let short = FrostDiverEffect::new(
-            Attach::Trail { from, to: [0.0, 0.0, 15.0] },
-            FROSTDIVER,
-        );
-        let long = FrostDiverEffect::new(
-            Attach::Trail { from, to: [0.0, 0.0, 35.0] },
-            FROSTDIVER,
-        );
+        let short = FrostDiverEffect::new(from, [0.0, 0.0, 15.0], FROSTDIVER);
+        let long = FrostDiverEffect::new(from, [0.0, 0.0, 35.0], FROSTDIVER);
         assert!(long.spike_count > short.spike_count + 5);
 
         // Below the initial cursor offset, no trail — falls back to
         // cluster mode bounded by spike_count_range.
-        let too_close = FrostDiverEffect::new(
-            Attach::Trail { from, to: [0.0, 0.0, 3.0] },
-            FROSTDIVER,
-        );
+        let too_close = FrostDiverEffect::new(from, [0.0, 0.0, 3.0], FROSTDIVER);
         assert!(
             (FROSTDIVER.spike_count_range.0..=FROSTDIVER.spike_count_range.1)
                 .contains(&too_close.spike_count),
@@ -511,7 +498,7 @@ mod tests {
         // Sociable test: FrostDiver2 is a one-shot 8-spike burst — all
         // QuadHorns must be present on the first render frame and the
         // burst tilts apex-up (`tilt_x_deg ∈ [80, 100]`).
-        let mut e = FrostDiverEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), FROSTDIVER2);
+        let mut e = FrostDiverEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], FROSTDIVER2);
         step(&mut e, 0.0);
         let prims = draws(&e);
         assert_eq!(prims.len(), 8);
@@ -566,7 +553,7 @@ mod tests {
         // there's at least one spike alive at every probe time, the count
         // grows monotonically until the window closes, and then decays
         // back to zero as spikes expire.
-        let mut e = FrostDiverEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), FROSTDIVER);
+        let mut e = FrostDiverEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], FROSTDIVER);
         step(&mut e, 0.0);
         let n0 = draws(&e).len();
 
@@ -592,7 +579,7 @@ mod tests {
             ([10.0, 0.0, -5.0], "origin offset"),
             ([-3.5, 0.0, 22.7], "origin offset 2"),
         ] {
-            let mut e = FrostDiverEffect::new(Attach::WorldPos(origin), FROSTDIVER);
+            let mut e = FrostDiverEffect::new(origin, origin, FROSTDIVER);
             // Step past burst window so all scheduled spikes have spawned.
             step(&mut e, FROSTDIVER.burst_over_frames / FRAMES_PER_SECOND + 0.01);
             let drawn = draws(&e).len() as u32;
@@ -615,7 +602,7 @@ mod tests {
         // Sociable test: the speed limit freezes each spike after the
         // initial growth window. Position should advance during the
         // window and hold steady after it.
-        let mut e = FrostDiverEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), FROSTDIVER2);
+        let mut e = FrostDiverEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], FROSTDIVER2);
         step(&mut e, 0.0);
         let early_y = match &draws(&e)[0] {
             EffectPrimitiveDraw::QuadHorn { base, .. } => base[1],
@@ -643,7 +630,7 @@ mod tests {
     fn alpha_fades_in_final_window() {
         // Sociable test: PEAK_ALPHA holds until the fade-out window starts,
         // then alpha drops monotonically to zero by spike end-of-life.
-        let mut e = FrostDiverEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), FROSTDIVER2);
+        let mut e = FrostDiverEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], FROSTDIVER2);
         step(&mut e, 0.0);
         let a0 = match &draws(&e)[0] {
             EffectPrimitiveDraw::QuadHorn { color, .. } => color[3],
@@ -672,7 +659,7 @@ mod tests {
 
     #[test]
     fn dies_when_all_spikes_expire() {
-        let mut e = FrostDiverEffect::new(Attach::WorldPos([0.0, 0.0, 0.0]), FROSTDIVER2);
+        let mut e = FrostDiverEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], FROSTDIVER2);
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         let end_s = total_duration_ms(&FROSTDIVER2) as f32 / 1000.0;
