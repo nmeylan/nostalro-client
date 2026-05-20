@@ -33,6 +33,7 @@ pub fn build_billboard_batches<'a>(
             pos,
             size,
             uv,
+            rotation,
             texture,
             color,
             blend,
@@ -48,12 +49,24 @@ pub fn build_billboard_batches<'a>(
 
         let half_w = size[0] * ppu * 0.5;
         let half_h = size[1] * ppu * 0.5;
+        // Rotate each corner offset around the anchor by `rotation` radians.
+        // CCW in screen space (matches the roll convention used by
+        // Hit2's lens-flare petals). When `rotation == 0` cos=1, sin=0 and
+        // the transform is the identity, so existing axis-aligned callers
+        // see no change.
+        let (sin_r, cos_r) = rotation.sin_cos();
+        let rotate = |dx: f32, dy: f32| -> [f32; 2] {
+            [
+                anchor[0] + dx * cos_r - dy * sin_r,
+                anchor[1] + dx * sin_r + dy * cos_r,
+            ]
+        };
         // Vertex order: TL, TR, BL, BR; indices form a triangle strip.
         let corners = [
-            ([anchor[0] - half_w, anchor[1] - half_h], uv[0]),
-            ([anchor[0] + half_w, anchor[1] - half_h], uv[1]),
-            ([anchor[0] - half_w, anchor[1] + half_h], uv[2]),
-            ([anchor[0] + half_w, anchor[1] + half_h], uv[3]),
+            (rotate(-half_w, -half_h), uv[0]),
+            (rotate(half_w, -half_h), uv[1]),
+            (rotate(-half_w, half_h), uv[2]),
+            (rotate(half_w, half_h), uv[3]),
         ];
 
         let texture_bg = texture_lookup(texture).unwrap_or(fallback_texture);
@@ -98,6 +111,7 @@ mod tests {
             pos: [0.0, 0.0, 0.0],
             size: [10.0, 10.0],
             uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
+            rotation: 0.0,
             texture: "missing",
             color: [1.0, 1.0, 1.0, 1.0],
             blend: BlendKind::Additive,

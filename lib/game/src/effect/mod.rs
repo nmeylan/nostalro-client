@@ -30,6 +30,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::warp::TEXTURES,
         effects::magnum_break::TEXTURES,
         effects::hit::TEXTURES,
+        effects::hit2::TEXTURES,
         effects::bottom_sanctuary_pillar::TEXTURES,
         effects::warp_zone::TEXTURES,
         effects::volcano::TEXTURES,

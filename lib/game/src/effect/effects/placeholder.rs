@@ -50,6 +50,7 @@ impl Effect for PlaceholderEffect {
             pos: self.origin,
             size: [PLACEHOLDER_HALF_SIZE * 2.0, PLACEHOLDER_HALF_SIZE * 2.0],
             uv: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+            rotation: 0.0,
             texture: PLACEHOLDER_TEXTURE,
             color: PLACEHOLDER_COLOR,
             blend: BlendKind::Alpha,

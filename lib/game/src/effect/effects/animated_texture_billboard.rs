@@ -309,6 +309,7 @@ impl Effect for AnimatedTextureBillboardEffect {
             ],
             size: [side, side],
             uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
+            rotation: 0.0,
             texture,
             color: [1.0, 1.0, 1.0, self.params.alpha],
             blend: BlendKind::Alpha,

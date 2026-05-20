@@ -26,6 +26,7 @@ pub fn make_effect(id: EffectId, attach: Attach) -> Option<Box<dyn Effect>> {
         // (currently defaulting to 0 since the spawn pipeline doesn't
         // carry it yet, see hit::new_with_angle docs).
         EffectId::Hit1 => Box::new(effects::hit::HitEffect::new(attach, effects::hit::HIT1)),
+        EffectId::Hit2 => Box::new(effects::hit2::Hit2Effect::new(attach)),
         EffectId::Hit3 => Box::new(effects::hit::HitEffect::new(attach, effects::hit::HIT3)),
         EffectId::Hit4 => Box::new(effects::hit::HitEffect::new(attach, effects::hit::HIT4)),
         EffectId::Stormgust => Box::new(effects::stormgust::StormgustEffect::new(attach)),
@@ -242,6 +243,7 @@ pub fn is_real_impl(id: EffectId) -> bool {
         EffectId::Warp
             | EffectId::Magnumbreak
             | EffectId::Hit1
+            | EffectId::Hit2
             | EffectId::Hit3
             | EffectId::Hit4
             | EffectId::Stormgust
@@ -303,11 +305,12 @@ mod tests {
 
     #[test]
     fn unimplemented_custom_falls_back_to_placeholder() {
-        // Hit2 is in the Custom bucket (original game dispatches it to PP_*) but
-        // doesn't yet have a real Rust impl — factory returns the pink
-        // placeholder, and `is_real_impl` reports false.
-        assert!(make_effect(EffectId::Hit2, Attach::WorldPos([0.0; 3])).is_some());
-        assert!(!is_real_impl(EffectId::Hit2));
+        // Pick an EffectId in the Custom bucket that doesn't yet have a
+        // real Rust impl — factory returns the pink placeholder and
+        // `is_real_impl` reports false. Hit5 fits the bill (Hit2's
+        // sibling, same `EF_HITn` family, still unimplemented).
+        assert!(make_effect(EffectId::Hit5, Attach::WorldPos([0.0; 3])).is_some());
+        assert!(!is_real_impl(EffectId::Hit5));
     }
 
     #[test]

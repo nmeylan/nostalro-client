@@ -10,7 +10,7 @@
 use models::enums::effect_id::EffectId;
 
 use super::buckets::{is_custom_bucket, is_noop_bucket};
-use super::effects::{bottom_sanctuary_pillar, cast_circle, hit, magnum_break, stormgust, volcano, warp};
+use super::effects::{bottom_sanctuary_pillar, cast_circle, hit, hit2, magnum_break, stormgust, volcano, warp};
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
 use super::spr_burst::spr_burst_params;
@@ -38,6 +38,9 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // table's 500 ms blanket value.
         EffectId::Hit1 => EffectSpec::Custom {
             duration_ms: hit::HIT1_TOTAL_DURATION_MS,
+        },
+        EffectId::Hit2 => EffectSpec::Custom {
+            duration_ms: hit2::TOTAL_DURATION_MS,
         },
         EffectId::Hit3 => EffectSpec::Custom {
             duration_ms: hit::HIT3_TOTAL_DURATION_MS,

@@ -30,10 +30,18 @@ pub enum EffectStatus {
 #[derive(Clone, Debug)]
 pub enum EffectPrimitiveDraw {
     /// Camera-facing textured quad.
+    ///
+    /// `rotation` rotates the quad in screen space around its centre (CCW in
+    /// radians). 0 keeps the existing axis-aligned behaviour — used by every
+    /// pre-Hit2 caller (aura, placeholder, animated-texture-billboard) and
+    /// the renderer is a literal identity transform in that case. The Hit2
+    /// petals set it per-petal to align each lens-flare quad's long axis
+    /// with its radial direction.
     Billboard {
         pos: [f32; 3],
         size: [f32; 2],
         uv: [[f32; 2]; 4],
+        rotation: f32,
         texture: &'static str,
         color: [f32; 4],
         blend: BlendKind,

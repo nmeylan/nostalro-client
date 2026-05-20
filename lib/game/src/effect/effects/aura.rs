@@ -138,6 +138,7 @@ impl Effect for AuraEffect {
             pos,
             size: [radius * 2.0, radius * 2.0],
             uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
+            rotation: 0.0,
             texture: self.params.texture,
             color: self.params.color,
             blend: BlendKind::Additive,
