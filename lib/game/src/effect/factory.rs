@@ -297,6 +297,33 @@ pub fn make_effect(id: EffectId, attach: Attach) -> Option<Box<dyn Effect>> {
             effects::bottom_magnus::FOGWALL,
         )),
 
+        // BottomLandProtector — single horizontal square ward with
+        // radially-breathing corners. 4 ids.
+        EffectId::BottomLa => Box::new(
+            effects::bottom_landprotector::BottomLandProtectorEffect::new(
+                attach,
+                effects::bottom_landprotector::LA,
+            ),
+        ),
+        EffectId::BottomRunner => Box::new(
+            effects::bottom_landprotector::BottomLandProtectorEffect::new(
+                attach,
+                effects::bottom_landprotector::RUNNER,
+            ),
+        ),
+        EffectId::BottomTransfer => Box::new(
+            effects::bottom_landprotector::BottomLandProtectorEffect::new(
+                attach,
+                effects::bottom_landprotector::TRANSFER,
+            ),
+        ),
+        EffectId::BottomSpider => Box::new(
+            effects::bottom_landprotector::BottomLandProtectorEffect::new(
+                attach,
+                effects::bottom_landprotector::SPIDER,
+            ),
+        ),
+
         // BottomLight — 315° curtain-cone wall built from ~20 WorldQuad
         // ribbon segments per frame. Same geometry for both ids; a flag
         // picks the tint/blend.
@@ -436,6 +463,10 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::BottomServiceforyou
             | EffectId::BottomEternalchaos
             | EffectId::BottomSiegfried
+            | EffectId::BottomLa
+            | EffectId::BottomRunner
+            | EffectId::BottomTransfer
+            | EffectId::BottomSpider
     )
 }
 
@@ -500,6 +531,23 @@ mod tests {
             EffectId::BottomAssassincross,
             EffectId::BottomDontforgetme,
             EffectId::BottomServiceforyou,
+        ] {
+            assert!(is_real_impl(id), "{:?} must have a real impl", id);
+            let e = make_effect(id, Attach::WorldPos([0.0; 3])).unwrap();
+            assert_eq!(e.str_overlay(), None);
+        }
+    }
+
+    #[test]
+    fn bottom_landprotector_variants_dispatch_to_world_quad_square() {
+        // 4 BottomLandProtector ids must land on the BottomLandProtector
+        // custom effect (single WorldQuad horizontal square), not the
+        // placeholder.
+        for id in [
+            EffectId::BottomLa,
+            EffectId::BottomRunner,
+            EffectId::BottomTransfer,
+            EffectId::BottomSpider,
         ] {
             assert!(is_real_impl(id), "{:?} must have a real impl", id);
             let e = make_effect(id, Attach::WorldPos([0.0; 3])).unwrap();
