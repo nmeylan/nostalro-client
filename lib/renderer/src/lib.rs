@@ -594,14 +594,8 @@ impl Renderer {
             }
         }
 
-        // Effect-world pass: STR + custom-fx primitives, depth-read no
-        // depth-write, between the 3D pass and the entity sprite pass.
-        // Uses a dedicated SpriteRenderer instance so its vertex buffer
-        // doesn't collide with the entity pass below in the same encoder.
-        //
-        // Billboard-primitive batches are built here (not by the caller) so
-        // their texture lookup sees the same preloaded GRF textures as the
-        // ground-disc / frustum / quad-horn dispatches below.
+        // Build effect billboard batches up front so the texture_lookup
+        // closure can be reused by every effect dispatch in this pass.
         let texture_lookup = |name: &str| -> Option<&wgpu::BindGroup> {
             // Effect texture params store the bare filename
             // (e.g. `ring_yellow.tga`); preload + cache uses the
@@ -620,32 +614,10 @@ impl Renderer {
             &self.white_bind_group,
             texture_lookup,
         );
-        if !effect_sprite_batches.is_empty() {
-            self.effect_sprite_renderer.render(
-                &mut encoder,
-                &view,
-                Some(depth_view),
-                &self.device.device,
-                &self.device.queue,
-                None,
-                effect_sprite_batches,
-            );
-        }
-        if !billboard_batches.is_empty() {
-            self.effect_sprite_renderer.render(
-                &mut encoder,
-                &view,
-                Some(depth_view),
-                &self.device.device,
-                &self.device.queue,
-                None,
-                &billboard_batches,
-            );
-        }
 
-        // Dispatch dedicated primitives from the effect draw list. New
-        // primitives (Cylinder, LineStrip, …) get their own dispatch block
-        // here in subsequent slices.
+        // 3D effect primitives first — they write to depth, so subsequent
+        // alpha-blended passes (entity sprites, effect billboards) can
+        // depth-test against them correctly.
         let has_ground_discs = effect_draws
             .primitives
             .iter()
@@ -742,6 +714,10 @@ impl Renderer {
             );
         }
 
+        // Entity sprites render before the effect SPR / Billboard pass so
+        // effects sit on top of the character — matches the original game's
+        // game-object list insertion order (player pushed first, effects
+        // appended at spawn time).
         if !sprite_batches.is_empty() {
             self.sprite_renderer.render(
                 &mut encoder,
@@ -751,6 +727,34 @@ impl Renderer {
                 &self.device.queue,
                 None,
                 sprite_batches,
+            );
+        }
+
+        // Effect SPR / Billboard batches: depth-read, no depth-write.
+        // Dispatched after entity sprites so additive/alpha particles
+        // overlay the character body. Uses a dedicated SpriteRenderer
+        // instance so its vertex buffer doesn't collide with the entity
+        // pass above in the same encoder.
+        if !effect_sprite_batches.is_empty() {
+            self.effect_sprite_renderer.render(
+                &mut encoder,
+                &view,
+                Some(depth_view),
+                &self.device.device,
+                &self.device.queue,
+                None,
+                effect_sprite_batches,
+            );
+        }
+        if !billboard_batches.is_empty() {
+            self.effect_sprite_renderer.render(
+                &mut encoder,
+                &view,
+                Some(depth_view),
+                &self.device.device,
+                &self.device.queue,
+                None,
+                &billboard_batches,
             );
         }
 

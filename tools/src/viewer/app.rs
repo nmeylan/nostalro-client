@@ -24,10 +24,9 @@ use ragnarok_game::map_loader::{self, MapData};
 use ragnarok_game::sprite_loader as game_sprite_loader;
 use ragnarok_game::sprite_path::weapon_view_id_to_type;
 use ragnarok_renderer::effect::{
-    EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, StrEffectCache,
-    StrEmitterInput, build_str_effect_batches,
+    EffectFrameInputs, EffectHolder, EffectUpdateCtx, StrEffectCache, compose_effect_frame,
 };
-use ragnarok_renderer::{EffectSpriteCache, build_emitter_batches};
+use ragnarok_renderer::EffectSpriteCache;
 use ragnarok_renderer::sprite::{EntitySprite, build_entity_sprite, upload_sprite_textures};
 use ragnarok_renderer::sprite_projection::{cell_world_pos, project_entity_screen};
 use ragnarok_renderer::{BackgroundMode, Renderer, UiDrawCall, block_on};
@@ -799,56 +798,25 @@ impl App {
         let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
         let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
 
-        let snapshots = self.effect_holder.collect_str_emitters(&|_| None);
-        let str_inputs: Vec<StrEmitterInput<'_>> = snapshots
-            .iter()
-            .map(|s| StrEmitterInput {
-                str_name: &s.name,
-                position: s.position,
-                anim_time: s.anim_time,
-            })
-            .collect();
         let zoom = self
             .map_data
             .as_ref()
             .and_then(|m| m.coordinates.as_ref())
             .map_or(10.0, |c| c.zoom());
-        let effect_batches = build_str_effect_batches(
-            &str_inputs,
-            &self.str_effects,
-            &renderer.camera,
+        let frame = compose_effect_frame(&EffectFrameInputs {
+            effect_holder: &self.effect_holder,
+            effect_sprites: &self.effect_sprites,
+            str_effects: &self.str_effects,
+            camera: &renderer.camera,
             screen_w,
             screen_h,
             zoom,
-        );
-
-        let mut effect_draws = EffectDrawList::new();
-        let render_ctx = EffectRenderCtx {
-            camera: ragnarok_game::effect::CameraView {
-                eye: renderer.camera.eye().to_array(),
-                target: renderer.camera.target.to_array(),
-                up: glam::Vec3::NEG_Y.to_array(),
-            },
-            screen_w,
-            screen_h,
             elapsed: 0.0,
-        };
-        self.effect_holder
-            .collect_custom_draws(&mut effect_draws, &render_ctx);
-        // Custom effects can emit `SpriteParticle` primitives for per-particle
-        // SPR billboards (Sight, Ruwach, Exit, Hit). Project them and append
-        // to the effect batch list so they share the sprite render pass with
-        // emitter-driven draws.
-        let sprite_particle_draws =
-            ragnarok_renderer::collect_sprite_particle_emitter_draws(
-                &effect_draws,
-                &self.effect_sprites,
-                &renderer.camera,
-                screen_w,
-                screen_h,
-            );
-        let mut effect_batches = effect_batches;
-        effect_batches.extend(build_emitter_batches(&sprite_particle_draws));
+            extra_spr_emitters: &[],
+            extra_str_emitters: &[],
+        });
+        let effect_batches = frame.effect_batches;
+        let effect_draws = frame.effect_draws;
 
         let sprite_batches: Vec<ragnarok_renderer::sprite::SpriteBatch<'_>> =
             match (&self.entity_sprite, &self.map_data) {

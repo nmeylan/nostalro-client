@@ -1,10 +1,8 @@
 //! `EF_INCAGILITY` / `EF_DECAGILITY` / `EF_INCAGIDEX` — agility/dex status-up
-//! visual. The three effects share one cross-textured streak emitter; they
-//! differ only in particle direction (Incagility/Incagidex rise, Decagility
-//! falls) and the per-skill 2D-icon hue (icon is the original game's
-//! 2D-texture screen overlay — we don't have a screen-anchored primitive
-//! yet, so the icon is currently omitted and only the streak particles
-//! render).
+//! visual. The three effects share one cross-textured streak emitter plus a
+//! center label texture; they differ in particle direction (Incagility /
+//! Incagidex rise, Decagility falls), in the streak tint, and in which label
+//! is drawn (`agi_up.bmp`, `slow.bmp`, `dex_agi_up.bmp`).
 //!
 //! Per-particle recipe from the original game (the increase-agility effect),
 //! `DecAgility()` @ `:9975`, `IncAGIDEX()` @ `:8280`):
@@ -23,14 +21,20 @@
 //!   * alpha ramps in over 20 frames to max alpha 200/255, then fades out
 //!     in the last 20 frames of a 50-frame lifetime
 //!
-//! Visual reference: short vertical white/violet streaks rising from a
-//! disc around the entity.
+//! Center label is a screen overlay. The
+//! original draws it in 2D screen space; we approximate with a camera-facing
+//! world billboard at the entity, which keeps it readable on top of the
+//! streaks. It rises (or falls, for Decagility) and fades in/out across the
+//! parent's lifetime.
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const STREAK_TEXTURE: &str = "ac_center2.tga";
-pub const TEXTURES: &[&str] = &[STREAK_TEXTURE];
+pub const AGI_UP_TEXTURE: &str = "agi_up.bmp";
+pub const SLOW_TEXTURE: &str = "slow.bmp";
+pub const DEX_AGI_UP_TEXTURE: &str = "dex_agi_up.bmp";
+pub const TEXTURES: &[&str] = &[STREAK_TEXTURE, AGI_UP_TEXTURE, SLOW_TEXTURE, DEX_AGI_UP_TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const PARENT_DURATION_FRAMES: f32 = 60.0;
@@ -41,18 +45,41 @@ const PARTICLE_FADEOUT_AT: f32 = PARTICLE_DURATION_FRAMES - 20.0;
 const PARTICLE_MAX_ALPHA: f32 = 200.0 / 255.0;
 // After the original game's X-rotation of ±90° the cross-texture's
 // width size becomes the streak's vertical extent and height size
-// becomes its perpendicular thickness. The original game's literal
-// `(random(60)+30)/10 = 3..9` is in its own scale; the gif reference
-// shows streaks shorter than a character (~5 wu in our coords), so we
-// shrink to sub-character size to match the silhouette.
-const PARTICLE_LENGTH_MIN: f32 = 1.5;
-const PARTICLE_LENGTH_MAX: f32 = 3.0;
-const PARTICLE_THICKNESS: f32 = 0.4;
-// radius `random(7) + 2` = 2..9 wu; the gif shows streaks
-// clustered tight around the entity (within roughly one character
-// footprint, ~1.5 wu), so we shrink the disc to match.
-const RADIUS_MIN: f32 = 0.6;
-const RADIUS_MAX: f32 = 2.0;
+// becomes its perpendicular thickness. Original-game literal range
+// `(random(60)+30)/10 = 3..9` reads directly in our world units — the
+// streaks are meant to span roughly one character height, not a
+// fraction of it.
+const PARTICLE_LENGTH_MIN: f32 = 3.0;
+const PARTICLE_LENGTH_MAX: f32 = 7.0;
+const PARTICLE_THICKNESS: f32 = 0.6;
+// radius `random(7) + 2` = 2..9 wu; gif shows the streaks
+// clustered tight enough to read as one column above the entity, but
+// still wide enough to show several streaks side-by-side around it.
+const RADIUS_MIN: f32 = 2.0;
+const RADIUS_MAX: f32 = 9.0;
+
+// Center label (2D texture) sizing. Uses half-extents
+// width=40 / height=20 px in screen space; characters render at
+// roughly 10 px per world unit at the default camera distance, so
+// 4×2 wu approximates the original screen footprint and stays
+// readable when the camera zooms.
+const LABEL_WIDTH: f32 = 5.0;
+const LABEL_HEIGHT_INC: f32 = 2.5;
+const LABEL_HEIGHT_DEC: f32 = 1.25;
+const LABEL_MAX_ALPHA: f32 = 200.0 / 255.0;
+const LABEL_FADE_FRAMES: f32 = 15.0;
+const LABEL_FADEOUT_AT: f32 = PARENT_DURATION_FRAMES - LABEL_FADE_FRAMES;
+// Vertical drift in world units / frame. The original's 1.5 / 1.0 px/frame
+// values map to ~0.15 / 0.10 wu/frame at the same 10 px/wu scale.
+const LABEL_RISE_SPEED: f32 = 0.15;
+const LABEL_FALL_SPEED: f32 = 0.10;
+// Decagility starts the label above the entity (vertical offset y -= 80
+// in pixels → ~8 wu in world space, native RO -Y up).
+const LABEL_DEC_SPAWN_Y: f32 = -8.0;
+// Center label sits roughly at chest height above the entity origin
+// (origin is at feet) so it reads as a tag on the character, not
+// floating in the dirt.
+const LABEL_INC_SPAWN_Y: f32 = -4.0;
 
 pub const TOTAL_DURATION_MS: u32 =
     ((PARENT_DURATION_FRAMES + PARTICLE_DURATION_FRAMES) / FRAMES_PER_SECOND * 1000.0) as u32;
@@ -69,6 +96,15 @@ pub struct Params {
     pub spawn_y_offset: f32,
     /// RGB tint multiplied onto the streak texture's alpha mask.
     pub tint: [f32; 3],
+    /// Center text/icon texture (`agi_up.bmp`, `slow.bmp` or
+    /// `dex_agi_up.bmp`) drawn as a billboard at the entity.
+    pub label_texture: &'static str,
+    /// Label half-height in world units (width is shared across variants).
+    pub label_height: f32,
+    /// Initial Y velocity for the label (native RO: negative = upward).
+    pub label_speed_per_frame: f32,
+    /// Y offset where the label spawns relative to the entity origin.
+    pub label_spawn_y: f32,
 }
 
 pub const INCAGILITY: Params = Params {
@@ -77,6 +113,10 @@ pub const INCAGILITY: Params = Params {
     accel_per_frame: 0.0,
     spawn_y_offset: 0.0,
     tint: [1.0, 1.0, 1.0],
+    label_texture: AGI_UP_TEXTURE,
+    label_height: LABEL_HEIGHT_INC,
+    label_speed_per_frame: -LABEL_RISE_SPEED,
+    label_spawn_y: LABEL_INC_SPAWN_Y,
 };
 
 pub const DECAGILITY: Params = Params {
@@ -86,6 +126,10 @@ pub const DECAGILITY: Params = Params {
     accel_per_frame: 0.015,
     spawn_y_offset: -20.0,
     tint: [1.0, 1.0, 1.0],
+    label_texture: SLOW_TEXTURE,
+    label_height: LABEL_HEIGHT_DEC,
+    label_speed_per_frame: LABEL_FALL_SPEED,
+    label_spawn_y: LABEL_DEC_SPAWN_Y,
 };
 
 pub const INCAGIDEX: Params = Params {
@@ -95,6 +139,10 @@ pub const INCAGIDEX: Params = Params {
     // gif reference (`imgs/0-50/43.gif`) shows mauve/violet streaks
     // instead of pure white.
     tint: [0.85, 0.7, 1.0],
+    label_texture: DEX_AGI_UP_TEXTURE,
+    label_height: LABEL_HEIGHT_INC,
+    label_speed_per_frame: -LABEL_RISE_SPEED,
+    label_spawn_y: LABEL_INC_SPAWN_Y,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -246,6 +294,43 @@ impl Effect for StatusUpEffect {
                 blend: BlendKind::Additive,
             });
         }
+
+        if let Some((label_pos, label_alpha)) = self.label_state() {
+            out.push(EffectPrimitiveDraw::Billboard {
+                pos: label_pos,
+                size: [LABEL_WIDTH, self.params.label_height],
+                uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
+                rotation: 0.0,
+                texture: self.params.label_texture,
+                color: [1.0, 1.0, 1.0, label_alpha],
+                blend: BlendKind::Alpha,
+            });
+        }
+    }
+}
+
+impl StatusUpEffect {
+    /// `(world_position, alpha)` of the center label when it should be
+    /// drawn, or `None` past the parent lifetime.
+    fn label_state(&self) -> Option<([f32; 3], f32)> {
+        if self.age_frames > PARENT_DURATION_FRAMES {
+            return None;
+        }
+        let fade_in = (self.age_frames / LABEL_FADE_FRAMES).clamp(0.0, 1.0);
+        let fade_out = if self.age_frames < LABEL_FADEOUT_AT {
+            1.0
+        } else {
+            let span = (PARENT_DURATION_FRAMES - LABEL_FADEOUT_AT).max(1e-3);
+            (1.0 - (self.age_frames - LABEL_FADEOUT_AT) / span).clamp(0.0, 1.0)
+        };
+        let alpha = LABEL_MAX_ALPHA * fade_in * fade_out;
+        if alpha <= 0.0 {
+            return None;
+        }
+        let y = self.world_pos[1]
+            + self.params.label_spawn_y
+            + self.params.label_speed_per_frame * self.age_frames;
+        Some(([self.world_pos[0], y, self.world_pos[2]], alpha))
     }
 }
 
@@ -267,20 +352,32 @@ mod tests {
     }
 
     #[test]
-    fn incagility_emits_billboards_rising_around_entity() {
+    fn incagility_emits_streaks_on_ring_plus_center_label() {
         // Sociable test: 2-frame spawn cadence + radius-2..9 ring +
-        // upward Y motion. After a handful of frames there's more than
-        // one particle, all on the disc around the entity, and the Y
-        // velocity is negative (upward in native RO).
+        // upward Y motion, and a single center label sitting at the
+        // entity's XZ. The label is the `agi_up.bmp` overlay.
         let mut e = StatusUpEffect::new([10.0, 0.0, 20.0], INCAGILITY);
         for _ in 0..6 {
             e.update(&ctx(1.0 / FRAMES_PER_SECOND));
         }
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
-        // Frames 0,2,4 spawned → at least 3 particles.
-        assert!(list.primitives.len() >= 3, "spawn cadence every 2 frames");
-        for prim in &list.primitives {
+
+        let (labels, streaks): (Vec<_>, Vec<_>) =
+            list.primitives.iter().partition(|p| match p {
+                EffectPrimitiveDraw::Billboard { texture, .. } => *texture == AGI_UP_TEXTURE,
+                _ => false,
+            });
+        assert_eq!(labels.len(), 1, "exactly one center label per frame");
+        let EffectPrimitiveDraw::Billboard { pos, color, .. } = labels[0] else {
+            unreachable!();
+        };
+        assert!((pos[0] - 10.0).abs() < 1e-3 && (pos[2] - 20.0).abs() < 1e-3);
+        assert!(color[3] > 0.0);
+
+        // Frames 0,2,4 spawned → at least 3 streak particles.
+        assert!(streaks.len() >= 3, "spawn cadence every 2 frames");
+        for prim in &streaks {
             let EffectPrimitiveDraw::Billboard { pos, color, .. } = prim else {
                 panic!("expected Billboard, got {prim:?}");
             };
@@ -289,9 +386,28 @@ mod tests {
             let r = (dx * dx + dz * dz).sqrt();
             assert!(
                 (RADIUS_MIN - 0.5..=RADIUS_MAX + 0.5).contains(&r),
-                "particle on radius 2..9 disc: r={r}",
+                "particle on radius disc: r={r}",
             );
             assert!(color[3] > 0.0, "non-zero alpha during fade-in");
+        }
+    }
+
+    #[test]
+    fn each_variant_uses_its_own_label_texture() {
+        for (params, expected) in [
+            (INCAGILITY, AGI_UP_TEXTURE),
+            (DECAGILITY, SLOW_TEXTURE),
+            (INCAGIDEX, DEX_AGI_UP_TEXTURE),
+        ] {
+            let mut e = StatusUpEffect::new([0.0, 0.0, 0.0], params);
+            e.update(&ctx(1.0 / FRAMES_PER_SECOND));
+            let mut list = EffectDrawList::new();
+            e.collect_draws(&mut list, &render_ctx());
+            let found = list.primitives.iter().any(|p| match p {
+                EffectPrimitiveDraw::Billboard { texture, .. } => *texture == expected,
+                _ => false,
+            });
+            assert!(found, "label texture {expected} not emitted");
         }
     }
 
@@ -312,7 +428,11 @@ mod tests {
             .primitives
             .iter()
             .filter_map(|p| match p {
-                EffectPrimitiveDraw::Billboard { pos, .. } => Some(pos[1]),
+                EffectPrimitiveDraw::Billboard { pos, texture, .. }
+                    if *texture == STREAK_TEXTURE =>
+                {
+                    Some(pos[1])
+                }
                 _ => None,
             })
             .fold(f32::MIN, f32::max);

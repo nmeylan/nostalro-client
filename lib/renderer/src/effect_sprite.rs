@@ -168,13 +168,13 @@ pub fn build_emitter_batches<'a>(draws: &[EmitterDraw<'a>]) -> Vec<SpriteBatch<'
 /// existing `Spr` / `Smoke3D` emitter draws, so the resulting sprite
 /// quads land in the same render pass with consistent depth and blend
 /// behaviour.
-pub fn collect_sprite_particle_emitter_draws<'a>(
+pub fn collect_sprite_particle_emitter_draws<'cache>(
     list: &EffectDrawList,
-    cache: &'a EffectSpriteCache,
+    cache: &'cache EffectSpriteCache,
     camera: &Camera,
     screen_w: f32,
     screen_h: f32,
-) -> Vec<EmitterDraw<'a>> {
+) -> Vec<EmitterDraw<'cache>> {
     let mut draws = Vec::new();
     for prim in &list.primitives {
         let EffectPrimitiveDraw::SpriteParticle {
@@ -283,13 +283,13 @@ pub enum SpriteEffectEmitter<'a> {
 /// Collect [`EmitterDraw`] entries from emitters. Shared between the game
 /// client and rsw-viewer so the projection / animation logic is not
 /// duplicated.
-pub fn collect_sprite_effect_draws<'a>(
-    emitters: &[SpriteEffectEmitter<'a>],
-    cache: &'a EffectSpriteCache,
+pub fn collect_sprite_effect_draws<'cache>(
+    emitters: &[SpriteEffectEmitter<'_>],
+    cache: &'cache EffectSpriteCache,
     camera: &Camera,
     screen_w: f32,
     screen_h: f32,
-) -> Vec<EmitterDraw<'a>> {
+) -> Vec<EmitterDraw<'cache>> {
     let mut draws = Vec::new();
     for emitter in emitters {
         match emitter {

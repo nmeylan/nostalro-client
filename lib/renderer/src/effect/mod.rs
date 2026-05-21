@@ -1,6 +1,7 @@
 pub mod blend;
 pub mod holder;
 pub mod primitives;
+pub mod scene;
 pub mod str_pipeline;
 
 pub use blend::d3d_blend_to_wgpu;
@@ -13,6 +14,7 @@ pub use ragnarok_game::effect::{
     BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectRenderCtx, EffectStatus,
     EffectUpdateCtx,
 };
+pub use scene::{EffectFrameInputs, EffectFrameOutputs, compose_effect_frame};
 pub use str_pipeline::{
     StrEffectCache, StrEffectEntry, StrEmitterInput, build_str_effect_batches,
 };

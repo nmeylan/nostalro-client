@@ -3,13 +3,13 @@ use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
 use ragnarok_game::effect_table::EffectKind;
 use ragnarok_game::effects::EffectManager;
 use ragnarok_game::shadow::shadow_size;
+use ragnarok_renderer::effect::{
+    EffectFrameInputs, StrEmitterInput, compose_effect_frame,
+};
 use ragnarok_renderer::effect_sprite::SpriteEffectEmitter;
-use ragnarok_renderer::effect::StrEmitterInput;
 use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_renderer::{
-    SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad, build_emitter_batches,
-    build_str_effect_batches, collect_sprite_effect_draws,
-    collect_sprite_particle_emitter_draws, scale_clip_vertices,
+    SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad, scale_clip_vertices,
 };
 
 impl App {
@@ -304,75 +304,30 @@ impl App {
         if let Some(renderer) = &mut self.renderer {
             let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
             let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
-            let emitter_inputs = crate::scene::build_sprite_effect_inputs(&self.game.effects);
-            let sprite_emitter_draws = collect_sprite_effect_draws(
-                &emitter_inputs,
-                &self.effect_sprites,
-                &renderer.camera,
-                screen_w,
-                screen_h,
-            );
-            let mut effect_batches = build_emitter_batches(&sprite_emitter_draws);
-
-            let mut str_inputs = build_str_emitter_inputs(&self.game.effects);
-            let holder_str_snapshots = self.effect_holder.collect_str_emitters(&|_| None);
-            for snap in &holder_str_snapshots {
-                str_inputs.push(StrEmitterInput {
-                    str_name: &snap.name,
-                    position: snap.position,
-                    anim_time: snap.anim_time,
-                });
-            }
+            let extra_spr = build_sprite_effect_inputs(&self.game.effects);
+            let extra_str = build_str_emitter_inputs(&self.game.effects);
             let zoom = self
                 .game
                 .map_coords
                 .as_ref()
                 .map_or(10.0, |c| c.zoom());
-            let mut str_batches = build_str_effect_batches(
-                &str_inputs,
-                &self.str_effects,
-                &renderer.camera,
+            let frame = compose_effect_frame(&EffectFrameInputs {
+                effect_holder: &self.effect_holder,
+                effect_sprites: &self.effect_sprites,
+                str_effects: &self.str_effects,
+                camera: &renderer.camera,
                 screen_w,
                 screen_h,
                 zoom,
-            );
-            effect_batches.append(&mut str_batches);
-
-            // Collect custom-effect primitives (Ring etc.) into a draw list.
-            // Billboard variants still flow through the sprite path for now;
-            // dedicated primitives like Ring go via the new render path.
-            let mut effect_draws = ragnarok_renderer::effect::EffectDrawList::new();
-            let render_ctx = ragnarok_renderer::effect::EffectRenderCtx {
-                camera: ragnarok_game::effect::CameraView {
-                    eye: renderer.camera.eye().to_array(),
-                    target: renderer.camera.target.to_array(),
-                    up: [0.0, -1.0, 0.0],
-                },
-                screen_w,
-                screen_h,
                 elapsed,
-            };
-            self.effect_holder
-                .collect_custom_draws(&mut effect_draws, &render_ctx);
-
-            // Custom effects can emit `SpriteParticle` primitives for
-            // per-particle SPR billboards (Hit's debris, etc.). Project
-            // them now and append to the same sprite batch list as the
-            // emitter-driven Spr / Smoke3D draws so they share the
-            // sprite render pass.
-            let sprite_particle_draws = collect_sprite_particle_emitter_draws(
-                &effect_draws,
-                &self.effect_sprites,
-                &renderer.camera,
-                screen_w,
-                screen_h,
-            );
-            effect_batches.extend(build_emitter_batches(&sprite_particle_draws));
+                extra_spr_emitters: &extra_spr,
+                extra_str_emitters: &extra_str,
+            });
 
             renderer.render(
                 &all_ui_calls,
-                &effect_batches,
-                &effect_draws,
+                &frame.effect_batches,
+                &frame.effect_draws,
                 &sprite_batches,
                 &cursor_batches,
                 &inline_textures,
