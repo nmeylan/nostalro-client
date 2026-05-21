@@ -24,9 +24,10 @@ use ragnarok_game::map_loader::{self, MapData};
 use ragnarok_game::sprite_loader as game_sprite_loader;
 use ragnarok_game::sprite_path::weapon_view_id_to_type;
 use ragnarok_renderer::effect::{
-    EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, StrEffectCache, StrEmitterInput,
-    build_str_effect_batches,
+    EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, StrEffectCache,
+    StrEmitterInput, build_str_effect_batches,
 };
+use ragnarok_renderer::{EffectSpriteCache, build_emitter_batches};
 use ragnarok_renderer::sprite::{EntitySprite, build_entity_sprite, upload_sprite_textures};
 use ragnarok_renderer::sprite_projection::{cell_world_pos, project_entity_screen};
 use ragnarok_renderer::{BackgroundMode, Renderer, UiDrawCall, block_on};
@@ -87,6 +88,12 @@ pub struct App {
     effect_holder: EffectHolder,
     effect_queue: EffectQueue,
     str_effects: StrEffectCache,
+    /// Per-frame SPR billboards for Custom effects that emit
+    /// `SpriteParticle` primitives (Sight, Ruwach, Exit, Hit). Lazily
+    /// loaded on first spawn that needs a given path; subsequent spawns
+    /// reuse the cached sprite.
+    effect_sprites: EffectSpriteCache,
+    attempted_spr_files: std::collections::HashSet<String>,
     effect_list: Vec<EffectId>,
     current_effect_idx: usize,
     current_effect_id: Option<EffectId>,
@@ -131,6 +138,8 @@ impl App {
             effect_holder: EffectHolder::new(),
             effect_queue: EffectQueue::new(),
             str_effects: StrEffectCache::new(),
+            effect_sprites: EffectSpriteCache::new(),
+            attempted_spr_files: std::collections::HashSet::new(),
             effect_list: build_effect_list(),
             current_effect_idx: 0,
             current_effect_id: None,
@@ -358,6 +367,7 @@ impl App {
     fn spawn_effect_on_character(&mut self, id: EffectId) {
         // Lazy STR load — the holder won't render until the bind groups exist.
         self.ensure_str_loaded(id);
+        self.ensure_spr_loaded_for(id);
         let pos = match (&self.map_data, true) {
             (Some(map), _) => self.world_anchor(map),
             _ => [0.0, 0.0, 0.0],
@@ -446,6 +456,39 @@ impl App {
         browser.open = false;
         if let Some(&id) = self.browser_lookup.get(&selected) {
             self.spawn_effect_on_character(id);
+        }
+    }
+
+    /// Lazy-load SPR sprites for `EffectSpec::Spr`/`SprBurst` (driven by
+    /// the spec) and for `EffectSpec::Custom` (the aggregated module
+    /// `SPRITES` constants, since the holder doesn't know which sprites
+    /// the custom effect will emit until it runs). Mirrors
+    /// `effect_viewer::App::ensure_spr_loaded_for`.
+    fn ensure_spr_loaded_for(&mut self, id: EffectId) {
+        let mut sprites: Vec<&'static str> = Vec::new();
+        match effect_spec(id) {
+            Some(EffectSpec::Spr { sprite, .. }) => sprites.push(sprite),
+            Some(EffectSpec::SprBurst { sprite, .. }) => sprites.push(sprite),
+            Some(EffectSpec::Custom { .. }) => {
+                sprites.extend(ragnarok_game::effect::custom_effect_sprite_paths());
+            }
+            _ => return,
+        }
+        for sprite in sprites {
+            if self.attempted_spr_files.contains(sprite) {
+                continue;
+            }
+            self.attempted_spr_files.insert(sprite.to_string());
+            let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) else {
+                return;
+            };
+            self.effect_sprites.load(
+                sprite,
+                grf,
+                &renderer.device.device,
+                &renderer.device.queue,
+                &renderer.texture_cache.bind_group_layout,
+            );
         }
     }
 
@@ -792,6 +835,20 @@ impl App {
         };
         self.effect_holder
             .collect_custom_draws(&mut effect_draws, &render_ctx);
+        // Custom effects can emit `SpriteParticle` primitives for per-particle
+        // SPR billboards (Sight, Ruwach, Exit, Hit). Project them and append
+        // to the effect batch list so they share the sprite render pass with
+        // emitter-driven draws.
+        let sprite_particle_draws =
+            ragnarok_renderer::collect_sprite_particle_emitter_draws(
+                &effect_draws,
+                &self.effect_sprites,
+                &renderer.camera,
+                screen_w,
+                screen_h,
+            );
+        let mut effect_batches = effect_batches;
+        effect_batches.extend(build_emitter_batches(&sprite_particle_draws));
 
         let sprite_batches: Vec<ragnarok_renderer::sprite::SpriteBatch<'_>> =
             match (&self.entity_sprite, &self.map_data) {

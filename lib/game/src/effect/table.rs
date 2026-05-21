@@ -10,7 +10,7 @@
 use models::enums::effect_id::EffectId;
 
 use super::buckets::{is_custom_bucket, is_noop_bucket};
-use super::effects::{bottom_sanctuary_pillar, cast_circle, entry, frost_diver, hit, hit2, hit5_6, magnum_break, stormgust, volcano, warp};
+use super::effects::{bottom_sanctuary_pillar, cast_circle, entry, exit as exit_effect, frost_diver, hit, hit2, hit5_6, magnum_break, sight, status_up, stormgust, volcano, warp};
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
 use super::spr_burst::spr_burst_params;
@@ -76,6 +76,13 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             duration_ms: entry::TOTAL_DURATION_MS,
         },
 
+        // Exit — translucent cylinder + periodic orbit sparkles. The
+        // cylinder runs 100 frames; the last spawned sparkle lives 50
+        // more, so the holder's lifetime is parent + particle envelope.
+        EffectId::Exit => EffectSpec::Custom {
+            duration_ms: exit_effect::TOTAL_DURATION_MS,
+        },
+
         // Frost Diver family — QuadHorn ice spikes. FrostDiver2 is the
         // one-shot 8-spike burst; FrostDiver staggers spawns across a
         // shorter window. Both share `FrostDiverEffect` via params.
@@ -85,6 +92,25 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Frostdiver2 => EffectSpec::Custom {
             duration_ms: frost_diver::total_duration_ms(&frost_diver::FROSTDIVER2),
         },
+
+        // Sight / Ruwach — orbit emitters share `OrbitEffect`. Pin the
+        // visible lifetime to the parent + particle envelope so the
+        // holder doesn't reap mid-fade.
+        EffectId::Sight => EffectSpec::Custom {
+            duration_ms: sight::total_duration_ms(&sight::SIGHT),
+        },
+        EffectId::Ruwach => EffectSpec::Custom {
+            duration_ms: sight::total_duration_ms(&sight::RUWACH),
+        },
+
+        // StatusUp family — crossed-texture streak particles. Pin
+        // the holder lifetime to parent + particle envelope so streaks
+        // finish gracefully.
+        EffectId::Incagility | EffectId::Decagility | EffectId::Incagidex => {
+            EffectSpec::Custom {
+                duration_ms: status_up::TOTAL_DURATION_MS,
+            }
+        }
 
         // VOLCANO family — visible burst is one cycle of the four flame
         // emitters; the duration table values (3000ms / 9990ms) outlive the

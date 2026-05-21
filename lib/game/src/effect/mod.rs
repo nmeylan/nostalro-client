@@ -45,11 +45,13 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::aura::TEXTURES,
         effects::cast_circle::TEXTURES,
         effects::entry::TEXTURES,
+        effects::exit::TEXTURES,
         effects::frost_diver::TEXTURES,
         effects::begin_spell_6::TEXTURES,
         effects::stormgust::TEXTURES,
         effects::animated_texture_billboard::TEXTURES,
         effects::placeholder::TEXTURES,
+        effects::status_up::TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {
@@ -68,7 +70,11 @@ pub fn effect_texture_paths() -> Vec<String> {
 /// them so the preload list stays in sync with the source files.
 pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
     let mut seen = std::collections::BTreeSet::new();
-    let sprite_lists: &[&[&str]] = &[effects::hit::SPRITES];
+    let sprite_lists: &[&[&str]] = &[
+        effects::hit::SPRITES,
+        effects::sight::SPRITES,
+        effects::exit::SPRITES,
+    ];
     for list in sprite_lists {
         for path in *list {
             seen.insert(*path);

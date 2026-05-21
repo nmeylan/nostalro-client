@@ -24,6 +24,7 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor) -> Option<Box<dyn Effect>
     Some(match id {
         EffectId::Warp => Box::new(effects::warp::WarpEffect::new(anchor.point())),
         EffectId::Entry => Box::new(effects::entry::EntryEffect::new(anchor.point())),
+        EffectId::Exit => Box::new(effects::exit::ExitEffect::new(anchor.point())),
 
         // Frost Diver — trail-shaped, unpacks both endpoints. Single-point
         // anchors (effect-viewer demo, any caller that doesn't know about
@@ -48,6 +49,33 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor) -> Option<Box<dyn Effect>
         EffectId::Magnumbreak => {
             Box::new(effects::magnum_break::MagnumBreakEffect::new(anchor.point()))
         }
+
+        // Sight + Ruwach — orbit-spawn SpriteParticle pairs around the
+        // entity. Same struct, different per-skill `Params`.
+        EffectId::Sight => Box::new(effects::sight::OrbitEffect::new(
+            anchor.point(),
+            effects::sight::SIGHT,
+        )),
+        EffectId::Ruwach => Box::new(effects::sight::OrbitEffect::new(
+            anchor.point(),
+            effects::sight::RUWACH,
+        )),
+
+        // StatusUp family — crossed-texture streak particles around
+        // the entity. Incagility/Incagidex rise; Decagility falls. Tints
+        // differ per id.
+        EffectId::Incagility => Box::new(effects::status_up::StatusUpEffect::new(
+            anchor.point(),
+            effects::status_up::INCAGILITY,
+        )),
+        EffectId::Decagility => Box::new(effects::status_up::StatusUpEffect::new(
+            anchor.point(),
+            effects::status_up::DECAGILITY,
+        )),
+        EffectId::Incagidex => Box::new(effects::status_up::StatusUpEffect::new(
+            anchor.point(),
+            effects::status_up::INCAGIDEX,
+        )),
 
         // Hit family — weapon-swing impact shockwave + debris.
         // The cylinder ring + per-segment particle trails follow the
@@ -439,9 +467,15 @@ pub fn is_real_impl(id: EffectId) -> bool {
         id,
         EffectId::Warp
             | EffectId::Entry
+            | EffectId::Exit
             | EffectId::Frostdiver
             | EffectId::Frostdiver2
             | EffectId::Magnumbreak
+            | EffectId::Sight
+            | EffectId::Ruwach
+            | EffectId::Incagility
+            | EffectId::Decagility
+            | EffectId::Incagidex
             | EffectId::Hit1
             | EffectId::Hit2
             | EffectId::Hit3
