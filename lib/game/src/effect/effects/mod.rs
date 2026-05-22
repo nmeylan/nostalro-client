@@ -5,6 +5,8 @@
 //! ([`super::factory::make_effect`]) is the single dispatch point.
 
 pub mod aura;
+pub mod bash;
+pub mod blessing;
 pub mod begin_spell_6;
 pub mod bottom_hermode;
 pub mod bottom_landprotector;
@@ -15,20 +17,28 @@ pub mod bottom_sanctuary_pillar;
 pub mod bottom_song;
 pub mod bottom_vertical;
 pub mod cast_circle;
+pub mod endure;
+pub mod enhance;
 pub mod entry;
 pub mod exit;
 pub mod firearrow;
 pub mod fireball;
 pub mod frost_diver;
+pub mod glasswall;
+pub mod healsp;
 pub mod hit;
 pub mod hit2;
 pub mod hit5_6;
 pub mod magnum_break;
 pub mod napalmbeat;
 pub mod placeholder;
+pub mod portal;
+pub mod ready_portal;
 pub mod sandwind;
 pub mod sight;
 pub mod status_up;
+pub mod spraypond;
+pub mod teleportation;
 pub mod stormgust;
 pub mod animated_texture_billboard;
 pub mod volcano;

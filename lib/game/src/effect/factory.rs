@@ -13,6 +13,8 @@
 
 use models::enums::effect_id::EffectId;
 use super::buckets::is_hybrid;
+// `bash` lives here in alphabetical order; the match arm is below near
+// the other bucket-0-50 ids.
 use super::effect_trait::Effect;
 use super::effects;
 use super::spec::EffectAnchor;
@@ -23,8 +25,18 @@ use super::str_aliases::str_aliases;
 pub fn make_effect(id: EffectId, anchor: EffectAnchor) -> Option<Box<dyn Effect>> {
     Some(match id {
         EffectId::Warp => Box::new(effects::warp::WarpEffect::new(anchor.point())),
+        EffectId::Bash => Box::new(effects::bash::BashEffect::new(anchor.point())),
+        EffectId::Blessing => Box::new(effects::blessing::BlessingEffect::new(anchor.point())),
+        EffectId::Endure => Box::new(effects::endure::EndureEffect::new(anchor.point())),
+        EffectId::Enhance => Box::new(effects::enhance::EnhanceEffect::new(anchor.point())),
         EffectId::Entry => Box::new(effects::entry::EntryEffect::new(anchor.point())),
         EffectId::Exit => Box::new(effects::exit::ExitEffect::new(anchor.point())),
+        EffectId::Glasswall => Box::new(effects::glasswall::GlasswallEffect::new(anchor.point())),
+        EffectId::Healsp => Box::new(effects::healsp::HealSpEffect::new(anchor.point())),
+        EffectId::Portal => Box::new(effects::portal::PortalEffect::new(anchor.point())),
+        EffectId::Readyportal => Box::new(effects::ready_portal::ReadyPortalEffect::new(anchor.point())),
+        EffectId::Teleportation => Box::new(effects::teleportation::TeleportationEffect::new(anchor.point())),
+        EffectId::Spraypond => Box::new(effects::spraypond::SpraypondEffect::new(anchor.point())),
         // Only the four ids without an STR file in the classic GRF
         // (firearrow, fireball, napalmbeat, sandwind) need a Custom
         // impl — everything else falls back to the canonical STR.
@@ -473,8 +485,16 @@ pub fn is_real_impl(id: EffectId) -> bool {
     matches!(
         id,
         EffectId::Warp
+            | EffectId::Bash
+            | EffectId::Blessing
+            | EffectId::Endure
+            | EffectId::Enhance
             | EffectId::Entry
             | EffectId::Exit
+            | EffectId::Glasswall
+            | EffectId::Healsp
+            | EffectId::Portal
+            | EffectId::Spraypond
             | EffectId::Firearrow
             | EffectId::Fireball
             | EffectId::Napalmbeat

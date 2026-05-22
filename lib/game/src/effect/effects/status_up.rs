@@ -59,13 +59,12 @@ const RADIUS_MIN: f32 = 2.0;
 const RADIUS_MAX: f32 = 9.0;
 
 // Center label sizing. The original uses half-extents
-// width=40 / height=20 px in screen space; characters render at
-// roughly 10 px per world unit at the default camera distance, so
-// 4×2 wu approximates the original screen footprint and stays
-// readable when the camera zooms.
-const LABEL_WIDTH: f32 = 5.0;
-const LABEL_HEIGHT_INC: f32 = 2.5;
-const LABEL_HEIGHT_DEC: f32 = 1.25;
+// width=40 / height=20 px in screen space; at our default camera
+// distance ~5 px/wu, so 10 wu reads close to that screen
+// footprint and stays legible without going over the character.
+const LABEL_WIDTH: f32 = 10.0;
+const LABEL_HEIGHT_INC: f32 = 5.0;
+const LABEL_HEIGHT_DEC: f32 = 2.5;
 const LABEL_MAX_ALPHA: f32 = 200.0 / 255.0;
 const LABEL_FADE_FRAMES: f32 = 15.0;
 const LABEL_FADEOUT_AT: f32 = PARENT_DURATION_FRAMES - LABEL_FADE_FRAMES;

@@ -11,9 +11,10 @@ use models::enums::effect_id::EffectId;
 
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effects::{
-    bottom_sanctuary_pillar, cast_circle, entry, exit as exit_effect, firearrow,
-    fireball, frost_diver, hit, hit2, hit5_6, magnum_break, napalmbeat, sandwind,
-    sight, status_up, stormgust, volcano, warp,
+    bash, blessing, bottom_sanctuary_pillar, cast_circle, endure, enhance, entry,
+    exit as exit_effect, firearrow, fireball, frost_diver, glasswall, healsp, hit,
+    hit2, hit5_6, magnum_break, napalmbeat, portal, ready_portal, sandwind, sight, spraypond,
+    status_up, stormgust, teleportation, volcano, warp,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -71,6 +72,63 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // the effect module so it stays load-bearing on the constant).
         EffectId::BottomSanc => EffectSpec::Custom {
             duration_ms: bottom_sanctuary_pillar::TOTAL_DURATION_MS,
+        },
+
+        // Bash — radial 2D flash (halo + 20 spikes) approximated as
+        // world-space billboards.
+        EffectId::Bash => EffectSpec::Custom {
+            duration_ms: bash::TOTAL_DURATION_MS,
+        },
+
+        // Blessing — ground disc + angel sprites + rising twinkles.
+        EffectId::Blessing => EffectSpec::Custom {
+            duration_ms: blessing::TOTAL_DURATION_MS,
+        },
+
+        // HealSP — 3 nested cyan cylinders + orbiting particles.
+        EffectId::Healsp => EffectSpec::Custom {
+            duration_ms: healsp::TOTAL_DURATION_MS,
+        },
+
+        // Portal — sustained 2-cylinder column + periodic ground rings.
+        EffectId::Portal => EffectSpec::Custom {
+            duration_ms: portal::TOTAL_DURATION_MS,
+        },
+
+        // Ready Portal — the blue scalloped disc that precedes a portal
+        // materialising. Same ring emitter as `EF_PORTAL`'s ground pad.
+        EffectId::Readyportal => EffectSpec::Custom {
+            duration_ms: ready_portal::TOTAL_DURATION_MS,
+        },
+
+        // Teleportation — single growing/fading blue light beam.
+        // Shares the `ring_blue.tga` Frustum cylinder with `EF_PORTAL`.
+        EffectId::Teleportation => EffectSpec::Custom {
+            duration_ms: teleportation::TOTAL_DURATION_MS,
+        },
+
+        // Spraypond — 8 water streams + periodic crests/ripple rings.
+        EffectId::Spraypond => EffectSpec::Custom {
+            duration_ms: spraypond::TOTAL_DURATION_MS,
+        },
+
+        // Glasswall — 4 vertical wall quads forming a box around the
+        // target cell, plus `SafetyWall.str` cascading-particle overlay.
+        // Persistent until the skill cell expires.
+        EffectId::Glasswall => EffectSpec::Custom {
+            duration_ms: glasswall::TOTAL_DURATION_MS,
+        },
+
+        // Endure — central icon + per-frame radial spike emitter.
+        EffectId::Endure => EffectSpec::Custom {
+            duration_ms: endure::TOTAL_DURATION_MS,
+        },
+
+        // Enhance — ground ring + cylinder + cross-texture streaks; the
+        // last streak spawned at parent frame 47 outlives the parent by
+        // 50 streak-frames, so the holder needs parent + streak envelope.
+        EffectId::Enhance => EffectSpec::Custom {
+            duration_ms: enhance::TOTAL_DURATION_MS,
         },
 
         // Entry — two cylinders launched at frame 0; both die at frame

@@ -29,6 +29,62 @@ pub fn build_billboard_batches<'a>(
 ) -> Vec<SpriteBatch<'a>> {
     let mut batches = Vec::new();
     for prim in &list.primitives {
+        if let EffectPrimitiveDraw::BillboardDisc {
+            pos,
+            radius,
+            segments,
+            uv_repeat,
+            texture,
+            color,
+            blend,
+        } = prim
+        {
+            let Some((anchor, depth, ppu)) =
+                project_billboard(camera, *pos, screen_w, screen_h)
+            else {
+                continue;
+            };
+            let r = radius * ppu;
+            let n = (*segments).max(8);
+            let z = depth - 0.001;
+            // Triangle fan: vertex 0 = centre (V=1, opaque under
+            // alpha_down). Then `n+1` perimeter vertices spaced around
+            // the circle (V=0, transparent). U follows the arc 0..1
+            // (× `uv_repeat`), with the last vertex duplicating the
+            // first's screen position but at U = uv_repeat to keep the
+            // texture seamless.
+            let mut vertices: Vec<SpriteVertex> = Vec::with_capacity(n as usize + 2);
+            vertices.push(SpriteVertex {
+                position: [anchor[0], anchor[1], z],
+                tex_coord: [0.5, 1.0],
+                color: *color,
+            });
+            for s in 0..=n {
+                let t = s as f32 / n as f32;
+                let theta = t * std::f32::consts::TAU;
+                let (sin_t, cos_t) = theta.sin_cos();
+                vertices.push(SpriteVertex {
+                    position: [anchor[0] + r * cos_t, anchor[1] + r * sin_t, z],
+                    tex_coord: [t * uv_repeat, 0.0],
+                    color: *color,
+                });
+            }
+            let mut indices: Vec<u32> = Vec::with_capacity(n as usize * 3);
+            for s in 0..n {
+                indices.push(0);
+                indices.push(1 + s);
+                indices.push(2 + s);
+            }
+            let texture_bg = texture_lookup(texture).unwrap_or(fallback_texture);
+            batches.push(SpriteBatch {
+                vertices,
+                indices,
+                texture: texture_bg,
+                additive: blend_is_additive(blend),
+            });
+            continue;
+        }
+
         let EffectPrimitiveDraw::Billboard {
             pos,
             size,

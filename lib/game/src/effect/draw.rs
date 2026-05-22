@@ -46,6 +46,26 @@ pub enum EffectPrimitiveDraw {
         color: [f32; 4],
         blend: BlendKind,
     },
+    /// Camera-facing filled disc with polar UV mapping.
+    ///
+    /// Like `Billboard` (anchor projected to screen, then geometry built in
+    /// screen pixels via `ppu`), but the shape is a circle of `radius` world
+    /// units instead of a quad. UV mapping matches `GroundDisc`'s
+    /// radial convention: V=1 at the centre, V=0 at the
+    /// outer rim — so a vertical-gradient texture like `alpha_down.tga`
+    /// renders as a radial alpha gradient (opaque centre → transparent
+    /// edge). `segments` controls the perimeter tessellation; `uv_repeat`
+    /// is how many times the texture wraps around the circumference (U
+    /// direction), matching `GroundDisc`'s convention.
+    BillboardDisc {
+        pos: [f32; 3],
+        radius: f32,
+        segments: u32,
+        uv_repeat: f32,
+        texture: &'static str,
+        color: [f32; 4],
+        blend: BlendKind,
+    },
     /// Flat-on-ground textured annulus or partial-arc wedge.
     ///
     /// `arc_angle_deg` is the **total arc span** in degrees (`>= 360` = full
