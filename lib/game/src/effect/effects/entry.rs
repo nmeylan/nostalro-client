@@ -246,9 +246,9 @@ mod tests {
 
     #[test]
     fn outer_top_widens_over_lifetime() {
-        // Sociable test: outer speed = 0.08/frame on the original game's outer
-        // cone — top radius must grow monotonically from frame 0 → end,
-        // while the bottom stays pinned at inner size 5.
+        // Sociable test: the outer cone's top radius grows at 0.08/frame —
+        // it must grow monotonically from frame 0 → end,
+        // while the bottom stays pinned at 5.
         let mut e = EntryEffect::new([0.0; 3]);
         step(&mut e, 0.0);
         let (b0, t0) = match &draws(&e)[0] {

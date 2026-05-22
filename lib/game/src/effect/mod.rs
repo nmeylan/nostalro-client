@@ -52,6 +52,9 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::animated_texture_billboard::TEXTURES,
         effects::placeholder::TEXTURES,
         effects::status_up::TEXTURES,
+        effects::firearrow::TEXTURES,
+        effects::napalmbeat::TEXTURES,
+        effects::sandwind::TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {
@@ -74,6 +77,7 @@ pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
         effects::hit::SPRITES,
         effects::sight::SPRITES,
         effects::exit::SPRITES,
+        effects::fireball::SPRITES,
     ];
     for list in sprite_lists {
         for path in *list {

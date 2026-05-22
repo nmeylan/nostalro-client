@@ -8,7 +8,7 @@
 //! `-Y` = up). Per variant the side-half-extents,
 //! total height and tint differ.
 //!
-//! per-F1 (from the Bottom_Magnus formula):
+//! Per-variant parameters (observed behavior):
 //!
 //! | var| label   | half-XZ | height | tint (RGB) | blend            |
 //! |----|---------|---------|--------|------------|------------------|
@@ -22,7 +22,7 @@
 //! module covers Magnus (`EF_BOTTOM_MAG`) and Fogwall
 //! (`EF_BOTTOM_FOGWALL`) using a 4-sided `Frustum` (square prism).
 //!
-//! Per the original game's up-rect render, F1=2 (Fogwall) also draws two diagonal
+//! In the original game, variant 2 (Fogwall) also draws two diagonal
 //! cross-faces inside the box at double alpha; we collapse to the box
 //! alone — the cross-faces are nearly co-planar with the sides and
 //! read as a slight alpha boost rather than visible geometry.
@@ -37,28 +37,28 @@ pub struct BottomMagnusParams {
     /// 2.5 for Fogwall.) The base is square, so both XZ half-extents are
     /// equal.
     pub half_extent: f32,
-    /// Total pillar height in world units. Original max height.
+    /// Total pillar height in world units.
     pub height: f32,
     /// RGB tint applied per variant.
     pub tint_rgb: [f32; 3],
-    /// Blend mode. The original game passes `p=0` for Magnus (alpha blend) and
-    /// `p=1` for Fogwall/Sanctuary (additive).
+    /// Blend mode. Magnus uses alpha blend;
+    /// Fogwall/Sanctuary use additive.
     pub blend: BlendKind,
 }
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// Fade-in window. The original game sets the base alpha directly (no fade), but the visible
+/// Fade-in window. The original game sets the alpha directly (no fade), but the visible
 /// effect spawns abruptly — a short fade matches the gif timing.
 const FADE_IN_FRAMES: f32 = 15.0;
 const FADE_IN_SECS: f32 = FADE_IN_FRAMES / FRAMES_PER_SECOND;
-/// Base alpha as a fraction of full. The original game sets slot 0's start alpha = 30 for
+/// Base alpha as a fraction of full. The original game uses alpha 30 for
 /// Magnus, `100` for Fogwall; we use a single 0.7 for both — the
 /// per-variant alpha difference is largely swamped by the tint contrast
 /// (white vs near-black), and a per-variant alpha requires a new
 /// param field that's not worth its weight.
 const BASE_ALPHA: f32 = 0.7;
 
-/// `EF_BOTTOM_MAG` (original game `Bottom_Magnus("effect\\ring_red.tga", 0)`).
+/// `EF_BOTTOM_MAG` (`effect\\ring_red.tga`, variant 0).
 /// Tall (50-unit) white pillar.
 pub const MAGNUS: BottomMagnusParams = BottomMagnusParams {
     texture: "ring_red.tga",
@@ -68,7 +68,7 @@ pub const MAGNUS: BottomMagnusParams = BottomMagnusParams {
     blend: BlendKind::Alpha,
 };
 
-/// `EF_BOTTOM_FOGWALL` (original game `Bottom_Magnus("effect\\ring_white.tga", 2)`).
+/// `EF_BOTTOM_FOGWALL` (`effect\\ring_white.tga`, variant 2).
 /// Medium (32-unit) dark-grey pillar — the visible "wall of fog".
 pub const FOGWALL: BottomMagnusParams = BottomMagnusParams {
     texture: "ring_white.tga",
@@ -110,7 +110,7 @@ impl Effect for BottomMagnusEffect {
             base: self.world_pos,
             // Square cross-section: bottom and top radii equal,
             // `sides = 4` gives a 4-faced prism that matches the
-            // matches the upward-box exactly (4 side faces; no top
+            // original game box exactly (4 side faces; no top
             // or bottom face — same as the original).
             bottom_size: self.params.half_extent,
             top_size: self.params.half_extent,

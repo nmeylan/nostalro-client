@@ -8,9 +8,9 @@
 //!     `y_lower = y_upper + distance` (so 1.6 units further from
 //!     viewer; native -Y means positive offset is below).
 //!
-//! Wait — clarification: native -Y up means `y = -12` sits 12 units
-//! *above* the actor's feet. The original game subtracts distance from vec.y (with
-//! distance=1.6) to derive the lower corners, which in native -Y-up
+//! Note on coordinates: native -Y up means `y = -12` sits 12 units
+//! *above* the actor's feet. We derive the lower corners by subtracting
+//! `distance` (1.6) from the upper Y, which in native -Y-up
 //! actually moves them *upward* by 1.6 units. So the cube sits between
 //! `y = actor.y - 12 + snA` (upper) and `y = actor.y - 12 + snA - 1.6`
 //! (lower). The cube is small (1.6 unit "height") and floats 12 units
@@ -131,10 +131,10 @@ impl Effect for BottomHermodeEffect {
         // Top face: 4 upper corners. R/G channel = rg_tint, B = 250.
         push_face(out, upper, uv, self.params.texture, rg, FACE_B_TOP, alpha);
         // Side faces — connect each upper-lower pair forming the 4
-        // vertical sides. Original corner order: (base, top, far, near),
-        // (vecB_now, vecT_now, vec4, vec2), (vecT_now, vecT_pre, vec3,
-        // vec4), (vecT_pre, vecB_pre, vec1, vec3). `vec_i` are the
-        // lower ring.
+        // vertical sides. Each side links two adjacent upper corners to
+        // the two lower corners below them, walking the ring so the
+        // faces wrap the cube; the lower ring supplies the bottom edges
+        // of every side quad.
         push_face(
             out,
             [upper[0], upper[1], lower[1], lower[0]],

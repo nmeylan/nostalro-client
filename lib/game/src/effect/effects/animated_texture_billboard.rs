@@ -46,7 +46,7 @@ pub struct Params {
     /// for the modulo at frame-cycle time; 13 matches every animated
     /// torch/dust variant.
     pub textures: &'static [&'static str],
-    /// Game ticks per texture step (tcount in the original game). 6 → 100 ms/step at
+    /// Game ticks per texture step. 6 → 100 ms/step at
     /// 60 fps.
     pub tcount: u32,
     /// Half-diagonal of the rendered square in world
@@ -118,9 +118,9 @@ pub const TORCH_VIOLET_TEXTURES: &[&str] = &[
     "torch_violet13.bmp",
 ];
 
-/// 9 frames of the ambient dust mote — `EffectTextureSet_Animation(0)` in
-/// the original game. tcount differs (8 vs 6) because the prim's update reads
-/// `flag1[4] == 0` to pick the slower cadence.
+/// 9 frames of the ambient dust mote — the slow ambient-dust variant.
+/// tcount differs (8 vs 6) because the dust variant uses a slower cadence
+/// than the torches.
 pub const DUST_TEXTURES: &[&str] = &[
     "dust01.bmp",
     "dust02.bmp",

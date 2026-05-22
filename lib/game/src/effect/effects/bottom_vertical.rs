@@ -24,7 +24,7 @@
 //! | 3  | (Browserbased)     | 2     | one X-strip + one Z-strip through origin | 100 | 3 → yellow (255,255,100) alpha |
 //! | 4  | Serviceforyou      | 2     | one X-strip + one Z-strip through origin | 100 | 4 → pink (255,150,150) alpha |
 //!
-//! `max_height` isn't set explicitly in the bottom-vertical song — the original
+//! `max_height` isn't set explicitly in `Bottom_Vertical` — the original game
 //! default for the bottom-2 primitive is whatever the primitive constructor
 //! leaves it at. We hand-pick `STRIP_HEIGHT = 10.0` as a visible-but-
 //! restrained default (about player-height); tune later if the gif
@@ -36,7 +36,7 @@ use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 #[derive(Clone, Copy, Debug)]
 pub struct BottomVerticalParams {
     pub texture: &'static str,
-    /// per-element base alpha (out of 255).
+    /// original game per-emitter alpha (out of 255).
     pub base_alpha: f32,
     /// RGB tint selected per variant (0..1).
     pub tint_rgb: [f32; 3],
@@ -65,7 +65,7 @@ const FADE_IN_FRAMES: f32 = 15.0;
 const FADE_IN_SECS: f32 = FADE_IN_FRAMES / FRAMES_PER_SECOND;
 /// Strip vertical extent in world units (native RO `-Y` = up, so the
 /// strip top sits at `actor.y - STRIP_HEIGHT`). Default hand-picked
-/// since the original game's `Bottom_Vertical` never assigns `max_height` — see module
+/// since original game `Bottom_Vertical` never assigns `max_height` — see module
 /// docs.
 const STRIP_HEIGHT: f32 = 10.0;
 
@@ -200,7 +200,7 @@ impl Effect for BottomVerticalEffect {
 }
 
 /// Build the per-strip anchor table for a given layout. Random values
-/// in the original game's bottom-vertical song are reproduced via position-hashed pseudo-
+/// in original game's `Bottom_Vertical` are reproduced via position-hashed pseudo-
 /// random numbers so the same spawn looks identical across rerenders.
 fn build_strips(layout: StripLayout, world_pos: &[f32; 3]) -> ([Strip; 4], usize) {
     let seed = position_hash(world_pos);

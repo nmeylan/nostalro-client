@@ -68,8 +68,8 @@ pub enum EffectSpec {
     /// ticks at 60 fps, so 2.0 = animation runs half-speed); `repeat`
     /// — when `false` the renderer clamps to the last motion
     /// rather than looping; `tint` is an RGBA multiplier (`[1.0; 4]` = no
-    /// tint, matches use-original-argb). DarkBreath uses `[1.0, 0.0, 0.0, 1.0]`
-    /// because the original game zeroes the green / blue channels.
+    /// tint, uses the sprite's own colour). DarkBreath uses `[1.0, 0.0, 0.0, 1.0]`
+    /// because the original game shows it pure red (green / blue zeroed).
     Spr {
         sprite: &'static str,
         duration_ms: u32,

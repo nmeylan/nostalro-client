@@ -25,6 +25,13 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor) -> Option<Box<dyn Effect>
         EffectId::Warp => Box::new(effects::warp::WarpEffect::new(anchor.point())),
         EffectId::Entry => Box::new(effects::entry::EntryEffect::new(anchor.point())),
         EffectId::Exit => Box::new(effects::exit::ExitEffect::new(anchor.point())),
+        // Only the four ids without an STR file in the classic GRF
+        // (firearrow, fireball, napalmbeat, sandwind) need a Custom
+        // impl — everything else falls back to the canonical STR.
+        EffectId::Firearrow => Box::new(effects::firearrow::FireArrowEffect::new(anchor.point())),
+        EffectId::Fireball => Box::new(effects::fireball::FireballEffect::new(anchor.point())),
+        EffectId::Napalmbeat => Box::new(effects::napalmbeat::NapalmBeatEffect::new(anchor.point())),
+        EffectId::Sandwind => Box::new(effects::sandwind::SandwindEffect::new(anchor.point())),
 
         // Frost Diver — trail-shaped, unpacks both endpoints. Single-point
         // anchors (effect-viewer demo, any caller that doesn't know about
@@ -78,8 +85,8 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor) -> Option<Box<dyn Effect>
         )),
 
         // Hit family — weapon-swing impact shockwave + debris.
-        // The cylinder ring + per-segment particle trails follow the
-        // recipe; impact direction is the spawn-time `angle`
+        // The cylinder ring + per-segment particle trails match the
+        // original game's look; impact direction is the spawn-time `angle`
         // (currently defaulting to 0 since the spawn pipeline doesn't
         // carry it yet, see hit::new_with_angle docs).
         EffectId::Hit1 => Box::new(effects::hit::HitEffect::new(anchor.point(), effects::hit::HIT1)),
@@ -468,6 +475,10 @@ pub fn is_real_impl(id: EffectId) -> bool {
         EffectId::Warp
             | EffectId::Entry
             | EffectId::Exit
+            | EffectId::Firearrow
+            | EffectId::Fireball
+            | EffectId::Napalmbeat
+            | EffectId::Sandwind
             | EffectId::Frostdiver
             | EffectId::Frostdiver2
             | EffectId::Magnumbreak

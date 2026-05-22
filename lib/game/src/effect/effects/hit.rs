@@ -28,12 +28,12 @@
 //! 3  | 15  | 0.5/4.0 / ~  / lens2.tga           |  5  |  0   | particle1
 //! ```
 //!
-//! refs:
-//!   * first hit variant
-//!   * third hit variant
-//!   * fourth hit variant
-//!   * 3D cylinder primitive rendering
-//!   * segment-shift step
+//! Variants:
+//!   * Hit1 — blue ring + forward/backward debris.
+//!   * Hit3 — twin lens shafts + 8 forward debris.
+//!   * Hit4 — single lens shaft + 5 forward debris.
+//!   * cylinder ring → flared-cone geometry mapped to `Frustum`.
+//!   * trail segments → shifting debris history per frame.
 //!
 //! Native-direction handling: the `angle` parameter to `Hit::new_with_angle`
 //! is the impact compass heading in radians (CCW from world +X around
@@ -73,7 +73,7 @@ const FADE_IN_FRAMES: f32 = 3.0;
 const PARTICLE_ANIM_TICKS: f32 = 4.0;
 const PARTICLE_FRAME_MS: f32 = 1000.0 / FRAMES_PER_SECOND * PARTICLE_ANIM_TICKS;
 
-/// One cylinder ring per the original game's literal fields. The cylinder is
+/// One cylinder ring. The cylinder is
 /// a flared cone (inner ring at the local origin, outer ring offset by
 /// `height_size` along the cone's axis). Each frame:
 ///
@@ -160,7 +160,7 @@ impl RingParams {
 }
 
 /// Per-ring per-frame state — accumulates the integrated values that
-/// the 3D cylinder prim mutates each frame. One instance per
+/// the cylinder mutates each frame. One instance per
 /// `RingParams` in the recipe.
 #[derive(Clone, Copy, Debug)]
 struct RingState {
@@ -195,8 +195,8 @@ pub struct DebrisBurst {
     pub size_max: f32,
     pub duration_min_frames: f32,
     pub duration_max_frames: f32,
-    /// Initial Y offset above the spawn point (delta-pos Y in the original
-    /// — negative because native RO is -Y up).
+    /// Initial Y offset above the spawn point
+    /// (negative because native RO is -Y up).
     pub spawn_y_offset: f32,
     /// Random spawn-distance range along the direction:
     /// `random(4) + 4` → 4..8 world units.
@@ -208,8 +208,8 @@ pub struct DebrisBurst {
     /// flies in a straight line under speed-decel alone.
     pub gravity_initial_world_y: f32,
     /// Per-second acceleration applied to gravity_initial (so the
-    /// "upward" speed weakens and the particle falls). The original derives
-    /// this from `-(grav_speed / duration) * 2`.
+    /// "upward" speed weakens and the particle falls), derived
+    /// from `-(initial_gravity / duration) * 2`.
     pub gravity_accel_world_y: f32,
 }
 
@@ -225,8 +225,8 @@ pub struct HitParams {
 pub const HIT1: HitParams = HitParams {
     rings: &[RingParams {
         duration_frames: 10.0,
-        // Hit1: outer=10, inner=5, height size=3.5 (static shape,
-        // no height speed/accel set), speed=0.7 decelerating
+        // Hit1: outer=10, inner=5, height_size=3.5 (static shape,
+        // no height growth), speed=0.7 decelerating
         // → ring TRANSLATES forward 5..7 wu over its 10-frame life
         // and stays the same flared-cone shape.
         outer_size: 10.0,
@@ -301,8 +301,8 @@ pub const HIT3: HitParams = HitParams {
     // small visible height (`height_size=1.0`) so the spike still reads
     // before the second wider ring grows past it.
     rings: &[
-        // Hit3 ring 1: outer=inner=1.5 (thin tube), height size
-        // starts at 0 and grows fast (height speed 0.5, height accel 0.2)
+        // Hit3 ring 1: outer=inner=1.5 (thin tube), height_size
+        // starts at 0 and grows fast (height_speed=0.5, height_accel=0.2)
         // → over 15 frames the cone elongates to ~35 wu, producing the
         // long bright shaft of light visible in the reference at frame 2.
         RingParams {
@@ -320,7 +320,7 @@ pub const HIT3: HitParams = HitParams {
             color: [1.0, 1.0, 1.0, 1.0],
         },
         // Hit3 ring 2: outer=4.0, inner=1.5 (wider flare),
-        // slower height growth (height speed 0.25, height accel 0.2)
+        // slower height growth (height_speed=0.25, height_accel=0.2)
         // → a fatter conical shaft that wraps the thin spike in the
         // ring 1 above.
         RingParams {
@@ -361,8 +361,8 @@ pub const HIT3: HitParams = HitParams {
 
 pub const HIT4: HitParams = HitParams {
     // Hit4: outer=4.0, inner=0.5 (narrow base flaring out),
-    // height size starts at 0 and grows slower (height_speed=0.25,
-    // heightAccel=0.15 — half Hit3 ring 2's accel) → over 15 frames
+    // height_size starts at 0 and grows slower (height_speed=0.25,
+    // height_accel=0.15 — half Hit3 ring 2's accel) → over 15 frames
     // the cone elongates to ~28 wu, slightly shorter and slower than
     // Hit3's outer ring; combined with the wider flare (0.5..4.0)
     // this is a distinctly different visual silhouette from Hit3.
@@ -475,10 +475,10 @@ impl Particle {
         for i in (1..NUM_SEGMENTS).rev() {
             self.history[i] = self.history[i - 1];
         }
-        // Original game: speed += accel once per frame, with accel
-        // negative (decelerating). We apply at world-time so the curve is
-        // frame-rate independent. The original game also clamps to zero implicitly via
-        // its fadeOutCnt=0 logic (no fade), but the visual stops once
+        // Speed decelerates once per frame (accel
+        // negative). We apply at world-time so the curve is
+        // frame-rate independent. Speed clamps to zero (no separate
+        // fade), so the visual stops once
         // speed hits 0.
         self.speed_world_per_s = (self.speed_world_per_s + self.decel_world_per_s2 * dt).max(0.0);
         // Rebuild velocity along the heading.
@@ -498,7 +498,7 @@ impl Particle {
         self.age += dt;
     }
 
-    /// Linear alpha fade-out matching the original game's `fade_out_cnt = 0` semantics:
+    /// Linear alpha fade-out across the whole lifetime:
     /// the particle's alpha drops linearly from its peak across its
     /// whole lifetime instead of holding then fading.
     fn alpha(&self) -> f32 {
@@ -578,21 +578,21 @@ impl HitEffect {
     }
 
     /// World-direction unit vector for the cylinder's per-frame
-    /// translation. The original computes `speed3d = (0, -speed, 0) ×
-    /// rotation matrix and adds it to the per-frame position offset, so in the original game's
-    /// Y-up coordinate system the cylinder drifts downward over its
+    /// translation. The translation vector is `(0, -speed, 0)` in the
+    /// effect's local frame, so in a Y-up coordinate system the cylinder
+    /// drifts downward over its
     /// lifetime. Mapped to this codebase's native RO -Y-up coordinates,
     /// that's the same direction the user described as "appears higher
     /// [via the y_offset lift] and moves a bit lower" — `+Y` in our
     /// frame is down. The horizontal heading (`angle_rad`) doesn't
-    /// participate: the original game's matrix with latitude `-90` cancels out the
+    /// participate: the side-laid cone cancels out the
     /// Y-rotation for a `(0, -speed, 0)` input vector.
     fn heading_unit(&self) -> [f32; 3] {
         [0.0, 1.0, 0.0]
     }
 
     /// Integrate one frame's worth (dt_frames frames) of
-    /// 3D-cylinder state for every ring. The original game does this once per
+    /// cylinder state for every ring. The integration runs once per
     /// game tick (60 fps); we scale to whatever `dt` the holder gave
     /// us so the simulation is frame-rate independent.
     fn step_rings(&mut self, dt_frames: f32) {
@@ -603,8 +603,8 @@ impl HitEffect {
             state.height_speed += params.height_accel * dt_frames;
             // height_size += height_speed * dt
             state.height_size += state.height_speed * dt_frames;
-            // Native RO height is capped at a max height of 100 in
-            // the 3D cylinder prim.
+            // height_size is capped at 100 and floored at 0 so a
+            // shrinking cone never inverts.
             if state.height_size > 100.0 {
                 state.height_size = 100.0;
             }
@@ -703,7 +703,7 @@ impl Effect for HitEffect {
         self.age += ctx.delta;
         // Step the cylinder rings (height_size growth + translation)
         // and the debris particles by the same dt. Convert delta to
-        // per-frame integration unit (60 fps).
+        // the per-frame integration unit (60 fps).
         let dt_frames = ctx.delta * FRAMES_PER_SECOND;
         self.step_rings(dt_frames);
         for p in &mut self.particles {
@@ -757,7 +757,7 @@ impl Effect for HitEffect {
             ];
             out.push(EffectPrimitiveDraw::Frustum {
                 base: cylinder_base,
-                // local frame for the 3D cylinder:
+                // The effect's local cone frame:
                 //   inner ring at y=0          → at master level
                 //   outer ring at y=-height_size → above master (native
                 //                                  RO -Y = up)
@@ -773,7 +773,7 @@ impl Effect for HitEffect {
                 // No `tilt_x_rad` / `rotation_y_rad` — empirically the
                 // original game's Hit1 renders the ring HORIZONTAL on
                 // the ground (visible as a flat disc), not VERTICAL
-                // (standing up like a wheel). The original uses latitude -90
+                // (standing up like a wheel). The cone's side-lay
                 // does not translate to a -π/2 X-rotation in this
                 // codebase's row-vector / -Y-up coordinate convention;
                 // omitting the tilt gives the correct horizontal
@@ -813,7 +813,7 @@ impl Effect for HitEffect {
         // Each particle renders NUM_SEGMENTS sprite billboards: index 0
         // at the current position with full alpha/size, indices 1..N at
         // historical positions with proportionally reduced alpha and
-        // size (matching the original game's segment shift: alpha[i] = alpha*(N-i)/N,
+        // size (trail falloff: alpha[i] = alpha*(N-i)/N,
         // size[i] = size*(2N-i)/(2N)).
         for p in &self.particles {
             let base_alpha = p.alpha();
@@ -867,7 +867,7 @@ mod tests {
         // The inner/outer mapping puts inner_size at Frustum's bottom
         // (= master level) and outer_size at the top (above master).
         // The cylinder also translates downward over time (the
-        // equivalent 3D-speed direction in this codebase's
+        // translation direction in this codebase's
         // native RO frame is +Y = downward).
         let mut e = HitEffect::new_with_angle(
             [1.0, 2.0, 3.0],
@@ -910,7 +910,7 @@ mod tests {
         // tilted lens shaft along the impact direction.
         assert!((rotation_y_rad - 0.5).abs() < 1e-5, "rotation_y_rad == angle_rad: got {rotation_y_rad}");
         // inner=5 at y=0 → Frustum bottom_size=inner=5.
-        // outer=10 at y=-height size → Frustum top_size=outer=10.
+        // outer=10 at y=-height_size → Frustum top_size=outer=10.
         assert!((bottom_size - 5.0).abs() < 1e-4, "bottom_size=inner_size=5: {bottom_size}");
         assert!((top_size - 10.0).abs() < 1e-4, "top_size=outer_size=10: {top_size}");
         assert!((height - 3.5).abs() < 1e-4, "Hit1 heightSize is static at 3.5");
@@ -995,8 +995,8 @@ mod tests {
 
     #[test]
     fn hit3_height_grows_over_time_while_hit4_grows_slower() {
-        // The original game differentiates Hit3 from Hit4 mostly through height speed/
-        // heightAccel. After several ticks, Hit3's outer ring has
+        // Hit3 differs from Hit4 mostly through height_speed/
+        // height_accel. After several ticks, Hit3's outer ring has
         // grown taller than Hit4's ring even though they share the
         // same outer_size=4.0.
         let mut h3 = HitEffect::new([0.0; 3], HIT3);

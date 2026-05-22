@@ -1,8 +1,8 @@
 //! `EF_HIT2` — bash-style impact: 8 lens-flare petals arranged in a flower
 //! around the target.
 //!
-//! The original game's Hit2 effect spawns one
-//! 2D-texture per 45° slice (8 petals total) at frame 0. Each petal is
+//! Spawns one billboard
+//! per 45° slice (8 petals total) at frame 0. Each petal is
 //! a screen-space billboard textured with `lens1.tga` or `lens2.tga`
 //! (alternating around the ring) that:
 //!
@@ -16,7 +16,7 @@
 //!     deceleration (accel = -(speed/duration)/2).
 //!   * Fades in over 8 frames (alpha speed = max alpha / 8).
 //!
-//! The original game's pixel scale is ~5-6× larger than ours; we divide
+//! The original pixel scale is ~5-6× larger than ours; we divide
 //! width/height by ~5 so the petals occupy a similar fraction
 //! of the viewport as in `imgs/0-50/1.gif`.
 
@@ -29,39 +29,39 @@ pub const TEXTURES: &[&str] = &[LENS1, LENS2];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// Number of petals around the flower. The original game iterates
-/// `i = 0..360 step 45`, producing 8.
+/// Number of petals around the flower: one per 45° slice
+/// over the full circle, producing 8.
 const PETAL_COUNT: usize = 8;
 
 /// Lift the flower off the ground to roughly chest level on a character
-/// at `world_pos = ground`. The original game's literal is `-20`; our
-/// viewer's `world_pos` is at the entity's ground anchor so the same
-/// literal would put the flower a character-and-a-half off the floor,
+/// at `world_pos = ground`. The original lifts it further; our
+/// viewer's `world_pos` is at the entity's ground anchor so that same
+/// lift would put the flower a character-and-a-half off the floor,
 /// which is too high. `-10` matches the Hit3/Hit4 family's chest-level
 /// placement.
 const Y_OFFSET_BASE: f32 = -10.0;
 
-/// Linear scale factor applied to the original game's width/height
-/// literals. The original source uses `width_size = 5..20` and `height_size =
-/// 20..40` against a sprite-pixel-to-world scale that's ~3× ours;
+/// Linear scale factor applied to the width/height
+/// values. The original uses width 5..20 and height
+/// 20..40 against a sprite-pixel-to-world scale that's ~3× ours;
 /// dividing keeps the silhouette comparable to the reference gif
 /// (`imgs/0-50/1.gif` shows petals occupying most of the viewport).
 const SIZE_SCALE: f32 = 1.0 / 3.0;
 
-/// Per-petal width range (in original game's 5..20 mapped through `SIZE_SCALE`).
+/// Per-petal width range (5..20 mapped through `SIZE_SCALE`).
 const WIDTH_MIN: f32 = 5.0 * SIZE_SCALE;
 const WIDTH_MAX: f32 = 20.0 * SIZE_SCALE;
 const HEIGHT_MIN: f32 = 20.0 * SIZE_SCALE;
 const HEIGHT_MAX: f32 = 40.0 * SIZE_SCALE;
 
-/// Height growth: per-frame at 60 fps. `height_speed = 1.5`,
-/// `height_accel = 0.25` from the original game's literal — scaled
+/// Height growth: per-frame at 60 fps. Initial speed 1.5,
+/// accel 0.25 — scaled
 /// alongside the size.
-const HEIGHT_SPEED_INIT_BASE: f32 = 1.5;
-const HEIGHT_ACCEL_BASE: f32 = 0.25;
+const HEIGHT_SPEED_INIT_ORIG: f32 = 1.5;
+const HEIGHT_ACCEL_ORIG: f32 = 0.25;
 
-/// Radial speed (outward translation) range from the original game:
-/// speed = (random(45) + 5) / 10 → 0.5..5.0 per frame at 60 fps.
+/// Radial speed (outward translation) range:
+/// `(random(45) + 5) / 10` → 0.5..5.0 per frame at 60 fps.
 const SPEED_MIN_PER_FRAME: f32 = 0.5;
 const SPEED_MAX_PER_FRAME: f32 = 5.0;
 
@@ -73,8 +73,8 @@ const DURATION_MAX_FRAMES: f32 = 30.0;
 /// frame 8.
 const FADE_IN_FRAMES: f32 = 8.0;
 
-/// Random initial radial offset along each petal's direction (original game's
-/// `length = random(5)`). Scaled to keep the flower compact.
+/// Random initial radial offset along each petal's direction
+/// (`random(5)`). Scaled to keep the flower compact.
 const SPAWN_RADIUS_MAX: f32 = 5.0 * SIZE_SCALE;
 
 /// Jitter applied to each petal's compass angle: `(slice - 15) + random(30)`
@@ -117,8 +117,8 @@ struct Petal {
     height: f32,
     /// Width shrink rate (per second).
     width_speed_world_per_s: f32,
-    /// Height growth state — integrated like the original game's
-    /// `height_speed`/`height_accel` per frame.
+    /// Height growth state — integrated from a per-frame
+    /// height speed and accel.
     height_speed_per_frame: f32,
     /// Constant per-frame height accel (scaled by SIZE_SCALE).
     height_accel_per_frame: f32,
@@ -170,8 +170,8 @@ impl Hit2Effect {
         let slice = std::f32::consts::TAU / PETAL_COUNT as f32;
         for k in 0..PETAL_COUNT {
             let slice_angle = k as f32 * slice;
-            // Roll jitter: ±15° around the slice direction (matches
-            // original game's `(i - 15) + random(30)`).
+            // Roll jitter: ±15° around the slice direction
+            // (`(slice - 15) + random(30)`).
             let jitter = (lcg_float(&mut self.rng_state) * 2.0 - 1.0)
                 * ANGLE_JITTER_DEG.to_radians();
             let roll = slice_angle + jitter;
@@ -187,8 +187,8 @@ impl Hit2Effect {
                     * (DURATION_MAX_FRAMES - DURATION_MIN_FRAMES);
             let lifetime = duration_frames / FRAMES_PER_SECOND;
 
-            // original game accel = -(speed / duration) / 2,
-            // per-frame. Convert to per-second^2.
+            // Per-frame accel = `-(speed / duration) / 2`.
+            // Convert to per-second^2.
             let decel_per_frame = -(speed_per_frame / duration_frames) / 2.0;
             let speed_world_per_s = speed_per_frame * FRAMES_PER_SECOND;
             let decel_world_per_s2 =
@@ -202,9 +202,9 @@ impl Hit2Effect {
             let width_speed_world_per_s = -width / lifetime;
             // Height initial speed + accel are scaled the same way as
             // initial size so the growth-vs-initial ratio matches the
-            // original game.
-            let height_speed_per_frame = HEIGHT_SPEED_INIT_BASE * SIZE_SCALE;
-            let height_accel_per_frame = HEIGHT_ACCEL_BASE * SIZE_SCALE;
+            // original.
+            let height_speed_per_frame = HEIGHT_SPEED_INIT_ORIG * SIZE_SCALE;
+            let height_accel_per_frame = HEIGHT_ACCEL_ORIG * SIZE_SCALE;
 
             let texture = if k % 2 == 0 { LENS1 } else { LENS2 };
 
@@ -263,9 +263,9 @@ impl Effect for Hit2Effect {
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         // Petals sit in the XY world plane (vertical, screen-aligned at
-        // the default camera). The original game uses
-        // delta-pos X `= length*sin(i)` /
-        // delta-pos Y `= -length*cos(i) - 20`, i.e. a vertical circle
+        // the default camera). Each petal's offset is
+        // `x = length*sin(i)` /
+        // `y = -length*cos(i) - lift`, i.e. a vertical circle
         // of small offsets centred Y_OFFSET_BASE above the master. We
         // reproduce that: petal at slice angle i is at
         //   x = radius * sin(i)

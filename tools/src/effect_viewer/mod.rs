@@ -874,7 +874,6 @@ impl App {
     ///     instance; if it declares an `str_overlay()`, load that file too
     ///     (hybrid effects like Stormgust). The throwaway instance is
     ///     dropped immediately; the real spawn happens via the cdylib path.
-    /// Tries the primary name first, then known aliases.
     /// Failures are remembered so we don't retry every cycle.
     /// Lazy-load the SPR billboard(s) needed by this effect. For
     /// `EffectSpec::Spr` / `SprBurst` it's the spec's `sprite` path;

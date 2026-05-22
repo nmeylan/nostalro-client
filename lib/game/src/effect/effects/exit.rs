@@ -39,8 +39,8 @@ const PARTICLE_FADEOUT_AT: f32 = PARTICLE_DURATION_FRAMES - PARTICLE_DURATION_FR
 const PARTICLE_ANIM_TICKS: f32 = 4.0;
 const PARTICLE_FRAME_MS: f32 = 1000.0 / FRAMES_PER_SECOND * PARTICLE_ANIM_TICKS;
 
-// `grav_speed = -1.2` → initial Y velocity in the original per-frame units.
-// In native RO coords -Y is up so a particle with -1.2 / frame drifts up.
+// Initial Y velocity, per-frame. In native RO coords -Y is up so a
+// particle with -1.2 / frame drifts up.
 const PARTICLE_INITIAL_Y_SPEED_PER_FRAME: f32 = -1.2;
 // Decel = -(initial_speed / duration) / 1.5 ≈ +0.016 per-frame
 // (positive = decel, eventually falls back down).

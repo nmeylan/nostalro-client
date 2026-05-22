@@ -35,8 +35,8 @@ use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 const FRAMES_PER_SECOND: f32 = 60.0;
 const FADE_THRESHOLD_FRAMES: u32 = 10;
 /// 10-frame ramp + 51 fade frames (250 → 0 stepping by 5/frame includes
-/// the frame where alpha hits 0). The original resets process only after
-/// start alpha actually reaches 0 — that's frame 60 — so the cycle period
+/// the frame where alpha hits 0). The phase resets only after alpha
+/// actually reaches 0 — that's frame 60 — so the cycle period
 /// is 61 frames before the next ramp starts.
 const CYCLE_LENGTH_FRAMES: u32 = 61;
 
@@ -67,11 +67,11 @@ pub struct BottomOutEffect {
     params: BottomOutParams,
     age: f32,
     frames: u32,
-    /// Per-cell billboard half-size (= `distance` in the original game). Each cell
+    /// Per-cell billboard half-size (= `distance` in original game). Each cell
     /// gets an independent random in [5, 11) at spawn.
     cell_sizes: [f32; CELL_COUNT],
-    /// Per-cell pulse-cycle phase offset, frozen at spawn (the original game
-    /// `process = random(11)`).
+    /// Per-cell pulse-cycle phase offset, frozen at spawn
+    /// (`random(11)`).
     cell_phase_init: [u32; CELL_COUNT],
 }
 

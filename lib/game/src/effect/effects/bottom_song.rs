@@ -6,7 +6,7 @@
 //! the cloud render. The visible cue is the song icon (music note, apple,
 //! kiss, etc.) above the bard.
 //!
-//! Faithful to the original game's `Bottom_Music()` per-variant choices:
+//! Faithful to original game `Bottom_Music()` per-variant choices:
 //!   * **Texture pools** — F1=2 picks per-spawn from melody_a/b, F1=5
 //!     from red/blue/yellow gemstone, F1=8 from spell_01..08. The
 //!     spawn-time choice is hashed from the world position so it's
@@ -16,7 +16,7 @@
 //!     white, 3 = alpha-blend gold (200/200/100), 4 = additive white,
 //!     7 = alpha-blend white, 9 with flag1[3]=6 = alpha-blend white.
 //!   * **Vertical bob** — `height[8]` (sin-oscillation amount)
-//!     is 0 in the original game for these songs, but the bob is kept here per
+//!     is 0 in original game for these songs, but the bob is kept here per
 //!     direct user request: slow ~4 s cycle, ±1 unit world.
 //!
 //! `GI[1..3]` trail cells (F1=2's three extras with `alpha_b=0`) and
@@ -41,7 +41,7 @@ use crate::effect::spec::Attach;
 pub struct BottomSongParams {
     /// Per-spawn texture pool. Length-1 slices behave as a static
     /// texture; longer slices pick one entry per spawn (hashed from
-    /// world_pos) — matches the original's `random(N)` selection for F1=2/5/8.
+    /// world_pos) — matches original game's `random(N)` selection for F1=2/5/8.
     pub textures: &'static [&'static str],
     /// Billboard half-extent in world units (full width = `2 * radius`).
     /// Derived from the original game's first orbit distance: F1=1 → 5.0,
@@ -49,7 +49,7 @@ pub struct BottomSongParams {
     /// default (0/2/3/5/7/8) → 3.0.
     pub radius: f32,
     /// Blend mode picked from the cloud render pass's first rect-render
-    /// switch arg — `0` = alpha blend, `1` = additive.
+    /// switch arg — `0` in original game = alpha blend, `1` = additive.
     pub blend: BlendKind,
     /// RGB tint (0..1). Alpha is driven by the fade-in envelope, not
     /// this field. Per the cloud flag1[2] dispatch:
@@ -127,7 +127,7 @@ pub const RICHMANKIM: BottomSongParams = BottomSongParams {
     tint_rgb: RICHMAN_GOLD,
 };
 /// `Bottom_Music("", 2)` — F1=2 picks `melody_a`/`melody_b` per spawn
-/// (a `random(2)` in the original game). Default flag1[2]=0.
+/// (`random(2)` in original game). Default flag1[2]=0.
 pub const DRUMBATTLEFIELD: BottomSongParams = BottomSongParams {
     textures: &["melody_a.bmp", "melody_b.bmp"],
     radius: 3.0,
@@ -221,7 +221,7 @@ pub struct BottomSongEffect {
     /// world position so stacked songs don't oscillate in lockstep.
     /// Stored in radians.
     bob_phase: f32,
-    /// Pool-selected texture for this spawn. The original game's
+    /// Pool-selected texture for this spawn. original game's
     /// `random(N)` for F1=2/5/8 is reproduced here as a position-hashed
     /// pick — same spawn → same texture, different spawns → variety.
     texture: &'static str,
@@ -389,7 +389,7 @@ mod tests {
 
     #[test]
     fn poembragi_pool_picks_one_of_eight_spell_bmps() {
-        // Sociable test: F1=8 in the original game does `random(8)` over spell_01..08.
+        // Sociable test: F1=8 in original game does `random(8)` over spell_01..08.
         // Our deterministic per-spawn hash must select one of those
         // eight, and different world positions must visibly cover
         // multiple options (not always the same one). Spawning at 32

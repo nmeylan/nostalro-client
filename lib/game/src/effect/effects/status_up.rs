@@ -4,9 +4,9 @@
 //! Incagidex rise, Decagility falls), in the streak tint, and in which label
 //! is drawn (`agi_up.bmp`, `slow.bmp`, `dex_agi_up.bmp`).
 //!
-//! Per-particle recipe from the original game (the increase-agility effect),
-//! `DecAgility()` @ `:9975`, `IncAGIDEX()` @ `:8280`):
-//!   * every 2 parent frames, spawn one 3D cross-texture prim
+//! Per-particle recipe (cross-textured streaks rising or falling around the
+//! entity, fading in and out over their lifetime):
+//!   * every 2 parent frames, spawn one cross-textured streak
 //!   * random Y-rotation longitude; offset = (radius·sin, 0, radius·cos)
 //!     where `radius = random(7) + 2`  (= 2..9 wu around the entity)
 //!   * the streak is two perpendicular textured quads; we render
@@ -43,22 +43,22 @@ const PARTICLE_DURATION_FRAMES: f32 = 50.0;
 const PARTICLE_FADE_IN_FRAMES: f32 = 20.0;
 const PARTICLE_FADEOUT_AT: f32 = PARTICLE_DURATION_FRAMES - 20.0;
 const PARTICLE_MAX_ALPHA: f32 = 200.0 / 255.0;
-// After the original game's X-rotation of ±90° the cross-texture's
-// width size becomes the streak's vertical extent and height size
-// becomes its perpendicular thickness. Original-game literal range
+// After the ±90° tilt the cross-texture's
+// width becomes the streak's vertical extent and height
+// becomes its perpendicular thickness. The literal range
 // `(random(60)+30)/10 = 3..9` reads directly in our world units — the
 // streaks are meant to span roughly one character height, not a
 // fraction of it.
 const PARTICLE_LENGTH_MIN: f32 = 3.0;
 const PARTICLE_LENGTH_MAX: f32 = 7.0;
 const PARTICLE_THICKNESS: f32 = 0.6;
-// radius `random(7) + 2` = 2..9 wu; gif shows the streaks
+// Radius `random(7) + 2` = 2..9 wu; gif shows the streaks
 // clustered tight enough to read as one column above the entity, but
 // still wide enough to show several streaks side-by-side around it.
 const RADIUS_MIN: f32 = 2.0;
 const RADIUS_MAX: f32 = 9.0;
 
-// Center label (2D texture) sizing. Uses half-extents
+// Center label sizing. The original uses half-extents
 // width=40 / height=20 px in screen space; characters render at
 // roughly 10 px per world unit at the default camera distance, so
 // 4×2 wu approximates the original screen footprint and stays
@@ -73,8 +73,8 @@ const LABEL_FADEOUT_AT: f32 = PARENT_DURATION_FRAMES - LABEL_FADE_FRAMES;
 // values map to ~0.15 / 0.10 wu/frame at the same 10 px/wu scale.
 const LABEL_RISE_SPEED: f32 = 0.15;
 const LABEL_FALL_SPEED: f32 = 0.10;
-// Decagility starts the label above the entity (vertical offset y -= 80
-// in pixels → ~8 wu in world space, native RO -Y up).
+// Decagility starts the label above the entity (the original lifts it 80
+// px → ~8 wu in world space, native RO -Y up).
 const LABEL_DEC_SPAWN_Y: f32 = -8.0;
 // Center label sits roughly at chest height above the entity origin
 // (origin is at feet) so it reads as a tag on the character, not
@@ -108,7 +108,7 @@ pub struct Params {
 }
 
 pub const INCAGILITY: Params = Params {
-    // speed = (random(50)+20)/100 upward = -0.45 avg per frame.
+    // Speed `(random(50)+20)/100` upward = -0.45 avg per frame.
     initial_speed_per_frame: -0.45,
     accel_per_frame: 0.0,
     spawn_y_offset: 0.0,
@@ -120,8 +120,8 @@ pub const INCAGILITY: Params = Params {
 };
 
 pub const DECAGILITY: Params = Params {
-    // accel = 0.015 downward; no initial speed. Particle starts
-    // 20 wu above ground (its vertical offset starts 20 above) and falls toward it.
+    // Accel 0.015 downward; no initial speed. Particle starts
+    // 20 wu above ground and falls toward it.
     initial_speed_per_frame: 0.0,
     accel_per_frame: 0.015,
     spawn_y_offset: -20.0,
@@ -228,7 +228,7 @@ impl StatusUpEffect {
         let length = PARTICLE_LENGTH_MIN
             + self.lcg_float() * (PARTICLE_LENGTH_MAX - PARTICLE_LENGTH_MIN);
         let (sn, cs) = longitude_deg.to_radians().sin_cos();
-        // delta position = `(0, 0, radius)` rotated by longitude about Y
+        // A radius vector rotated about Y by `longitude`
         // expands to (radius·sin, 0, radius·cos).
         self.particles.push(Particle {
             anchor: self.world_pos,

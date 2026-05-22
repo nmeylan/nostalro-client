@@ -75,12 +75,12 @@ pub const SIGHT: Params = Params {
     upper: ParticleParams {
         sprite: SIGHT_SPRITE,
         duration_frames: 20.0,
-        // The original game spawns the particle at delta-pos y = -20
-        // (above the master) with a vertical acceleration of 0.1 pulling
-        // it back to ground over the 20-frame lifetime. The user
-        // wants the orbit to read like Ruwach (constant-height arc),
-        // so we hold the particle at the original game's spawn height and
-        // remove the downward drift.
+        // The source spawns the particle at y = -20 (above the master)
+        // with a +0.1 Y accel pulling it back to ground over the
+        // 20-frame lifetime. The user wants the orbit to read like
+        // Ruwach (a constant-height arc rather than a settling drop),
+        // so we hold the particle at the spawn height and remove the
+        // downward drift (accel 0 below).
         y_offset: -20.0,
         y_accel_per_frame: 0.0,
         size: 2.5,

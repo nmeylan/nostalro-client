@@ -50,7 +50,7 @@ pub fn build_billboard_batches<'a>(
         let half_w = size[0] * ppu * 0.5;
         let half_h = size[1] * ppu * 0.5;
         // Rotate each corner offset around the anchor by `rotation` radians.
-        // CCW in screen space (matches the roll convention used by
+        // CCW in screen space (matches the original game roll convention used by
         // Hit2's lens-flare petals). When `rotation == 0` cos=1, sin=0 and
         // the transform is the identity, so existing axis-aligned callers
         // see no change.
