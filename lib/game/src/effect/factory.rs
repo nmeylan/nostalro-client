@@ -26,6 +26,8 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor) -> Option<Box<dyn Effect>
     Some(match id {
         EffectId::Warp => Box::new(effects::warp::WarpEffect::new(anchor.point())),
         EffectId::Bash => Box::new(effects::bash::BashEffect::new(anchor.point())),
+        EffectId::Hasteup => Box::new(effects::hasteup::HasteUpEffect::new(anchor.point())),
+        EffectId::Flasher => Box::new(effects::flasher::FlasherEffect::new(anchor.point())),
         EffectId::Blessing => Box::new(effects::blessing::BlessingEffect::new(anchor.point())),
         EffectId::Endure => Box::new(effects::endure::EndureEffect::new(anchor.point())),
         EffectId::Enhance => Box::new(effects::enhance::EnhanceEffect::new(anchor.point())),
@@ -483,6 +485,8 @@ pub fn is_real_impl(id: EffectId) -> bool {
         id,
         EffectId::Warp
             | EffectId::Bash
+            | EffectId::Hasteup
+            | EffectId::Flasher
             | EffectId::Blessing
             | EffectId::Endure
             | EffectId::Enhance

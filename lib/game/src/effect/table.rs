@@ -12,8 +12,8 @@ use models::enums::effect_id::EffectId;
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effects::{
     bash, begin_spell, blessing, bottom_sanctuary_pillar, cast_circle, endure, enhance, entry,
-    exit as exit_effect, firearrow, fireball, frost_diver, glasswall, healsp, hit,
-    hit2, hit5_6, magnum_break, napalmbeat, portal, ready_portal, sandwind, sight, spraypond,
+    exit as exit_effect, firearrow, fireball, flasher, frost_diver, glasswall, hasteup, healsp,
+    hit, hit2, hit5_6, magnum_break, napalmbeat, portal, ready_portal, sandwind, sight, spraypond,
     status_up, stormgust, teleportation, volcano, warp,
 };
 use super::spec::EffectSpec;
@@ -78,6 +78,17 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // world-space billboards.
         EffectId::Bash => EffectSpec::Custom {
             duration_ms: bash::TOTAL_DURATION_MS,
+        },
+
+        // HasteUp / Flasher — share the Bash spike-burst recipe (20
+        // radial flash spikes) with their own halo / orbit-particle layers.
+        // HasteUp's parent runs 300 frames (5s) for the audio cue; the
+        // visible spikes finish at 80 and orbit particles at 100.
+        EffectId::Hasteup => EffectSpec::Custom {
+            duration_ms: hasteup::TOTAL_DURATION_MS,
+        },
+        EffectId::Flasher => EffectSpec::Custom {
+            duration_ms: flasher::TOTAL_DURATION_MS,
         },
 
         // Blessing — ground disc + angel sprites + rising twinkles.
