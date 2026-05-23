@@ -38,7 +38,7 @@
 //! Total visible duration ≈ 56 frames (933 ms) — matches the original
 //! game's on-screen casting-aura lifetime.
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
+use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::effect::spec::Attach;
 
@@ -262,6 +262,7 @@ impl Effect for CastCircleEffect {
                     wave_amplitude: 0.0,
                     wave_frequency: 1.0,
                     wave_phase: 0.0,
+                    wave_mode: FrustumWaveMode::Sine,
                     tilt_x_rad: 0.0,
                     rotation_y_rad: 0.0,
                     cull_back: false,
@@ -311,6 +312,7 @@ impl Effect for CastCircleEffect {
                     wave_amplitude: 0.0,
                     wave_frequency: 1.0,
                     wave_phase: 0.0,
+                    wave_mode: FrustumWaveMode::Sine,
                     tilt_x_rad: 0.0,
                     rotation_y_rad: 0.0,
                     cull_back: false,

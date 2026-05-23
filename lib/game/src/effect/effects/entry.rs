@@ -21,7 +21,7 @@
 //!   opposite direction (+10°/frame). Alpha is a flat 160 with a
 //!   fade-out from 2/3 of the lifetime onward.
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
+use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const RING_TEXTURE: &str = "ring_blue.tga";
@@ -124,6 +124,7 @@ impl Effect for EntryEffect {
                 wave_amplitude: 0.0,
                 wave_frequency: 0.0,
                 wave_phase: 0.0,
+                wave_mode: FrustumWaveMode::Sine,
                 tilt_x_rad: 0.0,
                 rotation_y_rad: 0.0,
                 cull_back: false,
@@ -149,6 +150,7 @@ impl Effect for EntryEffect {
                 wave_amplitude: 0.0,
                 wave_frequency: 0.0,
                 wave_phase: 0.0,
+                wave_mode: FrustumWaveMode::Sine,
                 tilt_x_rad: 0.0,
                 rotation_y_rad: 0.0,
                 cull_back: false,

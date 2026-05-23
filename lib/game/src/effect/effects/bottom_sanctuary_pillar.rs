@@ -17,7 +17,7 @@
 //! gif's apparent concentric rings come from that banding rotating with the
 //! frustum, not from a second primitive.
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
+use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const TEXTURE: &str = "alpha_down.tga";
@@ -93,6 +93,7 @@ impl Effect for BottomSanctuaryPillarEffect {
             wave_amplitude: 0.0,
             wave_frequency: 0.0,
             wave_phase: 0.0,
+            wave_mode: FrustumWaveMode::Sine,
             tilt_x_rad: 0.0,
             rotation_y_rad: 0.0,
             cull_back: false,

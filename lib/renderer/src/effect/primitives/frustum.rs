@@ -16,6 +16,7 @@ use crate::device::DEPTH_FORMAT;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};
 use crate::effect::{EffectDrawList, EffectPrimitiveDraw};
 use crate::sprite::SpriteVertex;
+use ragnarok_game::effect::draw::FrustumWaveMode;
 
 /// Pipeline holder for the Frustum primitive. The unified effect-dispatch
 /// path owns the per-frame vertex / index buffer; this struct just owns the
@@ -175,6 +176,7 @@ pub fn prepare_frustum_records<'tex>(
             wave_amplitude,
             wave_frequency,
             wave_phase,
+            wave_mode,
             tilt_x_rad,
             rotation_y_rad,
             cull_back,
@@ -248,7 +250,29 @@ pub fn prepare_frustum_records<'tex>(
             let (sin_a, cos_a) = world_angle.sin_cos();
             let u = t * uv_rep + uv_scroll[0];
 
-            let wave = *wave_amplitude * (local_angle * *wave_frequency + *wave_phase).sin();
+            let wave = match wave_mode {
+                FrustumWaveMode::Sine => {
+                    *wave_amplitude * (local_angle * *wave_frequency + *wave_phase).sin()
+                }
+                FrustumWaveMode::SaintBell => {
+                    // Per-segment height formula for the saint-casting bell,
+                    // matching the original game's on-screen profile:
+                    //   middle = (E_DIVISION-1)/2 = 10
+                    //   m2     = 90 / middle      = 9     (degrees per segment)
+                    //   SinLimit_i = 90° + (i - 10) * 9°  with i = 0..20
+                    //   height[i] = max_h * (1 + sin(SinLimit_i) * 0.3 * sin(pr))
+                    // SinLimit sweeps 0°..180° across the 360° cone surface,
+                    // so the bell is `sin(local_angle / 2)` — a half-sine
+                    // peaking at the segment opposite the seam (local_angle=π)
+                    // and falling to **zero** at the seam itself (local_angle
+                    // = 0 or 2π). Always non-negative. `wave_amplitude`
+                    // carries the `sin(pr)` time pulse including its sign,
+                    // so negative wave_amplitude pulls the bell-side
+                    // inward instead of outward (the cone "breathes").
+                    let bell = (local_angle * 0.5).sin();
+                    *wave_amplitude * bell
+                }
+            };
             let seg_top_size = top_size + wave * radial_unit;
             let seg_top_local_y = top_local_y_base - wave * vert_unit;
 

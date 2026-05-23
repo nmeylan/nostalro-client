@@ -43,7 +43,7 @@
 //! of debris — just not aimed at the attacker. Threading a real impact
 //! heading is a follow-up the entity-rotation pipeline will unlock.
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
+use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const RING_BLUE: &str = "ring_blue.tga";
@@ -795,6 +795,7 @@ impl Effect for HitEffect {
                 wave_amplitude: 0.0,
                 wave_frequency: 1.0,
                 wave_phase: 0.0,
+                wave_mode: FrustumWaveMode::Sine,
                 tilt_x_rad: ring.tilt_x_rad,
                 // Y-rotation aims the cone along the heading. Hit1's
                 // ring is rotationally symmetric (flat disc) so this

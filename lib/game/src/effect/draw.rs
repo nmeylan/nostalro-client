@@ -4,6 +4,20 @@
 //! into an `EffectDrawList`; the renderer crate consumes the list each frame
 //! and dispatches them to dedicated GPU pipelines.
 
+/// Selects how `Frustum` modulates each top-ring vertex's height.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum FrustumWaveMode {
+    /// `wave_amplitude * sin(angle * wave_frequency + wave_phase)` — full
+    /// sine around the ring. Default; preserves legacy LandProtector / Volcano
+    /// behaviour.
+    #[default]
+    Sine,
+    /// Single positive lobe centred opposite the seam — matches the original
+    /// game's casting-cone flame-tip envelope. `wave_amplitude` may
+    /// go negative across frames to flip the lobe inward.
+    SaintBell,
+}
+
 /// Pre-classified blend mode for effect primitives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlendKind {
@@ -97,11 +111,21 @@ pub enum EffectPrimitiveDraw {
     /// `uv_scroll` is an additive `[u, v]` scroll, `uv_repeat` how many
     /// times the texture tiles around the circumference.
     ///
-    /// Each top-ring vertex's height is offset by
-    /// `wave_amplitude * sin(angle * wave_frequency + wave_phase)` —
-    /// driving `wave_phase` over time makes the height wave travel around
-    /// the ring (used by LandProtector to make flame peaks rotate around
-    /// the curtain). `wave_amplitude == 0` produces a flat top ring.
+    /// Each top-ring vertex's height is offset by a wave function selected
+    /// by `wave_mode`.
+    /// * [`FrustumWaveMode::Sine`] (default) — `wave_amplitude *
+    ///   sin(angle * wave_frequency + wave_phase)`. Driving `wave_phase`
+    ///   over time makes the height wave travel around the ring
+    ///   (LandProtector flame peaks rotate around the curtain). One peak
+    ///   and one trough per cycle of `wave_frequency`.
+    /// * [`FrustumWaveMode::SaintBell`] — `wave_amplitude * max(sin(across), 0)`
+    ///   where `across = π * (segment_index / segments * 2 − 1)`. Single
+    ///   positive lobe centred opposite the seam (`rotation`), zero at the
+    ///   seam itself. Time-modulate by varying `wave_amplitude` per frame
+    ///   (it may go negative to invert the lobe). Used by the casting
+    ///   cones (BeginSpell, BeginSpell6): a fixed-azimuth
+    ///   flame-tip bump that pulses in amplitude rather than rotating.
+    /// `wave_amplitude == 0` produces a flat top ring in either mode.
     Frustum {
         base: [f32; 3],
         bottom_size: f32,
@@ -114,6 +138,7 @@ pub enum EffectPrimitiveDraw {
         wave_amplitude: f32,
         wave_frequency: f32,
         wave_phase: f32,
+        wave_mode: FrustumWaveMode,
         /// Tilt around the local X axis (radians), applied *after* the
         /// local-frame vertices are built and *before* `rotation_y_deg`.
         /// 0 = vertical pillar (default — preserves the existing

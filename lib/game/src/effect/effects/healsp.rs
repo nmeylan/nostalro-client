@@ -17,7 +17,7 @@
 //! alpha envelope: linear fade-in over 30 frames, hold, fade out over
 //! the final 20 frames.
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
+use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const CYLINDER_TEXTURE: &str = "alpha_down.tga";
@@ -208,6 +208,7 @@ impl Effect for HealSpEffect {
                     wave_amplitude: 0.0,
                     wave_frequency: 0.0,
                     wave_phase: 0.0,
+                    wave_mode: FrustumWaveMode::Sine,
                     tilt_x_rad: 0.0,
                     rotation_y_rad: 0.0,
                     cull_back: false,

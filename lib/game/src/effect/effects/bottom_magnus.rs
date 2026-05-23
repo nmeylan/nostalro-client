@@ -27,7 +27,7 @@
 //! alone — the cross-faces are nearly co-planar with the sides and
 //! read as a slight alpha boost rather than visible geometry.
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
+use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 #[derive(Clone, Copy, Debug)]
@@ -122,6 +122,7 @@ impl Effect for BottomMagnusEffect {
             wave_amplitude: 0.0,
             wave_frequency: 0.0,
             wave_phase: 0.0,
+            wave_mode: FrustumWaveMode::Sine,
             tilt_x_rad: 0.0,
             rotation_y_rad: 0.0,
             cull_back: false,
