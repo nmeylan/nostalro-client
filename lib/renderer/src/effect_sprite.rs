@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::spr::SprFile;
-use ragnarok_game::effect::{BlendKind, EffectDrawList, EffectPrimitiveDraw};
+use ragnarok_game::effect::{EffectDrawList, EffectPrimitiveDraw};
 
 use crate::camera::Camera;
+use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};
 use crate::sprite::{
     SpriteBatch, SpriteTextures, build_clip_quad, scale_clip_vertices, upload_sprite_textures,
 };
@@ -157,26 +158,20 @@ pub fn build_emitter_batches<'a>(draws: &[EmitterDraw<'a>]) -> Vec<SpriteBatch<'
 }
 
 /// Walk an `EffectDrawList`, find every `EffectPrimitiveDraw::SpriteParticle`
-/// entry, and project each into an `EmitterDraw` ready for
-/// `build_emitter_batches`. Skips particles whose sprite isn't in the cache
-/// (caller is responsible for preloading the sprite paths declared in each
-/// effect module's `TEXTURES` / sprite list) and particles whose world
-/// position projects off-screen.
-///
-/// Callers append the returned `EmitterDraw` list to whatever they're
-/// already passing into `build_emitter_batches` — same path as the
-/// existing `Spr` / `Smoke3D` emitter draws, so the resulting sprite
-/// quads land in the same render pass with consistent depth and blend
-/// behaviour.
-pub fn collect_sprite_particle_emitter_draws<'cache>(
+/// entry, and produce one [`DrawRecord`] per sprite clip ready for the
+/// unified effect dispatch. Records use screen-space vertices and dispatch
+/// through the [`PipelineKind::Sprite`] pipeline; depth is the world-space
+/// `view_z` of the particle anchor so the renderer can sort sprite
+/// particles against billboards and 3D primitives consistently.
+pub fn prepare_sprite_particle_records<'cache>(
     list: &EffectDrawList,
     cache: &'cache EffectSpriteCache,
     camera: &Camera,
     screen_w: f32,
     screen_h: f32,
-) -> Vec<EmitterDraw<'cache>> {
-    let mut draws = Vec::new();
-    for prim in &list.primitives {
+) -> Vec<DrawRecord<'cache>> {
+    let mut records: Vec<DrawRecord<'cache>> = Vec::new();
+    for (emission, prim) in list.primitives.iter().enumerate() {
         let EffectPrimitiveDraw::SpriteParticle {
             sprite_path,
             position,
@@ -188,11 +183,11 @@ pub fn collect_sprite_particle_emitter_draws<'cache>(
         else {
             continue;
         };
-        let additive = matches!(blend, BlendKind::Additive);
         let Some(sprite) = cache.get(sprite_path) else {
             continue;
         };
-        let Some((anchor, depth, ppu)) = project_billboard(camera, *position, screen_w, screen_h)
+        let Some((anchor, depth, ppu)) =
+            project_billboard(camera, *position, screen_w, screen_h)
         else {
             continue;
         };
@@ -201,18 +196,39 @@ pub fn collect_sprite_particle_emitter_draws<'cache>(
         if motion_count == 0 {
             continue;
         }
+        let action = sprite.act.actions.first().unwrap();
+        let motion = &action.motions[motion_index % motion_count];
         let sprite_scale = (ppu / 7.5) * size_scale;
-        draws.push(EmitterDraw {
-            sprite,
-            screen_anchor: anchor,
-            depth,
-            sprite_scale,
-            motion_index: *motion_index % motion_count,
-            color: *color,
-            additive,
-        });
+        let view_depth = view_z(camera, *position);
+        let blend_bucket = BlendBucket::from_blend_kind(*blend);
+        for clip in &motion.clips {
+            let Some((mut vertices, indices, tex_idx)) =
+                build_clip_quad(clip, &sprite.textures, anchor, depth, [0, 0])
+            else {
+                continue;
+            };
+            if tex_idx >= sprite.textures.bind_groups.len() {
+                continue;
+            }
+            scale_clip_vertices(&mut vertices, anchor, sprite_scale, 0.0);
+            for v in &mut vertices {
+                v.color[0] *= color[0];
+                v.color[1] *= color[1];
+                v.color[2] *= color[2];
+                v.color[3] *= color[3];
+            }
+            records.push(DrawRecord::new(
+                view_depth,
+                emission as u32,
+                blend_bucket,
+                PipelineKind::Sprite,
+                vertices,
+                indices,
+                &sprite.textures.bind_groups[tex_idx],
+            ));
+        }
     }
-    draws
+    records
 }
 
 /// Helper: project a world-space anchor into a screen anchor / depth /

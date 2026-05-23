@@ -29,7 +29,7 @@ pub const SPRITES: &[&str] = &[PARTICLE_SPRITE];
 const FRAMES_PER_SECOND: f32 = 60.0;
 const SPIKE_DURATION_FRAMES: f32 = 80.0;
 const PARENT_DURATION_FRAMES: f32 = 300.0;
-const PARTICLE_DURATION_FRAMES: f32 = 300.0;
+const PARTICLE_DURATION_FRAMES: f32 = 100.0;
 
 pub const SPIKES: SpikeBurstParams = SpikeBurstParams {
     count: 20,
@@ -64,7 +64,7 @@ const ORBIT_RADIUS: f32 = 7.0;
 // pattern baked into `particle1.spr`. A literal size renders
 // them as small dots in our viewer, drowned by the spike burst, so we
 // scale up so the sparkles read as the dominant burst element.
-const PARTICLE_SIZE: f32 = 3.0;
+const PARTICLE_SIZE: f32 = 1.2;
 // Spawn at the same chest-height offset the spike burst uses. The original
 // attaches sparkles to the character's
 // body centre, so spikes and orbit particles read at the same height

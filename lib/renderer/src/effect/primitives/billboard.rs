@@ -1,34 +1,34 @@
 use crate::camera::Camera;
+use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind};
 use crate::effect_sprite::project_billboard;
-use crate::sprite::{SpriteBatch, SpriteVertex};
+use crate::sprite::SpriteVertex;
 
-use super::super::{BlendKind, EffectDrawList, EffectPrimitiveDraw};
+use super::super::{EffectDrawList, EffectPrimitiveDraw};
 
-/// Convert every `EffectPrimitiveDraw::Billboard` entry into a `SpriteBatch`.
+#[cfg(test)]
+use super::super::BlendKind;
+
+/// Convert every `Billboard` / `BillboardDisc` in `list` into a
+/// [`DrawRecord`] dispatched through the sprite pipeline.
 ///
-/// Resolution rules:
-///   * Texture: callers resolve names via `texture_lookup` (typically a
-///     closure over an App-owned `TextureCache`). Returning `None` falls
-///     back to `fallback_texture`. Keeping the cache *out* of this function
-///     lets callers control the borrow scope - the renderer's own
-///     `TextureCache` field would otherwise hold an immutable borrow on the
-///     renderer that prevents calling `Renderer::render(&mut self, …)`.
-///   * Blend: `BlendKind::Additive` or `Raw { dst != Zero }` → additive
-///     SpriteBatch; everything else → alpha. Full per-frame D3D blend
-///     factors land when we drop the SpriteRenderer detour and add a
-///     dedicated effect-primitive pipeline.
-///   * Size is in world units; converted to screen pixels via `ppu`
-///     (perspective-correct).
-pub fn build_billboard_batches<'a>(
+/// `texture_lookup` resolves the per-primitive texture name (bare
+/// filename, e.g. `ring_yellow.tga`) against the caller's texture cache;
+/// missing textures fall back to `fallback_texture`.
+///
+/// Vertices are in *screen space* — anchor produced by `project_billboard`
+/// plus per-corner pixel offsets — and depth is the NDC z returned by the
+/// same projection. The sprite pipeline interprets `position.xy` as screen
+/// pixels and `position.z` as NDC depth.
+pub fn prepare_billboard_records<'tex>(
     list: &EffectDrawList,
     camera: &Camera,
     screen_w: f32,
     screen_h: f32,
-    fallback_texture: &'a wgpu::BindGroup,
-    texture_lookup: impl Fn(&str) -> Option<&'a wgpu::BindGroup>,
-) -> Vec<SpriteBatch<'a>> {
-    let mut batches = Vec::new();
-    for prim in &list.primitives {
+    fallback_texture: &'tex wgpu::BindGroup,
+    texture_lookup: impl Fn(&str) -> Option<&'tex wgpu::BindGroup>,
+) -> Vec<DrawRecord<'tex>> {
+    let mut records: Vec<DrawRecord<'tex>> = Vec::new();
+    for (emission, prim) in list.primitives.iter().enumerate() {
         if let EffectPrimitiveDraw::BillboardDisc {
             pos,
             radius,
@@ -39,20 +39,14 @@ pub fn build_billboard_batches<'a>(
             blend,
         } = prim
         {
-            let Some((anchor, depth, ppu)) =
+            let Some((anchor, ndc_z, ppu)) =
                 project_billboard(camera, *pos, screen_w, screen_h)
             else {
                 continue;
             };
             let r = radius * ppu;
             let n = (*segments).max(8);
-            let z = depth - 0.001;
-            // Triangle fan: vertex 0 = centre (V=1, opaque under
-            // alpha_down). Then `n+1` perimeter vertices spaced around
-            // the circle (V=0, transparent). U follows the arc 0..1
-            // (× `uv_repeat`), with the last vertex duplicating the
-            // first's screen position but at U = uv_repeat to keep the
-            // texture seamless.
+            let z = ndc_z - 0.001;
             let mut vertices: Vec<SpriteVertex> = Vec::with_capacity(n as usize + 2);
             vertices.push(SpriteVertex {
                 position: [anchor[0], anchor[1], z],
@@ -76,12 +70,15 @@ pub fn build_billboard_batches<'a>(
                 indices.push(2 + s);
             }
             let texture_bg = texture_lookup(texture).unwrap_or(fallback_texture);
-            batches.push(SpriteBatch {
+            records.push(DrawRecord::new(
+                super::super::queue::view_z(camera, *pos),
+                emission as u32,
+                BlendBucket::from_blend_kind(*blend),
+                PipelineKind::Sprite,
                 vertices,
                 indices,
-                texture: texture_bg,
-                additive: blend_is_additive(blend),
-            });
+                texture_bg,
+            ));
             continue;
         }
 
@@ -98,18 +95,13 @@ pub fn build_billboard_batches<'a>(
             continue;
         };
 
-        let Some((anchor, depth, ppu)) = project_billboard(camera, *pos, screen_w, screen_h)
+        let Some((anchor, ndc_z, ppu)) = project_billboard(camera, *pos, screen_w, screen_h)
         else {
             continue;
         };
 
         let half_w = size[0] * ppu * 0.5;
         let half_h = size[1] * ppu * 0.5;
-        // Rotate each corner offset around the anchor by `rotation` radians.
-        // CCW in screen space (matches the original game roll convention used by
-        // Hit2's lens-flare petals). When `rotation == 0` cos=1, sin=0 and
-        // the transform is the identity, so existing axis-aligned callers
-        // see no change.
         let (sin_r, cos_r) = rotation.sin_cos();
         let rotate = |dx: f32, dy: f32| -> [f32; 2] {
             [
@@ -117,7 +109,6 @@ pub fn build_billboard_batches<'a>(
                 anchor[1] + dx * sin_r + dy * cos_r,
             ]
         };
-        // Vertex order: TL, TR, BL, BR; indices form a triangle strip.
         let corners = [
             (rotate(-half_w, -half_h), uv[0]),
             (rotate(half_w, -half_h), uv[1]),
@@ -126,7 +117,7 @@ pub fn build_billboard_batches<'a>(
         ];
 
         let texture_bg = texture_lookup(texture).unwrap_or(fallback_texture);
-        let z = depth - 0.001;
+        let z = ndc_z - 0.001;
         let vertices = corners
             .iter()
             .map(|(p, t)| SpriteVertex {
@@ -136,24 +127,17 @@ pub fn build_billboard_batches<'a>(
             })
             .collect();
 
-        batches.push(SpriteBatch {
+        records.push(DrawRecord::new(
+            super::super::queue::view_z(camera, *pos),
+            emission as u32,
+            BlendBucket::from_blend_kind(*blend),
+            PipelineKind::Sprite,
             vertices,
-            indices: vec![0, 1, 2, 1, 3, 2],
-            texture: texture_bg,
-            additive: blend_is_additive(blend),
-        });
+            vec![0, 1, 2, 1, 3, 2],
+            texture_bg,
+        ));
     }
-    batches
-}
-
-fn blend_is_additive(blend: &BlendKind) -> bool {
-    match blend {
-        BlendKind::Additive => true,
-        BlendKind::Alpha | BlendKind::Multiply => false,
-        // Heuristic for raw D3D factors: anything that doesn't write the
-        // standard `SrcAlpha, OneMinusSrcAlpha` pair lands in additive.
-        BlendKind::Raw { src: _, dst } => *dst != 6,
-    }
+    records
 }
 
 #[cfg(test)]
@@ -176,11 +160,26 @@ mod tests {
     }
 
     #[test]
-    fn blend_classification() {
-        assert!(blend_is_additive(&BlendKind::Additive));
-        assert!(!blend_is_additive(&BlendKind::Alpha));
-        assert!(!blend_is_additive(&BlendKind::Multiply));
-        assert!(!blend_is_additive(&BlendKind::Raw { src: 5, dst: 6 }));
-        assert!(blend_is_additive(&BlendKind::Raw { src: 5, dst: 2 }));
+    fn blend_bucket_mapping() {
+        assert_eq!(
+            BlendBucket::from_blend_kind(BlendKind::Additive),
+            BlendBucket::Additive
+        );
+        assert_eq!(
+            BlendBucket::from_blend_kind(BlendKind::Alpha),
+            BlendBucket::Alpha
+        );
+        assert_eq!(
+            BlendBucket::from_blend_kind(BlendKind::Multiply),
+            BlendBucket::Multiply
+        );
+        assert_eq!(
+            BlendBucket::from_blend_kind(BlendKind::Raw { src: 5, dst: 6 }),
+            BlendBucket::Alpha
+        );
+        assert_eq!(
+            BlendBucket::from_blend_kind(BlendKind::Raw { src: 5, dst: 2 }),
+            BlendBucket::Additive
+        );
     }
 }

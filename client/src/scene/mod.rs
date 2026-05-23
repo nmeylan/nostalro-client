@@ -328,6 +328,7 @@ impl App {
                 &all_ui_calls,
                 &frame.effect_batches,
                 &frame.effect_draws,
+                frame.sprite_particle_records,
                 &sprite_batches,
                 &cursor_batches,
                 &inline_textures,

@@ -10,10 +10,11 @@ use ragnarok_game::effect::CameraView;
 
 use crate::camera::Camera;
 use crate::effect::holder::EffectHolder;
+use crate::effect::queue::DrawRecord;
 use crate::effect::str_pipeline::{StrEffectCache, StrEmitterInput, build_str_effect_batches};
 use crate::effect_sprite::{
     EffectSpriteCache, SpriteEffectEmitter, build_emitter_batches, collect_sprite_effect_draws,
-    collect_sprite_particle_emitter_draws,
+    prepare_sprite_particle_records,
 };
 use crate::sprite::SpriteBatch;
 use ragnarok_game::effect::{EffectDrawList, EffectRenderCtx};
@@ -41,8 +42,18 @@ pub struct EffectFrameInputs<'cache, 'tmp> {
 }
 
 pub struct EffectFrameOutputs<'cache> {
+    /// Batches that stay outside the unified effect queue: STR keyframe
+    /// animations and ambient SPR / Smoke3D emitters. They render in their
+    /// own dedicated sprite pass.
     pub effect_batches: Vec<SpriteBatch<'cache>>,
+    /// Custom-effect primitive draws (Billboard, BillboardDisc,
+    /// SpriteParticle, Frustum, GroundDisc, …). Consumed by the unified
+    /// `EffectDispatcher` pass inside the renderer.
     pub effect_draws: EffectDrawList,
+    /// `SpriteParticle` records pre-projected against the camera. These
+    /// reference textures inside the [`EffectSpriteCache`] (which only the
+    /// caller borrows), so the renderer can't build them itself.
+    pub sprite_particle_records: Vec<DrawRecord<'cache>>,
 }
 
 /// Build the per-frame effect sprite batches and custom-primitive draw list.
@@ -111,18 +122,21 @@ pub fn compose_effect_frame<'cache, 'tmp>(
         .effect_holder
         .collect_custom_draws(&mut effect_draws, &render_ctx);
 
-    let sprite_particle_draws = collect_sprite_particle_emitter_draws(
+    // SpriteParticle entries now flow through the unified effect queue so
+    // they can depth-sort against Billboard / 3D records. Project them
+    // here while the caller's `EffectSpriteCache` is still borrowed.
+    let sprite_particle_records = prepare_sprite_particle_records(
         &effect_draws,
         input.effect_sprites,
         input.camera,
         input.screen_w,
         input.screen_h,
     );
-    effect_batches.extend(build_emitter_batches(&sprite_particle_draws));
 
     EffectFrameOutputs {
         effect_batches,
         effect_draws,
+        sprite_particle_records,
     }
 }
 
@@ -166,5 +180,9 @@ mod tests {
         // No SPR/STR caches loaded, so the sprite batch list stays empty —
         // the assertion just exercises the path without crashing.
         assert!(out.effect_batches.is_empty());
+        // SpriteParticle records require sprites in the cache; none are
+        // loaded so the records list is empty too. The field exists and
+        // is wired through.
+        assert!(out.sprite_particle_records.is_empty());
     }
 }

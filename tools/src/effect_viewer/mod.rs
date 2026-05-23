@@ -1251,22 +1251,18 @@ impl App {
         self.effect_holder
             .collect_custom_draws(&mut effect_draws, &render_ctx);
         // Custom effects can emit `SpriteParticle` primitives for
-        // per-particle SPR billboards (Hit's debris). Project them now
-        // and append to the sprite batch list so they share the sprite
-        // render pass with emitter-driven draws.
-        let sprite_particle_draws =
-            ragnarok_renderer::collect_sprite_particle_emitter_draws(
+        // per-particle SPR billboards (Hit's debris). The renderer's
+        // unified effect dispatch consumes these as `DrawRecord`s so they
+        // depth-sort against Billboard / 3D primitives from the same
+        // EffectDrawList.
+        let sprite_particle_records =
+            ragnarok_renderer::prepare_sprite_particle_records(
                 &effect_draws,
                 &self.effect_sprites,
                 &renderer.camera,
                 screen_w,
                 screen_h,
             );
-        effect_batches.extend(build_emitter_batches(&sprite_particle_draws));
-        // Billboard batches are built inside `Renderer::render()` from
-        // `effect_draws`, using its internal texture_lookup against the
-        // preloaded GRF texture cache. The viewer only forwards STR-effect
-        // batches here.
 
         // cdylib overlay (status + legend + controls). Browser, when open,
         // is drawn on top by the host.
@@ -1280,7 +1276,16 @@ impl App {
             ui_calls.extend(browser.build_draw_calls(&renderer.font_atlas, screen_w, screen_h));
         }
 
-        renderer.render(&ui_calls, &effect_batches, &effect_draws, &[], &[], &[], 0.0);
+        renderer.render(
+            &ui_calls,
+            &effect_batches,
+            &effect_draws,
+            sprite_particle_records,
+            &[],
+            &[],
+            &[],
+            0.0,
+        );
 
         // GIF capture path: after the surface frame is presented, render the
         // same simulation state into the offscreen capture target at 256x256
@@ -1310,14 +1315,13 @@ impl App {
                 );
                 capture_batches.extend(build_emitter_batches(&spr_draws_capture));
                 let sprite_particle_capture =
-                    ragnarok_renderer::collect_sprite_particle_emitter_draws(
+                    ragnarok_renderer::prepare_sprite_particle_records(
                         &effect_draws,
                         &self.effect_sprites,
                         &renderer.camera,
                         cap_w,
                         cap_h,
                     );
-                capture_batches.extend(build_emitter_batches(&sprite_particle_capture));
                 let color_view = session.target.color_view.clone();
                 let depth_view = session.target.depth_view.clone();
                 renderer.render_into(
@@ -1329,6 +1333,7 @@ impl App {
                     &[],
                     &capture_batches,
                     &effect_draws,
+                    sprite_particle_capture,
                     &[],
                     &[],
                     &[],

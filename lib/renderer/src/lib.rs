@@ -22,7 +22,7 @@ pub use global_uniforms::{FogUniform, GlobalUniforms, LightUniform, PointLightGp
 pub use damage_number::render_damage_number_quads;
 pub use effect_sprite::{
     EffectSpriteCache, EffectSpriteEntry, EmitterDraw, Smoke3DParticle, SpriteEffectEmitter,
-    build_emitter_batches, collect_sprite_effect_draws, collect_sprite_particle_emitter_draws,
+    build_emitter_batches, collect_sprite_effect_draws, prepare_sprite_particle_records,
     project_billboard,
 };
 pub use font_atlas::FontAtlas;
@@ -36,8 +36,10 @@ pub use sprite::{
     scale_clip_vertices, upload_sprite_textures,
 };
 pub use effect::{
-    BlendKind, StrEffectCache, StrEffectEntry, StrEmitterInput, build_str_effect_batches,
-    d3d_blend_to_wgpu,
+    BlendBucket, BlendKind, DrawRecord, EffectDispatcher, PipelineKind, StrEffectCache,
+    StrEffectEntry, StrEmitterInput, build_str_effect_batches, d3d_blend_to_wgpu,
+    prepare_billboard_records, prepare_frustum_records, prepare_ground_disc_records,
+    prepare_quad_horn_records, prepare_sphere_records, prepare_world_quad_records,
 };
 pub use texture::TextureCache;
 pub use ui_renderer::{UiDrawCommand, UiRenderer, UiVertex};
@@ -108,6 +110,10 @@ pub struct Renderer {
     pub effect_quad_horn_renderer: effect::QuadHornRenderer,
     pub effect_sphere_renderer: effect::SphereRenderer,
     pub effect_world_quad_renderer: effect::WorldQuadRenderer,
+    /// Owns the per-frame unified vertex / index buffer for the effect
+    /// dispatch path; pipelines themselves live on the per-primitive
+    /// renderer structs above.
+    pub effect_dispatcher: effect::EffectDispatcher,
     pub ui_renderer: UiRenderer,
     pub font_atlas: FontAtlas,
     pub font_atlas_bind_group: wgpu::BindGroup,
@@ -199,6 +205,7 @@ impl Renderer {
             &global_uniforms.bind_group_layout,
             &texture_cache.bind_group_layout,
         );
+        let effect_dispatcher = effect::EffectDispatcher::new(&device.device);
 
         let ui_renderer = UiRenderer::new(
             &device.device,
@@ -225,6 +232,7 @@ impl Renderer {
             effect_quad_horn_renderer,
             effect_sphere_renderer,
             effect_world_quad_renderer,
+            effect_dispatcher,
             ui_renderer,
             font_atlas,
             font_atlas_bind_group,
@@ -456,6 +464,7 @@ impl Renderer {
         ui_draw_calls: &[UiDrawCall],
         effect_sprite_batches: &[SpriteBatch],
         effect_draws: &effect::EffectDrawList,
+        sprite_particle_records: Vec<DrawRecord>,
         sprite_batches: &[SpriteBatch],
         cursor_batches: &[SpriteBatch],
         inline_textures: &[&wgpu::BindGroup],
@@ -488,6 +497,7 @@ impl Renderer {
             ui_draw_calls,
             effect_sprite_batches,
             effect_draws,
+            sprite_particle_records,
             sprite_batches,
             cursor_batches,
             inline_textures,
@@ -511,6 +521,7 @@ impl Renderer {
         ui_draw_calls: &[UiDrawCall],
         effect_sprite_batches: &[SpriteBatch],
         effect_draws: &effect::EffectDrawList,
+        sprite_particle_records: Vec<DrawRecord>,
         sprite_batches: &[SpriteBatch],
         cursor_batches: &[SpriteBatch],
         inline_textures: &[&wgpu::BindGroup],
@@ -594,130 +605,10 @@ impl Renderer {
             }
         }
 
-        // Build effect billboard batches up front so the texture_lookup
-        // closure can be reused by every effect dispatch in this pass.
-        let texture_lookup = |name: &str| -> Option<&wgpu::BindGroup> {
-            // Effect texture params store the bare filename
-            // (e.g. `ring_yellow.tga`); preload + cache uses the
-            // full GRF path (`data/texture/effect/<name>`).
-            if name.is_empty() {
-                return None;
-            }
-            let full = format!("data/texture/effect/{name}");
-            self.texture_cache.get(&full)
-        };
-        let billboard_batches = effect::build_billboard_batches(
-            effect_draws,
-            &self.camera,
-            logical_w,
-            logical_h,
-            &self.white_bind_group,
-            texture_lookup,
-        );
-
-        // 3D effect primitives first — they write to depth, so subsequent
-        // alpha-blended passes (entity sprites, effect billboards) can
-        // depth-test against them correctly.
-        let has_ground_discs = effect_draws
-            .primitives
-            .iter()
-            .any(|p| matches!(p, effect::EffectPrimitiveDraw::GroundDisc { .. }));
-        let has_frustums = effect_draws
-            .primitives
-            .iter()
-            .any(|p| matches!(p, effect::EffectPrimitiveDraw::Frustum { .. }));
-        let has_quad_horns = effect_draws
-            .primitives
-            .iter()
-            .any(|p| matches!(p, effect::EffectPrimitiveDraw::QuadHorn { .. }));
-        let has_spheres = effect_draws
-            .primitives
-            .iter()
-            .any(|p| matches!(p, effect::EffectPrimitiveDraw::Sphere { .. }));
-        let has_world_quads = effect_draws
-            .primitives
-            .iter()
-            .any(|p| matches!(p, effect::EffectPrimitiveDraw::WorldQuad { .. }));
-        if has_ground_discs {
-            let fallback = &self.white_bind_group;
-            self.effect_ground_disc_renderer.render(
-                &mut encoder,
-                &view,
-                depth_view,
-                &self.device.device,
-                &self.device.queue,
-                &self.global_uniforms.bind_group,
-                &self.camera,
-                effect_draws,
-                fallback,
-                texture_lookup,
-            );
-        }
-        if has_frustums {
-            let fallback = &self.white_bind_group;
-            self.effect_frustum_renderer.render(
-                &mut encoder,
-                &view,
-                depth_view,
-                &self.device.device,
-                &self.device.queue,
-                &self.global_uniforms.bind_group,
-                &self.camera,
-                effect_draws,
-                fallback,
-                texture_lookup,
-            );
-        }
-        if has_quad_horns {
-            let fallback = &self.white_bind_group;
-            self.effect_quad_horn_renderer.render(
-                &mut encoder,
-                &view,
-                depth_view,
-                &self.device.device,
-                &self.device.queue,
-                &self.global_uniforms.bind_group,
-                &self.camera,
-                effect_draws,
-                fallback,
-                texture_lookup,
-            );
-        }
-        if has_spheres {
-            let fallback = &self.white_bind_group;
-            self.effect_sphere_renderer.render(
-                &mut encoder,
-                &view,
-                depth_view,
-                &self.device.device,
-                &self.device.queue,
-                &self.global_uniforms.bind_group,
-                &self.camera,
-                effect_draws,
-                fallback,
-                texture_lookup,
-            );
-        }
-        if has_world_quads {
-            let fallback = &self.white_bind_group;
-            self.effect_world_quad_renderer.render(
-                &mut encoder,
-                &view,
-                depth_view,
-                &self.device.device,
-                &self.device.queue,
-                &self.global_uniforms.bind_group,
-                &self.camera,
-                effect_draws,
-                fallback,
-                texture_lookup,
-            );
-        }
-
-        // Entity sprites render before the effect SPR / Billboard pass so
-        // effects sit on top of the character — matches the original game's
-        // game-object list insertion order (player pushed first, effects
-        // appended at spawn time).
+        // Entity sprites render before the unified effect pass so effects
+        // sit on top of the character — matches the original game's draw
+        // order, where the player is drawn first and effects spawned on it
+        // layer over the top.
         if !sprite_batches.is_empty() {
             self.sprite_renderer.render(
                 &mut encoder,
@@ -730,11 +621,14 @@ impl Renderer {
             );
         }
 
-        // Effect SPR / Billboard batches: depth-read, no depth-write.
-        // Dispatched after entity sprites so additive/alpha particles
-        // overlay the character body. Uses a dedicated SpriteRenderer
-        // instance so its vertex buffer doesn't collide with the entity
-        // pass above in the same encoder.
+        // STR + ambient SPR / Smoke3D sprite batches go through the
+        // dedicated effect sprite renderer pass. They share blend state
+        // (additive vs alpha) but stay outside the unified queue: STR runs
+        // its own keyframe animation system and ambient emitters aren't
+        // emitted into `EffectDrawList` today, so they don't have a
+        // per-primitive depth to sort by. The dedicated pass keeps them
+        // off the unified vertex buffer (avoids the cost of rebuilding
+        // their geometry every dispatch).
         if !effect_sprite_batches.is_empty() {
             self.effect_sprite_renderer.render(
                 &mut encoder,
@@ -746,15 +640,82 @@ impl Renderer {
                 effect_sprite_batches,
             );
         }
-        if !billboard_batches.is_empty() {
-            self.effect_sprite_renderer.render(
+
+        // Unified effect-primitive pass: every Billboard / BillboardDisc /
+        // SpriteParticle / Frustum / GroundDisc / QuadHorn / Sphere /
+        // WorldQuad in `effect_draws` lands in one of [`BlendBucket`]'s
+        // deferred lists, sorted back-to-front by view-space depth, then
+        // flushed in alpha → additive → multiply order. Matches the
+        // original game's `FlushBatch`.
+        let texture_lookup = |name: &str| -> Option<&wgpu::BindGroup> {
+            if name.is_empty() {
+                return None;
+            }
+            let full = format!("data/texture/effect/{name}");
+            self.texture_cache.get(&full)
+        };
+        let mut records: Vec<DrawRecord<'_>> = Vec::new();
+        records.extend(sprite_particle_records);
+        records.extend(prepare_billboard_records(
+            effect_draws,
+            &self.camera,
+            logical_w,
+            logical_h,
+            &self.white_bind_group,
+            texture_lookup,
+        ));
+        records.extend(prepare_frustum_records(
+            effect_draws,
+            &self.camera,
+            &self.white_bind_group,
+            texture_lookup,
+        ));
+        records.extend(prepare_ground_disc_records(
+            effect_draws,
+            &self.camera,
+            &self.white_bind_group,
+            texture_lookup,
+        ));
+        records.extend(prepare_quad_horn_records(
+            effect_draws,
+            &self.camera,
+            &self.white_bind_group,
+            texture_lookup,
+        ));
+        records.extend(prepare_sphere_records(
+            effect_draws,
+            &self.camera,
+            &self.white_bind_group,
+            texture_lookup,
+        ));
+        records.extend(prepare_world_quad_records(
+            effect_draws,
+            &self.camera,
+            &self.white_bind_group,
+            texture_lookup,
+        ));
+        // SpriteParticle records reference textures inside their respective
+        // EffectSpriteCache entries (`&sprite.textures.bind_groups[i]`), which
+        // the renderer doesn't own. Callers that want SpriteParticle
+        // dispatched today pass the records in `extra_effect_records`;
+        // future cleanup will hoist particle preparation into
+        // `compose_effect_frame`.
+        if !records.is_empty() {
+            self.effect_dispatcher.dispatch(
+                records,
                 &mut encoder,
                 &view,
-                Some(depth_view),
+                depth_view,
                 &self.device.device,
                 &self.device.queue,
-                None,
-                &billboard_batches,
+                &self.global_uniforms.bind_group,
+                &self.effect_sprite_renderer.uniform_bind_group,
+                &self.effect_sprite_renderer,
+                &self.effect_frustum_renderer,
+                &self.effect_ground_disc_renderer,
+                &self.effect_quad_horn_renderer,
+                &self.effect_sphere_renderer,
+                &self.effect_world_quad_renderer,
             );
         }
 

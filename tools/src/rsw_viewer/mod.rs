@@ -862,6 +862,7 @@ impl App {
             &draw_calls,
             &effect_batches,
             &empty_effect_draws,
+            Vec::new(),
             &[],
             &[],
             &[],

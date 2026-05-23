@@ -817,6 +817,7 @@ impl App {
         });
         let effect_batches = frame.effect_batches;
         let effect_draws = frame.effect_draws;
+        let sprite_particle_records = frame.sprite_particle_records;
 
         let sprite_batches: Vec<ragnarok_renderer::sprite::SpriteBatch<'_>> =
             match (&self.entity_sprite, &self.map_data) {
@@ -852,7 +853,16 @@ impl App {
         {
             ui_calls.extend(browser.build_draw_calls(&renderer.font_atlas, screen_w, screen_h));
         }
-        renderer.render(&ui_calls, &effect_batches, &effect_draws, &sprite_batches, &[], &[], dt);
+        renderer.render(
+            &ui_calls,
+            &effect_batches,
+            &effect_draws,
+            sprite_particle_records,
+            &sprite_batches,
+            &[],
+            &[],
+            dt,
+        );
     }
 }
 

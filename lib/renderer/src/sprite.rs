@@ -85,12 +85,12 @@ const INITIAL_VERTEX_CAPACITY: usize = 1024;
 const INITIAL_INDEX_CAPACITY: usize = 2048;
 
 pub struct SpriteRenderer {
-    pipeline: wgpu::RenderPipeline,
-    pipeline_no_depth: wgpu::RenderPipeline,
-    pipeline_additive: wgpu::RenderPipeline,
-    pipeline_additive_no_depth: wgpu::RenderPipeline,
+    pub pipeline: wgpu::RenderPipeline,
+    pub pipeline_no_depth: wgpu::RenderPipeline,
+    pub pipeline_additive: wgpu::RenderPipeline,
+    pub pipeline_additive_no_depth: wgpu::RenderPipeline,
     uniform_buffer: wgpu::Buffer,
-    uniform_bind_group: wgpu::BindGroup,
+    pub uniform_bind_group: wgpu::BindGroup,
     uniform_bind_group_layout: wgpu::BindGroupLayout,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
