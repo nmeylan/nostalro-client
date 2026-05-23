@@ -176,10 +176,7 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor) -> Option<Box<dyn Effect>
             effects::aura::LV99_TRANSCENDANT_BOTTOM,
         )),
 
-        EffectId::Beginspell => Box::new(effects::cast_circle::CastCircleEffect::new(
-            anchor.point(),
-            effects::cast_circle::YELLOW,
-        )),
+        EffectId::Beginspell => Box::new(effects::begin_spell::BeginSpellEffect::new(anchor.point())),
         EffectId::Beginspell2 => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
             effects::cast_circle::WATER,

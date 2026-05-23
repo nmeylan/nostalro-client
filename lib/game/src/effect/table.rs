@@ -11,7 +11,7 @@ use models::enums::effect_id::EffectId;
 
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effects::{
-    bash, blessing, bottom_sanctuary_pillar, cast_circle, endure, enhance, entry,
+    bash, begin_spell, blessing, bottom_sanctuary_pillar, cast_circle, endure, enhance, entry,
     exit as exit_effect, firearrow, fireball, frost_diver, glasswall, healsp, hit,
     hit2, hit5_6, magnum_break, napalmbeat, portal, ready_portal, sandwind, sight, spraypond,
     status_up, stormgust, teleportation, volcano, warp,
@@ -222,8 +222,10 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // Cast-circle family — runs 40 frames at 60 fps;
         // the generated default of 400 ms cuts the cylinder off before its
         // fade-out completes.
-        EffectId::Beginspell
-        | EffectId::Beginspell2
+        EffectId::Beginspell => EffectSpec::Custom {
+            duration_ms: begin_spell::TOTAL_DURATION_MS,
+        },
+        EffectId::Beginspell2
         | EffectId::Beginspell3
         | EffectId::Beginspell4
         | EffectId::Beginspell5

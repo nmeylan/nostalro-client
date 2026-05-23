@@ -7,6 +7,7 @@
 pub mod aura;
 pub mod bash;
 pub mod blessing;
+pub mod begin_spell;
 pub mod begin_spell_6;
 pub mod bottom_hermode;
 pub mod bottom_landprotector;
