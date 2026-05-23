@@ -57,6 +57,13 @@ impl App {
                             sprite_batches.append(&mut shadow);
                         }
 
+                        // Uniform per-vertex depth (no Y-gradient). The sprite
+                        // pipeline now writes depth, so the post-sprite effect
+                        // pass already depth-tests per pixel against the
+                        // sprite's anchor depth — a Y-biased gradient would
+                        // give the head a smaller Z than the feet and cause
+                        // STR particles at the chest to fail `LessEqual` at
+                        // the head while passing at the body.
                         let mut batches = sprite.build_batches(
                             &entity.animation,
                             Some(entry.camera_dir),
@@ -64,7 +71,7 @@ impl App {
                             entry.screen_anchor,
                             entry.depth,
                             entry.sprite_scale,
-                            entry.depth_gradient,
+                            0.0,
                         );
                         if is_fading {
                             for batch in &mut batches {
@@ -162,7 +169,7 @@ impl App {
                                             &mut vertices,
                                             center,
                                             entry.sprite_scale,
-                                            entry.depth_gradient,
+                                            0.0,
                                         );
                                         if blink_active {
                                             for v in &mut vertices {

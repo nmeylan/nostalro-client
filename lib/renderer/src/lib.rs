@@ -159,6 +159,13 @@ impl Renderer {
         let logical_w = device.surface_config.width as f32 / dpi_scale;
         let logical_h = device.surface_config.height as f32 / dpi_scale;
 
+        // Entity sprites write depth so the post-sprite effect pass
+        // depth-tests against the sprite — the entity sprite pass keeps
+        // depth-write enabled, matching the original game's on-screen
+        // occlusion. Front-facing fragments of a translucent
+        // cylinder around the caster pass `LessEqual` and draw on top of
+        // the sprite; back-facing fragments fail and the sprite remains
+        // visible (sprite "in the middle" of the cylinder).
         let sprite_renderer = SpriteRenderer::new(
             &device.device,
             device.surface_format,
@@ -166,6 +173,7 @@ impl Renderer {
             logical_w,
             logical_h,
             include_str!("shaders/sprite.wgsl"),
+            true,
         );
         let effect_sprite_renderer = SpriteRenderer::new(
             &device.device,
@@ -174,6 +182,7 @@ impl Renderer {
             logical_w,
             logical_h,
             include_str!("shaders/sprite.wgsl"),
+            false,
         );
         let effect_ground_disc_renderer = effect::GroundDiscRenderer::new(
             &device.device,

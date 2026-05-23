@@ -96,6 +96,13 @@ pub struct SpriteRenderer {
     index_buffer: wgpu::Buffer,
     vertex_capacity: usize,
     index_capacity: usize,
+    /// Whether the depth-enabled pipelines write to the depth buffer.
+    /// Entity sprites do so the post-sprite effect pass depth-tests against
+    /// them (front of cylinder draws over sprite, back fails depth test —
+    /// matches the original game's on-screen occlusion, where the entity
+    /// sprite pass keeps depth-write on). Effect sprites (STR / ambient SPR) skip
+    /// the write so per-emitter particle layering isn't blocked.
+    depth_write: bool,
 }
 
 impl SpriteRenderer {
@@ -106,6 +113,7 @@ impl SpriteRenderer {
         logical_width: f32,
         logical_height: f32,
         shader_source: &str,
+        depth_write: bool,
     ) -> Self {
         use wgpu::util::DeviceExt;
 
@@ -180,6 +188,7 @@ impl SpriteRenderer {
             shader_source,
             alpha,
             true,
+            depth_write,
         );
         let pipeline_no_depth = Self::create_pipeline(
             device,
@@ -188,6 +197,7 @@ impl SpriteRenderer {
             texture_bind_group_layout,
             shader_source,
             alpha,
+            false,
             false,
         );
         let pipeline_additive = Self::create_pipeline(
@@ -198,6 +208,7 @@ impl SpriteRenderer {
             shader_source,
             additive,
             true,
+            depth_write,
         );
         let pipeline_additive_no_depth = Self::create_pipeline(
             device,
@@ -206,6 +217,7 @@ impl SpriteRenderer {
             texture_bind_group_layout,
             shader_source,
             additive,
+            false,
             false,
         );
 
@@ -221,6 +233,7 @@ impl SpriteRenderer {
             index_buffer,
             vertex_capacity: INITIAL_VERTEX_CAPACITY,
             index_capacity: INITIAL_INDEX_CAPACITY,
+            depth_write,
         }
     }
 
@@ -232,6 +245,7 @@ impl SpriteRenderer {
         shader_source: &str,
         blend: wgpu::BlendState,
         use_depth: bool,
+        depth_write: bool,
     ) -> wgpu::RenderPipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("sprite"),
@@ -270,7 +284,7 @@ impl SpriteRenderer {
             depth_stencil: if use_depth {
                 Some(wgpu::DepthStencilState {
                     format: DEPTH_FORMAT,
-                    depth_write_enabled: false,
+                    depth_write_enabled: depth_write,
                     depth_compare: wgpu::CompareFunction::LessEqual,
                     stencil: Default::default(),
                     bias: Default::default(),
@@ -312,6 +326,7 @@ impl SpriteRenderer {
             shader_source,
             alpha,
             true,
+            self.depth_write,
         );
         self.pipeline_no_depth = Self::create_pipeline(
             device,
@@ -320,6 +335,7 @@ impl SpriteRenderer {
             texture_layout,
             shader_source,
             alpha,
+            false,
             false,
         );
         self.pipeline_additive = Self::create_pipeline(
@@ -330,6 +346,7 @@ impl SpriteRenderer {
             shader_source,
             additive,
             true,
+            self.depth_write,
         );
         self.pipeline_additive_no_depth = Self::create_pipeline(
             device,
@@ -338,6 +355,7 @@ impl SpriteRenderer {
             texture_layout,
             shader_source,
             additive,
+            false,
             false,
         );
     }

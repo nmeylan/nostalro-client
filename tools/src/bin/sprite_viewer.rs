@@ -849,6 +849,7 @@ impl ApplicationHandler for App {
             device.surface_config.width as f32,
             device.surface_config.height as f32,
             &shader_source,
+            false,
         );
 
         let watcher = ShaderWatcher::new(&shader_dir, "sprite.wgsl")
