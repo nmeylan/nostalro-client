@@ -1,17 +1,18 @@
 //! `EF_FIREARROW` — Archer Fire Arrow (id 31).
 //!
-//! Original game's FireArrow emits one cross-texture — two
-//! perpendicular textured quads — cycling through 6 flame frames
-//! (`archers1-6.tga`, stored in GRF as `불화살1-8.tga`). The cross spawns at
-//! frame 12 with a 70-frame lifetime, oriented along a launch trajectory.
-//! Trail particles (`particle4.spr`) emit every 4 frames, plus a
-//! `ring_yellow.tga` impact ring on hit.
-//!
-//! We approximate the cross as two perpendicular `Billboard`s with the flame
-//! textures cycling each frame.
+//! Original game's FireArrow emits a particle trail
+//! particles (`particle4.spr`) every 4 frames — small shrinking fire
+//! sprites scattering outward from the impact point. At frame 12 a
+//! 3D-cross-texture cross (two perpendicular billboards cycling
+//! `불화살1-6.tga` flame frames) flies outward along the scatter
+//! direction.
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
+use super::spike_burst::seed_from_world;
+
+const PARTICLE4_SPRITE: &str = "data/sprite/이팩트/particle4";
+pub const SPRITES: &[&str] = &[PARTICLE4_SPRITE];
 
 const FLAME_TEXTURES: &[&str] = &[
     "불화살1.tga",
@@ -25,32 +26,111 @@ const FLAME_TEXTURES: &[&str] = &[
 ];
 pub const TEXTURES: &[&str] = FLAME_TEXTURES;
 
-const FRAMES_PER_SECOND: f32 = 60.0;
-const DURATION_FRAMES: f32 = 96.0;
-const TEXTURE_COUNT: usize = 8;
-const ANIM_SPEED: f32 = 1.0;
-const FADE_OUT_FRAMES: f32 = 20.0;
+const FPS: f32 = 60.0;
 
-pub const TOTAL_DURATION_MS: u32 = (DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
+// Cross (3D cross texture)
+const CROSS_SPAWN_FRAME: f32 = 12.0;
+const CROSS_DURATION: f32 = 70.0;
+const CROSS_FADE_OUT_START: f32 = 50.0;
+const CROSS_TEX_COUNT: usize = 6;
+const CROSS_SPEED: f32 = 0.3;
+const CROSS_WIDTH: f32 = 4.0;
+const CROSS_HEIGHT: f32 = 1.0;
 
-const WIDTH: f32 = 4.0;
-const HEIGHT: f32 = 1.0;
+// Trail (3D particle)
+const TRAIL_FIRST_FRAME: f32 = 4.0;
+const TRAIL_INTERVAL: f32 = 4.0;
+const TRAIL_SPAWN_CUTOFF: f32 = 80.0;
+const TRAIL_MIN_DURATION: f32 = 6.0;
+const TRAIL_MAX_DURATION: f32 = 30.0;
+const TRAIL_MIN_SPEED: f32 = 0.6;
+const TRAIL_MAX_SPEED: f32 = 1.5;
+const TRAIL_MIN_SIZE: f32 = 0.2;
+const TRAIL_MAX_SIZE: f32 = 0.5;
+
+const TOTAL_FRAMES: f32 = TRAIL_SPAWN_CUTOFF + TRAIL_MAX_DURATION;
+pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FPS * 1000.0) as u32;
+
+const Y_OFFSET: f32 = -1.5;
+
+fn lcg_next(state: &mut u32) -> u32 {
+    *state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+    *state
+}
+
+fn lcg_float(state: &mut u32) -> f32 {
+    (lcg_next(state) >> 8) as f32 / ((1u32 << 24) as f32)
+}
+
+struct TrailParticle {
+    spawn_frame: f32,
+    duration: f32,
+    dir: [f32; 3],
+    speed: f32,
+    accel: f32,
+    init_size: f32,
+    size_speed: f32,
+}
 
 pub struct FireArrowEffect {
     world_pos: [f32; 3],
     age_frames: f32,
+    base_dir: [f32; 3],
+    trail: Vec<TrailParticle>,
 }
 
 impl FireArrowEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        Self { world_pos, age_frames: 0.0 }
+        let mut rng = seed_from_world(world_pos);
+
+        let base_lon = lcg_float(&mut rng) * std::f32::consts::TAU;
+        let base_lat = 50.0_f32.to_radians();
+        let cl = base_lat.cos();
+        let base_dir = [cl * base_lon.sin(), -base_lat.sin(), cl * base_lon.cos()];
+
+        let mut trail = Vec::new();
+        let mut frame = TRAIL_FIRST_FRAME;
+        while frame <= TRAIL_SPAWN_CUTOFF {
+            let lon = base_lon + (-20.0 + lcg_float(&mut rng) * 40.0).to_radians();
+            let lat = base_lat + (-10.0 + lcg_float(&mut rng) * 20.0).to_radians();
+            let c = lat.cos();
+            let dir = [c * lon.sin(), -lat.sin(), c * lon.cos()];
+
+            let duration =
+                TRAIL_MIN_DURATION + lcg_float(&mut rng) * (TRAIL_MAX_DURATION - TRAIL_MIN_DURATION);
+            let speed =
+                TRAIL_MIN_SPEED + lcg_float(&mut rng) * (TRAIL_MAX_SPEED - TRAIL_MIN_SPEED);
+            let accel = -(speed / duration) / 1.5;
+            let init_size =
+                TRAIL_MIN_SIZE + lcg_float(&mut rng) * (TRAIL_MAX_SIZE - TRAIL_MIN_SIZE);
+            let size_speed = -(init_size / duration);
+
+            trail.push(TrailParticle {
+                spawn_frame: frame,
+                duration,
+                dir,
+                speed,
+                accel,
+                init_size,
+                size_speed,
+            });
+
+            frame += TRAIL_INTERVAL;
+        }
+
+        Self {
+            world_pos,
+            age_frames: 0.0,
+            base_dir,
+            trail,
+        }
     }
 }
 
 impl Effect for FireArrowEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
-        self.age_frames += ctx.delta * FRAMES_PER_SECOND;
-        if self.age_frames >= DURATION_FRAMES {
+        self.age_frames += ctx.delta * FPS;
+        if self.age_frames >= TOTAL_FRAMES {
             EffectStatus::Dead
         } else {
             EffectStatus::Running
@@ -58,30 +138,68 @@ impl Effect for FireArrowEffect {
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
-        let t = (self.age_frames / DURATION_FRAMES).clamp(0.0, 1.0);
-        let fade_out_start = 1.0 - FADE_OUT_FRAMES / DURATION_FRAMES;
-        let alpha = if t < fade_out_start {
-            1.0
-        } else {
-            1.0 - (t - fade_out_start) / (1.0 - fade_out_start)
-        };
+        let pos_base = [
+            self.world_pos[0],
+            self.world_pos[1] + Y_OFFSET,
+            self.world_pos[2],
+        ];
 
-        let tex_step = (self.age_frames * ANIM_SPEED) as usize;
-        let tex_idx = tex_step % TEXTURE_COUNT;
-        let texture = FLAME_TEXTURES[tex_idx];
+        for p in &self.trail {
+            let local_age = self.age_frames - p.spawn_frame;
+            if local_age < 0.0 || local_age >= p.duration {
+                continue;
+            }
 
-        let pos = [self.world_pos[0], self.world_pos[1] - 1.5, self.world_pos[2]];
+            let dist = p.speed * local_age + 0.5 * p.accel * local_age * local_age;
+            let pos = [
+                pos_base[0] + p.dir[0] * dist,
+                pos_base[1] + p.dir[1] * dist,
+                pos_base[2] + p.dir[2] * dist,
+            ];
 
-        for rotation in [0.0_f32, std::f32::consts::FRAC_PI_2] {
-            out.push(EffectPrimitiveDraw::Billboard {
-                pos,
-                size: [WIDTH, HEIGHT],
-                uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
-                rotation,
-                texture,
-                color: [1.0, 1.0, 1.0, alpha.clamp(0.0, 1.0)],
+            let size = (p.init_size + p.size_speed * local_age).max(0.0);
+            let alpha = (1.0 - local_age / p.duration).clamp(0.0, 1.0);
+            let motion = (local_age * 2.0) as usize;
+
+            out.push(EffectPrimitiveDraw::SpriteParticle {
+                sprite_path: PARTICLE4_SPRITE,
+                position: pos,
+                motion_index: motion,
+                size_scale: size,
+                color: [1.0, 1.0, 1.0, alpha],
                 blend: BlendKind::Additive,
+                aim_target: None,
             });
+        }
+
+        let cross_age = self.age_frames - CROSS_SPAWN_FRAME;
+        if cross_age >= 0.0 && cross_age < CROSS_DURATION {
+            let dist = CROSS_SPEED * cross_age;
+            let cross_pos = [
+                pos_base[0] + self.base_dir[0] * dist,
+                pos_base[1] + self.base_dir[1] * dist,
+                pos_base[2] + self.base_dir[2] * dist,
+            ];
+
+            let tex_idx = (cross_age as usize) % CROSS_TEX_COUNT;
+
+            let alpha = if cross_age < CROSS_FADE_OUT_START {
+                1.0
+            } else {
+                1.0 - (cross_age - CROSS_FADE_OUT_START) / (CROSS_DURATION - CROSS_FADE_OUT_START)
+            };
+
+            for rotation in [0.0_f32, std::f32::consts::FRAC_PI_2] {
+                out.push(EffectPrimitiveDraw::Billboard {
+                    pos: cross_pos,
+                    size: [CROSS_WIDTH, CROSS_HEIGHT],
+                    uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
+                    rotation,
+                    texture: FLAME_TEXTURES[tex_idx],
+                    color: [1.0, 1.0, 1.0, alpha.clamp(0.0, 1.0)],
+                    blend: BlendKind::Additive,
+                });
+            }
         }
     }
 }
@@ -103,37 +221,62 @@ mod tests {
         }
     }
 
-    fn draws(e: &FireArrowEffect) -> Vec<(String, f32)> {
+    fn advance(e: &mut FireArrowEffect, frames: f32) {
+        e.update(&ctx(frames / FPS));
+    }
+
+    fn draws(e: &FireArrowEffect) -> Vec<EffectPrimitiveDraw> {
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         list.primitives
-            .iter()
-            .map(|p| match p {
-                EffectPrimitiveDraw::Billboard { texture, color, .. } => {
-                    (texture.to_string(), color[3])
-                }
-                _ => unreachable!(),
-            })
-            .collect()
     }
 
     #[test]
-    fn emits_two_perpendicular_billboards_with_cycling_textures() {
+    fn emits_trail_sprite_particles_and_cross_billboards() {
         let mut e = FireArrowEffect::new([0.0; 3]);
-        e.update(&ctx(0.5 / FRAMES_PER_SECOND));
+        advance(&mut e, 15.0);
+
         let d = draws(&e);
-        assert_eq!(d.len(), 2, "cross = two billboards");
-        assert!(d[0].0.starts_with("불화살"));
+        let sprites = d
+            .iter()
+            .filter(|p| matches!(p, EffectPrimitiveDraw::SpriteParticle { sprite_path, .. } if *sprite_path == PARTICLE4_SPRITE))
+            .count();
+        let billboards = d
+            .iter()
+            .filter(|p| matches!(p, EffectPrimitiveDraw::Billboard { .. }))
+            .count();
 
-        e.update(&ctx(10.0 / FRAMES_PER_SECOND));
-        let d2 = draws(&e);
-        assert_ne!(d[0].0, d2[0].0, "texture should cycle");
+        assert!(sprites > 0, "trail particles present after frame 4");
+        assert_eq!(billboards, 2, "cross = two perpendicular billboards after frame 12");
     }
 
     #[test]
-    fn dies_after_duration() {
+    fn trail_particles_scatter_outward_from_impact() {
+        let pos = [10.0, 0.0, 20.0];
+        let mut e = FireArrowEffect::new(pos);
+        advance(&mut e, 20.0);
+
+        let positions: Vec<[f32; 3]> = draws(&e)
+            .iter()
+            .filter_map(|p| match p {
+                EffectPrimitiveDraw::SpriteParticle { position, .. } => Some(*position),
+                _ => None,
+            })
+            .collect();
+
+        assert!(positions.len() >= 2, "multiple trail particles alive at frame 20");
+        let any_moved = positions.iter().any(|p| {
+            let dx = p[0] - pos[0];
+            let dz = p[2] - pos[2];
+            (dx * dx + dz * dz).sqrt() > 0.5
+        });
+        assert!(any_moved, "particles scatter outward from impact point");
+    }
+
+    #[test]
+    fn dies_after_total_duration() {
         let mut e = FireArrowEffect::new([0.0; 3]);
-        let status = e.update(&ctx(DURATION_FRAMES / FRAMES_PER_SECOND + 0.01));
+        let status = e.update(&ctx(TOTAL_FRAMES / FPS + 0.01));
         assert_eq!(status, EffectStatus::Dead);
     }
 }
