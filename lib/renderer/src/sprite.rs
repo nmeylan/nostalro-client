@@ -789,6 +789,20 @@ pub fn scale_clip_vertices(
     }
 }
 
+pub fn rotate_sprite_vertices(
+    vertices: &mut [SpriteVertex],
+    center: [f32; 2],
+    angle: f32,
+) {
+    let (sin, cos) = angle.sin_cos();
+    for v in vertices {
+        let dx = v.position[0] - center[0];
+        let dy = v.position[1] - center[1];
+        v.position[0] = center[0] + dx * cos - dy * sin;
+        v.position[1] = center[1] + dx * sin + dy * cos;
+    }
+}
+
 pub struct EntitySprite {
     pub body_textures: SpriteTextures,
     pub body_act: ActFile,

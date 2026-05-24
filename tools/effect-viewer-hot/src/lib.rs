@@ -653,6 +653,8 @@ const LEGEND: &[(&str, &str)] = &[
     ("C", "Reset camera"),
     ("B", "Toggle background"),
     ("1", "Toggle controls"),
+    ("T", "Place trail target"),
+    ("X", "Clear trail target"),
     ("Esc", "Quit / close panel"),
 ];
 
@@ -854,18 +856,21 @@ fn build_legend(atlas: &FontAtlas, screen_h: f32) -> Vec<UiDrawCall> {
 pub unsafe extern "C" fn hot_spawn_custom_effect(
     state_ptr: *mut (),
     effect_id: u16,
-    world_pos: *const [f32; 3],
+    from_ptr: *const [f32; 3],
+    to_ptr: *const [f32; 3],
 ) -> u64 {
     let state = unsafe { &*(state_ptr as *const State) };
     let Some(id) = EffectId::try_from_value(effect_id as usize).ok() else {
         return 0;
     };
-    let world_pos = if world_pos.is_null() {
-        [0.0; 3]
+    let from = if from_ptr.is_null() { [0.0; 3] } else { unsafe { *from_ptr } };
+    let to = if to_ptr.is_null() { from } else { unsafe { *to_ptr } };
+    let anchor = if from == to {
+        EffectAnchor::Point(from)
     } else {
-        unsafe { *world_pos }
+        EffectAnchor::Trail { from, to }
     };
-    let Some(effect) = make_effect(id, EffectAnchor::Point(world_pos)) else {
+    let Some(effect) = make_effect(id, anchor) else {
         return 0;
     };
     let mut next = state.next_effect_handle.lock().unwrap();

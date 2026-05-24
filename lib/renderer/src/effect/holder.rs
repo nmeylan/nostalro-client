@@ -27,7 +27,7 @@ use crate::effect_sprite::Smoke3DParticle;
 /// `Box<dyn Effect>`; `drop_all` is called by [`EffectHolder::clear`] and
 /// by tooling just before a reload.
 pub trait ExternalCustomBackend: Send + Sync {
-    fn spawn(&self, effect_id: u16, world_pos: [f32; 3]) -> u64;
+    fn spawn(&self, effect_id: u16, from: [f32; 3], to: [f32; 3]) -> u64;
     /// Returns `true` while the effect is still running, `false` once it
     /// has signalled death.
     fn update(&self, handle: u64, dt: f32) -> bool;
@@ -254,15 +254,13 @@ impl EffectHolder {
             }
             EffectSpec::Noop => unreachable!("Noop handled above"),
             EffectSpec::Custom { .. } => {
-                let use_external = self.external_backend.is_some()
-                    && !matches!(attach, Attach::Trail { .. });
-                if let Some(backend) = self.external_backend.as_ref().filter(|_| use_external) {
-                    let world_pos = match attach {
-                        Attach::WorldPos(p) => p,
-                        Attach::Entity(_) | Attach::Projectile { .. } => [0.0; 3],
-                        Attach::Trail { .. } => unreachable!(),
+                if let Some(backend) = &self.external_backend {
+                    let (from, to) = match attach {
+                        Attach::WorldPos(p) => (p, p),
+                        Attach::Trail { from, to } => (from, to),
+                        Attach::Entity(_) | Attach::Projectile { .. } => ([0.0; 3], [0.0; 3]),
                     };
-                    let handle = backend.spawn(effect_id as u16, world_pos);
+                    let handle = backend.spawn(effect_id as u16, from, to);
                     if handle != 0 {
                         self.last_spawn = Some(SpawnOutcome::Custom);
                         HeldPayload::CustomExternal { handle }
@@ -628,8 +626,12 @@ fn attach_to_anchor(
         Attach::Entity(id) => {
             EffectAnchor::Point(resolve_entity(id).unwrap_or([0.0; 3]))
         }
-        Attach::Projectile { from, .. } => {
-            EffectAnchor::Point(resolve_entity(from).unwrap_or([0.0; 3]))
+        Attach::Projectile { from, to } => {
+            let from_pos = resolve_entity(from).unwrap_or([0.0; 3]);
+            match resolve_entity(to) {
+                Some(to_pos) => EffectAnchor::Trail { from: from_pos, to: to_pos },
+                None => EffectAnchor::Point(from_pos),
+            }
         }
         Attach::Trail { from, to } => EffectAnchor::Trail { from, to },
     }

@@ -308,6 +308,7 @@ impl Effect for OrbitEffect {
                 size_scale: p.size,
                 color: [1.0, 1.0, 1.0, p.alpha],
                 blend: BlendKind::Alpha,
+                aim_target: None,
             });
         }
     }

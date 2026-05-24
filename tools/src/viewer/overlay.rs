@@ -1,3 +1,4 @@
+use ragnarok_renderer::Camera;
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
 use ragnarok_ui::draw::{quad_vertices, text_vertices};
@@ -27,6 +28,8 @@ const LEGEND: &[(&str, &str)] = &[
     ("h / H", "Head"),
     ("e / E", "Headgear"),
     ("D / F", "Shield"),
+    ("T", "Place trail target"),
+    ("X", "Clear trail target"),
 ];
 
 pub fn build_legend(atlas: &FontAtlas, screen_w: f32, screen_h: f32) -> Vec<UiDrawCall> {
@@ -70,6 +73,8 @@ pub struct StatusLine<'a> {
     pub paused: bool,
     pub background: BackgroundMode,
     pub clear_is_black: bool,
+    pub target_mode: bool,
+    pub has_target: bool,
 }
 
 pub fn build_status(atlas: &FontAtlas, screen_w: f32, status: &StatusLine<'_>) -> Vec<UiDrawCall> {
@@ -85,9 +90,16 @@ pub fn build_status(atlas: &FontAtlas, screen_w: f32, status: &StatusLine<'_>) -
         }
     };
     let pause = if status.paused { " [PAUSED]" } else { "" };
+    let target = if status.target_mode {
+        " [TARGET MODE]"
+    } else if status.has_target {
+        " [TARGET SET]"
+    } else {
+        ""
+    };
     let text = format!(
-        "Map: {}  Effect: {}  Bg: {}{}",
-        status.map_name, status.effect_label, bg_label, pause
+        "Map: {}  Effect: {}  Bg: {}{}{}",
+        status.map_name, status.effect_label, bg_label, pause, target
     );
     let text_w = atlas.measure_text(&text);
     let box_w = text_w + PADDING * 2.0;
@@ -113,6 +125,47 @@ pub fn build_status(atlas: &FontAtlas, screen_w: f32, status: &StatusLine<'_>) -
         vertices: tv,
         indices: ti,
         texture: UiTextureRef::FontAtlas,
+    });
+    calls
+}
+
+const CROSSHAIR_COLOR: [f32; 4] = [0.2, 1.0, 0.2, 0.9];
+const CROSSHAIR_SIZE: f32 = 10.0;
+const CROSSHAIR_THICK: f32 = 2.0;
+
+pub fn build_target_crosshair(
+    camera: &Camera,
+    target: [f32; 3],
+    screen_w: f32,
+    screen_h: f32,
+) -> Vec<UiDrawCall> {
+    let Some((sx, sy)) = camera.world_to_screen(target[0], target[1], target[2], screen_w, screen_h) else {
+        return Vec::new();
+    };
+    let mut calls = Vec::new();
+    let (hv, hi) = quad_vertices(
+        sx - CROSSHAIR_SIZE,
+        sy - CROSSHAIR_THICK * 0.5,
+        CROSSHAIR_SIZE * 2.0,
+        CROSSHAIR_THICK,
+        CROSSHAIR_COLOR,
+    );
+    calls.push(UiDrawCall {
+        vertices: hv.to_vec(),
+        indices: hi.to_vec(),
+        texture: UiTextureRef::White,
+    });
+    let (vv, vi) = quad_vertices(
+        sx - CROSSHAIR_THICK * 0.5,
+        sy - CROSSHAIR_SIZE,
+        CROSSHAIR_THICK,
+        CROSSHAIR_SIZE * 2.0,
+        CROSSHAIR_COLOR,
+    );
+    calls.push(UiDrawCall {
+        vertices: vv.to_vec(),
+        indices: vi.to_vec(),
+        texture: UiTextureRef::White,
     });
     calls
 }

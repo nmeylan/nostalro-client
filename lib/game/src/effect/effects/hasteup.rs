@@ -203,6 +203,7 @@ impl Effect for HasteUpEffect {
                 // alpha-blended spike rays rather than getting washed
                 // out by them during the burst's bright frames.
                 blend: BlendKind::Additive,
+                aim_target: None,
             });
         }
     }

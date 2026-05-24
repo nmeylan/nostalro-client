@@ -8,7 +8,8 @@ use ragnarok_game::effect::{EffectDrawList, EffectPrimitiveDraw};
 use crate::camera::Camera;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};
 use crate::sprite::{
-    SpriteBatch, SpriteTextures, build_clip_quad, scale_clip_vertices, upload_sprite_textures,
+    SpriteBatch, SpriteTextures, build_clip_quad, rotate_sprite_vertices, scale_clip_vertices,
+    upload_sprite_textures,
 };
 
 /// Loaded effect sprite (SPR + ACT + GPU-uploaded textures), shared across
@@ -179,6 +180,7 @@ pub fn prepare_sprite_particle_records<'cache>(
             size_scale,
             color,
             blend,
+            aim_target,
         } = prim
         else {
             continue;
@@ -211,6 +213,14 @@ pub fn prepare_sprite_particle_records<'cache>(
                 continue;
             }
             scale_clip_vertices(&mut vertices, anchor, sprite_scale, 0.0);
+            if let Some(target) = aim_target {
+                if let Some((tx, ty)) = camera.world_to_screen(target[0], target[1], target[2], screen_w, screen_h) {
+                    let dx = tx - anchor[0];
+                    let dy = ty - anchor[1];
+                    let angle = dy.atan2(dx) + std::f32::consts::FRAC_PI_2;
+                    rotate_sprite_vertices(&mut vertices, anchor, angle);
+                }
+            }
             for v in &mut vertices {
                 v.color[0] *= color[0];
                 v.color[1] *= color[1];

@@ -46,7 +46,7 @@ use ragnarok_renderer::effect_sprite::{
     EffectSpriteCache, SpriteEffectEmitter, build_emitter_batches, collect_sprite_effect_draws,
 };
 use ragnarok_renderer::font_atlas::FontAtlas;
-use ragnarok_renderer::{Renderer, UiDrawCall, block_on};
+use ragnarok_renderer::{Camera, Renderer, UiDrawCall, UiTextureRef, block_on};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -173,7 +173,7 @@ type HotRestoreStateFn = unsafe extern "C" fn(*mut (), *const PersistentState) -
 
 // Effect-registry FFI (handle = 0 = invalid / spawn failed).
 type HotSpawnCustomEffectFn =
-    unsafe extern "C" fn(*mut (), u16, *const [f32; 3]) -> u64;
+    unsafe extern "C" fn(*mut (), u16, *const [f32; 3], *const [f32; 3]) -> u64;
 type HotUpdateCustomEffectFn = unsafe extern "C" fn(*mut (), u64, f32) -> u8;
 type HotCollectCustomDrawsFn =
     unsafe extern "C" fn(*mut (), u64, *const EffectRenderCtxFfi, *mut EffectDrawList);
@@ -273,8 +273,8 @@ unsafe impl Send for HotLibEffectBackend {}
 unsafe impl Sync for HotLibEffectBackend {}
 
 impl ExternalCustomBackend for HotLibEffectBackend {
-    fn spawn(&self, effect_id: u16, world_pos: [f32; 3]) -> u64 {
-        let handle = unsafe { (self.spawn_fn)(self.state, effect_id, &world_pos as *const _) };
+    fn spawn(&self, effect_id: u16, from: [f32; 3], to: [f32; 3]) -> u64 {
+        let handle = unsafe { (self.spawn_fn)(self.state, effect_id, &from as *const _, &to as *const _) };
         if handle != 0 {
             self.handle_ids
                 .lock()
@@ -596,6 +596,8 @@ struct App {
     /// resolves to the original effect (browser sorts items alphabetically).
     browser_lookup: HashMap<String, EffectId>,
     ctrl_pressed: bool,
+    trail_target_override: Option<[f32; 3]>,
+    placing_target: bool,
     mouse_pos: (f32, f32),
     last_mouse: (f32, f32),
     mouse_down_right: bool,
@@ -650,6 +652,8 @@ impl App {
             browser: None,
             browser_lookup: HashMap::new(),
             ctrl_pressed: false,
+            trail_target_override: None,
+            placing_target: false,
             mouse_pos: (0.0, 0.0),
             last_mouse: (0.0, 0.0),
             mouse_down_right: false,
@@ -811,11 +815,32 @@ impl App {
         self.ensure_spr_loaded_for(effect_id);
         let world = [pos[0], pos[1], pos[2]];
         if is_trail_effect(effect_id) {
-            let (from, to) = demo_trail_endpoints(world);
-            self.effect_queue.spawn_trail(effect_id, from, to);
+            let to = self
+                .trail_target_override
+                .unwrap_or_else(|| demo_trail_endpoints(world).1);
+            self.effect_queue.spawn_trail(effect_id, world, to);
         } else {
             self.effect_queue.spawn_at(effect_id, world);
         }
+    }
+
+    fn try_pick_world_position(&self) -> Option<[f32; 3]> {
+        let renderer = self.renderer.as_ref()?;
+        let (origin, dir) = renderer.camera.screen_to_ray(
+            self.mouse_pos.0,
+            self.mouse_pos.1,
+            renderer.device.surface_config.width as f32,
+            renderer.device.surface_config.height as f32,
+        );
+        if dir.y.abs() < 1e-6 {
+            return None;
+        }
+        let t = -origin.y / dir.y;
+        if t < 0.0 {
+            return None;
+        }
+        let hit = origin + dir * t;
+        Some([hit.x, 0.0, hit.z])
     }
 
     /// Stderr a markdown table row describing the effect being spawned, so
@@ -988,8 +1013,11 @@ impl App {
         self.ensure_str_loaded_for(effect_id);
         self.ensure_spr_loaded_for(effect_id);
         if is_trail_effect(effect_id) {
-            let (from, to) = demo_trail_endpoints([0.0, 0.0, 0.0]);
-            self.effect_queue.spawn_trail(effect_id, from, to);
+            let origin = [0.0, 0.0, 0.0];
+            let to = self
+                .trail_target_override
+                .unwrap_or_else(|| demo_trail_endpoints(origin).1);
+            self.effect_queue.spawn_trail(effect_id, origin, to);
         } else {
             self.effect_queue.spawn_at(effect_id, [0.0, 0.0, 0.0]);
         }
@@ -1275,6 +1303,42 @@ impl App {
         {
             ui_calls.extend(browser.build_draw_calls(&renderer.font_atlas, screen_w, screen_h));
         }
+        if let Some(target) = self.trail_target_override {
+            ui_calls.extend(build_target_crosshair(
+                &renderer.camera,
+                target,
+                screen_w,
+                screen_h,
+            ));
+        }
+        if self.placing_target {
+            let label = "[Click to place trail target]";
+            let tw = renderer.font_atlas.measure_text(label);
+            let (bv, bi) = ragnarok_ui::draw::quad_vertices(
+                (screen_w - tw - 16.0) / 2.0,
+                screen_h - 32.0,
+                tw + 16.0,
+                24.0,
+                [0.0, 0.0, 0.0, 0.6],
+            );
+            ui_calls.push(UiDrawCall {
+                vertices: bv.to_vec(),
+                indices: bi.to_vec(),
+                texture: UiTextureRef::White,
+            });
+            let (tv, ti) = ragnarok_ui::draw::text_vertices(
+                label,
+                (screen_w - tw) / 2.0,
+                screen_h - 28.0,
+                [0.2, 1.0, 0.2, 0.9],
+                &renderer.font_atlas,
+            );
+            ui_calls.push(UiDrawCall {
+                vertices: tv,
+                indices: ti,
+                texture: UiTextureRef::FontAtlas,
+            });
+        }
 
         renderer.render(
             &ui_calls,
@@ -1476,6 +1540,20 @@ impl ApplicationHandler for App {
                     }
                     return;
                 }
+                if matches!(event.logical_key.as_ref(), Key::Character("t") | Key::Character("T"))
+                {
+                    self.placing_target = !self.placing_target;
+                    return;
+                }
+                if matches!(event.logical_key.as_ref(), Key::Character("x") | Key::Character("X"))
+                {
+                    self.trail_target_override = None;
+                    self.placing_target = false;
+                    if let Some(hot) = &self.hot_lib {
+                        hot.on_action(ACTION_RESPAWN);
+                    }
+                    return;
+                }
                 if matches!(event.logical_key.as_ref(), Key::Character("b") | Key::Character("B"))
                 {
                     if let Some(renderer) = &mut self.renderer {
@@ -1533,11 +1611,26 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::MouseInput { button, state, .. } => {
-                if button == winit::event::MouseButton::Right {
-                    self.mouse_down_right = state == ElementState::Pressed;
-                    if self.mouse_down_right {
-                        self.last_mouse = self.mouse_pos;
+                let pressed = state == ElementState::Pressed;
+                match button {
+                    winit::event::MouseButton::Left => {
+                        if pressed && self.placing_target {
+                            if let Some(world_pos) = self.try_pick_world_position() {
+                                self.trail_target_override = Some(world_pos);
+                                self.placing_target = false;
+                                if let Some(hot) = &self.hot_lib {
+                                    hot.on_action(ACTION_RESPAWN);
+                                }
+                            }
+                        }
                     }
+                    winit::event::MouseButton::Right => {
+                        self.mouse_down_right = pressed;
+                        if pressed {
+                            self.last_mouse = self.mouse_pos;
+                        }
+                    }
+                    _ => {}
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
@@ -1604,4 +1697,46 @@ impl Drop for App {
             hot.unload();
         }
     }
+}
+
+fn build_target_crosshair(
+    camera: &Camera,
+    target: [f32; 3],
+    screen_w: f32,
+    screen_h: f32,
+) -> Vec<UiDrawCall> {
+    let Some((sx, sy)) =
+        camera.world_to_screen(target[0], target[1], target[2], screen_w, screen_h)
+    else {
+        return Vec::new();
+    };
+    const SIZE: f32 = 10.0;
+    const THICK: f32 = 2.0;
+    const COLOR: [f32; 4] = [0.2, 1.0, 0.2, 0.9];
+    let mut calls = Vec::new();
+    let (hv, hi) = ragnarok_ui::draw::quad_vertices(
+        sx - SIZE,
+        sy - THICK * 0.5,
+        SIZE * 2.0,
+        THICK,
+        COLOR,
+    );
+    calls.push(UiDrawCall {
+        vertices: hv.to_vec(),
+        indices: hi.to_vec(),
+        texture: UiTextureRef::White,
+    });
+    let (vv, vi) = ragnarok_ui::draw::quad_vertices(
+        sx - THICK * 0.5,
+        sy - SIZE,
+        THICK,
+        SIZE * 2.0,
+        COLOR,
+    );
+    calls.push(UiDrawCall {
+        vertices: vv.to_vec(),
+        indices: vi.to_vec(),
+        texture: UiTextureRef::White,
+    });
+    calls
 }

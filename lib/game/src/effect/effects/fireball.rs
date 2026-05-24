@@ -176,6 +176,7 @@ impl Effect for FireballEffect {
                     size_scale: SPRITE_SIZE,
                     color: particle.color,
                     blend: BlendKind::Additive,
+                    aim_target: Some(self.to),
                 });
             }
         } else {
@@ -195,6 +196,7 @@ impl Effect for FireballEffect {
                 size_scale: scale,
                 color: [1.0, 1.0, 1.0, alpha],
                 blend: BlendKind::Additive,
+                aim_target: None,
             });
         }
     }

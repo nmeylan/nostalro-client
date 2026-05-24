@@ -25,6 +25,8 @@ pub enum ViewerAction {
     ResetCamera,
     ZoomIn,
     ZoomOut,
+    ToggleTargetMode,
+    ClearTarget,
 }
 
 pub fn map_key(key: &Key, state: ElementState) -> Option<ViewerAction> {
@@ -54,6 +56,8 @@ pub fn map_key(key: &Key, state: ElementState) -> Option<ViewerAction> {
             "c" | "C" => Some(ViewerAction::ResetCamera),
             "+" | "=" => Some(ViewerAction::ZoomIn),
             "-" | "_" => Some(ViewerAction::ZoomOut),
+            "t" | "T" => Some(ViewerAction::ToggleTargetMode),
+            "x" | "X" => Some(ViewerAction::ClearTarget),
             _ => None,
         },
         _ => None,

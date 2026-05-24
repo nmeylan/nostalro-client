@@ -837,6 +837,7 @@ impl Effect for HitEffect {
                     size_scale: seg_size,
                     color: [1.0, 1.0, 1.0, seg_alpha],
                     blend: BlendKind::Additive,
+                    aim_target: None,
                 });
             }
         }

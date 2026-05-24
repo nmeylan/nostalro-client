@@ -260,6 +260,7 @@ impl Effect for BlessingEffect {
                 size_scale: BLESSING_SIZE,
                 color: [1.0, 1.0, 1.0, alpha],
                 blend: BlendKind::Alpha,
+                aim_target: None,
             });
         }
 
@@ -277,6 +278,7 @@ impl Effect for BlessingEffect {
                 size_scale: TWINKLE_SIZE,
                 color: [1.0, 1.0, 1.0, alpha],
                 blend: BlendKind::Additive,
+                aim_target: None,
             });
         }
     }

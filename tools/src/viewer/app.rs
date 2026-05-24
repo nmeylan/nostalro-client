@@ -103,6 +103,10 @@ pub struct App {
     browser_lookup: HashMap<String, EffectId>,
     ctrl_pressed: bool,
 
+    // Trail target placement
+    trail_target_override: Option<[f32; 3]>,
+    placing_target: bool,
+
     // Input
     mouse_pos: (f32, f32),
     last_mouse: (f32, f32),
@@ -146,6 +150,8 @@ impl App {
             browser: None,
             browser_lookup: HashMap::new(),
             ctrl_pressed: false,
+            trail_target_override: None,
+            placing_target: false,
             mouse_pos: (0.0, 0.0),
             last_mouse: (0.0, 0.0),
             mouse_down_left: false,
@@ -373,7 +379,9 @@ impl App {
         };
         self.effect_holder.clear();
         if is_trail_effect(id) {
-            let to = [pos[0], pos[1], pos[2] + 22.0];
+            let to = self
+                .trail_target_override
+                .unwrap_or([pos[0], pos[1], pos[2] + 22.0]);
             self.effect_queue.spawn_trail(id, pos, to);
         } else {
             self.effect_queue.spawn_at(id, pos);
@@ -600,6 +608,57 @@ impl App {
         }
     }
 
+    fn try_place_target_at_cursor(&mut self) {
+        let Some(renderer) = self.renderer.as_ref() else {
+            return;
+        };
+        let Some(map) = self.map_data.as_ref() else {
+            return;
+        };
+        let Some(coords) = map.coordinates.as_ref() else {
+            return;
+        };
+
+        let (mx, my) = self.mouse_pos;
+        let (origin, dir) = renderer.camera.screen_to_ray(
+            mx,
+            my,
+            renderer.device.surface_config.width as f32,
+            renderer.device.surface_config.height as f32,
+        );
+        if dir.y.abs() < 1e-6 {
+            return;
+        }
+        let mut plane_y = renderer.camera.target.y;
+        let mut hit_cell: Option<(i32, i32)> = None;
+        for _ in 0..5 {
+            let t = (plane_y - origin.y) / dir.y;
+            if t < 0.0 {
+                return;
+            }
+            let hit = origin + dir * t;
+            let (cx, cy) = coords.world_to_cell(hit.x, hit.z);
+            if !coords.is_valid_cell(cx, cy) {
+                return;
+            }
+            if hit_cell == Some((cx, cy)) {
+                break;
+            }
+            hit_cell = Some((cx, cy));
+            plane_y = map
+                .gat
+                .as_ref()
+                .map_or(0.0, |g| g.get_height(cx as f32 + 0.5, cy as f32 + 0.5));
+        }
+        let Some((cx, cy)) = hit_cell else { return };
+        let target_pos = compute_world_anchor((cx as f32, cy as f32), map);
+        self.trail_target_override = Some(target_pos);
+        self.placing_target = false;
+        if let Some(id) = self.current_effect_id {
+            self.spawn_effect_on_character(id);
+        }
+    }
+
     fn handle_action(&mut self, action: ViewerAction) {
         match action {
             ViewerAction::CycleBackground => {
@@ -784,6 +843,16 @@ impl App {
                     renderer.camera.distance = (renderer.camera.distance + 20.0).min(1500.0);
                 }
             }
+            ViewerAction::ToggleTargetMode => {
+                self.placing_target = !self.placing_target;
+            }
+            ViewerAction::ClearTarget => {
+                self.trail_target_override = None;
+                self.placing_target = false;
+                if let Some(id) = self.current_effect_id {
+                    self.spawn_effect_on_character(id);
+                }
+            }
         }
     }
 
@@ -846,6 +915,8 @@ impl App {
             paused: self.paused,
             background: renderer.background_mode,
             clear_is_black: self.clear_is_black,
+            target_mode: self.placing_target,
+            has_target: self.trail_target_override.is_some(),
         };
         ui_calls.extend(overlay::build_status(&renderer.font_atlas, screen_w, &status));
         ui_calls.extend(overlay::build_legend(
@@ -857,6 +928,14 @@ impl App {
             && browser.open
         {
             ui_calls.extend(browser.build_draw_calls(&renderer.font_atlas, screen_w, screen_h));
+        }
+        if let Some(target) = self.trail_target_override {
+            ui_calls.extend(overlay::build_target_crosshair(
+                &renderer.camera,
+                target,
+                screen_w,
+                screen_h,
+            ));
         }
         renderer.render(
             &ui_calls,
@@ -963,7 +1042,11 @@ impl ApplicationHandler for App {
                         self.mouse_down_left = pressed;
                         if pressed {
                             self.last_mouse = self.mouse_pos;
-                            self.try_move_character_to_cursor();
+                            if self.placing_target {
+                                self.try_place_target_at_cursor();
+                            } else {
+                                self.try_move_character_to_cursor();
+                            }
                         }
                     }
                     MouseButton::Right => {

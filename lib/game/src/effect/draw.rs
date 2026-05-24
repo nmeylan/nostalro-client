@@ -300,6 +300,10 @@ pub enum EffectPrimitiveDraw {
         size_scale: f32,
         color: [f32; 4],
         blend: BlendKind,
+        /// World-space target the sprite should point toward. `None` means
+        /// no rotation. The renderer projects both `position` and this
+        /// target to screen and rotates the sprite accordingly.
+        aim_target: Option<[f32; 3]>,
     },
     /// Textured quad anchored in world space by four explicit corner
     /// points (not camera-facing).
