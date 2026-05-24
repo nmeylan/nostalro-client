@@ -13,8 +13,8 @@ use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effects::{
     bash, begin_spell, blessing, bottom_sanctuary_pillar, cast_circle, endure, enhance, entry,
     exit as exit_effect, firearrow, fireball, flasher, frost_diver, glasswall, hasteup, healsp,
-    hit, hit2, hit5_6, magnum_break, napalmbeat, portal, ready_portal, sandwind, sight, spraypond,
-    status_up, stormgust, teleportation, volcano, warp,
+    hit, hit2, hit5_6, magnum_break, napalmbeat, portal, ready_portal, sandwind, sight,
+    soul_strike, spraypond, status_up, stormgust, teleportation, volcano, warp,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -170,6 +170,9 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
         EffectId::Fireball => EffectSpec::Custom {
             duration_ms: fireball::TOTAL_DURATION_MS,
+        },
+        EffectId::Soulstrike => EffectSpec::Custom {
+            duration_ms: soul_strike::TOTAL_DURATION_MS,
         },
         EffectId::Napalmbeat => EffectSpec::Custom {
             duration_ms: napalmbeat::TOTAL_DURATION_MS,

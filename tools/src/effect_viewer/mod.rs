@@ -173,7 +173,7 @@ type HotRestoreStateFn = unsafe extern "C" fn(*mut (), *const PersistentState) -
 
 // Effect-registry FFI (handle = 0 = invalid / spawn failed).
 type HotSpawnCustomEffectFn =
-    unsafe extern "C" fn(*mut (), u16, *const [f32; 3], *const [f32; 3]) -> u64;
+    unsafe extern "C" fn(*mut (), u16, *const [f32; 3], *const [f32; 3], u8) -> u64;
 type HotUpdateCustomEffectFn = unsafe extern "C" fn(*mut (), u64, f32) -> u8;
 type HotCollectCustomDrawsFn =
     unsafe extern "C" fn(*mut (), u64, *const EffectRenderCtxFfi, *mut EffectDrawList);
@@ -273,8 +273,8 @@ unsafe impl Send for HotLibEffectBackend {}
 unsafe impl Sync for HotLibEffectBackend {}
 
 impl ExternalCustomBackend for HotLibEffectBackend {
-    fn spawn(&self, effect_id: u16, from: [f32; 3], to: [f32; 3]) -> u64 {
-        let handle = unsafe { (self.spawn_fn)(self.state, effect_id, &from as *const _, &to as *const _) };
+    fn spawn(&self, effect_id: u16, from: [f32; 3], to: [f32; 3], hit_count: u8) -> u64 {
+        let handle = unsafe { (self.spawn_fn)(self.state, effect_id, &from as *const _, &to as *const _, hit_count) };
         if handle != 0 {
             self.handle_ids
                 .lock()
@@ -322,6 +322,7 @@ impl ExternalCustomBackend for HotLibEffectBackend {
         let probe = ragnarok_game::effect::factory::make_effect(
             effect_id,
             EffectAnchor::Point([0.0, 0.0, 0.0]),
+            None,
         )?;
         probe.str_overlay().map(|s| s.to_string())
     }
@@ -613,6 +614,9 @@ struct App {
     /// Set by the batch path once the GIF is finalized; the event loop
     /// observes this on the next `RedrawRequested` and exits.
     should_exit: bool,
+    /// Hit count for multi-bolt trail effects (Soul Strike). Keys 1-5
+    /// cycle the count; the viewer re-spawns with the new value.
+    demo_hit_count: u8,
     /// One watcher per `.wgsl` file the effect viewer renders with. Each
     /// fires independently; `render_frame` polls them and rebuilds the
     /// matching pipelines on change.
@@ -661,6 +665,7 @@ impl App {
             gif_session: None,
             batch: None,
             should_exit: false,
+            demo_hit_count: 5,
             shader_watchers: Vec::new(),
         }
     }
@@ -818,7 +823,12 @@ impl App {
             let to = self
                 .trail_target_override
                 .unwrap_or_else(|| demo_trail_endpoints(world).1);
-            self.effect_queue.spawn_trail(effect_id, world, to);
+            if effect_id == EffectId::Soulstrike {
+                self.effect_queue
+                    .spawn_trail_with_count(effect_id, world, to, self.demo_hit_count);
+            } else {
+                self.effect_queue.spawn_trail(effect_id, world, to);
+            }
         } else {
             self.effect_queue.spawn_at(effect_id, world);
         }
@@ -945,6 +955,7 @@ impl App {
                 let probe = ragnarok_game::effect::factory::make_effect(
                     id,
                     EffectAnchor::Point([0.0, 0.0, 0.0]),
+                    None,
                 );
                 let Some(probe) = probe else { return };
                 let Some(overlay) = probe.str_overlay() else { return };
@@ -1017,7 +1028,12 @@ impl App {
             let to = self
                 .trail_target_override
                 .unwrap_or_else(|| demo_trail_endpoints(origin).1);
-            self.effect_queue.spawn_trail(effect_id, origin, to);
+            if effect_id == EffectId::Soulstrike {
+                self.effect_queue
+                    .spawn_trail_with_count(effect_id, origin, to, self.demo_hit_count);
+            } else {
+                self.effect_queue.spawn_trail(effect_id, origin, to);
+            }
         } else {
             self.effect_queue.spawn_at(effect_id, [0.0, 0.0, 0.0]);
         }
@@ -1570,6 +1586,19 @@ impl ApplicationHandler for App {
                         };
                     }
                     return;
+                }
+                if let Key::Character(c) = event.logical_key.as_ref() {
+                    if let Some(n) = c.chars().next()
+                        && n.is_ascii_digit()
+                    {
+                        let count = (n as u8 - b'0').clamp(1, 5);
+                        self.demo_hit_count = count;
+                        eprintln!("[viewer] demo hit_count = {count}");
+                        if let Some(hot) = &self.hot_lib {
+                            hot.on_action(ACTION_RESPAWN);
+                        }
+                        return;
+                    }
                 }
                 let action = match event.logical_key.as_ref() {
                     Key::Named(NamedKey::Space) => Some(ACTION_TOGGLE_PAUSE),

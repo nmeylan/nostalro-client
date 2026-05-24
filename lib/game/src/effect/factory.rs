@@ -22,7 +22,7 @@ use super::str_aliases::str_aliases;
 
 /// Build a concrete custom-effect instance. Ids with a real implementation
 /// hit an explicit arm below; anything else lands on the placeholder.
-pub fn make_effect(id: EffectId, anchor: EffectAnchor) -> Option<Box<dyn Effect>> {
+pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) -> Option<Box<dyn Effect>> {
     Some(match id {
         EffectId::Warp => Box::new(effects::warp::WarpEffect::new(anchor.point())),
         EffectId::Bash => Box::new(effects::bash::BashEffect::new(anchor.point())),
@@ -72,6 +72,13 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor) -> Option<Box<dyn Effect>
             Box::new(effects::frost_diver::FrostDiverEffect::new(
                 p, p, effects::frost_diver::FROSTDIVER2,
             ))
+        }
+        EffectId::Soulstrike => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::soul_strike::SoulStrikeEffect::new(from, to, hit_count.unwrap_or(1)))
         }
         EffectId::Magnumbreak => {
             Box::new(effects::magnum_break::MagnumBreakEffect::new(anchor.point()))
@@ -508,6 +515,7 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Sandwind
             | EffectId::Frostdiver
             | EffectId::Frostdiver2
+            | EffectId::Soulstrike
             | EffectId::Magnumbreak
             | EffectId::Sight
             | EffectId::Ruwach
@@ -599,7 +607,7 @@ mod tests {
 
     #[test]
     fn warp_dispatches() {
-        let e = make_effect(EffectId::Warp, EffectAnchor::Point([0.0; 3]));
+        let e = make_effect(EffectId::Warp, EffectAnchor::Point([0.0; 3]), None);
         assert!(e.is_some());
         assert!(is_real_impl(EffectId::Warp));
     }
@@ -622,6 +630,7 @@ mod tests {
         let mut effect = make_effect(
             EffectId::Magnumbreak,
             EffectAnchor::Point(anchor_pos),
+            None,
         )
         .expect("magnum break must dispatch");
         // Step one tick so the effect has age > 0 (some effects skip
@@ -681,7 +690,7 @@ mod tests {
         // Pick an EffectId in the Custom bucket that doesn't yet have a
         // real Rust impl — factory returns the pink placeholder and
         // `is_real_impl` reports false.
-        assert!(make_effect(EffectId::Aciddemon, EffectAnchor::Point([0.0; 3])).is_some());
+        assert!(make_effect(EffectId::Aciddemon, EffectAnchor::Point([0.0; 3]), None).is_some());
         assert!(!is_real_impl(EffectId::Aciddemon));
     }
 
@@ -706,7 +715,7 @@ mod tests {
                 "{:?} must have a real factory impl",
                 id
             );
-            let e = make_effect(id, EffectAnchor::Point([0.0; 3])).unwrap();
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None).unwrap();
             assert_eq!(
                 e.str_overlay(),
                 None,
@@ -728,7 +737,7 @@ mod tests {
             EffectId::BottomServiceforyou,
         ] {
             assert!(is_real_impl(id), "{:?} must have a real impl", id);
-            let e = make_effect(id, EffectAnchor::Point([0.0; 3])).unwrap();
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
     }
@@ -736,14 +745,14 @@ mod tests {
     #[test]
     fn bottom_hermode_dispatches_to_world_quad_cube() {
         assert!(is_real_impl(EffectId::BottomHermode));
-        let e = make_effect(EffectId::BottomHermode, EffectAnchor::Point([0.0; 3])).unwrap();
+        let e = make_effect(EffectId::BottomHermode, EffectAnchor::Point([0.0; 3]), None).unwrap();
         assert_eq!(e.str_overlay(), None);
     }
 
     #[test]
     fn bottom_rokisweil_dispatches_to_billboard_pulse() {
         assert!(is_real_impl(EffectId::BottomRokisweil));
-        let e = make_effect(EffectId::BottomRokisweil, EffectAnchor::Point([0.0; 3])).unwrap();
+        let e = make_effect(EffectId::BottomRokisweil, EffectAnchor::Point([0.0; 3]), None).unwrap();
         assert_eq!(e.str_overlay(), None);
     }
 
@@ -759,7 +768,7 @@ mod tests {
             EffectId::BottomSpider,
         ] {
             assert!(is_real_impl(id), "{:?} must have a real impl", id);
-            let e = make_effect(id, EffectAnchor::Point([0.0; 3])).unwrap();
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
     }
@@ -770,7 +779,7 @@ mod tests {
         // (WorldQuad ribbon segments), not the placeholder.
         for id in [EffectId::BottomEternalchaos, EffectId::BottomSiegfried] {
             assert!(is_real_impl(id), "{:?} must have a real impl", id);
-            let e = make_effect(id, EffectAnchor::Point([0.0; 3])).unwrap();
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
     }
@@ -781,7 +790,7 @@ mod tests {
         // custom effect (Frustum sides=4), not the placeholder.
         for id in [EffectId::BottomMag, EffectId::BottomFogwall] {
             assert!(is_real_impl(id), "{:?} must have a real impl", id);
-            let e = make_effect(id, EffectAnchor::Point([0.0; 3])).unwrap();
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
     }
@@ -811,7 +820,7 @@ mod tests {
                 "{:?} must have a real factory impl",
                 id
             );
-            let e = make_effect(id, EffectAnchor::Point([0.0; 3])).unwrap();
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None).unwrap();
             assert_eq!(
                 e.str_overlay(),
                 None,
@@ -825,7 +834,22 @@ mod tests {
     fn hybrid_placeholder_carries_str_overlay() {
         // Coin is a StrHybrid id with no real impl — factory routes it
         // through `HybridPlaceholderEffect` so its STR file still plays.
-        let e = make_effect(EffectId::Coin, EffectAnchor::Point([0.0; 3])).unwrap();
+        let e = make_effect(EffectId::Coin, EffectAnchor::Point([0.0; 3]), None).unwrap();
         assert_eq!(e.str_overlay(), Some(str_aliases(EffectId::Coin)[0]));
+    }
+
+    #[test]
+    fn soulstrike_dispatches_with_trail_and_hit_count() {
+        assert!(is_real_impl(EffectId::Soulstrike));
+        let e = make_effect(
+            EffectId::Soulstrike,
+            EffectAnchor::Trail {
+                from: [0.0, 0.0, 0.0],
+                to: [0.0, 0.0, 60.0],
+            },
+            Some(3),
+        )
+        .unwrap();
+        assert_eq!(e.str_overlay(), None);
     }
 }

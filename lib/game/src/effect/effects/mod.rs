@@ -40,6 +40,7 @@ pub mod portal;
 pub mod ready_portal;
 pub mod sandwind;
 pub mod sight;
+pub mod soul_strike;
 pub mod spike_burst;
 pub mod status_up;
 pub mod spraypond;

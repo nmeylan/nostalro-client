@@ -511,6 +511,7 @@ impl App {
                 let probe = ragnarok_game::effect::factory::make_effect(
                     id,
                     EffectAnchor::Point([0.0, 0.0, 0.0]),
+                    None,
                 );
                 let Some(probe) = probe else { return };
                 let Some(overlay) = probe.str_overlay() else { return };

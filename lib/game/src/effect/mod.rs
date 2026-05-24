@@ -91,6 +91,7 @@ pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
         effects::exit::SPRITES,
         effects::hasteup::SPRITES,
         effects::fireball::SPRITES,
+        effects::soul_strike::SPRITES,
         effects::healsp::SPRITES,
         effects::blessing::SPRITES,
     ];

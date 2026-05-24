@@ -1,5 +1,6 @@
 use crate::App;
 use models::enums::action::ActionType;
+use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
@@ -109,6 +110,8 @@ impl App {
             }
         }
 
+        self.spawn_skill_attack_effect(skill_id, src_gid, target_gid, effective_count);
+
         let replays_caster = skill_id == SkillEnum::AsSonicblow.id() as u16
             || skill_id == SkillEnum::ChChaincrush.id() as u16
             || skill_id == SkillEnum::CgArrowvulcan.id() as u16;
@@ -129,6 +132,42 @@ impl App {
                 tracing::warn!("Caster entity {src_gid} NOT FOUND for replay scheduling");
             }
         }
+    }
+
+    fn spawn_skill_attack_effect(
+        &mut self,
+        skill_id: u16,
+        src_gid: u32,
+        target_gid: u32,
+        count: u16,
+    ) {
+        let effect_id = if skill_id == SkillEnum::MgSoulstrike.id() as u16 {
+            EffectId::Soulstrike
+        } else {
+            return;
+        };
+        let (Some(gat), Some(coords)) = (&self.game.gat, &self.game.map_coords) else {
+            return;
+        };
+        let Some(src) = self.game.entities.get(src_gid) else {
+            return;
+        };
+        let Some(dst) = self.game.entities.get(target_gid) else {
+            return;
+        };
+        let (sx, sy) = src.movement.cell_position();
+        let (dx, dy) = dst.movement.cell_position();
+
+        let (wx, _, wz) = coords.cell_to_world(sx as f32 + 0.5, sy as f32 + 0.5);
+        let wy = gat.get_height(sx as f32 + 0.5, sy as f32 + 0.5);
+        let from = [wx, wy - 10.0, wz];
+
+        let (wx, _, wz) = coords.cell_to_world(dx as f32 + 0.5, dy as f32 + 0.5);
+        let wy = gat.get_height(dx as f32 + 0.5, dy as f32 + 0.5);
+        let to = [wx, wy - 10.0, wz];
+
+        self.effect_queue
+            .spawn_trail_with_count(effect_id, from, to, count.min(5) as u8);
     }
 
     pub(super) fn handle_skill_failed(&mut self, skill_id: u16, cause: u8) {

@@ -858,6 +858,7 @@ pub unsafe extern "C" fn hot_spawn_custom_effect(
     effect_id: u16,
     from_ptr: *const [f32; 3],
     to_ptr: *const [f32; 3],
+    hit_count: u8,
 ) -> u64 {
     let state = unsafe { &*(state_ptr as *const State) };
     let Some(id) = EffectId::try_from_value(effect_id as usize).ok() else {
@@ -870,7 +871,8 @@ pub unsafe extern "C" fn hot_spawn_custom_effect(
     } else {
         EffectAnchor::Trail { from, to }
     };
-    let Some(effect) = make_effect(id, anchor) else {
+    let hc = if hit_count > 0 { Some(hit_count) } else { None };
+    let Some(effect) = make_effect(id, anchor, hc) else {
         return 0;
     };
     let mut next = state.next_effect_handle.lock().unwrap();

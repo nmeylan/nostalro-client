@@ -19,6 +19,10 @@ pub struct SpawnRequest {
     /// Override the duration from `effect_spec()` (e.g. server-driven
     /// Ice Wall lifetime). `None` means use the default.
     pub override_duration_ms: Option<u32>,
+    /// Number of hits for multi-bolt skills (Soul Strike, Fire Bolt, …).
+    /// Passed through to the factory so the effect can spawn the right
+    /// number of projectiles.
+    pub hit_count: Option<u8>,
 }
 
 #[derive(Default)]
@@ -40,6 +44,7 @@ impl EffectQueue {
             effect_id,
             attach: Attach::WorldPos(world_pos),
             override_duration_ms: None,
+            hit_count: None,
         });
     }
 
@@ -48,6 +53,7 @@ impl EffectQueue {
             effect_id,
             attach: Attach::Entity(entity_id),
             override_duration_ms: None,
+            hit_count: None,
         });
     }
 
@@ -65,6 +71,23 @@ impl EffectQueue {
             effect_id,
             attach: Attach::Trail { from, to },
             override_duration_ms: None,
+            hit_count: None,
+        });
+    }
+
+    /// Spawn a projectile-trail effect with a hit count (multi-bolt skills).
+    pub fn spawn_trail_with_count(
+        &mut self,
+        effect_id: EffectId,
+        from: [f32; 3],
+        to: [f32; 3],
+        hit_count: u8,
+    ) {
+        self.pending.push(SpawnRequest {
+            effect_id,
+            attach: Attach::Trail { from, to },
+            override_duration_ms: None,
+            hit_count: Some(hit_count),
         });
     }
 
@@ -82,5 +105,5 @@ impl EffectQueue {
 /// cluster-mode fallback. Used by the effect viewer to construct
 /// a demo trail for IDs that need one.
 pub fn is_trail_effect(id: EffectId) -> bool {
-    matches!(id, EffectId::Frostdiver | EffectId::Fireball)
+    matches!(id, EffectId::Frostdiver | EffectId::Fireball | EffectId::Soulstrike)
 }

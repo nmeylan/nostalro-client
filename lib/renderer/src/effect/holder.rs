@@ -27,7 +27,7 @@ use crate::effect_sprite::Smoke3DParticle;
 /// `Box<dyn Effect>`; `drop_all` is called by [`EffectHolder::clear`] and
 /// by tooling just before a reload.
 pub trait ExternalCustomBackend: Send + Sync {
-    fn spawn(&self, effect_id: u16, from: [f32; 3], to: [f32; 3]) -> u64;
+    fn spawn(&self, effect_id: u16, from: [f32; 3], to: [f32; 3], hit_count: u8) -> u64;
     /// Returns `true` while the effect is still running, `false` once it
     /// has signalled death.
     fn update(&self, handle: u64, dt: f32) -> bool;
@@ -208,6 +208,16 @@ impl EffectHolder {
         attach: Attach,
         override_duration_ms: Option<u32>,
     ) -> Option<EffectHandle> {
+        self.spawn_with_hit_count(effect_id, attach, override_duration_ms, None)
+    }
+
+    fn spawn_with_hit_count(
+        &mut self,
+        effect_id: EffectId,
+        attach: Attach,
+        override_duration_ms: Option<u32>,
+        hit_count: Option<u8>,
+    ) -> Option<EffectHandle> {
         let Some(spec) = effect_spec(effect_id) else {
             self.last_spawn = Some(SpawnOutcome::NoSpec);
             return None;
@@ -260,7 +270,7 @@ impl EffectHolder {
                         Attach::Trail { from, to } => (from, to),
                         Attach::Entity(_) | Attach::Projectile { .. } => ([0.0; 3], [0.0; 3]),
                     };
-                    let handle = backend.spawn(effect_id as u16, from, to);
+                    let handle = backend.spawn(effect_id as u16, from, to, hit_count.unwrap_or(0));
                     if handle != 0 {
                         self.last_spawn = Some(SpawnOutcome::Custom);
                         HeldPayload::CustomExternal { handle }
@@ -317,7 +327,7 @@ impl EffectHolder {
                     //     functions; every effect, the factory, and
                     //     `SpawnRequest` stay as-is.
                     let anchor = attach_to_anchor(attach, &|_id| None);
-                    match make_effect(effect_id, anchor) {
+                    match make_effect(effect_id, anchor, hit_count) {
                         Some(e) => {
                             self.last_spawn = Some(SpawnOutcome::Custom);
                             HeldPayload::Custom(e)
@@ -367,8 +377,9 @@ impl EffectHolder {
                 effect_id,
                 attach,
                 override_duration_ms,
+                hit_count,
             } = req;
-            self.spawn(effect_id, attach, override_duration_ms);
+            self.spawn_with_hit_count(effect_id, attach, override_duration_ms, hit_count);
         }
     }
 

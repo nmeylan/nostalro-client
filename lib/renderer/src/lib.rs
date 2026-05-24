@@ -642,7 +642,7 @@ impl Renderer {
             self.effect_sprite_renderer.render(
                 &mut encoder,
                 &view,
-                Some(depth_view),
+                None,
                 &self.device.device,
                 &self.device.queue,
                 None,
