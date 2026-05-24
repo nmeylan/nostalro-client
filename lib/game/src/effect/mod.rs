@@ -67,6 +67,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::firearrow::TEXTURES,
         effects::napalmbeat::TEXTURES,
         effects::sandwind::TEXTURES,
+        effects::yupitel::TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {

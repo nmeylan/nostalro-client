@@ -159,6 +159,7 @@ enum HeldPayload {
         anim_speed: f32,
         repeat: bool,
         tint: [f32; 4],
+        pos_y: f32,
     },
     /// Multi-particle SPR burst (chimney smoke, firefly, snow, …).
     SprBurst(BurstState),
@@ -241,6 +242,7 @@ impl EffectHolder {
                 anim_speed,
                 repeat,
                 tint,
+                pos_y,
                 ..
             } => {
                 self.last_spawn = Some(SpawnOutcome::Spr);
@@ -250,6 +252,7 @@ impl EffectHolder {
                     anim_speed: *anim_speed,
                     repeat: *repeat,
                     tint: *tint,
+                    pos_y: *pos_y,
                 }
             }
             EffectSpec::SprBurst { sprite, burst, .. } => {
@@ -514,11 +517,13 @@ impl EffectHolder {
                     anim_speed,
                     repeat,
                     tint,
+                    pos_y,
                 } = &e.payload
                 else {
                     return None;
                 };
-                let pos = resolve_position(&e.attach, resolve_entity)?;
+                let mut pos = resolve_position(&e.attach, resolve_entity)?;
+                pos[1] += pos_y;
                 let duration_ms = if e.duration.is_finite() {
                     e.duration * 1000.0
                 } else {

@@ -50,6 +50,13 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             };
             Box::new(effects::fireball::FireballEffect::new(from, to))
         }
+        EffectId::Yufitel => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::yupitel::YupitelEffect::new(from, to))
+        }
         EffectId::Napalmbeat => Box::new(effects::napalmbeat::NapalmBeatEffect::new(anchor.point())),
         EffectId::Sandwind => Box::new(effects::sandwind::SandwindEffect::new(anchor.point())),
 
@@ -516,6 +523,7 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Frostdiver
             | EffectId::Frostdiver2
             | EffectId::Soulstrike
+            | EffectId::Yufitel
             | EffectId::Magnumbreak
             | EffectId::Sight
             | EffectId::Ruwach

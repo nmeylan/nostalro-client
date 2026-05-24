@@ -14,7 +14,7 @@ use super::effects::{
     bash, begin_spell, blessing, bottom_sanctuary_pillar, cast_circle, endure, enhance, entry,
     exit as exit_effect, firearrow, fireball, flasher, frost_diver, glasswall, hasteup, healsp,
     hit, hit2, hit5_6, magnum_break, napalmbeat, portal, ready_portal, sandwind, sight,
-    soul_strike, spraypond, status_up, stormgust, teleportation, volcano, warp,
+    soul_strike, spraypond, status_up, stormgust, teleportation, volcano, warp, yupitel,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -174,6 +174,9 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Soulstrike => EffectSpec::Custom {
             duration_ms: soul_strike::TOTAL_DURATION_MS,
         },
+        EffectId::Yufitel => EffectSpec::Custom {
+            duration_ms: yupitel::TOTAL_DURATION_MS,
+        },
         EffectId::Napalmbeat => EffectSpec::Custom {
             duration_ms: napalmbeat::TOTAL_DURATION_MS,
         },
@@ -321,6 +324,7 @@ fn bucket_default(id: EffectId) -> EffectSpec {
             anim_speed: def.anim_speed,
             repeat: def.repeat,
             tint: def.tint,
+            pos_y: def.pos_y,
         };
     }
     if let Some((sprite, burst)) = spr_burst_params(id) {
@@ -391,6 +395,7 @@ mod tests {
             anim_speed,
             repeat,
             tint,
+            pos_y,
         }) = effect_spec(EffectId::Torch)
         else {
             panic!("Torch should resolve to EffectSpec::Spr");
@@ -401,11 +406,13 @@ mod tests {
         assert_eq!(anim_speed, 1.0);
         assert!(repeat);
         assert_eq!(tint, [1.0, 1.0, 1.0, 1.0]);
+        assert_eq!(pos_y, 0.0);
     }
 
     #[test]
     fn aqua_is_a_one_shot_spr() {
-        // Original game's Aqua: anim speed=2, no anim repeat.
+        // Aqua: holyclimb sprite, anim speed 2, plays once,
+        // y-offset -20, runs 100 frames.
         let Some(EffectSpec::Spr {
             sprite,
             duration_ms,
@@ -413,16 +420,18 @@ mod tests {
             anim_speed,
             repeat,
             tint,
+            pos_y,
         }) = effect_spec(EffectId::Aqua)
         else {
             panic!("Aqua should resolve to EffectSpec::Spr");
         };
-        assert_eq!(sprite, "data/sprite/이팩트/아쿠아플레이");
-        assert_eq!(duration_ms, 1000);
+        assert_eq!(sprite, "data/sprite/이팩트/성수뜨기");
+        assert_eq!(duration_ms, 1667);
         assert_eq!(size_scale, 1.0);
         assert_eq!(anim_speed, 2.0);
         assert!(!repeat);
         assert_eq!(tint, [1.0, 1.0, 1.0, 1.0]);
+        assert_eq!(pos_y, -20.0);
     }
 
     #[test]
@@ -438,6 +447,7 @@ mod tests {
             anim_speed,
             repeat,
             tint,
+            pos_y,
         }) = effect_spec(EffectId::Poisonhit)
         else {
             panic!("Poisonhit should resolve to EffectSpec::Spr");
@@ -448,6 +458,7 @@ mod tests {
         assert_eq!(anim_speed, 2.0);
         assert!(!repeat);
         assert_eq!(tint, [1.0, 1.0, 1.0, 1.0]);
+        assert_eq!(pos_y, 0.0);
     }
 
     #[test]
@@ -464,6 +475,7 @@ mod tests {
             anim_speed,
             repeat,
             tint,
+            pos_y,
         }) = effect_spec(EffectId::Darkbreath)
         else {
             panic!("Darkbreath should resolve to EffectSpec::Spr");
@@ -474,6 +486,7 @@ mod tests {
         assert_eq!(anim_speed, 1.0);
         assert!(repeat);
         assert_eq!(tint, [1.0, 0.0, 0.0, 1.0]);
+        assert_eq!(pos_y, 0.0);
     }
 
     #[test]
@@ -599,7 +612,8 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Portal => 1000,
         EffectId::Incagility => 1000,
         EffectId::Decagility => 1000,
-        EffectId::Aqua => 1000,
+        // Original game: 100 frames @ 60 fps.
+        EffectId::Aqua => 1667,
         EffectId::Signum => 9990,
         EffectId::Angelus => 9990,
         EffectId::Blessing => 1500,
