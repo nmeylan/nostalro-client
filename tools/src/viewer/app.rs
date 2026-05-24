@@ -17,7 +17,7 @@ use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
-    EffectQueue, EffectSpec, effect_spec, effect_texture_paths, str_aliases,
+    EffectQueue, EffectSpec, effect_spec, effect_texture_paths, is_trail_effect, str_aliases,
 };
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::map_loader::{self, MapData};
@@ -372,7 +372,12 @@ impl App {
             _ => [0.0, 0.0, 0.0],
         };
         self.effect_holder.clear();
-        self.effect_queue.spawn_at(id, pos);
+        if is_trail_effect(id) {
+            let to = [pos[0], pos[1], pos[2] + 22.0];
+            self.effect_queue.spawn_trail(id, pos, to);
+        } else {
+            self.effect_queue.spawn_at(id, pos);
+        }
         self.current_effect_id = Some(id);
         if let Some(idx) = self.effect_list.iter().position(|x| *x == id) {
             self.current_effect_idx = idx;
@@ -879,7 +884,7 @@ fn build_character_batches<'a>(
         Some(c) => c,
         None => return Vec::new(),
     };
-    let Some((screen_anchor, depth, camera_dir, sprite_scale, depth_gradient)) =
+    let Some((screen_anchor, depth, camera_dir, sprite_scale, _depth_gradient)) =
         project_entity_screen(cell, map.gat.as_ref(), coords, camera, screen_w, screen_h)
     else {
         return Vec::new();
@@ -892,7 +897,7 @@ fn build_character_batches<'a>(
         screen_anchor,
         depth,
         sprite_scale,
-        depth_gradient,
+        0.0,
     )
 }
 

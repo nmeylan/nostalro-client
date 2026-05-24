@@ -254,10 +254,13 @@ impl EffectHolder {
             }
             EffectSpec::Noop => unreachable!("Noop handled above"),
             EffectSpec::Custom { .. } => {
-                if let Some(backend) = &self.external_backend {
+                let use_external = self.external_backend.is_some()
+                    && !matches!(attach, Attach::Trail { .. });
+                if let Some(backend) = self.external_backend.as_ref().filter(|_| use_external) {
                     let world_pos = match attach {
                         Attach::WorldPos(p) => p,
-                        Attach::Entity(_) | Attach::Projectile { .. } | Attach::Trail { .. } => [0.0; 3],
+                        Attach::Entity(_) | Attach::Projectile { .. } => [0.0; 3],
+                        Attach::Trail { .. } => unreachable!(),
                     };
                     let handle = backend.spawn(effect_id as u16, world_pos);
                     if handle != 0 {

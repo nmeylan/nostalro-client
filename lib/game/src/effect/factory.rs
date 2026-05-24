@@ -43,7 +43,13 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor) -> Option<Box<dyn Effect>
         // (firearrow, fireball, napalmbeat, sandwind) need a Custom
         // impl — everything else falls back to the canonical STR.
         EffectId::Firearrow => Box::new(effects::firearrow::FireArrowEffect::new(anchor.point())),
-        EffectId::Fireball => Box::new(effects::fireball::FireballEffect::new(anchor.point())),
+        EffectId::Fireball => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::fireball::FireballEffect::new(from, to))
+        }
         EffectId::Napalmbeat => Box::new(effects::napalmbeat::NapalmBeatEffect::new(anchor.point())),
         EffectId::Sandwind => Box::new(effects::sandwind::SandwindEffect::new(anchor.point())),
 
