@@ -217,6 +217,7 @@ impl Effect for SaintCastingEffect {
                 top_size: top,
                 height,
                 sides: CONE_SIDES,
+                arc_angle_deg: 360.0,
                 rotation: em.rot_start_deg.to_radians(),
                 uv_repeat: CONE_UV_REPEAT,
                 uv_scroll: [0.0, 0.0],

@@ -783,6 +783,7 @@ impl Effect for HitEffect {
                 top_size: ring.outer_size,
                 height: state.height_size,
                 sides: 16,
+                arc_angle_deg: 360.0,
                 rotation: 0.0,
                 // Lens flare textures like lens2.tga benefit from tiling
                 // around the cone (the star pattern in the texture

@@ -36,6 +36,22 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Glasswall => Box::new(effects::glasswall::GlasswallEffect::new(anchor.point())),
         EffectId::Healsp => Box::new(effects::healsp::HealSpEffect::new(anchor.point())),
         EffectId::Portal => Box::new(effects::portal::PortalEffect::new(anchor.point())),
+        EffectId::Portal2 => Box::new(effects::portal2::Portal2Effect::new(
+            anchor.point(),
+            effects::portal2::PORTAL2,
+        )),
+        EffectId::Portal3 => Box::new(effects::portal2::Portal2Effect::new(
+            anchor.point(),
+            effects::portal2::PORTAL3,
+        )),
+        EffectId::Portal4 => Box::new(effects::portal_wind::PortalWindEffect::new(
+            anchor.point(),
+            effects::portal_wind::PORTAL4,
+        )),
+        EffectId::Portal5 => Box::new(effects::portal_wind::PortalWindEffect::new(
+            anchor.point(),
+            effects::portal_wind::PORTAL5,
+        )),
         EffectId::Readyportal => Box::new(effects::ready_portal::ReadyPortalEffect::new(anchor.point())),
         EffectId::Teleportation => Box::new(effects::teleportation::TeleportationEffect::new(anchor.point())),
         EffectId::Spraypond => Box::new(effects::spraypond::SpraypondEffect::new(anchor.point())),
@@ -556,6 +572,10 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Glasswall
             | EffectId::Healsp
             | EffectId::Portal
+            | EffectId::Portal2
+            | EffectId::Portal3
+            | EffectId::Portal4
+            | EffectId::Portal5
             | EffectId::Spraypond
             | EffectId::Firearrow
             | EffectId::Fireball

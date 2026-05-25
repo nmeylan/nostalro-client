@@ -165,6 +165,13 @@ pub enum EffectPrimitiveDraw {
         top_size: f32,
         height: f32,
         sides: u32,
+        /// Total arc span in degrees. `>= 360` (or any closed-loop value)
+        /// draws a full ring; smaller values produce an **open strip**
+        /// sweeping CCW from `rotation`, leaving a `360 - arc_angle_deg`
+        /// gap. Matches the original game's cast-aura arc span:
+        /// cast-circle petals use `315`, columns and
+        /// most other emitters use `360`.
+        arc_angle_deg: f32,
         rotation: f32,
         uv_repeat: f32,
         uv_scroll: [f32; 2],

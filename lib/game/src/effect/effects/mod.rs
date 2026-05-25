@@ -42,6 +42,8 @@ pub mod overthrust;
 pub mod pierce;
 pub mod placeholder;
 pub mod portal;
+pub mod portal2;
+pub mod portal_wind;
 pub mod potion_berserk;
 pub mod potion_pillar;
 pub mod ready_portal;

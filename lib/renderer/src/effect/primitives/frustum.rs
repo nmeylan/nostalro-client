@@ -170,6 +170,7 @@ pub fn prepare_frustum_records<'tex>(
             top_size,
             height,
             sides,
+            arc_angle_deg,
             rotation,
             uv_repeat,
             uv_scroll,
@@ -212,7 +213,9 @@ pub fn prepare_frustum_records<'tex>(
 
         let bottom_local_y: f32 = 0.0;
         let top_local_y_base: f32 = -*height;
-        let full_span = std::f32::consts::TAU;
+        let full_span = arc_angle_deg
+            .to_radians()
+            .clamp(0.0, std::f32::consts::TAU);
         let geom_rotation = *rotation;
         let uv_rep = *uv_repeat;
         let scroll_v = uv_scroll[1];

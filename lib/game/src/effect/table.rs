@@ -14,8 +14,9 @@ use super::effects::{
     bash, begin_spell, blessing, bottom_sanctuary_pillar, bowling_bash, callzone, cast_circle,
     endure, enhance, entry, exit as exit_effect, firearrow, fireball, flasher, frost_diver,
     glasswall, ground_sample, hasteup, healsp, hit, hit2, hit5_6, magnum_break, napalmbeat,
-    overthrust, pierce, portal, potion_berserk, potion_pillar, ready_portal, revive, sandwind,
-    sight, soul_strike, spraypond, status_up, stormgust, teleportation, volcano, warp, yupitel,
+    overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_pillar, ready_portal,
+    revive, sandwind, sight, soul_strike, spraypond, status_up, stormgust, teleportation, volcano,
+    warp, yupitel,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -105,6 +106,20 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // Portal — sustained 2-cylinder column + periodic ground rings.
         EffectId::Portal => EffectSpec::Custom {
             duration_ms: portal::TOTAL_DURATION_MS,
+        },
+
+        // Portal2/3 — vertical rings then ground rings. Portal3 is the
+        // call-partner variant — ring contracts instead of expanding, red
+        // textures.
+        EffectId::Portal2 | EffectId::Portal3 => EffectSpec::Custom {
+            duration_ms: portal2::TOTAL_DURATION_MS,
+        },
+
+        // Portal4/5 — 4-slot wind cones at 90° offsets. Portal5 is the
+        // long-window windwalk variant with yellow body tint; Portal4 the
+        // green-tint default with SFX.
+        EffectId::Portal4 | EffectId::Portal5 => EffectSpec::Custom {
+            duration_ms: portal_wind::TOTAL_DURATION_MS,
         },
 
         // Ready Portal — the blue scalloped disc that precedes a portal
@@ -928,6 +943,8 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Exit2 => 2000,
         EffectId::Glasswall2 => 99990,
         EffectId::Readyportal2 => 2000,
+        // Portal2 is intercepted by `effect_spec` as Custom; this entry
+        // exists only for match exhaustiveness.
         EffectId::Portal2 => 99990,
         EffectId::BottomMag => 99990,
         EffectId::BottomSanc => 99990,
@@ -952,6 +969,7 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Angel2 => 2000,
         EffectId::Magnum2 => 1000,
         EffectId::Callzone => 30000,
+        // Portal3 intercepted by `effect_spec`; entry for exhaustiveness.
         EffectId::Portal3 => 99990,
         EffectId::Couplecasting => 10000,
         EffectId::Heartcasting => 10000,
@@ -1000,6 +1018,7 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Truesight => 2500,
         EffectId::Falconassault => 2000,
         EffectId::Tripleattack2 => 2000,
+        // Portal4 intercepted by `effect_spec`; entry for exhaustiveness.
         EffectId::Portal4 => 2000,
         EffectId::Meltdown => 2500,
         EffectId::Cartboost => 1500,
@@ -1013,6 +1032,7 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Bash3d3 => 2000,
         EffectId::Bash3d4 => 2000,
         EffectId::Napalmvalcan => 2000,
+        // Portal5 intercepted by `effect_spec`; entry for exhaustiveness.
         EffectId::Portal5 => 2000,
         EffectId::Magiccrasher2 => 1000,
         EffectId::BottomSpider => 299990,

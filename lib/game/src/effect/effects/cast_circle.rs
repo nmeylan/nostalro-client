@@ -91,6 +91,11 @@ const RING_TEXTURE: &str = "alpha_down.tga";
 /// land on the same per-segment cadence.
 const PETAL_SIDES: u32 = 20;
 const PETAL_UV_REPEAT: f32 = 1.0;
+/// The three petal emitters each span 315° of arc, leaving a 45° gap in
+/// the ring. The three petals' rotation starts 0°/90°/180° interleave so
+/// the gaps don't stack and the ring still reads as a closed circle of
+/// flame.
+const PETAL_ARC_DEG: f32 = 315.0;
 /// Per-petal rise angle from horizontal — matches the original casting
 /// aura's three angles (70°, 57°, 45°): the innermost ring flares almost
 /// straight up, the outermost ring is closer to a flat splay.
@@ -256,6 +261,7 @@ impl Effect for CastCircleEffect {
                     top_size: self.params.column_radius + col_cos * max_h,
                     height,
                     sides: COLUMN_SIDES,
+                    arc_angle_deg: 360.0,
                     rotation: 0.0,
                     uv_repeat: COLUMN_UV_REPEAT,
                     uv_scroll: [0.0, 0.0],
@@ -306,6 +312,7 @@ impl Effect for CastCircleEffect {
                     top_size: distance + cos_rise * max_h,
                     height: sin_rise * max_h,
                     sides: PETAL_SIDES,
+                    arc_angle_deg: PETAL_ARC_DEG,
                     rotation: spin_rad + offset_rad,
                     uv_repeat: PETAL_UV_REPEAT,
                     uv_scroll: [0.0, 0.0],

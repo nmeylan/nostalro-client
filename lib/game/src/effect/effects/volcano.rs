@@ -194,6 +194,7 @@ impl Effect for VolcanoEffect {
                 top_size: radius + max_outward,
                 height: max_upward,
                 sides: SIDES,
+                arc_angle_deg: 360.0,
                 rotation: rotation_rad,
                 uv_repeat: UV_REPEAT,
                 uv_scroll: [0.0, 0.0],

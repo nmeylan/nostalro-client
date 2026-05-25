@@ -12,7 +12,7 @@ pub mod table;
 
 pub use draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 pub use effect_queue::{EffectQueue, SpawnRequest, is_trail_effect};
-pub use effect_trait::{CameraView, Effect, EffectRenderCtx, EffectUpdateCtx};
+pub use effect_trait::{BodyTint, CameraView, Effect, EffectRenderCtx, EffectUpdateCtx};
 pub use factory::{is_real_impl, make_effect};
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBurstParams};
 pub use spr_aliases::{SprDef, spr_def};
@@ -60,6 +60,8 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::animated_texture_billboard::TEXTURES,
         effects::placeholder::TEXTURES,
         effects::portal::TEXTURES,
+        effects::portal2::TEXTURES,
+        effects::portal_wind::TEXTURES,
         effects::ready_portal::TEXTURES,
         effects::teleportation::TEXTURES,
         effects::spraypond::TEXTURES,
