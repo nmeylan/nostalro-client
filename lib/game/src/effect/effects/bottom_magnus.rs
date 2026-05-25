@@ -27,7 +27,7 @@
 //! alone — the cross-faces are nearly co-planar with the sides and
 //! read as a slight alpha boost rather than visible geometry.
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
+use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 #[derive(Clone, Copy, Debug)]
@@ -106,7 +106,7 @@ impl Effect for BottomMagnusEffect {
         let fade = (self.age / FADE_IN_SECS).clamp(0.0, 1.0);
         let alpha = BASE_ALPHA * fade;
         let [r, g, b] = self.params.tint_rgb;
-        out.push(EffectPrimitiveDraw::Frustum {
+        out.push(EffectPrimitiveDraw::Cylinder {
             base: self.world_pos,
             // Square cross-section: bottom and top radii equal,
             // `sides = 4` gives a 4-faced prism that matches the
@@ -117,15 +117,9 @@ impl Effect for BottomMagnusEffect {
             height: self.params.height,
             sides: 4,
             rotation: 0.0,
-            uv_repeat: 1.0,
-            uv_scroll: [0.0, 0.0],
-            wave_amplitude: 0.0,
-            wave_frequency: 0.0,
-            wave_phase: 0.0,
-            wave_mode: FrustumWaveMode::Sine,
             tilt_x_rad: 0.0,
             rotation_y_rad: 0.0,
-            cull_back: false,
+            uv_scroll: [0.0, 0.0],
             texture: self.params.texture,
             color: [r, g, b, alpha],
             blend: self.params.blend,
@@ -164,7 +158,7 @@ mod tests {
         let mut e = BottomMagnusEffect::new([0.0, 0.0, 0.0], MAGNUS);
         step(&mut e, FADE_IN_SECS);
         match &draws(&e)[0] {
-            EffectPrimitiveDraw::Frustum {
+            EffectPrimitiveDraw::Cylinder {
                 sides,
                 bottom_size,
                 top_size,
@@ -182,7 +176,7 @@ mod tests {
                 assert_eq!(*texture, "ring_red.tga");
                 assert!((color[0] - 1.0).abs() < 1e-4);
             }
-            other => panic!("expected Frustum, got {other:?}"),
+            other => panic!("expected Cylinder, got {other:?}"),
         }
     }
 
@@ -193,7 +187,7 @@ mod tests {
         let mut e = BottomMagnusEffect::new([0.0, 0.0, 0.0], FOGWALL);
         step(&mut e, FADE_IN_SECS);
         match &draws(&e)[0] {
-            EffectPrimitiveDraw::Frustum {
+            EffectPrimitiveDraw::Cylinder {
                 sides,
                 height,
                 blend,
@@ -208,7 +202,7 @@ mod tests {
                 assert!((color[0] - 80.0 / 255.0).abs() < 1e-4);
                 assert!((color[2] - 80.0 / 255.0).abs() < 1e-4);
             }
-            other => panic!("expected Frustum, got {other:?}"),
+            other => panic!("expected Cylinder, got {other:?}"),
         }
     }
 }

@@ -12,7 +12,7 @@
 //!     ground-disc emission (every 14 frames, `ring_blue.tga`).
 //!     Shared via [`super::ready_portal::ReadyPortalDiscEmitter`].
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
+use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use super::ready_portal::ReadyPortalDiscEmitter;
 
@@ -80,22 +80,16 @@ impl Effect for PortalEffect {
                 ),
             ] {
                 let rotation = (self.age_frames * spin).to_radians();
-                out.push(EffectPrimitiveDraw::Frustum {
+                out.push(EffectPrimitiveDraw::Cylinder {
                     base: self.world_pos,
                     bottom_size: radius,
                     top_size: radius,
                     height,
                     sides: CYL_SIDES,
                     rotation,
-                    uv_repeat: 1.0,
-                    uv_scroll: [0.0, 0.0],
-                    wave_amplitude: 0.0,
-                    wave_frequency: 0.0,
-                    wave_phase: 0.0,
-                    wave_mode: FrustumWaveMode::Sine,
                     tilt_x_rad: 0.0,
                     rotation_y_rad: 0.0,
-                    cull_back: false,
+                    uv_scroll: [0.0, 0.0],
                     texture: RING_TEXTURE,
                     color: [1.0, 1.0, 1.0, alpha],
                     blend: BlendKind::Additive,
@@ -143,7 +137,7 @@ mod tests {
         let cylinders = list
             .primitives
             .iter()
-            .filter(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. }))
+            .filter(|p| matches!(p, EffectPrimitiveDraw::Cylinder { .. }))
             .count();
         assert_eq!(cylinders, 2);
 

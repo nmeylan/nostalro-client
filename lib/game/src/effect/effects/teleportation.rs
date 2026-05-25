@@ -20,7 +20,7 @@
 //!   * Alpha fades linearly
 //!     from full to 0 across the cylinder's lifetime.
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
+use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const RING_TEXTURE: &str = "ring_blue.tga";
@@ -43,7 +43,6 @@ const HEIGHT_ACCEL_PER_FRAME2: f32 = 0.25;
 
 const SPIN_DEG_PER_FRAME: f32 = 2.0;
 const SIDES: u32 = 10;
-const UV_REPEAT: f32 = 1.0;
 const MAX_ALPHA: f32 = 1.0;
 
 pub const TOTAL_DURATION_MS: u32 =
@@ -98,22 +97,16 @@ impl Effect for TeleportationEffect {
             return;
         }
         let rotation = (self.age_frames * SPIN_DEG_PER_FRAME).to_radians();
-        out.push(EffectPrimitiveDraw::Frustum {
+        out.push(EffectPrimitiveDraw::Cylinder {
             base: self.world_pos,
             bottom_size: BOTTOM_RADIUS,
             top_size: top,
             height,
             sides: SIDES,
             rotation,
-            uv_repeat: UV_REPEAT,
-            uv_scroll: [0.0, 0.0],
-            wave_amplitude: 0.0,
-            wave_frequency: 0.0,
-            wave_phase: 0.0,
-            wave_mode: FrustumWaveMode::Sine,
             tilt_x_rad: 0.0,
             rotation_y_rad: 0.0,
-            cull_back: false,
+            uv_scroll: [0.0, 0.0],
             texture: RING_TEXTURE,
             color: [1.0, 1.0, 1.0, alpha],
             blend: BlendKind::Additive,
@@ -146,7 +139,7 @@ mod tests {
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         list.primitives.into_iter().find_map(|p| match p {
-            EffectPrimitiveDraw::Frustum {
+            EffectPrimitiveDraw::Cylinder {
                 bottom_size,
                 top_size,
                 height,
@@ -160,7 +153,7 @@ mod tests {
 
     #[test]
     fn emits_a_blue_ring_frustum_starting_as_a_cylinder() {
-        // Sociable: a couple of frames in, exactly one Frustum is emitted
+        // Sociable: a couple of frames in, exactly one Cylinder is emitted
         // with the shared ring_blue.tga texture, additive blend, and the
         // fixed bottom radius.
         let mut e = TeleportationEffect::new([0.0, 0.0, 0.0]);
@@ -169,7 +162,7 @@ mod tests {
         e.collect_draws(&mut list, &render_ctx());
         assert_eq!(list.primitives.len(), 1);
         match &list.primitives[0] {
-            EffectPrimitiveDraw::Frustum {
+            EffectPrimitiveDraw::Cylinder {
                 bottom_size,
                 top_size,
                 texture,
@@ -184,7 +177,7 @@ mod tests {
                 // strictly smaller.
                 assert!(*top_size < BOTTOM_RADIUS && *top_size > 0.0);
             }
-            other => panic!("expected Frustum, got {other:?}"),
+            other => panic!("expected Cylinder, got {other:?}"),
         }
     }
 

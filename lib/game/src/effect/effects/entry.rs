@@ -21,7 +21,7 @@
 //!   opposite direction (+10°/frame). Alpha is a flat 160 with a
 //!   fade-out from 2/3 of the lifetime onward.
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
+use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const RING_TEXTURE: &str = "ring_blue.tga";
@@ -112,22 +112,16 @@ impl Effect for EntryEffect {
         let outer_height = (OUTER_HEIGHT_INIT + OUTER_HEIGHT_SPEED * frame).max(0.0);
         let outer_top = OUTER_TOP_RADIUS_INIT + OUTER_TOP_RADIUS_SPEED * frame;
         if outer_height > 0.0 {
-            out.push(EffectPrimitiveDraw::Frustum {
+            out.push(EffectPrimitiveDraw::Cylinder {
                 base: self.world_pos,
                 bottom_size: OUTER_BOTTOM_RADIUS,
                 top_size: outer_top,
                 height: outer_height,
                 sides: OUTER_SIDES,
                 rotation: (frame * OUTER_SPIN_DEG_PER_FRAME).to_radians(),
-                uv_repeat: 1.0,
-                uv_scroll: [0.0, 0.0],
-                wave_amplitude: 0.0,
-                wave_frequency: 0.0,
-                wave_phase: 0.0,
-                wave_mode: FrustumWaveMode::Sine,
                 tilt_x_rad: 0.0,
                 rotation_y_rad: 0.0,
-                cull_back: false,
+                uv_scroll: [0.0, 0.0],
                 texture: RING_TEXTURE,
                 color: [1.0, 1.0, 1.0, outer_alpha(frame)],
                 blend: BlendKind::Additive,
@@ -138,22 +132,16 @@ impl Effect for EntryEffect {
         let inner_height_val = inner_height(frame).max(0.0);
         if inner_height_val > 0.0 {
             let inner_alpha = alpha_fade_out(frame, INNER_ALPHA, INNER_FADE_OUT_AT);
-            out.push(EffectPrimitiveDraw::Frustum {
+            out.push(EffectPrimitiveDraw::Cylinder {
                 base: self.world_pos,
                 bottom_size: INNER_RADIUS,
                 top_size: INNER_RADIUS,
                 height: inner_height_val,
                 sides: INNER_SIDES,
                 rotation: (frame * INNER_SPIN_DEG_PER_FRAME).to_radians(),
-                uv_repeat: 1.0,
-                uv_scroll: [0.0, 0.0],
-                wave_amplitude: 0.0,
-                wave_frequency: 0.0,
-                wave_phase: 0.0,
-                wave_mode: FrustumWaveMode::Sine,
                 tilt_x_rad: 0.0,
                 rotation_y_rad: 0.0,
-                cull_back: false,
+                uv_scroll: [0.0, 0.0],
                 texture: RING_TEXTURE,
                 color: [1.0, 1.0, 1.0, inner_alpha],
                 blend: BlendKind::Additive,
@@ -209,7 +197,7 @@ mod tests {
             inner_rot,
         ) = match (&prims[0], &prims[1]) {
             (
-                EffectPrimitiveDraw::Frustum {
+                EffectPrimitiveDraw::Cylinder {
                     bottom_size: b0,
                     top_size: t0,
                     sides: s0,
@@ -217,7 +205,7 @@ mod tests {
                     blend: bl0,
                     ..
                 },
-                EffectPrimitiveDraw::Frustum {
+                EffectPrimitiveDraw::Cylinder {
                     bottom_size: b1,
                     top_size: t1,
                     sides: s1,
@@ -230,7 +218,7 @@ mod tests {
                 assert_eq!(*bl1, BlendKind::Additive);
                 (*b0, *t0, *s0, *r0, *b1, *t1, *s1, *r1)
             }
-            _ => panic!("expected two Frustum prims"),
+            _ => panic!("expected two Cylinder prims"),
         };
         assert_eq!(outer_sides, OUTER_SIDES);
         assert_eq!(inner_sides, 8, "arcAngle=45 → 8 vertical strips");
@@ -254,14 +242,14 @@ mod tests {
         let mut e = EntryEffect::new([0.0; 3]);
         step(&mut e, 0.0);
         let (b0, t0) = match &draws(&e)[0] {
-            EffectPrimitiveDraw::Frustum { bottom_size, top_size, .. } => {
+            EffectPrimitiveDraw::Cylinder { bottom_size, top_size, .. } => {
                 (*bottom_size, *top_size)
             }
             _ => unreachable!(),
         };
         step(&mut e, DURATION_S * 0.8);
         let (b1, t1) = match draws(&e).first() {
-            Some(EffectPrimitiveDraw::Frustum { bottom_size, top_size, .. }) => {
+            Some(EffectPrimitiveDraw::Cylinder { bottom_size, top_size, .. }) => {
                 (*bottom_size, *top_size)
             }
             _ => panic!("outer cone disappeared too early"),
@@ -281,13 +269,13 @@ mod tests {
         // emitted; capture as the "early" sample.
         step(&mut e, 1.0 / FRAMES_PER_SECOND);
         let h_early = match draws(&e).get(1) {
-            Some(EffectPrimitiveDraw::Frustum { height, .. }) => *height,
+            Some(EffectPrimitiveDraw::Cylinder { height, .. }) => *height,
             _ => panic!("inner cylinder expected at frame 1"),
         };
 
         step(&mut e, DURATION_S * 0.5);
         let h_mid = match &draws(&e)[1] {
-            EffectPrimitiveDraw::Frustum { height, .. } => *height,
+            EffectPrimitiveDraw::Cylinder { height, .. } => *height,
             _ => unreachable!(),
         };
         assert!(h_mid > h_early + 1.0, "height grows by mid-life");
@@ -295,7 +283,7 @@ mod tests {
         // Walk to near the end of the lifetime; height returns toward 0.
         step(&mut e, DURATION_S * 0.49);
         let h_late = match draws(&e).get(1) {
-            Some(EffectPrimitiveDraw::Frustum { height, .. }) => *height,
+            Some(EffectPrimitiveDraw::Cylinder { height, .. }) => *height,
             // height may have hit zero — primitive is then skipped entirely
             None => 0.0,
             _ => unreachable!(),
@@ -308,20 +296,20 @@ mod tests {
         let mut e = EntryEffect::new([0.0; 3]);
         step(&mut e, 0.0);
         let a0 = match &draws(&e)[0] {
-            EffectPrimitiveDraw::Frustum { color, .. } => color[3],
+            EffectPrimitiveDraw::Cylinder { color, .. } => color[3],
             _ => unreachable!(),
         };
         // ~30 frames in — past the alpha fade-in but before the fade-out window.
         step(&mut e, 30.0 / FRAMES_PER_SECOND);
         let a_peak = match &draws(&e)[0] {
-            EffectPrimitiveDraw::Frustum { color, .. } => color[3],
+            EffectPrimitiveDraw::Cylinder { color, .. } => color[3],
             _ => unreachable!(),
         };
         assert!(a_peak > a0, "alpha rises during fade-in");
         // Deep into the fade-out window.
         step(&mut e, (DURATION_FRAMES - 30.0 - 2.0) / FRAMES_PER_SECOND);
         let a_late = match draws(&e).first() {
-            Some(EffectPrimitiveDraw::Frustum { color, .. }) => color[3],
+            Some(EffectPrimitiveDraw::Cylinder { color, .. }) => color[3],
             _ => 0.0,
         };
         assert!(a_late < a_peak, "alpha drops during fade-out");
