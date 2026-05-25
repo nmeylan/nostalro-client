@@ -215,7 +215,7 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Potion => &["awakening", "각성"],
         EffectId::PotionBerserk => &["버서크", "berserk"],
         EffectId::Potionpillar => &["potionpillar"],
-        EffectId::Defender => &["defender"],
+        // Defender → see effects/defender.rs (Custom impl, no STR overlay).
         EffectId::Ganbantein => &["ganbantein"],
         EffectId::Wind => &["wind"],
         EffectId::Volcano => &["volcano"],

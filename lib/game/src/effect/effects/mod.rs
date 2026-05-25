@@ -22,6 +22,7 @@ pub mod bottom_vertical;
 pub mod callzone;
 pub mod cartrevolution;
 pub mod cast_circle;
+pub mod defender;
 pub mod endure;
 pub mod enhance;
 pub mod entry;

@@ -215,6 +215,8 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         // id.
         EffectId::Gumgang2 => Box::new(effects::gumgang2::Gumgang2Effect::new(anchor.point())),
 
+        EffectId::Defender => Box::new(effects::defender::DefenderEffect::new(anchor.point())),
+
 
         EffectId::Level99 => Box::new(effects::aura::AuraEffect::new(
             anchor.point(),
@@ -638,6 +640,7 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Ganbantein
             | EffectId::Gumgang3
             | EffectId::Gumgang2
+            | EffectId::Defender
             | EffectId::Level99
             | EffectId::Level992
             | EffectId::Level993

@@ -308,6 +308,42 @@ pub enum EffectPrimitiveDraw {
         color: [f32; 4],
         blend: BlendKind,
     },
+    /// Connected ribbon ring driven by a `RadialEmitterSlot`'s `distance`
+    /// / `rise_angle` / `height[]`.
+    ///
+    /// `segments + 1` positions are sampled around the ring at angles
+    /// `θ_i = rot_start_rad + i / segments * full_arc_rad` for
+    /// `i ∈ 0..=segments`. At each position the bottom vertex sits on the
+    /// ring (`center.y`, radius `distance`) and the top vertex is offset
+    /// by `heights[i] * height_scale` along the rise direction: pure
+    /// upward for `rise_angle_rad = π/2`, pure radial-outward for
+    /// `rise_angle_rad = 0`. Native RO `-Y = up`, so the renderer
+    /// subtracts the upward component from Y.
+    ///
+    /// Each segment is one quad connecting position `i` to position `i+1`
+    /// — a continuous strip (matches the original game's cast ribbon,
+    /// drawing `(prev_bot, this_bot, this_top,
+    /// prev_top)` per step). For a closed loop pass `full_arc_rad = TAU`
+    /// (or `0.0` as a sentinel) and the last segment will wrap back to
+    /// position 0. UV `u` advances 0..1 across the strip (one full
+    /// texture tile per ring); UV `v` is 0 at the top, 1 at the bottom.
+    ///
+    /// `heights[i]` is read for `i ∈ 0..=segments` (with wrap-around at
+    /// position `segments` for closed rings). Matches the original
+    /// game's per-emitter height packing.
+    RadialRing {
+        center: [f32; 3],
+        distance: f32,
+        rise_angle_rad: f32,
+        rot_start_rad: f32,
+        full_arc_rad: f32,
+        segments: u32,
+        height_scale: f32,
+        heights: [f32; crate::effect::radial_emitter::RADIAL_EMITTER_DIVISION],
+        texture: &'static str,
+        color: [f32; 4],
+        blend: BlendKind,
+    },
     /// Rotating textured ring around an actor (Lv99 aura).
     AuraQuad {
         center: [f32; 3],

@@ -21,6 +21,7 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
+use crate::effect::radial_emitter::{RADIAL_EMITTER_SLOTS, RadialEmitter, RadialEmitterSlot};
 
 pub const TEXTURE: &str = "ring_yellow.tga";
 pub const TEXTURES: &[&str] = &[TEXTURE];
@@ -32,7 +33,6 @@ const TOTAL_FRAMES: f32 = 180.0;
 pub const TOTAL_DURATION_MS: u32 =
     (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
-const NUM_RINGS: usize = 4;
 const SIDES: u32 = 24;
 
 const DISTANCE_BASE: f32 = 1.0;
@@ -59,13 +59,23 @@ const ROT_DEG_PER_FRAME: f32 = 3.0;
 pub struct Gumgang2Effect {
     world_pos: [f32; 3],
     age_frames: f32,
+    emitter: RadialEmitter,
 }
 
 impl Gumgang2Effect {
     pub fn new(world_pos: [f32; 3]) -> Self {
+        let mut slots = [RadialEmitterSlot::dormant(); RADIAL_EMITTER_SLOTS];
+        for (ec, slot) in slots.iter_mut().enumerate() {
+            *slot = RadialEmitterSlot::spawn(
+                DISTANCE_BASE + ec as f32 * DISTANCE_STEP,
+                RISE_INITIAL_DEG,
+                MAX_HEIGHT,
+            );
+        }
         Self {
             world_pos,
             age_frames: 0.0,
+            emitter: RadialEmitter::from_slots(slots),
         }
     }
 }
@@ -91,7 +101,18 @@ fn rise_angle_deg(frame: f32) -> f32 {
 
 impl Effect for Gumgang2Effect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
+        let prev_frames = self.age_frames;
         self.age_frames += ctx.delta * FRAMES_PER_SECOND;
+        let delta_frames = self.age_frames - prev_frames;
+
+        let new_rise = rise_angle_deg(self.age_frames);
+        self.emitter.tick();
+        for slot in self.emitter.slots.iter_mut().filter(|s| s.alive) {
+            slot.distance += DISTANCE_GROWTH_PER_FRAME * delta_frames;
+            slot.rise_angle_deg = new_rise;
+            slot.rot_start_deg += ROT_DEG_PER_FRAME * delta_frames;
+        }
+
         if self.age_frames >= TOTAL_FRAMES {
             EffectStatus::Dead
         } else {
@@ -100,27 +121,21 @@ impl Effect for Gumgang2Effect {
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
-        let frame = self.age_frames;
-        let alpha = alpha_at(frame);
+        let alpha = alpha_at(self.age_frames);
         if alpha <= 0.0 {
             return;
         }
 
-        let (sin_rise, cos_rise) = rise_angle_deg(frame).to_radians().sin_cos();
-        let max_outward = cos_rise * MAX_HEIGHT;
-        let max_upward = sin_rise * MAX_HEIGHT;
-
-        for ec in 0..NUM_RINGS {
-            let distance = DISTANCE_BASE
-                + ec as f32 * DISTANCE_STEP
-                + DISTANCE_GROWTH_PER_FRAME * frame;
-            let rotation_rad =
-                (ec as f32 * 90.0 + frame * ROT_DEG_PER_FRAME).to_radians();
+        for (ec, slot) in self.emitter.active() {
+            let (sin_rise, cos_rise) = slot.rise_angle_deg.to_radians().sin_cos();
+            let max_outward = cos_rise * slot.max_height;
+            let max_upward = sin_rise * slot.max_height;
+            let rotation_rad = (ec as f32 * 90.0 + slot.rot_start_deg).to_radians();
 
             out.push(EffectPrimitiveDraw::Cylinder {
                 base: self.world_pos,
-                bottom_size: distance,
-                top_size: distance + max_outward,
+                bottom_size: slot.distance,
+                top_size: slot.distance + max_outward,
                 height: max_upward,
                 sides: SIDES,
                 rotation: rotation_rad,
@@ -176,13 +191,13 @@ mod tests {
 
     #[test]
     fn emits_concentric_flared_cones() {
-        // Sociable: at peak the effect emits NUM_RINGS flared cones
+        // Sociable: at peak the effect emits RADIAL_EMITTER_SLOTS flared cones
         // (top_size > bottom_size), at the expected base radii, all
         // textured with ring_yellow.tga.
         let mut e = Gumgang2Effect::new([5.0, 0.0, -3.0]);
         step(&mut e, FADE_IN_FRAMES + 1.0);
         let prims = draws(&e);
-        assert_eq!(prims.len(), NUM_RINGS);
+        assert_eq!(prims.len(), RADIAL_EMITTER_SLOTS);
         for (i, prim) in prims.iter().enumerate() {
             let (bottom, top, height, tex) = cone(prim);
             let expected_base = DISTANCE_BASE

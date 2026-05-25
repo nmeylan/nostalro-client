@@ -109,6 +109,9 @@ pub enum PipelineKind {
     /// Textured quad anchored by four explicit world corners. Shares
     /// `effect_ground_disc.wgsl` with [`Self::GroundDisc`].
     WorldQuad,
+    /// Ring of upright tangent-aligned quads driven by a `RadialEmitterSlot`.
+    /// Shares `effect_ground_disc.wgsl` with [`Self::WorldQuad`].
+    RadialRing,
     /// Camera-facing 2D billboard / sprite particle. *Screen-space*
     /// vertices (x,y in pixels, z in NDC). Dispatched through the sprite
     /// pipeline with the sprite-uniforms bind group at slot 0.

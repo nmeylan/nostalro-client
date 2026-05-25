@@ -12,7 +12,7 @@ use models::enums::effect_id::EffectId;
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effects::{
     bash, begin_spell, blessing, bottom_sanctuary_pillar, bowling_bash, callzone, cartrevolution,
-    cast_circle, endure, enhance, entry, exit as exit_effect, firearrow, fireball, flasher,
+    cast_circle, defender, endure, enhance, entry, exit as exit_effect, firearrow, fireball, flasher,
     frost_diver, glasswall, ground_sample, gumgang2, hasteup, healsp, hit, hit2, hit5_6,
     magnum_break, napalmbeat, napalmvalcan, overthrust, pierce, portal, portal2, portal_wind,
     potion_berserk, potion_pillar, ready_portal, revive, sandwind, sight, sonicblowhit,
@@ -267,6 +267,10 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // Gumgang2 — dedicated vertical-pillar impl (see effects/gumgang2.rs).
         EffectId::Gumgang2 => EffectSpec::Custom {
             duration_ms: gumgang2::TOTAL_DURATION_MS,
+        },
+        // Defender — first RadialEmitter consumer (see effects/defender.rs).
+        EffectId::Defender => EffectSpec::Custom {
+            duration_ms: defender::TOTAL_DURATION_MS,
         },
 
         // Cast-circle family — runs 40 frames at 60 fps;

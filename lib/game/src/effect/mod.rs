@@ -4,6 +4,7 @@ pub mod effect_queue;
 pub mod effect_trait;
 pub mod effects;
 pub mod factory;
+pub mod radial_emitter;
 pub mod spec;
 pub mod spr_aliases;
 pub mod spr_burst;
@@ -78,6 +79,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::cartrevolution::TEXTURES,
         effects::pierce::TEXTURES,
         effects::gumgang2::TEXTURES,
+        effects::defender::TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {
