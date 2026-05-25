@@ -22,7 +22,7 @@
 //! fps). Effective lifetime includes the last streak's 50-frame fade so
 //! `TOTAL_DURATION_MS` outlasts the parent by the particle envelope.
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
+use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const ALPHA_TEXTURE: &str = "alpha_down.tga";
@@ -204,22 +204,16 @@ impl Effect for EnhanceEffect {
                 PARENT_DURATION_FRAMES,
             );
             if height > 0.0 && cyl_alpha > 0.0 {
-                out.push(EffectPrimitiveDraw::Frustum {
+                out.push(EffectPrimitiveDraw::Cylinder {
                     base: self.world_pos,
                     bottom_size: CYLINDER_RADIUS,
                     top_size: CYLINDER_RADIUS,
                     height,
                     sides: CYLINDER_SIDES,
                     rotation: 0.0,
-                    uv_repeat: 1.0,
-                    uv_scroll: [0.0, 0.0],
-                    wave_amplitude: 0.0,
-                    wave_frequency: 0.0,
-                    wave_phase: 0.0,
-                    wave_mode: FrustumWaveMode::Sine,
                     tilt_x_rad: 0.0,
                     rotation_y_rad: 0.0,
-                    cull_back: false,
+                    uv_scroll: [0.0, 0.0],
                     texture: ALPHA_TEXTURE,
                     color: [1.0, 1.0, 1.0, cyl_alpha],
                     blend: BlendKind::Alpha,
@@ -282,7 +276,7 @@ mod tests {
         let cylinders = list
             .primitives
             .iter()
-            .filter(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. }))
+            .filter(|p| matches!(p, EffectPrimitiveDraw::Cylinder { .. }))
             .count();
         let streaks = list
             .primitives

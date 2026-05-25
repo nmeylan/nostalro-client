@@ -13,7 +13,7 @@
 //!
 //! Despawn / portal-out sparkle, observed against the original game.
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
+use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const RING_TEXTURE: &str = "alpha_down.tga";
@@ -186,22 +186,16 @@ impl Effect for ExitEffect {
         if self.age_frames < PARENT_DURATION_FRAMES {
             let alpha = cylinder_alpha(self.age_frames);
             if alpha > 0.0 {
-                out.push(EffectPrimitiveDraw::Frustum {
+                out.push(EffectPrimitiveDraw::Cylinder {
                     base: self.world_pos,
                     bottom_size: CYLINDER_RADIUS,
                     top_size: CYLINDER_RADIUS,
                     height: CYLINDER_HEIGHT,
                     sides: CYLINDER_SIDES,
                     rotation: 0.0,
-                    uv_repeat: 1.0,
-                    uv_scroll: [0.0, 0.0],
-                    wave_amplitude: 0.0,
-                    wave_frequency: 0.0,
-                    wave_phase: 0.0,
-                    wave_mode: FrustumWaveMode::Sine,
                     tilt_x_rad: 0.0,
                     rotation_y_rad: 0.0,
-                    cull_back: false,
+                    uv_scroll: [0.0, 0.0],
                     texture: RING_TEXTURE,
                     color: [1.0, 1.0, 1.0, alpha],
                     blend: BlendKind::Alpha,
@@ -264,9 +258,9 @@ mod tests {
         let cylinders: usize = list
             .primitives
             .iter()
-            .filter(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. }))
+            .filter(|p| matches!(p, EffectPrimitiveDraw::Cylinder { .. }))
             .count();
-        assert_eq!(cylinders, 1, "one Frustum per frame while parent alive");
+        assert_eq!(cylinders, 1, "one Cylinder per frame while parent alive");
 
         // Frame 1: particle from spawn at frame 0 lives.
         let p_count = list

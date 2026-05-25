@@ -17,7 +17,7 @@
 //! alpha envelope: linear fade-in over 30 frames, hold, fade out over
 //! the final 20 frames.
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
+use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const CYLINDER_TEXTURE: &str = "alpha_down.tga";
@@ -196,22 +196,16 @@ impl Effect for HealSpEffect {
                 if alpha <= 0.0 {
                     continue;
                 }
-                out.push(EffectPrimitiveDraw::Frustum {
+                out.push(EffectPrimitiveDraw::Cylinder {
                     base: self.world_pos,
                     bottom_size: CYLINDER_RADII[i],
                     top_size: CYLINDER_RADII[i],
                     height: CYLINDER_HEIGHTS[i],
                     sides: CYLINDER_SIDES,
                     rotation,
-                    uv_repeat: 1.0,
-                    uv_scroll: [0.0, 0.0],
-                    wave_amplitude: 0.0,
-                    wave_frequency: 0.0,
-                    wave_phase: 0.0,
-                    wave_mode: FrustumWaveMode::Sine,
                     tilt_x_rad: 0.0,
                     rotation_y_rad: 0.0,
-                    cull_back: false,
+                    uv_scroll: [0.0, 0.0],
                     texture: CYLINDER_TEXTURE,
                     color: [TINT[0], TINT[1], TINT[2], alpha],
                     blend: BlendKind::Additive,
@@ -274,7 +268,7 @@ mod tests {
             .primitives
             .iter()
             .filter_map(|p| match p {
-                EffectPrimitiveDraw::Frustum {
+                EffectPrimitiveDraw::Cylinder {
                     bottom_size,
                     top_size,
                     height,

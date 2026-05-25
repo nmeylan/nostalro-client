@@ -17,7 +17,7 @@
 //! gif's apparent concentric rings come from that banding rotating with the
 //! frustum, not from a second primitive.
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
+use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const TEXTURE: &str = "alpha_down.tga";
@@ -81,22 +81,16 @@ impl Effect for BottomSanctuaryPillarEffect {
         let rotation = self.initial_rotation
             + (frame * ROT_DEG_PER_FRAME).to_radians();
 
-        out.push(EffectPrimitiveDraw::Frustum {
+        out.push(EffectPrimitiveDraw::Cylinder {
             base: self.world_pos,
             bottom_size: BASE_RADIUS,
             top_size: BASE_RADIUS,
             height: PILLAR_HEIGHT,
             sides: SIDES,
             rotation,
-            uv_repeat: 1.0,
-            uv_scroll: [0.0, 0.0],
-            wave_amplitude: 0.0,
-            wave_frequency: 0.0,
-            wave_phase: 0.0,
-            wave_mode: FrustumWaveMode::Sine,
             tilt_x_rad: 0.0,
             rotation_y_rad: 0.0,
-            cull_back: false,
+            uv_scroll: [0.0, 0.0],
             texture: TEXTURE,
             color: [1.0, 1.0, 1.0, alpha],
             blend: BlendKind::Alpha,
@@ -132,7 +126,7 @@ mod tests {
         let mut bs = BottomSanctuaryPillarEffect::new([0.0; 3]);
         step(&mut bs, 0.0);
         match &draws(&bs)[0] {
-            EffectPrimitiveDraw::Frustum {
+            EffectPrimitiveDraw::Cylinder {
                 sides,
                 bottom_size,
                 top_size,
@@ -143,7 +137,7 @@ mod tests {
                 assert!((bottom_size - top_size).abs() < f32::EPSILON, "cylinder, not cone");
                 assert!(*height > 0.0);
             }
-            other => panic!("expected Frustum, got {other:?}"),
+            other => panic!("expected Cylinder, got {other:?}"),
         }
     }
 
@@ -152,12 +146,12 @@ mod tests {
         let mut bs = BottomSanctuaryPillarEffect::new([0.0; 3]);
         step(&mut bs, 0.0);
         let r0 = match &draws(&bs)[0] {
-            EffectPrimitiveDraw::Frustum { rotation, .. } => *rotation,
+            EffectPrimitiveDraw::Cylinder { rotation, .. } => *rotation,
             _ => unreachable!(),
         };
         step(&mut bs, 1.0);
         let r1 = match &draws(&bs)[0] {
-            EffectPrimitiveDraw::Frustum { rotation, .. } => *rotation,
+            EffectPrimitiveDraw::Cylinder { rotation, .. } => *rotation,
             _ => unreachable!(),
         };
         assert!(r1 > r0, "rotation advances ({r0} -> {r1})");
@@ -168,12 +162,12 @@ mod tests {
         let mut bs = BottomSanctuaryPillarEffect::new([0.0; 3]);
         step(&mut bs, 0.0);
         let a0 = match &draws(&bs)[0] {
-            EffectPrimitiveDraw::Frustum { color, .. } => color[3],
+            EffectPrimitiveDraw::Cylinder { color, .. } => color[3],
             _ => unreachable!(),
         };
         step(&mut bs, FADE_IN_FRAMES / FRAMES_PER_SECOND + 0.01);
         let a_peak = match &draws(&bs)[0] {
-            EffectPrimitiveDraw::Frustum { color, .. } => color[3],
+            EffectPrimitiveDraw::Cylinder { color, .. } => color[3],
             _ => unreachable!(),
         };
         assert!(a_peak > a0);
