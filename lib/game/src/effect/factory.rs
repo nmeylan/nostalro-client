@@ -219,8 +219,26 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
 
         EffectId::Wind => Box::new(effects::wind::WindEffect::new(anchor.point())),
 
-        EffectId::Bash3d => Box::new(effects::bash3d::Bash3dEffect::new(anchor.point())),
-
+        EffectId::Bash3d => Box::new(effects::bash3d::Bash3dEffect::new(
+            anchor.point(),
+            effects::bash3d::BASH3D,
+        )),
+        EffectId::Bash3d2 => Box::new(effects::bash3d::Bash3dEffect::new(
+            anchor.point(),
+            effects::bash3d::BASH3D2,
+        )),
+        EffectId::Bash3d3 => Box::new(effects::bash3d::Bash3dEffect::new(
+            anchor.point(),
+            effects::bash3d::BASH3D3,
+        )),
+        EffectId::Bash3d4 => Box::new(effects::bash3d::Bash3dEffect::new(
+            anchor.point(),
+            effects::bash3d::BASH3D4,
+        )),
+        EffectId::Bash3d5 => Box::new(effects::bash3d::Bash3dEffect::new(
+            anchor.point(),
+            effects::bash3d::BASH3D5,
+        )),
 
         EffectId::Level99 => Box::new(effects::aura::AuraEffect::new(
             anchor.point(),
@@ -647,6 +665,10 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Defender
             | EffectId::Wind
             | EffectId::Bash3d
+            | EffectId::Bash3d2
+            | EffectId::Bash3d3
+            | EffectId::Bash3d4
+            | EffectId::Bash3d5
             | EffectId::Level99
             | EffectId::Level992
             | EffectId::Level993

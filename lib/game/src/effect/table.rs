@@ -276,8 +276,14 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Wind => EffectSpec::Custom {
             duration_ms: wind::TOTAL_DURATION_MS,
         },
-        // Bash3d — 20-fan speed-line starburst (see effects/bash3d.rs).
-        EffectId::Bash3d => EffectSpec::Custom {
+        // Bash3d family — speed-line starbursts (see effects/bash3d.rs).
+        // All five share the same `TOTAL_DURATION_MS`; only colors and
+        // tick law differ per variant.
+        EffectId::Bash3d
+        | EffectId::Bash3d2
+        | EffectId::Bash3d3
+        | EffectId::Bash3d4
+        | EffectId::Bash3d5 => EffectSpec::Custom {
             duration_ms: bash3d::TOTAL_DURATION_MS,
         },
 

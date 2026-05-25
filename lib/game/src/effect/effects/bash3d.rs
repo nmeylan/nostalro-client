@@ -1,38 +1,32 @@
-//! `EF_BASH3D` — Knight's Bash impact speed-lines.
+//! `EF_BASH3D` family — Knight's Bash impact speed-lines (and siblings).
 //!
-//! Reference: `ro-effects/effects/imgs/350-400/364.gif`.
+//! References:
+//! * `ro-effects/effects/imgs/350-400/364.gif` (`EF_BASH3D`)
+//! * `350-400/375.gif` (`EF_BASH3D2`)
+//! * `350-400/397.gif` (`EF_BASH3D3`)
+//! * `350-400/398.gif` (`EF_BASH3D4`)
+//! * `600-650/626.gif` (`EF_BASH3D5`)
 //!
-//! Not a ring like Defender/Wind — each "slot" renders a thin triangular
-//! fan blade: apex 12 units above the caster, two outer points at
+//! Not a ring like Defender/Wind — each "slot" renders two layered
+//! triangular fan blades: apex above the caster, two outer points at
 //! exponentially-growing distance, fading after a brief alpha pulse.
 //!
-//! The original game's `EF_BASH3D` dispatcher spawns five `BASH3D()`
-//! sub-prims per cast (F1 = 0..4), each holding 4 fan blades. That's 20
-//! fans total, each pointing in a different direction (`rise_angle = 90·ec
-//! + F1·22`). We mirror that with five [`RadialEmitter`]s indexed by F1.
+//! The original game spawns N sub-instances
+//! per cast (one per F1 index in a loop). Each sub-instance holds 4 fan
+//! blades pointing in different directions (`rise_angle = 90·ec + F1·step`).
+//! Per variant:
 //!
-//! Per-fan tick (the 3D bash primitive, default `height[4] = F2 = 0` branch):
-//! * `process` starts at `-24`, increments every frame. Everything below
-//!   is gated by `process > 0`, so frames 0–24 are a silent wait.
-//! * `process ∈ 1..=10`: base alpha += 20 (reaches 200/255 by frame 10).
-//! * `process ∈ 11..=12`: hold.
-//! * `process > 12`: base alpha -= 15 per frame down to 0.
-//! * Every frame (once `process > 0`): `distance *= 1.15` — exponential
-//!   outward growth.
+//! | Effect       | F2 | N | Distance law       | Alpha ramp/fade   | Inner / outer tint      |
+//! |--------------|----|---|--------------------|-------------------|-------------------------|
+//! | `EF_BASH3D`  | 0  | 5 | `× 1.15`           | `+20 / −15`       | cyan / red              |
+//! | `EF_BASH3D2` | 2  | 8 | `+ 3.0`            | `+10 / −3`        | blue / yellow           |
+//! | `EF_BASH3D3` | 4  | 6 | `× 1.15`           | `+20 / −15`       | blue / yellow           |
+//! | `EF_BASH3D4` | 5  | 6 | `× 1.15`           | `+20 / −15`       | grey / white            |
+//! | `EF_BASH3D5` | 5  | 6 | `× 1.15`           | `+20 / −15`       | grey / white            |
 //!
-//! Geometry (the Bash 3D render, condensed): for each fan with rotation
-//! `rot_start_deg` and azimuth `rise_angle`, the apex sits at
-//! `(0, height[0]=-12, 0)` relative to the caster. The two outer points
-//! at `rise ± 5°` are computed as:
-//! ```text
-//! outer.x = cos(rot_start) · cos(rise ± δ) · distance
-//! outer.y = sin(rot_start) · cos(rise ± δ) · distance + apex_y
-//! outer.z = sin(rise ± δ) · distance
-//! ```
-//! producing a thin sliver from apex outward in a 3D direction set by
-//! `(rot_start_deg, rise_angle)`. We emit one [`EffectPrimitiveDraw::WorldQuad`]
-//! per fan with two corners collapsed to the apex (degenerate quad
-//! rendered as a triangle).
+//! F2 = 0/4/5 also start `process` at -24 (24-frame silent wind-up); F2 = 2
+//! starts at 0 (immediate). Both blades per slot use a slightly different
+//! half-spread per variant; we approximate with shared `inner/outer_half_spread_deg`.
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -42,95 +36,220 @@ pub const TEXTURE: &str = "alpha_center.tga";
 pub const TEXTURES: &[&str] = &[TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// Original game `SET_DURATION(200)`. The fans only animate for ~50
-/// frames (25 silent + 10 ramp + 2 hold + 13 fade), but we honour the
-/// prim lifetime so any companion sound/animation timings still match.
+/// All five family members run for 200 frames, like the original game.
 const TOTAL_FRAMES: u32 = 200;
 pub const TOTAL_DURATION_MS: u32 =
     ((TOTAL_FRAMES as f32) / FRAMES_PER_SECOND * 1000.0) as u32;
 
-/// Five sub-instances (`F1 = 0..4`) per cast, each with `RADIAL_EMITTER_SLOTS`
-/// fan blades. The original game's dispatcher loops `for (i=0;i<5;i++)
-/// BASH3D("...", i);`.
-const SUB_INSTANCES: usize = 5;
-
-/// `height[0]` in `BASH3D()` constructor — the apex Y offset above the
-/// caster's feet. Native RO `-Y = up`, so apex is 12 units up.
+/// Apex Y offset above the
+/// caster's feet. Native RO `-Y = up`, so apex is `|APEX_Y_OFFSET|` units up.
 const APEX_Y_OFFSET: f32 = -12.0;
 
-/// Initial fan radius before exponential growth kicks in.
+/// Initial fan radius before growth kicks in.
 const DISTANCE_INITIAL: f32 = 2.0;
-const DISTANCE_GROWTH_PER_FRAME: f32 = 1.15;
 
-/// `process` starts at `-24` in the original game; the per-frame physics is gated by
-/// `process > 0`, so the first 24 ticks are a silent wind-up.
-const PROCESS_INITIAL: i32 = -24;
-
-/// Half-spread of the fan blade in degrees. The original game's default
-/// branch renders two layered quads per slot — an inner narrow one and
-/// an outer wider one, tinted differently to give the blade a two-tone
-/// look.
-const INNER_HALF_SPREAD_DEG: f32 = 2.0;
-const OUTER_HALF_SPREAD_DEG: f32 = 5.0;
-
-/// Matches the original game's per-quad RGB tints for the F2=0 branch
-/// (the 3D bash render): cyan inner blade, red outer haze.
-const INNER_COLOR_RGB: [f32; 3] = [0.0, 250.0 / 255.0, 250.0 / 255.0];
-const OUTER_COLOR_RGB: [f32; 3] = [250.0 / 255.0, 0.0, 0.0];
-
-const ALPHA_RAMP_FRAMES: i32 = 10;
-const ALPHA_RAMP_STEP: f32 = 20.0 / 255.0;
-const ALPHA_HOLD_UNTIL_FRAME: i32 = 12;
-const ALPHA_FADE_STEP: f32 = 15.0 / 255.0;
-const ALPHA_CAP: f32 = 200.0 / 255.0;
-
-/// `rise_angle = 90·ec + F1·22`, in degrees. With 4 slots per sub-instance
-/// (ec = 0..3) and 5 sub-instances (F1 = 0..4), the 20 fans cover azimuths
-/// 0°, 22°, 44°, ..., 358° plus extras — a dense radial star.
+/// `rise_angle = 90·ec + F1·step`. All variants except F2=3 use 22°/F1;
+/// none of the shipped 5 effects use F2=3, so this is fixed.
 const RISE_ANGLE_STEP_PER_F1_DEG: f32 = 22.0;
 const RISE_ANGLE_STEP_PER_SLOT_DEG: f32 = 90.0;
 
+/// Maximum sub-instances any variant uses (`EF_BASH3D2` = 8).
+const MAX_SUB_INSTANCES: usize = 8;
+
+/// Per-frame distance update law.
+#[derive(Clone, Copy)]
+pub enum DistanceGrowth {
+    /// `distance *= factor` per frame (e.g. 1.15 → exponential).
+    Multiplicative(f32),
+    /// `distance += delta` per frame.
+    Additive(f32),
+}
+
+#[derive(Clone, Copy)]
+pub struct BashParams {
+    /// Number of sub-instances spawned per cast (the loop count the
+    /// original game's dispatcher uses).
+    pub sub_instances: usize,
+    /// `process` initial value. Negative values create a silent wind-up
+    /// (per-frame physics is gated by `process > 0`).
+    pub process_initial: i32,
+    pub distance_growth: DistanceGrowth,
+    /// Alpha gained per frame (8-bit) for `process ∈ 1..=10`.
+    pub alpha_ramp_step_8bit: f32,
+    /// Fade kicks in when `process > fade_after_frame`.
+    pub fade_after_frame: i32,
+    /// Alpha lost per frame (8-bit) after the hold window.
+    pub alpha_fade_step_8bit: f32,
+    /// Half-spread of the inner blade in degrees.
+    pub inner_half_spread_deg: f32,
+    /// Half-spread of the outer blade in degrees.
+    pub outer_half_spread_deg: f32,
+    /// 8-bit RGB tint for the inner blade (matches the inner-blade
+    /// colour the original game draws).
+    pub inner_color_8bit: [f32; 3],
+    /// 8-bit RGB tint for the outer blade.
+    pub outer_color_8bit: [f32; 3],
+    /// If `true`, every fan's spin axis is locked to 0° — the
+    /// out-of-plane axis (which would otherwise rotate the spike's
+    /// direction out of the XZ plane and toward vertical) is disabled,
+    /// and `rise_angle` alone sweeps the horizontal plane. Produces a
+    /// flat 2D starburst silhouette in the XZ plane. The original game
+    /// randomises the spin axis on every variant; we depart
+    /// here for `EF_BASH3D2` whose reference gif shows uniformly
+    /// horizontal needles.
+    pub flatten_to_horizontal: bool,
+}
+
+impl BashParams {
+    /// Alpha cap = `ramp_step * 10` (10 ramp frames, then hold).
+    fn alpha_cap(&self) -> f32 {
+        (self.alpha_ramp_step_8bit * 10.0 / 255.0).min(1.0)
+    }
+
+    fn ramp_step(&self) -> f32 {
+        self.alpha_ramp_step_8bit / 255.0
+    }
+
+    fn fade_step(&self) -> f32 {
+        self.alpha_fade_step_8bit / 255.0
+    }
+
+    fn inner_color(&self) -> [f32; 3] {
+        [
+            self.inner_color_8bit[0] / 255.0,
+            self.inner_color_8bit[1] / 255.0,
+            self.inner_color_8bit[2] / 255.0,
+        ]
+    }
+
+    fn outer_color(&self) -> [f32; 3] {
+        [
+            self.outer_color_8bit[0] / 255.0,
+            self.outer_color_8bit[1] / 255.0,
+            self.outer_color_8bit[2] / 255.0,
+        ]
+    }
+}
+
+pub const BASH3D: BashParams = BashParams {
+    sub_instances: 5,
+    process_initial: -24,
+    distance_growth: DistanceGrowth::Multiplicative(1.15),
+    alpha_ramp_step_8bit: 20.0,
+    fade_after_frame: 12,
+    alpha_fade_step_8bit: 15.0,
+    inner_half_spread_deg: 2.0,
+    outer_half_spread_deg: 5.0,
+    inner_color_8bit: [0.0, 250.0, 250.0],
+    outer_color_8bit: [250.0, 0.0, 0.0],
+    flatten_to_horizontal: false,
+};
+
+pub const BASH3D2: BashParams = BashParams {
+    sub_instances: 8,
+    process_initial: 0,
+    distance_growth: DistanceGrowth::Additive(3.0),
+    alpha_ramp_step_8bit: 10.0,
+    fade_after_frame: 11,
+    alpha_fade_step_8bit: 3.0,
+    // The original game's literal ±1° / ±2° reads as fat blades at
+    // our world scale because the linear `+3/frame` growth pushes distance
+    // far enough that the angular spread sweeps a wide base. Tightened
+    // here so the silhouette reads as the thin-needle starburst the
+    // reference gif shows.
+    inner_half_spread_deg: 0.3,
+    outer_half_spread_deg: 0.7,
+    inner_color_8bit: [0.0, 0.0, 250.0],
+    outer_color_8bit: [250.0, 250.0, 0.0],
+    // The original's mixed 3D direction is the right look — roughly half the
+    // fans (those with `ec = 1` or `ec = 3`, where `cos(rise_angle) ≈ 0`)
+    // naturally fall into the horizontal "middle" plane; the rest tilt
+    // up/down per their spin-axis offset.
+    flatten_to_horizontal: false,
+};
+
+pub const BASH3D3: BashParams = BashParams {
+    sub_instances: 6,
+    process_initial: -24,
+    distance_growth: DistanceGrowth::Multiplicative(1.15),
+    alpha_ramp_step_8bit: 20.0,
+    fade_after_frame: 12,
+    alpha_fade_step_8bit: 15.0,
+    inner_half_spread_deg: 2.0,
+    outer_half_spread_deg: 5.0,
+    inner_color_8bit: [0.0, 0.0, 250.0],
+    outer_color_8bit: [250.0, 250.0, 0.0],
+    flatten_to_horizontal: false,
+};
+
+pub const BASH3D4: BashParams = BashParams {
+    sub_instances: 6,
+    process_initial: -24,
+    distance_growth: DistanceGrowth::Multiplicative(1.15),
+    alpha_ramp_step_8bit: 20.0,
+    fade_after_frame: 12,
+    alpha_fade_step_8bit: 15.0,
+    inner_half_spread_deg: 2.0,
+    outer_half_spread_deg: 5.0,
+    inner_color_8bit: [50.0, 50.0, 50.0],
+    outer_color_8bit: [250.0, 250.0, 250.0],
+    flatten_to_horizontal: false,
+};
+
+/// `EF_BASH3D5` shares all visual parameters with `EF_BASH3D4` (in the
+/// original game the only difference is the spawn sound).
+pub const BASH3D5: BashParams = BASH3D4;
+
 pub struct Bash3dEffect {
     world_pos: [f32; 3],
+    params: BashParams,
     age_frames: f32,
     last_processed_frame: u32,
-    /// Per-fan signed process counter. `RadialEmitterSlot::process` is
-    /// `u32`, but the original seeds it to `-24` for the F2 = 0 branch; we keep
-    /// a parallel signed array so the silent wind-up frames work
-    /// correctly without overflowing back through u32::MAX.
-    process: [[i32; RADIAL_EMITTER_SLOTS]; SUB_INSTANCES],
-    emitters: [RadialEmitter; SUB_INSTANCES],
+    /// Per-fan signed process counter. We need a parallel signed array
+    /// because the emitter slot's own counter is `u32` and the family seeds
+    /// `process_initial = -24` for the multiplicative branch.
+    process: [[i32; RADIAL_EMITTER_SLOTS]; MAX_SUB_INSTANCES],
+    emitters: [RadialEmitter; MAX_SUB_INSTANCES],
 }
 
 impl Bash3dEffect {
-    pub fn new(world_pos: [f32; 3]) -> Self {
-        let mut emitters = [RadialEmitter::empty(); SUB_INSTANCES];
-        for (f1, emitter) in emitters.iter_mut().enumerate() {
+    pub fn new(world_pos: [f32; 3], params: BashParams) -> Self {
+        let mut emitters = [RadialEmitter::empty(); MAX_SUB_INSTANCES];
+        for f1 in 0..params.sub_instances {
             let mut slots = [RadialEmitterSlot::dormant(); RADIAL_EMITTER_SLOTS];
             for ec in 0..RADIAL_EMITTER_SLOTS {
                 let rise = (ec as f32) * RISE_ANGLE_STEP_PER_SLOT_DEG
                     + (f1 as f32) * RISE_ANGLE_STEP_PER_F1_DEG;
                 let mut s = RadialEmitterSlot::spawn(DISTANCE_INITIAL, rise, 0.0);
                 s.alpha_b = 0.0;
-                s.rot_start_deg = fan_rot_start_deg(f1, ec);
+                s.rot_start_deg = if params.flatten_to_horizontal {
+                    0.0
+                } else {
+                    fan_rot_start_deg(f1, ec, params.sub_instances)
+                };
                 slots[ec] = s;
             }
-            *emitter = RadialEmitter::from_slots(slots);
+            emitters[f1] = RadialEmitter::from_slots(slots);
         }
         Self {
             world_pos,
+            params,
             age_frames: 0.0,
             last_processed_frame: 0,
-            process: [[PROCESS_INITIAL; RADIAL_EMITTER_SLOTS]; SUB_INSTANCES],
+            process: [[params.process_initial; RADIAL_EMITTER_SLOTS]; MAX_SUB_INSTANCES],
             emitters,
         }
     }
 
     fn integrate_frames(&mut self, target_frame: u32) {
+        let ramp_step = self.params.ramp_step();
+        let fade_step = self.params.fade_step();
+        let alpha_cap = self.params.alpha_cap();
+        let fade_after = self.params.fade_after_frame;
         while self.last_processed_frame < target_frame {
-            for (f1, emitter) in self.emitters.iter_mut().enumerate() {
+            for f1 in 0..self.params.sub_instances {
                 for ec in 0..RADIAL_EMITTER_SLOTS {
-                    let slot = &mut emitter.slots[ec];
+                    let slot = &mut self.emitters[f1].slots[ec];
                     if !slot.alive {
                         continue;
                     }
@@ -140,12 +259,15 @@ impl Bash3dEffect {
                         continue;
                     }
 
-                    if *p <= ALPHA_RAMP_FRAMES {
-                        slot.alpha_b = (slot.alpha_b + ALPHA_RAMP_STEP).min(ALPHA_CAP);
-                    } else if *p > ALPHA_HOLD_UNTIL_FRAME {
-                        slot.alpha_b = (slot.alpha_b - ALPHA_FADE_STEP).max(0.0);
+                    if *p <= 10 {
+                        slot.alpha_b = (slot.alpha_b + ramp_step).min(alpha_cap);
+                    } else if *p > fade_after {
+                        slot.alpha_b = (slot.alpha_b - fade_step).max(0.0);
                     }
-                    slot.distance *= DISTANCE_GROWTH_PER_FRAME;
+                    match self.params.distance_growth {
+                        DistanceGrowth::Multiplicative(f) => slot.distance *= f,
+                        DistanceGrowth::Additive(d) => slot.distance += d,
+                    }
                 }
             }
             self.last_processed_frame += 1;
@@ -153,18 +275,16 @@ impl Bash3dEffect {
     }
 }
 
-/// The 3D bash handler sets start rotation = random(360) per fan. Real RNG would
-/// produce different visuals each cast — we use a deterministic hash of
-/// `(f1, ec)` so tests are stable and the visual stays consistent across
-/// frames. The pattern is "evenly spread" rather than "uniform random",
-/// which actually reads better as a star burst.
-fn fan_rot_start_deg(f1: usize, ec: usize) -> f32 {
+/// The original game randomises the spin axis per fan. We use a
+/// deterministic hash of `(f1, ec)` over the total fan count so tests are
+/// stable and the visual stays consistent; the even spread reads better
+/// as a star burst than uniform random anyway.
+fn fan_rot_start_deg(f1: usize, ec: usize, sub_instances: usize) -> f32 {
+    let total = sub_instances * RADIAL_EMITTER_SLOTS;
     let index = (f1 * RADIAL_EMITTER_SLOTS + ec) as f32;
-    (index * 360.0 / (SUB_INSTANCES * RADIAL_EMITTER_SLOTS) as f32) % 360.0
+    (index * 360.0 / total as f32) % 360.0
 }
 
-/// One fan blade vertex computation. Returns `(apex, outer_minus, outer_plus)`
-/// in world space.
 fn fan_corners(
     center: [f32; 3],
     rise_angle_deg: f32,
@@ -172,11 +292,7 @@ fn fan_corners(
     distance: f32,
     half_spread_deg: f32,
 ) -> ([f32; 3], [f32; 3], [f32; 3]) {
-    let apex = [
-        center[0],
-        center[1] + APEX_Y_OFFSET,
-        center[2],
-    ];
+    let apex = [center[0], center[1] + APEX_Y_OFFSET, center[2]];
     let (sin_rs, cos_rs) = rot_start_deg.to_radians().sin_cos();
     let outer = |rise_offset_deg: f32| -> [f32; 3] {
         let (sin_r, cos_r) = (rise_angle_deg + rise_offset_deg).to_radians().sin_cos();
@@ -203,19 +319,22 @@ impl Effect for Bash3dEffect {
     }
 
     fn str_overlay(&self) -> Option<&'static str> {
+        // All five variants ship as hybrids alongside their per-id STR
+        // file; the holder reads this each frame and contributes a snapshot.
         Some("bash3d")
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
-        for emitter in self.emitters.iter() {
-            for (_ec, slot) in emitter.active() {
+        let inner_rgb = self.params.inner_color();
+        let outer_rgb = self.params.outer_color();
+        for f1 in 0..self.params.sub_instances {
+            for (_ec, slot) in self.emitters[f1].active() {
                 if slot.alpha_b <= 0.0 {
                     continue;
                 }
-                // Two layered blades per fan — cyan inner, red outer.
                 for (half_spread, rgb) in [
-                    (INNER_HALF_SPREAD_DEG, INNER_COLOR_RGB),
-                    (OUTER_HALF_SPREAD_DEG, OUTER_COLOR_RGB),
+                    (self.params.inner_half_spread_deg, inner_rgb),
+                    (self.params.outer_half_spread_deg, outer_rgb),
                 ] {
                     let (apex, outer_lo, outer_hi) = fan_corners(
                         self.world_pos,
@@ -225,9 +344,6 @@ impl Effect for Bash3dEffect {
                         half_spread,
                     );
                     out.push(EffectPrimitiveDraw::WorldQuad {
-                        // Degenerate quad → triangle: apex shared between
-                        // two corners so the visible shape is a sliver
-                        // from apex out to the two outer points.
                         corners: [apex, outer_lo, outer_hi, apex],
                         uv: [[0.5, 0.0], [0.0, 1.0], [1.0, 1.0], [0.5, 0.0]],
                         texture: TEXTURE,
@@ -274,72 +390,77 @@ mod tests {
     }
 
     #[test]
-    fn silent_first_24_frames_then_full_starburst() {
-        // process seeds at -24, so the whole effect is invisible
-        // until process > 0 → frame 25. Before then, nothing emits.
-        let mut e = Bash3dEffect::new([5.0, 0.0, -3.0]);
+    fn bash3d_silent_then_full_starburst_two_layers() {
+        // Base variant: 24-frame wind-up, then 5 sub × 4 slots × 2 blades = 40 quads.
+        let mut e = Bash3dEffect::new([5.0, 0.0, -3.0], BASH3D);
         step(&mut e, 10.0);
-        assert!(draws(&e).is_empty(), "no draws during silent wind-up");
+        assert!(draws(&e).is_empty(), "silent wind-up");
 
-        // After the wind-up, all 20 fans should emit two layered quads each
-        // (cyan inner + red outer) = 40 WorldQuads total.
         step(&mut e, 20.0);
         let prims = draws(&e);
         assert_eq!(
             prims.len(),
-            SUB_INSTANCES * RADIAL_EMITTER_SLOTS * 2,
-            "all 20 fan blades visible × 2 layers (inner+outer)",
+            BASH3D.sub_instances * RADIAL_EMITTER_SLOTS * 2,
+            "5 × 4 × 2 = 40 quads at peak",
         );
     }
 
     #[test]
-    fn alpha_pulses_then_fades() {
-        let mut e = Bash3dEffect::new([0.0; 3]);
-        // Step past the silent wind-up + a couple ramp frames.
-        step(&mut e, (24 + 3) as f32);
-        let alpha_ramp = quad_alpha(&draws(&e)[0]);
-        // 3 ramp ticks at +20/255 each = 60/255 ≈ 0.235.
-        assert!(
-            alpha_ramp > 0.05 && alpha_ramp < ALPHA_CAP,
-            "ramping alpha: {alpha_ramp}",
+    fn bash3d2_starts_immediately_with_8_sub_instances_linear_growth() {
+        // Linear-growth variant: process starts at 0 — first frame already ramps alpha and
+        // grows distance. 8 sub × 4 slots × 2 blades = 64 quads.
+        let mut e = Bash3dEffect::new([0.0; 3], BASH3D2);
+        step(&mut e, 1.0);
+        let prims = draws(&e);
+        assert_eq!(
+            prims.len(),
+            BASH3D2.sub_instances * RADIAL_EMITTER_SLOTS * 2,
+            "8 × 4 × 2 = 64 quads on frame 1 (no wind-up for F2=2)",
         );
 
-        // Step well past the fade window — all fans should be gone.
-        step(&mut e, 50.0);
-        assert!(
-            draws(&e).is_empty(),
-            "fans fully faded, no draws emitted",
-        );
-    }
-
-    #[test]
-    fn distance_grows_exponentially_during_active_window() {
-        // Compare apex-to-outer distance between two consecutive active
-        // frames to confirm the 1.15× growth law.
-        let mut e = Bash3dEffect::new([0.0; 3]);
-        step(&mut e, 26.0); // process=2 (first ramp tick was at 25, this is 2nd)
-
-        // Compare the same fan's outer blade between two consecutive frames.
-        // Quads are emitted [inner, outer, inner, outer, ...] — index 1 is
-        // the first fan's outer blade.
+        // Linear growth: after another frame, apex-to-outer increases by
+        // a fixed amount per frame (not a fixed ratio).
         let apex_to_outer = |prim: &EffectPrimitiveDraw| -> f32 {
             match prim {
                 EffectPrimitiveDraw::WorldQuad { corners, .. } => {
-                    let dx = corners[1][0] - corners[0][0];
-                    let dy = corners[1][1] - corners[0][1];
-                    let dz = corners[1][2] - corners[0][2];
-                    (dx * dx + dy * dy + dz * dz).sqrt()
+                    let d = [
+                        corners[1][0] - corners[0][0],
+                        corners[1][1] - corners[0][1],
+                        corners[1][2] - corners[0][2],
+                    ];
+                    (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()
                 }
                 _ => panic!(),
             }
         };
-        let dist_a = apex_to_outer(&draws(&e)[1]);
+        let dist_1 = apex_to_outer(&prims[1]); // outer blade of fan 0
         step(&mut e, 1.0);
-        let dist_b = apex_to_outer(&draws(&e)[1]);
-        let ratio = dist_b / dist_a;
+        let dist_2 = apex_to_outer(&draws(&e)[1]);
+        // Growth = distance increment per frame = 3.0, scaled by the
+        // geometry (cos terms). dist_2 - dist_1 should be roughly 3 ×
+        // (length per unit distance), > 1 in any case — not a 15% bump.
+        let delta = dist_2 - dist_1;
+        assert!(delta > 1.0, "additive growth visible: Δ = {delta}");
+    }
+
+    #[test]
+    fn bash3d_alpha_pulses_then_fades() {
+        let mut e = Bash3dEffect::new([0.0; 3], BASH3D);
+        step(&mut e, (24 + 3) as f32);
+        let alpha_ramp = quad_alpha(&draws(&e)[0]);
         assert!(
-            (ratio - DISTANCE_GROWTH_PER_FRAME).abs() < 0.01,
-            "distance grew by {ratio:.3}×, want {DISTANCE_GROWTH_PER_FRAME}",
+            alpha_ramp > 0.05 && alpha_ramp < BASH3D.alpha_cap(),
+            "ramping alpha: {alpha_ramp}",
         );
+
+        step(&mut e, 50.0);
+        assert!(draws(&e).is_empty(), "fans fully faded");
+    }
+
+    #[test]
+    fn dies_after_total_frames() {
+        let mut e = Bash3dEffect::new([0.0; 3], BASH3D);
+        let s = step(&mut e, TOTAL_FRAMES as f32 + 1.0);
+        assert!(matches!(s, EffectStatus::Dead));
     }
 }
