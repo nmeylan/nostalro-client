@@ -26,6 +26,7 @@ pub const TEXTURES: &[&str] = &[
     "magic_violet.tga",
     "ring_blue.tga",
     "ring_red.tga",
+    "ring_purple.tga",
 ];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
@@ -52,24 +53,39 @@ const HEAL_INITIAL_ROT_DEG: [f32; 3] = [0.0, 137.0, 251.0];
 
 #[derive(Clone, Copy)]
 pub struct Portal2Config {
-    /// Heal ring texture (`magic_violet.tga` for F1=0, `ring_red.tga` for F1=3).
+    /// Heal-phase ring texture.
     pub heal_texture: &'static str,
-    /// Portal ring texture (`ring_blue.tga` for F1=0, `ring_red.tga` for F1=3).
+    /// Portal-phase ring texture.
     pub portal_texture: &'static str,
+    /// RGB tint multiplier applied to both phases (alpha is from the
+    /// per-frame envelope). Used to nudge the rendered hue closer to the
+    /// reference gif when the source texture reads too saturated.
+    pub color_rgb: [f32; 3],
     /// F1==3 enables the CALLPARTNER branch — distance shrinks,
     /// slower alpha ramp.
     pub call_partner: bool,
 }
 
+// The original uses `magic_violet.tga` (heal) + `ring_blue.tga` (portal) for F1=0.
+// Rendered through our additive pipeline that reads too violet against
+// in-engine map ambient; we lean the heal phase onto `ring_blue.tga` and
+// add a slight blue-favouring tint so the rising columns read as blue
+// rather than purple, matching `imgs/300-350/315.gif`.
 pub const PORTAL2: Portal2Config = Portal2Config {
-    heal_texture: "magic_violet.tga",
+    heal_texture: "ring_blue.tga",
     portal_texture: "ring_blue.tga",
+    color_rgb: [0.55, 0.7, 1.0],
     call_partner: false,
 };
 
+// The original uses `ring_red.tga` for both phases when F1=3. The reference gif
+// (`imgs/300-350/339.gif`) reads more magenta/pink than pure red; we swap
+// to `ring_purple.tga` and bias the tint toward pink so the contracting
+// CALLPARTNER ring is recognisably pink rather than blood-red.
 pub const PORTAL3: Portal2Config = Portal2Config {
-    heal_texture: "ring_red.tga",
-    portal_texture: "ring_red.tga",
+    heal_texture: "ring_purple.tga",
+    portal_texture: "ring_purple.tga",
+    color_rgb: [1.0, 0.55, 0.85],
     call_partner: true,
 };
 
@@ -329,7 +345,12 @@ impl Effect for Portal2Effect {
                 rotation_y_rad: 0.0,
                 cull_back: false,
                 texture: self.cfg.heal_texture,
-                color: [1.0, 1.0, 1.0, alpha],
+                color: [
+                    self.cfg.color_rgb[0],
+                    self.cfg.color_rgb[1],
+                    self.cfg.color_rgb[2],
+                    alpha,
+                ],
                 blend: BlendKind::Additive,
             });
         }
@@ -374,7 +395,12 @@ impl Effect for Portal2Effect {
                 rotation_y_rad: 0.0,
                 cull_back: false,
                 texture: self.cfg.portal_texture,
-                color: [1.0, 1.0, 1.0, alpha],
+                color: [
+                    self.cfg.color_rgb[0],
+                    self.cfg.color_rgb[1],
+                    self.cfg.color_rgb[2],
+                    alpha,
+                ],
                 blend: BlendKind::Additive,
             });
         }

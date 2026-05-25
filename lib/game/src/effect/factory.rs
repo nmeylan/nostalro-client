@@ -151,6 +151,25 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             anchor.point(),
             effects::hit5_6::HIT6,
         )),
+        // EF_SONICBLOWHIT — single horizontal cone yawed along the strike
+        // heading. Trail anchor carries caster→target so
+        // the cone aims correctly; single-point anchor falls back to 0°.
+        EffectId::Sonicblowhit => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::sonicblowhit::SonicBlowHitEffect::new_with_trail(from, to))
+        }
+        // EF_CARTREVOLUTION — twin ground ring + sphere burst, with the
+        // `CartRevolution.str` overlay playing alongside (Hybrid).
+        EffectId::Cartrevolution => {
+            Box::new(effects::cartrevolution::CartRevolutionEffect::new(anchor.point()))
+        }
+        // EF_NAPALMVALCAN — five timed Hit2 bursts.
+        EffectId::Napalmvalcan => {
+            Box::new(effects::napalmvalcan::NapalmValcanEffect::new(anchor.point()))
+        }
         EffectId::Stormgust => Box::new(effects::stormgust::StormgustEffect::new(anchor.point())),
         EffectId::BottomSanc => {
             Box::new(effects::bottom_sanctuary_pillar::BottomSanctuaryPillarEffect::new(anchor.point()))
@@ -186,6 +205,13 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Gumgang3 => Box::new(effects::volcano::VolcanoEffect::new(
             anchor.point(),
             effects::volcano::GUMGANG3,
+        )),
+        // EF_GUMGANG2 — `VOLCANO2("ring_yellow.tga")` in the original game,
+        // same GI-2 primitive as the rest of the VOLCANO family but
+        // with per-slot `distance = ec+1.0` (concentric rings, not blades).
+        EffectId::Gumgang2 => Box::new(effects::volcano::VolcanoEffect::new(
+            anchor.point(),
+            effects::volcano::GUMGANG2,
         )),
 
 
@@ -597,6 +623,9 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Hit4
             | EffectId::Hit5
             | EffectId::Hit6
+            | EffectId::Sonicblowhit
+            | EffectId::Cartrevolution
+            | EffectId::Napalmvalcan
             | EffectId::Stormgust
             | EffectId::BottomSanc
             | EffectId::Warpzone
@@ -607,6 +636,7 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Violentgale
             | EffectId::Ganbantein
             | EffectId::Gumgang3
+            | EffectId::Gumgang2
             | EffectId::Level99
             | EffectId::Level992
             | EffectId::Level993
@@ -905,6 +935,35 @@ mod tests {
                 id
             );
         }
+    }
+
+    #[test]
+    fn batch_fh_dispatches_to_real_impls() {
+        // Sociable: the 5 effects landed in Batch FH must each route to
+        // a non-placeholder and report is_real_impl. Hamicastle's spec
+        // is SPR (resolved via spr_def in table.rs); the other 4 are
+        // Custom-dispatched. Cartrevolution is in is_hybrid() so its
+        // str_overlay must be present.
+        use super::super::spec::EffectAnchor;
+        for id in [
+            EffectId::Sonicblowhit,
+            EffectId::Cartrevolution,
+            EffectId::Gumgang2,
+            EffectId::Napalmvalcan,
+        ] {
+            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
+            let _ = make_effect(id, EffectAnchor::Point([0.0; 3]), None).unwrap();
+        }
+        // Cartrevolution still emits its STR overlay so the holder plays
+        // CartRevolution.str alongside the primitive bursts.
+        let cart =
+            make_effect(EffectId::Cartrevolution, EffectAnchor::Point([0.0; 3]), None).unwrap();
+        assert_eq!(cart.str_overlay(), Some("CartRevolution"));
+        // Hamicastle is SPR-driven; spec must resolve via the bucket
+        // default, not the Custom factory path.
+        use super::super::spec::EffectSpec;
+        use super::super::table::effect_spec;
+        assert!(matches!(effect_spec(EffectId::Hamicastle), Some(EffectSpec::Spr { .. })));
     }
 
     #[test]

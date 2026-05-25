@@ -89,7 +89,12 @@ pub fn spr_def(id: EffectId) -> Option<SprDef> {
         EffectId::Blessing => SprDef::new("data/sprite/이팩트/축복").one_shot(),
         EffectId::Demonstration => SprDef::new("data/sprite/이팩트/데몬스트레이션").one_shot(),
         EffectId::NpcStop => SprDef::new("data/sprite/이팩트/스톱"),
-        EffectId::Hamicastle => SprDef::new("data/sprite/이팩트/캐슬링").one_shot(),
+        // Hamicastle: original game's `Effect_SPR(0)` sets anim speed = 2,
+        // no anim repeat, uses original vertex color. The sprite path is the
+        // EUC-KR transliteration of `misc\kaeseulring.spr`.
+        EffectId::Hamicastle => SprDef::new("data/sprite/이팩트/캐슬링")
+            .with_anim_speed(2.0)
+            .one_shot(),
         EffectId::Hamiblood => SprDef::new("data/sprite/이팩트/블러드러스트").one_shot(),
         EffectId::Kirikage => SprDef::new("data/sprite/이팩트/그림자베기").one_shot(),
         EffectId::Tatami => SprDef::new("data/sprite/이팩트/다다미 뒤집기").one_shot(),

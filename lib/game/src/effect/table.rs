@@ -11,12 +11,12 @@ use models::enums::effect_id::EffectId;
 
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effects::{
-    bash, begin_spell, blessing, bottom_sanctuary_pillar, bowling_bash, callzone, cast_circle,
-    endure, enhance, entry, exit as exit_effect, firearrow, fireball, flasher, frost_diver,
-    glasswall, ground_sample, hasteup, healsp, hit, hit2, hit5_6, magnum_break, napalmbeat,
-    overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_pillar, ready_portal,
-    revive, sandwind, sight, soul_strike, spraypond, status_up, stormgust, teleportation, volcano,
-    warp, yupitel,
+    bash, begin_spell, blessing, bottom_sanctuary_pillar, bowling_bash, callzone, cartrevolution,
+    cast_circle, endure, enhance, entry, exit as exit_effect, firearrow, fireball, flasher,
+    frost_diver, glasswall, ground_sample, hasteup, healsp, hit, hit2, hit5_6, magnum_break,
+    napalmbeat, napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk,
+    potion_pillar, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond,
+    status_up, stormgust, teleportation, volcano, warp, yupitel,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -60,6 +60,19 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
         EffectId::Hit6 => EffectSpec::Custom {
             duration_ms: hit5_6::HIT6_TOTAL_DURATION_MS,
+        },
+
+        // Batch FH — HitImpact family extensions. Each pins its lifetime
+        // to the per-effect TOTAL_DURATION_MS so the holder doesn't sit
+        // on a dead spawn after the visible burst finishes.
+        EffectId::Sonicblowhit => EffectSpec::Custom {
+            duration_ms: sonicblowhit::TOTAL_DURATION_MS,
+        },
+        EffectId::Cartrevolution => EffectSpec::Custom {
+            duration_ms: cartrevolution::TOTAL_DURATION_MS,
+        },
+        EffectId::Napalmvalcan => EffectSpec::Custom {
+            duration_ms: napalmvalcan::TOTAL_DURATION_MS,
         },
 
         // Stormgust runs the STR cloud + 8 falling ice shards; default table
@@ -250,6 +263,11 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
         EffectId::Gumgang3 => EffectSpec::Custom {
             duration_ms: volcano::GUMGANG3.total_duration_ms(),
+        },
+        // Gumgang2 — `VOLCANO2()` in the original game; same GI_2 prim
+        // family but with per-slot `distance = ec+1.0`.
+        EffectId::Gumgang2 => EffectSpec::Custom {
+            duration_ms: volcano::GUMGANG2.total_duration_ms(),
         },
 
         // Cast-circle family — runs 40 frames at 60 fps;
