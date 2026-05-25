@@ -11,10 +11,11 @@ use models::enums::effect_id::EffectId;
 
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effects::{
-    bash, begin_spell, blessing, bottom_sanctuary_pillar, cast_circle, endure, enhance, entry,
-    exit as exit_effect, firearrow, fireball, flasher, frost_diver, glasswall, hasteup, healsp,
-    hit, hit2, hit5_6, magnum_break, napalmbeat, portal, ready_portal, sandwind, sight,
-    soul_strike, spraypond, status_up, stormgust, teleportation, volcano, warp, yupitel,
+    bash, begin_spell, blessing, bottom_sanctuary_pillar, bowling_bash, callzone, cast_circle,
+    endure, enhance, entry, exit as exit_effect, firearrow, fireball, flasher, frost_diver,
+    glasswall, ground_sample, hasteup, healsp, hit, hit2, hit5_6, magnum_break, napalmbeat,
+    overthrust, portal, ready_portal, sandwind, sight, soul_strike, spraypond, status_up,
+    stormgust, teleportation, volcano, warp, yupitel,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -297,6 +298,22 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Springtrap => EffectSpec::Str {
             file: "spring",
             duration_ms: default_duration_ms(id),
+        },
+
+        // Batch GD — GroundDisc decals.
+        // Bowling Bash ships only the ground impact ring portion; the
+        // swept-attack cylinder waits on the Cylinder renderer.
+        EffectId::Bowlingbash => EffectSpec::Custom {
+            duration_ms: bowling_bash::TOTAL_DURATION_MS,
+        },
+        EffectId::Overthrust => EffectSpec::Custom {
+            duration_ms: overthrust::TOTAL_DURATION_MS,
+        },
+        EffectId::Callzone => EffectSpec::Custom {
+            duration_ms: callzone::TOTAL_DURATION_MS,
+        },
+        EffectId::Groundsample => EffectSpec::Custom {
+            duration_ms: ground_sample::TOTAL_DURATION_MS,
         },
 
         _ => bucket_default(id),

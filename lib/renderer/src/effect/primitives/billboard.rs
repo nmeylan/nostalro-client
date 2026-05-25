@@ -82,6 +82,73 @@ pub fn prepare_billboard_records<'tex>(
             continue;
         }
 
+        if let EffectPrimitiveDraw::BillboardRing {
+            pos,
+            radius,
+            thickness,
+            segments,
+            uv_repeat,
+            texture,
+            color,
+            blend,
+        } = prim
+        {
+            let Some((anchor, _ndc_z, ppu)) =
+                project_billboard(camera, *pos, screen_w, screen_h)
+            else {
+                continue;
+            };
+            let r_outer = radius * ppu;
+            let r_inner = (radius - thickness).max(0.0) * ppu;
+            if r_outer <= 0.0 {
+                continue;
+            }
+            let n = (*segments).max(8);
+            // Pin vertices effectively at the near plane — the ring
+            // is a 2D overlay that ignores 3D depth, as the original game
+            // shows it. Match that so the
+            // ring isn't clipped by the ground when its centre sits low.
+            let z = 0.0;
+            let mut vertices: Vec<SpriteVertex> = Vec::with_capacity((n as usize + 1) * 2);
+            for s in 0..=n {
+                let t = s as f32 / n as f32;
+                let theta = t * std::f32::consts::TAU;
+                let (sin_t, cos_t) = theta.sin_cos();
+                let u = t * uv_repeat;
+                vertices.push(SpriteVertex {
+                    position: [anchor[0] + r_outer * cos_t, anchor[1] + r_outer * sin_t, z],
+                    tex_coord: [u, 0.0],
+                    color: *color,
+                });
+                vertices.push(SpriteVertex {
+                    position: [anchor[0] + r_inner * cos_t, anchor[1] + r_inner * sin_t, z],
+                    tex_coord: [u, 1.0],
+                    color: *color,
+                });
+            }
+            let mut indices: Vec<u32> = Vec::with_capacity(n as usize * 6);
+            for s in 0..n {
+                let i = s * 2;
+                indices.push(i);
+                indices.push(i + 1);
+                indices.push(i + 2);
+                indices.push(i + 2);
+                indices.push(i + 1);
+                indices.push(i + 3);
+            }
+            let texture_bg = texture_lookup(texture).unwrap_or(fallback_texture);
+            records.push(DrawRecord::new(
+                super::super::queue::view_z(camera, *pos),
+                emission as u32,
+                BlendBucket::from_blend_kind(*blend),
+                PipelineKind::Sprite,
+                vertices,
+                indices,
+                texture_bg,
+            ));
+            continue;
+        }
+
         let EffectPrimitiveDraw::Billboard {
             pos,
             size,

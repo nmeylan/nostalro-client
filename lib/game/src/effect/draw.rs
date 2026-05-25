@@ -80,6 +80,30 @@ pub enum EffectPrimitiveDraw {
         color: [f32; 4],
         blend: BlendKind,
     },
+    /// Camera-facing textured annulus (screen-space ring).
+    ///
+    /// Like [`BillboardDisc`] (anchor projected, geometry built in screen
+    /// pixels via `ppu`), but the shape is a thin ring of outer radius
+    /// `radius` and radial `thickness` instead of a filled disc. UV
+    /// mapping matches the screen-space circle convention: V=0 at the
+    /// outer rim, V=1 at the inner rim, U wrapping `uv_repeat` times
+    /// around the perimeter. `segments` controls perimeter tessellation.
+    ///
+    /// Use this for screen-space ring effects (a circle with a
+    /// non-zero inner radius). For a filled disc with
+    /// radial UV, use [`BillboardDisc`].
+    ///
+    /// [`BillboardDisc`]: EffectPrimitiveDraw::BillboardDisc
+    BillboardRing {
+        pos: [f32; 3],
+        radius: f32,
+        thickness: f32,
+        segments: u32,
+        uv_repeat: f32,
+        texture: &'static str,
+        color: [f32; 4],
+        blend: BlendKind,
+    },
     /// Flat-on-ground textured annulus or partial-arc wedge.
     ///
     /// `arc_angle_deg` is the **total arc span** in degrees (`>= 360` = full

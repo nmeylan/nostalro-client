@@ -68,6 +68,10 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::napalmbeat::TEXTURES,
         effects::sandwind::TEXTURES,
         effects::yupitel::TEXTURES,
+        effects::bowling_bash::TEXTURES,
+        effects::overthrust::TEXTURES,
+        effects::callzone::TEXTURES,
+        effects::ground_sample::TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {

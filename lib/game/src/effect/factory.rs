@@ -485,6 +485,20 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             ),
         ),
 
+        // Batch GD — GroundDisc decals.
+        EffectId::Bowlingbash => {
+            Box::new(effects::bowling_bash::BowlingBashEffect::new(anchor.point()))
+        }
+        EffectId::Overthrust => {
+            Box::new(effects::overthrust::OverthrustEffect::new(anchor.point()))
+        }
+        EffectId::Callzone => {
+            Box::new(effects::callzone::CallzoneEffect::new(anchor.point()))
+        }
+        EffectId::Groundsample => {
+            Box::new(effects::ground_sample::GroundSampleEffect::new(anchor.point()))
+        }
+
         // Placeholder catchall. Hybrid ids (12 effects, e.g. Stormgust,
         // Coin, Glasswall) declare an STR overlay so the original game's
         // STR animation plays alongside the pink marker. Pure-custom ids
@@ -606,6 +620,10 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::BottomSpider
             | EffectId::BottomHermode
             | EffectId::BottomRokisweil
+            | EffectId::Bowlingbash
+            | EffectId::Overthrust
+            | EffectId::Callzone
+            | EffectId::Groundsample
     )
 }
 
