@@ -11,12 +11,12 @@ use models::enums::effect_id::EffectId;
 
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effects::{
-    bash, begin_spell, blessing, bottom_sanctuary_pillar, bowling_bash, callzone, cartrevolution,
+    bash, bash3d, begin_spell, blessing, bottom_sanctuary_pillar, bowling_bash, callzone, cartrevolution,
     cast_circle, defender, endure, enhance, entry, exit as exit_effect, firearrow, fireball, flasher,
     frost_diver, glasswall, ground_sample, gumgang2, hasteup, healsp, hit, hit2, hit5_6,
     magnum_break, napalmbeat, napalmvalcan, overthrust, pierce, portal, portal2, portal_wind,
     potion_berserk, potion_pillar, ready_portal, revive, sandwind, sight, sonicblowhit,
-    soul_strike, spraypond, status_up, stormgust, teleportation, volcano, warp, yupitel,
+    soul_strike, spraypond, status_up, stormgust, teleportation, volcano, warp, wind, yupitel,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -271,6 +271,14 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // Defender — first RadialEmitter consumer (see effects/defender.rs).
         EffectId::Defender => EffectSpec::Custom {
             duration_ms: defender::TOTAL_DURATION_MS,
+        },
+        // Wind — partial-arc cloud funnel (see effects/wind.rs).
+        EffectId::Wind => EffectSpec::Custom {
+            duration_ms: wind::TOTAL_DURATION_MS,
+        },
+        // Bash3d — 20-fan speed-line starburst (see effects/bash3d.rs).
+        EffectId::Bash3d => EffectSpec::Custom {
+            duration_ms: bash3d::TOTAL_DURATION_MS,
         },
 
         // Cast-circle family — runs 40 frames at 60 fps;

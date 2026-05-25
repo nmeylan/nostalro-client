@@ -6,6 +6,7 @@
 
 pub mod aura;
 pub mod bash;
+pub mod bash3d;
 pub mod blessing;
 pub mod begin_spell;
 pub mod begin_spell_6;
@@ -65,4 +66,5 @@ pub mod animated_texture_billboard;
 pub mod volcano;
 pub mod warp;
 pub mod warp_zone;
+pub mod wind;
 pub mod yupitel;

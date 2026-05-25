@@ -56,9 +56,8 @@ const FULL_ARC_RAD: f32 = std::f32::consts::TAU;
 const RISE_ANGLE_RAD: f32 = std::f32::consts::FRAC_PI_2;
 
 /// Scales the per-slot height array (built from `max_height = 40`
-/// × `sin(SinLimit)` × breathing) into world units. Raw peak is ~52;
-/// the reference ribbon stands roughly 1/3 character height at its
-/// brightest segment, so the peak should land near ~2 world units.
+/// × `sin(SinLimit)` × breathing) into world units. Tuned against the
+/// reference effect by eye.
 const HEIGHT_SCALE: f32 = 0.9;
 
 const SLOT_DISTANCES: [f32; RADIAL_EMITTER_SLOTS] = [8.0, 7.9, 7.8, 7.7];

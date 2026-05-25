@@ -80,6 +80,8 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::pierce::TEXTURES,
         effects::gumgang2::TEXTURES,
         effects::defender::TEXTURES,
+        effects::wind::TEXTURES,
+        effects::bash3d::TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {

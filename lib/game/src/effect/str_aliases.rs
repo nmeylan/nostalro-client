@@ -114,7 +114,6 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Fireivy => &["fireivy"],
         EffectId::Detecting => &["detecting"],
         EffectId::Cloaking => &["cloaking"],
-        EffectId::Sonicblow => &["sonicblow"],
         EffectId::Sonicblowhit => &["sonicblowhit"],
         EffectId::Grimtooth => &["grimtooth"],
         EffectId::Venomdust => &["VenomDust"],
@@ -217,7 +216,7 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Potionpillar => &["potionpillar"],
         // Defender → see effects/defender.rs (Custom impl, no STR overlay).
         EffectId::Ganbantein => &["ganbantein"],
-        EffectId::Wind => &["wind"],
+        // Wind → see effects/wind.rs (Custom impl, no STR overlay).
         EffectId::Volcano => &["volcano"],
         EffectId::Grandcross => &["grandcross"],
         EffectId::Intimidate => &["intimidate"],

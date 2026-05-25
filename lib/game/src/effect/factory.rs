@@ -217,6 +217,10 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
 
         EffectId::Defender => Box::new(effects::defender::DefenderEffect::new(anchor.point())),
 
+        EffectId::Wind => Box::new(effects::wind::WindEffect::new(anchor.point())),
+
+        EffectId::Bash3d => Box::new(effects::bash3d::Bash3dEffect::new(anchor.point())),
+
 
         EffectId::Level99 => Box::new(effects::aura::AuraEffect::new(
             anchor.point(),
@@ -561,7 +565,7 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Bowlingbash => {
             Box::new(effects::bowling_bash::BowlingBashEffect::new(anchor.point()))
         }
-        EffectId::Overthrust => {
+        EffectId::Overthrust | EffectId::Sonicblow => {
             Box::new(effects::overthrust::OverthrustEffect::new(anchor.point()))
         }
         EffectId::Callzone => {
@@ -641,6 +645,8 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Gumgang3
             | EffectId::Gumgang2
             | EffectId::Defender
+            | EffectId::Wind
+            | EffectId::Bash3d
             | EffectId::Level99
             | EffectId::Level992
             | EffectId::Level993
