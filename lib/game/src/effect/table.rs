@@ -13,10 +13,10 @@ use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effects::{
     bash, begin_spell, blessing, bottom_sanctuary_pillar, bowling_bash, callzone, cartrevolution,
     cast_circle, endure, enhance, entry, exit as exit_effect, firearrow, fireball, flasher,
-    frost_diver, glasswall, ground_sample, hasteup, healsp, hit, hit2, hit5_6, magnum_break,
-    napalmbeat, napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk,
-    potion_pillar, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond,
-    status_up, stormgust, teleportation, volcano, warp, yupitel,
+    frost_diver, glasswall, ground_sample, gumgang2, hasteup, healsp, hit, hit2, hit5_6,
+    magnum_break, napalmbeat, napalmvalcan, overthrust, pierce, portal, portal2, portal_wind,
+    potion_berserk, potion_pillar, ready_portal, revive, sandwind, sight, sonicblowhit,
+    soul_strike, spraypond, status_up, stormgust, teleportation, volcano, warp, yupitel,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -264,10 +264,9 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Gumgang3 => EffectSpec::Custom {
             duration_ms: volcano::GUMGANG3.total_duration_ms(),
         },
-        // Gumgang2 — `VOLCANO2()` in the original game; same GI_2 prim
-        // family but with per-slot `distance = ec+1.0`.
+        // Gumgang2 — dedicated vertical-pillar impl (see effects/gumgang2.rs).
         EffectId::Gumgang2 => EffectSpec::Custom {
-            duration_ms: volcano::GUMGANG2.total_duration_ms(),
+            duration_ms: gumgang2::TOTAL_DURATION_MS,
         },
 
         // Cast-circle family — runs 40 frames at 60 fps;

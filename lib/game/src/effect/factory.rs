@@ -206,13 +206,14 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             anchor.point(),
             effects::volcano::GUMGANG3,
         )),
-        // EF_GUMGANG2 — `VOLCANO2("ring_yellow.tga")` in the original game,
-        // same GI-2 primitive as the rest of the VOLCANO family but
-        // with per-slot `distance = ec+1.0` (concentric rings, not blades).
-        EffectId::Gumgang2 => Box::new(effects::volcano::VolcanoEffect::new(
-            anchor.point(),
-            effects::volcano::GUMGANG2,
-        )),
+        // EF_GUMGANG2 — vertical pillar of light. Reusing the volcano
+        // effect produces the wrong silhouette here: its per-frame
+        // flame-blade sine envelope makes it look like Gumgang3 with the
+        // flame wreath rather than a clean column. A dedicated
+        // cylinder-stack impl matches the reference gif's clean vertical
+        // column instead, so we don't share the volcano code for this
+        // id.
+        EffectId::Gumgang2 => Box::new(effects::gumgang2::Gumgang2Effect::new(anchor.point())),
 
 
         EffectId::Level99 => Box::new(effects::aura::AuraEffect::new(

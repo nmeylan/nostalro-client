@@ -151,22 +151,6 @@ pub const GUMGANG3: VolcanoParams = VolcanoParams {
     ..LANDPROTECTOR
 };
 
-/// EF_GUMGANG2 — original game's `VOLCANO2("ring_yellow.tga")` (GI_2 prim with
-/// `distance = ec+1.0f` per slot, `rise_angle = 80`, `height[i] = 0`). With
-/// no per-segment height variation the silhouette is a clean stack of four
-/// concentric vertical cones (BeginSpell2-like pillar of light), not the
-/// 4-blade flame wreath the rest of the VOLCANO family uses. The texture
-/// stripes alone carry the flame look.
-pub const GUMGANG2: VolcanoParams = VolcanoParams {
-    texture: "ring_yellow.tga",
-    initial_rise_angle_deg: 80.0,
-    distance_base: 1.0,
-    distance_step: 1.0,
-    wave_amplitude_factor: 0.0,
-    rise_angle_decay_per_frame: 0.0,
-    ..LANDPROTECTOR
-};
-
 pub const TEXTURES: &[&str] = &[
     "ring_white.tga",
     "ring_red.tga",
@@ -297,7 +281,7 @@ mod tests {
 
     #[test]
     fn each_variant_emits_four_emitters_with_its_texture() {
-        for params in [LANDPROTECTOR, VOLCANO, DELUGE, VIOLENTGALE, GANBANTEIN, GUMGANG3, GUMGANG2]
+        for params in [LANDPROTECTOR, VOLCANO, DELUGE, VIOLENTGALE, GANBANTEIN, GUMGANG3]
         {
             let mut e = VolcanoEffect::new([0.0; 3], params);
             step(&mut e, 1.0 / FRAMES_PER_SECOND);
@@ -308,54 +292,6 @@ mod tests {
                 assert_eq!(tex, params.texture);
             }
         }
-    }
-
-    #[test]
-    fn gumgang2_is_clean_vertical_pillar_with_per_slot_distance() {
-        // VOLCANO2 in the original: `distance = ec+1.0f` per slot → 1, 2, 3, 4;
-        // `height[i] = 0` → no per-segment wave (clean vertical cone, not
-        // the 4-blade flame wreath); `rise_angle = 80` and never decays.
-        let mut e = VolcanoEffect::new([0.0; 3], GUMGANG2);
-        step(&mut e, 1.0 / FRAMES_PER_SECOND);
-        let prims = draws(&e);
-
-        // Per-slot 1-unit distance step (vs LandProtector's 0.25).
-        let radii: Vec<f32> = prims.iter().map(|p| frustum_fields(p).0).collect();
-        for w in radii.windows(2) {
-            let diff = w[1] - w[0];
-            assert!(diff > 0.5 && diff < 1.5, "Gumgang2 slot step ≈ 1.0, got {diff}");
-        }
-
-        // Clean cone: wave_amplitude must be 0 (no LP-style 4-blade
-        // height oscillation), and the height should be near the upper
-        // bound (sin(80°)·max_flame_tilt ≈ 6.89) — confirming rise=80
-        // didn't decay.
-        let (wave, height) = match &prims[0] {
-            EffectPrimitiveDraw::Frustum {
-                wave_amplitude,
-                height,
-                ..
-            } => (*wave_amplitude, *height),
-            _ => panic!("expected Frustum"),
-        };
-        assert_eq!(wave, 0.0, "Gumgang2 has no flame-blade wave");
-        let expected = LANDPROTECTOR.max_flame_tilt * 80f32.to_radians().sin();
-        assert!(
-            (height - expected).abs() < 0.05,
-            "rise stays near 80°: height={height}, expected~{expected}"
-        );
-
-        // Step past where LP would have decayed rise to MIN (40°) and
-        // confirm Gumgang2's cone height is unchanged.
-        step(&mut e, 30.0 / FRAMES_PER_SECOND);
-        let height_late = match &draws(&e)[0] {
-            EffectPrimitiveDraw::Frustum { height, .. } => *height,
-            _ => unreachable!(),
-        };
-        assert!(
-            (height_late - expected).abs() < 0.05,
-            "no rise decay: height_late={height_late}, expected~{expected}"
-        );
     }
 
     #[test]

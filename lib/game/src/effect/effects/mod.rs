@@ -32,6 +32,7 @@ pub mod flasher;
 pub mod frost_diver;
 pub mod glasswall;
 pub mod ground_sample;
+pub mod gumgang2;
 pub mod hasteup;
 pub mod healsp;
 pub mod hit;

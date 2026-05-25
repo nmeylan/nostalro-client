@@ -77,6 +77,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::sonicblowhit::TEXTURES,
         effects::cartrevolution::TEXTURES,
         effects::pierce::TEXTURES,
+        effects::gumgang2::TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {
