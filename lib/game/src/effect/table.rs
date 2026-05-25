@@ -14,8 +14,8 @@ use super::effects::{
     bash, begin_spell, blessing, bottom_sanctuary_pillar, bowling_bash, callzone, cast_circle,
     endure, enhance, entry, exit as exit_effect, firearrow, fireball, flasher, frost_diver,
     glasswall, ground_sample, hasteup, healsp, hit, hit2, hit5_6, magnum_break, napalmbeat,
-    overthrust, portal, ready_portal, sandwind, sight, soul_strike, spraypond, status_up,
-    stormgust, teleportation, volcano, warp, yupitel,
+    overthrust, pierce, portal, potion_berserk, potion_pillar, ready_portal, revive, sandwind,
+    sight, soul_strike, spraypond, status_up, stormgust, teleportation, volcano, warp, yupitel,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -314,6 +314,20 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
         EffectId::Groundsample => EffectSpec::Custom {
             duration_ms: ground_sample::TOTAL_DURATION_MS,
+        },
+
+        // Batch CYL — cylinder effects.
+        EffectId::Potionpillar => EffectSpec::Custom {
+            duration_ms: potion_pillar::TOTAL_DURATION_MS,
+        },
+        EffectId::Revive => EffectSpec::Custom {
+            duration_ms: revive::TOTAL_DURATION_MS,
+        },
+        EffectId::Pierce => EffectSpec::Custom {
+            duration_ms: pierce::TOTAL_DURATION_MS,
+        },
+        EffectId::PotionBerserk => EffectSpec::Custom {
+            duration_ms: potion_berserk::TOTAL_DURATION_MS,
         },
 
         _ => bucket_default(id),

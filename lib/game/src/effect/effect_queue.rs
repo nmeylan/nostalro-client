@@ -105,5 +105,12 @@ impl EffectQueue {
 /// cluster-mode fallback. Used by the effect viewer to construct
 /// a demo trail for IDs that need one.
 pub fn is_trail_effect(id: EffectId) -> bool {
-    matches!(id, EffectId::Frostdiver | EffectId::Fireball | EffectId::Soulstrike | EffectId::Yufitel)
+    matches!(
+        id,
+        EffectId::Frostdiver
+            | EffectId::Fireball
+            | EffectId::Soulstrike
+            | EffectId::Yufitel
+            | EffectId::Pierce
+    )
 }

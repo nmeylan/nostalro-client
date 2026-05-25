@@ -135,6 +135,15 @@ pub enum EffectPrimitiveDraw {
     /// `uv_scroll` is an additive `[u, v]` scroll, `uv_repeat` how many
     /// times the texture tiles around the circumference.
     ///
+    /// `Frustum` and [`Cylinder`] describe the same geometry but differ in
+    /// UV convention: `Frustum` lets a caller spread the texture continuously
+    /// across the lateral surface, [`Cylinder`] mimics the original game's
+    /// cylinder UV (`u += 0.25` per segment with wrap, four tiles
+    /// per ring regardless of segment count). Callers wanting a
+    /// straight cylinder/cone should prefer [`Cylinder`].
+    ///
+    /// [`Cylinder`]: EffectPrimitiveDraw::Cylinder
+    ///
     /// Each top-ring vertex's height is offset by a wave function selected
     /// by `wave_mode`.
     /// * [`FrustumWaveMode::Sine`] (default) — `wave_amplitude *
@@ -257,12 +266,36 @@ pub enum EffectPrimitiveDraw {
         color: [f32; 4],
         blend: BlendKind,
     },
-    /// Vertical cylinder of light (Magnus, Sanctuary).
+    /// Swept-quad cylinder / truncated cone matching the original game's
+    /// cylinder primitive.
+    ///
+    /// Geometry is identical to [`Frustum`] (bottom ring of radius
+    /// `bottom_size` at `base`, top ring of radius `top_size` at
+    /// `base + (0, -height, 0)` in native RO coords), but UV mapping
+    /// follows the original game: `u` advances by 0.25 per segment with
+    /// wrap-to-0 at 1.0 (four texture tiles around the ring regardless of
+    /// `sides`); `v = 1` at the bottom and `v = 0` at the top.
+    /// `uv_scroll` adds an `[u, v]` offset each frame.
+    ///
+    /// `tilt_x_rad` pitches the geometry around the local X axis before
+    /// `rotation_y_rad` rotates the tilted result around the world Y axis
+    /// — an X-pitch followed by a Y-yaw, matching the original
+    /// game's orientation. With `tilt_x_rad = -π/2` the
+    /// cylinder lays on its side and `rotation_y_rad` aims its axis at a
+    /// compass heading (used by Pierce). `rotation` is a per-segment angle
+    /// offset around the cylinder's own axis (post-tilt, pre-yaw), letting
+    /// callers spin the texture seam without moving the geometry.
+    ///
+    /// [`Frustum`]: EffectPrimitiveDraw::Frustum
     Cylinder {
         base: [f32; 3],
+        bottom_size: f32,
+        top_size: f32,
         height: f32,
-        radius: f32,
-        segments: u32,
+        sides: u32,
+        rotation: f32,
+        tilt_x_rad: f32,
+        rotation_y_rad: f32,
         uv_scroll: [f32; 2],
         texture: &'static str,
         color: [f32; 4],

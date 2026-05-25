@@ -38,8 +38,9 @@ pub use sprite::{
 pub use effect::{
     BlendBucket, BlendKind, DrawRecord, EffectDispatcher, PipelineKind, StrEffectCache,
     StrEffectEntry, StrEmitterInput, build_str_effect_batches, d3d_blend_to_wgpu,
-    prepare_billboard_records, prepare_frustum_records, prepare_ground_disc_records,
-    prepare_quad_horn_records, prepare_sphere_records, prepare_world_quad_records,
+    prepare_billboard_records, prepare_cylinder_records, prepare_frustum_records,
+    prepare_ground_disc_records, prepare_quad_horn_records, prepare_sphere_records,
+    prepare_world_quad_records,
 };
 pub use texture::TextureCache;
 pub use ui_renderer::{UiDrawCommand, UiRenderer, UiVertex};
@@ -107,6 +108,7 @@ pub struct Renderer {
     pub effect_sprite_renderer: SpriteRenderer,
     pub effect_ground_disc_renderer: effect::GroundDiscRenderer,
     pub effect_frustum_renderer: effect::FrustumRenderer,
+    pub effect_cylinder_renderer: effect::CylinderRenderer,
     pub effect_quad_horn_renderer: effect::QuadHornRenderer,
     pub effect_sphere_renderer: effect::SphereRenderer,
     pub effect_world_quad_renderer: effect::WorldQuadRenderer,
@@ -196,6 +198,12 @@ impl Renderer {
             &global_uniforms.bind_group_layout,
             &texture_cache.bind_group_layout,
         );
+        let effect_cylinder_renderer = effect::CylinderRenderer::new(
+            &device.device,
+            device.surface_format,
+            &global_uniforms.bind_group_layout,
+            &texture_cache.bind_group_layout,
+        );
         let effect_quad_horn_renderer = effect::QuadHornRenderer::new(
             &device.device,
             device.surface_format,
@@ -238,6 +246,7 @@ impl Renderer {
             effect_sprite_renderer,
             effect_ground_disc_renderer,
             effect_frustum_renderer,
+            effect_cylinder_renderer,
             effect_quad_horn_renderer,
             effect_sphere_renderer,
             effect_world_quad_renderer,
@@ -679,6 +688,12 @@ impl Renderer {
             &self.white_bind_group,
             texture_lookup,
         ));
+        records.extend(prepare_cylinder_records(
+            effect_draws,
+            &self.camera,
+            &self.white_bind_group,
+            texture_lookup,
+        ));
         records.extend(prepare_ground_disc_records(
             effect_draws,
             &self.camera,
@@ -721,6 +736,7 @@ impl Renderer {
                 &self.effect_sprite_renderer.uniform_bind_group,
                 &self.effect_sprite_renderer,
                 &self.effect_frustum_renderer,
+                &self.effect_cylinder_renderer,
                 &self.effect_ground_disc_renderer,
                 &self.effect_quad_horn_renderer,
                 &self.effect_sphere_renderer,

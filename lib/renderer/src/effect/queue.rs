@@ -95,6 +95,10 @@ impl BlendBucket {
 pub enum PipelineKind {
     /// Vertical "tube" between two coaxial polygons. World-space vertices.
     Frustum,
+    /// Cylinder — same geometry as [`Self::Frustum`] but with the
+    /// per-segment 0.25-step UV convention used by the ring / pillar
+    /// textures. World-space vertices.
+    Cylinder,
     /// Flat-on-ground textured annulus / arc wedge. World-space vertices.
     GroundDisc,
     /// Square-based pyramid spike. World-space vertices. Shares

@@ -17,7 +17,8 @@ use wgpu::util::DeviceExt;
 
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, partition_and_sort};
 use crate::effect::primitives::{
-    FrustumRenderer, GroundDiscRenderer, QuadHornRenderer, SphereRenderer, WorldQuadRenderer,
+    CylinderRenderer, FrustumRenderer, GroundDiscRenderer, QuadHornRenderer, SphereRenderer,
+    WorldQuadRenderer,
 };
 use crate::sprite::{SpriteRenderer, SpriteVertex};
 
@@ -78,6 +79,7 @@ impl EffectDispatcher {
         sprite_uniform_bind_group: &wgpu::BindGroup,
         sprite_renderer: &SpriteRenderer,
         frustum: &FrustumRenderer,
+        cylinder: &CylinderRenderer,
         ground_disc: &GroundDiscRenderer,
         quad_horn: &QuadHornRenderer,
         sphere: &SphereRenderer,
@@ -216,7 +218,10 @@ impl EffectDispatcher {
             // only re-set when we move into or out of the Sprite kind.
             let group0_kind = match span.kind {
                 PipelineKind::Sprite => PipelineKind::Sprite,
-                _ => PipelineKind::Frustum, // any 3D representative
+                // 3D pipelines (Frustum, Cylinder, GroundDisc, QuadHorn,
+                // Sphere, WorldQuad) all bind the camera UBO at group 0;
+                // pick any 3D variant as the representative.
+                _ => PipelineKind::Frustum,
             };
             if current_group0_kind != Some(group0_kind) {
                 match group0_kind {
@@ -237,6 +242,7 @@ impl EffectDispatcher {
                     span.bucket,
                     sprite_renderer,
                     frustum,
+                    cylinder,
                     ground_disc,
                     quad_horn,
                     sphere,
@@ -262,6 +268,7 @@ fn pipeline_for<'a>(
     bucket: BlendBucket,
     sprite_renderer: &'a SpriteRenderer,
     frustum: &'a FrustumRenderer,
+    cylinder: &'a CylinderRenderer,
     ground_disc: &'a GroundDiscRenderer,
     quad_horn: &'a QuadHornRenderer,
     sphere: &'a SphereRenderer,
@@ -278,6 +285,13 @@ fn pipeline_for<'a>(
                 &frustum.pipeline_additive
             } else {
                 &frustum.pipeline_alpha
+            }
+        }
+        PipelineKind::Cylinder => {
+            if additive {
+                &cylinder.pipeline_additive
+            } else {
+                &cylinder.pipeline_alpha
             }
         }
         PipelineKind::GroundDisc => {

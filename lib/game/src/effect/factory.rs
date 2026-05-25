@@ -485,6 +485,33 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             ),
         ),
 
+        // Batch CYL — cylinder effects.
+        EffectId::Potionpillar => Box::new(effects::potion_pillar::PotionPillarEffect::new(
+            anchor.point(),
+            effects::potion_pillar::DEFAULT,
+        )),
+        EffectId::Revive => Box::new(effects::revive::ReviveEffect::new(anchor.point())),
+        // Pierce reads caster→target direction to aim the horizontal cone.
+        // Trail anchor carries both endpoints; a Point anchor collapses
+        // to from == to and the effect falls back to a fixed compass.
+        // `hit_count` carries the skill level (1..=10): N bursts spaced
+        // 20 frames apart, each with its own particle storm after the
+        // first.
+        EffectId::Pierce => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::pierce::PierceEffect::new_with_level(
+                from,
+                to,
+                hit_count.unwrap_or(1),
+            ))
+        }
+        EffectId::PotionBerserk => Box::new(
+            effects::potion_berserk::PotionBerserkEffect::new(anchor.point()),
+        ),
+
         // Batch GD — GroundDisc decals.
         EffectId::Bowlingbash => {
             Box::new(effects::bowling_bash::BowlingBashEffect::new(anchor.point()))
@@ -620,6 +647,10 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::BottomSpider
             | EffectId::BottomHermode
             | EffectId::BottomRokisweil
+            | EffectId::Potionpillar
+            | EffectId::Revive
+            | EffectId::Pierce
+            | EffectId::PotionBerserk
             | EffectId::Bowlingbash
             | EffectId::Overthrust
             | EffectId::Callzone
