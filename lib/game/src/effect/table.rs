@@ -11,12 +11,13 @@ use models::enums::effect_id::EffectId;
 
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effects::{
-    bash, bash3d, begin_spell, blessing, bottom_sanctuary_pillar, bowling_bash, callzone, cartrevolution,
-    cast_circle, defender, endure, enhance, entry, exit as exit_effect, firearrow, fireball, flasher,
-    frost_diver, glasswall, ground_sample, gumgang2, hasteup, healsp, hit, hit2, hit5_6,
-    magnum_break, napalmbeat, napalmvalcan, overthrust, pierce, portal, portal2, portal_wind,
-    potion_berserk, potion_pillar, ready_portal, revive, sandwind, sight, sonicblowhit,
-    soul_strike, spraypond, status_up, stormgust, teleportation, volcano, warp, wind, yupitel,
+    bash, bash3d, begin_spell, blessing, blitzbeat, bottom_sanctuary_pillar, bowling_bash, callzone,
+    cartrevolution, cast_circle, curseattack, defender, detecting, endure, enhance, entry,
+    exit as exit_effect, fireivy, firearrow, fireball, flasher, frost_diver, glasswall,
+    ground_sample, gumgang2, hasteup, healsp, hit, hit2, hit5_6, magnum_break, napalmbeat,
+    napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_pillar,
+    ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond, status_up,
+    stormgust, teleportation, volcano, warp, waterball, wind, yufitelhit, yupitel,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -205,6 +206,34 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
         EffectId::Yufitel => EffectSpec::Custom {
             duration_ms: yupitel::TOTAL_DURATION_MS,
+        },
+
+        // Batch TEXTURE3D — world-fixed textured quads (single + crossed).
+        // Each has a `str_aliases` entry that would otherwise shadow Custom
+        // dispatch in `bucket_default`; pin them to Custom here.
+        EffectId::Yufitelhit => EffectSpec::Custom {
+            duration_ms: yufitelhit::TOTAL_DURATION_MS,
+        },
+        EffectId::Blitzbeat => EffectSpec::Custom {
+            duration_ms: blitzbeat::TOTAL_DURATION_MS,
+        },
+        EffectId::Waterball => EffectSpec::Custom {
+            duration_ms: waterball::TOTAL_DURATION_MS,
+        },
+        EffectId::Fireivy => EffectSpec::Custom {
+            duration_ms: fireivy::TOTAL_DURATION_MS,
+        },
+        EffectId::Detecting => EffectSpec::Custom {
+            duration_ms: detecting::TOTAL_DURATION_MS,
+        },
+        EffectId::Toprank => EffectSpec::Custom {
+            duration_ms: default_duration_ms(EffectId::Toprank),
+        },
+        EffectId::Party => EffectSpec::Custom {
+            duration_ms: default_duration_ms(EffectId::Party),
+        },
+        EffectId::Curseattack => EffectSpec::Custom {
+            duration_ms: curseattack::TOTAL_DURATION_MS,
         },
         EffectId::Napalmbeat => EffectSpec::Custom {
             duration_ms: napalmbeat::TOTAL_DURATION_MS,

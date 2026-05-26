@@ -40,7 +40,7 @@ pub use effect::{
     StrEffectEntry, StrEmitterInput, build_str_effect_batches, d3d_blend_to_wgpu,
     prepare_billboard_records, prepare_cylinder_records, prepare_frustum_records, prepare_radial_ring_records,
     prepare_ground_disc_records, prepare_quad_horn_records, prepare_sphere_records,
-    prepare_world_quad_records,
+    prepare_texture3d_records, prepare_world_quad_records,
 };
 pub use texture::TextureCache;
 pub use ui_renderer::{UiDrawCommand, UiRenderer, UiVertex};
@@ -112,6 +112,7 @@ pub struct Renderer {
     pub effect_quad_horn_renderer: effect::QuadHornRenderer,
     pub effect_sphere_renderer: effect::SphereRenderer,
     pub effect_world_quad_renderer: effect::WorldQuadRenderer,
+    pub effect_texture3d_renderer: effect::Texture3DRenderer,
     pub effect_radial_ring_renderer: effect::RadialRingRenderer,
     /// Owns the per-frame unified vertex / index buffer for the effect
     /// dispatch path; pipelines themselves live on the per-primitive
@@ -223,6 +224,12 @@ impl Renderer {
             &global_uniforms.bind_group_layout,
             &texture_cache.bind_group_layout,
         );
+        let effect_texture3d_renderer = effect::Texture3DRenderer::new(
+            &device.device,
+            device.surface_format,
+            &global_uniforms.bind_group_layout,
+            &texture_cache.bind_group_layout,
+        );
         let effect_radial_ring_renderer = effect::RadialRingRenderer::new(
             &device.device,
             device.surface_format,
@@ -257,6 +264,7 @@ impl Renderer {
             effect_quad_horn_renderer,
             effect_sphere_renderer,
             effect_world_quad_renderer,
+            effect_texture3d_renderer,
             effect_radial_ring_renderer,
             effect_dispatcher,
             ui_renderer,
@@ -726,6 +734,12 @@ impl Renderer {
             &self.white_bind_group,
             texture_lookup,
         ));
+        records.extend(prepare_texture3d_records(
+            effect_draws,
+            &self.camera,
+            &self.white_bind_group,
+            texture_lookup,
+        ));
         records.extend(prepare_radial_ring_records(
             effect_draws,
             &self.camera,
@@ -755,6 +769,7 @@ impl Renderer {
                 &self.effect_quad_horn_renderer,
                 &self.effect_sphere_renderer,
                 &self.effect_world_quad_renderer,
+                &self.effect_texture3d_renderer,
                 &self.effect_radial_ring_renderer,
             );
         }

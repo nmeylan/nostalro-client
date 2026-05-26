@@ -425,6 +425,110 @@ pub enum EffectPrimitiveDraw {
         color: [f32; 4],
         blend: BlendKind,
     },
+    /// Textured quad fixed in world space defined by a centre + half-extents
+    /// + a plane orientation (not camera-facing). Convenience over `WorldQuad`
+    /// for the common single-quad / cross-quad cases where the
+    /// caller doesn't want to compute four corners by hand.
+    ///
+    /// `size` is the **half-extents** along the quad's two local axes (so
+    /// world width / height = `2 * size`), matching the original game's
+    /// textured-quad convention where vertices sit at `(±width, ±height, 0)`
+    /// in the local frame.
+    ///
+    /// `plane` selects orientation:
+    /// * [`QuadPlane::Horizontal`] — quad lies flat on world XZ at
+    ///   `y = center.y` (rolled flat: Party, Detecting,
+    ///   Yufitelhit ground splash).
+    /// * [`QuadPlane::VerticalYaw`] — quad stands vertically with its base
+    ///   axis spanning world X (width) and its up axis spanning world Y
+    ///   (height); the whole quad is then yawed by the given angle (radians)
+    ///   around the world Y axis. yaw=0 faces +Z. Used for upright single
+    ///   quads (Toprank, Curseattack) and for both legs of
+    ///   a crossed-quad pair (Blitzbeat — `yaw` and `yaw + π/2`).
+    ///
+    /// Per-corner UVs in the same order as `WorldQuad` (CCW from the front
+    /// face).
+    Texture3D {
+        center: [f32; 3],
+        size: [f32; 2],
+        plane: QuadPlane,
+        uv: [[f32; 2]; 4],
+        texture: &'static str,
+        color: [f32; 4],
+        blend: BlendKind,
+    },
+}
+
+/// Orientation selector for [`EffectPrimitiveDraw::Texture3D`].
+///
+/// In every variant `size = [width_half, height_half]`:
+/// * `width_half` is along the quad's primary in-plane axis,
+/// * `height_half` is along the quad's secondary in-plane axis.
+///
+/// The variants differ only in which world axes those map to.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum QuadPlane {
+    /// Flat on world XZ at `center.y`; width spans world X, height spans
+    /// world Z (axis-aligned ground splash). Rolled flat
+    /// with no extra yaw.
+    Horizontal,
+    /// Flat on world XZ at `center.y`; width spans the **yaw direction**
+    /// (forward), height spans the perpendicular sideways direction
+    /// (yaw + 90°). Used by the horizontal leg of crossed-quad
+    /// needle effects (Blitzbeat) where the needle's long axis is the
+    /// caster's facing direction.
+    HorizontalYaw(f32),
+    /// Standing vertically; width spans the world XZ direction at angle
+    /// `yaw` (radians from +X around the Y axis), height spans world Y.
+    /// Native RO `-Y = up`, so "top" sits at `center.y - height_half`.
+    VerticalYaw(f32),
+}
+
+impl QuadPlane {
+    /// Compute the four world-space corners of a [`Texture3D`] quad in the
+    /// same CCW order as [`WorldQuad`] (front face viewer).
+    ///
+    /// [`Texture3D`]: EffectPrimitiveDraw::Texture3D
+    /// [`WorldQuad`]: EffectPrimitiveDraw::WorldQuad
+    pub fn corners(self, center: [f32; 3], size: [f32; 2]) -> [[f32; 3]; 4] {
+        let [cx, cy, cz] = center;
+        let [hx, hy] = size;
+        match self {
+            QuadPlane::Horizontal => [
+                [cx - hx, cy, cz - hy],
+                [cx + hx, cy, cz - hy],
+                [cx + hx, cy, cz + hy],
+                [cx - hx, cy, cz + hy],
+            ],
+            QuadPlane::HorizontalYaw(yaw) => {
+                let (s, c) = yaw.sin_cos();
+                // forward = (c, 0, s); right = (-s, 0, c)
+                let fx = hx * c;
+                let fz = hx * s;
+                let rx = -hy * s;
+                let rz = hy * c;
+                [
+                    [cx - fx - rx, cy, cz - fz - rz],
+                    [cx + fx - rx, cy, cz + fz - rz],
+                    [cx + fx + rx, cy, cz + fz + rz],
+                    [cx - fx + rx, cy, cz - fz + rz],
+                ]
+            }
+            QuadPlane::VerticalYaw(yaw) => {
+                let (s, c) = yaw.sin_cos();
+                let dx = hx * c;
+                let dz = hx * s;
+                let top = cy - hy;
+                let bot = cy + hy;
+                [
+                    [cx - dx, bot, cz - dz],
+                    [cx + dx, bot, cz + dz],
+                    [cx + dx, top, cz + dz],
+                    [cx - dx, top, cz - dz],
+                ]
+            }
+        }
+    }
 }
 
 /// Collected primitive draws for a single frame. Effects push into this;

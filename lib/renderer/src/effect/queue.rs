@@ -109,6 +109,10 @@ pub enum PipelineKind {
     /// Textured quad anchored by four explicit world corners. Shares
     /// `effect_ground_disc.wgsl` with [`Self::GroundDisc`].
     WorldQuad,
+    /// Centre+size+plane world-fixed quad (single quad or crossed pair).
+    /// Shares `effect_ground_disc.wgsl` and pipeline
+    /// layout with [`Self::WorldQuad`].
+    Texture3D,
     /// Ring of upright tangent-aligned quads driven by a `RadialEmitterSlot`.
     /// Shares `effect_ground_disc.wgsl` with [`Self::WorldQuad`].
     RadialRing,

@@ -82,6 +82,14 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::defender::TEXTURES,
         effects::wind::TEXTURES,
         effects::bash3d::TEXTURES,
+        effects::blitzbeat::TEXTURES,
+        effects::curseattack::TEXTURES,
+        effects::detecting::TEXTURES,
+        effects::fireivy::TEXTURES,
+        effects::party::TEXTURES,
+        effects::toprank::TEXTURES,
+        effects::waterball::TEXTURES,
+        effects::yufitelhit::TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {

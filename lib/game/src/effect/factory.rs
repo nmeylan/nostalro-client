@@ -73,6 +73,34 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             };
             Box::new(effects::yupitel::YupitelEffect::new(from, to))
         }
+        EffectId::Yufitelhit => {
+            Box::new(effects::yufitelhit::YufitelhitEffect::new(anchor.point()))
+        }
+        EffectId::Blitzbeat => {
+            Box::new(effects::blitzbeat::BlitzbeatEffect::new(anchor.point()))
+        }
+        EffectId::Waterball => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::waterball::WaterballEffect::new(from, to))
+        }
+        EffectId::Fireivy => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::fireivy::FireivyEffect::new(from, to))
+        }
+        EffectId::Detecting => {
+            Box::new(effects::detecting::DetectingEffect::new(anchor.point()))
+        }
+        EffectId::Toprank => Box::new(effects::toprank::ToprankEffect::new(anchor.point())),
+        EffectId::Party => Box::new(effects::party::PartyEffect::new(anchor.point())),
+        EffectId::Curseattack => {
+            Box::new(effects::curseattack::CurseattackEffect::new(anchor.point()))
+        }
         EffectId::Napalmbeat => Box::new(effects::napalmbeat::NapalmBeatEffect::new(anchor.point())),
         EffectId::Sandwind => Box::new(effects::sandwind::SandwindEffect::new(anchor.point())),
 
@@ -636,6 +664,14 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Frostdiver2
             | EffectId::Soulstrike
             | EffectId::Yufitel
+            | EffectId::Yufitelhit
+            | EffectId::Blitzbeat
+            | EffectId::Waterball
+            | EffectId::Fireivy
+            | EffectId::Detecting
+            | EffectId::Toprank
+            | EffectId::Party
+            | EffectId::Curseattack
             | EffectId::Magnumbreak
             | EffectId::Sight
             | EffectId::Ruwach

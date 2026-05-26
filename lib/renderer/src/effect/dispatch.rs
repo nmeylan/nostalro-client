@@ -18,7 +18,7 @@ use wgpu::util::DeviceExt;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, partition_and_sort};
 use crate::effect::primitives::{
     CylinderRenderer, FrustumRenderer, RadialRingRenderer, GroundDiscRenderer, QuadHornRenderer,
-    SphereRenderer, WorldQuadRenderer,
+    SphereRenderer, Texture3DRenderer, WorldQuadRenderer,
 };
 use crate::sprite::{SpriteRenderer, SpriteVertex};
 
@@ -84,6 +84,7 @@ impl EffectDispatcher {
         quad_horn: &QuadHornRenderer,
         sphere: &SphereRenderer,
         world_quad: &WorldQuadRenderer,
+        texture3d: &Texture3DRenderer,
         radial_ring: &RadialRingRenderer,
     ) {
         if records.is_empty() {
@@ -248,6 +249,7 @@ impl EffectDispatcher {
                     quad_horn,
                     sphere,
                     world_quad,
+                    texture3d,
                     radial_ring,
                 );
                 pass.set_pipeline(pipeline);
@@ -275,6 +277,7 @@ fn pipeline_for<'a>(
     quad_horn: &'a QuadHornRenderer,
     sphere: &'a SphereRenderer,
     world_quad: &'a WorldQuadRenderer,
+    texture3d: &'a Texture3DRenderer,
     radial_ring: &'a RadialRingRenderer,
 ) -> &'a wgpu::RenderPipeline {
     // No-depth buckets currently fall through to their depth-read sibling
@@ -323,6 +326,13 @@ fn pipeline_for<'a>(
                 &world_quad.pipeline_additive
             } else {
                 &world_quad.pipeline_alpha
+            }
+        }
+        PipelineKind::Texture3D => {
+            if additive {
+                &texture3d.pipeline_additive
+            } else {
+                &texture3d.pipeline_alpha
             }
         }
         PipelineKind::RadialRing => {
