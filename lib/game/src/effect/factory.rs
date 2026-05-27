@@ -137,6 +137,39 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::foot::FootEffect::new(from, to, params))
         }
 
+        // Teihit streak-burst family — radial streaks. Teihit2 /
+        // Backstap use the different teihit2 spray and are not yet done.
+        EffectId::Teihit1 => {
+            Box::new(effects::teihit::TeihitEffect::new(anchor.point(), effects::teihit::TEIHIT1))
+        }
+        EffectId::Teihit1x => {
+            Box::new(effects::teihit::TeihitEffect::new(anchor.point(), effects::teihit::TEIHIT1X))
+        }
+        EffectId::Teihit3 => {
+            Box::new(effects::teihit::TeihitEffect::new(anchor.point(), effects::teihit::TEIHIT3))
+        }
+
+        // ParticleUp family — rising sparkle bursts. (Firstaid uses a
+        // different recipe and is not yet done.)
+        EffectId::Hptime => {
+            Box::new(effects::particle_up::ParticleUpEffect::new(anchor.point(), effects::particle_up::HPTIME))
+        }
+        EffectId::Sptime => {
+            Box::new(effects::particle_up::ParticleUpEffect::new(anchor.point(), effects::particle_up::SPTIME))
+        }
+        EffectId::Hated => {
+            Box::new(effects::particle_up::ParticleUpEffect::new(anchor.point(), effects::particle_up::HATED))
+        }
+        EffectId::Hated2 => {
+            Box::new(effects::particle_up::ParticleUpEffect::new(anchor.point(), effects::particle_up::HATED2))
+        }
+        EffectId::SmaReady => {
+            Box::new(effects::particle_up::ParticleUpEffect::new(anchor.point(), effects::particle_up::SMAREADY))
+        }
+        EffectId::Sprinklesand => {
+            Box::new(effects::particle_up::ParticleUpEffect::new(anchor.point(), effects::particle_up::SPRINKLESAND))
+        }
+
         // Frost Diver — trail-shaped, unpacks both endpoints. Single-point
         // anchors (effect-viewer demo, any caller that doesn't know about
         // the trail) collapse to `from == to`, which the effect detects

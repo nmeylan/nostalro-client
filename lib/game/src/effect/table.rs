@@ -727,10 +727,11 @@ mod tests {
             effect_spec(EffectId::Stin),
             Some(EffectSpec::Str { file: "stin", .. })
         ));
-        // SmaReady (Kaupe) — same situation as Stin.
+        // Firstaid is in is_custom_bucket with no factory arm but keeps its
+        // STR alias (its first-aid impl is deferred) → Str, not Custom.
         assert!(matches!(
-            effect_spec(EffectId::SmaReady),
-            Some(EffectSpec::Str { file: "sma_ready", .. })
+            effect_spec(EffectId::Firstaid),
+            Some(EffectSpec::Str { file: "firstaid", .. })
         ));
     }
 }

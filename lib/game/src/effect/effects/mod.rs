@@ -38,6 +38,8 @@ pub mod flasher;
 pub mod flowercast;
 pub mod foot;
 pub mod frost_diver;
+pub mod particle_up;
+pub mod teihit;
 pub mod glasswall;
 pub mod ground_sample;
 pub mod gumgang2;

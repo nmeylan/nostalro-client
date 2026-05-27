@@ -94,6 +94,8 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::icewall::TEXTURES,
         effects::party::TEXTURES,
         effects::foot::TEXTURES,
+        effects::teihit::TEXTURES,
+        effects::particle_up::TEXTURES,
         effects::toprank::TEXTURES,
         effects::waterball::TEXTURES,
     ];
