@@ -108,6 +108,8 @@ pub fn is_trail_effect(id: EffectId) -> bool {
     matches!(
         id,
         EffectId::Frostdiver
+            | EffectId::Grimtooth
+            | EffectId::Icewall
             | EffectId::Fireball
             | EffectId::Soulstrike
             | EffectId::Yufitel

@@ -73,9 +73,6 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             };
             Box::new(effects::yupitel::YupitelEffect::new(from, to))
         }
-        EffectId::Yufitelhit => {
-            Box::new(effects::yufitelhit::YufitelhitEffect::new(anchor.point()))
-        }
         EffectId::Blitzbeat => {
             Box::new(effects::blitzbeat::BlitzbeatEffect::new(anchor.point()))
         }
@@ -123,6 +120,32 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::frost_diver::FrostDiverEffect::new(
                 p, p, effects::frost_diver::FROSTDIVER2,
             ))
+        }
+        EffectId::Grimtooth => {
+            // The travelling small-spike trail — reuses FrostDiver's
+            // projectile with stone.bmp.
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::frost_diver::FrostDiverEffect::new(
+                from, to, effects::frost_diver::GRIMTOOTH,
+            ))
+        }
+        EffectId::Grimtoothatk => {
+            Box::new(effects::grimtooth_atk::GrimToothAtkEffect::new(anchor.point()))
+        }
+        EffectId::Earthspike => {
+            Box::new(effects::earthspike::EarthSpikeEffect::new(anchor.point()))
+        }
+        EffectId::Icewall => {
+            // `to` supplies the cast direction so the wall stands across the
+            // targeted line; collapses to a default-oriented row at a point.
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::icewall::IceWallEffect::new(from, to))
         }
         EffectId::Soulstrike => {
             let (from, to) = match anchor {
@@ -664,7 +687,6 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Frostdiver2
             | EffectId::Soulstrike
             | EffectId::Yufitel
-            | EffectId::Yufitelhit
             | EffectId::Blitzbeat
             | EffectId::Waterball
             | EffectId::Fireivy

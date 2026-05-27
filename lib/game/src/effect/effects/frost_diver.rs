@@ -28,12 +28,11 @@
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
+use crate::effect::effects::spike_util::{FRAMES_PER_SECOND, apex_velocity, fade_tail_alpha, rise_step};
 
 pub const ICE_TEXTURE: &str = "ice.tga";
-pub const TEXTURES: &[&str] = &[ICE_TEXTURE];
-
-const FRAMES_PER_SECOND: f32 = 60.0;
+pub const STONE_TEXTURE: &str = "stone.bmp";
+pub const TEXTURES: &[&str] = &[ICE_TEXTURE, STONE_TEXTURE];
 
 /// Tunable parameter set for one Frost Diver variant. FrostDiver
 /// and FrostDiver2 share the `QuadHorn` primitive but pick from different
@@ -41,16 +40,30 @@ const FRAMES_PER_SECOND: f32 = 60.0;
 /// and tall, FrostDiver2's are chunkier and tightly clustered.
 #[derive(Clone, Copy)]
 pub struct FrostDiverParams {
+    /// Spike texture. FrostDiver uses `ice.tga`; Grimtooth uses `stone.bmp`.
+    pub texture: &'static str,
+    /// Blend mode. Ice spikes glow additively; opaque stone spikes use alpha
+    /// so the texture keeps its brown colour instead of washing out white.
+    pub blend: BlendKind,
     /// Inclusive range for the total ice-spike count per cast.
     /// FrostDiver2 always emits exactly 8, so its range is `(8, 8)`;
     /// FrostDiver spawns one spike per frame as the projectile
     /// travels toward the target — without the projectile pipeline we
     /// emulate the variable count with a small random range per cast.
     pub spike_count_range: (u32, u32),
-    /// How many frames the spawn window lasts. `0` = all spawn at frame 0
-    /// (FrostDiver2 behaviour); `> 0` staggers spawns linearly across the
-    /// window (FrostDiver behaviour).
+    /// How many frames the cluster-mode spawn window lasts. `0` = all spawn
+    /// at frame 0 (FrostDiver2 behaviour); `> 0` staggers spawns linearly
+    /// across the window (FrostDiver cluster-fallback behaviour). Trail mode
+    /// ignores this and uses `trail_cadence_frames` instead.
     pub burst_over_frames: f32,
+    /// Trail mode: frames between consecutive spike spawns as the projectile
+    /// cursor walks the caster→target line. FrostDiver spawns one per
+    /// frame (`1.0`); Grimtooth spawns one every 3 frames (`3.0`).
+    pub trail_cadence_frames: f32,
+    /// Trail mode: how far back from the target the first spike spawns
+    /// (the initial setback along the trail). FrostDiver `5.0`, Grimtooth
+    /// `2.0`.
+    pub trail_initial_offset: f32,
     /// Lifetime per spike, frames.
     pub spike_duration_frames: f32,
     /// Inclusive range for the random base half-width per spike (world
@@ -71,9 +84,13 @@ pub struct FrostDiverParams {
 /// chunky bases tightly clustered. Sizes from the original's
 /// random ranges, scaled so the silhouette matches the reference gif.
 pub const FROSTDIVER2: FrostDiverParams = FrostDiverParams {
+    texture: ICE_TEXTURE,
+    blend: BlendKind::Additive,
     // Fixed at 8.
     spike_count_range: (8, 8),
     burst_over_frames: 0.0,
+    trail_cadence_frames: 1.0,
+    trail_initial_offset: TRAIL_INITIAL_OFFSET,
     spike_duration_frames: 40.0,
     // Original width 1.0..3.5, scaled down to our world units.
     base_half_width_range: (0.6, 1.4),
@@ -89,11 +106,16 @@ pub const FROSTDIVER2: FrostDiverParams = FrostDiverParams {
 /// spike per frame as the projectile travels toward the target; without
 /// the projectile pipeline we approximate that with a staggered burst.
 pub const FROSTDIVER: FrostDiverParams = FrostDiverParams {
+    texture: ICE_TEXTURE,
+    blend: BlendKind::Additive,
     // Reference gif shows ~3–5 visible spikes at peak. The original count is
     // determined by projectile travel time, which we don't simulate;
     // pick a random small count per cast to vary the silhouette.
     spike_count_range: (3, 5),
     burst_over_frames: 14.0,
+    // One spike per frame as the projectile travels.
+    trail_cadence_frames: 1.0,
+    trail_initial_offset: TRAIL_INITIAL_OFFSET,
     spike_duration_frames: 40.0,
     // Original width 0.6..1.0. Roughly half FD2's
     // base width — produces the slimmer silhouette.
@@ -106,6 +128,36 @@ pub const FROSTDIVER: FrostDiverParams = FrostDiverParams {
     // more space between each spike in the trail.
     spawn_radius_range: (3.0, 8.0),
 };
+
+/// Grimtooth (`EF_GRIMTOOTH`, id 123) — Assassin Cross spike trail. It reuses
+/// FrostDiver's projectile with `stone.bmp`: it walks
+/// a cursor from the caster toward the target, launching one small spike
+/// every 3 frames until within 2.5 units of the target. Small slim stone
+/// blades. The bigger impact spikes are a separate effect (Grimtoothatk).
+pub const GRIMTOOTH: FrostDiverParams = FrostDiverParams {
+    texture: STONE_TEXTURE,
+    // Opaque brown stone — alpha blend keeps the colour (additive washes it
+    // out to icy white).
+    blend: BlendKind::Alpha,
+    // Cluster fallback only (no trail data): a few spikes around the point.
+    spike_count_range: (3, 6),
+    burst_over_frames: 18.0,
+    // One spike every 3 frames.
+    trail_cadence_frames: 3.0,
+    // The cursor steps a 2-unit vector once before the first
+    // spike, so the trail starts ~2 units back from the target.
+    trail_initial_offset: 2.0,
+    spike_duration_frames: 40.0,
+    // The caster spikes are slim and short: original width 0.6..1.0
+    // and height 10 (0.4× grimtoothatk's 25); the bigger impact blades
+    // are roughly bottom width 0.15 / height 2.5 in
+    // ~1:1 world units. Keep these slim and short.
+    base_half_width_range: (0.18, 0.3),
+    height_range: (2.5, 4.0),
+    // Trail mode ignores this; used only for the cluster fallback spread.
+    spawn_radius_range: (2.0, 5.0),
+};
+
 /// Spike tilt is randomized 80..100°. A `tilt_x_deg` near 100 reads as
 /// "apex up, slight backward lean" (cf. stormgust).
 const SPIKE_TILT_MIN_DEG: f32 = 80.0;
@@ -158,17 +210,8 @@ struct IceSpike {
 
 impl IceSpike {
     fn step(&mut self, dt: f32) {
-        let effective_dt = if self.age >= SPEED_LIMIT_S {
-            0.0
-        } else if self.age + dt > SPEED_LIMIT_S {
-            SPEED_LIMIT_S - self.age
-        } else {
-            dt
-        };
+        rise_step(&mut self.base_pos, self.velocity, self.age, dt, SPEED_LIMIT_S);
         self.age += dt;
-        self.base_pos[0] += self.velocity[0] * effective_dt;
-        self.base_pos[1] += self.velocity[1] * effective_dt;
-        self.base_pos[2] += self.velocity[2] * effective_dt;
     }
 
     fn alive(&self) -> bool {
@@ -176,16 +219,7 @@ impl IceSpike {
     }
 
     fn alpha(&self) -> f32 {
-        let fade_start_frame =
-            (self.duration * FRAMES_PER_SECOND - FADE_OUT_FRAMES).max(0.0);
-        let fade_start_s = fade_start_frame / FRAMES_PER_SECOND;
-        if self.age <= fade_start_s {
-            PEAK_ALPHA
-        } else {
-            let t = ((self.age - fade_start_s) / (self.duration - fade_start_s))
-                .clamp(0.0, 1.0);
-            PEAK_ALPHA * (1.0 - t)
-        }
+        fade_tail_alpha(self.age, self.duration, PEAK_ALPHA, FADE_OUT_FRAMES)
     }
 }
 
@@ -216,7 +250,7 @@ impl FrostDiverEffect {
     /// trail) collapse to cluster mode at `from`, matching the
     /// historical `Attach::WorldPos` behaviour.
     pub fn new(from: [f32; 3], to: [f32; 3], params: FrostDiverParams) -> Self {
-        let (origin, trail_anchors) = derive_anchors(from, to);
+        let (origin, trail_anchors) = derive_anchors(from, to, params.trail_initial_offset);
 
         let mut rng_state = 0x9E37_79B9
             ^ origin[0].to_bits()
@@ -289,17 +323,7 @@ impl FrostDiverEffect {
         let size = size_min + lcg_float(&mut self.rng_state) * (size_max - size_min);
         let height = height_min + lcg_float(&mut self.rng_state) * (height_max - height_min);
 
-        // Apex direction: rotate +Z by X-tilt then Y-yaw (row-vector).
-        let yaw = heading_deg.to_radians();
-        let tilt = tilt_deg.to_radians();
-        let (sin_t, cos_t) = tilt.sin_cos();
-        let (sin_y, cos_y) = yaw.sin_cos();
-        let dir = [cos_t * sin_y, -sin_t, cos_t * cos_y];
-        let velocity = [
-            dir[0] * SPIKE_SPEED_PER_S,
-            dir[1] * SPIKE_SPEED_PER_S,
-            dir[2] * SPIKE_SPEED_PER_S,
-        ];
+        let velocity = apex_velocity(tilt_deg, heading_deg, SPIKE_SPEED_PER_S);
 
         self.spike_index = self.spike_index.wrapping_add(1);
         self.spikes.push(IceSpike {
@@ -314,9 +338,19 @@ impl FrostDiverEffect {
         });
     }
 
+    /// Frames over which all spikes are spawned. Cluster mode uses the
+    /// fixed `burst_over_frames`; trail mode scales with the spike count so
+    /// the projectile cadence (`trail_cadence_frames` per spike) is honoured.
+    fn spawn_window_frames(&self) -> f32 {
+        if self.trail_anchors.is_empty() {
+            self.params.burst_over_frames
+        } else {
+            self.params.trail_cadence_frames * self.spike_count as f32
+        }
+    }
+
     fn total_duration_s(&self) -> f32 {
-        (self.params.burst_over_frames + self.params.spike_duration_frames)
-            / FRAMES_PER_SECOND
+        (self.spawn_window_frames() + self.params.spike_duration_frames) / FRAMES_PER_SECOND
     }
 }
 
@@ -327,11 +361,15 @@ impl FrostDiverEffect {
 /// the caster, stopping once the remaining distance to the target is
 /// `≤ TRAIL_STOP_DISTANCE`. Each cursor position becomes one spike's
 /// XZ anchor; spike Y stays on the caster's ground plane (`from[1]`).
-fn derive_anchors(from: [f32; 3], to: [f32; 3]) -> ([f32; 3], Vec<[f32; 3]>) {
+fn derive_anchors(
+    from: [f32; 3],
+    to: [f32; 3],
+    initial_offset: f32,
+) -> ([f32; 3], Vec<[f32; 3]>) {
     let dx = to[0] - from[0];
     let dz = to[2] - from[2];
     let total_dist = (dx * dx + dz * dz).sqrt();
-    if total_dist <= TRAIL_INITIAL_OFFSET {
+    if total_dist <= initial_offset {
         // Caster and target are too close to draw a meaningful trail
         // (most likely a self-cast, the `from == to` collapse from the
         // single-point factory fallback, or a viewer stub call). Fall
@@ -343,9 +381,9 @@ fn derive_anchors(from: [f32; 3], to: [f32; 3]) -> ([f32; 3], Vec<[f32; 3]>) {
     let uz = dz / total_dist;
     let mut anchors = Vec::new();
     // Cursor: distance-remaining-to-target. Starts at
-    // `total_dist - TRAIL_INITIAL_OFFSET`, decreases by
-    // `TRAIL_STEP_PER_FRAME` each iteration.
-    let mut remaining = total_dist - TRAIL_INITIAL_OFFSET;
+    // `total_dist - initial_offset`, decreases by `TRAIL_STEP_PER_FRAME`
+    // each iteration.
+    let mut remaining = total_dist - initial_offset;
     while remaining > TRAIL_STOP_DISTANCE {
         let along = total_dist - remaining;
         anchors.push([from[0] + ux * along, from[1], from[2] + uz * along]);
@@ -362,9 +400,11 @@ impl Effect for FrostDiverEffect {
             spike.step(dt);
         }
 
-        // Staggered spawn — emit spikes evenly across `burst_over_frames`.
-        if self.params.burst_over_frames > 0.0 {
-            let burst_s = self.params.burst_over_frames / FRAMES_PER_SECOND;
+        // Staggered spawn — emit spikes evenly across the spawn window
+        // (fixed for cluster mode, cadence-scaled for trail mode).
+        let window_frames = self.spawn_window_frames();
+        if window_frames > 0.0 {
+            let burst_s = window_frames / FRAMES_PER_SECOND;
             let target_spawned =
                 ((self.age / burst_s) * self.spike_count as f32) as u32;
             let target = target_spawned.min(self.spike_count);
@@ -390,9 +430,9 @@ impl Effect for FrostDiverEffect {
                 height: spike.height,
                 tilt_x_deg: spike.tilt_x_deg,
                 rotation_y_deg: spike.rotation_y_deg,
-                texture: ICE_TEXTURE,
+                texture: self.params.texture,
                 color: [1.0, 1.0, 1.0, spike.alpha()],
-                blend: BlendKind::Additive,
+                blend: self.params.blend,
             });
         }
     }

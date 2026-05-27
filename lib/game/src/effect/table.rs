@@ -17,7 +17,7 @@ use super::effects::{
     ground_sample, gumgang2, hasteup, healsp, hit, hit2, hit5_6, magnum_break, napalmbeat,
     napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_pillar,
     ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond, status_up,
-    stormgust, teleportation, volcano, warp, waterball, wind, yufitelhit, yupitel,
+    stormgust, teleportation, volcano, warp, waterball, wind, yupitel,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -211,9 +211,9 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // Batch TEXTURE3D — world-fixed textured quads (single + crossed).
         // Each has a `str_aliases` entry that would otherwise shadow Custom
         // dispatch in `bucket_default`; pin them to Custom here.
-        EffectId::Yufitelhit => EffectSpec::Custom {
-            duration_ms: yufitelhit::TOTAL_DURATION_MS,
-        },
+        // (Yufitelhit is excluded: on screen it shows camera-facing
+        // billboards, not ground quads, so it falls through to its
+        // `ufidel_pang` STR animation instead.)
         EffectId::Blitzbeat => EffectSpec::Custom {
             duration_ms: blitzbeat::TOTAL_DURATION_MS,
         },
@@ -763,12 +763,12 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Cone => 2500,
         EffectId::Sphere => 5000,
         EffectId::Bowlingbash => 2500,
-        EffectId::Icewall => 2500,
+        EffectId::Icewall => 99990,
         EffectId::Gloria => 9990,
         EffectId::Magnificat => 9990,
         EffectId::Resurrection => 9990,
         EffectId::Recovery => 9990,
-        EffectId::Earthspike => 2500,
+        EffectId::Earthspike => 2000,
         EffectId::Spearbmr => 2500,
         EffectId::Pierce => 2500,
         EffectId::Turnundead => 2500,

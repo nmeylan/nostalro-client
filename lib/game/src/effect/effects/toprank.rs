@@ -1,9 +1,10 @@
 //! `EF_TOPRANK` — top-ranker indicator (id 159).
 //!
-//! Original game spawns a persistent 3D-texture LockOn128.tga quad
-//! over the actor, yawing 4.5°/frame around the world Y axis. Tint varies
-//! by rank tier (red / blue / green); the entity-attached spawn picks the
-//! tint outside the effect.
+//! A persistent
+//! `LockOn128.tga` quad over the actor laid flat on the ground
+//! plane, spinning 4.5°/frame around the world Y
+//! axis. Tint varies by rank tier (red / blue / green); the entity-attached
+//! spawn picks the tint outside the effect.
 
 use crate::effect::draw::{
     BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane,
@@ -45,7 +46,7 @@ impl Effect for ToprankEffect {
         out.push(EffectPrimitiveDraw::Texture3D {
             center: self.world_pos,
             size: [HALF_SIZE, HALF_SIZE],
-            plane: QuadPlane::VerticalYaw(yaw),
+            plane: QuadPlane::HorizontalYaw(yaw),
             uv: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
             texture: TOPRANK_TEXTURE,
             color: self.tint,
@@ -75,10 +76,10 @@ mod tests {
         e.collect_draws(&mut list, &render_ctx());
         let yaw_a = match &list.primitives[0] {
             EffectPrimitiveDraw::Texture3D {
-                plane: QuadPlane::VerticalYaw(y),
+                plane: QuadPlane::HorizontalYaw(y),
                 ..
             } => *y,
-            _ => panic!("expected Texture3D::VerticalYaw"),
+            _ => panic!("expected Texture3D::HorizontalYaw"),
         };
         assert_eq!(yaw_a, 0.0);
 
@@ -95,7 +96,7 @@ mod tests {
         e.collect_draws(&mut list, &render_ctx());
         let yaw_b = match &list.primitives[0] {
             EffectPrimitiveDraw::Texture3D {
-                plane: QuadPlane::VerticalYaw(y),
+                plane: QuadPlane::HorizontalYaw(y),
                 ..
             } => *y,
             _ => panic!("expected Texture3D::VerticalYaw"),

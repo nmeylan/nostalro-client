@@ -2,8 +2,8 @@
 //!
 //! A single textured quad rolled 90° onto the horizontal ground plane.
 //! party.tga quad, half-extents 4×4,
-//! tint `(50, 253, 50)`, alpha 1.0, additive blend. Persists until manually
-//! killed (`duration = 9999`).
+//! tint RGB `(50, 50, 253)` (blue), alpha 1.0, additive blend. Persists until
+//! manually killed.
 
 use crate::effect::draw::{
     BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane,
@@ -14,7 +14,7 @@ pub const PARTY_TEXTURE: &str = "party.tga";
 pub const TEXTURES: &[&str] = &[PARTY_TEXTURE];
 
 const HALF_SIZE: f32 = 4.0;
-const TINT: [f32; 4] = [50.0 / 255.0, 253.0 / 255.0, 50.0 / 255.0, 1.0];
+const TINT: [f32; 4] = [50.0 / 255.0, 50.0 / 255.0, 253.0 / 255.0, 1.0];
 
 pub struct PartyEffect {
     world_pos: [f32; 3],
