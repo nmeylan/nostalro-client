@@ -117,5 +117,11 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             | EffectId::Sonicblowhit
             | EffectId::Waterball
             | EffectId::Fireivy
+            | EffectId::Foot
+            | EffectId::Foot2
+            | EffectId::Foot3
+            | EffectId::Foot4
+            | EffectId::Foot5
+            | EffectId::Foot6
     )
 }

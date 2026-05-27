@@ -93,6 +93,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::grimtooth_atk::TEXTURES,
         effects::icewall::TEXTURES,
         effects::party::TEXTURES,
+        effects::foot::TEXTURES,
         effects::toprank::TEXTURES,
         effects::waterball::TEXTURES,
     ];

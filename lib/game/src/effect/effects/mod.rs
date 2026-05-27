@@ -36,6 +36,7 @@ pub mod firearrow;
 pub mod fireball;
 pub mod flasher;
 pub mod flowercast;
+pub mod foot;
 pub mod frost_diver;
 pub mod glasswall;
 pub mod ground_sample;

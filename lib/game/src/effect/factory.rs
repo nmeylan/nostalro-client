@@ -112,6 +112,31 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::flowercast::FlowerCastEffect::new(anchor.point()))
         }
 
+        // Footprint family — flat ground decals oriented along the
+        // caster→target direction, one struct parameterised by texture + size
+        // matching the original game's footprint decals. The trail's `from`
+        // is the footprint anchor, `to` gives the facing direction.
+        EffectId::Foot
+        | EffectId::Foot2
+        | EffectId::Foot3
+        | EffectId::Foot4
+        | EffectId::Foot5
+        | EffectId::Foot6 => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            let params = match id {
+                EffectId::Foot => effects::foot::FOOT,
+                EffectId::Foot2 => effects::foot::FOOT2,
+                EffectId::Foot3 => effects::foot::FOOT3,
+                EffectId::Foot4 => effects::foot::FOOT4,
+                EffectId::Foot5 => effects::foot::FOOT5,
+                _ => effects::foot::FOOT6,
+            };
+            Box::new(effects::foot::FootEffect::new(from, to, params))
+        }
+
         // Frost Diver — trail-shaped, unpacks both endpoints. Single-point
         // anchors (effect-viewer demo, any caller that doesn't know about
         // the trail) collapse to `from == to`, which the effect detects
