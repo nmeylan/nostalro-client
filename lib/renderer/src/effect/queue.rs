@@ -116,6 +116,9 @@ pub enum PipelineKind {
     /// Ring of upright tangent-aligned quads driven by a `RadialEmitterSlot`.
     /// Shares `effect_ground_disc.wgsl` with [`Self::WorldQuad`].
     RadialRing,
+    /// Camera-facing textured ribbon following a polyline / spline. World-space
+    /// vertices. Shares `effect_frustum.wgsl` with [`Self::Frustum`].
+    LineStrip,
     /// Camera-facing 2D billboard / sprite particle. *Screen-space*
     /// vertices (x,y in pixels, z in NDC). Dispatched through the sprite
     /// pipeline with the sprite-uniforms bind group at slot 0.

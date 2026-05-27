@@ -101,6 +101,17 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Napalmbeat => Box::new(effects::napalmbeat::NapalmBeatEffect::new(anchor.point())),
         EffectId::Sandwind => Box::new(effects::sandwind::SandwindEffect::new(anchor.point())),
 
+        // Batch FR — see `table.rs`. Flowercast3 is Noop (no factory arm).
+        EffectId::Heavensdrive => {
+            Box::new(effects::heavensdrive::HeavensDriveEffect::new(anchor.point()))
+        }
+        EffectId::Bottom => Box::new(effects::bottom_box::BottomBoxEffect::bottom(anchor.point())),
+        EffectId::Bottom2 => Box::new(effects::bottom_box::BottomBoxEffect::bottom2(anchor.point())),
+        EffectId::Cone => Box::new(effects::cone::ConeEffect::new(anchor.point())),
+        EffectId::Flowercast3 => {
+            Box::new(effects::flowercast::FlowerCastEffect::new(anchor.point()))
+        }
+
         // Frost Diver — trail-shaped, unpacks both endpoints. Single-point
         // anchors (effect-viewer demo, any caller that doesn't know about
         // the trail) collapse to `from == to`, which the effect detects
@@ -153,6 +164,34 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
                 EffectAnchor::Point(p) => (p, p),
             };
             Box::new(effects::soul_strike::SoulStrikeEffect::new(from, to, hit_count.unwrap_or(1)))
+        }
+        EffectId::Blooddrain => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::energy_drain::DrainEffect::new(from, to, effects::energy_drain::BLOOD_DRAIN))
+        }
+        EffectId::Energydrain => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::energy_drain::DrainEffect::new(from, to, effects::energy_drain::ENERGY_DRAIN))
+        }
+        EffectId::Energydrain2 => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::energy_drain::DrainEffect::new(from, to, effects::energy_drain::ENERGY_DRAIN2))
+        }
+        EffectId::Energydrain3 => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::energy_drain::DrainEffect::new(from, to, effects::energy_drain::ENERGY_DRAIN3))
         }
         EffectId::Magnumbreak => {
             Box::new(effects::magnum_break::MagnumBreakEffect::new(anchor.point()))

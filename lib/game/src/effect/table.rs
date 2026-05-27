@@ -11,10 +11,11 @@ use models::enums::effect_id::EffectId;
 
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effects::{
-    bash, bash3d, begin_spell, blessing, blitzbeat, bottom_sanctuary_pillar, bowling_bash, callzone,
-    cartrevolution, cast_circle, curseattack, defender, detecting, endure, enhance, entry,
-    exit as exit_effect, fireivy, firearrow, fireball, flasher, frost_diver, glasswall,
-    ground_sample, gumgang2, hasteup, healsp, hit, hit2, hit5_6, magnum_break, napalmbeat,
+    bash, bash3d, begin_spell, blessing, blitzbeat, bottom_box, bottom_sanctuary_pillar,
+    bowling_bash, callzone, cartrevolution, cast_circle, cone, curseattack, defender, detecting,
+    endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
+    frost_diver, glasswall, ground_sample, gumgang2, hasteup, healsp, heavensdrive, hit, hit2, hit5_6,
+    magnum_break, napalmbeat,
     napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_pillar,
     ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond, status_up,
     stormgust, teleportation, volcano, warp, waterball, wind, yupitel,
@@ -204,6 +205,18 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Soulstrike => EffectSpec::Custom {
             duration_ms: soul_strike::TOTAL_DURATION_MS,
         },
+        EffectId::Blooddrain => EffectSpec::Custom {
+            duration_ms: energy_drain::BLOOD_DRAIN.total_duration_ms(),
+        },
+        EffectId::Energydrain => EffectSpec::Custom {
+            duration_ms: energy_drain::ENERGY_DRAIN.total_duration_ms(),
+        },
+        EffectId::Energydrain2 => EffectSpec::Custom {
+            duration_ms: energy_drain::ENERGY_DRAIN2.total_duration_ms(),
+        },
+        EffectId::Energydrain3 => EffectSpec::Custom {
+            duration_ms: energy_drain::ENERGY_DRAIN3.total_duration_ms(),
+        },
         EffectId::Yufitel => EffectSpec::Custom {
             duration_ms: yupitel::TOTAL_DURATION_MS,
         },
@@ -240,6 +253,30 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
         EffectId::Sandwind => EffectSpec::Custom {
             duration_ms: sandwind::TOTAL_DURATION_MS,
+        },
+
+        // Batch FR — originally mis-labelled "Frustum" in the classification
+        // doc; none use a frustum. Verified against the original client:
+        //   * HeavensDrive — 5×5 stone-blade grid,
+        //   * Bottom / Bottom2 — 3D-texture 4-wall boxes (Texture3D),
+        //   * Cone — spiralling orbit particle,
+        //   * Flowercast3 — the `FlowerCasting` (ring_blue.tga) cast goblet;
+        //     its dispatch is commented out in the original but the gif shows
+        //     the intended uniformly-expanding blue flame frustum, rendered
+        //     here via `flowercast`.
+        // All five custom ids have a `str_aliases` entry that would otherwise
+        // shadow Custom dispatch in `bucket_default`; pin them to Custom here.
+        EffectId::Heavensdrive => EffectSpec::Custom {
+            duration_ms: heavensdrive::TOTAL_DURATION_MS,
+        },
+        EffectId::Bottom | EffectId::Bottom2 => EffectSpec::Custom {
+            duration_ms: bottom_box::TOTAL_DURATION_MS,
+        },
+        EffectId::Cone => EffectSpec::Custom {
+            duration_ms: cone::TOTAL_DURATION_MS,
+        },
+        EffectId::Flowercast3 => EffectSpec::Custom {
+            duration_ms: flowercast::TOTAL_DURATION_MS,
         },
 
         // Frost Diver family — QuadHorn ice spikes. FrostDiver2 is the
@@ -658,6 +695,23 @@ mod tests {
             effect_spec(EffectId::Warp),
             Some(EffectSpec::Custom { .. })
         ));
+    }
+
+    #[test]
+    fn batch_fr_routes_to_custom() {
+        // All five get explicit Custom arms that win over their STR aliases.
+        for id in [
+            EffectId::Cone,
+            EffectId::Bottom,
+            EffectId::Bottom2,
+            EffectId::Heavensdrive,
+            EffectId::Flowercast3,
+        ] {
+            assert!(
+                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                "{id:?} should be Custom",
+            );
+        }
     }
 
     #[test]

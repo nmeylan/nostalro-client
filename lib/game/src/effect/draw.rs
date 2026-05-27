@@ -355,18 +355,27 @@ pub enum EffectPrimitiveDraw {
         blend: BlendKind,
     },
     /// Connected line strip (Grand Cross beams, Spear Boomerang trail).
+    ///
+    /// Rendered as a camera-facing ribbon: each path point becomes a pair of
+    /// vertices offset by `±half_width` perpendicular to the path and the view
+    /// direction. `uv_along` scales how fast the V coordinate accumulates with
+    /// path length.
     LineStrip {
         points: Vec<[f32; 3]>,
         uv_along: f32,
+        half_width: f32,
         texture: &'static str,
         color: [f32; 4],
         blend: BlendKind,
     },
     /// Bezier/Catmull-Rom curve, CPU-tessellated into a line strip
-    /// (Soul Strike, Napalm Beat).
+    /// (Soul Strike, Napalm Beat). `segments` is the number of line segments
+    /// the curve is split into; the resulting polyline is rendered as a
+    /// `half_width` ribbon exactly like [`Self::LineStrip`].
     Spline {
         control_points: Vec<[f32; 3]>,
         segments: u32,
+        half_width: f32,
         texture: &'static str,
         color: [f32; 4],
         blend: BlendKind,

@@ -39,7 +39,7 @@ pub use effect::{
     BlendBucket, BlendKind, DrawRecord, EffectDispatcher, PipelineKind, StrEffectCache,
     StrEffectEntry, StrEmitterInput, build_str_effect_batches, d3d_blend_to_wgpu,
     prepare_billboard_records, prepare_cylinder_records, prepare_frustum_records, prepare_radial_ring_records,
-    prepare_ground_disc_records, prepare_quad_horn_records, prepare_sphere_records,
+    prepare_ground_disc_records, prepare_line_strip_records, prepare_quad_horn_records, prepare_sphere_records,
     prepare_texture3d_records, prepare_world_quad_records,
 };
 pub use texture::TextureCache;
@@ -114,6 +114,7 @@ pub struct Renderer {
     pub effect_world_quad_renderer: effect::WorldQuadRenderer,
     pub effect_texture3d_renderer: effect::Texture3DRenderer,
     pub effect_radial_ring_renderer: effect::RadialRingRenderer,
+    pub effect_line_strip_renderer: effect::LineStripRenderer,
     /// Owns the per-frame unified vertex / index buffer for the effect
     /// dispatch path; pipelines themselves live on the per-primitive
     /// renderer structs above.
@@ -236,6 +237,12 @@ impl Renderer {
             &global_uniforms.bind_group_layout,
             &texture_cache.bind_group_layout,
         );
+        let effect_line_strip_renderer = effect::LineStripRenderer::new(
+            &device.device,
+            device.surface_format,
+            &global_uniforms.bind_group_layout,
+            &texture_cache.bind_group_layout,
+        );
         let effect_dispatcher = effect::EffectDispatcher::new(&device.device);
 
         let ui_renderer = UiRenderer::new(
@@ -266,6 +273,7 @@ impl Renderer {
             effect_world_quad_renderer,
             effect_texture3d_renderer,
             effect_radial_ring_renderer,
+            effect_line_strip_renderer,
             effect_dispatcher,
             ui_renderer,
             font_atlas,
@@ -746,6 +754,12 @@ impl Renderer {
             &self.white_bind_group,
             texture_lookup,
         ));
+        records.extend(prepare_line_strip_records(
+            effect_draws,
+            &self.camera,
+            &self.white_bind_group,
+            texture_lookup,
+        ));
         // SpriteParticle records reference textures inside their respective
         // EffectSpriteCache entries (`&sprite.textures.bind_groups[i]`), which
         // the renderer doesn't own. Callers that want SpriteParticle
@@ -771,6 +785,7 @@ impl Renderer {
                 &self.effect_world_quad_renderer,
                 &self.effect_texture3d_renderer,
                 &self.effect_radial_ring_renderer,
+                &self.effect_line_strip_renderer,
             );
         }
 

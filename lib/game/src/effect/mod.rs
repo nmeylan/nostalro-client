@@ -86,6 +86,9 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::curseattack::TEXTURES,
         effects::detecting::TEXTURES,
         effects::earthspike::TEXTURES,
+        effects::heavensdrive::TEXTURES,
+        effects::bottom_box::TEXTURES,
+        effects::flowercast::TEXTURES,
         effects::fireivy::TEXTURES,
         effects::grimtooth_atk::TEXTURES,
         effects::icewall::TEXTURES,
@@ -118,8 +121,10 @@ pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
         effects::firearrow::SPRITES,
         effects::fireball::SPRITES,
         effects::soul_strike::SPRITES,
+        effects::energy_drain::SPRITES,
         effects::healsp::SPRITES,
         effects::blessing::SPRITES,
+        effects::cone::SPRITES,
     ];
     for list in sprite_lists {
         for path in *list {
