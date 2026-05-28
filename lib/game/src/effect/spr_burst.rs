@@ -45,6 +45,10 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
                 alpha_keyframes: &[],
             },
         )),
+        // Dragonsmoke is implemented as a Custom trail effect
+        // (`effects/dragonsmoke.rs`) — it needs the caster→target trail
+        // to lean the smoke column along the wind direction, which a
+        // SprBurst entry can't express.
         // EnchantPoison: every 5 frames a single
         // particle on a flat disc around the master (radius rand(6)+2,
         // size 0.4..0.9, particle3.spr). The original recipe is shared by

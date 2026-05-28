@@ -170,6 +170,11 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::particle_up::ParticleUpEffect::new(anchor.point(), effects::particle_up::SPRINKLESAND))
         }
 
+        // EffectTextureSet flat ground-texture effects.
+        EffectId::Hittexture => {
+            Box::new(effects::effect_texture::EffectTextureEffect::new(anchor.point(), effects::effect_texture::HITTEXTURE))
+        }
+
         // Frost Diver — trail-shaped, unpacks both endpoints. Single-point
         // anchors (effect-viewer demo, any caller that doesn't know about
         // the trail) collapse to `from == to`, which the effect detects
@@ -729,7 +734,25 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
 
         // Batch GD — GroundDisc decals.
         EffectId::Bowlingbash => {
-            Box::new(effects::bowling_bash::BowlingBashEffect::new(anchor.point()))
+            // Trail anchor's `to` aims the two swept cylinder slashes
+            // along the caster→target direction. Single-point anchors
+            // collapse to `from == to` and the slashes fall back to a
+            // default facing.
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::bowling_bash::BowlingBashEffect::new_with_direction(from, to))
+        }
+        EffectId::Dragonsmoke => {
+            // Trail anchor: `from` is the chimney source, `to - from`
+            // sets the wind direction so the smoke column curves.
+            // Single-point anchors collapse to a vertical rise.
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::dragonsmoke::DragonsmokeEffect::new(from, to))
         }
         EffectId::Overthrust | EffectId::Sonicblow => {
             Box::new(effects::overthrust::OverthrustEffect::new(anchor.point()))

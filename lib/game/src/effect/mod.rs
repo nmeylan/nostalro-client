@@ -96,6 +96,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::foot::TEXTURES,
         effects::teihit::TEXTURES,
         effects::particle_up::TEXTURES,
+        effects::effect_texture::TEXTURES,
         effects::toprank::TEXTURES,
         effects::waterball::TEXTURES,
     ];
@@ -128,6 +129,7 @@ pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
         effects::healsp::SPRITES,
         effects::blessing::SPRITES,
         effects::cone::SPRITES,
+        effects::dragonsmoke::SPRITES,
     ];
     for list in sprite_lists {
         for path in *list {

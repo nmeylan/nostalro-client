@@ -87,7 +87,13 @@ pub fn spr_def(id: EffectId) -> Option<SprDef> {
             .with_anim_speed(2.0)
             .one_shot(),
         EffectId::Blessing => SprDef::new("data/sprite/이팩트/축복").one_shot(),
-        EffectId::Demonstration => SprDef::new("data/sprite/이팩트/데몬스트레이션").one_shot(),
+        // Demonstration: the .act motion (action 0, 16 frames) loops over
+        // the master duration. Size 1.2, alpha 200/255, y-offset -1.0,
+        // anim speed 4 (the default), matching the original game's
+        // on-screen look.
+        EffectId::Demonstration => SprDef::new("data/sprite/이팩트/데몬스트레이션")
+            .with_size(1.2)
+            .with_pos_y(-1.0),
         EffectId::NpcStop => SprDef::new("data/sprite/이팩트/스톱"),
         // Hamicastle: original game's `Effect_SPR(0)` sets anim speed = 2,
         // no anim repeat, uses original vertex color. The sprite path is the
@@ -116,14 +122,14 @@ pub fn spr_def(id: EffectId) -> Option<SprDef> {
         EffectId::PokLove => SprDef::new("data/sprite/이팩트/폭죽_러브").one_shot(),
         EffectId::PokBirth => SprDef::new("data/sprite/이팩트/폭죽_생일").one_shot(),
         EffectId::PokChristmas => SprDef::new("data/sprite/이팩트/폭죽_크리스마스").one_shot(),
-        // Dragonsmoke: original game `DragonSmoke()` never calls SetAnimSpeed so the
-        // Constructor default (4) sticks. Size 1.5.
-        // Tilt/drift aren't reproduced (renderer is axis-aligned), so the
-        // puff appears static — acceptable.
-        EffectId::Dragonsmoke => SprDef::new("data/sprite/이팩트/굴뚝연기").with_size(1.5),
-        // PoisonHit: use-org-argb, size=1.5, anim speed=2,
-        // no anim repeat. Without it the .act loops and
-        // re-renders the impact instead of holding the final smoke puffs.
+        // Dragonsmoke is routed through `spr_burst_params` because it
+        // drifts upward with a per-frame yaw spin and fades out at 2/3 of
+        // its lifetime — none of which a static `SprDef` reproduces. See
+        // `spr_burst.rs::spr_burst_params`.
+        //
+        // PoisonHit: size 1.5, anim speed 2, plays once. Without one-shot
+        // the .act loops and re-renders the impact instead of holding the
+        // final smoke puffs.
         EffectId::Poisonhit => SprDef::new("data/sprite/이팩트/poisonhit")
             .with_size(1.5)
             .with_anim_speed(2.0)
@@ -137,14 +143,12 @@ pub fn spr_def(id: EffectId) -> Option<SprDef> {
             .with_size(0.8)
             .with_anim_speed(1.0)
             .with_tint([1.0, 0.0, 0.0, 1.0]),
-        // Thunderstorm2: use-original-argb tint, size 2.5, anim speed 2,
-        // looping for the full master duration. The original game
-        // overlays this on the standard thunder_storm STR, but the
-        // master switch routes by id so the SPR-only branch covers the
-        // gun-skill variant the server emits.
-        EffectId::Thunderstorm2 => SprDef::new("data/sprite/이팩트/thunder_storm")
-            .with_size(2.5)
-            .with_anim_speed(2.0),
+        // Thunderstorm2: its dedicated thunder-storm sprite is a
+        // renewal-era addition not present in the classic GRF. We route
+        // this id to the `thunderstorm` STR file instead (see
+        // `str_aliases.rs`) and leave SPR routing out for this id, since
+        // there is no classic sprite to point at.
+
         _ => return None,
     })
 }

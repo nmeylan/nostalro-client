@@ -13,7 +13,7 @@ use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effects::{
     bash, bash3d, begin_spell, blessing, blitzbeat, bottom_box, bottom_sanctuary_pillar,
     bowling_bash, callzone, cartrevolution, cast_circle, cone, curseattack, defender, detecting,
-    endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
+    dragonsmoke, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
     frost_diver, glasswall, ground_sample, gumgang2, hasteup, healsp, heavensdrive, hit, hit2, hit5_6,
     magnum_break, napalmbeat,
     napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_pillar,
@@ -417,10 +417,18 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
 
         // Batch GD — GroundDisc decals.
-        // Bowling Bash ships only the ground impact ring portion; the
-        // swept-attack cylinder waits on the Cylinder renderer.
+        // Bowling Bash: ground impact ring + two swept cylinder slashes
+        // (the slashes' yaw follows the caster→target trail anchor).
         EffectId::Bowlingbash => EffectSpec::Custom {
             duration_ms: bowling_bash::TOTAL_DURATION_MS,
+        },
+
+        // Dragonsmoke is a trail-shaped Custom effect: the trail anchor
+        // sets the chimney source position (`from`) and the wind drift
+        // direction (`to`), so the smoke column curves from rising
+        // straight up at the source toward leaning along the wind.
+        EffectId::Dragonsmoke => EffectSpec::Custom {
+            duration_ms: dragonsmoke::TOTAL_DURATION_MS,
         },
         EffectId::Overthrust => EffectSpec::Custom {
             duration_ms: overthrust::TOTAL_DURATION_MS,
@@ -637,24 +645,52 @@ mod tests {
     }
 
     #[test]
+    fn demonstration_loops_with_size_and_y_offset() {
+        // Demonstration loops its 16-frame action, so the sprite must keep
+        // cycling. Size 1.2, y-offset -1.0, matching the original game's
+        // look.
+        let Some(EffectSpec::Spr {
+            sprite,
+            size_scale,
+            repeat,
+            pos_y,
+            ..
+        }) = effect_spec(EffectId::Demonstration)
+        else {
+            panic!("Demonstration should resolve to EffectSpec::Spr");
+        };
+        assert_eq!(sprite, "data/sprite/이팩트/데몬스트레이션");
+        assert!((size_scale - 1.2).abs() < 1e-6);
+        assert!(repeat, "MT_LOOP means the action keeps cycling");
+        assert_eq!(pos_y, -1.0);
+    }
+
+    #[test]
+    fn dragonsmoke_resolves_to_custom_trail_effect() {
+        // SprBurst can't express the per-puff curving path Dragon Smoke
+        // shows on screen, so the id ships as a Custom
+        // trail effect implemented in `effects/dragonsmoke.rs`.
+        let Some(EffectSpec::Custom { duration_ms }) = effect_spec(EffectId::Dragonsmoke) else {
+            panic!("Dragonsmoke should resolve to EffectSpec::Custom");
+        };
+        assert_eq!(duration_ms, u32::MAX, "ambient loop, persists for the map's lifetime");
+    }
+
+    #[test]
     fn batch2_billboards_route_to_spr_burst_variants() {
         // Sociable test covering the Batch 2 routing wiring: three ids
         // that used to fall through to the Custom placeholder now have
         // real spec entries.
-        // Thunderstorm2: single SPR billboard (size 2.5, animSpeed 2).
-        let Some(EffectSpec::Spr {
-            sprite,
-            size_scale,
-            anim_speed,
-            duration_ms,
-            ..
-        }) = effect_spec(EffectId::Thunderstorm2)
+        // Thunderstorm2: both the original C++ SPR
+        // (`misc\thunder_storm.spr`) and the JS reference's `setsudan`
+        // STR are absent from the classic GRF. Fall back to the
+        // classic `thunderstorm` STR so the actor sees something.
+        let Some(EffectSpec::Str { file, duration_ms }) =
+            effect_spec(EffectId::Thunderstorm2)
         else {
-            panic!("Thunderstorm2 should resolve to EffectSpec::Spr");
+            panic!("Thunderstorm2 should resolve to EffectSpec::Str");
         };
-        assert_eq!(sprite, "data/sprite/이팩트/thunder_storm");
-        assert!((size_scale - 2.5).abs() < 1e-6);
-        assert_eq!(anim_speed, 2.0);
+        assert_eq!(file, "thunderstorm");
         assert_eq!(duration_ms, 3333);
 
         // Slowpoison: periodic SprBurst with negative speed_range
