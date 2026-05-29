@@ -37,6 +37,21 @@ pub const OPTION_RIDING: i32 = 0x20;
 pub const OPTION_CART_MASK: i32 = 0x08 | 0x80 | 0x100 | 0x200 | 0x400;
 pub const OPTION_REMOVABLE_MASK: i32 = OPTION_FALCON | OPTION_RIDING | OPTION_CART_MASK;
 
+pub const OPTION_HIDE: i32 = 0x02;
+pub const OPTION_CLOAK: i32 = 0x04;
+pub const OPTION_CHASEWALK: i32 = 0x4000;
+pub const OPTION_HIDDEN_MASK: i32 = OPTION_HIDE | OPTION_CLOAK | OPTION_CHASEWALK;
+
+/// Body opacity for a hiding/cloaking actor — 135/255 as the original game
+/// shows it. The sprite stays visible but translucent (and drops its
+/// shadow) for the local player / detectors; others aren't sent the unit.
+pub const HIDDEN_BODY_ALPHA: f32 = 135.0 / 255.0;
+
+/// `true` while `effect_state` carries Hide, Cloak, or Chase Walk.
+pub fn is_hidden(effect_state: i32) -> bool {
+    (effect_state & OPTION_HIDDEN_MASK) != 0
+}
+
 pub fn mounted_job(job: u16) -> Option<u16> {
     match job {
         7 => Some(13),
@@ -399,6 +414,16 @@ mod tests {
             body_sprite_path(9999, 1),
             "data/sprite/인간족/몸통/남/초보자_남"
         );
+    }
+
+    #[test]
+    fn hidden_detects_hide_cloak_and_chasewalk() {
+        assert!(is_hidden(OPTION_HIDE));
+        assert!(is_hidden(OPTION_CLOAK));
+        assert!(is_hidden(OPTION_CHASEWALK));
+        assert!(is_hidden(OPTION_RIDING | OPTION_CLOAK), "set among other options");
+        assert!(!is_hidden(0));
+        assert!(!is_hidden(OPTION_RIDING), "mount alone is not hidden");
     }
 
     #[test]
