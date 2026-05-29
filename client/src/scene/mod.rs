@@ -47,6 +47,18 @@ impl App {
                         let alpha = entity.alpha();
                         let is_fading = alpha < 1.0;
 
+                        // Body shake (the quake body variant): jitter the actor sprite (not
+                        // the shadow) by any attached quake effect's per-frame
+                        // offset. Body tint: Two-Hand Quicken's
+                        // yellow, Quakebody4's red flash, etc. — multiply the
+                        // sprite's vertex colour.
+                        let body_shake = self.effect_holder.body_shake_for_entity(entry.id);
+                        let body_tint = self.effect_holder.body_tint_for_entity(entry.id);
+                        let body_anchor = [
+                            entry.screen_anchor[0] + body_shake[0],
+                            entry.screen_anchor[1] + body_shake[1],
+                        ];
+
                         if !is_fading {
                             let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
                             let mut shadow = sprite.build_shadow_batches(
@@ -68,7 +80,7 @@ impl App {
                             &entity.animation,
                             Some(entry.camera_dir),
                             entity.head_dir,
-                            entry.screen_anchor,
+                            body_anchor,
                             entry.depth,
                             entry.sprite_scale,
                             0.0,
@@ -77,6 +89,17 @@ impl App {
                             for batch in &mut batches {
                                 for vertex in &mut batch.vertices {
                                     vertex.color[3] *= alpha;
+                                }
+                            }
+                        }
+                        if let Some([tr, tg, tb]) = body_tint {
+                            let (tr, tg, tb) =
+                                (tr as f32 / 255.0, tg as f32 / 255.0, tb as f32 / 255.0);
+                            for batch in &mut batches {
+                                for vertex in &mut batch.vertices {
+                                    vertex.color[0] *= tr;
+                                    vertex.color[1] *= tg;
+                                    vertex.color[2] *= tb;
                                 }
                             }
                         }

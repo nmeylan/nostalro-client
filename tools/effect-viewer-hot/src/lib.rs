@@ -952,6 +952,41 @@ pub unsafe extern "C" fn hot_collect_custom_draws(
     effect.collect_draws(out, &ctx);
 }
 
+/// FFI mirror of `ragnarok_game::effect::CameraShake` (must match the host).
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct CameraShakeFfi {
+    pub amplitude: f32,
+    pub duration_ms: u32,
+}
+
+/// Drain a one-shot camera-shake request from a registered effect. Returns 1
+/// and fills `out` when the effect fired a shake this frame, 0 otherwise.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_take_camera_shake(
+    state_ptr: *mut (),
+    handle: u64,
+    out: *mut CameraShakeFfi,
+) -> u8 {
+    let state = unsafe { &*(state_ptr as *const State) };
+    let mut effects = state.effects.lock().unwrap();
+    let Some(effect) = effects.get_mut(&handle) else {
+        return 0;
+    };
+    match effect.take_camera_shake() {
+        Some(s) => {
+            unsafe {
+                *out = CameraShakeFfi {
+                    amplitude: s.amplitude,
+                    duration_ms: s.duration_ms,
+                };
+            }
+            1
+        }
+        None => 0,
+    }
+}
+
 /// Drop a single effect by handle.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hot_drop_custom_effect(state_ptr: *mut (), handle: u64) {

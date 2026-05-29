@@ -179,6 +179,17 @@ type HotCollectCustomDrawsFn =
     unsafe extern "C" fn(*mut (), u64, *const EffectRenderCtxFfi, *mut EffectDrawList);
 type HotDropCustomEffectFn = unsafe extern "C" fn(*mut (), u64);
 type HotDropAllCustomEffectsFn = unsafe extern "C" fn(*mut ());
+/// Drains a one-shot camera-shake from a cdylib effect. Returns 1 and fills
+/// `out` when present, 0 otherwise.
+type HotTakeCameraShakeFn = unsafe extern "C" fn(*mut (), u64, *mut CameraShakeFfi) -> u8;
+
+/// FFI mirror of `ragnarok_game::effect::CameraShake`. Must match the cdylib.
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct CameraShakeFfi {
+    pub amplitude: f32,
+    pub duration_ms: u32,
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -243,6 +254,7 @@ struct HotLib {
     collect_custom_draws_fn: HotCollectCustomDrawsFn,
     drop_custom_effect_fn: HotDropCustomEffectFn,
     drop_all_custom_effects_fn: HotDropAllCustomEffectsFn,
+    take_camera_shake_fn: HotTakeCameraShakeFn,
 }
 
 /// `ExternalCustomBackend` impl wired to a loaded `HotLib`. The Arc'd
@@ -257,6 +269,7 @@ struct HotLibEffectBackend {
     collect_fn: HotCollectCustomDrawsFn,
     drop_fn: HotDropCustomEffectFn,
     drop_all_fn: HotDropAllCustomEffectsFn,
+    take_camera_shake_fn: HotTakeCameraShakeFn,
     /// Tracks the `EffectId` each live cdylib handle was spawned with so
     /// `str_overlay` can be answered without FFI. `str_overlay` is a static
     /// property of the effect type — the in-process factory returns the same
@@ -327,6 +340,16 @@ impl ExternalCustomBackend for HotLibEffectBackend {
         probe.str_overlay().map(|s| s.to_string())
     }
 
+    fn take_camera_shake(&self, handle: u64) -> Option<ragnarok_game::effect::CameraShake> {
+        let mut out = CameraShakeFfi::default();
+        let present =
+            unsafe { (self.take_camera_shake_fn)(self.state, handle, &mut out as *mut _) };
+        (present != 0).then_some(ragnarok_game::effect::CameraShake {
+            amplitude: out.amplitude,
+            duration_ms: out.duration_ms,
+        })
+    }
+
     fn drop_handle(&self, handle: u64) {
         self.handle_ids.lock().unwrap().remove(&handle);
         unsafe { (self.drop_fn)(self.state, handle) };
@@ -391,6 +414,9 @@ impl HotLib {
             let drop_all_custom_effects_fn = *lib
                 .get::<HotDropAllCustomEffectsFn>(b"hot_drop_all_custom_effects")
                 .ok()?;
+            let take_camera_shake_fn = *lib
+                .get::<HotTakeCameraShakeFn>(b"hot_take_camera_shake")
+                .ok()?;
             let state = (create_fn)();
             Some(Self {
                 lib: Arc::new(lib),
@@ -415,6 +441,7 @@ impl HotLib {
                 collect_custom_draws_fn,
                 drop_custom_effect_fn,
                 drop_all_custom_effects_fn,
+                take_camera_shake_fn,
             })
         }
     }
@@ -432,6 +459,7 @@ impl HotLib {
             collect_fn: self.collect_custom_draws_fn,
             drop_fn: self.drop_custom_effect_fn,
             drop_all_fn: self.drop_all_custom_effects_fn,
+            take_camera_shake_fn: self.take_camera_shake_fn,
             handle_ids: std::sync::Mutex::new(std::collections::HashMap::new()),
         })
     }
@@ -1192,6 +1220,10 @@ impl App {
             delta: scaled_dt,
             camera_target,
         });
+        // Apply any active screen-shake from quake effects to the camera.
+        if let Some(r) = self.renderer.as_mut() {
+            r.camera.shake_offset = self.effect_holder.camera_shake_offset().into();
+        }
 
         let status_code = self
             .effect_holder

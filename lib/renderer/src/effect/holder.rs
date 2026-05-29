@@ -9,12 +9,13 @@
 
 use std::sync::Arc;
 
+use models::enums::EnumWithNumberValue;
 use models::enums::effect_id::EffectId;
 use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
-    AlphaKeyframe, Attach, Effect as GameEffect, EffectDrawList, EffectQueue, EffectRenderCtx,
-    EffectSpec, EffectStatus, EffectUpdateCtx, SpawnRequest, SprBurstParams, effect_spec,
-    make_effect,
+    AlphaKeyframe, Attach, CameraShake, Effect as GameEffect, EffectDrawList, EffectQueue,
+    EffectRenderCtx, EffectSpec, EffectStatus, EffectUpdateCtx, SpawnRequest, SprBurstParams,
+    effect_spec, make_effect, spawn_camera_shake,
 };
 
 use crate::effect_sprite::Smoke3DParticle;
@@ -37,8 +38,62 @@ pub trait ExternalCustomBackend: Send + Sync {
     fn str_overlay(&self, _handle: u64) -> Option<String> {
         None
     }
+    /// One-shot screen-shake request from this effect instance, if any.
+    /// Default `None`; hot-reload backends probe their cdylib.
+    fn take_camera_shake(&self, _handle: u64) -> Option<CameraShake> {
+        None
+    }
     fn drop_handle(&self, handle: u64);
     fn drop_all(&self);
+}
+
+/// Decaying screen-shake state owned by the holder. Effects fire a one-shot
+/// [`CameraShake`]; this integrates the per-frame jittered offset that the
+/// camera applies, so the whole view trembles and settles.
+#[derive(Default)]
+struct ShakeController {
+    amplitude: f32,
+    elapsed: f32,
+    duration: f32,
+}
+
+impl ShakeController {
+    fn trigger(&mut self, shake: CameraShake) {
+        let remaining = if self.duration > 0.0 {
+            self.amplitude * (1.0 - (self.elapsed / self.duration).clamp(0.0, 1.0))
+        } else {
+            0.0
+        };
+        // A fresh shake dominates but never weakens an ongoing stronger one.
+        self.amplitude = shake.amplitude.max(remaining);
+        self.duration = (shake.duration_ms as f32 / 1000.0).max(1e-3);
+        self.elapsed = 0.0;
+    }
+
+    fn tick(&mut self, dt: f32) {
+        if self.duration > 0.0 {
+            self.elapsed += dt;
+        }
+    }
+
+    fn offset(&self) -> glam::Vec3 {
+        if self.duration <= 0.0 || self.elapsed >= self.duration {
+            return glam::Vec3::ZERO;
+        }
+        let amp = self.amplitude * (1.0 - self.elapsed / self.duration);
+        // Stepped on the 60 fps frame so the shudder is jittery, not smooth.
+        let frame = (self.elapsed * 60.0) as u32;
+        let j = |salt: u32| {
+            let x = frame
+                .wrapping_mul(2_654_435_761)
+                .wrapping_add(salt.wrapping_mul(40_503))
+                .wrapping_add(0x9E37_79B9);
+            let x = x ^ (x >> 15);
+            ((x % 100_000) as f32 / 100_000.0) * 2.0 - 1.0
+        };
+        // Vertical shudder is gentler than the horizontal sway.
+        glam::Vec3::new(j(1) * amp, j(2) * amp * 0.5, j(3) * amp)
+    }
 }
 
 /// Owned snapshot of a live STR effect - handed to `build_str_effect_batches`
@@ -182,6 +237,7 @@ pub struct EffectHolder {
     /// instead of the statically-linked `make_effect`. Tooling owns the
     /// concrete implementation; production code leaves it `None`.
     external_backend: Option<Arc<dyn ExternalCustomBackend>>,
+    shake: ShakeController,
 }
 
 impl EffectHolder {
@@ -226,6 +282,13 @@ impl EffectHolder {
         if matches!(spec, EffectSpec::Noop) {
             self.last_spawn = Some(SpawnOutcome::Noop);
             return None;
+        }
+        // Effects whose original behaviour is a sustained screen quake fire a
+        // one-shot shake at spawn (alongside whatever STR/SPR they also play),
+        // independent of the per-frame `take_camera_shake` path used by Custom
+        // effects like Aciddemon.
+        if let Some(shake) = spawn_camera_shake(effect_id) {
+            self.shake.trigger(shake);
         }
         let payload = match &spec {
             EffectSpec::Str { file, .. } => {
@@ -273,7 +336,13 @@ impl EffectHolder {
                         Attach::Trail { from, to } => (from, to),
                         Attach::Entity(_) | Attach::Projectile { .. } => ([0.0; 3], [0.0; 3]),
                     };
-                    let handle = backend.spawn(effect_id as u16, from, to, hit_count.unwrap_or(0));
+                    // The cdylib decodes this with `EffectId::try_from_value`,
+                    // so send the enum's *value* — not the Rust discriminant
+                    // (`as u16`), which diverges from the value past the first
+                    // gap in EF numbering (e.g. TextureFalling: discriminant
+                    // 734 vs value 1031).
+                    let handle =
+                        backend.spawn(effect_id.value() as u16, from, to, hit_count.unwrap_or(0));
                     if handle != 0 {
                         self.last_spawn = Some(SpawnOutcome::Custom);
                         HeldPayload::CustomExternal { handle }
@@ -412,14 +481,27 @@ impl EffectHolder {
     pub fn update(&mut self, ctx: &EffectUpdateCtx) {
         let dt = ctx.delta;
         let backend = self.external_backend.clone();
+        let mut shake_requests: Vec<CameraShake> = Vec::new();
         self.effects.retain_mut(|e| {
             e.age += dt;
             let expired = e.age >= e.duration;
             let alive = match &mut e.payload {
-                HeldPayload::Custom(c) => c.update(ctx) == EffectStatus::Running,
+                HeldPayload::Custom(c) => {
+                    let running = c.update(ctx) == EffectStatus::Running;
+                    if let Some(s) = c.take_camera_shake() {
+                        shake_requests.push(s);
+                    }
+                    running
+                }
                 HeldPayload::CustomExternal { handle } => backend
                     .as_ref()
-                    .map(|b| b.update(*handle, dt))
+                    .map(|b| {
+                        let running = b.update(*handle, dt);
+                        if let Some(s) = b.take_camera_shake(*handle) {
+                            shake_requests.push(s);
+                        }
+                        running
+                    })
                     .unwrap_or(false),
                 HeldPayload::Str { .. } => true,
                 HeldPayload::Spr { .. } => true,
@@ -438,6 +520,50 @@ impl EffectHolder {
             }
             true
         });
+        for s in shake_requests {
+            self.shake.trigger(s);
+        }
+        self.shake.tick(dt);
+    }
+
+    /// Current screen-shake displacement to apply to the camera this frame
+    /// (zero when no shake is active). Set `Camera::shake_offset` from this.
+    pub fn camera_shake_offset(&self) -> [f32; 3] {
+        self.shake.offset().to_array()
+    }
+
+    /// Sum of per-frame body-shake offsets (screen pixels) from effects
+    /// attached to `entity_id` (the original game's quake body). The actor
+    /// pass adds this to the entity's screen anchor. Only in-process `Custom`
+    /// effects participate — the hot-reload backend has no attached actor.
+    pub fn body_shake_for_entity(&self, entity_id: u32) -> [f32; 2] {
+        let mut acc = [0.0, 0.0];
+        for e in &self.effects {
+            if let (Attach::Entity(id), HeldPayload::Custom(c)) = (e.attach, &e.payload)
+                && id == entity_id
+                && let Some(off) = c.body_shake()
+            {
+                acc[0] += off[0];
+                acc[1] += off[1];
+            }
+        }
+        acc
+    }
+
+    /// Body tint of the last effect attached to `entity_id` that
+    /// emits one this frame, e.g. Two-Hand Quicken's yellow or Quakebody4's
+    /// red flash. The actor pass multiplies the sprite's vertex colour by it.
+    pub fn body_tint_for_entity(&self, entity_id: u32) -> Option<[u8; 3]> {
+        let mut tint = None;
+        for e in &self.effects {
+            if let (Attach::Entity(id), HeldPayload::Custom(c)) = (e.attach, &e.payload)
+                && id == entity_id
+                && let Some(t) = c.body_tint()
+            {
+                tint = Some(t.rgb);
+            }
+        }
+        tint
     }
 
     /// Append primitive draws for live custom effects. STR/Spr collection
@@ -943,6 +1069,23 @@ mod tests {
         assert!(h.is_empty(), "should have expired after total 2.5s");
 
         h.despawn(handle);
+    }
+
+    #[test]
+    fn screen_quake_spawn_triggers_and_settles_camera_shake() {
+        let mut h = EffectHolder::new();
+        assert_eq!(h.camera_shake_offset(), [0.0, 0.0, 0.0], "idle before spawn");
+        h.spawn(EffectId::ScreenQuake, Attach::WorldPos([0.0; 3]), None)
+            .expect("ScreenQuake spawns (no visual, shakes the camera)");
+        h.update(&ctx(0.05));
+        assert_ne!(
+            h.camera_shake_offset(),
+            [0.0, 0.0, 0.0],
+            "camera shakes while the quake is active"
+        );
+        // Past the shake window it settles back to rest.
+        h.update(&ctx(3.0));
+        assert_eq!(h.camera_shake_offset(), [0.0, 0.0, 0.0], "settles to rest");
     }
 
     #[test]

@@ -10,15 +10,17 @@
 use models::enums::effect_id::EffectId;
 
 use super::buckets::{is_custom_bucket, is_noop_bucket};
+use super::effect_trait::CameraShake;
 use super::effects::{
-    bash, bash3d, begin_spell, blessing, blitzbeat, bottom_box, bottom_sanctuary_pillar,
+    aciddemon, agiup, bash, bash3d, begin_spell, blessing, blitzbeat, bottom_box, bottom_sanctuary_pillar,
+    light_sphere, rainbow,
     bowling_bash, callzone, cartrevolution, cast_circle, cone, curseattack, defender, detecting,
     dragonsmoke, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
     frost_diver, glasswall, ground_sample, gumgang2, hasteup, healsp, heavensdrive, hit, hit2, hit5_6,
     magnum_break, napalmbeat,
     napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_pillar,
-    ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond, status_up,
-    stormgust, teleportation, volcano, warp, waterball, wind, yupitel,
+    quakebody, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond, status_up,
+    stormgust, teleportation, texture_falling, volcano, warp, waterball, wind, yufitel2, yupitel,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -256,15 +258,15 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
 
         // Batch FR — originally mis-labelled "Frustum" in the classification
-        // doc; none use a frustum. Verified against the original client:
-        //   * HeavensDrive — 5×5 stone-blade grid,
-        //   * Bottom / Bottom2 — 3D-texture 4-wall boxes (Texture3D),
-        //   * Cone — spiralling orbit particle,
-        //   * Flowercast3 — the `FlowerCasting` (ring_blue.tga) cast goblet;
-        //     its dispatch is commented out in the original but the gif shows
-        //     the intended uniformly-expanding blue flame frustum, rendered
-        //     here via `flowercast`.
-        // All five custom ids have a `str_aliases` entry that would otherwise
+        // doc; none use a frustum. Verified against the original game's look:
+        //   * HeavensDrive — 5×5 stone-blade grid (quad-horn),
+        //   * Bottom / Bottom2 — 4-wall boxes (Texture3D),
+        //   * Cone — spiralling orbiting particle,
+        //   * Flowercast — the blue-ring cast goblet (ring_blue.tga), a
+        //     uniformly-expanding blue flame frustum, rendered here via
+        //     `flowercast`. (Flowercast2/3 render nothing in the original —
+        //     left to their STR alias, no Custom arm.)
+        // These custom ids have a `str_aliases` entry that would otherwise
         // shadow Custom dispatch in `bucket_default`; pin them to Custom here.
         EffectId::Heavensdrive => EffectSpec::Custom {
             duration_ms: heavensdrive::TOTAL_DURATION_MS,
@@ -275,8 +277,48 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Cone => EffectSpec::Custom {
             duration_ms: cone::TOTAL_DURATION_MS,
         },
-        EffectId::Flowercast3 => EffectSpec::Custom {
+        EffectId::Flowercast => EffectSpec::Custom {
             duration_ms: flowercast::TOTAL_DURATION_MS,
+        },
+
+        // Batch STR-B9 — Texture3DQuad. Both have an STR alias that would
+        // otherwise shadow the Custom factory arm; pin to Custom here.
+        EffectId::Yufitel2 => EffectSpec::Custom {
+            duration_ms: yufitel2::TOTAL_DURATION_MS,
+        },
+        EffectId::TextureFalling => EffectSpec::Custom {
+            duration_ms: texture_falling::total_duration_ms(&texture_falling::TEXTURE_FALLING),
+        },
+
+        // Body-shake effects — Custom, shake the actor sprite.
+        EffectId::Quakebody => EffectSpec::Custom {
+            duration_ms: quakebody::total_duration_ms(&quakebody::QUAKEBODY),
+        },
+        EffectId::Quakebody2 => EffectSpec::Custom {
+            duration_ms: quakebody::total_duration_ms(&quakebody::QUAKEBODY2),
+        },
+        EffectId::Quakebody3 => EffectSpec::Custom {
+            duration_ms: quakebody::total_duration_ms(&quakebody::QUAKEBODY3),
+        },
+        EffectId::Quakebody4 => EffectSpec::Custom {
+            duration_ms: quakebody::total_duration_ms(&quakebody::QUAKEBODY4),
+        },
+
+        // Batch STR-B10 — Aciddemon swirling cone funnel; Rainbow arch.
+        EffectId::Aciddemon => EffectSpec::Custom {
+            duration_ms: aciddemon::TOTAL_DURATION_MS,
+        },
+        EffectId::Rainbow => EffectSpec::Custom {
+            duration_ms: rainbow::TOTAL_DURATION_MS,
+        },
+        EffectId::Agiup => EffectSpec::Custom {
+            duration_ms: agiup::TOTAL_DURATION_MS,
+        },
+        EffectId::Lightsphere => EffectSpec::Custom {
+            duration_ms: light_sphere::total_duration_ms(&light_sphere::LIGHTSPHERE),
+        },
+        EffectId::Lightsphere2 => EffectSpec::Custom {
+            duration_ms: light_sphere::total_duration_ms(&light_sphere::LIGHTSPHERE2),
         },
 
         // Frost Diver family — QuadHorn ice spikes. FrostDiver2 is the
@@ -471,6 +513,29 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
 /// 3. Remaining Noop bucket → `EffectSpec::Noop` (no visual asset at all).
 /// 4. Remaining Custom bucket → `EffectSpec::Custom` (procedural only, no STR).
 /// 5. Everything else → default STR spec.
+/// One-shot screen shake fired when an effect spawns, for ids whose original
+/// behaviour is a sustained quake rather than per-frame effect logic.
+/// The holder triggers its shake controller once at spawn; the controller's
+/// decay reproduces the original's repeated pulses.
+///
+/// Note: `Quakebody1-4` are deliberately absent — the original shakes the
+/// caster's **body sprite**, not the camera, so they belong to a
+/// future body-shake mechanism, not here.
+pub fn spawn_camera_shake(id: EffectId) -> Option<CameraShake> {
+    // `(amplitude world-units, duration_ms)`. Durations track the original's
+    // shake window (~100 frames ≈ 1.67 s at 60 fps); NpcEarthquake's
+    // three discrete pulses read as one stronger sustained shake here.
+    let (amplitude, duration_ms) = match id {
+        EffectId::ScreenQuake => (1.5, 1667),
+        EffectId::NpcEarthquake => (2.2, 1300),
+        _ => return None,
+    };
+    Some(CameraShake {
+        amplitude,
+        duration_ms,
+    })
+}
+
 fn bucket_default(id: EffectId) -> EffectSpec {
     if let Some(def) = spr_def(id) {
         return EffectSpec::Spr {
@@ -789,7 +854,7 @@ mod tests {
             EffectId::Bottom,
             EffectId::Bottom2,
             EffectId::Heavensdrive,
-            EffectId::Flowercast3,
+            EffectId::Flowercast,
         ] {
             assert!(
                 matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
@@ -1136,7 +1201,8 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Teleportation2 => 2000,
         EffectId::PharmacyOk => 900,
         EffectId::PharmacyFail => 900,
-        EffectId::Forestlight => 360000,
+        // 36000 frames at 60 fps — persistent ambient forest beams.
+        EffectId::Forestlight => 600000,
         EffectId::Throwitem3 => 2000,
         EffectId::Firstaid => 2990,
         EffectId::Sprinklesand => 3000,
@@ -1153,9 +1219,9 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::BottomSanc => 99990,
         EffectId::Heal3 => 1000,
         EffectId::Warpzone2 => 4294967295,
-        EffectId::Forestlight2 => 360000,
-        EffectId::Forestlight3 => 360000,
-        EffectId::Forestlight4 => 360000,
+        EffectId::Forestlight2 => 600000,
+        EffectId::Forestlight3 => 600000,
+        EffectId::Forestlight4 => 600000,
         EffectId::Heal4 => 1000,
         EffectId::Foot => 3400,
         EffectId::Foot2 => 3400,

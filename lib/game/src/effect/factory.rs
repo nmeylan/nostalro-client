@@ -101,16 +101,53 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Napalmbeat => Box::new(effects::napalmbeat::NapalmBeatEffect::new(anchor.point())),
         EffectId::Sandwind => Box::new(effects::sandwind::SandwindEffect::new(anchor.point())),
 
-        // Batch FR — see `table.rs`. Flowercast3 is Noop (no factory arm).
+        // Batch FR — see `table.rs`. Flowercast2/3 have no factory arm; the
+        // original game's procedural dispatch for them is an empty break, so
+        // they fall through to their STR alias (or render nothing).
         EffectId::Heavensdrive => {
             Box::new(effects::heavensdrive::HeavensDriveEffect::new(anchor.point()))
         }
         EffectId::Bottom => Box::new(effects::bottom_box::BottomBoxEffect::bottom(anchor.point())),
         EffectId::Bottom2 => Box::new(effects::bottom_box::BottomBoxEffect::bottom2(anchor.point())),
         EffectId::Cone => Box::new(effects::cone::ConeEffect::new(anchor.point())),
-        EffectId::Flowercast3 => {
+        EffectId::Flowercast => {
             Box::new(effects::flowercast::FlowerCastEffect::new(anchor.point()))
         }
+
+        // Body-shake effects — shake the attached actor's sprite, emit no
+        // primitives. One struct, four timing/amplitude param sets.
+        EffectId::Quakebody => {
+            Box::new(effects::quakebody::QuakeBodyEffect::new(effects::quakebody::QUAKEBODY))
+        }
+        EffectId::Quakebody2 => {
+            Box::new(effects::quakebody::QuakeBodyEffect::new(effects::quakebody::QUAKEBODY2))
+        }
+        EffectId::Quakebody3 => {
+            Box::new(effects::quakebody::QuakeBodyEffect::new(effects::quakebody::QUAKEBODY3))
+        }
+        EffectId::Quakebody4 => {
+            Box::new(effects::quakebody::QuakeBodyEffect::new(effects::quakebody::QUAKEBODY4))
+        }
+
+        // Batch STR-B10 — Aciddemon swirling cone funnel; Rainbow arch.
+        EffectId::Aciddemon => Box::new(effects::aciddemon::AcidDemonEffect::new(anchor.point())),
+        EffectId::Rainbow => Box::new(effects::rainbow::RainbowEffect::new(anchor.point())),
+        EffectId::Agiup => Box::new(effects::agiup::AgiUpEffect::new(anchor.point())),
+        EffectId::Lightsphere => Box::new(effects::light_sphere::LightSphereEffect::new(
+            anchor.point(),
+            effects::light_sphere::LIGHTSPHERE,
+        )),
+        EffectId::Lightsphere2 => Box::new(effects::light_sphere::LightSphereEffect::new(
+            anchor.point(),
+            effects::light_sphere::LIGHTSPHERE2,
+        )),
+
+        // Batch STR-B9 — Texture3DQuad. Both anchor at a hit point.
+        EffectId::Yufitel2 => Box::new(effects::yufitel2::Yufitel2Effect::new(anchor.point())),
+        EffectId::TextureFalling => Box::new(effects::texture_falling::FallingTrailEffect::new(
+            anchor.point(),
+            effects::texture_falling::TEXTURE_FALLING,
+        )),
 
         // Footprint family — flat ground decals oriented along the
         // caster→target direction, one struct parameterised by texture + size
@@ -183,11 +220,29 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::temp_result::TempResultEffect::new(anchor.point(), effects::temp_result::TEMP_FAIL))
         }
 
-        // ItemLight (`ForestLight("cloud11.tga", 11)`): faint green pentagonal
-        // light-beam columns rising above the caster.
+        // ForestLight family: faint green pentagonal light-beam columns
+        // rising above the caster. One struct, per-variant params. ItemLight
+        // fades and self-terminates; the four Forestlight ids are
+        // persistent ambient beams.
         EffectId::ItemLight => Box::new(effects::forest_light::ForestLightEffect::new(
             anchor.point(),
             effects::forest_light::ITEM_LIGHT,
+        )),
+        EffectId::Forestlight => Box::new(effects::forest_light::ForestLightEffect::new(
+            anchor.point(),
+            effects::forest_light::FORESTLIGHT,
+        )),
+        EffectId::Forestlight2 => Box::new(effects::forest_light::ForestLightEffect::new(
+            anchor.point(),
+            effects::forest_light::FORESTLIGHT2,
+        )),
+        EffectId::Forestlight3 => Box::new(effects::forest_light::ForestLightEffect::new(
+            anchor.point(),
+            effects::forest_light::FORESTLIGHT3,
+        )),
+        EffectId::Forestlight4 => Box::new(effects::forest_light::ForestLightEffect::new(
+            anchor.point(),
+            effects::forest_light::FORESTLIGHT4,
         )),
 
         // Wink / Fvoice: directional emotes that
@@ -970,6 +1025,10 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Pierce
             | EffectId::PotionBerserk
             | EffectId::ItemLight
+            | EffectId::Forestlight
+            | EffectId::Forestlight2
+            | EffectId::Forestlight3
+            | EffectId::Forestlight4
             | EffectId::Wink
             | EffectId::Fvoice
             | EffectId::TempOk
@@ -980,6 +1039,18 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Overthrust
             | EffectId::Callzone
             | EffectId::Groundsample
+            | EffectId::Flowercast
+            | EffectId::Yufitel2
+            | EffectId::TextureFalling
+            | EffectId::Aciddemon
+            | EffectId::Rainbow
+            | EffectId::Agiup
+            | EffectId::Lightsphere
+            | EffectId::Lightsphere2
+            | EffectId::Quakebody
+            | EffectId::Quakebody2
+            | EffectId::Quakebody3
+            | EffectId::Quakebody4
     )
 }
 
@@ -1072,8 +1143,8 @@ mod tests {
         // Pick an EffectId in the Custom bucket that doesn't yet have a
         // real Rust impl — factory returns the pink placeholder and
         // `is_real_impl` reports false.
-        assert!(make_effect(EffectId::Aciddemon, EffectAnchor::Point([0.0; 3]), None).is_some());
-        assert!(!is_real_impl(EffectId::Aciddemon));
+        assert!(make_effect(EffectId::Mappillar, EffectAnchor::Point([0.0; 3]), None).is_some());
+        assert!(!is_real_impl(EffectId::Mappillar));
     }
 
     #[test]

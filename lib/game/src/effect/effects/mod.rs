@@ -4,6 +4,8 @@
 //! variants that reuse the same struct via parameter sets). The factory
 //! ([`super::factory::make_effect`]) is the single dispatch point.
 
+pub mod aciddemon;
+pub mod agiup;
 pub mod aura;
 pub mod bash;
 pub mod bash3d;
@@ -64,6 +66,8 @@ pub mod portal2;
 pub mod portal_wind;
 pub mod potion_berserk;
 pub mod potion_pillar;
+pub mod quakebody;
+pub mod rainbow;
 pub mod ready_portal;
 pub mod revive;
 pub mod sandwind;
@@ -83,9 +87,11 @@ pub mod earthspike;
 pub mod fireivy;
 pub mod grimtooth_atk;
 pub mod icewall;
+pub mod light_sphere;
 pub mod party;
 pub mod spike_util;
 pub mod temp_result;
+pub mod texture_falling;
 pub mod toprank;
 pub mod volcano;
 pub mod warp;
@@ -93,4 +99,5 @@ pub mod warp_zone;
 pub mod waterball;
 pub mod wink;
 pub mod wind;
+pub mod yufitel2;
 pub mod yupitel;

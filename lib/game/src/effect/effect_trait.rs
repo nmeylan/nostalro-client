@@ -44,6 +44,17 @@ pub struct BodyTint {
     pub rgb: [u8; 3],
 }
 
+/// One-shot screen-shake request — the original game's screen quake. An effect
+/// returns this once (then `None`); a camera-shake controller owns the
+/// per-frame decay and offsets the view, so the whole scene trembles. The
+/// effect does not track the shake itself.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CameraShake {
+    /// Peak displacement in world units, decaying linearly to zero.
+    pub amplitude: f32,
+    pub duration_ms: u32,
+}
+
 pub trait Effect: Send {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus;
     fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx);
@@ -71,6 +82,23 @@ pub trait Effect: Send {
     /// `"effect\\windwalk.wav"`) so the lookup matches GRF / file-system
     /// naming. Default `None` — most effects don't trigger SFX.
     fn take_sfx_request(&mut self) -> Option<&'static str> {
+        None
+    }
+
+    /// One-shot screen-shake request (screen quake) — returned the *first* time
+    /// it's ready, then `None`. The holder drains it once per frame and feeds
+    /// a camera-shake controller. Default `None` — most effects don't shake
+    /// the screen.
+    fn take_camera_shake(&mut self) -> Option<CameraShake> {
+        None
+    }
+
+    /// Per-frame **body shake** — a screen-space pixel offset to jitter the
+    /// attached actor's sprite (the original game's body-quake light),
+    /// distinct from the whole-screen [`take_camera_shake`]. Returns `Some`
+    /// only during the effect's shake window. The client's actor pass adds
+    /// this to the entity's screen anchor. Default `None`.
+    fn body_shake(&self) -> Option<[f32; 2]> {
         None
     }
 }

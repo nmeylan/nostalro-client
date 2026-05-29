@@ -25,5 +25,10 @@ impl App {
 
         self.effect_holder.drain_queue(&mut self.effect_queue);
         self.effect_holder.update(&EffectUpdateCtx { delta: delta, camera_target: None });
+        // Apply any active screen-shake to the camera so the whole
+        // view trembles while an effect's shake is live.
+        if let Some(renderer) = self.renderer.as_mut() {
+            renderer.camera.shake_offset = self.effect_holder.camera_shake_offset().into();
+        }
     }
 }

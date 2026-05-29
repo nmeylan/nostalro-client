@@ -1,18 +1,19 @@
-//! `EF_FLOWERCAST3` — id 488 (Enchant Deadly Poison cast).
+//! `EF_FLOWERCAST` — id 486.
 //!
-//! The original client's `EF_FLOWERCAST3` dispatch is commented out
-//! (the no-render branch), so it renders nothing there — but the reference gif
-//! shows the intended visual: a blue flame "goblet" that starts as a small ring
-//! and expands uniformly into an upward-flaring crown of flames. That is the
-//! `FlowerCasting("effect\\ring_blue.tga", 4, 0/1)` recipe used by the active
-//! `EF_FLOWERCAST` (id 486): flowercast prim with two passes of four arcs.
+//! A blue flame "goblet" that starts as a small ring and expands uniformly
+//! into an upward-flaring crown of flames — using `ring_blue.tga`
+//! with two passes of four arcs. The sibling ids `EF_FLOWERCAST2` (487) and
+//! `EF_FLOWERCAST3` (488) render nothing procedurally in the original
+//! game — they are left to
+//! their STR alias and get no factory arm.
 //!
 //! We render it with the existing `Frustum` + `FrustumWaveMode::SaintBell`
 //! primitive (the same machinery `saint_casting` uses), one flared cone per
-//! arc. In the original game's flower-casting handler the eight arcs
-//! seed at fixed `distance` / `rise_angle` / `max_height` / `rot_start_deg`;
-//! The flower-cast routine keeps those fixed and grows each
-//! arc's height by `max_height · sin(process°)` over the first 90 frames — a
+//! arc. The eight arcs
+//! seed at fixed `distance` / `rise_angle` / `max_height` / `rot_start`;
+//! those parameters stay fixed for the arc's life, while
+//! each arc's height grows by `max_height · sin(process°)`
+//! over the first 90 frames — a
 //! uniform rise from zero — with a gentle `±2.5·sin` `max_height` pulse and an
 //! alpha that ramps in (`process<20`), holds, then fades out (`process>110`).
 
@@ -52,6 +53,10 @@ const OVERDRAW_DIVISOR: f32 = 4.0;
 
 const TOTAL_FRAMES: f32 = FADE_OUT_START_FRAME + FADE_OUT_FRAMES;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
+
+/// (100, 100, 255) light-blue tint — the flames read blue, not white,
+/// in the reference.
+const TINT: [f32; 3] = [100.0 / 255.0, 100.0 / 255.0, 1.0];
 
 const NUM_ARCS: usize = 4;
 /// Two arc passes (`F1 = 0` then `F1 = 1`). Each row is
@@ -161,7 +166,7 @@ impl Effect for FlowerCastEffect {
                 rotation_y_rad: 0.0,
                 cull_back: false,
                 texture: RING_BLUE_TEXTURE,
-                color: [1.0, 1.0, 1.0, alpha],
+                color: [TINT[0], TINT[1], TINT[2], alpha],
                 blend: BlendKind::Additive,
             });
         }

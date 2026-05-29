@@ -7,6 +7,10 @@ pub struct Camera {
     pub aspect: f32,
     pub near: f32,
     pub far: f32,
+    /// Transient screen-shake displacement (the original game's quake),
+    /// applied equally to eye and target so the whole view pans. Set each
+    /// frame from `EffectHolder::camera_shake_offset`; zero when idle.
+    pub shake_offset: glam::Vec3,
 }
 
 impl Default for Camera {
@@ -20,6 +24,7 @@ impl Default for Camera {
             aspect: 4.0 / 3.0,
             near: 1.0,
             far: 5000.0,
+            shake_offset: glam::Vec3::ZERO,
         }
     }
 }
@@ -39,7 +44,11 @@ impl Camera {
     }
 
     pub fn view_matrix(&self) -> glam::Mat4 {
-        glam::Mat4::look_at_rh(self.eye(), self.target, glam::Vec3::NEG_Y)
+        glam::Mat4::look_at_rh(
+            self.eye() + self.shake_offset,
+            self.target + self.shake_offset,
+            glam::Vec3::NEG_Y,
+        )
     }
 
     pub fn projection_matrix(&self) -> glam::Mat4 {

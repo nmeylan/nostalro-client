@@ -13,13 +13,13 @@ pub mod table;
 
 pub use draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 pub use effect_queue::{EffectQueue, SpawnRequest, is_trail_effect};
-pub use effect_trait::{BodyTint, CameraView, Effect, EffectRenderCtx, EffectUpdateCtx};
+pub use effect_trait::{BodyTint, CameraShake, CameraView, Effect, EffectRenderCtx, EffectUpdateCtx};
 pub use factory::{is_real_impl, make_effect};
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBurstParams};
 pub use spr_aliases::{SprDef, spr_def};
 pub use spr_burst::spr_burst_params;
 pub use str_aliases::str_aliases;
-pub use table::effect_spec;
+pub use table::{effect_spec, spawn_camera_shake};
 
 /// Distinct GRF texture paths used by `Custom`-payload effects, for renderer
 /// preload at app boot. Walks each implemented effect module's `TEXTURES`
@@ -101,6 +101,12 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::temp_result::TEXTURES,
         effects::toprank::TEXTURES,
         effects::waterball::TEXTURES,
+        effects::yufitel2::TEXTURES,
+        effects::texture_falling::TEXTURES,
+        effects::aciddemon::TEXTURES,
+        effects::rainbow::TEXTURES,
+        effects::agiup::TEXTURES,
+        effects::light_sphere::TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {

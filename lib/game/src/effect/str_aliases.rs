@@ -301,7 +301,8 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Teleportation2 => &["teleportation2"],
         EffectId::PharmacyOk => &["p_success"],
         EffectId::PharmacyFail => &["p_failed"],
-        EffectId::Forestlight => &["forestlight"],
+        // Forestlight / Forestlight2..4 have no STR — they are a Custom
+        // light-beam effect (`effects/forest_light.rs`).
         EffectId::Throwitem3 => &["throwitem3"],
         EffectId::Firstaid => &["firstaid"],
         EffectId::Loud => &["loud"],
@@ -315,9 +316,6 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::BottomSanc => &["bottom_sanc"],
         EffectId::Heal3 => &["heal3"],
         EffectId::Warpzone2 => &["warpzone2"],
-        EffectId::Forestlight2 => &["forestlight2"],
-        EffectId::Forestlight3 => &["forestlight3"],
-        EffectId::Forestlight4 => &["forestlight4"],
         EffectId::Heal4 => &["heal4"],
         EffectId::Beginasura => &["beginasura"],
         EffectId::Tripleattack => &["tripleattack"],
