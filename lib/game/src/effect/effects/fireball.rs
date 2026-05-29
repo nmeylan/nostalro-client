@@ -172,6 +172,7 @@ impl Effect for FireballEffect {
                 out.push(EffectPrimitiveDraw::SpriteParticle {
                     sprite_path: FIREBALL_SPRITE,
                     position: [pos[0], pos[1] - 1.5, pos[2]],
+                    action_index: 0,
                     motion_index: motion,
                     size_scale: SPRITE_SIZE,
                     color: particle.color,
@@ -192,6 +193,7 @@ impl Effect for FireballEffect {
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: FIREBALL_SPRITE,
                 position: pos,
+                action_index: 0,
                 motion_index: motion,
                 size_scale: scale,
                 color: [1.0, 1.0, 1.0, alpha],

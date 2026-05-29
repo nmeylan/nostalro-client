@@ -395,9 +395,12 @@ pub enum EffectPrimitiveDraw {
     ///
     /// `sprite_path` is the full GRF lookup path **without** extension,
     /// e.g. `"data/sprite/이팩트/particle1"`.
-    /// `motion_index` selects which motion of the first action to
-    /// render; the renderer applies `% motion_count` so callers can
-    /// hand it a raw frame counter.
+    /// `action_index` selects which ACT action to render (the renderer
+    /// applies `% action_count`). Most callers pass `0`; directional
+    /// sprites (e.g. the wink emote's four diagonal fly-off actions)
+    /// pick it from a camera-relative angle. `motion_index` then selects
+    /// the motion within that action; the renderer applies
+    /// `% motion_count` so callers can hand it a raw frame counter.
     /// `size_scale` is a per-particle multiplier on top of the
     /// renderer's per-pixel-unit scale.
     /// `color` is multiplied with the sprite's own ARGB; setting alpha
@@ -405,6 +408,7 @@ pub enum EffectPrimitiveDraw {
     SpriteParticle {
         sprite_path: &'static str,
         position: [f32; 3],
+        action_index: usize,
         motion_index: usize,
         size_scale: f32,
         color: [f32; 4],

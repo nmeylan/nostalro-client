@@ -175,6 +175,27 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::effect_texture::EffectTextureEffect::new(anchor.point(), effects::effect_texture::HITTEXTURE))
         }
 
+        // Camera-facing result banners above the caster.
+        EffectId::TempOk => {
+            Box::new(effects::temp_result::TempResultEffect::new(anchor.point(), effects::temp_result::TEMP_OK))
+        }
+        EffectId::TempFail => {
+            Box::new(effects::temp_result::TempResultEffect::new(anchor.point(), effects::temp_result::TEMP_FAIL))
+        }
+
+        // ItemLight (`ForestLight("cloud11.tga", 11)`): faint green pentagonal
+        // light-beam columns rising above the caster.
+        EffectId::ItemLight => Box::new(effects::forest_light::ForestLightEffect::new(
+            anchor.point(),
+            effects::forest_light::ITEM_LIGHT,
+        )),
+
+        // Wink / Fvoice: directional emotes that
+        // pick their fly-off action from the camera angle, so they're Custom
+        // effects, not `spr_def`. Same handler, different sprite.
+        EffectId::Wink => Box::new(effects::wink::WinkEffect::new(anchor.point(), effects::wink::WINK)),
+        EffectId::Fvoice => Box::new(effects::wink::WinkEffect::new(anchor.point(), effects::wink::FVOICE)),
+
         // Frost Diver — trail-shaped, unpacks both endpoints. Single-point
         // anchors (effect-viewer demo, any caller that doesn't know about
         // the trail) collapse to `from == to`, which the effect detects
@@ -210,7 +231,10 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::grimtooth_atk::GrimToothAtkEffect::new(anchor.point()))
         }
         EffectId::Earthspike => {
-            Box::new(effects::earthspike::EarthSpikeEffect::new(anchor.point()))
+            Box::new(effects::earthspike::EarthSpikeEffect::new(anchor.point(), effects::earthspike::EARTHSPIKE))
+        }
+        EffectId::Hyousensou => {
+            Box::new(effects::earthspike::EarthSpikeEffect::new(anchor.point(), effects::earthspike::HYOUSENSOU))
         }
         EffectId::Icewall => {
             // `to` supplies the cast direction so the wall stands across the
@@ -945,6 +969,13 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Revive
             | EffectId::Pierce
             | EffectId::PotionBerserk
+            | EffectId::ItemLight
+            | EffectId::Wink
+            | EffectId::Fvoice
+            | EffectId::TempOk
+            | EffectId::TempFail
+            | EffectId::Hyousensou
+            | EffectId::Earthspike
             | EffectId::Bowlingbash
             | EffectId::Overthrust
             | EffectId::Callzone

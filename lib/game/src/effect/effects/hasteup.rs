@@ -196,6 +196,7 @@ impl Effect for HasteUpEffect {
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: PARTICLE_SPRITE,
                 position: p.position(self.world_pos),
+                action_index: 0,
                 motion_index: motion,
                 size_scale: PARTICLE_SIZE,
                 color: [1.0, 1.0, 1.0, a],

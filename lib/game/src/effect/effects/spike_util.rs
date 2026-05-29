@@ -44,6 +44,22 @@ pub fn rise_step(base: &mut [f32; 3], velocity: [f32; 3], age: f32, dt: f32, spe
     base[2] += velocity[2] * effective_dt;
 }
 
+/// Damped-spring height envelope for a spike that erupts, overshoots, and
+/// vibrates down to its rest height — the central
+/// spike shoots up, then at a change point
+/// flips to a negative retract speed before the rise window
+/// freezes it. Rather than replay those discrete phases we model the
+/// equivalent settle as a critically-underdamped spring:
+///
+/// `scale(t) = 1 - e^(-decay·t)·cos(omega·t)`
+///
+/// `scale(0) = 0` (erupts from the ground), overshoots above 1 at the first
+/// half-period, then rings down to 1.0. `omega` (rad/s) sets the vibration
+/// rate, `decay` (1/s) how fast it settles.
+pub fn spring_height_scale(age: f32, omega: f32, decay: f32) -> f32 {
+    1.0 - (-decay * age).exp() * (omega * age).cos()
+}
+
 /// Hold `peak` alpha until `fade_out_frames` before the end of `duration`,
 /// then ramp linearly to 0 (fade starts 10 frames before the end).
 pub fn fade_tail_alpha(age: f32, duration: f32, peak: f32, fade_out_frames: f32) -> f32 {

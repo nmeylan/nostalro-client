@@ -256,6 +256,7 @@ impl Effect for BlessingEffect {
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: BLESSING_SPRITE,
                 position: angel_pos,
+                action_index: 0,
                 motion_index: motion,
                 size_scale: BLESSING_SIZE,
                 color: [1.0, 1.0, 1.0, alpha],
@@ -274,6 +275,7 @@ impl Effect for BlessingEffect {
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: TWINKLE_SPRITE,
                 position: t.position(self.world_pos),
+                action_index: 0,
                 motion_index: motion,
                 size_scale: TWINKLE_SIZE,
                 color: [1.0, 1.0, 1.0, alpha],

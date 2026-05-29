@@ -222,6 +222,7 @@ impl Effect for HealSpEffect {
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: PARTICLE_SPRITE,
                 position: p.position(),
+                action_index: 0,
                 motion_index: motion,
                 size_scale: PARTICLE_SIZE,
                 color: [1.0, 1.0, 1.0, alpha],

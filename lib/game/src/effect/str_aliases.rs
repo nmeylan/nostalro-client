@@ -558,12 +558,10 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Twilight1 => &["twilight1"],
         EffectId::Twilight2 => &["twilight2"],
         EffectId::Twilight3 => &["twilight3"],
-        EffectId::ItemThunder => &["item_thunder"],
-        EffectId::ItemCloud => &["item_cloud"],
-        EffectId::ItemCurse => &["item_curse"],
-        EffectId::ItemZzz => &["item_zzz"],
-        EffectId::ItemRain => &["item_rain"],
-        EffectId::ItemLight => &["item_light"],
+        // ItemThunder..ItemRain have no STR — they play `item_*.spr`
+        // billboards; they resolve via `spr_def`.
+        // ItemLight has no STR either — it is a Custom light-beam effect
+        // (`effects/forest_light.rs`).
         EffectId::Angel3 => &["angel3"],
         EffectId::M01 => &["m01"],
         EffectId::M02 => &["m02"],
@@ -588,12 +586,13 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Firehit2 => &["firehit2"],
         EffectId::NpcStop2 => &["npc_stop2"],
         EffectId::NpcStop2Del => &["npc_stop2_del"],
-        EffectId::Fvoice => &["fvoice"],
-        EffectId::Wink => &["wink"],
+        // Wink / Fvoice have no STR — they play `wink.spr` /
+        // `fvoice.spr` as directional Custom effects (see effects/wink.rs).
         EffectId::CookingOk => &["cook_suc"],
         EffectId::CookingFail => &["cook_fail"],
-        EffectId::TempOk => &["temp_ok"],
-        EffectId::TempFail => &["temp_fail"],
+        // TempOk / TempFail have no STR: the original plays success.bmp /
+        // failed.bmp via EffectTextureSet (a custom Billboard effect), so they
+        // resolve to the Custom factory path with no STR fallback.
         EffectId::Hapgyeok => &["itempokjuk"],
         EffectId::Throwitem7 => &["throwitem7"],
         EffectId::Throwitem8 => &["throwitem8"],

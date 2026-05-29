@@ -834,6 +834,7 @@ impl Effect for HitEffect {
                 out.push(EffectPrimitiveDraw::SpriteParticle {
                     sprite_path: PARTICLE1_SPRITE,
                     position: p.history[i],
+                    action_index: 0,
                     motion_index: motion,
                     size_scale: seg_size,
                     color: [1.0, 1.0, 1.0, seg_alpha],

@@ -95,10 +95,32 @@ pub fn spr_def(id: EffectId) -> Option<SprDef> {
             .with_size(1.2)
             .with_pos_y(-1.0),
         EffectId::NpcStop => SprDef::new("data/sprite/이팩트/스톱"),
-        // Hamicastle: original game's `Effect_SPR(0)` sets anim speed = 2,
-        // no anim repeat, uses original vertex color. The sprite path is the
-        // EUC-KR transliteration of `misc\kaeseulring.spr`.
+        // Wink is a Custom effect (`effects/wink.rs`), not a `spr_def` — it
+        // picks one of wink.spr's four directional actions from the camera
+        // angle, which the data-driven Spr path can't do.
+        // Hamicastle: anim speed 2, plays once, default tint. The sprite
+        // path is the EUC-KR transliteration of the original game's
+        // kaeseulring sprite.
         EffectId::Hamicastle => SprDef::new("data/sprite/이팩트/캐슬링")
+            .with_anim_speed(2.0)
+            .one_shot(),
+        // Item status billboards. Same setup as the other item-status
+        // entries: anim speed 2, plays once, default tint. A static
+        // one-shot billboard with no drift, so a held one-shot Spr
+        // reproduces them.
+        EffectId::ItemThunder => SprDef::new("data/sprite/이팩트/item_thunder")
+            .with_anim_speed(2.0)
+            .one_shot(),
+        EffectId::ItemCloud => SprDef::new("data/sprite/이팩트/item_cloud")
+            .with_anim_speed(2.0)
+            .one_shot(),
+        EffectId::ItemCurse => SprDef::new("data/sprite/이팩트/item_curse")
+            .with_anim_speed(2.0)
+            .one_shot(),
+        EffectId::ItemZzz => SprDef::new("data/sprite/이팩트/item_zzz")
+            .with_anim_speed(2.0)
+            .one_shot(),
+        EffectId::ItemRain => SprDef::new("data/sprite/이팩트/item_rain")
             .with_anim_speed(2.0)
             .one_shot(),
         EffectId::Hamiblood => SprDef::new("data/sprite/이팩트/블러드러스트").one_shot(),

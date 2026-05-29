@@ -34,6 +34,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::bottom_hermode::TEXTURES,
         effects::bottom_landprotector::TEXTURES,
         effects::bottom_light::TEXTURES,
+        effects::forest_light::TEXTURES,
         effects::bottom_magnus::TEXTURES,
         effects::bottom_out::TEXTURES,
         effects::bottom_vertical::TEXTURES,
@@ -97,6 +98,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::teihit::TEXTURES,
         effects::particle_up::TEXTURES,
         effects::effect_texture::TEXTURES,
+        effects::temp_result::TEXTURES,
         effects::toprank::TEXTURES,
         effects::waterball::TEXTURES,
     ];
@@ -130,6 +132,7 @@ pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
         effects::blessing::SPRITES,
         effects::cone::SPRITES,
         effects::dragonsmoke::SPRITES,
+        effects::wink::SPRITES,
     ];
     for list in sprite_lists {
         for path in *list {

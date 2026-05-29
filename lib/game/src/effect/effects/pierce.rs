@@ -348,6 +348,7 @@ impl Effect for PierceEffect {
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: PARTICLE_SPRITE,
                 position: p.position(local),
+                action_index: 0,
                 motion_index: local as usize,
                 size_scale: p.size_at(local),
                 color: [1.0, 1.0, 1.0, alpha],

@@ -304,6 +304,7 @@ impl Effect for OrbitEffect {
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: p.sprite,
                 position: p.position(),
+                action_index: 0,
                 motion_index: motion,
                 size_scale: p.size,
                 color: [1.0, 1.0, 1.0, p.alpha],

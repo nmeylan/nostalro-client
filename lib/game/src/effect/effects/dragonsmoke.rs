@@ -143,6 +143,7 @@ impl Effect for DragonsmokeEffect {
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: SPRITE,
                 position,
+                action_index: 0,
                 motion_index: motion,
                 size_scale: SIZE,
                 color: [1.0, 1.0, 1.0, alpha],

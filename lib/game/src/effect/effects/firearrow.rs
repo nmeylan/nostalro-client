@@ -164,6 +164,7 @@ impl Effect for FireArrowEffect {
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: PARTICLE4_SPRITE,
                 position: pos,
+                action_index: 0,
                 motion_index: motion,
                 size_scale: size,
                 color: [1.0, 1.0, 1.0, alpha],

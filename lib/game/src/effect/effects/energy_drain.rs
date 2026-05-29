@@ -388,6 +388,7 @@ impl DrainEffect {
                         self.org_pos[1],
                         self.org_pos[2] + dir[2] * dist,
                     ],
+                    action_index: 0,
                     motion_index: motion,
                     size_scale: size,
                     color: [self.params.color[0], self.params.color[1], self.params.color[2], alpha],
@@ -409,6 +410,7 @@ impl DrainEffect {
                 out.push(EffectPrimitiveDraw::SpriteParticle {
                     sprite_path: DRAIN_SPRITE,
                     position: strand.segments[i],
+                    action_index: 0,
                     motion_index: motion,
                     size_scale: size,
                     color: [strand.color[0], strand.color[1], strand.color[2], alpha],

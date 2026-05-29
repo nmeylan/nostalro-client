@@ -237,6 +237,7 @@ impl Effect for SoulStrikeEffect {
                     out.push(EffectPrimitiveDraw::SpriteParticle {
                         sprite_path: SOUL_STRIKE_SPRITE,
                         position: bolt.segments[i],
+                        action_index: 0,
                         motion_index: motion,
                         size_scale: size,
                         color: [1.0, 1.0, 1.0, alpha],
@@ -257,6 +258,7 @@ impl Effect for SoulStrikeEffect {
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: SOUL_STRIKE_SPRITE,
                 position: self.from,
+                action_index: 0,
                 motion_index: motion,
                 size_scale: scale,
                 color: [1.0, 1.0, 1.0, alpha],

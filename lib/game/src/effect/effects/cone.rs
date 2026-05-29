@@ -164,6 +164,7 @@ impl Effect for ConeEffect {
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: PARTICLE1_SPRITE,
                 position: p.position(self.world_pos),
+                action_index: 0,
                 motion_index: motion,
                 size_scale: SIZE,
                 color: [1.0, 1.0, 1.0, alpha],

@@ -176,6 +176,7 @@ pub fn prepare_sprite_particle_records<'cache>(
         let EffectPrimitiveDraw::SpriteParticle {
             sprite_path,
             position,
+            action_index,
             motion_index,
             size_scale,
             color,
@@ -193,12 +194,14 @@ pub fn prepare_sprite_particle_records<'cache>(
         else {
             continue;
         };
-        let action = sprite.act.actions.first();
-        let motion_count = action.map(|a| a.motions.len()).unwrap_or(0);
+        if sprite.act.actions.is_empty() {
+            continue;
+        }
+        let action = &sprite.act.actions[action_index % sprite.act.actions.len()];
+        let motion_count = action.motions.len();
         if motion_count == 0 {
             continue;
         }
-        let action = sprite.act.actions.first().unwrap();
         let motion = &action.motions[motion_index % motion_count];
         let sprite_scale = (ppu / 7.5) * size_scale;
         let view_depth = view_z(camera, *position);

@@ -394,6 +394,7 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Level996
         | EffectId::Icewall
         | EffectId::Earthspike
+        | EffectId::Hyousensou
         | EffectId::Grimtooth
         | EffectId::Grimtoothatk
         | EffectId::Magnus
@@ -587,6 +588,53 @@ mod tests {
         assert!(!repeat);
         assert_eq!(tint, [1.0, 1.0, 1.0, 1.0]);
         assert_eq!(pos_y, -20.0);
+    }
+
+    #[test]
+    fn item_status_billboards_resolve_to_one_shot_spr() {
+        // Item status billboards: item_*.spr, anim speed 2, play once,
+        // default tint, run 100 frames. The spr_def path must
+        // win over the (removed) str_aliases so the holder plays the sprite, not
+        // a non-existent item_*.str.
+        for (id, sprite) in [
+            (EffectId::ItemThunder, "data/sprite/이팩트/item_thunder"),
+            (EffectId::ItemCloud, "data/sprite/이팩트/item_cloud"),
+            (EffectId::ItemCurse, "data/sprite/이팩트/item_curse"),
+            (EffectId::ItemZzz, "data/sprite/이팩트/item_zzz"),
+            (EffectId::ItemRain, "data/sprite/이팩트/item_rain"),
+        ] {
+            let Some(EffectSpec::Spr {
+                sprite: got,
+                duration_ms,
+                anim_speed,
+                repeat,
+                tint,
+                ..
+            }) = effect_spec(id)
+            else {
+                panic!("{id:?} should resolve to EffectSpec::Spr");
+            };
+            assert_eq!(got, sprite, "{id:?} sprite path");
+            assert_eq!(duration_ms, 1667, "{id:?} duration");
+            assert_eq!(anim_speed, 2.0, "{id:?} anim speed");
+            assert!(!repeat, "{id:?} one-shot");
+            assert_eq!(tint, [1.0, 1.0, 1.0, 1.0], "{id:?} default tint");
+        }
+    }
+
+    #[test]
+    fn wink_resolves_to_custom_factory_path() {
+        // Wink and Fvoice are directional Custom effects (camera-angle action
+        // pick), not data-driven Spr one-shots or STR placeholders — a stray
+        // `str_aliases` entry would shadow the factory dispatch.
+        assert!(matches!(
+            effect_spec(EffectId::Wink),
+            Some(EffectSpec::Custom { duration_ms: 1667 })
+        ));
+        assert!(matches!(
+            effect_spec(EffectId::Fvoice),
+            Some(EffectSpec::Custom { duration_ms: 1667 })
+        ));
     }
 
     #[test]
@@ -1363,12 +1411,14 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Twilight1 => 3000,
         EffectId::Twilight2 => 3000,
         EffectId::Twilight3 => 3000,
-        EffectId::ItemThunder => 1000,
-        EffectId::ItemCloud => 1000,
-        EffectId::ItemCurse => 1000,
-        EffectId::ItemZzz => 1000,
-        EffectId::ItemRain => 1000,
-        EffectId::ItemLight => 1800,
+        // 100 frames at 60 fps for the item-status billboards.
+        EffectId::ItemThunder => 1667,
+        EffectId::ItemCloud => 1667,
+        EffectId::ItemCurse => 1667,
+        EffectId::ItemZzz => 1667,
+        EffectId::ItemRain => 1667,
+        // 180 frames at 60 fps — the alpha fade-in/out keys off this.
+        EffectId::ItemLight => 3000,
         EffectId::Angel3 => 2000,
         EffectId::M01 => 500,
         EffectId::M02 => 1000,
@@ -1393,12 +1443,16 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Firehit2 => 500,
         EffectId::NpcStop2 => 999990,
         EffectId::NpcStop2Del => 20,
-        EffectId::Fvoice => 1000,
-        EffectId::Wink => 1000,
+        // 100 frames at 60 fps for both emote effects; the one-shot
+        // animation plays through, then holds its last motion until this
+        // elapses.
+        EffectId::Fvoice => 1667,
+        EffectId::Wink => 1667,
         EffectId::CookingOk => 1000,
         EffectId::CookingFail => 1000,
-        EffectId::TempOk => 1000,
-        EffectId::TempFail => 1000,
+        // 100 frames at 60 fps — the breathing banner runs ~1.67 s.
+        EffectId::TempOk => 1667,
+        EffectId::TempFail => 1667,
         EffectId::Hapgyeok => 1000,
         EffectId::Throwitem7 => 2000,
         EffectId::Throwitem8 => 2000,
@@ -1406,7 +1460,9 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Throwitem10 => 2000,
         EffectId::Bunsinjyutsu => 99990,
         EffectId::Kouenka => 3000,
-        EffectId::Hyousensou => 2500,
+        // Shares the Earth Spike effect, so its visible window is the same
+        // (`earthspike::TOTAL_DURATION_MS`); the effect self-terminates there.
+        EffectId::Hyousensou => 2000,
         EffectId::BottomSuiton => 299990,
         EffectId::Stin4 => 2000,
         // Original game: 200 frames @ 60 fps.
