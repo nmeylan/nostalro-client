@@ -114,6 +114,18 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::flowercast::FlowerCastEffect::new(anchor.point()))
         }
 
+        // Caster body-tint buffs (recolour + STR overlay): tint the actor +
+        // play twohand.str. One struct, per-buff colour/sound param set.
+        EffectId::Twohandquicken => {
+            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::TWOHAND_QUICKEN))
+        }
+        EffectId::Spearquicken => {
+            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::SPEAR_QUICKEN))
+        }
+        EffectId::Lkconcentration => {
+            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::LK_CONCENTRATION))
+        }
+
         // Body-shake effects — shake the attached actor's sprite, emit no
         // primitives. One struct, four timing/amplitude param sets.
         EffectId::Quakebody => {
@@ -1051,6 +1063,9 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Quakebody2
             | EffectId::Quakebody3
             | EffectId::Quakebody4
+            | EffectId::Twohandquicken
+            | EffectId::Spearquicken
+            | EffectId::Lkconcentration
     )
 }
 

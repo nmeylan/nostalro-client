@@ -39,6 +39,10 @@ pub struct EffectFrameInputs<'cache, 'tmp> {
     pub extra_spr_emitters: &'tmp [SpriteEffectEmitter<'tmp>],
     /// Caller-owned STR emitters (RSW STR ambient effects). Viewer passes `&[]`.
     pub extra_str_emitters: &'tmp [StrEmitterInput<'tmp>],
+    /// Resolves an `Attach::Entity(id)` to a world position so caster-attached
+    /// effects (buff STR overlays) follow the actor. Callers without an entity
+    /// table pass `&|_| None`.
+    pub resolve_entity: &'tmp dyn Fn(u32) -> Option<[f32; 3]>,
 }
 
 pub struct EffectFrameOutputs<'cache> {
@@ -80,7 +84,7 @@ pub fn compose_effect_frame<'cache, 'tmp>(
     );
     effect_batches.extend(build_emitter_batches(&spr_draws));
 
-    let holder_str_snapshots = input.effect_holder.collect_str_emitters(&|_| None);
+    let holder_str_snapshots = input.effect_holder.collect_str_emitters(input.resolve_entity);
     let mut str_inputs: Vec<StrEmitterInput<'_>> =
         Vec::with_capacity(input.extra_str_emitters.len() + holder_str_snapshots.len());
     for emitter in input.extra_str_emitters {
@@ -171,6 +175,7 @@ mod tests {
             elapsed: 0.1,
             extra_spr_emitters: &[],
             extra_str_emitters: &[],
+            resolve_entity: &|_| None,
         });
 
         assert!(

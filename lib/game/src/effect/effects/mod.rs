@@ -7,6 +7,7 @@
 pub mod aciddemon;
 pub mod agiup;
 pub mod aura;
+pub mod body_buff;
 pub mod bash;
 pub mod bash3d;
 pub mod basilica;

@@ -12,8 +12,10 @@ pub mod str_aliases;
 pub mod table;
 
 pub use draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-pub use effect_queue::{EffectQueue, SpawnRequest, is_trail_effect};
-pub use effect_trait::{BodyTint, CameraShake, CameraView, Effect, EffectRenderCtx, EffectUpdateCtx};
+pub use effect_queue::{EffectQueue, SpawnRequest, body_attached, is_trail_effect};
+pub use effect_trait::{
+    Afterimage, BodyTint, CameraShake, CameraView, Effect, EffectRenderCtx, EffectUpdateCtx,
+};
 pub use factory::{is_real_impl, make_effect};
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBurstParams};
 pub use spr_aliases::{SprDef, spr_def};

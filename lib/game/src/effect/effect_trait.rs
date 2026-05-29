@@ -55,6 +55,24 @@ pub struct CameraShake {
     pub duration_ms: u32,
 }
 
+/// Movement afterimage ("blur") request — the original game's motion-blur
+/// trail spawned by `EF_TWOHANDQUICKEN` / `EF_SPEARQUICKEN` / `EF_OVERTHRUST`
+/// while the caster moves. The effect only declares *what* the trail looks
+/// like; the actor pass owns the periodic snapshotting (it has the sprite
+/// frame + world transform) and a controller decays each snapshot's alpha.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Afterimage {
+    /// Tint applied to each snapshot, e.g. Quicken's `[200,200,0]`.
+    pub tint: [u8; 3],
+    /// Frames between snapshots — a snapshot every 5th frame.
+    pub interval_frames: f32,
+    /// Starting opacity of a fresh snapshot — `180/255`.
+    pub start_alpha: f32,
+    /// Opacity lost per 60 fps frame — 4 of 255 per frame,
+    /// giving a ~0.75 s trail.
+    pub fade_per_frame: f32,
+}
+
 pub trait Effect: Send {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus;
     fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx);
@@ -99,6 +117,13 @@ pub trait Effect: Send {
     /// only during the effect's shake window. The client's actor pass adds
     /// this to the entity's screen anchor. Default `None`.
     fn body_shake(&self) -> Option<[f32; 2]> {
+        None
+    }
+
+    /// Movement afterimage trail (motion blur). Returns `Some` while the trail
+    /// should emit; the actor pass snapshots the moving sprite on the
+    /// declared interval and renders the fading copies. Default `None`.
+    fn body_afterimage(&self) -> Option<Afterimage> {
         None
     }
 }

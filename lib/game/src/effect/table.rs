@@ -12,7 +12,7 @@ use models::enums::effect_id::EffectId;
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effect_trait::CameraShake;
 use super::effects::{
-    aciddemon, agiup, bash, bash3d, begin_spell, blessing, blitzbeat, bottom_box, bottom_sanctuary_pillar,
+    aciddemon, agiup, bash, bash3d, begin_spell, blessing, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
     light_sphere, rainbow,
     bowling_bash, callzone, cartrevolution, cast_circle, cone, curseattack, defender, detecting,
     dragonsmoke, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
@@ -289,6 +289,13 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::TextureFalling => EffectSpec::Custom {
             duration_ms: texture_falling::total_duration_ms(&texture_falling::TEXTURE_FALLING),
         },
+
+        // Caster body-tint buffs — Custom hybrid (body tint + twohand.str).
+        EffectId::Twohandquicken | EffectId::Spearquicken | EffectId::Lkconcentration => {
+            EffectSpec::Custom {
+                duration_ms: body_buff::TOTAL_DURATION_MS,
+            }
+        }
 
         // Body-shake effects — Custom, shake the actor sprite.
         EffectId::Quakebody => EffectSpec::Custom {

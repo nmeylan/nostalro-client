@@ -7,15 +7,17 @@
 //! the game crate; tooling can swap that for an [`ExternalCustomBackend`]
 //! to load effects from a hot-reload cdylib.
 
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use models::enums::EnumWithNumberValue;
 use models::enums::effect_id::EffectId;
+use ragnarok_formats::act::SpriteAnimationState;
 use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
-    AlphaKeyframe, Attach, CameraShake, Effect as GameEffect, EffectDrawList, EffectQueue,
-    EffectRenderCtx, EffectSpec, EffectStatus, EffectUpdateCtx, SpawnRequest, SprBurstParams,
-    effect_spec, make_effect, spawn_camera_shake,
+    Afterimage, AlphaKeyframe, Attach, CameraShake, Effect as GameEffect, EffectDrawList,
+    EffectQueue, EffectRenderCtx, EffectSpec, EffectStatus, EffectUpdateCtx, SpawnRequest,
+    SprBurstParams, effect_spec, make_effect, spawn_camera_shake,
 };
 
 use crate::effect_sprite::Smoke3DParticle;
@@ -228,6 +230,49 @@ struct HeldEffect {
     duration: f32,
 }
 
+/// One frozen copy of a moving actor's sprite — a motion-blur clone.
+/// Snapshots the animation frame and screen transform at spawn time so the
+/// actor walks away from it, leaving a trail; the holder decays `alpha`.
+pub struct AfterimageSnapshot {
+    entity_id: u32,
+    pub anim: SpriteAnimationState,
+    pub camera_dir: Option<u8>,
+    pub head_dir: u8,
+    pub anchor: [f32; 2],
+    pub depth: f32,
+    pub scale: f32,
+    pub tint: [u8; 3],
+    pub alpha: f32,
+    fade_per_sec: f32,
+}
+
+impl AfterimageSnapshot {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        entity_id: u32,
+        anim: SpriteAnimationState,
+        camera_dir: Option<u8>,
+        head_dir: u8,
+        anchor: [f32; 2],
+        depth: f32,
+        scale: f32,
+        ai: &Afterimage,
+    ) -> Self {
+        Self {
+            entity_id,
+            anim,
+            camera_dir,
+            head_dir,
+            anchor,
+            depth,
+            scale,
+            tint: ai.tint,
+            alpha: ai.start_alpha,
+            fade_per_sec: ai.fade_per_frame * 60.0,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct EffectHolder {
     next_id: u64,
@@ -238,6 +283,13 @@ pub struct EffectHolder {
     /// concrete implementation; production code leaves it `None`.
     external_backend: Option<Arc<dyn ExternalCustomBackend>>,
     shake: ShakeController,
+    /// Live afterimage snapshots (the original game's motion-blur clones),
+    /// decayed each frame by the holder.
+    afterimages: Vec<AfterimageSnapshot>,
+    /// Per-entity frame accumulator for the emit interval.
+    afterimage_emit: HashMap<u32, f32>,
+    /// Entities whose emit interval elapsed this frame (a snapshot is due).
+    afterimage_due: HashSet<u32>,
 }
 
 impl EffectHolder {
@@ -524,6 +576,71 @@ impl EffectHolder {
             self.shake.trigger(s);
         }
         self.shake.tick(dt);
+        self.tick_afterimages(dt);
+    }
+
+    /// Decay live afterimage snapshots and advance the per-entity emit timers,
+    /// flagging entities whose interval elapsed this frame. The actor pass
+    /// consumes the flag (only emitting while the actor is actually moving),
+    /// matching the original game's motion-blur cadence (every 5th frame).
+    fn tick_afterimages(&mut self, dt: f32) {
+        for img in &mut self.afterimages {
+            img.alpha -= img.fade_per_sec * dt;
+        }
+        self.afterimages.retain(|i| i.alpha > 0.0);
+
+        let mut active: HashMap<u32, Afterimage> = HashMap::new();
+        for e in &self.effects {
+            if let (Attach::Entity(id), HeldPayload::Custom(c)) = (e.attach, &e.payload)
+                && let Some(ai) = c.body_afterimage()
+            {
+                active.insert(id, ai);
+            }
+        }
+        self.afterimage_emit.retain(|id, _| active.contains_key(id));
+        self.afterimage_due.clear();
+        for (id, ai) in active {
+            let acc = self.afterimage_emit.entry(id).or_insert(0.0);
+            *acc += dt * 60.0;
+            if *acc >= ai.interval_frames {
+                *acc -= ai.interval_frames;
+                self.afterimage_due.insert(id);
+            }
+        }
+    }
+
+    /// Afterimage parameters of the effect attached to `entity_id`, if any
+    /// (the actor pass reads `tint` / `start_alpha` to build a snapshot).
+    pub fn afterimage_params_for_entity(&self, entity_id: u32) -> Option<Afterimage> {
+        self.effects.iter().rev().find_map(|e| {
+            if let (Attach::Entity(id), HeldPayload::Custom(c)) = (e.attach, &e.payload)
+                && id == entity_id
+            {
+                c.body_afterimage()
+            } else {
+                None
+            }
+        })
+    }
+
+    /// `true` if a fresh afterimage snapshot is due for `entity_id` this frame.
+    pub fn afterimage_emit_due(&self, entity_id: u32) -> bool {
+        self.afterimage_due.contains(&entity_id)
+    }
+
+    /// Store a snapshot of the moving actor; the holder decays it until gone.
+    pub fn push_afterimage(&mut self, snapshot: AfterimageSnapshot) {
+        self.afterimages.push(snapshot);
+    }
+
+    /// Live afterimage snapshots for `entity_id`, oldest first. The actor pass
+    /// rebuilds each through `build_batches` (tinted, faded) behind the live
+    /// sprite.
+    pub fn afterimages_for_entity(
+        &self,
+        entity_id: u32,
+    ) -> impl Iterator<Item = &AfterimageSnapshot> {
+        self.afterimages.iter().filter(move |i| i.entity_id == entity_id)
     }
 
     /// Current screen-shake displacement to apply to the camera this frame
@@ -1069,6 +1186,64 @@ mod tests {
         assert!(h.is_empty(), "should have expired after total 2.5s");
 
         h.despawn(handle);
+    }
+
+    #[test]
+    fn quakebody_attached_to_entity_shakes_and_tints_only_that_entity() {
+        let mut h = EffectHolder::new();
+        h.spawn(EffectId::Quakebody4, Attach::Entity(7), None)
+            .expect("Quakebody4 spawns as a Custom body effect");
+        // Advance into Quakebody4's 20..60-frame shake window.
+        h.update(&ctx(25.0 / 60.0));
+
+        assert_ne!(
+            h.body_shake_for_entity(7),
+            [0.0, 0.0],
+            "the attached entity shakes"
+        );
+        assert!(
+            h.body_tint_for_entity(7).is_some(),
+            "Quakebody4 tints the attached entity"
+        );
+        // A different entity is untouched.
+        assert_eq!(h.body_shake_for_entity(99), [0.0, 0.0]);
+        assert!(h.body_tint_for_entity(99).is_none());
+    }
+
+    #[test]
+    fn twohand_quicken_emits_and_decays_afterimage_for_attached_entity() {
+        let mut h = EffectHolder::new();
+        h.spawn(EffectId::Twohandquicken, Attach::Entity(7), None)
+            .expect("Two-Hand Quicken spawns as a Custom body effect");
+
+        let ai = h.afterimage_params_for_entity(7).expect("Quicken leaves a trail");
+        assert_eq!(ai.tint, [200, 200, 0]);
+        assert!(
+            h.afterimage_params_for_entity(99).is_none(),
+            "only the attached entity trails"
+        );
+
+        // One interval (5 frames) elapses → a snapshot is due.
+        h.update(&ctx(5.0 / 60.0));
+        assert!(h.afterimage_emit_due(7), "snapshot due after the interval");
+
+        // The actor pass snapshots only while moving; store one here.
+        h.push_afterimage(AfterimageSnapshot::new(
+            7,
+            SpriteAnimationState::new(0),
+            Some(0),
+            0,
+            [10.0, 20.0],
+            0.5,
+            1.0,
+            &ai,
+        ));
+        assert_eq!(h.afterimages_for_entity(7).count(), 1);
+        assert!(h.afterimages_for_entity(99).next().is_none());
+
+        // It fades out over its ~0.75 s lifetime.
+        h.update(&ctx(1.0));
+        assert_eq!(h.afterimages_for_entity(7).count(), 0, "snapshot decays away");
     }
 
     #[test]

@@ -2,7 +2,9 @@ use crate::{App, ClipData};
 use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
 use ragnarok_game::effect_table::EffectKind;
 use ragnarok_game::effects::EffectManager;
+use ragnarok_game::entity::EntityState;
 use ragnarok_game::shadow::shadow_size;
+use ragnarok_renderer::effect::holder::AfterimageSnapshot;
 use ragnarok_renderer::effect::{
     EffectFrameInputs, StrEmitterInput, compose_effect_frame,
 };
@@ -103,6 +105,54 @@ impl App {
                                 }
                             }
                         }
+
+                        // Movement afterimage: Two-Hand / Spear
+                        // Quicken drop fading sprite copies behind the actor
+                        // while it walks. Snapshot the current frame on the
+                        // emit interval, then draw every live copy *before*
+                        // the sprite so the live one stays on top.
+                        if let Some(ai) = self.effect_holder.afterimage_params_for_entity(entry.id) {
+                            if entity.state == EntityState::Moving
+                                && self.effect_holder.afterimage_emit_due(entry.id)
+                            {
+                                self.effect_holder.push_afterimage(AfterimageSnapshot::new(
+                                    entry.id,
+                                    entity.animation.clone(),
+                                    Some(entry.camera_dir),
+                                    entity.head_dir,
+                                    entry.screen_anchor,
+                                    entry.depth,
+                                    entry.sprite_scale,
+                                    &ai,
+                                ));
+                            }
+                            for img in self.effect_holder.afterimages_for_entity(entry.id) {
+                                let mut copy = sprite.build_batches(
+                                    &img.anim,
+                                    img.camera_dir,
+                                    img.head_dir,
+                                    img.anchor,
+                                    img.depth,
+                                    img.scale,
+                                    0.0,
+                                );
+                                let (tr, tg, tb) = (
+                                    img.tint[0] as f32 / 255.0,
+                                    img.tint[1] as f32 / 255.0,
+                                    img.tint[2] as f32 / 255.0,
+                                );
+                                for batch in &mut copy {
+                                    for vertex in &mut batch.vertices {
+                                        vertex.color[0] *= tr;
+                                        vertex.color[1] *= tg;
+                                        vertex.color[2] *= tb;
+                                        vertex.color[3] *= img.alpha;
+                                    }
+                                }
+                                sprite_batches.append(&mut copy);
+                            }
+                        }
+
                         sprite_batches.append(&mut batches);
 
                         if let (Some(emo), Some(emo_act), Some(emo_tex)) = (
@@ -352,6 +402,10 @@ impl App {
                 elapsed,
                 extra_spr_emitters: &extra_spr,
                 extra_str_emitters: &extra_str,
+                // Caster-attached buff STR overlays will resolve here once the
+                // game wires status-packet → `spawn_on`; body tint/shake are
+                // applied directly in the actor pass and don't need this.
+                resolve_entity: &|_| None,
             });
 
             renderer.render(

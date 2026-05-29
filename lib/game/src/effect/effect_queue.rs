@@ -110,7 +110,13 @@ impl EffectQueue {
 pub fn body_attached(id: EffectId) -> bool {
     matches!(
         id,
-        EffectId::Quakebody | EffectId::Quakebody2 | EffectId::Quakebody3 | EffectId::Quakebody4
+        EffectId::Quakebody
+            | EffectId::Quakebody2
+            | EffectId::Quakebody3
+            | EffectId::Quakebody4
+            | EffectId::Twohandquicken
+            | EffectId::Spearquicken
+            | EffectId::Lkconcentration
     )
 }
 

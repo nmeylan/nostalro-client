@@ -12,17 +12,19 @@ use std::time::Instant;
 use models::enums::EnumWithNumberValue;
 use models::enums::EnumWithStringValue;
 use models::enums::effect_id::EffectId;
-use ragnarok_formats::act::{MotionType, SpriteAnimationState};
+use ragnarok_formats::act::{MotionType, SpriteActionType, SpriteAnimationState};
 use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
-    EffectQueue, EffectSpec, effect_spec, effect_texture_paths, is_trail_effect, str_aliases,
+    EffectQueue, EffectSpec, body_attached, effect_spec, effect_texture_paths, is_trail_effect,
+    str_aliases,
 };
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::map_loader::{self, MapData};
 use ragnarok_game::sprite_loader as game_sprite_loader;
 use ragnarok_game::sprite_path::weapon_view_id_to_type;
+use ragnarok_renderer::effect::holder::AfterimageSnapshot;
 use ragnarok_renderer::effect::{
     EffectFrameInputs, EffectHolder, EffectUpdateCtx, StrEffectCache, compose_effect_frame,
 };
@@ -378,7 +380,11 @@ impl App {
             _ => [0.0, 0.0, 0.0],
         };
         self.effect_holder.clear();
-        if is_trail_effect(id) {
+        if body_attached(id) {
+            // Body shake / tint effects attach to the previewed actor so the
+            // character pass can apply them (mirrors in-game `spawn_on`).
+            self.effect_queue.spawn_on(id, VIEWER_ACTOR_ID);
+        } else if is_trail_effect(id) {
             let to = self
                 .trail_target_override
                 .unwrap_or([pos[0], pos[1], pos[2] + 22.0]);
@@ -866,6 +872,15 @@ impl App {
         self.effect_holder.drain_queue(&mut self.effect_queue);
         self.effect_holder
             .update(&EffectUpdateCtx { delta: sim_dt, camera_target: None });
+        let body_shake = self.effect_holder.body_shake_for_entity(VIEWER_ACTOR_ID);
+        let body_tint = self.effect_holder.body_tint_for_entity(VIEWER_ACTOR_ID);
+        // Caster-attached effects (buff STR overlays) resolve to the previewed
+        // actor's world anchor.
+        let actor_pos = self
+            .map_data
+            .as_ref()
+            .map(|m| compute_world_anchor(self.character_cell, m))
+            .unwrap_or([0.0, 0.0, 0.0]);
 
         let Some(renderer) = &mut self.renderer else {
             return;
@@ -887,6 +902,7 @@ impl App {
             screen_h,
             zoom,
             elapsed: 0.0,
+            resolve_entity: &|id| (id == VIEWER_ACTOR_ID).then_some(actor_pos),
             extra_spr_emitters: &[],
             extra_str_emitters: &[],
         });
@@ -896,15 +912,26 @@ impl App {
 
         let sprite_batches: Vec<ragnarok_renderer::sprite::SpriteBatch<'_>> =
             match (&self.entity_sprite, &self.map_data) {
-                (Some(entity), Some(map)) => build_character_batches(
-                    entity,
-                    map,
-                    self.character_cell,
-                    &self.animation,
-                    &renderer.camera,
-                    screen_w,
-                    screen_h,
-                ),
+                (Some(entity), Some(map)) => {
+                    // Trail only while the walk action plays (the viewer's
+                    // stand-in for the in-game `Moving` state).
+                    let emitting =
+                        self.animation.action() == SpriteActionType::Walk as usize;
+                    build_character_batches(
+                        entity,
+                        map,
+                        self.character_cell,
+                        &self.animation,
+                        &renderer.camera,
+                        screen_w,
+                        screen_h,
+                        body_shake,
+                        body_tint,
+                        &mut self.effect_holder,
+                        VIEWER_ACTOR_ID,
+                        emitting,
+                    )
+                }
                 _ => Vec::new(),
             };
 
@@ -951,6 +978,11 @@ impl App {
     }
 }
 
+/// Synthetic entity id for the previewed actor, so body-attached effects
+/// (`spawn_on`) can shake / tint it like an in-game caster.
+const VIEWER_ACTOR_ID: u32 = 1;
+
+#[allow(clippy::too_many_arguments)]
 fn build_character_batches<'a>(
     entity: &'a EntitySprite,
     map: &MapData,
@@ -959,6 +991,11 @@ fn build_character_batches<'a>(
     camera: &ragnarok_renderer::Camera,
     screen_w: f32,
     screen_h: f32,
+    body_shake: [f32; 2],
+    body_tint: Option<[u8; 3]>,
+    effect_holder: &mut EffectHolder,
+    entity_id: u32,
+    emitting: bool,
 ) -> Vec<ragnarok_renderer::sprite::SpriteBatch<'a>> {
     let coords: &MapCoordinates = match map.coordinates.as_ref() {
         Some(c) => c,
@@ -970,15 +1007,71 @@ fn build_character_batches<'a>(
         return Vec::new();
     };
 
-    entity.build_batches(
+    // Movement afterimage (`CBlurPC`): snapshot the moving actor on the emit
+    // interval and draw every fading copy *before* the live sprite.
+    let mut batches: Vec<ragnarok_renderer::sprite::SpriteBatch<'a>> = Vec::new();
+    if let Some(ai) = effect_holder.afterimage_params_for_entity(entity_id) {
+        if emitting && effect_holder.afterimage_emit_due(entity_id) {
+            effect_holder.push_afterimage(AfterimageSnapshot::new(
+                entity_id,
+                animation.clone(),
+                Some(camera_dir),
+                animation.direction() as u8,
+                screen_anchor,
+                depth,
+                sprite_scale,
+                &ai,
+            ));
+        }
+        for img in effect_holder.afterimages_for_entity(entity_id) {
+            let mut copy = entity.build_batches(
+                &img.anim,
+                img.camera_dir,
+                img.head_dir,
+                img.anchor,
+                img.depth,
+                img.scale,
+                0.0,
+            );
+            let (tr, tg, tb) = (
+                img.tint[0] as f32 / 255.0,
+                img.tint[1] as f32 / 255.0,
+                img.tint[2] as f32 / 255.0,
+            );
+            for batch in &mut copy {
+                for v in &mut batch.vertices {
+                    v.color[0] *= tr;
+                    v.color[1] *= tg;
+                    v.color[2] *= tb;
+                    v.color[3] *= img.alpha;
+                }
+            }
+            batches.append(&mut copy);
+        }
+    }
+
+    let anchor = [screen_anchor[0] + body_shake[0], screen_anchor[1] + body_shake[1]];
+    let mut live = entity.build_batches(
         animation,
         Some(camera_dir),
         animation.direction() as u8,
-        screen_anchor,
+        anchor,
         depth,
         sprite_scale,
         0.0,
-    )
+    );
+    if let Some([tr, tg, tb]) = body_tint {
+        let (tr, tg, tb) = (tr as f32 / 255.0, tg as f32 / 255.0, tb as f32 / 255.0);
+        for batch in &mut live {
+            for v in &mut batch.vertices {
+                v.color[0] *= tr;
+                v.color[1] *= tg;
+                v.color[2] *= tb;
+            }
+        }
+    }
+    batches.append(&mut live);
+    batches
 }
 
 fn format_effect_label(id: EffectId) -> String {
