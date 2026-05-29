@@ -7,6 +7,7 @@
 pub mod aura;
 pub mod bash;
 pub mod bash3d;
+pub mod basilica;
 pub mod blessing;
 pub mod begin_spell;
 pub mod begin_spell_6;
@@ -21,6 +22,7 @@ pub mod bottom_out;
 pub mod bottom_sanctuary_pillar;
 pub mod bottom_song;
 pub mod bottom_vertical;
+pub mod bottom_volcano;
 pub mod callzone;
 pub mod cartrevolution;
 pub mod cast_circle;
