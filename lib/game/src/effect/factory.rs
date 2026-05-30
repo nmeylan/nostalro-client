@@ -410,6 +410,21 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Cartrevolution => {
             Box::new(effects::cartrevolution::CartRevolutionEffect::new(anchor.point()))
         }
+
+        // STR-C hybrids — each builds the primitive layer the STR file
+        // alone is missing, and re-declares its STR via `str_overlay()`.
+        // EF_GLASSWALL2 — pink rising column + SafetyWall.str.
+        EffectId::Glasswall2 => {
+            Box::new(effects::glasswall2::Glasswall2Effect::new(anchor.point()))
+        }
+        // EF_PROVIDENCE — light funnel column + providence.str angel.
+        EffectId::Providence => {
+            Box::new(effects::providence::ProvidenceEffect::new(anchor.point()))
+        }
+        // EF_KOUENKA — sakura sprite scatter + firehit.str.
+        EffectId::Kouenka => {
+            Box::new(effects::kouenka::KouenkaEffect::new(anchor.point()))
+        }
         // EF_NAPALMVALCAN — five timed Hit2 bursts.
         EffectId::Napalmvalcan => {
             Box::new(effects::napalmvalcan::NapalmValcanEffect::new(anchor.point()))
@@ -948,6 +963,9 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Hit6
             | EffectId::Sonicblowhit
             | EffectId::Cartrevolution
+            | EffectId::Glasswall2
+            | EffectId::Providence
+            | EffectId::Kouenka
             | EffectId::Napalmvalcan
             | EffectId::Stormgust
             | EffectId::BottomSanc

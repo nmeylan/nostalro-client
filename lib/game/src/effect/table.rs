@@ -16,9 +16,9 @@ use super::effects::{
     light_sphere, rainbow,
     bowling_bash, callzone, cartrevolution, cast_circle, cone, curseattack, defender, detecting,
     dragonsmoke, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
-    frost_diver, glasswall, ground_sample, gumgang2, hasteup, healsp, heavensdrive, hit, hit2, hit5_6,
-    magnum_break, napalmbeat,
-    napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_pillar,
+    frost_diver, glasswall, glasswall2, ground_sample, gumgang2, hasteup, healsp, heavensdrive, hit, hit2, hit5_6,
+    kouenka, magnum_break, napalmbeat,
+    napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_pillar, providence,
     quakebody, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond, status_up,
     stormgust, teleportation, texture_falling, volcano, warp, waterball, wind, yufitel2, yupitel,
 };
@@ -502,6 +502,20 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
         EffectId::PotionBerserk => EffectSpec::Custom {
             duration_ms: potion_berserk::TOTAL_DURATION_MS,
+        },
+
+        // Batch STR-C — hybrids whose STR alias would otherwise shadow the
+        // Custom factory dispatch in `bucket_default`; pin to Custom here so
+        // the primitive layer (column / funnel / sakura scatter) runs while
+        // `str_overlay()` keeps the STR file playing alongside.
+        EffectId::Glasswall2 => EffectSpec::Custom {
+            duration_ms: glasswall2::TOTAL_DURATION_MS,
+        },
+        EffectId::Providence => EffectSpec::Custom {
+            duration_ms: providence::TOTAL_DURATION_MS,
+        },
+        EffectId::Kouenka => EffectSpec::Custom {
+            duration_ms: kouenka::TOTAL_DURATION_MS,
         },
 
         _ => bucket_default(id),

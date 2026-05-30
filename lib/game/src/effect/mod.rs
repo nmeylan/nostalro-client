@@ -57,6 +57,8 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::entry::TEXTURES,
         effects::exit::TEXTURES,
         effects::glasswall::TEXTURES,
+        effects::glasswall2::TEXTURES,
+        effects::providence::TEXTURES,
         effects::healsp::TEXTURES,
         effects::frost_diver::TEXTURES,
         effects::begin_spell_6::TEXTURES,

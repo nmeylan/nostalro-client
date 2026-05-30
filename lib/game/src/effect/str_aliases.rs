@@ -324,7 +324,9 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Blind => &["blind"],
         EffectId::Poison => &["poison"],
         EffectId::Guard => &["guard"],
-        EffectId::Joblvup50 => &["joblvup50"],
+        // The classic GRF has no `joblvup50.str`; id 337 reuses `joblvup`
+        // (same file the base Joblvup id plays).
+        EffectId::Joblvup50 => &["joblvup"],
         EffectId::Angel2 => &["angel2"],
         EffectId::Magnum2 => &["magnum2"],
         EffectId::Callzone => &["callzone"],
