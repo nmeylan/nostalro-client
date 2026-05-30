@@ -509,20 +509,8 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Shieldboomerang3 => &["shieldboomerang3"],
         EffectId::Doublecastbody => &["doublecastbody"],
         EffectId::Gravitation => &["gravitation"],
-        EffectId::Tarotcard1 => &["tarotcard1"],
-        EffectId::Tarotcard2 => &["tarotcard2"],
-        EffectId::Tarotcard3 => &["tarotcard3"],
-        EffectId::Tarotcard4 => &["tarotcard4"],
-        EffectId::Tarotcard5 => &["tarotcard5"],
-        EffectId::Tarotcard6 => &["tarotcard6"],
-        EffectId::Tarotcard7 => &["tarotcard7"],
-        EffectId::Tarotcard8 => &["tarotcard8"],
-        EffectId::Tarotcard9 => &["tarotcard9"],
-        EffectId::Tarotcard10 => &["tarotcard10"],
-        EffectId::Tarotcard11 => &["tarotcard11"],
-        EffectId::Tarotcard12 => &["tarotcard12"],
-        EffectId::Tarotcard13 => &["tarotcard13"],
-        EffectId::Tarotcard14 => &["tarotcard14"],
+        // Tarotcard1-14 have no STR file; they render as camera-facing
+        // billboards via the custom factory path (`effects::tarot_card`).
         EffectId::Aciddemon => &["aciddemon"],
         EffectId::Greenbody => &["greenbody"],
         EffectId::Throwitem4 => &["throwitem4"],
@@ -655,7 +643,8 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::CrystalBlue => &["crystal_blue"],
         EffectId::BottomEvilland => &["bottom_evilland"],
         EffectId::Guard3 => &["guard3"],
-        EffectId::NpcSlowcast => &["npc_slowcast"],
+        // No STR file — slow-cast clock renders as a camera-facing
+        // billboard via the custom factory path (`effects::tarot_card`).
         EffectId::Criticalwound => &["cwound"],
         EffectId::Green993 => &["green99_3"],
         EffectId::Green995 => &["green99_5"],

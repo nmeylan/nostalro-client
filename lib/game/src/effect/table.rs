@@ -441,6 +441,9 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Level994
         | EffectId::Level995
         | EffectId::Level996
+        // MapGhost reuses the LEVEL99 sparkle prim; its `map_ghost` str_alias
+        // would otherwise shadow Custom dispatch in `bucket_default`.
+        | EffectId::MapGhost
         | EffectId::Icewall
         | EffectId::Earthspike
         | EffectId::Hyousensou
@@ -886,10 +889,10 @@ mod tests {
 
     #[test]
     fn str_alias_wins_over_noop_and_unimplemented_custom() {
-        // Tarotcard1 is in is_noop_bucket but has a real STR file → Str.
+        // Assumptio is in is_noop_bucket but has a real STR file → Str.
         assert!(matches!(
-            effect_spec(EffectId::Tarotcard1),
-            Some(EffectSpec::Str { file: "tarotcard1", .. })
+            effect_spec(EffectId::Assumptio),
+            Some(EffectSpec::Str { file: "assumptio", .. })
         ));
         // Stin (Estin) is in is_custom_bucket with no factory arm but has a
         // STR alias → Str rather than Custom-not-impl.
@@ -1445,20 +1448,23 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Shieldboomerang3 => 4990,
         EffectId::Doublecastbody => 1200,
         EffectId::Gravitation => 20000,
-        EffectId::Tarotcard1 => 3000,
-        EffectId::Tarotcard2 => 3000,
-        EffectId::Tarotcard3 => 3000,
-        EffectId::Tarotcard4 => 3000,
-        EffectId::Tarotcard5 => 3000,
-        EffectId::Tarotcard6 => 3000,
-        EffectId::Tarotcard7 => 3000,
-        EffectId::Tarotcard8 => 3000,
-        EffectId::Tarotcard9 => 3000,
-        EffectId::Tarotcard10 => 3000,
-        EffectId::Tarotcard11 => 3000,
-        EffectId::Tarotcard12 => 3000,
-        EffectId::Tarotcard13 => 3000,
-        EffectId::Tarotcard14 => 3000,
+        // EffectTextureSet billboards self-terminate on their own `flag1[4]=1`
+        // alpha curve (~4.07 s); pin the parent duration to that wall-clock end
+        // so the holder doesn't cut the fade-out short.
+        EffectId::Tarotcard1 => 4067,
+        EffectId::Tarotcard2 => 4067,
+        EffectId::Tarotcard3 => 4067,
+        EffectId::Tarotcard4 => 4067,
+        EffectId::Tarotcard5 => 4067,
+        EffectId::Tarotcard6 => 4067,
+        EffectId::Tarotcard7 => 4067,
+        EffectId::Tarotcard8 => 4067,
+        EffectId::Tarotcard9 => 4067,
+        EffectId::Tarotcard10 => 4067,
+        EffectId::Tarotcard11 => 4067,
+        EffectId::Tarotcard12 => 4067,
+        EffectId::Tarotcard13 => 4067,
+        EffectId::Tarotcard14 => 4067,
         EffectId::Aciddemon => 2000,
         EffectId::Greenbody => 1200,
         EffectId::Throwitem4 => 3000,
@@ -1607,7 +1613,7 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::CrystalBlue => 4294967295,
         EffectId::BottomEvilland => 299990,
         EffectId::Guard3 => 2000,
-        EffectId::NpcSlowcast => 3000,
+        EffectId::NpcSlowcast => 3100,
         EffectId::Criticalwound => 500,
         EffectId::Green993 => 4294967295,
         EffectId::Green995 => 4294967295,

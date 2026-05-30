@@ -95,6 +95,11 @@ pub fn is_custom_bucket(id: EffectId) -> bool {
             | EffectId::Heavensdrive | EffectId::Hit1 | EffectId::Hit2
             | EffectId::Hit3 | EffectId::Hit4 | EffectId::Hit5
             | EffectId::Hit6 | EffectId::Hitdark | EffectId::Hittexture
+            | EffectId::Tarotcard1 | EffectId::Tarotcard2 | EffectId::Tarotcard3
+            | EffectId::Tarotcard4 | EffectId::Tarotcard5 | EffectId::Tarotcard6
+            | EffectId::Tarotcard7 | EffectId::Tarotcard8 | EffectId::Tarotcard9
+            | EffectId::Tarotcard10 | EffectId::Tarotcard11 | EffectId::Tarotcard12
+            | EffectId::Tarotcard13 | EffectId::Tarotcard14
             | EffectId::Hptime | EffectId::Hyousensou | EffectId::Icearrow
             | EffectId::Icewall | EffectId::Incagidex | EffectId::Incagility
             | EffectId::Intimidate | EffectId::Issen | EffectId::Itemfast
@@ -272,12 +277,8 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::Sightrasher | EffectId::Soullight | EffectId::Soullink
             | EffectId::Spherewind3 | EffectId::Spinedbody | EffectId::Spinedbody2
             | EffectId::StatusState | EffectId::Stoprun | EffectId::TaeReady
-            | EffectId::TalkFrostjoke | EffectId::TalkScream | EffectId::Tarotcard1
-            | EffectId::Tarotcard10 | EffectId::Tarotcard11 | EffectId::Tarotcard12
-            | EffectId::Tarotcard13 | EffectId::Tarotcard14 | EffectId::Tarotcard2
-            | EffectId::Tarotcard3 | EffectId::Tarotcard4 | EffectId::Tarotcard5
-            | EffectId::Tarotcard6 | EffectId::Tarotcard7 | EffectId::Tarotcard8
-            | EffectId::Tarotcard9 | EffectId::Teihit1reverse | EffectId::Teihit2reverse
+            | EffectId::TalkFrostjoke | EffectId::TalkScream
+            | EffectId::Teihit1reverse | EffectId::Teihit2reverse
             | EffectId::Teihit3reverse | EffectId::Telekhit | EffectId::Teleportation
             | EffectId::Testbodylight | EffectId::TestEffectBegin
             | EffectId::Transbluebody | EffectId::Undeadbody | EffectId::UndeadbodyDel

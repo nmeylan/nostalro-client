@@ -6,8 +6,10 @@
 
 pub mod aciddemon;
 pub mod agiup;
-pub mod aura;
 pub mod body_buff;
+pub mod casting_ring;
+pub mod floor_aura;
+pub mod sparkle_column;
 pub mod bash;
 pub mod bash3d;
 pub mod basilica;
@@ -94,6 +96,7 @@ pub mod icewall;
 pub mod light_sphere;
 pub mod party;
 pub mod spike_util;
+pub mod tarot_card;
 pub mod temp_result;
 pub mod texture_falling;
 pub mod toprank;

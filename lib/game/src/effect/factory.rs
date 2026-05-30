@@ -224,6 +224,24 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::effect_texture::EffectTextureEffect::new(anchor.point(), effects::effect_texture::HITTEXTURE))
         }
 
+        // Camera-facing tarot cards + the slow-cast clock — same alpha
+        // curve, one texture each.
+        EffectId::Tarotcard1 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(0))),
+        EffectId::Tarotcard2 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(1))),
+        EffectId::Tarotcard3 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(2))),
+        EffectId::Tarotcard4 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(3))),
+        EffectId::Tarotcard5 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(4))),
+        EffectId::Tarotcard6 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(5))),
+        EffectId::Tarotcard7 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(6))),
+        EffectId::Tarotcard8 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(7))),
+        EffectId::Tarotcard9 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(8))),
+        EffectId::Tarotcard10 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(9))),
+        EffectId::Tarotcard11 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(10))),
+        EffectId::Tarotcard12 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(11))),
+        EffectId::Tarotcard13 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(12))),
+        EffectId::Tarotcard14 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(13))),
+        EffectId::NpcSlowcast => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::NPC_SLOWCAST)),
+
         // Camera-facing result banners above the caster.
         EffectId::TempOk => {
             Box::new(effects::temp_result::TempResultEffect::new(anchor.point(), effects::temp_result::TEMP_OK))
@@ -499,29 +517,36 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             effects::bash3d::BASH3D5,
         )),
 
-        EffectId::Level99 => Box::new(effects::aura::AuraEffect::new(
+        // LEVEL99 aura family — each EF_LEVEL99* is a distinct primitive layer
+        // the server composes together (ring + halo + sparkles), not a size
+        // variant of one billboard.
+        EffectId::Level99 => Box::new(effects::casting_ring::CastingRingEffect::new(
             anchor.point(),
-            effects::aura::LV99_LARGE,
+            effects::casting_ring::LV99,
         )),
-        EffectId::Level992 => Box::new(effects::aura::AuraEffect::new(
+        EffectId::Level995 => Box::new(effects::casting_ring::CastingRingEffect::new(
             anchor.point(),
-            effects::aura::LV99_MIDDLE,
+            effects::casting_ring::LV995,
         )),
-        EffectId::Level993 => Box::new(effects::aura::AuraEffect::new(
+        EffectId::Level992 => Box::new(effects::floor_aura::FloorAuraEffect::new(
             anchor.point(),
-            effects::aura::LV99_BOTTOM,
+            effects::floor_aura::LV99_BLUE,
         )),
-        EffectId::Level994 => Box::new(effects::aura::AuraEffect::new(
+        EffectId::Level996 => Box::new(effects::floor_aura::FloorAuraEffect::new(
             anchor.point(),
-            effects::aura::LV99_TRANSCENDANT,
+            effects::floor_aura::LV99_GREEN,
         )),
-        EffectId::Level995 => Box::new(effects::aura::AuraEffect::new(
+        EffectId::Level993 => Box::new(effects::sparkle_column::SparkleColumnEffect::new(
             anchor.point(),
-            effects::aura::LV99_TRANSCENDANT_MIDDLE,
+            effects::sparkle_column::FREEZING,
         )),
-        EffectId::Level996 => Box::new(effects::aura::AuraEffect::new(
+        EffectId::Level994 => Box::new(effects::sparkle_column::SparkleColumnEffect::new(
             anchor.point(),
-            effects::aura::LV99_TRANSCENDANT_BOTTOM,
+            effects::sparkle_column::WHITELIGHT,
+        )),
+        EffectId::MapGhost => Box::new(effects::sparkle_column::SparkleColumnEffect::new(
+            anchor.point(),
+            effects::sparkle_column::GHOST,
         )),
 
         EffectId::Beginspell => Box::new(effects::begin_spell::BeginSpellEffect::new(anchor.point())),
@@ -1063,6 +1088,21 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Fvoice
             | EffectId::TempOk
             | EffectId::TempFail
+            | EffectId::Tarotcard1
+            | EffectId::Tarotcard2
+            | EffectId::Tarotcard3
+            | EffectId::Tarotcard4
+            | EffectId::Tarotcard5
+            | EffectId::Tarotcard6
+            | EffectId::Tarotcard7
+            | EffectId::Tarotcard8
+            | EffectId::Tarotcard9
+            | EffectId::Tarotcard10
+            | EffectId::Tarotcard11
+            | EffectId::Tarotcard12
+            | EffectId::Tarotcard13
+            | EffectId::Tarotcard14
+            | EffectId::NpcSlowcast
             | EffectId::Hyousensou
             | EffectId::Earthspike
             | EffectId::Bowlingbash
@@ -1342,6 +1382,31 @@ mod tests {
                 "{:?} is pure custom, no STR overlay",
                 id
             );
+            assert!(
+                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                "{:?} spec must be Custom, got {:?}",
+                id,
+                effect_spec(id),
+            );
+        }
+    }
+
+    #[test]
+    fn tarot_and_slowcast_dispatch_to_custom_billboards() {
+        // EffectTextureSet billboards: each must route to a real impl with no
+        // STR overlay, and the spec must resolve to Custom. A leftover
+        // `str_aliases` guess (`"tarotcard1"`, `"npc_slowcast"`) would shadow
+        // the factory dispatch and the holder would chase a missing .str.
+        use super::super::spec::{EffectAnchor, EffectSpec};
+        use super::super::table::effect_spec;
+        for id in [
+            EffectId::Tarotcard1,
+            EffectId::Tarotcard14,
+            EffectId::NpcSlowcast,
+        ] {
+            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None).unwrap();
+            assert_eq!(e.str_overlay(), None, "{:?} has no STR overlay", id);
             assert!(
                 matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
                 "{:?} spec must be Custom, got {:?}",
