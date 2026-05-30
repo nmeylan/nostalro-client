@@ -369,6 +369,39 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::magnum_break::MagnumBreakEffect::new(anchor.point()))
         }
 
+        // Throw Item family — ballistic-arc item projectiles. `from`/`to`
+        // give the caster→target heading; one struct, per-variant params.
+        // Throwitem4 is a composite (two staggered projectiles).
+        EffectId::Throwitem
+        | EffectId::Throwitem2
+        | EffectId::Throwitem3
+        | EffectId::Throwitem4
+        | EffectId::Throwitem5
+        | EffectId::Throwitem6
+        | EffectId::Throwitem7
+        | EffectId::Throwitem8
+        | EffectId::Throwitem9
+        | EffectId::Throwitem10 => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            use effects::throw_item as ti;
+            let variants: &[ti::ThrowItemParams] = match id {
+                EffectId::Throwitem => &[ti::THROW_BOTTLES],
+                EffectId::Throwitem2 => &[ti::THROW_ITEM2],
+                EffectId::Throwitem3 => &[ti::THROW_STONE],
+                EffectId::Throwitem4 => &[ti::THROW_MOLOTOV, ti::THROW_ITEM3],
+                EffectId::Throwitem5 => &[ti::THROW_ITEM4],
+                EffectId::Throwitem6 => &[ti::THROW_ITEM6],
+                EffectId::Throwitem7 => &[ti::THROW_ITEM7],
+                EffectId::Throwitem8 => &[ti::THROW_ITEM8],
+                EffectId::Throwitem9 => &[ti::THROW_ITEM9],
+                _ => &[ti::THROW_COIN],
+            };
+            Box::new(ti::ThrowItemEffect::new(from, to, variants))
+        }
+
         // Sight + Ruwach — orbit-spawn SpriteParticle pairs around the
         // entity. Same struct, different per-skill `Params`.
         EffectId::Sight => Box::new(effects::sight::OrbitEffect::new(

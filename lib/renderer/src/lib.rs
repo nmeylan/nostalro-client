@@ -693,8 +693,23 @@ impl Renderer {
             if name.is_empty() {
                 return None;
             }
-            let full = format!("data/texture/effect/{name}");
-            self.texture_cache.get(&full)
+            // A texture field may list several alias candidates separated by
+            // `|` (GRF paths never contain it); the first one present in the
+            // cache wins. Lets an effect name the faithful texture first and a
+            // fallback after, for variants absent from a given GRF.
+            //
+            // For each candidate: a bare filename lives under the effect
+            // texture dir; a name already containing a path (e.g. item icons
+            // thrown by ThrowItem) is taken relative to `data/texture/`. Must
+            // mirror `effect_texture_paths()` in the game crate.
+            name.split('|').find_map(|candidate| {
+                let full = if candidate.contains('/') {
+                    format!("data/texture/{candidate}")
+                } else {
+                    format!("data/texture/effect/{candidate}")
+                };
+                self.texture_cache.get(&full)
+            })
         };
         let mut records: Vec<DrawRecord<'_>> = Vec::new();
         records.extend(sprite_particle_records);

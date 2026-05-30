@@ -20,7 +20,7 @@ use super::effects::{
     kouenka, magnum_break, napalmbeat,
     napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_pillar, providence,
     quakebody, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond, status_up,
-    stormgust, teleportation, texture_falling, volcano, warp, waterball, wind, yufitel2, yupitel,
+    stormgust, teleportation, texture_falling, throw_item, volcano, warp, waterball, wind, yufitel2, yupitel,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -41,6 +41,22 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // value (300 ms) cuts the cone off before the ring finishes growing.
         EffectId::Magnumbreak => EffectSpec::Custom {
             duration_ms: magnum_break::TOTAL_DURATION_MS,
+        },
+
+        // Throw Item family — ballistic-arc projectiles. Route to the custom
+        // factory (otherwise they fall through to their STR alias). The
+        // effect self-terminates on landing; the duration is a backstop.
+        EffectId::Throwitem
+        | EffectId::Throwitem2
+        | EffectId::Throwitem3
+        | EffectId::Throwitem4
+        | EffectId::Throwitem5
+        | EffectId::Throwitem6
+        | EffectId::Throwitem7
+        | EffectId::Throwitem8
+        | EffectId::Throwitem9
+        | EffectId::Throwitem10 => EffectSpec::Custom {
+            duration_ms: throw_item::TOTAL_DURATION_MS,
         },
 
         // Hit family — fires on every weapon swing. The cylinder ring

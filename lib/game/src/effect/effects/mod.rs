@@ -50,6 +50,7 @@ pub mod foot;
 pub mod frost_diver;
 pub mod particle_up;
 pub mod teihit;
+pub mod throw_item;
 pub mod glasswall;
 pub mod glasswall2;
 pub mod ground_sample;

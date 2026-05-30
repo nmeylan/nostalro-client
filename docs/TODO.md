@@ -59,7 +59,7 @@ TODO:
 - ~~NPCs~~ (done — entity type with sprite rendering)
 - ~~Monsters~~ (done — job-based sprites with animation states)
 - ~~Ground items (dropped items with pickup)~~
-- Skill ground units (AoE, traps)
+- Skill ground units (AoE, traps, bottom song)
 - Pet companion rendering
 - Homunculus rendering
 - Mercenary rendering

@@ -141,5 +141,15 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             | EffectId::Foot6
             | EffectId::Bowlingbash
             | EffectId::Dragonsmoke
+            | EffectId::Throwitem
+            | EffectId::Throwitem2
+            | EffectId::Throwitem3
+            | EffectId::Throwitem4
+            | EffectId::Throwitem5
+            | EffectId::Throwitem6
+            | EffectId::Throwitem7
+            | EffectId::Throwitem8
+            | EffectId::Throwitem9
+            | EffectId::Throwitem10
     )
 }

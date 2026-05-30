@@ -114,10 +114,23 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::rainbow::TEXTURES,
         effects::agiup::TEXTURES,
         effects::light_sphere::TEXTURES,
+        effects::throw_item::TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {
-            seen.insert(format!("data/texture/effect/{name}"));
+            // A name may list `|`-separated alias candidates; preload every
+            // candidate so whichever the GRF actually has is in the cache.
+            // Bare names resolve under the effect texture dir; names that
+            // already carry a path (e.g. thrown item icons under
+            // `유저인터페이스/item/`) are relative to `data/texture/`. Must
+            // mirror the renderer's `texture_lookup`.
+            for candidate in name.split('|') {
+                if candidate.contains('/') {
+                    seen.insert(format!("data/texture/{candidate}"));
+                } else {
+                    seen.insert(format!("data/texture/effect/{candidate}"));
+                }
+            }
         }
     }
     seen.into_iter().collect()
@@ -168,8 +181,14 @@ mod tests {
         assert_eq!(paths.len(), sorted.len(), "no duplicates");
         assert!(paths.iter().all(|p| !p.is_empty()), "no empty entries");
         assert!(
-            paths.iter().all(|p| p.starts_with("data/texture/effect/")),
-            "all entries are GRF effect paths",
+            paths.iter().all(|p| p.starts_with("data/texture/")),
+            "all entries are GRF texture paths",
+        );
+        // Most are effect-dir textures; a few (thrown item icons) live
+        // elsewhere under data/texture/ via the path-bearing-name convention.
+        assert!(
+            paths.iter().any(|p| p.starts_with("data/texture/유저인터페이스/item/")),
+            "thrown item icons resolve under the item dir",
         );
         assert!(
             paths.iter().any(|p| p.ends_with("ring_yellow.tga")),
