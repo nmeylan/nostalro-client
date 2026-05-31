@@ -16,7 +16,7 @@ use super::effects::{
     light_sphere, rainbow,
     bowling_bash, callzone, cartrevolution, cast_circle, cone, curseattack, defender, detecting,
     dragonsmoke, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
-    frost_diver, glasswall, glasswall2, ground_sample, gumgang2, hasteup, healsp, heavensdrive, hit, hit2, hit5_6,
+    frost_diver, fullscreen_overlay, glasswall, glasswall2, ground_sample, gumgang2, hasteup, healsp, heavensdrive, hit, hit2, hit5_6,
     kouenka, magnum_break, napalmbeat,
     napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_pillar, providence,
     quakebody, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond, status_up,
@@ -535,6 +535,30 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
         EffectId::Kouenka => EffectSpec::Custom {
             duration_ms: kouenka::TOTAL_DURATION_MS,
+        },
+
+        // Batch FULLSCREEN — status-overlay washes. Persistent washes are
+        // status-driven (no fixed lifetime in the original game); we mark
+        // them persistent so the holder doesn't kill them early. Bleeding is
+        // a one-shot slash pulse with a finite lifetime.
+        EffectId::Blind
+        | EffectId::Devil1
+        | EffectId::Devil2
+        | EffectId::Devil3
+        | EffectId::Devil4
+        | EffectId::Devil5
+        | EffectId::Devil6
+        | EffectId::Devil7
+        | EffectId::Devil8
+        | EffectId::Devil9
+        | EffectId::Devil10
+        | EffectId::DevilRed
+        | EffectId::Poison
+        | EffectId::CrystalBlue => EffectSpec::Custom {
+            duration_ms: fullscreen_overlay::PERSISTENT_DURATION_MS,
+        },
+        EffectId::Bleeding => EffectSpec::Custom {
+            duration_ms: fullscreen_overlay::PULSE_DURATION_MS,
         },
 
         _ => bucket_default(id),

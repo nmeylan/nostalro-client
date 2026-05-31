@@ -470,6 +470,24 @@ pub enum EffectPrimitiveDraw {
         color: [f32; 4],
         blend: BlendKind,
     },
+    /// Screen-space textured quad, drawn in the effect pass (over the 3D
+    /// scene, under the UI). Camera-independent: `corners` are already in NDC
+    /// clip space (x/y in `[-1, 1]`, +y up) and the renderer passes them
+    /// straight through, sampling `texture` with `uvs`.
+    ///
+    /// Used by the status-overlay family (Blind / Poison / Devil / Bleeding /
+    /// CrystalBlue): the original game draws these as camera-locked screen
+    /// overlays — a centred vignette (Blind/Devil, four mirrored quads), a
+    /// full-viewport tint wash (Poison/CrystalBlue/Bleeding) or claw slashes
+    /// (Bleeding). `color.rgb` is the tint, `color.a` the opacity.
+    ScreenQuad {
+        texture: &'static str,
+        color: [f32; 4],
+        blend: BlendKind,
+        /// NDC corners, ordered to match `uvs`; triangulated `[0,1,2,0,2,3]`.
+        corners: [[f32; 2]; 4],
+        uvs: [[f32; 2]; 4],
+    },
 }
 
 /// Orientation selector for [`EffectPrimitiveDraw::Texture3D`].

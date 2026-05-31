@@ -242,6 +242,25 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Tarotcard14 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(13))),
         EffectId::NpcSlowcast => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::NPC_SLOWCAST)),
 
+        // Status-overlay family (BLIND / POISON): camera-locked full-viewport
+        // tint via one FullscreenOverlay quad. Devil1-10 share the BLIND-level
+        // params (the original game only varies the vignette zoom across them).
+        EffectId::Blind => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(anchor.point(), effects::fullscreen_overlay::BLIND)),
+        EffectId::Devil1
+        | EffectId::Devil2
+        | EffectId::Devil3
+        | EffectId::Devil4
+        | EffectId::Devil5
+        | EffectId::Devil6
+        | EffectId::Devil7
+        | EffectId::Devil8
+        | EffectId::Devil9
+        | EffectId::Devil10 => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(anchor.point(), effects::fullscreen_overlay::DEVIL)),
+        EffectId::DevilRed => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(anchor.point(), effects::fullscreen_overlay::DEVIL_RED)),
+        EffectId::Poison => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(anchor.point(), effects::fullscreen_overlay::POISON)),
+        EffectId::Bleeding => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(anchor.point(), effects::fullscreen_overlay::BLEEDING)),
+        EffectId::CrystalBlue => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(anchor.point(), effects::fullscreen_overlay::CRYSTAL_BLUE)),
+
         // Camera-facing result banners above the caster.
         EffectId::TempOk => {
             Box::new(effects::temp_result::TempResultEffect::new(anchor.point(), effects::temp_result::TEMP_OK))

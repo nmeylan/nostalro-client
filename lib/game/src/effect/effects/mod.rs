@@ -48,6 +48,7 @@ pub mod forest_light;
 pub mod effect_texture;
 pub mod foot;
 pub mod frost_diver;
+pub mod fullscreen_overlay;
 pub mod particle_up;
 pub mod teihit;
 pub mod throw_item;

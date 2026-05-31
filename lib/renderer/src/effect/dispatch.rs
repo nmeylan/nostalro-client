@@ -17,8 +17,9 @@ use wgpu::util::DeviceExt;
 
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, partition_and_sort};
 use crate::effect::primitives::{
-    CylinderRenderer, FrustumRenderer, GroundDiscRenderer, LineStripRenderer, QuadHornRenderer,
-    RadialRingRenderer, SphereRenderer, Texture3DRenderer, WorldQuadRenderer,
+    CylinderRenderer, FrustumRenderer, FullscreenOverlayRenderer, GroundDiscRenderer,
+    LineStripRenderer, QuadHornRenderer, RadialRingRenderer, SphereRenderer, Texture3DRenderer,
+    WorldQuadRenderer,
 };
 use crate::sprite::{SpriteRenderer, SpriteVertex};
 
@@ -87,6 +88,7 @@ impl EffectDispatcher {
         texture3d: &Texture3DRenderer,
         radial_ring: &RadialRingRenderer,
         line_strip: &LineStripRenderer,
+        fullscreen: &FullscreenOverlayRenderer,
     ) {
         if records.is_empty() {
             return;
@@ -253,6 +255,7 @@ impl EffectDispatcher {
                     texture3d,
                     radial_ring,
                     line_strip,
+                    fullscreen,
                 );
                 pass.set_pipeline(pipeline);
                 current_kind = Some(span.kind);
@@ -282,6 +285,7 @@ fn pipeline_for<'a>(
     texture3d: &'a Texture3DRenderer,
     radial_ring: &'a RadialRingRenderer,
     line_strip: &'a LineStripRenderer,
+    fullscreen: &'a FullscreenOverlayRenderer,
 ) -> &'a wgpu::RenderPipeline {
     // No-depth buckets currently fall through to their depth-read sibling
     // because no callers emit them yet; once an `AlphaNoDepth` user lands
@@ -359,5 +363,12 @@ fn pipeline_for<'a>(
             BlendBucket::AdditiveNoDepth => &sprite_renderer.pipeline_additive_no_depth,
             BlendBucket::Multiply => &sprite_renderer.pipeline,
         },
+        PipelineKind::FullscreenOverlay => {
+            if additive {
+                &fullscreen.pipeline_additive
+            } else {
+                &fullscreen.pipeline_alpha
+            }
+        }
     }
 }

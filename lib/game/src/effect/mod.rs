@@ -63,6 +63,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::providence::TEXTURES,
         effects::healsp::TEXTURES,
         effects::frost_diver::TEXTURES,
+        effects::fullscreen_overlay::TEXTURES,
         effects::begin_spell_6::TEXTURES,
         effects::stormgust::TEXTURES,
         effects::animated_texture_billboard::TEXTURES,

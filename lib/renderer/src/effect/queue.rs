@@ -123,6 +123,11 @@ pub enum PipelineKind {
     /// vertices (x,y in pixels, z in NDC). Dispatched through the sprite
     /// pipeline with the sprite-uniforms bind group at slot 0.
     Sprite,
+    /// Full-viewport screen-space overlay. *Clip-space* vertices (x,y in
+    /// `[-1, 1]`, z = 0). Camera-independent and depth-disabled; the shader
+    /// passes position straight through. Used by the Blind / Poison status
+    /// overlays.
+    FullscreenOverlay,
 }
 
 /// One CPU-built draw record ready for dispatch.

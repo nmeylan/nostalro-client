@@ -24,7 +24,7 @@ TODO:
 - Day/night cycle (lighting changes)
 - Granny models (emperium, guardian)
 - Skybox
-
+- ALL 1050 effects https://casual-ragnarok.github.io/ro-effects/
 # UI
 - ~~Chat box (normal, whisper, party, guild channels)~~
 - ~~Status window (stats, stat allocation)~~
