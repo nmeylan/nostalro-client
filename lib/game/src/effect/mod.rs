@@ -54,6 +54,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::hasteup::TEXTURES,
         effects::blessing::TEXTURES,
         effects::cast_circle::TEXTURES,
+        effects::chemical::TEXTURES,
         effects::endure::TEXTURES,
         effects::enhance::TEXTURES,
         effects::entry::TEXTURES,

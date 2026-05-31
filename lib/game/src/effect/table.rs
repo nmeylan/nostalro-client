@@ -14,7 +14,7 @@ use super::effect_trait::CameraShake;
 use super::effects::{
     aciddemon, agiup, bash, bash3d, begin_spell, blessing, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
     light_sphere, rainbow,
-    bowling_bash, callzone, cartrevolution, cast_circle, cone, curseattack, defender, detecting,
+    bowling_bash, callzone, cartrevolution, cast_circle, chemical, cone, curseattack, defender, detecting,
     dragonsmoke, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
     frost_diver, fullscreen_overlay, glasswall, glasswall2, ground_sample, gumgang2, hasteup, healsp, heavensdrive, hit, hit2, hit5_6,
     kouenka, magnum_break, napalmbeat,
@@ -41,6 +41,38 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // value (300 ms) cuts the cone off before the ring finishes growing.
         EffectId::Magnumbreak => EffectSpec::Custom {
             duration_ms: magnum_break::TOTAL_DURATION_MS,
+        },
+
+        // Chemical streak family — emit window + fade tail, per variant.
+        EffectId::Chemicalprotection => EffectSpec::Custom {
+            duration_ms: chemical::CHEMICALPROTECTION.total_duration_ms(),
+        },
+        EffectId::Mgattack2 => EffectSpec::Custom {
+            duration_ms: chemical::MGATTACK2.total_duration_ms(),
+        },
+        EffectId::Chemical2 => EffectSpec::Custom {
+            duration_ms: chemical::CHEMICAL2.total_duration_ms(),
+        },
+        EffectId::Chemical2dash => EffectSpec::Custom {
+            duration_ms: chemical::CHEMICAL2DASH.total_duration_ms(),
+        },
+        EffectId::Chemical3 => EffectSpec::Custom {
+            duration_ms: chemical::CHEMICAL3.total_duration_ms(),
+        },
+        EffectId::Chemical4 => EffectSpec::Custom {
+            duration_ms: chemical::CHEMICAL4.total_duration_ms(),
+        },
+        EffectId::Smatk1 => EffectSpec::Custom {
+            duration_ms: chemical::SMATK1.total_duration_ms(),
+        },
+        EffectId::Smatk2 => EffectSpec::Custom {
+            duration_ms: chemical::SMATK2.total_duration_ms(),
+        },
+        EffectId::Smatk3 => EffectSpec::Custom {
+            duration_ms: chemical::SMATK3.total_duration_ms(),
+        },
+        EffectId::Smatk4 => EffectSpec::Custom {
+            duration_ms: chemical::SMATK4.total_duration_ms(),
         },
 
         // Throw Item family — ballistic-arc projectiles. Route to the custom

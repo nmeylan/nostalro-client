@@ -31,6 +31,7 @@ pub mod bottom_volcano;
 pub mod callzone;
 pub mod cartrevolution;
 pub mod cast_circle;
+pub mod chemical;
 pub mod cone;
 pub mod defender;
 pub mod dragonsmoke;

@@ -421,6 +421,40 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(ti::ThrowItemEffect::new(from, to, variants))
         }
 
+        // Chemical streak family — radial wedges (Protection, point-anchored)
+        // and caster→target streak lines (Chemical2/3/4, dash, Smatk).
+        EffectId::Chemicalprotection => {
+            Box::new(effects::chemical::ChemicalEffect::new(anchor.point(), effects::chemical::CHEMICALPROTECTION))
+        }
+        EffectId::Mgattack2 => {
+            Box::new(effects::chemical::ChemicalEffect::new(anchor.point(), effects::chemical::MGATTACK2))
+        }
+        EffectId::Chemical2
+        | EffectId::Chemical2dash
+        | EffectId::Chemical3
+        | EffectId::Chemical4
+        | EffectId::Smatk1
+        | EffectId::Smatk2
+        | EffectId::Smatk3
+        | EffectId::Smatk4 => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            use effects::chemical as ch;
+            let params = match id {
+                EffectId::Chemical2 => ch::CHEMICAL2,
+                EffectId::Chemical2dash => ch::CHEMICAL2DASH,
+                EffectId::Chemical3 => ch::CHEMICAL3,
+                EffectId::Chemical4 => ch::CHEMICAL4,
+                EffectId::Smatk1 => ch::SMATK1,
+                EffectId::Smatk2 => ch::SMATK2,
+                EffectId::Smatk3 => ch::SMATK3,
+                _ => ch::SMATK4,
+            };
+            Box::new(ch::ChemicalEffect::new_dir(from, to, params))
+        }
+
         // Sight + Ruwach — orbit-spawn SpriteParticle pairs around the
         // entity. Same struct, different per-skill `Params`.
         EffectId::Sight => Box::new(effects::sight::OrbitEffect::new(

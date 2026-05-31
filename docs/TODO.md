@@ -107,6 +107,7 @@ TODO:
 - Quest packets
 - Pet/homunculus/mercenary packets
 - Mail packets
+- Effect wiring
 
 # Audio
 - BGM playback (map-specific music)

@@ -151,5 +151,14 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             | EffectId::Throwitem8
             | EffectId::Throwitem9
             | EffectId::Throwitem10
+            // Chemical streak family aims along caster→target.
+            | EffectId::Chemical2
+            | EffectId::Chemical2dash
+            | EffectId::Chemical3
+            | EffectId::Chemical4
+            | EffectId::Smatk1
+            | EffectId::Smatk2
+            | EffectId::Smatk3
+            | EffectId::Smatk4
     )
 }
