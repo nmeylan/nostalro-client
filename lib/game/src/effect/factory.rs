@@ -83,6 +83,46 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             };
             Box::new(effects::waterball::WaterballEffect::new(from, to))
         }
+        EffectId::Waterfall => Box::new(effects::waterfall::WaterfallEffect::new(
+            anchor.point(),
+            effects::waterfall::WATERFALL,
+        )),
+        EffectId::Waterfall90 => Box::new(effects::waterfall::WaterfallEffect::new(
+            anchor.point(),
+            effects::waterfall::WATERFALL_90,
+        )),
+        EffectId::WaterfallSmall => Box::new(effects::waterfall::WaterfallEffect::new(
+            anchor.point(),
+            effects::waterfall::WATERFALL_SMALL,
+        )),
+        EffectId::WaterfallSmall90 => Box::new(effects::waterfall::WaterfallEffect::new(
+            anchor.point(),
+            effects::waterfall::WATERFALL_SMALL_90,
+        )),
+        EffectId::WaterfallT2 => Box::new(effects::waterfall::WaterfallEffect::new(
+            anchor.point(),
+            effects::waterfall::WATERFALL_T2,
+        )),
+        EffectId::WaterfallT290 => Box::new(effects::waterfall::WaterfallEffect::new(
+            anchor.point(),
+            effects::waterfall::WATERFALL_T2_90,
+        )),
+        EffectId::WaterfallSmallT2 => Box::new(effects::waterfall::WaterfallEffect::new(
+            anchor.point(),
+            effects::waterfall::WATERFALL_SMALL_T2,
+        )),
+        EffectId::WaterfallSmallT290 => Box::new(effects::waterfall::WaterfallEffect::new(
+            anchor.point(),
+            effects::waterfall::WATERFALL_SMALL_T2_90,
+        )),
+        EffectId::Cloud => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD)),
+        EffectId::Cloud2 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD2)),
+        EffectId::Cloud3 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD3)),
+        EffectId::Cloud4 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD4)),
+        EffectId::Cloud5 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD5)),
+        EffectId::Cloud6 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD6)),
+        EffectId::Cloud7 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD7)),
+        EffectId::Cloud8 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD8)),
         EffectId::Fireivy => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
@@ -152,6 +192,21 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Lightsphere2 => Box::new(effects::light_sphere::LightSphereEffect::new(
             anchor.point(),
             effects::light_sphere::LIGHTSPHERE2,
+        )),
+
+        // Batch MAPZONE — `Map_MagicZone` spinning ground rings + sparkle motes
+        // / pika floor + flared aura. Persistent map-scale zones.
+        EffectId::MapMagiczone => Box::new(effects::mapzone::MapZoneEffect::new(
+            anchor.point(),
+            effects::mapzone::MAP_MAGICZONE,
+        )),
+        EffectId::MapMagiczone2 => Box::new(effects::mapzone::MapZoneEffect::new(
+            anchor.point(),
+            effects::mapzone::MAP_MAGICZONE2,
+        )),
+        EffectId::Glow4 => Box::new(effects::mapzone::MapZoneEffect::new(
+            anchor.point(),
+            effects::mapzone::GLOW4,
         )),
 
         // Batch STR-B9 — Texture3DQuad. Both anchor at a hit point.
@@ -455,6 +510,49 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(ch::ChemicalEffect::new_dir(from, to, params))
         }
 
+        // STIN wind-card family — flying spinning cards with a motion trail.
+        // Stin/Stin2/Stin4 aim along the caster→target heading (trail anchor).
+        EffectId::Stin
+        | EffectId::Stin2
+        | EffectId::Stin4 => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            use effects::stin as st;
+            let params = match id {
+                EffectId::Stin => st::STIN,
+                EffectId::Stin2 => st::STIN2,
+                _ => st::STIN4,
+            };
+            Box::new(st::StinEffect::new(from, to, params))
+        }
+        EffectId::Stin5 => Box::new(effects::stin::StinEffect::new(
+            anchor.point(),
+            anchor.point(),
+            effects::stin::STIN5,
+        )),
+
+        // SMA wind-spiral family — travelling emitter (Sma/Stin3) + the
+        // standalone rising spiral ribbon (Sma2) + particle path (Sma3).
+        EffectId::Sma | EffectId::Stin3 => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            let kind = if matches!(id, EffectId::Stin3) {
+                effects::sma::SmaKind::Particles
+            } else {
+                effects::sma::SmaKind::Bands
+            };
+            Box::new(effects::sma::SmaEffect::new(from, to, kind))
+        }
+        EffectId::Sma2 => Box::new(effects::sma::Sma2Effect::new(anchor.point())),
+        EffectId::Sma3 => Box::new(effects::particle_up::ParticleUpEffect::new(
+            anchor.point(),
+            effects::particle_up::SMA3,
+        )),
+
         // Sight + Ruwach — orbit-spawn SpriteParticle pairs around the
         // entity. Same struct, different per-skill `Params`.
         EffectId::Sight => Box::new(effects::sight::OrbitEffect::new(
@@ -525,6 +623,23 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Providence => {
             Box::new(effects::providence::ProvidenceEffect::new(anchor.point()))
         }
+        // MAPPILLAR family — rotating ring columns (batch 8).
+        EffectId::Mappillar => Box::new(effects::mappillar::MappillarEffect::new(
+            anchor.point(),
+            effects::mappillar::MAPPILLAR,
+        )),
+        EffectId::Mappillar2 => Box::new(effects::mappillar::MappillarEffect::new(
+            anchor.point(),
+            effects::mappillar::MAPPILLAR2,
+        )),
+        EffectId::Mappillar3 => Box::new(effects::mappillar::MappillarEffect::new(
+            anchor.point(),
+            effects::mappillar::MAPPILLAR3,
+        )),
+        EffectId::Mappillar4 => Box::new(effects::mappillar::MappillarEffect::new(
+            anchor.point(),
+            effects::mappillar::MAPPILLAR4,
+        )),
         // EF_KOUENKA — sakura sprite scatter + firehit.str.
         EffectId::Kouenka => {
             Box::new(effects::kouenka::KouenkaEffect::new(anchor.point()))
@@ -1203,6 +1318,9 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Agiup
             | EffectId::Lightsphere
             | EffectId::Lightsphere2
+            | EffectId::MapMagiczone
+            | EffectId::MapMagiczone2
+            | EffectId::Glow4
             | EffectId::Quakebody
             | EffectId::Quakebody2
             | EffectId::Quakebody3
@@ -1210,6 +1328,10 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Twohandquicken
             | EffectId::Spearquicken
             | EffectId::Lkconcentration
+            | EffectId::Mappillar
+            | EffectId::Mappillar2
+            | EffectId::Mappillar3
+            | EffectId::Mappillar4
     )
 }
 
@@ -1302,8 +1424,8 @@ mod tests {
         // Pick an EffectId in the Custom bucket that doesn't yet have a
         // real Rust impl — factory returns the pink placeholder and
         // `is_real_impl` reports false.
-        assert!(make_effect(EffectId::Mappillar, EffectAnchor::Point([0.0; 3]), None).is_some());
-        assert!(!is_real_impl(EffectId::Mappillar));
+        assert!(make_effect(EffectId::Stormkick, EffectAnchor::Point([0.0; 3]), None).is_some());
+        assert!(!is_real_impl(EffectId::Stormkick));
     }
 
     #[test]
@@ -1489,6 +1611,32 @@ mod tests {
             EffectId::Tarotcard1,
             EffectId::Tarotcard14,
             EffectId::NpcSlowcast,
+        ] {
+            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None).unwrap();
+            assert_eq!(e.str_overlay(), None, "{:?} has no STR overlay", id);
+            assert!(
+                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                "{:?} spec must be Custom, got {:?}",
+                id,
+                effect_spec(id),
+            );
+        }
+    }
+
+    #[test]
+    fn mappillar_family_dispatches_to_custom_without_str() {
+        // MAPPILLAR rotating ring columns: pure procedural, no STR file in
+        // the classic GRF. Their `mappillar*` str_alias entries would shadow
+        // the factory dispatch and the holder would chase a missing
+        // `mappillar.str`, so the spec must resolve to Custom.
+        use super::super::spec::{EffectAnchor, EffectSpec};
+        use super::super::table::effect_spec;
+        for id in [
+            EffectId::Mappillar,
+            EffectId::Mappillar2,
+            EffectId::Mappillar3,
+            EffectId::Mappillar4,
         ] {
             assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None).unwrap();

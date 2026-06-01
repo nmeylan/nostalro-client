@@ -93,7 +93,21 @@ pub const SPRINKLESAND: ParticleUpParams = ParticleUpParams {
     ..p("thunder_center.bmp", (250, 250, 150)) // yellow
 };
 
-pub const TEXTURES: &[&str] = &["pok1.tga", "thunder_center.bmp"];
+// Sma3 (556) — one blue thunder-ball burst rising
+// from the actor (blue palette, `thunder_ball_0002.bmp`).
+pub const SMA3: ParticleUpParams = ParticleUpParams {
+    spawn_end: 0,
+    spread: 4.0,
+    base_dist: 1.2,
+    dist_rand: 0.8,
+    rise_base: 0.1,
+    rise_rand: 0.2,
+    ..p("thunder_ball_0002.bmp", (120, 120, 255))
+};
+/// Single burst that fades in over 10 frames then out at `-3/255`/frame.
+pub const SMA3_TOTAL_DURATION_MS: u32 = 1100;
+
+pub const TEXTURES: &[&str] = &["pok1.tga", "thunder_center.bmp", "thunder_ball_0002.bmp"];
 
 struct Rng(u32);
 impl Rng {

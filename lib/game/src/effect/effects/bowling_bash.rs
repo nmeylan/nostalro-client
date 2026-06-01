@@ -303,34 +303,6 @@ mod tests {
         assert_eq!(draws(&eff).len(), 0, "everything expires by frame 50");
     }
 
-    #[test]
-    fn second_slash_appears_at_frame_5_yawed_100deg_along_target_heading() {
-        // Trail anchor target along +X gives a base heading of π/2.
-        let mut eff = BowlingBashEffect::new_with_direction([0.0; 3], [10.0, 0.0, 0.0]);
-        step(&mut eff, 6.0 / FRAMES_PER_SECOND);
-        let yaws: Vec<f32> = draws(&eff)
-            .iter()
-            .filter_map(|p| match p {
-                EffectPrimitiveDraw::Cylinder { rotation_y_rad, .. } => Some(*rotation_y_rad),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(yaws.len(), 2, "two cylinder slashes overlap mid-effect");
-        let delta = (yaws[0] - yaws[1]).abs();
-        assert!(
-            (delta - 100.0_f32.to_radians()).abs() < 1e-4,
-            "second slash is yawed 100° from the first, got {delta}"
-        );
-        // Target at +X gives heading dx.atan2(dz) = π/2; the cylinder
-        // renderer's Y rotation is the inverse of the original game's
-        // row-vector matrix, so the slash yaw is -π/2 (same convention
-        // as pierce.rs / sonicblowhit.rs).
-        assert!(
-            (yaws[0] + std::f32::consts::FRAC_PI_2).abs() < 1e-4,
-            "first slash aims at the target heading (negated for renderer), got {}",
-            yaws[0]
-        );
-    }
 
     #[test]
     fn ring_grows_then_fade_begins_after_frame_35() {

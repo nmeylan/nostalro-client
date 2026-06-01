@@ -57,11 +57,6 @@ const RING_SPIN_BASE_DEG_PER_FRAME: f32 = 3.0;
 /// to its peak over the first ~18-20 frames.
 const FADE_IN_FRAMES: f32 = 20.0;
 
-/// Per-ring peak alpha. The three rings stack additively into a bright glow;
-/// the JS client uses `alphaMax ≈ 0.17` but its rings overlap more densely —
-/// a touch higher reads better against our scene.
-const RING_ALPHA_MAX: f32 = 0.30;
-
 #[derive(Clone, Copy, Debug)]
 pub struct CastingRingParams {
     pub texture: &'static str,
@@ -74,6 +69,9 @@ pub struct CastingRingParams {
     pub top_size: f32,
     /// World-space height of ring 0's top rim above the caster's feet.
     pub height: f32,
+    /// Per-ring peak alpha. Level-99 rings stack to ~0.30; the map-zone aura
+    /// (`MAP_AURA`) is fainter (alpha 50/255 → ~0.20).
+    pub alpha_max: f32,
 }
 
 /// `EF_LEVEL99` — blue level-99 ring (`ring_blue.tga`, size 4).
@@ -83,6 +81,7 @@ pub const LV99: CastingRingParams = CastingRingParams {
     bottom_size: 2.0,
     top_size: 7.0,
     height: 13.0,
+    alpha_max: 0.30,
 };
 
 /// `EF_LEVEL995` — white transcendant ring (`ring_white.tga`, F1=1,
@@ -93,6 +92,19 @@ pub const LV995: CastingRingParams = CastingRingParams {
     bottom_size: 2.5,
     top_size: 8.0,
     height: 14.0,
+    alpha_max: 0.30,
+};
+
+/// The flared blue ring under
+/// `EF_MAP_MAGICZONE` (#650). Wide low funnel (radius ≈ 12.9, rise 55°,
+/// height 15) at alpha 50/255. Reused by [`super::mapzone`].
+pub const MAP_AURA: CastingRingParams = CastingRingParams {
+    texture: "ring_blue.tga",
+    color_rgb: [0.55, 0.55, 1.00],
+    bottom_size: 12.9,
+    top_size: 18.0,
+    height: 12.0,
+    alpha_max: 50.0 / 255.0,
 };
 
 pub const TEXTURES: &[&str] = &["ring_blue.tga", "ring_white.tga"];
@@ -127,7 +139,7 @@ impl Effect for CastingRingEffect {
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let [r, g, b] = self.params.color_rgb;
         let frame = self.frame();
-        let alpha = RING_ALPHA_MAX * (frame / FADE_IN_FRAMES).clamp(0.0, 1.0);
+        let alpha = self.params.alpha_max * (frame / FADE_IN_FRAMES).clamp(0.0, 1.0);
         if alpha <= 0.0 {
             return;
         }

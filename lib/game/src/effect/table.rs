@@ -13,7 +13,7 @@ use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effect_trait::CameraShake;
 use super::effects::{
     aciddemon, agiup, bash, bash3d, begin_spell, blessing, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
-    light_sphere, rainbow,
+    light_sphere, mapzone, rainbow,
     bowling_bash, callzone, cartrevolution, cast_circle, chemical, cone, curseattack, defender, detecting,
     dragonsmoke, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
     frost_diver, fullscreen_overlay, glasswall, glasswall2, ground_sample, gumgang2, hasteup, healsp, heavensdrive, hit, hit2, hit5_6,
@@ -21,6 +21,7 @@ use super::effects::{
     napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_pillar, providence,
     quakebody, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond, status_up,
     stormgust, teleportation, texture_falling, throw_item, volcano, warp, waterball, wind, yufitel2, yupitel,
+    particle_up, sma, stin,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -73,6 +74,34 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
         EffectId::Smatk4 => EffectSpec::Custom {
             duration_ms: chemical::SMATK4.total_duration_ms(),
+        },
+
+        // STIN / SMA wind-streak family. Stin has a `stin.str` alias, so it
+        // needs an explicit Custom arm to route to the procedural factory
+        // (otherwise it falls through to the STR layer); the rest have no STR.
+        EffectId::Stin => EffectSpec::Custom {
+            duration_ms: stin::STIN.total_duration_ms(),
+        },
+        EffectId::Stin2 => EffectSpec::Custom {
+            duration_ms: stin::STIN2.total_duration_ms(),
+        },
+        EffectId::Stin4 => EffectSpec::Custom {
+            duration_ms: stin::STIN4.total_duration_ms(),
+        },
+        EffectId::Stin5 => EffectSpec::Custom {
+            duration_ms: stin::STIN5.total_duration_ms(),
+        },
+        EffectId::Stin3 => EffectSpec::Custom {
+            duration_ms: sma::STIN3_TOTAL_DURATION_MS,
+        },
+        EffectId::Sma => EffectSpec::Custom {
+            duration_ms: sma::SMA_TOTAL_DURATION_MS,
+        },
+        EffectId::Sma2 => EffectSpec::Custom {
+            duration_ms: sma::SMA2_TOTAL_DURATION_MS,
+        },
+        EffectId::Sma3 => EffectSpec::Custom {
+            duration_ms: particle_up::SMA3_TOTAL_DURATION_MS,
         },
 
         // Throw Item family — ballistic-arc projectiles. Route to the custom
@@ -298,6 +327,44 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Curseattack => EffectSpec::Custom {
             duration_ms: curseattack::TOTAL_DURATION_MS,
         },
+
+        // Batch MAPZONE — `Map_MagicZone` ground rings + motes / pika + aura.
+        // These have `str_aliases` entries that would otherwise shadow Custom
+        // dispatch in `bucket_default`; pin them to Custom (persistent). 687/688
+        // (MapMagiczone3/4) stay STR-aliased — their `circle*.bmp` textures are
+        // absent from the classic GRF.
+        EffectId::MapMagiczone | EffectId::MapMagiczone2 | EffectId::Glow4 => EffectSpec::Custom {
+            duration_ms: mapzone::TOTAL_DURATION_MS,
+        },
+
+        // Batch WATERFALL — `WaterFall` sheet + `WaterFallParticle` mist. These
+        // have `str_aliases` entries that would otherwise shadow Custom dispatch
+        // in `bucket_default` (no `waterfall*.str` exists in the classic GRF);
+        // pin them to Custom. Persistent map decorations.
+        EffectId::Waterfall
+        | EffectId::Waterfall90
+        | EffectId::WaterfallSmall
+        | EffectId::WaterfallSmall90
+        | EffectId::WaterfallT2
+        | EffectId::WaterfallT290
+        | EffectId::WaterfallSmallT2
+        | EffectId::WaterfallSmallT290 => EffectSpec::Custom {
+            duration_ms: default_duration_ms(id),
+        },
+
+        // Batch CLOUD — `Cloud(map)` ambient drifting cloud quads. `str_aliases`
+        // entries would otherwise shadow Custom dispatch (no `cloud*.str` in the
+        // classic GRF). Persistent map atmosphere.
+        EffectId::Cloud
+        | EffectId::Cloud2
+        | EffectId::Cloud3
+        | EffectId::Cloud4
+        | EffectId::Cloud5
+        | EffectId::Cloud6
+        | EffectId::Cloud7
+        | EffectId::Cloud8 => EffectSpec::Custom {
+            duration_ms: default_duration_ms(id),
+        },
         EffectId::Napalmbeat => EffectSpec::Custom {
             duration_ms: napalmbeat::TOTAL_DURATION_MS,
         },
@@ -500,6 +567,13 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Magnus
         | EffectId::Grandcross
         | EffectId::Grandcross2
+        // MAPPILLAR family — pure procedural rotating ring columns with no
+        // STR file in the classic GRF; their `mappillar*` str_alias would
+        // otherwise shadow the Custom factory dispatch and fail to load.
+        | EffectId::Mappillar
+        | EffectId::Mappillar2
+        | EffectId::Mappillar3
+        | EffectId::Mappillar4
         | EffectId::Barrier => EffectSpec::Custom {
             duration_ms: default_duration_ms(id),
         },
@@ -966,11 +1040,12 @@ mod tests {
             effect_spec(EffectId::Assumptio),
             Some(EffectSpec::Str { file: "assumptio", .. })
         ));
-        // Stin (Estin) is in is_custom_bucket with no factory arm but has a
-        // STR alias → Str rather than Custom-not-impl.
+        // Stin (Estin) has both a `stin.str` alias and a procedural factory
+        // arm; its explicit Custom override in `effect_spec` wins over the
+        // STR alias (the wind-card family is rendered, not the STR layer).
         assert!(matches!(
             effect_spec(EffectId::Stin),
-            Some(EffectSpec::Str { file: "stin", .. })
+            Some(EffectSpec::Custom { .. })
         ));
         // Firstaid is in is_custom_bucket with no factory arm but keeps its
         // STR alias (its first-aid impl is deferred) → Str, not Custom.

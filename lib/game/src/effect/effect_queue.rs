@@ -160,5 +160,12 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             | EffectId::Smatk2
             | EffectId::Smatk3
             | EffectId::Smatk4
+            // STIN/SMA wind streaks that travel/home along the caster→target
+            // heading. Stin (547) and Stin5 (624) are in-place ring swirls —
+            // a point anchor keeps their spinning trail concentric.
+            | EffectId::Stin2
+            | EffectId::Stin3
+            | EffectId::Stin4
+            | EffectId::Sma
     )
 }
