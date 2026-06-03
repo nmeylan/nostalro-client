@@ -30,6 +30,7 @@ pub use table::{effect_spec, spawn_camera_shake};
 pub fn effect_texture_paths() -> Vec<String> {
     let mut seen = std::collections::BTreeSet::new();
     let texture_lists: &[&[&str]] = &[
+        effects::begin_asura::TEXTURES,
         effects::warp::TEXTURES,
         effects::magnum_break::TEXTURES,
         effects::bottom_song::TEXTURES,
@@ -37,6 +38,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::bottom_landprotector::TEXTURES,
         effects::bottom_light::TEXTURES,
         effects::forest_light::TEXTURES,
+        effects::guard::TEXTURES,
         effects::bottom_magnus::TEXTURES,
         effects::bottom_out::TEXTURES,
         effects::bottom_vertical::TEXTURES,

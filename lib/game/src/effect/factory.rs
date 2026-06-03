@@ -35,6 +35,9 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Exit => Box::new(effects::exit::ExitEffect::new(anchor.point())),
         EffectId::Glasswall => Box::new(effects::glasswall::GlasswallEffect::new(anchor.point())),
         EffectId::Healsp => Box::new(effects::healsp::HealSpEffect::new(anchor.point())),
+        EffectId::Guard => Box::new(effects::guard::GuardEffect::new(anchor.point(), effects::guard::GUARD)),
+        EffectId::Guard3 => Box::new(effects::guard::GuardEffect::new(anchor.point(), effects::guard::GUARD3)),
+        EffectId::Guard2 => Box::new(effects::guard::GuardEffect::new(anchor.point(), effects::guard::GUARD2)),
         EffectId::Portal => Box::new(effects::portal::PortalEffect::new(anchor.point())),
         EffectId::Portal2 => Box::new(effects::portal2::Portal2Effect::new(
             anchor.point(),
@@ -784,41 +787,39 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             anchor.point(),
             effects::cast_circle::N_BLUE,
         )),
-        EffectId::Beginasura => Box::new(effects::cast_circle::CastCircleEffect::new(
+        EffectId::Beginasura => Box::new(effects::begin_asura::BeginAsuraEffect::base(
             anchor.point(),
-            effects::cast_circle::ASURA,
         )),
-        EffectId::Beginasura1 => Box::new(effects::cast_circle::CastCircleEffect::new(
+        EffectId::Beginasura1 => Box::new(effects::begin_asura::BeginAsuraEffect::elemental(
             anchor.point(),
-            effects::cast_circle::ASURA_EARTH,
+            0,
         )),
-        EffectId::Beginasura2 => Box::new(effects::cast_circle::CastCircleEffect::new(
+        EffectId::Beginasura2 => Box::new(effects::begin_asura::BeginAsuraEffect::elemental(
             anchor.point(),
-            effects::cast_circle::ASURA_WIND,
+            1,
         )),
-        EffectId::Beginasura3 => Box::new(effects::cast_circle::CastCircleEffect::new(
+        EffectId::Beginasura3 => Box::new(effects::begin_asura::BeginAsuraEffect::elemental(
             anchor.point(),
-            effects::cast_circle::ASURA_WATER,
+            2,
         )),
-        EffectId::Beginasura4 => Box::new(effects::cast_circle::CastCircleEffect::new(
+        EffectId::Beginasura4 => Box::new(effects::begin_asura::BeginAsuraEffect::elemental(
             anchor.point(),
-            effects::cast_circle::ASURA_FIRE,
+            3,
         )),
-        EffectId::Beginasura5 => Box::new(effects::cast_circle::CastCircleEffect::new(
+        EffectId::Beginasura5 => Box::new(effects::begin_asura::BeginAsuraEffect::elemental(
             anchor.point(),
-            effects::cast_circle::ASURA_UNDEAD,
+            4,
         )),
-        EffectId::Beginasura6 => Box::new(effects::cast_circle::CastCircleEffect::new(
+        EffectId::Beginasura6 => Box::new(effects::begin_asura::BeginAsuraEffect::elemental(
             anchor.point(),
-            effects::cast_circle::ASURA_SHADOW,
+            5,
         )),
-        EffectId::Beginasura7 => Box::new(effects::cast_circle::CastCircleEffect::new(
+        EffectId::Beginasura7 => Box::new(effects::begin_asura::BeginAsuraEffect::elemental(
             anchor.point(),
-            effects::cast_circle::ASURA_HOLY,
+            6,
         )),
-        EffectId::Beginasura11 => Box::new(effects::cast_circle::CastCircleEffect::new(
+        EffectId::Beginasura11 => Box::new(effects::begin_asura::BeginAsuraEffect::champion(
             anchor.point(),
-            effects::cast_circle::ASURA_CHAMPION,
         )),
 
         // Animated texture billboard — 13-frame .bmp texture cycle on a

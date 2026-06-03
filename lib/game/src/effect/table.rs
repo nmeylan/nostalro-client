@@ -12,11 +12,11 @@ use models::enums::effect_id::EffectId;
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effect_trait::CameraShake;
 use super::effects::{
-    aciddemon, agiup, bash, bash3d, begin_spell, blessing, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
+    aciddemon, agiup, bash, bash3d, begin_asura, begin_spell, blessing, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
     light_sphere, mapzone, rainbow,
     bowling_bash, callzone, cartrevolution, cast_circle, chemical, cone, curseattack, defender, detecting,
     dragonsmoke, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
-    frost_diver, fullscreen_overlay, glasswall, glasswall2, ground_sample, gumgang2, hasteup, healsp, heavensdrive, hit, hit2, hit5_6,
+    frost_diver, fullscreen_overlay, glasswall, glasswall2, ground_sample, guard, gumgang2, hasteup, healsp, heavensdrive, hit, hit2, hit5_6,
     kouenka, magnum_break, napalmbeat,
     napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_pillar, providence,
     quakebody, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond, status_up,
@@ -42,6 +42,12 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // value (300 ms) cuts the cone off before the ring finishes growing.
         EffectId::Magnumbreak => EffectSpec::Custom {
             duration_ms: magnum_break::TOTAL_DURATION_MS,
+        },
+
+        // Guard aura shell: the visible fade completes ~720 ms in,
+        // well before the parent emitter's table duration.
+        EffectId::Guard | EffectId::Guard2 | EffectId::Guard3 => EffectSpec::Custom {
+            duration_ms: guard::TOTAL_DURATION_MS,
         },
 
         // Chemical streak family — emit window + fade tail, per variant.
@@ -532,8 +538,13 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Beginspell8
         | EffectId::Beginspellred
         | EffectId::Beginspellwhite
-        | EffectId::BeginspellN
-        | EffectId::Beginasura
+        | EffectId::BeginspellN => EffectSpec::Custom {
+            duration_ms: cast_circle::TOTAL_DURATION_MS,
+        },
+
+        // Asura Strike cast — rising character glyphs (`begin_asura`), not a
+        // ground ring. The visible glyphs outlast the parent emitter.
+        EffectId::Beginasura
         | EffectId::Beginasura1
         | EffectId::Beginasura2
         | EffectId::Beginasura3
@@ -542,7 +553,7 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Beginasura6
         | EffectId::Beginasura7
         | EffectId::Beginasura11 => EffectSpec::Custom {
-            duration_ms: cast_circle::TOTAL_DURATION_MS,
+            duration_ms: begin_asura::TOTAL_DURATION_MS,
         },
 
         // --- Factory-dispatched custom effects ---

@@ -1,4 +1,4 @@
-//! `EF_BEGINSPELL*` / `EF_BEGINASURA*` — cast-circle aura under the caster.
+//! `EF_BEGINSPELL*` — cast-circle aura under the caster.
 //!
 //! The casting aura walks a closed strip around the FULL 360° ring at
 //! a fixed radius (4.1) with `rise_angle = 80°` measured from
@@ -147,19 +147,6 @@ const fn spell_cast(texture: &'static str, r: f32, g: f32, b: f32) -> CastCircle
     }
 }
 
-const fn asura(texture: &'static str, r: f32, g: f32, b: f32) -> CastCircleParams {
-    CastCircleParams {
-        texture,
-        color_rgb: [r, g, b],
-        column_max_height: 250.0,
-        column_radius: 4.0,
-        ring_radius: 5.0,
-        ring_thickness: 2.5,
-        petal_distances: [5.0, 5.5, 6.0],
-        petal_heights: [28.0, 25.0, 22.0],
-    }
-}
-
 // Tint kept at white (1, 1, 1) for every variant: the original casting aura
 // does not multiply an RGB tint into the
 // primitives — the per-spell color comes entirely from the chosen texture
@@ -174,25 +161,6 @@ pub const POISON: CastCircleParams = spell_cast("ring_purple.tga", 1.00, 1.00, 1
 pub const RED: CastCircleParams = spell_cast("ring_red.tga", 1.00, 1.00, 1.00);
 pub const WHITE: CastCircleParams = spell_cast("ring_white.tga", 1.00, 1.00, 1.00);
 pub const N_BLUE: CastCircleParams = spell_cast("ring_blue.tga", 1.00, 1.00, 1.00);
-
-pub const ASURA: CastCircleParams = asura("ring_yellow.tga", 1.00, 1.00, 1.00);
-pub const ASURA_EARTH: CastCircleParams = asura("ring_yellow.tga", 1.00, 1.00, 1.00);
-pub const ASURA_WIND: CastCircleParams = asura("ring_white.tga", 1.00, 1.00, 1.00);
-pub const ASURA_WATER: CastCircleParams = asura("ring_blue.tga", 1.00, 1.00, 1.00);
-pub const ASURA_FIRE: CastCircleParams = asura("ring_red.tga", 1.00, 1.00, 1.00);
-pub const ASURA_UNDEAD: CastCircleParams = asura("ring_purple.tga", 1.00, 1.00, 1.00);
-pub const ASURA_SHADOW: CastCircleParams = asura("ring_purple.tga", 1.00, 1.00, 1.00);
-pub const ASURA_HOLY: CastCircleParams = asura("ring_white.tga", 1.00, 1.00, 1.00);
-pub const ASURA_CHAMPION: CastCircleParams = CastCircleParams {
-    texture: "ring_yellow.tga",
-    color_rgb: [1.00, 1.00, 1.00],
-    column_max_height: 250.0,
-    column_radius: 4.5,
-    ring_radius: 6.0,
-    ring_thickness: 3.0,
-    petal_distances: [5.5, 6.0, 6.5],
-    petal_heights: [30.0, 27.0, 24.0],
-};
 
 pub const TEXTURES: &[&str] = &[
     "ring_yellow.tga",
@@ -427,8 +395,6 @@ mod tests {
     fn every_variant_has_a_real_texture() {
         for params in [
             YELLOW, WATER, FIRE, WIND, EARTH, HOLY, POISON, RED, WHITE, N_BLUE,
-            ASURA, ASURA_EARTH, ASURA_WIND, ASURA_WATER, ASURA_FIRE,
-            ASURA_UNDEAD, ASURA_SHADOW, ASURA_HOLY, ASURA_CHAMPION,
         ] {
             assert!(!params.texture.is_empty());
             assert!(TEXTURES.contains(&params.texture));
