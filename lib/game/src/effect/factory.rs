@@ -484,6 +484,10 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::magnum_break::MagnumBreakEffect::new(anchor.point()))
         }
 
+        EffectId::Thunderstorm2 => {
+            Box::new(effects::thunderstorm2::Thunderstorm2Effect::new(anchor.point()))
+        }
+
         // Throw Item family — ballistic-arc item projectiles. `from`/`to`
         // give the caster→target heading; one struct, per-variant params.
         // Throwitem4 is a composite (two staggered projectiles).
@@ -515,6 +519,57 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
                 _ => &[ti::THROW_COIN],
             };
             Box::new(ti::ThrowItemEffect::new(from, to, variants))
+        }
+
+        // Cloud-projectile family — spinning quads that fly with a ghost
+        // trail. Tanji spirit spheres (caster→target) and shield boomerangs.
+        EffectId::Tanji
+        | EffectId::Tanji2
+        | EffectId::Alattack1
+        | EffectId::Alattack2
+        | EffectId::Alattack3
+        | EffectId::Alattack4
+        | EffectId::Shieldboomerang
+        | EffectId::Shieldboomerang2
+        | EffectId::Shieldboomerang3 => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            use effects::cloud_projectile as cp;
+            // Shieldboomerang3 is a ranged attack: the 5-shield fan bursts at
+            // the impact point (the anchor's target), not the caster.
+            if id == EffectId::Shieldboomerang3 {
+                return Some(Box::new(cp::CloudProjectileEffect::new_spray(to, cp::SHIELDBOOMERANG3)));
+            }
+            let params = match id {
+                EffectId::Tanji => cp::TANJI,
+                EffectId::Tanji2 => cp::TANJI2,
+                EffectId::Alattack1 => cp::ALATTACK1,
+                EffectId::Alattack2 => cp::ALATTACK2,
+                EffectId::Alattack3 => cp::ALATTACK3,
+                EffectId::Alattack4 => cp::ALATTACK4,
+                EffectId::Shieldboomerang => cp::SHIELDBOOMERANG,
+                _ => cp::SHIELDBOOMERANG2,
+            };
+            Box::new(cp::CloudProjectileEffect::new(from, to, hit_count.unwrap_or(0), params))
+        }
+
+        // Slim potion throws — a falling potion icon + an expanding ground
+        // shockwave ring (PRESSURE + GroundShake). A ranged attack: the potion
+        // lands on the impact point (the anchor's target), not the caster.
+        EffectId::Slim | EffectId::Slim2 | EffectId::Slim3 => {
+            let impact = match anchor {
+                EffectAnchor::Trail { to, .. } => to,
+                EffectAnchor::Point(p) => p,
+            };
+            use effects::pressure as pr;
+            let params = match id {
+                EffectId::Slim => pr::SLIM,
+                EffectId::Slim2 => pr::SLIM2,
+                _ => pr::SLIM3,
+            };
+            Box::new(pr::PressureEffect::new(impact, params))
         }
 
         // Chemical streak family — radial wedges (Protection, point-anchored)
@@ -1404,6 +1459,18 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Mappillar2
             | EffectId::Mappillar3
             | EffectId::Mappillar4
+            | EffectId::Tanji
+            | EffectId::Tanji2
+            | EffectId::Alattack1
+            | EffectId::Alattack2
+            | EffectId::Alattack3
+            | EffectId::Alattack4
+            | EffectId::Shieldboomerang
+            | EffectId::Shieldboomerang2
+            | EffectId::Shieldboomerang3
+            | EffectId::Slim
+            | EffectId::Slim2
+            | EffectId::Slim3
     )
 }
 
@@ -1772,5 +1839,36 @@ mod tests {
         )
         .unwrap();
         assert_eq!(e.str_overlay(), None);
+    }
+
+    #[test]
+    fn tanji_family_dispatches_as_custom_trail_not_str() {
+        use super::super::spec::EffectSpec;
+        use super::super::table::effect_spec;
+        for id in [
+            EffectId::Tanji,
+            EffectId::Tanji2,
+            EffectId::Alattack1,
+            EffectId::Alattack2,
+            EffectId::Alattack3,
+            EffectId::Alattack4,
+            EffectId::Shieldboomerang,
+            EffectId::Shieldboomerang2,
+            EffectId::Shieldboomerang3,
+            EffectId::Slim,
+            EffectId::Slim2,
+            EffectId::Slim3,
+        ] {
+            assert!(is_real_impl(id), "{id:?} must have a real impl");
+            // Must route through the procedural factory, not its STR alias.
+            assert!(matches!(effect_spec(id), Some(EffectSpec::Custom { .. })), "{id:?} spec");
+            let e = make_effect(
+                id,
+                EffectAnchor::Trail { from: [0.0, 0.0, 0.0], to: [0.0, 0.0, 40.0] },
+                Some(1),
+            )
+            .unwrap();
+            assert_eq!(e.str_overlay(), None);
+        }
     }
 }

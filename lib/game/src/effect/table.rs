@@ -20,8 +20,9 @@ use super::effects::{
     kouenka, magnum_break, napalmbeat,
     napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_con, potion_pillar, providence,
     quakebody, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond, status_up,
-    stormgust, teleportation, texture_falling, throw_item, volcano, warp, waterball, wind, yufitel2, yupitel,
-    particle_up, peong_up, sma, stin, storm_kick, m_ef02, slash,
+    cloud_projectile, pressure, stormgust, teleportation, texture_falling, throw_item, volcano, warp, waterball,
+    wind, yufitel2, yupitel,
+    particle_up, peong_up, sma, stin, storm_kick, m_ef02, slash, thunderstorm2,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -42,6 +43,10 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // value (300 ms) cuts the cone off before the ring finishes growing.
         EffectId::Magnumbreak => EffectSpec::Custom {
             duration_ms: magnum_break::TOTAL_DURATION_MS,
+        },
+
+        EffectId::Thunderstorm2 => EffectSpec::Custom {
+            duration_ms: thunderstorm2::TOTAL_DURATION_MS,
         },
 
         // M02 is directional like Wink — it picks one of four
@@ -154,6 +159,26 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Throwitem9
         | EffectId::Throwitem10 => EffectSpec::Custom {
             duration_ms: throw_item::TOTAL_DURATION_MS,
+        },
+
+        // Cloud projectiles (Tanji spheres + shield boomerangs). Route to
+        // the custom factory (otherwise they fall through to their STR alias).
+        // Self-terminate; the duration is a backstop.
+        EffectId::Tanji
+        | EffectId::Tanji2
+        | EffectId::Alattack1
+        | EffectId::Alattack2
+        | EffectId::Alattack3
+        | EffectId::Alattack4
+        | EffectId::Shieldboomerang
+        | EffectId::Shieldboomerang2
+        | EffectId::Shieldboomerang3 => EffectSpec::Custom {
+            duration_ms: cloud_projectile::TOTAL_DURATION_MS,
+        },
+
+        // Slim potion throws — falling icon + ground shockwave ring.
+        EffectId::Slim | EffectId::Slim2 | EffectId::Slim3 => EffectSpec::Custom {
+            duration_ms: pressure::PRESSURE_TOTAL_DURATION_MS,
         },
 
         // Hit family — fires on every weapon swing. The cylinder ring
@@ -1068,17 +1093,16 @@ mod tests {
         // Sociable test covering the Batch 2 routing wiring: three ids
         // that used to fall through to the Custom placeholder now have
         // real spec entries.
-        // Thunderstorm2: both the original C++ SPR
-        // (`misc\thunder_storm.spr`) and the JS reference's `setsudan`
-        // STR are absent from the classic GRF. Fall back to the
-        // classic `thunderstorm` STR so the actor sees something.
-        let Some(EffectSpec::Str { file, duration_ms }) =
+        // Thunderstorm2: the original SPR (`misc\thunder_storm.spr`) is
+        // absent from the classic GRF, but its constituent bolt + flash
+        // textures survive, so it is a procedural `Custom` effect rather than
+        // an STR fallback.
+        let Some(EffectSpec::Custom { duration_ms }) =
             effect_spec(EffectId::Thunderstorm2)
         else {
-            panic!("Thunderstorm2 should resolve to EffectSpec::Str");
+            panic!("Thunderstorm2 should resolve to EffectSpec::Custom");
         };
-        assert_eq!(file, "thunderstorm");
-        assert_eq!(duration_ms, 3333);
+        assert_eq!(duration_ms, thunderstorm2::TOTAL_DURATION_MS);
 
         // Slowpoison: periodic SprBurst with negative speed_range
         // (downward drift) and pos_y_start = -20.
@@ -1812,7 +1836,7 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Hyousensou => 2000,
         EffectId::BottomSuiton => 299990,
         EffectId::Stin4 => 2000,
-        // Original game: 200 frames @ 60 fps.
+        // Original game: 200 frames @ 60 fps (see thunderstorm2::TOTAL_DURATION_MS).
         EffectId::Thunderstorm2 => 3333,
         EffectId::Chemical4 => 3000,
         EffectId::Stin5 => 2000,

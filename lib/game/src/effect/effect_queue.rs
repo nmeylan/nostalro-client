@@ -167,5 +167,22 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             | EffectId::Stin3
             | EffectId::Stin4
             | EffectId::Sma
+            // TANJI spirit-sphere projectiles fly along caster→target.
+            | EffectId::Tanji
+            | EffectId::Tanji2
+            | EffectId::Alattack1
+            | EffectId::Alattack2
+            | EffectId::Alattack3
+            | EffectId::Alattack4
+            // Shield boomerangs: ranged attacks. 249/494 fly out and home back;
+            // 520 bursts at the target. All need the caster→target endpoints.
+            | EffectId::Shieldboomerang
+            | EffectId::Shieldboomerang2
+            | EffectId::Shieldboomerang3
+            // Slim potion throws land on the target (ranged); need the target
+            // endpoint as the impact point.
+            | EffectId::Slim
+            | EffectId::Slim2
+            | EffectId::Slim3
     )
 }

@@ -122,12 +122,15 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::agiup::TEXTURES,
         effects::light_sphere::TEXTURES,
         effects::throw_item::TEXTURES,
+        effects::cloud_projectile::TEXTURES,
+        effects::pressure::TEXTURES,
         effects::mapzone::TEXTURES,
         effects::waterfall::TEXTURES,
         effects::cloud::TEXTURES,
         effects::stin::TEXTURES,
         effects::sma::TEXTURES,
         effects::slash::TEXTURES,
+        effects::thunderstorm2::TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {
