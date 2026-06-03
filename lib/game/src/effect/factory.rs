@@ -358,6 +358,15 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Wink => Box::new(effects::wink::WinkEffect::new(anchor.point(), effects::wink::WINK)),
         EffectId::Fvoice => Box::new(effects::wink::WinkEffect::new(anchor.point(), effects::wink::FVOICE)),
 
+        // M02: directional emote, same camera-angle action
+        // selection as Wink but a distinct quadrant map.
+        EffectId::M02 => Box::new(effects::m_ef02::MEf02Effect::new(anchor.point())),
+
+        // Kaizel: a cross-slash (two blades, one rotated 45°).
+        EffectId::Kaizel => {
+            Box::new(effects::slash::SlashEffect::new(anchor.point(), effects::slash::KAIZEL))
+        }
+
         // Frost Diver — trail-shaped, unpacks both endpoints. Single-point
         // anchors (effect-viewer demo, any caller that doesn't know about
         // the trail) collapse to `from == to`, which the effect detects
@@ -695,6 +704,15 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         // column instead, so we don't share the volcano code for this
         // id.
         EffectId::Gumgang2 => Box::new(effects::gumgang2::Gumgang2Effect::new(anchor.point())),
+
+        // GUMGANG family — orbiting electric-arc wreaths (single and double
+        // rings). Unrelated to Gumgang2/Gumgang3 above.
+        EffectId::Gumgang => Box::new(effects::gumgang::GumGangEffect::new(anchor.point(), effects::gumgang::GUMGANG)),
+        EffectId::Steelbody => Box::new(effects::gumgang::GumGangEffect::new(anchor.point(), effects::gumgang::STEELBODY)),
+        EffectId::Gumgangnpc => Box::new(effects::gumgang::GumGangEffect::new(anchor.point(), effects::gumgang::GUMGANGNPC)),
+        EffectId::Doublegumgang => Box::new(effects::gumgang::GumGangEffect::new(anchor.point(), effects::gumgang::DOUBLE_RED)),
+        EffectId::Doublegumgang2 => Box::new(effects::gumgang::GumGangEffect::new(anchor.point(), effects::gumgang::DOUBLE_WHITE)),
+        EffectId::Doublegumgang3 => Box::new(effects::gumgang::GumGangEffect::new(anchor.point(), effects::gumgang::DOUBLE_BLUE)),
 
         EffectId::Defender => Box::new(effects::defender::DefenderEffect::new(anchor.point())),
 
@@ -1093,6 +1111,18 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::PotionBerserk => Box::new(
             effects::potion_berserk::PotionBerserkEffect::new(anchor.point()),
         ),
+        // Concentration / Awakening potions: white pillar + STR overlay; the
+        // STR (alias[0]) carries the yellow star-burst / green ground ring.
+        EffectId::PotionCon => Box::new(effects::potion_con::PotionConEffect::new(
+            anchor.point(),
+            str_aliases(EffectId::PotionCon)[0],
+            effects::potion_con::CONCENTRATION,
+        )),
+        EffectId::Potion => Box::new(effects::potion_con::PotionConEffect::new(
+            anchor.point(),
+            str_aliases(EffectId::Potion)[0],
+            effects::potion_con::AWAKENING,
+        )),
 
         // Batch GD — GroundDisc decals.
         EffectId::Bowlingbash => {
@@ -1281,6 +1311,8 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Revive
             | EffectId::Pierce
             | EffectId::PotionBerserk
+            | EffectId::PotionCon
+            | EffectId::Potion
             | EffectId::ItemLight
             | EffectId::Forestlight
             | EffectId::Forestlight2
@@ -1288,6 +1320,8 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Forestlight4
             | EffectId::Wink
             | EffectId::Fvoice
+            | EffectId::M02
+            | EffectId::Kaizel
             | EffectId::TempOk
             | EffectId::TempFail
             | EffectId::Tarotcard1

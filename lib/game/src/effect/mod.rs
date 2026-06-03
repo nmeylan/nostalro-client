@@ -48,6 +48,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::bottom_sanctuary_pillar::TEXTURES,
         effects::warp_zone::TEXTURES,
         effects::volcano::TEXTURES,
+        effects::gumgang::TEXTURES,
         effects::floor_aura::TEXTURES,
         effects::casting_ring::TEXTURES,
         effects::sparkle_column::TEXTURES,
@@ -124,6 +125,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::cloud::TEXTURES,
         effects::stin::TEXTURES,
         effects::sma::TEXTURES,
+        effects::slash::TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {
@@ -168,6 +170,7 @@ pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
         effects::cone::SPRITES,
         effects::dragonsmoke::SPRITES,
         effects::wink::SPRITES,
+        effects::m_ef02::SPRITES,
     ];
     for list in sprite_lists {
         for path in *list {

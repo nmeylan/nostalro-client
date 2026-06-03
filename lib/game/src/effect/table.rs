@@ -16,12 +16,12 @@ use super::effects::{
     light_sphere, mapzone, rainbow,
     bowling_bash, callzone, cartrevolution, cast_circle, chemical, cone, curseattack, defender, detecting,
     dragonsmoke, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
-    frost_diver, fullscreen_overlay, glasswall, glasswall2, ground_sample, guard, gumgang2, hasteup, healsp, heavensdrive, hit, hit2, hit5_6,
+    frost_diver, fullscreen_overlay, glasswall, glasswall2, ground_sample, guard, gumgang, gumgang2, hasteup, healsp, heavensdrive, hit, hit2, hit5_6,
     kouenka, magnum_break, napalmbeat,
-    napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_pillar, providence,
+    napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_con, potion_pillar, providence,
     quakebody, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond, status_up,
     stormgust, teleportation, texture_falling, throw_item, volcano, warp, waterball, wind, yufitel2, yupitel,
-    particle_up, sma, stin,
+    particle_up, sma, stin, m_ef02, slash,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -42,6 +42,19 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // value (300 ms) cuts the cone off before the ring finishes growing.
         EffectId::Magnumbreak => EffectSpec::Custom {
             duration_ms: magnum_break::TOTAL_DURATION_MS,
+        },
+
+        // M02 is directional like Wink — it picks one of four
+        // `.act` fly-off actions from the camera angle, which only
+        // `collect_draws` sees, so it's a Custom effect, not a `spr_def`.
+        EffectId::M02 => EffectSpec::Custom {
+            duration_ms: m_ef02::TOTAL_DURATION_MS,
+        },
+
+        // Kaizel — eight blue radial slash blades flying outward from the
+        // caster (see `effects/slash.rs`).
+        EffectId::Kaizel => EffectSpec::Custom {
+            duration_ms: slash::TOTAL_DURATION_MS,
         },
 
         // Guard aura shell: the visible fade completes ~720 ms in,
@@ -504,6 +517,26 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Gumgang2 => EffectSpec::Custom {
             duration_ms: gumgang2::TOTAL_DURATION_MS,
         },
+        // GUMGANG family — orbiting electric-arc wreaths (see effects/gumgang.rs).
+        // Buff auras are persistent; only the NPC cast is finite.
+        EffectId::Gumgang => EffectSpec::Custom {
+            duration_ms: gumgang::GUMGANG.total_duration_ms(),
+        },
+        EffectId::Steelbody => EffectSpec::Custom {
+            duration_ms: gumgang::STEELBODY.total_duration_ms(),
+        },
+        EffectId::Gumgangnpc => EffectSpec::Custom {
+            duration_ms: gumgang::GUMGANGNPC.total_duration_ms(),
+        },
+        EffectId::Doublegumgang => EffectSpec::Custom {
+            duration_ms: gumgang::DOUBLE_RED.total_duration_ms(),
+        },
+        EffectId::Doublegumgang2 => EffectSpec::Custom {
+            duration_ms: gumgang::DOUBLE_WHITE.total_duration_ms(),
+        },
+        EffectId::Doublegumgang3 => EffectSpec::Custom {
+            duration_ms: gumgang::DOUBLE_BLUE.total_duration_ms(),
+        },
         // Defender — first RadialEmitter consumer (see effects/defender.rs).
         EffectId::Defender => EffectSpec::Custom {
             duration_ms: defender::TOTAL_DURATION_MS,
@@ -638,6 +671,12 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
         EffectId::PotionBerserk => EffectSpec::Custom {
             duration_ms: potion_berserk::TOTAL_DURATION_MS,
+        },
+        EffectId::PotionCon => EffectSpec::Custom {
+            duration_ms: potion_con::CONCENTRATION_DURATION_MS,
+        },
+        EffectId::Potion => EffectSpec::Custom {
+            duration_ms: potion_con::AWAKENING_DURATION_MS,
         },
 
         // Batch STR-C — hybrids whose STR alias would otherwise shadow the
@@ -866,6 +905,43 @@ mod tests {
             assert!(!repeat, "{id:?} one-shot");
             assert_eq!(tint, [1.0, 1.0, 1.0, 1.0], "{id:?} default tint");
         }
+    }
+
+    #[test]
+    fn spr_oneshot_batch_resolves() {
+        // Batch 27 monster/banner one-shots route through spr_def → Spr with
+        // their durations (M01=833, M02..M07=1667). M04 is the looping
+        // aura; the rest hold their final frame.
+        for (id, sprite, anim, dur) in [
+            (EffectId::M01, "data/sprite/이팩트/m_ef01", 3.0, 833),
+            (EffectId::M03, "data/sprite/이팩트/m_ef03", 4.0, 1667),
+            (EffectId::M05, "data/sprite/이팩트/m_ef05", 4.0, 1667),
+            (EffectId::M06, "data/sprite/이팩트/m_ef06", 4.0, 1667),
+            (EffectId::M07, "data/sprite/이팩트/m_ef07", 4.0, 1667),
+            (EffectId::PokWhite, "data/sprite/이팩트/폭죽_화이트데이", 4.0, 1000),
+            (EffectId::PokValen, "data/sprite/이팩트/폭죽_발렌타인", 4.0, 1000),
+        ] {
+            let Some(EffectSpec::Spr { sprite: got, anim_speed, repeat, duration_ms, .. }) =
+                effect_spec(id)
+            else {
+                panic!("{id:?} should resolve to EffectSpec::Spr");
+            };
+            assert_eq!(got, sprite, "{id:?} sprite");
+            assert_eq!(anim_speed, anim, "{id:?} anim speed");
+            assert_eq!(duration_ms, dur, "{id:?} duration");
+            assert!(!repeat, "{id:?} one-shot");
+        }
+        // M04 — the looping Somatology-lab aura.
+        assert!(matches!(
+            effect_spec(EffectId::M04),
+            Some(EffectSpec::Spr { repeat: true, .. })
+        ));
+        // M02 (directional) and Kaizel (cross-slash) are Custom factory effects.
+        assert!(matches!(effect_spec(EffectId::M02), Some(EffectSpec::Custom { .. })));
+        assert!(matches!(effect_spec(EffectId::Kaizel), Some(EffectSpec::Custom { .. })));
+        // Kaahi renders nothing in the original game; the stale STR alias is
+        // gone so it must resolve to Noop, not a missing kaahi.str.
+        assert!(matches!(effect_spec(EffectId::Kaahi), Some(EffectSpec::Noop)));
     }
 
     #[test]
@@ -1671,13 +1747,16 @@ fn default_duration_ms(id: EffectId) -> u32 {
         // 180 frames at 60 fps — the alpha fade-in/out keys off this.
         EffectId::ItemLight => 3000,
         EffectId::Angel3 => 2000,
-        EffectId::M01 => 500,
-        EffectId::M02 => 1000,
-        EffectId::M03 => 1000,
+        // Frame counts at 60 fps: M01 = 50 frames,
+        // M02..M07 = 100 frames; M04 is persistent. (M02 routes to a Custom
+        // arm, but keep its table value consistent.)
+        EffectId::M01 => 833,
+        EffectId::M02 => 1667,
+        EffectId::M03 => 1667,
         EffectId::M04 => 4294967295,
-        EffectId::M05 => 1000,
-        EffectId::M06 => 1000,
-        EffectId::M07 => 1000,
+        EffectId::M05 => 1667,
+        EffectId::M06 => 1667,
+        EffectId::M07 => 1667,
         EffectId::Kaizel => 2000,
         EffectId::Kaahi => 2000,
         EffectId::Cloud6 => 4294967295,

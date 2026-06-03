@@ -144,6 +144,12 @@ pub fn spr_def(id: EffectId) -> Option<SprDef> {
         EffectId::PokLove => SprDef::new("data/sprite/이팩트/폭죽_러브").one_shot(),
         EffectId::PokBirth => SprDef::new("data/sprite/이팩트/폭죽_생일").one_shot(),
         EffectId::PokChristmas => SprDef::new("data/sprite/이팩트/폭죽_크리스마스").one_shot(),
+        // Firework banners — same setup as PokBirth above (anim speed 4,
+        // plays once). The white-day / valentine firework sprites live
+        // under the Korean `폭죽_<word>` resource names in the classic
+        // GRF.
+        EffectId::PokWhite => SprDef::new("data/sprite/이팩트/폭죽_화이트데이").one_shot(),
+        EffectId::PokValen => SprDef::new("data/sprite/이팩트/폭죽_발렌타인").one_shot(),
         // Dragonsmoke is routed through `spr_burst_params` because it
         // drifts upward with a per-frame yaw spin and fades out at 2/3 of
         // its lifetime — none of which a static `SprDef` reproduces. See
@@ -171,6 +177,25 @@ pub fn spr_def(id: EffectId) -> Option<SprDef> {
         // `str_aliases.rs`) and leave SPR routing out for this id, since
         // there is no classic sprite to point at.
 
+
+        // Monster effects M01..M13. Each is one billboard held until the
+        // duration. Anim speed 4, plays once except M04. M02 is *not*
+        // here — it's directional (see `effects/m_ef02.rs`).
+        // M01: plain alpha blend (not the default per-pixel tint), alpha
+        // 220, anim speed 3. There is no separate blend field on `SprDef`,
+        // so the alpha folds into the tint to approximate the blend
+        // on screen.
+        EffectId::M01 => SprDef::new("data/sprite/이팩트/m_ef01")
+            .with_anim_speed(3.0)
+            .one_shot()
+            .with_tint([1.0, 1.0, 1.0, 220.0 / 255.0]),
+        EffectId::M03 => SprDef::new("data/sprite/이팩트/m_ef03").one_shot(),
+        // M04: the one looping member — Somatology-lab mob aura, repeats over
+        // its persistent duration (default `repeat = true` is correct).
+        EffectId::M04 => SprDef::new("data/sprite/이팩트/m_ef04"),
+        EffectId::M05 => SprDef::new("data/sprite/이팩트/m_ef05").one_shot(),
+        EffectId::M06 => SprDef::new("data/sprite/이팩트/m_ef06").one_shot(),
+        EffectId::M07 => SprDef::new("data/sprite/이팩트/m_ef07").one_shot(),
         _ => return None,
     })
 }
