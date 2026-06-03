@@ -108,6 +108,8 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::foot::TEXTURES,
         effects::teihit::TEXTURES,
         effects::particle_up::TEXTURES,
+        effects::peong_up::TEXTURES,
+        effects::storm_kick::TEXTURES,
         effects::effect_texture::TEXTURES,
         effects::tarot_card::TEXTURES,
         effects::temp_result::TEXTURES,

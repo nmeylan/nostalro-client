@@ -51,13 +51,18 @@ const DISTANCE_JITTER_FRACTION: [f32; 4] = [0.0, 0.33, 0.66, 1.0];
 pub struct PortalWindConfig {
     /// `F1` parameter — preserved so callers can read the variant if needed.
     pub f1: u8,
+    /// `alpha_t` mode: 1 = windwalk (quick fade, 120° arc), 2 =
+    /// gust (slow fade, 180° arc). Selects the per-frame `step` branch.
+    pub alpha_t: u8,
     /// Base of the per-slot `max_height = max_height_base + max_height_step*ec`.
     pub max_height_base: f32,
     pub max_height_step: f32,
-    /// `distance = distance_base + random(0..1) * distance_jitter`.
+    /// `distance = distance_base + distance_step*ec + random(0..1)*distance_jitter`.
     pub distance_base: f32,
+    pub distance_step: f32,
     pub distance_jitter: f32,
     /// Frame window during which the master sprite gets tinted.
+    /// An empty window (e.g. `(0, -1)`) disables the tint.
     pub body_light_frames: (i32, i32),
     /// Body-light RGB (alpha is fully opaque).
     pub body_light_rgb: [u8; 3],
@@ -67,9 +72,11 @@ pub struct PortalWindConfig {
 
 pub const PORTAL4: PortalWindConfig = PortalWindConfig {
     f1: 0,
+    alpha_t: 1,
     max_height_base: 5.0,
     max_height_step: 2.0,
     distance_base: 4.5,
+    distance_step: 0.0,
     distance_jitter: 0.03,
     body_light_frames: (5, 25),
     body_light_rgb: [220, 250, 220],
@@ -78,14 +85,55 @@ pub const PORTAL4: PortalWindConfig = PortalWindConfig {
 
 pub const PORTAL5: PortalWindConfig = PortalWindConfig {
     f1: 1,
+    alpha_t: 1,
     max_height_base: 3.0,
     max_height_step: 2.0,
     distance_base: 2.5,
+    distance_step: 0.0,
     distance_jitter: 0.01,
     body_light_frames: (5, 65),
     body_light_rgb: [250, 250, 200],
     play_windwalk_wav: false,
 };
+
+/// Gust ring used by the StormKick batch. `alpha_t=2`:
+/// wider 180° arc, slow fade after `process>50`. The per-slot literals
+/// (`max_height = 48 - 5*ec`, `distance = 14 - 2*ec`) are in the same inflated
+/// scale as the StormKick funnel — at face value the ribbon floats ~48 units
+/// up. Scaled by `STORMKICK_GUST_SCALE` so the gust hugs the funnel base, per
+/// the gif. No body tint, no SFX.
+pub const PORTAL_WIND2: PortalWindConfig = PortalWindConfig {
+    f1: 2,
+    alpha_t: 2,
+    max_height_base: 48.0 * STORMKICK_GUST_SCALE,
+    max_height_step: -5.0 * STORMKICK_GUST_SCALE,
+    distance_base: 14.0 * STORMKICK_GUST_SCALE,
+    distance_step: -2.0 * STORMKICK_GUST_SCALE,
+    distance_jitter: 0.0,
+    body_light_frames: (0, -1),
+    body_light_rgb: [255, 255, 255],
+    play_windwalk_wav: false,
+};
+
+/// Tighter gust ring. `max_height = 28 - 5*ec`,
+/// `distance = 6 - 1*ec`, scaled to match.
+pub const PORTAL_WIND3: PortalWindConfig = PortalWindConfig {
+    f1: 3,
+    alpha_t: 2,
+    max_height_base: 28.0 * STORMKICK_GUST_SCALE,
+    max_height_step: -5.0 * STORMKICK_GUST_SCALE,
+    distance_base: 6.0 * STORMKICK_GUST_SCALE,
+    distance_step: -1.0 * STORMKICK_GUST_SCALE,
+    distance_jitter: 0.0,
+    body_light_frames: (0, -1),
+    body_light_rgb: [255, 255, 255],
+    play_windwalk_wav: false,
+};
+
+/// StormKick's funnel downscales the original literals to ~sprite height (see
+/// `storm_kick.rs`'s `WORLD_SCALE`); its gust rings share that factor so they
+/// stay coherent with the funnel instead of floating tens of units up.
+const STORMKICK_GUST_SCALE: f32 = 0.15;
 
 #[derive(Clone, Copy)]
 struct WindSlot {
@@ -96,6 +144,7 @@ struct WindSlot {
     full_display_angle_deg: f32,
     max_height: f32,
     rise_angle_deg: f32,
+    alpha_t: u8,
 }
 
 impl WindSlot {
@@ -106,33 +155,49 @@ impl WindSlot {
             process: 0.0,
             alpha_b: 0.0,
             distance: cfg.distance_base
+                + cfg.distance_step * ec
                 + DISTANCE_JITTER_FRACTION[slot_idx] * cfg.distance_jitter,
             full_display_angle_deg: 30.0,
             max_height: cfg.max_height_base + cfg.max_height_step * ec,
             rise_angle_deg: RISE_ANGLE_DEG[slot_idx],
+            alpha_t: cfg.alpha_t,
         }
     }
 
-    /// Wind primitive per-frame, alpha-type == 1 branch only (Portal4/5 are both F1
-    /// in {0,1} → "windwalk").
+    /// Per-frame slot update. `alpha_t==1` ("windwalk"): 120° arc, +10/f fade-in
+    /// for 12 frames, −2/f fade after process>20, grows after process>20.
+    /// `alpha_t==2` ("gust"): 180° arc, +1/f fade-in for 12 frames, −1/f fade
+    /// after process>50, grows after process>12.
     fn step(&mut self) {
         self.process += 1.0;
         if self.process <= 0.0 {
             return;
         }
         self.rot_start_deg = (self.rot_start_deg + 5.0).rem_euclid(360.0);
-        // terminal-alpha != 2 branch — cap at 120.
-        self.full_display_angle_deg = (self.full_display_angle_deg + 3.0).min(120.0);
-        if self.process > 20.0 {
-            self.alpha_b = (self.alpha_b - 2.0).max(0.0);
-            self.distance += 0.10;
+        if self.alpha_t == 2 {
+            self.full_display_angle_deg = (self.full_display_angle_deg + 3.0).min(180.0);
+            if self.process > 50.0 {
+                self.alpha_b = (self.alpha_b - 1.0).max(0.0);
+            }
+            if self.process > 12.0 {
+                self.distance += 0.10;
+            }
+            if self.process < 12.0 {
+                self.alpha_b += 1.0;
+            }
+        } else {
+            self.full_display_angle_deg = (self.full_display_angle_deg + 3.0).min(120.0);
+            if self.process > 20.0 {
+                self.alpha_b = (self.alpha_b - 2.0).max(0.0);
+                self.distance += 0.10;
+            }
+            if self.process < 12.0 {
+                self.alpha_b = (self.alpha_b + 10.0).min(250.0);
+            }
         }
         if self.process > 1400.0 {
             // terminal-alpha != 3 here, so the terminal decay applies.
             self.alpha_b = (self.alpha_b - 3.0).max(0.0);
-        }
-        if self.process < 12.0 {
-            self.alpha_b = (self.alpha_b + 10.0).min(250.0);
         }
     }
 }
@@ -367,6 +432,28 @@ mod tests {
 
         step_frames(&mut e, 1);
         assert!(e.body_tint().is_none(), "tint inactive after frame 65");
+    }
+
+    #[test]
+    fn portal_wind2_opens_to_180_and_fades_on_gust_schedule() {
+        let mut e = PortalWindEffect::new([0.0, 0.0, 0.0], PORTAL_WIND2);
+        // alpha_t==2: +1/frame fade-in for 12 frames, arc grows +3/frame.
+        step_frames(&mut e, 12);
+        let alpha_12 = draws(&e)
+            .iter()
+            .find_map(|p| match p {
+                EffectPrimitiveDraw::Frustum { color, .. } => Some(color[3]),
+                _ => None,
+            })
+            .unwrap_or(0.0);
+        assert!(alpha_12 > 0.0, "alpha ramped in by frame 12");
+
+        // Arc caps at 180 (not 120 like alpha_t==1). 30 + 3*N reaches 180 at N=50.
+        step_frames(&mut e, 60);
+        let arcs = wind_frustums(&draws(&e));
+        for (arc, _, _) in arcs {
+            assert!((arc - 180.0).abs() < 0.01, "gust arc opens to 180°, got {arc}");
+        }
     }
 
     #[test]

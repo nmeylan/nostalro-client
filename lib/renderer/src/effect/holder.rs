@@ -683,6 +683,23 @@ impl EffectHolder {
         tint
     }
 
+    /// Sum of per-frame body-yaw offsets (radians) from effects attached to
+    /// `entity_id` (the original game increments the master's yaw rotation). The actor pass
+    /// adds this to the entity's facing angle before selecting the directional
+    /// sprite frame, so a spinning effect (StormKick) whirls the caster.
+    pub fn body_yaw_for_entity(&self, entity_id: u32) -> f32 {
+        let mut acc = 0.0;
+        for e in &self.effects {
+            if let (Attach::Entity(id), HeldPayload::Custom(c)) = (e.attach, &e.payload)
+                && id == entity_id
+                && let Some(yaw) = c.body_yaw()
+            {
+                acc += yaw;
+            }
+        }
+        acc
+    }
+
     /// Append primitive draws for live custom effects. STR/Spr collection
     /// is wired in Phase D when the renderer's render-pass plumbing lands.
     pub fn collect_custom_draws(

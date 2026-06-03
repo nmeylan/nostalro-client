@@ -126,4 +126,14 @@ pub trait Effect: Send {
     fn body_afterimage(&self) -> Option<Afterimage> {
         None
     }
+
+    /// Per-frame additive yaw offset (radians) applied to the master sprite's
+    /// facing while the effect is active — the caster's body
+    /// spin (StormKick). The actor pass adds this to
+    /// the entity's facing angle before picking the 8-direction sprite frame,
+    /// so the caster appears to whirl. Returns `Some` only during the spin
+    /// window. Default `None` — most effects don't spin the caster.
+    fn body_yaw(&self) -> Option<f32> {
+        None
+    }
 }

@@ -69,6 +69,18 @@ impl App {
                             entry.screen_anchor[1] + body_shake[1],
                         ];
 
+                        // Body yaw (the master actor's y-rotation +=): a spinning effect
+                        // (StormKick) whirls the caster by cycling the 8-way
+                        // facing. Convert the accumulated yaw to direction steps
+                        // and rotate the camera-relative direction index.
+                        let body_yaw = self.effect_holder.body_yaw_for_entity(entry.id);
+                        let camera_dir = if body_yaw != 0.0 {
+                            let steps = (body_yaw / (std::f32::consts::TAU / 8.0)).round() as i32;
+                            (((entry.camera_dir as i32 + steps) % 8 + 8) % 8) as u8
+                        } else {
+                            entry.camera_dir
+                        };
+
                         if !is_fading && !hidden {
                             let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
                             let mut shadow = sprite.build_shadow_batches(
@@ -88,7 +100,7 @@ impl App {
                         // the head while passing at the body.
                         let mut batches = sprite.build_batches(
                             &entity.animation,
-                            Some(entry.camera_dir),
+                            Some(camera_dir),
                             entity.head_dir,
                             body_anchor,
                             entry.depth,

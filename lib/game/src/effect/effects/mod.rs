@@ -54,6 +54,8 @@ pub mod foot;
 pub mod frost_diver;
 pub mod fullscreen_overlay;
 pub mod particle_up;
+pub mod peong_up;
+pub mod storm_kick;
 pub mod teihit;
 pub mod throw_item;
 pub mod glasswall;

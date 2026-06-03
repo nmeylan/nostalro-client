@@ -21,7 +21,7 @@ use super::effects::{
     napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_con, potion_pillar, providence,
     quakebody, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond, status_up,
     stormgust, teleportation, texture_falling, throw_item, volcano, warp, waterball, wind, yufitel2, yupitel,
-    particle_up, sma, stin, m_ef02, slash,
+    particle_up, peong_up, sma, stin, storm_kick, m_ef02, slash,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -61,6 +61,23 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // well before the parent emitter's table duration.
         EffectId::Guard | EffectId::Guard2 | EffectId::Guard3 => EffectSpec::Custom {
             duration_ms: guard::TOTAL_DURATION_MS,
+        },
+
+        // StormKick vortex variants — spinning funnel + two gust rings. The
+        // funnel fades by ~frame 100 and the gusts outlast it slightly; the
+        // table value (1000 ms) is close but pin to the effect's wall-clock end.
+        EffectId::Stormkick
+        | EffectId::Stormkick1
+        | EffectId::Stormkick2
+        | EffectId::Stormkick3
+        | EffectId::Stormkick6
+        | EffectId::Stormkick7 => EffectSpec::Custom {
+            duration_ms: storm_kick::TOTAL_DURATION_MS,
+        },
+
+        // StormKick4/5 — PeongUp rising-sparkle fountain (Kaupe / Utsusemi).
+        EffectId::Stormkick4 | EffectId::Stormkick5 => EffectSpec::Custom {
+            duration_ms: peong_up::TOTAL_DURATION_MS,
         },
 
         // Chemical streak family — emit window + fade tail, per variant.

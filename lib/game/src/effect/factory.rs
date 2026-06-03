@@ -55,6 +55,35 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             anchor.point(),
             effects::portal_wind::PORTAL5,
         )),
+        EffectId::Stormkick => Box::new(effects::storm_kick::StormKickEffect::new(
+            anchor.point(),
+            effects::storm_kick::STORMKICK0,
+        )),
+        EffectId::Stormkick1 => Box::new(effects::storm_kick::StormKickEffect::new(
+            anchor.point(),
+            effects::storm_kick::STORMKICK1,
+        )),
+        EffectId::Stormkick2 => Box::new(effects::storm_kick::StormKickEffect::new(
+            anchor.point(),
+            effects::storm_kick::STORMKICK2,
+        )),
+        EffectId::Stormkick3 => Box::new(effects::storm_kick::StormKickEffect::new(
+            anchor.point(),
+            effects::storm_kick::STORMKICK3,
+        )),
+        EffectId::Stormkick6 => Box::new(effects::storm_kick::StormKickEffect::new(
+            anchor.point(),
+            effects::storm_kick::STORMKICK6,
+        )),
+        EffectId::Stormkick7 => Box::new(effects::storm_kick::StormKickEffect::new(
+            anchor.point(),
+            effects::storm_kick::STORMKICK7,
+        )),
+        // Stormkick4/5 are the PeongUp fountain (Kaupe / Utsusemi dodge). 5's
+        // forced ninja animation is a separate actor hook — TODO, visuals match.
+        EffectId::Stormkick4 | EffectId::Stormkick5 => Box::new(
+            effects::peong_up::PeongUpEffect::new(anchor.point(), effects::peong_up::PEONGUP),
+        ),
         EffectId::Readyportal => Box::new(effects::ready_portal::ReadyPortalEffect::new(anchor.point())),
         EffectId::Teleportation => Box::new(effects::teleportation::TeleportationEffect::new(anchor.point())),
         EffectId::Spraypond => Box::new(effects::spraypond::SpraypondEffect::new(anchor.point())),
@@ -1190,6 +1219,14 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Portal3
             | EffectId::Portal4
             | EffectId::Portal5
+            | EffectId::Stormkick
+            | EffectId::Stormkick1
+            | EffectId::Stormkick2
+            | EffectId::Stormkick3
+            | EffectId::Stormkick4
+            | EffectId::Stormkick5
+            | EffectId::Stormkick6
+            | EffectId::Stormkick7
             | EffectId::Spraypond
             | EffectId::Firearrow
             | EffectId::Fireball
@@ -1459,8 +1496,8 @@ mod tests {
         // Pick an EffectId in the Custom bucket that doesn't yet have a
         // real Rust impl — factory returns the pink placeholder and
         // `is_real_impl` reports false.
-        assert!(make_effect(EffectId::Stormkick, EffectAnchor::Point([0.0; 3]), None).is_some());
-        assert!(!is_real_impl(EffectId::Stormkick));
+        assert!(make_effect(EffectId::Spherewind, EffectAnchor::Point([0.0; 3]), None).is_some());
+        assert!(!is_real_impl(EffectId::Spherewind));
     }
 
     #[test]
