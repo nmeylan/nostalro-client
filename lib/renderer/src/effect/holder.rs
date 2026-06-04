@@ -117,6 +117,7 @@ pub struct SprSnapshot {
     pub anim_speed: f32,
     pub repeat: bool,
     pub tint: [f32; 4],
+    pub action_index: usize,
 }
 
 /// Owned snapshot of a live `EffectSpec::SprBurst` instance — params for the
@@ -217,6 +218,7 @@ enum HeldPayload {
         repeat: bool,
         tint: [f32; 4],
         pos_y: f32,
+        action_index: usize,
     },
     /// Multi-particle SPR burst (chimney smoke, firefly, snow, …).
     SprBurst(BurstState),
@@ -358,6 +360,7 @@ impl EffectHolder {
                 repeat,
                 tint,
                 pos_y,
+                action_index,
                 ..
             } => {
                 self.last_spawn = Some(SpawnOutcome::Spr);
@@ -368,6 +371,7 @@ impl EffectHolder {
                     repeat: *repeat,
                     tint: *tint,
                     pos_y: *pos_y,
+                    action_index: *action_index,
                 }
             }
             EffectSpec::SprBurst { sprite, burst, .. } => {
@@ -778,6 +782,7 @@ impl EffectHolder {
                     repeat,
                     tint,
                     pos_y,
+                    action_index,
                 } = &e.payload
                 else {
                     return None;
@@ -798,6 +803,7 @@ impl EffectHolder {
                     anim_speed: *anim_speed,
                     repeat: *repeat,
                     tint: *tint,
+                    action_index: *action_index,
                 })
             })
             .collect()
@@ -1382,6 +1388,21 @@ mod tests {
         assert_eq!(snaps[0].sprite, "data/sprite/이팩트/torch_01");
         assert_eq!(snaps[0].position, [10.0, 20.0, 30.0]);
         assert!((snaps[0].anim_time - 0.25).abs() < 1e-6);
+        // Torch plays the default ACT action.
+        assert_eq!(snaps[0].action_index, 0);
+    }
+
+    #[test]
+    fn spr_snapshot_carries_non_zero_act_action() {
+        // Vallentine2 shares vallentine.spr but plays ACT action 1 — the
+        // snapshot must carry the action index through to the renderer.
+        let mut h = EffectHolder::new();
+        h.spawn(EffectId::Vallentine2, Attach::WorldPos([0.0, 0.0, 0.0]), Some(1000))
+            .expect("spawn");
+        h.update(&ctx(0.1));
+        let snaps = h.collect_spr_emitters(&|_| None);
+        assert_eq!(snaps.len(), 1);
+        assert_eq!(snaps[0].action_index, 1);
     }
 
     #[test]

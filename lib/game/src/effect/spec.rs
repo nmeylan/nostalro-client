@@ -78,6 +78,8 @@ pub enum EffectSpec {
         repeat: bool,
         tint: [f32; 4],
         pos_y: f32,
+        /// ACT action index to play.
+        action_index: usize,
     },
     /// Burst of N animated SPR particles drifting along the Y axis with a
     /// fade-out tail. Used for chimney smoke, firefly puffs, and the rest of

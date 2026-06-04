@@ -176,10 +176,10 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             duration_ms: cloud_projectile::TOTAL_DURATION_MS,
         },
 
-        // Slim potion throws — falling icon + ground shockwave ring.
-        EffectId::Slim | EffectId::Slim2 | EffectId::Slim3 => EffectSpec::Custom {
-            duration_ms: pressure::PRESSURE_TOTAL_DURATION_MS,
-        },
+        // Slim potion throws + Pressure — falling icon + ground shockwave ring.
+        EffectId::Slim | EffectId::Slim2 | EffectId::Slim3 | EffectId::Pressure => {
+            EffectSpec::Custom { duration_ms: pressure::PRESSURE_TOTAL_DURATION_MS }
+        }
 
         // Hit family — fires on every weapon swing. The cylinder ring
         // dies at 10-15 frames but the debris bursts can live up to 30
@@ -808,6 +808,7 @@ fn bucket_default(id: EffectId) -> EffectSpec {
             repeat: def.repeat,
             tint: def.tint,
             pos_y: def.pos_y,
+            action_index: def.action,
         };
     }
     if let Some((sprite, burst)) = spr_burst_params(id) {
@@ -879,6 +880,7 @@ mod tests {
             repeat,
             tint,
             pos_y,
+            action_index: _,
         }) = effect_spec(EffectId::Torch)
         else {
             panic!("Torch should resolve to EffectSpec::Spr");
@@ -904,6 +906,7 @@ mod tests {
             repeat,
             tint,
             pos_y,
+            action_index: _,
         }) = effect_spec(EffectId::Aqua)
         else {
             panic!("Aqua should resolve to EffectSpec::Spr");
@@ -987,6 +990,38 @@ mod tests {
     }
 
     #[test]
+    fn vallentine_family_resolves_to_spr_with_correct_action() {
+        // Batch 22: Vallentine(F1) → one SPR played once. Vallentine2 shares
+        // vallentine.spr but plays ACT action 1; Itemfast is fast.spr action 0
+        // at animSpeed 4. The spr_def path must win over the file-missing
+        // str_aliases ("vallentine2"/"itemfast").
+        let Some(EffectSpec::Spr { sprite, action_index, anim_speed, repeat, .. }) =
+            effect_spec(EffectId::Vallentine2)
+        else {
+            panic!("Vallentine2 should resolve to EffectSpec::Spr");
+        };
+        assert_eq!(sprite, "data/sprite/이팩트/vallentine");
+        assert_eq!(action_index, 1, "Vallentine2 plays ACT action 1");
+        assert_eq!(anim_speed, 2.0);
+        assert!(!repeat);
+
+        let Some(EffectSpec::Spr { sprite, action_index, anim_speed, .. }) =
+            effect_spec(EffectId::Itemfast)
+        else {
+            panic!("Itemfast should resolve to EffectSpec::Spr");
+        };
+        assert_eq!(sprite, "data/sprite/이팩트/fast");
+        assert_eq!(action_index, 0);
+        assert_eq!(anim_speed, 4.0);
+
+        // The default action is unchanged for the original sibling.
+        assert!(matches!(
+            effect_spec(EffectId::Vallentine),
+            Some(EffectSpec::Spr { action_index: 0, .. })
+        ));
+    }
+
+    #[test]
     fn wink_resolves_to_custom_factory_path() {
         // Wink and Fvoice are directional Custom effects (camera-angle action
         // pick), not data-driven Spr one-shots or STR placeholders — a stray
@@ -999,6 +1034,21 @@ mod tests {
             effect_spec(EffectId::Fvoice),
             Some(EffectSpec::Custom { duration_ms: 1667 })
         ));
+    }
+
+    #[test]
+    fn ghost_family_resolves_to_custom_factory_path() {
+        // Ghost/Bat/Bat2 are SPR orbit-swarm Custom effects. Their stale
+        // str_aliases were removed so they resolve through the custom bucket,
+        // not a missing ghost/bat/bat2.str.
+        for id in [EffectId::Ghost, EffectId::Bat, EffectId::Bat2] {
+            assert!(
+                matches!(effect_spec(id), Some(EffectSpec::Custom { duration_ms: 40000 })),
+                "{id:?} should resolve to Custom 40000, got {:?}",
+                effect_spec(id)
+            );
+            assert!(super::super::factory::is_real_impl(id), "{id:?} must have a real impl");
+        }
     }
 
     #[test]
@@ -1015,6 +1065,7 @@ mod tests {
             repeat,
             tint,
             pos_y,
+            action_index: _,
         }) = effect_spec(EffectId::Poisonhit)
         else {
             panic!("Poisonhit should resolve to EffectSpec::Spr");
@@ -1043,6 +1094,7 @@ mod tests {
             repeat,
             tint,
             pos_y,
+            action_index: _,
         }) = effect_spec(EffectId::Darkbreath)
         else {
             panic!("Darkbreath should resolve to EffectSpec::Spr");

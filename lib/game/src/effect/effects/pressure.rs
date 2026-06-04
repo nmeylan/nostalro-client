@@ -26,9 +26,10 @@ pub const TEXTURES: &[&str] = &[
     "유저인터페이스/item/옐로우슬림포션.bmp",
     "유저인터페이스/item/화이트슬림포션.bmp",
     "bbbb.bmp",
+    "cross_old.bmp",
+    "explosive_1_128.bmp",
 ];
 
-const RING_TEXTURE: &str = "bbbb.bmp";
 const UNIT_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 
 const FPS: f32 = 60.0;
@@ -44,9 +45,6 @@ const ICON_FADE_IN_PER_FRAME: f32 = 20.0 / 255.0;
 const ICON_FADE_OUT_PER_FRAME: f32 = 5.0 / 255.0;
 const ICON_FADE_IN_UNTIL: i32 = 10;
 
-/// `process = minus = -16` → the ring waits 16 frames (until the icon lands)
-/// before expanding.
-const RING_DELAY_FRAMES: i32 = 16;
 /// Ring radius scales by 1.07 each frame.
 const RING_GROWTH_PER_FRAME: f32 = 1.07;
 const RING_FADE_IN_FRAMES: f32 = 6.0;
@@ -75,6 +73,13 @@ pub struct PressureParams {
     pub icon_distance: f32,
     /// Ring starting radius.
     pub ring_start_radius: f32,
+    /// Ground shockwave ring texture.
+    pub ring_texture: &'static str,
+    /// Frames the ring waits (until the icon lands) before it starts
+    /// expanding.
+    pub ring_delay_frames: i32,
+    /// Ring blend: bright additive splash (Slim) vs. dark alpha smoke (Pressure).
+    pub ring_blend: BlendKind,
     /// Fire a one-shot camera shake when the icon lands (Pressure only).
     pub quake: bool,
 }
@@ -88,6 +93,9 @@ pub const SLIM: PressureParams = PressureParams {
     drop_y: -18.0,
     icon_distance: 1.2,
     ring_start_radius: 3.0,
+    ring_texture: "bbbb.bmp",
+    ring_delay_frames: 16,
+    ring_blend: BlendKind::Additive,
     quake: false,
 };
 pub const SLIM2: PressureParams = PressureParams {
@@ -97,6 +105,9 @@ pub const SLIM2: PressureParams = PressureParams {
     drop_y: -18.0,
     icon_distance: 1.2,
     ring_start_radius: 3.0,
+    ring_texture: "bbbb.bmp",
+    ring_delay_frames: 16,
+    ring_blend: BlendKind::Additive,
     quake: false,
 };
 pub const SLIM3: PressureParams = PressureParams {
@@ -106,7 +117,29 @@ pub const SLIM3: PressureParams = PressureParams {
     drop_y: -18.0,
     icon_distance: 1.2,
     ring_start_radius: 3.0,
+    ring_texture: "bbbb.bmp",
+    ring_delay_frames: 16,
+    ring_blend: BlendKind::Additive,
     quake: false,
+};
+
+// 365 Pressure — a large spinning cross icon falls onto the target, lands with
+// a screen-shake, and a dark explosion ring expands from the impact. The cross
+// uses `cross_old.bmp` and the ring `explosive_1_128.bmp` after a 28-frame
+// delay (F1=0). The cross carries no colour grade (drawn white) and the ring is
+// the no-colour alpha-blended smoke variant. Sizes scale up from Slim by the
+// F1=0 ratios (icon distance 12 vs 8, drop height 115 vs 80).
+pub const PRESSURE: PressureParams = PressureParams {
+    icon_texture: "cross_old.bmp",
+    icon_tint: WHITE,
+    ring_tint: WHITE,
+    drop_y: -30.0,
+    icon_distance: 4.0,
+    ring_start_radius: 4.0,
+    ring_texture: "explosive_1_128.bmp",
+    ring_delay_frames: 28,
+    ring_blend: BlendKind::Alpha,
+    quake: true,
 };
 
 pub struct PressureEffect {
@@ -141,7 +174,7 @@ impl PressureEffect {
     }
 
     fn ring_age(&self) -> Option<f32> {
-        let age = self.process - RING_DELAY_FRAMES;
+        let age = self.process - self.params.ring_delay_frames;
         (age > 0).then_some(age as f32)
     }
 
@@ -241,9 +274,9 @@ impl Effect for PressureEffect {
                     rotation: 0.0,
                     arc_angle_deg: 360.0,
                     uv_repeat: 1.0,
-                    texture: RING_TEXTURE,
+                    texture: self.params.ring_texture,
                     color: [t[0], t[1], t[2], alpha.max(0.0)],
-                    blend: BlendKind::Additive,
+                    blend: self.params.ring_blend,
                 });
             }
         }
@@ -310,7 +343,7 @@ mod tests {
     #[test]
     fn ring_appears_after_delay_then_grows_and_fades() {
         let mut e = PressureEffect::new([0.0, 0.0, 0.0], SLIM);
-        step(&mut e, RING_DELAY_FRAMES as u32);
+        step(&mut e, SLIM.ring_delay_frames as u32);
         assert!(ring(&e).is_none(), "no ring before the landing delay");
         step(&mut e, 4);
         let (r_early, a_early) = ring(&e).expect("ring after delay");
@@ -324,13 +357,35 @@ mod tests {
     fn slim_variants_tint_red_yellow_white_and_never_shake() {
         for (params, ring_tint) in [(SLIM, RING_RED), (SLIM2, RING_YELLOW), (SLIM3, WHITE)] {
             let mut e = PressureEffect::new([0.0, 0.0, 0.0], params);
-            step(&mut e, RING_DELAY_FRAMES as u32 + 3);
+            step(&mut e, params.ring_delay_frames as u32 + 3);
             let has_tinted_ring = list(&e).iter().any(|p| matches!(p,
                 EffectPrimitiveDraw::GroundDisc { color, .. }
                     if color[0] == ring_tint[0] && color[1] == ring_tint[1] && color[2] == ring_tint[2]));
             assert!(has_tinted_ring, "ring carries the variant colour");
             assert!(e.take_camera_shake().is_none(), "Slim never shakes the screen");
         }
+    }
+
+    #[test]
+    fn pressure_drops_cross_and_shakes_screen() {
+        let mut e = PressureEffect::new([0.0, 0.0, 0.0], PRESSURE);
+        // Falling cross icon is the named texture.
+        step(&mut e, 1);
+        assert!(
+            list(&e).iter().any(|p| matches!(p,
+                EffectPrimitiveDraw::Billboard { texture, .. } if *texture == "cross_old.bmp")),
+            "the falling icon is the cross texture"
+        );
+        // Drives past the landing: the explosion ring appears and the cross is down.
+        step(&mut e, 44);
+        assert!(
+            list(&e).iter().any(|p| matches!(p,
+                EffectPrimitiveDraw::GroundDisc { texture, .. } if *texture == "explosive_1_128.bmp")),
+            "the explosion ring expands after the delay"
+        );
+        // The screen shake fires exactly once, after the cross lands.
+        assert!(e.take_camera_shake().is_some(), "Pressure shakes the screen on landing");
+        assert!(e.take_camera_shake().is_none(), "the shake is a one-shot");
     }
 
     #[test]

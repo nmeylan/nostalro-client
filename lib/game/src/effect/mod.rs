@@ -176,6 +176,7 @@ pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
         effects::dragonsmoke::SPRITES,
         effects::wink::SPRITES,
         effects::m_ef02::SPRITES,
+        effects::ghost::SPRITES,
     ];
     for list in sprite_lists {
         for path in *list {

@@ -37,6 +37,7 @@ pub mod cloud;
 pub mod cone;
 pub mod defender;
 pub mod dragonsmoke;
+pub mod ghost;
 pub mod gumgang;
 pub mod heavensdrive;
 pub mod endure;

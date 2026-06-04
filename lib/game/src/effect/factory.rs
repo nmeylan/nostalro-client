@@ -387,6 +387,13 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Wink => Box::new(effects::wink::WinkEffect::new(anchor.point(), effects::wink::WINK)),
         EffectId::Fvoice => Box::new(effects::wink::WinkEffect::new(anchor.point(), effects::wink::FVOICE)),
 
+        // Ghost/Bat/Bat2 (`Ghost(0/1/2)`): a swarm of animated SPR sprites
+        // orbiting the caster while bobbing. Ghost faces the camera (8-dir
+        // sprite); the bats flap (2-action sprite); Bat2 orbits a figure-eight.
+        EffectId::Ghost => Box::new(effects::ghost::GhostEffect::new(anchor.point(), effects::ghost::GHOST)),
+        EffectId::Bat => Box::new(effects::ghost::GhostEffect::new(anchor.point(), effects::ghost::BAT)),
+        EffectId::Bat2 => Box::new(effects::ghost::GhostEffect::new(anchor.point(), effects::ghost::BAT2)),
+
         // M02: directional emote, same camera-angle action
         // selection as Wink but a distinct quadrant map.
         EffectId::M02 => Box::new(effects::m_ef02::MEf02Effect::new(anchor.point())),
@@ -555,10 +562,10 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(cp::CloudProjectileEffect::new(from, to, hit_count.unwrap_or(0), params))
         }
 
-        // Slim potion throws — a falling potion icon + an expanding ground
-        // shockwave ring (PRESSURE + GroundShake). A ranged attack: the potion
+        // Slim potion throws + Pressure — a falling icon + an expanding ground
+        // shockwave ring (PRESSURE + GroundShake). A ranged attack: the icon
         // lands on the impact point (the anchor's target), not the caster.
-        EffectId::Slim | EffectId::Slim2 | EffectId::Slim3 => {
+        EffectId::Slim | EffectId::Slim2 | EffectId::Slim3 | EffectId::Pressure => {
             let impact = match anchor {
                 EffectAnchor::Trail { to, .. } => to,
                 EffectAnchor::Point(p) => p,
@@ -567,7 +574,8 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             let params = match id {
                 EffectId::Slim => pr::SLIM,
                 EffectId::Slim2 => pr::SLIM2,
-                _ => pr::SLIM3,
+                EffectId::Slim3 => pr::SLIM3,
+                _ => pr::PRESSURE,
             };
             Box::new(pr::PressureEffect::new(impact, params))
         }
@@ -1412,6 +1420,9 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Forestlight4
             | EffectId::Wink
             | EffectId::Fvoice
+            | EffectId::Ghost
+            | EffectId::Bat
+            | EffectId::Bat2
             | EffectId::M02
             | EffectId::Kaizel
             | EffectId::TempOk

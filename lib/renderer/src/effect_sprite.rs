@@ -103,6 +103,7 @@ pub struct EmitterDraw<'a> {
     pub depth: f32,
     pub sprite_scale: f32,
     pub motion_index: usize,
+    pub action_index: usize,
     pub color: [f32; 4],
     /// `true` → additive blend (Hit debris, anything wanting overlap to
     /// accumulate to brighter colors); `false` → standard alpha blend
@@ -122,7 +123,7 @@ pub fn build_emitter_batches<'a>(draws: &[EmitterDraw<'a>]) -> Vec<SpriteBatch<'
         if draw.sprite.act.actions.is_empty() {
             continue;
         }
-        let action = &draw.sprite.act.actions[0];
+        let action = &draw.sprite.act.actions[draw.action_index % draw.sprite.act.actions.len()];
         if action.motions.is_empty() {
             continue;
         }
@@ -291,6 +292,8 @@ pub enum SpriteEffectEmitter<'a> {
         /// plays once and holds the final motion.
         repeat: bool,
         anim_time: f32,
+        /// ACT action index to play.
+        action_index: usize,
     },
     Smoke3D {
         sprite_path: &'a str,
@@ -331,6 +334,7 @@ pub fn collect_sprite_effect_draws<'cache>(
                 anim_speed,
                 repeat,
                 anim_time,
+                action_index,
             } => {
                 let Some(sprite) = cache.get(sprite_path) else {
                     continue;
@@ -341,8 +345,11 @@ pub fn collect_sprite_effect_draws<'cache>(
                     continue;
                 };
                 let sprite_scale = ppu / 7.5;
-                let action = sprite.act.actions.first();
-                let motion_count = action.map(|a| a.motions.len()).unwrap_or(0);
+                if sprite.act.actions.is_empty() {
+                    continue;
+                }
+                let action = &sprite.act.actions[action_index % sprite.act.actions.len()];
+                let motion_count = action.motions.len();
                 if motion_count == 0 {
                     continue;
                 }
@@ -363,6 +370,7 @@ pub fn collect_sprite_effect_draws<'cache>(
                     depth,
                     sprite_scale: sprite_scale * size_scale,
                     motion_index,
+                    action_index: *action_index,
                     color: *color,
                     additive: false,
                 });
@@ -423,6 +431,7 @@ pub fn collect_sprite_effect_draws<'cache>(
                         depth,
                         sprite_scale: sprite_scale * size_scale * per_particle_size,
                         motion_index,
+                        action_index: 0,
                         color: [color[0], color[1], color[2], color[3] * alpha],
                         additive: false,
                     });

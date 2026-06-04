@@ -347,9 +347,9 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::WaterfallSmallT2 => &["waterfall_small_t2"],
         EffectId::WaterfallSmallT290 => &["waterfall_small_t2_90"],
         EffectId::MiniTetris => &["mini_tetris"],
-        EffectId::Ghost => &["ghost"],
-        EffectId::Bat => &["bat"],
-        EffectId::Bat2 => &["bat2"],
+        // Ghost/Bat/Bat2 are SPR orbit-swarm Custom effects (effects/ghost.rs);
+        // their ghost/bat/bat2.str files don't exist in the classic GRF, so the
+        // stale aliases are removed and they resolve via the custom bucket.
         EffectId::Soulbreaker => &["soulbreaker"],
         EffectId::Level994 => &["level99_4"],
         EffectId::Vallentine => &["vallentine"],

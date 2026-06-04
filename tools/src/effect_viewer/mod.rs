@@ -1289,6 +1289,7 @@ impl App {
                 anim_speed: s.anim_speed,
                 repeat: s.repeat,
                 anim_time: s.anim_time,
+                action_index: s.action_index,
             })
             .collect();
         spr_inputs.extend(burst_snapshots.iter().map(|b| SpriteEffectEmitter::Smoke3D {

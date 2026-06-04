@@ -179,10 +179,11 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             | EffectId::Shieldboomerang
             | EffectId::Shieldboomerang2
             | EffectId::Shieldboomerang3
-            // Slim potion throws land on the target (ranged); need the target
-            // endpoint as the impact point.
+            // Slim potion throws and Pressure land on the target (ranged); need
+            // the target endpoint as the impact point.
             | EffectId::Slim
             | EffectId::Slim2
             | EffectId::Slim3
+            | EffectId::Pressure
     )
 }

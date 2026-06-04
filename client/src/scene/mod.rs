@@ -459,6 +459,7 @@ pub(crate) fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteE
                     anim_speed: 1.0,
                     repeat: true,
                     anim_time: emitter.anim_time,
+                    action_index: 0,
                 });
             }
             EffectKind::Smoke3D {
