@@ -128,6 +128,7 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             | EffectId::Icewall
             | EffectId::Fireball
             | EffectId::Soulstrike
+            | EffectId::Soulbreaker
             | EffectId::Yufitel
             | EffectId::Pierce
             | EffectId::Sonicblowhit
@@ -185,5 +186,9 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             | EffectId::Slim2
             | EffectId::Slim3
             | EffectId::Pressure
+            // TripleAttack streaks fly from the caster toward the target.
+            | EffectId::Tripleattack
+            | EffectId::Tripleattack2
+            | EffectId::Tripleattack3
     )
 }

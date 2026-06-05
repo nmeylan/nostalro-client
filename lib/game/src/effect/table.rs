@@ -20,9 +20,9 @@ use super::effects::{
     kouenka, magnum_break, napalmbeat,
     napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_con, potion_pillar, providence,
     quakebody, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond, status_up,
-    cloud_projectile, pressure, stormgust, teleportation, texture_falling, throw_item, volcano, warp, waterball,
+    cloud_projectile, twilight, tripleattack, spherewind, pressure, stormgust, teleportation, texture_falling, throw_item, volcano, warp, waterball,
     wind, yufitel2, yupitel,
-    particle_up, peong_up, sma, stin, storm_kick, m_ef02, slash, thunderstorm2,
+    particle_up, peong_up, sma, stin, soul_breaker, storm_kick, m_ef02, slash, thunderstorm2,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -123,6 +123,40 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Stin => EffectSpec::Custom {
             duration_ms: stin::STIN.total_duration_ms(),
         },
+        // SoulBreaker (361) / Meteor Assault (409) — purple-slash burst. The
+        // explicit Custom arm shadows the dead soulbreaker/soulbreaker2 str
+        // aliases and pins the streak envelope (parent runs 300 frames).
+        EffectId::Soulbreaker | EffectId::Soulbreaker2 => EffectSpec::Custom {
+            duration_ms: soul_breaker::TOTAL_DURATION_MS,
+        },
+
+        // TripleAttack streak volleys outlast the parent emitter — the last
+        // arrow-vulcan streak doesn't fade until ~2.7 s after spawn.
+        EffectId::Tripleattack => EffectSpec::Custom {
+            duration_ms: tripleattack::TRIPLEATTACK.total_duration_ms(),
+        },
+        EffectId::Tripleattack2 => EffectSpec::Custom {
+            duration_ms: tripleattack::TRIPLEATTACK2.total_duration_ms(),
+        },
+        EffectId::Tripleattack3 => EffectSpec::Custom {
+            duration_ms: tripleattack::TRIPLEATTACK3.total_duration_ms(),
+        },
+
+        // SphereWind orbiting-ribbon spheres. 346/394 are persistent buff auras;
+        // Baby (408) is a transient growing sphere. Custom shadows the dead STR
+        // aliases.
+        EffectId::Spherewind => EffectSpec::Custom {
+            duration_ms: spherewind::SPHEREWIND.total_duration_ms(),
+        },
+        EffectId::Spherewind2 => EffectSpec::Custom {
+            duration_ms: spherewind::SPHEREWIND2.total_duration_ms(),
+        },
+        EffectId::Spherewind3 => EffectSpec::Custom {
+            duration_ms: spherewind::SPHEREWIND3.total_duration_ms(),
+        },
+        EffectId::Baby => EffectSpec::Custom {
+            duration_ms: spherewind::BABY.total_duration_ms(),
+        },
         EffectId::Stin2 => EffectSpec::Custom {
             duration_ms: stin::STIN2.total_duration_ms(),
         },
@@ -175,6 +209,13 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Shieldboomerang3 => EffectSpec::Custom {
             duration_ms: cloud_projectile::TOTAL_DURATION_MS,
         },
+
+        // Twilight1/2/3 — floating item-icon swarm. The explicit Custom arm
+        // shadows the dead `twilight1/2/3` `str_aliases` (no such .str exists)
+        // and routes to the swarm factory.
+        EffectId::Twilight1 | EffectId::Twilight2 | EffectId::Twilight3 => {
+            EffectSpec::Custom { duration_ms: twilight::TOTAL_DURATION_MS }
+        }
 
         // Slim potion throws + Pressure — falling icon + ground shockwave ring.
         EffectId::Slim | EffectId::Slim2 | EffectId::Slim3 | EffectId::Pressure => {
@@ -409,7 +450,13 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::WaterfallT2
         | EffectId::WaterfallT290
         | EffectId::WaterfallSmallT2
-        | EffectId::WaterfallSmallT290 => EffectSpec::Custom {
+        | EffectId::WaterfallSmallT290
+        // BlueFall reuses the WaterFall sheet (additive blue); same persistent
+        // duration, same dead-str-alias shadowing.
+        | EffectId::Bluefall
+        | EffectId::Bluefall90
+        | EffectId::Fastbluefall
+        | EffectId::Fastbluefall90 => EffectSpec::Custom {
             duration_ms: default_duration_ms(id),
         },
 

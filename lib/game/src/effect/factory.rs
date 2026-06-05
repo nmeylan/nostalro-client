@@ -147,6 +147,19 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             anchor.point(),
             effects::waterfall::WATERFALL_SMALL_T2_90,
         )),
+
+        // BlueFall (`BlueFall(F1, F2, 0)`): the WaterFall sheet in additive blue
+        // with reversed scroll and no mist; F1 rotates 90°, F2 = fast scroll.
+        EffectId::Bluefall | EffectId::Bluefall90 | EffectId::Fastbluefall | EffectId::Fastbluefall90 => {
+            let params = match id {
+                EffectId::Bluefall => effects::waterfall::BLUEFALL,
+                EffectId::Bluefall90 => effects::waterfall::BLUEFALL_90,
+                EffectId::Fastbluefall => effects::waterfall::FASTBLUEFALL,
+                _ => effects::waterfall::FASTBLUEFALL_90,
+            };
+            Box::new(effects::waterfall::WaterfallEffect::new(anchor.point(), params))
+        }
+
         EffectId::Cloud => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD)),
         EffectId::Cloud2 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD2)),
         EffectId::Cloud3 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD3)),
@@ -394,6 +407,49 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Bat => Box::new(effects::ghost::GhostEffect::new(anchor.point(), effects::ghost::BAT)),
         EffectId::Bat2 => Box::new(effects::ghost::GhostEffect::new(anchor.point(), effects::ghost::BAT2)),
 
+        // Twilight1/2/3 (`Twilight(0/1/2)`): a swarm of floating item-icon
+        // billboards that hover, drift, and fade in/out around the caster. The
+        // variants differ only by the item icon(s) they pull from.
+        EffectId::Twilight1 | EffectId::Twilight2 | EffectId::Twilight3 => {
+            use effects::twilight as tw;
+            let params = match id {
+                EffectId::Twilight1 => tw::TWILIGHT1,
+                EffectId::Twilight2 => tw::TWILIGHT2,
+                _ => tw::TWILIGHT3,
+            };
+            Box::new(tw::TwilightEffect::new(anchor.point(), params))
+        }
+
+        // Tripleattack/2/3 (`TRIPLEATTACK*()`): a staggered volley of thin
+        // streaks fired from the caster toward the target. 329 is the melee
+        // triple slash (yellow), 388 sharpshooting (white), 393 arrow vulcan
+        // (magenta, densest). Same struct, different param sets.
+        EffectId::Tripleattack | EffectId::Tripleattack2 | EffectId::Tripleattack3 => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            let params = match id {
+                EffectId::Tripleattack => effects::tripleattack::TRIPLEATTACK,
+                EffectId::Tripleattack2 => effects::tripleattack::TRIPLEATTACK2,
+                _ => effects::tripleattack::TRIPLEATTACK3,
+            };
+            Box::new(effects::tripleattack::TripleAttackEffect::new(from, to, params))
+        }
+
+        // Spherewind/Spherewind2/Baby (`SphereWind*()` ×5): a globe of orbiting
+        // ribbon-arcs around the caster. 346 blue persistent aura, 394 fire
+        // persistent, 408 a transient fire sphere that grows and fades.
+        EffectId::Spherewind | EffectId::Spherewind2 | EffectId::Spherewind3 | EffectId::Baby => {
+            let params = match id {
+                EffectId::Spherewind => effects::spherewind::SPHEREWIND,
+                EffectId::Spherewind2 => effects::spherewind::SPHEREWIND2,
+                EffectId::Spherewind3 => effects::spherewind::SPHEREWIND3,
+                _ => effects::spherewind::BABY,
+            };
+            Box::new(effects::spherewind::SpherewindEffect::new(anchor.point(), params))
+        }
+
         // M02: directional emote, same camera-angle action
         // selection as Wink but a distinct quadrant map.
         EffectId::M02 => Box::new(effects::m_ef02::MEf02Effect::new(anchor.point())),
@@ -458,6 +514,18 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
                 EffectAnchor::Point(p) => (p, p),
             };
             Box::new(effects::soul_strike::SoulStrikeEffect::new(from, to, hit_count.unwrap_or(1)))
+        }
+        // SoulBreaker (361, caster→target crescent) / SoulBreaker2 (409, Meteor
+        // Assault 8-way radial burst): purple-slash billboards flying outward.
+        EffectId::Soulbreaker => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::soul_breaker::SoulBreakerEffect::new_directed(from, to))
+        }
+        EffectId::Soulbreaker2 => {
+            Box::new(effects::soul_breaker::SoulBreakerEffect::new_radial(anchor.point()))
         }
         EffectId::Blooddrain => {
             let (from, to) = match anchor {

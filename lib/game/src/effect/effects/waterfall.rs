@@ -66,13 +66,34 @@ pub struct WaterfallParams {
     pub small: bool,
     /// `F3` — the three cycling sheet textures (T1 normal, T2 brighter).
     pub textures: [&'static str; 3],
-    /// Number of `WaterFallParticle` calls (40 big / 20 small).
+    /// Number of mist spawn calls (40 big / 20 small; 0 = no mist).
     pub mist_calls: u32,
+    /// Sheet RGBA. White at `80/255` for WaterFall; additive blue at `120/255`
+    /// for BlueFall.
+    pub sheet_color: [f32; 4],
+    /// Sheet blend — `Alpha` (WaterFall) or `Additive` (BlueFall).
+    pub sheet_blend: BlendKind,
+    /// Reverse the treadmill scroll and cycle the texture index
+    /// backwards (BlueFall).
+    pub reverse: bool,
+    /// Frames-per-cell at emitter 0 and its per-emitter decrement (`speed =
+    /// speed_base − speed_step·ec`). `(80, 13)` normal, `(30, 6)` fast.
+    pub speed_base: i32,
+    pub speed_step: i32,
 }
 
 /// `EF_WATERFALL` — base sheet (F1=0, F2=0, F3=0) + 40 mist calls.
-pub const WATERFALL: WaterfallParams =
-    WaterfallParams { rotate90: false, small: false, textures: T1, mist_calls: 40 };
+pub const WATERFALL: WaterfallParams = WaterfallParams {
+    rotate90: false,
+    small: false,
+    textures: T1,
+    mist_calls: 40,
+    sheet_color: [1.0, 1.0, 1.0, SHEET_ALPHA],
+    sheet_blend: BlendKind::Alpha,
+    reverse: false,
+    speed_base: 80,
+    speed_step: 13,
+};
 /// `EF_WATERFALL_90` — base sheet rotated 90° (F1=1).
 pub const WATERFALL_90: WaterfallParams = WaterfallParams { rotate90: true, ..WATERFALL };
 /// `EF_WATERFALL_SMALL` — narrow sheet (F2=1) + 20 mist calls.
@@ -91,6 +112,27 @@ pub const WATERFALL_SMALL_T2: WaterfallParams =
 /// `EF_WATERFALL_SMALL_T2_90` — narrow brighter sheet rotated 90° (F1=1, F2=1, F3=1).
 pub const WATERFALL_SMALL_T2_90: WaterfallParams =
     WaterfallParams { rotate90: true, ..WATERFALL_SMALL_T2 };
+
+/// `EF_BLUEFALL` — the WaterFall sheet tinted additive blue
+/// (alpha `120/255`) with reversed scroll and no mist.
+pub const BLUEFALL: WaterfallParams = WaterfallParams {
+    rotate90: false,
+    small: false,
+    textures: T1,
+    mist_calls: 0,
+    sheet_color: [55.0 / 255.0, 55.0 / 255.0, 1.0, 120.0 / 255.0],
+    sheet_blend: BlendKind::Additive,
+    reverse: true,
+    speed_base: 80,
+    speed_step: 13,
+};
+/// `EF_BLUEFALL_90` — blue sheet rotated 90° (F1=1).
+pub const BLUEFALL_90: WaterfallParams = WaterfallParams { rotate90: true, ..BLUEFALL };
+/// `EF_FASTBLUEFALL` — blue sheet at `speed = 30 − 6·ec` (faster scroll).
+pub const FASTBLUEFALL: WaterfallParams =
+    WaterfallParams { speed_base: 30, speed_step: 6, ..BLUEFALL };
+/// `EF_FASTBLUEFALL_90` — fast blue sheet rotated 90° (F1=1).
+pub const FASTBLUEFALL_90: WaterfallParams = WaterfallParams { rotate90: true, ..FASTBLUEFALL };
 
 fn hash01(i: u32, salt: u32) -> f32 {
     let x = i
@@ -191,13 +233,21 @@ impl Effect for WaterfallEffect {
             let width = if self.params.small { 18.0 } else { 36.0 } + ec as f32;
             let half_w = width * 0.5;
             let depth = ec as f32 - 1.0;
-            let speed = (80 - 13 * ec as i32) as f32;
+            let speed = (self.params.speed_base - self.params.speed_step * ec as i32) as f32;
 
-            let scroll = (frames % speed as u32) as f32 * CELL / speed;
+            let mut scroll = (frames % speed as u32) as f32 * CELL / speed;
             let addtn = ((frames % (speed as u32 * 3)) / speed as u32) as usize;
+            if self.params.reverse {
+                // BlueFall: reverse the treadmill and cycle textures back.
+                scroll = CELL - scroll;
+            }
 
             for i in 0..STRIPS {
-                let tn = (i % 3 + addtn) % 3;
+                let tn = if self.params.reverse {
+                    ((i as i32 % 3) - addtn as i32).rem_euclid(3) as usize
+                } else {
+                    (i % 3 + addtn) % 3
+                };
                 let mut y_top = -((i + 1) as f32) * CELL + scroll;
                 let mut y_bot = -(i as f32) * CELL + scroll;
                 // V at the top / bottom edges of the strip.
@@ -232,8 +282,8 @@ impl Effect for WaterfallEffect {
                     corners,
                     uv: [[0.0, v_top], [1.0, v_top], [1.0, v_bot], [0.0, v_bot]],
                     texture: self.params.textures[tn],
-                    color: [1.0, 1.0, 1.0, SHEET_ALPHA],
-                    blend: BlendKind::Alpha,
+                    color: self.params.sheet_color,
+                    blend: self.params.sheet_blend,
                 });
             }
         }
@@ -346,6 +396,50 @@ mod tests {
         }
         assert_eq!(seen.len(), 3, "cycles through all three textures");
         assert!(moved, "sheet scrolls vertically");
+    }
+
+    #[test]
+    fn bluefall_is_additive_blue_with_no_mist() {
+        // BlueFall reuses the sheet but additive-blue, and launches no mist.
+        let mut e = WaterfallEffect::new([0.0, 0.0, 0.0], BLUEFALL);
+        step(&mut e, 1.0);
+        let all = draws(&e);
+        assert!(
+            all.iter().all(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { .. })),
+            "no Billboard mist for BlueFall",
+        );
+        let q = sheet_quads(&all);
+        assert_eq!(q.len(), EMITTERS * STRIPS);
+        for p in &q {
+            let EffectPrimitiveDraw::WorldQuad { color, blend, .. } = p else { unreachable!() };
+            assert_eq!(*blend, BlendKind::Additive);
+            assert!(color[2] > color[0] && color[2] > color[1], "blue tint: {color:?}");
+        }
+    }
+
+    #[test]
+    fn fastbluefall_cycles_textures_faster_than_bluefall() {
+        // Emitter 0's speed is `speed_base` (80 normal, 30 fast); the faster
+        // sheet changes its texture index more often over the same frames.
+        fn tex_changes(params: WaterfallParams) -> usize {
+            let mut e = WaterfallEffect::new([0.0, 0.0, 0.0], params);
+            let mut changes = 0;
+            let mut prev: Option<&'static str> = None;
+            for _ in 0..120 {
+                step(&mut e, 1.0);
+                let q = sheet_quads(&draws(&e));
+                let EffectPrimitiveDraw::WorldQuad { texture, .. } = &q[0] else { unreachable!() };
+                if prev.is_some_and(|p| p != *texture) {
+                    changes += 1;
+                }
+                prev = Some(*texture);
+            }
+            changes
+        }
+        assert!(
+            tex_changes(FASTBLUEFALL) > tex_changes(BLUEFALL),
+            "fast variant cycles faster",
+        );
     }
 
     #[test]
