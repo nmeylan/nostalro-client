@@ -784,6 +784,30 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Cartrevolution => {
             Box::new(effects::cartrevolution::CartRevolutionEffect::new(anchor.point()))
         }
+        EffectId::Barrier => Box::new(effects::barrier::BarrierEffect::new(anchor.point())),
+        EffectId::Banjjakii => Box::new(effects::banjjakii::BanjjakiiEffect::new(anchor.point())),
+        EffectId::Sphere => Box::new(effects::orbit_burst::SphereEffect::new(anchor.point())),
+        EffectId::Removetrap => Box::new(effects::orbit_burst::RemoveTrapEffect::new(anchor.point())),
+        EffectId::Turnundead => Box::new(effects::turnundead::TurnUndeadEffect::new(anchor.point())),
+        EffectId::Firepillaron => Box::new(effects::firepillaron::FirePillarOnEffect::new(anchor.point())),
+        // EF_DARKATTACK looks identical to Hitdark, so it shares the effect.
+        EffectId::Hitdark | EffectId::Darkattack => {
+            Box::new(effects::hitdark::HitDarkEffect::new(anchor.point()))
+        }
+        EffectId::Spearbmr => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::spearbmr::SpearBmrEffect::new(from, to))
+        }
+        EffectId::Waterball2 => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::waterball2::WaterBall2Effect::new(from, to))
+        }
 
         // STR-C hybrids — each builds the primitive layer the STR file
         // alone is missing, and re-declares its STR via `str_overlay()`.
@@ -874,7 +898,59 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Doublegumgang2 => Box::new(effects::gumgang::GumGangEffect::new(anchor.point(), effects::gumgang::DOUBLE_WHITE)),
         EffectId::Doublegumgang3 => Box::new(effects::gumgang::GumGangEffect::new(anchor.point(), effects::gumgang::DOUBLE_BLUE)),
 
-        EffectId::Defender => Box::new(effects::defender::DefenderEffect::new(anchor.point())),
+        EffectId::Defender => Box::new(effects::defender::DefenderEffect::new(
+            anchor.point(),
+            effects::defender::DEFENDER,
+        )),
+        EffectId::Reflectshield => Box::new(effects::defender::DefenderEffect::new(
+            anchor.point(),
+            effects::defender::REFLECTSHIELD,
+        )),
+
+        // Canonical heal-skill effects (green rising rings + green sparkles).
+        EffectId::Heal => Box::new(effects::heal::HealEffect::new(
+            anchor.point(),
+            &effects::heal::HEAL,
+        )),
+        EffectId::Heal2 => Box::new(effects::heal::HealEffect::new(
+            anchor.point(),
+            &effects::heal::HEAL2,
+        )),
+        EffectId::Heal3 => Box::new(effects::heal::HealEffect::new(
+            anchor.point(),
+            &effects::heal::SMDEF,
+        )),
+        EffectId::Heal4 => Box::new(effects::heal::HealEffect::new(
+            anchor.point(),
+            &effects::heal::HEAL4,
+        )),
+
+        // Rising-ring family, heal/teleport variants (Batch 29 RADIAL_MISC).
+        EffectId::Absorbspirits => Box::new(effects::heal::HealEffect::new(
+            anchor.point(),
+            &effects::heal::ABSORBSPIRITS,
+        )),
+        EffectId::Exit2 => Box::new(effects::heal::HealEffect::new(
+            anchor.point(),
+            &effects::heal::EXIT2,
+        )),
+        EffectId::Entry2 => Box::new(effects::heal::HealEffect::new(
+            anchor.point(),
+            &effects::heal::ENTRY2,
+        )),
+        EffectId::Smdef => Box::new(effects::heal::HealEffect::new(
+            anchor.point(),
+            &effects::heal::SMDEF,
+        )),
+        EffectId::Teleportation2 => Box::new(effects::heal::HealEffect::new(
+            anchor.point(),
+            &effects::heal::TELEPORTATION2,
+        )),
+        // EF_WIND_BUFF — Map_Aura("ring_blue.tga"): a persistent ground aura ring.
+        EffectId::WindBuff => Box::new(effects::casting_ring::CastingRingEffect::new(
+            anchor.point(),
+            effects::casting_ring::MAP_AURA,
+        )),
 
         EffectId::Wind => Box::new(effects::wind::WindEffect::new(anchor.point())),
 
@@ -1404,6 +1480,17 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Gumgang3
             | EffectId::Gumgang2
             | EffectId::Defender
+            | EffectId::Heal
+            | EffectId::Heal2
+            | EffectId::Heal3
+            | EffectId::Heal4
+            | EffectId::Reflectshield
+            | EffectId::Absorbspirits
+            | EffectId::Exit2
+            | EffectId::Entry2
+            | EffectId::Smdef
+            | EffectId::Teleportation2
+            | EffectId::WindBuff
             | EffectId::Wind
             | EffectId::Bash3d
             | EffectId::Bash3d2

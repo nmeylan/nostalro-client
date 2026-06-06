@@ -263,6 +263,13 @@ impl App {
         }
     }
 
+    pub(crate) fn update_arrows(&mut self, delta: f32) {
+        for arrow in &mut self.game.arrows {
+            arrow.advance(delta);
+        }
+        self.game.arrows.retain(|a| !a.is_done());
+    }
+
     pub(crate) fn process_caster_replays(&mut self) {
         let now = self.start_time.elapsed().as_secs_f32();
         for entity in self.game.entities.iter_mut() {

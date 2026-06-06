@@ -12,15 +12,15 @@ use models::enums::effect_id::EffectId;
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effect_trait::CameraShake;
 use super::effects::{
-    aciddemon, agiup, bash, bash3d, begin_asura, begin_spell, blessing, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
+    aciddemon, agiup, banjjakii, barrier, bash, bash3d, begin_asura, begin_spell, blessing, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
     light_sphere, mapzone, rainbow,
     bowling_bash, callzone, cartrevolution, cast_circle, chemical, cone, curseattack, defender, detecting,
     dragonsmoke, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
-    frost_diver, fullscreen_overlay, glasswall, glasswall2, ground_sample, guard, gumgang, gumgang2, hasteup, healsp, heavensdrive, hit, hit2, hit5_6,
+    firepillaron, frost_diver, fullscreen_overlay, glasswall, glasswall2, ground_sample, guard, gumgang, gumgang2, hasteup, heal, healsp, heavensdrive, hit, hit2, hit5_6, hitdark,
     kouenka, magnum_break, napalmbeat,
-    napalmvalcan, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_con, potion_pillar, providence,
-    quakebody, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spraypond, status_up,
-    cloud_projectile, twilight, tripleattack, spherewind, pressure, stormgust, teleportation, texture_falling, throw_item, volcano, warp, waterball,
+    napalmvalcan, orbit_burst, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_con, potion_pillar, providence,
+    quakebody, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spearbmr, spraypond, status_up,
+    cloud_projectile, twilight, tripleattack, spherewind, pressure, stormgust, teleportation, texture_falling, throw_item, turnundead, volcano, warp, waterball, waterball2,
     wind, yufitel2, yupitel,
     particle_up, peong_up, sma, stin, soul_breaker, storm_kick, m_ef02, slash, thunderstorm2,
 };
@@ -630,6 +630,49 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Defender => EffectSpec::Custom {
             duration_ms: defender::TOTAL_DURATION_MS,
         },
+        // Reflectshield — DEFENDER("ring_yellow.tga"), same aura in yellow.
+        EffectId::Reflectshield => EffectSpec::Custom {
+            duration_ms: defender::TOTAL_DURATION_MS,
+        },
+
+        // Canonical heal-skill effects (green rising rings + sparkles). Their
+        // heal*.str files are absent from the classic GRF, so without Custom
+        // they render nothing.
+        EffectId::Heal => EffectSpec::Custom {
+            duration_ms: heal::HEAL.total_duration_ms(),
+        },
+        EffectId::Heal2 => EffectSpec::Custom {
+            duration_ms: heal::HEAL2.total_duration_ms(),
+        },
+        EffectId::Heal3 => EffectSpec::Custom {
+            duration_ms: heal::SMDEF.total_duration_ms(),
+        },
+        EffectId::Heal4 => EffectSpec::Custom {
+            duration_ms: heal::HEAL4.total_duration_ms(),
+        },
+
+        // Rising-ring family, heal/teleport variants (Batch 29). These were
+        // STR-aliased but have no STR file in the classic GRF — they must be
+        // Custom or they crash on a missing .str.
+        EffectId::Absorbspirits => EffectSpec::Custom {
+            duration_ms: heal::ABSORBSPIRITS.total_duration_ms(),
+        },
+        EffectId::Exit2 => EffectSpec::Custom {
+            duration_ms: heal::EXIT2.total_duration_ms(),
+        },
+        EffectId::Entry2 => EffectSpec::Custom {
+            duration_ms: heal::ENTRY2.total_duration_ms(),
+        },
+        EffectId::Smdef => EffectSpec::Custom {
+            duration_ms: heal::SMDEF.total_duration_ms(),
+        },
+        EffectId::Teleportation2 => EffectSpec::Custom {
+            duration_ms: heal::TELEPORTATION2.total_duration_ms(),
+        },
+        // WindBuff — persistent Map_Aura ground ring (see casting_ring::MAP_AURA).
+        EffectId::WindBuff => EffectSpec::Custom {
+            duration_ms: default_duration_ms(id),
+        },
         // Wind — partial-arc cloud funnel (see effects/wind.rs).
         EffectId::Wind => EffectSpec::Custom {
             duration_ms: wind::TOTAL_DURATION_MS,
@@ -706,9 +749,45 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Mappillar
         | EffectId::Mappillar2
         | EffectId::Mappillar3
-        | EffectId::Mappillar4
-        | EffectId::Barrier => EffectSpec::Custom {
+        | EffectId::Mappillar4 => EffectSpec::Custom {
             duration_ms: default_duration_ms(id),
+        },
+
+        // EF_BARRIER — single faceted energy sphere flash (~250 ms).
+        EffectId::Barrier => EffectSpec::Custom {
+            duration_ms: barrier::TOTAL_DURATION_MS,
+        },
+        // EF_BANJJAKII — single one-shot sparkle sprite, no STR file.
+        EffectId::Banjjakii => EffectSpec::Custom {
+            duration_ms: banjjakii::TOTAL_DURATION_MS,
+        },
+        // EF_SPHERE / EF_REMOVETRAP — particle1 orbit-sparkle bursts, no STR.
+        EffectId::Sphere => EffectSpec::Custom {
+            duration_ms: orbit_burst::SPHERE_TOTAL_DURATION_MS,
+        },
+        EffectId::Removetrap => EffectSpec::Custom {
+            duration_ms: orbit_burst::REMOVETRAP_TOTAL_DURATION_MS,
+        },
+        // EF_TURNUNDEAD — two-phase ray burst + ground ring, no STR file.
+        EffectId::Turnundead => EffectSpec::Custom {
+            duration_ms: turnundead::TOTAL_DURATION_MS,
+        },
+        // EF_FIREPILLARON — persistent procedural fire column (no `firepillaron.str`).
+        EffectId::Firepillaron => EffectSpec::Custom {
+            duration_ms: firepillaron::TOTAL_DURATION_MS,
+        },
+        // EF_HITDARK / EF_DARKATTACK — blue rim ring + dark debris, no STR.
+        // Darkattack's parent window is 0, but its debris outlives that.
+        EffectId::Hitdark | EffectId::Darkattack => EffectSpec::Custom {
+            duration_ms: hitdark::TOTAL_DURATION_MS,
+        },
+        // EF_SPEARBMR — 4 spear projectiles toward the target, no STR.
+        EffectId::Spearbmr => EffectSpec::Custom {
+            duration_ms: spearbmr::TOTAL_DURATION_MS,
+        },
+        // EF_WATERBALL2 — twisting water strand lobbed at the target, no STR.
+        EffectId::Waterball2 => EffectSpec::Custom {
+            duration_ms: waterball2::TOTAL_DURATION_MS,
         },
 
         // SPR-billboard effects (Torch, Maple, Aqua, …) are resolved via

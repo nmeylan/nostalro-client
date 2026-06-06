@@ -41,6 +41,12 @@ pub struct ParticleUpParams {
     pub rise_rand: f32,
     /// Sprinklesand staggers starts with `process=-10+rand(10)`.
     pub stagger_start: bool,
+    /// When `> 0`, each mote also draws a larger, fainter additive halo at this
+    /// size multiple — a soft glow around the bright core (heal motes).
+    pub glow_scale: f32,
+    /// `false` keeps motes axis-aligned (the original game builds the
+    /// quad at fixed 0/90/180/270° — no spin; spinning smears a star texture).
+    pub spin: bool,
 }
 
 const fn p(texture: &'static str, tint_rgb: (u8, u8, u8)) -> ParticleUpParams {
@@ -56,11 +62,29 @@ const fn p(texture: &'static str, tint_rgb: (u8, u8, u8)) -> ParticleUpParams {
         rise_base: 0.2,
         rise_rand: 0.2,
         stagger_start: false,
+        glow_scale: 0.0,
+        spin: true,
     }
 }
 
 // HealTime — short window (0-20), tighter scatter.
 pub const HPTIME: ParticleUpParams = p("pok1.tga", (220, 250, 220)); // pale green (HP)
+
+// Heal-skill recovery motes — the colour index 0 selects
+// `pok1.tga` (the bright additive
+// sparkle), tinted green (220,250,220). The quad is axis-aligned (no spin) so
+// the star reads as a glowing twinkle rather than a smeared "feather". Scattered
+// over `random(13) - 6` (±6), wider than the ring so motes rise outside it too.
+pub const HEAL_MOTE: ParticleUpParams = ParticleUpParams {
+    base_dist: 0.9,
+    dist_rand: 0.5,
+    spawn_end: 50,
+    spread: 6.0,
+    rise_base: 0.25,
+    rise_rand: 0.2,
+    spin: false,
+    ..p("pok1.tga", (220, 250, 220))
+};
 pub const SPTIME: ParticleUpParams = p("pok1.tga", (150, 150, 250)); // blue (SP)
 // Hated — a wide field of many small twinkling sparkles (firefly look),
 // spawned over a long window. Small `pok1.tga` stars, wide horizontal scatter.
@@ -107,7 +131,7 @@ pub const SMA3: ParticleUpParams = ParticleUpParams {
 /// Single burst that fades in over 10 frames then out at `-3/255`/frame.
 pub const SMA3_TOTAL_DURATION_MS: u32 = 1100;
 
-pub const TEXTURES: &[&str] = &["pok1.tga", "thunder_center.bmp", "thunder_ball_0002.bmp"];
+pub const TEXTURES: &[&str] = &["pok1.tga", "pok3.tga", "thunder_center.bmp", "thunder_ball_0002.bmp"];
 
 struct Rng(u32);
 impl Rng {
@@ -166,7 +190,11 @@ impl ParticleUpEffect {
                 ],
                 size: self.params.base_dist + self.rng.range(0.0, self.params.dist_rand),
                 rise: self.params.rise_base + self.rng.range(0.0, self.params.rise_rand),
-                rotation: self.rng.range(0.0, std::f32::consts::TAU),
+                rotation: if self.params.spin {
+                    self.rng.range(0.0, std::f32::consts::TAU)
+                } else {
+                    0.0
+                },
                 process,
                 alpha: 0.0,
             });
@@ -218,6 +246,20 @@ impl Effect for ParticleUpEffect {
         for pt in &self.particles {
             if pt.alpha <= 0.0 {
                 continue;
+            }
+            // Soft glow halo behind the core (additive), so each mote reads as a
+            // glowing dot rather than a flat blob.
+            if self.params.glow_scale > 0.0 {
+                let glow = pt.size * self.params.glow_scale;
+                out.push(EffectPrimitiveDraw::Billboard {
+                    pos: pt.pos,
+                    size: [glow, glow],
+                    uv: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+                    rotation: pt.rotation,
+                    texture: self.params.texture,
+                    color: [tint[0], tint[1], tint[2], pt.alpha * 0.4],
+                    blend: BlendKind::Additive,
+                });
             }
             out.push(EffectPrimitiveDraw::Billboard {
                 pos: pt.pos,

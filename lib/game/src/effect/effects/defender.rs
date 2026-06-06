@@ -34,8 +34,28 @@ use crate::effect::radial_emitter::{
     RADIAL_EMITTER_DIVISION, RADIAL_EMITTER_SLOTS, RadialEmitter, RadialEmitterSlot,
 };
 
-pub const TEXTURE: &str = "ring_black.tga";
-pub const TEXTURES: &[&str] = &[TEXTURE];
+pub const TEXTURES: &[&str] = &["ring_black.tga", "ring_yellow.tga"];
+
+/// Texture + tint for a Defender variant. Both share the
+/// breathing-ring geometry; only the ring sprite/colour differ.
+#[derive(Clone, Copy)]
+pub struct DefenderParams {
+    pub texture: &'static str,
+    pub tint_rgb: [f32; 3],
+}
+
+/// `EF_DEFENDER` — Crusader shield aura (`ring_black.tga`).
+pub const DEFENDER: DefenderParams = DefenderParams {
+    texture: "ring_black.tga",
+    tint_rgb: [1.0, 1.0, 1.0],
+};
+
+/// `EF_REFLECTSHIELD` — the same spinning aura (`ring_yellow.tga`)
+/// in yellow.
+pub const REFLECTSHIELD: DefenderParams = DefenderParams {
+    texture: "ring_yellow.tga",
+    tint_rgb: [1.0, 1.0, 1.0],
+};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 /// Original game runs 200 frames at 60 fps ≈ 3.33 s.
@@ -76,13 +96,14 @@ const SIN_LIMIT_STEP_DEG: f32 = 9.0;
 
 pub struct DefenderEffect {
     world_pos: [f32; 3],
+    params: DefenderParams,
     age_frames: f32,
     last_processed_frame: u32,
     emitter: RadialEmitter,
 }
 
 impl DefenderEffect {
-    pub fn new(world_pos: [f32; 3]) -> Self {
+    pub fn new(world_pos: [f32; 3], params: DefenderParams) -> Self {
         let mut slots = [RadialEmitterSlot::dormant(); RADIAL_EMITTER_SLOTS];
         for ec in 0..RADIAL_EMITTER_SLOTS {
             let mut s = RadialEmitterSlot::spawn(
@@ -97,6 +118,7 @@ impl DefenderEffect {
         }
         Self {
             world_pos,
+            params,
             age_frames: 0.0,
             last_processed_frame: 0,
             emitter: RadialEmitter::from_slots(slots),
@@ -171,8 +193,13 @@ impl Effect for DefenderEffect {
                 segments: SEGMENTS,
                 height_scale: HEIGHT_SCALE,
                 heights: slot.height,
-                texture: TEXTURE,
-                color: [1.0, 1.0, 1.0, slot.alpha_b],
+                texture: self.params.texture,
+                color: [
+                    self.params.tint_rgb[0],
+                    self.params.tint_rgb[1],
+                    self.params.tint_rgb[2],
+                    slot.alpha_b,
+                ],
                 blend: BlendKind::Alpha,
             });
         }
@@ -224,13 +251,25 @@ mod tests {
         // four slots emit a RadialRing at their seeded radii. The two
         // odd slots advance their rotation twice as fast as the two even slots,
         // so by frame N their cumulative rotations diverge.
-        let mut e = DefenderEffect::new([5.0, 0.0, -3.0]);
+        let mut e = DefenderEffect::new([5.0, 0.0, -3.0], DEFENDER);
         step(&mut e, 30.0);
         let prims = draws(&e);
         assert_eq!(prims.len(), 4, "all four slots alive and visible");
 
         let radii: Vec<f32> = prims.iter().map(|p| ring(p).0).collect();
         assert_eq!(radii, vec![8.0, 7.9, 7.8, 7.7]);
+
+        // Reflectshield is the same geometry with the yellow ring sprite.
+        let mut shield = DefenderEffect::new([0.0; 3], REFLECTSHIELD);
+        step(&mut shield, 30.0);
+        let mut list = EffectDrawList::new();
+        shield.collect_draws(&mut list, &render_ctx());
+        match &list.primitives[0] {
+            EffectPrimitiveDraw::RadialRing { texture, .. } => {
+                assert_eq!(*texture, "ring_yellow.tga");
+            }
+            _ => panic!("expected RadialRing"),
+        }
 
         // Heights[10] is the bell-curve apex (sin(90°) = 1); after
         // breathing it should be near max_height·(1 ± 0.3).
@@ -245,7 +284,7 @@ mod tests {
 
     #[test]
     fn alpha_ramps_in_then_fades_out() {
-        let mut e = DefenderEffect::new([0.0; 3]);
+        let mut e = DefenderEffect::new([0.0; 3], DEFENDER);
 
         // First frame: alpha already moved off zero (fade-in is +1/255 per frame).
         step(&mut e, 1.0);
@@ -269,7 +308,7 @@ mod tests {
 
     #[test]
     fn dies_after_total_frames() {
-        let mut e = DefenderEffect::new([0.0; 3]);
+        let mut e = DefenderEffect::new([0.0; 3], DEFENDER);
         let s = step(&mut e, TOTAL_FRAMES as f32 + 1.0);
         assert!(matches!(s, EffectStatus::Dead));
     }

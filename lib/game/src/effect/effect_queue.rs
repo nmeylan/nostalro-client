@@ -190,5 +190,8 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             | EffectId::Tripleattack
             | EffectId::Tripleattack2
             | EffectId::Tripleattack3
+            // Spear Boomerang spears + Waterball2 spline both fly caster→target.
+            | EffectId::Spearbmr
+            | EffectId::Waterball2
     )
 }

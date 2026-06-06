@@ -17,7 +17,7 @@ use crate::effect_sprite::{
     prepare_sprite_particle_records,
 };
 use crate::sprite::SpriteBatch;
-use ragnarok_game::effect::{EffectDrawList, EffectRenderCtx};
+use ragnarok_game::effect::{EffectDrawList, EffectPrimitiveDraw, EffectRenderCtx};
 
 /// `'cache` ties together the borrows that survive into the output
 /// (`effect_sprites`, `str_effects`). `'tmp` covers borrows that are only
@@ -43,6 +43,11 @@ pub struct EffectFrameInputs<'cache, 'tmp> {
     /// effects (buff STR overlays) follow the actor. Callers without an entity
     /// table pass `&|_| None`.
     pub resolve_entity: &'tmp dyn Fn(u32) -> Option<[f32; 3]>,
+    /// Caller-owned `SpriteParticle` draws for transient world sprites that are
+    /// not `EffectId` effects (the bow arrow projectile). Appended to the
+    /// custom-draw list so they depth-sort and project like any other sprite
+    /// particle. Viewer passes `&[]`.
+    pub extra_sprite_particles: &'tmp [EffectPrimitiveDraw],
 }
 
 pub struct EffectFrameOutputs<'cache> {
@@ -126,6 +131,12 @@ pub fn compose_effect_frame<'cache, 'tmp>(
         .effect_holder
         .collect_custom_draws(&mut effect_draws, &render_ctx);
 
+    // Transient world sprites that aren't EffectId effects (bow arrows) ride
+    // the same SpriteParticle path so they depth-sort with everything else.
+    for prim in input.extra_sprite_particles {
+        effect_draws.push(prim.clone());
+    }
+
     // SpriteParticle entries now flow through the unified effect queue so
     // they can depth-sort against Billboard / 3D records. Project them
     // here while the caller's `EffectSpriteCache` is still borrowed.
@@ -176,6 +187,7 @@ mod tests {
             extra_spr_emitters: &[],
             extra_str_emitters: &[],
             resolve_entity: &|_| None,
+            extra_sprite_particles: &[],
         });
 
         assert!(

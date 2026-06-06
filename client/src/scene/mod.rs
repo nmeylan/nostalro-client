@@ -1,5 +1,6 @@
 use crate::{App, ClipData};
 use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
+use ragnarok_game::effect::{BlendKind, EffectPrimitiveDraw};
 use ragnarok_game::effect_table::EffectKind;
 use ragnarok_game::effects::EffectManager;
 use ragnarok_game::entity::EntityState;
@@ -406,6 +407,21 @@ impl App {
             let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
             let extra_spr = build_sprite_effect_inputs(&self.game.effects);
             let extra_str = build_str_emitter_inputs(&self.game.effects);
+            let arrow_draws: Vec<EffectPrimitiveDraw> = self
+                .game
+                .arrows
+                .iter()
+                .map(|a| EffectPrimitiveDraw::SpriteParticle {
+                    sprite_path: a.sprite_path(),
+                    position: a.current_position(),
+                    action_index: 0,
+                    motion_index: 0,
+                    size_scale: 1.0,
+                    color: [1.0, 1.0, 1.0, 1.0],
+                    blend: BlendKind::Alpha,
+                    aim_target: Some(a.target_pos()),
+                })
+                .collect();
             let zoom = self
                 .game
                 .map_coords
@@ -426,6 +442,7 @@ impl App {
                 // game wires status-packet → `spawn_on`; body tint/shake are
                 // applied directly in the actor pass and don't need this.
                 resolve_entity: &|_| None,
+                extra_sprite_particles: &arrow_draws,
             });
 
             renderer.render(

@@ -89,9 +89,14 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::ground_sample::TEXTURES,
         effects::sonicblowhit::TEXTURES,
         effects::cartrevolution::TEXTURES,
+        effects::barrier::TEXTURES,
+        effects::turnundead::TEXTURES,
+        effects::firepillaron::TEXTURES,
+        effects::hitdark::TEXTURES,
         effects::pierce::TEXTURES,
         effects::gumgang2::TEXTURES,
         effects::defender::TEXTURES,
+        effects::heal::TEXTURES,
         effects::wind::TEXTURES,
         effects::bash3d::TEXTURES,
         effects::blitzbeat::TEXTURES,
@@ -164,6 +169,7 @@ pub fn effect_texture_paths() -> Vec<String> {
 pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
     let mut seen = std::collections::BTreeSet::new();
     let sprite_lists: &[&[&str]] = &[
+        crate::arrow::SPRITES,
         effects::hit::SPRITES,
         effects::sight::SPRITES,
         effects::exit::SPRITES,
@@ -179,6 +185,12 @@ pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
         effects::wink::SPRITES,
         effects::m_ef02::SPRITES,
         effects::ghost::SPRITES,
+        effects::banjjakii::SPRITES,
+        effects::orbit_burst::SPRITES,
+        effects::hitdark::SPRITES,
+        effects::spearbmr::SPRITES,
+        effects::waterball2::SPRITES,
+        effects::warp_zone::SPRITES,
     ];
     for list in sprite_lists {
         for path in *list {

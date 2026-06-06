@@ -1,6 +1,8 @@
 use crate::App;
 use models::enums::action::ActionType;
 use models::enums::vanish::VanishType;
+use models::enums::weapon::WeaponType;
+use ragnarok_game::arrow::ArrowProjectile;
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::entity::{Entity, EntityState};
 use ragnarok_game::movement::direction_from_positions;
@@ -176,6 +178,7 @@ impl App {
                     .entities
                     .get(target_gid)
                     .map(|e| e.movement.cell_position());
+                let mut shooter_cell = None;
                 if let Some(entity) = self.game.entities.get_mut(gid) {
                     if let Some(tp) = target_pos {
                         let sp = entity.movement.cell_position();
@@ -185,6 +188,12 @@ impl App {
                     }
                     let duration = (attack_mt as f32 / 1000.0).max(0.5);
                     entity.enter_attack(duration);
+                    if entity.weapon == Some(WeaponType::Bow) {
+                        shooter_cell = Some(entity.movement.cell_position());
+                    }
+                }
+                if let (Some(sc), Some(tp)) = (shooter_cell, target_pos) {
+                    self.spawn_arrow_projectile(sc, tp, attack_mt);
                 }
 
                 let is_endure = matches!(
@@ -253,6 +262,26 @@ impl App {
             }
             _ => {}
         }
+    }
+
+    /// Spawn a flying arrow from a bow attacker's cell to the target cell. The
+    /// flight time matches the attack motion so the arrow lands as the damage
+    /// applies. Cells are raised to chest height (negative Y = up).
+    fn spawn_arrow_projectile(&mut self, shooter: (u16, u16), target: (u16, u16), attack_mt: i32) {
+        let (Some(gat), Some(coords)) = (&self.game.gat, &self.game.map_coords) else {
+            return;
+        };
+        let cell_world = |x: u16, y: u16| {
+            let (wx, _, wz) = coords.cell_to_world(x as f32 + 0.5, y as f32 + 0.5);
+            let wy = gat.get_height(x as f32 + 0.5, y as f32 + 0.5);
+            [wx, wy - 10.0, wz]
+        };
+        let from = cell_world(shooter.0, shooter.1);
+        let to = cell_world(target.0, target.1);
+        let flight_secs = (attack_mt as f32 / 1000.0).max(0.1);
+        self.game
+            .arrows
+            .push(ArrowProjectile::new(from, to, flight_secs));
     }
 
     pub(super) fn handle_entity_hp_changed(&mut self, gid: u32, hp: u32, max_hp: u32) {

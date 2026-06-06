@@ -1,5 +1,6 @@
 pub mod animation;
 pub mod app_state;
+pub mod arrow;
 pub mod character;
 pub mod cooldown;
 pub mod cursor;
