@@ -26,10 +26,6 @@ pub const SPRITES: &[&str] = &[SIGHT_SPRITE, SHADOW_SPRITE, PARTICLE2_SPRITE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const ORBIT_RADIUS: f32 = 15.0;
-/// Particle motion advances every N ticks at 60 fps (matches the
-/// renderer's `(1000/60) * anim_speed` cadence).
-const PARTICLE_ANIM_TICKS: f32 = 4.0;
-const PARTICLE_FRAME_MS: f32 = 1000.0 / FRAMES_PER_SECOND * PARTICLE_ANIM_TICKS;
 
 /// Per-skill variant parameters. One `Params` constant per effect id.
 #[derive(Clone, Copy, Debug)]
@@ -43,7 +39,9 @@ pub struct Params {
     pub angle_deg_per_frame: f32,
     pub angle_divisor: f32,
     pub upper: ParticleParams,
-    pub lower: ParticleParams,
+    /// Ground-tag shadow particle. `None` for Sight2, which spawns a single
+    /// orbiting particle with no companion shadow.
+    pub lower: Option<ParticleParams>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -65,6 +63,9 @@ pub struct ParticleParams {
     /// Frame at which the late-life fadeout kicks in.
     /// `f32::MAX` disables.
     pub fadeout_start_frame: f32,
+    /// Ticks per ACT motion advance at 60 fps. Sight=4,
+    /// Sight2=3.
+    pub anim_ticks: f32,
 }
 
 pub const SIGHT: Params = Params {
@@ -88,8 +89,9 @@ pub const SIGHT: Params = Params {
         alpha_init: 150.0 / 255.0,
         alpha_speed_per_frame: -3.0 / 255.0,
         fadeout_start_frame: f32::MAX,
+        anim_ticks: 4.0,
     },
-    lower: ParticleParams {
+    lower: Some(ParticleParams {
         sprite: SHADOW_SPRITE,
         duration_frames: 20.0,
         y_offset: 0.0,
@@ -99,7 +101,8 @@ pub const SIGHT: Params = Params {
         alpha_init: 120.0 / 255.0,
         alpha_speed_per_frame: -1.0 / 255.0,
         fadeout_start_frame: f32::MAX,
-    },
+        anim_ticks: 4.0,
+    }),
 };
 
 pub const RUWACH: Params = Params {
@@ -117,8 +120,9 @@ pub const RUWACH: Params = Params {
         alpha_init: 250.0 / 255.0,
         alpha_speed_per_frame: -3.0 / 255.0,
         fadeout_start_frame: 19.0,
+        anim_ticks: 4.0,
     },
-    lower: ParticleParams {
+    lower: Some(ParticleParams {
         sprite: SHADOW_SPRITE,
         duration_frames: 25.0,
         y_offset: 0.0,
@@ -128,15 +132,49 @@ pub const RUWACH: Params = Params {
         alpha_init: 150.0 / 255.0,
         alpha_speed_per_frame: -2.5 / 255.0,
         fadeout_start_frame: 19.0,
-    },
+        anim_ticks: 4.0,
+    }),
 };
+
+/// `EF_SIGHT2` ("Sight Blaster") — a persistent single-particle orbit. Unlike
+/// Sight/Ruwach it spawns one particle (no ground shadow) every other frame,
+/// drifting down (+0.1 Y accel) from `y = -20` on a radius-15 orbit. It stays
+/// alive until the server removes it; we mark it persistent and let the holder
+/// despawn via the table duration sentinel.
+pub const SIGHT2: Params = Params {
+    parent_duration_frames: PERSISTENT_FRAMES,
+    spawn_period_frames: 2,
+    angle_deg_per_frame: -5.0,
+    angle_divisor: 1.0,
+    upper: ParticleParams {
+        sprite: SIGHT_SPRITE,
+        duration_frames: 20.0,
+        y_offset: -20.0,
+        y_accel_per_frame: 0.1,
+        size: 2.5,
+        size_speed_per_frame: -0.1,
+        alpha_init: 50.0 / 255.0,
+        alpha_speed_per_frame: -3.0 / 255.0,
+        fadeout_start_frame: f32::MAX,
+        anim_ticks: 3.0,
+    },
+    lower: None,
+};
+
+/// Parent lifetime for persistent orbits — large enough that the effect keeps
+/// spawning for its whole on-screen life; the holder despawns it via the
+/// table's persistent-duration sentinel.
+const PERSISTENT_FRAMES: f32 = 9_000_000.0;
 
 /// Total visible duration: parent lifetime + the longer particle lifetime.
 /// The holder uses this for despawn; `update` keeps the effect alive while
 /// any particle is still rendering.
 pub const fn total_duration_ms(p: &Params) -> u32 {
     let upper = p.upper.duration_frames;
-    let lower = p.lower.duration_frames;
+    let lower = match p.lower {
+        Some(l) => l.duration_frames,
+        None => 0.0,
+    };
     let particle_max = if upper > lower { upper } else { lower };
     ((p.parent_duration_frames + particle_max) / FRAMES_PER_SECOND * 1000.0) as u32
 }
@@ -157,6 +195,7 @@ struct Particle {
     alpha: f32,
     alpha_speed_per_frame: f32,
     fadeout_start_frame: f32,
+    anim_ticks: f32,
     age_frames: f32,
     lifetime_frames: f32,
 }
@@ -219,44 +258,25 @@ impl OrbitEffect {
 
     fn spawn_pair(&mut self, frame: i32) {
         let (sn, cs) = self.orbit_at(frame as f32);
-        let upper_offset = [
-            ORBIT_RADIUS * sn,
-            self.params.upper.y_offset,
-            -ORBIT_RADIUS * cs,
-        ];
-        let lower_offset = [
-            ORBIT_RADIUS * sn,
-            self.params.lower.y_offset,
-            -ORBIT_RADIUS * cs,
-        ];
-        self.particles.push(Particle {
-            sprite: self.params.upper.sprite,
+        let particle_from = |pp: &ParticleParams| Particle {
+            sprite: pp.sprite,
             anchor: self.world_pos,
-            offset: upper_offset,
+            offset: [ORBIT_RADIUS * sn, pp.y_offset, -ORBIT_RADIUS * cs],
             y_velocity_per_frame: 0.0,
-            y_accel_per_frame: self.params.upper.y_accel_per_frame,
-            size: self.params.upper.size,
-            size_speed_per_frame: self.params.upper.size_speed_per_frame,
-            alpha: self.params.upper.alpha_init,
-            alpha_speed_per_frame: self.params.upper.alpha_speed_per_frame,
-            fadeout_start_frame: self.params.upper.fadeout_start_frame,
+            y_accel_per_frame: pp.y_accel_per_frame,
+            size: pp.size,
+            size_speed_per_frame: pp.size_speed_per_frame,
+            alpha: pp.alpha_init,
+            alpha_speed_per_frame: pp.alpha_speed_per_frame,
+            fadeout_start_frame: pp.fadeout_start_frame,
+            anim_ticks: pp.anim_ticks,
             age_frames: 0.0,
-            lifetime_frames: self.params.upper.duration_frames,
-        });
-        self.particles.push(Particle {
-            sprite: self.params.lower.sprite,
-            anchor: self.world_pos,
-            offset: lower_offset,
-            y_velocity_per_frame: 0.0,
-            y_accel_per_frame: self.params.lower.y_accel_per_frame,
-            size: self.params.lower.size,
-            size_speed_per_frame: self.params.lower.size_speed_per_frame,
-            alpha: self.params.lower.alpha_init,
-            alpha_speed_per_frame: self.params.lower.alpha_speed_per_frame,
-            fadeout_start_frame: self.params.lower.fadeout_start_frame,
-            age_frames: 0.0,
-            lifetime_frames: self.params.lower.duration_frames,
-        });
+            lifetime_frames: pp.duration_frames,
+        };
+        self.particles.push(particle_from(&self.params.upper));
+        if let Some(lower) = &self.params.lower {
+            self.particles.push(particle_from(lower));
+        }
     }
 }
 
@@ -269,7 +289,7 @@ impl Effect for OrbitEffect {
         // the parent is still alive. Catch up across larger dt by walking
         // each frame boundary between last_spawn_frame and current_frame.
         let current_frame = self.age_frames.floor() as i32;
-        if (self.age_frames as f32) <= self.params.parent_duration_frames {
+        if self.age_frames <= self.params.parent_duration_frames {
             let next_frame = self.last_spawn_frame + 1;
             for f in next_frame..=current_frame {
                 if f >= 0 && f as f32 <= self.params.parent_duration_frames
@@ -300,7 +320,7 @@ impl Effect for OrbitEffect {
             if p.alpha <= 0.0 || p.size <= 0.0 {
                 continue;
             }
-            let motion = (p.age_frames * (1000.0 / FRAMES_PER_SECOND) / PARTICLE_FRAME_MS) as usize;
+            let motion = (p.age_frames / p.anim_ticks) as usize;
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: p.sprite,
                 position: p.position(),
@@ -416,5 +436,26 @@ mod tests {
             }
         }
         assert_eq!(status, EffectStatus::Dead);
+    }
+
+    #[test]
+    fn sight2_spawns_single_particle_per_period_no_shadow() {
+        // Sight2 emits one orbiting Sight particle (no ground shadow) every
+        // 2 frames, on a radius-15 orbit, and stays alive (persistent).
+        let mut e = OrbitEffect::new([10.0, 5.0, 20.0], SIGHT2);
+        let status = e.update(&ctx(1.0 / FRAMES_PER_SECOND)); // frame 0 spawn
+        let mut list = EffectDrawList::new();
+        e.collect_draws(&mut list, &render_ctx());
+        assert_eq!(list.primitives.len(), 1, "single particle, no shadow pair");
+        let EffectPrimitiveDraw::SpriteParticle { sprite_path, position, .. } =
+            &list.primitives[0]
+        else {
+            panic!("expected SpriteParticle");
+        };
+        assert_eq!(*sprite_path, SIGHT_SPRITE);
+        let dx = position[0] - 10.0;
+        let dz = position[2] - 20.0;
+        assert!(((dx * dx + dz * dz).sqrt() - ORBIT_RADIUS).abs() < 0.5);
+        assert_eq!(status, EffectStatus::Running, "persistent — keeps running");
     }
 }

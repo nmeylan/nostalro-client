@@ -15,14 +15,14 @@ use super::effects::{
     aciddemon, agiup, banjjakii, barrier, bash, bash3d, begin_asura, begin_spell, blessing, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
     light_sphere, mapzone, rainbow,
     bowling_bash, callzone, cartrevolution, cast_circle, chemical, cone, curseattack, defender, detecting,
-    dragonsmoke, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
+    dome_ring, dragonsmoke, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
     firepillaron, frost_diver, fullscreen_overlay, glasswall, glasswall2, ground_sample, guard, gumgang, gumgang2, hasteup, heal, healsp, heavensdrive, hit, hit2, hit5_6, hitdark,
     kouenka, magnum_break, napalmbeat,
     napalmvalcan, orbit_burst, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_con, potion_pillar, providence,
     quakebody, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spearbmr, spraypond, status_up,
     cloud_projectile, twilight, tripleattack, spherewind, pressure, stormgust, teleportation, texture_falling, throw_item, turnundead, volcano, warp, waterball, waterball2,
     wind, yufitel2, yupitel,
-    particle_up, peong_up, sma, stin, soul_breaker, storm_kick, m_ef02, slash, thunderstorm2,
+    particle_up, peong_up, sma, stin, soul_breaker, storm_kick, m_ef02, slash, teihit, thunderstorm2,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -43,6 +43,14 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // value (300 ms) cuts the cone off before the ring finishes growing.
         EffectId::Magnumbreak => EffectSpec::Custom {
             duration_ms: magnum_break::TOTAL_DURATION_MS,
+        },
+        // Magnum2 (Spiral Pierce) / GiExplosion — cone-band ring strips
+        // (effects/dome_ring.rs). Shadow their dead str aliases.
+        EffectId::Magnum2 => EffectSpec::Custom {
+            duration_ms: dome_ring::MAGNUM2_TOTAL_DURATION_MS,
+        },
+        EffectId::GiExplosion => EffectSpec::Custom {
+            duration_ms: dome_ring::GI_EXPLOSION_TOTAL_DURATION_MS,
         },
 
         EffectId::Thunderstorm2 => EffectSpec::Custom {
@@ -128,6 +136,12 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // aliases and pins the streak envelope (parent runs 300 frames).
         EffectId::Soulbreaker | EffectId::Soulbreaker2 => EffectSpec::Custom {
             duration_ms: soul_breaker::TOTAL_DURATION_MS,
+        },
+        // Teihit2 / Backstap — directional dart spray
+        // (effects/teihit.rs). Explicit Custom arms shadow the dead
+        // teihit2/backstap str aliases so they route to the procedural path.
+        EffectId::Teihit2 | EffectId::Backstap => EffectSpec::Custom {
+            duration_ms: teihit::TOTAL_DURATION_MS,
         },
 
         // TripleAttack streak volleys outlast the parent emitter — the last
@@ -386,6 +400,9 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Soulstrike => EffectSpec::Custom {
             duration_ms: soul_strike::TOTAL_DURATION_MS,
         },
+        EffectId::Soulstrike2 => EffectSpec::Custom {
+            duration_ms: soul_strike::TOTAL_DURATION_MS,
+        },
         EffectId::Blooddrain => EffectSpec::Custom {
             duration_ms: energy_drain::BLOOD_DRAIN.total_duration_ms(),
         },
@@ -570,6 +587,11 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Ruwach => EffectSpec::Custom {
             duration_ms: sight::total_duration_ms(&sight::RUWACH),
         },
+        // Sight2 is persistent (server-removed); use the persistent sentinel
+        // rather than the parent envelope so the holder doesn't reap it.
+        EffectId::Sight2 => EffectSpec::Custom {
+            duration_ms: default_duration_ms(EffectId::Sight2),
+        },
 
         // StatusUp family — crossed-texture streak particles. Pin
         // the holder lifetime to parent + particle envelope so streaks
@@ -685,6 +707,11 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Bash3d3
         | EffectId::Bash3d4
         | EffectId::Bash3d5 => EffectSpec::Custom {
+            duration_ms: bash3d::TOTAL_DURATION_MS,
+        },
+        // Truesight = `BASH3D(..., 3)` (F2=3). Same file, pure-procedural
+        // (no STR overlay). Shadows the dead `truesight` str alias.
+        EffectId::Truesight => EffectSpec::Custom {
             duration_ms: bash3d::TOTAL_DURATION_MS,
         },
 

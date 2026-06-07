@@ -2,7 +2,9 @@ use crate::App;
 use models::enums::action::ActionType;
 use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
+use models::enums::weapon::WeaponType;
 use ragnarok_game::movement::direction_from_positions;
+use ragnarok_game::skill_action::{skill_motion_type, SkillMotionType};
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 
 impl App {
@@ -62,6 +64,27 @@ impl App {
             }
             let duration = (attack_mt as f32 / 1000.0).max(0.3);
             entity.enter_skill_exec(duration, skill_id, effective_count);
+        }
+
+        // Arrow-consuming skills fire the same flying arrow as a normal ranged
+        // attack: bow skills use the Attack motion, whip/instrument skills the
+        // Attack2 motion. Multi-hit skills (e.g. Arrow Vulcan) fire one per hit.
+        if let Some(caster) = self.game.entities.get(src_gid) {
+            let weapon = caster.weapon;
+            let fires_arrow = match skill_motion_type(skill_id) {
+                SkillMotionType::Attack => weapon == Some(WeaponType::Bow),
+                SkillMotionType::Attack2 => matches!(
+                    weapon,
+                    Some(WeaponType::Bow | WeaponType::Whip | WeaponType::Musical)
+                ),
+                _ => false,
+            };
+            if fires_arrow {
+                let shooter_cell = caster.movement.cell_position();
+                if let Some(tp) = target_pos {
+                    self.spawn_arrow_projectile(shooter_cell, tp, attack_mt, effective_count);
+                }
+            }
         }
 
         // Show chat bubble on caster (e.g., "SM_BASH !!")

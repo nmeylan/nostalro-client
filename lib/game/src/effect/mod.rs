@@ -33,6 +33,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::begin_asura::TEXTURES,
         effects::warp::TEXTURES,
         effects::magnum_break::TEXTURES,
+        effects::dome_ring::TEXTURES,
         effects::bottom_song::TEXTURES,
         effects::bottom_hermode::TEXTURES,
         effects::bottom_landprotector::TEXTURES,

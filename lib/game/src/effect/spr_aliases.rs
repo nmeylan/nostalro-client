@@ -113,6 +113,14 @@ pub fn spr_def(id: EffectId) -> Option<SprDef> {
             .with_size(1.2)
             .with_pos_y(-1.0),
         EffectId::NpcStop => SprDef::new("data/sprite/이팩트/스톱"),
+        // NpcStop2: the Close Confine ground sprite. Unlike NpcStop it uses
+        // `cconfine.spr`, alpha 100, faster anim (12), no y-offset, and
+        // plays once then holds the last frame for the effect's persistent
+        // duration.
+        EffectId::NpcStop2 => SprDef::new("data/sprite/이팩트/cconfine")
+            .with_anim_speed(12.0)
+            .one_shot()
+            .with_tint([1.0, 1.0, 1.0, 100.0 / 255.0]),
         // Wink is a Custom effect (`effects/wink.rs`), not a `spr_def` — it
         // picks one of wink.spr's four directional actions from the camera
         // angle, which the data-driven Spr path can't do.

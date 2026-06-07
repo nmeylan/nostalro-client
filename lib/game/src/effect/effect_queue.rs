@@ -128,6 +128,7 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             | EffectId::Icewall
             | EffectId::Fireball
             | EffectId::Soulstrike
+            | EffectId::Soulstrike2
             | EffectId::Soulbreaker
             | EffectId::Yufitel
             | EffectId::Pierce
@@ -168,6 +169,10 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             | EffectId::Stin3
             | EffectId::Stin4
             | EffectId::Sma
+            // Teihit2/Backstap dart sprays erupt from the target along the
+            // caster→target heading.
+            | EffectId::Teihit2
+            | EffectId::Backstap
             // TANJI spirit-sphere projectiles fly along caster→target.
             | EffectId::Tanji
             | EffectId::Tanji2

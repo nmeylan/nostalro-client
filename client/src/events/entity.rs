@@ -2,7 +2,7 @@ use crate::App;
 use models::enums::action::ActionType;
 use models::enums::vanish::VanishType;
 use models::enums::weapon::WeaponType;
-use ragnarok_game::arrow::ArrowProjectile;
+use ragnarok_game::arrow::{flight_secs_for_cell_distance, ArrowProjectile};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::entity::{Entity, EntityState};
 use ragnarok_game::movement::direction_from_positions;
@@ -192,10 +192,6 @@ impl App {
                         shooter_cell = Some(entity.movement.cell_position());
                     }
                 }
-                if let (Some(sc), Some(tp)) = (shooter_cell, target_pos) {
-                    self.spawn_arrow_projectile(sc, tp, attack_mt);
-                }
-
                 let is_endure = matches!(
                     action,
                     ActionType::AttackNomotion | ActionType::AttackMultipleNomotion
@@ -206,6 +202,9 @@ impl App {
                     }
                     _ => 1,
                 };
+                if let (Some(sc), Some(tp)) = (shooter_cell, target_pos) {
+                    self.spawn_arrow_projectile(sc, tp, attack_mt, effective_count);
+                }
                 let total_damage = damage + left_damage;
                 let now = self.start_time.elapsed().as_secs_f32();
                 let delay_time = (attack_mt as f32 / 1000.0).max(0.0);
@@ -264,10 +263,19 @@ impl App {
         }
     }
 
-    /// Spawn a flying arrow from a bow attacker's cell to the target cell. The
-    /// flight time matches the attack motion so the arrow lands as the damage
-    /// applies. Cells are raised to chest height (negative Y = up).
-    fn spawn_arrow_projectile(&mut self, shooter: (u16, u16), target: (u16, u16), attack_mt: i32) {
+    /// Spawn flying arrow(s) from a bow/whip/instrument attacker's cell to the
+    /// target cell. The arrow stays hidden until late in the attack motion then
+    /// zips to the target (fixed ~192 ms, faster up close) so it lands as the
+    /// damage applies. Multi-hit attacks (Double Attack, Arrow Vulcan) fire one
+    /// arrow per hit, staggered by the same term used for scheduled hits. Cells
+    /// are raised to chest height (negative Y = up).
+    pub(super) fn spawn_arrow_projectile(
+        &mut self,
+        shooter: (u16, u16),
+        target: (u16, u16),
+        attack_mt: i32,
+        count: u16,
+    ) {
         let (Some(gat), Some(coords)) = (&self.game.gat, &self.game.map_coords) else {
             return;
         };
@@ -278,10 +286,18 @@ impl App {
         };
         let from = cell_world(shooter.0, shooter.1);
         let to = cell_world(target.0, target.1);
-        let flight_secs = (attack_mt as f32 / 1000.0).max(0.1);
-        self.game
-            .arrows
-            .push(ArrowProjectile::new(from, to, flight_secs));
+        let dx = target.0 as f32 - shooter.0 as f32;
+        let dy = target.1 as f32 - shooter.1 as f32;
+        let dist_cells = (dx * dx + dy * dy).sqrt();
+        let flight = flight_secs_for_cell_distance(dist_cells);
+        let land_at = (attack_mt as f32 / 1000.0).max(flight);
+        let double_attack_term = 0.2;
+        for i in 0..count.max(1) {
+            let delay = (land_at - flight + i as f32 * double_attack_term).max(0.0);
+            self.game
+                .arrows
+                .push(ArrowProjectile::new(from, to, delay, flight));
+        }
     }
 
     pub(super) fn handle_entity_hp_changed(&mut self, gid: u32, hp: u32, max_hp: u32) {

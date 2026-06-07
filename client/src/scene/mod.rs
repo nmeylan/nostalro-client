@@ -411,6 +411,7 @@ impl App {
                 .game
                 .arrows
                 .iter()
+                .filter(|a| a.is_visible())
                 .map(|a| EffectPrimitiveDraw::SpriteParticle {
                     sprite_path: a.sprite_path(),
                     position: a.current_position(),

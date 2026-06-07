@@ -48,13 +48,12 @@ const APEX_Y_OFFSET: f32 = -12.0;
 /// Initial fan radius before growth kicks in.
 const DISTANCE_INITIAL: f32 = 2.0;
 
-/// `rise_angle = 90·ec + F1·step`. All variants except F2=3 use 22°/F1;
-/// none of the shipped 5 effects use F2=3, so this is fixed.
-const RISE_ANGLE_STEP_PER_F1_DEG: f32 = 22.0;
+/// `rise_angle = 90·ec + F1·step`. The 0/2/4/5 variants use 22°/F1; the
+/// Truesight variant uses 7°/F1 — see [`BashParams::rise_angle_step_per_f1_deg`].
 const RISE_ANGLE_STEP_PER_SLOT_DEG: f32 = 90.0;
 
-/// Maximum sub-instances any variant uses (`EF_BASH3D2` = 8).
-const MAX_SUB_INSTANCES: usize = 8;
+/// Maximum sub-instances any variant uses (Truesight = 12).
+const MAX_SUB_INSTANCES: usize = 12;
 
 /// Per-frame distance update law.
 #[derive(Clone, Copy)]
@@ -98,6 +97,15 @@ pub struct BashParams {
     /// here for `EF_BASH3D2` whose reference gif shows uniformly
     /// horizontal needles.
     pub flatten_to_horizontal: bool,
+    /// `rise_angle = 90·ec + F1·this`. 22° for the 0/2/4/5 family, 7°
+    /// for Truesight — its 12 sub-instances pack into a tighter
+    /// fan so the detection ring reads as a dense burst, not 12 sparse
+    /// spokes.
+    pub rise_angle_step_per_f1_deg: f32,
+    /// STR layer played alongside the primitives (`Effect::str_overlay`).
+    /// The 0/2/4/5 family ships as a hybrid with `bash3d.str`;
+    /// Truesight is pure-procedural and sets `None`.
+    pub str_overlay: Option<&'static str>,
 }
 
 impl BashParams {
@@ -143,6 +151,8 @@ pub const BASH3D: BashParams = BashParams {
     inner_color_8bit: [0.0, 250.0, 250.0],
     outer_color_8bit: [250.0, 0.0, 0.0],
     flatten_to_horizontal: false,
+    rise_angle_step_per_f1_deg: 22.0,
+    str_overlay: Some("bash3d"),
 };
 
 pub const BASH3D2: BashParams = BashParams {
@@ -166,6 +176,8 @@ pub const BASH3D2: BashParams = BashParams {
     // naturally fall into the horizontal "middle" plane; the rest tilt
     // up/down per their spin-axis offset.
     flatten_to_horizontal: false,
+    rise_angle_step_per_f1_deg: 22.0,
+    str_overlay: Some("bash3d"),
 };
 
 pub const BASH3D3: BashParams = BashParams {
@@ -180,6 +192,8 @@ pub const BASH3D3: BashParams = BashParams {
     inner_color_8bit: [0.0, 0.0, 250.0],
     outer_color_8bit: [250.0, 250.0, 0.0],
     flatten_to_horizontal: false,
+    rise_angle_step_per_f1_deg: 22.0,
+    str_overlay: Some("bash3d"),
 };
 
 pub const BASH3D4: BashParams = BashParams {
@@ -194,11 +208,36 @@ pub const BASH3D4: BashParams = BashParams {
     inner_color_8bit: [50.0, 50.0, 50.0],
     outer_color_8bit: [250.0, 250.0, 250.0],
     flatten_to_horizontal: false,
+    rise_angle_step_per_f1_deg: 22.0,
+    str_overlay: Some("bash3d"),
 };
 
 /// `EF_BASH3D5` shares all visual parameters with `EF_BASH3D4` (in the
 /// original game the only difference is the spawn sound).
 pub const BASH3D5: BashParams = BASH3D4;
+
+/// `EF_TRUESIGHT` — 12 sub-instances (`i=0..11`) of the speed-line fan.
+/// 12 sub-instances × 4 sectors = 48 white speed-lines forming the
+/// True Sight detection burst. It differs from the base family: process
+/// starts at 0 (no wind-up), `distance += 3.0` per frame (additive, like
+/// the linear-growth variant), a gentle alpha curve (`+6`/frame to 60 over 10 frames, then
+/// `−1`/frame), a tight 7°/F1 rise-angle step, and white inner+outer blades.
+/// Pure-procedural — no STR overlay.
+pub const TRUESIGHT: BashParams = BashParams {
+    sub_instances: 12,
+    process_initial: 0,
+    distance_growth: DistanceGrowth::Additive(3.0),
+    alpha_ramp_step_8bit: 6.0,
+    fade_after_frame: 11,
+    alpha_fade_step_8bit: 1.0,
+    inner_half_spread_deg: 2.0,
+    outer_half_spread_deg: 5.0,
+    inner_color_8bit: [250.0, 250.0, 250.0],
+    outer_color_8bit: [250.0, 250.0, 250.0],
+    flatten_to_horizontal: false,
+    rise_angle_step_per_f1_deg: 7.0,
+    str_overlay: None,
+};
 
 pub struct Bash3dEffect {
     world_pos: [f32; 3],
@@ -219,7 +258,7 @@ impl Bash3dEffect {
             let mut slots = [RadialEmitterSlot::dormant(); RADIAL_EMITTER_SLOTS];
             for ec in 0..RADIAL_EMITTER_SLOTS {
                 let rise = (ec as f32) * RISE_ANGLE_STEP_PER_SLOT_DEG
-                    + (f1 as f32) * RISE_ANGLE_STEP_PER_F1_DEG;
+                    + (f1 as f32) * params.rise_angle_step_per_f1_deg;
                 let mut s = RadialEmitterSlot::spawn(DISTANCE_INITIAL, rise, 0.0);
                 s.alpha_b = 0.0;
                 s.rot_start_deg = if params.flatten_to_horizontal {
@@ -319,9 +358,9 @@ impl Effect for Bash3dEffect {
     }
 
     fn str_overlay(&self) -> Option<&'static str> {
-        // All five variants ship as hybrids alongside their per-id STR
-        // file; the holder reads this each frame and contributes a snapshot.
-        Some("bash3d")
+        // The 0/2/4/5 family ships as a hybrid alongside `bash3d.str`;
+        // Truesight is pure-procedural and returns `None`.
+        self.params.str_overlay
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
@@ -462,5 +501,26 @@ mod tests {
         let mut e = Bash3dEffect::new([0.0; 3], BASH3D);
         let s = step(&mut e, TOTAL_FRAMES as f32 + 1.0);
         assert!(matches!(s, EffectStatus::Dead));
+    }
+
+    #[test]
+    fn truesight_immediate_12_sub_white_no_str() {
+        // Truesight: process starts at 0 (no wind-up), so the first frame already
+        // shows all 12 sub × 4 slots × 2 blades = 96 quads, tinted white,
+        // and the effect declares no STR overlay (pure-procedural).
+        let mut e = Bash3dEffect::new([0.0; 3], TRUESIGHT);
+        assert_eq!(e.str_overlay(), None, "Truesight is pure-procedural");
+        step(&mut e, 2.0);
+        let prims = draws(&e);
+        assert_eq!(
+            prims.len(),
+            TRUESIGHT.sub_instances * RADIAL_EMITTER_SLOTS * 2,
+            "12 × 4 × 2 = 96 quads with no wind-up",
+        );
+        // White blades: RGB all near 1.0.
+        let EffectPrimitiveDraw::WorldQuad { color, .. } = prims[0] else {
+            panic!("expected WorldQuad");
+        };
+        assert!(color[0] > 0.9 && color[1] > 0.9 && color[2] > 0.9, "white tint");
     }
 }

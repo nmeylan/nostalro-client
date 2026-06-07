@@ -221,7 +221,7 @@ pub fn prepare_sprite_particle_records<'cache>(
                 if let Some((tx, ty)) = camera.world_to_screen(target[0], target[1], target[2], screen_w, screen_h) {
                     let dx = tx - anchor[0];
                     let dy = ty - anchor[1];
-                    let angle = dy.atan2(dx) + std::f32::consts::FRAC_PI_2;
+                    let angle = dy.atan2(dx) - std::f32::consts::FRAC_PI_2;
                     rotate_sprite_vertices(&mut vertices, anchor, angle);
                 }
             }

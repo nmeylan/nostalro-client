@@ -286,8 +286,8 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::foot::FootEffect::new(from, to, params))
         }
 
-        // Teihit streak-burst family — radial streaks. Teihit2 /
-        // Backstap use the different teihit2 spray and are not yet done.
+        // Teihit streak-burst family — radial streaks (1/1x/3) and the
+        // directional spray (Teihit2/Backstap).
         EffectId::Teihit1 => {
             Box::new(effects::teihit::TeihitEffect::new(anchor.point(), effects::teihit::TEIHIT1))
         }
@@ -296,6 +296,20 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         }
         EffectId::Teihit3 => {
             Box::new(effects::teihit::TeihitEffect::new(anchor.point(), effects::teihit::TEIHIT3))
+        }
+        EffectId::Teihit2 => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::teihit::TeiHit2Effect::new(from, to, effects::teihit::TEIHIT2))
+        }
+        EffectId::Backstap => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::teihit::TeiHit2Effect::new(from, to, effects::teihit::BACKSTAP))
         }
 
         // ParticleUp family — rising sparkle bursts. (Firstaid uses a
@@ -515,6 +529,15 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             };
             Box::new(effects::soul_strike::SoulStrikeEffect::new(from, to, hit_count.unwrap_or(1)))
         }
+        // Soulstrike2 = `SoulStrike(1)` in the original game: a fixed 2-hit fan
+        // (0°/180°) rather than the packet-driven hit count of Soulstrike.
+        EffectId::Soulstrike2 => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::soul_strike::SoulStrikeEffect::new(from, to, 2))
+        }
         // SoulBreaker (361, caster→target crescent) / SoulBreaker2 (409, Meteor
         // Assault 8-way radial burst): purple-slash billboards flying outward.
         EffectId::Soulbreaker => {
@@ -557,6 +580,14 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         }
         EffectId::Magnumbreak => {
             Box::new(effects::magnum_break::MagnumBreakEffect::new(anchor.point()))
+        }
+        // Magnum2 (Spiral Pierce) / GiExplosion — cone-band ring strips, both
+        // `Frustum`-based (see effects/dome_ring.rs).
+        EffectId::Magnum2 => {
+            Box::new(effects::dome_ring::MagnumSpiralEffect::new(anchor.point()))
+        }
+        EffectId::GiExplosion => {
+            Box::new(effects::dome_ring::GiExplosionEffect::new(anchor.point()))
         }
 
         EffectId::Thunderstorm2 => {
@@ -734,6 +765,11 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Ruwach => Box::new(effects::sight::OrbitEffect::new(
             anchor.point(),
             effects::sight::RUWACH,
+        )),
+        // Sight2 = the persistent "Sight Blaster" single-particle orbit.
+        EffectId::Sight2 => Box::new(effects::sight::OrbitEffect::new(
+            anchor.point(),
+            effects::sight::SIGHT2,
         )),
 
         // StatusUp family — crossed-texture streak particles around
@@ -973,6 +1009,11 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Bash3d5 => Box::new(effects::bash3d::Bash3dEffect::new(
             anchor.point(),
             effects::bash3d::BASH3D5,
+        )),
+        // Truesight = `BASH3D(alpha_center, i, 3)` — the F2=3 detection burst.
+        EffectId::Truesight => Box::new(effects::bash3d::Bash3dEffect::new(
+            anchor.point(),
+            effects::bash3d::TRUESIGHT,
         )),
 
         // LEVEL99 aura family — each EF_LEVEL99* is a distinct primitive layer
@@ -1442,6 +1483,7 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Frostdiver
             | EffectId::Frostdiver2
             | EffectId::Soulstrike
+            | EffectId::Soulstrike2
             | EffectId::Yufitel
             | EffectId::Blitzbeat
             | EffectId::Waterball
@@ -1451,8 +1493,11 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Party
             | EffectId::Curseattack
             | EffectId::Magnumbreak
+            | EffectId::Magnum2
+            | EffectId::GiExplosion
             | EffectId::Sight
             | EffectId::Ruwach
+            | EffectId::Sight2
             | EffectId::Incagility
             | EffectId::Decagility
             | EffectId::Incagidex
@@ -1497,6 +1542,7 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Bash3d3
             | EffectId::Bash3d4
             | EffectId::Bash3d5
+            | EffectId::Truesight
             | EffectId::Level99
             | EffectId::Level992
             | EffectId::Level993

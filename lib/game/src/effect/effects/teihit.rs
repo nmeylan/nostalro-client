@@ -92,7 +92,42 @@ pub const TEIHIT3: TeihitParams = TeihitParams {
     delay_rand: 8,
 };
 
-pub const TEXTURES: &[&str] = &[TEIHIT1.texture, TEIHIT1X.texture, TEIHIT3.texture];
+/// The directional spray (`EF_TEIHIT2` / `EF_BACKSTAP`). Distinct from the
+/// streaks above: a burst of camera-facing billboards
+/// that erupt from the target and fly outward along the
+/// caster→target heading (±30° jitter) with a random vertical velocity,
+/// ramping alpha over 10 frames then fading. Only the emitter count
+/// differs between the two ids (5 → 20 emitters, each = 4 streaks).
+///
+/// Each sub-emitter is a small camera-facing quad sized by
+/// its distance (0.1–0.9), **alpha-blended**.
+/// So the burst reads as a spray of small solid bubbles projected in the
+/// facing direction — not glowing streaks.
+///
+/// The original game shows pale/neutral bubbles (not red), so we leave the
+/// soft round `alpha_center.tga` untinted. Its texture `effect\thunder_red.bmp`
+/// is **absent from the classic GRF** and there is no reference gif, so the
+/// look is matched to the observed in-game behaviour
+/// rather than a capture.
+#[derive(Clone, Copy)]
+pub struct TeiHit2Params {
+    /// Emitter count; bubbles = `prim_count * 4`.
+    pub prim_count: usize,
+}
+
+pub const TEIHIT2: TeiHit2Params = TeiHit2Params { prim_count: 5 };
+pub const BACKSTAP: TeiHit2Params = TeiHit2Params { prim_count: 20 };
+
+/// Round soft fallback for the absent `thunder_red.bmp`.
+const TEIHIT2_TEXTURE: &str = "alpha_center.tga";
+/// Pale/neutral bubbles (the in-game effect is not red).
+const TEIHIT2_TINT: [f32; 3] = [1.0, 1.0, 1.0];
+/// Each bubble's quad spans radius `distance` (0.1–0.9); the billboard size
+/// is the diameter. Kept close to the source so the bubbles stay small.
+const TEIHIT2_BUBBLE_SCALE: f32 = 1.2;
+
+pub const TEXTURES: &[&str] =
+    &[TEIHIT1.texture, TEIHIT1X.texture, TEIHIT3.texture, TEIHIT2_TEXTURE];
 
 pub const TOTAL_DURATION_MS: u32 = 3000;
 
@@ -227,6 +262,110 @@ impl Effect for TeihitEffect {
     }
 }
 
+/// The directional billboard-spray darts. Each dart
+/// starts at the target, picks the caster→target heading ±30° at spawn, then
+/// flies outward at a per-dart speed while drifting vertically; alpha ramps
+/// `+25/frame` for 10 frames then fades `−3/frame`.
+struct Dart {
+    pos: [f32; 3],
+    sin_a: f32,
+    cos_a: f32,
+    speed: f32,
+    y_vel: f32,
+    /// Bubble diameter in world units (quad radius = `distance`).
+    size: f32,
+    process: i32,
+    alpha: f32,
+    rotation: f32,
+}
+
+pub struct TeiHit2Effect {
+    darts: Vec<Dart>,
+    frame_accum: f32,
+}
+
+impl TeiHit2Effect {
+    pub fn new(from: [f32; 3], to: [f32; 3], params: TeiHit2Params) -> Self {
+        let seed = to[0].to_bits() ^ to[2].to_bits() ^ 0xBACC_57A8;
+        let mut rng = Rng::from_seed(seed);
+        // Caster→target heading.
+        let base_angle = (to[0] - from[0]).atan2(to[2] - from[2]);
+        let origin = [to[0], to[1] - 8.0 * WORLD_SCALE, to[2]];
+        let darts = (0..params.prim_count * 4)
+            .map(|_| {
+                let jitter = (rng.range(0.0, 60.0) - 30.0).to_radians();
+                let (sin_a, cos_a) = (base_angle + jitter).sin_cos();
+                // `distance = random(16)*0.05 + 0.1` → 0.1..0.9 quad radius.
+                let distance = rng.range(0.1, 0.9);
+                Dart {
+                    pos: origin,
+                    sin_a,
+                    cos_a,
+                    speed: rng.range(0.75, 1.25),
+                    y_vel: rng.range(-1.0, 1.0),
+                    size: distance * TEIHIT2_BUBBLE_SCALE,
+                    process: -40 + rng.next_u32().rem_euclid(10) as i32,
+                    alpha: 0.0,
+                    rotation: 0.0,
+                }
+            })
+            .collect();
+        Self { darts, frame_accum: 0.0 }
+    }
+
+    fn step_frame(&mut self) {
+        for d in &mut self.darts {
+            d.process += 1;
+            if d.process <= 0 {
+                continue;
+            }
+            d.rotation -= 5.0_f32.to_radians();
+            if d.process <= 10 {
+                d.alpha = (d.alpha + 25.0 / 255.0).min(1.0);
+            } else {
+                d.alpha = (d.alpha - 3.0 / 255.0).max(0.0);
+            }
+            // `dx.atan2(dz)` heading (+Z = 0): direction is (sin, cos) on (x, z).
+            d.pos[0] += d.speed * WORLD_SCALE * d.sin_a;
+            d.pos[2] += d.speed * WORLD_SCALE * d.cos_a;
+            d.pos[1] += d.y_vel * WORLD_SCALE;
+        }
+    }
+}
+
+impl Effect for TeiHit2Effect {
+    fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
+        // The spray runs at native 60 fps (no gif to stretch against, unlike
+        // the streaks which borrow `TIME_SCALE`).
+        self.frame_accum += ctx.delta * FRAMES_PER_SECOND;
+        while self.frame_accum >= 1.0 {
+            self.frame_accum -= 1.0;
+            self.step_frame();
+        }
+        let alive = self.darts.iter().any(|d| d.process <= 10 || d.alpha > 0.0);
+        if alive { EffectStatus::Running } else { EffectStatus::Dead }
+    }
+
+    fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
+        let [r, g, b] = TEIHIT2_TINT;
+        for d in &self.darts {
+            if d.alpha <= 0.0 {
+                continue;
+            }
+            out.push(EffectPrimitiveDraw::Billboard {
+                pos: d.pos,
+                size: [d.size, d.size],
+                uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
+                rotation: d.rotation,
+                texture: TEIHIT2_TEXTURE,
+                color: [r, g, b, d.alpha],
+                // Alpha-blended: solid bubbles, not glow.
+                blend: BlendKind::Alpha,
+            });
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -266,6 +405,52 @@ mod tests {
             (c[0][2] + c[2][2]) / 2.0 - center[2],
         ];
         (mid[0] * mid[0] + mid[1] * mid[1] + mid[2] * mid[2]).sqrt()
+    }
+
+    fn billboards(e: &TeiHit2Effect) -> Vec<[f32; 3]> {
+        let mut list = EffectDrawList::new();
+        e.collect_draws(&mut list, &EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 256.0,
+            screen_h: 256.0,
+            elapsed: 0.0,
+        });
+        list.primitives
+            .iter()
+            .map(|p| match p {
+                EffectPrimitiveDraw::Billboard { pos, blend: BlendKind::Alpha, .. } => *pos,
+                _ => panic!("expected alpha-blended Billboard bubbles"),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn teihit2_count_scales_with_prim_count_and_darts_fly_then_die() {
+        // 5 prims × 4 = 20 darts (Teihit2); Backstap = 20 × 4 = 80.
+        assert_eq!(
+            TeiHit2Effect::new([0.0; 3], [0.0, 0.0, 30.0], TEIHIT2).darts.len(),
+            20,
+        );
+        let mut e = TeiHit2Effect::new([0.0; 3], [0.0, 0.0, 30.0], BACKSTAP);
+        assert_eq!(e.darts.len(), 80);
+
+        // Past the staggered start + fade-in, darts are visible and have flown
+        // outward from the target origin toward +Z (the demo heading).
+        for _ in 0..(40 + 12) {
+            e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None });
+        }
+        let visible = billboards(&e);
+        assert!(!visible.is_empty(), "darts visible after fade-in");
+        let mean_z: f32 = visible.iter().map(|p| p[2]).sum::<f32>() / visible.len() as f32;
+        assert!(mean_z > 30.0, "darts erupt past the target along the heading: {mean_z}");
+
+        // Every dart eventually fades out and the burst dies.
+        let mut st = EffectStatus::Running;
+        for _ in 0..2000 {
+            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None });
+            if st == EffectStatus::Dead { break; }
+        }
+        assert_eq!(st, EffectStatus::Dead);
     }
 
     #[test]

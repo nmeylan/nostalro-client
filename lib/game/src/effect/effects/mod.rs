@@ -44,6 +44,7 @@ pub mod chemical;
 pub mod cloud;
 pub mod cone;
 pub mod defender;
+pub mod dome_ring;
 pub mod dragonsmoke;
 pub mod ghost;
 pub mod gumgang;
