@@ -2,7 +2,11 @@ use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, Effect
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const SOUL_STRIKE_SPRITE: &str = "data/sprite/이팩트/particle1";
-pub const SPRITES: &[&str] = &[SOUL_STRIKE_SPRITE];
+/// Soulstrike2: the only difference from Soulstrike is the
+/// sprite — `particle5` (red) instead of `particle1`. The hit count comes from
+/// the packet, same as Soulstrike — it is **not** a fixed 2-hit.
+pub const SOUL_STRIKE2_SPRITE: &str = "data/sprite/이팩트/particle5";
+pub const SPRITES: &[&str] = &[SOUL_STRIKE_SPRITE, SOUL_STRIKE2_SPRITE];
 
 const FPS: f32 = 60.0;
 const FRAME_DT: f32 = 1.0 / FPS;
@@ -135,6 +139,7 @@ pub struct SoulStrikeEffect {
     dx: f32,
     dz: f32,
     hit_count: u8,
+    sprite: &'static str,
     is_trail: bool,
 
     effect_frame: u32,
@@ -147,6 +152,10 @@ pub struct SoulStrikeEffect {
 
 impl SoulStrikeEffect {
     pub fn new(from: [f32; 3], to: [f32; 3], hit_count: u8) -> Self {
+        Self::with_sprite(from, to, hit_count, SOUL_STRIKE_SPRITE)
+    }
+
+    pub fn with_sprite(from: [f32; 3], to: [f32; 3], hit_count: u8, sprite: &'static str) -> Self {
         let dx = to[0] - from[0];
         let dz = to[2] - from[2];
         let radius = (dx * dx + dz * dz).sqrt();
@@ -160,6 +169,7 @@ impl SoulStrikeEffect {
             dx,
             dz,
             hit_count: hit_count.clamp(1, 5),
+            sprite,
             is_trail,
             effect_frame: 0,
             time_accum: 0.0,
@@ -235,7 +245,7 @@ impl Effect for SoulStrikeEffect {
                     let size = SIZE * (1.0 - fi / (2.0 * fn_seg));
 
                     out.push(EffectPrimitiveDraw::SpriteParticle {
-                        sprite_path: SOUL_STRIKE_SPRITE,
+                        sprite_path: self.sprite,
                         position: bolt.segments[i],
                         action_index: 0,
                         motion_index: motion,
@@ -256,7 +266,7 @@ impl Effect for SoulStrikeEffect {
             let scale = SIZE * (1.0 + t * 0.4);
             let motion = (self.age * FPS / ANIM_SPEED as f32) as usize;
             out.push(EffectPrimitiveDraw::SpriteParticle {
-                sprite_path: SOUL_STRIKE_SPRITE,
+                sprite_path: self.sprite,
                 position: self.from,
                 action_index: 0,
                 motion_index: motion,
@@ -331,6 +341,26 @@ mod tests {
                 e.next_bolt_index, count,
                 "hit_count={count} should spawn {count} bolts"
             );
+        }
+    }
+
+    #[test]
+    fn soulstrike2_uses_red_particle5_sprite() {
+        // Soulstrike2: same bolt motion, red particle5 sprite.
+        let mut e = SoulStrikeEffect::with_sprite(
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 80.0],
+            1,
+            SOUL_STRIKE2_SPRITE,
+        );
+        for _ in 0..20 {
+            step(&mut e, FRAME_DT);
+        }
+        for p in draws(&e) {
+            let EffectPrimitiveDraw::SpriteParticle { sprite_path, .. } = p else {
+                panic!("expected SpriteParticle");
+            };
+            assert_eq!(sprite_path, SOUL_STRIKE2_SPRITE);
         }
     }
 

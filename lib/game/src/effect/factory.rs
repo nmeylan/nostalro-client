@@ -529,14 +529,19 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             };
             Box::new(effects::soul_strike::SoulStrikeEffect::new(from, to, hit_count.unwrap_or(1)))
         }
-        // Soulstrike2 = `SoulStrike(1)` in the original game: a fixed 2-hit fan
-        // (0°/180°) rather than the packet-driven hit count of Soulstrike.
+        // Soulstrike2 = `SoulStrike(1)`: identical to Soulstrike (same
+        // packet-driven hit count) but with the red `particle5` sprite.
         EffectId::Soulstrike2 => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
             };
-            Box::new(effects::soul_strike::SoulStrikeEffect::new(from, to, 2))
+            Box::new(effects::soul_strike::SoulStrikeEffect::with_sprite(
+                from,
+                to,
+                hit_count.unwrap_or(1),
+                effects::soul_strike::SOUL_STRIKE2_SPRITE,
+            ))
         }
         // SoulBreaker (361, caster→target crescent) / SoulBreaker2 (409, Meteor
         // Assault 8-way radial burst): purple-slash billboards flying outward.
