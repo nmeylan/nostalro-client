@@ -62,7 +62,7 @@ mod tests {
         let mut e = PartyEffect::new([3.0, 0.5, 7.0]);
         let status = e.update(&EffectUpdateCtx {
             delta: 1.0 / 60.0,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         });
         assert_eq!(status, EffectStatus::Running);
 
@@ -87,7 +87,8 @@ mod tests {
             assert_eq!(
                 e.update(&EffectUpdateCtx {
                     delta: 1.0 / 60.0,
-                    camera_target: None
+                    camera_target: None,
+                    caster_yaw: None
                 }),
                 EffectStatus::Running
             );

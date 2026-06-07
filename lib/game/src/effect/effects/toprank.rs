@@ -87,7 +87,8 @@ mod tests {
             assert_eq!(
                 e.update(&EffectUpdateCtx {
                     delta: 1.0 / FRAMES_PER_SECOND,
-                    camera_target: None
+                    camera_target: None,
+                    caster_yaw: None
                 }),
                 EffectStatus::Running
             );

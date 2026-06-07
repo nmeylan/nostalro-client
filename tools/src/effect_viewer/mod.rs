@@ -174,7 +174,7 @@ type HotRestoreStateFn = unsafe extern "C" fn(*mut (), *const PersistentState) -
 // Effect-registry FFI (handle = 0 = invalid / spawn failed).
 type HotSpawnCustomEffectFn =
     unsafe extern "C" fn(*mut (), u16, *const [f32; 3], *const [f32; 3], u8) -> u64;
-type HotUpdateCustomEffectFn = unsafe extern "C" fn(*mut (), u64, f32) -> u8;
+type HotUpdateCustomEffectFn = unsafe extern "C" fn(*mut (), u64, f32, f32) -> u8;
 type HotCollectCustomDrawsFn =
     unsafe extern "C" fn(*mut (), u64, *const EffectRenderCtxFfi, *mut EffectDrawList);
 type HotDropCustomEffectFn = unsafe extern "C" fn(*mut (), u64);
@@ -297,8 +297,10 @@ impl ExternalCustomBackend for HotLibEffectBackend {
         handle
     }
 
-    fn update(&self, handle: u64, dt: f32) -> bool {
-        let dead = unsafe { (self.update_fn)(self.state, handle, dt) };
+    fn update(&self, handle: u64, dt: f32, caster_yaw: Option<f32>) -> bool {
+        // NaN encodes "no caster facing" across the C ABI (no Option<f32>).
+        let yaw = caster_yaw.unwrap_or(f32::NAN);
+        let dead = unsafe { (self.update_fn)(self.state, handle, dt, yaw) };
         dead == 0
     }
 
@@ -1216,10 +1218,18 @@ impl App {
             .renderer
             .as_ref()
             .map(|r| r.camera.target.to_array());
-        self.effect_holder.update(&EffectUpdateCtx {
-            delta: scaled_dt,
-            camera_target,
-        });
+        // Reuse the projectile crosshair to aim direction-oriented effects
+        // (AttackEnergy comet, AttackEnergy2 rings, Guard shell): the caster
+        // sits at the origin, so the crosshair gives a world facing yaw
+        // (`dx.atan2(dz)`, the +Z = 0 heading convention). No crosshair → a
+        // fixed front.
+        let caster_yaw = self
+            .trail_target_override
+            .map(|t| t[0].atan2(t[2]));
+        self.effect_holder.update(
+            &EffectUpdateCtx { delta: scaled_dt, camera_target, caster_yaw },
+            &|_| None,
+        );
         // Apply any active screen-shake from quake effects to the camera.
         if let Some(r) = self.renderer.as_mut() {
             r.camera.shake_offset = self.effect_holder.camera_shake_offset().into();

@@ -95,6 +95,7 @@ impl Effect for BarrierEffect {
             sides_lat: SPHERE_SIDES_LAT,
             sides_lon: SPHERE_SIDES_LON,
             longitude_offset: 0.0,
+            longitude_arc: std::f32::consts::TAU,
             uv_repeat: [1.0, 1.0],
             texture: SPHERE_TEXTURE,
             // Warm yellow energy shell (matches the original game's tint).
@@ -109,7 +110,7 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None }
+        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
     }
 
     fn render_ctx() -> EffectRenderCtx {

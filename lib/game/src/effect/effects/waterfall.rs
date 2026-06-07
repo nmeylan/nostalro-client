@@ -317,7 +317,7 @@ mod tests {
     }
 
     fn step(e: &mut WaterfallEffect, frames: f32) {
-        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None });
+        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
     }
 
     fn draws(e: &WaterfallEffect) -> Vec<EffectPrimitiveDraw> {
@@ -449,7 +449,7 @@ mod tests {
         let mut e = WaterfallEffect::new([0.0, 0.0, 0.0], WATERFALL);
         let mut status = EffectStatus::Running;
         for _ in 0..600 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None });
+            status = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
         }
         assert_eq!(status, EffectStatus::Running, "persistent map effect");
         let mist: Vec<_> = draws(&e)

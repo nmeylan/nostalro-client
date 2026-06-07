@@ -399,7 +399,7 @@ mod tests {
     }
 
     fn step(effect: &mut WarpZoneEffect, dt: f32) -> EffectStatus {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None })
+        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None })
     }
 
     fn count_base(prims: &[EffectPrimitiveDraw]) -> usize {

@@ -164,7 +164,7 @@ mod tests {
     }
 
     fn step(effect: &mut EntryEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None });
+        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
     }
 
     fn draws(effect: &EntryEffect) -> Vec<EffectPrimitiveDraw> {
@@ -321,7 +321,7 @@ mod tests {
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         while t < DURATION_S * 2.0 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None });
+            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
             t += 1.0 / 60.0;
             if matches!(status, EffectStatus::Dead) {
                 break;

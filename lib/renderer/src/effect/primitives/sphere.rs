@@ -148,6 +148,7 @@ pub fn prepare_sphere_records<'tex>(
             sides_lat,
             sides_lon,
             longitude_offset,
+            longitude_arc,
             uv_repeat,
             texture,
             color,
@@ -179,7 +180,7 @@ pub fn prepare_sphere_records<'tex>(
             let tv = v * uv_repeat[1];
             for lon in 0..lon_count {
                 let u = lon as f32 / lon_segs as f32;
-                let theta = u * std::f32::consts::TAU + *longitude_offset;
+                let theta = u * *longitude_arc + *longitude_offset;
                 let (sin_theta, cos_theta) = theta.sin_cos();
                 let px = center[0] + radius * cos_phi * cos_theta;
                 let py = center[1] - radius * sin_phi;

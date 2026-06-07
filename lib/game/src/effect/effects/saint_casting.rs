@@ -273,7 +273,7 @@ mod tests {
         for _ in 0..n {
             status = e.update(&EffectUpdateCtx {
                 delta: 1.0 / 60.0,
-                camera_target: None,
+                camera_target: None, caster_yaw: None,
             });
         }
         status

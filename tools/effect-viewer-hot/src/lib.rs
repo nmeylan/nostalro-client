@@ -891,13 +891,16 @@ pub unsafe extern "C" fn hot_update_custom_effect(
     state_ptr: *mut (),
     handle: u64,
     dt: f32,
+    caster_yaw: f32,
 ) -> u8 {
     let state = unsafe { &*(state_ptr as *const State) };
     let mut effects = state.effects.lock().unwrap();
     let Some(effect) = effects.get_mut(&handle) else {
         return 1;
     };
-    let status = effect.update(&GameEffectUpdateCtx { delta: dt, camera_target: None });
+    // NaN means "no caster facing" (the host's C-ABI encoding of `None`).
+    let caster_yaw = (!caster_yaw.is_nan()).then_some(caster_yaw);
+    let status = effect.update(&GameEffectUpdateCtx { delta: dt, camera_target: None, caster_yaw });
     matches!(status, EffectStatus::Dead) as u8
 }
 

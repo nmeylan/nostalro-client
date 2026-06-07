@@ -555,7 +555,7 @@ mod tests {
     use super::*;
 
     fn ctx(frames: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None }
+        EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None }
     }
 
     fn render_ctx() -> EffectRenderCtx {

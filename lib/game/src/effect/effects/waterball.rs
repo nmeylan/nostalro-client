@@ -90,6 +90,7 @@ impl Effect for WaterballEffect {
             sides_lat: SPHERE_SIDES_LAT,
             sides_lon: SPHERE_SIDES_LON,
             longitude_offset: (frame * SPIN_DEG_PER_FRAME).to_radians(),
+            longitude_arc: std::f32::consts::TAU,
             uv_repeat: [1.0, 1.0],
             texture: TEXTURES[tex_idx],
             color: [1.0, 1.0, 1.0, 1.0],
@@ -116,7 +117,7 @@ mod tests {
         for _ in 0..n {
             s = e.update(&EffectUpdateCtx {
                 delta: 1.0 / FPS,
-                camera_target: None,
+                camera_target: None, caster_yaw: None,
             });
             if s == EffectStatus::Dead {
                 break;

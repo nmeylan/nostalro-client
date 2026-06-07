@@ -502,7 +502,7 @@ mod tests {
     fn step(e: &mut CloudProjectileEffect, frames: u32) -> EffectStatus {
         let mut s = EffectStatus::Running;
         for _ in 0..frames {
-            s = e.update(&EffectUpdateCtx { delta: FRAME_DT, camera_target: None });
+            s = e.update(&EffectUpdateCtx { delta: FRAME_DT, camera_target: None, caster_yaw: None });
         }
         s
     }

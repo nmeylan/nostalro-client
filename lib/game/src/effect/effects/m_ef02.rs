@@ -120,13 +120,13 @@ mod tests {
         let mut e = MEf02Effect::new([0.0; 3]);
         let m0 = e.motion_index();
         for _ in 0..8 {
-            e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None });
+            e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
         }
         assert!(e.motion_index() > m0, "motion advances");
 
         let mut status = EffectStatus::Running;
         for _ in 0..200 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None });
+            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
             if status == EffectStatus::Dead {
                 break;
             }

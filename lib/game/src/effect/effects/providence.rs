@@ -133,7 +133,7 @@ mod tests {
     }
 
     fn step_and_draw(e: &mut ProvidenceEffect, frames: f32) -> Vec<EffectPrimitiveDraw> {
-        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None });
+        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         list.primitives
@@ -193,7 +193,7 @@ mod tests {
         let mut e = ProvidenceEffect::new([0.0; 3]);
         let s = e.update(&EffectUpdateCtx {
             delta: TOTAL_DURATION_MS as f32 / 1000.0 + 0.1,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         });
         assert!(matches!(s, EffectStatus::Dead));
     }

@@ -126,7 +126,7 @@ mod tests {
         // distinct 120°-apart heading, all using stone.bmp; the effect ends
         // after its fixed duration.
         let mut e = GrimToothAtkEffect::new([5.0, 0.0, -2.0]);
-        e.update(&EffectUpdateCtx { delta: 0.0, camera_target: None });
+        e.update(&EffectUpdateCtx { delta: 0.0, camera_target: None, caster_yaw: None });
         let prims = draws(&e);
         assert_eq!(prims.len(), 3);
 
@@ -152,7 +152,7 @@ mod tests {
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         while t < TOTAL_DURATION_MS as f32 / 1000.0 + 0.1 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None });
+            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
             t += 1.0 / 60.0;
             if status == EffectStatus::Dead {
                 break;
@@ -165,7 +165,7 @@ mod tests {
     fn alpha_fades_in_final_window() {
         // Sociable test: full alpha until the fade tail, then it drops.
         let mut e = GrimToothAtkEffect::new([0.0, 0.0, 0.0]);
-        e.update(&EffectUpdateCtx { delta: 0.0, camera_target: None });
+        e.update(&EffectUpdateCtx { delta: 0.0, camera_target: None, caster_yaw: None });
         let a0 = match &draws(&e)[0] {
             EffectPrimitiveDraw::QuadHorn { color, .. } => color[3],
             _ => unreachable!(),
@@ -175,7 +175,7 @@ mod tests {
         let near_end = (DURATION_FRAMES - FADE_OUT_FRAMES / 2.0) / FRAMES_PER_SECOND;
         let mut t = 0.0;
         while t < near_end {
-            e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None });
+            e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
             t += 1.0 / 60.0;
         }
         let a_fade = match draws(&e).first() {

@@ -164,7 +164,7 @@ mod tests {
     }
 
     fn step(e: &mut Thunderstorm2Effect, dt: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: dt, camera_target: None })
+        e.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None })
     }
 
     #[test]

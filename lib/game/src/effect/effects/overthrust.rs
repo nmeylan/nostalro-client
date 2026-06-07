@@ -139,7 +139,7 @@ mod tests {
     fn step(effect: &mut OverthrustEffect, frames: f32) -> EffectStatus {
         effect.update(&EffectUpdateCtx {
             delta: frames / FRAMES_PER_SECOND,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         })
     }
 

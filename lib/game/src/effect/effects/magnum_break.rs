@@ -180,6 +180,7 @@ impl Effect for MagnumBreakEffect {
                 sides_lat: EXPLOSION_SIDES_LAT,
                 sides_lon: EXPLOSION_SIDES_LON,
                 longitude_offset: longitude_offset_rad,
+                longitude_arc: std::f32::consts::TAU,
                 uv_repeat: [1.0, 1.0],
                 texture: EXPLOSION_TEXTURE,
                 color: [1.0, 1.0, 1.0, explosion_alpha],
@@ -240,7 +241,7 @@ mod tests {
     }
 
     fn step(effect: &mut MagnumBreakEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None });
+        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
     }
 
     #[test]
@@ -338,7 +339,7 @@ mod tests {
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         while t < PARENT_DURATION_S * 2.0 {
-            status = mb.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None });
+            status = mb.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
             t += 1.0 / 60.0;
             if matches!(status, EffectStatus::Dead) {
                 break;

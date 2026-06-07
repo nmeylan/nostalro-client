@@ -125,7 +125,7 @@ mod tests {
     }
 
     fn step_and_draw(e: &mut Glasswall2Effect, frames: f32) -> Vec<EffectPrimitiveDraw> {
-        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None });
+        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         list.primitives
@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn persists_past_the_normal_effect_lifetime() {
         let mut e = Glasswall2Effect::new([0.0; 3]);
-        let s = e.update(&EffectUpdateCtx { delta: 10.0, camera_target: None });
+        let s = e.update(&EffectUpdateCtx { delta: 10.0, camera_target: None, caster_yaw: None });
         assert!(matches!(s, EffectStatus::Running), "Safety Wall is persistent");
     }
 }

@@ -170,7 +170,7 @@ mod tests {
     fn step(e: &mut DragonsmokeEffect, dt: f32) {
         e.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         });
     }
 

@@ -465,7 +465,7 @@ mod tests {
     fn step(e: &mut DrainEffect, dt: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         })
     }
 

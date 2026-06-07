@@ -98,6 +98,8 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::gumgang2::TEXTURES,
         effects::defender::TEXTURES,
         effects::heal::TEXTURES,
+        effects::big_portal::TEXTURES,
+        effects::attack_energy::TEXTURES,
         effects::wind::TEXTURES,
         effects::bash3d::TEXTURES,
         effects::blitzbeat::TEXTURES,

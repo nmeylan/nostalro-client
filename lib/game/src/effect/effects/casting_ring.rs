@@ -195,7 +195,7 @@ mod tests {
     fn run_to(c: &mut CastingRingEffect, target_frame: f32) {
         let delta = (target_frame - c.frame()) / FRAMES_PER_SECOND;
         if delta > 0.0 {
-            c.update(&EffectUpdateCtx { delta, camera_target: None });
+            c.update(&EffectUpdateCtx { delta, camera_target: None, caster_yaw: None });
         }
     }
 
@@ -271,7 +271,7 @@ mod tests {
     fn never_self_terminates() {
         let mut c = CastingRingEffect::new([0.0; 3], LV99);
         for _ in 0..200 {
-            assert_eq!(c.update(&EffectUpdateCtx { delta: 0.1, camera_target: None }), EffectStatus::Running);
+            assert_eq!(c.update(&EffectUpdateCtx { delta: 0.1, camera_target: None, caster_yaw: None }), EffectStatus::Running);
         }
     }
 }

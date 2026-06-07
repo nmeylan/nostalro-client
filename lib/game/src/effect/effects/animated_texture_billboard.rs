@@ -319,7 +319,7 @@ mod tests {
     fn ctx(dt: f32) -> EffectUpdateCtx {
         EffectUpdateCtx {
             delta: dt,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         }
     }
 

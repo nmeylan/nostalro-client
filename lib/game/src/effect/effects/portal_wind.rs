@@ -52,8 +52,11 @@ pub struct PortalWindConfig {
     /// `F1` parameter — preserved so callers can read the variant if needed.
     pub f1: u8,
     /// `alpha_t` mode: 1 = windwalk (quick fade, 120° arc), 2 =
-    /// gust (slow fade, 180° arc). Selects the per-frame `step` branch.
+    /// gust (slow fade, 180° arc), 3 = persistent gust (120° arc, ramps in and
+    /// holds — no fade, no outward drift). Selects the per-frame `step` branch.
     pub alpha_t: u8,
+    /// Frames the emitter lives before reporting `Dead`.
+    pub duration_frames: f32,
     /// Base of the per-slot `max_height = max_height_base + max_height_step*ec`.
     pub max_height_base: f32,
     pub max_height_step: f32,
@@ -73,6 +76,7 @@ pub struct PortalWindConfig {
 pub const PORTAL4: PortalWindConfig = PortalWindConfig {
     f1: 0,
     alpha_t: 1,
+    duration_frames: TOTAL_FRAMES,
     max_height_base: 5.0,
     max_height_step: 2.0,
     distance_base: 4.5,
@@ -86,6 +90,7 @@ pub const PORTAL4: PortalWindConfig = PortalWindConfig {
 pub const PORTAL5: PortalWindConfig = PortalWindConfig {
     f1: 1,
     alpha_t: 1,
+    duration_frames: TOTAL_FRAMES,
     max_height_base: 3.0,
     max_height_step: 2.0,
     distance_base: 2.5,
@@ -105,6 +110,7 @@ pub const PORTAL5: PortalWindConfig = PortalWindConfig {
 pub const PORTAL_WIND2: PortalWindConfig = PortalWindConfig {
     f1: 2,
     alpha_t: 2,
+    duration_frames: TOTAL_FRAMES,
     max_height_base: 48.0 * STORMKICK_GUST_SCALE,
     max_height_step: -5.0 * STORMKICK_GUST_SCALE,
     distance_base: 14.0 * STORMKICK_GUST_SCALE,
@@ -120,6 +126,7 @@ pub const PORTAL_WIND2: PortalWindConfig = PortalWindConfig {
 pub const PORTAL_WIND3: PortalWindConfig = PortalWindConfig {
     f1: 3,
     alpha_t: 2,
+    duration_frames: TOTAL_FRAMES,
     max_height_base: 28.0 * STORMKICK_GUST_SCALE,
     max_height_step: -5.0 * STORMKICK_GUST_SCALE,
     distance_base: 6.0 * STORMKICK_GUST_SCALE,
@@ -134,6 +141,40 @@ pub const PORTAL_WIND3: PortalWindConfig = PortalWindConfig {
 /// `storm_kick.rs`'s `WORLD_SCALE`); its gust rings share that factor so they
 /// stay coherent with the funnel instead of floating tens of units up.
 const STORMKICK_GUST_SCALE: f32 = 0.15;
+
+/// Portal3's wind ring at frame 2 — the wide flat halo ring around the big
+/// warp portal. `alpha_t = 3`: ramps in and holds, no outward drift. Four
+/// cardinal slots at distance 13/11/9/8 (outside the violet ring column) rising
+/// to 2.5/5/7.5/10. The distance step isn't perfectly linear; −1.67
+/// reproduces 13/11.33/9.67/8 ≈ 13/11/9/8.
+pub const BIGPORTAL_WIND: PortalWindConfig = PortalWindConfig {
+    f1: 0,
+    alpha_t: 3,
+    duration_frames: 1200.0,
+    max_height_base: 2.5,
+    max_height_step: 2.5,
+    distance_base: 13.0,
+    distance_step: -1.67,
+    distance_jitter: 0.0,
+    body_light_frames: (0, -1),
+    body_light_rgb: [255, 255, 255],
+    play_windwalk_wav: false,
+};
+
+/// Persistent variant for BigPortal2 (recall portal) — same ring, long life.
+pub const BIGPORTAL_WIND2: PortalWindConfig = PortalWindConfig {
+    f1: 1,
+    alpha_t: 3,
+    duration_frames: 5999.0,
+    max_height_base: 2.5,
+    max_height_step: 2.5,
+    distance_base: 13.0,
+    distance_step: -1.67,
+    distance_jitter: 0.0,
+    body_light_frames: (0, -1),
+    body_light_rgb: [255, 255, 255],
+    play_windwalk_wav: false,
+};
 
 #[derive(Clone, Copy)]
 struct WindSlot {
@@ -185,6 +226,13 @@ impl WindSlot {
             if self.process < 12.0 {
                 self.alpha_b += 1.0;
             }
+        } else if self.alpha_t == 3 {
+            // Persistent gust: arc opens to 120°, alpha ramps to 250 over the
+            // first 12 frames and holds — no fade-out, no outward drift.
+            self.full_display_angle_deg = (self.full_display_angle_deg + 3.0).min(120.0);
+            if self.process < 12.0 {
+                self.alpha_b = (self.alpha_b + 10.0).min(250.0);
+            }
         } else {
             self.full_display_angle_deg = (self.full_display_angle_deg + 3.0).min(120.0);
             if self.process > 20.0 {
@@ -195,8 +243,9 @@ impl WindSlot {
                 self.alpha_b = (self.alpha_b + 10.0).min(250.0);
             }
         }
-        if self.process > 1400.0 {
-            // terminal-alpha != 3 here, so the terminal decay applies.
+        if self.process > 1400.0 && self.alpha_t != 3 {
+            // The terminal decay applies to every mode except the persistent
+            // gust (alpha_t == 3).
             self.alpha_b = (self.alpha_b - 3.0).max(0.0);
         }
     }
@@ -252,7 +301,7 @@ impl Effect for PortalWindEffect {
         for _ in 0..steps {
             self.step_one_frame();
         }
-        if self.age_frames >= TOTAL_FRAMES {
+        if self.age_frames >= self.cfg.duration_frames {
             EffectStatus::Dead
         } else {
             EffectStatus::Running
@@ -323,7 +372,7 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None }
+        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
     }
 
     fn render_ctx() -> EffectRenderCtx {

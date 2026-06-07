@@ -100,6 +100,7 @@ impl Effect for PotionConEffect {
                 pillar.update(&EffectUpdateCtx {
                     delta: since_launch.max(0.0),
                     camera_target: ctx.camera_target,
+                    caster_yaw: ctx.caster_yaw,
                 });
                 self.pillar = Some(pillar);
             }
@@ -140,7 +141,7 @@ mod tests {
     fn step(e: &mut PotionConEffect, dt: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         })
     }
 

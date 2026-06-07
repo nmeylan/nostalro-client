@@ -290,7 +290,7 @@ mod tests {
     }
 
     fn step(effect: &mut BottomVerticalEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None });
+        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
     }
 
     fn draws(effect: &BottomVerticalEffect) -> Vec<EffectPrimitiveDraw> {

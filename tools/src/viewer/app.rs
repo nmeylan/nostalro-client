@@ -870,8 +870,10 @@ impl App {
         let sim_dt = if self.paused { 0.0 } else { dt };
 
         self.effect_holder.drain_queue(&mut self.effect_queue);
-        self.effect_holder
-            .update(&EffectUpdateCtx { delta: sim_dt, camera_target: None });
+        self.effect_holder.update(
+            &EffectUpdateCtx { delta: sim_dt, camera_target: None, caster_yaw: None },
+            &|_| None,
+        );
         let body_shake = self.effect_holder.body_shake_for_entity(VIEWER_ACTOR_ID);
         let body_tint = self.effect_holder.body_tint_for_entity(VIEWER_ACTOR_ID);
         // Caster-attached effects (buff STR overlays) resolve to the previewed

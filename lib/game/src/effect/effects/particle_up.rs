@@ -281,7 +281,7 @@ mod tests {
     fn tick(e: &mut ParticleUpEffect, frames: u32) -> EffectStatus {
         let mut st = EffectStatus::Running;
         for _ in 0..frames {
-            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None });
+            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
         }
         st
     }

@@ -169,7 +169,7 @@ mod tests {
     fn run_to(c: &mut FloorAuraEffect, frame: f32) {
         let delta = (frame - c.age * FRAMES_PER_SECOND) / FRAMES_PER_SECOND;
         if delta > 0.0 {
-            c.update(&EffectUpdateCtx { delta, camera_target: None });
+            c.update(&EffectUpdateCtx { delta, camera_target: None, caster_yaw: None });
         }
     }
 
@@ -225,7 +225,7 @@ mod tests {
     fn never_self_terminates() {
         let mut c = FloorAuraEffect::new([0.0; 3], LV99_GREEN);
         for _ in 0..200 {
-            assert_eq!(c.update(&EffectUpdateCtx { delta: 0.1, camera_target: None }), EffectStatus::Running);
+            assert_eq!(c.update(&EffectUpdateCtx { delta: 0.1, camera_target: None, caster_yaw: None }), EffectStatus::Running);
         }
     }
 }

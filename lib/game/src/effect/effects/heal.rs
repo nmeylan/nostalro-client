@@ -32,6 +32,8 @@ const FULL_ARC_RAD: f32 = std::f32::consts::TAU;
 const ALPHA_MAX: f32 = 180.0 / 255.0;
 const FADE_IN_STEP: f32 = 5.0 / 255.0;
 const FADE_IN_STEP_ENTRY2: f32 = 3.0 / 255.0;
+/// `flag1 == 3` rings ramp alpha at +2/frame.
+const FADE_IN_STEP_PORTAL3: f32 = 2.0 / 255.0;
 const FADE_OUT_STEP: f32 = 2.0 / 255.0;
 const FADE_IN_FRAMES: u32 = 16;
 const GROW_IN_FRAMES: u32 = 90;
@@ -130,7 +132,8 @@ impl RingSlot {
         let p = self.process;
         let pf = p as f32;
 
-        // ENTRY2 rings spin; plain Heal rings do not.
+        // ENTRY2 rings spin (ec+4/ec+2); flag1 == 3 rings spin ec+6; plain Heal
+        // rings do not.
         if self.flag1 == 2 {
             let inc = if self.ec < 2 {
                 self.ec as f32 + 4.0
@@ -138,16 +141,18 @@ impl RingSlot {
                 self.ec as f32 + 2.0
             };
             self.rot_start_deg = (self.rot_start_deg + inc).rem_euclid(360.0);
+        } else if self.flag1 == 3 {
+            self.rot_start_deg = (self.rot_start_deg + self.ec as f32 + 6.0).rem_euclid(360.0);
         }
 
         // Alpha: ramp in over the first 16 frames, hold, fade out from alpha_t.
         if pf >= self.alpha_t {
             self.alpha = (self.alpha - FADE_OUT_STEP).max(0.0);
         } else if p < FADE_IN_FRAMES {
-            let step = if self.flag1 == 2 {
-                FADE_IN_STEP_ENTRY2
-            } else {
-                FADE_IN_STEP
+            let step = match self.flag1 {
+                2 => FADE_IN_STEP_ENTRY2,
+                3 => FADE_IN_STEP_PORTAL3,
+                _ => FADE_IN_STEP,
             };
             self.alpha = (self.alpha + step).min(ALPHA_MAX);
         }
@@ -160,6 +165,14 @@ impl RingSlot {
                 } else {
                     0.0
                 }
+            } else if self.flag1 == 3 {
+                // No undulation: a flat ring at max_height that grows in over
+                // the first 90 frames.
+                let mut h = self.max_height;
+                if p <= GROW_IN_FRAMES {
+                    h *= sin_deg(pf);
+                }
+                h
             } else {
                 let sin_limit = (i as f32 * 34.0 + pf * ec_speed(self.ec)).rem_euclid(360.0);
                 let mut h = self.max_height * 0.75 + self.max_height * 0.25 * sin_deg(sin_limit);
@@ -440,6 +453,52 @@ pub const HEAL4: HealParams = HealParams {
     particle_up: Some(&crate::effect::effects::particle_up::HEAL_MOTE),
 };
 
+// ── 561/562 BigPortal — Portal3(F1): 3 concentric violet rings (flag1 == 3) ──
+// `Portal3` seeds a random per-ring rotation; substituted with an even
+// 0/120/240° spread for determinism. `max_height = 80` with rise 90° → a tall
+// vertical violet column; downscaled hard like the other large-literal columns.
+const BIGPORTAL_VIOLET: [f32; 3] = [170.0 / 255.0, 120.0 / 255.0, 1.0];
+const BIGPORTAL_SLOTS: &[SlotSeed] = &[
+    SlotSeed { ec: 0, distance: 7.0, max_height: 80.0, rise_angle_deg: 90.0, rot_start_deg: 0.0, alpha_t: 1400.0, alpha_init: 0.0, flag1: 3 },
+    SlotSeed { ec: 1, distance: 5.5, max_height: 80.0, rise_angle_deg: 90.0, rot_start_deg: 120.0, alpha_t: 1400.0, alpha_init: 0.0, flag1: 3 },
+    SlotSeed { ec: 2, distance: 4.0, max_height: 80.0, rise_angle_deg: 90.0, rot_start_deg: 240.0, alpha_t: 1400.0, alpha_init: 0.0, flag1: 3 },
+];
+/// 561 BigPortal — `Portal3(0)`, `alpha_t = 1400` (rings never fade within the
+/// portal's finite life; it despawns at the parent duration).
+pub const BIGPORTAL: HealParams = HealParams {
+    texture: "Magic_Violet.tga",
+    tint_rgb: BIGPORTAL_VIOLET,
+    blend: BlendKind::Additive,
+    // The reference column is tall and dominant (~2.4× as tall as the ring is
+    // wide); 0.6 makes the 80-unit source column read that way even through the
+    // steep export camera that foreshortens vertical columns.
+    height_scale: 0.6,
+    law: RiseLaw::Heal,
+    slots: BIGPORTAL_SLOTS,
+    duration_frames: 1200.0,
+    particle_up: None,
+};
+
+// 562 BigPortal2 — `Portal3(1)`. The original game disables the fade-out for
+// this variant — a
+// persistent recall portal. Modelled with a never-reached `alpha_t` and a long
+// life; the holder kills it when the portal NPC is removed.
+const BIGPORTAL2_SLOTS: &[SlotSeed] = &[
+    SlotSeed { ec: 0, distance: 7.0, max_height: 80.0, rise_angle_deg: 90.0, rot_start_deg: 0.0, alpha_t: 1.0e9, alpha_init: 0.0, flag1: 3 },
+    SlotSeed { ec: 1, distance: 5.5, max_height: 80.0, rise_angle_deg: 90.0, rot_start_deg: 120.0, alpha_t: 1.0e9, alpha_init: 0.0, flag1: 3 },
+    SlotSeed { ec: 2, distance: 4.0, max_height: 80.0, rise_angle_deg: 90.0, rot_start_deg: 240.0, alpha_t: 1.0e9, alpha_init: 0.0, flag1: 3 },
+];
+pub const BIGPORTAL2: HealParams = HealParams {
+    texture: "Magic_Violet.tga",
+    tint_rgb: BIGPORTAL_VIOLET,
+    blend: BlendKind::Additive,
+    height_scale: 0.6,
+    law: RiseLaw::Heal,
+    slots: BIGPORTAL2_SLOTS,
+    duration_frames: 5999.0,
+    particle_up: None,
+};
+
 pub const TEXTURES: &[&str] = &[
     "ring_blue.tga",
     "ring_purple.tga",
@@ -464,7 +523,7 @@ mod tests {
     fn step(e: &mut HealEffect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FRAMES_PER_SECOND,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         })
     }
 

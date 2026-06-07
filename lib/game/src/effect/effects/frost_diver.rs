@@ -459,7 +459,7 @@ mod tests {
     }
 
     fn step(effect: &mut FrostDiverEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None });
+        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
     }
 
     fn draws(effect: &FrostDiverEffect) -> Vec<EffectPrimitiveDraw> {
@@ -704,7 +704,7 @@ mod tests {
         let mut t = 0.0;
         let end_s = total_duration_ms(&FROSTDIVER2) as f32 / 1000.0;
         while t < end_s * 2.0 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None });
+            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
             t += 1.0 / 60.0;
             if matches!(status, EffectStatus::Dead) {
                 break;

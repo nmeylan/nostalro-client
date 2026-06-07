@@ -298,7 +298,7 @@ mod tests {
     }
 
     fn step(e: &mut CloudEffect, frames: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None })
+        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None })
     }
 
     fn draws(e: &CloudEffect) -> Vec<EffectPrimitiveDraw> {

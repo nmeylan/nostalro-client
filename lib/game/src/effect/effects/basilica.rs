@@ -196,7 +196,7 @@ mod tests {
     fn step(e: &mut BasilicaEffect, frames: f32) {
         e.update(&EffectUpdateCtx {
             delta: frames / FRAMES_PER_SECOND,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         });
     }
 

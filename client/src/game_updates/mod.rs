@@ -25,7 +25,16 @@ impl App {
         self.game.effects.update(delta);
 
         self.effect_holder.drain_queue(&mut self.effect_queue);
-        self.effect_holder.update(&EffectUpdateCtx { delta: delta, camera_target: None });
+        // Live caster facing for direction-oriented effects: RO body direction
+        // (0..7) maps to world yaw at 45° per step (yaw = dir * 45). The
+        // effect adds the original game's per-handler offset on top.
+        let entities = &self.game.entities;
+        let resolve_caster_yaw =
+            |id: u32| entities.get(id).map(|e| e.direction as f32 * (std::f32::consts::TAU / 8.0));
+        self.effect_holder.update(
+            &EffectUpdateCtx { delta, camera_target: None, caster_yaw: None },
+            &resolve_caster_yaw,
+        );
         // Apply any active screen-shake to the camera so the whole
         // view trembles while an effect's shake is live.
         if let Some(renderer) = self.renderer.as_mut() {

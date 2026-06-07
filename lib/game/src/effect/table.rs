@@ -12,7 +12,7 @@ use models::enums::effect_id::EffectId;
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effect_trait::CameraShake;
 use super::effects::{
-    aciddemon, agiup, banjjakii, barrier, bash, bash3d, begin_asura, begin_spell, blessing, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
+    aciddemon, agiup, attack_energy, banjjakii, barrier, big_portal, bash, bash3d, begin_asura, begin_spell, blessing, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
     light_sphere, mapzone, rainbow,
     bowling_bash, callzone, cartrevolution, cast_circle, chemical, cone, curseattack, defender, detecting,
     dome_ring, dragonsmoke, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
@@ -330,6 +330,26 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // green-tint default with SFX.
         EffectId::Portal4 | EffectId::Portal5 => EffectSpec::Custom {
             duration_ms: portal_wind::TOTAL_DURATION_MS,
+        },
+
+        // HalfSphere / AttackEnergy / AttackEnergy2 — energy shield family.
+        EffectId::Halfsphere => EffectSpec::Custom {
+            duration_ms: attack_energy::HALFSPHERE_DURATION_MS,
+        },
+        EffectId::Attackenergy => EffectSpec::Custom {
+            duration_ms: attack_energy::ATTACKENERGY_DURATION_MS,
+        },
+        EffectId::Attackenergy2 => EffectSpec::Custom {
+            duration_ms: attack_energy::ATTACKENERGY2_DURATION_MS,
+        },
+
+        // BigPortal / BigPortal2 — violet ring column + wide wind halo.
+        // 561 is finite; 562 is the persistent recall portal.
+        EffectId::BigPortal => EffectSpec::Custom {
+            duration_ms: big_portal::TOTAL_DURATION_MS,
+        },
+        EffectId::BigPortal2 => EffectSpec::Custom {
+            duration_ms: big_portal::TOTAL_DURATION_MS_PERSISTENT,
         },
 
         // Ready Portal — the blue scalloped disc that precedes a portal

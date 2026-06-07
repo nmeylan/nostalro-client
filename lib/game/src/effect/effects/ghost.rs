@@ -208,7 +208,7 @@ mod tests {
 
     fn step(e: &mut GhostEffect, frames: u32) {
         for _ in 0..frames {
-            e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None });
+            e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
         }
     }
 
@@ -287,7 +287,7 @@ mod tests {
         // Self-terminates at the 40 s lifetime.
         let mut status = EffectStatus::Running;
         for _ in 0..(TOTAL_DURATION_MS / 16 + 100) {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None });
+            status = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
             if status == EffectStatus::Dead {
                 break;
             }

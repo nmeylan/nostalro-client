@@ -291,7 +291,7 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None }
+        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
     }
 
     fn render_ctx() -> EffectRenderCtx {

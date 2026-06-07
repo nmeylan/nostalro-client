@@ -257,7 +257,7 @@ mod tests {
     fn step(e: &mut BottomVolcanoEffect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FRAMES_PER_SECOND,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         })
     }
 

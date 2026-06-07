@@ -165,7 +165,7 @@ mod tests {
     }
 
     fn step(e: &mut KouenkaEffect, frames: f32) {
-        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None });
+        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
     }
 
     fn draws(e: &KouenkaEffect) -> Vec<EffectPrimitiveDraw> {
@@ -203,7 +203,7 @@ mod tests {
         assert_eq!(draws(&e).len(), 20, "no new petals after frame 20");
         let s = e.update(&EffectUpdateCtx {
             delta: TOTAL_DURATION_MS as f32 / 1000.0 + 0.1,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         });
         assert!(matches!(s, EffectStatus::Dead));
     }

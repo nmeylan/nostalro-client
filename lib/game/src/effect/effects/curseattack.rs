@@ -94,7 +94,7 @@ mod tests {
         for _ in 0..200 {
             status = e.update(&EffectUpdateCtx {
                 delta: 1.0 / FRAMES_PER_SECOND,
-                camera_target: None,
+                camera_target: None, caster_yaw: None,
             });
             if status == EffectStatus::Dead {
                 break;

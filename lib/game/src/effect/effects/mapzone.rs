@@ -260,7 +260,7 @@ mod tests {
     }
 
     fn tick(e: &mut MapZoneEffect, frames: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: frames / FPS, camera_target: None })
+        e.update(&EffectUpdateCtx { delta: frames / FPS, camera_target: None, caster_yaw: None })
     }
 
     fn draws(e: &MapZoneEffect) -> Vec<EffectPrimitiveDraw> {

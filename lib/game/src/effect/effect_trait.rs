@@ -18,7 +18,7 @@ pub struct CameraView {
 }
 
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct EffectUpdateCtx {
     pub delta: f32,
     /// Current camera target in world coordinates, when available. Used by
@@ -26,6 +26,13 @@ pub struct EffectUpdateCtx {
     /// other camera-anchored ambient burst emitters). `None` for callers
     /// that don't track a camera (most tests).
     pub camera_target: Option<[f32; 3]>,
+    /// World-space facing yaw (radians) of the caster this frame, for effects
+    /// that orient by the caster's direction (the caster's body
+    /// facing: AttackEnergy's comet, AttackEnergy2's rings, Guard's
+    /// shell). `None` when the effect isn't entity-attached or the caster's
+    /// facing can't be resolved — such effects fall back to a fixed front.
+    /// Set per-effect by the holder from the attached entity's facing.
+    pub caster_yaw: Option<f32>,
 }
 
 pub struct EffectRenderCtx {

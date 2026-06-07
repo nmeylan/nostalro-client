@@ -209,7 +209,7 @@ mod tests {
     use super::*;
 
     fn ctx() -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None }
+        EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None }
     }
 
     fn tick(e: &mut SoulBreakerEffect, frames: u32) -> EffectStatus {

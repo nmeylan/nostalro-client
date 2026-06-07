@@ -234,7 +234,7 @@ mod tests {
     }
 
     fn step(c: &mut SparkleColumnEffect, dt: f32) {
-        c.update(&EffectUpdateCtx { delta: dt, camera_target: None });
+        c.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
     }
 
     #[test]
@@ -305,7 +305,7 @@ mod tests {
     fn never_self_terminates() {
         let mut c = SparkleColumnEffect::new([0.0; 3], GHOST);
         for _ in 0..200 {
-            assert_eq!(c.update(&EffectUpdateCtx { delta: 0.1, camera_target: None }), EffectStatus::Running);
+            assert_eq!(c.update(&EffectUpdateCtx { delta: 0.1, camera_target: None, caster_yaw: None }), EffectStatus::Running);
         }
     }
 }

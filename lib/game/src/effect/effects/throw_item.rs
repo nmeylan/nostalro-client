@@ -327,7 +327,7 @@ mod tests {
     use super::*;
 
     fn step(e: &mut ThrowItemEffect, dt: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: dt, camera_target: None })
+        e.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None })
     }
 
     fn render_ctx() -> EffectRenderCtx {

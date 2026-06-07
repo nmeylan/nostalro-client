@@ -260,6 +260,10 @@ pub enum EffectPrimitiveDraw {
     /// at the south pole to `v_repeat` at the north pole, u from 0 to
     /// `u_repeat` around the equator.
     ///
+    /// `longitude_arc` is the longitude sweep in radians: `TAU` is a full
+    /// sphere; `π` a half-dome split by a vertical plane (a half-sphere
+    /// with a 180° arc span).
+    ///
     /// The lower hemisphere can sit below the impact ground plane — depth
     /// testing against the ground geometry hides whatever portion is below.
     Sphere {
@@ -268,6 +272,7 @@ pub enum EffectPrimitiveDraw {
         sides_lat: u32,
         sides_lon: u32,
         longitude_offset: f32,
+        longitude_arc: f32,
         uv_repeat: [f32; 2],
         texture: &'static str,
         color: [f32; 4],

@@ -195,7 +195,7 @@ mod tests {
     fn step(e: &mut FlowerCastEffect, frames: i32) -> EffectStatus {
         let mut s = EffectStatus::Running;
         for _ in 0..frames {
-            s = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None });
+            s = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
         }
         s
     }

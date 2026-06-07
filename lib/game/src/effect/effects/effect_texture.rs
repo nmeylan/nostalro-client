@@ -128,7 +128,7 @@ mod tests {
         let mut st = EffectStatus::Running;
         let real = (frames as f32 / TIME_SCALE).ceil() as u32;
         for _ in 0..real {
-            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None });
+            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
         }
         st
     }

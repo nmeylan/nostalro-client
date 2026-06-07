@@ -33,7 +33,7 @@ pub trait ExternalCustomBackend: Send + Sync {
     fn spawn(&self, effect_id: u16, from: [f32; 3], to: [f32; 3], hit_count: u8) -> u64;
     /// Returns `true` while the effect is still running, `false` once it
     /// has signalled death.
-    fn update(&self, handle: u64, dt: f32) -> bool;
+    fn update(&self, handle: u64, dt: f32, caster_yaw: Option<f32>) -> bool;
     fn collect(&self, handle: u64, ctx: &EffectRenderCtx, out: &mut EffectDrawList);
     /// Optional STR overlay name for this effect instance. Default `None`;
     /// hot-reload backends can probe their cdylib for the current overlay.
@@ -534,16 +534,30 @@ impl EffectHolder {
         self.effects.clear();
     }
 
-    pub fn update(&mut self, ctx: &EffectUpdateCtx) {
+    pub fn update(
+        &mut self,
+        ctx: &EffectUpdateCtx,
+        resolve_caster_yaw: &dyn Fn(u32) -> Option<f32>,
+    ) {
         let dt = ctx.delta;
         let backend = self.external_backend.clone();
         let mut shake_requests: Vec<CameraShake> = Vec::new();
         self.effects.retain_mut(|e| {
             e.age += dt;
             let expired = e.age >= e.duration;
+            let attach = e.attach;
+            // Per-effect caster facing (the master actor's heading)
+            // for direction-oriented effects. Entity-attached effects resolve it
+            // live from their caster; others inherit the ctx default (the viewer
+            // sets it from the crosshair, the same way it aims projectiles).
+            let caster_yaw = match attach {
+                Attach::Entity(id) => resolve_caster_yaw(id),
+                _ => ctx.caster_yaw,
+            };
             let alive = match &mut e.payload {
                 HeldPayload::Custom(c) => {
-                    let running = c.update(ctx) == EffectStatus::Running;
+                    let per_ctx = EffectUpdateCtx { caster_yaw, ..*ctx };
+                    let running = c.update(&per_ctx) == EffectStatus::Running;
                     if let Some(s) = c.take_camera_shake() {
                         shake_requests.push(s);
                     }
@@ -552,7 +566,7 @@ impl EffectHolder {
                 HeldPayload::CustomExternal { handle } => backend
                     .as_ref()
                     .map(|b| {
-                        let running = b.update(*handle, dt);
+                        let running = b.update(*handle, dt, caster_yaw);
                         if let Some(s) = b.take_camera_shake(*handle) {
                             shake_requests.push(s);
                         }
@@ -1184,7 +1198,7 @@ mod tests {
     use ragnarok_game::effect::Attach;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None }
+        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
     }
 
     #[test]
@@ -1202,10 +1216,10 @@ mod tests {
             .expect("spawn");
         assert_eq!(h.len(), 1);
 
-        h.update(&ctx(1.0));
+        h.update(&ctx(1.0), &|_| None);
         assert_eq!(h.len(), 1, "still alive at 1s of a 2s effect");
 
-        h.update(&ctx(1.5));
+        h.update(&ctx(1.5), &|_| None);
         assert!(h.is_empty(), "should have expired after total 2.5s");
 
         h.despawn(handle);
@@ -1217,7 +1231,7 @@ mod tests {
         h.spawn(EffectId::Quakebody4, Attach::Entity(7), None)
             .expect("Quakebody4 spawns as a Custom body effect");
         // Advance into Quakebody4's 20..60-frame shake window.
-        h.update(&ctx(25.0 / 60.0));
+        h.update(&ctx(25.0 / 60.0), &|_| None);
 
         assert_ne!(
             h.body_shake_for_entity(7),
@@ -1247,7 +1261,7 @@ mod tests {
         );
 
         // One interval (5 frames) elapses → a snapshot is due.
-        h.update(&ctx(5.0 / 60.0));
+        h.update(&ctx(5.0 / 60.0), &|_| None);
         assert!(h.afterimage_emit_due(7), "snapshot due after the interval");
 
         // The actor pass snapshots only while moving; store one here.
@@ -1265,7 +1279,7 @@ mod tests {
         assert!(h.afterimages_for_entity(99).next().is_none());
 
         // It fades out over its ~0.75 s lifetime.
-        h.update(&ctx(1.0));
+        h.update(&ctx(1.0), &|_| None);
         assert_eq!(h.afterimages_for_entity(7).count(), 0, "snapshot decays away");
     }
 
@@ -1275,14 +1289,14 @@ mod tests {
         assert_eq!(h.camera_shake_offset(), [0.0, 0.0, 0.0], "idle before spawn");
         h.spawn(EffectId::ScreenQuake, Attach::WorldPos([0.0; 3]), None)
             .expect("ScreenQuake spawns (no visual, shakes the camera)");
-        h.update(&ctx(0.05));
+        h.update(&ctx(0.05), &|_| None);
         assert_ne!(
             h.camera_shake_offset(),
             [0.0, 0.0, 0.0],
             "camera shakes while the quake is active"
         );
         // Past the shake window it settles back to rest.
-        h.update(&ctx(3.0));
+        h.update(&ctx(3.0), &|_| None);
         assert_eq!(h.camera_shake_offset(), [0.0, 0.0, 0.0], "settles to rest");
     }
 
@@ -1382,7 +1396,7 @@ mod tests {
             Some(2000),
         )
         .expect("spawn");
-        h.update(&ctx(0.25));
+        h.update(&ctx(0.25), &|_| None);
         let snaps = h.collect_spr_emitters(&|_| None);
         assert_eq!(snaps.len(), 1);
         assert_eq!(snaps[0].sprite, "data/sprite/이팩트/torch_01");
@@ -1399,7 +1413,7 @@ mod tests {
         let mut h = EffectHolder::new();
         h.spawn(EffectId::Vallentine2, Attach::WorldPos([0.0, 0.0, 0.0]), Some(1000))
             .expect("spawn");
-        h.update(&ctx(0.1));
+        h.update(&ctx(0.1), &|_| None);
         let snaps = h.collect_spr_emitters(&|_| None);
         assert_eq!(snaps.len(), 1);
         assert_eq!(snaps[0].action_index, 1);
@@ -1413,7 +1427,7 @@ mod tests {
         let mut h = EffectHolder::new();
         h.spawn(EffectId::Smoke, Attach::WorldPos([0.0, 0.0, 0.0]), None)
             .expect("spawn");
-        h.update(&ctx(0.1));
+        h.update(&ctx(0.1), &|_| None);
         let snaps = h.collect_spr_burst_emitters(&|_| None);
         assert_eq!(snaps.len(), 1);
         let snap = &snaps[0];
@@ -1443,7 +1457,7 @@ mod tests {
         let mut h = EffectHolder::new();
         h.spawn(EffectId::Steal, Attach::WorldPos([0.0, 0.0, 0.0]), None)
             .expect("spawn");
-        h.update(&ctx(0.05));
+        h.update(&ctx(0.05), &|_| None);
         let snaps = h.collect_spr_burst_emitters(&|_| None);
         assert_eq!(snaps.len(), 1);
         let snap = &snaps[0];
@@ -1469,7 +1483,7 @@ mod tests {
         let mut h = EffectHolder::new();
         h.spawn(EffectId::Firefly, Attach::WorldPos([0.0, 0.0, 0.0]), None)
             .expect("spawn");
-        h.update(&ctx(0.05));
+        h.update(&ctx(0.05), &|_| None);
         let snaps = h.collect_spr_burst_emitters(&|_| None);
         assert_eq!(snaps.len(), 1);
         assert!(snaps[0].twinkle, "Firefly must surface PT_TWINKLE approximation");
@@ -1488,7 +1502,7 @@ mod tests {
             h.spawn(EffectId::Firefly, Attach::WorldPos([0.0, 0.0, 0.0]), None)
                 .expect("spawn");
         }
-        h.update(&ctx(1.0 / 60.0));
+        h.update(&ctx(1.0 / 60.0), &|_| None);
         let snaps = h.collect_spr_burst_emitters(&|_| None);
         let mut saw_up = false;
         let mut saw_down = false;
@@ -1521,7 +1535,7 @@ mod tests {
         h.spawn(EffectId::Firefly, Attach::WorldPos([0.0, 0.0, 0.0]), None)
             .expect("spawn");
         // First tick: integrate a small step so the particle starts moving.
-        h.update(&ctx(1.0 / 60.0));
+        h.update(&ctx(1.0 / 60.0), &|_| None);
         let snap0 = h
             .collect_spr_burst_emitters(&|_| None)
             .into_iter()
@@ -1531,7 +1545,7 @@ mod tests {
         // Wait 30 frames (0.5 s) — guarantees at least one curve tick
         // since the initial period is capped at 30 frames.
         for _ in 0..30 {
-            h.update(&ctx(1.0 / 60.0));
+            h.update(&ctx(1.0 / 60.0), &|_| None);
         }
         let snap1 = h
             .collect_spr_burst_emitters(&|_| None)
@@ -1562,7 +1576,7 @@ mod tests {
         let mut h = EffectHolder::new();
         h.spawn(EffectId::Firefly, Attach::WorldPos([0.0, 0.0, 0.0]), None)
             .expect("spawn");
-        h.update(&ctx(1.0 / 60.0));
+        h.update(&ctx(1.0 / 60.0), &|_| None);
         let snap = h
             .collect_spr_burst_emitters(&|_| None)
             .into_iter()
@@ -1583,11 +1597,11 @@ mod tests {
         // and assert at least one reading exceeds the dim 80/255
         // ceiling that bounded the early phase.
         for _ in 0..39 {
-            h.update(&ctx(1.0 / 60.0));
+            h.update(&ctx(1.0 / 60.0), &|_| None);
         }
         let mut peak_bright: f32 = 0.0;
         for _ in 0..20 {
-            h.update(&ctx(1.0 / 60.0));
+            h.update(&ctx(1.0 / 60.0), &|_| None);
             if let Some(snap) = h.collect_spr_burst_emitters(&|_| None).into_iter().next()
                 && let Some(a) = snap.particles[0].alpha_override
             {

@@ -38,10 +38,11 @@ const ROWS: u32 = 3;
 /// fade-out `height0` drift).
 const LAYER_RADIUS_ADD: [f32; 3] = [0.0, 0.2, 0.4];
 
-/// Static shell facing (original game `caster_roty + 270`). Point-anchored
-/// effects don't carry caster facing, so the shell uses a fixed front; tuned
-/// so the open dome faces the export/viewer camera.
-const ROT_START_DEG: f32 = 270.0;
+/// Shell facing offset (caster facing + 270°). The live caster
+/// yaw is added on top each frame; with no caster facing the shell falls back
+/// to a fixed front (yaw 0), tuned so the open dome faces the export/viewer
+/// camera.
+const ROT_OFFSET_DEG: f32 = 270.0;
 
 /// Green-white tint per layer (`205/155/225`,255,…), 0..1.
 const GREEN_LAYERS: [[f32; 3]; 3] = [
@@ -101,13 +102,14 @@ pub const TEXTURES: &[&str] = &["guardK.tga", "guardK2.tga", "a01.bmp"];
 pub struct GuardEffect {
     world_pos: [f32; 3],
     params: GuardParams,
+    caster_yaw: Option<f32>,
     age: f32,
     frames: u32,
 }
 
 impl GuardEffect {
     pub fn new(world_pos: [f32; 3], params: GuardParams) -> Self {
-        Self { world_pos, params, age: 0.0, frames: 0 }
+        Self { world_pos, params, caster_yaw: None, age: 0.0, frames: 0 }
     }
 
     /// `process` counter (1-based on the first drawn frame).
@@ -129,10 +131,12 @@ impl GuardEffect {
     }
 
     fn rot_start_deg(&self) -> f32 {
+        // Live caster facing + the 270° offset.
+        let base = self.caster_yaw.map(f32::to_degrees).unwrap_or(0.0) + ROT_OFFSET_DEG;
         if self.params.spin {
-            ROT_START_DEG + self.frames as f32 * 10.0
+            base + self.frames as f32 * 10.0
         } else {
-            ROT_START_DEG
+            base
         }
     }
 }
@@ -151,6 +155,7 @@ fn guard_point(rx: f32, ry: f32, sn2: f32, cs2: f32, sn1: f32, cs1: f32, center:
 
 impl Effect for GuardEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
+        self.caster_yaw = ctx.caster_yaw;
         self.age += ctx.delta;
         self.frames = (self.age * FRAMES_PER_SECOND) as u32;
         if self.process() >= DEATH_PROCESS {
@@ -239,7 +244,7 @@ mod tests {
 
     fn draws_after(params: GuardParams, secs: f32) -> Vec<EffectPrimitiveDraw> {
         let mut e = GuardEffect::new([10.0, 0.0, 20.0], params);
-        e.update(&EffectUpdateCtx { delta: secs, camera_target: None });
+        e.update(&EffectUpdateCtx { delta: secs, camera_target: None, caster_yaw: None });
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         list.primitives
@@ -304,7 +309,7 @@ mod tests {
         let mut e = GuardEffect::new([0.0; 3], GUARD);
         let mut status = EffectStatus::Running;
         for _ in 0..DEATH_PROCESS + 5 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None });
+            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
         }
         assert_eq!(status, EffectStatus::Dead);
     }
@@ -321,10 +326,10 @@ mod tests {
         assert!(c1[0] != c2[0], "spinning shell rotates between frames");
 
         let mut spin = GuardEffect::new([0.0; 3], GUARD2);
-        spin.update(&EffectUpdateCtx { delta: 12.0 / 60.0, camera_target: None });
+        spin.update(&EffectUpdateCtx { delta: 12.0 / 60.0, camera_target: None, caster_yaw: None });
         assert!(spin.body_tint().is_some(), "body flashes on even frame in window");
         let mut still = GuardEffect::new([0.0; 3], GUARD);
-        still.update(&EffectUpdateCtx { delta: 12.0 / 60.0, camera_target: None });
+        still.update(&EffectUpdateCtx { delta: 12.0 / 60.0, camera_target: None, caster_yaw: None });
         assert!(still.body_tint().is_none(), "static guard never flashes");
     }
 }

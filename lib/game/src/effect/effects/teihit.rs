@@ -376,7 +376,7 @@ mod tests {
         let mut st = EffectStatus::Running;
         let real_ticks = (source_frames as f32 / TIME_SCALE).ceil() as u32;
         for _ in 0..real_ticks {
-            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None });
+            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
         }
         st
     }
@@ -437,7 +437,7 @@ mod tests {
         // Past the staggered start + fade-in, darts are visible and have flown
         // outward from the target origin toward +Z (the demo heading).
         for _ in 0..(40 + 12) {
-            e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None });
+            e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
         }
         let visible = billboards(&e);
         assert!(!visible.is_empty(), "darts visible after fade-in");
@@ -447,7 +447,7 @@ mod tests {
         // Every dart eventually fades out and the burst dies.
         let mut st = EffectStatus::Running;
         for _ in 0..2000 {
-            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None });
+            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
             if st == EffectStatus::Dead { break; }
         }
         assert_eq!(st, EffectStatus::Dead);

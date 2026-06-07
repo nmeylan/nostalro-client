@@ -143,7 +143,7 @@ mod tests {
         // with the expected tilt and texture; then advance past the lifetime
         // and confirm the effect reports Dead.
         let mut e = SonicBlowHitEffect::new([5.0, 0.0, 7.0]);
-        e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None });
+        e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
 
@@ -169,7 +169,7 @@ mod tests {
 
         let status = e.update(&EffectUpdateCtx {
             delta: TOTAL_DURATION_MS as f32 / 1000.0,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         });
         assert!(matches!(status, EffectStatus::Dead));
     }

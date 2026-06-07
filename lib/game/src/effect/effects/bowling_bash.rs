@@ -255,7 +255,7 @@ mod tests {
     fn step(effect: &mut BowlingBashEffect, dt: f32) -> EffectStatus {
         effect.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         })
     }
 

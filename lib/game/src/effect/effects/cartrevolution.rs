@@ -151,6 +151,7 @@ impl CartRevolutionEffect {
                 sides_lat: SPHERE_SIDES_LAT,
                 sides_lon: SPHERE_SIDES_LON,
                 longitude_offset: long_offset,
+                longitude_arc: std::f32::consts::TAU,
                 uv_repeat: [1.0, 1.0],
                 texture: SPHERE_TEXTURE,
                 color: [1.0, 1.0, 1.0, sphere_alpha],
@@ -196,7 +197,7 @@ mod tests {
     }
 
     fn step_and_draw(e: &mut CartRevolutionEffect, dt: f32) -> Vec<EffectPrimitiveDraw> {
-        e.update(&EffectUpdateCtx { delta: dt, camera_target: None });
+        e.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         list.primitives
@@ -247,7 +248,7 @@ mod tests {
         let mut e = CartRevolutionEffect::new([0.0; 3]);
         let s = e.update(&EffectUpdateCtx {
             delta: TOTAL_DURATION_MS as f32 / 1000.0 + 0.1,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         });
         assert!(matches!(s, EffectStatus::Dead));
     }

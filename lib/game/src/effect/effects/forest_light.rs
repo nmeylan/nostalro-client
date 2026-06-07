@@ -222,7 +222,7 @@ mod tests {
 
     fn draws_after(params: ForestLightParams, secs: f32) -> Vec<EffectPrimitiveDraw> {
         let mut e = ForestLightEffect::new([10.0, 0.0, 20.0], params);
-        e.update(&EffectUpdateCtx { delta: secs, camera_target: None });
+        e.update(&EffectUpdateCtx { delta: secs, camera_target: None, caster_yaw: None });
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         list.primitives
@@ -253,7 +253,7 @@ mod tests {
         let mut e = ForestLightEffect::new([0.0; 3], ITEM_LIGHT);
         let mut status = EffectStatus::Running;
         for _ in 0..FADE_DURATION_FRAMES + 5 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None });
+            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
         }
         assert_eq!(status, EffectStatus::Dead);
     }
@@ -266,7 +266,7 @@ mod tests {
         let mut e = ForestLightEffect::new([0.0, 0.0, 0.0], FORESTLIGHT3);
         let mut status = EffectStatus::Running;
         for _ in 0..FADE_DURATION_FRAMES + 60 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None });
+            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
         }
         assert_eq!(status, EffectStatus::Running, "persistent");
         let mut list = EffectDrawList::new();

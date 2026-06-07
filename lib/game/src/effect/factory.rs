@@ -55,6 +55,13 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             anchor.point(),
             effects::portal_wind::PORTAL5,
         )),
+        EffectId::Halfsphere => Box::new(effects::attack_energy::HalfSphereEffect::new(anchor.point())),
+        EffectId::Attackenergy => Box::new(effects::attack_energy::AttackEnergyEffect::new(anchor.point())),
+        EffectId::Attackenergy2 => Box::new(effects::attack_energy::AttackEnergy2Effect::new(anchor.point())),
+        EffectId::BigPortal => Box::new(effects::big_portal::BigPortalEffect::new(anchor.point())),
+        EffectId::BigPortal2 => {
+            Box::new(effects::big_portal::BigPortalEffect::new_persistent(anchor.point()))
+        }
         EffectId::Stormkick => Box::new(effects::storm_kick::StormKickEffect::new(
             anchor.point(),
             effects::storm_kick::STORMKICK0,
@@ -1728,7 +1735,7 @@ mod tests {
         // pattern matters for future effects).
         effect.update(&EffectUpdateCtx {
             delta: 1.0 / 60.0,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         });
         let mut draws = EffectDrawList::new();
         effect.collect_draws(

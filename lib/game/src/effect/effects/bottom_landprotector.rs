@@ -194,7 +194,7 @@ mod tests {
     fn step(effect: &mut BottomLandProtectorEffect, dt: f32) {
         effect.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None,
+            camera_target: None, caster_yaw: None,
         });
     }
 

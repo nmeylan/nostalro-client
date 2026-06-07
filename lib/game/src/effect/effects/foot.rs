@@ -140,7 +140,7 @@ mod tests {
         let mut status = EffectStatus::Running;
         let steps = (secs * FRAMES_PER_SECOND).round() as usize;
         for _ in 0..steps {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None });
+            status = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
         }
         status
     }

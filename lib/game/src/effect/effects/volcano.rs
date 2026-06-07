@@ -263,7 +263,7 @@ mod tests {
     }
 
     fn step(effect: &mut VolcanoEffect, dt: f32) -> EffectStatus {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None })
+        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None })
     }
 
     fn frustum_fields(prim: &EffectPrimitiveDraw) -> (f32, f32, f32, &'static str) {
