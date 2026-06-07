@@ -374,6 +374,7 @@ impl Effect for WarpZoneEffect {
                 color: [tr, tg, tb, a],
                 blend: BlendKind::Additive,
                 aim_target: None,
+                no_depth: false,
             });
         }
     }

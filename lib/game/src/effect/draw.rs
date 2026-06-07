@@ -422,6 +422,11 @@ pub enum EffectPrimitiveDraw {
         /// no rotation. The renderer projects both `position` and this
         /// target to screen and rotates the sprite accordingly.
         aim_target: Option<[f32; 3]>,
+        /// When `true`, the sprite draws without the depth test,
+        /// so it renders over the floor instead of
+        /// being depth-occluded by ground geometry it sits at or below. Routes
+        /// the draw to the `AlphaNoDepth` / `AdditiveNoDepth` bucket.
+        no_depth: bool,
     },
     /// Textured quad anchored in world space by four explicit corner
     /// points (not camera-facing).

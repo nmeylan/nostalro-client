@@ -205,6 +205,7 @@ impl Effect for HasteUpEffect {
                 // out by them during the burst's bright frames.
                 blend: BlendKind::Additive,
                 aim_target: None,
+                no_depth: false,
             });
         }
     }

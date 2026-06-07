@@ -14,15 +14,15 @@ use super::effect_trait::CameraShake;
 use super::effects::{
     aciddemon, agiup, attack_energy, banjjakii, barrier, big_portal, bash, bash3d, begin_asura, begin_spell, blessing, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
     light_sphere, mapzone, rainbow,
-    bowling_bash, callzone, cartrevolution, cast_circle, chemical, cone, curseattack, defender, detecting,
-    dome_ring, dragonsmoke, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
-    firepillaron, frost_diver, fullscreen_overlay, glasswall, glasswall2, ground_sample, guard, gumgang, gumgang2, hasteup, heal, healsp, heavensdrive, hit, hit2, hit5_6, hitdark,
+    bowling_bash, callzone, cartrevolution, cast_circle, chemical, colorpaper, cone, curseattack, defender, detecting,
+    dome_ring, dragonsmoke, summon_slave, bubble_drop, cartter, ice_arrow, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
+    firepillaron, frost_diver, fullscreen_overlay, glasswall, glasswall2, gravitation, ground_sample, guard, gumgang, gumgang2, hasteup, heal, healsp, heartcasting, heavensdrive, hit, hit2, hit5_6, hitdark,
     kouenka, magnum_break, napalmbeat,
     napalmvalcan, orbit_burst, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_con, potion_pillar, providence,
     quakebody, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spearbmr, spraypond, status_up,
-    cloud_projectile, twilight, tripleattack, spherewind, pressure, stormgust, teleportation, texture_falling, throw_item, turnundead, volcano, warp, waterball, waterball2,
+    cloud_projectile, twilight, tripleattack, spherewind, pressure, stormgust, teleportation, texture_falling, throw_item, rg_coin, turnundead, volcano, warp, waterball, waterball2,
     wind, yufitel2, yupitel,
-    particle_up, peong_up, sma, stin, soul_breaker, storm_kick, m_ef02, slash, teihit, thunderstorm2,
+    particle_up, peong, peong_up, sma, stin, soul_breaker, storm_kick, m_ef02, slash, super_angel, teihit, thunderstorm2,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -70,6 +70,19 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             duration_ms: slash::TOTAL_DURATION_MS,
         },
 
+        // Stopeffect — the flat-start cross-slash variant. Its `stopeffect`
+        // str_alias would otherwise shadow this Custom factory dispatch, so
+        // it must resolve to Custom here.
+        EffectId::Stopeffect => EffectSpec::Custom {
+            duration_ms: slash::STOPEFFECT_DURATION_MS,
+        },
+
+        // SuperAngel (Angel2/Angel3) — layered SPR angel + blue ring flash. The
+        // explicit Custom arm shadows their `angel2`/`angel3` str_aliases.
+        EffectId::Angel2 | EffectId::Angel3 => EffectSpec::Custom {
+            duration_ms: super_angel::TOTAL_DURATION_MS,
+        },
+
         // Guard aura shell: the visible fade completes ~720 ms in,
         // well before the parent emitter's table duration.
         EffectId::Guard | EffectId::Guard2 | EffectId::Guard3 => EffectSpec::Custom {
@@ -86,6 +99,12 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Stormkick6
         | EffectId::Stormkick7 => EffectSpec::Custom {
             duration_ms: storm_kick::TOTAL_DURATION_MS,
+        },
+
+        // Peong — flower-pop bloom (rising motes + a starburst).
+        // Its `peong` str_alias would otherwise shadow the Custom factory dispatch.
+        EffectId::Peong => EffectSpec::Custom {
+            duration_ms: peong::TOTAL_DURATION_MS,
         },
 
         // StormKick4/5 — PeongUp rising-sparkle fountain (Kaupe / Utsusemi).
@@ -209,6 +228,29 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             duration_ms: throw_item::TOTAL_DURATION_MS,
         },
 
+        // RgCoin / RgCoin2 (Steal Coin, Full Strip, Disarm): tumbling item
+        // billboards bursting outward. The explicit Custom arm shadows their
+        // `rg_coin*` str_aliases (which would otherwise render the STR layer).
+        EffectId::RgCoin => EffectSpec::Custom { duration_ms: rg_coin::RG_COIN.total_duration_ms() },
+        EffectId::RgCoin2 => EffectSpec::Custom { duration_ms: rg_coin::RG_COIN2.total_duration_ms() },
+        EffectId::RgCoin3 => EffectSpec::Custom { duration_ms: rg_coin::RG_COIN3.total_duration_ms() },
+
+        // Intimidate (227) — the same coin swarm, longer trickle and
+        // dimmer. Explicit Custom arm shadows its `intimidate` str_alias.
+        EffectId::Intimidate => EffectSpec::Custom {
+            duration_ms: rg_coin::INTIMIDATE.total_duration_ms(),
+        },
+
+        // Tier 3 particle-trail / loop-spray effects. Each explicit Custom arm
+        // shadows the id's str_alias (215/518/665 carry one; 26 has none but
+        // still needs the arm so `bucket_default` doesn't index an empty alias
+        // slice). Durations are the visible wall-clock end, not the much
+        // longer parent emitter lifetime.
+        EffectId::Summonslave => EffectSpec::Custom { duration_ms: summon_slave::TOTAL_DURATION_MS },
+        EffectId::BubbleDrop => EffectSpec::Custom { duration_ms: bubble_drop::TOTAL_DURATION_MS },
+        EffectId::Cartter => EffectSpec::Custom { duration_ms: cartter::TOTAL_DURATION_MS },
+        EffectId::Icearrow => EffectSpec::Custom { duration_ms: ice_arrow::TOTAL_DURATION_MS },
+
         // Cloud projectiles (Tanji spheres + shield boomerangs). Route to
         // the custom factory (otherwise they fall through to their STR alias).
         // Self-terminate; the duration is a backstop.
@@ -331,6 +373,15 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Portal4 | EffectId::Portal5 => EffectSpec::Custom {
             duration_ms: portal_wind::TOTAL_DURATION_MS,
         },
+
+        // Mgdef1-4 — the magic-defense buff wind, same wind cones
+        // tinted/scaled per buff level. The explicit Custom arm shadows
+        // their `mgdef*` str_aliases.
+        EffectId::Mgdef1 | EffectId::Mgdef2 | EffectId::Mgdef3 | EffectId::Mgdef4 => {
+            EffectSpec::Custom {
+                duration_ms: portal_wind::TOTAL_DURATION_MS,
+            }
+        }
 
         // HalfSphere / AttackEnergy / AttackEnergy2 — energy shield family.
         EffectId::Halfsphere => EffectSpec::Custom {
@@ -711,6 +762,21 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Teleportation2 => EffectSpec::Custom {
             duration_ms: heal::TELEPORTATION2.total_duration_ms(),
         },
+        // Heartcasting — 20 heal-ring nodes in a heart outline. Its
+        // `heartcasting` str_alias would otherwise shadow the Custom dispatch.
+        EffectId::Heartcasting => EffectSpec::Custom {
+            duration_ms: heartcasting::TOTAL_DURATION_MS,
+        },
+        // Colorpaper — falling confetti. Its `colorpaper` str_alias would
+        // otherwise shadow the Custom dispatch.
+        EffectId::Colorpaper => EffectSpec::Custom {
+            duration_ms: colorpaper::TOTAL_DURATION_MS,
+        },
+        // Gravitation — stone/ice shard field + camera tremor. Its `gravitation`
+        // str_alias would otherwise shadow the Custom dispatch.
+        EffectId::Gravitation => EffectSpec::Custom {
+            duration_ms: gravitation::TOTAL_DURATION_MS,
+        },
         // WindBuff — persistent Map_Aura ground ring (see casting_ring::MAP_AURA).
         EffectId::WindBuff => EffectSpec::Custom {
             duration_ms: default_duration_ms(id),
@@ -787,7 +853,6 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Hyousensou
         | EffectId::Grimtooth
         | EffectId::Grimtoothatk
-        | EffectId::Magnus
         | EffectId::Grandcross
         | EffectId::Grandcross2
         // MAPPILLAR family — pure procedural rotating ring columns with no
@@ -1036,6 +1101,10 @@ mod tests {
                 file: "LevelUP",
                 ..
             })
+        ));
+        assert!(matches!(
+            effect_spec(EffectId::Magnus),
+            Some(EffectSpec::Str { file: "Magnus", .. })
         ));
     }
 

@@ -840,6 +840,7 @@ impl Effect for HitEffect {
                     color: [1.0, 1.0, 1.0, seg_alpha],
                     blend: BlendKind::Additive,
                     aim_target: None,
+                    no_depth: false,
                 });
             }
         }

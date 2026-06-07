@@ -71,6 +71,13 @@ pub struct PortalWindConfig {
     pub body_light_rgb: [u8; 3],
     /// `true` for Portal4 — plays `effect\windwalk.wav` at frame 0.
     pub play_windwalk_wav: bool,
+    /// Per-segment ribbon size. The plain wind variants keep this at 1.0;
+    /// the Mgdef variants set it to `nLevel`, so the funnel grows taller and
+    /// wider with the buff strength.
+    pub height_scale: f32,
+    /// Additive tint on the wind quads.
+    /// White for the untinted wind variants; coloured for Mgdef.
+    pub wind_color_rgb: [u8; 3],
 }
 
 pub const PORTAL4: PortalWindConfig = PortalWindConfig {
@@ -85,6 +92,8 @@ pub const PORTAL4: PortalWindConfig = PortalWindConfig {
     body_light_frames: (5, 25),
     body_light_rgb: [220, 250, 220],
     play_windwalk_wav: true,
+    height_scale: 1.0,
+    wind_color_rgb: [255, 255, 255],
 };
 
 pub const PORTAL5: PortalWindConfig = PortalWindConfig {
@@ -99,6 +108,8 @@ pub const PORTAL5: PortalWindConfig = PortalWindConfig {
     body_light_frames: (5, 65),
     body_light_rgb: [250, 250, 200],
     play_windwalk_wav: false,
+    height_scale: 1.0,
+    wind_color_rgb: [255, 255, 255],
 };
 
 /// Gust ring used by the StormKick batch. `alpha_t=2`:
@@ -119,6 +130,8 @@ pub const PORTAL_WIND2: PortalWindConfig = PortalWindConfig {
     body_light_frames: (0, -1),
     body_light_rgb: [255, 255, 255],
     play_windwalk_wav: false,
+    height_scale: 1.0,
+    wind_color_rgb: [255, 255, 255],
 };
 
 /// Tighter gust ring. `max_height = 28 - 5*ec`,
@@ -135,7 +148,43 @@ pub const PORTAL_WIND3: PortalWindConfig = PortalWindConfig {
     body_light_frames: (0, -1),
     body_light_rgb: [255, 255, 255],
     play_windwalk_wav: false,
+    height_scale: 1.0,
+    wind_color_rgb: [255, 255, 255],
 };
+
+/// The Mgdef (magic-defense buff) wind, 2022–
+/// 2025. Identical to `PORTAL4` (same `max_height`, `distance`, `alpha_t=1`,
+/// windwalk SFX, frame 5–25 body tint) except the per-segment height is
+/// `nLevel` rather than 1, so the four cones rise taller with the buff strength,
+/// and the wind is tinted by `nColor`. The body-light RGB tracks the original
+/// game per variant (note Mgdef3's body stays green while its wind is
+/// yellow — faithful to the original).
+const fn mgdef(n_level: f32, wind_rgb: [u8; 3], body_rgb: [u8; 3]) -> PortalWindConfig {
+    PortalWindConfig {
+        f1: 0,
+        alpha_t: 1,
+        duration_frames: TOTAL_FRAMES,
+        max_height_base: 5.0,
+        max_height_step: 2.0,
+        distance_base: 4.5,
+        distance_step: 0.0,
+        distance_jitter: 0.03,
+        body_light_frames: (5, 25),
+        body_light_rgb: body_rgb,
+        play_windwalk_wav: true,
+        height_scale: n_level,
+        wind_color_rgb: wind_rgb,
+    }
+}
+
+// 2022 Mgdef1 — nLevel 1, untinted white wind, pale-green body light.
+pub const MGDEF1: PortalWindConfig = mgdef(1.0, [255, 255, 255], [220, 250, 220]);
+// 2023 Mgdef2 — nLevel 2, green wind + green body (0x59C50A).
+pub const MGDEF2: PortalWindConfig = mgdef(2.0, [89, 197, 10], [89, 197, 10]);
+// 2024 Mgdef3 — nLevel 5, yellow wind (0xFFFF11), green body.
+pub const MGDEF3: PortalWindConfig = mgdef(5.0, [255, 255, 17], [89, 197, 10]);
+// 2025 Mgdef4 — nLevel 8, yellow wind + yellow body (0xFFFF11).
+pub const MGDEF4: PortalWindConfig = mgdef(8.0, [255, 255, 17], [255, 255, 17]);
 
 /// StormKick's funnel downscales the original literals to ~sprite height (see
 /// `storm_kick.rs`'s `WORLD_SCALE`); its gust rings share that factor so they
@@ -159,6 +208,8 @@ pub const BIGPORTAL_WIND: PortalWindConfig = PortalWindConfig {
     body_light_frames: (0, -1),
     body_light_rgb: [255, 255, 255],
     play_windwalk_wav: false,
+    height_scale: 1.0,
+    wind_color_rgb: [255, 255, 255],
 };
 
 /// Persistent variant for BigPortal2 (recall portal) — same ring, long life.
@@ -174,6 +225,8 @@ pub const BIGPORTAL_WIND2: PortalWindConfig = PortalWindConfig {
     body_light_frames: (0, -1),
     body_light_rgb: [255, 255, 255],
     play_windwalk_wav: false,
+    height_scale: 1.0,
+    wind_color_rgb: [255, 255, 255],
 };
 
 #[derive(Clone, Copy)]
@@ -314,13 +367,15 @@ impl Effect for PortalWindEffect {
             if alpha <= 0.0 {
                 continue;
             }
-            // Wind render: bottom y = -max_height; top y = -(Ry + max_height).
-            // height = sin(rise)*1.0 (height[i]=1 constant for the wind primitive).
-            // top_size = bottom_size + cos(rise)*1.0.
+            // Wind geometry: bottom y = -max_height; top y = -(Ry + max_height).
+            // vert = sin(rise)*h; top_size = bottom_size +
+            // cos(rise)*h. h is 1.0 for the plain wind, `nLevel`
+            // (`height_scale`) for the Mgdef variants.
             let (sin_rise, cos_rise) = s.rise_angle_deg.to_radians().sin_cos();
+            let h = self.cfg.height_scale;
             let bottom = s.distance;
-            let top = s.distance + cos_rise * 1.0;
-            let vert = sin_rise * 1.0;
+            let top = s.distance + cos_rise * h;
+            let vert = sin_rise * h;
             let base = [
                 self.world_pos[0],
                 self.world_pos[1] - s.max_height,
@@ -344,7 +399,12 @@ impl Effect for PortalWindEffect {
                 rotation_y_rad: 0.0,
                 cull_back: false,
                 texture: WIND_TEXTURE,
-                color: [1.0, 1.0, 1.0, alpha],
+                color: [
+                    self.cfg.wind_color_rgb[0] as f32 / 255.0,
+                    self.cfg.wind_color_rgb[1] as f32 / 255.0,
+                    self.cfg.wind_color_rgb[2] as f32 / 255.0,
+                    alpha,
+                ],
                 blend: BlendKind::Additive,
             });
         }
@@ -503,6 +563,52 @@ mod tests {
         for (arc, _, _) in arcs {
             assert!((arc - 180.0).abs() < 0.01, "gust arc opens to 180°, got {arc}");
         }
+    }
+
+    fn wind_geometry(prims: &[EffectPrimitiveDraw]) -> Vec<(f32, [f32; 4])> {
+        prims
+            .iter()
+            .filter_map(|p| match p {
+                EffectPrimitiveDraw::Frustum { height, color, .. } => Some((*height, *color)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn mgdef_funnel_scales_with_nlevel_and_tints_the_wind() {
+        // Four cones, like Portal4. nLevel scales the per-segment height, so
+        // Mgdef4 (nLevel 8) rises far taller than Mgdef1 (nLevel 1).
+        let mut weak = PortalWindEffect::new([0.0, 0.0, 0.0], MGDEF1);
+        let mut strong = PortalWindEffect::new([0.0, 0.0, 0.0], MGDEF4);
+        step_frames(&mut weak, 10);
+        step_frames(&mut strong, 10);
+        let weak_h = wind_geometry(&draws(&weak));
+        let strong_h = wind_geometry(&draws(&strong));
+        assert_eq!(weak_h.len(), 4);
+        assert_eq!(strong_h.len(), 4);
+        assert!(
+            strong_h[0].0 > weak_h[0].0 * 4.0,
+            "nLevel 8 funnel much taller than nLevel 1: {} vs {}",
+            strong_h[0].0,
+            weak_h[0].0
+        );
+        // Mgdef1 wind is white; Mgdef2 wind is green (R and B suppressed).
+        let mut green = PortalWindEffect::new([0.0, 0.0, 0.0], MGDEF2);
+        step_frames(&mut green, 10);
+        let g = wind_geometry(&draws(&green))[0].1;
+        assert!(g[1] > g[0] && g[1] > g[2], "green wind dominant G: {g:?}");
+        assert!((weak_h[0].1[0] - 1.0).abs() < 1e-6, "Mgdef1 wind is white");
+    }
+
+    #[test]
+    fn mgdef_body_tint_window_is_frames_5_to_25() {
+        let mut e = PortalWindEffect::new([0.0, 0.0, 0.0], MGDEF2);
+        assert!(e.body_tint().is_none(), "no tint before frame 5");
+        step_frames(&mut e, 5);
+        assert_eq!(e.body_tint().expect("tint at frame 5").rgb, [89, 197, 10]);
+        step_frames(&mut e, 21);
+        assert!(e.body_tint().is_none(), "tint ends after frame 25");
     }
 
     #[test]

@@ -394,6 +394,7 @@ impl DrainEffect {
                     color: [self.params.color[0], self.params.color[1], self.params.color[2], alpha],
                     blend: BlendKind::Additive,
                     aim_target: None,
+                    no_depth: false,
                 });
             }
         }
@@ -416,6 +417,7 @@ impl DrainEffect {
                     color: [strand.color[0], strand.color[1], strand.color[2], alpha],
                     blend: BlendKind::Additive,
                     aim_target: None,
+                    no_depth: false,
                 });
             }
         }

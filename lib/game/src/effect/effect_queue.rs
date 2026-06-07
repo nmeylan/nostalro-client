@@ -198,5 +198,8 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             // Spear Boomerang spears + Waterball2 spline both fly caster→target.
             | EffectId::Spearbmr
             | EffectId::Waterball2
+            // Ice Arrow cross-texture shards stream from the caster toward the
+            // target; the arrival ring lands on the target endpoint.
+            | EffectId::Icearrow
     )
 }

@@ -55,6 +55,22 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             anchor.point(),
             effects::portal_wind::PORTAL5,
         )),
+
+        // Mgdef1-4: the magic-defense buff wind — four wind cones rising
+        // taller with the buff level, tinted per id.
+        EffectId::Mgdef1
+        | EffectId::Mgdef2
+        | EffectId::Mgdef3
+        | EffectId::Mgdef4 => {
+            use effects::portal_wind as pw;
+            let cfg = match id {
+                EffectId::Mgdef1 => pw::MGDEF1,
+                EffectId::Mgdef2 => pw::MGDEF2,
+                EffectId::Mgdef3 => pw::MGDEF3,
+                _ => pw::MGDEF4,
+            };
+            Box::new(pw::PortalWindEffect::new(anchor.point(), cfg))
+        }
         EffectId::Halfsphere => Box::new(effects::attack_energy::HalfSphereEffect::new(anchor.point())),
         EffectId::Attackenergy => Box::new(effects::attack_energy::AttackEnergyEffect::new(anchor.point())),
         EffectId::Attackenergy2 => Box::new(effects::attack_energy::AttackEnergy2Effect::new(anchor.point())),
@@ -91,6 +107,25 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Stormkick4 | EffectId::Stormkick5 => Box::new(
             effects::peong_up::PeongUpEffect::new(anchor.point(), effects::peong_up::PEONGUP),
         ),
+        // Peong: the flower-pop bloom — `PeongUp(F1=0)` ×30 rising whitelight
+        // motes + `Peong()` ×16 starburst (peong{1,2,3}.tga), both at frame 35.
+        EffectId::Peong => Box::new(effects::peong::PeongEffect::new(anchor.point())),
+
+        // Heartcasting: a heart outline of 20 rising pink flame-rings, each a
+        // `heal.rs` Heal ring offset to its heart-outline point.
+        EffectId::Heartcasting => {
+            Box::new(effects::heartcasting::HeartcastingEffect::new(anchor.point()))
+        }
+
+        // Colorpaper: 200 tumbling confetti chips falling from overhead.
+        EffectId::Colorpaper => {
+            Box::new(effects::colorpaper::ColorpaperEffect::new(anchor.point()))
+        }
+
+        // Gravitation: a trembling field of stone/ice QuadHorn shards.
+        EffectId::Gravitation => {
+            Box::new(effects::gravitation::GravitationEffect::new(anchor.point()))
+        }
         EffectId::Readyportal => Box::new(effects::ready_portal::ReadyPortalEffect::new(anchor.point())),
         EffectId::Teleportation => Box::new(effects::teleportation::TeleportationEffect::new(anchor.point())),
         EffectId::Spraypond => Box::new(effects::spraypond::SpraypondEffect::new(anchor.point())),
@@ -480,6 +515,20 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::slash::SlashEffect::new(anchor.point(), effects::slash::KAIZEL))
         }
 
+        // Stopeffect: a cross-slash with flat-start blades and a shorter
+        // lift than Kaizel.
+        EffectId::Stopeffect => {
+            Box::new(effects::slash::SlashEffect::new(anchor.point(), effects::slash::STOPEFFECT))
+        }
+
+        // SuperAngel (Angel2/Angel3): the Super Novice/Taekwon level-up angel —
+        // layered SPR body/wings/feathers + a blue ring flash at frame 65.
+        EffectId::Angel2 | EffectId::Angel3 => {
+            use effects::super_angel as sa;
+            let params = if id == EffectId::Angel2 { sa::ANGEL2 } else { sa::ANGEL3 };
+            Box::new(sa::SuperAngelEffect::new(anchor.point(), params))
+        }
+
         // Frost Diver — trail-shaped, unpacks both endpoints. Single-point
         // anchors (effect-viewer demo, any caller that doesn't know about
         // the trail) collapse to `from == to`, which the effect detects
@@ -637,6 +686,24 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
                 _ => &[ti::THROW_COIN],
             };
             Box::new(ti::ThrowItemEffect::new(from, to, variants))
+        }
+
+        // RgCoin / RgCoin2: a swarm of tumbling item billboards bursting
+        // outward on an expanding sphere above the caster. Steal Coin (274),
+        // Full Strip (495), Disarm (627) differ only by icon set, size,
+        // tint and spin rate.
+        // Intimidate (227) reuses the same swarm (its diamonds are
+        // geometrically identical to the coins), so it's a parameter set,
+        // not a new effect.
+        EffectId::RgCoin | EffectId::RgCoin2 | EffectId::RgCoin3 | EffectId::Intimidate => {
+            use effects::rg_coin as rc;
+            let params = match id {
+                EffectId::RgCoin => rc::RG_COIN,
+                EffectId::RgCoin2 => rc::RG_COIN2,
+                EffectId::RgCoin3 => rc::RG_COIN3,
+                _ => rc::INTIMIDATE,
+            };
+            Box::new(rc::RgCoinEffect::new(anchor.point(), params))
         }
 
         // Cloud-projectile family — spinning quads that fly with a ghost
@@ -1435,6 +1502,29 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             };
             Box::new(effects::dragonsmoke::DragonsmokeEffect::new(from, to))
         }
+
+        // Summonslave (215) — radial 2DFlash burst + a frame-35 smoke puff.
+        EffectId::Summonslave => {
+            Box::new(effects::summon_slave::SummonSlaveEffect::new(anchor.point()))
+        }
+        // BubbleDrop (665) — a single falling bubble with a 3-deep echo tail.
+        EffectId::BubbleDrop => {
+            Box::new(effects::bubble_drop::BubbleDropEffect::new(anchor.point()))
+        }
+        // Cartter (518) — a white-sparkle burst that erupts at frame 30.
+        EffectId::Cartter => {
+            Box::new(effects::cartter::CartterEffect::new(anchor.point()))
+        }
+        // Icearrow (26) — cross-texture shards streaming caster→target plus an
+        // arrival ring. Trail anchor: `from` caster, `to` target.
+        EffectId::Icearrow => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::ice_arrow::IceArrowEffect::new(from, to))
+        }
+
         EffectId::Overthrust | EffectId::Sonicblow => {
             Box::new(effects::overthrust::OverthrustEffect::new(anchor.point()))
         }

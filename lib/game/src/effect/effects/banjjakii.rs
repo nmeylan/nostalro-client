@@ -80,6 +80,7 @@ impl Effect for BanjjakiiEffect {
             color: [1.0, 1.0, 1.0, 1.0],
             blend: BlendKind::Additive,
             aim_target: None,
+            no_depth: false,
         });
     }
 }

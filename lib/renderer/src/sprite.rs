@@ -84,11 +84,32 @@ pub struct SpriteUniforms {
 const INITIAL_VERTEX_CAPACITY: usize = 1024;
 const INITIAL_INDEX_CAPACITY: usize = 2048;
 
+/// Depth configuration for a sprite pipeline.
+#[derive(Clone, Copy)]
+enum SpriteDepth {
+    /// No depth-stencil attachment — for passes that bind none (UI/login).
+    None,
+    /// Depth attachment with `LessEqual` test; writes when `write` is set.
+    Test { write: bool },
+    /// Depth attachment bound but test/write disabled (`Always`, no write):
+    /// a no-depth-check sprite, so it draws over the
+    /// floor instead of being occluded by ground it sits at or below.
+    Overlay,
+}
+
 pub struct SpriteRenderer {
     pub pipeline: wgpu::RenderPipeline,
     pub pipeline_no_depth: wgpu::RenderPipeline,
     pub pipeline_additive: wgpu::RenderPipeline,
     pub pipeline_additive_no_depth: wgpu::RenderPipeline,
+    /// Sprite drawn with the depth attachment bound but the test/write
+    /// disabled (no depth check): renders over the
+    /// floor instead of being occluded by ground it sits at or below. Used by
+    /// the effect dispatch's `AlphaNoDepth` / `AdditiveNoDepth` buckets, which
+    /// run in a pass that HAS a depth attachment (so the attachment-less
+    /// `pipeline_no_depth` is format-incompatible there).
+    pub pipeline_overlay: wgpu::RenderPipeline,
+    pub pipeline_additive_overlay: wgpu::RenderPipeline,
     uniform_buffer: wgpu::Buffer,
     pub uniform_bind_group: wgpu::BindGroup,
     uniform_bind_group_layout: wgpu::BindGroupLayout,
@@ -187,8 +208,7 @@ impl SpriteRenderer {
             texture_bind_group_layout,
             shader_source,
             alpha,
-            true,
-            depth_write,
+            SpriteDepth::Test { write: depth_write },
         );
         let pipeline_no_depth = Self::create_pipeline(
             device,
@@ -197,8 +217,7 @@ impl SpriteRenderer {
             texture_bind_group_layout,
             shader_source,
             alpha,
-            false,
-            false,
+            SpriteDepth::None,
         );
         let pipeline_additive = Self::create_pipeline(
             device,
@@ -207,8 +226,7 @@ impl SpriteRenderer {
             texture_bind_group_layout,
             shader_source,
             additive,
-            true,
-            depth_write,
+            SpriteDepth::Test { write: depth_write },
         );
         let pipeline_additive_no_depth = Self::create_pipeline(
             device,
@@ -217,8 +235,25 @@ impl SpriteRenderer {
             texture_bind_group_layout,
             shader_source,
             additive,
-            false,
-            false,
+            SpriteDepth::None,
+        );
+        let pipeline_overlay = Self::create_pipeline(
+            device,
+            surface_format,
+            &uniform_bind_group_layout,
+            texture_bind_group_layout,
+            shader_source,
+            alpha,
+            SpriteDepth::Overlay,
+        );
+        let pipeline_additive_overlay = Self::create_pipeline(
+            device,
+            surface_format,
+            &uniform_bind_group_layout,
+            texture_bind_group_layout,
+            shader_source,
+            additive,
+            SpriteDepth::Overlay,
         );
 
         Self {
@@ -226,6 +261,8 @@ impl SpriteRenderer {
             pipeline_no_depth,
             pipeline_additive,
             pipeline_additive_no_depth,
+            pipeline_overlay,
+            pipeline_additive_overlay,
             uniform_buffer,
             uniform_bind_group,
             uniform_bind_group_layout,
@@ -244,8 +281,7 @@ impl SpriteRenderer {
         texture_layout: &wgpu::BindGroupLayout,
         shader_source: &str,
         blend: wgpu::BlendState,
-        use_depth: bool,
-        depth_write: bool,
+        depth: SpriteDepth,
     ) -> wgpu::RenderPipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("sprite"),
@@ -281,16 +317,22 @@ impl SpriteRenderer {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 ..Default::default()
             },
-            depth_stencil: if use_depth {
-                Some(wgpu::DepthStencilState {
+            depth_stencil: match depth {
+                SpriteDepth::None => None,
+                SpriteDepth::Test { write } => Some(wgpu::DepthStencilState {
                     format: DEPTH_FORMAT,
-                    depth_write_enabled: depth_write,
+                    depth_write_enabled: write,
                     depth_compare: wgpu::CompareFunction::LessEqual,
                     stencil: Default::default(),
                     bias: Default::default(),
-                })
-            } else {
-                None
+                }),
+                SpriteDepth::Overlay => Some(wgpu::DepthStencilState {
+                    format: DEPTH_FORMAT,
+                    depth_write_enabled: false,
+                    depth_compare: wgpu::CompareFunction::Always,
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
             },
             multisample: Default::default(),
             multiview_mask: None,
@@ -325,8 +367,7 @@ impl SpriteRenderer {
             texture_layout,
             shader_source,
             alpha,
-            true,
-            self.depth_write,
+            SpriteDepth::Test { write: self.depth_write },
         );
         self.pipeline_no_depth = Self::create_pipeline(
             device,
@@ -335,8 +376,7 @@ impl SpriteRenderer {
             texture_layout,
             shader_source,
             alpha,
-            false,
-            false,
+            SpriteDepth::None,
         );
         self.pipeline_additive = Self::create_pipeline(
             device,
@@ -345,8 +385,7 @@ impl SpriteRenderer {
             texture_layout,
             shader_source,
             additive,
-            true,
-            self.depth_write,
+            SpriteDepth::Test { write: self.depth_write },
         );
         self.pipeline_additive_no_depth = Self::create_pipeline(
             device,
@@ -355,8 +394,25 @@ impl SpriteRenderer {
             texture_layout,
             shader_source,
             additive,
-            false,
-            false,
+            SpriteDepth::None,
+        );
+        self.pipeline_overlay = Self::create_pipeline(
+            device,
+            surface_format,
+            &self.uniform_bind_group_layout,
+            texture_layout,
+            shader_source,
+            alpha,
+            SpriteDepth::Overlay,
+        );
+        self.pipeline_additive_overlay = Self::create_pipeline(
+            device,
+            surface_format,
+            &self.uniform_bind_group_layout,
+            texture_layout,
+            shader_source,
+            additive,
+            SpriteDepth::Overlay,
         );
     }
 

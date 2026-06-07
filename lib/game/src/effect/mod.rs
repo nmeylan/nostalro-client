@@ -117,6 +117,10 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::teihit::TEXTURES,
         effects::particle_up::TEXTURES,
         effects::peong_up::TEXTURES,
+        effects::peong::TEXTURES,
+        effects::heartcasting::TEXTURES,
+        effects::colorpaper::TEXTURES,
+        effects::gravitation::TEXTURES,
         effects::storm_kick::TEXTURES,
         effects::effect_texture::TEXTURES,
         effects::tarot_card::TEXTURES,
@@ -130,6 +134,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::agiup::TEXTURES,
         effects::light_sphere::TEXTURES,
         effects::throw_item::TEXTURES,
+        effects::rg_coin::TEXTURES,
         effects::cloud_projectile::TEXTURES,
         effects::twilight::TEXTURES,
         effects::pressure::TEXTURES,
@@ -141,6 +146,10 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::soul_breaker::TEXTURES,
         effects::slash::TEXTURES,
         effects::thunderstorm2::TEXTURES,
+        effects::summon_slave::TEXTURES,
+        effects::bubble_drop::TEXTURES,
+        effects::cartter::TEXTURES,
+        effects::ice_arrow::TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {
@@ -194,6 +203,9 @@ pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
         effects::spearbmr::SPRITES,
         effects::waterball2::SPRITES,
         effects::warp_zone::SPRITES,
+        effects::peong::SPRITES,
+        effects::super_angel::SPRITES,
+        effects::summon_slave::SPRITES,
     ];
     for list in sprite_lists {
         for path in *list {

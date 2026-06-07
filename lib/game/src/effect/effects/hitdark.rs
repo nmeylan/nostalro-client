@@ -197,6 +197,7 @@ impl Effect for HitDarkEffect {
                 color: [DARK_RGB, DARK_RGB, DARK_RGB, a],
                 blend: BlendKind::Alpha,
                 aim_target: None,
+                no_depth: false,
             });
         }
     }

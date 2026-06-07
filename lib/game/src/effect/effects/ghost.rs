@@ -183,6 +183,7 @@ impl Effect for GhostEffect {
                 color: [1.0, 1.0, 1.0, alpha],
                 blend: BlendKind::Alpha,
                 aim_target: None,
+                no_depth: false,
             });
         }
     }

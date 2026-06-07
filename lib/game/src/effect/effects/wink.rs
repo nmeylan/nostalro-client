@@ -95,6 +95,7 @@ impl Effect for WinkEffect {
             color: [1.0, 1.0, 1.0, 1.0],
             blend: BlendKind::Alpha,
             aim_target: None,
+            no_depth: false,
         });
     }
 }

@@ -77,6 +77,7 @@ impl Effect for SpearBmrEffect {
                 blend: BlendKind::Alpha,
                 // Point the spear along its flight toward the target.
                 aim_target: Some(self.to),
+                no_depth: false,
             });
         }
     }

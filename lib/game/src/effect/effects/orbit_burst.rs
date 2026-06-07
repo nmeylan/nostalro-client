@@ -178,6 +178,7 @@ impl OrbitParticle {
             color: [1.0, 1.0, 1.0, a],
             blend: p.blend,
             aim_target: None,
+            no_depth: false,
         });
     }
 }

@@ -178,6 +178,7 @@ impl Effect for FireballEffect {
                     color: particle.color,
                     blend: BlendKind::Additive,
                     aim_target: Some(self.to),
+                    no_depth: false,
                 });
             }
         } else {
@@ -199,6 +200,7 @@ impl Effect for FireballEffect {
                 color: [1.0, 1.0, 1.0, alpha],
                 blend: BlendKind::Additive,
                 aim_target: None,
+                no_depth: false,
             });
         }
     }

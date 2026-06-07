@@ -183,6 +183,7 @@ pub fn prepare_sprite_particle_records<'cache>(
             color,
             blend,
             aim_target,
+            no_depth,
         } = prim
         else {
             continue;
@@ -206,7 +207,11 @@ pub fn prepare_sprite_particle_records<'cache>(
         let motion = &action.motions[motion_index % motion_count];
         let sprite_scale = (ppu / 7.5) * size_scale;
         let view_depth = view_z(camera, *position);
-        let blend_bucket = BlendBucket::from_blend_kind(*blend);
+        let blend_bucket = match (BlendBucket::from_blend_kind(*blend), *no_depth) {
+            (BlendBucket::Alpha, true) => BlendBucket::AlphaNoDepth,
+            (BlendBucket::Additive, true) => BlendBucket::AdditiveNoDepth,
+            (bucket, _) => bucket,
+        };
         for clip in &motion.clips {
             let Some((mut vertices, indices, tex_idx)) =
                 build_clip_quad(clip, &sprite.textures, anchor, depth, [0, 0])

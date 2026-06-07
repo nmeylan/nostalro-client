@@ -287,9 +287,10 @@ fn pipeline_for<'a>(
     line_strip: &'a LineStripRenderer,
     fullscreen: &'a FullscreenOverlayRenderer,
 ) -> &'a wgpu::RenderPipeline {
-    // No-depth buckets currently fall through to their depth-read sibling
-    // because no callers emit them yet; once an `AlphaNoDepth` user lands
-    // we add dedicated depth-disabled pipelines here.
+    // For the sprite path the no-depth buckets route to dedicated
+    // depth-disabled overlay pipelines (see the `PipelineKind::Sprite` arm).
+    // For every other primitive they still fold into their depth-read sibling
+    // (those primitives have no no-depth caller yet).
     let additive = matches!(bucket, BlendBucket::Additive | BlendBucket::AdditiveNoDepth)
         || matches!(bucket, BlendBucket::Multiply);
     match kind {
@@ -358,9 +359,9 @@ fn pipeline_for<'a>(
         }
         PipelineKind::Sprite => match bucket {
             BlendBucket::Alpha => &sprite_renderer.pipeline,
-            BlendBucket::AlphaNoDepth => &sprite_renderer.pipeline_no_depth,
+            BlendBucket::AlphaNoDepth => &sprite_renderer.pipeline_overlay,
             BlendBucket::Additive => &sprite_renderer.pipeline_additive,
-            BlendBucket::AdditiveNoDepth => &sprite_renderer.pipeline_additive_no_depth,
+            BlendBucket::AdditiveNoDepth => &sprite_renderer.pipeline_additive_overlay,
             BlendBucket::Multiply => &sprite_renderer.pipeline,
         },
         PipelineKind::FullscreenOverlay => {

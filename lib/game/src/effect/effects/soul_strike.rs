@@ -253,6 +253,7 @@ impl Effect for SoulStrikeEffect {
                         color: [1.0, 1.0, 1.0, alpha],
                         blend: BlendKind::Additive,
                         aim_target: None,
+                        no_depth: false,
                     });
                 }
             }
@@ -274,6 +275,7 @@ impl Effect for SoulStrikeEffect {
                 color: [1.0, 1.0, 1.0, alpha],
                 blend: BlendKind::Additive,
                 aim_target: None,
+                no_depth: false,
             });
         }
     }

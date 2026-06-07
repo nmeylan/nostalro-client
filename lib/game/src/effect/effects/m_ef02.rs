@@ -87,6 +87,7 @@ impl Effect for MEf02Effect {
             color: [1.0, 1.0, 1.0, 1.0],
             blend: BlendKind::Alpha,
             aim_target: None,
+            no_depth: false,
         });
     }
 }

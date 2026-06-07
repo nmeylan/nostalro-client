@@ -262,6 +262,7 @@ impl Effect for BlessingEffect {
                 color: [1.0, 1.0, 1.0, alpha],
                 blend: BlendKind::Alpha,
                 aim_target: None,
+                no_depth: false,
             });
         }
 
@@ -281,6 +282,7 @@ impl Effect for BlessingEffect {
                 color: [1.0, 1.0, 1.0, alpha],
                 blend: BlendKind::Additive,
                 aim_target: None,
+                no_depth: false,
             });
         }
     }

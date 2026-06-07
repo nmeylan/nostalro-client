@@ -43,10 +43,10 @@ pub const SPIKES: SpikeBurstParams = SpikeBurstParams {
     count: 5,
     duration_frames: PHASE1_DURATION_FRAMES,
     angular_speed_deg_range: (1.0, 7.0),
-    length_init_range: (9.0, 12.0),
+    length_init_range: (9.0, 15.0),
     growth_range: (-0.3, -0.2),
     change_growth: None,
-    thickness: 0.6,
+    thickness: 0.3,
     max_alpha: 200.0 / 255.0,
     fade_in_frames: 10.0,
     // Fade-out starts at duration − duration/3 ≈ frame 13.

@@ -24,14 +24,16 @@ const FRAMES_PER_SECOND: f32 = 60.0;
 
 /// `magic_blue.tga` (renderer prepends `data/texture/effect/`).
 pub const TEXTURE: &str = "magic_blue.tga";
+/// `ring_blue.tga` — the SuperAngel level-up ring flash uses the same
+/// blade burst on this texture instead of `magic_blue`.
+pub const RING_BLUE: &str = "ring_blue.tga";
 
 /// Preload set (see [`crate::effect::effect_texture_paths`]).
-pub const TEXTURES: &[&str] = &[TEXTURE];
+pub const TEXTURES: &[&str] = &[TEXTURE, RING_BLUE];
 
 const RADIUS_INIT: f32 = 1.0;
 const RADIUS_PER_FRAME: f32 = 1.0;
 const DISTANCE_INIT: f32 = 2.0;
-const MAX_HEIGHT_INIT: f32 = 1.5;
 const ALPHA_PER_FRAME: f32 = 5.0;
 const ALPHA_FADE_PER_FRAME: f32 = 2.0;
 /// Inner radius beyond which the blade starts fading out (`height[0] > 10`).
@@ -55,10 +57,16 @@ pub struct SlashParams {
     pub emitter_sets: &'static [f32],
     /// Blade length growth per frame (`distance += …`).
     pub distance_per_frame: f32,
+    /// Initial `max_height` (vertical lift). Kaizel starts lifted (`1.5`);
+    /// Stopeffect starts flat (`0.0`) and grows the lift in.
+    pub max_height_init: f32,
     pub max_height_cap: f32,
     pub max_height_per_frame: f32,
     /// Frames over which alpha ramps in (+5/frame).
     pub alpha_rise_frames: f32,
+    /// Blade texture (`magic_blue.tga` for Kaizel, `ring_blue.tga` for the
+    /// SuperAngel ring flash).
+    pub texture: &'static str,
 }
 
 impl SlashParams {
@@ -81,13 +89,43 @@ impl SlashParams {
 pub const KAIZEL: SlashParams = SlashParams {
     emitter_sets: &[0.0, 45.0],
     distance_per_frame: 2.0,
+    max_height_init: 1.5,
     max_height_cap: 4.0,
     max_height_per_frame: 0.4,
     alpha_rise_frames: 7.0,
+    texture: TEXTURE,
+};
+
+/// The SuperAngel (Angel2/Angel3) level-up ring — same eight-blade burst
+/// (flag1==0) as Kaizel, on `ring_blue.tga`. Spawned at frame 65.
+pub const SUPERANGEL_RING: SlashParams = SlashParams {
+    emitter_sets: &[0.0, 45.0],
+    distance_per_frame: 2.0,
+    max_height_init: 1.5,
+    max_height_cap: 4.0,
+    max_height_per_frame: 0.4,
+    alpha_rise_frames: 7.0,
+    texture: RING_BLUE,
+};
+
+/// `EF_STOPEFFECT` — the same eight-blade star as Kaizel but the flag1==1
+/// branch — blades start flat (`max_height` 0), grow a shorter lift (cap 2,
+/// `+0.2`/frame), stretch slower (`distance +1`/frame) and ramp alpha over the
+/// first 5 frames.
+pub const STOPEFFECT: SlashParams = SlashParams {
+    emitter_sets: &[0.0, 45.0],
+    distance_per_frame: 1.0,
+    max_height_init: 0.0,
+    max_height_cap: 2.0,
+    max_height_per_frame: 0.2,
+    alpha_rise_frames: 5.0,
+    texture: TEXTURE,
 };
 
 /// Wall-clock end of the Kaizel burst (last blade fully faded).
 pub const TOTAL_DURATION_MS: u32 = 450;
+/// Wall-clock end of the Stopeffect burst (`STOPEFFECT.total_duration_ms()`).
+pub const STOPEFFECT_DURATION_MS: u32 = 359;
 
 pub struct SlashEffect {
     params: SlashParams,
@@ -107,7 +145,7 @@ impl SlashEffect {
         DISTANCE_INIT + self.params.distance_per_frame * self.age_frames
     }
     fn max_height(&self) -> f32 {
-        (MAX_HEIGHT_INIT + self.params.max_height_per_frame * self.age_frames)
+        (self.params.max_height_init + self.params.max_height_per_frame * self.age_frames)
             .min(self.params.max_height_cap)
     }
     /// The pulsing alpha value (0..peak), driving the blade alpha.
@@ -165,7 +203,7 @@ impl Effect for SlashEffect {
                         // inner-top.
                         corners: [inner_bottom, outer_bottom, outer_top, inner_top],
                         uv: [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
-                        texture: TEXTURE,
+                        texture: self.params.texture,
                         color: [1.0, 1.0, 1.0, alpha],
                         // `magic_blue.tga` is a bright spike glow on black; the
                         // reference shows it glowing additively (additive looks
@@ -250,6 +288,26 @@ mod tests {
             }
         }
         assert_eq!(status, EffectStatus::Dead);
+    }
+
+    #[test]
+    fn stopeffect_starts_flat_and_grows_lift() {
+        // Stopeffect blades start with no vertical lift (max_height 0) and grow
+        // it in, unlike Kaizel which starts lifted. Same eight-blade star.
+        let mut e = SlashEffect::new([0.0; 3], STOPEFFECT);
+        step(&mut e, 1.0);
+        let early = quad(&draws(&e)[1]).0; // middle slice, outer-top vs outer-bottom
+        let early_lift = (early[1][1] - early[2][1]).abs();
+        step(&mut e, 6.0);
+        let late = quad(&draws(&e)[1]).0;
+        let late_lift = (late[1][1] - late[2][1]).abs();
+        assert!(late_lift > early_lift, "lift grows in: {early_lift} -> {late_lift}");
+        assert_eq!(draws(&e).len(), 2 * EMITTERS_PER_SET * SLICES);
+    }
+
+    #[test]
+    fn stopeffect_duration_const_matches_computed() {
+        assert_eq!(STOPEFFECT.total_duration_ms(), STOPEFFECT_DURATION_MS);
     }
 
     #[test]
