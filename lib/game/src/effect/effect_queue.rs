@@ -48,6 +48,17 @@ impl EffectQueue {
         });
     }
 
+    /// Spawn a point effect with a count (e.g. Chookgi's 1–5 spheres,
+    /// carried by `hit_count`).
+    pub fn spawn_at_with_count(&mut self, effect_id: EffectId, world_pos: [f32; 3], hit_count: u8) {
+        self.pending.push(SpawnRequest {
+            effect_id,
+            attach: Attach::WorldPos(world_pos),
+            override_duration_ms: None,
+            hit_count: Some(hit_count),
+        });
+    }
+
     pub fn spawn_on(&mut self, effect_id: EffectId, entity_id: u32) {
         self.pending.push(SpawnRequest {
             effect_id,
@@ -117,6 +128,16 @@ pub fn body_attached(id: EffectId) -> bool {
             | EffectId::Twohandquicken
             | EffectId::Spearquicken
             | EffectId::Lkconcentration
+    )
+}
+
+/// Point (non-trail) effects whose `hit_count` carries a count the impl reads
+/// (Chookgi's 1–5 celebration spheres). Tooling spawns these via
+/// [`EffectQueue::spawn_at_with_count`].
+pub fn is_count_point_effect(id: EffectId) -> bool {
+    matches!(
+        id,
+        EffectId::Chookgi | EffectId::Chookgi2 | EffectId::Chookgi3
     )
 }
 

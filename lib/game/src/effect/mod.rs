@@ -12,7 +12,7 @@ pub mod str_aliases;
 pub mod table;
 
 pub use draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-pub use effect_queue::{EffectQueue, SpawnRequest, body_attached, is_trail_effect};
+pub use effect_queue::{EffectQueue, SpawnRequest, body_attached, is_count_point_effect, is_trail_effect};
 pub use effect_trait::{
     Afterimage, BodyTint, CameraShake, CameraView, Effect, EffectRenderCtx, EffectUpdateCtx,
 };
@@ -206,6 +206,7 @@ pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
         effects::peong::SPRITES,
         effects::super_angel::SPRITES,
         effects::summon_slave::SPRITES,
+        effects::sakura::SPRITES,
     ];
     for list in sprite_lists {
         for path in *list {

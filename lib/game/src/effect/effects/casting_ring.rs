@@ -107,6 +107,19 @@ pub const MAP_AURA: CastingRingParams = CastingRingParams {
     alpha_max: 50.0 / 255.0,
 };
 
+/// `EF_BEGINSPELL8` — green cast cylinder (`ring_green.tga`, F1=1).
+/// `ring_green.tga` is absent from the classic GRF, so we paint the shared
+/// `ring_white.tga` ray strip and tint it green (the documented texture
+/// substitution path). Same flared cone the cast circles use.
+pub const BEGINSPELL8: CastingRingParams = CastingRingParams {
+    texture: "ring_white.tga",
+    color_rgb: [0.45, 1.00, 0.55],
+    bottom_size: 2.5,
+    top_size: 7.5,
+    height: 13.0,
+    alpha_max: 0.30,
+};
+
 pub const TEXTURES: &[&str] = &["ring_blue.tga", "ring_white.tga"];
 
 pub struct CastingRingEffect {

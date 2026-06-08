@@ -421,6 +421,7 @@ impl App {
                     color: [1.0, 1.0, 1.0, 1.0],
                     blend: BlendKind::Alpha,
                     aim_target: Some(a.target_pos()),
+                    no_depth: false,
                 })
                 .collect();
             let zoom = self

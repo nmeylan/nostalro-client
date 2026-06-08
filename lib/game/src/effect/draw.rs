@@ -60,6 +60,33 @@ pub enum EffectPrimitiveDraw {
         color: [f32; 4],
         blend: BlendKind,
     },
+    /// Camera-facing textured quad whose **depth** is taken from a separate
+    /// ground anchor instead of its own (elevated) position.
+    ///
+    /// Identical to [`Billboard`] for screen placement and sizing, but the
+    /// depth used for occlusion / sorting comes from `depth_pos` (typically the
+    /// quad's position projected down onto the caster's feet plane) rather than
+    /// `pos`. A character is drawn at a single flat depth (its feet anchor), so
+    /// an orb lifted to shoulder height is *nearer* in view space than the feet
+    /// plane (the camera looks down) and would always draw over the body. By
+    /// deriving depth from where the orb stands on the ground, an orb orbiting
+    /// behind the caster sits behind the body's depth plane (occluded) while one
+    /// in front passes — reproducing the original game's behaviour where the
+    /// spheres pass behind the back and reappear in front. The renderer biases
+    /// this depth by the same world distance the entity sprite uses, so the
+    /// comparison is purely front/back.
+    ///
+    /// [`Billboard`]: EffectPrimitiveDraw::Billboard
+    BillboardDepthAnchored {
+        pos: [f32; 3],
+        depth_pos: [f32; 3],
+        size: [f32; 2],
+        uv: [[f32; 2]; 4],
+        rotation: f32,
+        texture: &'static str,
+        color: [f32; 4],
+        blend: BlendKind,
+    },
     /// Camera-facing filled disc with polar UV mapping.
     ///
     /// Like `Billboard` (anchor projected to screen, then geometry built in

@@ -269,6 +269,68 @@ pub fn project_billboard(
     Some(([sx, sy], ndc_z, ppu))
 }
 
+/// Constant world-space distance a camera-facing effect quad is nudged toward
+/// the camera so it renders over coincident ground without the depth-precision
+/// flicker a zero offset would cause.
+///
+/// A *fixed* NDC offset can't do this: perspective depth is non-linear, so a
+/// constant NDC delta is a few units near the camera but tens of world units
+/// at map-scale distances — large enough to yank a quad in front of the caster
+/// and suppress all occlusion. Converting a fixed *world* distance to NDC
+/// (`ndc_bias = near * units / clip_w²`, with `clip_w` ≈ view-space distance)
+/// keeps the nudge a constant world distance at every zoom, so the caster
+/// still occludes the back half of a body-centred ring (Chookgi) while the
+/// quad reliably beats the ground it sits on.
+pub const BILLBOARD_DEPTH_BIAS_UNITS: f32 = 1.0;
+
+/// Project like [`project_billboard`] but pull the returned depth toward the
+/// camera by [`BILLBOARD_DEPTH_BIAS_UNITS`] world units (zoom-independent).
+pub fn project_billboard_biased(
+    camera: &Camera,
+    world_pos: [f32; 3],
+    screen_w: f32,
+    screen_h: f32,
+) -> Option<([f32; 2], f32, f32)> {
+    let (sx, sy, ndc_z, clip_w) = camera.world_to_screen_with_depth(
+        world_pos[0],
+        world_pos[1],
+        world_pos[2],
+        screen_w,
+        screen_h,
+    )?;
+    let ppu = camera.perspective_scale(world_pos[0], world_pos[1], world_pos[2], screen_h);
+    let ndc_z = ndc_z - camera.near * BILLBOARD_DEPTH_BIAS_UNITS / (clip_w * clip_w);
+    Some(([sx, sy], ndc_z, ppu))
+}
+
+/// World-space depth nudge applied to entity sprites (`project_entity_screen`).
+/// A camera-facing effect quad that wants to occlude *against the body* must
+/// use the same value so the comparison is purely front/back, not biased by a
+/// mismatched nudge.
+pub const ENTITY_DEPTH_BIAS_UNITS: f32 = 4.0;
+
+/// Project a [`BillboardDepthAnchored`] quad: screen anchor / scale come from
+/// `screen_pos`, but the returned depth is computed from `depth_pos` (the
+/// quad's ground anchor) biased by [`ENTITY_DEPTH_BIAS_UNITS`] to match the
+/// entity sprite. Returns `(screen_anchor, ndc_z, ppu, view_z)`.
+///
+/// [`BillboardDepthAnchored`]: ragnarok_game::effect::EffectPrimitiveDraw::BillboardDepthAnchored
+pub fn project_billboard_depth_anchored(
+    camera: &Camera,
+    screen_pos: [f32; 3],
+    depth_pos: [f32; 3],
+    screen_w: f32,
+    screen_h: f32,
+) -> Option<([f32; 2], f32, f32, f32)> {
+    let (sx, sy, _ndc_z, _clip_w) =
+        camera.world_to_screen_with_depth(screen_pos[0], screen_pos[1], screen_pos[2], screen_w, screen_h)?;
+    let ppu = camera.perspective_scale(screen_pos[0], screen_pos[1], screen_pos[2], screen_h);
+    let (_, _, ndc_z, clip_w) =
+        camera.world_to_screen_with_depth(depth_pos[0], depth_pos[1], depth_pos[2], screen_w, screen_h)?;
+    let ndc_z = ndc_z - camera.near * ENTITY_DEPTH_BIAS_UNITS / (clip_w * clip_w);
+    Some(([sx, sy], ndc_z, ppu, view_z(camera, depth_pos)))
+}
+
 /// Per-particle data for a `SpriteEffectEmitter::Smoke3D`. `alpha_override`
 /// is set when the holder has already computed the particle's
 /// instantaneous alpha (e.g. a twinkle keyframe sawtooth); the renderer

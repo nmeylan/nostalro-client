@@ -12,7 +12,7 @@ use models::enums::effect_id::EffectId;
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effect_trait::CameraShake;
 use super::effects::{
-    aciddemon, agiup, attack_energy, banjjakii, barrier, big_portal, bash, bash3d, begin_asura, begin_spell, blessing, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
+    aciddemon, agiup, attack_energy, banjjakii, barrier, big_portal, bash, bash3d, begin_asura, begin_spell, begin_spell_8, blessing, soullink, grandcross, saintwing, chookgi, sakura, pokjuk, firstaid, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
     light_sphere, mapzone, rainbow,
     bowling_bash, callzone, cartrevolution, cast_circle, chemical, colorpaper, cone, curseattack, defender, detecting,
     dome_ring, dragonsmoke, summon_slave, bubble_drop, cartter, ice_arrow, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
@@ -807,13 +807,17 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Beginspell => EffectSpec::Custom {
             duration_ms: begin_spell::TOTAL_DURATION_MS,
         },
+        // Beginspell8 is a green casting cylinder, not the saint-casting
+        // ground ring the other Beginspell ids use.
+        EffectId::Beginspell8 => EffectSpec::Custom {
+            duration_ms: begin_spell_8::TOTAL_DURATION_MS,
+        },
         EffectId::Beginspell2
         | EffectId::Beginspell3
         | EffectId::Beginspell4
         | EffectId::Beginspell5
         | EffectId::Beginspell6
         | EffectId::Beginspell7
-        | EffectId::Beginspell8
         | EffectId::Beginspellred
         | EffectId::Beginspellwhite
         | EffectId::BeginspellN => EffectSpec::Custom {
@@ -832,6 +836,45 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Beginasura7
         | EffectId::Beginasura11 => EffectSpec::Custom {
             duration_ms: begin_asura::TOTAL_DURATION_MS,
+        },
+
+        // EF_SOULLINK — "SOUL LINK" glyph cascade + swooping soul-light
+        // billboard; reuses the asura glyph primitive, no STR file.
+        EffectId::Soullink => EffectSpec::Custom {
+            duration_ms: soullink::TOTAL_DURATION_MS,
+        },
+
+        // EF_GRANDCROSS / EF_GRANDCROSS2 — light-wall + beam cross flash. The
+        // visible swell/fade is ~110 frames, not the parent's 999.
+        EffectId::Grandcross | EffectId::Grandcross2 => EffectSpec::Custom {
+            duration_ms: grandcross::TOTAL_DURATION_MS,
+        },
+
+        // EF_SAINTWING — persistent angel-wing feather fans, no STR file.
+        EffectId::Saintwing => EffectSpec::Custom {
+            duration_ms: saintwing::TOTAL_DURATION_MS,
+        },
+
+        // EF_CHOOKGI / 2 / 3 — persistent rings of orbiting dual-quad orbs, no
+        // STR file. Variants differ in palette and orbit geometry.
+        EffectId::Chookgi | EffectId::Chookgi2 | EffectId::Chookgi3 => EffectSpec::Custom {
+            duration_ms: chookgi::TOTAL_DURATION_MS,
+        },
+
+        // EF_SAKURA — persistent drifting cherry-blossom petal rain.
+        EffectId::Sakura => EffectSpec::Custom {
+            duration_ms: sakura::TOTAL_DURATION_MS,
+        },
+
+        // EF_POKJUK — firecracker burst (one-shot; default u32::MAX is wrong).
+        EffectId::Pokjuk => EffectSpec::Custom {
+            duration_ms: pokjuk::TOTAL_DURATION_MS,
+        },
+
+        // EF_FIRSTAID — single pikapika2 heal sparkle. Explicit Custom arm
+        // wins over its `firstaid` STR alias so the factory impl runs.
+        EffectId::Firstaid => EffectSpec::Custom {
+            duration_ms: firstaid::TOTAL_DURATION_MS,
         },
 
         // --- Factory-dispatched custom effects ---
@@ -853,8 +896,6 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Hyousensou
         | EffectId::Grimtooth
         | EffectId::Grimtoothatk
-        | EffectId::Grandcross
-        | EffectId::Grandcross2
         // MAPPILLAR family — pure procedural rotating ring columns with no
         // STR file in the classic GRF; their `mappillar*` str_alias would
         // otherwise shadow the Custom factory dispatch and fail to load.
@@ -1469,11 +1510,11 @@ mod tests {
             effect_spec(EffectId::Stin),
             Some(EffectSpec::Custom { .. })
         ));
-        // Firstaid is in is_custom_bucket with no factory arm but keeps its
-        // STR alias (its first-aid impl is deferred) → Str, not Custom.
+        // Firstaid now has an explicit Custom arm (its firstaid sparkle is
+        // implemented) that wins over its STR alias.
         assert!(matches!(
             effect_spec(EffectId::Firstaid),
-            Some(EffectSpec::Str { file: "firstaid", .. })
+            Some(EffectSpec::Custom { .. })
         ));
     }
 }

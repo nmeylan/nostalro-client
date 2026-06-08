@@ -1149,6 +1149,12 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             anchor.point(),
             effects::cast_circle::POISON,
         )),
+        // Beginspell8: green casting cylinder (no `ring_green.tga` in the
+        // classic GRF → `ring_white` tinted green). Three flared casting
+        // rings (reused) + a tall central light shaft.
+        EffectId::Beginspell8 => {
+            Box::new(effects::begin_spell_8::BeginSpell8Effect::new(anchor.point()))
+        }
         EffectId::Beginspellred => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
             effects::cast_circle::RED,
@@ -1195,6 +1201,50 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Beginasura11 => Box::new(effects::begin_asura::BeginAsuraEffect::champion(
             anchor.point(),
         )),
+
+        // Soullink: "SOUL LINK" glyph cascade + swooping soul-light billboard.
+        EffectId::Soullink => Box::new(effects::soullink::SoullinkEffect::new(anchor.point())),
+
+        // Grandcross: four corner light-walls + two perpendicular beam slabs.
+        // 226 = white/yellow, 450 = all-black shadow variant.
+        EffectId::Grandcross => Box::new(effects::grandcross::GrandcrossEffect::new(
+            anchor.point(),
+            effects::grandcross::GRANDCROSS,
+        )),
+        EffectId::Grandcross2 => Box::new(effects::grandcross::GrandcrossEffect::new(
+            anchor.point(),
+            effects::grandcross::GRANDCROSS2,
+        )),
+
+        // Saintwing: angel-wing feather fans behind the caster.
+        EffectId::Saintwing => Box::new(effects::saintwing::SaintwingEffect::new(anchor.point())),
+
+        // Chookgi family: 1–5 orbiting dual-quad orbs (count from the packet,
+        // carried by `hit_count`). Each variant differs in palette AND orbit.
+        EffectId::Chookgi => Box::new(effects::chookgi::ChookgiEffect::new(
+            anchor.point(),
+            effects::chookgi::CHOOKGI,
+            hit_count.map_or(effects::chookgi::MAX_ORBS, |c| c as usize),
+        )),
+        EffectId::Chookgi2 => Box::new(effects::chookgi::ChookgiEffect::new(
+            anchor.point(),
+            effects::chookgi::CHOOKGI2,
+            hit_count.map_or(effects::chookgi::MAX_ORBS, |c| c as usize),
+        )),
+        EffectId::Chookgi3 => Box::new(effects::chookgi::ChookgiEffect::new(
+            anchor.point(),
+            effects::chookgi::CHOOKGI3,
+            hit_count.map_or(effects::chookgi::MAX_ORBS, |c| c as usize),
+        )),
+
+        // Sakura: drifting cherry-blossom petal rain.
+        EffectId::Sakura => Box::new(effects::sakura::SakuraEffect::new(anchor.point())),
+
+        // Pokjuk: firecracker — staggered colored sparks burst overhead.
+        EffectId::Pokjuk => Box::new(effects::pokjuk::PokjukEffect::new(anchor.point())),
+
+        // Firstaid: single pulsing pikapika2 heal sparkle above the caster.
+        EffectId::Firstaid => Box::new(effects::firstaid::FirstaidEffect::new(anchor.point())),
 
         // Animated texture billboard — 13-frame .bmp texture cycle on a
         // camera-facing billboard. Three colour variants share the

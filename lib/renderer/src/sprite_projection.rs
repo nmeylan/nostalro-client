@@ -21,7 +21,8 @@ pub fn project_entity_screen(
 
     let (sx, sy, ndc_z_raw, clip_w) =
         camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h)?;
-    let ndc_z = ndc_z_raw - camera.near * 4.0 / (clip_w * clip_w);
+    let ndc_z = ndc_z_raw
+        - camera.near * crate::effect_sprite::ENTITY_DEPTH_BIAS_UNITS / (clip_w * clip_w);
 
     let depth_gradient = camera
         .world_to_screen_with_depth(wx, wy - 1.0, wz, screen_w, screen_h)

@@ -31,8 +31,8 @@ use models::enums::EnumWithStringValue;
 use models::enums::effect_id::EffectId;
 use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
-    Attach, EffectQueue, EffectSpec, effect_spec, effect_texture_paths, is_trail_effect,
-    str_aliases,
+    EffectQueue, EffectSpec, effect_spec, effect_texture_paths, is_count_point_effect,
+    is_trail_effect, str_aliases,
 };
 
 use crate::sprite_viewer::browser::SpriteBrowser;
@@ -859,6 +859,9 @@ impl App {
             } else {
                 self.effect_queue.spawn_trail(effect_id, world, to);
             }
+        } else if is_count_point_effect(effect_id) {
+            self.effect_queue
+                .spawn_at_with_count(effect_id, world, self.demo_hit_count);
         } else {
             self.effect_queue.spawn_at(effect_id, world);
         }
@@ -1064,6 +1067,9 @@ impl App {
             } else {
                 self.effect_queue.spawn_trail(effect_id, origin, to);
             }
+        } else if is_count_point_effect(effect_id) {
+            self.effect_queue
+                .spawn_at_with_count(effect_id, [0.0, 0.0, 0.0], self.demo_hit_count);
         } else {
             self.effect_queue.spawn_at(effect_id, [0.0, 0.0, 0.0]);
         }

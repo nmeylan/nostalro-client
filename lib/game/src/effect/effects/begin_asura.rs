@@ -103,6 +103,29 @@ pub const TEXTURES: &[&str] = &[
     "hanmoon6.tga",
     "hanmoon7.tga",
     "ring_white.tga",
+    "soul_s.tga",
+    "soul_o.tga",
+    "soul_u.tga",
+    "soul_l.tga",
+    "soul_i.tga",
+    "soul_n.tga",
+    "soul_k.tga",
+];
+
+/// `EF_SOULLINK` spells **SOUL LINK** with the `soul_*`
+/// glyphs (no saint rings): two billboard passes, "SOUL" at
+/// frame 1 then "LINK" at frame 21, each letter staggered 20 frames.
+/// `(texture, x-offset, start-delay frames)` — `distance = 5.0`.
+const SOUL_LINK_DISTANCE: f32 = 5.0;
+const SOUL_LINK_GLYPHS: [(&str, f32, f32); 8] = [
+    ("soul_s.tga", -22.0, 1.0),
+    ("soul_o.tga", -16.0, 21.0),
+    ("soul_u.tga", -10.0, 41.0),
+    ("soul_l.tga", -4.0, 61.0),
+    ("soul_l.tga", 4.0, 81.0),
+    ("soul_i.tga", 10.0, 101.0),
+    ("soul_n.tga", 16.0, 121.0),
+    ("soul_k.tga", 22.0, 141.0),
 ];
 
 const PHRASE_DISTANCE: f32 = 18.0;
@@ -233,6 +256,20 @@ impl BeginAsuraEffect {
     /// Champion cast `EF_BEGINASURA11` — larger glyphs (`asura11..16`).
     pub fn champion(anchor: [f32; 3]) -> Self {
         Self::phrase(anchor, &PHRASE_CHAMPION, CHAMPION_DISTANCE, &CHAMPION_X)
+    }
+
+    /// `EF_SOULLINK` — the "SOUL LINK" glyph cascade, no
+    /// saint rings.
+    pub fn soul_link(anchor: [f32; 3]) -> Self {
+        let glyphs = SOUL_LINK_GLYPHS
+            .iter()
+            .map(|(tex, x, delay)| Glyph::new(tex, *x, SOUL_LINK_DISTANCE, *delay))
+            .collect();
+        Self {
+            center: anchor,
+            rings: None,
+            glyphs,
+        }
     }
 
     fn phrase(anchor: [f32; 3], textures: &[&'static str; 6], distance: f32, xs: &[f32; 6]) -> Self {
