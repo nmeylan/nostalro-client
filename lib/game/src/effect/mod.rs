@@ -211,6 +211,7 @@ pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
         effects::super_angel::SPRITES,
         effects::summon_slave::SPRITES,
         effects::sakura::SPRITES,
+        effects::bottom_song::SPRITES,
     ];
     for list in sprite_lists {
         for path in *list {

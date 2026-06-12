@@ -1,163 +1,231 @@
 //! BottomSong family — Bard/Dancer song icons hovering above the actor.
 //!
-//! Original game dispatcher Bottom_Music(texture, F1) builds a bottom-song primitive
-//! primitive with one active cell: a textured quad floating above
-//! 6 units above the actor's feet, rendered upright via
-//! the cloud render. The visible cue is the song icon (music note, apple,
-//! kiss, etc.) above the bard.
+//! Each song is one camera-facing cloud quad with one active cell,
+//! animated per frame. The behaviour:
 //!
-//! Faithful to original game `Bottom_Music()` per-variant choices:
-//!   * **Texture pools** — F1=2 picks per-spawn from melody_a/b, F1=5
-//!     from red/blue/yellow gemstone, F1=8 from spell_01..08. The
-//!     spawn-time choice is hashed from the world position so it's
-//!     stable for the song's lifetime.
-//!   * **flag1[2] render mode** — the cloud render switches blend+tint on
-//!     this flag (set per F1 in `Bottom_Music`): default 0 = additive
-//!     white, 3 = alpha-blend gold (200/200/100), 4 = additive white,
-//!     7 = alpha-blend white, 9 with flag1[3]=6 = alpha-blend white.
-//!   * **Vertical bob** — `height[8]` (sin-oscillation amount)
-//!     is 0 in original game for these songs, but the bob is kept here per
-//!     direct user request: slow ~4 s cycle, ±1 unit world.
+//!   * **Size** — the quad's 4 corners sit at radius
+//!     `Rx = distance + sin(pulse) * distance * 0.05` and 90° apart, so
+//!     `distance` is the corner-radius (half-diagonal); the on-screen edge is
+//!     `distance * √2`. There is **no** separate size term and **no** orbit —
+//!     the corners *are* the quad. `distance` per F1: 1 → 5, 4 → 15, 6 → 8,
+//!     9 → 1.5, else → 3. The pulse phase advances 5°/frame → a ±5% size pulse.
+//!   * **Bob** — icon Y `= (pos.y - 6) + 3 * sin(phase)` with the phase
+//!     `= random(360)` at spawn, advancing `+1`/frame → ±3-unit vertical
+//!     bob on a 6-second cycle.
+//!   * **Rotation** — fixed at 45° (axis-aligned) and is static
+//!     except F1=7 (RingNibelungen), which spins it `+= 10`/frame.
+//!   * **Echo** — only F1=2 (Drumbattlefield) activates 3 extra cells;
+//!     they shift every 6 frames to a steady state of 4
+//!     concentric copies at `distance + 0.5*i` and alpha `200 - 50*i`
+//!     (a faint expanding ripple). Other songs use cell 0 only.
+//!   * **Blend + tint** — the blend mode and tint are chosen per F1:
+//!     some songs draw **additive** (the texture adds onto the scene,
+//!     brightening) and some draw **alpha** (the texture composites over
+//!     the scene),
+//!     with an `(r,g,b)` tint multiplied into the texture. The set per F1:
+//!       - F1 0/1/2/4/8 → additive, tint (130,130,250) light-blue
+//!       - F1 3 (Richmankim) → additive, tint (200,200,100) gold
+//!       - F1 5/6 (Intoabyss/EvilLand/AppleIdun) → alpha, white
+//!       - F1 7 (RingNibelungen) → additive, white
+//!       - F1 9 (Gospel) → additive, white
+//!   * **Texture pools** — F1=2 picks per-spawn from melody_a/b, F1=8 from
+//!     spell_01..08 (a random pick); reproduced here as a
+//!     position-hashed pick so the song's texture is stable for its lifetime.
+//!   * **Gemstone sprites (F1=5, Intoabyss)** — there is no `gemstone.bmp`;
+//!     a random pick selects an actual gemstone **item sprite** (715 yellow /
+//!     716 red / 717 blue, resolved via `idnum2itemresnametable.txt`),
+//!     rendered as a `SpriteParticle` rather than a textured quad.
+//!   * **F1=4 nudge** — FortuneKiss shifts the corners +4 on
+//!     world X (the icon sits slightly off-centre).
 //!
-//! `GI[1..3]` trail cells (F1=2's three extras with `alpha_b=0`) and
-//! the F1=4 horizontal nudge `height[9]=10` (4-unit X offset on corners)
-//! are dropped — the trail cells render invisible in the cloud render pass
-//! anyway, and the F1=4 nudge is sub-pixel for a 30-unit quad.
-//!
-//! Dispatch-shape kin (`Bottom_Magnus` → 4-sided pillar via `Frustum`
-//! lives in `bottom_magnus.rs`; `Bottom_Vertical`, `Bottom_Light`,
-//! `Bottom_LandProtector`, `Bottom_Hermode`, `Bottom_Spr`, `Bottom_Out`)
-//! use distinct primitives (bottom2, gi5, …) and need new
-//! `EffectPrimitiveDraw` variants — deferred to follow-up sessions.
+//! Sibling song families (`Bottom_Vertical`, `Bottom_Light`, `Bottom_Out`,
+//! `Bottom_Magnus`, …) use distinct primitives and live in sibling files.
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effect::spec::Attach;
 
-/// Per-variant BottomSong parameters. Each EF_BOTTOM_* maps to one
-/// [`BottomSongParams`] derived from the original game's `Bottom_Music()`
-/// recipe.
+/// Per-variant BottomSong parameters.
 #[derive(Clone, Copy, Debug)]
 pub struct BottomSongParams {
-    /// Per-spawn texture pool. Length-1 slices behave as a static
-    /// texture; longer slices pick one entry per spawn (hashed from
-    /// world_pos) — matches original game's `random(N)` selection for F1=2/5/8.
+    /// Per-spawn texture pool for the Billboard `.bmp` icon path. Length-1
+    /// slices behave as a static texture; longer slices pick one per spawn
+    /// (hashed from world_pos) — the random pick for
+    /// F1=2/8. Empty when `sprites` is used instead.
     pub textures: &'static [&'static str],
-    /// Billboard half-extent in world units (full width = `2 * radius`).
-    /// Derived from the original game's first orbit distance: F1=1 → 5.0,
-    /// F1=4 → 15.0, F1=6 → 8.0, F1=9 → 1.5,
-    /// default (0/2/3/5/7/8) → 3.0.
-    pub radius: f32,
-    /// Blend mode picked from the cloud render pass's first rect-render
-    /// switch arg — `0` in original game = alpha blend, `1` = additive.
+    /// Per-spawn SPR pool for the sprite-particle path. Non-empty only for
+    /// Intoabyss (F1=5), which randomly picks a gemstone **item sprite**
+    /// (715/716/717), not a texture — the classic client renders the actual
+    /// gemstone item SPR, there is no `gemstone.bmp`.
+    pub sprites: &'static [&'static str],
+    /// The quad's corner-radius (half-diagonal)
+    /// in world units. The on-screen edge length is `distance * √2`.
+    pub distance: f32,
+    /// Blend mode: additive or alpha. See module docs.
     pub blend: BlendKind,
-    /// RGB tint (0..1). Alpha is driven by the fade-in envelope, not
-    /// this field. Per the cloud flag1[2] dispatch:
-    /// default/4/7 = (1, 1, 1); case 3 (Richmankim) = (200, 200, 100)/255.
+    /// RGB tint (0..1) that multiplies the texture. Alpha comes from the
+    /// per-cell base alpha and the fade-in envelope, not this field.
     pub tint_rgb: [f32; 3],
+    /// F1=7 (RingNibelungen): the icon spins (rotation `+= 10`/frame).
+    pub spin: bool,
+    /// Active echo cells. 1 for every song except F1=2 (Drumbattlefield), which
+    /// runs 4 concentric expanding/fading copies.
+    pub cells: u8,
+    /// F1=4 (FortuneKiss): icon nudged +4 on world X.
+    pub x_nudge: f32,
 }
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// Original game ramps alpha from 0 to 200 over ~(200 / alpha speed)
-/// frames; we approximate the visible fade-in with 30 frames (0.5 s),
-/// matching the cadence of the gif references.
+/// The original game does not ramp the song's alpha (it spawns at 200), but a
+/// short fade-in reads better against the abrupt pop and matches the gif
+/// cadence; kept as a gentle 0.5 s envelope.
 const FADE_IN_FRAMES: f32 = 30.0;
 const FADE_IN_SECS: f32 = FADE_IN_FRAMES / FRAMES_PER_SECOND;
-/// Original game first vertex-color alpha = 200 for every Bottom_Music variant.
-const BASE_ALPHA: f32 = 200.0 / 255.0;
-/// The icon floats 6 units above the actor’s feet — above the
-/// actor's feet (native RO `-Y` = up).
+/// Cell-0 base alpha (out of 255); trail cells fall 50 each.
+const ALPHA_B0: f32 = 200.0;
+/// Icon Y `= pos.y - 6.0` — icon floats 6 units above the feet
+/// (native RO `-Y` = up).
 const VERTICAL_OFFSET: f32 = -6.0;
-/// Vertical bob amplitude (world units). The original game's
-/// `GI[0].height[8]` controls a sin-oscillation amount that's 0 in
-/// `Bottom_Music`; we add a small hand-tuned wobble anyway because the
-/// reference gifs show perceptible motion.
-const BOB_AMPLITUDE: f32 = 1.0;
-/// Vertical bob frequency in rad/s. ~1.5 Hz → one full cycle per
-/// ~4 seconds, slow enough to read as breathing rather than vibrating.
-const BOB_FREQ_RAD_PER_SEC: f32 = std::f32::consts::TAU * 0.25;
-/// Standard UV layout: full texture from (0,0) top-left to (1,1)
-/// bottom-right, matching the Billboard primitive's `uv[TL, TR, BL, BR]`
-/// corner order.
+/// Icon Y `+= 3.0 * sin(phase)` — ±3-unit vertical bob.
+const BOB_AMPLITUDE: f32 = 3.0;
+/// Bob phase `+= 1`/frame → one bob cycle per 360 frames (6 s).
+const BOB_SPEED_DEG_PER_FRAME: f32 = 1.0;
+/// Pulse phase `+= 5`/frame → the ±5% size pulse phase.
+const PULSE_SPEED_DEG_PER_FRAME: f32 = 5.0;
+/// `Rx += sin(pulse) * distance * 0.05` — pulse amplitude.
+const PULSE_AMPLITUDE: f32 = 0.05;
+/// F1=7 rotation `+= 10`/frame.
+const SPIN_SPEED_DEG_PER_FRAME: f32 = 10.0;
+/// distance is the corner-radius; on-screen edge = `distance * √2`.
+const EDGE_PER_DISTANCE: f32 = std::f32::consts::SQRT_2;
+/// Standard UV layout for the Billboard `uv[TL, TR, BL, BR]` corner order.
 const FULL_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 
 const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
-/// Richmankim's flag1[2]=3 case: textured rect tinted `(200, 200, 100)`.
+/// Light-blue tint (130, 130, 250) used by most songs.
+const LIGHT_BLUE: [f32; 3] = [130.0 / 255.0, 130.0 / 255.0, 250.0 / 255.0];
+/// Richmankim gold tint (200, 200, 100).
 const RICHMAN_GOLD: [f32; 3] = [200.0 / 255.0, 200.0 / 255.0, 100.0 / 255.0];
 
-/// `Bottom_Music("cross_old.bmp", 9)` — F1=9: flag1[2]=9, flag1[3]=6 →
-/// alpha-blended white textured rect (alpha blend, white).
-/// distance = 1.5.
+/// Intoabyss gemstone **item sprites** (a random pick over 715/716/717), looked
+/// up via `idnum2itemresnametable.txt` → Korean resource names under
+/// `data/sprite/아이템/`. Rendered as `SpriteParticle` (no `.bmp` exists).
+pub const GEMSTONE_SPRITES: &[&str] = &[
+    "data/sprite/아이템/옐로우젬스톤", // 715 yellow
+    "data/sprite/아이템/레드젬스톤",   // 716 red
+    "data/sprite/아이템/블루젬스톤",   // 717 blue
+];
+/// SPR paths any BottomSong variant might bind (preloaded via
+/// `custom_effect_sprite_paths`).
+pub const SPRITES: &[&str] = GEMSTONE_SPRITES;
+/// Native-size multiplier for the gemstone item sprite (icon-sized).
+const GEMSTONE_SIZE: f32 = 1.0;
+
+/// `cross_old.bmp`, F1=9 (Gospel) → additive
+/// white, distance 1.5.
 pub const GOSPEL: BottomSongParams = BottomSongParams {
     textures: &["cross_old.bmp"],
-    radius: 1.5,
-    blend: BlendKind::Alpha,
+    distance: 1.5,
+    blend: BlendKind::Additive,
     tint_rgb: WHITE,
+    spin: false,
+    cells: 1,
+    x_nudge: 0.0,
+    sprites: &[],
 };
-/// `Bottom_Music("curse.bmp", 6)` — F1=6: flag1[2]=4 → additive white.
-/// distance = 8.0.
+/// `curse.bmp`, F1=6 → alpha white, distance 8.
 pub const EVILLAND: BottomSongParams = BottomSongParams {
     textures: &["curse.bmp"],
-    radius: 8.0,
-    blend: BlendKind::Additive,
+    distance: 8.0,
+    blend: BlendKind::Alpha,
     tint_rgb: WHITE,
+    spin: false,
+    cells: 1,
+    x_nudge: 0.0,
+    sprites: &[],
 };
-/// `Bottom_Music("kiss.bmp", 4)` — F1=4 hits the default flag1[2]=0 case
-/// (no explicit set in `Bottom_Music` for F1=4). distance = 15.0.
+/// `kiss.bmp`, F1=4 → additive light-blue,
+/// distance 15, +4 X-nudge.
 pub const FORTUNEKISS: BottomSongParams = BottomSongParams {
     textures: &["kiss.bmp"],
-    radius: 15.0,
+    distance: 15.0,
     blend: BlendKind::Additive,
-    tint_rgb: WHITE,
+    tint_rgb: LIGHT_BLUE,
+    spin: false,
+    cells: 1,
+    x_nudge: 4.0,
+    sprites: &[],
 };
-/// `Bottom_Music("zz.bmp", 1)` — F1=1 hits the default case.
-/// distance = 5.0.
+/// `zz.bmp`, F1=1 → additive light-blue, distance 5.
 pub const LULLABY: BottomSongParams = BottomSongParams {
     textures: &["zz.bmp"],
-    radius: 5.0,
+    distance: 5.0,
     blend: BlendKind::Additive,
-    tint_rgb: WHITE,
+    tint_rgb: LIGHT_BLUE,
+    spin: false,
+    cells: 1,
+    x_nudge: 0.0,
+    sprites: &[],
 };
-/// `Bottom_Music("pocket.bmp", 3)` — F1=3: flag1[2]=3 → alpha blend
-/// with gold tint (200, 200, 100).
+/// `pocket.bmp`, F1=3 → additive gold, distance 3.
 pub const RICHMANKIM: BottomSongParams = BottomSongParams {
     textures: &["pocket.bmp"],
-    radius: 3.0,
-    blend: BlendKind::Alpha,
+    distance: 3.0,
+    blend: BlendKind::Additive,
     tint_rgb: RICHMAN_GOLD,
+    spin: false,
+    cells: 1,
+    x_nudge: 0.0,
+    sprites: &[],
 };
-/// `Bottom_Music("", 2)` — F1=2 picks `melody_a`/`melody_b` per spawn
-/// (`random(2)` in original game). Default flag1[2]=0.
+/// F1=2 — picks melody_a/b per spawn; additive
+/// light-blue; 4 concentric echo cells.
 pub const DRUMBATTLEFIELD: BottomSongParams = BottomSongParams {
     textures: &["melody_a.bmp", "melody_b.bmp"],
-    radius: 3.0,
+    distance: 3.0,
     blend: BlendKind::Additive,
-    tint_rgb: WHITE,
+    tint_rgb: LIGHT_BLUE,
+    spin: false,
+    cells: 4,
+    x_nudge: 0.0,
+    sprites: &[],
 };
-/// `Bottom_Music("twirl.bmp", 7)` — F1=7: flag1[2]=7 → alpha blend white.
+/// `twirl.bmp`, F1=7 → additive white; spins.
 pub const RINGNIBELUNGEN: BottomSongParams = BottomSongParams {
     textures: &["twirl.bmp"],
-    radius: 3.0,
+    distance: 3.0,
+    blend: BlendKind::Additive,
+    tint_rgb: WHITE,
+    spin: true,
+    cells: 1,
+    x_nudge: 0.0,
+    sprites: &[],
+};
+/// F1=5 — a random pick selects a gemstone **item sprite**
+/// (715 yellow / 716 red / 717 blue), rendered as a `SpriteParticle`; the
+/// classic client has no `gemstone.bmp`. Alpha white, distance 3.
+pub const INTOABYSS: BottomSongParams = BottomSongParams {
+    textures: &[],
+    distance: 3.0,
     blend: BlendKind::Alpha,
     tint_rgb: WHITE,
+    spin: false,
+    cells: 1,
+    x_nudge: 0.0,
+    sprites: GEMSTONE_SPRITES,
 };
-/// `Bottom_Music("", 5)` — F1=5 picks red/blue/yellow gemstone per
-/// spawn (`random(3)`). flag1[2]=4 → additive white.
-pub const INTOABYSS: BottomSongParams = BottomSongParams {
-    textures: &["redgemstone.bmp", "bluegemstone.bmp", "yellowgemstone.bmp"],
-    radius: 3.0,
-    blend: BlendKind::Additive,
-    tint_rgb: WHITE,
-};
-/// `Bottom_Music("melody_b.bmp")` — F1 defaults to 0, flag1[2]=0.
+/// `melody_b.bmp`, F1=0 → additive light-blue, distance 3.
 pub const WHISTLE: BottomSongParams = BottomSongParams {
     textures: &["melody_b.bmp"],
-    radius: 3.0,
+    distance: 3.0,
     blend: BlendKind::Additive,
-    tint_rgb: WHITE,
+    tint_rgb: LIGHT_BLUE,
+    spin: false,
+    cells: 1,
+    x_nudge: 0.0,
+    sprites: &[],
 };
-/// `Bottom_Music("", 8)` — F1=8 picks spell_01..08 per spawn
-/// (`random(8)`). Default flag1[2]=0.
+/// F1=8 — picks spell_01..08 per spawn;
+/// additive light-blue, distance 3.
 pub const POEMBRAGI: BottomSongParams = BottomSongParams {
     textures: &[
         "spell_01.bmp",
@@ -169,23 +237,35 @@ pub const POEMBRAGI: BottomSongParams = BottomSongParams {
         "spell_07.bmp",
         "spell_08.bmp",
     ],
-    radius: 3.0,
+    distance: 3.0,
     blend: BlendKind::Additive,
-    tint_rgb: WHITE,
+    tint_rgb: LIGHT_BLUE,
+    spin: false,
+    cells: 1,
+    x_nudge: 0.0,
+    sprites: &[],
 };
-/// `Bottom_Music("idun_apple.bmp", 6)` — F1=6: flag1[2]=4 → additive white.
+/// `idun_apple.bmp`, F1=6 → alpha white, distance 8.
 pub const APPLEIDUN: BottomSongParams = BottomSongParams {
     textures: &["idun_apple.bmp"],
-    radius: 8.0,
-    blend: BlendKind::Additive,
+    distance: 8.0,
+    blend: BlendKind::Alpha,
     tint_rgb: WHITE,
+    spin: false,
+    cells: 1,
+    x_nudge: 0.0,
+    sprites: &[],
 };
-/// `Bottom_Music("melody_a.bmp")` — F1 defaults to 0.
+/// `melody_a.bmp`, F1=0 → additive light-blue, distance 3.
 pub const HUMMING: BottomSongParams = BottomSongParams {
     textures: &["melody_a.bmp"],
-    radius: 3.0,
+    distance: 3.0,
     blend: BlendKind::Additive,
-    tint_rgb: WHITE,
+    tint_rgb: LIGHT_BLUE,
+    spin: false,
+    cells: 1,
+    x_nudge: 0.0,
+    sprites: &[],
 };
 
 /// All textures any BottomSong variant might bind. Pool members listed
@@ -199,9 +279,6 @@ pub const TEXTURES: &[&str] = &[
     "melody_a.bmp",
     "melody_b.bmp",
     "twirl.bmp",
-    "redgemstone.bmp",
-    "bluegemstone.bmp",
-    "yellowgemstone.bmp",
     "idun_apple.bmp",
     "spell_01.bmp",
     "spell_02.bmp",
@@ -217,35 +294,38 @@ pub struct BottomSongEffect {
     world_pos: [f32; 3],
     params: BottomSongParams,
     age: f32,
-    /// Spawn-time phase offset for the vertical bob, derived from the
-    /// world position so stacked songs don't oscillate in lockstep.
-    /// Stored in radians.
-    bob_phase: f32,
-    /// Pool-selected texture for this spawn. original game's
-    /// `random(N)` for F1=2/5/8 is reproduced here as a position-hashed
-    /// pick — same spawn → same texture, different spawns → variety.
+    /// Bob phase `= random(360)` at spawn (degrees) — the bob's initial phase,
+    /// hashed from world_pos so stacked songs don't bob in lockstep.
+    rot_start_deg: f32,
+    /// Pool-selected texture for the Billboard path (a position-hashed
+    /// random pick). Unused when `sprite` is `Some`.
     texture: &'static str,
+    /// Pool-selected gemstone item SPR for the sprite path (Intoabyss only).
+    /// `Some` switches `collect_draws` to a `SpriteParticle`.
+    sprite: Option<&'static str>,
 }
 
 impl BottomSongEffect {
     pub fn new(world_pos: [f32; 3], params: BottomSongParams) -> Self {
-        let bob_phase = pseudo_random_angle(&world_pos);
-        // Hash the spawn position to pick a texture from the pool. We
-        // can't trust `params.textures` to be non-empty if a caller
-        // forgets to populate it, but the catch keeps us from
-        // panicking — fall back to a stable placeholder.
+        let rot_start_deg = (position_hash(&world_pos) % 360) as f32;
+        let idx = pseudo_random_index(&world_pos);
+        let sprite = if params.sprites.is_empty() {
+            None
+        } else {
+            Some(params.sprites[idx % params.sprites.len()])
+        };
         let texture = if params.textures.is_empty() {
             "alpha_center.tga"
         } else {
-            let idx = (pseudo_random_index(&world_pos)) % params.textures.len();
-            params.textures[idx]
+            params.textures[idx % params.textures.len()]
         };
         Self {
             world_pos,
             params,
             age: 0.0,
-            bob_phase,
+            rot_start_deg,
             texture,
+            sprite,
         }
     }
 }
@@ -253,47 +333,73 @@ impl BottomSongEffect {
 impl Effect for BottomSongEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.age += ctx.delta;
-        // BottomSong durations are minutes long; the holder kills us when
-        // the spec's `duration_ms` expires, so we never self-terminate.
+        // BottomSong durations are minutes long; the holder kills us when the
+        // spec's `duration_ms` expires, so we never self-terminate.
         EffectStatus::Running
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let fade = (self.age / FADE_IN_SECS).clamp(0.0, 1.0);
-        let alpha = BASE_ALPHA * fade;
-        let side = self.params.radius * 2.0;
-        let bob = (self.age * BOB_FREQ_RAD_PER_SEC + self.bob_phase).sin()
-            * BOB_AMPLITUDE;
+        let frames = self.age * FRAMES_PER_SECOND;
+
+        let bob = BOB_AMPLITUDE
+            * (self.rot_start_deg + BOB_SPEED_DEG_PER_FRAME * frames)
+                .to_radians()
+                .sin();
+        let pulse =
+            1.0 + PULSE_AMPLITUDE * (PULSE_SPEED_DEG_PER_FRAME * frames).to_radians().sin();
+        let rotation = if self.params.spin {
+            (SPIN_SPEED_DEG_PER_FRAME * frames).to_radians()
+        } else {
+            0.0
+        };
+
+        let pos = [
+            self.world_pos[0] + self.params.x_nudge,
+            self.world_pos[1] + VERTICAL_OFFSET + bob,
+            self.world_pos[2],
+        ];
         let [tr, tg, tb] = self.params.tint_rgb;
-        out.push(EffectPrimitiveDraw::Billboard {
-            pos: [
-                self.world_pos[0],
-                self.world_pos[1] + VERTICAL_OFFSET + bob,
-                self.world_pos[2],
-            ],
-            size: [side, side],
-            uv: FULL_UV,
-            // Always upright on screen — the camera-facing billboard
-            // gives the icon its viewing angle, and any screen-space
-            // roll here would flip the apple / music notes.
-            rotation: 0.0,
-            texture: self.texture,
-            color: [tr, tg, tb, alpha],
-            blend: self.params.blend,
-        });
+
+        // Intoabyss renders the gemstone item SPR, not a texture billboard.
+        if let Some(sprite_path) = self.sprite {
+            let alpha = (ALPHA_B0 / 255.0) * fade;
+            out.push(EffectPrimitiveDraw::SpriteParticle {
+                sprite_path,
+                position: pos,
+                action_index: 0,
+                motion_index: 0,
+                size_scale: GEMSTONE_SIZE * pulse,
+                color: [tr, tg, tb, alpha],
+                blend: self.params.blend,
+                aim_target: None,
+                no_depth: false,
+            });
+            return;
+        }
+
+        // Steady-state echo: cell i sits at distance + 0.5*i, alpha - 50*i.
+        // Drawn far→near so the brightest copy lands on top.
+        for i in (0..self.params.cells.max(1)).rev() {
+            let i_f = i as f32;
+            let rx = (self.params.distance + 0.5 * i_f) * pulse;
+            let side = rx * EDGE_PER_DISTANCE;
+            let alpha = ((ALPHA_B0 - 50.0 * i_f).max(0.0) / 255.0) * fade;
+            out.push(EffectPrimitiveDraw::Billboard {
+                pos,
+                size: [side, side],
+                uv: FULL_UV,
+                rotation,
+                texture: self.texture,
+                color: [tr, tg, tb, alpha],
+                blend: self.params.blend,
+            });
+        }
     }
 }
 
-/// Deterministic-but-varied angle in [0, 2π). Hashing the spawn position
-/// gives nearby spawns visibly different rotations without bringing in a
-/// dependency on `rand`.
-fn pseudo_random_angle(pos: &[f32; 3]) -> f32 {
-    let n = (position_hash(pos) % 360) as f32;
-    n.to_radians()
-}
-
-/// Pool-index hash — same shape as [`pseudo_random_angle`] but returns a
-/// raw integer so callers can take it modulo their pool size.
+/// Pool-index hash — same shape as the bob seed but returns the raw integer
+/// so callers can take it modulo their pool size.
 fn pseudo_random_index(pos: &[f32; 3]) -> usize {
     position_hash(pos) as usize
 }
@@ -332,142 +438,182 @@ mod tests {
     }
 
     #[test]
-    fn bottom_song_emits_one_upright_billboard_per_frame() {
-        // Sociable test: a freshly-spawned BottomSong yields a Billboard
-        // primitive (camera-facing quad), not a flat GroundDisc. The
-        // billboard sits ~6 units above the actor's feet (native RO
-        // `-Y` = up) so the icon hovers, matching `imgs/250-300/284.gif`.
-        // X/Z stay locked to the actor; Y is `VERTICAL_OFFSET + bob` so
-        // it lands within ±BOB_AMPLITUDE of the baseline.
+    fn bottom_song_emits_one_corner_radius_billboard() {
+        // Sociable test: a freshly-spawned single-cell song yields one
+        // camera-facing Billboard above the actor. The on-screen edge is
+        // `distance * √2` (the corner-radius geometry), not the old
+        // `distance * 2`, and the icon hovers ~6 units up (native RO -Y = up)
+        // within the ±3-unit bob band.
         let mut e = BottomSongEffect::new([5.0, 0.0, 7.0], WHISTLE);
         step(&mut e, 1.0 / 60.0);
         let prims = draws(&e);
         assert_eq!(prims.len(), 1);
         match &prims[0] {
-            EffectPrimitiveDraw::Billboard {
-                pos,
-                size,
-                texture,
-                blend,
-                ..
-            } => {
+            EffectPrimitiveDraw::Billboard { pos, size, texture, blend, .. } => {
                 assert_eq!(pos[0], 5.0);
                 assert_eq!(pos[2], 7.0);
-                let y_min = VERTICAL_OFFSET - BOB_AMPLITUDE - 1e-3;
-                let y_max = VERTICAL_OFFSET + BOB_AMPLITUDE + 1e-3;
+                let y_min = VERTICAL_OFFSET - BOB_AMPLITUDE - 1e-2;
+                let y_max = VERTICAL_OFFSET + BOB_AMPLITUDE + 1e-2;
+                assert!(pos[1] >= y_min && pos[1] <= y_max, "icon Y {} in bob band", pos[1]);
+                let expected = WHISTLE.distance * EDGE_PER_DISTANCE;
                 assert!(
-                    pos[1] >= y_min && pos[1] <= y_max,
-                    "icon Y ({}) within bob band [{y_min}, {y_max}]",
-                    pos[1],
+                    (size[0] - expected).abs() < WHISTLE.distance * 0.1,
+                    "edge {} ≈ distance*√2 ({expected})",
+                    size[0],
                 );
-                assert!((size[0] - WHISTLE.radius * 2.0).abs() < f32::EPSILON);
                 assert_eq!(*texture, "melody_b.bmp");
-                assert_eq!(*blend, BlendKind::Additive, "Whistle is F1=0 default → additive");
+                assert_eq!(*blend, BlendKind::Additive, "F1=0 flag1[2]=2 → additive");
             }
             other => panic!("expected Billboard, got {other:?}"),
         }
     }
 
     #[test]
-    fn richmankim_uses_alpha_blend_with_gold_tint() {
-        // Regression: original game's cloud render flag1[2]=3 picks alpha blend
-        // with RGB tint (200, 200, 100). Earlier impl forced every
-        // BottomSong to BlendKind::Alpha + white — Richmankim looked
-        // identical to every other song.
+    fn richmankim_is_additive_with_gold_tint() {
+        // Regression: Richmankim draws additive with RGB (200,200,100).
+        // An earlier impl had the blend mode inverted (alpha) and is
+        // corrected here.
         let mut e = BottomSongEffect::new([0.0, 0.0, 0.0], RICHMANKIM);
         step(&mut e, FADE_IN_SECS);
         match &draws(&e)[0] {
             EffectPrimitiveDraw::Billboard { color, blend, .. } => {
-                assert_eq!(*blend, BlendKind::Alpha);
-                assert!((color[0] - RICHMAN_GOLD[0]).abs() < 1e-4, "R tint: {}", color[0]);
-                assert!((color[1] - RICHMAN_GOLD[1]).abs() < 1e-4, "G tint: {}", color[1]);
-                assert!((color[2] - RICHMAN_GOLD[2]).abs() < 1e-4, "B tint: {}", color[2]);
+                assert_eq!(*blend, BlendKind::Additive);
+                assert!((color[0] - RICHMAN_GOLD[0]).abs() < 1e-4, "R {}", color[0]);
+                assert!((color[1] - RICHMAN_GOLD[1]).abs() < 1e-4, "G {}", color[1]);
+                assert!((color[2] - RICHMAN_GOLD[2]).abs() < 1e-4, "B {}", color[2]);
             }
             other => panic!("expected Billboard, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn drumbattlefield_emits_four_concentric_fading_cells() {
+        // F1=2 activates 3 extra cells: a steady-state ripple of 4 copies at
+        // distance + 0.5*i and alpha 200/150/100/50. Drawn far→near so the
+        // brightest is on top; each successive copy is larger and dimmer.
+        let mut e = BottomSongEffect::new([0.0, 0.0, 0.0], DRUMBATTLEFIELD);
+        step(&mut e, FADE_IN_SECS);
+        let prims = draws(&e);
+        assert_eq!(prims.len(), 4, "Drumbattlefield = 4 echo cells");
+        // Drawn far→near: across the list alpha rises and size shrinks, so the
+        // brightest, smallest cell lands on top.
+        let (mut prev_a, mut prev_sz) = (f32::NEG_INFINITY, f32::INFINITY);
+        for p in &prims {
+            let EffectPrimitiveDraw::Billboard { color, size, blend, .. } = p else {
+                panic!("expected Billboard, got {p:?}");
+            };
+            assert_eq!(*blend, BlendKind::Additive);
+            assert!(color[3] >= prev_a - 1e-4, "alpha rises far→near");
+            assert!(size[0] <= prev_sz + 1e-4, "size shrinks far→near");
+            prev_a = color[3];
+            prev_sz = size[0];
         }
     }
 
     #[test]
     fn poembragi_pool_picks_one_of_eight_spell_bmps() {
-        // Sociable test: F1=8 in original game does `random(8)` over spell_01..08.
-        // Our deterministic per-spawn hash must select one of those
-        // eight, and different world positions must visibly cover
-        // multiple options (not always the same one). Spawning at 32
-        // distinct positions and collecting the set proves coverage.
+        // F1=8 does `random(8)` over spell_01..08; our deterministic per-spawn
+        // hash must select one of those eight and cover several across spawns.
         use std::collections::HashSet;
         let mut chosen = HashSet::new();
         for i in 0..32 {
             let pos = [i as f32 * 1.7, 0.0, i as f32 * 2.3];
-            let e = BottomSongEffect::new(pos, POEMBRAGI);
-            chosen.insert(e.texture);
+            chosen.insert(BottomSongEffect::new(pos, POEMBRAGI).texture);
         }
         for tex in chosen.iter() {
-            assert!(
-                POEMBRAGI.textures.contains(tex),
-                "picked texture {tex} not in pool",
-            );
+            assert!(POEMBRAGI.textures.contains(tex), "picked {tex} not in pool");
         }
-        assert!(
-            chosen.len() >= 4,
-            "expected ≥4 distinct spell_* textures across 32 spawns, got {}",
-            chosen.len(),
-        );
+        assert!(chosen.len() >= 4, "expected ≥4 distinct, got {}", chosen.len());
     }
 
     #[test]
-    fn bottom_song_vertical_bob_moves_icon_over_time() {
-        // Sociable test: sampling the icon Y across one bob cycle
-        // (~4 seconds) yields both a peak above and a trough below the
-        // baseline VERTICAL_OFFSET. Confirms the wobble plumbing is live
-        // — without it the icon would sit static and read as broken.
+    fn intoabyss_emits_a_gemstone_item_sprite_not_a_texture() {
+        // F1=5 has no `gemstone.bmp`; `random(3)` picks an actual gemstone item
+        // SPR (715/716/717). The draw must be a SpriteParticle bound to one of
+        // the three 아이템 gemstone sprites, alpha-blended, hovering above the
+        // actor — never a Billboard. Several positions cover >1 of the three.
+        use std::collections::HashSet;
+        let mut chosen = HashSet::new();
+        for i in 0..24 {
+            let pos = [i as f32 * 1.3, 0.0, i as f32 * 2.9];
+            let mut e = BottomSongEffect::new(pos, INTOABYSS);
+            step(&mut e, FADE_IN_SECS);
+            match &draws(&e)[0] {
+                EffectPrimitiveDraw::SpriteParticle { sprite_path, blend, position, .. } => {
+                    assert!(GEMSTONE_SPRITES.contains(sprite_path), "{sprite_path} not a gem");
+                    assert_eq!(*blend, BlendKind::Alpha, "F1=5 flag1[2]=4 → alpha");
+                    assert!((position[1] - VERTICAL_OFFSET).abs() <= BOB_AMPLITUDE + 1e-2);
+                    chosen.insert(*sprite_path);
+                }
+                other => panic!("expected SpriteParticle, got {other:?}"),
+            }
+        }
+        assert!(chosen.len() >= 2, "expected ≥2 distinct gems, got {}", chosen.len());
+    }
+
+    #[test]
+    fn bottom_song_bob_covers_full_vertical_range_over_a_cycle() {
+        // Sampling the icon Y across one full 6-second bob cycle yields both a
+        // peak above and a trough below the baseline, with a spread of ~2×
+        // amplitude — proves the `3*sin(phase)` bob plumbing is live.
         let mut e = BottomSongEffect::new([0.0, 0.0, 0.0], HUMMING);
-        let mut min_y: f32 = f32::INFINITY;
-        let mut max_y: f32 = f32::NEG_INFINITY;
-        for _ in 0..240 {
+        let mut min_y = f32::INFINITY;
+        let mut max_y = f32::NEG_INFINITY;
+        for _ in 0..360 {
             step(&mut e, 1.0 / 60.0);
             if let EffectPrimitiveDraw::Billboard { pos, .. } = &draws(&e)[0] {
                 min_y = min_y.min(pos[1]);
                 max_y = max_y.max(pos[1]);
             }
         }
-        assert!(min_y < VERTICAL_OFFSET, "saw a trough: min_y={min_y}");
-        assert!(max_y > VERTICAL_OFFSET, "saw a peak: max_y={max_y}");
-        assert!(
-            (max_y - min_y) > BOB_AMPLITUDE,
-            "spread over the 4 s window should exceed amplitude ({})",
-            BOB_AMPLITUDE,
-        );
+        assert!(min_y < VERTICAL_OFFSET, "saw a trough: {min_y}");
+        assert!(max_y > VERTICAL_OFFSET, "saw a peak: {max_y}");
+        assert!((max_y - min_y) > BOB_AMPLITUDE, "spread {} > amplitude", max_y - min_y);
+    }
+
+    #[test]
+    fn ringnibelungen_spins_over_time() {
+        // F1=7 advances rotation 10°/frame → the Billboard rotation
+        // grows from 0. A non-spinning song stays at rotation 0.
+        let mut spin = BottomSongEffect::new([0.0, 0.0, 0.0], RINGNIBELUNGEN);
+        let mut still = BottomSongEffect::new([0.0, 0.0, 0.0], WHISTLE);
+        step(&mut spin, 0.5);
+        step(&mut still, 0.5);
+        let spin_rot = match &draws(&spin)[0] {
+            EffectPrimitiveDraw::Billboard { rotation, .. } => *rotation,
+            _ => unreachable!(),
+        };
+        let still_rot = match &draws(&still)[0] {
+            EffectPrimitiveDraw::Billboard { rotation, .. } => *rotation,
+            _ => unreachable!(),
+        };
+        assert!(spin_rot.abs() > 0.1, "RingNibelungen spins: {spin_rot}");
+        assert_eq!(still_rot, 0.0, "Whistle is static");
     }
 
     #[test]
     fn bottom_song_alpha_fades_in_then_holds() {
-        // Sociable test: spawn → step into the fade window, then well past
-        // it, and check alpha climbs from 0 to BASE_ALPHA.
+        // Spawn → step into the fade window, then past it; alpha climbs from 0
+        // to cell-0 base alpha (200/255).
         let mut e = BottomSongEffect::new([0.0, 0.0, 0.0], LULLABY);
         step(&mut e, 0.0);
+        let full = ALPHA_B0 / 255.0;
         let a0 = match &draws(&e)[0] {
             EffectPrimitiveDraw::Billboard { color, .. } => color[3],
             _ => unreachable!(),
         };
-        assert!(a0.abs() < 1e-4, "starts fully transparent at spawn");
-
-        // Mid fade-in (~0.25 s).
+        assert!(a0.abs() < 1e-4, "starts transparent");
         step(&mut e, FADE_IN_SECS * 0.5);
         let a_mid = match &draws(&e)[0] {
             EffectPrimitiveDraw::Billboard { color, .. } => color[3],
             _ => unreachable!(),
         };
-        assert!(a_mid > a0 && a_mid < BASE_ALPHA, "rising: {a_mid}");
-
-        // Past the fade-in window — clamped at BASE_ALPHA.
+        assert!(a_mid > a0 && a_mid < full, "rising: {a_mid}");
         step(&mut e, FADE_IN_SECS);
         let a_full = match &draws(&e)[0] {
             EffectPrimitiveDraw::Billboard { color, .. } => color[3],
             _ => unreachable!(),
         };
-        assert!(
-            (a_full - BASE_ALPHA).abs() < 1e-4,
-            "held at BASE_ALPHA: {a_full}",
-        );
+        assert!((a_full - full).abs() < 1e-4, "held at alphaB: {a_full}");
     }
 }

@@ -7,10 +7,11 @@
 //! quad.
 //!
 //! Setup (F1=0 path, the only one EF_BOTTOM_ROKISWEIL uses):
-//!   * 2 alive cells (ec=0,1).
-//!   * Per-cell `distance = 5 + random(6)` ∈ [5, 11), frozen at spawn —
-//!     this is the billboard half-size.
-//!   * Per-cell `process = random(11)` ∈ [0, 11) — initial pulse-cycle
+//!   * 2 alive cells.
+//!   * Per-cell `radius = 5 + random(6)` ∈ [5, 11), frozen at spawn —
+//!     the quad's corner-radius (half-diagonal); on-screen edge =
+//!     `radius * √2`.
+//!   * Per-cell `phase = random(11)` ∈ [0, 11) — initial pulse-cycle
 //!     phase offset so the two cells aren't in lock-step.
 //!   * Both cells centered on the actor's feet (actor XZ, at the
 //!     actor's Y level).
@@ -67,8 +68,9 @@ pub struct BottomOutEffect {
     params: BottomOutParams,
     age: f32,
     frames: u32,
-    /// Per-cell billboard half-size (= `distance` in original game). Each cell
-    /// gets an independent random in [5, 11) at spawn.
+    /// Per-cell corner-radius (half-diagonal of the quad). Each cell gets
+    /// an independent random in [5, 11) at spawn; on-screen edge is
+    /// `radius * √2`.
     cell_sizes: [f32; CELL_COUNT],
     /// Per-cell pulse-cycle phase offset, frozen at spawn
     /// (`random(11)`).
@@ -135,7 +137,9 @@ impl Effect for BottomOutEffect {
             if st.alpha <= 0.0 {
                 continue;
             }
-            let side = self.cell_sizes[cell] * 2.0;
+            // The stored value is the corner-radius (half-diagonal), so
+            // the on-screen edge is `radius * √2` — not `radius * 2`.
+            let side = self.cell_sizes[cell] * std::f32::consts::SQRT_2;
             out.push(EffectPrimitiveDraw::Billboard {
                 pos: [
                     self.world_pos[0],
@@ -236,9 +240,9 @@ mod tests {
             // Centered on the actor XZ
             assert!((pos[0] - 12.0).abs() < 1e-3);
             assert!((pos[2] - 34.0).abs() < 1e-3);
-            // Half-size 5..11 → side 10..22
+            // radius 5..11 (corner-radius) → edge = radius*√2 ≈ 7.07..15.56
             assert!(
-                (10.0..=22.0).contains(&size[0]) && size[0] == size[1],
+                (7.0..=15.6).contains(&size[0]) && size[0] == size[1],
                 "size out of band: {:?}",
                 size
             );
