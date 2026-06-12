@@ -7,11 +7,13 @@
 //! size 0.75) whose head rises while a swirl spins it around a
 //! vertical axis; the 12 trailing history points draw the braid.
 //!
-//! The math integrates a gravity/latitude-speed head with roll; the net
-//! visible result is the vertical helix the gif shows, so we drive the head
-//! directly as a rise-then-sink (gravity speed) with a constant-radius swirl
-//! (lateral speed). The strand renders at the impact point and never depends on a
-//! caster→target distance, so it always shows regardless of the anchor.
+//! The original integrates a rising/swirling head with roll while the
+//! head also travels horizontally at `radius / duration` along the
+//! caster→target line. The net visible result is a braided column
+//! that flies from the caster to the target while swirling and arcing, so we drive
+//! the head as a horizontal caster→target travel (mirroring `waterball.rs`) plus a
+//! rise-then-sink and a constant-radius swirl. Spawned
+//! without trail data (`from == to`) it forms in place and swirls without moving.
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -35,7 +37,7 @@ const SPIN_DEG_PER_FRAME: f32 = 52.0;
 pub const TOTAL_DURATION_MS: u32 =
     ((DURATION_FRAMES + NUM_SEGMENT as u32) as f32 / FRAMES_PER_SECOND * 1000.0) as u32;
 
-/// Head offset from the base at a given (head) frame.
+/// Swirl + rise/sink offset from the travelling base at a given (head) frame.
 fn head_offset(frame: f32) -> [f32; 3] {
     let t = (frame / DURATION_FRAMES as f32).clamp(0.0, 1.0);
     // Rise up then sink back (native RO: up = −Y).
@@ -46,22 +48,49 @@ fn head_offset(frame: f32) -> [f32; 3] {
 }
 
 pub struct WaterBall2Effect {
-    base: [f32; 3],
-    /// History of head offsets (index 0 = newest).
+    from: [f32; 3],
+    /// Per-frame horizontal velocity carrying the head from caster to target.
+    vel: [f32; 3],
+    /// History of absolute world head positions (index 0 = newest), so the
+    /// braid trails behind the moving head instead of riding a fixed base.
     segments: [[f32; 3]; NUM_SEGMENT],
     head_frame: u32,
     effect_frame: u32,
 }
 
 impl WaterBall2Effect {
-    pub fn new(_from: [f32; 3], to: [f32; 3]) -> Self {
-        // Forms at the impact point.
-        Self {
-            base: to,
-            segments: [head_offset(0.0); NUM_SEGMENT],
+    pub fn new(from: [f32; 3], to: [f32; 3]) -> Self {
+        let dx = to[0] - from[0];
+        let dz = to[2] - from[2];
+        let dist = (dx * dx + dz * dz).sqrt();
+        // Speed = radius / duration: cover the full horizontal
+        // span across the strand's `DURATION_FRAMES` flight.
+        let vel = if dist > 0.001 {
+            [dx / DURATION_FRAMES as f32, 0.0, dz / DURATION_FRAMES as f32]
+        } else {
+            [0.0; 3]
+        };
+        let mut effect = Self {
+            from,
+            vel,
+            segments: [[0.0; 3]; NUM_SEGMENT],
             head_frame: 0,
             effect_frame: 0,
-        }
+        };
+        effect.segments = [effect.head_world(0); NUM_SEGMENT];
+        effect
+    }
+
+    /// Absolute world position of the head at a given frame: caster→target
+    /// horizontal travel plus the swirl/rise-sink offset.
+    fn head_world(&self, frame: u32) -> [f32; 3] {
+        let f = frame as f32;
+        let off = head_offset(f);
+        [
+            self.from[0] + self.vel[0] * f + off[0],
+            self.from[1] + off[1],
+            self.from[2] + self.vel[2] * f + off[2],
+        ]
     }
 
     /// Trailing segments currently drawn: fills up, then drains from the tail.
@@ -80,13 +109,9 @@ impl WaterBall2Effect {
             for i in (1..NUM_SEGMENT).rev() {
                 self.segments[i] = self.segments[i - 1];
             }
-            self.segments[0] = head_offset(self.head_frame as f32);
+            self.segments[0] = self.head_world(self.head_frame);
         }
         self.effect_frame += 1;
-    }
-
-    fn world(&self, off: [f32; 3]) -> [f32; 3] {
-        [self.base[0] + off[0], self.base[1] + off[1], self.base[2] + off[2]]
     }
 }
 
@@ -115,7 +140,7 @@ impl Effect for WaterBall2Effect {
             let size = RENDER_SIZE * (1.0 - fi / (2.0 * fn_seg));
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: SPRITE,
-                position: self.world(self.segments[i]),
+                position: self.segments[i],
                 action_index: 0,
                 motion_index: motion,
                 size_scale: size,
@@ -155,17 +180,32 @@ mod tests {
             .collect()
     }
 
+    fn head_xz(e: &WaterBall2Effect) -> [f32; 2] {
+        [e.segments[0][0], e.segments[0][2]]
+    }
+
     #[test]
-    fn fills_to_twelve_segments_at_impact_point() {
-        let mut e = WaterBall2Effect::new([0.0; 3], [4.0, 0.0, 6.0]);
-        step(&mut e, 15);
-        let s = segs(&e);
-        assert_eq!(s.len(), NUM_SEGMENT);
-        // Renders around the given impact point, not at the origin.
-        if let EffectPrimitiveDraw::SpriteParticle { position, .. } = s[NUM_SEGMENT - 1] {
-            assert!((position[0] - 4.0).abs() < SWIRL_RADIUS + 1e-3);
-            assert!((position[2] - 6.0).abs() < SWIRL_RADIUS + 1e-3);
-        }
+    fn head_travels_horizontally_from_caster_toward_target() {
+        let mut e = WaterBall2Effect::new([0.0; 3], [40.0, 0.0, 60.0]);
+        step(&mut e, 5);
+        let early = head_xz(&e);
+        step(&mut e, 20);
+        let late = head_xz(&e);
+        // Head advances along the caster→target line (swirl radius is tiny
+        // next to the travelled span, so the trend is unambiguous).
+        assert!(late[0] > early[0], "advances along +X: {early:?} → {late:?}");
+        assert!(late[1] > early[1], "advances along +Z: {early:?} → {late:?}");
+        assert_eq!(segs(&e).len(), NUM_SEGMENT, "strand fills to 12 segments");
+    }
+
+    #[test]
+    fn static_when_no_trail_data() {
+        let mut e = WaterBall2Effect::new([3.0, 0.0, 7.0], [3.0, 0.0, 7.0]);
+        step(&mut e, 10);
+        // With from == to the head only swirls around the spawn point.
+        let [x, z] = head_xz(&e);
+        assert!((x - 3.0).abs() <= SWIRL_RADIUS + 1e-3);
+        assert!((z - 7.0).abs() <= SWIRL_RADIUS + 1e-3);
     }
 
     #[test]

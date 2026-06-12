@@ -8,7 +8,7 @@
 //! sprite faces along travel. Successive spears are launched
 //! at decreasing alpha (255 / 180 / 130 / 80) for a trailing-barrage look.
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
+use crate::effect::draw::{aim_backward, BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const SPEAR_SPRITE: &str = "data/sprite/이팩트/창";
@@ -67,16 +67,19 @@ impl Effect for SpearBmrEffect {
                 continue;
             }
             let motion = (local / ANIM_FRAMES_PER_MOTION) as usize;
+            let pos = self.spear_pos(local);
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: SPEAR_SPRITE,
-                position: self.spear_pos(local),
+                position: pos,
                 action_index: 0,
                 motion_index: motion,
                 size_scale: SPEAR_SIZE,
                 color: [1.0, 1.0, 1.0, ALPHAS[i]],
                 blend: BlendKind::Alpha,
-                // Point the spear along its flight toward the target.
-                aim_target: Some(self.to),
+                // Spear SPR points opposite the arrow convention, so the shared
+                // screen-space aim lands 180° off. Aim at the mirrored point to
+                // add the half-turn.
+                aim_target: Some(aim_backward(pos, self.to)),
                 no_depth: false,
             });
         }

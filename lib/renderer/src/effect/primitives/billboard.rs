@@ -41,14 +41,18 @@ pub fn prepare_billboard_records<'tex>(
             blend,
         } = prim
         {
-            let Some((anchor, ndc_z, ppu)) =
-                project_billboard_biased(camera, *pos, screen_w, screen_h)
+            let Some((anchor, _ndc_z, ppu)) =
+                project_billboard(camera, *pos, screen_w, screen_h)
             else {
                 continue;
             };
             let r = radius * ppu;
             let n = (*segments).max(8);
-            let z = ndc_z;
+            // Pin vertices at the near plane — a 2D overlay that
+            // ignores 3D depth — so the filled disc
+            // isn't clipped by the ground when its centre sits at or below the
+            // floor (the "swallowed by floor" halos). Matches `BillboardRing`.
+            let z = 0.0;
             let mut vertices: Vec<SpriteVertex> = Vec::with_capacity(n as usize + 2);
             vertices.push(SpriteVertex {
                 position: [anchor[0], anchor[1], z],
@@ -193,6 +197,59 @@ pub fn prepare_billboard_records<'tex>(
                 .collect();
             records.push(DrawRecord::new(
                 view_depth,
+                emission as u32,
+                BlendBucket::from_blend_kind(*blend),
+                PipelineKind::Sprite,
+                vertices,
+                vec![0, 1, 2, 1, 3, 2],
+                texture_bg,
+            ));
+            continue;
+        }
+
+        // Flash: same as Billboard but a near-plane 2D overlay that ignores
+        // 3D depth, so entity-centred flash rays aren't clipped by the ground.
+        if let EffectPrimitiveDraw::BillboardFlash {
+            pos,
+            size,
+            uv,
+            rotation,
+            texture,
+            color,
+            blend,
+        } = prim
+        {
+            let Some((anchor, _ndc_z, ppu)) =
+                project_billboard(camera, *pos, screen_w, screen_h)
+            else {
+                continue;
+            };
+            let half_w = size[0] * ppu * 0.5;
+            let half_h = size[1] * ppu * 0.5;
+            let (sin_r, cos_r) = rotation.sin_cos();
+            let rotate = |dx: f32, dy: f32| -> [f32; 2] {
+                [
+                    anchor[0] + dx * cos_r - dy * sin_r,
+                    anchor[1] + dx * sin_r + dy * cos_r,
+                ]
+            };
+            let corners = [
+                (rotate(-half_w, -half_h), uv[0]),
+                (rotate(half_w, -half_h), uv[1]),
+                (rotate(-half_w, half_h), uv[2]),
+                (rotate(half_w, half_h), uv[3]),
+            ];
+            let texture_bg = texture_lookup(texture).unwrap_or(fallback_texture);
+            let vertices = corners
+                .iter()
+                .map(|(p, t)| SpriteVertex {
+                    position: [p[0], p[1], 0.0],
+                    tex_coord: *t,
+                    color: *color,
+                })
+                .collect();
+            records.push(DrawRecord::new(
+                super::super::queue::view_z(camera, *pos),
                 emission as u32,
                 BlendBucket::from_blend_kind(*blend),
                 PipelineKind::Sprite,

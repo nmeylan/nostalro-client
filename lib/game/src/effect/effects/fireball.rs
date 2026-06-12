@@ -9,7 +9,7 @@
 //! When spawned without trail data (`from == to`), falls back to a single
 //! expanding sprite at the spawn point (viewer / single-point callers).
 
-use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
+use crate::effect::draw::{aim_backward, BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const FIREBALL_SPRITE: &str = "data/sprite/이팩트/fireball";
@@ -168,16 +168,17 @@ impl Effect for FireballEffect {
                 let pos = particle.current_pos(self.age);
                 let age_ms = particle.age(self.age) * 1000.0;
                 let motion = (age_ms / PARTICLE_FRAME_MS) as usize;
+                let render_pos = [pos[0], pos[1] - 1.5, pos[2]];
 
                 out.push(EffectPrimitiveDraw::SpriteParticle {
                     sprite_path: FIREBALL_SPRITE,
-                    position: [pos[0], pos[1] - 1.5, pos[2]],
+                    position: render_pos,
                     action_index: 0,
                     motion_index: motion,
                     size_scale: SPRITE_SIZE,
                     color: particle.color,
                     blend: BlendKind::Additive,
-                    aim_target: Some(self.to),
+                    aim_target: Some(aim_backward(render_pos, self.to)),
                     no_depth: false,
                 });
             }
@@ -280,6 +281,33 @@ mod tests {
             _ => panic!("expected SpriteParticle"),
         };
         assert!(z2 > z1, "particle moved toward +Z target: {z1} -> {z2}");
+    }
+
+    #[test]
+    fn trail_sprite_aims_away_from_target_for_180_flip() {
+        // fireball.spr's head points opposite the arrow convention, so the
+        // shared screen-space aim is corrected by aiming at the mirror of the
+        // sprite across itself (heading flipped 180°). The aim
+        // vector must therefore point *away* from the target.
+        let to = [0.0, 0.0, 60.0];
+        let mut e = FireballEffect::new([0.0, 0.0, 0.0], to);
+        for _ in 0..21 {
+            step(&mut e, 1.0 / FRAMES_PER_SECOND);
+        }
+        match &draws(&e)[0] {
+            EffectPrimitiveDraw::SpriteParticle {
+                position,
+                aim_target: Some(aim),
+                ..
+            } => {
+                // toward-target Z delta is positive; the corrected aim is negative.
+                assert!(
+                    aim[2] - position[2] < 0.0,
+                    "aim must point away from +Z target: pos {position:?} aim {aim:?}"
+                );
+            }
+            _ => panic!("expected aimed SpriteParticle"),
+        }
     }
 
     #[test]

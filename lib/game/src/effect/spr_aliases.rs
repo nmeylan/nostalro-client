@@ -196,6 +196,9 @@ pub fn spr_def(id: EffectId) -> Option<SprDef> {
         EffectId::Darkbreath => SprDef::new("data/sprite/이팩트/darkbreath")
             .with_size(0.8)
             .with_anim_speed(1.0)
+            // raise the particle onto the victim's head; native RO −Y is up.
+            // (matches where the original game anchors this effect)
+            .with_pos_y(-20.0)
             .with_tint([1.0, 0.0, 0.0, 1.0]),
         // Thunderstorm2: its dedicated thunder-storm sprite is a
         // renewal-era addition not present in the classic GRF. We route

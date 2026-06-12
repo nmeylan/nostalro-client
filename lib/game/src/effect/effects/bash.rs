@@ -170,7 +170,7 @@ mod tests {
         let spikes: Vec<&EffectPrimitiveDraw> = list
             .primitives
             .iter()
-            .filter(|p| matches!(p, EffectPrimitiveDraw::Billboard { texture, .. } if *texture == spike_burst::SPIKE_TEXTURE))
+            .filter(|p| matches!(p, EffectPrimitiveDraw::BillboardFlash { texture, .. } if *texture == spike_burst::SPIKE_TEXTURE))
             .collect();
         assert_eq!(halos, 2);
         assert_eq!(spikes.len(), SPIKES.count);

@@ -1401,7 +1401,48 @@ mod tests {
         assert_eq!(anim_speed, 1.0);
         assert!(repeat);
         assert_eq!(tint, [1.0, 0.0, 0.0, 1.0]);
-        assert_eq!(pos_y, 0.0);
+        // Raised onto the victim's head (-20 world units, native RO −Y up).
+        assert_eq!(pos_y, -20.0);
+    }
+
+    #[test]
+    fn bottom_songs_resolve_to_custom_not_missing_str() {
+        // Regression: the Bard/Dancer ground songs have Custom factory
+        // handlers but no `bottom_*.str` exists in the classic GRF. A derived
+        // STR alias used to shadow the Custom-bucket route in `bucket_default`,
+        // so each song resolved to a missing STR and rendered nothing.
+        // The sibling songs (318/370/404/405/517/671/672/674) and the
+        // torch/glow/dust texture-billboards (689/690/691/693/694/696/701/702)
+        // had the same alias-shadow bug — their aliases were removed so the
+        // existing Custom factory handlers dispatch.
+        for id in [
+            EffectId::BottomDissonance,
+            EffectId::BottomWhistle,
+            EffectId::BottomServiceforyou,
+            EffectId::BottomRokisweil,
+            EffectId::BottomMag,
+            EffectId::BottomGospel,
+            EffectId::BottomSpider,
+            EffectId::BottomFogwall,
+            EffectId::BottomHermode,
+            EffectId::BottomRunner,
+            EffectId::BottomTransfer,
+            EffectId::BottomEvilland,
+            EffectId::Dust,
+            EffectId::TorchRed,
+            EffectId::TorchGreen,
+            EffectId::TorchPurple,
+            EffectId::Glow1,
+            EffectId::Glow2,
+            EffectId::Glow11,
+            EffectId::Glow12,
+        ] {
+            assert!(
+                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                "{id:?} must resolve to Custom, got {:?}",
+                effect_spec(id)
+            );
+        }
     }
 
     #[test]

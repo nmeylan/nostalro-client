@@ -206,7 +206,7 @@ impl SpikeBurst {
             if length <= 0.0 {
                 continue;
             }
-            out.push(EffectPrimitiveDraw::Billboard {
+            out.push(EffectPrimitiveDraw::BillboardFlash {
                 pos,
                 // Billboard straddles the entity centre — `alpha_center.tga`
                 // peaks in the middle so the bright row crosses the anchor.
@@ -283,7 +283,7 @@ mod tests {
             .primitives
             .iter()
             .filter(|p| {
-                matches!(p, EffectPrimitiveDraw::Billboard { texture, .. } if *texture == SPIKE_TEXTURE)
+                matches!(p, EffectPrimitiveDraw::BillboardFlash { texture, .. } if *texture == SPIKE_TEXTURE)
             })
             .count();
         assert_eq!(n, TEST_PARAMS.count);

@@ -31,8 +31,13 @@ use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const NUM_EMITTERS: usize = 4;
-const INITIAL_DISTANCE_BASE: f32 = 1.5;
-const INITIAL_DISTANCE_STEP: f32 = 0.25;
+// Ring radii follow the original per-emitter distance (1,2,3,4):
+// base == step so the four flame rings spread outward over a
+// ~4× span (`radius = base + ec*step`) instead of bunching into one tight
+// ring that reads as a tiny patch. Shared by every VOLCANO variant, so the
+// whole family scales uniformly.
+const INITIAL_DISTANCE_BASE: f32 = 1.6;
+const INITIAL_DISTANCE_STEP: f32 = 1.6;
 const MIN_RISE_ANGLE_DEG: f32 = 40.0;
 const RISE_DECAY_DEG_PER_FRAME: f32 = 1.0;
 const ROT_DEG_PER_FRAME: f32 = 3.0;
@@ -99,7 +104,7 @@ impl VolcanoParams {
 /// EF_LANDPROTECTOR — white wreath, F1=0.
 pub const LANDPROTECTOR: VolcanoParams = VolcanoParams {
     texture: "ring_white.tga",
-    max_flame_tilt: 7.0,
+    max_flame_tilt: 10.0,
     initial_rise_angle_deg: 60.0,
     alpha_ramp_up_per_frame: 20.0,
     alpha_ramp_down_per_frame: 2.0,
@@ -133,7 +138,7 @@ pub const VIOLENTGALE: VolcanoParams = VolcanoParams {
 /// use for LandProtector.
 pub const GANBANTEIN: VolcanoParams = VolcanoParams {
     texture: "ring_white.tga",
-    max_flame_tilt: 4.2,
+    max_flame_tilt: 6.0,
     initial_rise_angle_deg: 52.0,
     alpha_ramp_up_per_frame: 20.0,
     alpha_ramp_down_per_frame: 4.0,

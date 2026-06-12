@@ -239,7 +239,9 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Deluge => &["deluge"],
         EffectId::Violentgale => &["violentgale"],
         EffectId::Landprotector => &["landprotector"],
-        EffectId::BottomLa => &["bottom_la"],
+        // No `bottom_la.str` in the classic GRF — renders procedurally via its
+        // Custom handler (`Bottom_LandProtector`). A derived alias here would
+        // shadow the Custom-bucket route and draw nothing. See the song block.
         EffectId::Fastmove => &["fastmove"],
         EffectId::Magicrod => &["매직로드", "magicroad_silvery"],
         EffectId::Holycross => &["holy_cross"],
@@ -271,24 +273,11 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Chaincombo => &["연환", "chaincombo"],
         EffectId::RgCoin => &["rg_coin"],
         EffectId::Backstap => &["backstap"],
-        EffectId::BottomDissonance => &["bottom_dissonance"],
-        EffectId::BottomLullaby => &["bottom_lullaby"],
-        EffectId::BottomRichmankim => &["bottom_richmankim"],
-        EffectId::BottomEternalchaos => &["bottom_eternalchaos"],
-        EffectId::BottomDrumbattlefield => &["bottom_drumbattlefield"],
-        EffectId::BottomRingnibelungen => &["bottom_ringnibelungen"],
-        EffectId::BottomRokisweil => &["bottom_rokisweil"],
-        EffectId::BottomIntoabyss => &["bottom_intoabyss"],
-        EffectId::BottomSiegfried => &["bottom_siegfried"],
-        EffectId::BottomWhistle => &["bottom_whistle"],
-        EffectId::BottomAssassincross => &["bottom_assassincross"],
-        EffectId::BottomPoembragi => &["bottom_poembragi"],
-        EffectId::BottomAppleidun => &["bottom_appleidun"],
-        EffectId::BottomUglydance => &["bottom_uglydance"],
-        EffectId::BottomHumming => &["bottom_humming"],
-        EffectId::BottomDontforgetme => &["bottom_dontforgetme"],
-        EffectId::BottomFortunekiss => &["bottom_fortunekiss"],
-        EffectId::BottomServiceforyou => &["bottom_serviceforyou"],
+        // Bard/Dancer ground songs: no `bottom_*.str`
+        // exists in the classic GRF — these render procedurally via their Custom
+        // factory handlers (`effects::bottom_song`). A derived STR alias here
+        // would shadow the Custom-bucket route in `bucket_default` and the songs
+        // would resolve to a missing STR and draw nothing.
         EffectId::TalkFrostjoke => &["talk_frostjoke"],
         EffectId::TalkScream => &["talk_scream"],
         EffectId::Pokjuk => &["pokjuk"],
@@ -312,7 +301,8 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Glasswall2 => &["SafetyWall"],
         EffectId::Readyportal2 => &["readyportal2"],
         EffectId::Portal2 => &["portal2"],
-        EffectId::BottomMag => &["bottom_mag"],
+        // BottomMag → BottomSongEffect (Custom); no `bottom_mag.str` in the
+        // classic GRF — a derived alias would shadow the Custom handler.
         EffectId::BottomSanc => &["bottom_sanc"],
         EffectId::Heal3 => &["heal3"],
         EffectId::Warpzone2 => &["warpzone2"],
@@ -359,7 +349,7 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Aurablade => &["aurablade"],
         EffectId::Redbody => &["redbody"],
         EffectId::Lkconcentration => &["TwoHand"],
-        EffectId::BottomGospel => &["bottom_gospel"],
+        // BottomGospel → BottomSongEffect (Custom, `cross_old.bmp`); no STR.
         EffectId::Angel => &["angel"],
         EffectId::Devil => &["devil"],
         EffectId::Dragonsmoke => &["dragonsmoke"],
@@ -392,8 +382,7 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Napalmvalcan => &["napalmvalcan"],
         EffectId::Portal5 => &["portal5"],
         EffectId::Magiccrasher2 => &["magiccrasher2"],
-        EffectId::BottomSpider => &["bottom_spider"],
-        EffectId::BottomFogwall => &["bottom_fogwall"],
+        // BottomSpider / BottomFogwall → BottomSongEffect (Custom); no STR.
         EffectId::Soulburn => &["소울번", "soulburn"],
         EffectId::Soulchange => &["사람효과", "effectivepeople"],
         EffectId::Baby => &["baby"],
@@ -503,7 +492,7 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::GiExplosion => &["gi_explosion"],
         EffectId::Cloud4 => &["cloud4"],
         EffectId::Cloud5 => &["cloud5"],
-        EffectId::BottomHermode => &["bottom_hermode"],
+        // BottomHermode → BottomSongEffect (Custom, `white02.bmp`); no STR.
         EffectId::Cartter => &["cartter"],
         EffectId::Itemfast => &["itemfast"],
         EffectId::Shieldboomerang3 => &["shieldboomerang3"],
@@ -639,10 +628,10 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Dragonfear => &["dfear", "dragon_h"],
         EffectId::Bleeding => &["wideb"],
         EffectId::Wideconfuse => &["dfear"],
-        EffectId::BottomRunner => &["bottom_runner"],
-        EffectId::BottomTransfer => &["bottom_transfer"],
+        // BottomRunner (`hanmoon1.tga`) / BottomTransfer (`hanmoon2.tga`) →
+        // BottomSongEffect (Custom); no STR.
         EffectId::CrystalBlue => &["crystal_blue"],
-        EffectId::BottomEvilland => &["bottom_evilland"],
+        // BottomEvilland → BottomSongEffect (Custom, `curse.bmp`); no STR.
         EffectId::Guard3 => &["guard3"],
         // No STR file — slow-cast clock renders as a camera-facing
         // billboard via the custom factory path (`effects::tarot_card`).
@@ -658,20 +647,16 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::PokChristmas => &["pok_christmas"],
         EffectId::MapMagiczone3 => &["map_magiczone3"],
         EffectId::MapMagiczone4 => &["map_magiczone4"],
-        EffectId::Dust => &["dust"],
-        EffectId::TorchRed => &["torch_red"],
-        EffectId::TorchGreen => &["torch_green"],
+        // Dust / TorchRed / TorchGreen / TorchPurple / Glow1 / Glow2 →
+        // AnimatedTextureBillboard (Custom); their `.bmp` frames are in the GRF,
+        // so a derived STR alias would shadow the Custom handler.
         EffectId::MapGhost => &["map_ghost"],
-        EffectId::Glow1 => &["glow1"],
-        EffectId::Glow2 => &["glow2"],
         EffectId::Glow4 => &["glow4"],
-        EffectId::TorchPurple => &["torch_purple"],
         EffectId::Cloud7 => &["cloud7"],
         EffectId::Cloud8 => &["cloud8"],
         EffectId::Flowerleaf => &["flower_leaf"],
         EffectId::Mapsphere2 => &["mapsphere2"],
-        EffectId::Glow11 => &["glow11"],
-        EffectId::Glow12 => &["glow12"],
+        // Glow11 / Glow12 → AnimatedTextureBillboard (Custom); no STR.
         EffectId::Airtexture2 => &["airtexture2"],
         EffectId::Airtexture3 => &["airtexture3"],
         EffectId::Airtexture4 => &["airtexture4"],

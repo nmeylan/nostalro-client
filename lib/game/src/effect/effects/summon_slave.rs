@@ -153,7 +153,7 @@ mod tests {
     fn counts(e: &SummonSlaveEffect) -> (usize, usize) {
         let mut l = EffectDrawList::new();
         e.collect_draws(&mut l, &render_ctx());
-        let spikes = l.primitives.iter().filter(|p| matches!(p, EffectPrimitiveDraw::Billboard { texture, .. } if *texture == spike_burst::SPIKE_TEXTURE)).count();
+        let spikes = l.primitives.iter().filter(|p| matches!(p, EffectPrimitiveDraw::BillboardFlash { texture, .. } if *texture == spike_burst::SPIKE_TEXTURE)).count();
         let smoke = l.primitives.iter().filter(|p| matches!(p, EffectPrimitiveDraw::SpriteParticle { .. })).count();
         (spikes, smoke)
     }

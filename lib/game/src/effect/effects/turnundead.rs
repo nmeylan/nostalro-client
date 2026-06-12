@@ -182,7 +182,7 @@ mod tests {
         let mut e = TurnUndeadEffect::new([0.0; 3]);
         let prims = draw_at(&mut e, 3.0);
         let discs = prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::BillboardDisc { .. })).count();
-        let rays = prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::Billboard { texture, .. } if *texture == spike_burst::SPIKE_TEXTURE)).count();
+        let rays = prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::BillboardFlash { texture, .. } if *texture == spike_burst::SPIKE_TEXTURE)).count();
         let rings = prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::Texture3D { .. })).count();
         assert_eq!(discs, 1);
         assert_eq!(rays, 5);

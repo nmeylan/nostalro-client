@@ -38,6 +38,20 @@ pub enum EffectStatus {
     Dead,
 }
 
+/// `aim_target` point that makes a `SpriteParticle` face **away** from
+/// `target` — a 180° screen flip — for SPRs whose head points opposite the
+/// arrow convention the shared aim assumes (a 180° yaw flip,
+/// for `fireball.spr` / brandish spear). Mirrors `position` across the sprite;
+/// the near-orthographic effect camera makes that world mirror project to ≈ a
+/// half-turn in screen space.
+pub fn aim_backward(position: [f32; 3], target: [f32; 3]) -> [f32; 3] {
+    [
+        2.0 * position[0] - target[0],
+        2.0 * position[1] - target[1],
+        2.0 * position[2] - target[2],
+    ]
+}
+
 /// One renderable primitive emitted by an effect. Effects don't depend on
 /// wgpu types directly - they describe what they want drawn, and the effect
 /// render pass turns each variant into pipeline calls.
@@ -52,6 +66,23 @@ pub enum EffectPrimitiveDraw {
     /// petals set it per-petal to align each lens-flare quad's long axis
     /// with its radial direction.
     Billboard {
+        pos: [f32; 3],
+        size: [f32; 2],
+        uv: [[f32; 2]; 4],
+        rotation: f32,
+        texture: &'static str,
+        color: [f32; 4],
+        blend: BlendKind,
+    },
+    /// Like [`Billboard`] but drawn as a near-plane 2D overlay that ignores 3D
+    /// depth (a camera-locked flash). Screen placement, sizing and
+    /// rotation are identical to [`Billboard`]; only the depth differs — the
+    /// quad is never occluded by the ground, so entity-centred flash bursts
+    /// (Bash/Flasher rays, etc.) whose geometry dips at or below the floor draw
+    /// over it instead of being swallowed. Matches `BillboardDisc`/`BillboardRing`.
+    ///
+    /// [`Billboard`]: EffectPrimitiveDraw::Billboard
+    BillboardFlash {
         pos: [f32; 3],
         size: [f32; 2],
         uv: [[f32; 2]; 4],
