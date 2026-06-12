@@ -157,6 +157,11 @@ impl App {
         }
     }
 
+    // TODO(linelink): wire the Soul Linker tether here once a packet exposes
+    // the partner AID. The renderer side is ready — call
+    // `self.effect_queue.spawn_link(EffectId::Linelink{,2,3}, caster_gid,
+    // partner_gid)` and the holder will track both actors live each frame.
+
     fn spawn_skill_attack_effect(
         &mut self,
         skill_id: u16,

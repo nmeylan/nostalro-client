@@ -32,7 +32,7 @@ use models::enums::effect_id::EffectId;
 use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
     EffectQueue, EffectSpec, effect_spec, effect_texture_paths, is_count_point_effect,
-    is_trail_effect, str_aliases,
+    is_link_effect, is_trail_effect, str_aliases,
 };
 
 use crate::sprite_viewer::browser::SpriteBrowser;
@@ -849,7 +849,10 @@ impl App {
         self.ensure_str_loaded_for(effect_id);
         self.ensure_spr_loaded_for(effect_id);
         let world = [pos[0], pos[1], pos[2]];
-        if is_trail_effect(effect_id) {
+        // Link effects (Linelink) have no entity table in the viewer, so the
+        // green-cross target stands in as a static second actor — drive them
+        // through the same caster→target spawn path as trail effects.
+        if is_trail_effect(effect_id) || is_link_effect(effect_id) {
             let to = self
                 .trail_target_override
                 .unwrap_or_else(|| demo_trail_endpoints(world).1);
@@ -1056,7 +1059,7 @@ impl App {
         self.effect_holder.clear();
         self.ensure_str_loaded_for(effect_id);
         self.ensure_spr_loaded_for(effect_id);
-        if is_trail_effect(effect_id) {
+        if is_trail_effect(effect_id) || is_link_effect(effect_id) {
             let origin = [0.0, 0.0, 0.0];
             let to = self
                 .trail_target_override
@@ -1234,6 +1237,9 @@ impl App {
             .map(|t| t[0].atan2(t[2]));
         self.effect_holder.update(
             &EffectUpdateCtx { delta: scaled_dt, camera_target, caster_yaw },
+            &|_| None,
+            // Viewer has no entity table; link effects render as a static
+            // tether to the green-cross fake entity via their spawn anchor.
             &|_| None,
         );
         // Apply any active screen-shake from quake effects to the camera.

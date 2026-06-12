@@ -12,7 +12,10 @@ pub mod str_aliases;
 pub mod table;
 
 pub use draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-pub use effect_queue::{EffectQueue, SpawnRequest, body_attached, is_count_point_effect, is_trail_effect};
+pub use effect_queue::{
+    EffectQueue, SpawnRequest, body_attached, is_count_point_effect, is_link_effect,
+    is_trail_effect,
+};
 pub use effect_trait::{
     Afterimage, BodyTint, CameraShake, CameraView, Effect, EffectRenderCtx, EffectUpdateCtx,
 };
@@ -39,6 +42,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::bottom_landprotector::TEXTURES,
         effects::bottom_light::TEXTURES,
         effects::forest_light::TEXTURES,
+        effects::linelink::TEXTURES,
         effects::guard::TEXTURES,
         effects::bottom_magnus::TEXTURES,
         effects::bottom_out::TEXTURES,

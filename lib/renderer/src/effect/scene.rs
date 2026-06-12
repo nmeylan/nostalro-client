@@ -169,7 +169,11 @@ mod tests {
             .expect("spawn warp");
         // Warp spawns a ring at age 0, but its outer_radius starts at 0.
         // Tick the effect so the ring grows and `collect_draws` emits.
-        holder.update(&EffectUpdateCtx { delta: 0.1, camera_target: None, caster_yaw: None }, &|_| None);
+        holder.update(
+            &EffectUpdateCtx { delta: 0.1, camera_target: None, caster_yaw: None },
+            &|_| None,
+            &|_| None,
+        );
 
         let effect_sprites = EffectSpriteCache::new();
         let str_effects = StrEffectCache::new();

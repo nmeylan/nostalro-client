@@ -281,6 +281,19 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             effects::light_sphere::LIGHTSPHERE2,
         )),
 
+        // Linelink 1-3 — Soul Linker tether ribbon. `anchor` carries the
+        // initial caster→partner endpoints; the holder feeds live positions each
+        // frame via `set_link_endpoints` (in-game) or leaves them static (viewer).
+        EffectId::Linelink => {
+            Box::new(effects::linelink::LinelinkEffect::new(anchor, &effects::linelink::LINELINK))
+        }
+        EffectId::Linelink2 => {
+            Box::new(effects::linelink::LinelinkEffect::new(anchor, &effects::linelink::LINELINK2))
+        }
+        EffectId::Linelink3 => {
+            Box::new(effects::linelink::LinelinkEffect::new(anchor, &effects::linelink::LINELINK3))
+        }
+
         // Batch MAPZONE — `Map_MagicZone` spinning ground rings + sparkle motes
         // / pika floor + flared aura. Persistent map-scale zones.
         EffectId::MapMagiczone => Box::new(effects::mapzone::MapZoneEffect::new(
@@ -1809,6 +1822,9 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Agiup
             | EffectId::Lightsphere
             | EffectId::Lightsphere2
+            | EffectId::Linelink
+            | EffectId::Linelink2
+            | EffectId::Linelink3
             | EffectId::MapMagiczone
             | EffectId::MapMagiczone2
             | EffectId::Glow4

@@ -31,9 +31,21 @@ impl App {
         let entities = &self.game.entities;
         let resolve_caster_yaw =
             |id: u32| entities.get(id).map(|e| e.direction as f32 * (std::f32::consts::TAU / 8.0));
+        // Live world position of a linked actor for entity-tethered effects
+        // (Linelink): interpolated cell → world, dropped 8 units to sit just
+        // below the actor's feet.
+        let gat = self.game.gat.as_ref();
+        let map_coords = self.game.map_coords.as_ref();
+        let resolve_entity_pos = |id: u32| {
+            let (gat, coords) = (gat?, map_coords?);
+            let (cx, cy) = entities.get(id)?.movement.position();
+            let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
+            Some([wx, gat.get_height(cx + 0.5, cy + 0.5) - 8.0, wz])
+        };
         self.effect_holder.update(
             &EffectUpdateCtx { delta, camera_target: None, caster_yaw: None },
             &resolve_caster_yaw,
+            &resolve_entity_pos,
         );
         // Apply any active screen-shake to the camera so the whole
         // view trembles while an effect's shake is live.

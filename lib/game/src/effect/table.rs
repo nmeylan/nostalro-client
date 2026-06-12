@@ -13,7 +13,7 @@ use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effect_trait::CameraShake;
 use super::effects::{
     aciddemon, agiup, attack_energy, banjjakii, barrier, big_portal, bash, bash3d, begin_asura, begin_spell, begin_spell_8, blessing, soullink, grandcross, saintwing, chookgi, sakura, pokjuk, firstaid, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
-    light_sphere, mapzone, rainbow,
+    light_sphere, linelink, mapzone, rainbow,
     bowling_bash, callzone, cartrevolution, cast_circle, chemical, colorpaper, cone, curseattack, defender, detecting,
     dome_ring, dragonsmoke, summon_slave, bubble_drop, cartter, ice_arrow, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
     firepillaron, frost_diver, fullscreen_overlay, glasswall, glasswall2, gravitation, ground_sample, guard, gumgang, gumgang2, hasteup, heal, healsp, heartcasting, heavensdrive, hit, hit2, hit5_6, hitdark,
@@ -1036,6 +1036,19 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
         EffectId::Bleeding => EffectSpec::Custom {
             duration_ms: fullscreen_overlay::PULSE_DURATION_MS,
+        },
+
+        // Linelink 1-3 carry a `linelink*` str_alias, so without these explicit
+        // arms `bucket_default` would render the (missing) STR instead of the
+        // tether ribbon impl.
+        EffectId::Linelink => EffectSpec::Custom {
+            duration_ms: linelink::LINELINK_DURATION_MS,
+        },
+        EffectId::Linelink2 => EffectSpec::Custom {
+            duration_ms: linelink::LINELINK2_DURATION_MS,
+        },
+        EffectId::Linelink3 => EffectSpec::Custom {
+            duration_ms: linelink::LINELINK3_DURATION_MS,
         },
 
         _ => bucket_default(id),

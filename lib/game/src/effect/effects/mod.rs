@@ -140,6 +140,7 @@ pub mod fireivy;
 pub mod grimtooth_atk;
 pub mod icewall;
 pub mod light_sphere;
+pub mod linelink;
 pub mod mapzone;
 pub mod mappillar;
 pub mod party;

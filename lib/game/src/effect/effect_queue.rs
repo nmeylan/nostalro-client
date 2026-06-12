@@ -102,6 +102,18 @@ impl EffectQueue {
         });
     }
 
+    /// Spawn a persistent link tether between two entities.
+    /// Both account ids are re-resolved to world positions every frame by the
+    /// renderer holder, so the ribbon follows the linked actor as it moves.
+    pub fn spawn_link(&mut self, effect_id: EffectId, caster: u32, target: u32) {
+        self.pending.push(SpawnRequest {
+            effect_id,
+            attach: Attach::Link { caster, target },
+            override_duration_ms: None,
+            hit_count: None,
+        });
+    }
+
     /// Caller takes ownership of the pending list; the queue is left empty.
     /// The renderer's holder calls this each frame.
     pub fn drain(&mut self) -> Vec<SpawnRequest> {
@@ -223,4 +235,13 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             // target; the arrival ring lands on the target endpoint.
             | EffectId::Icearrow
     )
+}
+
+/// `true` for the Soul Linker tether family: a persistent
+/// ribbon between the caster and a second, independently-moving actor. In game
+/// these spawn via [`EffectQueue::spawn_link`] so both endpoints track live;
+/// the effect viewer treats them like trail effects, anchoring the partner end
+/// to the green-cross fake entity.
+pub fn is_link_effect(id: EffectId) -> bool {
+    matches!(id, EffectId::Linelink | EffectId::Linelink2 | EffectId::Linelink3)
 }

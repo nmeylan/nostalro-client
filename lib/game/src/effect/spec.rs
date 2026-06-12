@@ -47,6 +47,13 @@ pub enum Attach {
     /// `Trail { from_world, to_world }` when the trail geometry needs
     /// to live for longer than one frame.
     Trail { from: [f32; 3], to: [f32; 3] },
+    /// Persistent link between two entities, both re-resolved to world
+    /// positions *every frame* (Soul Linker tether). Unlike
+    /// `Trail`, neither endpoint is snapshotted: the holder resolves `caster`
+    /// and `target` each frame and threads them into the effect via
+    /// [`super::effect_trait::EffectUpdateCtx::link_endpoints`]. Carries the
+    /// caster and partner account ids.
+    Link { caster: u32, target: u32 },
 }
 
 /// What "kind" of effect this is - selects which subsystem renders it.

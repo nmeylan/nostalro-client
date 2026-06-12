@@ -17,8 +17,8 @@ use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
-    EffectQueue, EffectSpec, body_attached, effect_spec, effect_texture_paths, is_trail_effect,
-    str_aliases,
+    EffectQueue, EffectSpec, body_attached, effect_spec, effect_texture_paths, is_link_effect,
+    is_trail_effect, str_aliases,
 };
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::map_loader::{self, MapData};
@@ -384,7 +384,9 @@ impl App {
             // Body shake / tint effects attach to the previewed actor so the
             // character pass can apply them (mirrors in-game `spawn_on`).
             self.effect_queue.spawn_on(id, VIEWER_ACTOR_ID);
-        } else if is_trail_effect(id) {
+        } else if is_trail_effect(id) || is_link_effect(id) {
+            // Link effects (Linelink) use the green-cross target as a static
+            // stand-in for the second linked actor.
             let to = self
                 .trail_target_override
                 .unwrap_or([pos[0], pos[1], pos[2] + 22.0]);
@@ -872,6 +874,7 @@ impl App {
         self.effect_holder.drain_queue(&mut self.effect_queue);
         self.effect_holder.update(
             &EffectUpdateCtx { delta: sim_dt, camera_target: None, caster_yaw: None },
+            &|_| None,
             &|_| None,
         );
         let body_shake = self.effect_holder.body_shake_for_entity(VIEWER_ACTOR_ID);

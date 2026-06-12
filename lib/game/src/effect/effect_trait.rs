@@ -84,6 +84,14 @@ pub trait Effect: Send {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus;
     fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx);
 
+    /// Feed live `(caster, partner)` world positions to an entity-linked
+    /// effect (Linelink) before each `update`. The holder
+    /// calls this for `Attach::Link` effects once both endpoints resolve;
+    /// effects keep their spawn-time anchor until then (the effect viewer's
+    /// static fake-entity path never calls it). Default no-op — only the
+    /// link family overrides it.
+    fn set_link_endpoints(&mut self, _caster: [f32; 3], _target: [f32; 3]) {}
+
     /// STR animation that plays alongside this effect's primitives. Holder
     /// emits a `StrSnapshot` for non-`None` returns each frame, attached to
     /// the same world position. Default `None` — pure-primitive effects.
