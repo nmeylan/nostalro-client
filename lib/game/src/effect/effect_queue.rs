@@ -127,9 +127,10 @@ impl EffectQueue {
 /// [`EffectQueue::spawn_trail`]; ones that don't will see the
 /// cluster-mode fallback. Used by the effect viewer to construct
 /// a demo trail for IDs that need one.
-/// Effects that attach to the caster's body (shake / tint the actor sprite
-/// rather than rendering at a world point). Tooling spawns these with
-/// `spawn_on` so the actor pass can apply their `body_shake` / `body_tint`.
+/// Effects that attach to the target's body (shake / tint / scale / spin the
+/// actor sprite, optionally rendering primitives anchored on it). Tooling
+/// spawns these with `spawn_on` so the actor pass can apply their
+/// `body_shake` / `body_tint` / `body_scale` / `body_yaw`.
 pub fn body_attached(id: EffectId) -> bool {
     matches!(
         id,
@@ -140,6 +141,15 @@ pub fn body_attached(id: EffectId) -> bool {
             | EffectId::Twohandquicken
             | EffectId::Spearquicken
             | EffectId::Lkconcentration
+            | EffectId::Giantbody
+            | EffectId::Giantbody2
+            | EffectId::Hitline2
+            | EffectId::Stormkick
+            | EffectId::Stormkick1
+            | EffectId::Stormkick2
+            | EffectId::Stormkick3
+            | EffectId::Stormkick6
+            | EffectId::Stormkick7
     )
 }
 

@@ -309,7 +309,6 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Heal4 => &["heal4"],
         EffectId::Beginasura => &["beginasura"],
         EffectId::Tripleattack => &["tripleattack"],
-        EffectId::Hitline => &["hitline"],
         EffectId::Maple => &["maple"],
         EffectId::Blind => &["blind"],
         EffectId::Poison => &["poison"],
@@ -354,7 +353,6 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Devil => &["devil"],
         EffectId::Dragonsmoke => &["dragonsmoke"],
         EffectId::Assumptio => &["assumptio"],
-        EffectId::Hitline2 => &["hitline2"],
         EffectId::Bash3d2 => &["bash3d2"],
         EffectId::Energydrain2 => &["energydrain2"],
         EffectId::Transbluebody => &["transbluebody"],
@@ -399,26 +397,27 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Reflectbody => &["reflectbody"],
         EffectId::Babybody => &["babybody"],
         EffectId::Babybody2 => &["babybody2"],
-        EffectId::Giantbody => &["giantbody"],
-        EffectId::Giantbody2 => &["giantbody2"],
+        // Giantbody/Giantbody2 → GiantBodyEffect (Custom, giant body scale,
+        // no primitive/STR). Aliases removed so they resolve via the custom
+        // bucket and the body_scale channel applies.
         EffectId::Asurabody => &["asurabody"],
         EffectId::Ef4waybody => &["4waybody"],
         EffectId::Quakebody => &["quakebody"],
         EffectId::AsurabodyMonster => &["asurabody_monster"],
-        EffectId::Hitline3 => &["hitline3"],
-        EffectId::Hitline4 => &["hitline4"],
-        EffectId::Hitline5 => &["hitline5"],
-        EffectId::Hitline6 => &["hitline6"],
-        EffectId::Electric => &["electric"],
-        EffectId::Electric2 => &["electric2"],
-        EffectId::Hitline7 => &["hitline7"],
+        // Hitline..Hitline7 → HitLineEffect / HitLineBounceEffect (Custom,
+        // `white02.bmp` slash-streaks); fully procedural, no
+        // `hitline*.str`. Electric/Electric2 likewise → ElectricEffect
+        // (Custom, `elec1.tga`). Aliases removed so all resolve via the
+        // custom bucket.
         EffectId::Stormkick => &["stormkick"],
         EffectId::Halfsphere => &["halfsphere"],
         EffectId::Attackenergy => &["attackenergy"],
         EffectId::Attackenergy2 => &["attackenergy2"],
         EffectId::Chemical3 => &["chemical3"],
         EffectId::Assumptio2 => &["asum"],
-        EffectId::Bluecasting => &["bluecasting"],
+        // Bluecasting → ColorCastingEffect (Custom, `ring_blue.tga`); the
+        // begin-spell casting cones are procedural, no `bluecasting.str`.
+        // A derived alias would shadow the Custom handler.
         EffectId::Run => &["run"],
         EffectId::Stoprun => &["stoprun"],
         EffectId::Stopeffect => &["stopeffect"],
@@ -429,10 +428,13 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Soulstrike2 => &["soulstrike2"],
         EffectId::Yufitel2 => &["yufitel2"],
         EffectId::NpcStop => &["npc_stop"],
-        EffectId::Darkcasting => &["darkcasting"],
+        // Darkcasting → ColorCastingEffect (Custom, `ring_black.tga`);
+        // procedural casting cones, no `darkcasting.str`.
         EffectId::Gumgangnpc => &["gumgangnpc"],
         EffectId::Agiup => &["agiup"],
-        EffectId::Jumpkick => &["jumpkick"],
+        // Jumpkick is a forced attack-animation swap with no effect primitive
+        // (correct-Noop); the alias only shadowed the Noop route with a missing
+        // `jumpkick.str`. Removed so it resolves to Noop.
         EffectId::Quakebody2 => &["quakebody2"],
         EffectId::Stormkick1 => &["stormkick1"],
         EffectId::Stormkick2 => &["stormkick2"],
@@ -462,7 +464,8 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Devil10 => &["devil10"],
         EffectId::Doublegumgang2 => &["doublegumgang2"],
         EffectId::Doublegumgang3 => &["doublegumgang3"],
-        EffectId::Blackdevil => &["blackdevil"],
+        // Blackdevil → BlackDevilEffect (Custom, `ring_black.tga`); procedural
+        // casting ripple rings, no `blackdevil.str`. Alias removed.
         EffectId::Flowercast => &["flowercast"],
         EffectId::Flowercast2 => &["flowercast2"],
         EffectId::Flowercast3 => &["flowercast3"],

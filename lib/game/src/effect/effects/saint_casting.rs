@@ -69,6 +69,12 @@ pub struct SaintCastingConfig {
     /// descending order matches the alpha staircase — brightest emitter is
     /// also tallest.
     pub max_heights: [f32; NUM_EMITTERS],
+    /// Vertex tint chosen by the effect's size/flavour code, which picks both
+    /// the rgb and the blend. The flavour code maps a given variant to one of
+    /// these (e.g. F1=5 → (100,100,255) additive; F1=6 → (50,50,50) alpha),
+    /// so the same cone integrator serves every `BeginSpell*` colour.
+    pub color_rgb: [f32; 3],
+    pub blend: BlendKind,
 }
 
 #[derive(Clone, Copy)]
@@ -114,16 +120,21 @@ impl Emitter {
         self.alpha = 0.0;
     }
 
-    fn alpha_unit(&self) -> f32 {
+    fn alpha_unit(&self, blend: BlendKind) -> f32 {
         // 8 emitters all rendering at the same world position with additive
         // blending; the original game's accumulator absorbs the ~3× overdraw
         // but our framebuffer saturates to white at the centre, erasing the
         // ring texture's striped flame-tongue pattern. Pre-attenuate so the
         // additive sum at peak stays below 1.0 and the texture detail
         // survives. Ratios between emitters (the per-emitter alpha staircase
-        // {180,135,90,45,...}) are preserved.
-        const OVERDRAW_DIVISOR: f32 = 4.0;
-        (self.alpha / (255.0 * OVERDRAW_DIVISOR)).clamp(0.0, 1.0)
+        // {180,135,90,45,...}) are preserved. Alpha-blended variants
+        // (DarkCasting's dark dome) can't saturate — they composite at full
+        // strength so the stack genuinely darkens the scene.
+        let overdraw_divisor: f32 = match blend {
+            BlendKind::Additive => 4.0,
+            _ => 1.0,
+        };
+        (self.alpha / (255.0 * overdraw_divisor)).clamp(0.0, 1.0)
     }
 }
 
@@ -194,7 +205,7 @@ impl Effect for SaintCastingEffect {
             return;
         }
         for em in &self.emitters {
-            let alpha = em.alpha_unit();
+            let alpha = em.alpha_unit(self.cfg.blend);
             if alpha <= 0.0 {
                 continue;
             }
@@ -237,8 +248,13 @@ impl Effect for SaintCastingEffect {
                 // than fading the back ones.
                 cull_back: false,
                 texture: self.cfg.texture,
-                color: [1.0, 1.0, 1.0, alpha],
-                blend: BlendKind::Additive,
+                color: [
+                    self.cfg.color_rgb[0],
+                    self.cfg.color_rgb[1],
+                    self.cfg.color_rgb[2],
+                    alpha,
+                ],
+                blend: self.cfg.blend,
             });
         }
     }
@@ -251,6 +267,8 @@ mod tests {
     const TEST_CONFIG: SaintCastingConfig = SaintCastingConfig {
         texture: "ring_test.tga",
         max_heights: [17.0, 18.0, 19.0, 20.0],
+        color_rgb: [1.0, 1.0, 1.0],
+        blend: BlendKind::Additive,
     };
 
     fn render_ctx() -> EffectRenderCtx {

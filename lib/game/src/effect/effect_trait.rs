@@ -80,6 +80,45 @@ pub struct Afterimage {
     pub fade_per_frame: f32,
 }
 
+/// One-shot forced actor animation — the original game's forced attack pose
+/// (Jumpkick's kick pose). An effect returns this the *first* frame
+/// it's armed, then `None` forever. The game-update step drains it and plays
+/// the action on the entity, which then animates itself and reverts to its real
+/// state action when finished (matching the original's revert to the attack pose).
+/// Drained in `update_sprite_animation`, not the draw pass, because an action
+/// change is stateful — the animation must advance frame by frame.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BodyAction {
+    pub action_index: usize,
+    pub start_frame: usize,
+    pub duration_ms: f32,
+}
+
+/// Per-frame vertical body translate + fade — the original game's
+/// high-jump / land-jump (Jumpbody flies up the Y axis and vanishes,
+/// Landbody drops in from above). `lift_px` raises the actor's screen anchor
+/// (screen pixels, positive = up); `alpha` (0..=1) multiplies the body opacity.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BodyVertical {
+    pub lift_px: f32,
+    pub alpha: f32,
+}
+
+/// One extra copy of the master sprite drawn behind the live one — the original
+/// game's multi-render body lights (Asura halo, 4-way sliding ghosts,
+/// blue hit flash, doubled-body stretch). `offset_px` shifts the
+/// copy's anchor (screen pixels), `scale` stretches it about that anchor
+/// (x, y), `tint` multiplies its RGB, `alpha` its opacity, and `additive`
+/// selects additive blending (white blooms) vs alpha (ghosts).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BodyCopy {
+    pub offset_px: [f32; 2],
+    pub scale: [f32; 2],
+    pub tint: [u8; 3],
+    pub alpha: f32,
+    pub additive: bool,
+}
+
 pub trait Effect: Send {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus;
     fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx);
@@ -149,6 +188,48 @@ pub trait Effect: Send {
     /// so the caster appears to whirl. Returns `Some` only during the spin
     /// window. Default `None` — most effects don't spin the caster.
     fn body_yaw(&self) -> Option<f32> {
+        None
+    }
+
+    /// Per-frame uniform scale multiplier on the master sprite — the original
+    /// game's body-enlarge light (Giant/Giant2). The
+    /// actor pass multiplies the entity's `sprite_scale` by this before drawing
+    /// the body. Returns `Some` only while the effect enlarges/shrinks the
+    /// actor; `None` (the default) leaves the scale untouched. Multiple
+    /// returning effects multiply.
+    fn body_scale(&self) -> Option<f32> {
+        None
+    }
+
+    /// One-shot forced actor animation ([`BodyAction`]) — returned the *first*
+    /// frame it's armed, then `None`. The game-update step drains it (mutating)
+    /// and force-plays the action on the attached entity. Default `None` — only
+    /// action-driven body effects (Jumpkick) override it.
+    fn take_body_action(&mut self) -> Option<BodyAction> {
+        None
+    }
+
+    /// Per-frame vertical translate + fade ([`BodyVertical`]) applied to the
+    /// master sprite (jump-up / land-down). The actor pass raises the
+    /// screen anchor by `lift_px` and folds `alpha` into the body opacity.
+    /// Default `None`.
+    fn body_vertical(&self) -> Option<BodyVertical> {
+        None
+    }
+
+    /// Per-frame rotation (radians) of the master sprite quad about its screen
+    /// anchor — the original game's spinning-body barrel-roll. The actor pass
+    /// rotates the built vertices. Multiple returning effects sum. Default
+    /// `None` — most effects don't roll the actor.
+    fn body_angle(&self) -> Option<f32> {
+        None
+    }
+
+    /// Extra sprite copies ([`BodyCopy`]) drawn behind the live body this frame
+    /// — the original game's multi-render body lights (Asura halo, 4-way slide,
+    /// blue hit flash, doubled body). Default `None` — most effects draw no
+    /// copies.
+    fn body_copies(&self) -> Option<Vec<BodyCopy>> {
         None
     }
 }

@@ -268,6 +268,11 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::quakebody::QuakeBodyEffect::new(effects::quakebody::QUAKEBODY4))
         }
 
+        // Body enlarge (the giant body variant) — scales the attached actor's sprite, emits
+        // no primitives. Giantbody ramps in; Giantbody2 is instant.
+        EffectId::Giantbody => Box::new(effects::giantbody::GiantBodyEffect::ramped()),
+        EffectId::Giantbody2 => Box::new(effects::giantbody::GiantBodyEffect::instant()),
+
         // Batch STR-B10 — Aciddemon swirling cone funnel; Rainbow arch.
         EffectId::Aciddemon => Box::new(effects::aciddemon::AcidDemonEffect::new(anchor.point())),
         EffectId::Rainbow => Box::new(effects::rainbow::RainbowEffect::new(anchor.point())),
@@ -578,6 +583,46 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         }
         EffectId::Earthspike => {
             Box::new(effects::earthspike::EarthSpikeEffect::new(anchor.point(), effects::earthspike::EARTHSPIKE))
+        }
+        EffectId::Electric => Box::new(effects::electric::ElectricEffect::new_ring(anchor.point())),
+        EffectId::Electric2 => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            Box::new(effects::electric::ElectricEffect::new_aimed(from, to))
+        }
+        EffectId::Hitline | EffectId::Hitline2 => {
+            let tint = if id == EffectId::Hitline2 {
+                effects::hit_line::BounceTint::RedTail
+            } else {
+                effects::hit_line::BounceTint::Warm
+            };
+            Box::new(effects::hit_line::HitLineBounceEffect::new(
+                anchor.point(),
+                tint,
+                id == EffectId::Hitline2,
+            ))
+        }
+        EffectId::Hitline3
+        | EffectId::Hitline4
+        | EffectId::Hitline5
+        | EffectId::Hitline6
+        | EffectId::Hitline7 => {
+            // `to` (when present) is the attacker side — `Hitline5` aims its
+            // streaks away from it; the others ignore it.
+            let (anchor_pos, aim) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            let params = match id {
+                EffectId::Hitline3 => effects::hit_line::HITLINE3,
+                EffectId::Hitline4 => effects::hit_line::HITLINE4,
+                EffectId::Hitline5 => effects::hit_line::HITLINE5,
+                EffectId::Hitline6 => effects::hit_line::HITLINE6,
+                _ => effects::hit_line::HITLINE7,
+            };
+            Box::new(effects::hit_line::HitLineEffect::new(anchor_pos, params, aim))
         }
         EffectId::Hyousensou => {
             Box::new(effects::earthspike::EarthSpikeEffect::new(anchor.point(), effects::earthspike::HYOUSENSOU))
@@ -1141,6 +1186,15 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         )),
 
         EffectId::Beginspell => Box::new(effects::begin_spell::BeginSpellEffect::new(anchor.point())),
+        EffectId::Blackdevil => Box::new(effects::black_devil::BlackDevilEffect::new(anchor.point())),
+        EffectId::Bluecasting => Box::new(effects::color_casting::ColorCastingEffect::new(
+            anchor.point(),
+            effects::color_casting::BLUE,
+        )),
+        EffectId::Darkcasting => Box::new(effects::color_casting::ColorCastingEffect::new(
+            anchor.point(),
+            effects::color_casting::DARK,
+        )),
         EffectId::Beginspell2 => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
             effects::cast_circle::WATER,

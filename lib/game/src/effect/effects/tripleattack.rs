@@ -332,9 +332,11 @@ impl Effect for TripleAttackEffect {
                 out.push(EffectPrimitiveDraw::LineStrip {
                     points: points.clone(),
                     uv_along: s.uv_along,
+                    u_along: false,
                     half_width,
                     texture: self.texture,
                     color,
+                    colors: None,
                     blend: BlendKind::Additive,
                 });
             }

@@ -421,14 +421,23 @@ pub enum EffectPrimitiveDraw {
     ///
     /// Rendered as a camera-facing ribbon: each path point becomes a pair of
     /// vertices offset by `±half_width` perpendicular to the path and the view
-    /// direction. `uv_along` scales how fast the V coordinate accumulates with
-    /// path length.
+    /// direction. `uv_along` scales how fast the along-path texture coordinate
+    /// accumulates with path length. By default that coordinate is V (texture
+    /// height runs along the path); `u_along` swaps the axes so U runs along
+    /// the path and V spans the ribbon width — for textures whose art (e.g. a
+    /// lightning arc) is painted along the horizontal axis.
+    ///
+    /// `colors` optionally tints each path point individually (gradient /
+    /// per-segment alpha falloff); when `None` the flat `color` applies to the
+    /// whole strip.
     LineStrip {
         points: Vec<[f32; 3]>,
         uv_along: f32,
+        u_along: bool,
         half_width: f32,
         texture: &'static str,
         color: [f32; 4],
+        colors: Option<Vec<[f32; 4]>>,
         blend: BlendKind,
     },
     /// Bezier/Catmull-Rom curve, CPU-tessellated into a line strip

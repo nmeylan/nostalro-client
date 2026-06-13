@@ -232,10 +232,13 @@ pub struct BeginAsuraEffect {
     glyphs: Vec<Glyph>,
 }
 
-/// `SAINTCASTING(.., "ring_white.tga", 2)` size table (F1=2 → asura).
+/// Original game `SAINTCASTING(.., "ring_white.tga", 2)` size table (F1=2 →
+/// asura). F1=2 maps to size = 5 → untinted white, additive.
 const RING_CONFIG: SaintCastingConfig = SaintCastingConfig {
     texture: "ring_white.tga",
     max_heights: [25.0, 24.0, 23.0, 22.0],
+    color_rgb: [1.0, 1.0, 1.0],
+    blend: BlendKind::Additive,
 };
 
 impl BeginAsuraEffect {

@@ -32,6 +32,14 @@ pub fn is_custom_bucket(id: EffectId) -> bool {
             | EffectId::Bash | EffectId::Bash3d | EffectId::Bash3d2
             | EffectId::Bash3d3 | EffectId::Bash3d4 | EffectId::Bash3d5
             | EffectId::Bat | EffectId::Bat2 | EffectId::Beginspell
+            | EffectId::Blackdevil
+            | EffectId::Giantbody | EffectId::Giantbody2
+            | EffectId::Bluecasting | EffectId::Darkcasting
+            | EffectId::Electric | EffectId::Electric2
+            | EffectId::Hitline | EffectId::Hitline2
+            | EffectId::Hitline3 | EffectId::Hitline4
+            | EffectId::Hitline5 | EffectId::Hitline6
+            | EffectId::Hitline7
             | EffectId::BigPortal | EffectId::BigPortal2 | EffectId::Blessing
             | EffectId::Blind | EffectId::BlindS | EffectId::Blitzbeat
             | EffectId::Blooddrain | EffectId::BlowLine | EffectId::Bluefall
@@ -219,9 +227,9 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::Beginspell3 | EffectId::Beginspell4 | EffectId::Beginspell5
             | EffectId::Beginspell6 | EffectId::Beginspell7 | EffectId::Beginspell8
             | EffectId::Beginspellred | EffectId::Beginspellwhite
-            | EffectId::BeginspellN | EffectId::Blackdevil | EffectId::BlackNumber
+            | EffectId::BeginspellN | EffectId::BlackNumber
             | EffectId::Blastmine | EffectId::BloodFly | EffectId::Bluebody
-            | EffectId::Bluecasting | EffectId::BlueHit | EffectId::BlueNumber
+            | EffectId::BlueHit | EffectId::BlueNumber
             | EffectId::Bunsinjyutsu | EffectId::Castflower | EffectId::Castspin
             | EffectId::CastMagicBlue | EffectId::CastMagicBlue2
             | EffectId::CastMagicRed | EffectId::CastMagicRed2
@@ -237,21 +245,19 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::ColorHead1 | EffectId::ColorHead2 | EffectId::ColorHead3
             | EffectId::ColorRide | EffectId::ColorSword | EffectId::Couplecasting
             | EffectId::Damage1 | EffectId::Damage12 | EffectId::Damage13
-            | EffectId::Darkcasting | EffectId::DaSpace | EffectId::Decagilitybuf
-            | EffectId::Doublecastbody | EffectId::Electric | EffectId::Electric2
+            | EffectId::DaSpace | EffectId::Decagilitybuf
+            | EffectId::Doublecastbody
             | EffectId::EndureJing | EffectId::EndureShan | EffectId::EndureSou
             | EffectId::EndureZhan | EffectId::Falconassault | EffectId::Fastmove
             | EffectId::FileEffectBegin | EffectId::Firesplashhit
             | EffectId::Flammule | EffectId::Flowercast2 | EffectId::Flyup
-            | EffectId::GetItem | EffectId::Giantbody | EffectId::Giantbody2
+            | EffectId::GetItem
             | EffectId::Green993 | EffectId::Green995 | EffectId::Green996
             | EffectId::Greenbody | EffectId::GreenNumber | EffectId::Groundimage
             | EffectId::Groundimage3 | EffectId::Groundimage5 | EffectId::Groundimage7
             | EffectId::Groundimage9 | EffectId::Heal | EffectId::Heal2
             | EffectId::Heal3 | EffectId::Heal4 | EffectId::Hiding
-            | EffectId::Hit7 | EffectId::Hitbody | EffectId::Hitline
-            | EffectId::Hitline2 | EffectId::Hitline3 | EffectId::Hitline4
-            | EffectId::Hitline5 | EffectId::Hitline6 | EffectId::Hitline7
+            | EffectId::Hit7 | EffectId::Hitbody
             | EffectId::Homuncasting | EffectId::Jumpbody | EffectId::Jumpkick
             | EffectId::Kaahi | EffectId::Kaizel | EffectId::Kickedbody
             | EffectId::Landbody | EffectId::Level994 | EffectId::Lightblade

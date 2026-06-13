@@ -17,7 +17,8 @@ pub use effect_queue::{
     is_trail_effect,
 };
 pub use effect_trait::{
-    Afterimage, BodyTint, CameraShake, CameraView, Effect, EffectRenderCtx, EffectUpdateCtx,
+    Afterimage, BodyAction, BodyCopy, BodyTint, BodyVertical, CameraShake, CameraView, Effect,
+    EffectRenderCtx, EffectUpdateCtx,
 };
 pub use factory::{is_real_impl, make_effect};
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBurstParams};
@@ -56,6 +57,10 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::gumgang::TEXTURES,
         effects::floor_aura::TEXTURES,
         effects::casting_ring::TEXTURES,
+        effects::color_casting::TEXTURES,
+        effects::black_devil::TEXTURES,
+        effects::electric::TEXTURES,
+        effects::hit_line::TEXTURES,
         effects::sparkle_column::TEXTURES,
         effects::bash::TEXTURES,
         effects::flasher::TEXTURES,

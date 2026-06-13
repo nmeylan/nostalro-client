@@ -1446,6 +1446,36 @@ mod tests {
     }
 
     #[test]
+    fn batch7_procedural_effects_resolve_to_custom_not_missing_str() {
+        // Batch 422-487 procedural effects: each was in is_custom_bucket but
+        // carried a stale STR alias that shadowed the Custom-bucket route in
+        // bucket_default, resolving to a missing `.str`. Aliases removed so the
+        // Custom factory handlers dispatch.
+        for id in [
+            EffectId::Blackdevil,
+            EffectId::Bluecasting,
+            EffectId::Darkcasting,
+            EffectId::Electric,
+            EffectId::Electric2,
+            EffectId::Hitline,
+            EffectId::Hitline2,
+            EffectId::Hitline3,
+            EffectId::Hitline4,
+            EffectId::Hitline5,
+            EffectId::Hitline6,
+            EffectId::Hitline7,
+            EffectId::Giantbody,
+            EffectId::Giantbody2,
+        ] {
+            assert!(
+                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                "{id:?} must resolve to Custom, got {:?}",
+                effect_spec(id)
+            );
+        }
+    }
+
+    #[test]
     fn demonstration_loops_with_size_and_y_offset() {
         // Demonstration loops its 16-frame action, so the sprite must keep
         // cycling. Size 1.2, y-offset -1.0, matching the original game's
@@ -2016,13 +2046,16 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Ef4waybody => 1000,
         EffectId::Quakebody => 140,
         EffectId::AsurabodyMonster => 4294967295,
+        // Hitline/Electric durations are wall-clock ends (launch window +
+        // stagger + hold + fade), not the parent emitter lifetime —
+        // the holder hard-kills Custom payloads at this time.
         EffectId::Hitline3 => 2000,
-        EffectId::Hitline4 => 2000,
-        EffectId::Hitline5 => 2000,
-        EffectId::Hitline6 => 2000,
+        EffectId::Hitline4 => 2500,
+        EffectId::Hitline5 => 2500,
+        EffectId::Hitline6 => 3000,
         EffectId::Electric => 3000,
-        EffectId::Electric2 => 30000,
-        EffectId::Hitline7 => 500,
+        EffectId::Electric2 => 1500,
+        EffectId::Hitline7 => 1500,
         EffectId::Stormkick => 1000,
         EffectId::Halfsphere => 2000,
         EffectId::Attackenergy => 30000,
