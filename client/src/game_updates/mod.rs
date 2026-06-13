@@ -24,7 +24,6 @@ impl App {
         self.update_fades(delta);
         self.game.effects.update(delta);
 
-        self.effect_holder.drain_queue(&mut self.effect_queue);
         // Live caster facing for direction-oriented effects: RO body direction
         // (0..7) maps to world yaw at 45° per step (yaw = dir * 45). The
         // effect adds the original game's per-handler offset on top.
@@ -42,6 +41,7 @@ impl App {
             let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
             Some([wx, gat.get_height(cx + 0.5, cy + 0.5) - 8.0, wz])
         };
+        self.effect_holder.drain_queue(&mut self.effect_queue, &resolve_entity_pos);
         self.effect_holder.update(
             &EffectUpdateCtx { delta, camera_target: None, caster_yaw: None },
             &resolve_caster_yaw,

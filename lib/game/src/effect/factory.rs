@@ -268,10 +268,35 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::quakebody::QuakeBodyEffect::new(effects::quakebody::QUAKEBODY4))
         }
 
-        // Body enlarge (the giant body variant) — scales the attached actor's sprite, emits
-        // no primitives. Giantbody ramps in; Giantbody2 is instant.
-        EffectId::Giantbody => Box::new(effects::giantbody::GiantBodyEffect::ramped()),
-        EffectId::Giantbody2 => Box::new(effects::giantbody::GiantBodyEffect::instant()),
+        // Body scale (giant grow / baby shrink) — scales the attached
+        // actor's sprite, emits no primitives. *body ramps in; *body2
+        // is instant; BabybodyBack reverses the shrink.
+        EffectId::Giantbody => Box::new(effects::body_scale::BodyScaleEffect::giant_ramped()),
+        EffectId::Giantbody2 => Box::new(effects::body_scale::BodyScaleEffect::giant_instant()),
+        EffectId::Babybody => Box::new(effects::body_scale::BodyScaleEffect::baby_ramped()),
+        EffectId::Babybody2 => Box::new(effects::body_scale::BodyScaleEffect::baby_instant()),
+        EffectId::BabybodyBack => Box::new(effects::body_scale::BodyScaleEffect::baby_back()),
+
+        // Forced jump-kick pose — changes the actor's animation, emits no
+        // primitives.
+        EffectId::Jumpkick => Box::new(effects::jumpkick::JumpkickEffect::new()),
+
+        // Vertical jump body lights (high jump / land) — translate & fade
+        // the actor sprite, no primitives. Land also spins upright.
+        EffectId::Jumpbody => Box::new(effects::jumpbody::JumpBodyEffect::high()),
+        EffectId::Landbody => Box::new(effects::jumpbody::JumpBodyEffect::land()),
+
+        // Full barrel-roll of the target — rotates the actor sprite, no
+        // primitives. 414 is the immediate 2× roll; 466 the delayed
+        // 1× twin.
+        EffectId::Spinedbody => Box::new(effects::spinedbody::SpinedBodyEffect::spinedbody()),
+        EffectId::Spinedbody2 => Box::new(effects::spinedbody::SpinedBodyEffect::spinedbody2()),
+
+        // Body-copy lights (asura halo / blue-hit flash / 4-way ghosts) —
+        // draw extra sprite copies behind the actor, no primitives.
+        EffectId::Asurabody => Box::new(effects::asurabody::AsuraBodyEffect::new()),
+        EffectId::TaeReady => Box::new(effects::taeready::TaeReadyEffect::new()),
+        EffectId::Ef4waybody => Box::new(effects::ef4waybody::Ef4wayBodyEffect::new()),
 
         // Batch STR-B10 — Aciddemon swirling cone funnel; Rainbow arch.
         EffectId::Aciddemon => Box::new(effects::aciddemon::AcidDemonEffect::new(anchor.point())),

@@ -389,19 +389,20 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Peong => &["peong"],
         EffectId::Tanji2 => &["tanji2"],
         EffectId::Pressedbody => &["pressedbody"],
-        EffectId::Spinedbody => &["spinedbody"],
+        // Spinedbody → SpinedBodyEffect (Custom, barrel-roll body spin, no
+        // `.str`). Alias removed so it resolves via the custom bucket and the
+        // body_angle channel applies.
         EffectId::Kickedbody => &["kickedbody"],
         EffectId::Airtexture => &["airtexture"],
         EffectId::Hitbody => &["hitbody"],
         EffectId::Doublegumgang => &["doublegumgang"],
         EffectId::Reflectbody => &["reflectbody"],
-        EffectId::Babybody => &["babybody"],
-        EffectId::Babybody2 => &["babybody2"],
         // Giantbody/Giantbody2 → GiantBodyEffect (Custom, giant body scale,
         // no primitive/STR). Aliases removed so they resolve via the custom
         // bucket and the body_scale channel applies.
-        EffectId::Asurabody => &["asurabody"],
-        EffectId::Ef4waybody => &["4waybody"],
+        // Asurabody/Ef4waybody → AsuraBodyEffect / Ef4wayBodyEffect (Custom,
+        // halo / 4-way sprite copies, no `.str`). Aliases removed so they
+        // resolve via the custom bucket and the body_copies channel applies.
         EffectId::Quakebody => &["quakebody"],
         EffectId::AsurabodyMonster => &["asurabody_monster"],
         // Hitline..Hitline7 → HitLineEffect / HitLineBounceEffect (Custom,
@@ -421,9 +422,10 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Run => &["run"],
         EffectId::Stoprun => &["stoprun"],
         EffectId::Stopeffect => &["stopeffect"],
-        EffectId::Jumpbody => &["jumpbody"],
-        EffectId::Landbody => &["landbody"],
-        EffectId::TaeReady => &["tae_ready"],
+        // Jumpbody/Landbody → JumpBodyEffect (Custom, high-jump/land
+        // vertical translate + fade, no `.str`). TaeReady → TaeReadyEffect
+        // (Custom, blue-hit flash). Aliases removed so they resolve via the
+        // custom bucket.
         EffectId::Grandcross2 => &["grandcross2"],
         EffectId::Soulstrike2 => &["soulstrike2"],
         EffectId::Yufitel2 => &["yufitel2"],
@@ -443,7 +445,8 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Stormkick5 => &["stormkick5"],
         EffectId::Stormkick6 => &["stormkick6"],
         EffectId::Stormkick7 => &["stormkick7"],
-        EffectId::Spinedbody2 => &["spinedbody2"],
+        // Spinedbody2 → Spinedbody2Effect (Custom, barrel-roll, no
+        // `.str`). Alias removed so it resolves via the custom bucket.
         EffectId::Beginasura1 => &["beginasura1"],
         EffectId::Beginasura2 => &["beginasura2"],
         EffectId::Beginasura3 => &["beginasura3"],
@@ -506,7 +509,8 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Aciddemon => &["aciddemon"],
         EffectId::Greenbody => &["greenbody"],
         EffectId::Throwitem4 => &["throwitem4"],
-        EffectId::BabybodyBack => &["babybody_back"],
+        // BabybodyBack → BodyScaleEffect (Custom, grow-back from baby size, no
+        // `.str`). Alias removed so it resolves via the custom bucket.
         EffectId::Throwitem5 => &["throwitem5"],
         EffectId::Bluebody => &["bluebody"],
         EffectId::Redlightbody => &["redlightbody"],

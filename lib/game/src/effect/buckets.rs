@@ -34,6 +34,11 @@ pub fn is_custom_bucket(id: EffectId) -> bool {
             | EffectId::Bat | EffectId::Bat2 | EffectId::Beginspell
             | EffectId::Blackdevil
             | EffectId::Giantbody | EffectId::Giantbody2
+            | EffectId::Babybody | EffectId::Babybody2 | EffectId::BabybodyBack
+            | EffectId::Jumpkick
+            | EffectId::Jumpbody | EffectId::Landbody
+            | EffectId::Spinedbody | EffectId::Spinedbody2
+            | EffectId::Asurabody | EffectId::TaeReady | EffectId::Ef4waybody
             | EffectId::Bluecasting | EffectId::Darkcasting
             | EffectId::Electric | EffectId::Electric2
             | EffectId::Hitline | EffectId::Hitline2
@@ -214,13 +219,12 @@ pub fn is_hybrid(id: EffectId) -> bool {
 pub fn is_noop_bucket(id: EffectId) -> bool {
     matches!(
         id,
-        EffectId::Ef4waybody | EffectId::ActorColor | EffectId::AggregationBlackk
+        EffectId::ActorColor | EffectId::AggregationBlackk
             | EffectId::AggregationPurple | EffectId::AggregationRed
             | EffectId::AggregationWhite | EffectId::AggregationYellow
             | EffectId::ArrowDown | EffectId::ArrowRed | EffectId::ArrowYellow
-            | EffectId::Assumptio | EffectId::Asurabody | EffectId::AsurabodyMonster
-            | EffectId::Aurablade | EffectId::Aurablade2 | EffectId::Babybody
-            | EffectId::Babybody2 | EffectId::BabybodyBack | EffectId::Beginasura
+            | EffectId::Assumptio | EffectId::AsurabodyMonster
+            | EffectId::Aurablade | EffectId::Aurablade2 | EffectId::Beginasura
             | EffectId::Beginasura1 | EffectId::Beginasura11 | EffectId::Beginasura2
             | EffectId::Beginasura3 | EffectId::Beginasura4 | EffectId::Beginasura5
             | EffectId::Beginasura6 | EffectId::Beginasura7 | EffectId::Beginspell2
@@ -258,9 +262,9 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::Groundimage9 | EffectId::Heal | EffectId::Heal2
             | EffectId::Heal3 | EffectId::Heal4 | EffectId::Hiding
             | EffectId::Hit7 | EffectId::Hitbody
-            | EffectId::Homuncasting | EffectId::Jumpbody | EffectId::Jumpkick
+            | EffectId::Homuncasting
             | EffectId::Kaahi | EffectId::Kaizel | EffectId::Kickedbody
-            | EffectId::Landbody | EffectId::Level994 | EffectId::Lightblade
+            | EffectId::Level994 | EffectId::Lightblade
             | EffectId::LightBody | EffectId::LightHead1 | EffectId::LightHead2
             | EffectId::LightHead3 | EffectId::LightRide | EffectId::LightRoleshield
             | EffectId::LightShield | EffectId::LightSword | EffectId::Linklight
@@ -281,8 +285,8 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::Rotateflower | EffectId::Run | EffectId::ScreenQuake
             | EffectId::Shake | EffectId::Shrink | EffectId::Sight3
             | EffectId::Sightrasher | EffectId::Soullight | EffectId::Soullink
-            | EffectId::Spherewind3 | EffectId::Spinedbody | EffectId::Spinedbody2
-            | EffectId::StatusState | EffectId::Stoprun | EffectId::TaeReady
+            | EffectId::Spherewind3
+            | EffectId::StatusState | EffectId::Stoprun
             | EffectId::TalkFrostjoke | EffectId::TalkScream
             | EffectId::Teihit1reverse | EffectId::Teihit2reverse
             | EffectId::Teihit3reverse | EffectId::Telekhit | EffectId::Teleportation
@@ -299,23 +303,21 @@ mod tests {
 
     #[test]
     fn buckets_are_disjoint() {
-        // An effect can't be both Custom and Noop. Hybrid is a strict
-        // subset of Custom.
-        let samples = [
-            EffectId::Warp,
-            EffectId::Stormgust,
-            EffectId::Hiding,
-            EffectId::Beginasura,
-            EffectId::Coin,
-        ];
-        for id in samples {
+        use models::enums::EnumWithNumberValue;
+        // No effect may be in both Custom and Noop (Noop wins in
+        // `effect_spec`, so an overlap silently swallows a Custom handler);
+        // Hybrid is a strict subset of Custom. Sweep every variant — a
+        // straggler sharing a list line is easy to miss by eye.
+        for value in 0..3000usize {
+            let Ok(id) = EffectId::try_from_value(value) else {
+                continue;
+            };
             assert!(
                 !(is_custom_bucket(id) && is_noop_bucket(id)),
-                "{:?} marked both Custom and Noop",
-                id
+                "{id:?} marked both Custom and Noop"
             );
             if is_hybrid(id) {
-                assert!(is_custom_bucket(id), "{:?} hybrid but not in custom bucket", id);
+                assert!(is_custom_bucket(id), "{id:?} hybrid but not in custom bucket");
             }
         }
     }

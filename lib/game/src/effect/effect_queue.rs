@@ -143,6 +143,17 @@ pub fn body_attached(id: EffectId) -> bool {
             | EffectId::Lkconcentration
             | EffectId::Giantbody
             | EffectId::Giantbody2
+            | EffectId::Babybody
+            | EffectId::Babybody2
+            | EffectId::BabybodyBack
+            | EffectId::Jumpkick
+            | EffectId::Jumpbody
+            | EffectId::Landbody
+            | EffectId::Spinedbody
+            | EffectId::Spinedbody2
+            | EffectId::Asurabody
+            | EffectId::TaeReady
+            | EffectId::Ef4waybody
             | EffectId::Hitline2
             | EffectId::Stormkick
             | EffectId::Stormkick1

@@ -15,9 +15,9 @@ use models::enums::effect_id::EffectId;
 use ragnarok_formats::act::SpriteAnimationState;
 use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
-    Afterimage, AlphaKeyframe, Attach, CameraShake, Effect as GameEffect, EffectDrawList,
-    EffectQueue, EffectRenderCtx, EffectSpec, EffectStatus, EffectUpdateCtx, SpawnRequest,
-    SprBurstParams, effect_spec, make_effect, spawn_camera_shake,
+    Afterimage, AlphaKeyframe, Attach, BodyAction, CameraShake, Effect as GameEffect,
+    EffectDrawList, EffectQueue, EffectRenderCtx, EffectSpec, EffectStatus, EffectUpdateCtx,
+    SpawnRequest, SprBurstParams, effect_spec, make_effect, spawn_camera_shake,
 };
 
 use crate::effect_sprite::Smoke3DParticle;
@@ -319,7 +319,7 @@ impl EffectHolder {
         attach: Attach,
         override_duration_ms: Option<u32>,
     ) -> Option<EffectHandle> {
-        self.spawn_with_hit_count(effect_id, attach, override_duration_ms, None)
+        self.spawn_with_hit_count(effect_id, attach, override_duration_ms, None, &|_| None)
     }
 
     fn spawn_with_hit_count(
@@ -328,6 +328,7 @@ impl EffectHolder {
         attach: Attach,
         override_duration_ms: Option<u32>,
         hit_count: Option<u8>,
+        resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
     ) -> Option<EffectHandle> {
         let Some(spec) = effect_spec(effect_id) else {
             self.last_spawn = Some(SpawnOutcome::NoSpec);
@@ -390,13 +391,16 @@ impl EffectHolder {
                     let (from, to) = match attach {
                         Attach::WorldPos(p) => (p, p),
                         Attach::Trail { from, to } => (from, to),
-                        // The external (viewer) backend has no entity table, so
-                        // link effects are driven there as a static `Trail`
-                        // (caster origin → clicked fake-entity); `Link` itself
-                        // can't reach this path.
-                        Attach::Entity(_)
-                        | Attach::Projectile { .. }
-                        | Attach::Link { .. } => ([0.0; 3], [0.0; 3]),
+                        // Snapshot the entity position at spawn — the external
+                        // backend has no per-frame entity table.
+                        Attach::Entity(id) => {
+                            let p = resolve_entity(id).unwrap_or([0.0; 3]);
+                            (p, p)
+                        }
+                        // Link effects are driven on this backend as a static
+                        // `Trail` (caster origin → clicked fake-entity);
+                        // `Link` itself can't reach this path.
+                        Attach::Projectile { .. } | Attach::Link { .. } => ([0.0; 3], [0.0; 3]),
                     };
                     // The cdylib decodes this with `EffectId::try_from_value`,
                     // so send the enum's *value* — not the Rust discriminant
@@ -417,50 +421,14 @@ impl EffectHolder {
                         return None;
                     }
                 } else {
-                    // Spawn-time `Attach::Entity` / `Attach::Projectile`
-                    // resolution: deferred. This direct-spawn path has no
-                    // entity table (effect viewer / GIF exporter / any
-                    // caller that doesn't track entities), so the
-                    // resolver returns `None` and those variants fall
-                    // back to the origin — matching the pre-refactor
-                    // behaviour exactly. The per-frame collectors
-                    // (`collect_spr_burst_emitters`, `collect_str_emitters`,
-                    // …) already take a resolver closure, so
-                    // entity-followed effects animate correctly once
-                    // alive.
-                    //
-                    // Two future paths for spawn-time entity resolution
-                    // (pick when the first real use case lands):
-                    //
-                    //   * **Option A — caller pre-resolves**. The
-                    //     network/game-runtime layer already holds the
-                    //     entity table; when it translates a packet
-                    //     to a `SpawnRequest` it passes
-                    //     `Attach::WorldPos(entity.pos)` for one-shot
-                    //     captures or `Attach::Trail { from, to }` for
-                    //     projectile shapes. `Attach::Entity(id)` is
-                    //     then reserved for follow-the-entity effects
-                    //     (auras, status markers) — the per-frame
-                    //     collectors handle those via their existing
-                    //     resolver argument. Under this convention
-                    //     this stub `|_id| None` is permanently
-                    //     correct: spawning with `Attach::Entity` here
-                    //     means "follow each frame", not "snapshot now".
-                    //
-                    //   * **Option B — `drain_queue` accepts a resolver**.
-                    //     If we want the queue path to snapshot
-                    //     `Attach::Entity` at spawn time as well (so
-                    //     packet handlers don't have to pre-resolve),
-                    //     introduce a private `spawn_with_resolver(..,
-                    //     resolve_entity: &dyn Fn(...) -> Option<..>)`
-                    //     and have `drain_queue(&mut q, resolver)`
-                    //     thread it through. `pub fn spawn` keeps its
-                    //     resolver-less signature for the
-                    //     viewer/GIF-export callers and delegates with
-                    //     `&|_id| None`. Touches exactly those two
-                    //     functions; every effect, the factory, and
-                    //     `SpawnRequest` stay as-is.
-                    let anchor = attach_to_anchor(attach, &|_id| None);
+                    // Spawn-time `Attach::Entity` resolution: the queue path
+                    // (`drain_queue`) threads the caller's entity table in so
+                    // entity-attached Custom effects anchor on the actor at
+                    // spawn; resolver-less callers (GIF exporter, tests) fall
+                    // back to the origin. Per-frame following (Link, body
+                    // channels) still goes through the `update`/collector
+                    // resolvers.
+                    let anchor = attach_to_anchor(attach, resolve_entity);
                     match make_effect(effect_id, anchor, hit_count) {
                         Some(e) => {
                             self.last_spawn = Some(SpawnOutcome::Custom);
@@ -504,8 +472,14 @@ impl EffectHolder {
         Some(handle)
     }
 
-    /// Drain a game-side queue and spawn each request.
-    pub fn drain_queue(&mut self, queue: &mut EffectQueue) {
+    /// Drain a game-side queue and spawn each request. `resolve_entity`
+    /// supplies the caller's entity table so `Attach::Entity` spawns anchor
+    /// their world-space primitives on the actor.
+    pub fn drain_queue(
+        &mut self,
+        queue: &mut EffectQueue,
+        resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
+    ) {
         for req in queue.drain() {
             let SpawnRequest {
                 effect_id,
@@ -513,7 +487,13 @@ impl EffectHolder {
                 override_duration_ms,
                 hit_count,
             } = req;
-            self.spawn_with_hit_count(effect_id, attach, override_duration_ms, hit_count);
+            self.spawn_with_hit_count(
+                effect_id,
+                attach,
+                override_duration_ms,
+                hit_count,
+                resolve_entity,
+            );
         }
     }
 
@@ -683,55 +663,62 @@ impl EffectHolder {
         self.shake.offset().to_array()
     }
 
-    /// Sum of per-frame body-shake offsets (screen pixels) from effects
-    /// attached to `entity_id` (the original game's quake body). The actor
-    /// pass adds this to the entity's screen anchor. Only in-process `Custom`
-    /// effects participate — the hot-reload backend has no attached actor.
-    pub fn body_shake_for_entity(&self, entity_id: u32) -> [f32; 2] {
-        let mut acc = [0.0, 0.0];
+    /// Every per-frame body modifier from effects attached to `entity_id`,
+    /// bundled for the actor pass (shake/tint/scale/yaw sum or last-writer as
+    /// the original game shows; plus the newer spin/lift/copy channels). The
+    /// caller folds its hidden/death fade into `alpha` and hands the result to
+    /// [`compose_actor_batches`]. Only in-process `Custom` effects participate
+    /// — the hot-reload backend has no attached actor.
+    pub fn body_channels_for_entity(&self, entity_id: u32) -> crate::sprite::BodyChannels {
+        let mut ch = crate::sprite::BodyChannels::default();
         for e in &self.effects {
-            if let (Attach::Entity(id), HeldPayload::Custom(c)) = (e.attach, &e.payload)
-                && id == entity_id
-                && let Some(off) = c.body_shake()
-            {
-                acc[0] += off[0];
-                acc[1] += off[1];
+            let (Attach::Entity(id), HeldPayload::Custom(c)) = (e.attach, &e.payload) else {
+                continue;
+            };
+            if id != entity_id {
+                continue;
+            }
+            if let Some(off) = c.body_shake() {
+                ch.shake[0] += off[0];
+                ch.shake[1] += off[1];
+            }
+            if let Some(t) = c.body_tint() {
+                ch.tint = Some(t.rgb);
+            }
+            if let Some(s) = c.body_scale() {
+                ch.scale *= s;
+            }
+            if let Some(yaw) = c.body_yaw() {
+                ch.yaw += yaw;
+            }
+            if let Some(angle) = c.body_angle() {
+                ch.angle += angle;
+            }
+            if let Some(v) = c.body_vertical() {
+                ch.lift_px += v.lift_px;
+                ch.alpha *= v.alpha;
+            }
+            if let Some(mut copies) = c.body_copies() {
+                ch.copies.append(&mut copies);
             }
         }
-        acc
+        ch
     }
 
-    /// Body tint of the last effect attached to `entity_id` that
-    /// emits one this frame, e.g. Two-Hand Quicken's yellow or Quakebody4's
-    /// red flash. The actor pass multiplies the sprite's vertex colour by it.
-    pub fn body_tint_for_entity(&self, entity_id: u32) -> Option<[u8; 3]> {
-        let mut tint = None;
-        for e in &self.effects {
-            if let (Attach::Entity(id), HeldPayload::Custom(c)) = (e.attach, &e.payload)
+    /// Drain the one-shot forced-animation request (`SetForceAnimation`,
+    /// Jumpkick) of the first effect attached to `entity_id` that has one
+    /// armed this frame. Mutating — each request fires once. Called from the
+    /// game-update step, not the draw pass.
+    pub fn take_body_action_for_entity(&mut self, entity_id: u32) -> Option<BodyAction> {
+        for e in &mut self.effects {
+            if let (Attach::Entity(id), HeldPayload::Custom(c)) = (e.attach, &mut e.payload)
                 && id == entity_id
-                && let Some(t) = c.body_tint()
+                && let Some(action) = c.take_body_action()
             {
-                tint = Some(t.rgb);
+                return Some(action);
             }
         }
-        tint
-    }
-
-    /// Sum of per-frame body-yaw offsets (radians) from effects attached to
-    /// `entity_id` (the original game increments the master's yaw rotation). The actor pass
-    /// adds this to the entity's facing angle before selecting the directional
-    /// sprite frame, so a spinning effect (StormKick) whirls the caster.
-    pub fn body_yaw_for_entity(&self, entity_id: u32) -> f32 {
-        let mut acc = 0.0;
-        for e in &self.effects {
-            if let (Attach::Entity(id), HeldPayload::Custom(c)) = (e.attach, &e.payload)
-                && id == entity_id
-                && let Some(yaw) = c.body_yaw()
-            {
-                acc += yaw;
-            }
-        }
-        acc
+        None
     }
 
     /// Append primitive draws for live custom effects. STR/Spr collection
@@ -1262,18 +1249,13 @@ mod tests {
         // Advance into Quakebody4's 20..60-frame shake window.
         h.update(&ctx(25.0 / 60.0), &|_| None, &|_| None);
 
-        assert_ne!(
-            h.body_shake_for_entity(7),
-            [0.0, 0.0],
-            "the attached entity shakes"
-        );
-        assert!(
-            h.body_tint_for_entity(7).is_some(),
-            "Quakebody4 tints the attached entity"
-        );
+        let ch = h.body_channels_for_entity(7);
+        assert_ne!(ch.shake, [0.0, 0.0], "the attached entity shakes");
+        assert!(ch.tint.is_some(), "Quakebody4 tints the attached entity");
         // A different entity is untouched.
-        assert_eq!(h.body_shake_for_entity(99), [0.0, 0.0]);
-        assert!(h.body_tint_for_entity(99).is_none());
+        let other = h.body_channels_for_entity(99);
+        assert_eq!(other.shake, [0.0, 0.0]);
+        assert!(other.tint.is_none());
     }
 
     #[test]
@@ -1649,7 +1631,7 @@ mod tests {
         let mut q = EffectQueue::new();
         q.spawn_at(EffectId::Bubble, [1.0, 2.0, 3.0]);
         q.spawn_at(EffectId::Gaspush, [0.0, 0.0, 0.0]);
-        h.drain_queue(&mut q);
+        h.drain_queue(&mut q, &|_| None);
         assert_eq!(h.len(), 2);
         assert!(q.pending.is_empty());
     }

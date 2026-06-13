@@ -31,9 +31,10 @@ pub use ground::GroundRenderer;
 pub use ground_proxy::GroundProxyRenderer;
 pub use model::ModelRenderer;
 pub use sprite::{
-    ClipQuad, CompositeClips, EntitySprite, SpriteBatch, SpriteRenderer, SpriteTextures,
-    SpriteUniforms, SpriteVertex, build_clip_quad, build_composite_clips, build_entity_sprite,
-    scale_clip_vertices, upload_sprite_textures,
+    BodyChannels, ClipQuad, CompositeClips, EntitySprite, SpriteBatch, SpriteRenderer,
+    SpriteTextures, SpriteUniforms, SpriteVertex, build_clip_quad, build_composite_clips,
+    build_entity_sprite, compose_actor_batches, scale_clip_vertices, transform_batch_vertices,
+    upload_sprite_textures,
 };
 pub use effect::{
     BlendBucket, BlendKind, DrawRecord, EffectDispatcher, PipelineKind, StrEffectCache,

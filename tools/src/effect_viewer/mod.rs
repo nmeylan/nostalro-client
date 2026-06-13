@@ -1222,7 +1222,7 @@ impl App {
 
         // Drain spawn requests into the holder, then tick it. Camera target
         // lets camera-anchored SprBurst effects (Snow, etc.) follow the view.
-        self.effect_holder.drain_queue(&mut self.effect_queue);
+        self.effect_holder.drain_queue(&mut self.effect_queue, &|_| None);
         let camera_target = self
             .renderer
             .as_ref()

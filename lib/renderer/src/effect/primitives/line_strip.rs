@@ -180,12 +180,16 @@ fn tessellate_catmull_rom(control: &[[f32; 3]], segments: u32) -> Vec<[f32; 3]> 
 
 /// Build a camera-facing ribbon along `points`, appending vertices / indices.
 /// Two vertices per point (offset `±half_width` perpendicular to the path and
-/// the view direction); `uv_along` scales how fast V accumulates with length.
+/// the view direction); `uv_along` scales how fast the along-path texture
+/// coordinate accumulates with length (V by default, U when `u_along`).
+/// `colors` tints each path point individually; `None` → flat `color`.
 fn build_ribbon(
     points: &[[f32; 3]],
     half_width: f32,
     uv_along: f32,
+    u_along: bool,
     color: [f32; 4],
+    colors: Option<&[[f32; 4]]>,
     eye: glam::Vec3,
     vertices: &mut Vec<SpriteVertex>,
     indices: &mut Vec<u32>,
@@ -216,18 +220,24 @@ fn build_ribbon(
             }
         }
         let side = side.normalize() * half_width;
-        let v = cum_len * uv_along;
+        let along = cum_len * uv_along;
+        let (uv_left, uv_right) = if u_along {
+            ([along, 0.0], [along, 1.0])
+        } else {
+            ([0.0, along], [1.0, along])
+        };
+        let color = colors.map_or(color, |c| c[i.min(c.len() - 1)]);
 
         let left = p - side;
         let right = p + side;
         vertices.push(SpriteVertex {
             position: [left.x, left.y, left.z],
-            tex_coord: [0.0, v],
+            tex_coord: uv_left,
             color,
         });
         vertices.push(SpriteVertex {
             position: [right.x, right.y, right.z],
-            tex_coord: [1.0, v],
+            tex_coord: uv_right,
             color,
         });
     }
@@ -248,15 +258,26 @@ pub fn prepare_line_strip_records<'tex>(
     let mut records: Vec<DrawRecord<'tex>> = Vec::new();
     for (emission, prim) in list.primitives.iter().enumerate() {
         // Resolve both variants down to a polyline + shared ribbon params.
-        let (points, half_width, uv_along, texture, color, blend) = match prim {
+        let (points, half_width, uv_along, u_along, texture, color, colors, blend) = match prim {
             EffectPrimitiveDraw::LineStrip {
                 points,
                 uv_along,
+                u_along,
                 half_width,
                 texture,
                 color,
+                colors,
                 blend,
-            } => (points.clone(), *half_width, *uv_along, texture, color, blend),
+            } => (
+                points.clone(),
+                *half_width,
+                *uv_along,
+                *u_along,
+                texture,
+                color,
+                colors.as_deref(),
+                blend,
+            ),
             EffectPrimitiveDraw::Spline {
                 control_points,
                 segments,
@@ -268,8 +289,10 @@ pub fn prepare_line_strip_records<'tex>(
                 tessellate_catmull_rom(control_points, *segments),
                 *half_width,
                 1.0,
+                false,
                 texture,
                 color,
+                None,
                 blend,
             ),
             _ => continue,
@@ -287,7 +310,9 @@ pub fn prepare_line_strip_records<'tex>(
             &points,
             half_width,
             uv_along,
+            u_along,
             *color,
+            colors,
             eye,
             &mut vertices,
             &mut indices,
@@ -336,9 +361,11 @@ mod tests {
         list.push(EffectPrimitiveDraw::LineStrip {
             points,
             uv_along: 0.1,
+            u_along: false,
             half_width: 0.5,
             texture: "x",
             color: [1.0, 1.0, 1.0, 1.0],
+            colors: None,
             blend: BlendKind::Additive,
         });
         let records = prepare(&list);
@@ -393,9 +420,11 @@ mod tests {
         list.push(EffectPrimitiveDraw::LineStrip {
             points: vec![[0.0, 0.0, 0.0]],
             uv_along: 0.1,
+            u_along: false,
             half_width: 0.5,
             texture: "x",
             color: [1.0, 1.0, 1.0, 1.0],
+            colors: None,
             blend: BlendKind::Additive,
         });
         assert!(prepare(&list).is_empty());

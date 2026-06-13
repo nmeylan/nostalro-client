@@ -29,6 +29,32 @@ pub enum EntityState {
     Pickup,
 }
 
+/// A forced actor animation pushed by a body effect (e.g. Jumpkick's
+/// forced kick pose). While set it overrides the
+/// state-driven action and suppresses normal selection until the OneShot
+/// finishes, then clears — mirroring the original game's forced animation.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ForcedAnimation {
+    pub action: usize,
+    pub start_frame: usize,
+    pub duration_ms: f32,
+    started: bool,
+}
+
+impl ForcedAnimation {
+    pub fn new(action: usize, start_frame: usize, duration_ms: f32) -> Self {
+        Self { action, start_frame, duration_ms, started: false }
+    }
+
+    pub fn started(&self) -> bool {
+        self.started
+    }
+
+    pub fn mark_started(&mut self) {
+        self.started = true;
+    }
+}
+
 pub const DEATH_FADE_DURATION: f32 = 6.12; // 255 * 24ms, matching original client corpse fade
 pub const VANISH_FADE_DURATION: f32 = 0.51; // 510ms, matching original client out-of-sight fade
 
@@ -130,6 +156,8 @@ pub struct Entity {
     pub pending_death: bool,
     pub just_spawned: bool,
     pub effect_state: i32,
+    /// Active forced animation from a body effect (Jumpkick), if any.
+    pub forced_animation: Option<ForcedAnimation>,
 }
 
 impl Entity {
@@ -195,6 +223,7 @@ impl Entity {
             pending_death: false,
             just_spawned: true,
             effect_state: 0,
+            forced_animation: None,
         }
     }
 

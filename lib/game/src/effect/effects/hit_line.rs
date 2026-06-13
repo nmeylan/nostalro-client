@@ -37,7 +37,9 @@
 //! `(255, 200-(20-j)·7, ·)` plus an orange body flash on frames 10-20).
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-use crate::effect::effect_trait::{BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx};
+use crate::effect::effect_trait::{
+    BodyCopy, BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx,
+};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 pub const TEXTURE: &str = "white02.bmp";
@@ -464,9 +466,9 @@ impl BounceStreak {
 pub struct HitLineBounceEffect {
     anchor: [f32; 3],
     tint: BounceTint,
-    /// `Hitline2` flashes the body orange (255,120,50) on frames
-    /// 10-20. Its second body light (a pulsing stretched copy)
-    /// ghost copy) needs the body-glow channel and is not rendered yet.
+    /// `Hitline2` flashes the body orange `(255,120,50)` on frames
+    /// 10-20, alongside a second body copy: one pulsing
+    /// vertically-stretched ghost copy, emitted via [`Effect::body_copies`].
     body_flash: bool,
     streaks: Vec<BounceStreak>,
     age: f32,
@@ -578,6 +580,24 @@ impl Effect for HitLineBounceEffect {
     fn body_tint(&self) -> Option<BodyTint> {
         (self.body_flash && (10..=20).contains(&self.frame))
             .then_some(BodyTint { rgb: [255, 120, 50] })
+    }
+
+    fn body_copies(&self) -> Option<Vec<BodyCopy>> {
+        // One alpha-blended ghost behind the body, stretched
+        // vertically by a small pulse (`add = sin(phase)·1.5 + 5`), during
+        // the same orange-flash window.
+        if !(self.body_flash && (10..=20).contains(&self.frame)) {
+            return None;
+        }
+        let pulse = (self.frame as f32 * 0.8).sin() * 1.5 + 5.0;
+        Some(vec![BodyCopy {
+            offset_px: [0.0, 0.0],
+            // Stretch relative to a rough half-sprite-height (~45 px).
+            scale: [1.0, 1.0 + pulse / 45.0],
+            tint: [255, 120, 50],
+            alpha: 0.5,
+            additive: false,
+        }])
     }
 }
 

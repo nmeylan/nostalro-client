@@ -1466,6 +1466,17 @@ mod tests {
             EffectId::Hitline7,
             EffectId::Giantbody,
             EffectId::Giantbody2,
+            EffectId::Babybody,
+            EffectId::Babybody2,
+            EffectId::BabybodyBack,
+            EffectId::Jumpkick,
+            EffectId::Jumpbody,
+            EffectId::Landbody,
+            EffectId::Spinedbody,
+            EffectId::Spinedbody2,
+            EffectId::Asurabody,
+            EffectId::TaeReady,
+            EffectId::Ef4waybody,
         ] {
             assert!(
                 matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
@@ -2067,10 +2078,14 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Stoprun => 300,
         EffectId::Stopeffect => 1000,
         EffectId::Jumpbody => 5000,
-        EffectId::Landbody => 350,
+        // Cover the full land-drop + roll (~25 frames); the
+        // effect self-terminates once it lands upright.
+        EffectId::Landbody => 450,
         EffectId::Foot3 => 3400,
         EffectId::Foot4 => 3400,
-        EffectId::TaeReady => 600,
+        // Cover the full blue-hit flash (ramp + hold + fade, ~50 frames);
+        // self-terminates when it ends.
+        EffectId::TaeReady => 850,
         EffectId::Grandcross2 => 9990,
         EffectId::Soulstrike2 => 1000,
         EffectId::Yufitel2 => 2500,
@@ -2087,7 +2102,9 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Stormkick5 => 3000,
         EffectId::Stormkick6 => 1000,
         EffectId::Stormkick7 => 1000,
-        EffectId::Spinedbody2 => 0,
+        // The barrel-roll spans ~50 frames; self-terminates
+        // once the roll completes.
+        EffectId::Spinedbody2 => 900,
         EffectId::Beginasura1 => 3000,
         EffectId::Beginasura2 => 3000,
         EffectId::Beginasura3 => 3000,

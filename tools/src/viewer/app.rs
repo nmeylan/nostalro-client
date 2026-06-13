@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
-
+use models::enums::class::JobName;
 use models::enums::EnumWithNumberValue;
 use models::enums::EnumWithStringValue;
 use models::enums::effect_id::EffectId;
@@ -129,7 +129,7 @@ impl App {
             renderer: None,
             grf: None,
             map_data: None,
-            composite_job: 14,
+            composite_job: JobName::Taekwon.value() as u16,
             composite_sex: 1,
             composite_head: 1,
             weapon_view_id: 0,
@@ -871,21 +871,27 @@ impl App {
         self.last_frame = now;
         let sim_dt = if self.paused { 0.0 } else { dt };
 
-        self.effect_holder.drain_queue(&mut self.effect_queue);
-        self.effect_holder.update(
-            &EffectUpdateCtx { delta: sim_dt, camera_target: None, caster_yaw: None },
-            &|_| None,
-            &|_| None,
-        );
-        let body_shake = self.effect_holder.body_shake_for_entity(VIEWER_ACTOR_ID);
-        let body_tint = self.effect_holder.body_tint_for_entity(VIEWER_ACTOR_ID);
-        // Caster-attached effects (buff STR overlays) resolve to the previewed
-        // actor's world anchor.
+        // Caster-attached effects (buff STR overlays, body-attached spawns)
+        // resolve to the previewed actor's world anchor.
         let actor_pos = self
             .map_data
             .as_ref()
             .map(|m| compute_world_anchor(self.character_cell, m))
             .unwrap_or([0.0, 0.0, 0.0]);
+        let resolve_actor = |id: u32| (id == VIEWER_ACTOR_ID).then_some(actor_pos);
+        self.effect_holder.drain_queue(&mut self.effect_queue, &resolve_actor);
+        self.effect_holder.update(
+            &EffectUpdateCtx { delta: sim_dt, camera_target: None, caster_yaw: None },
+            &|_| None,
+            &resolve_actor,
+        );
+        // One-shot forced animation (Jumpkick): drain it and play it on the
+        // previewed actor so the kick pose is visible in-tool (the viewer holds
+        // the actor on a static frame, so this snaps it to the action's start).
+        if let Some(ba) = self.effect_holder.take_body_action_for_entity(VIEWER_ACTOR_ID) {
+            self.animation.play(ba.action_index, ba.duration_ms, ba.start_frame);
+        }
+        let body_channels = self.effect_holder.body_channels_for_entity(VIEWER_ACTOR_ID);
 
         let Some(renderer) = &mut self.renderer else {
             return;
@@ -931,8 +937,7 @@ impl App {
                         &renderer.camera,
                         screen_w,
                         screen_h,
-                        body_shake,
-                        body_tint,
+                        &body_channels,
                         &mut self.effect_holder,
                         VIEWER_ACTOR_ID,
                         emitting,
@@ -997,8 +1002,7 @@ fn build_character_batches<'a>(
     camera: &ragnarok_renderer::Camera,
     screen_w: f32,
     screen_h: f32,
-    body_shake: [f32; 2],
-    body_tint: Option<[u8; 3]>,
+    body_channels: &ragnarok_renderer::BodyChannels,
     effect_holder: &mut EffectHolder,
     entity_id: u32,
     emitting: bool,
@@ -1014,7 +1018,8 @@ fn build_character_batches<'a>(
     };
 
     // Movement afterimage (`CBlurPC`): snapshot the moving actor on the emit
-    // interval and draw every fading copy *before* the live sprite.
+    // interval and draw every fading copy *before* the live sprite. The trail
+    // uses the un-yawed facing, so it stays outside the shared composer.
     let mut batches: Vec<ragnarok_renderer::sprite::SpriteBatch<'a>> = Vec::new();
     if let Some(ai) = effect_holder.afterimage_params_for_entity(entity_id) {
         if emitting && effect_holder.afterimage_emit_due(entity_id) {
@@ -1056,26 +1061,16 @@ fn build_character_batches<'a>(
         }
     }
 
-    let anchor = [screen_anchor[0] + body_shake[0], screen_anchor[1] + body_shake[1]];
-    let mut live = entity.build_batches(
+    let mut live = ragnarok_renderer::compose_actor_batches(
+        entity,
         animation,
-        Some(camera_dir),
+        camera_dir,
         animation.direction() as u8,
-        anchor,
+        screen_anchor,
         depth,
         sprite_scale,
-        0.0,
+        body_channels,
     );
-    if let Some([tr, tg, tb]) = body_tint {
-        let (tr, tg, tb) = (tr as f32 / 255.0, tg as f32 / 255.0, tb as f32 / 255.0);
-        for batch in &mut live {
-            for v in &mut batch.vertices {
-                v.color[0] *= tr;
-                v.color[1] *= tg;
-                v.color[2] *= tb;
-            }
-        }
-    }
     batches.append(&mut live);
     batches
 }

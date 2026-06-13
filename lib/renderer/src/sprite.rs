@@ -1229,6 +1229,168 @@ impl EntitySprite {
     }
 }
 
+/// Every per-entity body modifier resolved for one frame, bundled so the
+/// actor pass fetches them in a single call and feeds them to
+/// [`compose_actor_batches`]. Covers the original game's body-modifier set
+/// (shake, tint, scale, yaw, roll angle, vertical lift, and the
+/// multi-render copies).
+#[derive(Clone, Debug)]
+pub struct BodyChannels {
+    pub shake: [f32; 2],
+    pub tint: Option<[u8; 3]>,
+    pub scale: f32,
+    pub yaw: f32,
+    /// Final opacity multiplier for the live body (effect fade folded with the
+    /// caller's hidden/death fade).
+    pub alpha: f32,
+    /// Screen-space vertical lift in pixels (positive = up).
+    pub lift_px: f32,
+    /// Sprite-quad rotation about the anchor, radians.
+    pub angle: f32,
+    pub copies: Vec<ragnarok_game::effect::BodyCopy>,
+}
+
+impl Default for BodyChannels {
+    fn default() -> Self {
+        Self {
+            shake: [0.0, 0.0],
+            tint: None,
+            scale: 1.0,
+            yaw: 0.0,
+            alpha: 1.0,
+            lift_px: 0.0,
+            angle: 0.0,
+            copies: Vec::new(),
+        }
+    }
+}
+
+/// Rotate (radians) and stretch (`scale` x/y) a batch's vertices about
+/// `anchor` in screen space. No-op when there's nothing to do.
+pub fn transform_batch_vertices(
+    batches: &mut [SpriteBatch],
+    anchor: [f32; 2],
+    radians: f32,
+    scale: [f32; 2],
+) {
+    if radians == 0.0 && scale == [1.0, 1.0] {
+        return;
+    }
+    let (sin, cos) = radians.sin_cos();
+    for batch in batches {
+        for v in &mut batch.vertices {
+            let dx = (v.position[0] - anchor[0]) * scale[0];
+            let dy = (v.position[1] - anchor[1]) * scale[1];
+            v.position[0] = anchor[0] + dx * cos - dy * sin;
+            v.position[1] = anchor[1] + dx * sin + dy * cos;
+        }
+    }
+}
+
+fn apply_tint_alpha(batches: &mut [SpriteBatch], tint: Option<[u8; 3]>, alpha: f32) {
+    let tint = tint.map(|t| [t[0] as f32 / 255.0, t[1] as f32 / 255.0, t[2] as f32 / 255.0]);
+    for batch in batches {
+        for v in &mut batch.vertices {
+            if let Some([tr, tg, tb]) = tint {
+                v.color[0] *= tr;
+                v.color[1] *= tg;
+                v.color[2] *= tb;
+            }
+            if alpha != 1.0 {
+                v.color[3] *= alpha;
+            }
+        }
+    }
+}
+
+/// Build the actor's sprite batches with every body channel applied in one
+/// place: yaw cycles the 8-way facing, shake + lift offset the anchor, scale
+/// multiplies the size, [`BodyCopy`] copies render behind the live body, and
+/// the live body takes the rotation, tint and alpha. Shared by the game scene
+/// and the effect viewer so the two never drift. Afterimage trails are drawn
+/// separately by the caller (they need holder mutation + the un-yawed facing).
+#[allow(clippy::too_many_arguments)]
+pub fn compose_actor_batches<'a>(
+    sprite: &'a EntitySprite,
+    animation: &ragnarok_formats::act::SpriteAnimationState,
+    camera_dir: u8,
+    head_dir: u8,
+    screen_anchor: [f32; 2],
+    depth: f32,
+    base_scale: f32,
+    channels: &BodyChannels,
+) -> Vec<SpriteBatch<'a>> {
+    // Body yaw: convert the accumulated yaw to direction
+    // steps and rotate the camera-relative facing index.
+    let dir = if channels.yaw != 0.0 {
+        let steps = (channels.yaw / (std::f32::consts::TAU / 8.0)).round() as i32;
+        (((camera_dir as i32 + steps) % 8 + 8) % 8) as u8
+    } else {
+        camera_dir
+    };
+    let anchor = [
+        screen_anchor[0] + channels.shake[0],
+        screen_anchor[1] + channels.shake[1] - channels.lift_px,
+    ];
+    let scale = base_scale * channels.scale;
+
+    let build_copy = |copy: &ragnarok_game::effect::BodyCopy| {
+        let copy_anchor = [anchor[0] + copy.offset_px[0], anchor[1] + copy.offset_px[1]];
+        let mut batches =
+            sprite.build_batches(animation, Some(dir), head_dir, copy_anchor, depth, scale, 0.0);
+        transform_batch_vertices(&mut batches, copy_anchor, 0.0, copy.scale);
+        apply_tint_alpha(&mut batches, Some(copy.tint), copy.alpha);
+        for b in &mut batches {
+            b.additive = copy.additive;
+        }
+        batches
+    };
+
+    let mut out = Vec::new();
+    // Alpha-blended copies (ghosts: 4-way and second-body copies) sit BEHIND the live
+    // sprite — they slide/stretch out past the body, so the parts outside its
+    // silhouette show.
+    for copy in channels.copies.iter().filter(|c| !c.additive) {
+        out.append(&mut build_copy(copy));
+    }
+
+    let mut live = sprite.build_batches(animation, Some(dir), head_dir, anchor, depth, scale, 0.0);
+    if channels.angle != 0.0 {
+        // A body roll (the spinning body variant) pivots about the entity's centre, not its
+        // feet anchor — use the live sprite's bounding-box centre.
+        let pivot = batches_center(&live).unwrap_or(anchor);
+        transform_batch_vertices(&mut live, pivot, channels.angle, [1.0, 1.0]);
+    }
+    apply_tint_alpha(&mut live, channels.tint, channels.alpha);
+    out.append(&mut live);
+
+    // Additive copies (glows/flashes: asura halo, blue-hit flash) overlay
+    // ON TOP of the live sprite — drawn behind, a body-sized additive copy is
+    // fully overwritten by the opaque body and shows nothing.
+    for copy in channels.copies.iter().filter(|c| c.additive) {
+        out.append(&mut build_copy(copy));
+    }
+    out
+}
+
+/// Centre of a batch set's vertex bounding box in screen space, or `None` when
+/// there are no vertices.
+fn batches_center(batches: &[SpriteBatch]) -> Option<[f32; 2]> {
+    let (mut min_x, mut min_y) = (f32::MAX, f32::MAX);
+    let (mut max_x, mut max_y) = (f32::MIN, f32::MIN);
+    let mut any = false;
+    for batch in batches {
+        for v in &batch.vertices {
+            any = true;
+            min_x = min_x.min(v.position[0]);
+            min_y = min_y.min(v.position[1]);
+            max_x = max_x.max(v.position[0]);
+            max_y = max_y.max(v.position[1]);
+        }
+    }
+    any.then(|| [(min_x + max_x) * 0.5, (min_y + max_y) * 0.5])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

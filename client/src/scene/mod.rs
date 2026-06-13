@@ -58,29 +58,14 @@ impl App {
                             fade_alpha * if hidden { HIDDEN_BODY_ALPHA } else { 1.0 };
                         let is_fading = fade_alpha < 1.0;
 
-                        // Body shake (the quake body variant): jitter the actor sprite (not
-                        // the shadow) by any attached quake effect's per-frame
-                        // offset. Body tint: Two-Hand Quicken's
-                        // yellow, Quakebody4's red flash, etc. — multiply the
-                        // sprite's vertex colour.
-                        let body_shake = self.effect_holder.body_shake_for_entity(entry.id);
-                        let body_tint = self.effect_holder.body_tint_for_entity(entry.id);
-                        let body_anchor = [
-                            entry.screen_anchor[0] + body_shake[0],
-                            entry.screen_anchor[1] + body_shake[1],
-                        ];
-
-                        // Body yaw (the master actor's y-rotation +=): a spinning effect
-                        // (StormKick) whirls the caster by cycling the 8-way
-                        // facing. Convert the accumulated yaw to direction steps
-                        // and rotate the camera-relative direction index.
-                        let body_yaw = self.effect_holder.body_yaw_for_entity(entry.id);
-                        let camera_dir = if body_yaw != 0.0 {
-                            let steps = (body_yaw / (std::f32::consts::TAU / 8.0)).round() as i32;
-                            (((entry.camera_dir as i32 + steps) % 8 + 8) % 8) as u8
-                        } else {
-                            entry.camera_dir
-                        };
+                        // All per-entity body modifiers (shake / tint / scale /
+                        // yaw / spin / lift / copies — the original game's body
+                        // light effects) resolved in one call; the shared composer
+                        // applies them so the scene and effect viewer never
+                        // drift. Fold the hidden / death fade into the alpha.
+                        let mut body_channels =
+                            self.effect_holder.body_channels_for_entity(entry.id);
+                        body_channels.alpha *= body_alpha;
 
                         if !is_fading && !hidden {
                             let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
@@ -92,40 +77,16 @@ impl App {
                             sprite_batches.append(&mut shadow);
                         }
 
-                        // Uniform per-vertex depth (no Y-gradient). The sprite
-                        // pipeline now writes depth, so the post-sprite effect
-                        // pass already depth-tests per pixel against the
-                        // sprite's anchor depth — a Y-biased gradient would
-                        // give the head a smaller Z than the feet and cause
-                        // STR particles at the chest to fail `LessEqual` at
-                        // the head while passing at the body.
-                        let mut batches = sprite.build_batches(
+                        let mut batches = ragnarok_renderer::compose_actor_batches(
+                            sprite,
                             &entity.animation,
-                            Some(camera_dir),
+                            entry.camera_dir,
                             entity.head_dir,
-                            body_anchor,
+                            entry.screen_anchor,
                             entry.depth,
                             entry.sprite_scale,
-                            0.0,
+                            &body_channels,
                         );
-                        if body_alpha < 1.0 {
-                            for batch in &mut batches {
-                                for vertex in &mut batch.vertices {
-                                    vertex.color[3] *= body_alpha;
-                                }
-                            }
-                        }
-                        if let Some([tr, tg, tb]) = body_tint {
-                            let (tr, tg, tb) =
-                                (tr as f32 / 255.0, tg as f32 / 255.0, tb as f32 / 255.0);
-                            for batch in &mut batches {
-                                for vertex in &mut batch.vertices {
-                                    vertex.color[0] *= tr;
-                                    vertex.color[1] *= tg;
-                                    vertex.color[2] *= tb;
-                                }
-                            }
-                        }
 
                         // Movement afterimage: Two-Hand / Spear
                         // Quicken drop fading sprite copies behind the actor
