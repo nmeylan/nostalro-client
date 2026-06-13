@@ -34,11 +34,10 @@ const FRAMES_PER_SECOND: f32 = 60.0;
 const TOTAL_FRAMES: f32 = 110.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
-/// Grand Cross covers a 9×9-cell zone (1 GAT cell = 5 world units → ~45 units
-/// across, ±22). The four corner walls reach `corner(23) + radius(19.9) ≈ 43`
-/// in source units, so `0.5×` lands the outer walls at ±21.5 ≈ 9 cells. Scaled
-/// uniformly (radius and height together).
-const WORLD_SCALE: f32 = 0.5;
+/// The effect literals are in world units 1:1 with ours (both
+/// add effect dimensions onto actor positions in the same GND-zoom world space),
+/// so no rescale is needed to match the original client's footprint and height.
+const WORLD_SCALE: f32 = 1.0;
 const WALL_DISTANCE: f32 = 19.9 * WORLD_SCALE;
 const WALL_MAX_HEIGHT: f32 = 120.0 * WORLD_SCALE;
 const CORNER: f32 = 23.0 * WORLD_SCALE;
@@ -67,21 +66,29 @@ const WALLS: [(f32, f32, f32); 4] = [
 pub struct GrandcrossParams {
     pub wall_texture: &'static str,
     pub beam_texture: &'static str,
-    pub blend: BlendKind,
+    /// Walls: white is
+    /// emissive additive so it stays vivid over light ground;
+    /// the black shadow variant is alpha so it darkens.
+    pub wall_blend: BlendKind,
+    /// Wall vertex tint: white walls carry a faint pink
+    /// (255,175,175); the black variant tints to (50,50,50).
+    pub wall_tint: [f32; 3],
 }
 
 /// id 226 — white walls, yellow beams.
 pub const GRANDCROSS: GrandcrossParams = GrandcrossParams {
     wall_texture: "ring_white.tga",
     beam_texture: "ring_yellow.tga",
-    blend: BlendKind::Alpha,
+    wall_blend: BlendKind::Additive,
+    wall_tint: [1.0, 175.0 / 255.0, 175.0 / 255.0],
 };
 
 /// id 450 — all-black shadow cross.
 pub const GRANDCROSS2: GrandcrossParams = GrandcrossParams {
     wall_texture: "ring_black.tga",
     beam_texture: "ring_black.tga",
-    blend: BlendKind::Alpha,
+    wall_blend: BlendKind::Alpha,
+    wall_tint: [50.0 / 255.0, 50.0 / 255.0, 50.0 / 255.0],
 };
 
 pub const TEXTURES: &[&str] = &["ring_white.tga", "ring_yellow.tga", "ring_black.tga"];
@@ -135,9 +142,8 @@ impl Effect for GrandcrossEffect {
 
         // --- Four corner arc-walls ---
         let wall_alpha = self.alpha(WALL_RAMP_PER_FRAME);
-        // Black ring textures carry their own colour; white/yellow rings are
-        // tinted from white. Either way the tint is white·alpha.
-        let wall_color = [1.0, 1.0, 1.0, wall_alpha];
+        let [wt_r, wt_g, wt_b] = self.params.wall_tint;
+        let wall_color = [wt_r, wt_g, wt_b, wall_alpha];
         if wall_alpha > 0.0 {
             let height = WALL_MAX_HEIGHT * swell;
             for (rot_start, sx, sz) in WALLS {
@@ -160,7 +166,7 @@ impl Effect for GrandcrossEffect {
                     cull_back: false,
                     texture: self.params.wall_texture,
                     color: wall_color,
-                    blend: self.params.blend,
+                    blend: self.params.wall_blend,
                 });
             }
         }
@@ -202,16 +208,17 @@ impl Effect for GrandcrossEffect {
                         uv,
                         texture: self.params.beam_texture,
                         color: beam_color,
-                        blend: self.params.blend,
+                        // Side faces are alpha-blended.
+                        blend: BlendKind::Alpha,
                     });
                 }
-                // Top cap (dimmer, like the source's half-alpha pass).
+                // Top cap is additive at half alpha.
                 out.push(EffectPrimitiveDraw::WorldQuad {
                     corners: [top[0], top[1], top[2], top[3]],
                     uv,
                     texture: self.params.beam_texture,
                     color: beam_color_top,
-                    blend: self.params.blend,
+                    blend: BlendKind::Additive,
                 });
             }
         }

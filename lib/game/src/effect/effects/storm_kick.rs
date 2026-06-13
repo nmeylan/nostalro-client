@@ -36,15 +36,12 @@ const STORM_TEXTURE: &str = "storm2.tga";
 /// The funnel is 10 plates.
 const PLATES: usize = 10;
 
-// Uniform original-game-unit → viewer-unit conversion (same convention as
-// `gumgang.rs`'s `WORLD_SCALE`): the original game renders effects in plain
-// world units, but our world is smaller per character. StormKick's literals
-// (`max_height = 40` radius, `height[0] = 50`, `height[1] = 5`, `distance = 2`)
-// are large, but the reference gifs show a vortex that fills the screen and
-// dwarfs the caster — the funnel must envelop the sprite several times over
-// (~14-unit radius, ~17 units tall), not stand sprite-sized. One factor
-// preserves every source *ratio* (radius decay, height step, plate band).
-const WORLD_SCALE: f32 = 0.35;
+// The original's effect literals are in world units 1:1 with ours (effect
+// dimensions add onto actor positions in the same GND-zoom world space), so the
+// values (radius 40, top height 50, height step 5,
+// decay 2) are used directly to match the original client's vortex size.
+// One factor still preserves every *ratio* (radius decay, height step).
+const WORLD_SCALE: f32 = 1.0;
 /// Radius of the topmost (widest) plate.
 const TOP_RADIUS: f32 = 40.0 * WORLD_SCALE;
 /// Radius-decay scale per plate.
