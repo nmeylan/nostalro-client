@@ -72,6 +72,7 @@ pub fn is_custom_bucket(id: EffectId) -> bool {
             | EffectId::Cloud | EffectId::Cloud2 | EffectId::Cloud3
             | EffectId::Cloud4 | EffectId::Cloud5 | EffectId::Cloud6
             | EffectId::Cloud7 | EffectId::Cloud8 | EffectId::Colorpaper
+            | EffectId::Couplecasting
             | EffectId::Cone | EffectId::CrystalBlue | EffectId::Curseattack
             | EffectId::Darkattack | EffectId::Darkbreath | EffectId::Decagility
             | EffectId::Defender | EffectId::Deluge | EffectId::Demonstration
@@ -142,6 +143,7 @@ pub fn is_custom_bucket(id: EffectId) -> bool {
             | EffectId::PokWhite | EffectId::Portal | EffectId::Portal2
             | EffectId::Portal3 | EffectId::Portal4 | EffectId::Portal5
             | EffectId::Potionpillar | EffectId::Pressure | EffectId::Rainbow
+            | EffectId::Readyportal2
             | EffectId::Rapidshower | EffectId::Reflectshield | EffectId::Removetrap
             | EffectId::Revive | EffectId::RgCoin | EffectId::RgCoin2
             | EffectId::RgCoin3 | EffectId::Ro2year | EffectId::Ruwach
@@ -247,7 +249,7 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::CodeEffectBegin2 | EffectId::CodeEffectEnd
             | EffectId::CodeEffectEnd2 | EffectId::Coldhit | EffectId::ColorBody
             | EffectId::ColorHead1 | EffectId::ColorHead2 | EffectId::ColorHead3
-            | EffectId::ColorRide | EffectId::ColorSword | EffectId::Couplecasting
+            | EffectId::ColorRide | EffectId::ColorSword
             | EffectId::Damage1 | EffectId::Damage12 | EffectId::Damage13
             | EffectId::DaSpace | EffectId::Decagilitybuf
             | EffectId::Doublecastbody
@@ -278,7 +280,7 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::PrintFoot | EffectId::Process2Begin | EffectId::Process2End
             | EffectId::PurpleNumber | EffectId::Quakebody | EffectId::Quakebody2
             | EffectId::Quakebody3 | EffectId::Quakebody4 | EffectId::Rain
-            | EffectId::Readyportal | EffectId::Readyportal2 | EffectId::Redbody
+            | EffectId::Readyportal | EffectId::Redbody
             | EffectId::Redlightbody | EffectId::RedHit | EffectId::RedNumber
             | EffectId::Reflectbody | EffectId::RippleBlackk | EffectId::RipplePurple
             | EffectId::RippleRed | EffectId::RippleWhite | EffectId::RippleYellow

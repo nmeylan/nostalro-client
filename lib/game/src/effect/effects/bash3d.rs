@@ -388,6 +388,7 @@ impl Effect for Bash3dEffect {
                         texture: TEXTURE,
                         color: [rgb[0], rgb[1], rgb[2], slot.alpha_b],
                         blend: BlendKind::Additive,
+                        no_depth: false,
                     });
                 }
             }

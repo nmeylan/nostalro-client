@@ -160,6 +160,7 @@ impl BasilicaEffect {
                 texture: TEXTURE,
                 color,
                 blend: BlendKind::Alpha,
+                no_depth: false,
             });
         }
     }

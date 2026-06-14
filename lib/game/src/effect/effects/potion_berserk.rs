@@ -199,6 +199,7 @@ impl PotionBerserkEffect {
             texture: SPARK_TEXTURE,
             color,
             blend: BlendKind::Alpha,
+            no_depth: false,
         });
 
         // Quad #2 — vertical
@@ -215,6 +216,7 @@ impl PotionBerserkEffect {
             texture: SPARK_TEXTURE,
             color,
             blend: BlendKind::Alpha,
+            no_depth: false,
         });
     }
 }

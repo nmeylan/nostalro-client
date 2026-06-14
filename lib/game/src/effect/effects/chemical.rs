@@ -493,6 +493,10 @@ impl Effect for ChemicalEffect {
                         texture: "shockwave_c.bmp",
                         color: [1.0, 1.0, 1.0, (a * 0.5).min(1.0)],
                         blend: BlendKind::Additive,
+                        // The spokes are drawn as a near-plane
+                        // 2D overlay — they radiate from the entity through the
+                        // ground, so ignore depth or the floor swallows them.
+                        no_depth: true,
                     });
                     out.push(EffectPrimitiveDraw::WorldQuad {
                         corners: self.spoke_corners(&ctx.camera, s.screen_angle, 5.0, s.length),
@@ -500,6 +504,7 @@ impl Effect for ChemicalEffect {
                         texture: "shockwave_c.bmp",
                         color: [130.0 / 255.0, 130.0 / 255.0, 1.0, a],
                         blend: BlendKind::Additive,
+                        no_depth: true,
                     });
                 }
             }
@@ -524,6 +529,7 @@ impl Effect for ChemicalEffect {
                         texture: self.params.texture(),
                         color: [r, g, b, s.alpha / 255.0],
                         blend: BlendKind::Alpha,
+                        no_depth: false,
                     });
                 }
             }

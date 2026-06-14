@@ -142,6 +142,7 @@ impl Effect for FloorAuraEffect {
                 texture: self.params.texture,
                 color: [r, g, b, alpha],
                 blend: BlendKind::Additive,
+                no_depth: false,
             });
         }
     }

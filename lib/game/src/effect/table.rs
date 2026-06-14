@@ -14,7 +14,7 @@ use super::effect_trait::CameraShake;
 use super::effects::{
     aciddemon, agiup, attack_energy, aura_blade, banjjakii, barrier, big_portal, bash, bash3d, begin_asura, begin_spell, begin_spell_8, blessing, soullink, grandcross, saintwing, chookgi, sakura, pokjuk, firstaid, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
     light_sphere, linelink, mapzone, rainbow,
-    bowling_bash, callzone, cartrevolution, cast_circle, chemical, colorpaper, cone, curseattack, defender, detecting,
+    bowling_bash, callzone, cartrevolution, cast_circle, chemical, colorpaper, cone, couple_casting, curseattack, defender, detecting,
     dome_ring, dragonsmoke, summon_slave, bubble_drop, cartter, ice_arrow, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
     firepillaron, frost_diver, fullscreen_overlay, glasswall, glasswall2, gravitation, ground_sample, guard, gumgang, gumgang2, hasteup, heal, healsp, heartcasting, heavensdrive, hit, hit2, hit5_6, hitdark,
     kouenka, magnum_break, napalmbeat,
@@ -681,10 +681,10 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             duration_ms: agiup::TOTAL_DURATION_MS,
         },
         EffectId::Lightsphere => EffectSpec::Custom {
-            duration_ms: light_sphere::total_duration_ms(&light_sphere::LIGHTSPHERE),
+            duration_ms: light_sphere::lightsphere_duration_ms(),
         },
         EffectId::Lightsphere2 => EffectSpec::Custom {
-            duration_ms: light_sphere::total_duration_ms(&light_sphere::LIGHTSPHERE2),
+            duration_ms: light_sphere::LIGHTSPHERE2_DURATION_MS,
         },
 
         // Frost Diver family — QuadHorn ice spikes. FrostDiver2 is the
@@ -819,6 +819,16 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // otherwise shadow the Custom dispatch.
         EffectId::Colorpaper => EffectSpec::Custom {
             duration_ms: colorpaper::TOTAL_DURATION_MS,
+        },
+        // Readyportal2 — three staggered blue ground rings. Its
+        // `readyportal2` str_alias would otherwise shadow the Custom dispatch.
+        EffectId::Readyportal2 => EffectSpec::Custom {
+            duration_ms: portal2::READYPORTAL2_DURATION_MS,
+        },
+        // Couplecasting — red/pink saint-casting cast aura. Its `couplecasting`
+        // str_alias would otherwise shadow the Custom dispatch.
+        EffectId::Couplecasting => EffectSpec::Custom {
+            duration_ms: couple_casting::TOTAL_DURATION_MS,
         },
         // Gravitation — stone/ice shard field + camera tremor. Its `gravitation`
         // str_alias would otherwise shadow the Custom dispatch.

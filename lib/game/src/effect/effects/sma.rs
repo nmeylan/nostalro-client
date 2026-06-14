@@ -157,6 +157,7 @@ impl Sma2Band {
                         texture: RING_TEXTURE,
                         color: [BAND_TINT[0], BAND_TINT[1], BAND_TINT[2], a],
                         blend: BlendKind::Additive,
+                        no_depth: false,
                     });
                 }
                 prev = Some((base, tip));

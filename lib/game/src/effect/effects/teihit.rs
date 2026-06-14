@@ -257,6 +257,7 @@ impl Effect for TeihitEffect {
                 texture: self.params.texture,
                 color: [r, g, b, s.alpha],
                 blend: BlendKind::Additive,
+                no_depth: false,
             });
         }
     }

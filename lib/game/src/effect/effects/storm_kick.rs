@@ -216,6 +216,7 @@ impl Effect for StormKickEffect {
                     texture: STORM_TEXTURE,
                     color: tint(self.cfg.tint_rgb, alpha),
                     blend: BlendKind::Additive,
+                    no_depth: false,
                 });
             }
         }

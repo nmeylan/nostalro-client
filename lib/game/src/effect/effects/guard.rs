@@ -219,6 +219,7 @@ impl Effect for GuardEffect {
                         texture,
                         color: [r, g, b, alpha],
                         blend,
+                        no_depth: false,
                     });
                 }
             }

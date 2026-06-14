@@ -514,6 +514,12 @@ pub enum EffectPrimitiveDraw {
         texture: &'static str,
         color: [f32; 4],
         blend: BlendKind,
+        /// When true the quad ignores the depth buffer:
+        /// it draws over coincident terrain instead of being occluded by the
+        /// ground it sits at or below (e.g. the Chemical Protection spokes
+        /// radiating through the floor). Defaults to `false` — normal quads
+        /// stay depth-tested.
+        no_depth: bool,
     },
     /// Textured quad fixed in world space defined by a centre + half-extents
     /// + a plane orientation (not camera-facing). Convenience over `WorldQuad`
@@ -564,6 +570,18 @@ pub enum EffectPrimitiveDraw {
         /// NDC corners, ordered to match `uvs`; triangulated `[0,1,2,0,2,3]`.
         corners: [[f32; 2]; 4],
         uvs: [[f32; 2]; 4],
+    },
+    /// Camera-locked, depth-disabled triangle mesh in NDC clip space with a
+    /// colour per vertex — the same overlay pass as [`Self::ScreenQuad`] but
+    /// for arbitrary geometry (the circular concentric Blind vignette). The
+    /// texture is sampled at its centre, so a solid texture (`white02.bmp`)
+    /// lets the per-vertex colour/alpha drive the result.
+    ScreenMesh {
+        texture: &'static str,
+        blend: BlendKind,
+        /// `(ndc_position, rgba)` per vertex.
+        vertices: Vec<([f32; 2], [f32; 4])>,
+        indices: Vec<u32>,
     },
 }
 
@@ -641,9 +659,16 @@ impl QuadPlane {
 
 /// Collected primitive draws for a single frame. Effects push into this;
 /// the effect render pass drains it.
+///
+/// [`primitives`](Self::primitives) draw *after* the entity sprite pass (on top
+/// of characters — the common case). [`behind`](Self::behind) draws *before* it,
+/// so the entity occludes those primitives (e.g. an effect that should appear
+/// to radiate from behind the caster). Both lists otherwise share the same
+/// bucket-then-depth sorting inside the unified dispatch.
 #[derive(Default)]
 pub struct EffectDrawList {
     pub primitives: Vec<EffectPrimitiveDraw>,
+    pub behind: Vec<EffectPrimitiveDraw>,
 }
 
 impl EffectDrawList {
@@ -655,8 +680,15 @@ impl EffectDrawList {
         self.primitives.push(prim);
     }
 
+    /// Push a primitive that renders behind the entity (occluded by the
+    /// character sprite) — see [`behind`](Self::behind).
+    pub fn push_behind(&mut self, prim: EffectPrimitiveDraw) {
+        self.behind.push(prim);
+    }
+
     pub fn clear(&mut self) {
         self.primitives.clear();
+        self.behind.clear();
     }
 
     pub fn len(&self) -> usize {
@@ -664,6 +696,16 @@ impl EffectDrawList {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.primitives.is_empty()
+        self.primitives.is_empty() && self.behind.is_empty()
+    }
+
+    /// The behind-entity primitives as a standalone list, so the renderer can
+    /// run them through the same `prepare_*_records` helpers (which read
+    /// [`primitives`](Self::primitives)) for the pre-sprite dispatch pass.
+    pub fn behind_as_list(&self) -> EffectDrawList {
+        EffectDrawList {
+            primitives: self.behind.clone(),
+            behind: Vec::new(),
+        }
     }
 }

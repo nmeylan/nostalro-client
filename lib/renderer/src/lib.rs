@@ -131,6 +131,55 @@ pub struct Renderer {
     pub background_mode: BackgroundMode,
 }
 
+/// Build the unified effect [`DrawRecord`] list for one [`EffectDrawList`] by
+/// running it through every `prepare_*_records` helper. Pulled out of
+/// `render_into` so the same logic feeds both the pre-sprite ("behind entity")
+/// and post-sprite passes. Borrows only the disjoint fields the records need
+/// (`texture_cache` / `white_bind_group`), so the caller can still take a
+/// `&mut` borrow of `effect_dispatcher` for the dispatch itself.
+#[allow(clippy::too_many_arguments)]
+fn build_effect_records<'tex>(
+    effect_draws: &effect::EffectDrawList,
+    camera: &Camera,
+    texture_cache: &'tex TextureCache,
+    white_bind_group: &'tex wgpu::BindGroup,
+    logical_w: f32,
+    logical_h: f32,
+) -> Vec<DrawRecord<'tex>> {
+    // A texture field may list several `|`-separated alias candidates; the
+    // first present in the cache wins. Bare names live under the effect
+    // texture dir, names already containing a path are relative to
+    // `data/texture/`. Mirrors `effect_texture_paths()` in the game crate.
+    let texture_lookup = |name: &str| -> Option<&'tex wgpu::BindGroup> {
+        if name.is_empty() {
+            return None;
+        }
+        name.split('|').find_map(|candidate| {
+            let full = if candidate.contains('/') {
+                format!("data/texture/{candidate}")
+            } else {
+                format!("data/texture/effect/{candidate}")
+            };
+            texture_cache.get(&full)
+        })
+    };
+    let mut records: Vec<DrawRecord<'tex>> = Vec::new();
+    records.extend(prepare_billboard_records(
+        effect_draws, camera, logical_w, logical_h, white_bind_group, texture_lookup,
+    ));
+    records.extend(prepare_frustum_records(effect_draws, camera, white_bind_group, texture_lookup));
+    records.extend(prepare_cylinder_records(effect_draws, camera, white_bind_group, texture_lookup));
+    records.extend(prepare_ground_disc_records(effect_draws, camera, white_bind_group, texture_lookup));
+    records.extend(prepare_quad_horn_records(effect_draws, camera, white_bind_group, texture_lookup));
+    records.extend(prepare_sphere_records(effect_draws, camera, white_bind_group, texture_lookup));
+    records.extend(prepare_world_quad_records(effect_draws, camera, white_bind_group, texture_lookup));
+    records.extend(prepare_texture3d_records(effect_draws, camera, white_bind_group, texture_lookup));
+    records.extend(prepare_radial_ring_records(effect_draws, camera, white_bind_group, texture_lookup));
+    records.extend(prepare_line_strip_records(effect_draws, camera, white_bind_group, texture_lookup));
+    records.extend(prepare_screen_quad_records(effect_draws, white_bind_group, texture_lookup));
+    records
+}
+
 impl Renderer {
     pub async fn new(
         window: Arc<winit::window::Window>,
@@ -656,6 +705,46 @@ impl Renderer {
             }
         }
 
+        // "Behind entity" effect primitives dispatch BEFORE the sprite pass:
+        // the character sprite (drawn next, writing depth) then occludes them,
+        // so the effect reads as radiating from behind the caster (e.g.
+        // Lightsphere's blade burst). They still depth-test against the
+        // already-drawn ground / models.
+        if !effect_draws.behind.is_empty() {
+            let behind_list = effect_draws.behind_as_list();
+            let behind_records = build_effect_records(
+                &behind_list,
+                &self.camera,
+                &self.texture_cache,
+                &self.white_bind_group,
+                logical_w,
+                logical_h,
+            );
+            if !behind_records.is_empty() {
+                self.effect_dispatcher.dispatch(
+                    behind_records,
+                    &mut encoder,
+                    &view,
+                    depth_view,
+                    &self.device.device,
+                    &self.device.queue,
+                    &self.global_uniforms.bind_group,
+                    &self.effect_sprite_renderer.uniform_bind_group,
+                    &self.effect_sprite_renderer,
+                    &self.effect_frustum_renderer,
+                    &self.effect_cylinder_renderer,
+                    &self.effect_ground_disc_renderer,
+                    &self.effect_quad_horn_renderer,
+                    &self.effect_sphere_renderer,
+                    &self.effect_world_quad_renderer,
+                    &self.effect_texture3d_renderer,
+                    &self.effect_radial_ring_renderer,
+                    &self.effect_line_strip_renderer,
+                    &self.effect_fullscreen_renderer,
+                );
+            }
+        }
+
         // Entity sprites render before the unified effect pass so effects
         // sit on top of the character — matches the original game's draw
         // order, where the player is drawn first and effects spawned on it
@@ -696,99 +785,18 @@ impl Renderer {
         // SpriteParticle / Frustum / GroundDisc / QuadHorn / Sphere /
         // WorldQuad in `effect_draws` lands in one of [`BlendBucket`]'s
         // deferred lists, sorted back-to-front by view-space depth, then
-        // flushed in alpha → additive → multiply order. Matches the
-        // original game's `FlushBatch`.
-        let texture_lookup = |name: &str| -> Option<&wgpu::BindGroup> {
-            if name.is_empty() {
-                return None;
-            }
-            // A texture field may list several alias candidates separated by
-            // `|` (GRF paths never contain it); the first one present in the
-            // cache wins. Lets an effect name the faithful texture first and a
-            // fallback after, for variants absent from a given GRF.
-            //
-            // For each candidate: a bare filename lives under the effect
-            // texture dir; a name already containing a path (e.g. item icons
-            // thrown by ThrowItem) is taken relative to `data/texture/`. Must
-            // mirror `effect_texture_paths()` in the game crate.
-            name.split('|').find_map(|candidate| {
-                let full = if candidate.contains('/') {
-                    format!("data/texture/{candidate}")
-                } else {
-                    format!("data/texture/effect/{candidate}")
-                };
-                self.texture_cache.get(&full)
-            })
-        };
-        let mut records: Vec<DrawRecord<'_>> = Vec::new();
-        records.extend(sprite_particle_records);
-        records.extend(prepare_billboard_records(
+        // flushed in alpha → additive → multiply order, matching the
+        // original game's batched look. (The `behind` sub-list was already
+        // dispatched above, before the sprite pass.)
+        let mut records: Vec<DrawRecord<'_>> = build_effect_records(
             effect_draws,
             &self.camera,
+            &self.texture_cache,
+            &self.white_bind_group,
             logical_w,
             logical_h,
-            &self.white_bind_group,
-            texture_lookup,
-        ));
-        records.extend(prepare_frustum_records(
-            effect_draws,
-            &self.camera,
-            &self.white_bind_group,
-            texture_lookup,
-        ));
-        records.extend(prepare_cylinder_records(
-            effect_draws,
-            &self.camera,
-            &self.white_bind_group,
-            texture_lookup,
-        ));
-        records.extend(prepare_ground_disc_records(
-            effect_draws,
-            &self.camera,
-            &self.white_bind_group,
-            texture_lookup,
-        ));
-        records.extend(prepare_quad_horn_records(
-            effect_draws,
-            &self.camera,
-            &self.white_bind_group,
-            texture_lookup,
-        ));
-        records.extend(prepare_sphere_records(
-            effect_draws,
-            &self.camera,
-            &self.white_bind_group,
-            texture_lookup,
-        ));
-        records.extend(prepare_world_quad_records(
-            effect_draws,
-            &self.camera,
-            &self.white_bind_group,
-            texture_lookup,
-        ));
-        records.extend(prepare_texture3d_records(
-            effect_draws,
-            &self.camera,
-            &self.white_bind_group,
-            texture_lookup,
-        ));
-        records.extend(prepare_radial_ring_records(
-            effect_draws,
-            &self.camera,
-            &self.white_bind_group,
-            texture_lookup,
-        ));
-        records.extend(prepare_line_strip_records(
-            effect_draws,
-            &self.camera,
-            &self.white_bind_group,
-            texture_lookup,
-        ));
-        records.extend(prepare_screen_quad_records(
-            effect_draws,
-            &self.white_bind_group,
-            texture_lookup,
-        ));
+        );
+        records.extend(sprite_particle_records);
         // SpriteParticle records reference textures inside their respective
         // EffectSpriteCache entries (`&sprite.textures.bind_groups[i]`), which
         // the renderer doesn't own. Callers that want SpriteParticle

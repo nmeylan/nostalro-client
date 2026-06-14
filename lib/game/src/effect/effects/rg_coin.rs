@@ -343,6 +343,7 @@ impl Effect for RgCoinEffect {
                         texture: coin.texture,
                         color,
                         blend: BlendKind::Additive,
+                        no_depth: false,
                     });
                 }
                 CoinStyle::Billboard => {

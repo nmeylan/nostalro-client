@@ -194,6 +194,7 @@ impl Effect for BottomVerticalEffect {
                 texture: self.params.texture,
                 color: [tr, tg, tb, alpha],
                 blend: self.params.blend,
+                no_depth: false,
             });
         }
     }

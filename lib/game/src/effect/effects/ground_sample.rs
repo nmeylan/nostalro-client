@@ -77,6 +77,7 @@ impl Effect for GroundSampleEffect {
             texture: TEXTURE,
             color: [1.0, 1.0, 1.0, ALPHA],
             blend: BlendKind::Alpha,
+            no_depth: false,
         });
     }
 }
@@ -121,6 +122,7 @@ mod tests {
                 color,
                 texture,
                 blend,
+                ..
             } => {
                 assert_eq!(*texture, TEXTURE);
                 assert_eq!(*blend, BlendKind::Alpha);

@@ -140,6 +140,7 @@ impl Effect for GlasswallEffect {
                 texture: WALL_TEXTURE,
                 color: colour,
                 blend: BlendKind::Alpha,
+                no_depth: false,
             });
         }
 
@@ -156,6 +157,7 @@ impl Effect for GlasswallEffect {
                 texture: WALL_TEXTURE,
                 color: colour,
                 blend: BlendKind::Alpha,
+                no_depth: false,
             });
         }
     }

@@ -159,6 +159,7 @@ impl Effect for BottomLightEffect {
                 texture: self.params.texture,
                 color: [tr, tg, tb, alpha],
                 blend: BlendKind::Additive,
+                no_depth: false,
             });
         }
     }

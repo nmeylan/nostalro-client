@@ -171,6 +171,7 @@ impl Effect for SpraypondEffect {
                         STREAM_MAX_ALPHA,
                     ],
                     blend: BlendKind::Alpha,
+                    no_depth: false,
                 });
             }
         }
@@ -207,6 +208,7 @@ impl Effect for SpraypondEffect {
                     texture: CREST_TEXTURE,
                     color: [1.0, 1.0, 1.0, alpha],
                     blend: BlendKind::Additive,
+                    no_depth: false,
                 });
             }
         }

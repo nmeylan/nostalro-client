@@ -8,9 +8,12 @@
 //!
 //! Reference: `ro-effects/effects/imgs/400-450/410.gif`.
 //!
-//! Reproduced as one `WorldQuad` strip per band: each band is a thin ribbon
-//! following the arch between its inner and outer radius, tinted with its
-//! spectrum colour and blended additively.
+//! Built as one `WorldQuad` strip per band-segment: each band is a thin
+//! ribbon following the arch between its inner and outer radius, tinted with
+//! its spectrum colour and blended additively. The arch is **drawn on**: a
+//! sweep front advances from one foot up and over to the other, and each
+//! angular column fades in just after the front passes it — a bright leading
+//! edge with a short trailing gradient, matching the reference gif.
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -21,19 +24,26 @@ pub const TEXTURES: &[&str] = &[ALPHA_CENTER_TEXTURE];
 const FPS: f32 = 60.0;
 const TOTAL_FRAMES: f32 = 180.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FPS * 1000.0) as u32;
-const FADE_IN_FRAMES: f32 = 50.0;
+/// Frames for the leading edge to travel foot → foot (the draw-on sweep).
+const SWEEP_FRAMES: f32 = 80.0;
+/// Frames each angular column takes to fade in once the front reaches it —
+/// the trailing gradient behind the bright leading edge.
+const SEGMENT_RAMP_FRAMES: f32 = 18.0;
+/// Whole-arch fade-out at the tail of the effect.
 const FADE_OUT_FRAMES: f32 = 50.0;
 const PEAK_ALPHA: f32 = 160.0 / 255.0;
 
-/// Outermost band radius (world units). The original game's `distance = 50` is engine
-/// scale; the gif arch reads ~3 characters wide, so scale down.
-const BASE_RADIUS: f32 = 16.0;
+/// Outermost band radius (world units). The reference arch spans the whole
+/// capture, so this is large relative to most effects — the user asked for
+/// it bigger.
+const BASE_RADIUS: f32 = 26.0;
 /// Each band sits 5% inside the previous (`1 - band·0.05`).
 const BAND_RADIUS_STEP: f32 = 0.05;
-/// The arch is twice as tall as its radius (`sin · distance · 2`).
-const HEIGHT_FACTOR: f32 = 2.0;
+/// Apex height relative to radius. The reference reads ~semicircular, a touch
+/// taller than wide.
+const HEIGHT_FACTOR: f32 = 1.3;
 /// Arch sweep segments over the 180°.
-const SEGMENTS: usize = 24;
+const SEGMENTS: usize = 32;
 
 /// Seven spectrum bands, outer (red) to inner (violet) — the rainbow colour
 /// table.
@@ -60,14 +70,28 @@ impl RainbowEffect {
         }
     }
 
-    fn alpha(&self) -> f32 {
-        if self.age_frames < FADE_IN_FRAMES {
-            PEAK_ALPHA * (self.age_frames / FADE_IN_FRAMES)
-        } else if self.age_frames < TOTAL_FRAMES - FADE_OUT_FRAMES {
-            PEAK_ALPHA
+    /// Whole-arch fade-out multiplier at the tail of the effect (1.0 until
+    /// `FADE_OUT_FRAMES` before the end).
+    fn fade_out(&self) -> f32 {
+        if self.age_frames < TOTAL_FRAMES - FADE_OUT_FRAMES {
+            1.0
         } else {
-            PEAK_ALPHA * (1.0 - (self.age_frames - (TOTAL_FRAMES - FADE_OUT_FRAMES)) / FADE_OUT_FRAMES).clamp(0.0, 1.0)
+            (1.0 - (self.age_frames - (TOTAL_FRAMES - FADE_OUT_FRAMES)) / FADE_OUT_FRAMES)
+                .clamp(0.0, 1.0)
         }
+    }
+
+    /// Per-column draw-on alpha: 0 until the sweep front reaches angle `t`,
+    /// then ramps to peak over `SEGMENT_RAMP_FRAMES` (the trailing gradient).
+    fn column_alpha(&self, t_mid: f32) -> f32 {
+        let front = (self.age_frames / SWEEP_FRAMES).clamp(0.0, 1.0) * std::f32::consts::PI;
+        if t_mid > front {
+            return 0.0;
+        }
+        let activated_at = t_mid / std::f32::consts::PI * SWEEP_FRAMES;
+        let since = (self.age_frames - activated_at).max(0.0);
+        let ramp = (since / SEGMENT_RAMP_FRAMES).clamp(0.0, 1.0);
+        PEAK_ALPHA * ramp * self.fade_out()
     }
 
     /// Yaw that turns the arch plane to face the camera horizontally.
@@ -102,18 +126,21 @@ impl Effect for RainbowEffect {
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx) {
-        let alpha = self.alpha();
-        if alpha <= 0.0 {
+        if self.fade_out() <= 0.0 {
             return;
         }
         let yaw = self.facing_yaw(ctx);
         let step = std::f32::consts::PI / SEGMENTS as f32;
-        for (band, color) in BAND_COLORS.iter().enumerate() {
-            let outer = BASE_RADIUS * (1.0 - band as f32 * BAND_RADIUS_STEP);
-            let inner = BASE_RADIUS * (1.0 - (band as f32 + 1.0) * BAND_RADIUS_STEP);
-            for i in 0..SEGMENTS {
-                let t0 = i as f32 * step;
-                let t1 = (i + 1) as f32 * step;
+        for i in 0..SEGMENTS {
+            let t0 = i as f32 * step;
+            let t1 = (i + 1) as f32 * step;
+            let alpha = self.column_alpha((t0 + t1) * 0.5);
+            if alpha <= 0.0 {
+                continue;
+            }
+            for (band, color) in BAND_COLORS.iter().enumerate() {
+                let outer = BASE_RADIUS * (1.0 - band as f32 * BAND_RADIUS_STEP);
+                let inner = BASE_RADIUS * (1.0 - (band as f32 + 1.0) * BAND_RADIUS_STEP);
                 let corners = [
                     self.arch_point(t0, outer, yaw),
                     self.arch_point(t1, outer, yaw),
@@ -126,6 +153,7 @@ impl Effect for RainbowEffect {
                     texture: ALPHA_CENTER_TEXTURE,
                     color: [color[0], color[1], color[2], alpha],
                     blend: BlendKind::Additive,
+                    no_depth: false,
                 });
             }
         }
@@ -158,25 +186,46 @@ mod tests {
         list.primitives
     }
 
-    #[test]
-    fn emits_seven_colour_bands_as_additive_quad_strips() {
-        let mut e = RainbowEffect::new([0.0; 3]);
-        step(&mut e, 60.0); // past fade-in
-        let prims = draws(&e);
-        assert_eq!(prims.len(), 7 * SEGMENTS, "7 bands × segments");
-
-        // Each band's segments share one colour; collect the distinct colours.
+    fn distinct_band_colors(prims: &[EffectPrimitiveDraw]) -> Vec<[f32; 3]> {
         let mut colors = Vec::new();
-        for chunk in prims.chunks(SEGMENTS) {
-            if let EffectPrimitiveDraw::WorldQuad { color, blend, .. } = &chunk[0] {
-                assert_eq!(*blend, BlendKind::Additive);
-                colors.push([color[0], color[1], color[2]]);
+        for p in prims {
+            if let EffectPrimitiveDraw::WorldQuad { color, .. } = p {
+                let rgb = [color[0], color[1], color[2]];
+                if !colors.contains(&rgb) {
+                    colors.push(rgb);
+                }
             }
         }
-        assert_eq!(colors.len(), 7);
-        // Red band first, violet/magenta last.
-        assert_eq!(colors[0], [1.0, 0.0, 0.0]);
-        assert_eq!(colors[6], [1.0, 0.0, 1.0]);
+        colors
+    }
+
+    #[test]
+    fn full_arch_has_seven_additive_bands_once_swept() {
+        let mut e = RainbowEffect::new([0.0; 3]);
+        // Past the sweep + per-column ramp, before the tail fade-out.
+        step(&mut e, SWEEP_FRAMES + SEGMENT_RAMP_FRAMES + 2.0);
+        let prims = draws(&e);
+        assert_eq!(prims.len(), 7 * SEGMENTS, "7 bands × all segments now drawn");
+        for p in &prims {
+            assert!(matches!(p, EffectPrimitiveDraw::WorldQuad { blend: BlendKind::Additive, .. }));
+        }
+        let colors = distinct_band_colors(&prims);
+        assert_eq!(colors.len(), 7, "seven spectrum bands");
+        assert!(colors.contains(&[1.0, 0.0, 0.0]), "red band");
+        assert!(colors.contains(&[1.0, 0.0, 1.0]), "violet/magenta band");
+    }
+
+    #[test]
+    fn sweeps_on_progressively_from_one_foot() {
+        let mut e = RainbowEffect::new([0.0; 3]);
+        // Early: the front has only reached part-way, so fewer columns drawn.
+        step(&mut e, SWEEP_FRAMES * 0.3);
+        let early = draws(&e).len();
+        step(&mut e, SWEEP_FRAMES * 0.5);
+        let later = draws(&e).len();
+        assert!(early > 0, "the leading edge has started drawing: {early}");
+        assert!(later > early, "more of the arch is drawn as the front sweeps: {early} -> {later}");
+        assert!(early < 7 * SEGMENTS, "not the whole arch yet at 30% sweep");
     }
 
     #[test]
@@ -184,17 +233,17 @@ mod tests {
         // The apex (t = 90°) sits well above the base plane (native -Y up).
         let e = RainbowEffect::new([0.0, 0.0, 0.0]);
         let apex = e.arch_point(std::f32::consts::FRAC_PI_2, BASE_RADIUS, 0.0);
-        assert!(apex[1] < -BASE_RADIUS, "apex height doubled: {}", apex[1]);
+        assert!(apex[1] < -BASE_RADIUS, "apex rises above radius: {}", apex[1]);
     }
 
     #[test]
-    fn alpha_ramps_in_then_out_and_dies() {
+    fn fades_out_and_dies() {
         let mut e = RainbowEffect::new([0.0; 3]);
-        step(&mut e, 1.0);
-        let a0 = e.alpha();
-        step(&mut e, FADE_IN_FRAMES);
-        let a1 = e.alpha();
-        assert!(a0 < a1 && (a1 - PEAK_ALPHA).abs() < 1e-3);
+        step(&mut e, TOTAL_FRAMES - FADE_OUT_FRAMES + 1.0);
+        let mid = e.fade_out();
+        step(&mut e, FADE_OUT_FRAMES * 0.8);
+        let late = e.fade_out();
+        assert!(late < mid, "arch fades at the tail: {mid} -> {late}");
         assert_eq!(step(&mut e, TOTAL_FRAMES), EffectStatus::Dead);
     }
 }

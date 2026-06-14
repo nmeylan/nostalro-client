@@ -199,6 +199,7 @@ fn push_face(
         texture,
         color: [rg, rg, b_channel / 255.0, alpha],
         blend: BlendKind::Additive,
+        no_depth: false,
     });
 }
 

@@ -329,13 +329,12 @@ fn pipeline_for<'a>(
                 &sphere.pipeline_alpha
             }
         }
-        PipelineKind::WorldQuad => {
-            if additive {
-                &world_quad.pipeline_additive
-            } else {
-                &world_quad.pipeline_alpha
-            }
-        }
+        PipelineKind::WorldQuad => match bucket {
+            BlendBucket::Alpha => &world_quad.pipeline_alpha,
+            BlendBucket::AlphaNoDepth => &world_quad.pipeline_alpha_no_depth,
+            BlendBucket::AdditiveNoDepth => &world_quad.pipeline_additive_no_depth,
+            BlendBucket::Additive | BlendBucket::Multiply => &world_quad.pipeline_additive,
+        },
         PipelineKind::Texture3D => {
             if additive {
                 &texture3d.pipeline_additive

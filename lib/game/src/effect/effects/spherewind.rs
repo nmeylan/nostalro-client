@@ -303,6 +303,7 @@ impl Effect for SpherewindEffect {
                     texture: self.params.texture,
                     color,
                     blend: BlendKind::Additive,
+                    no_depth: false,
                 });
                 m0 = m1;
             }

@@ -26,6 +26,11 @@ const FADE_IN_FRAMES: f32 = 15.0;
 const FADE_OUT_FRAMES: f32 = 30.0;
 const PEAK_ALPHA: f32 = 1.0;
 const UV_REPEAT: f32 = 1.0;
+/// Native RO `-Y` is up: lift the decal a hair off the ground so it isn't
+/// z-fought / swallowed by the terrain it sits on (the original game raises
+/// the disc well clear of the ground; a small lift is enough at our scale,
+/// matching `ready_portal`'s ground ring).
+const GROUND_OFFSET_Y: f32 = -1.0;
 
 pub struct CallzoneEffect {
     world_pos: [f32; 3],
@@ -77,8 +82,13 @@ impl Effect for CallzoneEffect {
             PEAK_ALPHA
         };
 
+        let center = [
+            self.world_pos[0],
+            self.world_pos[1] + GROUND_OFFSET_Y,
+            self.world_pos[2],
+        ];
         out.push(EffectPrimitiveDraw::GroundDisc {
-            center: self.world_pos,
+            center,
             radius: RADIUS,
             thickness: RADIUS,
             rotation: 0.0,
@@ -135,7 +145,7 @@ mod tests {
                 texture,
                 ..
             } => {
-                assert_eq!(*center, [1.0, 2.0, 3.0]);
+                assert_eq!(*center, [1.0, 2.0 + GROUND_OFFSET_Y, 3.0]);
                 assert_eq!(*radius, RADIUS);
                 assert_eq!(*arc_angle_deg, 360.0);
                 assert_eq!(*texture, TEXTURE);

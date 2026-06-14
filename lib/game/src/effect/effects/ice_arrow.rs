@@ -186,6 +186,7 @@ impl IceArrowEffect {
             texture: SHARD_TEXTURE,
             color: [SHARD_COLOR[0], SHARD_COLOR[1], SHARD_COLOR[2], alpha],
             blend: BlendKind::Additive,
+            no_depth: false,
         });
     }
 }

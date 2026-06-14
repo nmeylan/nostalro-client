@@ -47,6 +47,9 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
             anchor.point(),
             effects::portal2::PORTAL3,
         )),
+        EffectId::Readyportal2 => {
+            Box::new(effects::portal2::ReadyPortal2Effect::new(anchor.point()))
+        }
         EffectId::Portal4 => Box::new(effects::portal_wind::PortalWindEffect::new(
             anchor.point(),
             effects::portal_wind::PORTAL4,
@@ -327,14 +330,12 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::Aciddemon => Box::new(effects::aciddemon::AcidDemonEffect::new(anchor.point())),
         EffectId::Rainbow => Box::new(effects::rainbow::RainbowEffect::new(anchor.point())),
         EffectId::Agiup => Box::new(effects::agiup::AgiUpEffect::new(anchor.point())),
-        EffectId::Lightsphere => Box::new(effects::light_sphere::LightSphereEffect::new(
-            anchor.point(),
-            effects::light_sphere::LIGHTSPHERE,
-        )),
-        EffectId::Lightsphere2 => Box::new(effects::light_sphere::LightSphereEffect::new(
-            anchor.point(),
-            effects::light_sphere::LIGHTSPHERE2,
-        )),
+        EffectId::Lightsphere => {
+            Box::new(effects::light_sphere::LightSphereEffect::new(anchor.point()))
+        }
+        EffectId::Lightsphere2 => {
+            Box::new(effects::light_sphere::LightSphereEffect::new_persistent(anchor.point()))
+        }
 
         // Linelink 1-3 — Soul Linker tether ribbon. `anchor` carries the
         // initial caster→partner endpoints; the holder feeds live positions each
@@ -1236,6 +1237,9 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         )),
 
         EffectId::Beginspell => Box::new(effects::begin_spell::BeginSpellEffect::new(anchor.point())),
+        EffectId::Couplecasting => {
+            Box::new(effects::couple_casting::CoupleCastingEffect::new(anchor.point()))
+        }
         EffectId::Aurablade => Box::new(effects::aura_blade::AuraBladeEffect::new(anchor.point())),
         EffectId::Blackdevil => Box::new(effects::black_devil::BlackDevilEffect::new(anchor.point())),
         EffectId::Bluecasting => Box::new(effects::color_casting::ColorCastingEffect::new(

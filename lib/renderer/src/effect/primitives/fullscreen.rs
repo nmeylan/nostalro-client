@@ -115,32 +115,39 @@ pub fn prepare_screen_quad_records<'tex>(
 ) -> Vec<DrawRecord<'tex>> {
     let mut records: Vec<DrawRecord<'tex>> = Vec::new();
     for (emission, prim) in list.primitives.iter().enumerate() {
-        let EffectPrimitiveDraw::ScreenQuad {
-            texture,
-            color,
-            blend,
-            corners,
-            uvs,
-        } = prim
-        else {
-            continue;
-        };
-
-        let texture_bg = texture_lookup(texture).unwrap_or(fallback_texture);
-
-        let vertices: Vec<SpriteVertex> = (0..4)
-            .map(|i| SpriteVertex {
-                position: [corners[i][0], corners[i][1], 0.0],
-                tex_coord: uvs[i],
-                color: *color,
-            })
-            .collect();
-        let indices: Vec<u32> = vec![0, 1, 2, 0, 2, 3];
-
         // Camera-independent: depth is meaningless. Use `f32::MAX` so the
         // overlay sorts last within its blend bucket (drawn over everything
         // else in the effect pass); ties break on emission order, so the game
         // layer's push order (wash before slashes) is preserved.
+        let (texture, blend, vertices, indices) = match prim {
+            EffectPrimitiveDraw::ScreenQuad { texture, color, blend, corners, uvs } => {
+                let vertices: Vec<SpriteVertex> = (0..4)
+                    .map(|i| SpriteVertex {
+                        position: [corners[i][0], corners[i][1], 0.0],
+                        tex_coord: uvs[i],
+                        color: *color,
+                    })
+                    .collect();
+                (texture, blend, vertices, vec![0, 1, 2, 0, 2, 3])
+            }
+            EffectPrimitiveDraw::ScreenMesh { texture, blend, vertices, indices } => {
+                // Sample the (solid) texture at its centre so per-vertex colour
+                // drives the result.
+                let verts: Vec<SpriteVertex> = vertices
+                    .iter()
+                    .map(|(pos, color)| SpriteVertex {
+                        position: [pos[0], pos[1], 0.0],
+                        tex_coord: [0.5, 0.5],
+                        color: *color,
+                    })
+                    .collect();
+                (texture, blend, verts, indices.clone())
+            }
+            _ => continue,
+        };
+
+        let texture_bg = texture_lookup(texture).unwrap_or(fallback_texture);
+
         records.push(DrawRecord::new(
             f32::MAX,
             emission as u32,

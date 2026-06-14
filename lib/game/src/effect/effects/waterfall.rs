@@ -284,6 +284,7 @@ impl Effect for WaterfallEffect {
                     texture: self.params.textures[tn],
                     color: self.params.sheet_color,
                     blend: self.params.sheet_blend,
+                    no_depth: false,
                 });
             }
         }

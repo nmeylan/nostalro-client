@@ -11,6 +11,11 @@ use crate::sprite::SpriteVertex;
 pub struct WorldQuadRenderer {
     pub pipeline_alpha: wgpu::RenderPipeline,
     pub pipeline_additive: wgpu::RenderPipeline,
+    /// No-depth-check siblings — same shader/blend but `depth_compare:
+    /// Always`, so the quad draws over coincident terrain instead of being
+    /// occluded by the ground it sits at or below.
+    pub pipeline_alpha_no_depth: wgpu::RenderPipeline,
+    pub pipeline_additive_no_depth: wgpu::RenderPipeline,
 }
 
 impl WorldQuadRenderer {
@@ -26,10 +31,21 @@ impl WorldQuadRenderer {
             camera_bind_group_layout,
             texture_bind_group_layout,
             include_str!("../../shaders/effect_ground_disc.wgsl"),
+            wgpu::CompareFunction::LessEqual,
+        );
+        let (pipeline_alpha_no_depth, pipeline_additive_no_depth) = Self::build_pipelines(
+            device,
+            surface_format,
+            camera_bind_group_layout,
+            texture_bind_group_layout,
+            include_str!("../../shaders/effect_ground_disc.wgsl"),
+            wgpu::CompareFunction::Always,
         );
         Self {
             pipeline_alpha,
             pipeline_additive,
+            pipeline_alpha_no_depth,
+            pipeline_additive_no_depth,
         }
     }
 
@@ -39,6 +55,7 @@ impl WorldQuadRenderer {
         camera_bind_group_layout: &wgpu::BindGroupLayout,
         texture_bind_group_layout: &wgpu::BindGroupLayout,
         shader_source: &str,
+        depth_compare: wgpu::CompareFunction,
     ) -> (wgpu::RenderPipeline, wgpu::RenderPipeline) {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("effect_world_quad"),
@@ -65,10 +82,22 @@ impl WorldQuadRenderer {
             },
         };
 
-        let pipeline_alpha =
-            Self::create_pipeline(device, surface_format, &pipeline_layout, &shader, alpha);
-        let pipeline_additive =
-            Self::create_pipeline(device, surface_format, &pipeline_layout, &shader, additive);
+        let pipeline_alpha = Self::create_pipeline(
+            device,
+            surface_format,
+            &pipeline_layout,
+            &shader,
+            alpha,
+            depth_compare,
+        );
+        let pipeline_additive = Self::create_pipeline(
+            device,
+            surface_format,
+            &pipeline_layout,
+            &shader,
+            additive,
+            depth_compare,
+        );
         (pipeline_alpha, pipeline_additive)
     }
 
@@ -78,6 +107,7 @@ impl WorldQuadRenderer {
         pipeline_layout: &wgpu::PipelineLayout,
         shader: &wgpu::ShaderModule,
         blend: wgpu::BlendState,
+        depth_compare: wgpu::CompareFunction,
     ) -> wgpu::RenderPipeline {
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("effect_world_quad"),
@@ -106,7 +136,7 @@ impl WorldQuadRenderer {
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_FORMAT,
                 depth_write_enabled: false,
-                depth_compare: wgpu::CompareFunction::LessEqual,
+                depth_compare,
                 stencil: Default::default(),
                 bias: Default::default(),
             }),
@@ -131,6 +161,7 @@ pub fn prepare_world_quad_records<'tex>(
             texture,
             color,
             blend,
+            no_depth,
         } = prim
         else {
             continue;
@@ -155,10 +186,16 @@ pub fn prepare_world_quad_records<'tex>(
             (corners[0][2] + corners[1][2] + corners[2][2] + corners[3][2]) * 0.25,
         ];
 
+        let bucket = match (BlendBucket::from_blend_kind(*blend), *no_depth) {
+            (BlendBucket::Alpha, true) => BlendBucket::AlphaNoDepth,
+            (BlendBucket::Additive, true) => BlendBucket::AdditiveNoDepth,
+            (bucket, _) => bucket,
+        };
+
         records.push(DrawRecord::new(
             view_z(camera, centroid),
             emission as u32,
-            BlendBucket::from_blend_kind(*blend),
+            bucket,
             PipelineKind::WorldQuad,
             vertices,
             indices,

@@ -193,6 +193,7 @@ impl LinelinkEffect {
                     texture: self.params.texture,
                     color,
                     blend: BlendKind::Additive,
+                    no_depth: false,
                 });
             }
             prev_now = v_now;

@@ -175,6 +175,7 @@ impl Effect for ColorpaperEffect {
                 texture: TEXTURE,
                 color: [chip.color[0], chip.color[1], chip.color[2], chip.alpha],
                 blend: BlendKind::Alpha,
+                no_depth: false,
             });
         }
     }

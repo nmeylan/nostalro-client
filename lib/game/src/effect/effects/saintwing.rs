@@ -121,6 +121,7 @@ impl Effect for SaintwingEffect {
                     texture: "wing003.bmp",
                     color: [r, g, b, alpha],
                     blend: BlendKind::Additive,
+                    no_depth: false,
                 });
             }
         }

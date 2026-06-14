@@ -472,6 +472,7 @@ fn ribbon_quad(
         texture,
         color: [tint[0], tint[1], tint[2], alpha],
         blend: BlendKind::Additive,
+        no_depth: false,
     }
 }
 

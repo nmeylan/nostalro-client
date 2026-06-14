@@ -360,49 +360,112 @@ impl Effect for Portal2Effect {
         // cos*height); height = sin*h is small (a few units of vertical
         // lean). Y offset -2 for max_height==6.001.
         for s in &self.portal {
-            if !s.live {
-                continue;
+            push_portal_slot_draw(out, self.world_pos, s, self.cfg.portal_texture, self.cfg.color_rgb);
+        }
+    }
+}
+
+/// One portal-phase ground ring, shared by `Portal2`/`Portal3` and the standalone
+/// `ReadyPortal2`. Skips dead/transparent slots.
+fn push_portal_slot_draw(
+    out: &mut EffectDrawList,
+    world_pos: [f32; 3],
+    s: &PortalSlot,
+    texture: &'static str,
+    color_rgb: [f32; 3],
+) {
+    if !s.live {
+        return;
+    }
+    let alpha = s.alpha_b / 255.0;
+    if alpha <= 0.0 {
+        return;
+    }
+    let h_now = s.current_height();
+    let (sin_rise, cos_rise) = s.rise_angle_deg.to_radians().sin_cos();
+    let bottom = s.distance;
+    let top = s.distance + cos_rise * h_now;
+    let vert = sin_rise * h_now;
+    let base = [world_pos[0], world_pos[1] + PORTAL_VY_OFFSET, world_pos[2]];
+    out.push(EffectPrimitiveDraw::Frustum {
+        base,
+        bottom_size: bottom,
+        top_size: top,
+        height: vert,
+        sides: PORTAL_SIDES,
+        arc_angle_deg: 360.0,
+        rotation: s.rot_start_deg.to_radians(),
+        uv_repeat: 1.0,
+        uv_scroll: [0.0, 0.0],
+        wave_amplitude: 0.0,
+        wave_frequency: 1.0,
+        wave_phase: 0.0,
+        wave_mode: FrustumWaveMode::Sine,
+        tilt_x_rad: 0.0,
+        rotation_y_rad: 0.0,
+        cull_back: false,
+        texture,
+        color: [color_rgb[0], color_rgb[1], color_rgb[2], alpha],
+        blend: BlendKind::Additive,
+    });
+}
+
+/// `EF_READYPORTAL2` (id 316) — the portal-ready pad: three concentric
+/// portal-phase ground rings (`ring_blue.tga`, additive), staggered to spawn
+/// 10 frames apart, each growing outward and pulsing. It
+/// launches the same portal-phase slots as
+/// `Portal2` (non-CALLPARTNER) but from frame 0 with no heal columns.
+pub const READYPORTAL2_DURATION_MS: u32 = 2000;
+const READYPORTAL2_TOTAL_FRAMES: f32 =
+    (READYPORTAL2_DURATION_MS as f32) * FRAMES_PER_SECOND / 1000.0;
+/// `ring_blue.tga` reads slightly violet through the additive pipeline; bias
+/// toward blue to match the in-game pad (same correction as `PORTAL2`).
+const READYPORTAL2_TINT: [f32; 3] = [0.55, 0.7, 1.0];
+
+pub struct ReadyPortal2Effect {
+    world_pos: [f32; 3],
+    age_frames: f32,
+    portal: [PortalSlot; 3],
+    ctrl_process: f32,
+}
+
+impl ReadyPortal2Effect {
+    pub fn new(world_pos: [f32; 3]) -> Self {
+        Self {
+            world_pos,
+            age_frames: 0.0,
+            portal: [
+                PortalSlot::new(0, false),
+                PortalSlot::new(1, false),
+                PortalSlot::new(2, false),
+            ],
+            ctrl_process: 0.0,
+        }
+    }
+}
+
+impl Effect for ReadyPortal2Effect {
+    fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
+        let before = self.age_frames;
+        self.age_frames += ctx.delta * FRAMES_PER_SECOND;
+        let steps = (self.age_frames.floor() - before.floor()).max(0.0) as i32;
+        for _ in 0..steps {
+            self.ctrl_process += 1.0;
+            let ctrl = self.ctrl_process;
+            for s in &mut self.portal {
+                s.step(false, ctrl);
             }
-            let alpha = s.alpha_b / 255.0;
-            if alpha <= 0.0 {
-                continue;
-            }
-            let h_now = s.current_height();
-            let (sin_rise, cos_rise) = s.rise_angle_deg.to_radians().sin_cos();
-            let bottom = s.distance;
-            let top = s.distance + cos_rise * h_now;
-            let vert = sin_rise * h_now;
-            let base = [
-                self.world_pos[0],
-                self.world_pos[1] + PORTAL_VY_OFFSET,
-                self.world_pos[2],
-            ];
-            out.push(EffectPrimitiveDraw::Frustum {
-                base,
-                bottom_size: bottom,
-                top_size: top,
-                height: vert,
-                sides: PORTAL_SIDES,
-                arc_angle_deg: 360.0,
-                rotation: s.rot_start_deg.to_radians(),
-                uv_repeat: 1.0,
-                uv_scroll: [0.0, 0.0],
-                wave_amplitude: 0.0,
-                wave_frequency: 1.0,
-                wave_phase: 0.0,
-                wave_mode: FrustumWaveMode::Sine,
-                tilt_x_rad: 0.0,
-                rotation_y_rad: 0.0,
-                cull_back: false,
-                texture: self.cfg.portal_texture,
-                color: [
-                    self.cfg.color_rgb[0],
-                    self.cfg.color_rgb[1],
-                    self.cfg.color_rgb[2],
-                    alpha,
-                ],
-                blend: BlendKind::Additive,
-            });
+        }
+        if self.age_frames >= READYPORTAL2_TOTAL_FRAMES {
+            EffectStatus::Dead
+        } else {
+            EffectStatus::Running
+        }
+    }
+
+    fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
+        for s in &self.portal {
+            push_portal_slot_draw(out, self.world_pos, s, "ring_blue.tga", READYPORTAL2_TINT);
         }
     }
 }
@@ -424,7 +487,7 @@ mod tests {
         }
     }
 
-    fn step_frames(e: &mut Portal2Effect, n: u32) {
+    fn step_frames<E: Effect>(e: &mut E, n: u32) {
         for _ in 0..n {
             e.update(&ctx(1.0 / FRAMES_PER_SECOND));
         }
@@ -552,5 +615,35 @@ mod tests {
         // Sanity: heal texture is ring_red, not magic_violet (F1==3).
         let heal_p = heal_draws(&prims, PORTAL3.heal_texture);
         assert_eq!(heal_p.len(), 3);
+    }
+
+    #[test]
+    fn readyportal2_three_staggered_blue_rings_then_dies() {
+        let mut e = ReadyPortal2Effect::new([0.0, 0.0, 0.0]);
+        // Frame 0 emission: only ec0 is live (ec1/ec2 start at -10/-20).
+        let one = |e: &ReadyPortal2Effect| {
+            let mut l = EffectDrawList::new();
+            e.collect_draws(&mut l, &render_ctx());
+            portal_draws(&l.primitives, "ring_blue.tga").len()
+        };
+        step_frames(&mut e, 1);
+        assert_eq!(one(&e), 1, "only ec0 live early (ec1/ec2 start at -10/-20)");
+
+        // By frame 30 all three rings are up, blue ring texture, growing out.
+        step_frames(&mut e, 30);
+        let mut l = EffectDrawList::new();
+        e.collect_draws(&mut l, &render_ctx());
+        let rings = portal_draws(&l.primitives, "ring_blue.tga");
+        assert_eq!(rings.len(), 3, "all three PP_PORTAL rings live by frame 30");
+        for &(bot, top) in &rings {
+            assert!(top > bot, "ring extends outward (PP_PORTAL, not a pillar)");
+        }
+
+        // Outlives a couple of seconds → dead by the 2 s parent duration.
+        let mut status = EffectStatus::Running;
+        for _ in 0..130 {
+            status = e.update(&ctx(1.0 / 60.0));
+        }
+        assert_eq!(status, EffectStatus::Dead, "dies at the 2 s parent duration");
     }
 }

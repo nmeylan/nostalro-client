@@ -191,6 +191,7 @@ impl MapZoneEffect {
                 texture: ring.texture,
                 color: [r, g, b, alpha],
                 blend: if ring.additive { BlendKind::Additive } else { BlendKind::Alpha },
+                no_depth: false,
             });
         }
     }

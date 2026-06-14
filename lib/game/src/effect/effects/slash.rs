@@ -209,6 +209,7 @@ impl Effect for SlashEffect {
                         // reference shows it glowing additively (additive looks
                         // right for this dark-keyed texture, not alpha blend).
                         blend: BlendKind::Additive,
+                        no_depth: false,
                     });
                 }
             }

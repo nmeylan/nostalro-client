@@ -206,6 +206,7 @@ impl Effect for ForestLightEffect {
                     texture: self.params.texture,
                     color: [tr, tg, tb, alpha / 255.0],
                     blend: BlendKind::Additive,
+                    no_depth: false,
                 });
             }
         }

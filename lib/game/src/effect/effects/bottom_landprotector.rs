@@ -153,6 +153,7 @@ impl Effect for BottomLandProtectorEffect {
             texture: self.params.texture,
             color: [tr, tg, tb, self.params.alpha_b],
             blend: BlendKind::Additive,
+            no_depth: false,
         });
     }
 }
