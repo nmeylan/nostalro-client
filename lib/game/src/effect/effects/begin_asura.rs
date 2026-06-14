@@ -236,9 +236,12 @@ pub struct BeginAsuraEffect {
 /// asura). F1=2 maps to size = 5 → untinted white, additive.
 const RING_CONFIG: SaintCastingConfig = SaintCastingConfig {
     texture: "ring_white.tga",
+    pass_textures: None,
     max_heights: [25.0, 24.0, 23.0, 22.0],
     color_rgb: [1.0, 1.0, 1.0],
     blend: BlendKind::Additive,
+    refill_per_frame: 10.0,
+    reset_rise_deg: 74.0,
 };
 
 impl BeginAsuraEffect {
@@ -386,8 +389,9 @@ mod tests {
         let mut base = BeginAsuraEffect::base([0.0; 3]);
         let mut champ = BeginAsuraEffect::champion([0.0; 3]);
 
-        // Early on, both saint-casting passes (4 emitters each) are alive.
-        tick(&mut base, 2);
+        // The cones fade in on a staggered schedule; by ~frame 18 both
+        // saint-casting passes (4 emitters each) are fully up.
+        tick(&mut base, 18);
         let mut l = EffectDrawList::new();
         base.collect_draws(&mut l, &render_ctx());
         let frustums = l

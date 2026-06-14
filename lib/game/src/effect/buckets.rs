@@ -123,7 +123,7 @@ pub fn is_custom_bucket(id: EffectId) -> bool {
             | EffectId::Level992 | EffectId::Level993 | EffectId::Level995
             | EffectId::Level996 | EffectId::LightningS | EffectId::Lightsphere
             | EffectId::Lightsphere2 | EffectId::Linelink | EffectId::Linelink2
-            | EffectId::Linelink3 | EffectId::M01 | EffectId::M02
+            | EffectId::Linelink3 | EffectId::Lockon | EffectId::M01 | EffectId::M02
             | EffectId::M03 | EffectId::M04 | EffectId::M05
             | EffectId::M06 | EffectId::M07 | EffectId::Magicalbullet
             | EffectId::Magnum2 | EffectId::Magnumbreak | EffectId::Maple
@@ -268,7 +268,7 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::LightBody | EffectId::LightHead1 | EffectId::LightHead2
             | EffectId::LightHead3 | EffectId::LightRide | EffectId::LightRoleshield
             | EffectId::LightShield | EffectId::LightSword | EffectId::Linklight
-            | EffectId::Lockon | EffectId::MadnessBlue | EffectId::MadnessRed
+            | EffectId::MadnessBlue | EffectId::MadnessRed
             | EffectId::Magiccrasher | EffectId::Magiccrasher2 | EffectId::Makeblur
             | EffectId::Makeblur3 | EffectId::Makeblur4 | EffectId::Makeblur5
             | EffectId::Memorize | EffectId::Mgattack1 | EffectId::MiniTetris

@@ -61,7 +61,6 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Beginspell5 => &["beginspell5"],
         EffectId::Beginspell6 => &["beginspell6"],
         EffectId::Beginspell7 => &["beginspell7"],
-        EffectId::Lockon => &["lockon"],
         EffectId::Warpzone => &["warpzone"],
         EffectId::Sightrasher => &["sightrasher"],
         EffectId::Barrier => &["barrier"],
@@ -345,7 +344,6 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Vallentine2 => &["vallentine2"],
         EffectId::Pressure => &["pressure"],
         EffectId::Bash3d => &["bash3d"],
-        EffectId::Aurablade => &["aurablade"],
         // Redbody → BodyTintEffect (Custom, additive red glow, no `.str`).
         // Alias removed so it resolves via the custom bucket.
         EffectId::Lkconcentration => &["TwoHand"],

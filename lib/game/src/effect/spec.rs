@@ -60,6 +60,11 @@ pub enum Attach {
 #[derive(Clone, Debug)]
 pub enum EffectSpec {
     /// Single STR file played once.
+    ///
+    /// STR effects anchor at the resolved world position (entity feet / ground).
+    /// Actor buff STRs that should appear at the head (Soul Burn / Soul Change,
+    /// …) bake that offset into their own authored layer positions — no runtime
+    /// lift is applied.
     Str {
         file: &'static str,
         duration_ms: u32,

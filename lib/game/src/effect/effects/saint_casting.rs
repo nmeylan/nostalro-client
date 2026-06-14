@@ -4,13 +4,22 @@
 //! variant in the family.
 //!
 //! Geometry: per pass (`time = 45` or `25`), 4 closed truncated cones are
-//! seeded at `distance = 4.1`, `rise_angle = 80°`, `full_display_angle_deg = 360°`,
-//! sharing a common base point. `rise_angle` collapses from 80° to a floor
-//! of 10° at 1°/frame while `distance` slides outward by 0.07/frame — angle
-//! expands, height shrinks. A fixed-azimuth bell-shaped flame-tip envelope
-//! (handled by `FrustumWaveMode::SaintBell` in the renderer) pulses in
-//! amplitude over time; the bell does **not** rotate around the cone. Two
-//! passes overlay 8 emitters total with staggered initial alphas.
+//! seeded at `distance = 4.1`, rise angle 80°, full 360° spread, sharing a
+//! common base point. The rise angle collapses from 80° to a floor of 10° at
+//! 1°/frame while `distance` slides outward by 0.07/frame — angle expands,
+//! height shrinks. A fixed-azimuth bell-shaped flame-tip envelope (handled by
+//! `FrustumWaveMode::SaintBell` in the renderer) pulses in amplitude over
+//! time; the bell does **not** rotate around the cone. Two passes overlay 8
+//! emitters total.
+//!
+//! Because every cast aura here runs the short 56-frame (≤ 60) path, the seed
+//! takes the branch that zeroes each emitter's alpha and offsets its `process`
+//! counter to `-ec·5`. An emitter only advances once `process > 0`, so the
+//! 4 cones of a pass rise in a staggered cascade (frames 1, 6, 11, 16) and
+//! fade *in* from zero rather than all popping on at full brightness — this
+//! is the "small delay" between the cones, not a hard pop. Aura Blade
+//! additionally refills alpha at
+//! `+5`/frame instead of `+10` and resets to a `64°` rise instead of `74°`.
 
 use crate::effect::draw::{
     BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode,
@@ -28,24 +37,26 @@ const INIT_RISE_DEG: f32 = 80.0;
 const DISTANCE_GROW_PER_FRAME: f32 = 0.07;
 const RISE_SHRINK_PER_FRAME: f32 = 1.0;
 const RISE_FLOOR_DEG: f32 = 10.0;
-/// Original game's reset point when an emitter's alpha drops to 0 before the
-/// effect ends — the cone collapses back to a closer/steeper position and
-/// the alpha pulse restarts.
+/// Reset point when an emitter's alpha drops to 0 before the effect ends —
+/// the cone collapses back to a closer/steeper position (`4.0 - 0.63`) and
+/// the alpha pulse refills again.
 const RESET_DISTANCE: f32 = 3.37;
-const RESET_RISE_DEG: f32 = 74.0;
 const ALPHA_DRAIN_PER_FRAME: f32 = 3.0;
-const ALPHA_REFILL_PER_FRAME: f32 = 10.0;
 const ALPHA_REFILL_DISTANCE_GATE: f32 = 4.0;
-/// Block the reset branch in the last `duration - 30` frames so the effect
-/// doesn't spawn another pulse it can't fade out (original GI1 pulse logic).
-const RESET_BLOCK_FRAMES_FROM_END: f32 = 30.0;
+/// A drained emitter only resets while `process < duration - 30` so it doesn't
+/// spawn another pulse it can't fade out before the parent expires. With a
+/// 56-frame duration that floor is frame 26.
+const RESET_PROCESS_LIMIT: i32 = TOTAL_FRAMES as i32 - 30;
+/// Short-duration stagger: `process[ec] = -ec·5`. Each emitter idles until its
+/// `process` counter climbs above 0.
+const PROCESS_STAGGER: i32 = 5;
 
 pub const NUM_EMITTERS: usize = 4;
 /// Per-emitter starting azimuths (degrees).
 const ROT_START_DEG: [f32; NUM_EMITTERS] = [180.0, 270.0, 0.0, 90.0];
-/// start alpha = time + offset — descending brightness staircase.
-const ALPHA_OFFSET: [f32; NUM_EMITTERS] = [135.0, 90.0, 45.0, 0.0];
-/// Two saint-casting calls fire at `state_cnt==0` with these `time`s.
+/// Two passes fire at spawn. The `time` argument only seeds alpha on the
+/// long-duration path; on our short path it's overwritten to 0, so these
+/// values just count the passes and pick per-pass textures.
 pub const PASS_TIMES: [f32; 2] = [45.0, 25.0];
 
 /// Closed-cone segment count (20) so the per-segment flicker bell has a clean
@@ -64,6 +75,12 @@ const WAVE_PHASE_PER_FRAME_DEG: [f32; NUM_EMITTERS] = [1.0, 1.0, 2.0, 2.0];
 #[derive(Clone, Copy)]
 pub struct SaintCastingConfig {
     pub texture: &'static str,
+    /// Optional per-pass texture override. The two passes fire at spawn with
+    /// times `[45, 25]`; when `Some([t0, t1])` the `time=45` pass uses `t0`
+    /// and the `time=25` pass uses `t1`. Aura Blade stacks a white ring
+    /// (pass 0) over a yellow ring (pass 1). `None` uses [`Self::texture`]
+    /// for both passes (the `BeginSpell*` family).
+    pub pass_textures: Option<[&'static str; 2]>,
     /// Max height for each of the 4 emitters, driving the cone's initial
     /// height. F1=1 → `[20,19,18,17]`, default-F1 → `[15,14,13,12]`. The
     /// descending order matches the alpha staircase — brightest emitter is
@@ -75,6 +92,14 @@ pub struct SaintCastingConfig {
     /// so the same cone integrator serves every `BeginSpell*` colour.
     pub color_rgb: [f32; 3],
     pub blend: BlendKind,
+    /// Alpha refill rate per frame while the cone is still inside the
+    /// `distance < 4.0` window: `+5` for Aura Blade and `+10` for everything
+    /// else.
+    pub refill_per_frame: f32,
+    /// Rise angle an emitter snaps back to when its alpha drains to 0 and it
+    /// resets: `55 + 9 = 64°` for Aura Blade, `65 + 9 = 74°` otherwise. Aura
+    /// Blade resets to a steeper cone than the other casting variants.
+    pub reset_rise_deg: f32,
 }
 
 #[derive(Clone, Copy)]
@@ -84,12 +109,23 @@ struct Emitter {
     alpha: f32,
     rot_start_deg: f32,
     max_height: f32,
-    wave_phase_rad: f32,
-    wave_phase_rate_rad: f32,
+    /// Process counter. Starts negative (`-ec·5`) so the cone idles before
+    /// rising; advances 1/frame and only animates once positive.
+    process: i32,
+    /// Per-frame phase advance for the flame-tip bell (`1°` for emitters 0,1;
+    /// `2°` for 2,3).
+    wave_rate_deg: f32,
+    /// `ec·90` constant offset in the bell phase term.
+    wave_base_deg: f32,
+    texture: &'static str,
 }
 
 impl Emitter {
-    fn step(&mut self) {
+    fn step(&mut self, refill_per_frame: f32, reset_rise_deg: f32) {
+        self.process += 1;
+        if self.process <= 0 {
+            return;
+        }
         self.distance += DISTANCE_GROW_PER_FRAME;
         let next_rise = self.rise_deg - RISE_SHRINK_PER_FRAME;
         if next_rise < RISE_FLOOR_DEG {
@@ -102,36 +138,44 @@ impl Emitter {
         } else {
             self.rise_deg = next_rise;
         }
-        self.wave_phase_rad += self.wave_phase_rate_rad;
 
         if self.distance >= ALPHA_REFILL_DISTANCE_GATE {
             self.alpha -= ALPHA_DRAIN_PER_FRAME;
+            if self.alpha <= 0.0 {
+                self.alpha = 0.0;
+                if self.process < RESET_PROCESS_LIMIT {
+                    self.distance = RESET_DISTANCE;
+                    self.rise_deg = reset_rise_deg;
+                }
+            }
         } else {
-            self.alpha += ALPHA_REFILL_PER_FRAME;
+            self.alpha += refill_per_frame;
         }
     }
 
-    fn try_reset(&mut self, frames_remaining: f32) {
-        if self.alpha > 0.0 || frames_remaining <= RESET_BLOCK_FRAMES_FROM_END {
-            return;
-        }
-        self.distance = RESET_DISTANCE;
-        self.rise_deg = RESET_RISE_DEG;
-        self.alpha = 0.0;
+    /// Phase the flame-tip bell rides on. Frozen while the emitter idles
+    /// (`process <= 0`).
+    fn wave_phase_rad(&self) -> f32 {
+        (self.process.max(0) as f32 * self.wave_rate_deg + self.wave_base_deg).to_radians()
     }
 
-    fn alpha_unit(&self, blend: BlendKind) -> f32 {
+    fn alpha_unit(&self, blend: BlendKind, refill_per_frame: f32) -> f32 {
         // 8 emitters all rendering at the same world position with additive
-        // blending; the original game's accumulator absorbs the ~3× overdraw
-        // but our framebuffer saturates to white at the centre, erasing the
-        // ring texture's striped flame-tongue pattern. Pre-attenuate so the
-        // additive sum at peak stays below 1.0 and the texture detail
-        // survives. Ratios between emitters (the per-emitter alpha staircase
-        // {180,135,90,45,...}) are preserved. Alpha-blended variants
-        // (DarkCasting's dark dome) can't saturate — they composite at full
-        // strength so the stack genuinely darkens the scene.
+        // blending saturate our framebuffer to white at the centre, erasing
+        // the ring texture's striped flame-tongue pattern. Pre-attenuate so
+        // the additive sum at peak stays below 1.0 and the texture detail
+        // survives.
+        //
+        // An emitter refills over ~8 frames before the distance gate, so its
+        // peak `alpha ≈ refill_per_frame · 8`. Scaling the divisor by the
+        // refill rate keeps every variant's per-emitter peak at the same
+        // visible brightness (≈0.16) regardless of whether it refills at +10
+        // (begin-spell family) or +5 (Aura Blade) — otherwise Aura Blade, at
+        // half the alpha, washes out to nothing. Alpha-blended variants
+        // (DarkCasting's dark dome) can't saturate — full strength so the
+        // stack genuinely darkens the scene.
         let overdraw_divisor: f32 = match blend {
-            BlendKind::Additive => 4.0,
+            BlendKind::Additive => refill_per_frame / 5.0,
             _ => 1.0,
         };
         (self.alpha / (255.0 * overdraw_divisor)).clamp(0.0, 1.0)
@@ -148,21 +192,24 @@ pub struct SaintCastingEffect {
 impl SaintCastingEffect {
     pub fn new(world_pos: [f32; 3], cfg: SaintCastingConfig) -> Self {
         let mut emitters = Vec::with_capacity(PASS_TIMES.len() * NUM_EMITTERS);
-        for (pass_idx, pass_time) in PASS_TIMES.iter().enumerate() {
+        for pass_idx in 0..PASS_TIMES.len() {
             for ec in 0..NUM_EMITTERS {
-                let alpha = pass_time + ALPHA_OFFSET[ec];
-                // Spread initial phases across emitters so the
-                // amplitude envelope is alive on day 1.
-                let pass_offset_deg = if pass_idx == 0 { 0.0 } else { 90.0 };
-                let initial_phase_deg: f32 = pass_offset_deg + ec as f32 * 45.0;
+                let texture = cfg
+                    .pass_textures
+                    .map(|t| t[pass_idx])
+                    .unwrap_or(cfg.texture);
                 emitters.push(Emitter {
                     distance: INIT_DISTANCE,
                     rise_deg: INIT_RISE_DEG,
-                    alpha,
+                    // Short-duration path: every emitter starts fully
+                    // transparent and fades in.
+                    alpha: 0.0,
                     rot_start_deg: ROT_START_DEG[ec],
                     max_height: cfg.max_heights[ec],
-                    wave_phase_rad: initial_phase_deg.to_radians(),
-                    wave_phase_rate_rad: WAVE_PHASE_PER_FRAME_DEG[ec].to_radians(),
+                    process: -(ec as i32) * PROCESS_STAGGER,
+                    wave_rate_deg: WAVE_PHASE_PER_FRAME_DEG[ec],
+                    wave_base_deg: ec as f32 * 90.0,
+                    texture,
                 });
             }
         }
@@ -186,10 +233,8 @@ impl Effect for SaintCastingEffect {
         let frame_after = self.frame();
         let steps = (frame_after.floor() - frame_before.floor()).max(0.0) as i32;
         for _ in 0..steps {
-            let frames_remaining = TOTAL_FRAMES - self.frame();
             for em in &mut self.emitters {
-                em.step();
-                em.try_reset(frames_remaining);
+                em.step(self.cfg.refill_per_frame, self.cfg.reset_rise_deg);
             }
         }
         if frame_after >= TOTAL_FRAMES {
@@ -205,7 +250,7 @@ impl Effect for SaintCastingEffect {
             return;
         }
         for em in &self.emitters {
-            let alpha = em.alpha_unit(self.cfg.blend);
+            let alpha = em.alpha_unit(self.cfg.blend, self.cfg.refill_per_frame);
             if alpha <= 0.0 {
                 continue;
             }
@@ -221,7 +266,7 @@ impl Effect for SaintCastingEffect {
             // (cos rise, sin rise), so the cone-flatness factor is applied
             // exactly once and the pulse stays visible the whole time the
             // cone is alive.
-            let wave_amplitude = WAVE_REL_AMPLITUDE * em.max_height * em.wave_phase_rad.sin();
+            let wave_amplitude = WAVE_REL_AMPLITUDE * em.max_height * em.wave_phase_rad().sin();
             out.push(EffectPrimitiveDraw::Frustum {
                 base: self.world_pos,
                 bottom_size: bottom,
@@ -247,7 +292,7 @@ impl Effect for SaintCastingEffect {
                 // the real shaping work, so keep both faces drawn rather
                 // than fading the back ones.
                 cull_back: false,
-                texture: self.cfg.texture,
+                texture: em.texture,
                 color: [
                     self.cfg.color_rgb[0],
                     self.cfg.color_rgb[1],
@@ -266,9 +311,12 @@ mod tests {
 
     const TEST_CONFIG: SaintCastingConfig = SaintCastingConfig {
         texture: "ring_test.tga",
+        pass_textures: None,
         max_heights: [17.0, 18.0, 19.0, 20.0],
         color_rgb: [1.0, 1.0, 1.0],
         blend: BlendKind::Additive,
+        refill_per_frame: 10.0,
+        reset_rise_deg: 74.0,
     };
 
     fn render_ctx() -> EffectRenderCtx {
@@ -389,12 +437,35 @@ mod tests {
     }
 
     #[test]
-    fn spawns_eight_emitters() {
-        let e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG);
+    fn spawns_eight_emitters_once_the_cascade_is_up() {
+        // Each emitter idles for `ec·5` frames then fades in; the last starts
+        // at frame 16, so by frame 18 all 8 are drawing.
+        let mut e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG);
+        step_frames(&mut e, 18);
         let n = draws(&e)
             .iter()
             .filter(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. }))
             .count();
         assert_eq!(n, 8);
+    }
+
+    #[test]
+    fn emitters_start_staggered_and_fade_in_from_zero() {
+        // Frame 0: nothing drawn (all emitters transparent). As `process`
+        // climbs past 0 for each `ec`, more cones appear — the cascade.
+        let mut e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG);
+        let count = |e: &SaintCastingEffect| {
+            draws(e)
+                .iter()
+                .filter(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. }))
+                .count()
+        };
+        assert_eq!(count(&e), 0, "everything fades in — frame 0 is empty");
+        step_frames(&mut e, 4);
+        let early = count(&e);
+        step_frames(&mut e, 14);
+        let late = count(&e);
+        assert!(early > 0 && early < 8, "only the lead emitters are up: {early}");
+        assert_eq!(late, 8, "the whole cascade is up by frame 18");
     }
 }

@@ -908,6 +908,7 @@ impl App {
             .as_ref()
             .and_then(|m| m.coordinates.as_ref())
             .map_or(10.0, |c| c.zoom());
+
         let frame = compose_effect_frame(&EffectFrameInputs {
             effect_holder: &self.effect_holder,
             effect_sprites: &self.effect_sprites,

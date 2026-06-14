@@ -31,17 +31,23 @@ const DEFAULT_HEIGHTS: [f32; 4] = [20.0, 19.0, 18.0, 17.0];
 /// `EF_BLUECASTING` — blue casting ring (flag 5).
 pub const BLUE: SaintCastingConfig = SaintCastingConfig {
     texture: "ring_blue.tga",
+    pass_textures: None,
     max_heights: DEFAULT_HEIGHTS,
     color_rgb: [100.0 / 255.0, 100.0 / 255.0, 1.0],
     blend: BlendKind::Additive,
+    refill_per_frame: 10.0,
+    reset_rise_deg: 74.0,
 };
 
 /// `EF_DARKCASTING` — black casting ring (flag 6).
 pub const DARK: SaintCastingConfig = SaintCastingConfig {
     texture: "ring_black.tga",
+    pass_textures: None,
     max_heights: DEFAULT_HEIGHTS,
     color_rgb: [50.0 / 255.0, 50.0 / 255.0, 50.0 / 255.0],
     blend: BlendKind::Alpha,
+    refill_per_frame: 10.0,
+    reset_rise_deg: 74.0,
 };
 
 pub const TEXTURES: &[&str] = &["ring_blue.tga", "ring_black.tga"];
@@ -70,7 +76,15 @@ mod tests {
     use crate::effect::draw::EffectPrimitiveDraw;
 
     fn frustums(cfg: SaintCastingConfig) -> Vec<(&'static str, [f32; 4], BlendKind)> {
-        let e = ColorCastingEffect::new([0.0; 3], cfg);
+        let mut e = ColorCastingEffect::new([0.0; 3], cfg);
+        // Cones fade in on a staggered schedule; step until all 8 are up.
+        for _ in 0..18 {
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
+                camera_target: None,
+                caster_yaw: None,
+            });
+        }
         let mut list = EffectDrawList::new();
         e.collect_draws(
             &mut list,

@@ -135,6 +135,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::tarot_card::TEXTURES,
         effects::temp_result::TEXTURES,
         effects::toprank::TEXTURES,
+        effects::lockon::TEXTURES,
         effects::waterball::TEXTURES,
         effects::yufitel2::TEXTURES,
         effects::texture_falling::TEXTURES,

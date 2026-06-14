@@ -12,7 +12,7 @@ use models::enums::effect_id::EffectId;
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effect_trait::CameraShake;
 use super::effects::{
-    aciddemon, agiup, attack_energy, banjjakii, barrier, big_portal, bash, bash3d, begin_asura, begin_spell, begin_spell_8, blessing, soullink, grandcross, saintwing, chookgi, sakura, pokjuk, firstaid, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
+    aciddemon, agiup, attack_energy, aura_blade, banjjakii, barrier, big_portal, bash, bash3d, begin_asura, begin_spell, begin_spell_8, blessing, soullink, grandcross, saintwing, chookgi, sakura, pokjuk, firstaid, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
     light_sphere, linelink, mapzone, rainbow,
     bowling_bash, callzone, cartrevolution, cast_circle, chemical, colorpaper, cone, curseattack, defender, detecting,
     dome_ring, dragonsmoke, summon_slave, bubble_drop, cartter, ice_arrow, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
@@ -855,6 +855,13 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Beginspell => EffectSpec::Custom {
             duration_ms: begin_spell::TOTAL_DURATION_MS,
         },
+        // Aura Blade is two stacked saint-casting passes
+        // (white + yellow rising rings), the same cast-aura family as
+        // Beginspell, NOT the `aura.str` STR. Explicit Custom arm wins over the
+        // (now removed) `aura` str_alias.
+        EffectId::Aurablade => EffectSpec::Custom {
+            duration_ms: aura_blade::TOTAL_DURATION_MS,
+        },
         // Beginspell8 is a green casting cylinder, not the saint-casting
         // ground ring the other Beginspell ids use.
         EffectId::Beginspell8 => EffectSpec::Custom {
@@ -1623,6 +1630,24 @@ mod tests {
     }
 
     #[test]
+    fn ez2str_family_specs() {
+        // Aura Blade is the saint-casting cast-aura (Custom), not an STR.
+        assert!(matches!(
+            effect_spec(EffectId::Aurablade),
+            Some(EffectSpec::Custom { .. })
+        ));
+        // Soul Burn / Soul Change resolve to their (Korean) GRF STR files. They
+        // self-anchor at the head via their authored layer offsets — no runtime
+        // lift.
+        for id in [EffectId::Soulburn, EffectId::Soulchange] {
+            assert!(
+                matches!(effect_spec(id), Some(EffectSpec::Str { .. })),
+                "{id:?} must resolve to a Str",
+            );
+        }
+    }
+
+    #[test]
     fn batch_fr_routes_to_custom() {
         // All five get explicit Custom arms that win over their STR aliases.
         for id in [
@@ -1639,28 +1664,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn str_alias_wins_over_noop_and_unimplemented_custom() {
-        // Aurablade is in is_custom_bucket but has no factory/Custom arm; its
-        // `aurablade` str alias wins in bucket_default → Str.
-        assert!(matches!(
-            effect_spec(EffectId::Aurablade),
-            Some(EffectSpec::Str { file: "aurablade", .. })
-        ));
-        // Stin (Estin) has both a `stin.str` alias and a procedural factory
-        // arm; its explicit Custom override in `effect_spec` wins over the
-        // STR alias (the wind-card family is rendered, not the STR layer).
-        assert!(matches!(
-            effect_spec(EffectId::Stin),
-            Some(EffectSpec::Custom { .. })
-        ));
-        // Firstaid now has an explicit Custom arm (its firstaid sparkle is
-        // implemented) that wins over its STR alias.
-        assert!(matches!(
-            effect_spec(EffectId::Firstaid),
-            Some(EffectSpec::Custom { .. })
-        ));
-    }
 }
 
 fn default_duration_ms(id: EffectId) -> u32 {
@@ -1731,7 +1734,7 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Beginspell5 => 400,
         EffectId::Beginspell6 => 1100,
         EffectId::Beginspell7 => 400,
-        EffectId::Lockon => 2000,
+        EffectId::Lockon => 3333,
         EffectId::Warpzone => 2500,
         EffectId::Sightrasher => 2500,
         EffectId::Barrier => 2500,
@@ -2043,7 +2046,7 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Vallentine2 => 1000,
         EffectId::Pressure => 3000,
         EffectId::Bash3d => 2000,
-        EffectId::Aurablade => 600,
+        EffectId::Aurablade => 1000,
         EffectId::Redbody => 999990,
         EffectId::Lkconcentration => 999990,
         EffectId::BottomGospel => 199990,
@@ -2084,8 +2087,8 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Magiccrasher2 => 1000,
         EffectId::BottomSpider => 299990,
         EffectId::BottomFogwall => 299990,
-        EffectId::Soulburn => 2000,
-        EffectId::Soulchange => 2000,
+        EffectId::Soulburn => 3333,
+        EffectId::Soulchange => 3333,
         EffectId::Baby => 2000,
         EffectId::Soulbreaker2 => 3000,
         EffectId::Rainbow => 3000,

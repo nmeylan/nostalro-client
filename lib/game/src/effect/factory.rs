@@ -221,6 +221,7 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
             Box::new(effects::detecting::DetectingEffect::new(anchor.point()))
         }
         EffectId::Toprank => Box::new(effects::toprank::ToprankEffect::new(anchor.point())),
+        EffectId::Lockon => Box::new(effects::lockon::LockonEffect::new(anchor.point())),
         EffectId::Party => Box::new(effects::party::PartyEffect::new(anchor.point())),
         EffectId::Curseattack => {
             Box::new(effects::curseattack::CurseattackEffect::new(anchor.point()))
@@ -1235,6 +1236,7 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         )),
 
         EffectId::Beginspell => Box::new(effects::begin_spell::BeginSpellEffect::new(anchor.point())),
+        EffectId::Aurablade => Box::new(effects::aura_blade::AuraBladeEffect::new(anchor.point())),
         EffectId::Blackdevil => Box::new(effects::black_devil::BlackDevilEffect::new(anchor.point())),
         EffectId::Bluecasting => Box::new(effects::color_casting::ColorCastingEffect::new(
             anchor.point(),
@@ -1758,6 +1760,7 @@ pub fn is_real_impl(id: EffectId) -> bool {
             | EffectId::Fireivy
             | EffectId::Detecting
             | EffectId::Toprank
+            | EffectId::Lockon
             | EffectId::Party
             | EffectId::Curseattack
             | EffectId::Magnumbreak

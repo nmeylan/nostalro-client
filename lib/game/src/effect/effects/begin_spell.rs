@@ -28,9 +28,12 @@ pub const TOTAL_DURATION_MS: u32 = SAINT_TOTAL_DURATION_MS;
 /// Warm-yellow (255,255,170) tint, additive.
 const CONFIG: SaintCastingConfig = SaintCastingConfig {
     texture: TEXTURE,
+    pass_textures: None,
     max_heights: [20.0, 19.0, 18.0, 17.0],
     color_rgb: [1.0, 1.0, 170.0 / 255.0],
     blend: BlendKind::Additive,
+    refill_per_frame: 10.0,
+    reset_rise_deg: 74.0,
 };
 
 pub struct BeginSpellEffect(SaintCastingEffect);
@@ -66,8 +69,17 @@ mod tests {
     }
 
     #[test]
-    fn emits_eight_yellow_frustums_on_frame_zero() {
-        let e = BeginSpellEffect::new([0.0; 3]);
+    fn emits_eight_yellow_frustums_once_the_cascade_is_up() {
+        // The cones fade in on a staggered schedule (`process = -ec·5`); by
+        // ~frame 18 the last emitter has started and all 8 are visible.
+        let mut e = BeginSpellEffect::new([0.0; 3]);
+        for _ in 0..18 {
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
+                camera_target: None,
+                caster_yaw: None,
+            });
+        }
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         let frustums: Vec<_> = list
