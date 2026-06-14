@@ -1247,6 +1247,9 @@ pub struct BodyChannels {
     pub lift_px: f32,
     /// Sprite-quad rotation about the anchor, radians.
     pub angle: f32,
+    /// Vertical scale about the feet anchor (1.0 = none); `<1.0` presses the
+    /// top toward the bottom (Pressedbody squash).
+    pub squeeze: f32,
     pub copies: Vec<ragnarok_game::effect::BodyCopy>,
 }
 
@@ -1260,6 +1263,7 @@ impl Default for BodyChannels {
             alpha: 1.0,
             lift_px: 0.0,
             angle: 0.0,
+            squeeze: 1.0,
             copies: Vec::new(),
         }
     }
@@ -1334,11 +1338,48 @@ pub fn compose_actor_batches<'a>(
     ];
     let scale = base_scale * channels.scale;
 
+    let mut live = sprite.build_batches(animation, Some(dir), head_dir, anchor, depth, scale, 0.0);
+    // Bounding box of the natural (untransformed) sprite — copies scale
+    // concentrically about its centre (russian-doll / halo), so they surround the
+    // body on all sides instead of growing off the feet.
+    let (body_center, body_w, body_h) = batches_bbox(&live)
+        .map(|(min, max)| {
+            (
+                [(min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5],
+                (max[0] - min[0]).max(1.0),
+                (max[1] - min[1]).max(1.0),
+            )
+        })
+        .unwrap_or((anchor, 1.0, 1.0));
+
     let build_copy = |copy: &ragnarok_game::effect::BodyCopy| {
-        let copy_anchor = [anchor[0] + copy.offset_px[0], anchor[1] + copy.offset_px[1]];
         let mut batches =
-            sprite.build_batches(animation, Some(dir), head_dir, copy_anchor, depth, scale, 0.0);
-        transform_batch_vertices(&mut batches, copy_anchor, 0.0, copy.scale);
+            sprite.build_batches(animation, Some(dir), head_dir, anchor, depth, scale, 0.0);
+        // `margin_px` grows the copy by a fixed number of pixels on every edge
+        // (an even border inflation) — the right knob for a small concentric
+        // halo/ripple. Otherwise a uniform scale (`[s, s]`) adds a *proportional*
+        // margin (fatter top/bottom than sides on a tall sprite), so convert that
+        // to an even pixel margin too. Explicit non-uniform scales (hit-line
+        // stretch) pass through.
+        let scale_xy = if copy.margin_px != 0.0 {
+            [(body_w + 2.0 * copy.margin_px) / body_w, (body_h + 2.0 * copy.margin_px) / body_h]
+        } else if (copy.scale[0] - copy.scale[1]).abs() < 1e-6 && copy.scale[1] != 1.0 {
+            let margin = (copy.scale[1] - 1.0) * body_h * 0.5;
+            [(body_w + 2.0 * margin) / body_w, copy.scale[1]]
+        } else {
+            copy.scale
+        };
+        transform_batch_vertices(&mut batches, body_center, 0.0, scale_xy);
+        // `offset_px` then slides the whole (centre-scaled) copy — the
+        // ghosts that drift outward in four directions.
+        if copy.offset_px != [0.0, 0.0] {
+            for b in &mut batches {
+                for v in &mut b.vertices {
+                    v.position[0] += copy.offset_px[0];
+                    v.position[1] += copy.offset_px[1];
+                }
+            }
+        }
         apply_tint_alpha(&mut batches, Some(copy.tint), copy.alpha);
         for b in &mut batches {
             b.additive = copy.additive;
@@ -1347,35 +1388,34 @@ pub fn compose_actor_batches<'a>(
     };
 
     let mut out = Vec::new();
-    // Alpha-blended copies (ghosts: 4-way and second-body copies) sit BEHIND the live
-    // sprite — they slide/stretch out past the body, so the parts outside its
-    // silhouette show.
-    for copy in channels.copies.iter().filter(|c| !c.additive) {
+    // Copies marked `behind` sit BEHIND the live sprite — larger and fainter, so
+    // the parts outside the body silhouette show as a russian-doll halo / glow,
+    // while the opaque body covers (and so leaves unchanged) the inner part.
+    for copy in channels.copies.iter().filter(|c| c.behind) {
         out.append(&mut build_copy(copy));
     }
 
-    let mut live = sprite.build_batches(animation, Some(dir), head_dir, anchor, depth, scale, 0.0);
+    if channels.squeeze != 1.0 {
+        // Compress the body vertically toward the feet anchor.
+        transform_batch_vertices(&mut live, anchor, 0.0, [1.0, channels.squeeze]);
+    }
     if channels.angle != 0.0 {
-        // A body roll (the spinning body variant) pivots about the entity's centre, not its
-        // feet anchor — use the live sprite's bounding-box centre.
-        let pivot = batches_center(&live).unwrap_or(anchor);
-        transform_batch_vertices(&mut live, pivot, channels.angle, [1.0, 1.0]);
+        // A body roll pivots about the entity's centre, not its feet.
+        transform_batch_vertices(&mut live, body_center, channels.angle, [1.0, 1.0]);
     }
     apply_tint_alpha(&mut live, channels.tint, channels.alpha);
     out.append(&mut live);
 
-    // Additive copies (glows/flashes: asura halo, blue-hit flash) overlay
-    // ON TOP of the live sprite — drawn behind, a body-sized additive copy is
-    // fully overwritten by the opaque body and shows nothing.
-    for copy in channels.copies.iter().filter(|c| c.additive) {
+    // Copies marked on-top overlay the live sprite (glow rim,
+    // asura halo, hit flash).
+    for copy in channels.copies.iter().filter(|c| !c.behind) {
         out.append(&mut build_copy(copy));
     }
     out
 }
 
-/// Centre of a batch set's vertex bounding box in screen space, or `None` when
-/// there are no vertices.
-fn batches_center(batches: &[SpriteBatch]) -> Option<[f32; 2]> {
+/// Bounding box `(min, max)` of a batch set's vertices in screen space.
+fn batches_bbox(batches: &[SpriteBatch]) -> Option<([f32; 2], [f32; 2])> {
     let (mut min_x, mut min_y) = (f32::MAX, f32::MAX);
     let (mut max_x, mut max_y) = (f32::MIN, f32::MIN);
     let mut any = false;
@@ -1388,7 +1428,7 @@ fn batches_center(batches: &[SpriteBatch]) -> Option<[f32; 2]> {
             max_y = max_y.max(v.position[1]);
         }
     }
-    any.then(|| [(min_x + max_x) * 0.5, (min_y + max_y) * 0.5])
+    any.then_some(([min_x, min_y], [max_x, max_y]))
 }
 
 #[cfg(test)]

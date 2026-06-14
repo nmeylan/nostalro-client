@@ -161,6 +161,22 @@ pub fn body_attached(id: EffectId) -> bool {
             | EffectId::Stormkick3
             | EffectId::Stormkick6
             | EffectId::Stormkick7
+            // §1 body-render: tints / flash / spin (body_tint.rs)
+            | EffectId::Redbody
+            | EffectId::Transbluebody
+            | EffectId::Pinkbody
+            | EffectId::Linklight
+            | EffectId::Magiccrasher
+            | EffectId::Magiccrasher2
+            | EffectId::Hitbody
+            | EffectId::Falconassault
+            // §1b geometry: squash / lift (squarebody.rs)
+            | EffectId::Pressedbody
+            | EffectId::Kickedbody
+            // §1c multi-render: ghosts / halo / glow (multibody.rs)
+            | EffectId::Reflectbody
+            | EffectId::Assumptio
+            | EffectId::Lightblade
     )
 }
 

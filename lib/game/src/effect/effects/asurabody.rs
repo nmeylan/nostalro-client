@@ -16,10 +16,6 @@ const COPIES: usize = 10;
 /// Per-layer growth — the original `i·3` (source units) condensed to a
 /// fraction of body size per copy.
 const GROWTH_PER_LAYER: f32 = 0.05;
-/// Approx half sprite height (px). The composer scales copies about the feet
-/// anchor; lifting each copy by `(scale−1)·CENTER_LIFT` keeps the bloom roughly
-/// centred on the body instead of growing only upward.
-const CENTER_LIFT: f32 = 45.0;
 /// The bloom has fully drained by body timer 145.
 const END_FRAME: f32 = 145.0;
 
@@ -64,11 +60,15 @@ impl Effect for AsuraBodyEffect {
             }
             let scale = 1.0 + i_f * GROWTH_PER_LAYER;
             copies.push(BodyCopy {
-                offset_px: [0.0, -(scale - 1.0) * CENTER_LIFT],
+                // Composer scales copies about the body centre, so no manual
+                // recentre is needed — the bloom is concentric on all sides.
+                offset_px: [0.0, 0.0],
+                margin_px: 0.0,
                 scale: [scale, scale],
                 tint: [255, 255, 255],
                 alpha,
                 additive: true,
+                behind: false,
             });
         }
         (!copies.is_empty()).then_some(copies)

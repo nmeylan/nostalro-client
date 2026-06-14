@@ -23,6 +23,7 @@ use super::effects::{
     cloud_projectile, twilight, tripleattack, spherewind, pressure, stormgust, teleportation, texture_falling, throw_item, rg_coin, turnundead, volcano, warp, waterball, waterball2,
     wind, yufitel2, yupitel,
     particle_up, peong, peong_up, sma, stin, soul_breaker, storm_kick, m_ef02, slash, super_angel, teihit, thunderstorm2,
+    body_tint, multibody, squarebody,
 };
 use super::spec::EffectSpec;
 use super::spr_aliases::spr_def;
@@ -620,6 +621,53 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
         EffectId::Quakebody4 => EffectSpec::Custom {
             duration_ms: quakebody::total_duration_ms(&quakebody::QUAKEBODY4),
+        },
+
+        // Body tints (recolour + body lights) — Custom; their str_aliases were
+        // removed so they dispatch here instead of a missing `.str`.
+        EffectId::Redbody => EffectSpec::Custom {
+            duration_ms: body_tint::REDBODY.total_duration_ms(),
+        },
+        EffectId::Transbluebody => EffectSpec::Custom {
+            duration_ms: body_tint::TRANSBLUEBODY.total_duration_ms(),
+        },
+        EffectId::Pinkbody => EffectSpec::Custom {
+            duration_ms: body_tint::PINKBODY.total_duration_ms(),
+        },
+        EffectId::Linklight => EffectSpec::Custom {
+            duration_ms: body_tint::LINKLIGHT.total_duration_ms(),
+        },
+        EffectId::Magiccrasher => EffectSpec::Custom {
+            duration_ms: body_tint::MAGICCRASHER.total_duration_ms(),
+        },
+        EffectId::Magiccrasher2 => EffectSpec::Custom {
+            duration_ms: body_tint::MAGICCRASHER2.total_duration_ms(),
+        },
+        EffectId::Hitbody => EffectSpec::Custom {
+            duration_ms: body_tint::HITBODY.total_duration_ms(),
+        },
+        EffectId::Falconassault => EffectSpec::Custom {
+            duration_ms: body_tint::FALCONASSAULT.total_duration_ms(),
+        },
+
+        // Vertical body squares (squash / lift) — Custom.
+        EffectId::Pressedbody => EffectSpec::Custom {
+            duration_ms: squarebody::pressed_total_duration_ms(),
+        },
+        EffectId::Kickedbody => EffectSpec::Custom {
+            duration_ms: squarebody::kicked_total_duration_ms(),
+        },
+
+        // Multi-render body lights (reflect copies / double-body halo /
+        // spark-sword glow) — Custom.
+        EffectId::Reflectbody => EffectSpec::Custom {
+            duration_ms: multibody::REFLECTBODY.total_duration_ms(),
+        },
+        EffectId::Assumptio => EffectSpec::Custom {
+            duration_ms: multibody::ASSUMPTIO.total_duration_ms(),
+        },
+        EffectId::Lightblade => EffectSpec::Custom {
+            duration_ms: multibody::LIGHTBLADE.total_duration_ms(),
         },
 
         // Batch STR-B10 — Aciddemon swirling cone funnel; Rainbow arch.
@@ -1593,10 +1641,11 @@ mod tests {
 
     #[test]
     fn str_alias_wins_over_noop_and_unimplemented_custom() {
-        // Assumptio is in is_noop_bucket but has a real STR file → Str.
+        // Aurablade is in is_custom_bucket but has no factory/Custom arm; its
+        // `aurablade` str alias wins in bucket_default → Str.
         assert!(matches!(
-            effect_spec(EffectId::Assumptio),
-            Some(EffectSpec::Str { file: "assumptio", .. })
+            effect_spec(EffectId::Aurablade),
+            Some(EffectSpec::Str { file: "aurablade", .. })
         ));
         // Stin (Estin) has both a `stin.str` alias and a procedural factory
         // arm; its explicit Custom override in `effect_spec` wins over the

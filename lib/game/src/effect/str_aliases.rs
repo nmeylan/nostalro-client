@@ -346,24 +346,24 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Pressure => &["pressure"],
         EffectId::Bash3d => &["bash3d"],
         EffectId::Aurablade => &["aurablade"],
-        EffectId::Redbody => &["redbody"],
+        // Redbody → BodyTintEffect (Custom, additive red glow, no `.str`).
+        // Alias removed so it resolves via the custom bucket.
         EffectId::Lkconcentration => &["TwoHand"],
         // BottomGospel → BottomSongEffect (Custom, `cross_old.bmp`); no STR.
         EffectId::Angel => &["angel"],
         EffectId::Devil => &["devil"],
         EffectId::Dragonsmoke => &["dragonsmoke"],
-        EffectId::Assumptio => &["assumptio"],
+        // Assumptio → MultiBodyEffect (Custom, double-body halo, no `.str`).
         EffectId::Bash3d2 => &["bash3d2"],
         EffectId::Energydrain2 => &["energydrain2"],
-        EffectId::Transbluebody => &["transbluebody"],
-        EffectId::Magiccrasher => &["magiccrasher"],
+        // Transbluebody / Magiccrasher → BodyTintEffect (Custom, no `.str`).
         EffectId::Lightsphere2 => &["lightsphere2"],
-        EffectId::Lightblade => &["lightblade"],
+        // Lightblade → MultiBodyEffect (Custom, spark-sword glow, no `.str`).
         EffectId::Energydrain3 => &["energydrain3"],
         EffectId::Linelink2 => &["linelink2"],
-        EffectId::Linklight => &["linklight"],
+        // Linklight → BodyTintEffect (Custom, delayed warm-yellow tint, no `.str`).
         EffectId::Truesight => &["truesight"],
-        EffectId::Falconassault => &["falconassault"],
+        // Falconassault → BodyTintEffect (Custom, glow + facing spin, no `.str`).
         EffectId::Tripleattack2 => &["tripleattack2"],
         EffectId::Portal4 => &["portal4"],
         EffectId::Meltdown => &["melt"],
@@ -372,14 +372,14 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Tripleattack3 => &["tripleattack3"],
         EffectId::Spherewind2 => &["spherewind2"],
         EffectId::Linelink3 => &["linelink3"],
-        EffectId::Pinkbody => &["pinkbody"],
+        // Pinkbody → BodyTintEffect (Custom, pink tint + double-body, no `.str`).
         EffectId::Level995 => &["level99_5"],
         EffectId::Level996 => &["level99_6"],
         EffectId::Bash3d3 => &["bash3d3"],
         EffectId::Bash3d4 => &["bash3d4"],
         EffectId::Napalmvalcan => &["napalmvalcan"],
         EffectId::Portal5 => &["portal5"],
-        EffectId::Magiccrasher2 => &["magiccrasher2"],
+        // Magiccrasher2 → BodyTintEffect (Custom, random flicker, no `.str`).
         // BottomSpider / BottomFogwall → BottomSongEffect (Custom); no STR.
         EffectId::Soulburn => &["소울번", "soulburn"],
         EffectId::Soulchange => &["사람효과", "effectivepeople"],
@@ -388,16 +388,16 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Rainbow => &["rainbow"],
         EffectId::Peong => &["peong"],
         EffectId::Tanji2 => &["tanji2"],
-        EffectId::Pressedbody => &["pressedbody"],
-        // Spinedbody → SpinedBodyEffect (Custom, barrel-roll body spin, no
+        // Pressedbody / Kickedbody → SquareBodyEffect (Custom, vertical squash
+        // / lift, no `.str`).
+        // Spinedbody → SpinedBodyEffect (Custom, barrel-roll, no
         // `.str`). Alias removed so it resolves via the custom bucket and the
         // body_angle channel applies.
-        EffectId::Kickedbody => &["kickedbody"],
         EffectId::Airtexture => &["airtexture"],
-        EffectId::Hitbody => &["hitbody"],
+        // Hitbody → BodyTintEffect (Custom, white hit flash, no `.str`).
         EffectId::Doublegumgang => &["doublegumgang"],
-        EffectId::Reflectbody => &["reflectbody"],
-        // Giantbody/Giantbody2 → GiantBodyEffect (Custom, giant body scale,
+        // Reflectbody → MultiBodyEffect (Custom, russian-doll copies, no `.str`).
+        // Giantbody/Giantbody2 → GiantBodyEffect (Custom, body scale,
         // no primitive/STR). Aliases removed so they resolve via the custom
         // bucket and the body_scale channel applies.
         // Asurabody/Ef4waybody → AsuraBodyEffect / Ef4wayBodyEffect (Custom,

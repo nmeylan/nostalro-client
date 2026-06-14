@@ -89,6 +89,7 @@ impl Effect for JumpBodyEffect {
                 Some(BodyVertical {
                     lift_px: (t * 20.0).max(0.0) * LIFT_SCALE,
                     alpha: (1.0 - t * 20.0 / 255.0).clamp(0.0, 1.0),
+                    squeeze: 1.0,
                 })
             }
             Kind::Land => {
@@ -96,6 +97,7 @@ impl Effect for JumpBodyEffect {
                 Some(BodyVertical {
                     lift_px: ((25.0 - t) * 20.0).max(0.0) * LIFT_SCALE,
                     alpha: ((t - 10.0) * 17.0 / 255.0).clamp(0.0, 1.0),
+                    squeeze: 1.0,
                 })
             }
         }

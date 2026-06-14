@@ -94,14 +94,18 @@ pub struct BodyAction {
     pub duration_ms: f32,
 }
 
-/// Per-frame vertical body translate + fade — the original game's
-/// high-jump / land-jump (Jumpbody flies up the Y axis and vanishes,
-/// Landbody drops in from above). `lift_px` raises the actor's screen anchor
-/// (screen pixels, positive = up); `alpha` (0..=1) multiplies the body opacity.
+/// Per-frame vertical body translate + fade + squeeze — the original game's
+/// jump-up / land-down body lights (Jumpbody flies up the Y axis and vanishes,
+/// Landbody drops in from above) and the pressed-flat body squash.
+/// `lift_px` raises the actor's screen anchor (screen pixels, positive = up);
+/// `alpha` (0..=1) multiplies the body opacity; `squeeze` (1.0 = none) is a
+/// vertical scale about the feet anchor — `<1.0` presses the top toward the
+/// bottom (Pressedbody). Multiple returning effects multiply `squeeze`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BodyVertical {
     pub lift_px: f32,
     pub alpha: f32,
+    pub squeeze: f32,
 }
 
 /// One extra copy of the master sprite drawn behind the live one — the original
@@ -114,9 +118,23 @@ pub struct BodyVertical {
 pub struct BodyCopy {
     pub offset_px: [f32; 2],
     pub scale: [f32; 2],
+    /// Grow the copy outward by this many **screen pixels on every edge**
+    /// (an even margin). Use this — not [`scale`](BodyCopy::scale) —
+    /// for a small concentric halo/ripple: `scale` adds a *proportional* margin
+    /// that balloons on a tall sprite, whereas a few pixels is what the body
+    /// lights actually do (the reflect-body ripple sweeps 0..20px). Applied on top of
+    /// `scale`; `0.0` = none.
+    pub margin_px: f32,
     pub tint: [u8; 3],
     pub alpha: f32,
     pub additive: bool,
+    /// Draw this copy BEHIND the live body (`true`) vs ON TOP of it (`false`).
+    /// Independent of [`additive`](BodyCopy::additive): an additive copy *behind*
+    /// the (opaque) body only adds a soft glow at the margin and leaves the body
+    /// untouched (Assumptio's doubled body); an additive copy *on top* blooms
+    /// over the body (Asura halo, hit flash). Alpha ghosts usually go behind
+    /// (4-way slide, reflect-body ripple).
+    pub behind: bool,
 }
 
 pub trait Effect: Send {

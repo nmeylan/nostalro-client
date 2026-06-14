@@ -51,10 +51,12 @@ impl Effect for TaeReadyEffect {
         }
         let flash = BodyCopy {
             offset_px: [0.0, 0.0],
+            margin_px: 0.0,
             scale: [1.0, 1.0],
             tint: [5, 5, 255],
             alpha,
             additive: true,
+            behind: false,
         };
         // Rendered twice for the additive blue overlay.
         Some(vec![flash, flash])

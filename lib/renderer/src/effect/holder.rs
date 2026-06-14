@@ -697,6 +697,7 @@ impl EffectHolder {
             if let Some(v) = c.body_vertical() {
                 ch.lift_px += v.lift_px;
                 ch.alpha *= v.alpha;
+                ch.squeeze *= v.squeeze;
             }
             if let Some(mut copies) = c.body_copies() {
                 ch.copies.append(&mut copies);

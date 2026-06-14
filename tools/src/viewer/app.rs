@@ -129,7 +129,7 @@ impl App {
             renderer: None,
             grf: None,
             map_data: None,
-            composite_job: JobName::Taekwon.value() as u16,
+            composite_job: JobName::Clown.value() as u16,
             composite_sex: 1,
             composite_head: 1,
             weapon_view_id: 0,
@@ -892,10 +892,14 @@ impl App {
             self.animation.play(ba.action_index, ba.duration_ms, ba.start_frame);
         }
         let body_channels = self.effect_holder.body_channels_for_entity(VIEWER_ACTOR_ID);
+        // Screen-shake from quake effects like Magiccrasher / Falconassault,
+        // mirroring the in-game actor pass so the tool shows the shake too.
+        let shake_offset = self.effect_holder.camera_shake_offset();
 
         let Some(renderer) = &mut self.renderer else {
             return;
         };
+        renderer.camera.shake_offset = shake_offset.into();
         let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
         let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
 

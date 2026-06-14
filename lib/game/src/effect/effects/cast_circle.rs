@@ -46,6 +46,17 @@ const FRAMES_PER_SECOND: f32 = 60.0;
 const TOTAL_FRAMES: f32 = 56.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
+/// Sprite-matched down-scale for the cast-circle footprint (ground ring +
+/// petal flames). The raw size literals match the original game 1:1 in world
+/// units, but the aura reads oversized next to the character at our sprite
+/// scale — same role as the `WORLD_SCALE` consts in the other procedural
+/// effects. Eyeballed against the in-game sprite; tune as needed.
+const WORLD_SCALE: f32 = 0.75;
+/// The central light column is authored far taller than the footprint
+/// (`column_max_height = 250`), so it gets its own factor and can be tamed
+/// independently of the ground ring.
+const COLUMN_HEIGHT_SCALE: f32 = 0.5;
+
 /// Three flame-ring emitters at rotation starts 0°/90°/180° (the original
 /// casting aura uses three petal emitters plus a 4th vertical-column
 /// emitter; we render the column as a separate primitive). Each petal has
@@ -220,13 +231,14 @@ impl Effect for CastCircleEffect {
             let growth = (frame / COLUMN_GROWTH_FRAMES).clamp(0.0, 1.0);
             let col_rise_rad = COLUMN_RISE_ANGLE_DEG.to_radians();
             let (col_sin, col_cos) = col_rise_rad.sin_cos();
-            let max_h = self.params.column_max_height * growth;
+            let max_h = self.params.column_max_height * growth * COLUMN_HEIGHT_SCALE;
+            let col_radius = self.params.column_radius * WORLD_SCALE;
             let height = col_sin * max_h;
             if height > 0.0 {
                 out.push(EffectPrimitiveDraw::Frustum {
                     base: self.world_pos,
-                    bottom_size: self.params.column_radius,
-                    top_size: self.params.column_radius + col_cos * max_h,
+                    bottom_size: col_radius,
+                    top_size: col_radius + col_cos * max_h,
                     height,
                     sides: COLUMN_SIDES,
                     arc_angle_deg: 360.0,
@@ -252,8 +264,8 @@ impl Effect for CastCircleEffect {
         if ring_alpha > 0.0 {
             out.push(EffectPrimitiveDraw::GroundDisc {
                 center: self.world_pos,
-                radius: self.params.ring_radius,
-                thickness: self.params.ring_thickness,
+                radius: self.params.ring_radius * WORLD_SCALE,
+                thickness: self.params.ring_thickness * WORLD_SCALE,
                 rotation: 0.0,
                 arc_angle_deg: 360.0,
                 uv_repeat: RING_UV_REPEAT,
@@ -270,8 +282,8 @@ impl Effect for CastCircleEffect {
             for i in 0..NUM_PETALS {
                 let rise_rad = PETAL_RISE_ANGLES_DEG[i].to_radians();
                 let (sin_rise, cos_rise) = rise_rad.sin_cos();
-                let max_h = self.params.petal_heights[i];
-                let distance = self.params.petal_distances[i];
+                let max_h = self.params.petal_heights[i] * WORLD_SCALE;
+                let distance = self.params.petal_distances[i] * WORLD_SCALE;
                 let offset_rad =
                     (i as f32) * std::f32::consts::FRAC_PI_2;
                 out.push(EffectPrimitiveDraw::Frustum {
@@ -385,7 +397,8 @@ mod tests {
         run_to(&mut c, COLUMN_GROWTH_FRAMES);
         let h_full = height_of_column(&c);
         assert!(h_full > h_early, "column should grow ({} → {})", h_early, h_full);
-        let expected = COLUMN_RISE_ANGLE_DEG.to_radians().sin() * YELLOW.column_max_height;
+        let expected =
+            COLUMN_RISE_ANGLE_DEG.to_radians().sin() * YELLOW.column_max_height * COLUMN_HEIGHT_SCALE;
         assert!((h_full - expected).abs() < 1e-3,
             "column should reach full height by frame {}, got {} (expected {})",
             COLUMN_GROWTH_FRAMES, h_full, expected);

@@ -54,10 +54,12 @@ impl Effect for Ef4wayBodyEffect {
                 .iter()
                 .map(|&offset_px| BodyCopy {
                     offset_px,
+                    margin_px: 0.0,
                     scale: [1.0, 1.0],
                     tint: [255, 255, 255],
                     alpha,
                     additive: false,
+                    behind: true,
                 })
                 .collect(),
         )

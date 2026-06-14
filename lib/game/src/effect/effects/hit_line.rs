@@ -592,11 +592,13 @@ impl Effect for HitLineBounceEffect {
         let pulse = (self.frame as f32 * 0.8).sin() * 1.5 + 5.0;
         Some(vec![BodyCopy {
             offset_px: [0.0, 0.0],
+            margin_px: 0.0,
             // Stretch relative to a rough half-sprite-height (~45 px).
             scale: [1.0, 1.0 + pulse / 45.0],
             tint: [255, 120, 50],
             alpha: 0.5,
             additive: false,
+            behind: true,
         }])
     }
 }

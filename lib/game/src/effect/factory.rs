@@ -292,6 +292,30 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>) ->
         EffectId::Spinedbody => Box::new(effects::spinedbody::SpinedBodyEffect::spinedbody()),
         EffectId::Spinedbody2 => Box::new(effects::spinedbody::SpinedBodyEffect::spinedbody2()),
 
+        // Body tints (recolour + light-body / double-body / hit flash) —
+        // tint/flicker/flash the actor sprite, no primitives. Falconassault is a
+        // light-body + facing spin (no tint).
+        EffectId::Redbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::REDBODY)),
+        EffectId::Transbluebody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::TRANSBLUEBODY)),
+        EffectId::Pinkbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::PINKBODY)),
+        EffectId::Linklight => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::LINKLIGHT)),
+        EffectId::Magiccrasher => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::MAGICCRASHER)),
+        EffectId::Magiccrasher2 => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::MAGICCRASHER2)),
+        EffectId::Hitbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::HITBODY)),
+        EffectId::Falconassault => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::FALCONASSAULT)),
+
+        // Vertical body squares (pressed squash / kicked lift) — deform the
+        // actor sprite, no primitives.
+        EffectId::Pressedbody => Box::new(effects::squarebody::SquareBodyEffect::pressed()),
+        EffectId::Kickedbody => Box::new(effects::squarebody::SquareBodyEffect::kicked()),
+
+        // Multi-render body lights (reflect russian-doll / double-body halo
+        // / spark-sword glow) — concentric sprite copies behind the actor,
+        // no primitives.
+        EffectId::Reflectbody => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::REFLECTBODY)),
+        EffectId::Assumptio => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::ASSUMPTIO)),
+        EffectId::Lightblade => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::LIGHTBLADE)),
+
         // Body-copy lights (asura halo / blue-hit flash / 4-way ghosts) —
         // draw extra sprite copies behind the actor, no primitives.
         EffectId::Asurabody => Box::new(effects::asurabody::AsuraBodyEffect::new()),
