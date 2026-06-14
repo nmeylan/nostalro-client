@@ -290,7 +290,10 @@ impl Effect for StatusUpEffect {
                     self.params.tint[2],
                     alpha,
                 ],
-                blend: BlendKind::Additive,
+                // Streaks use straight alpha blend
+                // (source over destination), not additive — additive
+                // vanishes against a bright lightmap.
+                blend: BlendKind::Alpha,
             });
         }
 
@@ -376,6 +379,10 @@ mod tests {
 
         // Frames 0,2,4 spawned → at least 3 streak particles.
         assert!(streaks.len() >= 3, "spawn cadence every 2 frames");
+        assert!(
+            streaks.iter().all(|p| matches!(p, EffectPrimitiveDraw::Billboard { blend: BlendKind::Alpha, .. })),
+            "streaks are alpha-blended (original default RF_ALPHA)"
+        );
         for prim in &streaks {
             let EffectPrimitiveDraw::Billboard { pos, color, .. } = prim else {
                 panic!("expected Billboard, got {prim:?}");

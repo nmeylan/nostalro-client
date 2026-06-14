@@ -151,7 +151,11 @@ impl Effect for TurnUndeadEffect {
                     uv: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
                     texture: RING_TEXTURE,
                     color: [1.0, 1.0, 1.0, a],
-                    blend: BlendKind::Additive,
+                    // The ground ring is alpha-blended at the default
+                    // source/inverse-source alpha, not additive —
+                    // additive vanishes against a bright lightmap. (The phase-1
+                    // spike rays stay additive.)
+                    blend: BlendKind::Alpha,
                 });
             }
         }
@@ -187,6 +191,12 @@ mod tests {
         assert_eq!(discs, 1);
         assert_eq!(rays, 5);
         assert_eq!(rings, 0, "ring has not spawned yet");
+        // The phase-1 spike rays stay additive.
+        assert!(
+            prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::BillboardFlash { texture, .. } if *texture == spike_burst::SPIKE_TEXTURE))
+                .all(|p| matches!(p, EffectPrimitiveDraw::BillboardFlash { blend: BlendKind::Additive, .. })),
+            "spike rays are additive"
+        );
     }
 
     #[test]
@@ -198,6 +208,11 @@ mod tests {
         let prims = draw_at(&mut e, 55.0);
         let rings = prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::Texture3D { texture, .. } if *texture == RING_TEXTURE)).count();
         assert_eq!(rings, 1, "ring visible at frame 55");
+        // The phase-2 ground ring is alpha-blended.
+        assert!(
+            prims.iter().any(|p| matches!(p, EffectPrimitiveDraw::Texture3D { texture, blend: BlendKind::Alpha, .. } if *texture == RING_TEXTURE)),
+            "ring is alpha-blended"
+        );
     }
 
     #[test]

@@ -149,7 +149,10 @@ impl Effect for MagnumBreakEffect {
                 uv_repeat: RING_UV_REPEAT,
                 texture: RING_TEXTURE,
                 color: [1.0, 1.0, 1.0, ring_alpha],
-                blend: BlendKind::Additive,
+                // The Magnum Break ring/sphere render
+                // alpha-blended, not additive
+                // — additive vanishes against a bright lightmap.
+                blend: BlendKind::Alpha,
             });
         }
 
@@ -184,7 +187,7 @@ impl Effect for MagnumBreakEffect {
                 uv_repeat: [1.0, 1.0],
                 texture: EXPLOSION_TEXTURE,
                 color: [1.0, 1.0, 1.0, explosion_alpha],
-                blend: BlendKind::Additive,
+                blend: BlendKind::Alpha,
             });
         }
 
@@ -214,7 +217,7 @@ impl Effect for MagnumBreakEffect {
                     uv_repeat: RING_UV_REPEAT,
                     texture: RING_TEXTURE,
                     color: [1.0, 1.0, 1.0, second_alpha],
-                    blend: BlendKind::Additive,
+                    blend: BlendKind::Alpha,
                 });
             }
         }
@@ -250,9 +253,9 @@ mod tests {
         step(&mut mb, 0.0);
         let prims = draws(&mb);
         assert_eq!(prims.len(), 3, "ring + sphere + second ring");
-        assert!(matches!(prims[0], EffectPrimitiveDraw::GroundDisc { .. }));
-        assert!(matches!(prims[1], EffectPrimitiveDraw::Sphere { .. }));
-        assert!(matches!(prims[2], EffectPrimitiveDraw::GroundDisc { .. }));
+        assert!(matches!(prims[0], EffectPrimitiveDraw::GroundDisc { blend: BlendKind::Alpha, .. }));
+        assert!(matches!(prims[1], EffectPrimitiveDraw::Sphere { blend: BlendKind::Alpha, .. }));
+        assert!(matches!(prims[2], EffectPrimitiveDraw::GroundDisc { blend: BlendKind::Alpha, .. }));
     }
 
     #[test]

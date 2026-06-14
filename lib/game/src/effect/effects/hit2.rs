@@ -289,7 +289,10 @@ impl Effect for Hit2Effect {
                 rotation: p.roll_rad,
                 texture: p.texture,
                 color: [1.0, 1.0, 1.0, alpha],
-                blend: BlendKind::Additive,
+                // The Hit2 petals are alpha-blended,
+                // not additive — additive vanishes
+                // against a bright lightmap.
+                blend: BlendKind::Alpha,
             });
         }
     }
@@ -324,6 +327,13 @@ mod tests {
         list.primitives.clear();
         e.collect_draws(&mut list, &render_ctx());
         assert_eq!(list.primitives.len(), PETAL_COUNT);
+        assert!(
+            list.primitives.iter().all(|p| matches!(
+                p,
+                EffectPrimitiveDraw::Billboard { blend: BlendKind::Alpha, .. }
+            )),
+            "Hit2 petals are alpha-blended (RF_EFFECT_OM_2)"
+        );
         // Alternating textures: even indices get LENS1, odd get LENS2.
         let textures: Vec<&str> = list
             .primitives

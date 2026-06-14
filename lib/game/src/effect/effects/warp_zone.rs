@@ -354,7 +354,10 @@ impl Effect for WarpZoneEffect {
                 uv_repeat: INNER_UV_REPEAT,
                 texture: INNER_TEXTURE,
                 color: [tr, tg, tb, r.alpha()],
-                blend: BlendKind::Additive,
+                // The WarpZone inner ring + orbit sparkles render
+                // source/inverse-source alpha, not additive —
+                // additive vanishes against a bright lightmap.
+                blend: BlendKind::Alpha,
             });
         }
         for s in &self.sparkles {
@@ -372,7 +375,7 @@ impl Effect for WarpZoneEffect {
                 // sparkle reads warm/yellow. We tint to the portal colour so
                 // the sparkle matches the rings instead of clashing yellow.
                 color: [tr, tg, tb, a],
-                blend: BlendKind::Additive,
+                blend: BlendKind::Alpha,
                 aim_target: None,
                 no_depth: false,
             });
@@ -474,7 +477,18 @@ mod tests {
         // the burst variant (gated off) emits none.
         let mut sustained = WarpZoneEffect::new([0.0; 3], PARAMS_SUSTAINED);
         step(&mut sustained, SPARKLE_INTERVAL_S * 2.5);
-        assert!(count_sparkles(&draws(&sustained)) >= 2);
+        let prims = draws(&sustained);
+        assert!(count_sparkles(&prims) >= 2);
+        // Disc, inner ring and orbit sparkles all render alpha-blended;
+        // none are additive.
+        assert!(
+            prims.iter().all(|p| matches!(
+                p,
+                EffectPrimitiveDraw::GroundDisc { blend: BlendKind::Alpha, .. }
+                    | EffectPrimitiveDraw::SpriteParticle { blend: BlendKind::Alpha, .. }
+            )),
+            "WarpZone prims are all alpha-blended"
+        );
 
         let mut burst = WarpZoneEffect::new([0.0; 3], PARAMS_BURST);
         step(&mut burst, SPARKLE_INTERVAL_S * 2.5);

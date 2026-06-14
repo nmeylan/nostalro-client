@@ -281,7 +281,10 @@ impl Effect for EndureEffect {
                 rotation: s.rotation(),
                 texture: SPIKE_TEXTURE,
                 color: [1.0, 1.0, 1.0, alpha],
-                blend: BlendKind::Additive,
+                // The Endure spike is alpha-blended, not additive — additive
+                // vanishes
+                // against a bright lightmap.
+                blend: BlendKind::Alpha,
             });
         }
     }
@@ -333,6 +336,10 @@ mod tests {
             .collect();
         assert_eq!(icon, 1, "one central icon");
         assert!(spikes.len() >= 20, "≈ one spike per frame, after 25 frames");
+        assert!(
+            spikes.iter().all(|p| matches!(p, EffectPrimitiveDraw::Billboard { blend: BlendKind::Alpha, .. })),
+            "Endure spikes are alpha-blended (RF_EFFECT_OM)"
+        );
 
         for prim in &spikes {
             if let EffectPrimitiveDraw::Billboard { pos, .. } = prim {

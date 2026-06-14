@@ -807,7 +807,10 @@ impl Effect for HitEffect {
                 cull_back: false,
                 texture: ring.texture,
                 color,
-                blend: BlendKind::Additive,
+                // The Hit ring is alpha-blended,
+                // not additive — additive vanishes
+                // against a bright lightmap.
+                blend: BlendKind::Alpha,
             });
         }
 
@@ -838,7 +841,8 @@ impl Effect for HitEffect {
                     motion_index: motion,
                     size_scale: seg_size,
                     color: [1.0, 1.0, 1.0, seg_alpha],
-                    blend: BlendKind::Additive,
+                    // Debris are alpha-blended like the ring.
+                    blend: BlendKind::Alpha,
                     aim_target: None,
                     no_depth: false,
                 });
@@ -890,11 +894,13 @@ mod tests {
             bottom_size,
             top_size,
             height,
+            blend,
             ..
         } = list.primitives[0]
         else {
             panic!("first draw must be the cylinder Frustum, got {:?}", list.primitives[0]);
         };
+        assert_eq!(blend, BlendKind::Alpha, "Hit ring is alpha-blended (RF_EFFECT_OM_2)");
         // XZ stays put (no horizontal translation).
         assert!((base[0] - 1.0).abs() < 1e-4, "X stays at spawn: {}", base[0]);
         assert!((base[2] - 3.0).abs() < 1e-4, "Z stays at spawn: {}", base[2]);
@@ -929,18 +935,23 @@ mod tests {
                     sprite_path,
                     color,
                     size_scale,
+                    blend,
                     ..
-                } => Some((*sprite_path, color[3], *size_scale)),
+                } => Some((*sprite_path, color[3], *size_scale, *blend)),
                 _ => None,
             })
             .collect();
+        assert!(
+            particles.iter().all(|(_, _, _, b)| *b == BlendKind::Alpha),
+            "Hit debris share the alpha prim flag (RF_EFFECT_OM_2)"
+        );
         // HIT1 has 2 forward + 2 backward = 4 particles × 3 segments = 12.
         assert_eq!(
             particles.len(),
             HIT1.bursts.iter().map(|b| b.count).sum::<usize>() * NUM_SEGMENTS,
             "expected NUM_SEGMENTS=3 sprite draws per particle"
         );
-        assert!(particles.iter().all(|(s, _, _)| *s == PARTICLE1_SPRITE));
+        assert!(particles.iter().all(|(s, _, _, _)| *s == PARTICLE1_SPRITE));
 
         // Per-particle trail check: groups of NUM_SEGMENTS should have
         // strictly decreasing alpha and size from segment 0 to 2.
