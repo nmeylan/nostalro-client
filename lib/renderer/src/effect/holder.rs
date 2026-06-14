@@ -30,7 +30,14 @@ use crate::effect_sprite::Smoke3DParticle;
 /// `Box<dyn Effect>`; `drop_all` is called by [`EffectHolder::clear`] and
 /// by tooling just before a reload.
 pub trait ExternalCustomBackend: Send + Sync {
-    fn spawn(&self, effect_id: u16, from: [f32; 3], to: [f32; 3], hit_count: u8) -> u64;
+    fn spawn(
+        &self,
+        effect_id: u16,
+        from: [f32; 3],
+        to: [f32; 3],
+        hit_count: u8,
+        target_size: Option<[f32; 2]>,
+    ) -> u64;
     /// Returns `true` while the effect is still running, `false` once it
     /// has signalled death.
     fn update(&self, handle: u64, dt: f32, caster_yaw: Option<f32>) -> bool;
@@ -319,7 +326,7 @@ impl EffectHolder {
         attach: Attach,
         override_duration_ms: Option<u32>,
     ) -> Option<EffectHandle> {
-        self.spawn_with_hit_count(effect_id, attach, override_duration_ms, None, &|_| None)
+        self.spawn_with_hit_count(effect_id, attach, override_duration_ms, None, None, &|_| None)
     }
 
     fn spawn_with_hit_count(
@@ -328,6 +335,7 @@ impl EffectHolder {
         attach: Attach,
         override_duration_ms: Option<u32>,
         hit_count: Option<u8>,
+        target_size: Option<[f32; 2]>,
         resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
     ) -> Option<EffectHandle> {
         let Some(spec) = effect_spec(effect_id) else {
@@ -407,8 +415,13 @@ impl EffectHolder {
                     // (`as u16`), which diverges from the value past the first
                     // gap in EF numbering (e.g. TextureFalling: discriminant
                     // 734 vs value 1031).
-                    let handle =
-                        backend.spawn(effect_id.value() as u16, from, to, hit_count.unwrap_or(0));
+                    let handle = backend.spawn(
+                        effect_id.value() as u16,
+                        from,
+                        to,
+                        hit_count.unwrap_or(0),
+                        target_size,
+                    );
                     if handle != 0 {
                         self.last_spawn = Some(SpawnOutcome::Custom);
                         HeldPayload::CustomExternal { handle }
@@ -429,7 +442,7 @@ impl EffectHolder {
                     // channels) still goes through the `update`/collector
                     // resolvers.
                     let anchor = attach_to_anchor(attach, resolve_entity);
-                    match make_effect(effect_id, anchor, hit_count) {
+                    match make_effect(effect_id, anchor, hit_count, target_size) {
                         Some(e) => {
                             self.last_spawn = Some(SpawnOutcome::Custom);
                             HeldPayload::Custom(e)
@@ -486,12 +499,14 @@ impl EffectHolder {
                 attach,
                 override_duration_ms,
                 hit_count,
+                target_size,
             } = req;
             self.spawn_with_hit_count(
                 effect_id,
                 attach,
                 override_duration_ms,
                 hit_count,
+                target_size,
                 resolve_entity,
             );
         }

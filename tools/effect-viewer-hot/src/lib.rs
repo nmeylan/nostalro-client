@@ -859,6 +859,8 @@ pub unsafe extern "C" fn hot_spawn_custom_effect(
     from_ptr: *const [f32; 3],
     to_ptr: *const [f32; 3],
     hit_count: u8,
+    target_w: f32,
+    target_h: f32,
 ) -> u64 {
     let state = unsafe { &*(state_ptr as *const State) };
     let Some(id) = EffectId::try_from_value(effect_id as usize).ok() else {
@@ -872,7 +874,13 @@ pub unsafe extern "C" fn hot_spawn_custom_effect(
         EffectAnchor::Trail { from, to }
     };
     let hc = if hit_count > 0 { Some(hit_count) } else { None };
-    let Some(effect) = make_effect(id, anchor, hc) else {
+    // NaN encodes "no target size" across the C ABI (no `Option<[f32; 2]>`).
+    let target_size = if target_w.is_nan() || target_h.is_nan() {
+        None
+    } else {
+        Some([target_w, target_h])
+    };
+    let Some(effect) = make_effect(id, anchor, hc, target_size) else {
         return 0;
     };
     let mut next = state.next_effect_handle.lock().unwrap();

@@ -171,9 +171,17 @@ type HotSetSelectedEffectIdFn = unsafe extern "C" fn(*mut (), u16);
 type HotSnapshotStateFn = unsafe extern "C" fn(*mut (), *mut PersistentState);
 type HotRestoreStateFn = unsafe extern "C" fn(*mut (), *const PersistentState) -> u8;
 
+/// Representative target sprite footprint `[width, height]` in world units,
+/// used to demo target-sized effects (lock-on reticle) in the viewer where
+/// there is no live entity to measure.
+const DEMO_TARGET_SIZE: [f32; 2] = [16.0, 16.0];
+
 // Effect-registry FFI (handle = 0 = invalid / spawn failed).
+// `target_w`/`target_h` carry the target sprite size in world units; NaN means
+// "no target size" (the C ABI has no `Option`), mirroring the `caster_yaw` NaN
+// convention in the update FFI.
 type HotSpawnCustomEffectFn =
-    unsafe extern "C" fn(*mut (), u16, *const [f32; 3], *const [f32; 3], u8) -> u64;
+    unsafe extern "C" fn(*mut (), u16, *const [f32; 3], *const [f32; 3], u8, f32, f32) -> u64;
 type HotUpdateCustomEffectFn = unsafe extern "C" fn(*mut (), u64, f32, f32) -> u8;
 type HotCollectCustomDrawsFn =
     unsafe extern "C" fn(*mut (), u64, *const EffectRenderCtxFfi, *mut EffectDrawList);
@@ -286,8 +294,18 @@ unsafe impl Send for HotLibEffectBackend {}
 unsafe impl Sync for HotLibEffectBackend {}
 
 impl ExternalCustomBackend for HotLibEffectBackend {
-    fn spawn(&self, effect_id: u16, from: [f32; 3], to: [f32; 3], hit_count: u8) -> u64 {
-        let handle = unsafe { (self.spawn_fn)(self.state, effect_id, &from as *const _, &to as *const _, hit_count) };
+    fn spawn(
+        &self,
+        effect_id: u16,
+        from: [f32; 3],
+        to: [f32; 3],
+        hit_count: u8,
+        target_size: Option<[f32; 2]>,
+    ) -> u64 {
+        let [tw, th] = target_size.unwrap_or([f32::NAN, f32::NAN]);
+        let handle = unsafe {
+            (self.spawn_fn)(self.state, effect_id, &from as *const _, &to as *const _, hit_count, tw, th)
+        };
         if handle != 0 {
             self.handle_ids
                 .lock()
@@ -337,6 +355,7 @@ impl ExternalCustomBackend for HotLibEffectBackend {
         let probe = ragnarok_game::effect::factory::make_effect(
             effect_id,
             EffectAnchor::Point([0.0, 0.0, 0.0]),
+            None,
             None,
         )?;
         probe.str_overlay().map(|s| s.to_string())
@@ -865,6 +884,12 @@ impl App {
         } else if is_count_point_effect(effect_id) {
             self.effect_queue
                 .spawn_at_with_count(effect_id, world, self.demo_hit_count);
+        } else if effect_id == EffectId::Lockon {
+            // No entity table in the viewer; stand in a representative target
+            // sprite footprint so the reticle scales to it (the in-game path
+            // will pass the real target size).
+            self.effect_queue
+                .spawn_at_with_size(effect_id, world, DEMO_TARGET_SIZE);
         } else {
             self.effect_queue.spawn_at(effect_id, world);
         }
@@ -992,6 +1017,7 @@ impl App {
                     id,
                     EffectAnchor::Point([0.0, 0.0, 0.0]),
                     None,
+                    None,
                 );
                 let Some(probe) = probe else { return };
                 let Some(overlay) = probe.str_overlay() else { return };
@@ -1073,6 +1099,9 @@ impl App {
         } else if is_count_point_effect(effect_id) {
             self.effect_queue
                 .spawn_at_with_count(effect_id, [0.0, 0.0, 0.0], self.demo_hit_count);
+        } else if effect_id == EffectId::Lockon {
+            self.effect_queue
+                .spawn_at_with_size(effect_id, [0.0, 0.0, 0.0], DEMO_TARGET_SIZE);
         } else {
             self.effect_queue.spawn_at(effect_id, [0.0, 0.0, 0.0]);
         }

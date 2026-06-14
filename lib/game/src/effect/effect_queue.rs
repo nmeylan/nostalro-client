@@ -23,6 +23,10 @@ pub struct SpawnRequest {
     /// Passed through to the factory so the effect can spawn the right
     /// number of projectiles.
     pub hit_count: Option<u8>,
+    /// Target sprite size in world units `[width, height]`. Effects that
+    /// size themselves to the targeted actor (lock-on reticle) read this;
+    /// `None` falls back to a fixed size.
+    pub target_size: Option<[f32; 2]>,
 }
 
 #[derive(Default)]
@@ -45,6 +49,7 @@ impl EffectQueue {
             attach: Attach::WorldPos(world_pos),
             override_duration_ms: None,
             hit_count: None,
+            target_size: None,
         });
     }
 
@@ -56,6 +61,24 @@ impl EffectQueue {
             attach: Attach::WorldPos(world_pos),
             override_duration_ms: None,
             hit_count: Some(hit_count),
+            target_size: None,
+        });
+    }
+
+    /// Spawn a point effect sized to the target sprite (lock-on reticle).
+    /// `target_size` is the targeted actor's `[width, height]` in world units.
+    pub fn spawn_at_with_size(
+        &mut self,
+        effect_id: EffectId,
+        world_pos: [f32; 3],
+        target_size: [f32; 2],
+    ) {
+        self.pending.push(SpawnRequest {
+            effect_id,
+            attach: Attach::WorldPos(world_pos),
+            override_duration_ms: None,
+            hit_count: None,
+            target_size: Some(target_size),
         });
     }
 
@@ -65,6 +88,7 @@ impl EffectQueue {
             attach: Attach::Entity(entity_id),
             override_duration_ms: None,
             hit_count: None,
+            target_size: None,
         });
     }
 
@@ -83,6 +107,7 @@ impl EffectQueue {
             attach: Attach::Trail { from, to },
             override_duration_ms: None,
             hit_count: None,
+            target_size: None,
         });
     }
 
@@ -99,6 +124,7 @@ impl EffectQueue {
             attach: Attach::Trail { from, to },
             override_duration_ms: None,
             hit_count: Some(hit_count),
+            target_size: None,
         });
     }
 
@@ -111,6 +137,7 @@ impl EffectQueue {
             attach: Attach::Link { caster, target },
             override_duration_ms: None,
             hit_count: None,
+            target_size: None,
         });
     }
 
