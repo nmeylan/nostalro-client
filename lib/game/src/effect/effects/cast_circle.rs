@@ -173,12 +173,21 @@ pub const RED: CastCircleParams = spell_cast("ring_red.tga", 1.00, 1.00, 1.00);
 pub const WHITE: CastCircleParams = spell_cast("ring_white.tga", 1.00, 1.00, 1.00);
 pub const N_BLUE: CastCircleParams = spell_cast("ring_blue.tga", 1.00, 1.00, 1.00);
 
+// Change-element casting rings (`EF_CHANGE*`). Each is the same cast
+// circle as above, differing only by ring texture.
+pub const DARK: CastCircleParams = spell_cast("ring_black.tga", 1.00, 1.00, 1.00);
+pub const FLAME: CastCircleParams = spell_cast("ring_jadu.tga", 1.00, 1.00, 1.00);
+pub const EARTH_BROWN: CastCircleParams = spell_cast("ring_brown.tga", 1.00, 1.00, 1.00);
+
 pub const TEXTURES: &[&str] = &[
     "ring_yellow.tga",
     "ring_blue.tga",
     "ring_red.tga",
     "ring_white.tga",
     "ring_purple.tga",
+    "ring_black.tga",
+    "ring_jadu.tga",
+    "ring_brown.tga",
     "alpha_down.tga",
 ];
 
@@ -408,6 +417,7 @@ mod tests {
     fn every_variant_has_a_real_texture() {
         for params in [
             YELLOW, WATER, FIRE, WIND, EARTH, HOLY, POISON, RED, WHITE, N_BLUE,
+            DARK, FLAME, EARTH_BROWN,
         ] {
             assert!(!params.texture.is_empty());
             assert!(TEXTURES.contains(&params.texture));

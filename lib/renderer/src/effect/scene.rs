@@ -68,7 +68,8 @@ pub struct EffectFrameOutputs<'cache> {
 /// Build the per-frame effect sprite batches and custom-primitive draw list.
 ///
 /// Pipeline mirrors what the client and viewer were duplicating inline:
-/// 1. Project caller-supplied SPR/Smoke3D emitters into sprite batches.
+/// 1. Project caller-supplied SPR/Smoke3D emitters into sprite batches, then
+///    the holder's own SPR / SprBurst emitters (EffectId effects).
 /// 2. Merge caller STR inputs with `EffectHolder::collect_str_emitters` and
 ///    project the union into sprite batches.
 /// 3. Collect custom-effect primitive draws (Ring/Frustum/...) into
@@ -88,6 +89,47 @@ pub fn compose_effect_frame<'cache, 'tmp>(
         input.screen_h,
     );
     effect_batches.extend(build_emitter_batches(&spr_draws));
+
+    // SPR / SprBurst effects held by the `EffectHolder` (EffectId effects like
+    // Detoxification, Snow, Torch). The caller's `extra_spr_emitters` only
+    // carries RSW ambient emitters from `EffectManager`, so these have to be
+    // pulled from the holder here or they never reach a draw pass.
+    let spr_snapshots = input.effect_holder.collect_spr_emitters(input.resolve_entity);
+    let burst_snapshots = input
+        .effect_holder
+        .collect_spr_burst_emitters(input.resolve_entity);
+    let mut holder_spr_inputs: Vec<SpriteEffectEmitter<'_>> = spr_snapshots
+        .iter()
+        .map(|s| SpriteEffectEmitter::Spr {
+            sprite_path: &s.sprite,
+            duration_ms: s.duration_ms,
+            position: s.position,
+            color: s.tint,
+            size_scale: s.size_scale,
+            anim_speed: s.anim_speed,
+            repeat: s.repeat,
+            anim_time: s.anim_time,
+            action_index: s.action_index,
+        })
+        .collect();
+    holder_spr_inputs.extend(burst_snapshots.iter().map(|b| SpriteEffectEmitter::Smoke3D {
+        sprite_path: &b.sprite,
+        alpha_max: b.alpha_max,
+        color: [1.0, 1.0, 1.0, 1.0],
+        size_scale: b.size_scale,
+        anim_speed: b.anim_speed,
+        size_shrink: b.size_shrink,
+        twinkle: b.twinkle,
+        particles: b.particles.clone(),
+    }));
+    let holder_spr_draws = collect_sprite_effect_draws(
+        &holder_spr_inputs,
+        input.effect_sprites,
+        input.camera,
+        input.screen_w,
+        input.screen_h,
+    );
+    effect_batches.extend(build_emitter_batches(&holder_spr_draws));
 
     let holder_str_snapshots = input.effect_holder.collect_str_emitters(input.resolve_entity);
     let mut str_inputs: Vec<StrEmitterInput<'_>> =

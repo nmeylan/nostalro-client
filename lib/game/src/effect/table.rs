@@ -1735,7 +1735,7 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Spraypond => 1300,
         EffectId::Firehit => 500,
         EffectId::Firesplashhit => 500,
-        EffectId::Coldhit => 500,
+        EffectId::Coldhit => 550,
         EffectId::Windhit => 400,
         EffectId::Poisonhit => 500,
         EffectId::Beginspell2 => 400,

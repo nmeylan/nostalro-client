@@ -163,7 +163,7 @@ pub const ENERGY_DRAIN3: DrainParams = DrainParams {
 
 /// Deterministic per-strand pseudo-random in `[0, 1)` so colour/size/heading
 /// jitter is stable across runs and testable without an RNG dependency.
-fn hash01(seed: u32) -> f32 {
+pub fn hash01(seed: u32) -> f32 {
     let mut x = seed.wrapping_mul(0x9E37_79B9).wrapping_add(0x6D2B_79F5);
     x ^= x >> 15;
     x = x.wrapping_mul(0x8589_45CD);

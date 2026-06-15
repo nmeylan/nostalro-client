@@ -1289,6 +1289,54 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
             anchor.point(),
             effects::cast_circle::N_BLUE,
         )),
+
+        // Change-element casting rings (`EF_CHANGE*`) — `BeginCasting("ring_X.tga",
+        // 3)` in the original game: the cast circle differing only by ring texture.
+        EffectId::Changefire => Box::new(effects::cast_circle::CastCircleEffect::new(
+            anchor.point(),
+            effects::cast_circle::FIRE,
+        )),
+        EffectId::Changecold => Box::new(effects::cast_circle::CastCircleEffect::new(
+            anchor.point(),
+            effects::cast_circle::WATER,
+        )),
+        EffectId::Changedark => Box::new(effects::cast_circle::CastCircleEffect::new(
+            anchor.point(),
+            effects::cast_circle::DARK,
+        )),
+        EffectId::Changewind => Box::new(effects::cast_circle::CastCircleEffect::new(
+            anchor.point(),
+            effects::cast_circle::YELLOW,
+        )),
+        EffectId::Changeflame => Box::new(effects::cast_circle::CastCircleEffect::new(
+            anchor.point(),
+            effects::cast_circle::FLAME,
+        )),
+        EffectId::Changeearth => Box::new(effects::cast_circle::CastCircleEffect::new(
+            anchor.point(),
+            effects::cast_circle::EARTH_BROWN,
+        )),
+        EffectId::Chaingeholy => Box::new(effects::cast_circle::CastCircleEffect::new(
+            anchor.point(),
+            effects::cast_circle::HOLY,
+        )),
+        EffectId::Changepoison => Box::new(effects::cast_circle::CastCircleEffect::new(
+            anchor.point(),
+            effects::cast_circle::POISON,
+        )),
+
+        // §5c procedural property-hit / reveal visuals.
+        EffectId::Sightrasher => {
+            Box::new(effects::sightrasher::SightrasherEffect::new(anchor.point()))
+        }
+        EffectId::Firesplashhit => {
+            Box::new(effects::firesplashhit::FireSplashHitEffect::new(anchor.point()))
+        }
+        EffectId::Coldhit => Box::new(effects::coldhit::ColdHitEffect::new(anchor.point())),
+        EffectId::Venomdust2 => {
+            Box::new(effects::venomdust2::VenomDust2Effect::new(anchor.point()))
+        }
+
         EffectId::Beginasura => Box::new(effects::begin_asura::BeginAsuraEffect::base(
             anchor.point(),
         )),

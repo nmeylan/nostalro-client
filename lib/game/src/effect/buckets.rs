@@ -23,6 +23,12 @@ pub fn is_custom_bucket(id: EffectId) -> bool {
         id,
         // Pure custom (407)
         EffectId::Ef05val | EffectId::Absorbspirits | EffectId::Aciddemon
+            // Batch 5 §5b Change-element casting rings + §5c procedural hits.
+            | EffectId::Changedark | EffectId::Changefire | EffectId::Changecold
+            | EffectId::Changewind | EffectId::Changeflame | EffectId::Changeearth
+            | EffectId::Chaingeholy | EffectId::Changepoison
+            | EffectId::Sightrasher | EffectId::Firesplashhit | EffectId::Coldhit
+            | EffectId::Venomdust2
             | EffectId::Agiup | EffectId::Airtexture | EffectId::Airtexture2
             | EffectId::Airtexture3 | EffectId::Airtexture4 | EffectId::Alattack1
             | EffectId::Alattack2 | EffectId::Alattack3 | EffectId::Alattack4
@@ -241,13 +247,11 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::CastMagicRed | EffectId::CastMagicRed2
             | EffectId::CastMagicWhite | EffectId::CastMagicWhite2
             | EffectId::CastMagicYellow | EffectId::CastMagicYellow2
-            | EffectId::Chaingeholy | EffectId::Changecold | EffectId::Changedark
-            | EffectId::Changeearth | EffectId::Changefire | EffectId::Changeflame
-            | EffectId::Changepoison | EffectId::Changewind | EffectId::Chemicalbody
+            | EffectId::Chemicalbody
             | EffectId::Chookgi2 | EffectId::Chookgi3 | EffectId::Cloaking
             | EffectId::Code2EffectBegin | EffectId::CodeEffectBegin
             | EffectId::CodeEffectBegin2 | EffectId::CodeEffectEnd
-            | EffectId::CodeEffectEnd2 | EffectId::Coldhit | EffectId::ColorBody
+            | EffectId::CodeEffectEnd2 | EffectId::ColorBody
             | EffectId::ColorHead1 | EffectId::ColorHead2 | EffectId::ColorHead3
             | EffectId::ColorRide | EffectId::ColorSword
             | EffectId::Damage1 | EffectId::Damage12 | EffectId::Damage13
@@ -255,7 +259,7 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::Doublecastbody
             | EffectId::EndureJing | EffectId::EndureShan | EffectId::EndureSou
             | EffectId::EndureZhan | EffectId::Falconassault | EffectId::Fastmove
-            | EffectId::FileEffectBegin | EffectId::Firesplashhit
+            | EffectId::FileEffectBegin
             | EffectId::Flammule | EffectId::Flowercast2 | EffectId::Flyup
             | EffectId::GetItem
             | EffectId::Green993 | EffectId::Green995 | EffectId::Green996
@@ -286,7 +290,7 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::RippleRed | EffectId::RippleWhite | EffectId::RippleYellow
             | EffectId::Rotateflower | EffectId::Run | EffectId::ScreenQuake
             | EffectId::Shake | EffectId::Shrink | EffectId::Sight3
-            | EffectId::Sightrasher | EffectId::Soullight | EffectId::Soullink
+            | EffectId::Soullight | EffectId::Soullink
             | EffectId::Spherewind3
             | EffectId::StatusState | EffectId::Stoprun
             | EffectId::TalkFrostjoke | EffectId::TalkScream
