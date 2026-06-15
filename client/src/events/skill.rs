@@ -169,10 +169,11 @@ impl App {
         target_gid: u32,
         count: u16,
     ) {
-        let effect_id = if skill_id == SkillEnum::MgSoulstrike.id() as u16 {
-            EffectId::Soulstrike
-        } else {
-            return;
+        let effect_id = match skill_id {
+            x if x == SkillEnum::MgSoulstrike.id() as u16 => EffectId::Soulstrike,
+            x if x == SkillEnum::MgColdbolt.id() as u16 => EffectId::Icearrow,
+            x if x == SkillEnum::MgFirebolt.id() as u16 => EffectId::Firearrow,
+            _ => return,
         };
         let (Some(gat), Some(coords)) = (&self.game.gat, &self.game.map_coords) else {
             return;
@@ -194,8 +195,19 @@ impl App {
         let wy = gat.get_height(dx as f32 + 0.5, dy as f32 + 0.5);
         let to = [wx, wy - 10.0, wz];
 
-        self.effect_queue
-            .spawn_trail_with_count(effect_id, from, to, count.min(5) as u8);
+        match effect_id {
+            // Soul Strike's bolts fly from the caster and converge on the target.
+            EffectId::Soulstrike => {
+                self.effect_queue
+                    .spawn_trail_with_count(effect_id, from, to, count.min(5) as u8);
+            }
+            // Cold Bolt / Fire Bolt rain onto the target; the bolt count is the
+            // number of hits (the spell level).
+            _ => {
+                self.effect_queue
+                    .spawn_at_with_count(effect_id, to, count.min(10) as u8);
+            }
+        }
     }
 
     pub(super) fn handle_skill_failed(&mut self, skill_id: u16, cause: u8) {

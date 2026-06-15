@@ -92,7 +92,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::teleportation::TEXTURES,
         effects::spraypond::TEXTURES,
         effects::status_up::TEXTURES,
-        effects::firearrow::TEXTURES,
+        effects::magic_bolt::FIRE_TEXTURES,
         effects::napalmbeat::TEXTURES,
         effects::sandwind::TEXTURES,
         effects::yupitel::TEXTURES,
@@ -162,7 +162,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::summon_slave::TEXTURES,
         effects::bubble_drop::TEXTURES,
         effects::cartter::TEXTURES,
-        effects::ice_arrow::TEXTURES,
+        effects::magic_bolt::ICE_TEXTURES,
     ];
     for list in texture_lists {
         for name in *list {
@@ -199,7 +199,7 @@ pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
         effects::sight::SPRITES,
         effects::exit::SPRITES,
         effects::hasteup::SPRITES,
-        effects::firearrow::SPRITES,
+        effects::magic_bolt::FIRE_SPRITES,
         effects::fireball::SPRITES,
         effects::soul_strike::SPRITES,
         effects::energy_drain::SPRITES,

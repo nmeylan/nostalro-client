@@ -214,6 +214,9 @@ pub fn is_count_point_effect(id: EffectId) -> bool {
     matches!(
         id,
         EffectId::Chookgi | EffectId::Chookgi2 | EffectId::Chookgi3
+        // Cold Bolt / Fire Bolt rain a count of bolts onto the target; the
+        // bolt count rides on `hit_count`.
+        | EffectId::Icearrow | EffectId::Firearrow
     )
 }
 
@@ -295,9 +298,6 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             // Spear Boomerang spears + Waterball2 spline both fly caster→target.
             | EffectId::Spearbmr
             | EffectId::Waterball2
-            // Ice Arrow cross-texture shards stream from the caster toward the
-            // target; the arrival ring lands on the target endpoint.
-            | EffectId::Icearrow
     )
 }
 

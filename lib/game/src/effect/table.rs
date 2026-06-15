@@ -15,7 +15,7 @@ use super::effects::{
     aciddemon, agiup, attack_energy, aura_blade, banjjakii, barrier, big_portal, bash, bash3d, begin_asura, begin_spell, begin_spell_8, blessing, soullink, grandcross, saintwing, chookgi, sakura, pokjuk, firstaid, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
     light_sphere, linelink, mapzone, rainbow,
     bowling_bash, callzone, cartrevolution, cast_circle, chemical, colorpaper, cone, couple_casting, curseattack, defender, detecting,
-    dome_ring, dragonsmoke, summon_slave, bubble_drop, cartter, ice_arrow, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, firearrow, fireball, flasher, flowercast,
+    dome_ring, dragonsmoke, summon_slave, bubble_drop, cartter, magic_bolt, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, fireball, flasher, flowercast,
     firepillaron, frost_diver, fullscreen_overlay, glasswall, glasswall2, gravitation, ground_sample, guard, gumgang, gumgang2, hasteup, heal, healsp, heartcasting, heavensdrive, hit, hit2, hit5_6, hitdark,
     kouenka, magnum_break, napalmbeat,
     napalmvalcan, orbit_burst, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_con, potion_pillar, providence,
@@ -250,7 +250,7 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Summonslave => EffectSpec::Custom { duration_ms: summon_slave::TOTAL_DURATION_MS },
         EffectId::BubbleDrop => EffectSpec::Custom { duration_ms: bubble_drop::TOTAL_DURATION_MS },
         EffectId::Cartter => EffectSpec::Custom { duration_ms: cartter::TOTAL_DURATION_MS },
-        EffectId::Icearrow => EffectSpec::Custom { duration_ms: ice_arrow::TOTAL_DURATION_MS },
+        EffectId::Icearrow => EffectSpec::Custom { duration_ms: magic_bolt::ICE_TOTAL_DURATION_MS },
 
         // Cloud projectiles (Tanji spheres + shield boomerangs). Route to
         // the custom factory (otherwise they fall through to their STR alias).
@@ -464,7 +464,7 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         // primitive approximation, so we leave those alone until a
         // recipe + texture set actually beats the STR.
         EffectId::Firearrow => EffectSpec::Custom {
-            duration_ms: firearrow::TOTAL_DURATION_MS,
+            duration_ms: magic_bolt::FIRE_TOTAL_DURATION_MS,
         },
         EffectId::Fireball => EffectSpec::Custom {
             duration_ms: fireball::TOTAL_DURATION_MS,

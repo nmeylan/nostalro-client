@@ -135,7 +135,13 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         // Only the four ids without an STR file in the classic GRF
         // (firearrow, fireball, napalmbeat, sandwind) need a Custom
         // impl — everything else falls back to the canonical STR.
-        EffectId::Firearrow => Box::new(effects::firearrow::FireArrowEffect::new(anchor.point())),
+        // Firearrow (31, Fire Bolt) — same falling-bolt rain as Cold Bolt with an
+        // animated flame texture and spark spray; count = hit_count.
+        EffectId::Firearrow => Box::new(effects::magic_bolt::MagicBoltEffect::new(
+            anchor.point(),
+            hit_count.unwrap_or(1),
+            effects::magic_bolt::FIRE_ARROW,
+        )),
         EffectId::Fireball => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
@@ -1735,15 +1741,13 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::Cartter => {
             Box::new(effects::cartter::CartterEffect::new(anchor.point()))
         }
-        // Icearrow (26) — cross-texture shards streaming caster→target plus an
-        // arrival ring. Trail anchor: `from` caster, `to` target.
-        EffectId::Icearrow => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
-            Box::new(effects::ice_arrow::IceArrowEffect::new(from, to))
-        }
+        // Icearrow (26, Cold Bolt) — a rain of falling cross-texture bolts on the
+        // target; bolt count = hit_count (spell level).
+        EffectId::Icearrow => Box::new(effects::magic_bolt::MagicBoltEffect::new(
+            anchor.point(),
+            hit_count.unwrap_or(1),
+            effects::magic_bolt::ICE_ARROW,
+        )),
 
         EffectId::Overthrust | EffectId::Sonicblow => {
             Box::new(effects::overthrust::OverthrustEffect::new(anchor.point()))
