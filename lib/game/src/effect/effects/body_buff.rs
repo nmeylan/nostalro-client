@@ -2,8 +2,10 @@
 //! `EF_LKCONCENTRATION`. Each tints the caster's body a fixed colour
 //! while playing a `twohand.str` overlay and a one-shot sound:
 //!
-//! * Two-Hand Quicken / Spear Quicken — argb (-1, 200, 200, 0) (yellow).
-//! * LK Concentration — color (255, 255, 160) (pale yellow).
+//! * Two-Hand Quicken / Spear Quicken — body tint `(200, 200, 0)` (yellow).
+//! * LK Concentration — body tint `(255, 255, 160)` (pale yellow).
+//! * Bunsinjyutsu — body tint `(155, 155, 255)` (light blue) with a
+//!   same-tinted afterimage clone every 20 frames; no STR overlay and no sound.
 //!
 //! These are persistent buffs in the original game (kept
 //! alive by the status); here they run for a self-contained window — the
@@ -22,10 +24,10 @@ pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FPS * 1000.0) as u32;
 #[derive(Clone, Copy, Debug)]
 pub struct Params {
     pub tint: [u8; 3],
-    /// STR overlay played at the caster.
-    pub str_name: &'static str,
-    /// One-shot SFX (original game's backslash path).
-    pub sfx: &'static str,
+    /// STR overlay played at the caster, or `None` (Bunsinjyutsu only tints).
+    pub str_name: Option<&'static str>,
+    /// One-shot SFX (original game's backslash path), or `None`.
+    pub sfx: Option<&'static str>,
     /// Movement afterimage trail, when the buff spawns blur clones.
     /// `None` for buffs that only tint (LK Concentration).
     pub afterimage: Option<Afterimage>,
@@ -42,21 +44,36 @@ const QUICKEN_BLUR: Afterimage = Afterimage {
 
 pub const TWOHAND_QUICKEN: Params = Params {
     tint: [200, 200, 0],
-    str_name: "twohand",
-    sfx: "effect\\knight_twohandquicken.wav",
+    str_name: Some("twohand"),
+    sfx: Some("effect\\knight_twohandquicken.wav"),
     afterimage: Some(QUICKEN_BLUR),
 };
 pub const SPEAR_QUICKEN: Params = Params {
     tint: [200, 200, 0],
-    str_name: "twohand",
-    sfx: "effect\\knight_twohandquicken.wav",
+    str_name: Some("twohand"),
+    sfx: Some("effect\\knight_twohandquicken.wav"),
     afterimage: Some(QUICKEN_BLUR),
 };
 pub const LK_CONCENTRATION: Params = Params {
     tint: [255, 255, 160],
-    str_name: "twohand",
-    sfx: "effect\\knight_twohandquicken.wav",
+    str_name: Some("twohand"),
+    sfx: Some("effect\\knight_twohandquicken.wav"),
     afterimage: None,
+};
+
+/// `EF_BUNSINJYUTSU`: no STR / SFX — a light-blue body tint
+/// `(155,155,255)` plus a same-tinted afterimage clone every 20 frames.
+const BUNSIN_BLUR: Afterimage = Afterimage {
+    tint: [155, 155, 255],
+    interval_frames: 20.0,
+    start_alpha: 150.0 / 255.0,
+    fade_per_frame: 4.0 / 255.0,
+};
+pub const BUNSINJYUTSU: Params = Params {
+    tint: [155, 155, 255],
+    str_name: None,
+    sfx: None,
+    afterimage: Some(BUNSIN_BLUR),
 };
 
 pub const TEXTURES: &[&str] = &[];
@@ -91,7 +108,7 @@ impl Effect for BodyBuffEffect {
     fn collect_draws(&self, _out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {}
 
     fn str_overlay(&self) -> Option<&'static str> {
-        Some(self.params.str_name)
+        self.params.str_name
     }
 
     fn body_tint(&self) -> Option<BodyTint> {
@@ -105,7 +122,7 @@ impl Effect for BodyBuffEffect {
     fn take_sfx_request(&mut self) -> Option<&'static str> {
         if self.sfx_pending {
             self.sfx_pending = false;
-            Some(self.params.sfx)
+            self.params.sfx
         } else {
             None
         }
@@ -137,6 +154,17 @@ mod tests {
         let lk = BodyBuffEffect::new(LK_CONCENTRATION);
         assert_eq!(lk.body_tint().map(|t| t.rgb), Some([255, 255, 160]));
         assert_eq!(lk.body_afterimage(), None);
+    }
+
+    #[test]
+    fn bunsinjyutsu_is_a_blue_tint_with_afterimage_and_no_str_or_sfx() {
+        let mut e = BodyBuffEffect::new(BUNSINJYUTSU);
+        assert_eq!(e.body_tint().map(|t| t.rgb), Some([155, 155, 255]), "light-blue tint");
+        let blur = e.body_afterimage().expect("afterimage clones");
+        assert_eq!(blur.tint, [155, 155, 255]);
+        assert_eq!(blur.interval_frames, 20.0);
+        assert_eq!(e.str_overlay(), None, "no STR overlay");
+        assert_eq!(e.take_sfx_request(), None, "no sound");
     }
 
     #[test]

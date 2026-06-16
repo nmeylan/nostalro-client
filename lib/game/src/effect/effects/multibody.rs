@@ -9,6 +9,9 @@
 //! * **Lightblade** (382) — a light/spark weapon glow;
 //!   approximated as a couple of small additive pale-blue copies (the original's
 //!   spark-sword render is weapon-bone specific).
+//! * **Undeadbody** (655) — two concentric additive green
+//!   copies whose shared alpha rises with the body's clock then holds (a green
+//!   glow that fades in).
 //!
 //! No primitive — the copies are emitted via [`Effect::body_copies`] and drawn
 //! by the shared composer, which scales them concentrically about the body
@@ -38,6 +41,20 @@ struct Ripple {
     alpha_falloff: f32,
 }
 
+/// Undeadbody aura: `count` concentric additive copies
+/// each grown by `i·margin_unit` px, all sharing an alpha that rises with the
+/// `min(age, ramp_frames)` clock and then holds at `max_alpha`.
+#[derive(Clone, Copy)]
+struct UndeadAura {
+    count: u8,
+    /// Per-copy outward margin (`i·margin_unit` px).
+    margin_unit: f32,
+    tint: [u8; 3],
+    /// Frames over which the shared alpha ramps to `max_alpha`, then holds.
+    ramp_frames: f32,
+    max_alpha: f32,
+}
+
 #[derive(Clone, Copy)]
 pub struct Params {
     copies: u8,
@@ -58,6 +75,9 @@ pub struct Params {
     /// Reflectbody animated ripple, or `None`. When set it ignores the
     /// `copies`/`scale_step`/`base_alpha`/`alpha_step` fields above.
     ripple: Option<Ripple>,
+    /// Undeadbody rising-alpha green aura, or `None`. Like `ripple`, overrides
+    /// the static copy fields when set.
+    undead: Option<UndeadAura>,
     total_frames: f32,
 }
 
@@ -85,6 +105,7 @@ pub const REFLECTBODY: Params = Params {
         alpha_base: 100.0,
         alpha_falloff: 5.0,
     }),
+    undead: None,
     total_frames: 120.0,
 };
 
@@ -103,6 +124,7 @@ pub const ASSUMPTIO: Params = Params {
     behind: true,
     body_alpha: 1.0,
     ripple: None,
+    undead: None,
     total_frames: 120.0,
 };
 
@@ -116,7 +138,31 @@ pub const LIGHTBLADE: Params = Params {
     behind: false,
     body_alpha: 1.0,
     ripple: None,
+    undead: None,
     total_frames: 120.0,
+};
+
+pub const UNDEADBODY: Params = Params {
+    // Undeadbody: two concentric additive green copies over the body whose
+    // alpha rises with the body's clock — a green glow that fades in
+    // and holds. A status-tied persistent buff in the original; finite here.
+    copies: 0,
+    scale_step: 0.0,
+    base_alpha: 0.0,
+    alpha_step: 0.0,
+    tint: [5, 155, 5],
+    additive: true,
+    behind: false,
+    body_alpha: 1.0,
+    ripple: None,
+    undead: Some(UndeadAura {
+        count: 2,
+        margin_unit: 5.0,
+        tint: [5, 155, 5],
+        ramp_frames: 200.0,
+        max_alpha: 200.0 / 255.0,
+    }),
+    total_frames: 240.0,
 };
 
 pub const TEXTURES: &[&str] = &[];
@@ -153,6 +199,9 @@ impl Effect for MultiBodyEffect {
         if let Some(ripple) = self.params.ripple {
             return Some(self.reflect_copies(ripple));
         }
+        if let Some(undead) = self.params.undead {
+            return Some(self.undead_copies(undead));
+        }
         let mut copies = Vec::with_capacity(self.params.copies as usize);
         for i in 1..=self.params.copies {
             let i_f = i as f32;
@@ -177,6 +226,22 @@ impl Effect for MultiBodyEffect {
 }
 
 impl MultiBodyEffect {
+    /// Undeadbody aura: see [`UndeadAura`] for the model.
+    fn undead_copies(&self, undead: UndeadAura) -> Vec<BodyCopy> {
+        let alpha = (self.age_frames.min(undead.ramp_frames) / undead.ramp_frames) * undead.max_alpha;
+        (1..=undead.count)
+            .map(|i| BodyCopy {
+                offset_px: [0.0, 0.0],
+                margin_px: i as f32 * undead.margin_unit,
+                scale: [1.0, 1.0],
+                tint: undead.tint,
+                alpha,
+                additive: true,
+                behind: false,
+            })
+            .collect()
+    }
+
     /// Reflectbody ripple: see [`Ripple`] for the model.
     fn reflect_copies(&self, ripple: Ripple) -> Vec<BodyCopy> {
         let phase = self.age_frames % 200.0;
@@ -240,6 +305,20 @@ mod tests {
     fn reflectbody_dims_the_live_body() {
         let e = MultiBodyEffect::new(REFLECTBODY);
         assert!(e.body_vertical().unwrap().alpha < 1.0, "body is translucent");
+    }
+
+    #[test]
+    fn undeadbody_is_a_rising_green_additive_aura() {
+        let mut e = MultiBodyEffect::new(UNDEADBODY);
+        let early = e.body_copies().expect("aura");
+        assert_eq!(early.len(), 2, "two concentric copies");
+        assert!(early.iter().all(|c| c.additive && !c.behind && c.tint == [5, 155, 5]));
+        // The outer copy has the larger margin.
+        assert!(early[1].margin_px > early[0].margin_px, "concentric expansion");
+        let early_alpha = early[0].alpha;
+        step(&mut e, 100.0);
+        let later_alpha = e.body_copies().unwrap()[0].alpha;
+        assert!(later_alpha > early_alpha, "alpha rises with the body clock");
     }
 
     #[test]

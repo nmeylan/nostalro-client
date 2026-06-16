@@ -262,6 +262,10 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::Lkconcentration => {
             Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::LK_CONCENTRATION))
         }
+        // Bunsinjyutsu — light-blue body tint + afterimage trail, no STR/sound.
+        EffectId::Bunsinjyutsu => {
+            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::BUNSINJYUTSU))
+        }
 
         // Body-shake effects — shake the attached actor's sprite, emit no
         // primitives. One struct, four timing/amplitude param sets.
@@ -330,6 +334,10 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::RedHit => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::REDHIT)),
         EffectId::BlueHit => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::BLUEHIT)),
 
+        // Madness — a solid blue/red colour strobed over the body (flash every 4 frames).
+        EffectId::MadnessBlue => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::MADNESSBLUE)),
+        EffectId::MadnessRed => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::MADNESSRED)),
+
         // Vertical body squares (pressed squash / kicked lift) — deform the
         // actor sprite, no primitives.
         EffectId::Pressedbody => Box::new(effects::squarebody::SquareBodyEffect::pressed()),
@@ -341,6 +349,8 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::Reflectbody => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::REFLECTBODY)),
         EffectId::Assumptio => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::ASSUMPTIO)),
         EffectId::Lightblade => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::LIGHTBLADE)),
+        // Undeadbody — rising green additive aura (2 concentric copies).
+        EffectId::Undeadbody => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::UNDEADBODY)),
 
         // Body-copy lights (asura halo / blue-hit flash / 4-way ghosts) —
         // draw extra sprite copies behind the actor, no primitives.

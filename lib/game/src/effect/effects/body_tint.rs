@@ -45,6 +45,12 @@
 //! * **RedHit** (548) — red `(255,5,5)`, fast flash.
 //! * **BlueHit** (549) — blue `(5,5,255)`, fast flash.
 //!
+//! Madness strobe (§9a) — the same hit-flash colours blinked on/off (the flash
+//! re-arms every 4 frames at the hold alpha), a solid-colour strobe:
+//!
+//! * **MadnessBlue** (625) — blue `(5,5,255)`.
+//! * **MadnessRed** (626) — red `(255,5,5)`.
+//!
 //! All emit no world primitives — the tint / additive overlay / spin are applied
 //! to the actor sprite by the shared composer.
 
@@ -99,6 +105,11 @@ enum TintMode {
     /// additive sprite pass. Distinct from the §8a `Pulse` family: no
     /// white flashes, no multiply tint, just a coloured glow that breathes once.
     HitFlash { rgb: [u8; 3], bt2_scale: f32, bt2_cap: f32 },
+    /// Red/blue **strobed** (the Madness effects): the flash
+    /// re-sets every `period` frames at the hold alpha (glow clock 20
+    /// → 160) with no ramp, so the body blinks a solid colour on/off. Rendered
+    /// like `HitFlash` (two additive copies) but only on the `% period == 0` frame.
+    Strobe { rgb: [u8; 3], period: f32 },
 }
 
 /// Double-body halo: a tinted alpha copy behind the body, showing as a
@@ -301,6 +312,25 @@ pub const REDLIGHTBODY: Params = hit_flash([255, 5, 5], 1.0 / 8.0, 25.0, 200.0);
 pub const REDHIT: Params = hit_flash([255, 5, 5], 3.0, 1.0e9, 18.0);
 pub const BLUEHIT: Params = hit_flash([5, 5, 255], 3.0, 1.0e9, 18.0);
 
+// Madness blink (the §9a hit-flash strobe): a solid colour flashes on every 4th
+// frame over a 60-frame window.
+const fn strobe(rgb: [u8; 3]) -> Params {
+    Params {
+        mode: TintMode::Strobe { rgb, period: 4.0 },
+        window: (0.0, 60.0),
+        total_frames: 60.0,
+        glow: 0.0,
+        body_alpha: 1.0,
+        double_body: None,
+        quake_at: None,
+        sfx: None,
+        yaw_per_frame: None,
+    }
+}
+
+pub const MADNESSBLUE: Params = strobe([5, 5, 255]);
+pub const MADNESSRED: Params = strobe([255, 5, 5]);
+
 pub const TEXTURES: &[&str] = &[];
 
 /// Stable per-frame random RGB (deterministic xorshift), so the flicker is
@@ -377,8 +407,8 @@ impl BodyTintEffect {
             TintMode::RandomFlicker => Some(flicker_rgb(self.process as u32)),
             // Pulse is driven by `pulse_render`, not the generic tint path.
             TintMode::Pulse(_) => None,
-            // Both flash modes deliver their colour via additive `body_copies`.
-            TintMode::WhiteFlash | TintMode::HitFlash { .. } => None,
+            // The flash modes deliver their colour via additive `body_copies`.
+            TintMode::WhiteFlash | TintMode::HitFlash { .. } | TintMode::Strobe { .. } => None,
         }
     }
 
@@ -493,6 +523,24 @@ impl Effect for BodyTintEffect {
                 scale: [1.0, 1.0],
                 tint: rgb,
                 alpha,
+                additive: true,
+                behind: false,
+            };
+            return Some(vec![copy, copy]);
+        }
+
+        if let TintMode::Strobe { rgb, period } = self.params.mode {
+            // Solid colour blinks on for one frame every `period`, at the
+            // hold alpha (glow clock 20 → 160), drawn 2x additive.
+            if (self.process.floor() as u32) % (period as u32) != 0 {
+                return None;
+            }
+            let copy = BodyCopy {
+                offset_px: [0.0, 0.0],
+                margin_px: 0.0,
+                scale: [1.0, 1.0],
+                tint: rgb,
+                alpha: 160.0 / 255.0,
                 additive: true,
                 behind: false,
             };
@@ -672,6 +720,21 @@ mod tests {
         let fade = e.body_copies().expect("still fading");
         assert!(fade[0].alpha < hold_alpha, "alpha fades after the hold");
         assert_eq!(step(&mut e, REDHIT.total_frames), EffectStatus::Dead);
+    }
+
+    #[test]
+    fn madnessblue_strobes_solid_blue_then_dies() {
+        let mut e = BodyTintEffect::new(MADNESSBLUE);
+        // Frame 0 (% 4 == 0) → on: two additive blue copies, no tint/whole-body-additive.
+        assert_eq!(e.body_tint(), None);
+        assert!(!e.body_additive());
+        let on = e.body_copies().expect("blink on");
+        assert_eq!(on.len(), 2, "drawn 2x additive");
+        assert!(on[0].additive && !on[0].behind && on[0].tint == [5, 5, 255]);
+        // A frame between blinks → off.
+        step(&mut e, 2.0);
+        assert!(e.body_copies().is_none(), "off between blinks");
+        assert_eq!(step(&mut e, 60.0), EffectStatus::Dead);
     }
 
     #[test]

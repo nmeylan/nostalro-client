@@ -209,6 +209,11 @@ pub fn body_attached(id: EffectId) -> bool {
             | EffectId::Redlightbody
             | EffectId::RedHit
             | EffectId::BlueHit
+            // §9a body tints / flash (body_buff.rs / body_tint.rs / multibody.rs)
+            | EffectId::Bunsinjyutsu
+            | EffectId::MadnessBlue
+            | EffectId::MadnessRed
+            | EffectId::Undeadbody
             // §1b geometry: squash / lift (squarebody.rs)
             | EffectId::Pressedbody
             | EffectId::Kickedbody

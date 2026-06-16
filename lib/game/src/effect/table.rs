@@ -608,6 +608,10 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
                 duration_ms: body_buff::TOTAL_DURATION_MS,
             }
         }
+        // Bunsinjyutsu — light-blue body tint + afterimage (Custom; alias removed).
+        EffectId::Bunsinjyutsu => EffectSpec::Custom {
+            duration_ms: body_buff::TOTAL_DURATION_MS,
+        },
 
         // Body-shake effects — Custom, shake the actor sprite.
         EffectId::Quakebody => EffectSpec::Custom {
@@ -684,6 +688,14 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             duration_ms: body_tint::BLUEHIT.total_duration_ms(),
         },
 
+        // Madness blink (solid-colour strobe) — Custom; aliases removed.
+        EffectId::MadnessBlue => EffectSpec::Custom {
+            duration_ms: body_tint::MADNESSBLUE.total_duration_ms(),
+        },
+        EffectId::MadnessRed => EffectSpec::Custom {
+            duration_ms: body_tint::MADNESSRED.total_duration_ms(),
+        },
+
         // Vertical body squares (squash / lift) — Custom.
         EffectId::Pressedbody => EffectSpec::Custom {
             duration_ms: squarebody::pressed_total_duration_ms(),
@@ -702,6 +714,10 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         },
         EffectId::Lightblade => EffectSpec::Custom {
             duration_ms: multibody::LIGHTBLADE.total_duration_ms(),
+        },
+        // Undeadbody (rising green aura) — Custom; alias removed.
+        EffectId::Undeadbody => EffectSpec::Custom {
+            duration_ms: multibody::UNDEADBODY.total_duration_ms(),
         },
 
         // Batch STR-B10 — Aciddemon swirling cone funnel; Rainbow arch.
