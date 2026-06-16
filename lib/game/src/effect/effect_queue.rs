@@ -197,6 +197,13 @@ pub fn body_attached(id: EffectId) -> bool {
             | EffectId::Magiccrasher2
             | EffectId::Hitbody
             | EffectId::Falconassault
+            // §8a tint-flicker: colour ↔ white per frame (body_tint.rs)
+            | EffectId::Chemicalbody
+            | EffectId::Piercebody
+            | EffectId::Memorize
+            | EffectId::Doublecastbody
+            | EffectId::Greenbody
+            | EffectId::Shrink
             // §1b geometry: squash / lift (squarebody.rs)
             | EffectId::Pressedbody
             | EffectId::Kickedbody

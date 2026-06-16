@@ -165,6 +165,15 @@ pub trait Effect: Send {
         None
     }
 
+    /// Render the whole live body **additively** (the original game's
+    /// glowing-body light): dark texture pixels add nothing so the
+    /// background shows through (the see-through look), while lit pixels glow in
+    /// the [`body_tint`](Effect::body_tint) colour. Returns `true` only while
+    /// active. Default `false` — most tints are an opaque multiply.
+    fn body_additive(&self) -> bool {
+        false
+    }
+
     /// One-shot SFX request — the effect returns the wave path the *first*
     /// time it's ready, then `None` on every subsequent call. The
     /// holder/audio bridge drains this once per frame and queues the sound.

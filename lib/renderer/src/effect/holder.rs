@@ -700,6 +700,9 @@ impl EffectHolder {
             if let Some(t) = c.body_tint() {
                 ch.tint = Some(t.rgb);
             }
+            if c.body_additive() {
+                ch.additive = true;
+            }
             if let Some(s) = c.body_scale() {
                 ch.scale *= s;
             }

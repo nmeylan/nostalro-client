@@ -1250,6 +1250,9 @@ pub struct BodyChannels {
     /// Vertical scale about the feet anchor (1.0 = none); `<1.0` presses the
     /// top toward the bottom (Pressedbody squash).
     pub squeeze: f32,
+    /// Render the live body additively (light-body glow): a glowing, partly
+    /// see-through body (dark pixels vanish) instead of the opaque sprite.
+    pub additive: bool,
     pub copies: Vec<ragnarok_game::effect::BodyCopy>,
 }
 
@@ -1264,6 +1267,7 @@ impl Default for BodyChannels {
             lift_px: 0.0,
             angle: 0.0,
             squeeze: 1.0,
+            additive: false,
             copies: Vec::new(),
         }
     }
@@ -1404,6 +1408,13 @@ pub fn compose_actor_batches<'a>(
         transform_batch_vertices(&mut live, body_center, channels.angle, [1.0, 1.0]);
     }
     apply_tint_alpha(&mut live, channels.tint, channels.alpha);
+    if channels.additive {
+        // Light-body glow: the body itself blends additively, so dark texels add
+        // nothing (see-through) and the tint reads as a glow over the scene.
+        for b in &mut live {
+            b.additive = true;
+        }
+    }
     out.append(&mut live);
 
     // Copies marked on-top overlay the live sprite (glow rim,

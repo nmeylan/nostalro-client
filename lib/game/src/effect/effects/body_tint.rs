@@ -14,9 +14,27 @@
 //! * **Falconassault** (387) — glowing body + the target's facing spun
 //!   `+30°`/frame during `cnt` 30..=54, quake at 30 (no colour, so no tint).
 //!
-//! All are persistent buffs in the original (kept alive by their status); here
-//! each runs a self-contained window. They emit no world primitives — the tint /
-//! double-body / spin are applied to the actor sprite by the shared composer.
+//! Tint-pulse family (the §8a body-tint effects). In-game these run a three-part
+//! sequence: the body **blinks white** (a bright additive wash you can see
+//! through — white over the additive glowing body) — two flashes, a
+//! short pause, then four more — and then the **colour** comes in as a darkening
+//! **multiply** tint that **fades back to normal**. So the white flashes and the
+//! coloured phase are distinct stages, not a per-frame colour↔white flicker. The
+//! schedule lives in `pulse_render`; only the colour varies per id:
+//!
+//! * **Chemicalbody** (500) — blue `(0,0,255)`.
+//! * **Piercebody** (502) — yellow `(250,250,100)`.
+//! * **Memorize** (505) — yellow `(250,250,100)`.
+//! * **Doublecastbody** (521) — red `(255,0,0)`.
+//! * **Greenbody** (538) — green `(0,255,0)`.
+//! * **Shrink** (599) — yellow `(250,250,100)`; the original game sets no pixel
+//!   ratio, so this is a tint-pulse, **not** a resize.
+//!
+//! (SFX cues are omitted for now.) The original game also adds a double-body on most
+//! of these, but over the additive body it is only a faint same-size bloom — **no
+//! distinct halo** — so we render the body alone. All emit no world primitives —
+//! the tint / additive body / spin are applied to the actor sprite by the shared
+//! composer.
 
 use crate::effect::draw::{EffectDrawList, EffectStatus};
 use crate::effect::effect_trait::{
@@ -27,11 +45,37 @@ const FPS: f32 = 60.0;
 const QUAKE_AMPLITUDE: f32 = 1.6;
 const QUAKE_DURATION_MS: u32 = 600;
 
+// §8a pulse timeline (frames @ 60 fps). Two white additive flashes, a short
+// pause, then four more flashes (white over the additive body), after
+// which the colour appears as a darkening multiply tint that fades back to
+// normal — matching the in-game Chemicalbody sequence.
+const PULSE_FLASH_W: f32 = 3.0; // white-on frames per blink
+const PULSE_BLINK_P: f32 = 6.0; // blink period (white on for half)
+const PULSE_PAUSE_START: f32 = 12.0; // after 2 blinks
+const PULSE_PAUSE_END: f32 = 20.0; // 4 more blinks begin
+const PULSE_BLINK_END: f32 = 44.0; // flashes done
+const PULSE_COLOR_FULL: f32 = 56.0; // colour fully in by here
+const PULSE_TOTAL: f32 = 96.0; // colour faded out by here
+const WHITE: [u8; 3] = [255, 255, 255];
+
+/// Per-channel linear blend `a → b` (`t` clamped to `0..=1`).
+fn lerp_rgb(a: [u8; 3], b: [u8; 3], t: f32) -> [u8; 3] {
+    let t = t.clamp(0.0, 1.0);
+    let l = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
+    [l(a[0], b[0]), l(a[1], b[1]), l(a[2], b[2])]
+}
+
 #[derive(Clone, Copy)]
 enum TintMode {
     Fixed([u8; 3]),
     AnimatedToBlue,
     RandomFlicker,
+    /// Smooth additive coloured glow (the §8a glowing-body tint family).
+    /// The body keeps this hue and its glow **intensity** follows a smooth
+    /// envelope (build up → hold with a gentle breathing ripple → fade) — the
+    /// integrated, on-screen result of the original game's per-frame colour
+    /// flicker + body-light pulse, not a hard on/off blink.
+    Pulse([u8; 3]),
     /// Additive white flash — no body_tint, one additive copy instead.
     WhiteFlash,
 }
@@ -178,6 +222,36 @@ pub const FALCONASSAULT: Params = Params {
     yaw_per_frame: Some(30.0 * std::f32::consts::PI / 180.0),
 };
 
+// Tint-pulse family — the whole body is an additive glow of `rgb` whose
+// intensity follows a smooth build → hold → fade envelope (the on-screen result
+// of the original game's per-frame colour flicker + body-light pulse),
+// so the colour transitions smoothly and stays tinted (never a hard blink). The
+// original game also adds a double-body on some, but over an already-additive body
+// it is only a faint same-size bloom (no distinct halo), so we render the
+// additive body alone. SFX wiring is omitted for now. The full timeline (white
+// flashes → colour → fade) is fixed in `pulse_render`; only the colour varies.
+const fn pulse(rgb: [u8; 3]) -> Params {
+    Params {
+        mode: TintMode::Pulse(rgb),
+        window: (0.0, PULSE_TOTAL),
+        total_frames: PULSE_TOTAL,
+        glow: 0.0,
+        body_alpha: 1.0,
+        double_body: None,
+        quake_at: None,
+        sfx: None,
+        yaw_per_frame: None,
+    }
+}
+
+pub const CHEMICALBODY: Params = pulse([0, 0, 255]);
+pub const PIERCEBODY: Params = pulse([250, 250, 100]);
+pub const MEMORIZE: Params = pulse([250, 250, 100]);
+pub const DOUBLECASTBODY: Params = pulse([255, 0, 0]);
+pub const GREENBODY: Params = pulse([0, 255, 0]);
+// `EF_SHRINK` is a yellow tint-pulse (the original sets no pixel ratio), not a resize.
+pub const SHRINK: Params = pulse([250, 250, 100]);
+
 pub const TEXTURES: &[&str] = &[];
 
 /// Stable per-frame random RGB (deterministic xorshift), so the flicker is
@@ -236,7 +310,36 @@ impl BodyTintEffect {
                 Some([v, v, 255])
             }
             TintMode::RandomFlicker => Some(flicker_rgb(self.process as u32)),
+            // Pulse is driven by `pulse_render`, not the generic tint path.
+            TintMode::Pulse(_) => None,
             TintMode::WhiteFlash => None,
+        }
+    }
+
+    /// The §8a pulse state for this frame: `(additive, tint)`. White additive
+    /// flashes (`Some(WHITE)`, additive) blink against the normal body (2, pause,
+    /// 4), then the colour comes in as a darkening multiply tint (`additive =
+    /// false`) and fades back to normal.
+    fn pulse_render(&self) -> (bool, Option<[u8; 3]>) {
+        let TintMode::Pulse(color) = self.params.mode else {
+            return (false, None);
+        };
+        let p = self.process;
+        if p < PULSE_BLINK_END {
+            // White additive flash: on for the first half of each blink period,
+            // with a pause between the 2-blink and 4-blink groups.
+            let in_pause = (PULSE_PAUSE_START..PULSE_PAUSE_END).contains(&p);
+            let phase = if p < PULSE_PAUSE_START { p } else { p - PULSE_PAUSE_END };
+            let on = !in_pause && (phase.rem_euclid(PULSE_BLINK_P) < PULSE_FLASH_W);
+            (on, on.then_some(WHITE))
+        } else if p < PULSE_COLOR_FULL {
+            // Colour builds in as a multiply tint (white → full colour).
+            let t = (p - PULSE_BLINK_END) / (PULSE_COLOR_FULL - PULSE_BLINK_END);
+            (false, Some(lerp_rgb(WHITE, color, t)))
+        } else {
+            // Colour fades back to normal (full colour → white).
+            let t = (PULSE_TOTAL - p) / (PULSE_TOTAL - PULSE_COLOR_FULL);
+            (false, Some(lerp_rgb(WHITE, color, t)))
         }
     }
 }
@@ -265,12 +368,25 @@ impl Effect for BodyTintEffect {
     fn collect_draws(&self, _out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {}
 
     fn body_tint(&self) -> Option<BodyTint> {
+        // The §8a pulse family: white flash (additive) or the multiply colour.
+        if let TintMode::Pulse(_) = self.params.mode {
+            return self.pulse_render().1.map(|rgb| BodyTint { rgb });
+        }
         // When the body glows (`glow > 0`), the colour is delivered as an
         // additive overlay copy (body stays opaque), not a darkening multiply.
         if self.params.glow > 0.0 {
             return None;
         }
         self.current_color().map(|rgb| BodyTint { rgb })
+    }
+
+    fn body_additive(&self) -> bool {
+        // Only the white flash frames blend additively; the colour phase is a
+        // (darkening) multiply tint.
+        if let TintMode::Pulse(_) = self.params.mode {
+            return self.pulse_render().0;
+        }
+        false
     }
 
     fn body_vertical(&self) -> Option<BodyVertical> {
@@ -426,5 +542,32 @@ mod tests {
         let late = e.body_tint().unwrap().rgb;
         assert_eq!(early[2], 255, "blue channel stays maxed");
         assert!(late[0] < early[0], "red falls toward blue");
+    }
+
+    #[test]
+    fn chemicalbody_flashes_white_then_fades_a_blue_multiply_tint() {
+        // Phase 1: a white additive flash (frame 0 is white-on). No halo.
+        let mut e = BodyTintEffect::new(CHEMICALBODY);
+        assert!(e.body_additive(), "white flash blends additively");
+        assert_eq!(e.body_tint().map(|t| t.rgb), Some([255, 255, 255]), "flash is white");
+        assert!(e.body_copies().is_none(), "no halo / glow copies");
+        // Between flashes within a blink → normal body.
+        step(&mut e, PULSE_FLASH_W); // into the off-half of the first blink
+        assert!(!e.body_additive() && e.body_tint().is_none(), "normal between flashes");
+        // Colour phase: a darkening multiply blue (not additive), fading out.
+        let mut e = BodyTintEffect::new(CHEMICALBODY);
+        step(&mut e, PULSE_COLOR_FULL); // colour fully in
+        assert!(!e.body_additive(), "colour phase is a multiply, not additive");
+        let full = e.body_tint().expect("blue tint").rgb;
+        assert!(full[2] > full[0] && full[2] > full[1], "blue dominant");
+        step(&mut e, (PULSE_TOTAL - PULSE_COLOR_FULL) * 0.6); // partway through the fade
+        let faded = e.body_tint().expect("fading tint").rgb;
+        assert!(faded[0] > full[0], "tint fades back toward normal (white)");
+    }
+
+    #[test]
+    fn pulse_family_ends_with_its_timeline() {
+        let mut e = BodyTintEffect::new(MEMORIZE);
+        assert_eq!(step(&mut e, PULSE_TOTAL + 1.0), EffectStatus::Dead, "dies at PULSE_TOTAL");
     }
 }

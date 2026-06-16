@@ -468,12 +468,9 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Slim => &["slim"],
         EffectId::Slim2 => &["slim2"],
         EffectId::Slim3 => &["slim3"],
-        EffectId::Chemicalbody => &["chemicalbody"],
         EffectId::Castspin => &["castspin"],
-        EffectId::Piercebody => &["piercebody"],
         EffectId::Soullink => &["soullink"],
         EffectId::Chookgi2 => &["chookgi2"],
-        EffectId::Memorize => &["memorize"],
         EffectId::Soullight => &["soullight"],
         EffectId::Mapae => &["mapae"],
         EffectId::Itempokjuk => &["itempokjuk"],
@@ -489,12 +486,10 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Cartter => &["cartter"],
         EffectId::Itemfast => &["itemfast"],
         EffectId::Shieldboomerang3 => &["shieldboomerang3"],
-        EffectId::Doublecastbody => &["doublecastbody"],
         EffectId::Gravitation => &["gravitation"],
         // Tarotcard1-14 have no STR file; they render as camera-facing
         // billboards via the custom factory path (`effects::tarot_card`).
         EffectId::Aciddemon => &["aciddemon"],
-        EffectId::Greenbody => &["greenbody"],
         EffectId::Throwitem4 => &["throwitem4"],
         // BabybodyBack → BodyScaleEffect (Custom, grow-back from baby size, no
         // `.str`). Alias removed so it resolves via the custom bucket.
@@ -551,7 +546,6 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Food04 => &["food_agi"],
         EffectId::Food05 => &["food_dex"],
         EffectId::Food06 => &["food_luk"],
-        EffectId::Shrink => &["shrink"],
         EffectId::Throwitem6 => &["throwitem6"],
         EffectId::Sight2 => &["sight2"],
         EffectId::Quakebody4 => &["quakebody4"],

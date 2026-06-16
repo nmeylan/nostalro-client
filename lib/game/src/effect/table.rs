@@ -650,6 +650,26 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             duration_ms: body_tint::FALCONASSAULT.total_duration_ms(),
         },
 
+        // Tint-flicker family (colour ↔ white per frame) — Custom; aliases removed.
+        EffectId::Chemicalbody => EffectSpec::Custom {
+            duration_ms: body_tint::CHEMICALBODY.total_duration_ms(),
+        },
+        EffectId::Piercebody => EffectSpec::Custom {
+            duration_ms: body_tint::PIERCEBODY.total_duration_ms(),
+        },
+        EffectId::Memorize => EffectSpec::Custom {
+            duration_ms: body_tint::MEMORIZE.total_duration_ms(),
+        },
+        EffectId::Doublecastbody => EffectSpec::Custom {
+            duration_ms: body_tint::DOUBLECASTBODY.total_duration_ms(),
+        },
+        EffectId::Greenbody => EffectSpec::Custom {
+            duration_ms: body_tint::GREENBODY.total_duration_ms(),
+        },
+        EffectId::Shrink => EffectSpec::Custom {
+            duration_ms: body_tint::SHRINK.total_duration_ms(),
+        },
+
         // Vertical body squares (squash / lift) — Custom.
         EffectId::Pressedbody => EffectSpec::Custom {
             duration_ms: squarebody::pressed_total_duration_ms(),
