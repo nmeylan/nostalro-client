@@ -494,12 +494,8 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         // BabybodyBack → BodyScaleEffect (Custom, grow-back from baby size, no
         // `.str`). Alias removed so it resolves via the custom bucket.
         EffectId::Throwitem5 => &["throwitem5"],
-        EffectId::Bluebody => &["bluebody"],
-        EffectId::Redlightbody => &["redlightbody"],
         EffectId::Ro2year => &["ro2year"],
         EffectId::Stin => &["stin"],
-        EffectId::RedHit => &["red_hit"],
-        EffectId::BlueHit => &["blue_hit"],
         EffectId::Quakebody3 => &["quakebody3"],
         EffectId::Sma => &["sma"],
         EffectId::Sma2 => &["sma2"],

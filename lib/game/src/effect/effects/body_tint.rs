@@ -32,9 +32,21 @@
 //!
 //! (SFX cues are omitted for now.) The original game also adds a double-body on most
 //! of these, but over the additive body it is only a faint same-size bloom — **no
-//! distinct halo** — so we render the body alone. All emit no world primitives —
-//! the tint / additive body / spin are applied to the actor sprite by the shared
-//! composer.
+//! distinct halo** — so we render the body alone.
+//!
+//! Body-flash family (the §8b effects) — a *different* mechanism from the pulse:
+//! one fixed colour glows over the still-opaque body (an additive overlay drawn
+//! twice = a 2× additive pass) and its alpha breathes in → holds →
+//! out exactly once. No white flashes, no multiply tint. Only the colour and the
+//! rate/cap of the glow clock differ per id:
+//!
+//! * **Bluebody** (542) — blue `(5,5,255)`, slow.
+//! * **Redlightbody** (544) — red `(255,5,5)`, slow; the clock caps so it holds lit.
+//! * **RedHit** (548) — red `(255,5,5)`, fast flash.
+//! * **BlueHit** (549) — blue `(5,5,255)`, fast flash.
+//!
+//! All emit no world primitives — the tint / additive overlay / spin are applied
+//! to the actor sprite by the shared composer.
 
 use crate::effect::draw::{EffectDrawList, EffectStatus};
 use crate::effect::effect_trait::{
@@ -78,6 +90,15 @@ enum TintMode {
     Pulse([u8; 3]),
     /// Additive white flash — no body_tint, one additive copy instead.
     WhiteFlash,
+    /// Red / blue body-flash (§8b): one fixed colour laid over
+    /// the (still opaque) body as an additive overlay whose alpha ramps up →
+    /// holds → down. The ramp runs on a glow clock `= process *
+    /// bt2_scale`, clamped at `bt2_cap` (the clock advances at a per-effect
+    /// rate, and Redlightbody caps it so the
+    /// glow holds lit). Drawn as **two** additive copies = a 2×
+    /// additive sprite pass. Distinct from the §8a `Pulse` family: no
+    /// white flashes, no multiply tint, just a coloured glow that breathes once.
+    HitFlash { rgb: [u8; 3], bt2_scale: f32, bt2_cap: f32 },
 }
 
 /// Double-body halo: a tinted alpha copy behind the body, showing as a
@@ -252,6 +273,34 @@ pub const GREENBODY: Params = pulse([0, 255, 0]);
 // `EF_SHRINK` is a yellow tint-pulse (the original sets no pixel ratio), not a resize.
 pub const SHRINK: Params = pulse([250, 250, 100]);
 
+// Body-flash family (the §8b red / blue hit-flash effects). One fixed
+// colour is laid over the opaque body as an additive overlay whose alpha breathes
+// in → holds → out once. `end` is the lifetime in frames; the only per-effect
+// knobs are colour, the glow-clock advance rate, and its cap.
+const fn hit_flash(rgb: [u8; 3], bt2_scale: f32, bt2_cap: f32, end: f32) -> Params {
+    Params {
+        mode: TintMode::HitFlash { rgb, bt2_scale, bt2_cap },
+        window: (0.0, end),
+        total_frames: end,
+        glow: 0.0,
+        body_alpha: 1.0,
+        double_body: None,
+        quake_at: None,
+        sfx: None,
+        yaw_per_frame: None,
+    }
+}
+
+// Slow blue glow: glow clock `= frame/3`, lit over its 0..=150 window.
+pub const BLUEBODY: Params = hit_flash([5, 5, 255], 1.0 / 3.0, 1.0e9, 150.0);
+// Slow red light: glow clock `= frame/8` capped at 25, so the glow ramps up
+// then holds (≈alpha 130) — the original game keeps this as a persistent buff; we
+// give it a finite self-contained window (the holder kills it at `total_frames`).
+pub const REDLIGHTBODY: Params = hit_flash([255, 5, 5], 1.0 / 8.0, 25.0, 200.0);
+// Fast red/blue flash: glow clock `= frame*3`, gone (`bt2 > 50`) just past frame 16.
+pub const REDHIT: Params = hit_flash([255, 5, 5], 3.0, 1.0e9, 18.0);
+pub const BLUEHIT: Params = hit_flash([5, 5, 255], 3.0, 1.0e9, 18.0);
+
 pub const TEXTURES: &[&str] = &[];
 
 /// Stable per-frame random RGB (deterministic xorshift), so the flicker is
@@ -265,6 +314,22 @@ fn flicker_rgb(frame: u32) -> [u8; 3] {
         (s >> 24) as u8
     };
     [next(), next(), next()]
+}
+
+/// Red / blue hit-flash overlay alpha on a
+/// glow clock: ramp in `×15` (0→150), hold `160`, fade `155-(t-20)·5`,
+/// then `None` past 50.
+fn hit_flash_alpha(bt2: f32) -> Option<f32> {
+    let a = if bt2 <= 10.0 {
+        bt2 * 15.0
+    } else if bt2 <= 20.0 {
+        160.0
+    } else if bt2 <= 50.0 {
+        155.0 - (bt2 - 20.0) * 5.0
+    } else {
+        return None;
+    };
+    Some((a / 255.0).clamp(0.0, 1.0))
 }
 
 /// Hit-flash alpha, `None` past frame 11.
@@ -312,7 +377,8 @@ impl BodyTintEffect {
             TintMode::RandomFlicker => Some(flicker_rgb(self.process as u32)),
             // Pulse is driven by `pulse_render`, not the generic tint path.
             TintMode::Pulse(_) => None,
-            TintMode::WhiteFlash => None,
+            // Both flash modes deliver their colour via additive `body_copies`.
+            TintMode::WhiteFlash | TintMode::HitFlash { .. } => None,
         }
     }
 
@@ -413,6 +479,24 @@ impl Effect for BodyTintEffect {
                 additive: true,
                 behind: false,
             }]);
+        }
+
+        if let TintMode::HitFlash { rgb, bt2_scale, bt2_cap } = self.params.mode {
+            // Body-flash: a fixed colour over the opaque body, drawn as two
+            // additive overlays (a 2× additive pass) with the
+            // glow-clock-driven alpha ramp.
+            let bt2 = (self.process * bt2_scale).min(bt2_cap);
+            let alpha = hit_flash_alpha(bt2)?;
+            let copy = BodyCopy {
+                offset_px: [0.0, 0.0],
+                margin_px: 0.0,
+                scale: [1.0, 1.0],
+                tint: rgb,
+                alpha,
+                additive: true,
+                behind: false,
+            };
+            return Some(vec![copy, copy]);
         }
 
         let mut copies = Vec::new();
@@ -569,5 +653,39 @@ mod tests {
     fn pulse_family_ends_with_its_timeline() {
         let mut e = BodyTintEffect::new(MEMORIZE);
         assert_eq!(step(&mut e, PULSE_TOTAL + 1.0), EffectStatus::Dead, "dies at PULSE_TOTAL");
+    }
+
+    #[test]
+    fn redhit_ramps_two_additive_red_copies_then_dies() {
+        let mut e = BodyTintEffect::new(REDHIT);
+        // No multiply tint / whole-body additive — the colour rides the overlays.
+        assert_eq!(e.body_tint(), None);
+        assert!(!e.body_additive());
+        // Hold frame (glow clock ~15 at process 5) → two additive red copies.
+        step(&mut e, 5.0);
+        let hold = e.body_copies().expect("flashing");
+        assert_eq!(hold.len(), 2, "drawn 2x additive");
+        assert!(hold[0].additive && !hold[0].behind && hold[0].tint == [255, 5, 5]);
+        let hold_alpha = hold[0].alpha;
+        // Later in the fade the overlay is dimmer than at the hold.
+        step(&mut e, 8.0); // process ~13, glow clock ~39 → fading
+        let fade = e.body_copies().expect("still fading");
+        assert!(fade[0].alpha < hold_alpha, "alpha fades after the hold");
+        assert_eq!(step(&mut e, REDHIT.total_frames), EffectStatus::Dead);
+    }
+
+    #[test]
+    fn bluebody_is_slower_than_bluehit() {
+        // Same elapsed frames: the slow clock (Bluebody) is dimmer than the fast
+        // one (BlueHit), and both flash pure blue.
+        let mut slow = BodyTintEffect::new(BLUEBODY);
+        let mut fast = BodyTintEffect::new(BLUEHIT);
+        step(&mut slow, 6.0);
+        step(&mut fast, 6.0);
+        let s = slow.body_copies().expect("blue glow");
+        let f = fast.body_copies().expect("blue flash");
+        assert_eq!(s[0].tint, [5, 5, 255]);
+        assert_eq!(f[0].tint, [5, 5, 255]);
+        assert!(s[0].alpha < f[0].alpha, "the slow clock ramps later");
     }
 }

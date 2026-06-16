@@ -323,6 +323,13 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::Greenbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::GREENBODY)),
         EffectId::Shrink => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::SHRINK)),
 
+        // Body-flash family — one fixed colour (blue/red) glowing over the body
+        // with an alpha ramp (up → hold → down), drawn 2x additive.
+        EffectId::Bluebody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::BLUEBODY)),
+        EffectId::Redlightbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::REDLIGHTBODY)),
+        EffectId::RedHit => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::REDHIT)),
+        EffectId::BlueHit => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::BLUEHIT)),
+
         // Vertical body squares (pressed squash / kicked lift) — deform the
         // actor sprite, no primitives.
         EffectId::Pressedbody => Box::new(effects::squarebody::SquareBodyEffect::pressed()),

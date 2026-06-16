@@ -670,6 +670,20 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             duration_ms: body_tint::SHRINK.total_duration_ms(),
         },
 
+        // Body-flash family (red / blue hit flash) — Custom; aliases removed.
+        EffectId::Bluebody => EffectSpec::Custom {
+            duration_ms: body_tint::BLUEBODY.total_duration_ms(),
+        },
+        EffectId::Redlightbody => EffectSpec::Custom {
+            duration_ms: body_tint::REDLIGHTBODY.total_duration_ms(),
+        },
+        EffectId::RedHit => EffectSpec::Custom {
+            duration_ms: body_tint::REDHIT.total_duration_ms(),
+        },
+        EffectId::BlueHit => EffectSpec::Custom {
+            duration_ms: body_tint::BLUEHIT.total_duration_ms(),
+        },
+
         // Vertical body squares (squash / lift) — Custom.
         EffectId::Pressedbody => EffectSpec::Custom {
             duration_ms: squarebody::pressed_total_duration_ms(),

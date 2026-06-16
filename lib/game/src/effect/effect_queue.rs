@@ -204,6 +204,11 @@ pub fn body_attached(id: EffectId) -> bool {
             | EffectId::Doublecastbody
             | EffectId::Greenbody
             | EffectId::Shrink
+            // §8b body-flash: blue/red additive glow with an alpha ramp (body_tint.rs)
+            | EffectId::Bluebody
+            | EffectId::Redlightbody
+            | EffectId::RedHit
+            | EffectId::BlueHit
             // §1b geometry: squash / lift (squarebody.rs)
             | EffectId::Pressedbody
             | EffectId::Kickedbody
