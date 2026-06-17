@@ -221,6 +221,11 @@ pub fn body_attached(id: EffectId) -> bool {
             | EffectId::Reflectbody
             | EffectId::Assumptio
             | EffectId::Lightblade
+            // §9b floating numbers: no body channel, but entity-attached so the
+            // one-shot number request resolves to the actor (spawn_on).
+            | EffectId::Damage1
+            | EffectId::Damage12
+            | EffectId::Damage13
     )
 }
 
@@ -280,11 +285,13 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             | EffectId::Smatk3
             | EffectId::Smatk4
             // STIN/SMA wind streaks that travel/home along the caster→target
-            // heading. Stin (547) and Stin5 (624) are in-place ring swirls —
-            // a point anchor keeps their spinning trail concentric.
+            // heading. Stin/Stin5 fly straight toward the target; Stin2/Stin4
+            // launch perpendicular then seek the target's position and cross it.
+            | EffectId::Stin
             | EffectId::Stin2
             | EffectId::Stin3
             | EffectId::Stin4
+            | EffectId::Stin5
             | EffectId::Sma
             // Teihit2/Backstap dart sprays erupt from the target along the
             // caster→target heading.

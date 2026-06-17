@@ -29,6 +29,8 @@ pub fn is_custom_bucket(id: EffectId) -> bool {
             | EffectId::Chaingeholy | EffectId::Changepoison
             | EffectId::Sightrasher | EffectId::Firesplashhit | EffectId::Coldhit
             | EffectId::Venomdust2
+            // §9b floating recoloured number effects (AM_MAKE_NUMBER).
+            | EffectId::Damage1 | EffectId::Damage12 | EffectId::Damage13
             | EffectId::Agiup | EffectId::Airtexture | EffectId::Airtexture2
             | EffectId::Airtexture3 | EffectId::Airtexture4 | EffectId::Alattack1
             | EffectId::Alattack2 | EffectId::Alattack3 | EffectId::Alattack4
@@ -254,7 +256,7 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::CodeEffectEnd2 | EffectId::ColorBody
             | EffectId::ColorHead1 | EffectId::ColorHead2 | EffectId::ColorHead3
             | EffectId::ColorRide | EffectId::ColorSword
-            | EffectId::Damage1 | EffectId::Damage12 | EffectId::Damage13
+            // Damage1/Damage12/Damage13 moved to the Custom bucket (§9b floating numbers).
             | EffectId::DaSpace | EffectId::Decagilitybuf
             | EffectId::Doublecastbody
             | EffectId::EndureJing | EffectId::EndureShan | EffectId::EndureSou

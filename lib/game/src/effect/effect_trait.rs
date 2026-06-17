@@ -137,6 +137,19 @@ pub struct BodyCopy {
     pub behind: bool,
 }
 
+/// One-shot floating-number request — the original game's recovery/regen
+/// rising number drifting up off the actor. An effect that spawns a number
+/// instead of a primitive returns this
+/// the *first* frame it's ready, then `None`. The holder drains it keyed by the
+/// attached entity; the client feeds it into the damage-number manager so the
+/// number floats over that actor. RGB only — the floating number animates its
+/// own alpha, so the source colour's alpha is irrelevant.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NumberRequest {
+    pub value: i32,
+    pub color: [f32; 3],
+}
+
 pub trait Effect: Send {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus;
     fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx);
@@ -181,6 +194,14 @@ pub trait Effect: Send {
     /// `"effect\\windwalk.wav"`) so the lookup matches GRF / file-system
     /// naming. Default `None` — most effects don't trigger SFX.
     fn take_sfx_request(&mut self) -> Option<&'static str> {
+        None
+    }
+
+    /// One-shot floating-number request — returned the *first* time it's ready,
+    /// then `None`. The holder drains it once per frame keyed by the attached
+    /// entity; the client emits a recoloured floating number on that actor.
+    /// Default `None` — only the damage-number effects override it.
+    fn take_number_request(&mut self) -> Option<NumberRequest> {
         None
     }
 

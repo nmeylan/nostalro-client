@@ -18,7 +18,7 @@ pub use effect_queue::{
 };
 pub use effect_trait::{
     Afterimage, BodyAction, BodyCopy, BodyTint, BodyVertical, CameraShake, CameraView, Effect,
-    EffectRenderCtx, EffectUpdateCtx,
+    EffectRenderCtx, EffectUpdateCtx, NumberRequest,
 };
 pub use factory::{is_real_impl, make_effect};
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBurstParams};

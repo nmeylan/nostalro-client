@@ -934,10 +934,12 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         }
 
         // STIN wind-card family — flying spinning cards with a motion trail.
-        // Stin/Stin2/Stin4 aim along the caster→target heading (trail anchor).
+        // Stin2/Stin4 home, Stin5 flies straight; all aim along the
+        // caster→target heading (trail anchor).
         EffectId::Stin
         | EffectId::Stin2
-        | EffectId::Stin4 => {
+        | EffectId::Stin4
+        | EffectId::Stin5 => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
@@ -946,15 +948,11 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
             let params = match id {
                 EffectId::Stin => st::STIN,
                 EffectId::Stin2 => st::STIN2,
+                EffectId::Stin5 => st::STIN5,
                 _ => st::STIN4,
             };
             Box::new(st::StinEffect::new(from, to, params))
         }
-        EffectId::Stin5 => Box::new(effects::stin::StinEffect::new(
-            anchor.point(),
-            anchor.point(),
-            effects::stin::STIN5,
-        )),
 
         // SMA wind-spiral family — travelling emitter (Sma/Stin3) + the
         // standalone rising spiral ribbon (Sma2) + particle path (Sma3).
@@ -1161,6 +1159,17 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::Reflectshield => Box::new(effects::defender::DefenderEffect::new(
             anchor.point(),
             effects::defender::REFLECTSHIELD,
+        )),
+
+        // §9b floating recoloured "1" numbers.
+        // No primitive — they emit a one-shot number request drained by the holder.
+        EffectId::Damage1 | EffectId::Damage12 => Box::new(
+            effects::damage_number_effect::DamageNumberEffect::new(
+                effects::damage_number_effect::DAMAGE1,
+            ),
+        ),
+        EffectId::Damage13 => Box::new(effects::damage_number_effect::DamageNumberEffect::new(
+            effects::damage_number_effect::DAMAGE1_3,
         )),
 
         // Canonical heal-skill effects (green rising rings + green sparkles).
@@ -2051,6 +2060,33 @@ mod tests {
         let e = make_effect(EffectId::Warp, EffectAnchor::Point([0.0; 3]), None, None);
         assert!(e.is_some());
         assert!(is_real_impl(EffectId::Warp));
+    }
+
+    #[test]
+    fn damage_numbers_dispatch_as_custom_and_emit_request() {
+        // Sociable §9b test crossing spec resolution + factory + the number
+        // channel: the three ids must resolve to Custom (their str_aliases were
+        // deleted so the handler isn't shadowed), dispatch to a real effect, and
+        // emit one recoloured number request. 654 is purple, 652/653 red.
+        use crate::effect::effect_trait::EffectUpdateCtx;
+        use crate::effect::table::effect_spec;
+
+        for (id, expected) in [
+            (EffectId::Damage1, [1.0, 0.0, 0.0]),
+            (EffectId::Damage12, [1.0, 0.0, 0.0]),
+            (EffectId::Damage13, [1.0, 100.0 / 255.0, 1.0]),
+        ] {
+            assert!(
+                matches!(effect_spec(id), Some(crate::effect::spec::EffectSpec::Custom { .. })),
+                "{id:?} must resolve to Custom, not a shadowing str alias",
+            );
+            let mut e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None)
+                .expect("damage-number effect must dispatch");
+            e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
+            let req = e.take_number_request().expect("emits a number request");
+            assert_eq!(req.value, 1);
+            assert_eq!(req.color, expected);
+        }
     }
 
     #[test]

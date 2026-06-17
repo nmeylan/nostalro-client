@@ -590,9 +590,8 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Bullseye => &["불스아이", "bullseye"],
         EffectId::MapMagiczone => &["map_magiczone"],
         EffectId::MapMagiczone2 => &["map_magiczone2"],
-        EffectId::Damage1 => &["damage1"],
-        EffectId::Damage12 => &["damage1_2"],
-        EffectId::Damage13 => &["damage1_3"],
+        // Damage1/Damage12/Damage13 (§9b) are Custom floating-number effects;
+        // no STR alias, or it would shadow the handler (alias-shadow bug).
         EffectId::UndeadbodyDel => &["undeadbody_del"],
         EffectId::GreenNumber => &["green_number"],
         EffectId::BlueNumber => &["blue_number"],

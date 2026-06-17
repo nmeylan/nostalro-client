@@ -4,6 +4,7 @@ mod items;
 mod movement;
 
 use crate::App;
+use ragnarok_game::damage_number::DamageNumber;
 use ragnarok_renderer::effect::EffectUpdateCtx;
 
 impl App {
@@ -51,6 +52,16 @@ impl App {
         // view trembles while an effect's shake is live.
         if let Some(renderer) = self.renderer.as_mut() {
             renderer.camera.shake_offset = self.effect_holder.camera_shake_offset().into();
+        }
+
+        // Floating recoloured numbers (§9b Damage1/Damage12/Damage13) reach the
+        // shared damage-number manager through the effect channel: the holder
+        // surfaces a one-shot request per entity, same shape as the shake/sfx
+        // drains above. EffectNumber has no horizontal drift, so direction is 0.
+        for (entity_id, req) in self.effect_holder.drain_number_requests() {
+            self.game.damage_numbers.add(DamageNumber::effect_number(
+                entity_id, req.value, req.color, 0,
+            ));
         }
     }
 }

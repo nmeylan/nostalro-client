@@ -12,7 +12,9 @@
 //! * **STIN** (547): one straight blue swirl flying out, growing + fading.
 //! * **STIN2** (553): two swirls (curl + / curl −) that home around the target.
 //! * **STIN4** (621): `count` swirls fanning out with random spread, homing.
-//! * **STIN5** (624): five green swirls spawned over frames 0-4, lower alpha.
+//! * **STIN5** (624): five green swirls spawned over frames 0-4 at cardinal XZ
+//!   offsets, each a travelling projectile flying toward the pointed direction
+//!   (rotation = bearing to target) with a fading trail, lower alpha.
 //!
 //! The original draws each swirl as a spinning world-space square (flat XZ,
 //! tilted for STIN5); every STIN gif shows it **face-on**
@@ -100,7 +102,8 @@ impl StinParams {
 pub const STIN: StinParams = StinParams {
     tint: BLUE,
     homing: false,
-    step: 1.2,
+    // Per-frame travel step.
+    step: 0.8,
     grow: true,
     distance: 14.0,
     distance_rand: 0.0,
@@ -184,9 +187,8 @@ struct Swirl {
     spin: f32,
     distance: f32,
     step: f32,
-    /// `+1` curls one way, `-1` the other (homing steer sign).
-    curl: f32,
-    /// `flag1[1] == 10` — homing swirl has arrived and is now fading out.
+    /// Homing swirl has arrived (passed the target) and is
+    /// now flying straight through while it fades out.
     arrived: bool,
     slots: [Slot; 4],
     alive: bool,
@@ -287,7 +289,6 @@ impl StinEffect {
             spin,
             distance,
             step: self.params.step,
-            curl,
             arrived: false,
             slots: [slot; 4],
             alive: true,
@@ -368,47 +369,51 @@ impl StinEffect {
     fn step_homing(p: &StinParams, swirl: &mut Swirl, target: [f32; 3]) {
         if swirl.process <= 20 {
             swirl.slots[0].alpha = (swirl.slots[0].alpha + p.fade_in).min(p.alpha_max);
-        } else if swirl.process as f32 > p.fade_after as f32 {
-            swirl.arrived = true;
+        }
+        if swirl.process <= 5 {
+            return;
         }
 
-        if swirl.process > 5 {
-            if !swirl.arrived {
-                let dx = target[0] - swirl.slots[0].pos[0];
-                let dz = target[2] - swirl.slots[0].pos[2];
-                let want = dz.atan2(dx);
-                if angle_close(swirl.heading, want, 3.0_f32.to_radians()) {
-                    // STIN4 dies on arrival; STIN2 just holds heading.
-                    if matches!(p.spawn, SpawnKind::Fan { .. }) {
-                        swirl.arrived = true;
-                    }
-                } else {
-                    // F1==0 (curl +1) steers −, F1==1 (curl −1) steers +.
-                    swirl.heading -= swirl.curl * 5.0_f32.to_radians();
-                }
+        if !swirl.arrived {
+            // Seek the target's ACTUAL position: the `curl` sign already chose
+            // the launch side (±90° perpendicular), and from here the heading
+            // turns toward the *live* bearing-to-target by the shortest path, so
+            // the swirl curves in and crosses the target instead of orbiting a
+            // fixed circle. Arrival is by distance — once reached, the head keeps
+            // flying straight through (the overshoot) while it fades.
+            let dx = target[0] - swirl.slots[0].pos[0];
+            let dz = target[2] - swirl.slots[0].pos[2];
+            if (dx * dx + dz * dz).sqrt() <= swirl.step * 2.0 {
+                swirl.arrived = true;
             } else {
-                for s in swirl.slots.iter_mut() {
-                    s.alpha -= 5.0;
-                    if s.alpha < 0.0 {
-                        s.alpha = 0.0;
-                    }
+                swirl.heading = turn_toward(swirl.heading, dz.atan2(dx), HOMING_TURN);
+            }
+        } else {
+            for s in swirl.slots.iter_mut() {
+                s.alpha -= p.fade_out;
+                if s.alpha < 0.0 {
+                    s.alpha = 0.0;
                 }
-                swirl.heading -= swirl.curl * 1.0_f32.to_radians();
             }
         }
     }
 
 }
 
-/// Smallest signed difference `a → b` within `tol`.
-fn angle_close(a: f32, b: f32, tol: f32) -> bool {
-    let mut d = (b - a) % std::f32::consts::TAU;
+/// Per-frame max steer (radians) for the homing swirls. A touch above a
+/// gentle 5°/frame so the seek converges on the target near-field instead
+/// of orbiting a fixed circle.
+const HOMING_TURN: f32 = 8.0 * std::f32::consts::PI / 180.0;
+
+/// Rotate `from` toward `to` by at most `max_step`, along the shortest arc.
+fn turn_toward(from: f32, to: f32, max_step: f32) -> f32 {
+    let mut d = (to - from) % std::f32::consts::TAU;
     if d > std::f32::consts::PI {
         d -= std::f32::consts::TAU;
     } else if d < -std::f32::consts::PI {
         d += std::f32::consts::TAU;
     }
-    d.abs() <= tol
+    from + d.clamp(-max_step, max_step)
 }
 
 impl Effect for StinEffect {
@@ -517,7 +522,7 @@ mod tests {
     }
 
     #[test]
-    fn stin5_is_green_and_spawns_multiple_cards() {
+    fn stin5_is_green_and_travels_toward_target() {
         let mut e = StinEffect::new([0.0; 3], [0.0, 0.0, 22.0], STIN5);
         tick(&mut e, 8);
         let q = quads(&e);
@@ -526,15 +531,37 @@ mod tests {
         assert!(color[1] > color[0] && color[1] > color[2], "green tint: {color:?}");
         // Five staggered swirls → more visible quads than a single swirl.
         assert!(e.swirls.len() >= 4, "staggered batch alive: {}", e.swirls.len());
+        // §9c: a real caster→target direction makes each swirl a projectile
+        // flying toward the target (+Z here), not an in-place swirl.
+        assert!(e.has_dir, "directional anchor → travels");
+        let head_z = e.swirls[0].slots[0].pos[2];
+        tick(&mut e, 6);
+        assert!(
+            e.swirls[0].slots[0].pos[2] > head_z,
+            "head advances toward +Z target: {head_z} -> {}",
+            e.swirls[0].slots[0].pos[2]
+        );
     }
 
     #[test]
-    fn stin2_spawns_a_curl_pair() {
-        let mut e = StinEffect::new([0.0; 3], [0.0, 0.0, 22.0], STIN2);
-        // Two swirls seeded at frame 0 with opposite curl.
+    fn stin2_pair_launches_perpendicular_then_seeks_target() {
+        let target = [0.0, 0.0, 22.0];
+        let mut e = StinEffect::new([0.0; 3], target, STIN2);
+        // Two swirls seeded at frame 0, launched ±90° to opposite sides of the
+        // caster→target heading (so they cross the target from each side).
         assert_eq!(e.swirls.len(), 2);
-        assert!((e.swirls[0].curl + e.swirls[1].curl).abs() < 1e-6, "opposite curl");
-        tick(&mut e, 6);
-        assert!(!quads(&e).is_empty(), "homing swirls render");
+        let base = e.base_heading();
+        let (h0, h1) = (e.swirls[0].heading, e.swirls[1].heading);
+        assert!(((h0 + h1) * 0.5 - base).abs() < 1e-4, "symmetric about heading");
+        assert!((h0 - h1).abs() > 1e-3, "launched to opposite sides");
+        // The seeker pulls each swirl toward the target's actual position.
+        let before: f32 = e.swirls.iter().map(|s| dist(s.slots[0].pos, target)).fold(f32::MAX, f32::min);
+        tick(&mut e, 40);
+        let after: f32 = e.swirls.iter().map(|s| dist(s.slots[0].pos, target)).fold(f32::MAX, f32::min);
+        assert!(after < before, "swirls close on the target: {before:.1} -> {after:.1}");
+    }
+
+    fn dist(p: [f32; 3], q: [f32; 3]) -> f32 {
+        ((p[0] - q[0]).powi(2) + (p[2] - q[2]).powi(2)).sqrt()
     }
 }

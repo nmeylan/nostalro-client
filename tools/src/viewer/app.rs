@@ -15,6 +15,9 @@ use models::enums::effect_id::EffectId;
 use ragnarok_formats::act::{MotionType, SpriteActionType, SpriteAnimationState};
 use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::grf::GrfArchive;
+use ragnarok_game::damage_number::{
+    DamageNumber, DamageNumberManager, DamageNumberRenderEntry, build_damage_number_quads,
+};
 use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
     EffectQueue, EffectSpec, body_attached, effect_spec, effect_texture_paths, is_link_effect,
@@ -89,6 +92,11 @@ pub struct App {
     effect_holder: EffectHolder,
     effect_queue: EffectQueue,
     str_effects: StrEffectCache,
+    /// Floating damage numbers spawned by §9b number effects (Damage1/12/13),
+    /// anchored to the previewed actor. Loaded lazily from the GRF.
+    damage_numbers: DamageNumberManager,
+    damage_number_textures: Option<ragnarok_renderer::sprite::SpriteTextures>,
+    damage_number_act: Option<ragnarok_formats::act::ActFile>,
     /// Per-frame SPR billboards for Custom effects that emit
     /// `SpriteParticle` primitives (Sight, Ruwach, Exit, Hit). Lazily
     /// loaded on first spawn that needs a given path; subsequent spawns
@@ -143,6 +151,9 @@ impl App {
             effect_holder: EffectHolder::new(),
             effect_queue: EffectQueue::new(),
             str_effects: StrEffectCache::new(),
+            damage_numbers: DamageNumberManager::new(),
+            damage_number_textures: None,
+            damage_number_act: None,
             effect_sprites: EffectSpriteCache::new(),
             attempted_spr_files: std::collections::HashSet::new(),
             effect_list: build_effect_list(),
@@ -178,6 +189,19 @@ impl App {
 
         renderer.try_load_grf_font(&grf);
         self.accessory_table = AccessoryTable::load_from_grf(&grf);
+
+        // Number sprite (숫자.spr) for §9b floating-number effects. Msg sprite
+        // is skipped: EffectNumber never uses it (no miss/crit/lucky frames).
+        if let Some(sprite_data) = game_sprite_loader::load_damage_number_sprite(&grf) {
+            self.damage_number_textures = Some(upload_sprite_textures(
+                &sprite_data.images,
+                sprite_data.indexed_count,
+                &renderer.device.device,
+                &renderer.device.queue,
+                &renderer.texture_cache.bind_group_layout,
+            ));
+            self.damage_number_act = Some(sprite_data.act);
+        }
 
         let map_name = self.args.map_name.clone();
         let Some(map_data) = map_loader::load_map_data(&grf, &map_name) else {
@@ -892,6 +916,13 @@ impl App {
         if let Some(ba) = self.effect_holder.take_body_action_for_entity(VIEWER_ACTOR_ID) {
             self.animation.play(ba.action_index, ba.duration_ms, ba.start_frame);
         }
+        // §9b floating numbers: turn each one-shot request into a number on the
+        // previewed actor, then age the manager. Direction is unused (no drift).
+        for (entity_id, req) in self.effect_holder.drain_number_requests() {
+            self.damage_numbers
+                .add(DamageNumber::effect_number(entity_id, req.value, req.color, 0));
+        }
+        self.damage_numbers.update(sim_dt);
         let body_channels = self.effect_holder.body_channels_for_entity(VIEWER_ACTOR_ID);
         // Screen-shake from quake effects like Magiccrasher / Falconassault,
         // mirroring the in-game actor pass so the tool shows the shake too.
@@ -952,7 +983,6 @@ impl App {
                 _ => Vec::new(),
             };
 
-        let _ = sim_dt;
         let mut ui_calls: Vec<UiDrawCall> = Vec::new();
         let status = StatusLine {
             map_name: self.args.map_name.as_str(),
@@ -982,6 +1012,66 @@ impl App {
                 screen_h,
             ));
         }
+
+        // §9b floating numbers: project the previewed actor's head and lay the
+        // recoloured numbers over it (same path as the in-game scene render).
+        let mut number_inline_textures: Vec<&wgpu::BindGroup> = Vec::new();
+        if let (Some(entity), Some(map), Some(num_tex), Some(num_act)) = (
+            &self.entity_sprite,
+            &self.map_data,
+            &self.damage_number_textures,
+            &self.damage_number_act,
+        ) && !self.damage_numbers.numbers.is_empty()
+            && let Some(coords) = map.coordinates.as_ref()
+            && let Some((screen_anchor, depth, camera_dir, sprite_scale, _)) = project_entity_screen(
+                self.character_cell,
+                map.gat.as_ref(),
+                coords,
+                &renderer.camera,
+                screen_w,
+                screen_h,
+            )
+        {
+            let head_dir = self.animation.direction() as u8;
+            let head_offset = entity.compute_head_offset(
+                &self.animation,
+                Some(camera_dir),
+                head_dir,
+                screen_anchor,
+                depth,
+                sprite_scale,
+            );
+            let entries: Vec<DamageNumberRenderEntry> = self
+                .damage_numbers
+                .numbers
+                .iter()
+                .filter(|d| d.entity_id == VIEWER_ACTOR_ID)
+                .filter_map(|dmg| {
+                    Some(DamageNumberRenderEntry {
+                        entity_id: dmg.entity_id,
+                        screen_x: screen_anchor[0],
+                        screen_y: screen_anchor[1] - head_offset,
+                        scale: sprite_scale,
+                        data: dmg.render_data()?,
+                    })
+                })
+                .collect();
+            let quads = build_damage_number_quads(
+                &entries,
+                num_act,
+                &num_tex.sizes,
+                num_tex.indexed_count,
+                None,
+            );
+            ragnarok_renderer::render_damage_number_quads(
+                &quads,
+                num_tex,
+                None,
+                &mut ui_calls,
+                &mut number_inline_textures,
+            );
+        }
+
         renderer.render(
             &ui_calls,
             &effect_batches,
@@ -989,7 +1079,7 @@ impl App {
             sprite_particle_records,
             &sprite_batches,
             &[],
-            &[],
+            &number_inline_textures,
             dt,
         );
     }

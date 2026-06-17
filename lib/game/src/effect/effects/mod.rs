@@ -51,6 +51,7 @@ pub mod color_casting;
 pub mod cloud;
 pub mod cone;
 pub mod couple_casting;
+pub mod damage_number_effect;
 pub mod defender;
 pub mod dome_ring;
 pub mod dragonsmoke;

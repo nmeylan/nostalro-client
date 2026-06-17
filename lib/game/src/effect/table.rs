@@ -40,6 +40,13 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             duration_ms: warp::TOTAL_DURATION_MS,
         },
 
+        // §9b floating recoloured "1" numbers — no primitive; the effect emits a
+        // one-shot number request. Short parent window; the number lives on via
+        // the damage-number manager.
+        EffectId::Damage1 | EffectId::Damage12 | EffectId::Damage13 => {
+            EffectSpec::Custom { duration_ms: 500 }
+        }
+
         // Magnum Break's visible explosion runs ~700 ms; the duration table
         // value (300 ms) cuts the cone off before the ring finishes growing.
         EffectId::Magnumbreak => EffectSpec::Custom {

@@ -17,7 +17,7 @@ use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
     Afterimage, AlphaKeyframe, Attach, BodyAction, CameraShake, Effect as GameEffect,
     EffectDrawList, EffectQueue, EffectRenderCtx, EffectSpec, EffectStatus, EffectUpdateCtx,
-    SpawnRequest, SprBurstParams, effect_spec, make_effect, spawn_camera_shake,
+    NumberRequest, SpawnRequest, SprBurstParams, effect_spec, make_effect, spawn_camera_shake,
 };
 
 use crate::effect_sprite::Smoke3DParticle;
@@ -738,6 +738,22 @@ impl EffectHolder {
             }
         }
         None
+    }
+
+    /// Drain one-shot floating-number requests from
+    /// every entity-attached custom effect, paired with the attached entity id.
+    /// Mutating — each request fires once. The client emits a recoloured
+    /// floating number on each entity.
+    pub fn drain_number_requests(&mut self) -> Vec<(u32, NumberRequest)> {
+        let mut out = Vec::new();
+        for e in &mut self.effects {
+            if let (Attach::Entity(id), HeldPayload::Custom(c)) = (e.attach, &mut e.payload)
+                && let Some(req) = c.take_number_request()
+            {
+                out.push((id, req));
+            }
+        }
+        out
     }
 
     /// Append primitive draws for live custom effects. STR/Spr collection

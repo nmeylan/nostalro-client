@@ -24,6 +24,10 @@ pub enum DamageNumberType {
     MultiHitTotal,
     /// HP recovery → action 3, green
     Heal,
+    /// Effect-spawned floating number (used by recovery-style effects):
+    /// shares the recovery rising
+    /// animation but takes its colour from `DamageNumber::color_override`.
+    EffectNumber,
     /// Miss → msg.spr frame 0
     Miss,
     /// Lucky dodge → msg.spr frames 4+5
@@ -74,6 +78,8 @@ pub struct DamageNumber {
     pub direction: u8,
     /// Cached screen position so numbers keep rendering after entity vanishes.
     pub last_screen_pos: Option<(f32, f32, f32)>,
+    /// RGB override (used by `EffectNumber`); falls back to `number_type.color()`.
+    pub color_override: Option<[f32; 3]>,
 }
 
 impl DamageNumber {
@@ -85,6 +91,16 @@ impl DamageNumber {
             elapsed: 0.0,
             direction,
             last_screen_pos: None,
+            color_override: None,
+        }
+    }
+
+    /// Effect-spawned floating number:
+    /// the recovery rising animation recoloured to `color` (RGB).
+    pub fn effect_number(entity_id: u32, value: i32, color: [f32; 3], direction: u8) -> Self {
+        Self {
+            color_override: Some(color),
+            ..Self::new(entity_id, value, DamageNumberType::EffectNumber, direction)
         }
     }
 
@@ -108,7 +124,7 @@ impl DamageNumber {
                 let perc = self.elapsed / self.number_type.duration();
                 perc * 7.0
             }
-            DamageNumberType::Heal => {
+            DamageNumberType::Heal | DamageNumberType::EffectNumber => {
                 let perc = self.elapsed / self.number_type.duration();
                 if perc < 0.4 {
                     0.0
@@ -153,7 +169,7 @@ impl DamageNumber {
             DamageNumberType::Critical => (5.0 - f * 0.24).max(1.3),
             DamageNumberType::Miss => 1.0,
             DamageNumberType::Lucky => 1.0,
-            DamageNumberType::Heal => {
+            DamageNumberType::Heal | DamageNumberType::EffectNumber => {
                 let perc = self.elapsed / self.number_type.duration();
                 ((1.0 - perc * 2.0) * 3.0).max(0.8)
             }
@@ -204,7 +220,7 @@ impl DamageNumber {
         if alpha <= 0.0 {
             return None;
         }
-        let [cr, cg, cb] = self.number_type.color();
+        let [cr, cg, cb] = self.color_override.unwrap_or_else(|| self.number_type.color());
         let digits = self.digits();
         let count = digits.len();
         let digit_x_offsets = (0..count).map(|i| self.digit_x_offset(i, count)).collect();
