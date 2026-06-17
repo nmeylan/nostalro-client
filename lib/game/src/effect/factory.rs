@@ -552,10 +552,18 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         )),
 
         // Wink / Fvoice: directional emotes that
-        // pick their fly-off action from the camera angle, so they're Custom
-        // effects, not `spr_def`. Same handler, different sprite.
-        EffectId::Wink => Box::new(effects::wink::WinkEffect::new(anchor.point(), effects::wink::WINK)),
-        EffectId::Fvoice => Box::new(effects::wink::WinkEffect::new(anchor.point(), effects::wink::FVOICE)),
+        // pick their fly-off action from the caster→target angle plus the camera
+        // angle, so they're Custom effects, not `spr_def`. Same handler,
+        // different sprite. Cast on self the trail collapses to a point and the
+        // direction reduces to the camera longitude.
+        EffectId::Wink => {
+            let (from, to) = anchor.trail();
+            Box::new(effects::wink::WinkEffect::new(from, to, effects::wink::WINK))
+        }
+        EffectId::Fvoice => {
+            let (from, to) = anchor.trail();
+            Box::new(effects::wink::WinkEffect::new(from, to, effects::wink::FVOICE))
+        }
 
         // Ghost/Bat/Bat2 (`Ghost(0/1/2)`): a swarm of animated SPR sprites
         // orbiting the caster while bobbing. Ghost faces the camera (8-dir

@@ -43,15 +43,19 @@ pub struct TempResultParams {
 }
 
 // Banner sizes keep each texture's pixel aspect (success.bmp 76x28,
-// failed.bmp 68x45) so the words stay legible above the caster.
+// failed.bmp 68x45) so the words stay legible above the caster. Widths are
+// tuned so the banner stands ~6 world units tall — under a character sprite's
+// height — and `y_offset` floats it clear of the head (native RO `-Y = up`).
+// The original game anchors it above the head too but renders it far
+// larger than the actor.
 // 100-frame lifetime matches the original game's banner duration;
 // alpha climbs to 220/255, holds, then eases out at the tail. Wobble values
 // are the `0.05` amplitude / `2°`-per-frame speed.
 pub const TEMP_OK: TempResultParams = TempResultParams {
     texture: "success.bmp",
-    width: 34.0,
-    height: 34.0 * 28.0 / 76.0,
-    y_offset: -12.0,
+    width: 9.0,
+    height: 9.0 * 28.0 / 76.0,
+    y_offset: -18.0,
     fade_in_frames: 22.0,
     hold_frames: 63.0,
     fade_out_frames: 15.0,
@@ -62,9 +66,9 @@ pub const TEMP_OK: TempResultParams = TempResultParams {
 
 pub const TEMP_FAIL: TempResultParams = TempResultParams {
     texture: "failed.bmp",
-    width: 28.0,
-    height: 28.0 * 45.0 / 68.0,
-    y_offset: -12.0,
+    width: 9.0,
+    height: 9.0 * 45.0 / 68.0,
+    y_offset: -18.0,
     fade_in_frames: 22.0,
     hold_frames: 63.0,
     fade_out_frames: 15.0,

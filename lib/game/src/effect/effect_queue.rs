@@ -322,6 +322,11 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             // Spear Boomerang spears + Waterball2 spline both fly caster→target.
             | EffectId::Spearbmr
             | EffectId::Waterball2
+            // Wink / Fvoice emotes pick their fly-off action from the
+            // caster→target heading, so they need the trail endpoints (they
+            // collapse to a point and camera-only direction when self-cast).
+            | EffectId::Wink
+            | EffectId::Fvoice
     )
 }
 

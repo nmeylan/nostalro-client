@@ -115,8 +115,11 @@ impl Effect for Thunderstorm2Effect {
         }
         let [x, y, z] = self.world_pos;
         let uv = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
+        // The strike draws with no depth check, so the bolt and
+        // flash draw over the terrain instead of being depth-culled by the
+        // ground its base sits on. `BillboardFlash` is the matching no-depth quad.
         let bolt = |out: &mut EffectDrawList, center_y: f32, texture: &'static str| {
-            out.push(EffectPrimitiveDraw::Billboard {
+            out.push(EffectPrimitiveDraw::BillboardFlash {
                 pos: [x, center_y, z],
                 size: [BOLT_SIZE, BOLT_SIZE],
                 uv,
@@ -127,7 +130,7 @@ impl Effect for Thunderstorm2Effect {
             });
         };
         // Flash star sits at the impact (caster tile).
-        out.push(EffectPrimitiveDraw::Billboard {
+        out.push(EffectPrimitiveDraw::BillboardFlash {
             pos: [x, y, z],
             size: [STAR_SIZE, STAR_SIZE],
             uv,
@@ -176,8 +179,8 @@ mod tests {
         assert_eq!(prims.len(), 3, "flash + middle + top");
         let mut ys = Vec::new();
         for p in prims {
-            let EffectPrimitiveDraw::Billboard { pos, blend, .. } = p else {
-                panic!("expected Billboard");
+            let EffectPrimitiveDraw::BillboardFlash { pos, blend, .. } = p else {
+                panic!("expected BillboardFlash");
             };
             assert_eq!(blend, BlendKind::Additive);
             ys.push(pos[1]);
@@ -211,7 +214,7 @@ mod tests {
         let mut seen = Vec::new();
         for _ in 0..MIDDLE_TEXTURES.len() {
             for p in draws(&e) {
-                if let EffectPrimitiveDraw::Billboard { texture, .. } = p {
+                if let EffectPrimitiveDraw::BillboardFlash { texture, .. } = p {
                     if MIDDLE_TEXTURES.contains(&texture) {
                         seen.push(texture);
                     }

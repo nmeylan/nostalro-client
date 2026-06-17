@@ -1204,6 +1204,11 @@ pub fn spawn_camera_shake(id: EffectId) -> Option<CameraShake> {
     let (amplitude, duration_ms) = match id {
         EffectId::ScreenQuake => (1.5, 1667),
         EffectId::NpcEarthquake => (2.2, 1300),
+        // Dragon Fear plays `dragonfear.str` and fires a bare quake at
+        // spawn. The original game reads it as a side-to-side shake of
+        // amplitude 1.0 over a `650 ms` window — a short, light shake (not
+        // the longer sustained quakes above).
+        EffectId::Dragonfear => (1.0, 650),
         _ => return None,
     };
     Some(CameraShake {
@@ -1731,6 +1736,17 @@ mod tests {
         }
     }
 
+    #[test]
+    fn dragonfear_keeps_its_str_and_gains_a_camera_shake() {
+        // Dragon Fear still plays its STR; the fix only adds the
+        // screen shake the original fires at spawn (other ids stay shake-free).
+        assert!(matches!(
+            effect_spec(EffectId::Dragonfear),
+            Some(EffectSpec::Str { .. })
+        ));
+        assert!(spawn_camera_shake(EffectId::Dragonfear).is_some());
+        assert!(spawn_camera_shake(EffectId::Hit1).is_none());
+    }
 }
 
 fn default_duration_ms(id: EffectId) -> u32 {

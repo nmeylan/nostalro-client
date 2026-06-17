@@ -27,6 +27,15 @@ impl EffectAnchor {
             EffectAnchor::Point(p) | EffectAnchor::Trail { from: p, .. } => p,
         }
     }
+
+    /// Expand to `(from, to)` endpoints. `Point(p)` collapses to `(p, p)`
+    /// (no direction), the same shape every trail-effect factory arm builds.
+    pub fn trail(self) -> ([f32; 3], [f32; 3]) {
+        match self {
+            EffectAnchor::Point(p) => (p, p),
+            EffectAnchor::Trail { from, to } => (from, to),
+        }
+    }
 }
 
 /// How an effect should be positioned in the world.
