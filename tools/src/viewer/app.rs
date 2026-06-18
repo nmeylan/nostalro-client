@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use models::enums::class::JobName;
 use models::enums::EnumWithNumberValue;
 use models::enums::EnumWithStringValue;
@@ -37,7 +37,7 @@ use ragnarok_renderer::sprite_projection::{cell_world_pos, project_entity_screen
 use ragnarok_renderer::{BackgroundMode, Renderer, UiDrawCall, block_on};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 use ragnarok_game::data_table::accessory_table::AccessoryTable;
@@ -124,10 +124,18 @@ pub struct App {
     mouse_down_right: bool,
 
     last_frame: Instant,
+    /// Earliest instant the next frame may render. The event loop sleeps
+    /// (`ControlFlow::WaitUntil`) until this point instead of spinning, keeping
+    /// CPU near-idle (the preferred `Mailbox` present mode never blocks to
+    /// throttle us).
+    next_frame: Instant,
     /// Whether `BackgroundMode::Clear` should clear to black this frame.
     /// Toggled by the B-cycle: blue clear -> black clear -> RswMap.
     clear_is_black: bool,
 }
+
+/// Redraw cadence (~60 fps). Rendering faster only burns CPU.
+const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 impl App {
     pub fn new(args: Args) -> Self {
@@ -170,6 +178,7 @@ impl App {
             mouse_down_left: false,
             mouse_down_right: false,
             last_frame: Instant::now(),
+            next_frame: Instant::now(),
             clear_is_black: false,
         }
     }
@@ -1274,12 +1283,20 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 self.render_frame();
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
             }
             _ => {}
         }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let now = Instant::now();
+        if now >= self.next_frame {
+            self.next_frame = now + FRAME_INTERVAL;
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+        }
+        event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_frame));
     }
 }
 

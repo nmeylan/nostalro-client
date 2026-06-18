@@ -616,8 +616,9 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         // billboard via the custom factory path (`effects::tarot_card`).
         EffectId::Criticalwound => &["cwound"],
         EffectId::Green993 => &["green99_3"],
-        EffectId::Green995 => &["green99_5"],
-        EffectId::Green996 => &["green99_6"],
+        // Green995 → CastingRingEffect (Custom, green ring), Green996 →
+        // FloorAuraEffect (Custom, LV99_GREEN); no `green99_5/6.str` exists, so
+        // aliases here would shadow the Custom dispatch.
         EffectId::Mapsphere => &["mapsphere"],
         EffectId::PokLove => &["pok_love"],
         EffectId::PokWhite => &["pok_white"],

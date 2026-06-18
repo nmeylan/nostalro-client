@@ -130,7 +130,8 @@ pub fn is_custom_bucket(id: EffectId) -> bool {
             | EffectId::Kaen | EffectId::Kasumikiri | EffectId::Kirikage
             | EffectId::Kouenka | EffectId::Landprotector | EffectId::Level99
             | EffectId::Level992 | EffectId::Level993 | EffectId::Level995
-            | EffectId::Level996 | EffectId::LightningS | EffectId::Lightsphere
+            | EffectId::Level996 | EffectId::Green995 | EffectId::Green996
+            | EffectId::LightningS | EffectId::Lightsphere
             | EffectId::Lightsphere2 | EffectId::Linelink | EffectId::Linelink2
             | EffectId::Linelink3 | EffectId::Lockon | EffectId::M01 | EffectId::M02
             | EffectId::M03 | EffectId::M04 | EffectId::M05
@@ -264,7 +265,8 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::FileEffectBegin
             | EffectId::Flammule | EffectId::Flowercast2 | EffectId::Flyup
             | EffectId::GetItem
-            | EffectId::Green993 | EffectId::Green995 | EffectId::Green996
+            // Green995/Green996 moved to the Custom bucket (§9i green level-99 ring + floor aura).
+            | EffectId::Green993
             | EffectId::Greenbody | EffectId::GreenNumber | EffectId::Groundimage
             | EffectId::Groundimage3 | EffectId::Groundimage5 | EffectId::Groundimage7
             | EffectId::Groundimage9 | EffectId::Heal | EffectId::Heal2

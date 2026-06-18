@@ -63,7 +63,16 @@ const CLOCK_INDEX: usize = 14;
 // until frame 200, then eases out at -5/frame (~44 frames). The
 // 64×128 card aspect (height = 2× width) is the tall-card flag; wobble
 // values are the `0.05` amplitude / `2°`-per-frame speed.
-const CARD_WIDTH: f32 = 11.0;
+//
+// The base size `8` reads ~4× a character at this viewer's scale; sized
+// to the sprite instead (height ≈ a character ~6 units), keeping the tall aspect.
+const CARD_WIDTH: f32 = 3.0;
+
+// Anchored above the head (native RO `-Y = up`). Matches the TempOk/TempFail
+// result-banner offset (`temp_result.rs`, also an EffectTexture quad above
+// the caster) so the card floats clear of the head rather than over the body;
+// the original raises it 30 above the feet.
+const CARD_Y_OFFSET: f32 = -18.0;
 
 /// Build params for tarot card `index` (0-based; `EffectId::Tarotcard1` → 0).
 pub fn tarot_params(index: usize) -> TarotCardParams {
@@ -71,7 +80,7 @@ pub fn tarot_params(index: usize) -> TarotCardParams {
         texture: TEXTURES[index],
         width: CARD_WIDTH,
         height: CARD_WIDTH * 2.0,
-        y_offset: -14.0,
+        y_offset: CARD_Y_OFFSET,
         fade_in_frames: 22.0,
         hold_frames: 178.0,
         fade_out_frames: 44.0,

@@ -127,9 +127,13 @@ pub const THROW_BOTTLES: ThrowItemParams = default_throw("유저인터페이스/
 pub const THROW_ITEM2: ThrowItemParams = default_throw("throwitem2.bmp", 0);
 // 308 Throw Stone (돌).
 pub const THROW_STONE: ThrowItemParams = stone_throw("유저인터페이스/item/돌.bmp");
-// 539 Throw Random Bottle — composite; no classic icon (disabled).
-pub const THROW_MOLOTOV: ThrowItemParams = default_throw("molotov.bmp", 5);
-pub const THROW_ITEM3: ThrowItemParams = default_throw("throwitem3.bmp", 10);
+// 539 Throw Random Bottle — composite of two staggered bottle throws. The
+// original game throws a molotov (= 화염병, present) then a generic
+// bottle bitmap, which has no classic-GRF equivalent; substitute the
+// alcohol bottle (알코올, present) so the second toss is a real bottle icon
+// rather than the white fallback.
+pub const THROW_MOLOTOV: ThrowItemParams = default_throw("유저인터페이스/item/화염병.bmp", 5);
+pub const THROW_ITEM3: ThrowItemParams = default_throw("유저인터페이스/item/알코올.bmp", 10);
 // 541 — no classic icon (disabled).
 pub const THROW_ITEM4: ThrowItemParams = default_throw("throwitem4.bmp", 0);
 // 600 Throw Venom Knife (베넘나이프).

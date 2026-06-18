@@ -19,7 +19,7 @@
 //!   (`hanmoon1..7`: 地 風 水 火 暗 聖 念).
 
 use crate::effect::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-use crate::effect::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
+use crate::effect::effect_trait::{CameraView, Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::effect::effects::saint_casting::{
     SaintCastingConfig, SaintCastingEffect, TOTAL_DURATION_MS as SAINT_TOTAL_DURATION_MS,
 };
@@ -132,6 +132,10 @@ const PHRASE_DISTANCE: f32 = 18.0;
 const PHRASE_X: [f32; 6] = [-30.0, -18.0, -6.0, 6.0, 18.0, 30.0];
 const CHAMPION_DISTANCE: f32 = 24.0;
 const CHAMPION_X: [f32; 6] = [-40.0, -24.0, -8.0, 8.0, 24.0, 40.0];
+/// Phrase-glyph vertex tints: base
+/// cast is pure black, the champion cast a hair above it.
+const PHRASE_TINT_BLACK: [f32; 3] = [0.0, 0.0, 0.0];
+const PHRASE_TINT_DARK: [f32; 3] = [10.0 / 255.0, 10.0 / 255.0, 10.0 / 255.0];
 /// First three characters appear together; the last three follow a group later
 /// (spawned at frame 1 then frame 21).
 const GROUP2_DELAY: f32 = 20.0;
@@ -158,6 +162,11 @@ struct Glyph {
     distance: f32,
     /// Per-layer alpha (0..255), index `1..=NUM_LAYERS`; `[0]` unused.
     layer_alpha: [f32; NUM_LAYERS + 1],
+    /// Vertex tint. The `asura*.tga` art is
+    /// white with the character in the alpha channel, so the tint *is* the
+    /// letter colour: the phrase casts tint it black/near-black, the
+    /// elemental/soul-link glyphs leave it white.
+    tint: [f32; 3],
 }
 
 impl Glyph {
@@ -168,6 +177,7 @@ impl Glyph {
             process: -start_delay,
             distance,
             layer_alpha: [0.0; NUM_LAYERS + 1],
+            tint: [1.0, 1.0, 1.0],
         }
     }
 
@@ -202,8 +212,17 @@ impl Glyph {
         self.process > RAMP_FRAMES && self.layer_alpha.iter().all(|a| *a <= 0.0)
     }
 
-    fn collect_draws(&self, center: [f32; 3], out: &mut EffectDrawList) {
-        let pos = [center[0] + self.x_offset, center[1] + Y_OFFSET, center[2]];
+    fn collect_draws(&self, center: [f32; 3], right: [f32; 3], out: &mut EffectDrawList) {
+        // Spread the glyphs along their x-offset *before* the
+        // screen-facing rotation, so the phrase always reads left-to-right
+        // across the screen regardless of camera orbit. Offsetting along the
+        // camera's screen-right axis does that; the vertical lift stays
+        // in world space (the lift is applied after the screen rotation).
+        let pos = [
+            center[0] + right[0] * self.x_offset,
+            center[1] + Y_OFFSET + right[1] * self.x_offset,
+            center[2] + right[2] * self.x_offset,
+        ];
         // Draw order: the bright small core first, then the larger, dimmer
         // halo layers blended over it (walk `i = 10..1`).
         for i in (1..=NUM_LAYERS).rev() {
@@ -219,7 +238,12 @@ impl Glyph {
                 uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
                 rotation: 0.0,
                 texture: self.texture,
-                color: [1.0, 1.0, 1.0, alpha / 255.0],
+                color: [self.tint[0], self.tint[1], self.tint[2], alpha / 255.0],
+                // The `asura*.tga` glyphs are white with the character in their
+                // alpha channel, so alpha-blending over a dark `tint` darkens the
+                // background into black letters — matching the original game,
+                // which tints the phrase casts (0,0,0)/(10,10,10). Additive would just
+                // wash the white texture out over a lit map.
                 blend: BlendKind::Alpha,
             });
         }
@@ -232,12 +256,14 @@ pub struct BeginAsuraEffect {
     glyphs: Vec<Glyph>,
 }
 
-/// Original game `SAINTCASTING(.., "ring_white.tga", 2)` size table (F1=2 →
-/// asura). F1=2 maps to size = 5 → untinted white, additive.
+/// Saint-casting rings for the asura cast: untinted white, additive. Sized 25%
+/// above the BeginSpell cast aura (its F1=1 `[20,19,18,17]` table × 1.25) —
+/// close to the `[25,24,23,22]` look of the original but pinned to a fixed
+/// ratio over BeginSpell.
 const RING_CONFIG: SaintCastingConfig = SaintCastingConfig {
     texture: "ring_white.tga",
     pass_textures: None,
-    max_heights: [25.0, 24.0, 23.0, 22.0],
+    max_heights: [25.0, 23.75, 22.5, 21.25],
     color_rgb: [1.0, 1.0, 1.0],
     blend: BlendKind::Additive,
     refill_per_frame: 10.0,
@@ -255,13 +281,15 @@ impl BeginAsuraEffect {
     }
 
     /// Base cast `EF_BEGINASURA` — 阿修羅覇凰拳 plus the white saint rings.
+    /// Tints the glyphs black.
     pub fn base(anchor: [f32; 3]) -> Self {
-        Self::phrase(anchor, &PHRASE, PHRASE_DISTANCE, &PHRASE_X)
+        Self::phrase(anchor, &PHRASE, PHRASE_DISTANCE, &PHRASE_X, PHRASE_TINT_BLACK)
     }
 
     /// Champion cast `EF_BEGINASURA11` — larger glyphs (`asura11..16`).
+    /// Tints them near-black.
     pub fn champion(anchor: [f32; 3]) -> Self {
-        Self::phrase(anchor, &PHRASE_CHAMPION, CHAMPION_DISTANCE, &CHAMPION_X)
+        Self::phrase(anchor, &PHRASE_CHAMPION, CHAMPION_DISTANCE, &CHAMPION_X, PHRASE_TINT_DARK)
     }
 
     /// `EF_SOULLINK` — the "SOUL LINK" glyph cascade, no
@@ -278,12 +306,14 @@ impl BeginAsuraEffect {
         }
     }
 
-    fn phrase(anchor: [f32; 3], textures: &[&'static str; 6], distance: f32, xs: &[f32; 6]) -> Self {
+    fn phrase(anchor: [f32; 3], textures: &[&'static str; 6], distance: f32, xs: &[f32; 6], tint: [f32; 3]) -> Self {
         let glyphs = (0..6)
             .map(|k| {
                 // First half spawns immediately, the second half a group later.
                 let delay = if k < 3 { 0.0 } else { GROUP2_DELAY };
-                Glyph::new(textures[k], xs[k], distance, delay)
+                let mut g = Glyph::new(textures[k], xs[k], distance, delay);
+                g.tint = tint;
+                g
             })
             .collect();
         Self {
@@ -320,9 +350,33 @@ impl Effect for BeginAsuraEffect {
         if let Some(rings) = &self.rings {
             rings.collect_draws(out, ctx);
         }
+        let right = screen_right(&ctx.camera);
         for g in &self.glyphs {
-            g.collect_draws(self.center, out);
+            g.collect_draws(self.center, right, out);
         }
+    }
+}
+
+/// Camera-space "right" axis in world coordinates: `normalize(forward × up)`.
+/// Used to lay the phrase glyphs out across the screen. Falls back to world-X
+/// when the camera is degenerate (e.g. a `Default` camera in tests).
+fn screen_right(camera: &CameraView) -> [f32; 3] {
+    let f = [
+        camera.target[0] - camera.eye[0],
+        camera.target[1] - camera.eye[1],
+        camera.target[2] - camera.eye[2],
+    ];
+    let u = camera.up;
+    let r = [
+        f[1] * u[2] - f[2] * u[1],
+        f[2] * u[0] - f[0] * u[2],
+        f[0] * u[1] - f[1] * u[0],
+    ];
+    let len = (r[0] * r[0] + r[1] * r[1] + r[2] * r[2]).sqrt();
+    if len < 1e-4 {
+        [1.0, 0.0, 0.0]
+    } else {
+        [r[0] / len, r[1] / len, r[2] / len]
     }
 }
 

@@ -95,6 +95,20 @@ pub const LV995: CastingRingParams = CastingRingParams {
     alpha_max: 0.30,
 };
 
+/// `EF_GREEN99_5` (#679) — green level-99 ring. Same flared
+/// `ring_white.tga` cone as `LV995` (size 7); only the tint
+/// differs. The original launches the white texture with just a size bump, but
+/// in the original game this id reads green (like the #398/#680 floor aura), so
+/// we apply our level-99 green.
+pub const GREEN995: CastingRingParams = CastingRingParams {
+    texture: "ring_white.tga",
+    color_rgb: [0.14, 1.00, 0.14],
+    bottom_size: 2.5,
+    top_size: 8.0,
+    height: 14.0,
+    alpha_max: 0.30,
+};
+
 /// The flared blue ring under
 /// `EF_MAP_MAGICZONE` (#650). Wide low funnel (radius ≈ 12.9, rise 55°,
 /// height 15) at alpha 50/255. Reused by [`super::mapzone`].
@@ -278,6 +292,40 @@ mod tests {
         for p in [LV99, LV995] {
             assert!(TEXTURES.contains(&p.texture));
         }
+    }
+
+    #[test]
+    fn green995_resolves_custom_and_renders_a_green_flared_ring() {
+        use crate::effect::factory::make_effect;
+        use crate::effect::spec::{EffectAnchor, EffectSpec};
+        use crate::effect::table::effect_spec;
+        use models::enums::effect_id::EffectId;
+
+        // Alias deleted + custom bucket ⇒ both green level-99 ids dispatch via
+        // the factory, not a (missing) STR.
+        for id in [EffectId::Green995, EffectId::Green996] {
+            assert!(
+                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                "{id:?} should resolve to Custom"
+            );
+        }
+
+        // 679 is the green sibling of LV995: same flared cone, green tint.
+        assert_eq!(GREEN995.texture, LV995.texture);
+        assert_ne!(GREEN995.color_rgb, LV995.color_rgb);
+        assert!(
+            GREEN995.color_rgb[1] > GREEN995.color_rgb[0]
+                && GREEN995.color_rgb[1] > GREEN995.color_rgb[2],
+            "green-dominant tint"
+        );
+
+        let mut eff = make_effect(EffectId::Green995, EffectAnchor::Point([0.0; 3]), None, None)
+            .expect("Green995 dispatches via factory");
+        eff.update(&EffectUpdateCtx { delta: FADE_IN_FRAMES / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+        let mut list = EffectDrawList::new();
+        eff.collect_draws(&mut list, &render_ctx());
+        assert_eq!(list.primitives.len(), NUM_RINGS);
+        assert!(list.primitives.iter().all(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. })));
     }
 
     #[test]

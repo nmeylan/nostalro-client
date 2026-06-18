@@ -1280,6 +1280,17 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
             anchor.point(),
             effects::sparkle_column::WHITELIGHT,
         )),
+        // Green level-99 variants. 679 = `Level99(ring_white,1)` green ring
+        // (same cone as Level995); 680 = `Level99_2(pikapika2,1)` green floor
+        // aura (same launch as Level996, reuses LV99_GREEN verbatim).
+        EffectId::Green995 => Box::new(effects::casting_ring::CastingRingEffect::new(
+            anchor.point(),
+            effects::casting_ring::GREEN995,
+        )),
+        EffectId::Green996 => Box::new(effects::floor_aura::FloorAuraEffect::new(
+            anchor.point(),
+            effects::floor_aura::LV99_GREEN,
+        )),
         EffectId::MapGhost => Box::new(effects::sparkle_column::SparkleColumnEffect::new(
             anchor.point(),
             effects::sparkle_column::GHOST,

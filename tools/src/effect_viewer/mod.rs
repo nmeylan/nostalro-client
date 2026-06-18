@@ -23,7 +23,7 @@ pub mod gif_export;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use ragnarok_formats::grf::GrfArchive;
 use models::enums::EnumWithNumberValue;
@@ -49,7 +49,7 @@ use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{Camera, Renderer, UiDrawCall, UiTextureRef, block_on};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -670,7 +670,17 @@ struct App {
     /// fires independently; `render_frame` polls them and rebuilds the
     /// matching pipelines on change.
     shader_watchers: Vec<(ShaderWatcher, ShaderTarget)>,
+    /// Earliest instant the next interactive frame may render. The event loop
+    /// sleeps (`ControlFlow::WaitUntil`) until this point instead of spinning,
+    /// keeping CPU near-idle. Bypassed while a GIF export is active so headless
+    /// capture runs as fast as it can.
+    next_frame: Instant,
 }
+
+/// Interactive redraw cadence. Effects are authored for a 60 fps display, so
+/// there's nothing to gain from rendering faster — the extra frames only burn
+/// CPU (the preferred `Mailbox` present mode never blocks to throttle us).
+const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 impl App {
     fn new(args: Args) -> Self {
@@ -716,6 +726,7 @@ impl App {
             should_exit: false,
             demo_hit_count: 5,
             shader_watchers: Vec::new(),
+            next_frame: Instant::now(),
         }
     }
 
@@ -1763,12 +1774,34 @@ impl ApplicationHandler for App {
                     event_loop.exit();
                     return;
                 }
-                if let Some(window) = &self.window {
+                // GIF export drives its own deterministic tick and should run
+                // as fast as possible (especially headless batch mode), so
+                // re-arm immediately. The interactive cadence is paced by
+                // `about_to_wait` instead.
+                if self.gif_session.is_some()
+                    && let Some(window) = &self.window
+                {
                     window.request_redraw();
                 }
             }
             _ => {}
         }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        // GIF export re-arms its own redraw in `RedrawRequested`; don't pace it.
+        if self.gif_session.is_some() {
+            event_loop.set_control_flow(ControlFlow::Poll);
+            return;
+        }
+        let now = Instant::now();
+        if now >= self.next_frame {
+            self.next_frame = now + FRAME_INTERVAL;
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+        }
+        event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_frame));
     }
 }
 
