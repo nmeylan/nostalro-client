@@ -182,9 +182,11 @@ pub fn load_keyed_texture(
     let h = rgba.height();
     // Sample the native-resolution texture with `Nearest` filtering — flame
     // textures (ring_*.tga, magic_*.tga) are small pixel-art with sharp
-    // feathered tips. Linear sampling + a previous CPU 4× CatmullRom upscale
-    // smoothed those tips into a blurry glow when the cone geometry
-    // stretched the small native pattern over a large surface.
+    // feathered tips. `Linear` interpolates the small native pattern as the
+    // cone geometry stretches it over a large surface, smearing the distinct
+    // flame tongues into a blurry smooth fan; `Nearest` keeps them crisp.
+    // The faint blocky tongue edges `Nearest` would otherwise leave are
+    // softened by the alpha gamma curve in `effect_frustum.wgsl`.
     //
     // Effect textures are already perceptual sRGB and must NOT be re-decoded:
     // a second sRGB→linear decode on read darkens midtones and shifts tints
@@ -197,7 +199,7 @@ pub fn load_keyed_texture(
         h,
         layout,
         path,
-        wgpu::FilterMode::Linear,
+        wgpu::FilterMode::Nearest,
         wgpu::TextureFormat::Rgba8Unorm,
         wgpu::AddressMode::Repeat,
     );

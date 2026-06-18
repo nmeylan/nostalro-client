@@ -32,9 +32,17 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let tex_color = textureSample(frustum_texture, frustum_sampler, in.tex_coord) * in.color;
-    if tex_color.a < 0.06 {
+    let tex = textureSample(frustum_texture, frustum_sampler, in.tex_coord);
+    // Gamma-curve the *texture* alpha (full 0..1 range) before applying the
+    // per-emitter brightness, so the faint near-zero tails (the "trace" the
+    // feathered tongue edges leave when stretched up the cone) collapse toward
+    // zero while the visible mid-alpha feather survives — a soft alternative
+    // to a hard discard cutoff that, unlike one, doesn't depend on the
+    // emitter's overall brightness.
+    let shaped_a = pow(tex.a, 2.2);
+    let a = shaped_a * in.color.a;
+    if a < 0.002 {
         discard;
     }
-    return tex_color;
+    return vec4<f32>(tex.rgb * in.color.rgb, a);
 }
