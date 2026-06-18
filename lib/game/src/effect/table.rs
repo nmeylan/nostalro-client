@@ -2466,7 +2466,7 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::BottomEvilland => 299990,
         EffectId::Guard3 => 2000,
         EffectId::NpcSlowcast => 3100,
-        EffectId::Criticalwound => 500,
+        EffectId::Criticalwound => 800,
         EffectId::Green993 => 4294967295,
         EffectId::Green995 => 4294967295,
         EffectId::Green996 => 4294967295,

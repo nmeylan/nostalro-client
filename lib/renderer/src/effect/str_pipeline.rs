@@ -188,6 +188,12 @@ struct LayerAnim {
     blend_dst: i32,
 }
 
+/// STR frame `angle` (`rz`) is a brand angle: 1024 units is one full turn, not
+/// a degree value. The original game converts it with `DegToRad(rz / (1024/360))`.
+fn str_angle_to_radians(raw: f32) -> f32 {
+    raw * std::f32::consts::TAU / 1024.0
+}
+
 fn calculate_layer_anim(layer: &EffectLayer, key_index: f32) -> LayerAnim {
     let invisible = LayerAnim {
         visible: false,
@@ -362,7 +368,12 @@ pub fn build_str_effect_batches<'a>(
                 continue;
             }
 
-            let angle_rad = -anim.angle * std::f32::consts::PI / 180.0;
+            // Rotation is NOT negated: STR layer offsets are placed in a
+            // screen-down Y space (offset_y below is not negated either), the
+            // same convention the original game rotates in, so its formula maps
+            // directly. Negating spun multi-direction effects (e.g. the
+            // criticalwound claws) outward instead of crossing at centre.
+            let angle_rad = str_angle_to_radians(anim.angle);
             let cos_a = angle_rad.cos();
             let sin_a = angle_rad.sin();
 
@@ -371,6 +382,11 @@ pub fn build_str_effect_batches<'a>(
             // The `/35` reference (one cell = 35 STR pixels) is encoded by the
             // sprite pipeline's `/75` divisor + the sprite art's authored size.
             let scale = ppu * zoom / 75.0;
+            // Layer offset is a screen-space pixel position on the original
+            // game's 640x480 reference frame. X centres on 320; Y uses 320
+            // too, which folds the 240 frame centre together with the original
+            // dispatcher's default -80 vertical lift (it anchors the clip 80px
+            // above the actor's projected centre) that our emitter omits.
             let offset_x = (anim.offset[0] - 320.0) * scale;
             let offset_y = (anim.offset[1] - 320.0) * scale;
 
@@ -421,4 +437,21 @@ pub fn build_str_effect_batches<'a>(
         }
     }
     batches
+}
+
+#[cfg(test)]
+mod tests {
+    use super::str_angle_to_radians;
+
+    #[test]
+    fn str_angle_decodes_brand_units_not_degrees() {
+        // 1024 units == one full turn.
+        assert!((str_angle_to_radians(1024.0) - std::f32::consts::TAU).abs() < 1e-4);
+        assert!((str_angle_to_radians(256.0) - std::f32::consts::FRAC_PI_2).abs() < 1e-4);
+        // criticalwound's claw layers: 85.33 / -156.44 / -312.89 -> 30 / -55 / -110 deg.
+        let deg = |r: f32| r.to_degrees();
+        assert!((deg(str_angle_to_radians(85.333)) - 30.0).abs() < 0.5);
+        assert!((deg(str_angle_to_radians(-156.444)) + 55.0).abs() < 0.5);
+        assert!((deg(str_angle_to_radians(-312.889)) + 110.0).abs() < 0.5);
+    }
 }
