@@ -533,7 +533,7 @@ impl App {
 
     /// Resolve an entity's current cell to a world position (feet, lifted to
     /// match the effect anchor used by the per-frame resolver).
-    fn entity_world_pos(&self, gid: u32) -> Option<[f32; 3]> {
+    pub(crate) fn entity_world_pos(&self, gid: u32) -> Option<[f32; 3]> {
         let (gat, coords) = (self.game.gat.as_ref()?, self.game.map_coords.as_ref()?);
         let (cx, cy) = self.game.entities.get(gid)?.movement.position();
         let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);

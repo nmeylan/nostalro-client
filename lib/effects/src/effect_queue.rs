@@ -34,6 +34,10 @@ pub struct SpawnRequest {
     /// `ZC_SKILL_DISAPPEAR`, buffs cleared by a status-off packet. See
     /// [`EffectQueue::despawn`].
     pub key: Option<u32>,
+    /// Per-spawn size multiplier applied on top of the spec's own size
+    /// (Spr/SprBurst). `None` = use the spec size unchanged. RSW ambient
+    /// emitters carry a per-emitter `param[0]` scale through here.
+    pub size_scale: Option<f32>,
 }
 
 impl SpawnRequest {
@@ -45,6 +49,7 @@ impl SpawnRequest {
             hit_count: None,
             target_size: None,
             key: None,
+            size_scale: None,
         }
     }
 }
@@ -124,6 +129,22 @@ impl EffectQueue {
     pub fn spawn_at_keyed(&mut self, effect_id: EffectId, world_pos: [f32; 3], key: u32) {
         self.push(SpawnRequest {
             key: Some(key),
+            ..SpawnRequest::new(effect_id, Attach::WorldPos(world_pos))
+        });
+    }
+
+    /// Keyed fixed-position spawn carrying a per-spawn size multiplier — the
+    /// canonical caller is an RSW ambient emitter passing its `param[0]` scale.
+    pub fn spawn_at_keyed_scaled(
+        &mut self,
+        effect_id: EffectId,
+        world_pos: [f32; 3],
+        key: u32,
+        size_scale: f32,
+    ) {
+        self.push(SpawnRequest {
+            key: Some(key),
+            size_scale: Some(size_scale),
             ..SpawnRequest::new(effect_id, Attach::WorldPos(world_pos))
         });
     }
@@ -312,6 +333,10 @@ pub fn is_trail_effect(id: EffectId) -> bool {
             | EffectId::Soulbreaker
             | EffectId::Yufitel
             | EffectId::Pierce
+            // Hit family — flared cone aims along the caster→target heading.
+            | EffectId::Hit1
+            | EffectId::Hit3
+            | EffectId::Hit4
             | EffectId::Sonicblowhit
             | EffectId::Waterball
             | EffectId::Fireivy

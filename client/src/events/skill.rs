@@ -1,11 +1,9 @@
 use crate::App;
-use models::enums::EnumWithNumberValue;
 use models::enums::action::ActionType;
-use models::enums::class::JobName;
 use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
 use models::enums::weapon::WeaponType;
-use ragnarok_game::effect::{derive_hit_effect, skill_effects};
+use ragnarok_game::effect::skill_effects;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::skill_action::{skill_motion_type, SkillMotionType};
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
@@ -138,19 +136,10 @@ impl App {
 
         self.spawn_skill_attack_effect(skill_id, src_gid, target_gid, effective_count);
 
-        // Hit spark on the target (§2d derivation): per-skill spark, else the
-        // generic EF_HIT2, suppressed for self-visual skills and self-targets.
-        // Single spawn for now; B5 refines to one per hit at each hit's fire time.
-        let skill = SkillEnum::from_id(skill_id as u32);
-        let attacker_job = self
-            .game
-            .entities
-            .get(src_gid)
-            .and_then(|e| JobName::try_from_value(e.job as usize).ok())
-            .unwrap_or(JobName::Novice);
-        for hit in derive_hit_effect(Some(skill), false, attacker_job, src_gid == target_gid) {
-            self.effect_queue.spawn_on(*hit, target_gid);
-        }
+        // The hit spark is NOT spawned here: it must land with the damage, one
+        // per hit, at each scheduled hit's fire time (a ranged skill's spark
+        // would otherwise flash before the projectile reaches the target). The
+        // §2d derivation runs in `process_scheduled_hits` instead.
 
         let replays_caster = skill_id == SkillEnum::AsSonicblow.id() as u16
             || skill_id == SkillEnum::ChChaincrush.id() as u16

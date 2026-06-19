@@ -6,14 +6,14 @@ use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_game::effect_table::EffectKind;
-use ragnarok_game::effects::EffectManager;
+use ragnarok_game::effect::EffectQueue;
+use ragnarok_game::effects::{AmbientEffectScheduler, ambient_effect_assets};
 use ragnarok_game::map_loader::{self, MapData};
-use ragnarok_renderer::effect_sprite::{
-    EffectSpriteCache, SpriteEffectEmitter, build_emitter_batches, collect_sprite_effect_draws,
-};
+use ragnarok_renderer::effect_sprite::EffectSpriteCache;
 use ragnarok_renderer::font_atlas::FontAtlas;
-use ragnarok_renderer::effect::{StrEffectCache, StrEmitterInput, build_str_effect_batches};
+use ragnarok_renderer::effect::{
+    EffectFrameInputs, EffectHolder, EffectUpdateCtx, StrEffectCache, compose_effect_frame,
+};
 use ragnarok_renderer::{UiDrawCall, block_on};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -385,8 +385,11 @@ struct App {
     mouse_down_right: bool,
     last_mouse: (f32, f32),
 
-    // Effects
-    effects: EffectManager,
+    // Effects — same pipeline as the game: ambient scheduler drives the queue,
+    // the holder owns live effects, `compose_effect_frame` renders them.
+    ambient_effects: AmbientEffectScheduler,
+    effect_queue: EffectQueue,
+    effect_holder: EffectHolder,
     effect_sprites: EffectSpriteCache,
     str_effects: StrEffectCache,
 
@@ -418,7 +421,9 @@ impl App {
             mouse_down_left: false,
             mouse_down_right: false,
             last_mouse: (0.0, 0.0),
-            effects: EffectManager::empty(),
+            ambient_effects: AmbientEffectScheduler::empty(),
+            effect_queue: EffectQueue::new(),
+            effect_holder: EffectHolder::new(),
             effect_sprites: EffectSpriteCache::new(),
             str_effects: StrEffectCache::new(),
             hot_lib,
@@ -510,7 +515,9 @@ impl App {
             self.push_map_info_to_dylib(&cache);
             self.cached_map = Some(cache);
 
-            self.effects = EffectManager::from_rsw(&map_data.rsw, &map_data.gnd);
+            self.ambient_effects.clear(&mut self.effect_queue);
+            self.ambient_effects = AmbientEffectScheduler::from_rsw(&map_data.rsw, &map_data.gnd);
+            let (mut paths, mut str_names) = ambient_effect_assets(&map_data.rsw);
 
             self.map_data = Some(map_data);
 
@@ -519,16 +526,6 @@ impl App {
             {
                 renderer.load_map(&data.gnd, &data.rsw, &grf, data.fog);
 
-                let mut paths: Vec<&str> = self
-                    .effects
-                    .emitters
-                    .iter()
-                    .filter_map(|e| match &e.kind {
-                        EffectKind::Spr { sprite_path, .. } => Some(*sprite_path),
-                        EffectKind::Smoke3D { sprite_path, .. } => Some(*sprite_path),
-                        EffectKind::Str { .. } => None,
-                    })
-                    .collect();
                 paths.sort();
                 paths.dedup();
                 for path in paths {
@@ -541,12 +538,6 @@ impl App {
                     );
                 }
 
-                let mut str_names: Vec<String> = self
-                    .effects
-                    .emitters
-                    .iter()
-                    .filter_map(|e| e.str_file.clone())
-                    .collect();
                 str_names.sort();
                 str_names.dedup();
                 for name in &str_names {
@@ -818,37 +809,44 @@ impl App {
         let height = renderer.device.surface_config.height as f32;
         let elapsed = if paused { 0.0 } else { dt };
 
+        // Drive RSW ambient effects through the shared pipeline (same as the
+        // game): scheduler → queue → holder → compose.
+        let camera_target = renderer.camera.target.to_array();
         if !paused {
-            self.effects.update(dt);
+            self.ambient_effects
+                .update(dt, camera_target, &mut self.effect_queue);
         }
+        self.effect_holder
+            .drain_queue(&mut self.effect_queue, &|_| None);
+        self.effect_holder.update(
+            &EffectUpdateCtx {
+                delta: elapsed,
+                camera_target: Some(camera_target),
+                caster_yaw: None,
+            },
+            &|_| None,
+            &|_| None,
+        );
 
         let screen_w = width / renderer.dpi_scale;
         let screen_h = height / renderer.dpi_scale;
-        let emitter_inputs = build_sprite_effect_inputs(&self.effects);
-        let effect_draws = collect_sprite_effect_draws(
-            &emitter_inputs,
-            &self.effect_sprites,
-            &renderer.camera,
-            screen_w,
-            screen_h,
-        );
-        let mut effect_batches = build_emitter_batches(&effect_draws);
-
-        let str_inputs = build_str_emitter_inputs(&self.effects);
         let zoom = self
             .map_data
             .as_ref()
             .and_then(|m| m.coordinates.as_ref())
             .map_or(10.0, |c| c.zoom());
-        let mut str_batches = build_str_effect_batches(
-            &str_inputs,
-            &self.str_effects,
-            &renderer.camera,
+        let frame = compose_effect_frame(&EffectFrameInputs {
+            effect_holder: &self.effect_holder,
+            effect_sprites: &self.effect_sprites,
+            str_effects: &self.str_effects,
+            camera: &renderer.camera,
             screen_w,
             screen_h,
             zoom,
-        );
-        effect_batches.append(&mut str_batches);
+            elapsed,
+            resolve_entity: &|_| None,
+            extra_sprite_particles: &[],
+        });
 
         let mut draw_calls: Vec<UiDrawCall> = Vec::new();
         if let Some(browser) = &self.browser {
@@ -857,12 +855,11 @@ impl App {
             hot.build_overlay(&renderer.font_atlas, width, height, &mut draw_calls);
         }
 
-        let empty_effect_draws = ragnarok_renderer::effect::EffectDrawList::new();
         renderer.render(
             &draw_calls,
-            &effect_batches,
-            &empty_effect_draws,
-            Vec::new(),
+            &frame.effect_batches,
+            &frame.effect_draws,
+            frame.sprite_particle_records,
             &[],
             &[],
             &[],
@@ -1100,73 +1097,3 @@ pub fn run(args: Args) {
     event_loop.run_app(&mut app).unwrap();
 }
 
-fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteEffectEmitter<'_>> {
-    let mut inputs = Vec::new();
-    for emitter in &effects.emitters {
-        match &emitter.kind {
-            EffectKind::Spr {
-                sprite_path,
-                duration_ms,
-            } => {
-                inputs.push(SpriteEffectEmitter::Spr {
-                    sprite_path,
-                    duration_ms: *duration_ms,
-                    position: emitter.position,
-                    color: emitter.color,
-                    size_scale: emitter.size_scale,
-                    anim_speed: 1.0,
-                    repeat: true,
-                    anim_time: emitter.anim_time,
-                    action_index: 0,
-                });
-            }
-            EffectKind::Smoke3D {
-                sprite_path,
-                alpha_max,
-                anim_speed,
-                ..
-            } => {
-                let particles = emitter
-                    .particles
-                    .iter()
-                    .map(|p| ragnarok_renderer::Smoke3DParticle {
-                        pos: p.position,
-                        age: p.age,
-                        lifetime: p.lifetime,
-                        alpha_override: None,
-                    })
-                    .collect();
-                inputs.push(SpriteEffectEmitter::Smoke3D {
-                    sprite_path,
-                    alpha_max: *alpha_max,
-                    color: emitter.color,
-                    size_scale: emitter.size_scale,
-                    anim_speed: *anim_speed,
-                    size_shrink: false,
-                    twinkle: false,
-                    particles,
-                });
-            }
-            EffectKind::Str { .. } => {}
-        }
-    }
-    inputs
-}
-
-fn build_str_emitter_inputs(effects: &EffectManager) -> Vec<StrEmitterInput<'_>> {
-    let mut inputs = Vec::new();
-    for emitter in &effects.emitters {
-        if !matches!(emitter.kind, EffectKind::Str { .. }) {
-            continue;
-        }
-        let Some(name) = emitter.str_file.as_deref() else {
-            continue;
-        };
-        inputs.push(StrEmitterInput {
-            str_name: name,
-            position: emitter.position,
-            anim_time: emitter.anim_time,
-        });
-    }
-    inputs
-}

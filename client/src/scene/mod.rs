@@ -1,16 +1,11 @@
 use crate::{App, ClipData};
 use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
 use ragnarok_game::effect::{BlendKind, EffectPrimitiveDraw};
-use ragnarok_game::effect_table::EffectKind;
-use ragnarok_game::effects::EffectManager;
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::shadow::shadow_size;
 use ragnarok_game::sprite_path::{HIDDEN_BODY_ALPHA, is_hidden};
 use ragnarok_renderer::effect::holder::AfterimageSnapshot;
-use ragnarok_renderer::effect::{
-    EffectFrameInputs, StrEmitterInput, compose_effect_frame,
-};
-use ragnarok_renderer::effect_sprite::SpriteEffectEmitter;
+use ragnarok_renderer::effect::{EffectFrameInputs, compose_effect_frame};
 use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_renderer::{
     SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad, scale_clip_vertices,
@@ -366,8 +361,6 @@ impl App {
         if let Some(renderer) = &mut self.renderer {
             let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
             let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
-            let extra_spr = build_sprite_effect_inputs(&self.game.effects);
-            let extra_str = build_str_emitter_inputs(&self.game.effects);
             let arrow_draws: Vec<EffectPrimitiveDraw> = self
                 .game
                 .arrows
@@ -399,8 +392,6 @@ impl App {
                 screen_h,
                 zoom,
                 elapsed,
-                extra_spr_emitters: &extra_spr,
-                extra_str_emitters: &extra_str,
                 // Caster-attached buff STR overlays will resolve here once the
                 // game wires status-packet → `spawn_on`; body tint/shake are
                 // applied directly in the actor pass and don't need this.
@@ -422,73 +413,3 @@ impl App {
     }
 }
 
-pub(crate) fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteEffectEmitter<'_>> {
-    let mut inputs = Vec::new();
-    for emitter in &effects.emitters {
-        match &emitter.kind {
-            EffectKind::Spr {
-                sprite_path,
-                duration_ms,
-            } => {
-                inputs.push(SpriteEffectEmitter::Spr {
-                    sprite_path,
-                    duration_ms: *duration_ms,
-                    position: emitter.position,
-                    color: emitter.color,
-                    size_scale: emitter.size_scale,
-                    anim_speed: 1.0,
-                    repeat: true,
-                    anim_time: emitter.anim_time,
-                    action_index: 0,
-                });
-            }
-            EffectKind::Smoke3D {
-                sprite_path,
-                alpha_max,
-                anim_speed,
-                ..
-            } => {
-                let particles = emitter
-                    .particles
-                    .iter()
-                    .map(|p| ragnarok_renderer::Smoke3DParticle {
-                        pos: p.position,
-                        age: p.age,
-                        lifetime: p.lifetime,
-                        alpha_override: None,
-                    })
-                    .collect();
-                inputs.push(SpriteEffectEmitter::Smoke3D {
-                    sprite_path,
-                    alpha_max: *alpha_max,
-                    color: emitter.color,
-                    size_scale: emitter.size_scale,
-                    anim_speed: *anim_speed,
-                    size_shrink: false,
-                    twinkle: false,
-                    particles,
-                });
-            }
-            EffectKind::Str { .. } => {}
-        }
-    }
-    inputs
-}
-
-pub(crate) fn build_str_emitter_inputs(effects: &EffectManager) -> Vec<StrEmitterInput<'_>> {
-    let mut inputs = Vec::new();
-    for emitter in &effects.emitters {
-        if !matches!(emitter.kind, EffectKind::Str { .. }) {
-            continue;
-        }
-        let Some(name) = emitter.str_file.as_deref() else {
-            continue;
-        };
-        inputs.push(StrEmitterInput {
-            str_name: name,
-            position: emitter.position,
-            anim_time: emitter.anim_time,
-        });
-    }
-    inputs
-}

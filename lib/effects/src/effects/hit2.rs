@@ -21,7 +21,7 @@
 //! of the viewport as in `imgs/0-50/1.gif`.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
+use crate::effect_trait::{CameraView, Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const LENS1: &str = "lens1.tga";
 pub const LENS2: &str = "lens2.tga";
@@ -245,6 +245,23 @@ impl Hit2Effect {
     }
 }
 
+/// Camera right/up unit vectors in world space, for the screen-facing
+/// flower layout (same derivation as `chemical.rs`).
+fn camera_right_up(cam: &CameraView) -> ([f32; 3], [f32; 3]) {
+    let sub = |a: [f32; 3], b: [f32; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    let cross = |a: [f32; 3], b: [f32; 3]| {
+        [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+    };
+    let norm = |v: [f32; 3]| {
+        let len = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt().max(1e-6);
+        [v[0] / len, v[1] / len, v[2] / len]
+    };
+    let view = norm(sub(cam.target, cam.eye));
+    let right = norm(cross(view, cam.up));
+    let up = norm(cross(right, view));
+    (right, up)
+}
+
 impl Effect for Hit2Effect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         if !self.has_spawned {
@@ -261,16 +278,20 @@ impl Effect for Hit2Effect {
         }
     }
 
-    fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
-        // Petals sit in the XY world plane (vertical, screen-aligned at
-        // the default camera). Each petal's offset is
-        // `x = length*sin(i)` /
-        // `y = -length*cos(i) - lift`, i.e. a vertical circle
-        // of small offsets centred Y_OFFSET_BASE above the master. We
-        // reproduce that: petal at slice angle i is at
-        //   x = radius * sin(i)
-        //   y = -radius * cos(i) + Y_OFFSET_BASE      (native RO -Y up)
-        //   z = 0
+    fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx) {
+        // The original game lays this flower out in screen space (a 2D
+        // lens-flare ring around the target's projected position), so it
+        // always faces the camera. We anchor the centre in world space at
+        // chest level and fan the petals out in the camera-facing plane
+        // (right/up basis) — petal `i` sits at `radius·(sin i · right +
+        // cos i · up)`. Spreading in a fixed world plane (the old XY
+        // layout) made the ring tilt and foreshorten as the camera orbited.
+        let (right, up) = camera_right_up(&ctx.camera);
+        let center = [
+            self.world_pos[0],
+            self.world_pos[1] + Y_OFFSET_BASE,
+            self.world_pos[2],
+        ];
         for p in &self.petals {
             let alpha = p.alpha();
             if alpha <= 0.0 || p.width <= 0.0 || p.height <= 0.0 {
@@ -278,9 +299,9 @@ impl Effect for Hit2Effect {
             }
             let (sin_a, cos_a) = p.slice_angle_rad.sin_cos();
             let pos = [
-                self.world_pos[0] + p.radius * sin_a,
-                self.world_pos[1] + Y_OFFSET_BASE - p.radius * cos_a,
-                self.world_pos[2],
+                center[0] + p.radius * (sin_a * right[0] + cos_a * up[0]),
+                center[1] + p.radius * (sin_a * right[1] + cos_a * up[1]),
+                center[2] + p.radius * (sin_a * right[2] + cos_a * up[2]),
             ];
             out.push(EffectPrimitiveDraw::Billboard {
                 pos,
@@ -307,8 +328,15 @@ mod tests {
     }
 
     fn render_ctx() -> EffectRenderCtx {
+        // A realistic orbited camera (eye above/behind the target, view-up
+        // = native RO -Y) so the camera-facing layout has a well-defined
+        // right/up basis; the default all-zero CameraView is degenerate.
         EffectRenderCtx {
-            camera: Default::default(),
+            camera: CameraView {
+                eye: [50.0, -80.0, -120.0],
+                target: [0.0, 0.0, 0.0],
+                up: [0.0, -1.0, 0.0],
+            },
             screen_w: 800.0,
             screen_h: 600.0,
             elapsed: 0.0,
@@ -353,36 +381,40 @@ mod tests {
     }
 
     #[test]
-    fn petals_arranged_radially_around_centre() {
-        // Spawn at a known origin and confirm the 8 petals form a
-        // vertical-plane (XY) ring around it. Each petal's position
-        // should be reachable from (origin_x, origin_y + Y_OFFSET_BASE)
-        // via a small radial offset.
+    fn petals_fan_out_in_the_camera_facing_plane() {
+        // The flower must always face the camera: each petal's offset from
+        // the chest-lifted centre lies in the camera plane, i.e. it is
+        // perpendicular to the view direction regardless of camera angle.
+        let rctx = render_ctx();
+        let cam = rctx.camera;
         let mut e = Hit2Effect::new([10.0, 20.0, 30.0]);
         e.update(&ctx(1.0 / 60.0));
         let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, &render_ctx());
+        e.collect_draws(&mut list, &rctx);
         let centre = [10.0_f32, 20.0 + Y_OFFSET_BASE, 30.0];
+        let view = {
+            let v = [
+                cam.target[0] - cam.eye[0],
+                cam.target[1] - cam.eye[1],
+                cam.target[2] - cam.eye[2],
+            ];
+            let l = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+            [v[0] / l, v[1] / l, v[2] / l]
+        };
+        let mut count = 0;
         for prim in &list.primitives {
             let EffectPrimitiveDraw::Billboard { pos, .. } = prim else {
                 continue;
             };
-            // XZ stays close to the centre (no Z offset, X spreads in
-            // the screen-X direction). Allow a small radius from the
-            // outward velocity that's already accumulated.
+            let off = [pos[0] - centre[0], pos[1] - centre[1], pos[2] - centre[2]];
+            let along_view = off[0] * view[0] + off[1] * view[1] + off[2] * view[2];
             assert!(
-                (pos[2] - centre[2]).abs() < 1e-3,
-                "Z stays at centre (vertical-plane layout): got {}",
-                pos[2]
+                along_view.abs() < 1e-3,
+                "petal offset lies in the camera plane (⊥ view): along_view={along_view}"
             );
-            // Each petal sits within a few world units of the centre
-            // in the XY plane (initial radius + 1 frame of outward
-            // motion).
-            let dx = pos[0] - centre[0];
-            let dy = pos[1] - centre[1];
-            let r = (dx * dx + dy * dy).sqrt();
-            assert!(r < 10.0, "petal within flower radius: r={r}");
+            count += 1;
         }
+        assert_eq!(count, PETAL_COUNT);
     }
 
     #[test]

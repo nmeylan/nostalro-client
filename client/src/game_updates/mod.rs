@@ -23,7 +23,17 @@ impl App {
         self.load_missing_entity_sprites();
         self.update_sprite_animation(delta);
         self.update_fades(delta);
-        self.game.effects.update(delta);
+        // RSW ambient effects (torch/smoke/bubble/…) spawn through the shared
+        // queue, driven only near the camera. Run before `drain_queue` so this
+        // frame's spawn/despawn requests are picked up immediately.
+        let camera_target = self
+            .renderer
+            .as_ref()
+            .map(|r| r.camera.target.to_array())
+            .unwrap_or([0.0; 3]);
+        self.game
+            .ambient_effects
+            .update(delta, camera_target, &mut self.effect_queue);
 
         // Live caster facing for direction-oriented effects: RO body direction
         // (0..7) maps to world yaw at 45° per step (yaw = dir * 45). The

@@ -119,8 +119,8 @@ pub enum EffectSpec {
     Noop,
 }
 
-/// Tunables for `EffectSpec::SprBurst`. Mirrors the existing RSW-side
-/// `EffectKind::Smoke3D` shape so the renderer can drive both from the same
+/// Tunables for `EffectSpec::SprBurst` — a rising/drifting particle burst
+/// (chimney smoke, poison clouds, …) drawn through the renderer's
 /// `SpriteEffectEmitter::Smoke3D` path.
 #[derive(Clone, Copy, Debug)]
 pub struct SprBurstParams {

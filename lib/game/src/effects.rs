@@ -1,78 +1,83 @@
+//! RSW ambient map effects (torch / smoke / bubble / gaspush / springtrap).
+//!
+//! This is a thin **scheduler**: it owns the per-map list of ambient emitters
+//! parsed from the RSW and drives the shared `EffectQueue`/`EffectHolder`
+//! pipeline — it does no rendering and no particle simulation of its own. The
+//! RSW `effect_type` is the `EF_*` number, which is the `EffectId` value, so
+//! each emitter maps to an effect via `EffectId::try_from_value`.
+//!
+//! Only emitters near the camera are driven (matching the original game, which
+//! processes nearby map objects). Persistent effects (torch) are spawned when
+//! they enter view and despawned when they leave; re-emitting effects (smoke,
+//! bubble, …) re-spawn their short one-shot on the RSW `emit_speed` cadence.
+
+use ragnarok_effects::effect_queue::EffectQueue;
+use ragnarok_effects::spec::EffectSpec;
+use ragnarok_effects::table::effect_spec;
 use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::rsw::{RswFile, RswObject};
+use models::enums::EnumWithNumberValue;
+use models::enums::effect_id::EffectId;
 
-use crate::effect_table::{EffectKind, effect_kind};
+/// Base for per-emitter despawn keys. High enough that it cannot collide with
+/// an account/unit id used by the other keyed spawners (those are real `aid`s).
+pub const AMBIENT_KEY_BASE: u32 = 0xFFF0_0000;
 
-fn resolve_str_file(pattern: &str, rand_range: Option<(u32, u32)>) -> String {
-    if let Some((lo, hi)) = rand_range {
-        let n = lo + (rand_u32() % (hi - lo + 1));
-        pattern.replace("%d", &n.to_string())
-    } else {
-        pattern.to_string()
-    }
+/// Emitters farther than this (XZ distance, world units) from the camera target
+/// are not driven. Generous to avoid pop-in at the screen edge.
+pub const AMBIENT_VIEW_RADIUS: f32 = 200.0;
+
+struct AmbientEmitter {
+    world_pos: [f32; 3],
+    effect_id: EffectId,
+    key: u32,
+    /// Infinite-duration effect (torch): spawned once while visible, despawned
+    /// when it leaves view. Otherwise re-emitted on `emit_cooldown_s`.
+    persistent: bool,
+    emit_cooldown_s: f32,
+    size_scale: f32,
+    timer_s: f32,
+    spawned: bool,
 }
 
-fn rand_u32() -> u32 {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    let mut h = DefaultHasher::new();
-    std::time::Instant::now().hash(&mut h);
-    std::thread::current().id().hash(&mut h);
-    h.finish() as u32
-}
-
-/// One spawned RSW ambient effect emitter. Position is already in renderer
-/// world coordinates (centered, y from height grid). Units match the
-/// ground/water meshes.
-pub struct EffectEmitter {
-    pub kind: EffectKind,
-    pub position: [f32; 3],
-    pub color: [f32; 4],
-    /// Time since last emission (seconds). When >= emit_cooldown, a new
-    /// effect cycle starts and this resets to 0.
-    pub anim_time: f32,
-    /// Cooldown between effect re-emissions (seconds), from RSW emit_speed.
-    pub emit_cooldown: f32,
-    /// Per-emitter size multiplier derived from RSW params.
-    pub size_scale: f32,
-    /// Resolved STR filename for `EffectKind::Str` emitters (pattern with
-    /// `%d` replaced by a random value from `rand_range`).
-    pub str_file: Option<String>,
-    /// Whether the initial burst of particles has been spawned (Smoke3D only).
-    has_emitted: bool,
-    pub particles: Vec<Particle>,
-}
-
-/// One simulated 3D smoke particle. Lives between `age = 0` and `age =
-/// lifetime`, then dies.
-pub struct Particle {
-    pub position: [f32; 3],
-    pub velocity: [f32; 3],
-    pub age: f32,
-    pub lifetime: f32,
-}
-
-pub struct EffectManager {
-    pub emitters: Vec<EffectEmitter>,
-}
-
-impl Default for EffectManager {
-    fn default() -> Self {
-        Self::empty()
-    }
-}
-
-impl EffectManager {
-    pub fn empty() -> Self {
-        Self {
-            emitters: Vec::new(),
+/// Collect the SPR sprite paths and STR file names the map's ambient effects
+/// will draw, so the caller can preload them. Mirrors `from_rsw`'s id
+/// resolution (the holder draws nothing it can't find loaded).
+pub fn ambient_effect_assets(rsw: &RswFile) -> (Vec<&'static str>, Vec<String>) {
+    let mut spr = Vec::new();
+    let mut str_names = Vec::new();
+    for obj in &rsw.objects {
+        let RswObject::Effect(eff) = obj else {
+            continue;
+        };
+        let Ok(id) = EffectId::try_from_value(eff.effect_type as usize) else {
+            continue;
+        };
+        match effect_spec(id) {
+            Some(EffectSpec::Spr { sprite, .. }) | Some(EffectSpec::SprBurst { sprite, .. }) => {
+                spr.push(sprite)
+            }
+            Some(EffectSpec::Str { file, .. }) => str_names.push(file.to_string()),
+            _ => {}
         }
     }
+    (spr, str_names)
+}
 
-    /// Walk the RSW objects and spawn one emitter per `RswObject::Effect`
-    /// whose type is mapped in `effect_table::effect_kind`. RSW positions
-    /// are translated into renderer world coordinates the same way model
-    /// instances are (see `ModelRenderer::from_rsw`).
+#[derive(Default)]
+pub struct AmbientEffectScheduler {
+    emitters: Vec<AmbientEmitter>,
+}
+
+impl AmbientEffectScheduler {
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
+    /// Build the emitter list from the map's RSW effects. RSW positions are
+    /// translated into renderer world coordinates the same way model instances
+    /// are. Effects whose type does not resolve to a known `EffectId` (or that
+    /// resolve to `Noop`) are skipped.
     pub fn from_rsw(rsw: &RswFile, gnd: &GndFile) -> Self {
         let scale_factor = gnd.zoom / 10.0;
         let center_x = gnd.width as f32 * gnd.zoom / 2.0;
@@ -84,130 +89,98 @@ impl EffectManager {
             let RswObject::Effect(eff) = obj else {
                 continue;
             };
-            let Some(kind) = effect_kind(eff.effect_type) else {
+            let Ok(effect_id) = EffectId::try_from_value(eff.effect_type as usize) else {
                 skipped += 1;
                 continue;
             };
-            // Param interpretation is effect-type-specific.
-            let (color, size_scale) = match &kind {
-                EffectKind::Spr { .. } => {
-                    // Sprite uses its own colour: SPR pixel * ACT clip color, no RSW param tint.
-                    ([1.0, 1.0, 1.0, 1.0], 1.0)
-                }
-                EffectKind::Smoke3D { .. } => {
-                    // param[0] = size percentage, param[1] = emission delay modifier
+            let Some(spec) = effect_spec(effect_id) else {
+                skipped += 1;
+                continue;
+            };
+            // Spr ambients (torch) are lifted by `gnd.zoom`, matching the
+            // original; the holder's Spr path adds no extra offset. `param[0]`
+            // is a size percentage *only* for the burst ambients (smoke) — Spr
+            // and Str ignore it (torch's `param[0]` is an unrelated flag).
+            let (duration_ms, is_spr, size_scale) = match &spec {
+                EffectSpec::Spr { duration_ms, .. } => (*duration_ms, true, 1.0),
+                EffectSpec::SprBurst { duration_ms, .. } => {
                     let sz = if eff.param[0] > 0.0 {
                         eff.param[0] / 100.0
                     } else {
                         1.0
                     };
-                    ([1.0, 1.0, 1.0, 1.0], sz)
+                    (*duration_ms, false, sz)
                 }
-                EffectKind::Str { .. } => ([1.0, 1.0, 1.0, 1.0], 1.0),
+                EffectSpec::Str { duration_ms, .. } | EffectSpec::Custom { duration_ms, .. } => {
+                    (*duration_ms, false, 1.0)
+                }
+                EffectSpec::Noop => {
+                    skipped += 1;
+                    continue;
+                }
             };
-            let str_file = match &kind {
-                EffectKind::Str {
-                    file_pattern,
-                    rand_range,
-                } => Some(resolve_str_file(file_pattern, *rand_range)),
-                _ => None,
-            };
-            let y_offset = match &kind {
-                EffectKind::Spr { .. } => -gnd.zoom,
-                _ => 0.0,
-            };
+            let y_offset = if is_spr { -gnd.zoom } else { 0.0 };
             let world = [
                 eff.position[0] * scale_factor + center_x,
                 eff.position[1] * scale_factor + y_offset,
                 eff.position[2] * scale_factor + center_z,
             ];
-            // Original game: emit_speed is in frames (60fps), default 360.
-            // Initial counter starts at emitSpeed - random(24), so first emit
-            // happens after 0..23 frames (0..0.4s). We convert to seconds.
-            let emit_cooldown_secs = eff.emit_speed.max(0.1) / 60.0;
-            // Random initial offset: 0..23 frames = 0..0.383s
-            let initial_offset = (rand_u32() % 24) as f32;
-            emitters.push(EffectEmitter {
-                kind,
-                position: world,
-                color,
-                anim_time: emit_cooldown_secs - initial_offset,
-                emit_cooldown: emit_cooldown_secs,
+            // `emit_speed` is in frames (60 fps) in the original.
+            let emit_cooldown_s = (eff.emit_speed.max(0.1)) / 60.0;
+            let key = AMBIENT_KEY_BASE + emitters.len() as u32;
+            emitters.push(AmbientEmitter {
+                world_pos: world,
+                effect_id,
+                key,
+                persistent: duration_ms == u32::MAX,
+                emit_cooldown_s,
                 size_scale,
-                str_file,
-                has_emitted: false,
-                particles: Vec::new(),
+                // Emit on the first visible frame rather than after a full cooldown.
+                timer_s: emit_cooldown_s,
+                spawned: false,
             });
         }
         if skipped > 0 {
-            tracing::debug!("EffectManager: skipped {skipped} RSW effects with unmapped types");
+            tracing::debug!("AmbientEffectScheduler: skipped {skipped} RSW effects (unknown/noop)");
         }
-        tracing::info!("EffectManager: spawned {} emitters", emitters.len());
-
+        tracing::info!("AmbientEffectScheduler: {} emitters", emitters.len());
         Self { emitters }
     }
 
-    /// Advance animation time and simulate 3D smoke particles.
-    pub fn update(&mut self, dt: f32) {
-        for emitter in &mut self.emitters {
-            emitter.anim_time += dt;
+    /// Drive emission for emitters near `camera_target`. Persistent emitters are
+    /// spawned/despawned as they enter/leave view; the rest re-emit on cadence.
+    pub fn update(&mut self, dt: f32, camera_target: [f32; 3], queue: &mut EffectQueue) {
+        let radius_sq = AMBIENT_VIEW_RADIUS * AMBIENT_VIEW_RADIUS;
+        for e in &mut self.emitters {
+            let dx = e.world_pos[0] - camera_target[0];
+            let dz = e.world_pos[2] - camera_target[2];
+            let visible = dx * dx + dz * dz <= radius_sq;
 
-            match emitter.kind {
-                EffectKind::Smoke3D {
-                    duration_ms,
-                    pos_z_start,
-                    burst_count_range,
-                    speed_range,
-                    ..
-                } => {
-                    let lifetime = (duration_ms / 1000.0).max(1e-3);
-
-                    if !emitter.has_emitted {
-                        emitter.has_emitted = true;
-                        let (lo, hi) = burst_count_range;
-                        let count = lo + (rand_u32() % (hi - lo + 1));
-                        let (slo, shi) = speed_range;
-                        for _ in 0..count {
-                            let r = (rand_u32() % 1000) as f32 / 1000.0;
-                            let speed = slo + r * (shi - slo);
-                            emitter.particles.push(Particle {
-                                position: [
-                                    emitter.position[0],
-                                    emitter.position[1] - pos_z_start,
-                                    emitter.position[2],
-                                ],
-                                velocity: [0.0, -speed * 60.0, 0.0],
-                                age: 0.0,
-                                lifetime,
-                            });
-                        }
-                    }
-
-                    // Re-emit after cooldown (all particles dead)
-                    if emitter.anim_time >= emitter.emit_cooldown && emitter.particles.is_empty() {
-                        emitter.anim_time = 0.0;
-                        emitter.has_emitted = false;
-                    }
-
-                    emitter.particles.retain_mut(|p| {
-                        p.age += dt;
-                        if p.age >= p.lifetime {
-                            return false;
-                        }
-                        p.position[0] += p.velocity[0] * dt;
-                        p.position[1] += p.velocity[1] * dt;
-                        p.position[2] += p.velocity[2] * dt;
-                        true
-                    });
+            if e.persistent {
+                if visible && !e.spawned {
+                    queue.spawn_at_keyed_scaled(e.effect_id, e.world_pos, e.key, e.size_scale);
+                    e.spawned = true;
+                } else if !visible && e.spawned {
+                    queue.despawn(e.key);
+                    e.spawned = false;
                 }
-                EffectKind::Str { .. } => {
-                    // Original game re-launches the STR effect every emit_cooldown.
-                    // anim_time resets so the STR plays from the beginning.
-                    if emitter.emit_cooldown > 0.0 && emitter.anim_time >= emitter.emit_cooldown {
-                        emitter.anim_time -= emitter.emit_cooldown;
-                    }
+            } else if visible {
+                e.timer_s += dt;
+                if e.timer_s >= e.emit_cooldown_s {
+                    e.timer_s = 0.0;
+                    queue.spawn_at_keyed_scaled(e.effect_id, e.world_pos, e.key, e.size_scale);
                 }
-                _ => {}
+            }
+        }
+    }
+
+    /// Despawn every live persistent emitter — call on map change before
+    /// rebuilding. Short re-emitted effects expire on their own duration.
+    pub fn clear(&mut self, queue: &mut EffectQueue) {
+        for e in &mut self.emitters {
+            if e.spawned {
+                queue.despawn(e.key);
+                e.spawned = false;
             }
         }
     }
@@ -216,6 +189,7 @@ impl EffectManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_effects::spec::Attach;
     use ragnarok_formats::rsw::{LightSettings, RswEffect, WaterSettings};
 
     fn make_rsw_with_params(effects: Vec<(u32, [f32; 3], [f32; 4])>) -> RswFile {
@@ -293,55 +267,52 @@ mod tests {
     }
 
     #[test]
-    fn smoke_params_set_size_not_color() {
+    fn schedules_known_rsw_effects_and_emits_near_camera() {
+        // torch(47) + smoke(44) + bubble(109) are known; 9999 is dropped.
+        // Torch carries `param[0]=1.0` (a flag, NOT a size) — it must still
+        // spawn at full size; only smoke reads `param[0]` as a size percentage.
         let rsw = make_rsw_with_params(vec![
-            (44, [0.0, 0.0, 0.0], [35.0, 35.0, 0.0, 0.0]),
-            (47, [0.0, 0.0, 0.0], [1.0, 0.6, 0.0, 0.0]),
+            (47, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]),
+            (44, [0.0, 0.0, 0.0], [35.0, 0.0, 0.0, 0.0]),
+            (109, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]),
+            (9999, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]),
         ]);
         let gnd = make_gnd();
-        let mgr = EffectManager::from_rsw(&rsw, &gnd);
+        let mut sched = AmbientEffectScheduler::from_rsw(&rsw, &gnd);
 
-        let smoke = &mgr.emitters[0];
-        assert!(matches!(smoke.kind, EffectKind::Smoke3D { .. }));
-        assert_eq!(smoke.color, [1.0, 1.0, 1.0, 1.0]);
-        assert!((smoke.size_scale - 0.35).abs() < 0.001);
+        // All effects sit at map center; place the camera there so they are visible.
+        let center = [
+            gnd.width as f32 * gnd.zoom / 2.0,
+            0.0,
+            gnd.height as f32 * gnd.zoom / 2.0,
+        ];
+        let mut queue = EffectQueue::new();
+        sched.update(0.1, center, &mut queue);
 
-        let torch = &mgr.emitters[1];
-        assert!(matches!(torch.kind, EffectKind::Spr { .. }));
-        assert_eq!(torch.color, [1.0, 1.0, 1.0, 1.0]);
-        assert_eq!(torch.size_scale, 1.0);
+        let reqs = queue.drain();
+        // 3 known effects each emit on the first visible frame (torch persistent,
+        // smoke/bubble re-emit with timer pre-armed); unknown 9999 is dropped.
+        assert_eq!(reqs.len(), 3);
+        for r in &reqs {
+            assert!(matches!(r.attach, Attach::WorldPos(_)));
+            assert!(r.key.is_some());
+        }
+        let torch = reqs.iter().find(|r| r.effect_id == EffectId::Torch).unwrap();
+        assert_eq!(torch.size_scale, Some(1.0), "torch param[0] must not shrink it");
+        let smoke = reqs.iter().find(|r| r.effect_id == EffectId::Smoke).unwrap();
+        assert_eq!(smoke.size_scale, Some(0.35), "smoke reads param[0] as size %");
+        assert!(reqs.iter().any(|r| r.effect_id == EffectId::Bubble));
     }
 
     #[test]
-    fn manager_spawns_known_effects_and_simulates_smoke() {
-        let rsw = make_rsw(vec![
-            (47, [0.0, 0.0, 0.0]),   // torch (SPR)
-            (44, [10.0, 0.0, 10.0]), // smoke (3D)
-            (109, [0.0, 0.0, 0.0]),  // bubble (STR - kept but not rendered)
-            (9999, [0.0, 0.0, 0.0]), // unknown - dropped
-        ]);
+    fn far_camera_emits_nothing() {
+        let rsw = make_rsw(vec![(47, [0.0, 0.0, 0.0]), (44, [0.0, 0.0, 0.0])]);
         let gnd = make_gnd();
+        let mut sched = AmbientEffectScheduler::from_rsw(&rsw, &gnd);
 
-        let mut mgr = EffectManager::from_rsw(&rsw, &gnd);
-        assert_eq!(mgr.emitters.len(), 3);
-
-        // After advancing time, the 3D smoke emitter should have particles
-        // but the SPR torch and STR bubble should not (no particle sim).
-        mgr.update(0.1);
-        let smoke = mgr
-            .emitters
-            .iter()
-            .find(|e| matches!(e.kind, EffectKind::Smoke3D { .. }))
-            .expect("smoke emitter");
-        assert!(
-            !smoke.particles.is_empty(),
-            "smoke should have particles after update"
-        );
-
-        for emitter in &mgr.emitters {
-            if !matches!(emitter.kind, EffectKind::Smoke3D { .. }) {
-                assert!(emitter.particles.is_empty());
-            }
-        }
+        let mut queue = EffectQueue::new();
+        // Far away on XZ — beyond AMBIENT_VIEW_RADIUS.
+        sched.update(0.1, [10_000.0, 0.0, 10_000.0], &mut queue);
+        assert!(queue.drain().is_empty());
     }
 }

@@ -50,11 +50,11 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use ragnarok_game::data_table::card_illustration_table::CardIllustrationTable;
@@ -70,6 +70,10 @@ use ragnarok_game::data_table::skill_tree_table::SkillTreeTable;
 use ragnarok_game::data_table::skill_use_level_table::SkillUseLevelTable;
 
 type ClipData = (Vec<SpriteVertex>, Vec<u32>, usize);
+
+/// ~60 FPS render cadence; the loop sleeps (`ControlFlow::WaitUntil`) between
+/// frames instead of spinning so an idle client doesn't peg a CPU core.
+const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 struct GameChannel {
     cmd_tx: Option<mpsc::UnboundedSender<NetworkCommand>>,
@@ -112,9 +116,9 @@ struct App {
     renderer: Option<Renderer>,
     effect_sprites: EffectSpriteCache,
     str_effects: StrEffectCache,
-    /// Runtime store for skill/level-up/refining/custom effects spawned via
-    /// the new pipeline. Ambient (RSW) effects still flow through
-    /// `game.effects` (`EffectManager`) for now.
+    /// Runtime store for every live effect — skill/level-up/refining/custom
+    /// effects and the RSW ambient effects (torch/smoke/bubble/…), all spawned
+    /// through the queue.
     effect_holder: EffectHolder,
     /// Queue triggers push spawn requests into; drained each frame.
     effect_queue: EffectQueue,
@@ -129,6 +133,9 @@ struct App {
     game: GameState,
     start_time: Instant,
     last_frame_instant: Instant,
+    /// Deadline for the next redraw; the event loop waits until this point
+    /// instead of spinning.
+    next_frame: Instant,
 }
 
 impl App {
@@ -158,6 +165,7 @@ impl App {
             game: GameState::new(),
             start_time: Instant::now(),
             last_frame_instant: Instant::now(),
+            next_frame: Instant::now(),
         }
     }
 
@@ -175,8 +183,16 @@ impl App {
         self.game.map_coords = map_data.coordinates;
         self.game.gat = map_data.gat;
 
-        self.game.effects =
-            ragnarok_game::effects::EffectManager::from_rsw(&map_data.rsw, &map_data.gnd);
+        // Tear down the previous map's ambient effects, then rebuild from the
+        // new RSW. Spawning is driven per-frame by the scheduler (near camera).
+        self.game.ambient_effects.clear(&mut self.effect_queue);
+        self.game.ambient_effects =
+            ragnarok_game::effects::AmbientEffectScheduler::from_rsw(&map_data.rsw, &map_data.gnd);
+
+        // Resolve each RSW ambient effect to its spec so we can preload the
+        // SPR/STR assets it will draw through the holder.
+        let (mut spr_paths, mut str_names) =
+            ragnarok_game::effects::ambient_effect_assets(&map_data.rsw);
 
         if let Some(renderer) = &mut self.renderer {
             let fog = if self.config.fog { map_data.fog } else { None };
@@ -185,29 +201,12 @@ impl App {
             let effect_textures = ragnarok_game::effect::effect_texture_paths();
             renderer.preload_effect_textures(&effect_textures, grf);
 
-            // Preload sprite assets used by spawned effect emitters once.
-            let mut paths: Vec<&str> = self
-                .game
-                .effects
-                .emitters
-                .iter()
-                .filter_map(|e| {
-                    use ragnarok_game::effect_table::EffectKind;
-                    match &e.kind {
-                        EffectKind::Spr { sprite_path, .. } => Some(*sprite_path),
-                        EffectKind::Smoke3D { sprite_path, .. } => Some(*sprite_path),
-                        EffectKind::Str { .. } => None,
-                    }
-                })
-                .collect();
-            // Sprite paths used by Custom-effect modules (Hit's
-            // particle1, etc.) — same loader path as the RSW ambient
-            // emitter sprites above, just sourced from
-            // `custom_effect_sprite_paths()` aggregator.
-            paths.extend(ragnarok_game::effect::custom_effect_sprite_paths());
-            paths.sort();
-            paths.dedup();
-            for path in paths {
+            // Sprite paths used by Custom-effect modules (Hit's particle1, etc.)
+            // — same loader path as the RSW ambient emitter sprites.
+            spr_paths.extend(ragnarok_game::effect::custom_effect_sprite_paths());
+            spr_paths.sort();
+            spr_paths.dedup();
+            for path in spr_paths {
                 self.effect_sprites.load(
                     path,
                     grf,
@@ -217,13 +216,6 @@ impl App {
                 );
             }
 
-            let mut str_names: Vec<String> = self
-                .game
-                .effects
-                .emitters
-                .iter()
-                .filter_map(|e| e.str_file.clone())
-                .collect();
             str_names.sort();
             str_names.dedup();
             for name in &str_names {
@@ -1276,13 +1268,20 @@ impl ApplicationHandler for App {
                 if let Some(ui_ctx) = &mut self.ui_context {
                     ui_ctx.begin_frame();
                 }
-
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
             }
             _ => {}
         }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let now = Instant::now();
+        if now >= self.next_frame {
+            self.next_frame = now + FRAME_INTERVAL;
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+        }
+        event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_frame));
     }
 }
 

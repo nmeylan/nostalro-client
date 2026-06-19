@@ -9,7 +9,7 @@ use ragnarok_game::character::Character;
 use ragnarok_game::cursor::{CursorAnimationState, PendingSkillTarget};
 use ragnarok_game::damage_number::DamageNumberManager;
 use ragnarok_game::data_table::DataTable;
-use ragnarok_game::effects::EffectManager;
+use ragnarok_game::effects::AmbientEffectScheduler;
 use ragnarok_game::arrow::ArrowProjectile;
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
@@ -100,7 +100,7 @@ pub struct GameState {
     pub damage_msg_textures: Option<SpriteTextures>,
     pub damage_msg_act: Option<ragnarok_formats::act::ActFile>,
     pub debug_show_pick_bounds: bool,
-    pub effects: EffectManager,
+    pub ambient_effects: AmbientEffectScheduler,
     /// Set to true when disconnect dialog is shown.
     pub disconnect_dialog_shown: bool,
     /// Set to true after disconnect dialog is confirmed/cancelled.
@@ -420,7 +420,7 @@ impl GameState {
             damage_msg_textures: None,
             damage_msg_act: None,
             debug_show_pick_bounds: false,
-            effects: EffectManager::empty(),
+            ambient_effects: AmbientEffectScheduler::empty(),
         }
     }
 

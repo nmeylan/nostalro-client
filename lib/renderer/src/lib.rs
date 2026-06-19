@@ -771,11 +771,17 @@ impl Renderer {
         // per-primitive depth to sort by. The dedicated pass keeps them
         // off the unified vertex buffer (avoids the cost of rebuilding
         // their geometry every dispatch).
+        //
+        // Depth-test (read-only) against the scene depth so world-anchored
+        // effects (RSW torches/smoke, ground STR) are occluded by buildings
+        // and terrain instead of floating on top. `effect_sprite_renderer` is
+        // built with `depth_write=false`, so transparent effects still don't
+        // occlude each other.
         if !effect_sprite_batches.is_empty() {
             self.effect_sprite_renderer.render(
                 &mut encoder,
                 &view,
-                None,
+                Some(depth_view),
                 &self.device.device,
                 &self.device.queue,
                 None,

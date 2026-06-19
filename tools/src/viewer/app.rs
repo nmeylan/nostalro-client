@@ -1069,8 +1069,6 @@ impl App {
             zoom,
             elapsed: 0.0,
             resolve_entity: &|id| (id == VIEWER_ACTOR_ID).then_some(actor_pos),
-            extra_spr_emitters: &[],
-            extra_str_emitters: &[],
             extra_sprite_particles: &[],
         });
         let effect_batches = frame.effect_batches;

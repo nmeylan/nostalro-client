@@ -516,11 +516,18 @@ fn suppresses_generic_hit(skill: SkillEnum) -> bool {
 /// The damage packet carries **no** effect ids — the spark comes from the skill
 /// id, attack type, and (for normal attacks) crit/Taekwon, never the wire.
 ///
-/// * `skill == None` ⇒ a **normal melee attack**: `EF_HIT2` on a critical,
-///   `EF_HITLINE7` for a bare-hand Taekwon-class attacker, else `EF_HIT1`.
-/// * `skill == Some(_)` ⇒ the skill's per-skill `hit` slot if it has one; else
-///   the generic `EF_HIT2` skill default, unless the skill is self-visual (it
-///   draws its own attack effect) in which case nothing fires.
+/// The original game fires the on-target spark from a two-slot record (a
+/// generic spark **and** a per-skill spark), so two effects can play together:
+///
+/// * `skill == None` ⇒ a **normal melee attack**: the base spark `EF_HIT1`
+///   (`EF_HITLINE7` for a bare-hand Taekwon-class attacker) always, **plus**
+///   `EF_HIT2` on a critical — a crit shows both.
+/// * `skill == Some(_)` ⇒ the skill's per-skill `hit` slot if it has one;
+///   else, for a plain physical skill (Bash, Double Strafe, …), the generic
+///   pair `EF_HIT1 + EF_HIT2` — the original shows the HIT1 ring/sparkle
+///   alongside the HIT2 flower. Self-visual skills (they draw their own attack
+///   effect) fire nothing. Elemental and signature skills keep only their own
+///   `hit` because the original replaces/suppresses the generic HIT1 for them.
 /// * `target_is_self` ⇒ the spark is suppressed entirely (the original `-2`).
 pub fn derive_hit_effect(
     skill: Option<SkillEnum>,
@@ -532,7 +539,7 @@ pub fn derive_hit_effect(
         return &[];
     }
     match skill {
-        None if is_crit => &[EffectId::Hit2],
+        None if is_crit => &[EffectId::Hit2, EffectId::Hit1],
         None if attacker_job.is_taekwon() => &[EffectId::Hitline7],
         None => &[EffectId::Hit1],
         Some(s) => {
@@ -542,7 +549,7 @@ pub fn derive_hit_effect(
             } else if suppresses_generic_hit(s) {
                 &[]
             } else {
-                &[EffectId::Hit2]
+                &[EffectId::Hit1, EffectId::Hit2]
             }
         }
     }
@@ -582,7 +589,11 @@ mod tests {
         use JobName::{Novice, Taekwon};
         // Normal attack: crit > taekwon-class bare hand > plain.
         assert_eq!(derive_hit_effect(None, false, Novice, false), &[EffectId::Hit1]);
-        assert_eq!(derive_hit_effect(None, true, Novice, false), &[EffectId::Hit2]);
+        // A critical normal attack shows the generic HIT1 spark *and* HIT2.
+        assert_eq!(
+            derive_hit_effect(None, true, Novice, false),
+            &[EffectId::Hit2, EffectId::Hit1]
+        );
         assert_eq!(derive_hit_effect(None, false, Taekwon, false), &[EffectId::Hitline7]);
         // Self-target suppresses the spark.
         assert_eq!(derive_hit_effect(None, true, Novice, true), &[] as &[EffectId]);
@@ -591,10 +602,12 @@ mod tests {
             derive_hit_effect(Some(SkillEnum::MgColdbolt), false, Novice, false),
             &[EffectId::Coldhit]
         );
-        // An unmapped damage skill falls back to the generic EF_HIT2.
+        // An unmapped (plain physical) damage skill falls back to the generic
+        // pair: the HIT1 ring/sparkle plus the HIT2 flower (as Double Strafe
+        // shows in the original game).
         assert_eq!(
             derive_hit_effect(Some(SkillEnum::MoBodyrelocation), false, Novice, false),
-            &[EffectId::Hit2]
+            &[EffectId::Hit1, EffectId::Hit2]
         );
         // A self-visual skill (Taekwon kick) suppresses the generic spark.
         assert_eq!(

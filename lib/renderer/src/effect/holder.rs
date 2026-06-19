@@ -336,6 +336,7 @@ impl EffectHolder {
             None,
             None,
             None,
+            None,
             &|_| None,
         )
     }
@@ -349,6 +350,7 @@ impl EffectHolder {
         hit_count: Option<u8>,
         target_size: Option<[f32; 2]>,
         key: Option<u32>,
+        size_scale_override: Option<f32>,
         resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
     ) -> Option<EffectHandle> {
         let Some(spec) = effect_spec(effect_id) else {
@@ -388,7 +390,7 @@ impl EffectHolder {
                 self.last_spawn = Some(SpawnOutcome::Spr);
                 HeldPayload::Spr {
                     sprite: (*sprite).to_string(),
-                    size_scale: *size_scale,
+                    size_scale: *size_scale * size_scale_override.unwrap_or(1.0),
                     anim_speed: *anim_speed,
                     repeat: *repeat,
                     tint: *tint,
@@ -398,9 +400,11 @@ impl EffectHolder {
             }
             EffectSpec::SprBurst { sprite, burst, .. } => {
                 self.last_spawn = Some(SpawnOutcome::SprBurst);
+                let mut params = *burst;
+                params.size *= size_scale_override.unwrap_or(1.0);
                 HeldPayload::SprBurst(BurstState {
                     sprite: (*sprite).to_string(),
-                    params: *burst,
+                    params,
                     particles: Vec::new(),
                     has_emitted: false,
                     cooldown_timer: 0.0,
@@ -519,6 +523,7 @@ impl EffectHolder {
                 hit_count,
                 target_size,
                 key,
+                size_scale,
             } = req;
             self.spawn_with_hit_count(
                 effect_id,
@@ -527,6 +532,7 @@ impl EffectHolder {
                 hit_count,
                 target_size,
                 key,
+                size_scale,
                 resolve_entity,
             );
         }

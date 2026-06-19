@@ -1014,15 +1014,24 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
             effects::status_up::INCAGIDEX,
         )),
 
-        // Hit family — weapon-swing impact shockwave + debris.
-        // The cylinder ring + per-segment particle trails match the
-        // original game's look; impact direction is the spawn-time `angle`
-        // (currently defaulting to 0 since the spawn pipeline doesn't
-        // carry it yet, see hit::new_with_angle docs).
-        EffectId::Hit1 => Box::new(effects::hit::HitEffect::new(anchor.point(), effects::hit::HIT1)),
+        // Hit family — weapon-swing impact shockwave + debris. The cylinder
+        // ring + per-segment particle trails match the original game's look;
+        // the flared cone aims along the caster→target heading (same trail
+        // convention as Pierce / SonicBlowHit). A point anchor collapses the
+        // heading to 0.
+        EffectId::Hit1 => {
+            let (from, to) = anchor.trail();
+            Box::new(effects::hit::HitEffect::new_with_endpoints(from, to, effects::hit::HIT1))
+        }
         EffectId::Hit2 => Box::new(effects::hit2::Hit2Effect::new(anchor.point())),
-        EffectId::Hit3 => Box::new(effects::hit::HitEffect::new(anchor.point(), effects::hit::HIT3)),
-        EffectId::Hit4 => Box::new(effects::hit::HitEffect::new(anchor.point(), effects::hit::HIT4)),
+        EffectId::Hit3 => {
+            let (from, to) = anchor.trail();
+            Box::new(effects::hit::HitEffect::new_with_endpoints(from, to, effects::hit::HIT3))
+        }
+        EffectId::Hit4 => {
+            let (from, to) = anchor.trail();
+            Box::new(effects::hit::HitEffect::new_with_endpoints(from, to, effects::hit::HIT4))
+        }
         EffectId::Hit5 => Box::new(effects::hit5_6::HitCrossEffect::new(
             anchor.point(),
             effects::hit5_6::HIT5,

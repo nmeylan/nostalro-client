@@ -7,7 +7,6 @@ pub mod cursor;
 pub mod damage_number;
 pub mod display_name;
 pub use ragnarok_effects as effect;
-pub mod effect_table;
 pub mod effects;
 pub mod inventory;
 pub mod item;

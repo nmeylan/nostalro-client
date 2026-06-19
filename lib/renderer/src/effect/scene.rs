@@ -1,10 +1,9 @@
 //! Shared effect-frame composer used by both the game client and `tools/viewer`.
 //!
 //! Collects sprite-emitter draws, STR snapshots, and custom primitive draws
-//! from an `EffectHolder` plus any caller-supplied extras (the client's RSW
-//! ambient emitters live in `EffectManager`, not `EffectHolder`, so they
-//! arrive through `extra_*_emitters`). Returns the resulting sprite batches
-//! and primitive draw list ready to hand to `Renderer::render`.
+//! from an `EffectHolder` (SPR / SprBurst / STR / custom primitives, including
+//! the RSW ambient effects spawned through the queue). Returns the resulting
+//! sprite batches and primitive draw list ready to hand to `Renderer::render`.
 
 use ragnarok_game::effect::CameraView;
 
@@ -34,11 +33,6 @@ pub struct EffectFrameInputs<'cache, 'tmp> {
     pub screen_h: f32,
     pub zoom: f32,
     pub elapsed: f32,
-    /// Caller-owned SPR/Smoke3D emitters (currently the client's RSW
-    /// ambient emitters from `EffectManager`). Viewer passes `&[]`.
-    pub extra_spr_emitters: &'tmp [SpriteEffectEmitter<'tmp>],
-    /// Caller-owned STR emitters (RSW STR ambient effects). Viewer passes `&[]`.
-    pub extra_str_emitters: &'tmp [StrEmitterInput<'tmp>],
     /// Resolves an `Attach::Entity(id)` to a world position so caster-attached
     /// effects (buff STR overlays) follow the actor. Callers without an entity
     /// table pass `&|_| None`.
@@ -81,19 +75,9 @@ pub fn compose_effect_frame<'cache, 'tmp>(
 ) -> EffectFrameOutputs<'cache> {
     let mut effect_batches: Vec<SpriteBatch<'cache>> = Vec::new();
 
-    let spr_draws = collect_sprite_effect_draws(
-        input.extra_spr_emitters,
-        input.effect_sprites,
-        input.camera,
-        input.screen_w,
-        input.screen_h,
-    );
-    effect_batches.extend(build_emitter_batches(&spr_draws));
-
     // SPR / SprBurst effects held by the `EffectHolder` (EffectId effects like
-    // Detoxification, Snow, Torch). The caller's `extra_spr_emitters` only
-    // carries RSW ambient emitters from `EffectManager`, so these have to be
-    // pulled from the holder here or they never reach a draw pass.
+    // Detoxification, Snow, Torch, and the RSW ambient emitters spawned by the
+    // ambient scheduler). Pulled from the holder here or they never draw.
     let spr_snapshots = input.effect_holder.collect_spr_emitters(input.resolve_entity);
     let burst_snapshots = input
         .effect_holder
@@ -133,14 +117,7 @@ pub fn compose_effect_frame<'cache, 'tmp>(
 
     let holder_str_snapshots = input.effect_holder.collect_str_emitters(input.resolve_entity);
     let mut str_inputs: Vec<StrEmitterInput<'_>> =
-        Vec::with_capacity(input.extra_str_emitters.len() + holder_str_snapshots.len());
-    for emitter in input.extra_str_emitters {
-        str_inputs.push(StrEmitterInput {
-            str_name: emitter.str_name,
-            position: emitter.position,
-            anim_time: emitter.anim_time,
-        });
-    }
+        Vec::with_capacity(holder_str_snapshots.len());
     for snap in &holder_str_snapshots {
         str_inputs.push(StrEmitterInput {
             str_name: &snap.name,
@@ -230,8 +207,6 @@ mod tests {
             screen_h: 600.0,
             zoom: 10.0,
             elapsed: 0.1,
-            extra_spr_emitters: &[],
-            extra_str_emitters: &[],
             resolve_entity: &|_| None,
             extra_sprite_particles: &[],
         });

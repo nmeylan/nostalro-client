@@ -35,13 +35,15 @@
 //!   * cylinder ring → flared-cone geometry mapped to `Frustum`.
 //!   * trail segments → shifting debris history per frame.
 //!
-//! Native-direction handling: the `angle` parameter to `Hit::new_with_angle`
-//! is the impact compass heading in radians (CCW from world +X around
-//! world +Y). When the spawn pipeline doesn't carry a direction (current
-//! state), `Hit::new` defaults `angle` to 0; the cone then points along
-//! world +Z and the visual is still a directional ring shockwave + cone
-//! of debris — just not aimed at the attacker. Threading a real impact
-//! heading is a follow-up the entity-rotation pipeline will unlock.
+//! Native-direction handling: `Hit::new_with_endpoints` derives the strike
+//! heading from the caster→target vector (`atan2(to.x - from.x,
+//! to.z - from.z)`), the same convention as `pierce.rs` / `sonicblowhit.rs`.
+//! Only the *orientation* comes from the endpoints — the effect's centre
+//! stays anchored at `from` (the struck entity). The flared cone tip and the
+//! forward-debris cone both point along that heading toward the attacker.
+//! A single-point anchor collapses the heading to 0, so the cone points
+//! along world +Z and the visual is still a directional ring shockwave +
+//! debris — just not aimed.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -129,17 +131,11 @@ pub struct RingParams {
     /// compensate by using -10 for the whole family so it reads at
     /// torso level.
     pub y_offset: f32,
-    /// X-axis tilt applied to the cone before rendering. 0 leaves the
-    /// axis vertical (the Hit1 ring lies flat on the ground as a
-    /// horizontal disc). `-π/2` lays the cone on its side so its axis
-    /// runs horizontally — Hit3/Hit4's lens shaft then extends along
-    /// the heading direction like a beam of light, matching the
-    /// reference gif (`imgs/0-50/2.gif` frame 2).
-    ///
-    /// The original game tilts the whole
-    /// Hit family, but Hit1's flat-disc silhouette only reads correctly
-    /// in our renderer when the tilt is omitted (see the inline note in
-    /// `collect_draws`). So we keep Hit1 at 0 and only tilt Hit3/Hit4.
+    /// X-axis tilt applied to the cone before rendering. `-π/2` lays the
+    /// cone on its side so its axis runs horizontally and the heading yaw
+    /// aims it — the original game uses `latitude = -90` for the whole Hit
+    /// family. The yawed shaft then extends along the heading like a beam
+    /// of light (`imgs/0-50/2.gif` frame 2).
     pub tilt_x_rad: f32,
     pub texture: &'static str,
     pub color: [f32; 4],
@@ -237,7 +233,12 @@ pub const HIT1: HitParams = HitParams {
         initial_speed: 0.7,
         speed_accel: -(0.7 / 10.0) / 2.0,
         y_offset: -10.0,
-        tilt_x_rad: 0.0,
+        // Side-laid like the rest of the family: the original game builds
+        // every Hit ring with `latitude = -90` (X-rotation -π/2) then yaws
+        // it by the heading, so the ring stands on edge and the yaw aims it.
+        // A flat disc (tilt 0) is rotationally symmetric and would ignore
+        // the heading entirely.
+        tilt_x_rad: -std::f32::consts::FRAC_PI_2,
         texture: RING_BLUE,
         color: [1.0, 1.0, 1.0, 1.0],
     }],
@@ -509,9 +510,12 @@ impl Particle {
 pub struct HitEffect {
     world_pos: [f32; 3],
     params: HitParams,
-    /// Impact heading: Y-axis rotation in radians. 0 = cone points along
-    /// world +Z. The cylinder rotation_y_rad uses this directly.
-    angle_rad: f32,
+    /// Strike heading (CCW around world +Y), derived from the caster→target
+    /// vector: `atan2(to.x - from.x, to.z - from.z)`. The forward-debris cone
+    /// points along it; the side-laid Frustum cone aims its flared tip at it
+    /// via `rotation_y_rad = π - heading_rad` (the renderer's tilt-then-yaw
+    /// order inverts the heading — see `collect_draws`).
+    heading_rad: f32,
     /// Per-ring integrated state — the cylinder integration mutates these
     /// each frame. Indexed parallel to `params.rings`.
     ring_state: Vec<RingState>,
@@ -528,29 +532,34 @@ pub struct HitEffect {
 }
 
 impl HitEffect {
-    /// Spawn with a default heading. Until the spawn pipeline carries
-    /// a real impact direction (the master entity's facing), the viewer
-    /// needs a heading that aims the cone across screen rather than
-    /// straight away (which would foreshorten the entire cone into a
-    /// tiny dot). `π/2` aims Hit3/Hit4's horizontal lens shaft along
-    /// world +X = screen-right, matching the silhouette of the
-    /// original game's reference gifs (`imgs/0-50/2.gif` /
-    /// `3.gif`). Hit1's ring is rotationally symmetric so the
-    /// default has no effect there.
+    /// Spawn anchored at a single point with no strike direction (heading
+    /// collapses to 0; the cone points along world +Z). Used by the in-game
+    /// point-attach fallback and by tests.
     pub fn new(world_pos: [f32; 3], params: HitParams) -> Self {
-        Self::new_with_angle(world_pos, params, std::f32::consts::FRAC_PI_2)
+        Self::new_with_endpoints(world_pos, world_pos, params)
     }
 
-    /// Spawn with an explicit impact heading. `angle_rad` is rotation
-    /// around world +Y (CCW from world +X). The cylinder's flared tip
-    /// and the forward-debris cone both point along this heading; the
-    /// backward gravity cone (Hit1) points the opposite way.
-    pub fn new_with_angle(world_pos: [f32; 3], params: HitParams, angle_rad: f32) -> Self {
+    /// Spawn anchored at `from` (the effect's centre stays on the struck
+    /// entity), aiming the strike *angle* along the `from → to` heading —
+    /// only the orientation comes from the second endpoint, not the centre
+    /// (same heading derivation as `pierce.rs` / `sonicblowhit.rs`). The
+    /// flared cone tip and the forward-debris cone both point toward the
+    /// attacker direction, while Hit1's backward gravity cone points the
+    /// opposite way. Coincident endpoints collapse the heading to 0.
+    pub fn new_with_endpoints(from: [f32; 3], to: [f32; 3], params: HitParams) -> Self {
+        let dx = to[0] - from[0];
+        let dz = to[2] - from[2];
+        let heading_rad = if dx.abs() < 1e-4 && dz.abs() < 1e-4 {
+            0.0
+        } else {
+            dx.atan2(dz)
+        };
+        let world_pos = from;
         let total_duration_s = total_duration_ms(params) as f32 / 1000.0;
         let rng_state = 0x9E37_79B9
             ^ world_pos[0].to_bits()
             ^ world_pos[2].to_bits().rotate_left(13)
-            ^ angle_rad.to_bits().rotate_left(7);
+            ^ heading_rad.to_bits().rotate_left(7);
         // One state slot per ring; primed from the recipe's initial
         // values so frame 0 already reflects the starting height_size /
         // height_speed / speed (the ring will integrate from there).
@@ -567,7 +576,7 @@ impl HitEffect {
         Self {
             world_pos,
             params,
-            angle_rad,
+            heading_rad,
             ring_state,
             particles: Vec::new(),
             age: 0.0,
@@ -626,7 +635,7 @@ impl HitEffect {
     /// Spawn all debris particles at frame 0 per the recipe.
     fn spawn_particles(&mut self) {
         for burst in self.params.bursts {
-            let base_yaw_rad = self.angle_rad + burst.base_yaw_deg.to_radians();
+            let base_yaw_rad = self.heading_rad + burst.base_yaw_deg.to_radians();
             let cone_half_rad = burst.cone_half_width_deg.to_radians();
             for _ in 0..burst.count {
                 // Random direction within the cone:
@@ -768,17 +777,8 @@ impl Effect for HitEffect {
                 // master) and `top_size = outer_size` (wide flare at
                 // height): Hit1 has the wide 10-radius ring above
                 // master with a narrow 5-radius base — like an
-                // inverted-bell shockwave.
-                //
-                // No `tilt_x_rad` / `rotation_y_rad` — empirically the
-                // original game's Hit1 renders the ring HORIZONTAL on
-                // the ground (visible as a flat disc), not VERTICAL
-                // (standing up like a wheel). The cone's side-lay
-                // does not translate to a -π/2 X-rotation in this
-                // codebase's row-vector / -Y-up coordinate convention;
-                // omitting the tilt gives the correct horizontal
-                // shape. The user confirmed this visually against the
-                // original-game Hit1 reference.
+                // inverted-bell shockwave. `tilt_x_rad`/`rotation_y_rad`
+                // (below) lay the whole family on edge and aim it.
                 bottom_size: ring.inner_size,
                 top_size: ring.outer_size,
                 height: state.height_size,
@@ -798,12 +798,15 @@ impl Effect for HitEffect {
                 wave_phase: 0.0,
                 wave_mode: FrustumWaveMode::Sine,
                 tilt_x_rad: ring.tilt_x_rad,
-                // Y-rotation aims the cone along the heading. Hit1's
-                // ring is rotationally symmetric (flat disc) so this
-                // is invisible there; Hit3/Hit4's tilted lens shaft
-                // rotates with `angle_rad` to extend along the impact
-                // direction.
-                rotation_y_rad: self.angle_rad,
+                // Aim the flared cone tip at the strike heading. The
+                // renderer tilts about X (`-π/2`, laying the cone on its
+                // side) *then* yaws about Y, and that order inverts the
+                // heading — so `π - heading` points the tip toward the
+                // target (the "180° − heading" the original game uses).
+                // Hit1's ring is a rotationally-symmetric flat disc
+                // (tilt 0) so the yaw is invisible there; Hit3/Hit4's
+                // tilted lens shaft extends along the impact direction.
+                rotation_y_rad: std::f32::consts::PI - self.heading_rad,
                 cull_back: false,
                 texture: ring.texture,
                 color,
@@ -869,19 +872,21 @@ mod tests {
     }
 
     #[test]
-    fn hit1_emits_horizontal_ring_plus_three_segments_per_particle() {
+    fn hit1_emits_side_laid_ring_plus_three_segments_per_particle() {
         // Sociable test: drive Hit1 one tick. The first draw should be
-        // the cylinder Frustum: tilt_x_rad=0 + rotation_y_rad=0 so the
-        // axis stays vertical and the ring renders flat on the ground.
+        // the cylinder Frustum, side-laid (tilt_x_rad=-π/2) and yawed by
+        // π−heading so the ring stands on edge aimed along the heading.
         // The inner/outer mapping puts inner_size at Frustum's bottom
         // (= master level) and outer_size at the top (above master).
         // The cylinder also translates downward over time (the
         // translation direction in this codebase's
         // native RO frame is +Y = downward).
-        let mut e = HitEffect::new_with_angle(
+        // Centre stays at `from` [1,2,3]; the target 10 units along +X only
+        // drives the heading = atan2(10, 0) = π/2.
+        let mut e = HitEffect::new_with_endpoints(
             [1.0, 2.0, 3.0],
+            [11.0, 2.0, 3.0],
             HIT1,
-            0.5, // angle_rad still recorded but unused for vertical cylinders
         );
         e.update(&ctx(1.0 / 60.0));
         let mut list = EffectDrawList::new();
@@ -914,12 +919,18 @@ mod tests {
             base[1],
             spawn_y
         );
-        assert!((tilt_x_rad).abs() < 1e-5, "Hit1 cylinder is vertical (tilt=0): got {tilt_x_rad}");
-        // Y-rotation echoes the heading angle (0.5) — invisible for
-        // Hit1's rotationally-symmetric flat disc but the field is
-        // still wired through for Hit3/Hit4 which need it to aim the
-        // tilted lens shaft along the impact direction.
-        assert!((rotation_y_rad - 0.5).abs() < 1e-5, "rotation_y_rad == angle_rad: got {rotation_y_rad}");
+        assert!(
+            (tilt_x_rad + std::f32::consts::FRAC_PI_2).abs() < 1e-5,
+            "Hit1 ring is side-laid (tilt=-π/2) like the rest of the family: got {tilt_x_rad}"
+        );
+        // Y-rotation = π − heading = π − π/2 = π/2 — invisible for Hit1's
+        // rotationally-symmetric flat disc but the field is still wired
+        // through for Hit3/Hit4 which need it to aim the tilted lens shaft
+        // along the impact direction.
+        assert!(
+            (rotation_y_rad - std::f32::consts::FRAC_PI_2).abs() < 1e-5,
+            "rotation_y_rad == π − heading: got {rotation_y_rad}"
+        );
         // inner=5 at y=0 → Frustum bottom_size=inner=5.
         // outer=10 at y=-height_size → Frustum top_size=outer=10.
         assert!((bottom_size - 5.0).abs() < 1e-4, "bottom_size=inner_size=5: {bottom_size}");
@@ -1046,11 +1057,7 @@ mod tests {
         // After a tick, particle history[0] should differ from its
         // spawn position (proof of 3D velocity integration), and after
         // several ticks the speed-decel should slow the motion.
-        let mut e = HitEffect::new_with_angle(
-            [0.0; 3],
-            HIT1,
-            0.0,
-        );
+        let mut e = HitEffect::new([0.0; 3], HIT1);
         e.update(&ctx(0.0)); // triggers spawn
         let spawn_positions: Vec<[f32; 3]> =
             e.particles.iter().map(|p| p.history[0]).collect();

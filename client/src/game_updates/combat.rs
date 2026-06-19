@@ -1,5 +1,8 @@
 use crate::App;
+use models::enums::EnumWithNumberValue;
+use models::enums::class::JobName;
 use models::enums::skill_enums::SkillEnum;
+use ragnarok_game::effect::{derive_hit_effect, is_trail_effect};
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
@@ -232,6 +235,7 @@ impl App {
             };
             for hit in ready {
                 self.emit_damage_number(entity_id, &hit);
+                self.spawn_hit_effect(entity_id, &hit);
 
                 if matches!(
                     hit.message,
@@ -295,6 +299,38 @@ impl App {
                     after_count
                 );
                 entity.enter_attack_replay(skill_id);
+            }
+        }
+    }
+
+    /// On-hit spark on the target, fired as the hit lands (one per scheduled
+    /// hit) so it stays in sync with the damage number and the projectile.
+    /// `skill_id == 0` is a normal attack; the §2d derivation picks the spark
+    /// from the skill/attack type. Misses show no spark.
+    fn spawn_hit_effect(&mut self, entity_id: u32, hit: &ScheduledHit) {
+        if hit.damage <= 0 {
+            return;
+        }
+        let skill = (hit.skill_id != 0).then(|| SkillEnum::from_id(hit.skill_id as u32));
+        let attacker_job = self
+            .game
+            .entities
+            .get(hit.attacker_gid)
+            .and_then(|e| JobName::try_from_value(e.job as usize).ok())
+            .unwrap_or(JobName::Novice);
+        let target_is_self = hit.attacker_gid == entity_id;
+        // Direction-oriented sparks (the Hit family, Pierce, SonicBlowHit…)
+        // centre on the struck entity and aim their ring toward the attacker.
+        // Snapshot both world positions so those effects can spawn with
+        // endpoints; the rest stay attached to the target with no heading.
+        let target_pos = self.entity_world_pos(entity_id);
+        let attacker_pos = self.entity_world_pos(hit.attacker_gid);
+        for effect in derive_hit_effect(skill, hit.is_critical, attacker_job, target_is_self) {
+            match (is_trail_effect(*effect), target_pos, attacker_pos) {
+                (true, Some(from), Some(to)) if !target_is_self => {
+                    self.effect_queue.spawn_trail(*effect, from, to);
+                }
+                _ => self.effect_queue.spawn_on(*effect, entity_id),
             }
         }
     }
