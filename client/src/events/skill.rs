@@ -3,7 +3,7 @@ use models::enums::action::ActionType;
 use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
 use models::enums::weapon::WeaponType;
-use ragnarok_game::effect::skill_effects;
+use ragnarok_game::effect::{caster_skill_effects, target_skill_effects};
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::skill_action::{skill_motion_type, SkillMotionType};
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
@@ -220,7 +220,7 @@ impl App {
     /// `ZC_USESKILL_ACK` (cast starts). Element-colored begin-spell circles
     /// and special cast glyphs route through the per-skill table (§2c/§2d).
     pub(super) fn spawn_skill_begin_cast(&mut self, skill_id: u16, caster_gid: u32) {
-        for e in skill_effects(SkillEnum::from_id(skill_id as u32)).begin_cast {
+        for e in caster_skill_effects(SkillEnum::from_id(skill_id as u32)).begin_cast {
             self.effect_queue.spawn_on(*e, caster_gid);
         }
     }
@@ -235,11 +235,11 @@ impl App {
         src_gid: u32,
         target_gid: u32,
     ) {
-        let fx = skill_effects(SkillEnum::from_id(skill_id as u32));
-        for e in fx.cast {
+        let skill = SkillEnum::from_id(skill_id as u32);
+        for e in caster_skill_effects(skill).cast {
             self.effect_queue.spawn_on(*e, src_gid);
         }
-        for e in fx.on_target {
+        for e in target_skill_effects(skill).on_target {
             self.effect_queue.spawn_on(*e, target_gid);
         }
     }

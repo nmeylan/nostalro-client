@@ -22,7 +22,10 @@ pub use effect_trait::{
     EffectRenderCtx, EffectUpdateCtx, NumberRequest,
 };
 pub use factory::{is_real_impl, make_effect};
-pub use skill_effects::{SkillEffects, derive_hit_effect, skill_effects};
+pub use skill_effects::{
+    CasterSkillEffects, TargetSkillEffects, caster_skill_effects, derive_hit_effect,
+    target_skill_effects,
+};
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBurstParams};
 pub use spr_aliases::{SprDef, spr_def};
 pub use spr_burst::spr_burst_params;

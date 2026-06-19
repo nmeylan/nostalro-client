@@ -1,33 +1,47 @@
-//! Per-skill effect slot table — the multi-slot replacement for the single-id
+//! Per-skill effect tables — the multi-slot replacement for the single-id
 //! `EffectId::from_skill` (which is scrambled and unused).
 //!
 //! A single skill fires **several** effects at different moments and on
-//! different actors: a cast glyph on the caster, an optional projectile, and a
-//! separate hit spark on the target. Some skills also stack two effects in one
-//! slot (a primary plus an auxiliary shockwave/ring/body tint). The original
-//! game stores this as a per-skill slot table; this is our port. See
-//! `docs/client-plan/effects-wiring.md` §2c (the slot model) and §2d (the
-//! source data + the hit-effect derivation rules).
+//! **different actors**: a cast glyph on the caster, an optional projectile,
+//! and a separate hit spark on the target. To keep "who does this play on"
+//! unambiguous, the data is split into two tables keyed by actor:
 //!
-//! Unmapped skills return [`SkillEffects::default`] (every slot empty), so
-//! nothing fires for them — deliberately conservative while wiring proceeds.
+//! * [`caster_skill_effects`] — what plays on the **casting** entity
+//!   (begin-cast glyph, cast effect, cast-bar/aura suppression).
+//! * [`target_skill_effects`] — what plays on the **target** entity
+//!   (the spell landing, the per-hit spark, a pre-hit projectile).
+//!
+//! Each slot holds a list because some skills stack effects there (e.g. Steel
+//! Body launches both `EF_STEELBODY` and the `EF_GUMGANG2` shockwave on the
+//! caster). A skill appears only in the table(s) where it has effects;
+//! everything else returns the empty default, so nothing fires — deliberately
+//! conservative while wiring proceeds. See `docs/client-plan/effects-wiring.md`
+//! §2c (the slot model) and §2d (the source data + hit-effect derivation).
 
 use models::enums::class::JobName;
 use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
 
-/// The effects a skill plays in each of its distinct slots. Each slot fires at a
-/// different packet/moment ; an empty slot plays nothing. A slot holds a
-/// list because some skills stack effects there (e.g. Steel Body launches both
-/// `EF_STEELBODY` and the `EF_GUMGANG2` shockwave on the caster).
+/// Effects a skill plays on the **casting** entity, by packet moment. An empty
+/// slot plays nothing.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SkillEffects {
-    /// `ZC_USESKILL_ACK` — cast **starts**; on the caster (the begin-spell /
-    /// cast-bar glyph, often element-colored).
+pub struct CasterSkillEffects {
+    /// `ZC_USESKILL_ACK` — cast **starts**: the begin-spell / cast-bar glyph,
+    /// often element-colored.
     pub begin_cast: &'static [EffectId],
-    /// Skill **released**; on the caster. For no-damage skills this is the
+    /// Skill **released** on the caster. For no-damage skills this is the
     /// `ZC_USE_SKILL` moment, for damage skills the `ZC_NOTIFY_SKILL` moment.
     pub cast: &'static [EffectId],
+    /// Suppress the cast progress bar for this skill (Bowling Bash, Brandish).
+    pub hide_cast_bar: bool,
+    /// Suppress the elemental cast circle for this skill.
+    pub hide_cast_aura: bool,
+}
+
+/// Effects a skill plays on the **target** entity, by packet moment. An empty
+/// slot plays nothing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TargetSkillEffects {
     /// Effect that lands on the **recipient** at the spell moment
     /// (`target_on_spell` — e.g. Frost Diver's ice on the target).
     pub on_target: &'static [EffectId],
@@ -36,459 +50,367 @@ pub struct SkillEffects {
     /// Per-damaging-hit spark on the **target** (`target_on_hit`). See
     /// [`derive_hit_effect`].
     pub hit: &'static [EffectId],
-    /// Non-damage skills that succeed by chance (Provoke, Sight).
-    pub success: &'static [EffectId],
-    /// Per ground-unit cell. Mostly superseded by the `unit_id → EffectId`
-    pub ground: &'static [EffectId],
-    /// Suppress the cast progress bar for this skill (Bowling Bash, Brandish).
-    pub hide_cast_bar: bool,
-    /// Suppress the elemental cast circle for this skill.
-    pub hide_cast_aura: bool,
 }
 
-impl SkillEffects {
-    fn cast(cast: &'static [EffectId]) -> Self {
-        Self { cast, ..Default::default() }
-    }
-    fn on_target(on_target: &'static [EffectId]) -> Self {
-        Self { on_target, ..Default::default() }
+impl CasterSkillEffects {
+    const fn cast(cast: &'static [EffectId]) -> Self {
+        Self { begin_cast: &[], cast, hide_cast_bar: false, hide_cast_aura: false }
     }
 }
 
-/// The effect slots for `skill`. Unmapped skills return the empty default.
-///
-pub fn skill_effects(skill: SkillEnum) -> SkillEffects {
+impl TargetSkillEffects {
+    const fn on_target(on_target: &'static [EffectId]) -> Self {
+        Self { on_target, before_hit: &[], hit: &[] }
+    }
+    const fn hit(hit: &'static [EffectId]) -> Self {
+        Self { on_target: &[], before_hit: &[], hit }
+    }
+}
+
+/// Effects played on the **casting** entity for `skill`. Unmapped skills return
+/// the empty default.
+pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
     use EffectId as E;
     use SkillEnum as S;
+    type C = CasterSkillEffects;
 
     match skill {
         // --- Swordman / Mage / Acolyte / Merchant / Thief (first job) ----
-        S::SmMagnum => SkillEffects {
-            cast: &[E::Magnumbreak],
-            hit: &[E::Firehit],
-            ..Default::default()
-        },
-        S::SmEndure => SkillEffects::cast(&[E::Endure]),
-        S::SmProvoke => SkillEffects::on_target(&[E::Provoke]),
-        S::MgSoulstrike => SkillEffects { before_hit: &[E::Soulstrike], ..Default::default() },
-        S::MgFirebolt => SkillEffects {
-            on_target: &[E::Firearrow],
-            hit: &[E::Firehit],
-            ..Default::default()
-        },
-        S::MgFireball => SkillEffects {
-            on_target: &[E::Fireball],
-            hit: &[E::Firehit],
-            ..Default::default()
-        },
-        S::MgColdbolt => SkillEffects {
-            on_target: &[E::Icearrow],
-            hit: &[E::Coldhit],
-            ..Default::default()
-        },
-        S::MgLightningbolt => SkillEffects {
-            on_target: &[E::Lightbolt],
-            hit: &[E::Windhit],
-            ..Default::default()
-        },
-        S::MgFrostdiver => SkillEffects {
-            on_target: &[E::Frostdiver],
-            hit: &[E::Frostdiver2],
-            ..Default::default()
-        },
-        S::MgStonecurse => SkillEffects {
-            on_target: &[E::Stonecurse],
-            hit: &[E::Stonecurse],
-            ..Default::default()
-        },
-        S::MgThunderstorm => SkillEffects::on_target(&[E::Thunderstorm]),
-        S::MgEnergycoat => SkillEffects::cast(&[E::Energycoat]),
-        S::AlDemonbane => SkillEffects::on_target(&[E::Tanji2]),
-        S::AlHeal => SkillEffects::on_target(&[E::Heal]),
-        S::AlHolylight => SkillEffects { hit: &[E::Holyhit], ..Default::default() },
-        S::AlCure => SkillEffects::on_target(&[E::Cure]),
-        S::AlIncagi | S::CashIncagi => SkillEffects::on_target(&[E::Incagility]),
-        S::AlHolywater => SkillEffects::cast(&[E::Aqua]),
-        S::AlCrucis => SkillEffects::cast(&[E::Signum]),
-        S::AlAngelus => SkillEffects::cast(&[E::Angelus]),
-        S::AlBlessing | S::CashBlessing => SkillEffects::on_target(&[E::Blessing]),
-        S::McMammonite => SkillEffects { hit: &[E::Coin], ..Default::default() },
-        S::McCartrevolution => SkillEffects {
-            cast: &[E::Cartrevolution],
-            hit: &[E::Cartrevolution],
-            ..Default::default()
-        },
-        S::McLoud => SkillEffects::cast(&[E::Loud]),
-        S::AcConcentration => SkillEffects::cast(&[E::Concentration]),
-        S::TfSteal => SkillEffects::on_target(&[E::Steal]),
-        S::TfDetoxify => SkillEffects::on_target(&[E::Detoxication]),
-        S::TfSprinklesand => SkillEffects::on_target(&[E::Sprinklesand]),
-        S::TfThrowstone => SkillEffects::on_target(&[E::Throwitem3]),
-        S::NvFirstaid => SkillEffects::cast(&[E::Firstaid]),
+        S::SmMagnum => C::cast(&[E::Magnumbreak]),
+        S::SmEndure => C::cast(&[E::Endure]),
+        S::MgEnergycoat => C::cast(&[E::Energycoat]),
+        S::AlHolywater => C::cast(&[E::Aqua]),
+        S::AlCrucis => C::cast(&[E::Signum]),
+        S::AlAngelus => C::cast(&[E::Angelus]),
+        S::McCartrevolution => C::cast(&[E::Cartrevolution]),
+        S::McLoud => C::cast(&[E::Loud]),
+        S::AcConcentration => C::cast(&[E::Concentration]),
+        S::NvFirstaid => C::cast(&[E::Firstaid]),
 
         // --- Knight / Priest / Wizard / Blacksmith / Hunter / Assassin ---
-        S::KnPierce => SkillEffects {
-            cast: &[E::Pierceself],
-            hit: &[E::Pierce],
-            ..Default::default()
-        },
-        S::KnSpearstab => SkillEffects {
-            on_target: &[E::Spearstabself],
-            hit: &[E::Pierce],
-            ..Default::default()
-        },
-        S::KnSpearboomerang => SkillEffects {
-            cast: &[E::Spearbmrself],
-            on_target: &[E::Spearbmr],
-            hit: &[E::Hit4],
-            ..Default::default()
-        },
-        S::KnBowlingbash => SkillEffects {
+        S::KnPierce => C::cast(&[E::Pierceself]),
+        S::KnSpearboomerang => C::cast(&[E::Spearbmrself]),
+        S::KnBowlingbash => C {
             cast: &[E::Bowlingself],
-            hit: &[E::Bowlingbash],
             hide_cast_bar: true,
             hide_cast_aura: true,
             ..Default::default()
         },
-        S::KnBrandishspear => SkillEffects {
-            on_target: &[E::Brandishspear],
+        S::KnBrandishspear => C {
             hide_cast_bar: true,
             hide_cast_aura: true,
             ..Default::default()
         },
-        S::KnTwohandquicken | S::KnOnehand => SkillEffects::cast(&[E::Twohandquicken]),
-        S::PrImpositio => SkillEffects {
-            on_target: &[E::Impositio],
-            hit: &[E::Impositio],
-            ..Default::default()
-        },
-        S::PrSuffragium => SkillEffects {
-            on_target: &[E::Suffragium],
-            hit: &[E::Suffragium],
-            ..Default::default()
-        },
-        S::PrAspersio => SkillEffects {
-            on_target: &[E::Aspersio],
-            hit: &[E::Holyhit],
-            ..Default::default()
-        },
-        S::PrTurnundead => SkillEffects {
-            cast: &[E::Turnundead],
-            hit: &[E::Holyhit],
-            ..Default::default()
-        },
-        S::PrMagnus => SkillEffects { hit: &[E::Holyhit], ..Default::default() },
-        S::PrMagnificat | S::MerMagnificat => SkillEffects {
-            cast: &[E::Magnificat],
-            hit: &[E::Magnificat],
-            ..Default::default()
-        },
-        S::PrGloria => SkillEffects {
-            cast: &[E::Gloria],
-            hit: &[E::Gloria],
-            ..Default::default()
-        },
-        S::PrLexdivina => SkillEffects {
-            on_target: &[E::Lexdivina],
-            hit: &[E::Lexdivina],
-            ..Default::default()
-        },
-        S::PrLexaeterna => SkillEffects {
-            on_target: &[E::Lexaeterna],
-            hit: &[E::Lexaeterna],
-            ..Default::default()
-        },
-        S::PrKyrie => SkillEffects::cast(&[E::Kyrie]),
-        S::PrSlowpoison => SkillEffects::on_target(&[E::Slowpoison]),
-        S::PrStrecovery => SkillEffects::on_target(&[E::Recovery]),
-        S::WzFirepillar => SkillEffects {
-            cast: &[E::Firepillar],
-            hit: &[E::Firehit],
-            ..Default::default()
-        },
-        S::WzSightrasher => SkillEffects {
-            cast: &[E::Sightrasher],
-            hit: &[E::Firehit],
-            ..Default::default()
-        },
-        S::WzJupitel => SkillEffects {
-            on_target: &[E::Yufitel],
-            hit: &[E::Yufitelhit],
-            ..Default::default()
-        },
-        S::WzStormgust => SkillEffects {
-            cast: &[E::Stormgust],
-            hit: &[E::Coldhit],
-            ..Default::default()
-        },
-        S::WzMeteor => SkillEffects { hit: &[E::Firehit], ..Default::default() },
-        S::WzVermilion => SkillEffects { hit: &[E::Windhit], ..Default::default() },
-        S::WzFrostnova => SkillEffects {
-            on_target: &[E::Frostdiver2],
-            hit: &[E::Frostdiver2],
-            ..Default::default()
-        },
-        S::WzEarthspike => SkillEffects {
-            on_target: &[E::Earthspike],
-            hit: &[E::Earthhit],
-            ..Default::default()
-        },
-        S::WzHeavendrive => SkillEffects { hit: &[E::Earthhit], ..Default::default() },
-        S::WzQuagmire => SkillEffects { hit: &[E::Earthhit], ..Default::default() },
-        S::WzWaterball => SkillEffects::on_target(&[E::Waterball2]),
-        S::WzEstimation => SkillEffects { hit: &[E::Lockon], ..Default::default() },
-        S::BsRepairweapon => SkillEffects::on_target(&[E::Repairweapon]),
-        S::BsWeaponperfect => SkillEffects::on_target(&[E::Perfection]),
-        S::BsMaximize => SkillEffects::cast(&[E::Maxpower]),
-        S::BsAdrenaline | S::BsAdrenaline2 => SkillEffects::cast(&[E::Hasteup]),
-        S::BsOverthrust | S::WsOverthrustmax => SkillEffects::cast(&[E::Overthrust]),
-        S::HtSkidtrap => SkillEffects { hit: &[E::Bowlingbash], ..Default::default() },
-        S::HtBlitzbeat => SkillEffects { hit: &[E::Blitzbeat], ..Default::default() },
-        S::HtSpringtrap => SkillEffects::cast(&[E::Springtrap]),
-        S::HtRemovetrap => SkillEffects::cast(&[E::Removetrap]),
-        S::AsSonicblow => SkillEffects {
-            cast: &[E::Sonicblow],
-            hit: &[E::Sonicblowhit],
-            ..Default::default()
-        },
-        S::AsGrimtooth => SkillEffects {
-            cast: &[E::Grimtooth],
-            hit: &[E::Grimtoothatk],
-            ..Default::default()
-        },
-        S::AsVenomdust => SkillEffects { hit: &[E::Venomdust], ..Default::default() },
-        S::AsEnchantpoison => SkillEffects::on_target(&[E::EnchantpoisonFlow]),
-        S::AsPoisonreact => SkillEffects::on_target(&[E::Poisonreact]),
-        S::AsSplasher => SkillEffects::on_target(&[E::Splasher]),
-        S::AsVenomknife => SkillEffects::on_target(&[E::Throwitem6]),
+        S::KnTwohandquicken | S::KnOnehand => C::cast(&[E::Twohandquicken]),
+        S::PrTurnundead => C::cast(&[E::Turnundead]),
+        S::PrMagnificat | S::MerMagnificat => C::cast(&[E::Magnificat]),
+        S::PrGloria => C::cast(&[E::Gloria]),
+        S::PrKyrie => C::cast(&[E::Kyrie]),
+        S::WzFirepillar => C::cast(&[E::Firepillar]),
+        S::WzSightrasher => C::cast(&[E::Sightrasher]),
+        S::WzStormgust => C::cast(&[E::Stormgust]),
+        S::BsMaximize => C::cast(&[E::Maxpower]),
+        S::BsAdrenaline | S::BsAdrenaline2 => C::cast(&[E::Hasteup]),
+        S::BsOverthrust | S::WsOverthrustmax => C::cast(&[E::Overthrust]),
+        S::HtSpringtrap => C::cast(&[E::Springtrap]),
+        S::HtRemovetrap => C::cast(&[E::Removetrap]),
+        S::AsSonicblow => C::cast(&[E::Sonicblow]),
+        S::AsGrimtooth => C::cast(&[E::Grimtooth]),
 
         // --- Monk combo (Steel Body / Explosion Spirits stack an aux ring) ---
-        S::MoFingeroffensive => SkillEffects::cast(&[E::Tanji]),
-        S::MoChaincombo => SkillEffects { hit: &[E::Sonicblowhit], ..Default::default() },
-        S::MoBalkyoung => SkillEffects { hit: &[E::Hit3], ..Default::default() },
-        S::MoExtremityfist => SkillEffects::on_target(&[E::Teihit1x]),
-        S::MoTripleattack => SkillEffects::on_target(&[E::Tripleattack]),
-        S::MoInvestigate => SkillEffects::on_target(&[E::Teihit2, E::Chimto]),
-        S::MoAbsorbspirits => SkillEffects::cast(&[E::Absorbspirits]),
-        S::MoExplosionspirits => SkillEffects::cast(&[E::Gumgang, E::Gumgang2]),
-        S::MoSteelbody => SkillEffects::cast(&[E::Steelbody, E::Gumgang2]),
+        S::MoFingeroffensive => C::cast(&[E::Tanji]),
+        S::MoAbsorbspirits => C::cast(&[E::Absorbspirits]),
+        S::MoExplosionspirits => C::cast(&[E::Gumgang, E::Gumgang2]),
+        S::MoSteelbody => C::cast(&[E::Steelbody, E::Gumgang2]),
 
         // --- Crusader / Paladin / Lord Knight / WS ------------------------
-        S::CrGrandcross => SkillEffects::cast(&[E::Grandcross]),
-        S::CrHolycross => SkillEffects::on_target(&[E::Holycross]),
-        S::CrShieldcharge => SkillEffects::on_target(&[E::Shieldcharge]),
-        S::CrShieldboomerang => SkillEffects::cast(&[E::Shieldboomerang]),
-        S::CrShrink => SkillEffects::cast(&[E::Shrink]),
-        S::CrProvidence => SkillEffects::on_target(&[E::Providence]),
-        S::CrDevotion => SkillEffects::cast(&[E::Devotion]),
-        S::CrSpearquicken => SkillEffects::cast(&[E::Spearquicken]),
-        S::CrReflectshield => SkillEffects::cast(&[E::Reflectshield]),
-        S::CrDefender | S::MlDefender => SkillEffects::cast(&[E::Defender]),
-        S::CrFullprotection => SkillEffects::on_target(&[E::Chemicalprotection, E::Chemicalbody]),
-        S::PaShieldchain => SkillEffects::on_target(&[E::Shieldboomerang3]),
-        S::PaPressure => SkillEffects::on_target(&[E::Pressure]),
-        S::PaSacrifice => SkillEffects::cast(&[E::Bash3d]),
-        S::LkSpiralpierce => SkillEffects {
-            on_target: &[E::Pierceself],
-            hit: &[E::Pierce],
+        S::CrGrandcross => C::cast(&[E::Grandcross]),
+        S::CrShieldboomerang => C::cast(&[E::Shieldboomerang]),
+        S::CrShrink => C::cast(&[E::Shrink]),
+        S::CrDevotion => C::cast(&[E::Devotion]),
+        S::CrSpearquicken => C::cast(&[E::Spearquicken]),
+        S::CrReflectshield => C::cast(&[E::Reflectshield]),
+        S::CrDefender | S::MlDefender => C::cast(&[E::Defender]),
+        S::PaSacrifice => C::cast(&[E::Bash3d]),
+        S::LkSpiralpierce => C {
             hide_cast_bar: true,
             hide_cast_aura: true,
             ..Default::default()
         },
-        S::LkHeadcrush => SkillEffects::cast(&[E::Bash3d3]),
-        S::LkJointbeat => SkillEffects::cast(&[E::Bash3d4]),
-        S::LkAurablade => SkillEffects::cast(&[E::Aurablade, E::Aurablade2]),
-        S::LkBerserk | S::LkFury | S::MsBerserk => SkillEffects::cast(&[E::Redbody]),
-        S::WsCarttermination => SkillEffects::on_target(&[E::Cartter]),
-        S::WsMeltdown => SkillEffects::cast(&[E::Meltdown]),
-        S::WsCartboost => SkillEffects::cast(&[E::Cartboost]),
+        S::LkHeadcrush => C::cast(&[E::Bash3d3]),
+        S::LkJointbeat => C::cast(&[E::Bash3d4]),
+        S::LkAurablade => C::cast(&[E::Aurablade, E::Aurablade2]),
+        S::LkBerserk | S::LkFury | S::MsBerserk => C::cast(&[E::Redbody]),
+        S::WsMeltdown => C::cast(&[E::Meltdown]),
+        S::WsCartboost => C::cast(&[E::Cartboost]),
 
         // --- Rogue / Stalker ----------------------------------------------
-        S::RgBackstap => SkillEffects::cast(&[E::Backstap]),
-        S::RgIntimidate => SkillEffects::cast(&[E::Intimidate]),
-        S::RgStealcoin => SkillEffects {
-            cast: &[E::Stealcoin],
-            on_target: &[E::RgCoin],
-            ..Default::default()
-        },
-        S::RgRaid => SkillEffects::cast(&[E::Teihit3]),
-        S::RgStripweapon => SkillEffects::on_target(&[E::Stripweapon]),
-        S::RgStripshield => SkillEffects::on_target(&[E::Stripshield]),
-        S::RgStriparmor => SkillEffects::on_target(&[E::Striparmor]),
-        S::RgStriphelm => SkillEffects::on_target(&[E::Striphelm]),
-        S::RgCloseconfine => SkillEffects::on_target(&[E::Quakebody4]),
-        S::StFullstrip => SkillEffects::on_target(&[E::RgCoin2]),
-        S::StPreserve => SkillEffects::cast(&[E::Guard2]),
-        S::StRejectsword => SkillEffects::cast(&[E::Rejectsword]),
+        S::RgBackstap => C::cast(&[E::Backstap]),
+        S::RgIntimidate => C::cast(&[E::Intimidate]),
+        S::RgStealcoin => C::cast(&[E::Stealcoin]),
+        S::RgRaid => C::cast(&[E::Teihit3]),
+        S::StPreserve => C::cast(&[E::Guard2]),
+        S::StRejectsword => C::cast(&[E::Rejectsword]),
 
         // --- Sniper / Gypsy-Clown -----------------------------------------
-        S::SnFalconassault => SkillEffects {
-            on_target: &[E::Falconassault],
-            hit: &[E::Blitzbeat],
-            ..Default::default()
-        },
-        S::SnSharpshooting => SkillEffects::cast(&[E::Tripleattack2]),
-        S::SnSight => SkillEffects::cast(&[E::Truesight]),
-        S::SnWindwalk => SkillEffects::cast(&[E::Portal4]),
-        S::CgArrowvulcan => SkillEffects::cast(&[E::Tripleattack3]),
-        S::CgTarotcard => SkillEffects::on_target(&[E::Chemicalbody]),
-        S::CgLongingfreedom => SkillEffects::cast(&[E::Chemicalbody]),
-        S::CgMoonlit => SkillEffects::cast(&[E::Spherewind2]),
-        S::CgMarionette => SkillEffects::cast(&[E::Pinkbody]),
-        S::BaFrostjoker => SkillEffects::cast(&[E::TalkFrostjoke]),
-        S::BaPangvoice => SkillEffects::cast(&[E::Fvoice]),
-        S::DcScream => SkillEffects::cast(&[E::TalkScream]),
-        S::DcWinkcharm => SkillEffects::cast(&[E::Wink]),
+        S::SnSharpshooting => C::cast(&[E::Tripleattack2]),
+        S::SnSight => C::cast(&[E::Truesight]),
+        S::SnWindwalk => C::cast(&[E::Portal4]),
+        S::CgArrowvulcan => C::cast(&[E::Tripleattack3]),
+        S::CgLongingfreedom => C::cast(&[E::Chemicalbody]),
+        S::CgMoonlit => C::cast(&[E::Spherewind2]),
+        S::CgMarionette => C::cast(&[E::Pinkbody]),
+        S::BaFrostjoker => C::cast(&[E::TalkFrostjoke]),
+        S::BaPangvoice => C::cast(&[E::Fvoice]),
+        S::DcScream => C::cast(&[E::TalkScream]),
+        S::DcWinkcharm => C::cast(&[E::Wink]),
 
         // --- Sage / High Wizard / Professor -------------------------------
-        S::SaSpellbreaker => SkillEffects::on_target(&[E::Spellbreaker]),
-        S::SaDispell => SkillEffects::on_target(&[E::Dispell]),
-        S::SaMagicrod => SkillEffects::cast(&[E::Magicrod]),
-        S::SaFlamelauncher | S::SaElementfire => SkillEffects::on_target(&[E::Flamelauncher]),
-        S::SaFrostweapon | S::SaElementwater => SkillEffects::on_target(&[E::Frostweapon]),
-        S::SaLightningloader | S::SaElementwind => SkillEffects::on_target(&[E::Lightningloader]),
-        S::SaSeismicweapon | S::SaElementground => SkillEffects::on_target(&[E::Seismicweapon]),
-        S::HwMagiccrasher => SkillEffects::on_target(&[E::Magiccrasher]),
-        S::HwNapalmvulcan => SkillEffects::on_target(&[E::Napalmvalcan]),
-        S::HwSouldrain => SkillEffects {
-            cast: &[E::Energydrain2],
-            on_target: &[E::Transbluebody],
-            ..Default::default()
-        },
-        S::HwMagicpower => SkillEffects::on_target(&[E::Lightblade]),
-        S::PfHpconversion => SkillEffects::cast(&[E::Energydrain3]),
-        S::PfSoulchange => SkillEffects {
-            cast: &[E::Linelink2, E::Linklight, E::Soulchange],
-            on_target: &[E::Linklight, E::Soulchange],
-            ..Default::default()
-        },
-        S::PfDoublecasting => SkillEffects::on_target(&[E::Doublecastbody]),
-        S::PfSoulburn => SkillEffects::on_target(&[E::Soulburn, E::Magiccrasher]),
-        S::PfMemorize => SkillEffects::cast(&[E::Memorize]),
+        S::SaMagicrod => C::cast(&[E::Magicrod]),
+        S::HwSouldrain => C::cast(&[E::Energydrain2]),
+        S::PfHpconversion => C::cast(&[E::Energydrain3]),
+        S::PfSoulchange => C::cast(&[E::Linelink2, E::Linklight, E::Soulchange]),
+        S::PfMemorize => C::cast(&[E::Memorize]),
 
         // --- Assassin Cross / Alchemist / Creator -------------------------
-        S::AscBreaker => SkillEffects::cast(&[E::Soulbreaker]),
-        S::AscMeteorassault => SkillEffects::cast(&[E::Soulbreaker2]),
-        S::AscEdp => SkillEffects::cast(&[E::Edp]),
-        S::AmAcidterror => SkillEffects::cast(&[E::Throwitem]),
-        S::AmPotionpitcher => SkillEffects::cast(&[E::Throwitem2]),
-        S::AmBerserkpitcher => SkillEffects {
-            cast: &[E::Throwitem5],
-            on_target: &[E::PotionBerserk],
-            ..Default::default()
-        },
-        S::AmCpWeapon | S::AmCpShield | S::AmCpArmor | S::AmCpHelm => {
-            SkillEffects::on_target(&[E::Chemicalprotection])
-        }
-        S::ItmTomahawk => SkillEffects::cast(&[E::Shieldboomerang2]),
+        S::AscBreaker => C::cast(&[E::Soulbreaker]),
+        S::AscMeteorassault => C::cast(&[E::Soulbreaker2]),
+        S::AscEdp => C::cast(&[E::Edp]),
+        S::AmAcidterror => C::cast(&[E::Throwitem]),
+        S::AmPotionpitcher => C::cast(&[E::Throwitem2]),
+        S::AmBerserkpitcher => C::cast(&[E::Throwitem5]),
+        S::ItmTomahawk => C::cast(&[E::Shieldboomerang2]),
 
         // --- Taekwon / Soul Linker / Star Gladiator -----------------------
-        S::TkDownkick => SkillEffects::on_target(&[E::Pressedbody, E::Hitline6]),
-        S::TkTurnkick => SkillEffects::on_target(&[E::Spinedbody2, E::Hitline4]),
-        S::TkCounter => SkillEffects {
-            cast: &[E::Hitline5],
-            on_target: &[E::Kickedbody],
-            ..Default::default()
-        },
-        S::TkJumpkick => SkillEffects {
-            cast: &[E::Jumpkick, E::Chemical3],
-            on_target: &[E::Quakebody2],
-            ..Default::default()
-        },
-        S::TkRun => SkillEffects::cast(&[E::Run]),
-        S::TkHighjump => SkillEffects::cast(&[E::Landbody]),
-        S::TkStormkick => SkillEffects::cast(&[E::Stormkick]),
-        S::TkSevenwind => SkillEffects::cast(&[E::Stormkick3, E::Beginasura1]),
-        S::SlStin => SkillEffects {
-            cast: &[E::Stin],
-            on_target: &[E::Quakebody3],
-            hit: &[E::BlueHit],
-            ..Default::default()
-        },
-        S::SlStun => SkillEffects {
-            cast: &[E::Stin3],
-            on_target: &[E::Hitline4],
-            hit: &[E::BlueHit],
-            ..Default::default()
-        },
-        S::SlSma => SkillEffects {
-            cast: &[E::Stin2],
-            on_target: &[E::Ef4waybody, E::Hitline6, E::Hittexture],
-            ..Default::default()
-        },
-        S::SlSwoo => SkillEffects::on_target(&[E::Babybody, E::M07]),
-        S::SlSke => SkillEffects::on_target(&[E::AsurabodyMonster]),
-        S::SlSka => SkillEffects::on_target(&[E::Steelbody, E::Gumgang2]),
-        S::SlKaizel => SkillEffects::on_target(&[E::Hated, E::Kaizel]),
-        S::SlKaahi | S::SgHate => SkillEffects::on_target(&[E::Hated]),
-        S::SlKaupe => SkillEffects::on_target(&[E::Bluebody]),
-        S::SlKaite => SkillEffects::on_target(&[E::Reflectbody, E::Bluebody]),
+        S::TkCounter => C::cast(&[E::Hitline5]),
+        S::TkJumpkick => C::cast(&[E::Jumpkick, E::Chemical3]),
+        S::TkRun => C::cast(&[E::Run]),
+        S::TkHighjump => C::cast(&[E::Landbody]),
+        S::TkStormkick => C::cast(&[E::Stormkick]),
+        S::TkSevenwind => C::cast(&[E::Stormkick3, E::Beginasura1]),
+        S::SlStin => C::cast(&[E::Stin]),
+        S::SlStun => C::cast(&[E::Stin3]),
+        S::SlSma => C::cast(&[E::Stin2]),
         S::SgSunWarm | S::SgMoonWarm | S::SgStarWarm => {
-            SkillEffects::cast(&[E::Doublegumgang, E::Redlightbody, E::Hated2])
+            C::cast(&[E::Doublegumgang, E::Redlightbody, E::Hated2])
         }
         S::SgSunComfort | S::SgMoonComfort | S::SgStarComfort => {
-            SkillEffects::cast(&[E::Flowercast, E::Hated])
+            C::cast(&[E::Flowercast, E::Hated])
         }
 
         // --- Gunslinger / Ninja -------------------------------------------
-        S::GsFling => SkillEffects::on_target(&[E::RedHit]),
-        S::GsPiercingshot => SkillEffects::cast(&[E::Chemical4]),
-        S::GsDust => SkillEffects::on_target(&[E::Bash3d5]),
-        S::GsFullbuster => SkillEffects::cast(&[E::M02]),
-        S::GsRapidshower => SkillEffects::on_target(&[E::Rapidshower]),
-        S::GsMagicalbullet => SkillEffects::on_target(&[E::Magicalbullet]),
-        S::GsTracking => SkillEffects::on_target(&[E::Tracking]),
-        S::GsTripleaction => SkillEffects::on_target(&[E::Tripleaction]),
-        S::GsBullseye => SkillEffects::on_target(&[E::Bullseye]),
-        S::GsSpreadattack => SkillEffects::cast(&[E::Spreadattack]),
-        S::GsMadnesscancel => SkillEffects::cast(&[E::MadnessBlue]),
-        S::GsAdjustment | S::GsGatlingfever => SkillEffects::cast(&[E::MadnessRed]),
-        S::GsIncreasing => SkillEffects::cast(&[E::Agiup]),
-        S::GsDisarm => SkillEffects::on_target(&[E::RgCoin3]),
-        S::GsDesperado => SkillEffects::cast(&[E::Desperado]),
-        S::NjKouenka => SkillEffects {
-            on_target: &[E::Kouenka],
-            hit: &[E::Firehit],
-            ..Default::default()
-        },
-        S::NjHyousensou => SkillEffects {
-            on_target: &[E::Hyousensou],
-            hit: &[E::Coldhit],
-            ..Default::default()
-        },
-        S::NjSyuriken => SkillEffects::cast(&[E::Throwitem7]),
-        S::NjKunai => SkillEffects::cast(&[E::Throwitem8]),
-        S::NjHuuma => SkillEffects::cast(&[E::Throwitem9]),
-        S::NjZenynage => SkillEffects::cast(&[E::Throwitem10]),
-        S::NjHuujin => SkillEffects::cast(&[E::Stin4]),
-        S::NjKamaitachi => SkillEffects::cast(&[E::Stin5]),
-        S::NjKirikage => SkillEffects::on_target(&[E::Kirikage]),
-        S::NjKasumikiri => SkillEffects::on_target(&[E::Kasumikiri]),
-        S::NjIssen => SkillEffects::on_target(&[E::Issen]),
-        S::NjRaigekisai => SkillEffects::cast(&[E::Thunderstorm2]),
-        S::NjBakuenryu => SkillEffects::on_target(&[E::Baku]),
-        S::NjHyousyouraku => SkillEffects::cast(&[E::Hyousyouraku]),
+        S::GsPiercingshot => C::cast(&[E::Chemical4]),
+        S::GsFullbuster => C::cast(&[E::M02]),
+        S::GsSpreadattack => C::cast(&[E::Spreadattack]),
+        S::GsMadnesscancel => C::cast(&[E::MadnessBlue]),
+        S::GsAdjustment | S::GsGatlingfever => C::cast(&[E::MadnessRed]),
+        S::GsIncreasing => C::cast(&[E::Agiup]),
+        S::GsDesperado => C::cast(&[E::Desperado]),
+        S::NjSyuriken => C::cast(&[E::Throwitem7]),
+        S::NjKunai => C::cast(&[E::Throwitem8]),
+        S::NjHuuma => C::cast(&[E::Throwitem9]),
+        S::NjZenynage => C::cast(&[E::Throwitem10]),
+        S::NjHuujin => C::cast(&[E::Stin4]),
+        S::NjKamaitachi => C::cast(&[E::Stin5]),
+        S::NjRaigekisai => C::cast(&[E::Thunderstorm2]),
+        S::NjHyousyouraku => C::cast(&[E::Hyousyouraku]),
 
         // --- Homunculus / misc support ------------------------------------
-        S::HfliMoon => SkillEffects::on_target(&[E::Hflimoon1]),
-        S::HfliSbr44 => SkillEffects::on_target(&[E::Hflimoon3, E::Ef4waybody]),
-        S::HfliSpeed | S::HfliFleet => SkillEffects::cast(&[E::Homuncasting]),
-        S::HlifChange => SkillEffects::cast(&[E::Memorize]),
-        S::HvanExplosion => SkillEffects::cast(&[E::SuiExplosion]),
-        S::HamiDefence => SkillEffects::cast(&[E::Hamidefence]),
-        S::HamiCastle => SkillEffects::cast(&[E::Hamicastle]),
-        S::HamiBloodlust => SkillEffects::cast(&[E::Hamiblood]),
-        S::HlifAvoid => SkillEffects::cast(&[E::Agiup]),
-        S::WeFemale => SkillEffects::on_target(&[E::Absorbspirits]),
-        S::WeBaby => SkillEffects::on_target(&[E::Baby]),
-        S::AllResurrection => SkillEffects {
-            on_target: &[E::Resurrection],
-            hit: &[E::Revive],
-            ..Default::default()
-        },
-        S::AllPartyflee => SkillEffects::on_target(&[E::Flowerleaf]),
+        S::HfliSpeed | S::HfliFleet => C::cast(&[E::Homuncasting]),
+        S::HlifChange => C::cast(&[E::Memorize]),
+        S::HvanExplosion => C::cast(&[E::SuiExplosion]),
+        S::HamiDefence => C::cast(&[E::Hamidefence]),
+        S::HamiCastle => C::cast(&[E::Hamicastle]),
+        S::HamiBloodlust => C::cast(&[E::Hamiblood]),
+        S::HlifAvoid => C::cast(&[E::Agiup]),
 
-        _ => SkillEffects::default(),
+        _ => C::default(),
+    }
+}
+
+/// Effects played on the **target** entity for `skill`. Unmapped skills return
+/// the empty default.
+pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
+    use EffectId as E;
+    use SkillEnum as S;
+    type T = TargetSkillEffects;
+
+    match skill {
+        // --- Swordman / Mage / Acolyte / Merchant / Thief (first job) ----
+        S::SmMagnum => T::hit(&[E::Firehit]),
+        S::SmProvoke => T::on_target(&[E::Provoke]),
+        S::MgSoulstrike => T { before_hit: &[E::Soulstrike], ..Default::default() },
+        S::MgFirebolt => T { on_target: &[E::Firearrow], hit: &[E::Firehit], ..Default::default() },
+        S::MgFireball => T { on_target: &[E::Fireball], hit: &[E::Firehit], ..Default::default() },
+        S::MgColdbolt => T { on_target: &[E::Icearrow], hit: &[E::Coldhit], ..Default::default() },
+        S::MgLightningbolt => {
+            T { on_target: &[E::Lightbolt], hit: &[E::Windhit], ..Default::default() }
+        }
+        S::MgFrostdiver => {
+            T { on_target: &[E::Frostdiver], hit: &[E::Frostdiver2], ..Default::default() }
+        }
+        S::MgStonecurse => {
+            T { on_target: &[E::Stonecurse], hit: &[E::Stonecurse], ..Default::default() }
+        }
+        S::MgThunderstorm => T::on_target(&[E::Thunderstorm]),
+        S::AlDemonbane => T::on_target(&[E::Tanji2]),
+        S::AlHeal => T::on_target(&[E::Heal]),
+        S::AlHolylight => T::hit(&[E::Holyhit]),
+        S::AlCure => T::on_target(&[E::Cure]),
+        S::AlIncagi | S::CashIncagi => T::on_target(&[E::Incagility]),
+        S::AlBlessing | S::CashBlessing => T::on_target(&[E::Blessing]),
+        S::McMammonite => T::hit(&[E::Coin]),
+        S::McCartrevolution => T::hit(&[E::Cartrevolution]),
+        S::TfSteal => T::on_target(&[E::Steal]),
+        S::TfDetoxify => T::on_target(&[E::Detoxication]),
+        S::TfSprinklesand => T::on_target(&[E::Sprinklesand]),
+        S::TfThrowstone => T::on_target(&[E::Throwitem3]),
+
+        // --- Knight / Priest / Wizard / Blacksmith / Hunter / Assassin ---
+        S::KnPierce => T::hit(&[E::Pierce]),
+        S::KnSpearstab => T { on_target: &[E::Spearstabself], hit: &[E::Pierce], ..Default::default() },
+        S::KnSpearboomerang => {
+            T { on_target: &[E::Spearbmr], hit: &[E::Hit4], ..Default::default() }
+        }
+        S::KnBowlingbash => T::hit(&[E::Bowlingbash]),
+        S::KnBrandishspear => T::on_target(&[E::Brandishspear]),
+        S::PrImpositio => T { on_target: &[E::Impositio], hit: &[E::Impositio], ..Default::default() },
+        S::PrSuffragium => {
+            T { on_target: &[E::Suffragium], hit: &[E::Suffragium], ..Default::default() }
+        }
+        S::PrAspersio => T { on_target: &[E::Aspersio], hit: &[E::Holyhit], ..Default::default() },
+        S::PrTurnundead => T::hit(&[E::Holyhit]),
+        S::PrMagnus => T::hit(&[E::Holyhit]),
+        S::PrMagnificat | S::MerMagnificat => T::hit(&[E::Magnificat]),
+        S::PrGloria => T::hit(&[E::Gloria]),
+        S::PrLexdivina => T { on_target: &[E::Lexdivina], hit: &[E::Lexdivina], ..Default::default() },
+        S::PrLexaeterna => {
+            T { on_target: &[E::Lexaeterna], hit: &[E::Lexaeterna], ..Default::default() }
+        }
+        S::PrSlowpoison => T::on_target(&[E::Slowpoison]),
+        S::PrStrecovery => T::on_target(&[E::Recovery]),
+        S::WzFirepillar => T::hit(&[E::Firehit]),
+        S::WzSightrasher => T::hit(&[E::Firehit]),
+        S::WzJupitel => T { on_target: &[E::Yufitel], hit: &[E::Yufitelhit], ..Default::default() },
+        S::WzStormgust => T::hit(&[E::Coldhit]),
+        S::WzMeteor => T::hit(&[E::Firehit]),
+        S::WzVermilion => T::hit(&[E::Windhit]),
+        S::WzFrostnova => {
+            T { on_target: &[E::Frostdiver2], hit: &[E::Frostdiver2], ..Default::default() }
+        }
+        S::WzEarthspike => T { on_target: &[E::Earthspike], hit: &[E::Earthhit], ..Default::default() },
+        S::WzHeavendrive => T::hit(&[E::Earthhit]),
+        S::WzQuagmire => T::hit(&[E::Earthhit]),
+        S::WzWaterball => T::on_target(&[E::Waterball2]),
+        S::WzEstimation => T::hit(&[E::Lockon]),
+        S::BsRepairweapon => T::on_target(&[E::Repairweapon]),
+        S::BsWeaponperfect => T::on_target(&[E::Perfection]),
+        S::HtSkidtrap => T::hit(&[E::Bowlingbash]),
+        S::HtBlitzbeat => T::hit(&[E::Blitzbeat]),
+        S::AsSonicblow => T::hit(&[E::Sonicblowhit]),
+        S::AsGrimtooth => T::hit(&[E::Grimtoothatk]),
+        S::AsVenomdust => T::hit(&[E::Venomdust]),
+        S::AsEnchantpoison => T::on_target(&[E::EnchantpoisonFlow]),
+        S::AsPoisonreact => T::on_target(&[E::Poisonreact]),
+        S::AsSplasher => T::on_target(&[E::Splasher]),
+        S::AsVenomknife => T::on_target(&[E::Throwitem6]),
+
+        // --- Monk combo ---------------------------------------------------
+        S::MoChaincombo => T::hit(&[E::Sonicblowhit]),
+        S::MoBalkyoung => T::hit(&[E::Hit3]),
+        S::MoExtremityfist => T::on_target(&[E::Teihit1x]),
+        S::MoTripleattack => T::on_target(&[E::Tripleattack]),
+        S::MoInvestigate => T::on_target(&[E::Teihit2, E::Chimto]),
+
+        // --- Crusader / Paladin / Lord Knight / WS ------------------------
+        S::CrHolycross => T::on_target(&[E::Holycross]),
+        S::CrShieldcharge => T::on_target(&[E::Shieldcharge]),
+        S::CrProvidence => T::on_target(&[E::Providence]),
+        S::CrFullprotection => T::on_target(&[E::Chemicalprotection, E::Chemicalbody]),
+        S::PaShieldchain => T::on_target(&[E::Shieldboomerang3]),
+        S::PaPressure => T::on_target(&[E::Pressure]),
+        S::LkSpiralpierce => T { on_target: &[E::Pierceself], hit: &[E::Pierce], ..Default::default() },
+        S::WsCarttermination => T::on_target(&[E::Cartter]),
+
+        // --- Rogue / Stalker ----------------------------------------------
+        S::RgStealcoin => T::on_target(&[E::RgCoin]),
+        S::RgStripweapon => T::on_target(&[E::Stripweapon]),
+        S::RgStripshield => T::on_target(&[E::Stripshield]),
+        S::RgStriparmor => T::on_target(&[E::Striparmor]),
+        S::RgStriphelm => T::on_target(&[E::Striphelm]),
+        S::RgCloseconfine => T::on_target(&[E::Quakebody4]),
+        S::StFullstrip => T::on_target(&[E::RgCoin2]),
+
+        // --- Sniper / Gypsy-Clown -----------------------------------------
+        // The original shows the generic HIT1 ring alongside the Blitz-beat
+        // spark (its `atkedEfId` stays the default EF_HIT1).
+        S::SnFalconassault => {
+            T { on_target: &[E::Falconassault], hit: &[E::Hit1, E::Blitzbeat], ..Default::default() }
+        }
+        S::CgTarotcard => T::on_target(&[E::Chemicalbody]),
+
+        // --- Sage / High Wizard / Professor -------------------------------
+        S::SaSpellbreaker => T::on_target(&[E::Spellbreaker]),
+        S::SaDispell => T::on_target(&[E::Dispell]),
+        S::SaFlamelauncher | S::SaElementfire => T::on_target(&[E::Flamelauncher]),
+        S::SaFrostweapon | S::SaElementwater => T::on_target(&[E::Frostweapon]),
+        S::SaLightningloader | S::SaElementwind => T::on_target(&[E::Lightningloader]),
+        S::SaSeismicweapon | S::SaElementground => T::on_target(&[E::Seismicweapon]),
+        S::HwMagiccrasher => T::on_target(&[E::Magiccrasher]),
+        S::HwNapalmvulcan => T::on_target(&[E::Napalmvalcan]),
+        S::HwSouldrain => T::on_target(&[E::Transbluebody]),
+        S::HwMagicpower => T::on_target(&[E::Lightblade]),
+        S::PfSoulchange => T::on_target(&[E::Linklight, E::Soulchange]),
+        S::PfDoublecasting => T::on_target(&[E::Doublecastbody]),
+        S::PfSoulburn => T::on_target(&[E::Soulburn, E::Magiccrasher]),
+
+        // --- Assassin Cross / Alchemist / Creator -------------------------
+        S::AmBerserkpitcher => T::on_target(&[E::PotionBerserk]),
+        S::AmCpWeapon | S::AmCpShield | S::AmCpArmor | S::AmCpHelm => {
+            T::on_target(&[E::Chemicalprotection])
+        }
+
+        // --- Taekwon / Soul Linker / Star Gladiator -----------------------
+        S::TkDownkick => T::on_target(&[E::Pressedbody, E::Hitline6]),
+        S::TkTurnkick => T::on_target(&[E::Spinedbody2, E::Hitline4]),
+        S::TkCounter => T::on_target(&[E::Kickedbody]),
+        S::TkJumpkick => T::on_target(&[E::Quakebody2]),
+        S::SlStin => T { on_target: &[E::Quakebody3], hit: &[E::BlueHit], ..Default::default() },
+        S::SlStun => T { on_target: &[E::Hitline4], hit: &[E::BlueHit], ..Default::default() },
+        S::SlSma => T::on_target(&[E::Ef4waybody, E::Hitline6, E::Hittexture]),
+        S::SlSwoo => T::on_target(&[E::Babybody, E::M07]),
+        S::SlSke => T::on_target(&[E::AsurabodyMonster]),
+        S::SlSka => T::on_target(&[E::Steelbody, E::Gumgang2]),
+        S::SlKaizel => T::on_target(&[E::Hated, E::Kaizel]),
+        S::SlKaahi | S::SgHate => T::on_target(&[E::Hated]),
+        S::SlKaupe => T::on_target(&[E::Bluebody]),
+        S::SlKaite => T::on_target(&[E::Reflectbody, E::Bluebody]),
+
+        // --- Gunslinger / Ninja -------------------------------------------
+        S::GsFling => T::on_target(&[E::RedHit]),
+        S::GsDust => T::on_target(&[E::Bash3d5]),
+        S::GsRapidshower => T::on_target(&[E::Rapidshower]),
+        S::GsMagicalbullet => T::on_target(&[E::Magicalbullet]),
+        S::GsTracking => T::on_target(&[E::Tracking]),
+        S::GsTripleaction => T::on_target(&[E::Tripleaction]),
+        S::GsBullseye => T::on_target(&[E::Bullseye]),
+        S::GsDisarm => T::on_target(&[E::RgCoin3]),
+        S::NjKouenka => T { on_target: &[E::Kouenka], hit: &[E::Firehit], ..Default::default() },
+        S::NjHyousensou => T { on_target: &[E::Hyousensou], hit: &[E::Coldhit], ..Default::default() },
+        S::NjKirikage => T::on_target(&[E::Kirikage]),
+        S::NjKasumikiri => T::on_target(&[E::Kasumikiri]),
+        S::NjIssen => T::on_target(&[E::Issen]),
+        S::NjBakuenryu => T::on_target(&[E::Baku]),
+
+        // --- Homunculus / misc support ------------------------------------
+        S::HfliMoon => T::on_target(&[E::Hflimoon1]),
+        S::HfliSbr44 => T::on_target(&[E::Hflimoon3, E::Ef4waybody]),
+        S::WeFemale => T::on_target(&[E::Absorbspirits]),
+        S::WeBaby => T::on_target(&[E::Baby]),
+        S::AllResurrection => T { on_target: &[E::Resurrection], hit: &[E::Revive], ..Default::default() },
+        S::AllPartyflee => T::on_target(&[E::Flowerleaf]),
+
+        _ => T::default(),
     }
 }
 
@@ -543,7 +465,7 @@ pub fn derive_hit_effect(
         None if attacker_job.is_taekwon() => &[EffectId::Hitline7],
         None => &[EffectId::Hit1],
         Some(s) => {
-            let hit = skill_effects(s).hit;
+            let hit = target_skill_effects(s).hit;
             if !hit.is_empty() {
                 hit
             } else if suppresses_generic_hit(s) {
@@ -560,13 +482,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bowling_bash_carries_cast_and_hit_in_distinct_slots() {
-        // The canonical two-slot case (§2c): a cast effect on the caster and a
-        // separate hit effect on the target, with the cast bar/aura suppressed.
-        let fx = skill_effects(SkillEnum::KnBowlingbash);
-        assert_eq!(fx.cast, &[EffectId::Bowlingself]);
-        assert_eq!(fx.hit, &[EffectId::Bowlingbash]);
-        assert!(fx.hide_cast_bar && fx.hide_cast_aura);
+    fn bowling_bash_splits_cast_onto_caster_and_hit_onto_target() {
+        // The canonical two-actor case (§2c): a cast effect + hidden cast bar
+        // on the caster, and a separate hit effect on the target.
+        let caster = caster_skill_effects(SkillEnum::KnBowlingbash);
+        assert_eq!(caster.cast, &[EffectId::Bowlingself]);
+        assert!(caster.hide_cast_bar && caster.hide_cast_aura);
+        assert_eq!(
+            target_skill_effects(SkillEnum::KnBowlingbash).hit,
+            &[EffectId::Bowlingbash]
+        );
     }
 
     #[test]
@@ -574,14 +499,21 @@ mod tests {
         // Steel Body launches the body buff AND its shockwave on the caster —
         // both must survive (the old single-slot model dropped the aux).
         assert_eq!(
-            skill_effects(SkillEnum::MoSteelbody).cast,
+            caster_skill_effects(SkillEnum::MoSteelbody).cast,
             &[EffectId::Steelbody, EffectId::Gumgang2]
         );
     }
 
     #[test]
-    fn unmapped_skill_fires_nothing() {
-        assert_eq!(skill_effects(SkillEnum::MoBodyrelocation), SkillEffects::default());
+    fn unmapped_skill_fires_nothing_on_either_actor() {
+        assert_eq!(
+            caster_skill_effects(SkillEnum::MoBodyrelocation),
+            CasterSkillEffects::default()
+        );
+        assert_eq!(
+            target_skill_effects(SkillEnum::MoBodyrelocation),
+            TargetSkillEffects::default()
+        );
     }
 
     #[test]
