@@ -7,7 +7,8 @@
 //! Animated drives the Torch recolour family (`TorchRed`, `TorchGreen`,
 //! `TorchPurple`) and Dust. Static drives the Glow family (`Glow1`,
 //! `Glow2`, `Glow11`, `Glow12`): distance=30, no Y offset, alpha=50/255,
-//! a square quad (corners spaced 90°), alpha blend with no
+//! a square quad (corners spaced 90°), additive blend (the `.bmp` frames
+//! have no alpha, so their black background must drop out) with no
 //! tint applied. The static variant's slow
 //! view-axis roll and ±5% radius wobble are
 //! not
@@ -57,6 +58,12 @@ pub struct Params {
     pub delta_y: f32,
     /// Quad opacity (base alpha / 255) mapped to 0..1.
     pub alpha: f32,
+    /// Render at the near plane (ignoring the depth buffer) instead of at
+    /// the quad's own depth. A camera-facing quad centred on a ground point
+    /// has its lower half below the floor, where depth-testing clips it
+    /// ("swallowed by floor"). The ambient glow halos need the full quad, so
+    /// they draw depth-free like the other ground halos.
+    pub no_depth: bool,
 }
 
 const TCOUNT_TORCH: u32 = 6;
@@ -139,6 +146,7 @@ pub const TORCH_RED: Params = Params {
     distance: DEFAULT_DISTANCE,
     delta_y: DEFAULT_DELTA_Y,
     alpha: TORCH_ALPHA,
+    no_depth: false,
 };
 
 pub const TORCH_GREEN: Params = Params {
@@ -147,6 +155,7 @@ pub const TORCH_GREEN: Params = Params {
     distance: DEFAULT_DISTANCE,
     delta_y: DEFAULT_DELTA_Y,
     alpha: TORCH_ALPHA,
+    no_depth: false,
 };
 
 pub const TORCH_PURPLE: Params = Params {
@@ -155,6 +164,7 @@ pub const TORCH_PURPLE: Params = Params {
     distance: DEFAULT_DISTANCE,
     delta_y: DEFAULT_DELTA_Y,
     alpha: TORCH_ALPHA,
+    no_depth: false,
 };
 
 pub const DUST: Params = Params {
@@ -163,6 +173,7 @@ pub const DUST: Params = Params {
     distance: DEFAULT_DISTANCE,
     delta_y: DEFAULT_DELTA_Y,
     alpha: DUST_ALPHA,
+    no_depth: false,
 };
 
 /// Static Glow variants — single-frame "lists" so the modulo in
@@ -179,6 +190,7 @@ pub const GLOW_01: Params = Params {
     distance: GLOW_DISTANCE,
     delta_y: 0.0,
     alpha: GLOW_ALPHA,
+    no_depth: true,
 };
 
 pub const GLOW_02: Params = Params {
@@ -187,6 +199,7 @@ pub const GLOW_02: Params = Params {
     distance: GLOW_DISTANCE,
     delta_y: 0.0,
     alpha: GLOW_ALPHA,
+    no_depth: true,
 };
 
 pub const GLOW_11: Params = Params {
@@ -195,6 +208,7 @@ pub const GLOW_11: Params = Params {
     distance: GLOW_DISTANCE,
     delta_y: 0.0,
     alpha: GLOW_ALPHA,
+    no_depth: true,
 };
 
 pub const GLOW_12: Params = Params {
@@ -203,6 +217,7 @@ pub const GLOW_12: Params = Params {
     distance: GLOW_DISTANCE,
     delta_y: 0.0,
     alpha: GLOW_ALPHA,
+    no_depth: true,
 };
 
 /// Concatenated texture list for `effect::effect_texture_paths` preload.
@@ -296,18 +311,37 @@ impl Effect for AnimatedTextureBillboardEffect {
         // Quad side = distance * √2 (corners spaced 90° on a circle of
         // radius `distance`).
         let side = self.params.distance * std::f32::consts::SQRT_2;
-        out.push(EffectPrimitiveDraw::Billboard {
-            pos: [
-                self.world_pos[0],
-                self.world_pos[1] + self.params.delta_y,
-                self.world_pos[2],
-            ],
-            size: [side, side],
-            uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
-            rotation: 0.0,
-            texture,
-            color: [1.0, 1.0, 1.0, self.params.alpha],
-            blend: BlendKind::Alpha,
+        let pos = [
+            self.world_pos[0],
+            self.world_pos[1] + self.params.delta_y,
+            self.world_pos[2],
+        ];
+        let uv = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
+        // The `.bmp` frames have no alpha channel; the original game renders
+        // this family additively (flag1[2]=4 → PW=0) so the black background
+        // contributes nothing and only the lit pixels show. Alpha blend would
+        // draw the opaque black as a dark box.
+        let blend = BlendKind::Additive;
+        out.push(if self.params.no_depth {
+            EffectPrimitiveDraw::BillboardFlash {
+                pos,
+                size: [side, side],
+                uv,
+                rotation: 0.0,
+                texture,
+                color: [1.0, 1.0, 1.0, self.params.alpha],
+                blend,
+            }
+        } else {
+            EffectPrimitiveDraw::Billboard {
+                pos,
+                size: [side, side],
+                uv,
+                rotation: 0.0,
+                texture,
+                color: [1.0, 1.0, 1.0, self.params.alpha],
+                blend,
+            }
         });
     }
 }
@@ -393,17 +427,18 @@ mod tests {
         // Sociable test for the static Glow variant: spec'd
         // params survive an update cycle (single texture, no cycling), the
         // quad is anchored at master Y (no offset), uses the wider 30u
-        // distance, and renders at 50/255 alpha.
+        // distance, and renders at 50/255 alpha. The glow is depth-free
+        // (BillboardFlash) so its lower half isn't clipped by the floor.
         let mut e =
             AnimatedTextureBillboardEffect::new([4.0, 50.0, 9.0], GLOW_01);
         for _ in 0..20 {
             let mut list = EffectDrawList::new();
             e.collect_draws(&mut list, &render_ctx());
-            let EffectPrimitiveDraw::Billboard {
+            let EffectPrimitiveDraw::BillboardFlash {
                 pos, size, color, texture, ..
             } = list.primitives[0]
             else {
-                panic!("expected Billboard");
+                panic!("expected BillboardFlash");
             };
             assert_eq!(texture, "glow01.bmp");
             assert_eq!(pos, [4.0, 50.0, 9.0]);

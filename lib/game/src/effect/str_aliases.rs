@@ -31,14 +31,6 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Frostdiver2 => &["frostdiver2"],
         EffectId::Lightbolt => &["Lightning", "windhit1", "windhit2", "windhit3"],
         EffectId::Thunderstorm => &["thunderstorm"],
-        // Thunderstorm2: its dedicated thunder-storm sprite and the
-        // `setsudan.str` it would otherwise use are both absent from the
-        // classic GRF. Re-using the classic `thunderstorm` STR is the
-        // closest visual match available without renewal-era assets, so
-        // the actor sees something instead of nothing.
-        // Revisit if the proper thunder-storm assets become available.
-        // For now this is a deliberate visual stand-in.
-        EffectId::Thunderstorm2 => &["thunderstorm"],
         EffectId::Teleportation => &["teleportation"],
         EffectId::Readyportal => &["readyportal"],
         EffectId::Incagility => &["incagility"],

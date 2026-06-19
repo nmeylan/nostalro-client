@@ -12,6 +12,7 @@ I wanted to be able to run the game as it was in 2005~2008, but original client 
 # Principles
 - Support any game resources until EP 12 (included)
 - Support any packet version until 20120307 (reason is that rust-ro was implemented with this packet version support first)
+- Support ALL visual effects accurately
 - Do not alter original game resources: render actual resources with high dpi support
 - Runnable on windows and linux
 - We use a "mini framework" for the UI, in immediate mode, inspired by `egui`
@@ -78,3 +79,6 @@ This project leverage AI to allow a faster development, as my time is very limit
 see [todo](docs/TODO.md)
 
 # Effect
+ALL effects have been implemented this would not have been possible without following resources:
+- **Waken** youtube channel https://www.youtube.com/@wakenragnadev6265
+- https://casual-ragnarok.github.io/ro-effects/
