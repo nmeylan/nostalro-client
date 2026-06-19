@@ -13,6 +13,9 @@ pub fn is_custom_bucket(id: EffectId) -> bool {
             | EffectId::Sightrasher | EffectId::Firesplashhit | EffectId::Coldhit
             | EffectId::Venomdust2
             | EffectId::Damage1 | EffectId::Damage12 | EffectId::Damage13
+            | EffectId::GreenNumber | EffectId::BlueNumber | EffectId::RedNumber
+            | EffectId::PurpleNumber | EffectId::BlackNumber | EffectId::WhiteNumber
+            | EffectId::YellowNumber | EffectId::PinkNumber
             | EffectId::Agiup | EffectId::Airtexture | EffectId::Airtexture2
             | EffectId::Airtexture3 | EffectId::Airtexture4 | EffectId::Alattack1
             | EffectId::Alattack2 | EffectId::Alattack3 | EffectId::Alattack4
@@ -223,9 +226,9 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::Beginspell3 | EffectId::Beginspell4 | EffectId::Beginspell5
             | EffectId::Beginspell6 | EffectId::Beginspell7 | EffectId::Beginspell8
             | EffectId::Beginspellred | EffectId::Beginspellwhite
-            | EffectId::BeginspellN | EffectId::BlackNumber
+            | EffectId::BeginspellN
             | EffectId::Blastmine | EffectId::BloodFly | EffectId::Bluebody
-            | EffectId::BlueHit | EffectId::BlueNumber
+            | EffectId::BlueHit
             | EffectId::Bunsinjyutsu | EffectId::Castflower | EffectId::Castspin
             | EffectId::CastMagicBlue | EffectId::CastMagicBlue2
             | EffectId::CastMagicRed | EffectId::CastMagicRed2
@@ -246,7 +249,7 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::Flammule | EffectId::Flowercast2 | EffectId::Flyup
             | EffectId::GetItem
             | EffectId::Green993
-            | EffectId::Greenbody | EffectId::GreenNumber | EffectId::Groundimage
+            | EffectId::Greenbody | EffectId::Groundimage
             | EffectId::Groundimage3 | EffectId::Groundimage5 | EffectId::Groundimage7
             | EffectId::Groundimage9 | EffectId::Heal | EffectId::Heal2
             | EffectId::Heal3 | EffectId::Heal4 | EffectId::Hiding
@@ -262,13 +265,13 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::Makeblur3 | EffectId::Makeblur4 | EffectId::Makeblur5
             | EffectId::Memorize | EffectId::Mgattack1 | EffectId::MiniTetris
             | EffectId::MoveToSprite | EffectId::Night | EffectId::NpcStop2Del
-            | EffectId::Piercebody | EffectId::Pinkbody | EffectId::PinkNumber
+            | EffectId::Piercebody | EffectId::Pinkbody
             | EffectId::PokjukSound | EffectId::Pressedbody
             | EffectId::PrintFoot | EffectId::Process2Begin | EffectId::Process2End
-            | EffectId::PurpleNumber | EffectId::Quakebody | EffectId::Quakebody2
+            | EffectId::Quakebody | EffectId::Quakebody2
             | EffectId::Quakebody3 | EffectId::Quakebody4 | EffectId::Rain
             | EffectId::Readyportal | EffectId::Redbody
-            | EffectId::Redlightbody | EffectId::RedHit | EffectId::RedNumber
+            | EffectId::Redlightbody | EffectId::RedHit
             | EffectId::Reflectbody | EffectId::RippleBlackk | EffectId::RipplePurple
             | EffectId::RippleRed | EffectId::RippleWhite | EffectId::RippleYellow
             | EffectId::Rotateflower | EffectId::Run | EffectId::ScreenQuake
@@ -281,8 +284,8 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::Teihit3reverse | EffectId::Telekhit | EffectId::Teleportation
             | EffectId::Testbodylight | EffectId::TestEffectBegin
             | EffectId::Transbluebody | EffectId::Undeadbody | EffectId::UndeadbodyDel
-            | EffectId::Warpzone | EffectId::Warpzone2 | EffectId::WhiteNumber
-            | EffectId::YellowNumber | EffectId::ZoomIn | EffectId::ZoomOut
+            | EffectId::Warpzone | EffectId::Warpzone2
+            | EffectId::ZoomIn | EffectId::ZoomOut
     )
 }
 

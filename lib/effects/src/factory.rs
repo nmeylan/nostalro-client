@@ -1180,6 +1180,32 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
             effects::damage_number_effect::DAMAGE1_3,
         )),
 
+        // EF_*_NUMBER (657-664): same recoloured-number channel, one colour each.
+        EffectId::GreenNumber => Box::new(effects::damage_number_effect::DamageNumberEffect::new(
+            effects::damage_number_effect::GREEN_NUMBER,
+        )),
+        EffectId::BlueNumber => Box::new(effects::damage_number_effect::DamageNumberEffect::new(
+            effects::damage_number_effect::BLUE_NUMBER,
+        )),
+        EffectId::RedNumber => Box::new(effects::damage_number_effect::DamageNumberEffect::new(
+            effects::damage_number_effect::RED_NUMBER,
+        )),
+        EffectId::PurpleNumber => Box::new(effects::damage_number_effect::DamageNumberEffect::new(
+            effects::damage_number_effect::PURPLE_NUMBER,
+        )),
+        EffectId::BlackNumber => Box::new(effects::damage_number_effect::DamageNumberEffect::new(
+            effects::damage_number_effect::BLACK_NUMBER,
+        )),
+        EffectId::WhiteNumber => Box::new(effects::damage_number_effect::DamageNumberEffect::new(
+            effects::damage_number_effect::WHITE_NUMBER,
+        )),
+        EffectId::YellowNumber => Box::new(effects::damage_number_effect::DamageNumberEffect::new(
+            effects::damage_number_effect::YELLOW_NUMBER,
+        )),
+        EffectId::PinkNumber => Box::new(effects::damage_number_effect::DamageNumberEffect::new(
+            effects::damage_number_effect::PINK_NUMBER,
+        )),
+
         // Canonical heal-skill effects (green rising rings + green sparkles).
         EffectId::Heal => Box::new(effects::heal::HealEffect::new(
             anchor.point(),
@@ -2094,6 +2120,15 @@ mod tests {
             (EffectId::Damage1, [1.0, 0.0, 0.0]),
             (EffectId::Damage12, [1.0, 0.0, 0.0]),
             (EffectId::Damage13, [1.0, 100.0 / 255.0, 1.0]),
+            // EF_*_NUMBER family — same channel, original ARGB colours.
+            (EffectId::GreenNumber, [0.0, 1.0, 0.0]),
+            (EffectId::BlueNumber, [64.0 / 255.0, 124.0 / 255.0, 1.0]),
+            (EffectId::RedNumber, [1.0, 0.0, 0.0]),
+            (EffectId::PurpleNumber, [1.0, 50.0 / 255.0, 1.0]),
+            (EffectId::BlackNumber, [0.0, 0.0, 0.0]),
+            (EffectId::WhiteNumber, [1.0, 1.0, 1.0]),
+            (EffectId::YellowNumber, [1.0, 1.0, 0.0]),
+            (EffectId::PinkNumber, [1.0, 85.0 / 255.0, 177.0 / 255.0]),
         ] {
             assert!(
                 matches!(effect_spec(id), Some(crate::spec::EffectSpec::Custom { .. })),

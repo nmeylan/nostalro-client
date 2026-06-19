@@ -188,7 +188,6 @@ pub fn body_attached(id: EffectId) -> bool {
             | EffectId::Stormkick3
             | EffectId::Stormkick6
             | EffectId::Stormkick7
-            // §1 body-render: tints / flash / spin (body_tint.rs)
             | EffectId::Redbody
             | EffectId::Transbluebody
             | EffectId::Pinkbody
@@ -197,35 +196,36 @@ pub fn body_attached(id: EffectId) -> bool {
             | EffectId::Magiccrasher2
             | EffectId::Hitbody
             | EffectId::Falconassault
-            // §8a tint-flicker: colour ↔ white per frame (body_tint.rs)
             | EffectId::Chemicalbody
             | EffectId::Piercebody
             | EffectId::Memorize
             | EffectId::Doublecastbody
             | EffectId::Greenbody
             | EffectId::Shrink
-            // §8b body-flash: blue/red additive glow with an alpha ramp (body_tint.rs)
             | EffectId::Bluebody
             | EffectId::Redlightbody
             | EffectId::RedHit
             | EffectId::BlueHit
-            // §9a body tints / flash (body_buff.rs / body_tint.rs / multibody.rs)
             | EffectId::Bunsinjyutsu
             | EffectId::MadnessBlue
             | EffectId::MadnessRed
             | EffectId::Undeadbody
-            // §1b geometry: squash / lift (squarebody.rs)
             | EffectId::Pressedbody
             | EffectId::Kickedbody
-            // §1c multi-render: ghosts / halo / glow (multibody.rs)
             | EffectId::Reflectbody
             | EffectId::Assumptio
             | EffectId::Lightblade
-            // §9b floating numbers: no body channel, but entity-attached so the
-            // one-shot number request resolves to the actor (spawn_on).
             | EffectId::Damage1
             | EffectId::Damage12
             | EffectId::Damage13
+            | EffectId::GreenNumber
+            | EffectId::BlueNumber
+            | EffectId::RedNumber
+            | EffectId::PurpleNumber
+            | EffectId::BlackNumber
+            | EffectId::WhiteNumber
+            | EffectId::YellowNumber
+            | EffectId::PinkNumber
     )
 }
 

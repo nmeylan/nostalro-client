@@ -24,6 +24,10 @@ pub struct StrEffectEntry {
 /// original game's additive-blend STR effect rendering.
 pub struct StrEffectCache {
     entries: HashMap<String, StrEffectEntry>,
+    /// Names that failed to resolve once. Re-requesting one returns `false`
+    /// without retrying the load or re-emitting the warning — stress spawns and
+    /// per-frame respawns of asset-missing effects would otherwise flood the log.
+    missing: std::collections::HashSet<String>,
 }
 
 impl Default for StrEffectCache {
@@ -36,6 +40,7 @@ impl StrEffectCache {
     pub fn new() -> Self {
         Self {
             entries: HashMap::new(),
+            missing: std::collections::HashSet::new(),
         }
     }
 
@@ -50,6 +55,9 @@ impl StrEffectCache {
     ) -> bool {
         if self.entries.contains_key(name) {
             return true;
+        }
+        if self.missing.contains(name) {
+            return false;
         }
         // Try the primary first, then each alias. The cache keys by primary —
         // so once any candidate resolves, future lookups by primary find it.
@@ -72,6 +80,7 @@ impl StrEffectCache {
             name,
             last_err.unwrap_or_default()
         );
+        self.missing.insert(name.to_string());
         false
     }
 
