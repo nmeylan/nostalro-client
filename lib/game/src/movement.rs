@@ -2,6 +2,9 @@ use crate::path::PathNode;
 
 const DEFAULT_WALK_SPEED: u16 = 150;
 
+/// How long the rendered position eases toward a corrected logical position.
+const CORRECTION_BLEND: f32 = 0.15;
+
 pub struct MovementState {
     current_x: f32,
     current_y: f32,
@@ -13,6 +16,10 @@ pub struct MovementState {
     step_duration: f32,
     moving: bool,
     speed: u16,
+    // Visual-only offset from the logical position, left over from the last position
+    // correction. Decays to zero over CORRECTION_BLEND so corrections ease in rather than snap.
+    correction_offset: (f32, f32),
+    correction_remaining: f32,
 }
 
 impl MovementState {
@@ -28,6 +35,8 @@ impl MovementState {
             step_duration: 0.0,
             moving: false,
             speed: DEFAULT_WALK_SPEED,
+            correction_offset: (0.0, 0.0),
+            correction_remaining: 0.0,
         }
     }
 
@@ -113,6 +122,7 @@ impl MovementState {
         self.path_index = 0;
     }
 
+    /// Hard teleport: jump instantly, no visual blending (warp, spawn, respawn).
     pub fn set_position(&mut self, x: f32, y: f32) {
         self.moving = false;
         self.path.clear();
@@ -121,10 +131,42 @@ impl MovementState {
         self.current_y = y;
         self.step_start_x = x;
         self.step_start_y = y;
+        self.correction_offset = (0.0, 0.0);
+        self.correction_remaining = 0.0;
+    }
+
+    /// Snap the logical position to a corrected cell while keeping the rendered sprite where it
+    /// was; the leftover discrepancy decays over CORRECTION_BLEND so the sprite eases in instead
+    /// of teleporting. Used when a server move re-anchors an entity onto the grid.
+    pub fn correct_to_cell(&mut self, x: f32, y: f32) {
+        let (rendered_x, rendered_y) = self.position();
+        self.moving = false;
+        self.path.clear();
+        self.path_index = 0;
+        self.current_x = x;
+        self.current_y = y;
+        self.step_start_x = x;
+        self.step_start_y = y;
+        let (dx, dy) = (rendered_x - x, rendered_y - y);
+        if dx.abs() > 0.001 || dy.abs() > 0.001 {
+            self.correction_offset = (dx, dy);
+            self.correction_remaining = CORRECTION_BLEND;
+        }
+    }
+
+    /// Decay the visual correction offset. Call every frame with the frame delta.
+    pub fn decay_correction(&mut self, delta: f32) {
+        if self.correction_remaining > 0.0 {
+            self.correction_remaining = (self.correction_remaining - delta).max(0.0);
+        }
     }
 
     pub fn position(&self) -> (f32, f32) {
-        (self.current_x, self.current_y)
+        let frac = (self.correction_remaining / CORRECTION_BLEND).clamp(0.0, 1.0);
+        (
+            self.current_x + self.correction_offset.0 * frac,
+            self.current_y + self.correction_offset.1 * frac,
+        )
     }
 
     pub fn set_speed(&mut self, speed: u16) {
@@ -297,6 +339,34 @@ mod tests {
             "position() should return smooth value, got x={x}"
         );
         assert_eq!(movement.cell_position(), (1, 0));
+    }
+
+    #[test]
+    fn correct_to_cell_blends_visual_offset_without_moving_logical() {
+        let mut movement = MovementState::new(0, 0);
+        // Advance halfway into a step so the rendered position is mid-cell (~0.5).
+        movement.start_move(vec![make_path_node(1, 0, false)], 0.0);
+        movement.update(0.075);
+        assert!((movement.position().0 - 0.5).abs() < 0.01);
+
+        // Correct the logical position back to cell 0: logical snaps, rendered eases from 0.5.
+        movement.correct_to_cell(0.0, 0.0);
+        assert_eq!(movement.cell_position(), (0, 0)); // logical is exactly the cell
+        assert!(
+            (movement.position().0 - 0.5).abs() < 0.01,
+            "rendered should still be at the pre-correction position"
+        );
+
+        // Decay over the blend window: rendered eases toward the logical cell and lands on it.
+        movement.decay_correction(CORRECTION_BLEND / 2.0);
+        let mid = movement.position().0;
+        assert!(mid > 0.0 && mid < 0.5, "should be easing in, got {mid}");
+        movement.decay_correction(CORRECTION_BLEND);
+        assert!(
+            movement.position().0.abs() < 0.001,
+            "offset should be fully decayed, got {}",
+            movement.position().0
+        );
     }
 
     #[test]

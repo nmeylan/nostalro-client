@@ -288,12 +288,13 @@ impl App {
             let path = ragnarok_game::path::path_search(gat, sx, sy, dest_x, dest_y);
             if !path.is_empty() {
                 let local_ms = self.start_time.elapsed().as_millis() as u32;
+                self.game.server_time.observe_server_tick(start_time, local_ms);
                 let move_start = self
                     .game
                     .server_time
-                    .server_to_local_secs(start_time, local_ms);
+                    .server_to_local_secs_clamped(start_time, local_ms);
                 if let Some(entity) = self.game.entities.player_mut() {
-                    entity.movement.set_position(sx as f32, sy as f32);
+                    entity.movement.correct_to_cell(sx as f32, sy as f32);
                     entity.movement.start_move(path, move_start);
                 }
             }

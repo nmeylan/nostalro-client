@@ -151,6 +151,7 @@ impl App {
                     attack_mt,
                     attacked_mt,
                     count,
+                    start_time,
                     ..
                 } => {
                     self.handle_entity_action(
@@ -162,6 +163,7 @@ impl App {
                         attack_mt,
                         attacked_mt,
                         count,
+                        start_time,
                     );
                 }
                 GameEvent::EntityDirectionChanged { gid, head_dir, dir } => {
@@ -423,6 +425,7 @@ impl App {
                     count,
                     action,
                     skill_name,
+                    start_time,
                 } => {
                     let display_name = self.game.data_table.skill_name.as_ref().map(|table| {
                         table.get_display_name_or_internal(&skill_name.clone().unwrap_or_default())
@@ -437,6 +440,7 @@ impl App {
                         count,
                         action,
                         display_name,
+                        start_time,
                     );
                 }
                 GameEvent::SkillNoDamage {

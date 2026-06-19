@@ -145,6 +145,8 @@ impl App {
             .iter()
             .map(|(&id, entry)| (id, entry.position))
             .collect();
+        let mut game = GameState::new();
+        game.debug_overlay = config.debug_overlay;
         Self {
             config,
             saved_window_positions,
@@ -162,7 +164,7 @@ impl App {
             server_list_window: None,
             char_select_window: None,
             channel: GameChannel::new(),
-            game: GameState::new(),
+            game,
             start_time: Instant::now(),
             last_frame_instant: Instant::now(),
             next_frame: Instant::now(),
@@ -876,6 +878,23 @@ impl App {
                     let events = self.game.build_in_game_ui(&mut ui, &|name| {
                         renderer.texture_cache.texture_size(name)
                     });
+
+                    if self.game.debug_overlay {
+                        let local_ms = self.start_time.elapsed().as_millis() as u32;
+                        let st = &self.game.server_time;
+                        let est = st.estimated_server_tick(local_ms);
+                        let offset = est as i64 - local_ms as i64;
+                        let color = [0.5, 1.0, 0.6, 1.0];
+                        let lines = [
+                            format!("net sync: {}", if st.is_synced() { "yes" } else { "no" }),
+                            format!("rtt: {} ms (avg {:.0})", st.rtt(), st.rtt_avg()),
+                            format!("server tick est: {est}"),
+                            format!("offset: {offset} ms"),
+                        ];
+                        for (i, line) in lines.iter().enumerate() {
+                            ui.text(10.0, 10.0 + i as f32 * 16.0, line, color);
+                        }
+                    }
 
                     let any_hovered = ui.any_hovered;
                     let any_interactive = ui.any_interactive_hovered;

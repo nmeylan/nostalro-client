@@ -128,6 +128,9 @@ impl App {
                     }
                     self.game.debug_show_pick_bounds = !self.game.debug_show_pick_bounds;
                 }
+                PhysicalKey::Code(KeyCode::F10) => {
+                    self.game.debug_overlay = !self.game.debug_overlay;
+                }
                 PhysicalKey::Code(KeyCode::Insert) => {
                     if let Some(entity) = self.game.entities.player() {
                         let action = if entity.state == EntityState::Sitting {

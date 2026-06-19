@@ -52,15 +52,27 @@ When the server confirms a player move (`ZC_NOTIFY_PLAYERMOVE`):
 
 ## What We Currently Do
 
-- Send `CZ_REQUEST_TIME` every 10s (keepalive), but **ignore the `ZC_NOTIFY_TIME` response** --
-  the `ServerTick` event falls through unhandled in `main.rs`.
-- Movement uses **local elapsed time** (`Instant::now() - app_start`), completely independent
-  of server time. Server-provided `start_time` in move packets is ignored.
-- No RTT measurement, no server time offset tracking.
-- No move request throttling or server ack gating.
+Full server-time synchronization is implemented:
 
-This works on LAN or localhost where latency is negligible but will cause visible desync under
-real network conditions.
+- **Time sync**: `CZ_REQUEST_TIME` is sent every 10s; `ZC_NOTIFY_TIME` is handled and feeds
+  `ServerTimeClock` (`lib/game/src/server_time.rs`), which tracks the server-tick offset, last RTT,
+  and an RTT EMA, adjusting by half-RTT. `enhanced_lag_compensation` switches last-RTT vs EMA.
+- **Server timestamps drive timing**: every move (`ZC_NOTIFY_PLAYERMOVE` / `ZC_NOTIFY_MOVE`) and
+  action/skill (`ZC_NOTIFY_ACT` / `ZC_NOTIFY_SKILL`) is anchored to its server `start_time` via
+  `ServerTimeClock::server_to_local_secs_clamped`, so entities don't start late by a round-trip and
+  scheduled hits/animations align to when the server says things happened.
+- **Forward-snap guard**: `observe_server_tick` advances the local estimate so it never trails the
+  server; the clamped conversion prevents a start time landing in the future.
+- **Convergence blending**: a position correction snaps the *logical* position to the grid while the
+  *rendered* sprite eases in over a short window (`MovementState::correct_to_cell` + `decay_correction`),
+  so re-paths don't visibly teleport.
+- **Move throttling**: continuous walk gates on a 0.5s cooldown plus a server-ack flag.
+- **Diagnostics**: F10 (or `debug_overlay` in config) shows sync state / RTT / offset.
+
+### Not implemented (intentionally)
+
+- Velocity-based dead reckoning between updates: RO moves are fully specified (start→dest + start
+  time), so interpolation already covers the gap; only convergence blending was needed.
 
 ## Possible Improvements
 
@@ -120,7 +132,9 @@ the chance of desynced paths.
 
 ## Simulating Latency
 
-To test lag compensation without a remote server, add artificial delay in the network layer.
+To test lag compensation without a remote server, set `debug_network_delay_ms` in `config.json`.
+This is **implemented** in `lib/network/src/lib.rs`: it delays both received events and outbound
+packets, so measured RTT reflects a full round trip (~2 × the configured delay). Zero-cost when 0.
 
 ### Implementation: Configurable Network Delay
 

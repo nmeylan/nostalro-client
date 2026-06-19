@@ -34,8 +34,17 @@ impl App {
         count: i16,
         action: ActionType,
         skill_name: Option<String>,
+        start_time: u32,
     ) {
-        let now = self.start_time.elapsed().as_secs_f32();
+        let local_ms = self.start_time.elapsed().as_millis() as u32;
+        self.game.server_time.observe_server_tick(start_time, local_ms);
+        // Server timeline anchor (in the past by ~half-RTT): all skill timings derive from
+        // when the cast actually resolved on the server, not from the late arrival here.
+        let now = self
+            .game
+            .server_time
+            .server_to_local_secs_clamped(start_time, local_ms);
+        let age = (local_ms as f32 / 1000.0 - now).max(0.0);
 
         let effective_count = match action {
             ActionType::AttackMultiple | ActionType::AttackMultipleNomotion => count.max(1) as u16,
@@ -63,7 +72,7 @@ impl App {
                     entity.direction = dir;
                 }
             }
-            let duration = (attack_mt as f32 / 1000.0).max(0.3);
+            let duration = ((attack_mt as f32 / 1000.0) - age).max(0.3);
             entity.enter_skill_exec(duration, skill_id, effective_count);
         }
 
@@ -132,6 +141,14 @@ impl App {
                     attacked_mt_secs: attacked_mt as f32 / 1000.0,
                 });
             }
+        }
+
+        // Generic skill-begin spark on the caster (e.g. Double Strafe's Bash
+        // flash). Instant skills send no cast-start packet, so the damage
+        // moment is the only place this begin-effect fires; cast-delayed skills
+        // play theirs from `spawn_skill_begin_cast` and leave this slot empty.
+        for e in caster_skill_effects(SkillEnum::from_id(skill_id as u32)).begin_cast {
+            self.effect_queue.spawn_on(*e, src_gid);
         }
 
         self.spawn_skill_attack_effect(skill_id, src_gid, target_gid, effective_count);

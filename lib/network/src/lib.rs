@@ -58,6 +58,9 @@ pub async fn network_loop(
     let mut keepalive_send_time_ms: u32 = 0;
     let delay_duration = Duration::from_millis(debug_delay_ms as u64);
     let mut delayed_events: VecDeque<(Instant, GameEvent)> = VecDeque::new();
+    // Outbound packets held to simulate send-side latency. Combined with the receive-side
+    // delay above this makes measured RTT reflect a full round trip (~2 * debug_delay_ms).
+    let mut delayed_sends: VecDeque<(Instant, Vec<u8>)> = VecDeque::new();
 
     loop {
         // Drain delayed events that are ready
@@ -68,6 +71,42 @@ pub async fn network_loop(
             let (_, event) = delayed_events.pop_front().unwrap();
             let _ = event_tx.send(event);
         }
+
+        // Flush outbound packets whose send-delay has elapsed.
+        let mut ready_sends: Vec<Vec<u8>> = Vec::new();
+        while delayed_sends
+            .front()
+            .is_some_and(|(t, _)| *t <= Instant::now())
+        {
+            ready_sends.push(delayed_sends.pop_front().unwrap().1);
+        }
+        if !ready_sends.is_empty() {
+            let mut send_err = None;
+            if let Some(conn) = &mut connection {
+                for data in &ready_sends {
+                    if let Err(e) = conn.send_packet(data, session.packetver).await {
+                        send_err = Some(e.to_string());
+                        break;
+                    }
+                }
+            }
+            if let Some(e) = send_err {
+                error!("delayed send error: {e}");
+                let _ = event_tx.send(GameEvent::Disconnected(e));
+                connection = None;
+                session.state = SessionState::Disconnected;
+                keepalive = KeepaliveMode::Off;
+            }
+        }
+
+        // Soonest pending delayed item, so the select below wakes in time to flush it even when
+        // no socket/command activity would otherwise rouse the loop.
+        let next_release = delayed_events
+            .front()
+            .map(|(t, _)| *t)
+            .into_iter()
+            .chain(delayed_sends.front().map(|(t, _)| *t))
+            .min();
 
         if let Some(conn) = &mut connection {
             tokio::select! {
@@ -110,6 +149,12 @@ pub async fn network_loop(
                         }
                     }
                 }
+                _ = async {
+                    match next_release {
+                        Some(t) => time::sleep(t.saturating_duration_since(Instant::now())).await,
+                        None => std::future::pending::<()>().await,
+                    }
+                } => {}
                 _ = keepalive_interval.tick() => {
                     if let Some(conn) = &mut connection {
                         let packet = match &keepalive {
@@ -123,20 +168,25 @@ pub async fn network_loop(
                                 Some(sender::build_request_time_packet(client_time, session.packetver))
                             }
                         };
-                        if let Some(data) = packet
-                            && let Err(e) = conn.send_packet(&data, session.packetver).await {
+                        if let Some(data) = packet {
+                            if debug_delay_ms > 0 {
+                                delayed_sends.push_back((Instant::now() + delay_duration, data));
+                            } else if let Err(e) = conn.send_packet(&data, session.packetver).await {
                                 error!("keepalive send error: {e}");
                                 let _ = event_tx.send(GameEvent::Disconnected(e.to_string()));
                                 connection = None;
                                 session.state = SessionState::Disconnected;
                                 keepalive = KeepaliveMode::Off;
                             }
+                        }
                     }
                 }
                 cmd = cmd_rx.recv() => {
                     match cmd {
                         Some(NetworkCommand::SendPacket(data)) => {
-                            if let Some(conn) = &mut connection
+                            if debug_delay_ms > 0 {
+                                delayed_sends.push_back((Instant::now() + delay_duration, data));
+                            } else if let Some(conn) = &mut connection
                                 && let Err(e) = conn.send_packet(&data, session.packetver).await {
                                     error!("send error: {e}");
                                     let _ = event_tx.send(GameEvent::Disconnected(e.to_string()));

@@ -220,6 +220,7 @@ pub enum GameEvent {
         count: i16,
         action: ActionType,
         skill_name: Option<String>,
+        start_time: u32,
     },
     SkillNoDamage {
         skill_id: u16,

@@ -76,6 +76,22 @@ impl ServerTimeClock {
         self.synced = true;
     }
 
+    /// Snap the clock forward if a freshly received event's server tick is ahead of our
+    /// current estimate. Keeps the local estimate from ever trailing the server, so converted
+    /// event times never land in the future. Never moves the estimate backward.
+    pub fn observe_server_tick(&mut self, server_tick: u32, local_now_ms: u32) {
+        if !self.synced {
+            return;
+        }
+        let estimated = self.estimated_server_tick(local_now_ms);
+        // Treat server_tick as "ahead" only within a sane window; a much larger value is a
+        // wrapped/garbage tick, not the future.
+        let ahead = server_tick.wrapping_sub(estimated);
+        if ahead > 0 && ahead < 1000 {
+            self.server_tick_at_sync = self.server_tick_at_sync.wrapping_add(ahead);
+        }
+    }
+
     /// Estimate the current server tick from local elapsed time.
     pub fn estimated_server_tick(&self, local_elapsed_ms: u32) -> u32 {
         if !self.synced {
@@ -92,10 +108,21 @@ impl ServerTimeClock {
             return local_elapsed_ms as f32 / 1000.0;
         }
         let estimated = self.estimated_server_tick(local_elapsed_ms);
-        // How far in the past (or future) is server_tick relative to now?
-        let diff = estimated.wrapping_sub(server_tick);
+        // How far in the past (or future) is server_tick relative to now? Reinterpret the
+        // wrapping difference as signed so future ticks (negative) and tick wraparound are
+        // both handled: positive = in the past, negative = in the future.
+        let diff = estimated.wrapping_sub(server_tick) as i32;
         let local_now_secs = local_elapsed_ms as f32 / 1000.0;
         local_now_secs - diff as f32 / 1000.0
+    }
+
+    /// Like `server_to_local_secs` but never returns a time in the future relative to now.
+    /// A future start would freeze an entity until local time catches up; clamping makes it
+    /// start immediately instead.
+    pub fn server_to_local_secs_clamped(&self, server_tick: u32, local_elapsed_ms: u32) -> f32 {
+        let converted = self.server_to_local_secs(server_tick, local_elapsed_ms);
+        let local_now_secs = local_elapsed_ms as f32 / 1000.0;
+        converted.min(local_now_secs)
     }
 
     pub fn is_synced(&self) -> bool {
@@ -211,6 +238,32 @@ mod tests {
         let half_ema = (clock.rtt_avg() / 2.0) as u32;
         // server_tick_at_sync should use EMA half-RTT
         assert_eq!(clock.server_tick_at_sync, 4000 + half_ema);
+    }
+
+    #[test]
+    fn observe_forward_snaps_estimate_never_trails() {
+        let mut clock = ServerTimeClock::new();
+        // RTT=100 -> server_tick_at_sync = 5050, local_ms_at_sync = 1100
+        clock.on_server_tick(5000, 1100, 1000);
+        // At local 1200ms the estimate is 5150. A move says it started at server tick 5250
+        // (200ms ahead) -> the estimate must be snapped forward so the start isn't in the future.
+        clock.observe_server_tick(5250, 1200);
+        assert!(clock.estimated_server_tick(1200) >= 5250);
+        // A tick behind the estimate must NOT move the clock backward.
+        let before = clock.estimated_server_tick(1200);
+        clock.observe_server_tick(5000, 1200);
+        assert_eq!(clock.estimated_server_tick(1200), before);
+    }
+
+    #[test]
+    fn clamped_conversion_never_returns_future() {
+        let mut clock = ServerTimeClock::new();
+        clock.on_server_tick(5000, 1100, 1000);
+        // A server tick 200ms ahead of the estimate would convert to a future local time.
+        let local = clock.server_to_local_secs(5350, 1200);
+        assert!(local > 1.2, "raw conversion should be in the future, got {local}");
+        let clamped = clock.server_to_local_secs_clamped(5350, 1200);
+        assert!((clamped - 1.2).abs() < 0.001, "clamped to now, got {clamped}");
     }
 
     #[test]

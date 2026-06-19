@@ -13,6 +13,7 @@
   ],
   "enhanced_lag_compensation": false,
   "debug_network_delay_ms": 0,
+  "debug_overlay": false,
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {

@@ -56,6 +56,9 @@ impl CasterSkillEffects {
     const fn cast(cast: &'static [EffectId]) -> Self {
         Self { begin_cast: &[], cast, hide_cast_bar: false, hide_cast_aura: false }
     }
+    const fn begin(begin_cast: &'static [EffectId]) -> Self {
+        Self { begin_cast, cast: &[], hide_cast_bar: false, hide_cast_aura: false }
+    }
 }
 
 impl TargetSkillEffects {
@@ -85,6 +88,11 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::McCartrevolution => C::cast(&[E::Cartrevolution]),
         S::McLoud => C::cast(&[E::Loud]),
         S::AcConcentration => C::cast(&[E::Concentration]),
+        // Physical attack skills with no signature visual fall back to the
+        // generic skill-begin spark (EF_BASH) on the caster — the begin-effect
+        // default for any attack skill that doesn't override it. Double Strafe,
+        // Mammonite, Beast Strafing and Phantasmic Arrow all land here.
+        S::AcDouble | S::McMammonite | S::HtPower | S::HtPhantasmic => C::begin(&[E::Bash]),
         S::NvFirstaid => C::cast(&[E::Firstaid]),
 
         // --- Knight / Priest / Wizard / Blacksmith / Hunter / Assassin ---
@@ -502,6 +510,22 @@ mod tests {
             caster_skill_effects(SkillEnum::MoSteelbody).cast,
             &[EffectId::Steelbody, EffectId::Gumgang2]
         );
+    }
+
+    #[test]
+    fn physical_attack_skills_share_the_bash_begin_effect() {
+        // Skills with no signature attack visual show the generic EF_BASH spark
+        // on the caster, from the begin-cast slot (not the cast slot).
+        for skill in [
+            SkillEnum::AcDouble,
+            SkillEnum::McMammonite,
+            SkillEnum::HtPower,
+            SkillEnum::HtPhantasmic,
+        ] {
+            let caster = caster_skill_effects(skill);
+            assert_eq!(caster.begin_cast, &[EffectId::Bash], "{skill:?}");
+            assert!(caster.cast.is_empty(), "{skill:?} has no cast-slot visual");
+        }
     }
 
     #[test]

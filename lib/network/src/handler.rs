@@ -471,6 +471,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             count: p.count,
             action: ActionType::from_value(p.action as usize),
             skill_name: Some(name),
+            start_time: p.start_time,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifySkill2>() {
@@ -485,6 +486,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             count: p.count,
             action: ActionType::from_value(p.action as usize),
             skill_name: Some(name),
+            start_time: p.start_time,
         }];
     }
     if let Some(_p) = any.downcast_ref::<PacketZcProgressCancel>() {

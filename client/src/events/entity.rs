@@ -119,15 +119,13 @@ impl App {
             let path = ragnarok_game::path::path_search(gat, sx, sy, dest_x, dest_y);
             if !path.is_empty() {
                 let local_ms = self.start_time.elapsed().as_millis() as u32;
-                let is_just_spawned = self.game.entities.get(gid).is_some_and(|e| e.just_spawned);
-                let move_start = if is_just_spawned {
-                    self.game
-                        .server_time
-                        .server_to_local_secs(start_time, local_ms)
-                } else {
-                    local_ms as f32 / 1000.0
-                };
+                self.game.server_time.observe_server_tick(start_time, local_ms);
+                let move_start = self
+                    .game
+                    .server_time
+                    .server_to_local_secs_clamped(start_time, local_ms);
                 if let Some(entity) = self.game.entities.get_mut(gid) {
+                    entity.movement.correct_to_cell(sx as f32, sy as f32);
                     entity.movement.start_move(path, move_start);
                     entity.state_timer = 0.0;
                 }
@@ -189,7 +187,18 @@ impl App {
         attack_mt: i32,
         attacked_mt: i32,
         count: i16,
+        start_time: u32,
     ) {
+        let local_ms = self.start_time.elapsed().as_millis() as u32;
+        self.game.server_time.observe_server_tick(start_time, local_ms);
+        // Server timeline anchor: when the action actually began, in local seconds. Events
+        // arrive ~half-RTT late, so this is in the past; timings derive from it, not now.
+        let action_start = self
+            .game
+            .server_time
+            .server_to_local_secs_clamped(start_time, local_ms);
+        let local_now = local_ms as f32 / 1000.0;
+        let age = (local_now - action_start).max(0.0);
         match action {
             ActionType::Sit => {
                 if let Some(entity) = self.game.entities.get_mut(gid) {
@@ -222,7 +231,7 @@ impl App {
                             entity.direction = dir;
                         }
                     }
-                    let duration = (attack_mt as f32 / 1000.0).max(0.5);
+                    let duration = ((attack_mt as f32 / 1000.0) - age).max(0.5);
                     entity.enter_attack(duration);
                     if entity.weapon == Some(WeaponType::Bow) {
                         shooter_cell = Some(entity.movement.cell_position());
@@ -242,7 +251,7 @@ impl App {
                     self.spawn_arrow_projectile(sc, tp, attack_mt, effective_count);
                 }
                 let total_damage = damage + left_damage;
-                let now = self.start_time.elapsed().as_secs_f32();
+                let now = action_start;
                 let delay_time = (attack_mt as f32 / 1000.0).max(0.0);
                 let per_hit_damage = if effective_count > 1 && total_damage > 0 {
                     total_damage / effective_count as i32

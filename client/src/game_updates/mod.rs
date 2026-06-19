@@ -9,7 +9,7 @@ use ragnarok_renderer::effect::EffectUpdateCtx;
 
 impl App {
     pub(crate) fn run_game_updates(&mut self, delta: f32, elapsed: f32) {
-        self.update_movement(elapsed);
+        self.update_movement(delta, elapsed);
         self.process_continuous_walk(delta);
         self.update_entity_state(delta);
         self.game.damage_numbers.update(delta);

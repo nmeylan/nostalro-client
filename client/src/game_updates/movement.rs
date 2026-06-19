@@ -39,8 +39,9 @@ impl App {
         self.input.walk_server_acked = false;
     }
 
-    pub(crate) fn update_movement(&mut self, elapsed: f32) {
+    pub(crate) fn update_movement(&mut self, delta: f32, elapsed: f32) {
         for entity in self.game.entities.iter_mut() {
+            entity.movement.decay_correction(delta);
             if entity.movement.is_moving() {
                 entity.movement.update(elapsed);
             }

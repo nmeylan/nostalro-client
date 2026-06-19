@@ -100,6 +100,8 @@ pub struct GameState {
     pub damage_msg_textures: Option<SpriteTextures>,
     pub damage_msg_act: Option<ragnarok_formats::act::ActFile>,
     pub debug_show_pick_bounds: bool,
+    /// Toggles the network sync overlay (RTT/offset). Seeded from config, toggled with F10.
+    pub debug_overlay: bool,
     pub ambient_effects: AmbientEffectScheduler,
     /// Set to true when disconnect dialog is shown.
     pub disconnect_dialog_shown: bool,
@@ -420,6 +422,7 @@ impl GameState {
             damage_msg_textures: None,
             damage_msg_act: None,
             debug_show_pick_bounds: false,
+            debug_overlay: false,
             ambient_effects: AmbientEffectScheduler::empty(),
         }
     }
