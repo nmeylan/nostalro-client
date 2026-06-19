@@ -28,7 +28,11 @@ impl App {
         y: u16,
         direction: u8,
         body_state: i16,
+        health_state: i16,
         effect_state: i32,
+        base_level: i16,
+        is_boss: bool,
+        posture: u8,
     ) {
         if self.game.entities.player_id() == Some(gid) {
             if effect_state != 0 {
@@ -62,8 +66,16 @@ impl App {
             speed,
         );
         entity.effect_state = effect_state;
-        if body_state == 2 {
-            entity.state = EntityState::Sitting;
+        entity.body_state = body_state;
+        entity.health_state = health_state;
+        entity.base_level = base_level;
+        entity.is_boss = is_boss;
+        // Posture (sit/dead) is the entry packet's `state` byte, NOT `body_state`:
+        // `body_state == 2` is OPT1_FREEZE, an ailment handled by the body-tint pass.
+        match posture {
+            1 => entity.state = EntityState::Dead,
+            2 => entity.state = EntityState::Sitting,
+            _ => {}
         }
         self.game.entities.insert(entity);
         let sprite_job = visual_job(job, effect_state);

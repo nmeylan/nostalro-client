@@ -162,6 +162,16 @@ pub trait Effect: Send {
     /// link family overrides it.
     fn set_link_endpoints(&mut self, _caster: [f32; 3], _target: [f32; 3]) {}
 
+    /// Re-anchor an entity-attached effect to its master's current world
+    /// position. The holder calls this every frame for `Attach::Entity`
+    /// effects (the original game re-copies `m_pos = m_master->m_pos` each
+    /// frame, so auras/buffs/casting-circles follow the actor as it walks).
+    /// Default no-op: one-shot bursts and hit sparks keep their spawn-time
+    /// anchor, so existing entity-attached effects are unaffected. Persistent
+    /// caster-anchored effects override this to move their stored origin and
+    /// re-emit primitives relative to it.
+    fn set_position(&mut self, _pos: [f32; 3]) {}
+
     /// STR animation that plays alongside this effect's primitives. Holder
     /// emits a `StrSnapshot` for non-`None` returns each frame, attached to
     /// the same world position. Default `None` — pure-primitive effects.

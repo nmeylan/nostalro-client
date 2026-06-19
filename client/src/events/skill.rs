@@ -1,8 +1,11 @@
 use crate::App;
+use models::enums::EnumWithNumberValue;
 use models::enums::action::ActionType;
+use models::enums::class::JobName;
 use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
 use models::enums::weapon::WeaponType;
+use ragnarok_game::effect::{derive_hit_effect, skill_effects};
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::skill_action::{skill_motion_type, SkillMotionType};
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
@@ -135,6 +138,20 @@ impl App {
 
         self.spawn_skill_attack_effect(skill_id, src_gid, target_gid, effective_count);
 
+        // Hit spark on the target (§2d derivation): per-skill spark, else the
+        // generic EF_HIT2, suppressed for self-visual skills and self-targets.
+        // Single spawn for now; B5 refines to one per hit at each hit's fire time.
+        let skill = SkillEnum::from_id(skill_id as u32);
+        let attacker_job = self
+            .game
+            .entities
+            .get(src_gid)
+            .and_then(|e| JobName::try_from_value(e.job as usize).ok())
+            .unwrap_or(JobName::Novice);
+        for hit in derive_hit_effect(Some(skill), false, attacker_job, src_gid == target_gid) {
+            self.effect_queue.spawn_on(*hit, target_gid);
+        }
+
         let replays_caster = skill_id == SkillEnum::AsSonicblow.id() as u16
             || skill_id == SkillEnum::ChChaincrush.id() as u16
             || skill_id == SkillEnum::CgArrowvulcan.id() as u16;
@@ -207,6 +224,34 @@ impl App {
                 self.effect_queue
                     .spawn_at_with_count(effect_id, to, count.min(10) as u8);
             }
+        }
+    }
+
+    /// Begin-cast glyph on the caster — the `begin_cast` slot fired at
+    /// `ZC_USESKILL_ACK` (cast starts). Element-colored begin-spell circles
+    /// and special cast glyphs route through the per-skill table (§2c/§2d).
+    pub(super) fn spawn_skill_begin_cast(&mut self, skill_id: u16, caster_gid: u32) {
+        for e in skill_effects(SkillEnum::from_id(skill_id as u32)).begin_cast {
+            self.effect_queue.spawn_on(*e, caster_gid);
+        }
+    }
+
+    /// Cast effect on the caster + landing effect on the recipient for
+    /// no-damage skills — the `cast` / `on_target` slots fired at
+    /// `ZC_USE_SKILL` (buffs, heals, status grants). The damage-skill cast /
+    /// projectile path is wired separately in B5.
+    pub(super) fn spawn_skill_no_damage_effects(
+        &mut self,
+        skill_id: u16,
+        src_gid: u32,
+        target_gid: u32,
+    ) {
+        let fx = skill_effects(SkillEnum::from_id(skill_id as u32));
+        for e in fx.cast {
+            self.effect_queue.spawn_on(*e, src_gid);
+        }
+        for e in fx.on_target {
+            self.effect_queue.spawn_on(*e, target_gid);
         }
     }
 

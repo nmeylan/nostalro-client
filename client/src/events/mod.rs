@@ -97,7 +97,11 @@ impl App {
                     y,
                     direction,
                     body_state,
+                    health_state,
                     effect_state,
+                    base_level,
+                    is_boss,
+                    posture,
                 } => {
                     self.handle_entity_spawned(
                         gid,
@@ -115,7 +119,11 @@ impl App {
                         y,
                         direction,
                         body_state,
+                        health_state,
                         effect_state,
+                        base_level,
+                        is_boss,
+                        posture,
                     );
                 }
                 GameEvent::EntityMoved {
@@ -366,6 +374,7 @@ impl App {
                     self.game
                         .entities
                         .apply_skill_casting(gid, target_gid, skill_id, delay_ms, x, y);
+                    self.spawn_skill_begin_cast(skill_id, gid);
                 }
                 GameEvent::SkillListReceived { skills } => {
                     self.handle_skill_list_received(skills);
@@ -429,6 +438,7 @@ impl App {
                         target_gid,
                         display_name,
                     );
+                    self.spawn_skill_no_damage_effects(skill_id, src_gid, target_gid);
                 }
                 GameEvent::GroundSkill {
                     skill_id,

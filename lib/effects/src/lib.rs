@@ -5,6 +5,7 @@ pub mod effect_trait;
 pub mod effects;
 pub mod factory;
 pub mod radial_emitter;
+pub mod skill_effects;
 pub mod spec;
 pub mod spr_aliases;
 pub mod spr_burst;
@@ -21,6 +22,7 @@ pub use effect_trait::{
     EffectRenderCtx, EffectUpdateCtx, NumberRequest,
 };
 pub use factory::{is_real_impl, make_effect};
+pub use skill_effects::{SkillEffects, derive_hit_effect, skill_effects};
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBurstParams};
 pub use spr_aliases::{SprDef, spr_def};
 pub use spr_burst::spr_burst_params;

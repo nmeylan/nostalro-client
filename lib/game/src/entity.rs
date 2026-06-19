@@ -156,6 +156,10 @@ pub struct Entity {
     pub pending_death: bool,
     pub just_spawned: bool,
     pub effect_state: i32,
+    pub body_state: i16,
+    pub health_state: i16,
+    pub base_level: i16,
+    pub is_boss: bool,
     /// Active forced animation from a body effect (Jumpkick), if any.
     pub forced_animation: Option<ForcedAnimation>,
 }
@@ -223,6 +227,10 @@ impl Entity {
             pending_death: false,
             just_spawned: true,
             effect_state: 0,
+            body_state: 0,
+            health_state: 0,
+            base_level: 0,
+            is_boss: false,
             forced_animation: None,
         }
     }

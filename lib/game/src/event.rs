@@ -88,7 +88,14 @@ pub enum GameEvent {
         y: u16,
         direction: u8,
         body_state: i16,
+        health_state: i16,
         effect_state: i32,
+        base_level: i16,
+        /// Boss flag — only the standentry7 / moveentry packets carry it; `false` elsewhere.
+        is_boss: bool,
+        /// Posture byte (`1 = dead`, `2 = sitting`, `0 = standing`). Only the
+        /// standentry packets carry it; moving/new-entry packets send `0`.
+        posture: u8,
     },
     EntityMoved {
         gid: u32,

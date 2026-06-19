@@ -27,11 +27,35 @@ pub struct SpawnRequest {
     /// size themselves to the targeted actor (lock-on reticle) read this;
     /// `None` falls back to a fixed size.
     pub target_size: Option<[f32; 2]>,
+    /// Caller-chosen owner key for despawn-by-key (a ground unit's `aid`, or a
+    /// buffed entity's `gid`). `None` = fire-and-forget; the effect can only
+    /// end by its own duration. Set it for persistent effects the game must be
+    /// able to cancel *before* their duration: ground units removed by
+    /// `ZC_SKILL_DISAPPEAR`, buffs cleared by a status-off packet. See
+    /// [`EffectQueue::despawn`].
+    pub key: Option<u32>,
+}
+
+impl SpawnRequest {
+    pub fn new(effect_id: EffectId, attach: Attach) -> Self {
+        Self {
+            effect_id,
+            attach,
+            override_duration_ms: None,
+            hit_count: None,
+            target_size: None,
+            key: None,
+        }
+    }
 }
 
 #[derive(Default)]
 pub struct EffectQueue {
     pub pending: Vec<SpawnRequest>,
+    /// Owner keys whose live effects should be despawned this frame. The
+    /// holder drains this alongside `pending` and drops every effect spawned
+    /// with a matching [`SpawnRequest::key`].
+    pub despawns: Vec<u32>,
 }
 
 impl EffectQueue {
@@ -44,24 +68,15 @@ impl EffectQueue {
     }
 
     pub fn spawn_at(&mut self, effect_id: EffectId, world_pos: [f32; 3]) {
-        self.pending.push(SpawnRequest {
-            effect_id,
-            attach: Attach::WorldPos(world_pos),
-            override_duration_ms: None,
-            hit_count: None,
-            target_size: None,
-        });
+        self.push(SpawnRequest::new(effect_id, Attach::WorldPos(world_pos)));
     }
 
     /// Spawn a point effect with a count (e.g. Chookgi's 1–5 spheres,
     /// carried by `hit_count`).
     pub fn spawn_at_with_count(&mut self, effect_id: EffectId, world_pos: [f32; 3], hit_count: u8) {
-        self.pending.push(SpawnRequest {
-            effect_id,
-            attach: Attach::WorldPos(world_pos),
-            override_duration_ms: None,
+        self.push(SpawnRequest {
             hit_count: Some(hit_count),
-            target_size: None,
+            ..SpawnRequest::new(effect_id, Attach::WorldPos(world_pos))
         });
     }
 
@@ -73,22 +88,34 @@ impl EffectQueue {
         world_pos: [f32; 3],
         target_size: [f32; 2],
     ) {
-        self.pending.push(SpawnRequest {
-            effect_id,
-            attach: Attach::WorldPos(world_pos),
-            override_duration_ms: None,
-            hit_count: None,
+        self.push(SpawnRequest {
             target_size: Some(target_size),
+            ..SpawnRequest::new(effect_id, Attach::WorldPos(world_pos))
         });
     }
 
     pub fn spawn_on(&mut self, effect_id: EffectId, entity_id: u32) {
-        self.pending.push(SpawnRequest {
-            effect_id,
-            attach: Attach::Entity(entity_id),
-            override_duration_ms: None,
-            hit_count: None,
-            target_size: None,
+        self.push(SpawnRequest::new(effect_id, Attach::Entity(entity_id)));
+    }
+
+    /// Spawn a persistent, entity-attached effect tagged with an owner `key`
+    /// so it can later be removed with [`EffectQueue::despawn`]. The canonical
+    /// caller is a status buff keyed by the bearer's `gid` (cleared when the
+    /// status-off packet arrives or its duration expires).
+    pub fn spawn_on_keyed(&mut self, effect_id: EffectId, entity_id: u32, key: u32) {
+        self.push(SpawnRequest {
+            key: Some(key),
+            ..SpawnRequest::new(effect_id, Attach::Entity(entity_id))
+        });
+    }
+
+    /// Spawn a persistent, fixed-position effect tagged with an owner `key`.
+    /// The canonical caller is a ground-skill unit keyed by its `aid`
+    /// (removed when its `ZC_SKILL_DISAPPEAR` arrives).
+    pub fn spawn_at_keyed(&mut self, effect_id: EffectId, world_pos: [f32; 3], key: u32) {
+        self.push(SpawnRequest {
+            key: Some(key),
+            ..SpawnRequest::new(effect_id, Attach::WorldPos(world_pos))
         });
     }
 
@@ -102,13 +129,7 @@ impl EffectQueue {
         from: [f32; 3],
         to: [f32; 3],
     ) {
-        self.pending.push(SpawnRequest {
-            effect_id,
-            attach: Attach::Trail { from, to },
-            override_duration_ms: None,
-            hit_count: None,
-            target_size: None,
-        });
+        self.push(SpawnRequest::new(effect_id, Attach::Trail { from, to }));
     }
 
     /// Spawn a projectile-trail effect with a hit count (multi-bolt skills).
@@ -119,12 +140,9 @@ impl EffectQueue {
         to: [f32; 3],
         hit_count: u8,
     ) {
-        self.pending.push(SpawnRequest {
-            effect_id,
-            attach: Attach::Trail { from, to },
-            override_duration_ms: None,
+        self.push(SpawnRequest {
             hit_count: Some(hit_count),
-            target_size: None,
+            ..SpawnRequest::new(effect_id, Attach::Trail { from, to })
         });
     }
 
@@ -132,19 +150,50 @@ impl EffectQueue {
     /// Both account ids are re-resolved to world positions every frame by the
     /// renderer holder, so the ribbon follows the linked actor as it moves.
     pub fn spawn_link(&mut self, effect_id: EffectId, caster: u32, target: u32) {
-        self.pending.push(SpawnRequest {
-            effect_id,
-            attach: Attach::Link { caster, target },
-            override_duration_ms: None,
-            hit_count: None,
-            target_size: None,
-        });
+        self.push(SpawnRequest::new(effect_id, Attach::Link { caster, target }));
     }
 
-    /// Caller takes ownership of the pending list; the queue is left empty.
-    /// The renderer's holder calls this each frame.
+    /// Request that every live effect spawned with `key` be despawned this
+    /// frame (the holder drops them when it drains the queue). Safe to call for
+    /// a key with no live effects — it's a no-op.
+    pub fn despawn(&mut self, key: u32) {
+        self.despawns.push(key);
+    }
+
+    /// Caller takes ownership of the pending spawn list; the queue is left
+    /// empty. The renderer's holder calls this each frame.
     pub fn drain(&mut self) -> Vec<SpawnRequest> {
         std::mem::take(&mut self.pending)
+    }
+
+    /// Caller takes ownership of the pending despawn keys; the list is left
+    /// empty. The holder drains this alongside [`EffectQueue::drain`].
+    pub fn drain_despawns(&mut self) -> Vec<u32> {
+        std::mem::take(&mut self.despawns)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keyed_spawn_and_despawn_channel_round_trip() {
+        // B1.1c game-side API: a persistent effect is spawned tagged with an
+        // owner key, and a later despawn request rides a separate channel the
+        // holder drains alongside spawns.
+        let mut q = EffectQueue::new();
+        q.spawn_on_keyed(EffectId::Blessing, 42, 7);
+
+        let pending = q.drain();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].attach, Attach::Entity(42));
+        assert_eq!(pending[0].key, Some(7), "the owner key rides the spawn request");
+        assert!(q.drain().is_empty(), "drain emptied the pending list");
+
+        q.despawn(7);
+        assert_eq!(q.drain_despawns(), vec![7]);
+        assert!(q.drain_despawns().is_empty(), "despawn channel emptied");
     }
 }
 

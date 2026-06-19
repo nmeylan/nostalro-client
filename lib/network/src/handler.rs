@@ -119,7 +119,11 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             y,
             direction: dir,
             body_state: p.body_state,
+            health_state: p.health_state,
             effect_state: p.effect_state,
+            base_level: p.clevel,
+            is_boss: p.is_boss,
+            posture: p.state,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyStandentry>() {
@@ -140,7 +144,11 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             y,
             direction: dir,
             body_state: p.body_state,
+            health_state: p.health_state,
             effect_state: p.effect_state as i32,
+            base_level: p.clevel,
+            is_boss: false,
+            posture: p.state,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyNewentry>() {
@@ -161,7 +169,11 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             y,
             direction: dir,
             body_state: p.body_state,
+            health_state: p.health_state,
             effect_state: p.effect_state as i32,
+            base_level: p.clevel,
+            is_boss: false,
+            posture: 0,
         }];
     }
     // MoveEntry8: entity entering view while already moving - treat as spawn at pos_dir
@@ -183,7 +195,11 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             y,
             direction: dir,
             body_state: p.body_state,
+            health_state: p.health_state,
             effect_state: p.effect_state,
+            base_level: p.clevel,
+            is_boss: p.is_boss,
+            posture: 0,
         }];
     }
     // MoveEntry9: entity entering view while already moving - spawn + start movement
@@ -206,7 +222,11 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
                 y: y1,
                 direction: 0,
                 body_state: p.body_state,
+                health_state: p.health_state,
                 effect_state: p.effect_state as i32,
+                base_level: p.clevel,
+                is_boss: p.is_boss,
+                posture: 0,
             },
             GameEvent::EntityMoved {
                 gid: p.gid,

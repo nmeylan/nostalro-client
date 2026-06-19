@@ -237,6 +237,9 @@ struct HeldEffect {
     attach: Attach,
     age: f32,
     duration: f32,
+    /// Caller-chosen owner key (ground-unit `aid`, buffed-entity `gid`).
+    /// `None` for fire-and-forget effects. Matched by [`EffectHolder::despawn_by_key`].
+    key: Option<u32>,
 }
 
 /// One frozen copy of a moving actor's sprite — a motion-blur clone.
@@ -326,9 +329,18 @@ impl EffectHolder {
         attach: Attach,
         override_duration_ms: Option<u32>,
     ) -> Option<EffectHandle> {
-        self.spawn_with_hit_count(effect_id, attach, override_duration_ms, None, None, &|_| None)
+        self.spawn_with_hit_count(
+            effect_id,
+            attach,
+            override_duration_ms,
+            None,
+            None,
+            None,
+            &|_| None,
+        )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn spawn_with_hit_count(
         &mut self,
         effect_id: EffectId,
@@ -336,6 +348,7 @@ impl EffectHolder {
         override_duration_ms: Option<u32>,
         hit_count: Option<u8>,
         target_size: Option<[f32; 2]>,
+        key: Option<u32>,
         resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
     ) -> Option<EffectHandle> {
         let Some(spec) = effect_spec(effect_id) else {
@@ -481,6 +494,7 @@ impl EffectHolder {
             attach,
             age: 0.0,
             duration,
+            key,
         });
         Some(handle)
     }
@@ -493,6 +507,10 @@ impl EffectHolder {
         queue: &mut EffectQueue,
         resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
     ) {
+        // Despawns first: a clear + re-spawn in the same frame keeps the new one.
+        for key in queue.drain_despawns() {
+            self.despawn_by_key(key);
+        }
         for req in queue.drain() {
             let SpawnRequest {
                 effect_id,
@@ -500,6 +518,7 @@ impl EffectHolder {
                 override_duration_ms,
                 hit_count,
                 target_size,
+                key,
             } = req;
             self.spawn_with_hit_count(
                 effect_id,
@@ -507,6 +526,7 @@ impl EffectHolder {
                 override_duration_ms,
                 hit_count,
                 target_size,
+                key,
                 resolve_entity,
             );
         }
@@ -516,6 +536,23 @@ impl EffectHolder {
         let backend = self.external_backend.as_ref().cloned();
         self.effects.retain(|e| {
             if e.handle != handle {
+                return true;
+            }
+            if let (HeldPayload::CustomExternal { handle: h }, Some(b)) = (&e.payload, &backend) {
+                b.drop_handle(*h);
+            }
+            false
+        });
+    }
+
+    /// Drop every live effect spawned with the given owner `key` (a ground
+    /// unit's `aid` removed by `ZC_SKILL_DISAPPEAR`, or a buff cleared by a
+    /// status-off packet). One key may match several effects (a multi-layer
+    /// buff). No-op when nothing matches.
+    pub fn despawn_by_key(&mut self, key: u32) {
+        let backend = self.external_backend.as_ref().cloned();
+        self.effects.retain(|e| {
+            if e.key != Some(key) {
                 return true;
             }
             if let (HeldPayload::CustomExternal { handle: h }, Some(b)) = (&e.payload, &backend) {
@@ -566,6 +603,15 @@ impl EffectHolder {
                             (Some(a), Some(b)) => c.set_link_endpoints(a, b),
                             _ => return false,
                         }
+                    }
+                    // Entity-attached effects follow their master each frame
+                    // (the original game re-copies `m_pos = m_master->m_pos`).
+                    // `set_position` is a no-op for one-shot effects, so only
+                    // persistent caster-anchored effects actually move.
+                    if let Attach::Entity(id) = attach
+                        && let Some(p) = resolve_entity_pos(id)
+                    {
+                        c.set_position(p);
                     }
                     let per_ctx = EffectUpdateCtx { caster_yaw, ..*ctx };
                     let running = c.update(&per_ctx) == EffectStatus::Running;
@@ -1277,6 +1323,71 @@ mod tests {
     }
 
     #[test]
+    fn entity_attached_effect_follows_master_each_frame() {
+        // B1.1b: the holder re-resolves an `Attach::Entity` effect's master
+        // position every frame and pushes it through `set_position`, so a
+        // persistent caster-anchored effect tracks the actor as it walks.
+        use std::sync::{Arc, Mutex};
+        struct FollowFake {
+            seen: Arc<Mutex<Vec<[f32; 3]>>>,
+        }
+        impl GameEffect for FollowFake {
+            fn update(&mut self, _: &EffectUpdateCtx) -> EffectStatus {
+                EffectStatus::Running
+            }
+            fn collect_draws(&self, _: &mut EffectDrawList, _: &EffectRenderCtx) {}
+            fn set_position(&mut self, pos: [f32; 3]) {
+                self.seen.lock().unwrap().push(pos);
+            }
+        }
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let mut h = EffectHolder::new();
+        h.effects.push(HeldEffect {
+            handle: EffectHandle(1),
+            payload: HeldPayload::Custom(Box::new(FollowFake { seen: seen.clone() })),
+            attach: Attach::Entity(7),
+            age: 0.0,
+            duration: f32::INFINITY,
+            key: None,
+        });
+        // Master at one cell, then a step over; only entity 7 resolves.
+        h.update(&ctx(1.0 / 60.0), &|_| None, &|id| (id == 7).then_some([10.0, 0.0, 5.0]));
+        h.update(&ctx(1.0 / 60.0), &|_| None, &|id| (id == 7).then_some([11.0, 0.0, 5.0]));
+        assert_eq!(
+            *seen.lock().unwrap(),
+            vec![[10.0, 0.0, 5.0], [11.0, 0.0, 5.0]],
+            "the effect was re-anchored to the master's live position each frame"
+        );
+    }
+
+    #[test]
+    fn despawn_by_key_drops_only_matching_effects() {
+        // B1.1c: a clear/disappear packet despawns every effect spawned with a
+        // matching owner key, leaving other-keyed and keyless effects alone.
+        let mut h = EffectHolder::new();
+        let mut push_keyed = |handle: u64, key: Option<u32>| {
+            h.effects.push(HeldEffect {
+                handle: EffectHandle(handle),
+                payload: HeldPayload::Str { name: "x".to_string() },
+                attach: Attach::WorldPos([0.0; 3]),
+                age: 0.0,
+                duration: f32::INFINITY,
+                key,
+            });
+        };
+        push_keyed(1, Some(7));
+        push_keyed(2, Some(7)); // a multi-layer buff: two effects, one key
+        push_keyed(3, Some(9));
+        push_keyed(4, None);
+        assert_eq!(h.len(), 4);
+
+        h.despawn_by_key(7);
+        assert_eq!(h.len(), 2, "both key=7 effects gone; key=9 and the keyless one remain");
+        h.despawn_by_key(123); // unknown key is a no-op
+        assert_eq!(h.len(), 2);
+    }
+
+    #[test]
     fn quakebody_attached_to_entity_shakes_and_tints_only_that_entity() {
         let mut h = EffectHolder::new();
         h.spawn(EffectId::Quakebody4, Attach::Entity(7), None)
@@ -1411,6 +1522,7 @@ mod tests {
             attach: Attach::WorldPos([1.0, 2.0, 3.0]),
             age: 0.5,
             duration: 10.0,
+            key: None,
         });
         let snaps = h.collect_str_emitters(&|_| None);
         assert_eq!(snaps.len(), 1);
