@@ -19,7 +19,6 @@ use ragnarok_game::cursor::{
 };
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::event::GameEvent;
-use ragnarok_game::name_table::NameTable;
 use ragnarok_game::skill::SkillTargetType;
 use ragnarok_game::{map_loader, sprite_loader};
 use ragnarok_network::{
@@ -35,10 +34,12 @@ use ragnarok_network::{
     build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_use_skill_packet,
     ip_u32_to_string, network_loop,
 };
+use ragnarok_game::effect::EffectQueue;
 use ragnarok_renderer::{
     EffectSpriteCache, GridSelectorRenderer, Renderer, SpriteVertex, StrEffectCache, UiDrawCall,
     block_on, upload_sprite_textures,
 };
+use ragnarok_renderer::effect::EffectHolder;
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::state::StateCache;
@@ -55,6 +56,19 @@ use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
+use ragnarok_game::data_table::accessory_table::AccessoryTable;
+use ragnarok_game::data_table::card_illustration_table::CardIllustrationTable;
+use ragnarok_game::data_table::card_name_table::CardNameTable;
+use ragnarok_game::data_table::item_description_table::ItemDescriptionTable;
+use ragnarok_game::data_table::item_name_table::ItemNameTable;
+use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
+use ragnarok_game::data_table::item_slot_count_table::ItemSlotCountTable;
+use ragnarok_game::data_table::name_table::NameTable;
+use ragnarok_game::data_table::skill_description_table::SkillDescriptionTable;
+use ragnarok_game::data_table::skill_name_table::SkillNameTable;
+use ragnarok_game::data_table::skill_tree_table::SkillTreeTable;
+use ragnarok_game::data_table::skill_use_level_table::SkillUseLevelTable;
+
 type ClipData = (Vec<SpriteVertex>, Vec<u32>, usize);
 
 struct GameChannel {
@@ -98,6 +112,12 @@ struct App {
     renderer: Option<Renderer>,
     effect_sprites: EffectSpriteCache,
     str_effects: StrEffectCache,
+    /// Runtime store for skill/level-up/refining/custom effects spawned via
+    /// the new pipeline. Ambient (RSW) effects still flow through
+    /// `game.effects` (`EffectManager`) for now.
+    effect_holder: EffectHolder,
+    /// Queue triggers push spawn requests into; drained each frame.
+    effect_queue: EffectQueue,
     grf: Option<GrfArchive>,
     input: InputState,
     ui_context: Option<UiContext>,
@@ -125,6 +145,8 @@ impl App {
             renderer: None,
             effect_sprites: EffectSpriteCache::new(),
             str_effects: StrEffectCache::new(),
+            effect_holder: EffectHolder::new(),
+            effect_queue: EffectQueue::new(),
             grf: None,
             input: InputState::new(),
             ui_context: None,
@@ -160,6 +182,9 @@ impl App {
             let fog = if self.config.fog { map_data.fog } else { None };
             renderer.load_map(&map_data.gnd, &map_data.rsw, grf, fog);
 
+            let effect_textures = ragnarok_game::effect::effect_texture_paths();
+            renderer.preload_effect_textures(&effect_textures, grf);
+
             // Preload sprite assets used by spawned effect emitters once.
             let mut paths: Vec<&str> = self
                 .game
@@ -175,6 +200,11 @@ impl App {
                     }
                 })
                 .collect();
+            // Sprite paths used by Custom-effect modules (Hit's
+            // particle1, etc.) — same loader path as the RSW ambient
+            // emitter sprites above, just sourced from
+            // `custom_effect_sprite_paths()` aggregator.
+            paths.extend(ragnarok_game::effect::custom_effect_sprite_paths());
             paths.sort();
             paths.dedup();
             for path in paths {
@@ -199,6 +229,7 @@ impl App {
             for name in &str_names {
                 self.str_effects.load(
                     name,
+                    &[],
                     grf,
                     &mut renderer.texture_cache,
                     &renderer.device.device,
@@ -1107,32 +1138,32 @@ impl ApplicationHandler for App {
                     self.load_emotion_sprite(&grf);
                     self.load_damage_sprites(&grf);
                     self.game.data_table.accessory =
-                        Some(ragnarok_game::accessory_table::AccessoryTable::load_from_grf(&grf));
+                        Some(AccessoryTable::load_from_grf(&grf));
                     self.game.data_table.name = Some(NameTable::load(&grf));
                     self.game.data_table.item_name =
-                        Some(ragnarok_game::item_name_table::ItemNameTable::load(&grf));
+                        Some(ItemNameTable::load(&grf));
                     self.game.data_table.item_resource = Some(
-                        ragnarok_game::item_resource_table::ItemResourceTable::load(&grf),
+                        ItemResourceTable::load(&grf),
                     );
                     self.game.data_table.item_slot_count =
-                        Some(ragnarok_game::item_slot_count_table::ItemSlotCountTable::load(&grf));
+                        Some(ItemSlotCountTable::load(&grf));
                     self.game.data_table.card_name =
-                        Some(ragnarok_game::card_name_table::CardNameTable::load(&grf));
+                        Some(CardNameTable::load(&grf));
                     self.game.data_table.card_illustration = Some(
-                        ragnarok_game::card_illustration_table::CardIllustrationTable::load(&grf),
+                        CardIllustrationTable::load(&grf),
                     );
                     self.game.data_table.item_description = Some(
-                        ragnarok_game::item_description_table::ItemDescriptionTable::load(&grf),
+                        ItemDescriptionTable::load(&grf),
                     );
                     self.game.data_table.skill_name =
-                        Some(ragnarok_game::skill_name_table::SkillNameTable::load(&grf));
+                        Some(SkillNameTable::load(&grf));
                     self.game.data_table.skill_description = Some(
-                        ragnarok_game::skill_description_table::SkillDescriptionTable::load(&grf),
+                        SkillDescriptionTable::load(&grf),
                     );
                     self.game.data_table.skill_tree =
-                        Some(ragnarok_game::skill_tree_table::SkillTreeTable::load(&grf));
+                        Some(SkillTreeTable::load(&grf));
                     self.game.data_table.skill_use_level =
-                        Some(ragnarok_game::skill_use_level_table::SkillUseLevelTable::load(&grf));
+                        Some(SkillUseLevelTable::load(&grf));
                     self.grf = Some(grf);
                 }
                 Err(e) => {

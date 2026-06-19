@@ -9,7 +9,7 @@ impl App {
     pub(crate) fn check_pending_attack(&mut self, delta: f32) {
         self.game.attack_request_cooldown = (self.game.attack_request_cooldown - delta).max(0.0);
 
-        // While a skill is queued, attack_target_id belongs to the skill chase —
+        // While a skill is queued, attack_target_id belongs to the skill chase -
         // check_pending_skill owns the lifecycle, don't touch it here.
         if self.game.pending_skill_id.is_some() {
             return;
@@ -261,6 +261,13 @@ impl App {
                 }
             }
         }
+    }
+
+    pub(crate) fn update_arrows(&mut self, delta: f32) {
+        for arrow in &mut self.game.arrows {
+            arrow.advance(delta);
+        }
+        self.game.arrows.retain(|a| !a.is_done());
     }
 
     pub(crate) fn process_caster_replays(&mut self) {

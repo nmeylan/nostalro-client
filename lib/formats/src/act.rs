@@ -265,6 +265,7 @@ pub enum MotionType {
     Static,
 }
 
+#[derive(Clone)]
 pub struct SpriteAnimationState {
     action: usize,
     direction: usize,

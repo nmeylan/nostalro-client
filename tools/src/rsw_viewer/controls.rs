@@ -1,7 +1,7 @@
 use winit::event::ElementState;
 use winit::keyboard::{Key, NamedKey};
 
-// Action codes — must match `rsw-viewer-hot/src/lib.rs::ACTION_*`. Treated as
+// Action codes - must match `rsw-viewer-hot/src/lib.rs::ACTION_*`. Treated as
 // part of the FFI contract; keep discriminants stable.
 #[repr(u32)]
 #[derive(Debug, Clone, Copy)]

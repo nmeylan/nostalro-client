@@ -339,7 +339,7 @@ impl NpcShop {
                 });
             }
 
-            // Item count (sell mode — show remaining quantity)
+            // Item count (sell mode - show remaining quantity)
             if self.shop.mode == Some(NpcShopMode::Sell) {
                 let remaining = self.shop.sell_item_remaining(item_idx);
                 let count_str = remaining.to_string();
@@ -776,7 +776,7 @@ mod tests {
         let events = shop_ui.build(&mut ui, &mut character, &data);
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], GameEvent::RequestNpcShopClose));
-        // Shop remains open — main.rs closes it after sending the network packet
+        // Shop remains open - main.rs closes it after sending the network packet
         assert!(shop_ui.shop.is_open());
     }
 

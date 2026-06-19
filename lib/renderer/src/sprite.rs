@@ -84,18 +84,46 @@ pub struct SpriteUniforms {
 const INITIAL_VERTEX_CAPACITY: usize = 1024;
 const INITIAL_INDEX_CAPACITY: usize = 2048;
 
+/// Depth configuration for a sprite pipeline.
+#[derive(Clone, Copy)]
+enum SpriteDepth {
+    /// No depth-stencil attachment — for passes that bind none (UI/login).
+    None,
+    /// Depth attachment with `LessEqual` test; writes when `write` is set.
+    Test { write: bool },
+    /// Depth attachment bound but test/write disabled (`Always`, no write):
+    /// a no-depth-check sprite, so it draws over the
+    /// floor instead of being occluded by ground it sits at or below.
+    Overlay,
+}
+
 pub struct SpriteRenderer {
-    pipeline: wgpu::RenderPipeline,
-    pipeline_no_depth: wgpu::RenderPipeline,
-    pipeline_additive: wgpu::RenderPipeline,
-    pipeline_additive_no_depth: wgpu::RenderPipeline,
+    pub pipeline: wgpu::RenderPipeline,
+    pub pipeline_no_depth: wgpu::RenderPipeline,
+    pub pipeline_additive: wgpu::RenderPipeline,
+    pub pipeline_additive_no_depth: wgpu::RenderPipeline,
+    /// Sprite drawn with the depth attachment bound but the test/write
+    /// disabled (no depth check): renders over the
+    /// floor instead of being occluded by ground it sits at or below. Used by
+    /// the effect dispatch's `AlphaNoDepth` / `AdditiveNoDepth` buckets, which
+    /// run in a pass that HAS a depth attachment (so the attachment-less
+    /// `pipeline_no_depth` is format-incompatible there).
+    pub pipeline_overlay: wgpu::RenderPipeline,
+    pub pipeline_additive_overlay: wgpu::RenderPipeline,
     uniform_buffer: wgpu::Buffer,
-    uniform_bind_group: wgpu::BindGroup,
+    pub uniform_bind_group: wgpu::BindGroup,
     uniform_bind_group_layout: wgpu::BindGroupLayout,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     vertex_capacity: usize,
     index_capacity: usize,
+    /// Whether the depth-enabled pipelines write to the depth buffer.
+    /// Entity sprites do so the post-sprite effect pass depth-tests against
+    /// them (front of cylinder draws over sprite, back fails depth test —
+    /// matches the original game's on-screen occlusion, where the entity
+    /// sprite pass keeps depth-write on). Effect sprites (STR / ambient SPR) skip
+    /// the write so per-emitter particle layering isn't blocked.
+    depth_write: bool,
 }
 
 impl SpriteRenderer {
@@ -106,6 +134,7 @@ impl SpriteRenderer {
         logical_width: f32,
         logical_height: f32,
         shader_source: &str,
+        depth_write: bool,
     ) -> Self {
         use wgpu::util::DeviceExt;
 
@@ -179,7 +208,7 @@ impl SpriteRenderer {
             texture_bind_group_layout,
             shader_source,
             alpha,
-            true,
+            SpriteDepth::Test { write: depth_write },
         );
         let pipeline_no_depth = Self::create_pipeline(
             device,
@@ -188,7 +217,7 @@ impl SpriteRenderer {
             texture_bind_group_layout,
             shader_source,
             alpha,
-            false,
+            SpriteDepth::None,
         );
         let pipeline_additive = Self::create_pipeline(
             device,
@@ -197,7 +226,7 @@ impl SpriteRenderer {
             texture_bind_group_layout,
             shader_source,
             additive,
-            true,
+            SpriteDepth::Test { write: depth_write },
         );
         let pipeline_additive_no_depth = Self::create_pipeline(
             device,
@@ -206,7 +235,25 @@ impl SpriteRenderer {
             texture_bind_group_layout,
             shader_source,
             additive,
-            false,
+            SpriteDepth::None,
+        );
+        let pipeline_overlay = Self::create_pipeline(
+            device,
+            surface_format,
+            &uniform_bind_group_layout,
+            texture_bind_group_layout,
+            shader_source,
+            alpha,
+            SpriteDepth::Overlay,
+        );
+        let pipeline_additive_overlay = Self::create_pipeline(
+            device,
+            surface_format,
+            &uniform_bind_group_layout,
+            texture_bind_group_layout,
+            shader_source,
+            additive,
+            SpriteDepth::Overlay,
         );
 
         Self {
@@ -214,6 +261,8 @@ impl SpriteRenderer {
             pipeline_no_depth,
             pipeline_additive,
             pipeline_additive_no_depth,
+            pipeline_overlay,
+            pipeline_additive_overlay,
             uniform_buffer,
             uniform_bind_group,
             uniform_bind_group_layout,
@@ -221,6 +270,7 @@ impl SpriteRenderer {
             index_buffer,
             vertex_capacity: INITIAL_VERTEX_CAPACITY,
             index_capacity: INITIAL_INDEX_CAPACITY,
+            depth_write,
         }
     }
 
@@ -231,7 +281,7 @@ impl SpriteRenderer {
         texture_layout: &wgpu::BindGroupLayout,
         shader_source: &str,
         blend: wgpu::BlendState,
-        use_depth: bool,
+        depth: SpriteDepth,
     ) -> wgpu::RenderPipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("sprite"),
@@ -267,16 +317,22 @@ impl SpriteRenderer {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 ..Default::default()
             },
-            depth_stencil: if use_depth {
-                Some(wgpu::DepthStencilState {
+            depth_stencil: match depth {
+                SpriteDepth::None => None,
+                SpriteDepth::Test { write } => Some(wgpu::DepthStencilState {
                     format: DEPTH_FORMAT,
-                    depth_write_enabled: false,
+                    depth_write_enabled: write,
                     depth_compare: wgpu::CompareFunction::LessEqual,
                     stencil: Default::default(),
                     bias: Default::default(),
-                })
-            } else {
-                None
+                }),
+                SpriteDepth::Overlay => Some(wgpu::DepthStencilState {
+                    format: DEPTH_FORMAT,
+                    depth_write_enabled: false,
+                    depth_compare: wgpu::CompareFunction::Always,
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
             },
             multisample: Default::default(),
             multiview_mask: None,
@@ -311,7 +367,7 @@ impl SpriteRenderer {
             texture_layout,
             shader_source,
             alpha,
-            true,
+            SpriteDepth::Test { write: self.depth_write },
         );
         self.pipeline_no_depth = Self::create_pipeline(
             device,
@@ -320,7 +376,7 @@ impl SpriteRenderer {
             texture_layout,
             shader_source,
             alpha,
-            false,
+            SpriteDepth::None,
         );
         self.pipeline_additive = Self::create_pipeline(
             device,
@@ -329,7 +385,7 @@ impl SpriteRenderer {
             texture_layout,
             shader_source,
             additive,
-            true,
+            SpriteDepth::Test { write: self.depth_write },
         );
         self.pipeline_additive_no_depth = Self::create_pipeline(
             device,
@@ -338,7 +394,25 @@ impl SpriteRenderer {
             texture_layout,
             shader_source,
             additive,
-            false,
+            SpriteDepth::None,
+        );
+        self.pipeline_overlay = Self::create_pipeline(
+            device,
+            surface_format,
+            &self.uniform_bind_group_layout,
+            texture_layout,
+            shader_source,
+            alpha,
+            SpriteDepth::Overlay,
+        );
+        self.pipeline_additive_overlay = Self::create_pipeline(
+            device,
+            surface_format,
+            &self.uniform_bind_group_layout,
+            texture_layout,
+            shader_source,
+            additive,
+            SpriteDepth::Overlay,
         );
     }
 
@@ -771,6 +845,20 @@ pub fn scale_clip_vertices(
     }
 }
 
+pub fn rotate_sprite_vertices(
+    vertices: &mut [SpriteVertex],
+    center: [f32; 2],
+    angle: f32,
+) {
+    let (sin, cos) = angle.sin_cos();
+    for v in vertices {
+        let dx = v.position[0] - center[0];
+        let dy = v.position[1] - center[1];
+        v.position[0] = center[0] + dx * cos - dy * sin;
+        v.position[1] = center[1] + dx * sin + dy * cos;
+    }
+}
+
 pub struct EntitySprite {
     pub body_textures: SpriteTextures,
     pub body_act: ActFile,
@@ -1139,6 +1227,219 @@ impl EntitySprite {
         }
         batches
     }
+}
+
+/// Every per-entity body modifier resolved for one frame, bundled so the
+/// actor pass fetches them in a single call and feeds them to
+/// [`compose_actor_batches`]. Covers the original game's body-modifier set
+/// (shake, tint, scale, yaw, roll angle, vertical lift, and the
+/// multi-render copies).
+#[derive(Clone, Debug)]
+pub struct BodyChannels {
+    pub shake: [f32; 2],
+    pub tint: Option<[u8; 3]>,
+    pub scale: f32,
+    pub yaw: f32,
+    /// Final opacity multiplier for the live body (effect fade folded with the
+    /// caller's hidden/death fade).
+    pub alpha: f32,
+    /// Screen-space vertical lift in pixels (positive = up).
+    pub lift_px: f32,
+    /// Sprite-quad rotation about the anchor, radians.
+    pub angle: f32,
+    /// Vertical scale about the feet anchor (1.0 = none); `<1.0` presses the
+    /// top toward the bottom (Pressedbody squash).
+    pub squeeze: f32,
+    /// Render the live body additively (light-body glow): a glowing, partly
+    /// see-through body (dark pixels vanish) instead of the opaque sprite.
+    pub additive: bool,
+    pub copies: Vec<ragnarok_game::effect::BodyCopy>,
+}
+
+impl Default for BodyChannels {
+    fn default() -> Self {
+        Self {
+            shake: [0.0, 0.0],
+            tint: None,
+            scale: 1.0,
+            yaw: 0.0,
+            alpha: 1.0,
+            lift_px: 0.0,
+            angle: 0.0,
+            squeeze: 1.0,
+            additive: false,
+            copies: Vec::new(),
+        }
+    }
+}
+
+/// Rotate (radians) and stretch (`scale` x/y) a batch's vertices about
+/// `anchor` in screen space. No-op when there's nothing to do.
+pub fn transform_batch_vertices(
+    batches: &mut [SpriteBatch],
+    anchor: [f32; 2],
+    radians: f32,
+    scale: [f32; 2],
+) {
+    if radians == 0.0 && scale == [1.0, 1.0] {
+        return;
+    }
+    let (sin, cos) = radians.sin_cos();
+    for batch in batches {
+        for v in &mut batch.vertices {
+            let dx = (v.position[0] - anchor[0]) * scale[0];
+            let dy = (v.position[1] - anchor[1]) * scale[1];
+            v.position[0] = anchor[0] + dx * cos - dy * sin;
+            v.position[1] = anchor[1] + dx * sin + dy * cos;
+        }
+    }
+}
+
+fn apply_tint_alpha(batches: &mut [SpriteBatch], tint: Option<[u8; 3]>, alpha: f32) {
+    let tint = tint.map(|t| [t[0] as f32 / 255.0, t[1] as f32 / 255.0, t[2] as f32 / 255.0]);
+    for batch in batches {
+        for v in &mut batch.vertices {
+            if let Some([tr, tg, tb]) = tint {
+                v.color[0] *= tr;
+                v.color[1] *= tg;
+                v.color[2] *= tb;
+            }
+            if alpha != 1.0 {
+                v.color[3] *= alpha;
+            }
+        }
+    }
+}
+
+/// Build the actor's sprite batches with every body channel applied in one
+/// place: yaw cycles the 8-way facing, shake + lift offset the anchor, scale
+/// multiplies the size, [`BodyCopy`] copies render behind the live body, and
+/// the live body takes the rotation, tint and alpha. Shared by the game scene
+/// and the effect viewer so the two never drift. Afterimage trails are drawn
+/// separately by the caller (they need holder mutation + the un-yawed facing).
+#[allow(clippy::too_many_arguments)]
+pub fn compose_actor_batches<'a>(
+    sprite: &'a EntitySprite,
+    animation: &ragnarok_formats::act::SpriteAnimationState,
+    camera_dir: u8,
+    head_dir: u8,
+    screen_anchor: [f32; 2],
+    depth: f32,
+    base_scale: f32,
+    channels: &BodyChannels,
+) -> Vec<SpriteBatch<'a>> {
+    // Body yaw: convert the accumulated yaw to direction
+    // steps and rotate the camera-relative facing index.
+    let dir = if channels.yaw != 0.0 {
+        let steps = (channels.yaw / (std::f32::consts::TAU / 8.0)).round() as i32;
+        (((camera_dir as i32 + steps) % 8 + 8) % 8) as u8
+    } else {
+        camera_dir
+    };
+    let anchor = [
+        screen_anchor[0] + channels.shake[0],
+        screen_anchor[1] + channels.shake[1] - channels.lift_px,
+    ];
+    let scale = base_scale * channels.scale;
+
+    let mut live = sprite.build_batches(animation, Some(dir), head_dir, anchor, depth, scale, 0.0);
+    // Bounding box of the natural (untransformed) sprite — copies scale
+    // concentrically about its centre (russian-doll / halo), so they surround the
+    // body on all sides instead of growing off the feet.
+    let (body_center, body_w, body_h) = batches_bbox(&live)
+        .map(|(min, max)| {
+            (
+                [(min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5],
+                (max[0] - min[0]).max(1.0),
+                (max[1] - min[1]).max(1.0),
+            )
+        })
+        .unwrap_or((anchor, 1.0, 1.0));
+
+    let build_copy = |copy: &ragnarok_game::effect::BodyCopy| {
+        let mut batches =
+            sprite.build_batches(animation, Some(dir), head_dir, anchor, depth, scale, 0.0);
+        // `margin_px` grows the copy by a fixed number of pixels on every edge
+        // (an even border inflation) — the right knob for a small concentric
+        // halo/ripple. Otherwise a uniform scale (`[s, s]`) adds a *proportional*
+        // margin (fatter top/bottom than sides on a tall sprite), so convert that
+        // to an even pixel margin too. Explicit non-uniform scales (hit-line
+        // stretch) pass through.
+        let scale_xy = if copy.margin_px != 0.0 {
+            [(body_w + 2.0 * copy.margin_px) / body_w, (body_h + 2.0 * copy.margin_px) / body_h]
+        } else if (copy.scale[0] - copy.scale[1]).abs() < 1e-6 && copy.scale[1] != 1.0 {
+            let margin = (copy.scale[1] - 1.0) * body_h * 0.5;
+            [(body_w + 2.0 * margin) / body_w, copy.scale[1]]
+        } else {
+            copy.scale
+        };
+        transform_batch_vertices(&mut batches, body_center, 0.0, scale_xy);
+        // `offset_px` then slides the whole (centre-scaled) copy — the
+        // ghosts that drift outward in four directions.
+        if copy.offset_px != [0.0, 0.0] {
+            for b in &mut batches {
+                for v in &mut b.vertices {
+                    v.position[0] += copy.offset_px[0];
+                    v.position[1] += copy.offset_px[1];
+                }
+            }
+        }
+        apply_tint_alpha(&mut batches, Some(copy.tint), copy.alpha);
+        for b in &mut batches {
+            b.additive = copy.additive;
+        }
+        batches
+    };
+
+    let mut out = Vec::new();
+    // Copies marked `behind` sit BEHIND the live sprite — larger and fainter, so
+    // the parts outside the body silhouette show as a russian-doll halo / glow,
+    // while the opaque body covers (and so leaves unchanged) the inner part.
+    for copy in channels.copies.iter().filter(|c| c.behind) {
+        out.append(&mut build_copy(copy));
+    }
+
+    if channels.squeeze != 1.0 {
+        // Compress the body vertically toward the feet anchor.
+        transform_batch_vertices(&mut live, anchor, 0.0, [1.0, channels.squeeze]);
+    }
+    if channels.angle != 0.0 {
+        // A body roll pivots about the entity's centre, not its feet.
+        transform_batch_vertices(&mut live, body_center, channels.angle, [1.0, 1.0]);
+    }
+    apply_tint_alpha(&mut live, channels.tint, channels.alpha);
+    if channels.additive {
+        // Light-body glow: the body itself blends additively, so dark texels add
+        // nothing (see-through) and the tint reads as a glow over the scene.
+        for b in &mut live {
+            b.additive = true;
+        }
+    }
+    out.append(&mut live);
+
+    // Copies marked on-top overlay the live sprite (glow rim,
+    // asura halo, hit flash).
+    for copy in channels.copies.iter().filter(|c| !c.behind) {
+        out.append(&mut build_copy(copy));
+    }
+    out
+}
+
+/// Bounding box `(min, max)` of a batch set's vertices in screen space.
+fn batches_bbox(batches: &[SpriteBatch]) -> Option<([f32; 2], [f32; 2])> {
+    let (mut min_x, mut min_y) = (f32::MAX, f32::MAX);
+    let (mut max_x, mut max_y) = (f32::MIN, f32::MIN);
+    let mut any = false;
+    for batch in batches {
+        for v in &batch.vertices {
+            any = true;
+            min_x = min_x.min(v.position[0]);
+            min_y = min_y.min(v.position[1]);
+            max_x = max_x.max(v.position[0]);
+            max_y = max_y.max(v.position[1]);
+        }
+    }
+    any.then_some(([min_x, min_y], [max_x, max_y]))
 }
 
 #[cfg(test)]

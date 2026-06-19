@@ -6,7 +6,7 @@ echo "Building hot dylib..."
 cargo build -p rendering-viewer-hot
 
 echo "Starting hot-reload rendering viewer"
-echo "Edit lib/game/src/damage_number.rs and changes auto-reload."
+echo "Edit lib/game/src/damage_number.rs (or tools/rendering-viewer-hot/src) and changes auto-reload."
 
 cargo watch \
     -w lib/game/src \

@@ -1,6 +1,6 @@
-use crate::card_name_table::CardNameTable;
+use crate::data_table::card_name_table::CardNameTable;
+use crate::data_table::item_slot_count_table::ItemSlotCountTable;
 use crate::item::Item;
-use crate::item_slot_count_table::ItemSlotCountTable;
 
 pub fn format_equipment_display_name(
     item: &Item,
@@ -87,7 +87,6 @@ fn build_card_affixes(slots: &[u16; 4], card_table: Option<&CardNameTable>) -> (
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::item_slot_count_table::ItemSlotCountTable;
     use models::enums::item::ItemType;
     use std::collections::{HashMap, HashSet};
 

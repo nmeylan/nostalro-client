@@ -1,14 +1,19 @@
 use crate::{App, ClipData};
 use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
+use ragnarok_game::effect::{BlendKind, EffectPrimitiveDraw};
 use ragnarok_game::effect_table::EffectKind;
 use ragnarok_game::effects::EffectManager;
+use ragnarok_game::entity::EntityState;
 use ragnarok_game::shadow::shadow_size;
+use ragnarok_game::sprite_path::{HIDDEN_BODY_ALPHA, is_hidden};
+use ragnarok_renderer::effect::holder::AfterimageSnapshot;
+use ragnarok_renderer::effect::{
+    EffectFrameInputs, StrEmitterInput, compose_effect_frame,
+};
 use ragnarok_renderer::effect_sprite::SpriteEffectEmitter;
-use ragnarok_renderer::str_effect::StrEmitterInput;
 use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_renderer::{
-    SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad, build_emitter_batches,
-    build_str_effect_batches, collect_sprite_effect_draws, scale_clip_vertices,
+    SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad, scale_clip_vertices,
 };
 
 impl App {
@@ -43,10 +48,26 @@ impl App {
                         self.game.sprites.get(&entry.id),
                         self.game.entities.get(entry.id),
                     ) {
-                        let alpha = entity.alpha();
-                        let is_fading = alpha < 1.0;
+                        // Hiding / Cloaking / Chase Walk: the body stays visible
+                        // but translucent (alpha ~135/255) and loses its
+                        // shadow. Folds into the death /
+                        // vanish fade alpha.
+                        let hidden = is_hidden(entity.effect_state);
+                        let fade_alpha = entity.alpha();
+                        let body_alpha =
+                            fade_alpha * if hidden { HIDDEN_BODY_ALPHA } else { 1.0 };
+                        let is_fading = fade_alpha < 1.0;
 
-                        if !is_fading {
+                        // All per-entity body modifiers (shake / tint / scale /
+                        // yaw / spin / lift / copies — the original game's body
+                        // light effects) resolved in one call; the shared composer
+                        // applies them so the scene and effect viewer never
+                        // drift. Fold the hidden / death fade into the alpha.
+                        let mut body_channels =
+                            self.effect_holder.body_channels_for_entity(entry.id);
+                        body_channels.alpha *= body_alpha;
+
+                        if !is_fading && !hidden {
                             let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
                             let mut shadow = sprite.build_shadow_batches(
                                 entry.screen_anchor,
@@ -56,22 +77,64 @@ impl App {
                             sprite_batches.append(&mut shadow);
                         }
 
-                        let mut batches = sprite.build_batches(
+                        let mut batches = ragnarok_renderer::compose_actor_batches(
+                            sprite,
                             &entity.animation,
-                            Some(entry.camera_dir),
+                            entry.camera_dir,
                             entity.head_dir,
                             entry.screen_anchor,
                             entry.depth,
                             entry.sprite_scale,
-                            entry.depth_gradient,
+                            &body_channels,
                         );
-                        if is_fading {
-                            for batch in &mut batches {
-                                for vertex in &mut batch.vertices {
-                                    vertex.color[3] *= alpha;
+
+                        // Movement afterimage: Two-Hand / Spear
+                        // Quicken drop fading sprite copies behind the actor
+                        // while it walks. Snapshot the current frame on the
+                        // emit interval, then draw every live copy *before*
+                        // the sprite so the live one stays on top.
+                        if let Some(ai) = self.effect_holder.afterimage_params_for_entity(entry.id) {
+                            if entity.state == EntityState::Moving
+                                && self.effect_holder.afterimage_emit_due(entry.id)
+                            {
+                                self.effect_holder.push_afterimage(AfterimageSnapshot::new(
+                                    entry.id,
+                                    entity.animation.clone(),
+                                    Some(entry.camera_dir),
+                                    entity.head_dir,
+                                    entry.screen_anchor,
+                                    entry.depth,
+                                    entry.sprite_scale,
+                                    &ai,
+                                ));
+                            }
+                            for img in self.effect_holder.afterimages_for_entity(entry.id) {
+                                let mut copy = sprite.build_batches(
+                                    &img.anim,
+                                    img.camera_dir,
+                                    img.head_dir,
+                                    img.anchor,
+                                    img.depth,
+                                    img.scale,
+                                    0.0,
+                                );
+                                let (tr, tg, tb) = (
+                                    img.tint[0] as f32 / 255.0,
+                                    img.tint[1] as f32 / 255.0,
+                                    img.tint[2] as f32 / 255.0,
+                                );
+                                for batch in &mut copy {
+                                    for vertex in &mut batch.vertices {
+                                        vertex.color[0] *= tr;
+                                        vertex.color[1] *= tg;
+                                        vertex.color[2] *= tb;
+                                        vertex.color[3] *= img.alpha;
+                                    }
                                 }
+                                sprite_batches.append(&mut copy);
                             }
                         }
+
                         sprite_batches.append(&mut batches);
 
                         if let (Some(emo), Some(emo_act), Some(emo_tex)) = (
@@ -161,7 +224,7 @@ impl App {
                                             &mut vertices,
                                             center,
                                             entry.sprite_scale,
-                                            entry.depth_gradient,
+                                            0.0,
                                         );
                                         if blink_active {
                                             for v in &mut vertices {
@@ -303,30 +366,53 @@ impl App {
         if let Some(renderer) = &mut self.renderer {
             let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
             let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
-            let emitter_inputs = crate::scene::build_sprite_effect_inputs(&self.game.effects);
-            let effect_draws = collect_sprite_effect_draws(
-                &emitter_inputs,
-                &self.effect_sprites,
-                &renderer.camera,
+            let extra_spr = build_sprite_effect_inputs(&self.game.effects);
+            let extra_str = build_str_emitter_inputs(&self.game.effects);
+            let arrow_draws: Vec<EffectPrimitiveDraw> = self
+                .game
+                .arrows
+                .iter()
+                .filter(|a| a.is_visible())
+                .map(|a| EffectPrimitiveDraw::SpriteParticle {
+                    sprite_path: a.sprite_path(),
+                    position: a.current_position(),
+                    action_index: 0,
+                    motion_index: 0,
+                    size_scale: 1.0,
+                    color: [1.0, 1.0, 1.0, 1.0],
+                    blend: BlendKind::Alpha,
+                    aim_target: Some(a.target_pos()),
+                    no_depth: false,
+                })
+                .collect();
+            let zoom = self
+                .game
+                .map_coords
+                .as_ref()
+                .map_or(10.0, |c| c.zoom());
+            let frame = compose_effect_frame(&EffectFrameInputs {
+                effect_holder: &self.effect_holder,
+                effect_sprites: &self.effect_sprites,
+                str_effects: &self.str_effects,
+                camera: &renderer.camera,
                 screen_w,
                 screen_h,
-            );
-            let mut effect_batches = build_emitter_batches(&effect_draws);
-
-            let str_inputs = build_str_emitter_inputs(&self.game.effects);
-            let mut str_batches = build_str_effect_batches(
-                &str_inputs,
-                &self.str_effects,
-                &renderer.camera,
-                screen_w,
-                screen_h,
-            );
-            effect_batches.append(&mut str_batches);
-            effect_batches.append(&mut sprite_batches);
-            let sprite_batches = effect_batches;
+                zoom,
+                elapsed,
+                extra_spr_emitters: &extra_spr,
+                extra_str_emitters: &extra_str,
+                // Caster-attached buff STR overlays will resolve here once the
+                // game wires status-packet → `spawn_on`; body tint/shake are
+                // applied directly in the actor pass and don't need this.
+                resolve_entity: &|_| None,
+                extra_sprite_particles: &arrow_draws,
+            });
 
             renderer.render(
                 &all_ui_calls,
+                &frame.effect_batches,
+                &frame.effect_draws,
+                frame.sprite_particle_records,
                 &sprite_batches,
                 &cursor_batches,
                 &inline_textures,
@@ -350,7 +436,10 @@ pub(crate) fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteE
                     position: emitter.position,
                     color: emitter.color,
                     size_scale: emitter.size_scale,
+                    anim_speed: 1.0,
+                    repeat: true,
                     anim_time: emitter.anim_time,
+                    action_index: 0,
                 });
             }
             EffectKind::Smoke3D {
@@ -362,7 +451,12 @@ pub(crate) fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteE
                 let particles = emitter
                     .particles
                     .iter()
-                    .map(|p| (p.position, p.age, p.lifetime))
+                    .map(|p| ragnarok_renderer::Smoke3DParticle {
+                        pos: p.position,
+                        age: p.age,
+                        lifetime: p.lifetime,
+                        alpha_override: None,
+                    })
                     .collect();
                 inputs.push(SpriteEffectEmitter::Smoke3D {
                     sprite_path,
@@ -370,6 +464,8 @@ pub(crate) fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteE
                     color: emitter.color,
                     size_scale: emitter.size_scale,
                     anim_speed: *anim_speed,
+                    size_shrink: false,
+                    twinkle: false,
                     particles,
                 });
             }

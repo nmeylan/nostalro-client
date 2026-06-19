@@ -1,16 +1,28 @@
-use crate::accessory_table::AccessoryTable;
-use crate::card_illustration_table::CardIllustrationTable;
-use crate::card_name_table::CardNameTable;
-use crate::item_description_table::ItemDescriptionTable;
-use crate::item_name_table::ItemNameTable;
-use crate::item_resource_table::ItemResourceTable;
-use crate::item_slot_count_table::ItemSlotCountTable;
-use crate::name_table::NameTable;
-use crate::skill_description_table::SkillDescriptionTable;
-use crate::skill_name_table::SkillNameTable;
-use crate::skill_tree_table::SkillTreeTable;
-use crate::skill_use_level_table::SkillUseLevelTable;
+use crate::data_table::accessory_table::AccessoryTable;
+use crate::data_table::card_illustration_table::CardIllustrationTable;
+use crate::data_table::card_name_table::CardNameTable;
+use crate::data_table::item_description_table::ItemDescriptionTable;
+use crate::data_table::item_name_table::ItemNameTable;
+use crate::data_table::item_resource_table::ItemResourceTable;
+use crate::data_table::item_slot_count_table::ItemSlotCountTable;
+use crate::data_table::name_table::NameTable;
+use crate::data_table::skill_description_table::SkillDescriptionTable;
+use crate::data_table::skill_name_table::SkillNameTable;
+use crate::data_table::skill_tree_table::SkillTreeTable;
+use crate::data_table::skill_use_level_table::SkillUseLevelTable;
 
+pub mod accessory_table;
+pub mod card_illustration_table;
+pub mod card_name_table;
+pub mod item_description_table;
+pub mod item_name_table;
+pub mod item_resource_table;
+pub mod item_slot_count_table;
+pub mod skill_description_table;
+pub mod skill_name_table;
+pub mod skill_tree_table;
+pub mod skill_use_level_table;
+pub mod name_table;
 #[derive(Default)]
 pub struct DataTable {
     pub name: Option<NameTable>,

@@ -24,7 +24,7 @@ TODO:
 - Day/night cycle (lighting changes)
 - Granny models (emperium, guardian)
 - Skybox
-
+- ALL 1050 effects https://casual-ragnarok.github.io/ro-effects/
 # UI
 - ~~Chat box (normal, whisper, party, guild channels)~~
 - ~~Status window (stats, stat allocation)~~
@@ -59,7 +59,7 @@ TODO:
 - ~~NPCs~~ (done — entity type with sprite rendering)
 - ~~Monsters~~ (done — job-based sprites with animation states)
 - ~~Ground items (dropped items with pickup)~~
-- Skill ground units (AoE, traps)
+- Skill ground units (AoE, traps, bottom song)
 - Pet companion rendering
 - Homunculus rendering
 - Mercenary rendering
@@ -107,6 +107,7 @@ TODO:
 - Quest packets
 - Pet/homunculus/mercenary packets
 - Mail packets
+- Effect wiring
 
 # Audio
 - BGM playback (map-specific music)

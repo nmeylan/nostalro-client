@@ -800,7 +800,7 @@ mod tests {
             "mouse wheel should scroll down"
         );
 
-        // Third frame: no input — offset must NOT reset to 0
+        // Third frame: no input - offset must NOT reset to 0
         let ctx3 = UiContext::new(800.0, 600.0);
         let mut ui3 = make_frame(&ctx3, &mut state);
         npc.build(&mut ui3, &mut character, &data);

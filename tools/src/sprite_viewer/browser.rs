@@ -1,4 +1,4 @@
-use ragnarok_game::accessory_table::AccessoryTable;
+use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
 use ragnarok_ui::draw::{quad_vertices, text_vertices};

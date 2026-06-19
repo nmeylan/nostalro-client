@@ -1,9 +1,9 @@
 pub use models::enums::weapon::WeaponType;
 
 use crate::entity::EntityType;
-use crate::name_table::NameTable;
 use models::enums::class::JobName;
 use models::enums::EnumWithNumberValue;
+use crate::data_table::name_table::NameTable;
 
 pub fn entity_type_from_job(job: u16) -> EntityType {
     match job {
@@ -36,6 +36,21 @@ pub const OPTION_FALCON: i32 = 0x10;
 pub const OPTION_RIDING: i32 = 0x20;
 pub const OPTION_CART_MASK: i32 = 0x08 | 0x80 | 0x100 | 0x200 | 0x400;
 pub const OPTION_REMOVABLE_MASK: i32 = OPTION_FALCON | OPTION_RIDING | OPTION_CART_MASK;
+
+pub const OPTION_HIDE: i32 = 0x02;
+pub const OPTION_CLOAK: i32 = 0x04;
+pub const OPTION_CHASEWALK: i32 = 0x4000;
+pub const OPTION_HIDDEN_MASK: i32 = OPTION_HIDE | OPTION_CLOAK | OPTION_CHASEWALK;
+
+/// Body opacity for a hiding/cloaking actor — 135/255 as the original game
+/// shows it. The sprite stays visible but translucent (and drops its
+/// shadow) for the local player / detectors; others aren't sent the unit.
+pub const HIDDEN_BODY_ALPHA: f32 = 135.0 / 255.0;
+
+/// `true` while `effect_state` carries Hide, Cloak, or Chase Walk.
+pub fn is_hidden(effect_state: i32) -> bool {
+    (effect_state & OPTION_HIDDEN_MASK) != 0
+}
 
 pub fn mounted_job(job: u16) -> Option<u16> {
     match job {
@@ -90,6 +105,8 @@ fn job_name_kr(job_class: u16) -> &'static str {
         20 => "무희",
         21 => "신페코크루세이더",
         23 => "슈퍼노비스",
+        24 => "건너",
+        25 => "닌자",
         // Transcendent 1st classes reuse base sprites
         4001 => "초보자",
         4002 => "검사",
@@ -114,6 +131,10 @@ fn job_name_kr(job_class: u16) -> &'static str {
         4020 => "클라운",
         4021 => "집시",
         4022 => "페코팔라딘",
+        4046 => "태권소년",
+        4047 => "권성",
+        4048 => "권성융합",
+        4049 => "소울링커",
         _ => "초보자",
     }
 }
@@ -310,7 +331,7 @@ pub fn shield_sprite_path(view_id: u16, job_class: u16, sex: u8) -> Option<Strin
     Some(format!("data/sprite/방패/{job}/{job}_{sex_str}_{shield}"))
 }
 
-/// Numeric path format used by some GRFs (e.g. dhxj-style)
+/// Numeric path format used by some GRFs (e.g. original game-style)
 pub fn shield_sprite_path_numeric(view_id: u16, job_class: u16, sex: u8) -> String {
     let job = job_name_kr(job_class);
     let sex_str = sex_kr(sex);
@@ -399,6 +420,16 @@ mod tests {
             body_sprite_path(9999, 1),
             "data/sprite/인간족/몸통/남/초보자_남"
         );
+    }
+
+    #[test]
+    fn hidden_detects_hide_cloak_and_chasewalk() {
+        assert!(is_hidden(OPTION_HIDE));
+        assert!(is_hidden(OPTION_CLOAK));
+        assert!(is_hidden(OPTION_CHASEWALK));
+        assert!(is_hidden(OPTION_RIDING | OPTION_CLOAK), "set among other options");
+        assert!(!is_hidden(0));
+        assert!(!is_hidden(OPTION_RIDING), "mount alone is not hidden");
     }
 
     #[test]

@@ -111,7 +111,7 @@ dependencies = [
 [[package]]
 name = "accessor"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=0d000404#0d000404202c6ef7b71580742a71f93c904fce4a"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=0362dc12#0362dc12cb5bc0f6638fa292589f575a2b4cbeb5"
 dependencies = [
  "quote",
  "syn",
@@ -691,6 +691,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "color_quant"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
+
+[[package]]
 name = "combine"
 version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -867,6 +873,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "effect-viewer-hot"
+version = "0.1.0"
+dependencies = [
+ "models",
+ "ragnarok-formats",
+ "ragnarok-game",
+ "ragnarok-renderer",
+ "ragnarok-ui",
+]
+
+[[package]]
 name = "eframe"
 version = "0.33.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1014,7 +1031,7 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 [[package]]
 name = "enum_macro"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=0d000404#0d000404202c6ef7b71580742a71f93c904fce4a"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=0362dc12#0362dc12cb5bc0f6638fa292589f575a2b4cbeb5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1320,6 +1337,16 @@ dependencies = [
  "libc",
  "r-efi",
  "wasip2",
+]
+
+[[package]]
+name = "gif"
+version = "0.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ae047235e33e2829703574b54fdec96bfbad892062d97fed2f76022287de61b"
+dependencies = [
+ "color_quant",
+ "weezl",
 ]
 
 [[package]]
@@ -2006,7 +2033,7 @@ dependencies = [
 [[package]]
 name = "models"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=0d000404#0d000404202c6ef7b71580742a71f93c904fce4a"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=0362dc12#0362dc12cb5bc0f6638fa292589f575a2b4cbeb5"
 dependencies = [
  "accessor",
  "enum_macro",
@@ -2017,7 +2044,7 @@ dependencies = [
 [[package]]
 name = "movement"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=0d000404#0d000404202c6ef7b71580742a71f93c904fce4a"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=0362dc12#0362dc12cb5bc0f6638fa292589f575a2b4cbeb5"
 dependencies = [
  "packets",
  "tracing",
@@ -2513,7 +2540,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.45.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2528,7 +2555,7 @@ dependencies = [
 [[package]]
 name = "packets"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=0d000404#0d000404202c6ef7b71580742a71f93c904fce4a"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=0362dc12#0362dc12cb5bc0f6638fa292589f575a2b4cbeb5"
 dependencies = [
  "byteorder",
  "json-flat-parser",
@@ -2847,6 +2874,7 @@ dependencies = [
  "bytemuck",
  "glam",
  "image",
+ "models",
  "ragnarok-formats",
  "ragnarok-game",
  "tracing",
@@ -2860,9 +2888,11 @@ version = "0.1.0"
 dependencies = [
  "arboard",
  "bytemuck",
+ "gif",
  "glam",
  "image",
  "libloading",
+ "models",
  "notify",
  "ragnarok-formats",
  "ragnarok-game",

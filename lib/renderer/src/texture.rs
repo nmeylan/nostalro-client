@@ -145,6 +145,81 @@ impl TextureCache {
     }
 }
 
+/// Load `path` from `grf` and build a bind group, applying the two
+/// transparency conventions used by STR-style effect textures:
+///   * magenta (FF00FF) → transparent (RO BMP color key)
+///   * pure black → transparent (so additive layers don't add brightness)
+///
+/// If the exact `path` is missing, retries with `.bmp`/`.tga` swap — RO GRFs
+/// mix both conventions for the same logical asset name. Returns `None` if no
+/// variant resolves or decoding fails.
+pub fn load_keyed_texture(
+    path: &str,
+    grf: &GrfArchive,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    layout: &wgpu::BindGroupLayout,
+) -> Option<(wgpu::BindGroup, u32, u32)> {
+    let (data, resolved_path) = read_with_ext_fallback(path, grf)?;
+
+    let img = match image::load_from_memory(&data) {
+        Ok(i) => i,
+        Err(_) => {
+            let fmt = format_from_extension(&resolved_path)?;
+            image::load_from_memory_with_format(&data, fmt).ok()?
+        }
+    };
+
+    let mut rgba = img.to_rgba8();
+    ragnarok_formats::apply_magenta_transparency(rgba.as_mut());
+    for px in rgba.pixels_mut() {
+        if px[0] == 0 && px[1] == 0 && px[2] == 0 {
+            px[3] = 0;
+        }
+    }
+
+    let w = rgba.width();
+    let h = rgba.height();
+    // Sample the native-resolution texture with `Nearest` filtering — flame
+    // textures (ring_*.tga, magic_*.tga) are small pixel-art with sharp
+    // feathered tips. `Linear` interpolates the small native pattern as the
+    // cone geometry stretches it over a large surface, smearing the distinct
+    // flame tongues into a blurry smooth fan; `Nearest` keeps them crisp.
+    // The faint blocky tongue edges `Nearest` would otherwise leave are
+    // softened by the alpha gamma curve in `effect_frustum.wgsl`.
+    //
+    // Effect textures are already perceptual sRGB and must NOT be re-decoded:
+    // a second sRGB→linear decode on read darkens midtones and shifts tints
+    // when combined with the additive accumulation done by effect primitives.
+    let bg = create_texture_bind_group_from_rgba(
+        device,
+        queue,
+        rgba.as_raw(),
+        w,
+        h,
+        layout,
+        path,
+        wgpu::FilterMode::Nearest,
+        wgpu::TextureFormat::Rgba8Unorm,
+        wgpu::AddressMode::Repeat,
+    );
+    Some((bg, w, h))
+}
+
+fn read_with_ext_fallback(path: &str, grf: &GrfArchive) -> Option<(Vec<u8>, String)> {
+    if let Ok(d) = grf.read_file(path) {
+        return Some((d, path.to_string()));
+    }
+    let alt = if let Some(stem) = path.strip_suffix(".tga") {
+        format!("{stem}.bmp")
+    } else if let Some(stem) = path.strip_suffix(".bmp") {
+        format!("{stem}.tga")
+    } else {
+        return None;
+    };
+    grf.read_file(&alt).ok().map(|d| (d, alt))
+}
+
 fn format_from_extension(name: &str) -> Option<image::ImageFormat> {
     let ext = name.rsplit('.').next()?.to_ascii_lowercase();
     match ext.as_str() {

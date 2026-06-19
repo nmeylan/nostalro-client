@@ -1,3 +1,3 @@
 pub mod browser;
 pub mod controls;
-pub mod shader_watcher;
+pub use crate::viewer_common::shader_watcher;

@@ -2,7 +2,7 @@ use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::UiFrame;
 use ragnarok_ui::rect::Rect;
 
-/// Draw a textured quad (GRF mode only — no fallback). Replaces inline draw_tex pattern.
+/// Draw a textured quad (GRF mode only - no fallback). Replaces inline draw_tex pattern.
 pub fn draw_textured_quad(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, path: &str) {
     let (v, i) = draw::quad_vertices(x, y, w, h, [1.0; 4]);
     ui.draw_calls.push(DrawCall {

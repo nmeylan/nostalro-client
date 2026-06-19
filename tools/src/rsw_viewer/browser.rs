@@ -156,7 +156,7 @@ pub struct MapBrowser {
 }
 
 impl MapBrowser {
-    /// Build from full GRF paths like "data/prontera.rsw" — strips prefix/suffix.
+    /// Build from full GRF paths like "data/prontera.rsw" - strips prefix/suffix.
     pub fn from_grf_paths(paths: Vec<String>) -> Self {
         let mut all_names: Vec<String> = paths
             .into_iter()

@@ -4,7 +4,6 @@ use std::time::Instant;
 
 use ragnarok_formats::act::{MotionType, SpriteActionType, SpriteAnimationState};
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_game::accessory_table::AccessoryTable;
 use ragnarok_game::sprite_loader::{self as game_sprite_loader};
 use ragnarok_game::sprite_path::weapon_view_id_to_type;
 use ragnarok_renderer::font_atlas::FontAtlas;
@@ -22,6 +21,7 @@ use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowAttributes, WindowId};
+use ragnarok_game::data_table::accessory_table::AccessoryTable;
 
 struct Args {
     grf_path: Option<String>,
@@ -168,7 +168,7 @@ impl App {
         self.browser = Some(browser);
 
         if let Some(window) = &self.window {
-            window.set_title(&format!("Sprite Viewer — {path}"));
+            window.set_title(&format!("Sprite Viewer - {path}"));
         }
     }
 
@@ -217,7 +217,7 @@ impl App {
         ));
 
         if let Some(window) = &self.window {
-            window.set_title(&format!("Sprite Viewer — {path}"));
+            window.set_title(&format!("Sprite Viewer - {path}"));
         }
     }
 
@@ -301,7 +301,7 @@ impl App {
                 "None".into()
             };
             window.set_title(&format!(
-                "Sprite Viewer — job:{} sex:{} head:{} weapon:{weapon_str} headgear:{hg_str} shield:{shield_str}",
+                "Sprite Viewer - job:{} sex:{} head:{} weapon:{weapon_str} headgear:{hg_str} shield:{shield_str}",
                 self.composite_job, self.composite_sex, self.composite_head,
             ));
         }
@@ -849,6 +849,7 @@ impl ApplicationHandler for App {
             device.surface_config.width as f32,
             device.surface_config.height as f32,
             &shader_source,
+            false,
         );
 
         let watcher = ShaderWatcher::new(&shader_dir, "sprite.wgsl")

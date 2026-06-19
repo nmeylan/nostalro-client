@@ -10,6 +10,7 @@ use ragnarok_game::cursor::{CursorAnimationState, PendingSkillTarget};
 use ragnarok_game::damage_number::DamageNumberManager;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::effects::EffectManager;
+use ragnarok_game::arrow::ArrowProjectile;
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::floor_item::FloorItem;
@@ -70,6 +71,7 @@ pub struct GameState {
     pub attack_range: i16,
     pub floor_items: HashMap<u32, FloorItem>,
     pub floor_item_sprites: HashMap<u32, (Rc<SpriteTextures>, ActFile)>,
+    pub arrows: Vec<ArrowProjectile>,
     pub waiting_item_throw_ack: bool,
     pub drop_dialog_has_grf_textures: bool,
     pub drop_quantity_dialog: Option<DropQuantityDialog>,
@@ -387,6 +389,7 @@ impl GameState {
             attack_range: 1,
             floor_items: HashMap::new(),
             floor_item_sprites: HashMap::new(),
+            arrows: Vec::new(),
             waiting_item_throw_ack: false,
             drop_dialog_has_grf_textures: false,
             drop_quantity_dialog: None,

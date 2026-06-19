@@ -91,7 +91,7 @@ impl EffectManager {
             // Param interpretation is effect-type-specific.
             let (color, size_scale) = match &kind {
                 EffectKind::Spr { .. } => {
-                    // PT_USEORGARGB: only SPR pixel * ACT clip color, no RSW param tint.
+                    // Sprite uses its own colour: SPR pixel * ACT clip color, no RSW param tint.
                     ([1.0, 1.0, 1.0, 1.0], 1.0)
                 }
                 EffectKind::Smoke3D { .. } => {
@@ -317,8 +317,8 @@ mod tests {
         let rsw = make_rsw(vec![
             (47, [0.0, 0.0, 0.0]),   // torch (SPR)
             (44, [10.0, 0.0, 10.0]), // smoke (3D)
-            (109, [0.0, 0.0, 0.0]),  // bubble (STR — kept but not rendered)
-            (9999, [0.0, 0.0, 0.0]), // unknown — dropped
+            (109, [0.0, 0.0, 0.0]),  // bubble (STR - kept but not rendered)
+            (9999, [0.0, 0.0, 0.0]), // unknown - dropped
         ]);
         let gnd = make_gnd();
 

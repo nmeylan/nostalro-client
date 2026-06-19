@@ -35,19 +35,19 @@ fn extract_and_parse_all_formats_from_grf() {
     };
     assert!(grf.file_count() > 0);
 
-    // GAT — morroc ruins walkability grid
+    // GAT - morroc ruins walkability grid
     let data = grf.read_file("data/moc_ruins.gat").unwrap();
     let gat = GatFile::parse(&data).expect("failed to parse moc_ruins.gat");
     assert!(gat.width > 0 && gat.height > 0);
     assert_eq!(gat.cells.len(), (gat.width * gat.height) as usize);
 
-    // GND — morroc ruins ground mesh
+    // GND - morroc ruins ground mesh
     let data = grf.read_file("data/moc_ruins.gnd").unwrap();
     let gnd = GndFile::parse(&data).expect("failed to parse moc_ruins.gnd");
     assert!(gnd.width > 0 && gnd.height > 0);
     assert_eq!(gnd.cells.len(), (gnd.width * gnd.height) as usize);
 
-    // RSW — morroc ruins world descriptor, verify its GND/GAT references parse
+    // RSW - morroc ruins world descriptor, verify its GND/GAT references parse
     let data = grf.read_file("data/moc_ruins.rsw").unwrap();
     let rsw = RswFile::parse(&data).expect("failed to parse moc_ruins.rsw");
     assert!(!rsw.gnd_file.is_empty());
@@ -60,32 +60,32 @@ fn extract_and_parse_all_formats_from_grf() {
     GatFile::parse(&grf.read_file(&gat_ref).unwrap())
         .unwrap_or_else(|e| panic!("failed to parse RSW-referenced {gat_ref}: {e}"));
 
-    // RSM — tree model
+    // RSM - tree model
     let data = grf.read_file("data/model/나무잡초꽃/나무01.rsm").unwrap();
     let rsm = RsmFile::parse(&data).expect("failed to parse rsm");
     assert!(!rsm.nodes.is_empty());
     assert!(!rsm.root_node_names.is_empty());
 
-    // SPR — mandragora monster sprite
+    // SPR - mandragora monster sprite
     let data = grf.read_file("data/sprite/몬스터/mandragora.spr").unwrap();
     let spr = SprFile::parse(&data).expect("failed to parse mandragora.spr");
     assert!(spr.indexed_sprites.len() + spr.rgba_sprites.len() > 0);
 
-    // ACT — mandragora animation
+    // ACT - mandragora animation
     let data = grf.read_file("data/sprite/몬스터/mandragora.act").unwrap();
     let act = ActFile::parse(&data).expect("failed to parse mandragora.act");
     assert!(!act.actions.is_empty());
 
-    // STR — visual effect
+    // STR - visual effect
     let data = grf.read_file("data/sprite/이팩트/jong_mini.str").unwrap();
     let str_file = StrEffectFile::parse(&data).expect("failed to parse jong_mini.str");
     assert!(!str_file.layers.is_empty());
 
-    // PAL — swordsman body palette
+    // PAL - swordsman body palette
     let data = grf.read_file("data/palette/몸/검사_남_0.pal").unwrap();
     PalFile::parse(&data).expect("failed to parse pal");
 
-    // IMF — swordsman sprite layer metadata
+    // IMF - swordsman sprite layer metadata
     let data = grf.read_file("data/imf/검사_남.imf").unwrap();
     let imf = ImfFile::parse(&data).expect("failed to parse imf");
     assert!(!imf.layers.is_empty());

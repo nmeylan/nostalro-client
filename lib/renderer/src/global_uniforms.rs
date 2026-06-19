@@ -221,7 +221,7 @@ impl GlobalUniforms {
     ) {
         use wgpu::util::DeviceExt;
 
-        // Always upload at least one entry — wgpu disallows zero-size storage
+        // Always upload at least one entry - wgpu disallows zero-size storage
         // buffers, and the shader skips zero-range entries.
         let sentinel = [PointLightGpu {
             position: [0.0; 4],

@@ -20,8 +20,20 @@ name = "rsw-viewer"
 path = "src/bin/rsw_viewer.rs"
 
 [[bin]]
+name = "effect-viewer"
+path = "src/bin/effect_viewer.rs"
+
+[[bin]]
 name = "dump-rsw-lights"
 path = "src/bin/dump_rsw_lights.rs"
+
+[[bin]]
+name = "list-effect-sprites"
+path = "src/bin/list_effect_sprites.rs"
+
+[[bin]]
+name = "viewer"
+path = "src/bin/viewer.rs"
 
 
 [dependencies]
@@ -29,6 +41,7 @@ ragnarok-formats = { workspace = true }
 ragnarok-renderer = { workspace = true }
 ragnarok-game = { workspace = true }
 ragnarok-ui = { workspace = true }
+models = { workspace = true }
 wgpu = { workspace = true }
 winit = { workspace = true }
 glam = { workspace = true }
@@ -39,3 +52,4 @@ tracing-subscriber = { workspace = true }
 notify = "7"
 libloading = { workspace = true }
 arboard = { version = "3", features = ["wayland-data-control"] }
+gif = "0.13"

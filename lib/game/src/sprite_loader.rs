@@ -6,9 +6,8 @@ use ragnarok_formats::spr::SprFile;
 pub use ragnarok_formats::spr::SpriteData;
 
 use models::enums::weapon::WeaponType;
-
-use crate::accessory_table::AccessoryTable;
-use crate::name_table::NameTable;
+use crate::data_table::accessory_table::AccessoryTable;
+use crate::data_table::name_table::NameTable;
 use crate::sprite_path::{
     body_palette_path, body_sprite_path, entity_sprite_base_path, head_palette_path,
     head_sprite_path, weapon_sprite_path,

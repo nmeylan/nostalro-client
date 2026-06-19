@@ -110,7 +110,7 @@ impl ServerListWindow {
             texture: TextureRef::Named(WIN_TEXTURE.to_string()),
         });
 
-        // List area background — height derived from texture size
+        // List area background - height derived from texture size
         let list_w = win_w - list_x * 2.0;
         let list_h = win_h - header_h - (LIST_BOTTOM);
         let list_rect = Rect::new(win.x + list_x, win.y + header_h, list_w, list_h);

@@ -1,7 +1,10 @@
 use crate::App;
 use models::enums::action::ActionType;
+use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
+use models::enums::weapon::WeaponType;
 use ragnarok_game::movement::direction_from_positions;
+use ragnarok_game::skill_action::{skill_motion_type, SkillMotionType};
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 
 impl App {
@@ -63,6 +66,27 @@ impl App {
             entity.enter_skill_exec(duration, skill_id, effective_count);
         }
 
+        // Arrow-consuming skills fire the same flying arrow as a normal ranged
+        // attack: bow skills use the Attack motion, whip/instrument skills the
+        // Attack2 motion. Multi-hit skills (e.g. Arrow Vulcan) fire one per hit.
+        if let Some(caster) = self.game.entities.get(src_gid) {
+            let weapon = caster.weapon;
+            let fires_arrow = match skill_motion_type(skill_id) {
+                SkillMotionType::Attack => weapon == Some(WeaponType::Bow),
+                SkillMotionType::Attack2 => matches!(
+                    weapon,
+                    Some(WeaponType::Bow | WeaponType::Whip | WeaponType::Musical)
+                ),
+                _ => false,
+            };
+            if fires_arrow {
+                let shooter_cell = caster.movement.cell_position();
+                if let Some(tp) = target_pos {
+                    self.spawn_arrow_projectile(shooter_cell, tp, attack_mt, effective_count);
+                }
+            }
+        }
+
         // Show chat bubble on caster (e.g., "SM_BASH !!")
         if let Some(name) = skill_name
             && let Some(entity) = self.game.entities.get_mut(src_gid)
@@ -109,6 +133,8 @@ impl App {
             }
         }
 
+        self.spawn_skill_attack_effect(skill_id, src_gid, target_gid, effective_count);
+
         let replays_caster = skill_id == SkillEnum::AsSonicblow.id() as u16
             || skill_id == SkillEnum::ChChaincrush.id() as u16
             || skill_id == SkillEnum::CgArrowvulcan.id() as u16;
@@ -127,6 +153,59 @@ impl App {
                 );
             } else {
                 tracing::warn!("Caster entity {src_gid} NOT FOUND for replay scheduling");
+            }
+        }
+    }
+
+    // TODO(linelink): wire the Soul Linker tether here once a packet exposes
+    // the partner AID. The renderer side is ready — call
+    // `self.effect_queue.spawn_link(EffectId::Linelink{,2,3}, caster_gid,
+    // partner_gid)` and the holder will track both actors live each frame.
+
+    fn spawn_skill_attack_effect(
+        &mut self,
+        skill_id: u16,
+        src_gid: u32,
+        target_gid: u32,
+        count: u16,
+    ) {
+        let effect_id = match skill_id {
+            x if x == SkillEnum::MgSoulstrike.id() as u16 => EffectId::Soulstrike,
+            x if x == SkillEnum::MgColdbolt.id() as u16 => EffectId::Icearrow,
+            x if x == SkillEnum::MgFirebolt.id() as u16 => EffectId::Firearrow,
+            _ => return,
+        };
+        let (Some(gat), Some(coords)) = (&self.game.gat, &self.game.map_coords) else {
+            return;
+        };
+        let Some(src) = self.game.entities.get(src_gid) else {
+            return;
+        };
+        let Some(dst) = self.game.entities.get(target_gid) else {
+            return;
+        };
+        let (sx, sy) = src.movement.cell_position();
+        let (dx, dy) = dst.movement.cell_position();
+
+        let (wx, _, wz) = coords.cell_to_world(sx as f32 + 0.5, sy as f32 + 0.5);
+        let wy = gat.get_height(sx as f32 + 0.5, sy as f32 + 0.5);
+        let from = [wx, wy - 10.0, wz];
+
+        let (wx, _, wz) = coords.cell_to_world(dx as f32 + 0.5, dy as f32 + 0.5);
+        let wy = gat.get_height(dx as f32 + 0.5, dy as f32 + 0.5);
+        let to = [wx, wy - 10.0, wz];
+
+        match effect_id {
+            // Soul Strike's bolts fly from the caster and converge on the target.
+            EffectId::Soulstrike => {
+                self.effect_queue
+                    .spawn_trail_with_count(effect_id, from, to, count.min(5) as u8);
+            }
+            // Cold Bolt / Fire Bolt rain onto the target; the bolt count is the
+            // number of hits (the spell level).
+            _ => {
+                self.effect_queue
+                    .spawn_at_with_count(effect_id, to, count.min(10) as u8);
             }
         }
     }

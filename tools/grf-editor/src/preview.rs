@@ -1,6 +1,8 @@
 use eframe::egui;
 use ragnarok_formats::grf::{GrfArchive, GrfFileInfo};
 
+const MAX_PREVIEW_HEIGHT: f32 = 400.0;
+
 pub struct BmpPreview {
     cached_file_idx: Option<usize>,
     texture: Option<egui::TextureHandle>,
@@ -41,9 +43,10 @@ impl BmpPreview {
             Some(f) => f,
             None => return,
         };
-        if !is_previewable(&file.name) {
-            return;
-        }
+        let format = match image_format(&file.name) {
+            Some(f) => f,
+            None => return,
+        };
 
         let data = match archive.read_file(&file.name) {
             Ok(d) => d,
@@ -53,10 +56,10 @@ impl BmpPreview {
             }
         };
 
-        let img = match image::load_from_memory_with_format(&data, image::ImageFormat::Bmp) {
+        let img = match image::load_from_memory_with_format(&data, format) {
             Ok(img) => img.into_rgba8(),
             Err(e) => {
-                self.error = Some(format!("Failed to decode BMP: {e}"));
+                self.error = Some(format!("Failed to decode image: {e}"));
                 return;
             }
         };
@@ -68,7 +71,7 @@ impl BmpPreview {
         let color_image =
             egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &pixels);
         self.texture =
-            Some(ctx.load_texture("bmp_preview", color_image, egui::TextureOptions::NEAREST));
+            Some(ctx.load_texture("preview", color_image, egui::TextureOptions::NEAREST));
         self.dimensions = Some((w, h));
     }
 
@@ -85,8 +88,9 @@ impl BmpPreview {
 
         let (orig_w, orig_h) = self.dimensions.unwrap();
         let available = ui.available_size();
+        let max_h = available.y.min(MAX_PREVIEW_HEIGHT);
         let scale = (available.x / orig_w as f32)
-            .min(available.y / orig_h as f32)
+            .min(max_h / orig_h as f32)
             .min(1.0);
         let display_size = egui::vec2(orig_w as f32 * scale, orig_h as f32 * scale);
 
@@ -108,8 +112,17 @@ impl BmpPreview {
     }
 }
 
+fn image_format(name: &str) -> Option<image::ImageFormat> {
+    let ext = name.rsplit_once('.')?.1.to_ascii_lowercase();
+    match ext.as_str() {
+        "bmp" => Some(image::ImageFormat::Bmp),
+        "tga" => Some(image::ImageFormat::Tga),
+        _ => None,
+    }
+}
+
 pub fn is_previewable(name: &str) -> bool {
-    name.to_ascii_lowercase().ends_with(".bmp")
+    image_format(name).is_some()
 }
 
 #[cfg(test)]
@@ -124,5 +137,23 @@ mod tests {
         assert!(!is_previewable("model.rsm"));
         assert!(!is_previewable("script.txt"));
         assert!(!is_previewable("bmp"));
+    }
+
+    #[test]
+    fn is_previewable_tga_extensions() {
+        assert!(is_previewable("ring_blue.tga"));
+        assert!(is_previewable("effect/ICE.TGA"));
+        assert!(is_previewable("sprite.Tga"));
+        assert!(!is_previewable("tga"));
+    }
+
+    #[test]
+    fn image_format_detection() {
+        assert!(matches!(image_format("foo.bmp"), Some(image::ImageFormat::Bmp)));
+        assert!(matches!(image_format("foo.BMP"), Some(image::ImageFormat::Bmp)));
+        assert!(matches!(image_format("foo.tga"), Some(image::ImageFormat::Tga)));
+        assert!(matches!(image_format("foo.TGA"), Some(image::ImageFormat::Tga)));
+        assert!(image_format("foo.rsm").is_none());
+        assert!(image_format("foo").is_none());
     }
 }

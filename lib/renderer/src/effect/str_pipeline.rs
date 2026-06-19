@@ -42,6 +42,7 @@ impl StrEffectCache {
     pub fn load(
         &mut self,
         name: &str,
+        aliases: &[&str],
         grf: &GrfArchive,
         texture_cache: &mut TextureCache,
         device: &wgpu::Device,
@@ -50,53 +51,69 @@ impl StrEffectCache {
         if self.entries.contains_key(name) {
             return true;
         }
-
-        let str_path = format!("data/texture/effect/{name}.str");
-        let str_bytes = match grf.read_file(&str_path) {
-            Ok(d) => d,
-            Err(e) => {
-                tracing::warn!("STR file missing: {str_path} ({e})");
-                return false;
+        // Try the primary first, then each alias. The cache keys by primary —
+        // so once any candidate resolves, future lookups by primary find it.
+        let mut last_err: Option<String> = None;
+        for candidate in std::iter::once(name).chain(aliases.iter().copied()) {
+            match try_load(candidate, grf, texture_cache, device, queue) {
+                Ok(entry) => {
+                    if candidate != name {
+                        tracing::debug!("STR resolved via alias: {name} -> {candidate}");
+                    }
+                    self.entries.insert(name.to_string(), entry);
+                    return true;
+                }
+                Err(e) => last_err = Some(e),
             }
-        };
-        let str_file = match StrEffectFile::parse(&str_bytes) {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::warn!("STR parse failed: {str_path} ({e})");
-                return false;
-            }
-        };
-
-        let layout = &texture_cache.bind_group_layout;
-        let mut texture_paths = Vec::with_capacity(str_file.layers.len());
-        let mut bind_groups = Vec::with_capacity(str_file.layers.len());
-        for layer in &str_file.layers {
-            let mut paths = Vec::with_capacity(layer.textures.len());
-            let mut bgs: Vec<Option<wgpu::BindGroup>> = Vec::with_capacity(layer.textures.len());
-            for tex_name in &layer.textures {
-                let tex_path = format!("data/texture/effect/{tex_name}");
-                let bg = load_str_texture(&tex_path, grf, device, queue, layout);
-                bgs.push(bg);
-                paths.push(tex_path);
-            }
-            texture_paths.push(paths);
-            bind_groups.push(bgs);
         }
-
-        self.entries.insert(
-            name.to_string(),
-            StrEffectEntry {
-                str_file,
-                texture_paths,
-                bind_groups,
-            },
+        tracing::warn!(
+            "STR file missing (tried {} name(s)): {} ({})",
+            1 + aliases.len(),
+            name,
+            last_err.unwrap_or_default()
         );
-        true
+        false
     }
 
     pub fn get(&self, name: &str) -> Option<&StrEffectEntry> {
         self.entries.get(name)
     }
+}
+
+fn try_load(
+    name: &str,
+    grf: &GrfArchive,
+    texture_cache: &mut TextureCache,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+) -> Result<StrEffectEntry, String> {
+    let str_path = format!("data/texture/effect/{name}.str");
+    let str_bytes = grf
+        .read_file(&str_path)
+        .map_err(|e| format!("{str_path}: {e}"))?;
+    let str_file = StrEffectFile::parse(&str_bytes).map_err(|e| format!("parse: {e}"))?;
+
+    let layout = &texture_cache.bind_group_layout;
+    let mut texture_paths = Vec::with_capacity(str_file.layers.len());
+    let mut bind_groups = Vec::with_capacity(str_file.layers.len());
+    for layer in &str_file.layers {
+        let mut paths = Vec::with_capacity(layer.textures.len());
+        let mut bgs: Vec<Option<wgpu::BindGroup>> = Vec::with_capacity(layer.textures.len());
+        for tex_name in &layer.textures {
+            let tex_path = format!("data/texture/effect/{tex_name}");
+            let bg = load_str_texture(&tex_path, grf, device, queue, layout);
+            bgs.push(bg);
+            paths.push(tex_path);
+        }
+        texture_paths.push(paths);
+        bind_groups.push(bgs);
+    }
+
+    Ok(StrEffectEntry {
+        str_file,
+        texture_paths,
+        bind_groups,
+    })
 }
 
 fn load_str_texture(
@@ -138,6 +155,11 @@ fn load_str_texture(
     };
 
     let mut rgba = img.to_rgba8();
+    // STR textures use two transparency conventions:
+    //   - magenta (FF00FF) for BMP color-keyed pixels (RO convention)
+    //   - pure black for additive-blend layers (also key off black so the
+    //     background doesn't add brightness)
+    ragnarok_formats::apply_magenta_transparency(rgba.as_mut());
     for px in rgba.pixels_mut() {
         if px[0] == 0 && px[1] == 0 && px[2] == 0 {
             px[3] = 0;
@@ -156,6 +178,20 @@ struct LayerAnim {
     color: [f32; 4],
     angle: f32,
     offset: [f32; 2],
+    /// D3DBLEND source factor for this frame. Unused today - the sprite
+    /// pipeline's two blend states only key off `blend_dst`. Wired when we
+    /// add a dedicated effect-primitive pipeline that honors both factors.
+    #[allow(dead_code)]
+    blend_src: i32,
+    /// D3DBLEND destination factor for this frame. `6` (D3DBLEND_INVSRCALPHA)
+    /// triggers alpha blending; anything else stays additive.
+    blend_dst: i32,
+}
+
+/// STR frame `angle` (`rz`) is a brand angle: 1024 units is one full turn, not
+/// a degree value. The original game converts it with `DegToRad(rz / (1024/360))`.
+fn str_angle_to_radians(raw: f32) -> f32 {
+    raw * std::f32::consts::TAU / 1024.0
 }
 
 fn calculate_layer_anim(layer: &EffectLayer, key_index: f32) -> LayerAnim {
@@ -166,6 +202,8 @@ fn calculate_layer_anim(layer: &EffectLayer, key_index: f32) -> LayerAnim {
         color: [1.0; 4],
         angle: 0.0,
         offset: [0.0; 2],
+        blend_src: 5,
+        blend_dst: 2,
     };
 
     let frames = &layer.frames;
@@ -218,6 +256,8 @@ fn calculate_layer_anim(layer: &EffectLayer, key_index: f32) -> LayerAnim {
             color: from.color,
             angle: from.angle,
             offset: from.offset,
+            blend_src: from.blend_src,
+            blend_dst: from.blend_dst,
         };
     }
 
@@ -259,6 +299,8 @@ fn calculate_layer_anim(layer: &EffectLayer, key_index: f32) -> LayerAnim {
         color,
         angle,
         offset,
+        blend_src: from.blend_src,
+        blend_dst: from.blend_dst,
     }
 }
 
@@ -270,12 +312,17 @@ pub struct StrEmitterInput<'a> {
 }
 
 /// Build sprite batches for STR effects projected to screen space.
+///
+/// `zoom` is the map's world-units-per-cell (from `MapCoordinates::zoom`).
+/// Callers without a map (e.g. standalone effect previewers) can pass `10.0`,
+/// the conventional default.
 pub fn build_str_effect_batches<'a>(
     emitters: &[StrEmitterInput<'_>],
     cache: &'a StrEffectCache,
     camera: &Camera,
     screen_w: f32,
     screen_h: f32,
+    zoom: f32,
 ) -> Vec<SpriteBatch<'a>> {
     let mut batches = Vec::new();
 
@@ -321,14 +368,25 @@ pub fn build_str_effect_batches<'a>(
                 continue;
             }
 
-            let angle_rad = -anim.angle * std::f32::consts::PI / 180.0;
+            // Rotation is NOT negated: STR layer offsets are placed in a
+            // screen-down Y space (offset_y below is not negated either), the
+            // same convention the original game rotates in, so its formula maps
+            // directly. Negating spun multi-direction effects (e.g. the
+            // criticalwound claws) outward instead of crossing at centre.
+            let angle_rad = str_angle_to_radians(anim.angle);
             let cos_a = angle_rad.cos();
             let sin_a = angle_rad.sin();
 
-            // Original game uses pixel_ratio = 1/35 in cell units; one cell ≈ gnd.zoom
-            // world units (~10), and `ppu` = screen pixels per world unit. So
-            // screen_pixels = pos * (zoom/35) * ppu ≈ pos * ppu * 0.286.
-            let scale = ppu * 10.0 / 35.0;
+            // Match `sprite_projection::project_entity_screen`'s `ppu * zoom / 75`
+            // so STR effects and entity sprites share a world-units-per-pixel ratio.
+            // The `/35` reference (one cell = 35 STR pixels) is encoded by the
+            // sprite pipeline's `/75` divisor + the sprite art's authored size.
+            let scale = ppu * zoom / 75.0;
+            // Layer offset is a screen-space pixel position on the original
+            // game's 640x480 reference frame. X centres on 320; Y uses 320
+            // too, which folds the 240 frame centre together with the original
+            // dispatcher's default -80 vertical lift (it anchors the clip 80px
+            // above the actor's projected centre) that our emitter omits.
             let offset_x = (anim.offset[0] - 320.0) * scale;
             let offset_y = (anim.offset[1] - 320.0) * scale;
 
@@ -361,13 +419,39 @@ pub fn build_str_effect_batches<'a>(
                 });
             }
 
+            // Per-frame D3D blend factor → SpriteBatch's binary additive/alpha
+            // toggle. The sprite renderer today only exposes two pipelines:
+            //   * additive: (SrcAlpha, One)
+            //   * alpha:    (SrcAlpha, OneMinusSrcAlpha)
+            // D3DBLEND_INVSRCALPHA = 6, which is the giveaway for normal alpha
+            // blending. Anything else collapses to additive (glow). When we
+            // grow a dedicated effect-primitive pipeline (Phase C-2) we'll
+            // honor the full (src, dst) pair.
+            let additive = anim.blend_dst != 6;
             batches.push(SpriteBatch {
                 vertices,
                 indices: vec![0, 1, 2, 1, 3, 2],
                 texture,
-                additive: true,
+                additive,
             });
         }
     }
     batches
+}
+
+#[cfg(test)]
+mod tests {
+    use super::str_angle_to_radians;
+
+    #[test]
+    fn str_angle_decodes_brand_units_not_degrees() {
+        // 1024 units == one full turn.
+        assert!((str_angle_to_radians(1024.0) - std::f32::consts::TAU).abs() < 1e-4);
+        assert!((str_angle_to_radians(256.0) - std::f32::consts::FRAC_PI_2).abs() < 1e-4);
+        // criticalwound's claw layers: 85.33 / -156.44 / -312.89 -> 30 / -55 / -110 deg.
+        let deg = |r: f32| r.to_degrees();
+        assert!((deg(str_angle_to_radians(85.333)) - 30.0).abs() < 0.5);
+        assert!((deg(str_angle_to_radians(-156.444)) + 55.0).abs() < 0.5);
+        assert!((deg(str_angle_to_radians(-312.889)) + 110.0).abs() < 0.5);
+    }
 }

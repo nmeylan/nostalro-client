@@ -832,7 +832,7 @@ impl InGameWindow for ChatWindow {
                 ui.set_focus(self.focused_input);
             }
 
-            // Compute input rects — scale to match DIALOG_BG texture layout when available
+            // Compute input rects - scale to match DIALOG_BG texture layout when available
             let (whisper_rect, msg_rect, input_bg) = if self.has_grf_textures {
                 let scale = chat_w / (DIALOG_BG_W);
                 let wr = Rect::new(chat_x + (DIALOG_BG_WHISPER_X) * scale, input_y, (DIALOG_BG_WHISPER_W) * scale, input_h);

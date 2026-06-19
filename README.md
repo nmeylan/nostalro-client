@@ -54,6 +54,18 @@ lib/ui-component/dev.sh game
 lib/ui-component/dev.sh account
 ```
 
+## Effect viewer hot reload
+Effect implementation also requires huge amount of iteration to get them right, effect viewer support hot reload so effect rendering can be tune and feedback is almost immediate
+```bash
+tools/effect-viewer-dev.sh
+```
+
+## (Game) Viewer tool
+This tool provide rendering of scene + sprite + effect in same tool, this allows to validate effect rendering with actual entity rendering: allow to validate effect size (beginspell), validate entity alteration (body tint, body size change), effect alpha and additive properties
+```bash
+tools/viewer-dev.sh
+```
+
 # AI usage
 This project leverage AI to allow a faster development, as my time is very limited. AI is being used for:
 - Fix network packet handling: investigate raw packet trace
@@ -64,3 +76,5 @@ This project leverage AI to allow a faster development, as my time is very limit
 
 # Progress
 see [todo](docs/TODO.md)
+
+# Effect

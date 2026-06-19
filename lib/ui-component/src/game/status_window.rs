@@ -220,7 +220,7 @@ impl InGameWindow for StatusWindow {
             [0.6, 0.3, 0.3, 1.0],
         );
 
-        // Mini (also closes for now — same behavior)
+        // Mini (also closes for now - same behavior)
         let mini_rect = Rect::new(mini_x, y + 3.0, sys_w, sys_h);
         let mini_resp = ui.interact(MINI_BTN_ID, mini_rect);
         if mini_resp.hovered() {
@@ -352,7 +352,7 @@ impl InGameWindow for StatusWindow {
                     tc,
                 );
             }
-            // up arrow — visible when status_point can cover the cost
+            // up arrow - visible when status_point can cover the cost
             let can_raise = (display_cost as u32) <= status_point;
             if can_raise {
                 // .up margin-top:5px → first arrow at UP_TOP, then +(arr_h+5) per row

@@ -27,7 +27,7 @@ const CARD_INFO_VIEW_BTN_ID: WidgetId = WidgetId(1016);
 const CARD_ILLUST_WINDOW_ID: WidgetId = WidgetId(1020);
 const CARD_ILLUST_CLOSE_ID: WidgetId = WidgetId(1021);
 
-// Layout — container uses the fixed GRF texture size (bg_size)
+// Layout - container uses the fixed GRF texture size (bg_size)
 const COLLECTION_X: f32 = 10.0;
 const COLLECTION_Y: f32 = 11.0;
 const COLLECTION_W: f32 = 75.0;
@@ -720,6 +720,7 @@ mod tests {
     use super::*;
     use models::enums::EnumWithNumberValue;
     use models::enums::item::ItemType;
+    use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
 
     fn make_data_table() -> DataTable {
         DataTable::new()
@@ -814,7 +815,7 @@ mod tests {
     fn equipment_always_shows_card_section() {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
-        // Equipment with 0 slot_count — card section should still appear
+        // Equipment with 0 slot_count - card section should still appear
         let item = make_item(1201, 4, [0; 4]);
         win.show(&item, &data);
         let info = win.item.as_ref().unwrap();
@@ -853,7 +854,6 @@ mod tests {
     fn pending_card_texture_paths_returns_collection() {
         let mut win = ItemInfoWindow::new();
         use std::collections::HashMap;
-        use ragnarok_game::item_resource_table::ItemResourceTable;
         let data = DataTable {
             item_resource: Some(ItemResourceTable::from_entries(
                 {

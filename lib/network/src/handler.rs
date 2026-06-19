@@ -164,7 +164,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             effect_state: p.effect_state as i32,
         }];
     }
-    // MoveEntry8: entity entering view while already moving — treat as spawn at pos_dir
+    // MoveEntry8: entity entering view while already moving - treat as spawn at pos_dir
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMoveentry8>() {
         let (x, y, dir) = decode_pos(&p.pos_dir);
         return vec![GameEvent::EntitySpawned {
@@ -186,7 +186,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             effect_state: p.effect_state,
         }];
     }
-    // MoveEntry9: entity entering view while already moving — spawn + start movement
+    // MoveEntry9: entity entering view while already moving - spawn + start movement
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMoveentry9>() {
         let (x1, y1, x2, y2) = decode_pos2(&p.move_data);
         return vec![

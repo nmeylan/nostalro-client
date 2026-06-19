@@ -24,6 +24,10 @@ pub enum DamageNumberType {
     MultiHitTotal,
     /// HP recovery → action 3, green
     Heal,
+    /// Effect-spawned floating number (used by recovery-style effects):
+    /// shares the recovery rising
+    /// animation but takes its colour from `DamageNumber::color_override`.
+    EffectNumber,
     /// Miss → msg.spr frame 0
     Miss,
     /// Lucky dodge → msg.spr frames 4+5
@@ -32,7 +36,7 @@ pub enum DamageNumberType {
 
 const DIGIT_SPACING: f32 = 8.0;
 
-/// One stateCnt tick = 24ms in the original game
+/// One animation tick = 24ms in the original game
 const FRAME_MS: f32 = 24.0;
 
 impl DamageNumberType {
@@ -60,7 +64,7 @@ impl DamageNumberType {
     pub fn duration(&self) -> f32 {
         match self {
             Self::Combo | Self::MultiHit => 0.45,
-            Self::Miss | Self::Lucky => 80.0 * FRAME_MS / 1000.0, // 1.92s (stateCnt > 80 in original)
+            Self::Miss | Self::Lucky => 80.0 * FRAME_MS / 1000.0, // 1.92s (expires after 80 ticks)
             _ => 120.0 * FRAME_MS / 1000.0,                       // 2.88s
         }
     }
@@ -74,6 +78,8 @@ pub struct DamageNumber {
     pub direction: u8,
     /// Cached screen position so numbers keep rendering after entity vanishes.
     pub last_screen_pos: Option<(f32, f32, f32)>,
+    /// RGB override (used by `EffectNumber`); falls back to `number_type.color()`.
+    pub color_override: Option<[f32; 3]>,
 }
 
 impl DamageNumber {
@@ -85,6 +91,16 @@ impl DamageNumber {
             elapsed: 0.0,
             direction,
             last_screen_pos: None,
+            color_override: None,
+        }
+    }
+
+    /// Effect-spawned floating number:
+    /// the recovery rising animation recoloured to `color` (RGB).
+    pub fn effect_number(entity_id: u32, value: i32, color: [f32; 3], direction: u8) -> Self {
+        Self {
+            color_override: Some(color),
+            ..Self::new(entity_id, value, DamageNumberType::EffectNumber, direction)
         }
     }
 
@@ -92,7 +108,7 @@ impl DamageNumber {
         self.elapsed >= self.number_type.duration()
     }
 
-    /// stateCnt equivalent: elapsed_ms / 24
+    /// Animation tick count: elapsed_ms / 24
     fn frame(&self) -> f32 {
         self.elapsed * 1000.0 / FRAME_MS
     }
@@ -108,7 +124,7 @@ impl DamageNumber {
                 let perc = self.elapsed / self.number_type.duration();
                 perc * 7.0
             }
-            DamageNumberType::Heal => {
+            DamageNumberType::Heal | DamageNumberType::EffectNumber => {
                 let perc = self.elapsed / self.number_type.duration();
                 if perc < 0.4 {
                     0.0
@@ -117,7 +133,7 @@ impl DamageNumber {
                 }
             }
             _ => {
-                // Parabolic: rises fast then slows. Original: orgY+8 - cnt*(2.0 - cnt/30)
+                // Parabolic: rises fast then slows, then eases back down
                 -8.0 + f * (2.0 - f / 30.0)
             }
         }
@@ -142,7 +158,7 @@ impl DamageNumber {
         let f = self.frame();
         match self.number_type {
             DamageNumberType::ComboFinal | DamageNumberType::MultiHitTotal => {
-                // Original: m_zoom += stateCnt*0.18 (quadratic accumulation from 0.5)
+                // Quadratic grow from 0.5, accelerating with each tick
                 (0.5 + 0.09 * f * f).min(3.0)
             }
             DamageNumberType::Combo | DamageNumberType::MultiHit => {
@@ -153,7 +169,7 @@ impl DamageNumber {
             DamageNumberType::Critical => (5.0 - f * 0.24).max(1.3),
             DamageNumberType::Miss => 1.0,
             DamageNumberType::Lucky => 1.0,
-            DamageNumberType::Heal => {
+            DamageNumberType::Heal | DamageNumberType::EffectNumber => {
                 let perc = self.elapsed / self.number_type.duration();
                 ((1.0 - perc * 2.0) * 3.0).max(0.8)
             }
@@ -204,7 +220,7 @@ impl DamageNumber {
         if alpha <= 0.0 {
             return None;
         }
-        let [cr, cg, cb] = self.number_type.color();
+        let [cr, cg, cb] = self.color_override.unwrap_or_else(|| self.number_type.color());
         let digits = self.digits();
         let count = digits.len();
         let digit_x_offsets = (0..count).map(|i| self.digit_x_offset(i, count)).collect();

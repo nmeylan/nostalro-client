@@ -4,6 +4,8 @@ mod items;
 mod movement;
 
 use crate::App;
+use ragnarok_game::damage_number::DamageNumber;
+use ragnarok_renderer::effect::EffectUpdateCtx;
 
 impl App {
     pub(crate) fn run_game_updates(&mut self, delta: f32, elapsed: f32) {
@@ -14,6 +16,7 @@ impl App {
         self.process_scheduled_hits();
         self.process_caster_replays();
         self.update_floor_items(elapsed);
+        self.update_arrows(delta);
         self.check_pending_pickup();
         self.check_pending_attack(delta);
         self.check_pending_skill();
@@ -21,5 +24,44 @@ impl App {
         self.update_sprite_animation(delta);
         self.update_fades(delta);
         self.game.effects.update(delta);
+
+        // Live caster facing for direction-oriented effects: RO body direction
+        // (0..7) maps to world yaw at 45° per step (yaw = dir * 45). The
+        // effect adds the original game's per-handler offset on top.
+        let entities = &self.game.entities;
+        let resolve_caster_yaw =
+            |id: u32| entities.get(id).map(|e| e.direction as f32 * (std::f32::consts::TAU / 8.0));
+        // Live world position of a linked actor for entity-tethered effects
+        // (Linelink): interpolated cell → world, dropped 8 units to sit just
+        // below the actor's feet.
+        let gat = self.game.gat.as_ref();
+        let map_coords = self.game.map_coords.as_ref();
+        let resolve_entity_pos = |id: u32| {
+            let (gat, coords) = (gat?, map_coords?);
+            let (cx, cy) = entities.get(id)?.movement.position();
+            let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
+            Some([wx, gat.get_height(cx + 0.5, cy + 0.5) - 8.0, wz])
+        };
+        self.effect_holder.drain_queue(&mut self.effect_queue, &resolve_entity_pos);
+        self.effect_holder.update(
+            &EffectUpdateCtx { delta, camera_target: None, caster_yaw: None },
+            &resolve_caster_yaw,
+            &resolve_entity_pos,
+        );
+        // Apply any active screen-shake to the camera so the whole
+        // view trembles while an effect's shake is live.
+        if let Some(renderer) = self.renderer.as_mut() {
+            renderer.camera.shake_offset = self.effect_holder.camera_shake_offset().into();
+        }
+
+        // Floating recoloured numbers (§9b Damage1/Damage12/Damage13) reach the
+        // shared damage-number manager through the effect channel: the holder
+        // surfaces a one-shot request per entity, same shape as the shake/sfx
+        // drains above. EffectNumber has no horizontal drift, so direction is 0.
+        for (entity_id, req) in self.effect_holder.drain_number_requests() {
+            self.game.damage_numbers.add(DamageNumber::effect_number(
+                entity_id, req.value, req.color, 0,
+            ));
+        }
     }
 }

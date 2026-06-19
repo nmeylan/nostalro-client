@@ -2,7 +2,6 @@
 mod shared;
 
 use libloading::{Library, Symbol};
-use ragnarok_game::item_resource_table::ItemResourceTable;
 use ragnarok_ui::frame::UiFrame;
 use ragnarok_ui_component::Window;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
@@ -22,6 +21,7 @@ use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::helper::dialog_container::DialogContainer;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
 
 // Force system allocator so host and dylib share the same heap.
 // A cdylib gets its own Rust runtime; without this, Vec/String

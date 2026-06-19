@@ -13,7 +13,7 @@ use ragnarok_renderer::effect_sprite::{
     EffectSpriteCache, SpriteEffectEmitter, build_emitter_batches, collect_sprite_effect_draws,
 };
 use ragnarok_renderer::font_atlas::FontAtlas;
-use ragnarok_renderer::str_effect::{StrEffectCache, StrEmitterInput, build_str_effect_batches};
+use ragnarok_renderer::effect::{StrEffectCache, StrEmitterInput, build_str_effect_batches};
 use ragnarok_renderer::{UiDrawCall, block_on};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -29,7 +29,7 @@ pub struct Args {
     pub map_name: Option<String>,
 }
 
-// === FFI types — must match `tools/rsw-viewer-hot/src/lib.rs` exactly ===
+// === FFI types - must match `tools/rsw-viewer-hot/src/lib.rs` exactly ===
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -552,6 +552,7 @@ impl App {
                 for name in &str_names {
                     self.str_effects.load(
                         name,
+                        &[],
                         &grf,
                         &mut renderer.texture_cache,
                         &renderer.device.device,
@@ -574,7 +575,7 @@ impl App {
             tracing::info!("Map loaded successfully: {map_name} ({gnd_width}x{gnd_height})");
 
             if let Some(window) = &self.window {
-                window.set_title(&format!("RSW Viewer — {map_name}"));
+                window.set_title(&format!("RSW Viewer - {map_name}"));
             }
         } else {
             tracing::error!("Failed to load map '{map_name}'");
@@ -831,17 +832,23 @@ impl App {
             screen_w,
             screen_h,
         );
-        let mut sprite_batches = build_emitter_batches(&effect_draws);
+        let mut effect_batches = build_emitter_batches(&effect_draws);
 
         let str_inputs = build_str_emitter_inputs(&self.effects);
+        let zoom = self
+            .map_data
+            .as_ref()
+            .and_then(|m| m.coordinates.as_ref())
+            .map_or(10.0, |c| c.zoom());
         let mut str_batches = build_str_effect_batches(
             &str_inputs,
             &self.str_effects,
             &renderer.camera,
             screen_w,
             screen_h,
+            zoom,
         );
-        sprite_batches.append(&mut str_batches);
+        effect_batches.append(&mut str_batches);
 
         let mut draw_calls: Vec<UiDrawCall> = Vec::new();
         if let Some(browser) = &self.browser {
@@ -850,7 +857,17 @@ impl App {
             hot.build_overlay(&renderer.font_atlas, width, height, &mut draw_calls);
         }
 
-        renderer.render(&draw_calls, &sprite_batches, &[], &[], elapsed);
+        let empty_effect_draws = ragnarok_renderer::effect::EffectDrawList::new();
+        renderer.render(
+            &draw_calls,
+            &effect_batches,
+            &empty_effect_draws,
+            Vec::new(),
+            &[],
+            &[],
+            &[],
+            elapsed,
+        );
     }
 }
 
@@ -1097,7 +1114,10 @@ fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteEffectEmitte
                     position: emitter.position,
                     color: emitter.color,
                     size_scale: emitter.size_scale,
+                    anim_speed: 1.0,
+                    repeat: true,
                     anim_time: emitter.anim_time,
+                    action_index: 0,
                 });
             }
             EffectKind::Smoke3D {
@@ -1109,7 +1129,12 @@ fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteEffectEmitte
                 let particles = emitter
                     .particles
                     .iter()
-                    .map(|p| (p.position, p.age, p.lifetime))
+                    .map(|p| ragnarok_renderer::Smoke3DParticle {
+                        pos: p.position,
+                        age: p.age,
+                        lifetime: p.lifetime,
+                        alpha_override: None,
+                    })
                     .collect();
                 inputs.push(SpriteEffectEmitter::Smoke3D {
                     sprite_path,
@@ -1117,6 +1142,8 @@ fn build_sprite_effect_inputs(effects: &EffectManager) -> Vec<SpriteEffectEmitte
                     color: emitter.color,
                     size_scale: emitter.size_scale,
                     anim_speed: *anim_speed,
+                    size_shrink: false,
+                    twinkle: false,
                     particles,
                 });
             }

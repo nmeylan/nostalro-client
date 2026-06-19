@@ -7,7 +7,7 @@ use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
 use ragnarok_ui::draw::{quad_vertices, text_vertices};
 
-// === Action codes (FFI contract — host duplicates these as `as u32` casts) ===
+// === Action codes (FFI contract - host duplicates these as `as u32` casts) ===
 pub const ACTION_TOGGLE_PAUSE: u32 = 1;
 pub const ACTION_TOGGLE_GRID: u32 = 2;
 pub const ACTION_TOGGLE_HOVER: u32 = 3;
@@ -99,7 +99,7 @@ struct MapInfoMirror {
 }
 
 struct State {
-    // Camera (the iterable bits — sensitivities, defaults, presets all live here)
+    // Camera (the iterable bits - sensitivities, defaults, presets all live here)
     yaw: f32,
     pitch: f32,
     distance: f32,

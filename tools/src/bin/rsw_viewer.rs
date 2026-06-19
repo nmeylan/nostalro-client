@@ -27,7 +27,7 @@ fn parse_args() -> rsw_viewer::Args {
                 }
             }
             "--help" | "-h" => {
-                println!("RSW Viewer — 3D map renderer for Ragnarok Online");
+                println!("RSW Viewer - 3D map renderer for Ragnarok Online");
                 println!();
                 println!("Usage: rsw-viewer [--grf <path>] [--map <map_name>]");
                 println!();
