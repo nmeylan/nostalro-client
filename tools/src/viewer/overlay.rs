@@ -30,6 +30,8 @@ const LEGEND: &[(&str, &str)] = &[
     ("D / F", "Shield"),
     ("T", "Place trail target"),
     ("X", "Clear trail target"),
+    ("G", "Stress test browser"),
+    ("K", "Stop stress test"),
 ];
 
 pub fn build_legend(atlas: &FontAtlas, screen_w: f32, screen_h: f32) -> Vec<UiDrawCall> {

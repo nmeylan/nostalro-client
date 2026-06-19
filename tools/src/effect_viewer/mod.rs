@@ -37,6 +37,7 @@ use ragnarok_game::effect::{
 
 use crate::sprite_viewer::browser::SpriteBrowser;
 use crate::sprite_viewer::shader_watcher::ShaderWatcher;
+use crate::stress::{StressTick, stress_label};
 use ragnarok_game::effect::EffectRenderCtx as GameEffectRenderCtx;
 use ragnarok_renderer::effect::{
     EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, ExternalCustomBackend,
@@ -670,6 +671,12 @@ struct App {
     /// fires independently; `render_frame` polls them and rebuilds the
     /// matching pipelines on change.
     shader_watchers: Vec<(ShaderWatcher, ShaderTarget)>,
+    /// Stress test (G opens the set browser, K stops). Spawns many effects at
+    /// random visible ground positions to profile the effect path under load.
+    stress_sets: Vec<crate::stress::StressSet>,
+    stress: crate::stress::StressRunner,
+    stress_browser: Option<SpriteBrowser>,
+    fps: ragnarok_renderer::Fps,
     /// Earliest instant the next interactive frame may render. The event loop
     /// sleeps (`ControlFlow::WaitUntil`) until this point instead of spinning,
     /// keeping CPU near-idle. Bypassed while a GIF export is active so headless
@@ -727,6 +734,10 @@ impl App {
             demo_hit_count: 5,
             shader_watchers: Vec::new(),
             next_frame: Instant::now(),
+            stress_sets: crate::stress::stress_sets(),
+            stress: crate::stress::StressRunner::new(),
+            stress_browser: None,
+            fps: ragnarok_renderer::Fps::new(),
         }
     }
 
@@ -804,6 +815,91 @@ impl App {
         };
         if let Some(hot) = &self.hot_lib {
             hot.set_selected_effect_id(id.value() as u16);
+        }
+    }
+
+    fn stress_browser_is_open(&self) -> bool {
+        self.stress_browser.as_ref().is_some_and(|b| b.open)
+    }
+
+    fn open_stress_browser(&mut self) {
+        let items: Vec<String> = self.stress_sets.iter().map(stress_label).collect();
+        let mut browser = SpriteBrowser::new(items, "stress tests");
+        if let Some(renderer) = &self.renderer {
+            let h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+            browser.update_visible_rows(h);
+        }
+        self.stress_browser = Some(browser);
+    }
+
+    fn handle_stress_browser_key(&mut self, key: &Key) {
+        let Some(browser) = &mut self.stress_browser else {
+            return;
+        };
+        match key.as_ref() {
+            Key::Named(NamedKey::Escape) => browser.open = false,
+            Key::Named(NamedKey::Enter) => self.handle_stress_browser_select(),
+            Key::Named(NamedKey::ArrowUp) => browser.handle_up(),
+            Key::Named(NamedKey::ArrowDown) => browser.handle_down(),
+            Key::Named(NamedKey::PageUp) => browser.handle_page_up(),
+            Key::Named(NamedKey::PageDown) => browser.handle_page_down(),
+            Key::Named(NamedKey::Backspace) => browser.handle_backspace(),
+            Key::Character(ch) => {
+                for c in ch.chars() {
+                    if !c.is_control() {
+                        browser.handle_char(c);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_stress_browser_select(&mut self) {
+        let Some(browser) = &mut self.stress_browser else {
+            return;
+        };
+        let Some(selected) = browser.selected_item().map(|s| s.to_string()) else {
+            return;
+        };
+        browser.open = false;
+        if let Some(idx) = self.stress_sets.iter().position(|s| stress_label(s) == selected) {
+            self.effect_holder.clear();
+            self.stress.launch(idx);
+        }
+    }
+
+    fn stop_stress(&mut self) {
+        self.stress.stop();
+        self.effect_holder.clear();
+    }
+
+    /// Clear the holder and re-spawn stress set `idx` at fresh random visible
+    /// ground positions (the ground-proxy plane is `y = 0`).
+    fn reseed_stress(&mut self, idx: usize) {
+        self.effect_holder.clear();
+        let entries = match self.stress_sets.get(idx) {
+            Some(s) => s.entries.clone(),
+            None => return,
+        };
+        let Some(renderer) = &self.renderer else {
+            return;
+        };
+        let screen_w = renderer.device.surface_config.width as f32;
+        let screen_h = renderer.device.surface_config.height as f32;
+        let mut rng = crate::stress::Rng::new(self.stress.next_seed());
+        for (id, count) in entries {
+            self.ensure_str_loaded_for(id);
+            self.ensure_spr_loaded_for(id);
+            let positions = {
+                let camera = &self.renderer.as_ref().unwrap().camera;
+                crate::stress::random_visible_ground_positions(
+                    camera, screen_w, screen_h, 0.0, count, &mut rng,
+                )
+            };
+            for pos in positions {
+                crate::stress::enqueue_effect(&mut self.effect_queue, id, pos, None);
+            }
         }
     }
 
@@ -908,21 +1004,14 @@ impl App {
 
     fn try_pick_world_position(&self) -> Option<[f32; 3]> {
         let renderer = self.renderer.as_ref()?;
-        let (origin, dir) = renderer.camera.screen_to_ray(
+        crate::viewer_common::screen_to_ground(
+            &renderer.camera,
             self.mouse_pos.0,
             self.mouse_pos.1,
             renderer.device.surface_config.width as f32,
             renderer.device.surface_config.height as f32,
-        );
-        if dir.y.abs() < 1e-6 {
-            return None;
-        }
-        let t = -origin.y / dir.y;
-        if t < 0.0 {
-            return None;
-        }
-        let hit = origin + dir * t;
-        Some([hit.x, 0.0, hit.z])
+            0.0,
+        )
     }
 
     /// Stderr a markdown table row describing the effect being spawned, so
@@ -1260,6 +1349,13 @@ impl App {
             hot.update(scaled_dt);
         }
 
+        self.fps.tick(dt);
+        // Continuous stress test: re-seed the active set on its cadence before
+        // the queue is drained below.
+        if let StressTick::Reseed(idx) = self.stress.tick(scaled_dt) {
+            self.reseed_stress(idx);
+        }
+
         // Drain spawn requests into the holder, then tick it. Camera target
         // lets camera-anchored SprBurst effects (Snow, etc.) follow the view.
         self.effect_holder.drain_queue(&mut self.effect_queue, &|_| None);
@@ -1409,7 +1505,17 @@ impl App {
         if let Some(hot) = &self.hot_lib {
             hot.build_overlay(&renderer.font_atlas, screen_w, screen_h, &mut ui_calls);
         }
+        ui_calls.extend(crate::viewer_common::build_fps(
+            &renderer.font_atlas,
+            self.fps.get(),
+            self.effect_holder.len(),
+        ));
         if let Some(browser) = &self.browser
+            && browser.open
+        {
+            ui_calls.extend(browser.build_draw_calls(&renderer.font_atlas, screen_w, screen_h));
+        }
+        if let Some(browser) = &self.stress_browser
             && browser.open
         {
             ui_calls.extend(browser.build_draw_calls(&renderer.font_atlas, screen_w, screen_h));
@@ -1615,6 +1721,21 @@ impl ApplicationHandler for App {
                 if self.browser_is_open() {
                     self.handle_browser_key(&event.logical_key);
                     return;
+                }
+                if self.stress_browser_is_open() {
+                    self.handle_stress_browser_key(&event.logical_key);
+                    return;
+                }
+                match event.logical_key.as_ref() {
+                    Key::Character("g") | Key::Character("G") => {
+                        self.open_stress_browser();
+                        return;
+                    }
+                    Key::Character("k") | Key::Character("K") => {
+                        self.stop_stress();
+                        return;
+                    }
+                    _ => {}
                 }
                 // Esc closes any open info panel first; only quits if no panel is open.
                 if matches!(event.logical_key.as_ref(), Key::Named(NamedKey::Escape)) {

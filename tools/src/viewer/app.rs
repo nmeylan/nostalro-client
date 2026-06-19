@@ -32,6 +32,7 @@ use ragnarok_renderer::effect::{
     EffectFrameInputs, EffectHolder, EffectUpdateCtx, StrEffectCache, compose_effect_frame,
 };
 use ragnarok_renderer::EffectSpriteCache;
+use ragnarok_renderer::Fps;
 use ragnarok_renderer::sprite::{EntitySprite, build_entity_sprite, upload_sprite_textures};
 use ragnarok_renderer::sprite_projection::{cell_world_pos, project_entity_screen};
 use ragnarok_renderer::{BackgroundMode, Renderer, UiDrawCall, block_on};
@@ -42,6 +43,7 @@ use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use crate::sprite_viewer::browser::SpriteBrowser;
+use crate::stress::{self, StressRunner, StressSet, StressTick, stress_label};
 use crate::viewer::controls::{ViewerAction, map_key};
 use crate::viewer::overlay::{self, StatusLine};
 
@@ -113,6 +115,12 @@ pub struct App {
     browser_lookup: HashMap<String, EffectId>,
     ctrl_pressed: bool,
 
+    // Stress test (G to open browser, K to stop)
+    stress_sets: Vec<StressSet>,
+    stress: StressRunner,
+    stress_browser: Option<SpriteBrowser>,
+    fps: Fps,
+
     // Trail target placement
     trail_target_override: Option<[f32; 3]>,
     placing_target: bool,
@@ -171,6 +179,10 @@ impl App {
             browser: None,
             browser_lookup: HashMap::new(),
             ctrl_pressed: false,
+            stress_sets: stress::stress_sets(),
+            stress: StressRunner::new(),
+            stress_browser: None,
+            fps: Fps::new(),
             trail_target_override: None,
             placing_target: false,
             mouse_pos: (0.0, 0.0),
@@ -509,6 +521,96 @@ impl App {
         browser.open = false;
         if let Some(&id) = self.browser_lookup.get(&selected) {
             self.spawn_effect_on_character(id);
+        }
+    }
+
+    fn open_stress_browser(&mut self) {
+        let items: Vec<String> = self.stress_sets.iter().map(stress_label).collect();
+        let mut browser = SpriteBrowser::new(items, "stress tests");
+        if let Some(renderer) = &self.renderer {
+            let h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+            browser.update_visible_rows(h);
+        }
+        self.stress_browser = Some(browser);
+    }
+
+    fn stress_browser_is_open(&self) -> bool {
+        self.stress_browser.as_ref().is_some_and(|b| b.open)
+    }
+
+    fn handle_stress_browser_key(&mut self, key: &Key) {
+        let Some(browser) = &mut self.stress_browser else {
+            return;
+        };
+        match key.as_ref() {
+            Key::Named(NamedKey::Escape) => browser.open = false,
+            Key::Named(NamedKey::Enter) => self.handle_stress_browser_select(),
+            Key::Named(NamedKey::ArrowUp) => browser.handle_up(),
+            Key::Named(NamedKey::ArrowDown) => browser.handle_down(),
+            Key::Named(NamedKey::PageUp) => browser.handle_page_up(),
+            Key::Named(NamedKey::PageDown) => browser.handle_page_down(),
+            Key::Named(NamedKey::Backspace) => browser.handle_backspace(),
+            Key::Character(ch) => {
+                for c in ch.chars() {
+                    if !c.is_control() {
+                        browser.handle_char(c);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_stress_browser_select(&mut self) {
+        let Some(browser) = &mut self.stress_browser else {
+            return;
+        };
+        let Some(selected) = browser.selected_item().map(|s| s.to_string()) else {
+            return;
+        };
+        browser.open = false;
+        if let Some(idx) = self.stress_sets.iter().position(|s| stress_label(s) == selected) {
+            self.effect_holder.clear();
+            self.stress.launch(idx);
+        }
+    }
+
+    fn stop_stress(&mut self) {
+        self.stress.stop();
+        self.effect_holder.clear();
+    }
+
+    /// Clear the holder and re-spawn stress set `idx` at fresh random visible
+    /// ground positions. Driven by `StressTick::Reseed` each cadence.
+    fn reseed_stress(&mut self, idx: usize) {
+        self.effect_holder.clear();
+        let entries = match self.stress_sets.get(idx) {
+            Some(s) => s.entries.clone(),
+            None => return,
+        };
+        let Some(renderer) = &self.renderer else {
+            return;
+        };
+        let screen_w = renderer.device.surface_config.width as f32;
+        let screen_h = renderer.device.surface_config.height as f32;
+        let plane_y = self
+            .map_data
+            .as_ref()
+            .map(|m| self.world_anchor(m)[1])
+            .unwrap_or(0.0);
+        let mut rng = stress::Rng::new(self.stress.next_seed());
+        for (id, count) in entries {
+            self.ensure_str_loaded(id);
+            self.ensure_spr_loaded_for(id);
+            let positions = {
+                let camera = &self.renderer.as_ref().unwrap().camera;
+                stress::random_visible_ground_positions(
+                    camera, screen_w, screen_h, plane_y, count, &mut rng,
+                )
+            };
+            for pos in positions {
+                stress::enqueue_effect(&mut self.effect_queue, id, pos, Some(VIEWER_ACTOR_ID));
+            }
         }
     }
 
@@ -904,6 +1006,13 @@ impl App {
         let dt = (now - self.last_frame).as_secs_f32().min(0.1);
         self.last_frame = now;
         let sim_dt = if self.paused { 0.0 } else { dt };
+        self.fps.tick(dt);
+
+        // Continuous stress test: re-seed the active set on its cadence so the
+        // population stays steady. Runs before the queue drain below.
+        if let StressTick::Reseed(idx) = self.stress.tick(sim_dt) {
+            self.reseed_stress(idx);
+        }
 
         // Caster-attached effects (buff STR overlays, body-attached spawns)
         // resolve to the previewed actor's world anchor.
@@ -1008,7 +1117,17 @@ impl App {
             screen_w,
             screen_h,
         ));
+        ui_calls.extend(crate::viewer_common::build_fps(
+            &renderer.font_atlas,
+            self.fps.get(),
+            self.effect_holder.len(),
+        ));
         if let Some(browser) = &self.browser
+            && browser.open
+        {
+            ui_calls.extend(browser.build_draw_calls(&renderer.font_atlas, screen_w, screen_h));
+        }
+        if let Some(browser) = &self.stress_browser
             && browser.open
         {
             ui_calls.extend(browser.build_draw_calls(&renderer.font_atlas, screen_w, screen_h));
@@ -1225,11 +1344,30 @@ impl ApplicationHandler for App {
                     }
                     return;
                 }
+                if self.stress_browser_is_open() {
+                    if event.state == ElementState::Pressed {
+                        self.handle_stress_browser_key(&event.logical_key);
+                    }
+                    return;
+                }
                 if event.state == ElementState::Pressed
                     && matches!(event.logical_key, Key::Named(NamedKey::Tab))
                 {
                     self.open_browser();
                     return;
+                }
+                if event.state == ElementState::Pressed {
+                    match event.logical_key.as_ref() {
+                        Key::Character("g") | Key::Character("G") => {
+                            self.open_stress_browser();
+                            return;
+                        }
+                        Key::Character("k") | Key::Character("K") => {
+                            self.stop_stress();
+                            return;
+                        }
+                        _ => {}
+                    }
                 }
                 if let Some(action) = map_key(&event.logical_key, event.state) {
                     self.handle_action(action);

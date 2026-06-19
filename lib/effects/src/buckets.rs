@@ -1,19 +1,3 @@
-//! Bulk classification of `EffectId`s per the original game's behaviour.
-//!
-//!
-//! * **Custom bucket** — original game's dispatch emits PP_* primitives but
-//!   has no STR file (407 ids). Plus the 12 StrHybrid ids that emit *both*
-//!   an STR animation and PP_* primitives — both flavours render as
-//!   `EffectSpec::Custom`; the factory wraps hybrids so an STR overlay plays
-//!   alongside the placeholder.
-//! * **Noop bucket** — original game has neither STR load nor PP_* dispatch
-//!   (235 ids). Pass-through / status-marker / no-op packet hooks. Rendered
-//!   as `EffectSpec::Noop`; viewers exclude them.
-//! * **Hybrid (12)** — strict subset of the Custom bucket; flagged separately
-//!   so the factory can pick `HybridPlaceholderEffect` over `PlaceholderEffect`.
-//!
-//! Everything not in Custom or Noop falls through to the default STR path.
-
 use models::enums::effect_id::EffectId;
 
 /// `true` if the original game dispatches this id to PP_* primitives —
@@ -23,13 +7,11 @@ pub fn is_custom_bucket(id: EffectId) -> bool {
         id,
         // Pure custom (407)
         EffectId::Ef05val | EffectId::Absorbspirits | EffectId::Aciddemon
-            // Batch 5 §5b Change-element casting rings + §5c procedural hits.
             | EffectId::Changedark | EffectId::Changefire | EffectId::Changecold
             | EffectId::Changewind | EffectId::Changeflame | EffectId::Changeearth
             | EffectId::Chaingeholy | EffectId::Changepoison
             | EffectId::Sightrasher | EffectId::Firesplashhit | EffectId::Coldhit
             | EffectId::Venomdust2
-            // §9b floating recoloured number effects (AM_MAKE_NUMBER).
             | EffectId::Damage1 | EffectId::Damage12 | EffectId::Damage13
             | EffectId::Agiup | EffectId::Airtexture | EffectId::Airtexture2
             | EffectId::Airtexture3 | EffectId::Airtexture4 | EffectId::Alattack1
@@ -195,7 +177,6 @@ pub fn is_custom_bucket(id: EffectId) -> bool {
             | EffectId::WaterfallT2 | EffectId::WaterfallT290 | EffectId::Wind
             | EffectId::WindBuff | EffectId::Wink | EffectId::Yufitel
             | EffectId::Yufitel2 | EffectId::Yufitelhit
-            // StrHybrid (12) — also dispatched to PP_* primitives
             | EffectId::Coin | EffectId::Glasswall | EffectId::Thunderstorm
             | EffectId::Aspersio | EffectId::Stormgust | EffectId::Cartrevolution
             | EffectId::PotionBerserk | EffectId::Providence | EffectId::Glasswall2
@@ -257,7 +238,6 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::CodeEffectEnd2 | EffectId::ColorBody
             | EffectId::ColorHead1 | EffectId::ColorHead2 | EffectId::ColorHead3
             | EffectId::ColorRide | EffectId::ColorSword
-            // Damage1/Damage12/Damage13 moved to the Custom bucket (§9b floating numbers).
             | EffectId::DaSpace | EffectId::Decagilitybuf
             | EffectId::Doublecastbody
             | EffectId::EndureJing | EffectId::EndureShan | EffectId::EndureSou
@@ -265,7 +245,6 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::FileEffectBegin
             | EffectId::Flammule | EffectId::Flowercast2 | EffectId::Flyup
             | EffectId::GetItem
-            // Green995/Green996 moved to the Custom bucket (§9i green level-99 ring + floor aura).
             | EffectId::Green993
             | EffectId::Greenbody | EffectId::GreenNumber | EffectId::Groundimage
             | EffectId::Groundimage3 | EffectId::Groundimage5 | EffectId::Groundimage7

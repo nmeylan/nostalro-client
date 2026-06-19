@@ -4,7 +4,7 @@ TODO:
 - ~~Weapon sprite~~ (done — full rendering with ACT animation in sprite.rs)
 - ~~Shield sprite~~ (done — render order fix for direction-based layering)
 - ~~Headgear/accessories~~ (done — three-layer system: top/mid/bottom)
-- Mount/Peco (costume job swap, loads mounted body sprite)
+~~- Mount/Peco (costume job swap, loads mounted body sprite)~~
 - cart
 - ~~Other players / NPCs / monsters entity sprites~~ (done — entity collection manages Player/NPC/Monster types)
 - ~~Doridori head animation~~ (done — head_dir from server selects head/headgear motion)
@@ -17,14 +17,14 @@ TODO:
 - ~~Shadow under entities~~ (done — shadow size table for 200+ jobs)
 
 # Rendering
-- STR effects (skill/buff visuals, ~200 effect types)
-- Particle system (2D/3D particles for skills, weather, buffs)
+- ~~STR effects (skill/buff visuals, ~200 effect types)~~
+- ~~Particle system (2D/3D particles for skills, weather, buffs)~~
 - ~~Fog~~
-- Weather (rain, snow, sakura)
+- ~~Weather (rain, snow, sakura)~~
 - Day/night cycle (lighting changes)
 - Granny models (emperium, guardian)
 - Skybox
-- ALL 1050 effects https://casual-ragnarok.github.io/ro-effects/
+- ~~ALL 1050 effects https://casual-ragnarok.github.io/ro-effects/~~
 # UI
 - ~~Chat box (normal, whisper, party, guild channels)~~
 - ~~Status window (stats, stat allocation)~~
@@ -126,4 +126,4 @@ TODO:
 - ~~Battle mode (keyboard skill activation)~~
 
 # Tools
-- Effect viewer tool
+~~- Effect viewer tool~~

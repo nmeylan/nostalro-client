@@ -1,4 +1,4 @@
-The goal is to have a playable client to retrieve the classic ro experience (2004-2008)
+The goal is to have a playable client to retrieve the classic ro experience (2004-2008) for nostalgic
 
 It reuses many part of [rust-ro](https://github.com/nmeylan/rust-ro): packets, data structure, proc-macro.
 
@@ -6,8 +6,17 @@ If you seek for the best/most promising client implementation check-out [koranga
 
 This repository does not provide any game assets
 
-# Why
+# Why yet another client?
 I wanted to be able to run the game as it was in 2005~2008, but original client from this time does not handle well high dpi screen. It is also very painful to find right game resources and right exe diff to make it works with a server.
+
+Other implementations are not focusing on this version of the client or do not aim for an exact match
+
+# Will this project ever be complete?
+Unlike for [rust-ro](https://github.com/nmeylan/rust-ro), i think i will be able to complete it one day, i identified too big challenges:
+- effects implementation
+- AI support
+
+effects implementation was (very) painful and took months to complete, but is now done
 
 # Principles
 - Support any game resources until EP 12 (included)
@@ -74,6 +83,7 @@ This project leverage AI to allow a faster development, as my time is very limit
 - Game resource format handling
 - Refactoring tasks
 - Write tools
+- Effects analysis (from gif) and implementation
 
 # Progress
 see [todo](docs/TODO.md)

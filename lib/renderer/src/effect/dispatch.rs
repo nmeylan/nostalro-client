@@ -13,8 +13,6 @@
 //! [`PipelineKind`]; group-0 binding switches between the camera uniform
 //! (3D pipelines) and the sprite uniform (camera-facing 2D pipelines).
 
-use wgpu::util::DeviceExt;
-
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, partition_and_sort};
 use crate::effect::primitives::{
     CylinderRenderer, FrustumRenderer, FullscreenOverlayRenderer, GroundDiscRenderer,
@@ -163,27 +161,30 @@ impl EffectDispatcher {
             }
         }
 
-        // Grow buffers if needed; reupload contents.
+        // Grow buffers if needed, then reupload contents. The buffer is sized
+        // to the full `capacity` (not just the current contents) so a later
+        // frame whose count is larger but still under `capacity` can write into
+        // it without overrunning.
         if all_verts.len() > self.vertex_capacity {
             self.vertex_capacity = all_verts.len().next_power_of_two();
-            self.vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("effect_dispatch_vertices"),
-                contents: bytemuck::cast_slice(&all_verts),
+                size: (self.vertex_capacity * std::mem::size_of::<SpriteVertex>()) as u64,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
             });
-        } else {
-            queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&all_verts));
         }
+        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&all_verts));
         if all_indices.len() > self.index_capacity {
             self.index_capacity = all_indices.len().next_power_of_two();
-            self.index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("effect_dispatch_indices"),
-                contents: bytemuck::cast_slice(&all_indices),
+                size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
                 usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
             });
-        } else {
-            queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&all_indices));
         }
+        queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&all_indices));
 
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("effect_unified"),

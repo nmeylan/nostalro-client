@@ -4,6 +4,7 @@ mod device;
 pub mod effect;
 pub mod effect_sprite;
 pub mod font_atlas;
+pub mod fps;
 pub mod global_uniforms;
 pub mod grid_selector;
 pub mod ground;
@@ -17,6 +18,7 @@ pub mod water;
 
 pub use camera::Camera;
 pub use device::{RenderDevice, block_on};
+pub use fps::Fps;
 pub use global_uniforms::{FogUniform, GlobalUniforms, LightUniform, PointLightGpu};
 
 pub use damage_number::render_damage_number_quads;

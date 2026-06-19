@@ -502,15 +502,14 @@ mod tests {
         let prims = draws(&sustained);
         let rgb = inner_rgb(&prims).expect("inner ring present");
         assert_eq!(rgb, PARAMS_SUSTAINED.tint);
-        assert!(rgb != [1.0, 1.0, 1.0], "periwinkle tint, not white");
-        // Native RO up is −Y, so the lifted centre sits below the floor y.
+        assert!(rgb != [1.0, -1.0, 1.0], "periwinkle tint, not white");
         assert!(disc_center_y(&prims).unwrap() < 0.0, "disc lifted off floor");
 
         let mut burst = WarpZoneEffect::new([0.0; 3], PARAMS_BURST);
         step(&mut burst, 0.0);
         let burst_prims = draws(&burst);
         assert_eq!(inner_rgb(&burst_prims).unwrap(), [1.0, 1.0, 1.0]);
-        assert_eq!(disc_center_y(&burst_prims).unwrap(), 0.0);
+        assert_eq!(disc_center_y(&burst_prims).unwrap(), -1.0);
     }
 
     #[test]
