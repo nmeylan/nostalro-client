@@ -4,6 +4,7 @@ members = [
     "lib/formats",
     "lib/renderer",
     "lib/game",
+    "lib/effects",
     "lib/network",
     "lib/ui-core",
     "lib/ui-component",
@@ -50,6 +51,7 @@ packets = { git = "https://github.com/nmeylan/rust-ro.git", rev = "0362dc12" }
 ragnarok-formats = { path = "lib/formats" }
 ragnarok-renderer = { path = "lib/renderer" }
 ragnarok-game = { path = "lib/game" }
+ragnarok-effects = { path = "lib/effects" }
 ragnarok-network = { path = "lib/network" }
 ragnarok-ui = { path = "lib/ui-core" }
 ragnarok-ui-component = { path = "lib/ui-component" }

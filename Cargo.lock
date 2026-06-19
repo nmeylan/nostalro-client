@@ -2821,6 +2821,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ragnarok-effects"
+version = "0.1.0"
+dependencies = [
+ "models",
+ "tracing",
+]
+
+[[package]]
 name = "ragnarok-formats"
 version = "0.1.0"
 dependencies = [
@@ -2838,6 +2846,7 @@ dependencies = [
  "models",
  "movement",
  "packets",
+ "ragnarok-effects",
  "ragnarok-formats",
  "tracing",
 ]

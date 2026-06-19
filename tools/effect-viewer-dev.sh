@@ -7,11 +7,12 @@ cargo build -p effect-viewer-hot
 
 echo "Starting hot-reload effect viewer"
 echo "Edit tools/effect-viewer-hot/src/lib.rs (picker, overlay) or anything under"
-echo "lib/renderer/src/effect/ and lib/game/src/effect/ — changes auto-reload."
+echo "lib/renderer/src/effect/ and lib/effects/src/ — changes auto-reload."
 
 cargo watch \
     -w lib/renderer/src \
     -w lib/ui-core/src \
+    -w lib/effects/src \
     -w lib/game/src \
     -w lib/formats/src \
     -w tools/effect-viewer-hot/src \

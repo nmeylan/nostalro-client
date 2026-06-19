@@ -8,14 +8,10 @@
 //! the server sends no ranged flag — the client decides to draw it purely from
 //! the attacker's equipped weapon.
 
-/// `data/sprite/몬스터/skel_archer_arrow{.spr,.act}` — the arrow sprite.
-/// (The skill-variant arrow sprite is absent from the classic GRF and needs
-/// the skill high-bit flag we don't plumb yet.)
-pub const ARROW_SPRITE: &str = "data/sprite/몬스터/skel_archer_arrow";
-
-/// Preloaded by `custom_effect_sprite_paths()` so the sprite is in the
-/// `EffectSpriteCache` before the first bow attack arrives.
-pub const SPRITES: &[&str] = &[ARROW_SPRITE];
+/// The arrow sprite path and preload slice live with the effect preload
+/// aggregator in `ragnarok-effects`. (The skill-variant arrow sprite is absent
+/// from the classic GRF and needs the skill high-bit flag we don't plumb yet.)
+pub use crate::effect::{ARROW_SPRITE, SPRITES};
 
 /// In the original game the arrow covers any distance in a fixed ~192 ms
 /// (8 frames × 24 ms), flying proportionally faster for targets closer than
