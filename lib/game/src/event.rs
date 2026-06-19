@@ -143,6 +143,28 @@ pub enum GameEvent {
         gid: u32,
         effect_state: i32,
     },
+    /// Server-driven generic effect (`ZC_NOTIFY_EFFECT2`/`3`): play raw `EF_*`
+    /// `effect_id` on the entity. `value` carries the Effect3 extra datum.
+    PlayEffectOnEntity {
+        gid: u32,
+        effect_id: i32,
+        value: Option<i32>,
+    },
+    /// Server misc effect (`ZC_NOTIFY_EFFECT`): `code` is an `e_notify_effect`
+    /// code (level-up / refine / pharmacy), not an `EF_*` id.
+    PlayMiscEffectOnEntity {
+        gid: u32,
+        code: u8,
+    },
+    /// Entity revived (`ZC_RESURRECTION`): clear its dead pose. The resurrection
+    /// visual rides the skill path, not this packet.
+    EntityResurrected {
+        gid: u32,
+    },
+    /// MVP reward (`ZC_MVP`): show the MVP effect on the credited player.
+    MvpReward {
+        gid: u32,
+    },
 
     // Stats & parameters
     ParameterChanged {

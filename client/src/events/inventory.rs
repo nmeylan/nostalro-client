@@ -1,5 +1,6 @@
 use crate::App;
 use models::enums::EnumWithNumberValue;
+use models::enums::effect_id::EffectId;
 use models::enums::item::ItemType;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::entity::Entity;
@@ -43,6 +44,9 @@ impl App {
     ) {
         if result != 0 {
             return;
+        }
+        if let Some(player_gid) = self.game.entities.player_id() {
+            self.effect_queue.spawn_on(EffectId::GetItem, player_gid);
         }
         let name = self
             .game

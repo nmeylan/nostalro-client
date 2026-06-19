@@ -336,6 +336,35 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
+    // Generic server-driven effect channel: `effect_id` is a raw `EF_*` number.
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyEffect2>() {
+        return vec![GameEvent::PlayEffectOnEntity {
+            gid: p.aid,
+            effect_id: p.effect_id,
+            value: None,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyEffect3>() {
+        return vec![GameEvent::PlayEffectOnEntity {
+            gid: p.aid,
+            effect_id: p.effect_id,
+            value: Some(p.numdata),
+        }];
+    }
+    // Misc effect channel: `effect_id` is an `e_notify_effect` code, not an `EF_*` id.
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyEffect>() {
+        return vec![GameEvent::PlayMiscEffectOnEntity {
+            gid: p.aid,
+            code: p.effect_id as u8,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcResurrection>() {
+        return vec![GameEvent::EntityResurrected { gid: p.aid }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMvp>() {
+        return vec![GameEvent::MvpReward { gid: p.aid }];
+    }
+
     // Character stats & parameters
     if let Some(p) = any.downcast_ref::<PacketZcParChange>() {
         return vec![GameEvent::ParameterChanged {
@@ -1318,6 +1347,46 @@ mod tests {
                 assert_eq!(*value2, 0);
             }
             other => panic!("expected EntitySpriteChanged, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_notify_effect2_returns_play_effect_on_entity() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcNotifyEffect2::new(packetver);
+        pkt.set_aid(150000);
+        pkt.set_effect_id(28); // arbitrary raw EF_* number
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::PlayEffectOnEntity {
+                gid,
+                effect_id,
+                value,
+            } => {
+                assert_eq!(*gid, 150000);
+                assert_eq!(*effect_id, 28);
+                assert_eq!(*value, None);
+            }
+            other => panic!("expected PlayEffectOnEntity, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_resurrection_and_mvp_return_lifecycle_events() {
+        let packetver = 20120307;
+        let mut res = PacketZcResurrection::new(packetver);
+        res.set_aid(150000);
+        match &dispatch_packet(&res, packetver)[0] {
+            GameEvent::EntityResurrected { gid } => assert_eq!(*gid, 150000),
+            other => panic!("expected EntityResurrected, got {other:?}"),
+        }
+
+        let mut mvp = PacketZcMvp::new(packetver);
+        mvp.set_aid(150001);
+        match &dispatch_packet(&mvp, packetver)[0] {
+            GameEvent::MvpReward { gid } => assert_eq!(*gid, 150001),
+            other => panic!("expected MvpReward, got {other:?}"),
         }
     }
 

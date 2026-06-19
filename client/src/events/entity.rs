@@ -1,13 +1,15 @@
 use crate::App;
+use models::enums::EnumWithNumberValue;
 use models::enums::action::ActionType;
+use models::enums::effect_id::EffectId;
 use models::enums::vanish::VanishType;
 use models::enums::weapon::WeaponType;
 use ragnarok_game::arrow::{flight_secs_for_cell_distance, ArrowProjectile};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
-use ragnarok_game::entity::{Entity, EntityState};
+use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
-use ragnarok_game::sprite_path::{entity_type_from_job, visual_job, OPTION_RIDING};
+use ragnarok_game::sprite_path::{entity_type_from_job, is_hidden, visual_job, OPTION_RIDING};
 
 impl App {
     #[allow(clippy::too_many_arguments)]
@@ -93,6 +95,9 @@ impl App {
             hair_color,
             direction,
         );
+        if entity_type == EntityType::Player && !is_hidden(effect_state) {
+            self.effect_queue.spawn_on(EffectId::Entry2, gid);
+        }
     }
 
     pub(super) fn handle_entity_moved(
@@ -147,6 +152,25 @@ impl App {
                 }
             }
             _ => {
+                // Teleport-out / zone-exit leave a poof at the last position;
+                // capture it before the entity is removed. Trick-dead just leaves.
+                let poof = match vanish_type {
+                    VanishType::Teleport => {
+                        let hidden = self
+                            .game
+                            .entities
+                            .get(gid)
+                            .is_some_and(|e| is_hidden(e.effect_state));
+                        (!hidden).then_some(EffectId::Teleportation2)
+                    }
+                    VanishType::Loggout => Some(EffectId::Exit2),
+                    _ => None,
+                };
+                if let Some(effect) = poof
+                    && let Some(pos) = self.entity_world_pos(gid)
+                {
+                    self.effect_queue.spawn_at(effect, pos);
+                }
                 let r1 = self.game.entities.remove(gid).is_some();
                 let r2 = self.game.sprites.remove(&gid).is_some();
                 tracing::debug!("EntityVanished: gid={gid} type={vanish_type:?} r1={r1} r2={r2}");
@@ -470,5 +494,59 @@ impl App {
                 );
             }
         }
+    }
+
+    /// Generic server-driven effect (`ZC_NOTIFY_EFFECT2`/`3`): play a raw `EF_*`
+    /// effect on the entity. The Effect3 extra datum rides `hit_count`.
+    pub(super) fn handle_play_effect_on_entity(
+        &mut self,
+        gid: u32,
+        effect_id: i32,
+        value: Option<i32>,
+    ) {
+        let Ok(id) = EffectId::try_from_value(effect_id as usize) else {
+            return;
+        };
+        match value {
+            Some(v) if v > 0 => self.effect_queue.spawn_on_with_count(id, gid, v.min(255) as u8),
+            _ => self.effect_queue.spawn_on(id, gid),
+        }
+    }
+
+    /// Misc effect (`ZC_NOTIFY_EFFECT`): `code` is an `e_notify_effect` code, not
+    /// an `EF_*` id, so it gets a fixed remap (same as the original game).
+    pub(super) fn handle_play_misc_effect_on_entity(&mut self, gid: u32, code: u8) {
+        let id = match code {
+            0 => EffectId::Angel,     // base level-up
+            1 => EffectId::Joblvup,   // job level-up
+            2 => EffectId::Refinefail,
+            3 => EffectId::Refineok,
+            5 => EffectId::PharmacyOk,
+            6 => EffectId::PharmacyFail,
+            7 => EffectId::Angel2,    // super-novice base level-up
+            8 => EffectId::Joblvup50, // super-novice job level-up
+            9 => EffectId::Angel3,    // taekwon-class base level-up
+            _ => return,              // 4 = game-over screen, not an effect
+        };
+        self.effect_queue.spawn_on(id, gid);
+    }
+
+    /// Resolve an entity's current cell to a world position (feet, lifted to
+    /// match the effect anchor used by the per-frame resolver).
+    fn entity_world_pos(&self, gid: u32) -> Option<[f32; 3]> {
+        let (gat, coords) = (self.game.gat.as_ref()?, self.game.map_coords.as_ref()?);
+        let (cx, cy) = self.game.entities.get(gid)?.movement.position();
+        let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
+        Some([wx, gat.get_height(cx + 0.5, cy + 0.5) - 8.0, wz])
+    }
+
+    pub(super) fn handle_entity_resurrected(&mut self, gid: u32) {
+        if let Some(entity) = self.game.entities.get_mut(gid) {
+            entity.revive();
+        }
+    }
+
+    pub(super) fn handle_mvp_reward(&mut self, gid: u32) {
+        self.effect_queue.spawn_on(EffectId::Mvp, gid);
     }
 }

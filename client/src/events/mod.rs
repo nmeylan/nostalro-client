@@ -178,6 +178,22 @@ impl App {
                 GameEvent::EntityOptionChanged { gid, effect_state } => {
                     self.handle_entity_option_changed(gid, effect_state);
                 }
+                GameEvent::PlayEffectOnEntity {
+                    gid,
+                    effect_id,
+                    value,
+                } => {
+                    self.handle_play_effect_on_entity(gid, effect_id, value);
+                }
+                GameEvent::PlayMiscEffectOnEntity { gid, code } => {
+                    self.handle_play_misc_effect_on_entity(gid, code);
+                }
+                GameEvent::EntityResurrected { gid } => {
+                    self.handle_entity_resurrected(gid);
+                }
+                GameEvent::MvpReward { gid } => {
+                    self.handle_mvp_reward(gid);
+                }
                 GameEvent::EntitySpriteChanged {
                     gid,
                     sprite_type,

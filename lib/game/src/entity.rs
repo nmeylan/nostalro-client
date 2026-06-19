@@ -394,6 +394,12 @@ impl Entity {
         self.pending_death = false;
     }
 
+    pub fn revive(&mut self) {
+        self.state = EntityState::Standing;
+        self.state_timer = 0.0;
+        self.pending_death = false;
+    }
+
     /// Request death but defer it until all scheduled hits complete.
     /// If there are no pending scheduled hits, transition to Dead immediately.
     pub fn request_pending_death(&mut self) {

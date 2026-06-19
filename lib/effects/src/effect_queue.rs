@@ -98,6 +98,15 @@ impl EffectQueue {
         self.push(SpawnRequest::new(effect_id, Attach::Entity(entity_id)));
     }
 
+    /// Spawn an entity-attached effect with a count (the `ZC_NOTIFY_EFFECT3`
+    /// extra datum maps onto `hit_count`).
+    pub fn spawn_on_with_count(&mut self, effect_id: EffectId, entity_id: u32, hit_count: u8) {
+        self.push(SpawnRequest {
+            hit_count: Some(hit_count),
+            ..SpawnRequest::new(effect_id, Attach::Entity(entity_id))
+        });
+    }
+
     /// Spawn a persistent, entity-attached effect tagged with an owner `key`
     /// so it can later be removed with [`EffectQueue::despawn`]. The canonical
     /// caller is a status buff keyed by the bearer's `gid` (cleared when the
