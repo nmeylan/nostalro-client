@@ -191,6 +191,7 @@ pub enum GameEvent {
         gid: u32,
         target_gid: u32,
         skill_id: u16,
+        property: u32,
         delay_ms: u32,
         x: i16,
         y: i16,
@@ -218,6 +219,7 @@ pub enum GameEvent {
         attack_mt: i32,
         attacked_mt: i32,
         count: i16,
+        level: i16,
         action: ActionType,
         skill_name: Option<String>,
         start_time: u32,
@@ -234,6 +236,20 @@ pub enum GameEvent {
         level: i16,
         x: i16,
         y: i16,
+    },
+    /// A persistent ground-skill unit appeared at a cell (`ZC_SKILL_ENTRY`).
+    /// One packet per occupied cell; `unit_id` is the `e_skill_unit_id`.
+    SkillUnitEntered {
+        aid: u32,
+        creator_aid: u32,
+        x: i16,
+        y: i16,
+        unit_id: u8,
+        is_visible: bool,
+    },
+    /// A ground-skill unit was removed (`ZC_SKILL_DISAPPEAR`), keyed by `aid`.
+    SkillUnitDisappeared {
+        aid: u32,
     },
 
     // Effects
@@ -292,6 +308,16 @@ pub enum GameEvent {
     RequestNpcMenuSelect {
         npc_id: u32,
         choice: u8,
+    },
+    /// Server sent a warp/teleport destination list (ZC_WARPLIST).
+    WarpList {
+        skill_id: u16,
+        destinations: Vec<String>,
+    },
+    /// User picked a warp destination (or "cancel") to send back (CZ_SELECT_WARPPOINT).
+    RequestSelectWarppoint {
+        skill_id: u16,
+        map_name: String,
     },
     RequestNpcInputNumber {
         npc_id: u32,

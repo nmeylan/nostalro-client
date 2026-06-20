@@ -6,9 +6,9 @@ use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
-pub const MINIMAP_WINDOW_ID: WidgetId = WidgetId(1500);
-const ZOOM_IN_BTN_ID: WidgetId = WidgetId(1501);
-const ZOOM_OUT_BTN_ID: WidgetId = WidgetId(1502);
+pub const MINIMAP_WINDOW_ID: WidgetId = WidgetId(1600);
+const ZOOM_IN_BTN_ID: WidgetId = WidgetId(1601);
+const ZOOM_OUT_BTN_ID: WidgetId = WidgetId(1602);
 
 const MAP_ARROW_TEX: &str = "data/texture/유저인터페이스/map/map_arrow.bmp";
 const MAP_PLUS_OFF: &str = "data/texture/유저인터페이스/map/map_plus0.bmp";
@@ -204,19 +204,9 @@ impl InGameWindow for MinimapWindow {
             MinimapVisibility::Hidden => return Vec::new(),
         };
 
-        let default_x = (ui.ctx.screen_width - MAP_AREA_SIZE - 2.0).max(0.0);
-        let default_y = 2.0;
-        let win = ui.window_at(
-            MINIMAP_WINDOW_ID,
-            MAP_AREA_SIZE,
-            MAP_AREA_SIZE,
-            0.0,
-            default_x,
-            default_y,
-        );
-
-        let x = win.x;
-        let y = win.y;
+        let x = (ui.ctx.screen_width - MAP_AREA_SIZE - 2.0).max(0.0);
+        let y = 2.0;
+        ui.window_fixed(MINIMAP_WINDOW_ID, MAP_AREA_SIZE, MAP_AREA_SIZE, x, y);
 
         let win_rect = Rect::new(x, y, MAP_AREA_SIZE, MAP_AREA_SIZE);
         let resp = ui.interact(MINIMAP_WINDOW_ID, win_rect);

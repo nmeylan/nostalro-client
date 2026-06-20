@@ -29,7 +29,7 @@ use ragnarok_network::{
     build_npc_input_string_packet, build_npc_menu_select_packet, build_npc_next_packet,
     build_pickup_item_packet, build_purchase_item_list_packet, build_remove_option_packet,
     build_reqname_packet, build_restart_packet, build_select_char_packet,
-    build_sell_item_list_packet,
+    build_select_warppoint_packet, build_sell_item_list_packet,
     build_shortcut_key_change_packet, build_stat_change_packet,
     build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_use_skill_packet,
     ip_u32_to_string, network_loop,
@@ -224,6 +224,21 @@ impl App {
                 self.str_effects.load(
                     name,
                     &[],
+                    grf,
+                    &mut renderer.texture_cache,
+                    &renderer.device.device,
+                    &renderer.device.queue,
+                );
+            }
+
+            // Skill / ground-unit STR effects (Fire Wall, casting glyphs, …):
+            // preload every STR-rendered effect so a triggered effect's STR is
+            // in the cache when it spawns. The ambient list above only covers
+            // RSW emitters, so without this skill STRs never draw.
+            for aliases in ragnarok_game::effect::effect_str_names() {
+                self.str_effects.load(
+                    aliases[0],
+                    &aliases[1..],
                     grf,
                     &mut renderer.texture_cache,
                     &renderer.device.device,
@@ -470,6 +485,13 @@ impl App {
                         self.config.packetver,
                     ));
                 }
+                GameEvent::RequestSelectWarppoint { skill_id, map_name } => {
+                    self.channel.send_packet(build_select_warppoint_packet(
+                        skill_id,
+                        &map_name,
+                        self.config.packetver,
+                    ));
+                }
                 GameEvent::RequestNpcInputNumber { npc_id, value } => {
                     self.channel.send_packet(build_npc_input_number_packet(
                         npc_id,
@@ -639,7 +661,7 @@ impl App {
                                 self.config.packetver,
                             ));
                         }
-                        SkillTargetType::Target => {
+                        SkillTargetType::Target | SkillTargetType::Friend => {
                             self.game.pending_skill_target =
                                 Some(PendingSkillTarget::Entity { skill_id, level });
                             self.game.pending_skill_id = Some(skill_id);
@@ -1068,6 +1090,7 @@ impl App {
                             self.input.mouse_position,
                             &self.game.entities,
                             render_list,
+                            true,
                         );
                         let entity_id = hovered.map(|(_, id)| id);
                         (CursorType::Lock, entity_id)
@@ -1081,6 +1104,7 @@ impl App {
                 self.input.mouse_position,
                 &self.game.entities,
                 render_list,
+                false,
             ) {
                 (entity_cursor, Some(entity_id))
             } else if let Some(gat) = &self.game.gat {

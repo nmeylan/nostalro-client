@@ -22,7 +22,7 @@ use super::str_aliases::str_aliases;
 
 /// Build a concrete custom-effect instance. Ids with a real implementation
 /// hit an explicit arm below; anything else lands on the placeholder.
-pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, target_size: Option<[f32; 2]>) -> Option<Box<dyn Effect>> {
+pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, target_size: Option<[f32; 2]>, duration_ms: Option<u32>) -> Option<Box<dyn Effect>> {
     Some(match id {
         EffectId::Warp => Box::new(effects::warp::WarpEffect::new(anchor.point())),
         EffectId::Bash => Box::new(effects::bash::BashEffect::new(anchor.point())),
@@ -719,13 +719,9 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
             Box::new(effects::earthspike::EarthSpikeEffect::new(anchor.point(), effects::earthspike::HYOUSENSOU))
         }
         EffectId::Icewall => {
-            // `to` supplies the cast direction so the wall stands across the
-            // targeted line; collapses to a default-oriented row at a point.
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
-            Box::new(effects::icewall::IceWallEffect::new(from, to))
+            // One independent cluster per ground cell — the wall's line shape
+            // comes from the server's per-cell unit packets, not from here.
+            Box::new(effects::icewall::IceWallEffect::new(anchor.point()))
         }
         EffectId::Soulstrike => {
             let (from, to) = match anchor {
@@ -1331,7 +1327,9 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
             effects::sparkle_column::GHOST,
         )),
 
-        EffectId::Beginspell => Box::new(effects::begin_spell::BeginSpellEffect::new(anchor.point())),
+        EffectId::Beginspell => Box::new(
+            effects::begin_spell::BeginSpellEffect::new(anchor.point()).with_life_ms(duration_ms),
+        ),
         EffectId::Couplecasting => {
             Box::new(effects::couple_casting::CoupleCastingEffect::new(anchor.point()))
         }
@@ -1340,32 +1338,34 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::Bluecasting => Box::new(effects::color_casting::ColorCastingEffect::new(
             anchor.point(),
             effects::color_casting::BLUE,
-        )),
+        ).with_life_ms(duration_ms)),
         EffectId::Darkcasting => Box::new(effects::color_casting::ColorCastingEffect::new(
             anchor.point(),
             effects::color_casting::DARK,
-        )),
+        ).with_life_ms(duration_ms)),
         EffectId::Beginspell2 => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
             effects::cast_circle::WATER,
-        )),
+        ).with_life_ms(duration_ms)),
         EffectId::Beginspell3 => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
             effects::cast_circle::FIRE,
-        )),
+        ).with_life_ms(duration_ms)),
         EffectId::Beginspell4 => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
             effects::cast_circle::WIND,
-        )),
+        ).with_life_ms(duration_ms)),
         EffectId::Beginspell5 => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
             effects::cast_circle::EARTH,
-        )),
-        EffectId::Beginspell6 => Box::new(effects::begin_spell_6::BeginSpell6Effect::new(anchor.point())),
+        ).with_life_ms(duration_ms)),
+        EffectId::Beginspell6 => Box::new(
+            effects::begin_spell_6::BeginSpell6Effect::new(anchor.point()).with_life_ms(duration_ms),
+        ),
         EffectId::Beginspell7 => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
             effects::cast_circle::POISON,
-        )),
+        ).with_life_ms(duration_ms)),
         // Beginspell8: green casting cylinder (no `ring_green.tga` in the
         // classic GRF → `ring_white` tinted green). Three flared casting
         // rings (reused) + a tall central light shaft.
@@ -1375,15 +1375,15 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::Beginspellred => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
             effects::cast_circle::RED,
-        )),
+        ).with_life_ms(duration_ms)),
         EffectId::Beginspellwhite => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
             effects::cast_circle::WHITE,
-        )),
+        ).with_life_ms(duration_ms)),
         EffectId::BeginspellN => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
             effects::cast_circle::N_BLUE,
-        )),
+        ).with_life_ms(duration_ms)),
 
         // Change-element casting rings (`EF_CHANGE*`) — `BeginCasting("ring_X.tga",
         // 3)` in the original game: the cast circle differing only by ring texture.
@@ -2111,7 +2111,7 @@ mod tests {
 
     #[test]
     fn warp_dispatches() {
-        let e = make_effect(EffectId::Warp, EffectAnchor::Point([0.0; 3]), None, None);
+        let e = make_effect(EffectId::Warp, EffectAnchor::Point([0.0; 3]), None, None, None);
         assert!(e.is_some());
         assert!(is_real_impl(EffectId::Warp));
     }
@@ -2143,7 +2143,7 @@ mod tests {
                 matches!(effect_spec(id), Some(crate::spec::EffectSpec::Custom { .. })),
                 "{id:?} must resolve to Custom, not a shadowing str alias",
             );
-            let mut e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None)
+            let mut e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None)
                 .expect("damage-number effect must dispatch");
             e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
             let req = e.take_number_request().expect("emits a number request");
@@ -2170,6 +2170,7 @@ mod tests {
         let mut effect = make_effect(
             EffectId::Magnumbreak,
             EffectAnchor::Point(anchor_pos),
+            None,
             None,
             None,
         )
@@ -2231,7 +2232,7 @@ mod tests {
         // Pick an EffectId in the Custom bucket that doesn't yet have a
         // real Rust impl — factory returns the pink placeholder and
         // `is_real_impl` reports false.
-        assert!(make_effect(EffectId::Spherewind, EffectAnchor::Point([0.0; 3]), None, None).is_some());
+        assert!(make_effect(EffectId::Spherewind, EffectAnchor::Point([0.0; 3]), None, None, None).is_some());
         assert!(!is_real_impl(EffectId::Spherewind));
     }
 
@@ -2256,7 +2257,7 @@ mod tests {
                 "{:?} must have a real factory impl",
                 id
             );
-            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None).unwrap();
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(
                 e.str_overlay(),
                 None,
@@ -2278,7 +2279,7 @@ mod tests {
             EffectId::BottomServiceforyou,
         ] {
             assert!(is_real_impl(id), "{:?} must have a real impl", id);
-            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None).unwrap();
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
     }
@@ -2286,14 +2287,14 @@ mod tests {
     #[test]
     fn bottom_hermode_dispatches_to_world_quad_cube() {
         assert!(is_real_impl(EffectId::BottomHermode));
-        let e = make_effect(EffectId::BottomHermode, EffectAnchor::Point([0.0; 3]), None, None).unwrap();
+        let e = make_effect(EffectId::BottomHermode, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
         assert_eq!(e.str_overlay(), None);
     }
 
     #[test]
     fn bottom_rokisweil_dispatches_to_billboard_pulse() {
         assert!(is_real_impl(EffectId::BottomRokisweil));
-        let e = make_effect(EffectId::BottomRokisweil, EffectAnchor::Point([0.0; 3]), None, None).unwrap();
+        let e = make_effect(EffectId::BottomRokisweil, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
         assert_eq!(e.str_overlay(), None);
     }
 
@@ -2309,7 +2310,7 @@ mod tests {
             EffectId::BottomSpider,
         ] {
             assert!(is_real_impl(id), "{:?} must have a real impl", id);
-            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None).unwrap();
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
     }
@@ -2320,7 +2321,7 @@ mod tests {
         // (WorldQuad ribbon segments), not the placeholder.
         for id in [EffectId::BottomEternalchaos, EffectId::BottomSiegfried] {
             assert!(is_real_impl(id), "{:?} must have a real impl", id);
-            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None).unwrap();
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
     }
@@ -2331,7 +2332,7 @@ mod tests {
         // custom effect (Frustum sides=4), not the placeholder.
         for id in [EffectId::BottomMag, EffectId::BottomFogwall] {
             assert!(is_real_impl(id), "{:?} must have a real impl", id);
-            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None).unwrap();
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
     }
@@ -2361,7 +2362,7 @@ mod tests {
                 "{:?} must have a real factory impl",
                 id
             );
-            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None).unwrap();
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(
                 e.str_overlay(),
                 None,
@@ -2390,7 +2391,7 @@ mod tests {
             EffectId::BottomBasilica,
         ] {
             assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
-            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None).unwrap();
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(
                 e.str_overlay(),
                 None,
@@ -2420,7 +2421,7 @@ mod tests {
             EffectId::NpcSlowcast,
         ] {
             assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
-            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None).unwrap();
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None, "{:?} has no STR overlay", id);
             assert!(
                 matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
@@ -2446,7 +2447,7 @@ mod tests {
             EffectId::Mappillar4,
         ] {
             assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
-            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None).unwrap();
+            let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None, "{:?} has no STR overlay", id);
             assert!(
                 matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
@@ -2472,12 +2473,12 @@ mod tests {
             EffectId::Napalmvalcan,
         ] {
             assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
-            let _ = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None).unwrap();
+            let _ = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
         }
         // Cartrevolution still emits its STR overlay so the holder plays
         // CartRevolution.str alongside the primitive bursts.
         let cart =
-            make_effect(EffectId::Cartrevolution, EffectAnchor::Point([0.0; 3]), None, None).unwrap();
+            make_effect(EffectId::Cartrevolution, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
         assert_eq!(cart.str_overlay(), Some("CartRevolution"));
         // Hamicastle is SPR-driven; spec must resolve via the bucket
         // default, not the Custom factory path.
@@ -2490,7 +2491,7 @@ mod tests {
     fn hybrid_placeholder_carries_str_overlay() {
         // Coin is a StrHybrid id with no real impl — factory routes it
         // through `HybridPlaceholderEffect` so its STR file still plays.
-        let e = make_effect(EffectId::Coin, EffectAnchor::Point([0.0; 3]), None, None).unwrap();
+        let e = make_effect(EffectId::Coin, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
         assert_eq!(e.str_overlay(), Some(str_aliases(EffectId::Coin)[0]));
     }
 
@@ -2504,6 +2505,7 @@ mod tests {
                 to: [0.0, 0.0, 60.0],
             },
             Some(3),
+            None,
             None,
         )
         .unwrap();
@@ -2535,6 +2537,7 @@ mod tests {
                 id,
                 EffectAnchor::Trail { from: [0.0, 0.0, 0.0], to: [0.0, 0.0, 40.0] },
                 Some(1),
+                None,
                 None,
             )
             .unwrap();

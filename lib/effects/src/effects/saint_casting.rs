@@ -45,8 +45,9 @@ const ALPHA_DRAIN_PER_FRAME: f32 = 3.0;
 const ALPHA_REFILL_DISTANCE_GATE: f32 = 4.0;
 /// A drained emitter only resets while `process < duration - 30` so it doesn't
 /// spawn another pulse it can't fade out before the parent expires. With a
-/// 56-frame duration that floor is frame 26.
-const RESET_PROCESS_LIMIT: i32 = TOTAL_FRAMES as i32 - 30;
+/// 56-frame duration that floor is frame 26; longer casts push it out so the
+/// emitters keep re-pulsing for the whole cast (see [`SaintCastingEffect`]).
+const RESET_PROCESS_MARGIN: i32 = 30;
 /// Short-duration stagger: `process[ec] = -ec·5`. Each emitter idles until its
 /// `process` counter climbs above 0.
 const PROCESS_STAGGER: i32 = 5;
@@ -121,7 +122,7 @@ struct Emitter {
 }
 
 impl Emitter {
-    fn step(&mut self, refill_per_frame: f32, reset_rise_deg: f32) {
+    fn step(&mut self, refill_per_frame: f32, reset_rise_deg: f32, reset_process_limit: i32) {
         self.process += 1;
         if self.process <= 0 {
             return;
@@ -143,7 +144,7 @@ impl Emitter {
             self.alpha -= ALPHA_DRAIN_PER_FRAME;
             if self.alpha <= 0.0 {
                 self.alpha = 0.0;
-                if self.process < RESET_PROCESS_LIMIT {
+                if self.process < reset_process_limit {
                     self.distance = RESET_DISTANCE;
                     self.rise_deg = reset_rise_deg;
                 }
@@ -187,6 +188,11 @@ pub struct SaintCastingEffect {
     age: f32,
     emitters: Vec<Emitter>,
     cfg: SaintCastingConfig,
+    /// Total visible lifetime in frames. Defaults to the authored
+    /// [`TOTAL_FRAMES`]; a cast aura overrides it to the skill's cast time
+    /// (via [`Self::with_life_ms`]) so the rings sustain and re-pulse for the
+    /// whole cast instead of dying after the fixed default.
+    life_frames: f32,
 }
 
 impl SaintCastingEffect {
@@ -218,7 +224,18 @@ impl SaintCastingEffect {
             age: 0.0,
             emitters,
             cfg,
+            life_frames: TOTAL_FRAMES,
         }
+    }
+
+    /// Stretch the aura to last `ms` (the skill's cast time). `None` keeps the
+    /// authored default lifetime. Used by the begin-spell cast circle so its
+    /// duration tracks the casting bar.
+    pub fn with_life_ms(mut self, ms: Option<u32>) -> Self {
+        if let Some(ms) = ms {
+            self.life_frames = (ms as f32 / 1000.0 * FRAMES_PER_SECOND).max(1.0);
+        }
+        self
     }
 
     fn frame(&self) -> f32 {
@@ -232,12 +249,13 @@ impl Effect for SaintCastingEffect {
         self.age += ctx.delta;
         let frame_after = self.frame();
         let steps = (frame_after.floor() - frame_before.floor()).max(0.0) as i32;
+        let reset_limit = self.life_frames as i32 - RESET_PROCESS_MARGIN;
         for _ in 0..steps {
             for em in &mut self.emitters {
-                em.step(self.cfg.refill_per_frame, self.cfg.reset_rise_deg);
+                em.step(self.cfg.refill_per_frame, self.cfg.reset_rise_deg, reset_limit);
             }
         }
-        if frame_after >= TOTAL_FRAMES {
+        if frame_after >= self.life_frames {
             EffectStatus::Dead
         } else {
             EffectStatus::Running
@@ -246,7 +264,7 @@ impl Effect for SaintCastingEffect {
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let frame = self.frame();
-        if frame > TOTAL_FRAMES {
+        if frame > self.life_frames {
             return;
         }
         for em in &self.emitters {
@@ -421,6 +439,28 @@ mod tests {
                 assert_eq!(wave_mode, FrustumWaveMode::SaintBell);
             }
         }
+    }
+
+    #[test]
+    fn with_life_ms_stretches_the_aura_to_the_cast_time() {
+        // A 2s cast (120 frames) keeps the aura alive and re-pulsing well past
+        // the default 56-frame lifetime, then it ends near the cast's end.
+        let mut e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG).with_life_ms(Some(2000));
+        let past_default = TOTAL_FRAMES as u32 + 24; // frame 80
+        assert_eq!(
+            step_frames(&mut e, past_default),
+            EffectStatus::Running,
+            "still casting at frame {past_default} (default would be dead)"
+        );
+        assert!(
+            !draws(&e).is_empty(),
+            "emitters keep re-pulsing through a long cast"
+        );
+        assert_eq!(
+            step_frames(&mut e, 120 - past_default + 1),
+            EffectStatus::Dead,
+            "aura ends once the cast time elapses"
+        );
     }
 
     #[test]

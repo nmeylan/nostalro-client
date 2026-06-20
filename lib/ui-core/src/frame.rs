@@ -412,6 +412,20 @@ impl<'a> UiFrame<'a> {
         rect
     }
 
+    pub fn window_fixed(&mut self, id: WidgetId, w: f32, h: f32, x: f32, y: f32) -> Rect {
+        let rect = Rect::new(x, y, w, h);
+        self.ensure_in_z_order(id);
+        self.enter_window(id, rect);
+        let is_occluded = self.is_window_occluded(id);
+        if !is_occluded
+            && self.ctx.mouse_clicked
+            && rect.contains(self.ctx.mouse_x, self.ctx.mouse_y)
+        {
+            self.bring_to_front(id);
+        }
+        rect
+    }
+
     pub fn cancel_window_drag(&mut self, id: WidgetId) {
         self.state.get_or_default::<WindowState>(id).dragging = false;
     }

@@ -221,6 +221,12 @@ impl App {
                 GameEvent::NpcDialogMenu { npc_id, items } => {
                     self.game.npc_dialog.dialog.show_menu(npc_id, items);
                 }
+                GameEvent::WarpList {
+                    skill_id,
+                    destinations,
+                } => {
+                    self.game.warp_list_window.open(skill_id, destinations);
+                }
                 GameEvent::NpcInputNumber { npc_id } => {
                     self.game.npc_dialog.dialog.wait_for_number_input(npc_id);
                 }
@@ -385,6 +391,7 @@ impl App {
                     gid,
                     target_gid,
                     skill_id,
+                    property,
                     delay_ms,
                     x,
                     y,
@@ -392,7 +399,7 @@ impl App {
                     self.game
                         .entities
                         .apply_skill_casting(gid, target_gid, skill_id, delay_ms, x, y);
-                    self.spawn_skill_begin_cast(skill_id, gid);
+                    self.spawn_skill_begin_cast(skill_id, gid, property, delay_ms);
                 }
                 GameEvent::SkillListReceived { skills } => {
                     self.handle_skill_list_received(skills);
@@ -423,6 +430,7 @@ impl App {
                     attack_mt,
                     attacked_mt,
                     count,
+                    level,
                     action,
                     skill_name,
                     start_time,
@@ -438,6 +446,7 @@ impl App {
                         attack_mt,
                         attacked_mt,
                         count,
+                        level,
                         action,
                         display_name,
                         start_time,
@@ -463,13 +472,27 @@ impl App {
                 GameEvent::GroundSkill {
                     skill_id,
                     src_gid,
-                    level: _,
+                    level,
                     x,
                     y,
                 } => {
                     self.game
                         .entities
                         .apply_ground_skill(skill_id, src_gid, x, y);
+                    self.spawn_ground_skill_effects(skill_id, level, x, y);
+                }
+                GameEvent::SkillUnitEntered {
+                    aid,
+                    creator_aid: _,
+                    x,
+                    y,
+                    unit_id,
+                    is_visible,
+                } => {
+                    self.handle_skill_unit_entered(aid, x, y, unit_id, is_visible);
+                }
+                GameEvent::SkillUnitDisappeared { aid } => {
+                    self.handle_skill_unit_disappeared(aid);
                 }
                 GameEvent::SkillCastCancel { gid } => {
                     self.game.entities.apply_skill_cast_cancel(gid);

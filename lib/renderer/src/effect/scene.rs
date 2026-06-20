@@ -123,6 +123,7 @@ pub fn compose_effect_frame<'cache, 'tmp>(
             str_name: &snap.name,
             position: snap.position,
             anim_time: snap.anim_time,
+            repeat: snap.repeat,
         });
     }
     let str_batches = build_str_effect_batches(

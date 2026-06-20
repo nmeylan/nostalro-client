@@ -7,6 +7,7 @@ use models::enums::weapon::WeaponType;
 use ragnarok_game::arrow::{flight_secs_for_cell_distance, ArrowProjectile};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
+use ragnarok_game::effect::skill_unit_effect;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::sprite_path::{entity_type_from_job, is_hidden, visual_job, OPTION_RIDING};
@@ -540,13 +541,14 @@ impl App {
         self.effect_queue.spawn_on(id, gid);
     }
 
-    /// Resolve an entity's current cell to a world position (feet, lifted to
-    /// match the effect anchor used by the per-frame resolver).
+    /// Resolve an entity's current cell to a world position at the **ground**
+    /// (`get_height`), matching the sprite feet anchor and the per-frame
+    /// resolver. Effects that sit higher apply their own lift from here.
     pub(crate) fn entity_world_pos(&self, gid: u32) -> Option<[f32; 3]> {
         let (gat, coords) = (self.game.gat.as_ref()?, self.game.map_coords.as_ref()?);
         let (cx, cy) = self.game.entities.get(gid)?.movement.position();
         let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
-        Some([wx, gat.get_height(cx + 0.5, cy + 0.5) - 8.0, wz])
+        Some([wx, gat.get_height(cx + 0.5, cy + 0.5), wz])
     }
 
     pub(super) fn handle_entity_resurrected(&mut self, gid: u32) {
@@ -557,5 +559,40 @@ impl App {
 
     pub(super) fn handle_mvp_reward(&mut self, gid: u32) {
         self.effect_queue.spawn_on(EffectId::Mvp, gid);
+    }
+
+    /// A persistent ground-skill unit appeared at a cell (`ZC_SKILL_ENTRY`).
+    /// One packet per occupied cell, so the wall/area shape comes from the
+    /// server's per-cell positions — we render one effect per packet, keyed by
+    /// the unit `aid` so its disappear packet can remove it. Hidden units
+    /// (`is_visible == false`, the server's `DUMMYSKILL` hack) render nothing.
+    pub(super) fn handle_skill_unit_entered(
+        &mut self,
+        aid: u32,
+        x: i16,
+        y: i16,
+        unit_id: u8,
+        is_visible: bool,
+    ) {
+        if !is_visible {
+            return;
+        }
+        let Some(effect) = skill_unit_effect(unit_id) else {
+            return;
+        };
+        let (Some(gat), Some(coords)) = (self.game.gat.as_ref(), self.game.map_coords.as_ref())
+        else {
+            return;
+        };
+        let (cx, cy) = (x as f32 + 0.5, y as f32 + 0.5);
+        let (wx, _, wz) = coords.cell_to_world(cx, cy);
+        let world = [wx, gat.get_height(cx, cy), wz];
+        self.effect_queue.spawn_at_keyed(effect, world, aid);
+    }
+
+    /// A ground-skill unit was removed (`ZC_SKILL_DISAPPEAR`): drop every
+    /// effect spawned under its `aid`.
+    pub(super) fn handle_skill_unit_disappeared(&mut self, aid: u32) {
+        self.effect_queue.despawn(aid);
     }
 }

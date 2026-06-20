@@ -318,6 +318,9 @@ pub struct StrEmitterInput<'a> {
     pub str_name: &'a str,
     pub position: [f32; 3],
     pub anim_time: f32,
+    /// Loop the animation instead of stopping after the last frame
+    /// (persistent ground units such as Fire Wall).
+    pub repeat: bool,
 }
 
 /// Build sprite batches for STR effects projected to screen space.
@@ -347,9 +350,14 @@ pub fn build_str_effect_batches<'a>(
             continue;
         };
 
-        let key_index = input.anim_time * str_file.fps as f32;
+        let mut key_index = input.anim_time * str_file.fps as f32;
         if str_file.max_key > 0 && key_index >= str_file.max_key as f32 {
-            continue;
+            if input.repeat {
+                // Loop the animation for the effect's whole lifetime.
+                key_index %= str_file.max_key as f32;
+            } else {
+                continue;
+            }
         }
 
         for (layer_idx, layer) in str_file.layers.iter().enumerate() {

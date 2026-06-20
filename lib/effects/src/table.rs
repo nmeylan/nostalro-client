@@ -1076,6 +1076,16 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Springtrap => EffectSpec::Str {
             file: "spring",
             duration_ms: default_duration_ms(id),
+            repeat: false,
+        },
+
+        // Fire Wall — a persistent ground unit. The fire STR is short, so it
+        // loops for the unit's whole life (killed by `ZC_SKILL_DISAPPEAR`,
+        // not by duration), matching the original game's per-cell looped fire.
+        EffectId::Firewall => EffectSpec::Str {
+            file: str_aliases(id)[0],
+            duration_ms: GROUND_UNIT_DURATION_MS,
+            repeat: true,
         },
 
         // Batch GD — GroundDisc decals.
@@ -1255,8 +1265,12 @@ fn bucket_default(id: EffectId) -> EffectSpec {
 fn default_str_spec(id: EffectId) -> EffectSpec {
     let duration_ms = default_duration_ms(id);
     let file = str_aliases(id)[0];
-    EffectSpec::Str { file, duration_ms }
+    EffectSpec::Str { file, duration_ms, repeat: false }
 }
+
+/// Persistent ground-skill units (`ZC_SKILL_ENTRY`) live until their
+/// disappear packet; this caps a stray unit that never gets one.
+const GROUND_UNIT_DURATION_MS: u32 = 99990;
 
 #[cfg(test)]
 mod tests {

@@ -414,6 +414,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             gid: p.aid,
             target_gid: p.target_id,
             skill_id: p.skid,
+            property: p.property,
             delay_ms: p.delay_time,
             x: p.x_pos,
             y: p.y_pos,
@@ -424,6 +425,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             gid: p.aid,
             target_gid: p.target_id,
             skill_id: p.skid,
+            property: p.property,
             delay_ms: p.delay_time,
             x: p.x_pos,
             y: p.y_pos,
@@ -469,6 +471,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             attack_mt: p.attack_mt,
             attacked_mt: p.attacked_mt,
             count: p.count,
+            level: p.level,
             action: ActionType::from_value(p.action as usize),
             skill_name: Some(name),
             start_time: p.start_time,
@@ -484,6 +487,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             attack_mt: p.attack_mt,
             attacked_mt: p.attacked_mt,
             count: p.count,
+            level: p.level,
             action: ActionType::from_value(p.action as usize),
             skill_name: Some(name),
             start_time: p.start_time,
@@ -515,6 +519,19 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             x: p.x_pos,
             y: p.y_pos,
         }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcSkillEntry>() {
+        return vec![GameEvent::SkillUnitEntered {
+            aid: p.aid,
+            creator_aid: p.creator_aid,
+            x: p.x_pos,
+            y: p.y_pos,
+            unit_id: p.job,
+            is_visible: p.is_visible,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcSkillDisappear>() {
+        return vec![GameEvent::SkillUnitDisappeared { aid: p.aid }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcEmotion>() {
         return vec![GameEvent::EntityEmotion {
@@ -563,6 +580,33 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::NpcDialogMenu {
             npc_id: p.naid,
             items,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcWarplist>() {
+        // Fixed layout: id(2) + SKID(2) + 4 map names of 16 bytes each.
+        // Parse from raw to stay independent of the generated array field shape.
+        let raw = p.raw();
+        let mut destinations = Vec::new();
+        for i in 0..4 {
+            let start = 4 + i * 16;
+            if start + 16 > raw.len() {
+                break;
+            }
+            let name: String = raw[start..start + 16]
+                .iter()
+                .take_while(|&&b| b != 0)
+                .map(|&b| b as char)
+                .collect();
+            if !name.is_empty() {
+                destinations.push(name);
+            }
+        }
+        if destinations.is_empty() {
+            return vec![];
+        }
+        return vec![GameEvent::WarpList {
+            skill_id: p.skid,
+            destinations,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcOpenEditdlg>() {
@@ -962,6 +1006,39 @@ mod tests {
         pkt.fill_raw();
         let result = dispatch_packet(&pkt, packetver);
         assert!(result.is_empty());
+    }
+
+    #[test]
+    fn dispatch_skill_unit_entry_and_disappear_round_trip() {
+        // Sociable test: a ground-skill unit packet decodes to SkillUnitEntered
+        // carrying the cell + e_skill_unit_id, and its disappear packet decodes
+        // to SkillUnitDisappeared keyed by the same aid (the despawn handle).
+        let packetver = 20120307;
+        let mut entry = PacketZcSkillEntry::new(packetver);
+        entry.set_aid(7001);
+        entry.set_creator_aid(42);
+        entry.set_x_pos(150);
+        entry.set_y_pos(200);
+        entry.set_job(0x83); // UNT_SANCTUARY
+        entry.set_is_visible(true);
+        entry.fill_raw();
+        match &dispatch_packet(&entry, packetver)[..] {
+            [GameEvent::SkillUnitEntered { aid, x, y, unit_id, is_visible, .. }] => {
+                assert_eq!(*aid, 7001);
+                assert_eq!((*x, *y), (150, 200));
+                assert_eq!(*unit_id, 0x83);
+                assert!(*is_visible);
+            }
+            other => panic!("expected SkillUnitEntered, got {other:?}"),
+        }
+
+        let mut gone = PacketZcSkillDisappear::new(packetver);
+        gone.set_aid(7001);
+        gone.fill_raw();
+        match &dispatch_packet(&gone, packetver)[..] {
+            [GameEvent::SkillUnitDisappeared { aid }] => assert_eq!(*aid, 7001),
+            other => panic!("expected SkillUnitDisappeared, got {other:?}"),
+        }
     }
 
     #[test]
@@ -1441,6 +1518,7 @@ mod tests {
                 gid,
                 target_gid,
                 skill_id,
+                property,
                 delay_ms,
                 x,
                 y,
@@ -1448,6 +1526,7 @@ mod tests {
                 assert_eq!(*gid, 150000);
                 assert_eq!(*target_gid, 200000);
                 assert_eq!(*skill_id, 10);
+                assert_eq!(*property, 0);
                 assert_eq!(*delay_ms, 2000);
                 assert_eq!(*x, 0);
                 assert_eq!(*y, 0);

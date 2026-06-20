@@ -82,6 +82,9 @@ pub fn hovered_entity_cursor_type(
     mouse_pos: (f64, f64),
     entities: &EntityCollection,
     render_list: &[RenderEntry],
+    // While a skill is being targeted, the caster and other players are valid
+    // targets (e.g. self/ally support skills); outside targeting they are not pickable.
+    allow_players: bool,
 ) -> Option<(CursorType, u32)> {
     let (mx, my) = (mouse_pos.0 as f32, mouse_pos.1 as f32);
     let player_id = entities.player_id();
@@ -89,7 +92,7 @@ pub fn hovered_entity_cursor_type(
     let mut best: Option<(CursorType, u32, f32)> = None;
 
     for entry in render_list.iter().rev() {
-        if player_id == Some(entry.id) {
+        if player_id == Some(entry.id) && !allow_players {
             continue;
         }
         let [mut left, mut top, mut right, mut bottom] = entry.pick_bounds;
@@ -116,6 +119,7 @@ pub fn hovered_entity_cursor_type(
                 EntityType::Npc if entity.job == 45 => CursorType::Warp,
                 EntityType::Npc => CursorType::Talk,
                 EntityType::Monster => CursorType::Attack,
+                EntityType::Player if allow_players => CursorType::Lock,
                 EntityType::Player => continue,
             };
             let dx = mx - entry.screen_anchor[0];
@@ -338,7 +342,7 @@ mod tests {
     fn entity_hover_returns_none_on_empty_list() {
         let entities = EntityCollection::new();
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 300.0), &entities, &[]),
+            hovered_entity_cursor_type((400.0, 300.0), &entities, &[], false),
             None
         );
     }
@@ -349,7 +353,7 @@ mod tests {
         entities.insert(make_entity(10, EntityType::Monster, 1002));
         let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, false),
             Some((CursorType::Attack, 10)),
         );
     }
@@ -360,7 +364,7 @@ mod tests {
         entities.insert(make_entity(20, EntityType::Npc, 100));
         let list = vec![entry(20, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, false),
             Some((CursorType::Talk, 20)),
         );
     }
@@ -371,7 +375,7 @@ mod tests {
         entities.insert(make_entity(30, EntityType::Npc, 45));
         let list = vec![entry(30, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, false),
             Some((CursorType::Warp, 30)),
         );
     }
@@ -383,7 +387,7 @@ mod tests {
         entities.insert(make_entity(1, EntityType::Player, 0));
         let list = vec![entry(1, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, false),
             None
         );
     }
@@ -399,7 +403,7 @@ mod tests {
             entry(20, 400.0, 350.0, 0.3, 1.0),
         ];
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, false),
             Some((CursorType::Talk, 20)),
         );
     }
@@ -417,7 +421,7 @@ mod tests {
         ];
         // Mouse at (400, 300) - closer to interior mob anchor (330) than front mob (370)
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 300.0), &entities, &list),
+            hovered_entity_cursor_type((400.0, 300.0), &entities, &list, false),
             Some((CursorType::Attack, 10)),
         );
     }
@@ -429,7 +433,7 @@ mod tests {
         let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
         // Mouse far from entity center
         assert_eq!(
-            hovered_entity_cursor_type((100.0, 100.0), &entities, &list),
+            hovered_entity_cursor_type((100.0, 100.0), &entities, &list, false),
             None
         );
     }
@@ -442,7 +446,7 @@ mod tests {
         entities.insert(monster);
         let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, false),
             None
         );
     }
@@ -455,7 +459,7 @@ mod tests {
         entities.insert(monster);
         let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, false),
             None
         );
     }
@@ -478,7 +482,7 @@ mod tests {
         }];
         // Mouse at (400, 310) is outside stored 30x30 bounds but inside inflated 100x100
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list),
+            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, false),
             Some((CursorType::Attack, 10)),
         );
     }

@@ -43,7 +43,7 @@ fn main() {
             }
             Some(EffectSpec::Custom { .. }) => {
                 if let Some(eff) =
-                    make_effect(id, EffectAnchor::Point([0.0, 0.0, 0.0]), None, None)
+                    make_effect(id, EffectAnchor::Point([0.0, 0.0, 0.0]), None, None, None)
                     && let Some(overlay) = eff.str_overlay()
                 {
                     hybrid.push((id, overlay.to_string()));

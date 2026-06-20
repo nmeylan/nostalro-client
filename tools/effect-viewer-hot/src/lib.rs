@@ -880,7 +880,7 @@ pub unsafe extern "C" fn hot_spawn_custom_effect(
     } else {
         Some([target_w, target_h])
     };
-    let Some(effect) = make_effect(id, anchor, hc, target_size) else {
+    let Some(effect) = make_effect(id, anchor, hc, target_size, None) else {
         return 0;
     };
     let mut next = state.next_effect_handle.lock().unwrap();

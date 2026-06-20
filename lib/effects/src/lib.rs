@@ -6,6 +6,7 @@ pub mod effects;
 pub mod factory;
 pub mod radial_emitter;
 pub mod skill_effects;
+pub mod skill_units;
 pub mod spec;
 pub mod spr_aliases;
 pub mod spr_burst;
@@ -22,8 +23,10 @@ pub use effect_trait::{
     EffectRenderCtx, EffectUpdateCtx, NumberRequest,
 };
 pub use factory::{is_real_impl, make_effect};
+pub use skill_units::skill_unit_effect;
 pub use skill_effects::{
-    CasterSkillEffects, TargetSkillEffects, caster_skill_effects, derive_hit_effect,
+    CasterSkillEffects, TargetSkillEffects, begin_cast_effect, beginspell_for_element,
+    caster_skill_effects, derive_hit_effect, ground_placed_effect, is_ground_cast,
     target_skill_effects,
 };
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBurstParams};
@@ -197,6 +200,36 @@ pub fn effect_texture_paths() -> Vec<String> {
         }
     }
     seen.into_iter().collect()
+}
+
+/// STR alias-slices for every effect that renders via `EffectSpec::Str`, for
+/// renderer preload at map load (mirrors [`effect_texture_paths`]). Without
+/// this the STR cache only holds the RSW ambient files, so a skill or
+/// ground-unit STR (Fire Wall, …) silently fails its `cache.get` and never
+/// draws. Each slice is `[primary, fallback…]` as `StrEffectCache::load`
+/// expects; only ids whose resolved spec is actually `Str` are included, so
+/// Custom effects' dead-code aliases aren't loaded.
+pub fn effect_str_names() -> Vec<&'static [&'static str]> {
+    use models::enums::EnumWithNumberValue;
+    use models::enums::effect_id::EffectId;
+
+    let mut seen = std::collections::BTreeSet::new();
+    let mut out = Vec::new();
+    // EffectId values run to ~2025; iterate a generous range (invalid values
+    // return `Err` and are skipped).
+    for value in 0..3000usize {
+        let Ok(id) = EffectId::try_from_value(value) else {
+            continue;
+        };
+        if !matches!(effect_spec(id), Some(spec::EffectSpec::Str { .. })) {
+            continue;
+        }
+        let aliases = str_aliases::str_aliases(id);
+        if !aliases.is_empty() && seen.insert(aliases[0]) {
+            out.push(aliases);
+        }
+    }
+    out
 }
 
 /// GRF sprite paths used by Custom-effect modules that emit

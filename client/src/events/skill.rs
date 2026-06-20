@@ -3,7 +3,10 @@ use models::enums::action::ActionType;
 use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
 use models::enums::weapon::WeaponType;
-use ragnarok_game::effect::{caster_skill_effects, target_skill_effects};
+use ragnarok_game::effect::{
+    begin_cast_effect, beginspell_for_element, caster_skill_effects, ground_placed_effect,
+    is_ground_cast, target_skill_effects,
+};
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::skill_action::{skill_motion_type, SkillMotionType};
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
@@ -32,6 +35,7 @@ impl App {
         attack_mt: i32,
         attacked_mt: i32,
         count: i16,
+        level: i16,
         action: ActionType,
         skill_name: Option<String>,
         start_time: u32,
@@ -143,15 +147,11 @@ impl App {
             }
         }
 
-        // Generic skill-begin spark on the caster (e.g. Double Strafe's Bash
-        // flash). Instant skills send no cast-start packet, so the damage
-        // moment is the only place this begin-effect fires; cast-delayed skills
-        // play theirs from `spawn_skill_begin_cast` and leave this slot empty.
-        for e in caster_skill_effects(SkillEnum::from_id(skill_id as u32)).begin_cast {
-            self.effect_queue.spawn_on(*e, src_gid);
-        }
-
-        self.spawn_skill_attack_effect(skill_id, src_gid, target_gid, effective_count);
+        // The begin-cast glyph is NOT fired here: the server sends
+        // `ZC_USESKILL_ACK` for every skill use (even instant ones), so it
+        // already fired from `spawn_skill_begin_cast` at cast start. Firing it
+        // again at the damage moment would double the cast circle.
+        self.spawn_skill_attack_effect(skill_id, src_gid, target_gid, effective_count, level);
 
         // The hit spark is NOT spawned here: it must land with the damage, one
         // per hit, at each scheduled hit's fire time (a ranged skill's spark
@@ -185,60 +185,109 @@ impl App {
     // `self.effect_queue.spawn_link(EffectId::Linelink{,2,3}, caster_gid,
     // partner_gid)` and the holder will track both actors live each frame.
 
+    /// Damage-skill visuals fired at the `ZC_NOTIFY_SKILL` moment, read from the
+    /// per-skill table (§2c/§2d): the caster-released `cast` glyph, the spell
+    /// landing on the target (`on_target`), and the projectile (`before_hit`).
+    /// The per-hit impact spark is the separate `hit` slot, fired on the
+    /// scheduled-hit timeline (`process_scheduled_hits`), not here.
     fn spawn_skill_attack_effect(
         &mut self,
         skill_id: u16,
         src_gid: u32,
         target_gid: u32,
         count: u16,
+        level: i16,
     ) {
-        let effect_id = match skill_id {
-            x if x == SkillEnum::MgSoulstrike.id() as u16 => EffectId::Soulstrike,
-            x if x == SkillEnum::MgColdbolt.id() as u16 => EffectId::Icearrow,
-            x if x == SkillEnum::MgFirebolt.id() as u16 => EffectId::Firearrow,
-            _ => return,
-        };
-        let (Some(gat), Some(coords)) = (&self.game.gat, &self.game.map_coords) else {
-            return;
-        };
-        let Some(src) = self.game.entities.get(src_gid) else {
-            return;
-        };
-        let Some(dst) = self.game.entities.get(target_gid) else {
-            return;
-        };
-        let (sx, sy) = src.movement.cell_position();
-        let (dx, dy) = dst.movement.cell_position();
+        let skill = SkillEnum::from_id(skill_id as u32);
 
-        let (wx, _, wz) = coords.cell_to_world(sx as f32 + 0.5, sy as f32 + 0.5);
-        let wy = gat.get_height(sx as f32 + 0.5, sy as f32 + 0.5);
-        let from = [wx, wy - 10.0, wz];
+        // Ground-cast skills (Storm Gust, Thunderstorm, …) launch their
+        // `cast`/`on_target` slots once from `ZC_NOTIFY_GROUNDSKILL` (placed at
+        // the cell), matching the original's split between the ground packet
+        // and the damage packet. The damage path here plays only the per-hit
+        // spark for them, so skip the use-time slots.
+        let ground_cast = is_ground_cast(skill);
 
-        let (wx, _, wz) = coords.cell_to_world(dx as f32 + 0.5, dy as f32 + 0.5);
-        let wy = gat.get_height(dx as f32 + 0.5, dy as f32 + 0.5);
-        let to = [wx, wy - 10.0, wz];
-
-        match effect_id {
-            // Soul Strike's bolts fly from the caster and converge on the target.
-            EffectId::Soulstrike => {
-                self.effect_queue
-                    .spawn_trail_with_count(effect_id, from, to, count.min(5) as u8);
+        // Caster-released visual (Pierce self-glyph, the boomerang
+        // out-and-back). Once at the damage moment.
+        if !ground_cast {
+            for e in caster_skill_effects(skill).cast {
+                self.effect_queue.spawn_on(*e, src_gid);
             }
-            // Cold Bolt / Fire Bolt rain onto the target; the bolt count is the
-            // number of hits (the spell level).
-            _ => {
+        }
+
+        let target = target_skill_effects(skill);
+        // Spell landing on the target (bolts, Waterball, Brandish, Frost Diver).
+        // Once, count-aware — the effect renders the per-hit sub-bolts itself.
+        for e in target.on_target.iter().filter(|_| !ground_cast) {
+            // Lif Moonlight visual scales with skill level (1/2/3+ -> moon 1/2/3).
+            let e = match (*e, level) {
+                (EffectId::Hflimoon1, 2) => EffectId::Hflimoon2,
+                (EffectId::Hflimoon1, l) if l >= 3 => EffectId::Hflimoon3,
+                (other, _) => other,
+            };
+            self.effect_queue
+                .spawn_on_with_count(e, target_gid, count.min(10) as u8);
+        }
+
+        // Projectile toward the target (Soul Strike). Endpoints are snapshotted
+        // at spawn — faithful to the original, which passes the target position
+        // by value rather than re-tracking a moving target.
+        if !target.before_hit.is_empty()
+            && let Some((from, to)) = self.skill_trail_endpoints(src_gid, target_gid)
+        {
+            for e in target.before_hit {
                 self.effect_queue
-                    .spawn_at_with_count(effect_id, to, count.min(10) as u8);
+                    .spawn_trail_with_count(*e, from, to, count.min(5) as u8);
             }
         }
     }
 
-    /// Begin-cast glyph on the caster — the `begin_cast` slot fired at
-    /// `ZC_USESKILL_ACK` (cast starts). Element-colored begin-spell circles
-    /// and special cast glyphs route through the per-skill table (§2c/§2d).
-    pub(super) fn spawn_skill_begin_cast(&mut self, skill_id: u16, caster_gid: u32) {
-        for e in caster_skill_effects(SkillEnum::from_id(skill_id as u32)).begin_cast {
-            self.effect_queue.spawn_on(*e, caster_gid);
+    /// Feet-world positions of caster and target for a projectile trail. `None`
+    /// if the map or either entity is missing.
+    fn skill_trail_endpoints(
+        &self,
+        src_gid: u32,
+        target_gid: u32,
+    ) -> Option<([f32; 3], [f32; 3])> {
+        let (gat, coords) = (self.game.gat.as_ref()?, self.game.map_coords.as_ref()?);
+        let cell_world = |gid: u32| {
+            let (cx, cy) = self.game.entities.get(gid)?.movement.cell_position();
+            let (wx, _, wz) = coords.cell_to_world(cx as f32 + 0.5, cy as f32 + 0.5);
+            Some([wx, gat.get_height(cx as f32 + 0.5, cy as f32 + 0.5) - 10.0, wz])
+        };
+        Some((cell_world(src_gid)?, cell_world(target_gid)?))
+    }
+
+    /// Begin-cast glyph on the caster — the begin-spell cast circle fired at
+    /// `ZC_USESKILL_ACK` (cast starts), suppressed for skills that hide their
+    /// cast aura (Bowling Bash, Brandish, Spiral Pierce).
+    ///
+    /// `cast_ms` is the cast time from the packet; the cast circle's lifetime is
+    /// exactly that duration (matching the original game). A zero cast time
+    /// (instant cast, e.g. Sight, or any spell under full instant-cast) shows no
+    /// circle at all — the original ties the begin glyph's lifetime to the cast
+    /// time, so a zero duration renders nothing.
+    pub(super) fn spawn_skill_begin_cast(
+        &mut self,
+        skill_id: u16,
+        caster_gid: u32,
+        property: u32,
+        cast_ms: u32,
+    ) {
+        if cast_ms == 0 {
+            return;
+        }
+        let skill = SkillEnum::from_id(skill_id as u32);
+        if caster_skill_effects(skill).hide_cast_aura {
+            return;
+        }
+        for e in begin_cast_effect(skill) {
+            let e = if *e == EffectId::Beginspell {
+                beginspell_for_element(property)
+            } else {
+                *e
+            };
+            self.effect_queue.spawn_on_for(e, caster_gid, cast_ms);
         }
     }
 
@@ -258,6 +307,32 @@ impl App {
         }
         for e in target_skill_effects(skill).on_target {
             self.effect_queue.spawn_on(*e, target_gid);
+        }
+    }
+
+    /// Position-cast skill effects (`ZC_NOTIFY_GROUNDSKILL`): place the skill's
+    /// AoE visual **at the targeted cell**, matching the original game's
+    /// `Am_Groundskill` per-skill cell placement (Storm Gust's storm, Meteor's
+    /// strike, Lord of Vermilion's field, Thunderstorm's bolts — all on the
+    /// ground, not the caster). Unit skills (Volcano, traps, Ice Wall, …) render
+    /// from their unit packets instead, so `ground_placed_effect` omits them.
+    /// The damage path skips these skills' `cast`/`on_target` slots
+    /// ([`is_ground_cast`]); per-target hit sparks still come from the damage packet.
+    pub(super) fn spawn_ground_skill_effects(&mut self, skill_id: u16, level: i16, x: i16, y: i16) {
+        let skill = SkillEnum::from_id(skill_id as u32);
+        let effects = ground_placed_effect(skill, level);
+        if effects.is_empty() {
+            return;
+        }
+        let (Some(gat), Some(coords)) = (self.game.gat.as_ref(), self.game.map_coords.as_ref())
+        else {
+            return;
+        };
+        let (cx, cy) = (x as f32 + 0.5, y as f32 + 0.5);
+        let (wx, _, wz) = coords.cell_to_world(cx, cy);
+        let world = [wx, gat.get_height(cx, cy), wz];
+        for e in effects {
+            self.effect_queue.spawn_at(*e, world);
         }
     }
 

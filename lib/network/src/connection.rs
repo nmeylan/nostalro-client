@@ -108,6 +108,8 @@ impl Connection {
                 Some(2 + count * 7)
             }
             [0xb9, 0x02] => Some(2 + 27 * 7),
+            // ZC_WARPLIST (0x011c): 2 + 2 + 4*16 = 68
+            [0x1c, 0x01] => Some(2 + 2 + 4 * 16),
             // ZC_SHORTCUT_KEY_LIST_V3 (0x0a00): 3 + 38*7 = 269
             [0x00, 0x0a] => Some(3 + 38 * 7),
             _ => None,

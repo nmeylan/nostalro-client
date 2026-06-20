@@ -111,6 +111,8 @@ pub struct StrSnapshot {
     pub name: String,
     pub position: [f32; 3],
     pub anim_time: f32,
+    /// Loop the animation rather than stopping at the last frame.
+    pub repeat: bool,
 }
 
 /// Owned snapshot of a live SPR-billboard effect. Callers convert this into
@@ -214,9 +216,10 @@ enum HeldPayload {
     /// Custom effect whose `Box<dyn Effect>` lives in an external (hot-
     /// reloadable) backend. The holder only keeps the opaque handle.
     CustomExternal { handle: u64 },
-    /// Single-shot STR effect. Anim time accumulates in `age`; the render
-    /// step projects via the existing `build_str_effect_batches` path.
-    Str { name: String },
+    /// STR effect. Anim time accumulates in `age`; the render step projects
+    /// via the existing `build_str_effect_batches` path. `repeat` loops the
+    /// animation (persistent ground units) instead of playing once.
+    Str { name: String, repeat: bool },
     /// Single SPR billboard (looping or one-shot, depending on `repeat`).
     Spr {
         sprite: String,
@@ -369,12 +372,13 @@ impl EffectHolder {
             self.shake.trigger(shake);
         }
         let payload = match &spec {
-            EffectSpec::Str { file, .. } => {
+            EffectSpec::Str { file, repeat, .. } => {
                 self.last_spawn = Some(SpawnOutcome::Str {
                     name: (*file).to_string(),
                 });
                 HeldPayload::Str {
                     name: (*file).to_string(),
+                    repeat: *repeat,
                 }
             }
             EffectSpec::Spr {
@@ -459,7 +463,7 @@ impl EffectHolder {
                     // channels) still goes through the `update`/collector
                     // resolvers.
                     let anchor = attach_to_anchor(attach, resolve_entity);
-                    match make_effect(effect_id, anchor, hit_count, target_size) {
+                    match make_effect(effect_id, anchor, hit_count, target_size, override_duration_ms) {
                         Some(e) => {
                             self.last_spawn = Some(SpawnOutcome::Custom);
                             HeldPayload::Custom(e)
@@ -913,6 +917,30 @@ impl EffectHolder {
             .collect()
     }
 
+    /// Distinct STR file names every live effect references this frame —
+    /// `EffectSpec::Str` effects plus the `str_overlay` of Custom effects
+    /// (including dynamic, per-instance overlay names that no static table can
+    /// enumerate). The client uses this to lazily load any STR not yet in the
+    /// cache before rendering, so an effect's STR is always present when it
+    /// draws (position is irrelevant here, so no resolver is needed).
+    pub fn live_str_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self
+            .effects
+            .iter()
+            .filter_map(|e| match &e.payload {
+                HeldPayload::Str { name, .. } => Some(name.clone()),
+                HeldPayload::Custom(c) => c.str_overlay().map(str::to_string),
+                HeldPayload::CustomExternal { handle } => {
+                    self.external_backend.as_ref()?.str_overlay(*handle)
+                }
+                _ => None,
+            })
+            .collect();
+        names.sort();
+        names.dedup();
+        names
+    }
+
     /// Snapshot of every live STR effect (name + resolved world position +
     /// elapsed anim time). Renderer consumes this and feeds it into
     /// `build_str_effect_batches`. Custom effects that return `Some` from
@@ -924,11 +952,11 @@ impl EffectHolder {
         self.effects
             .iter()
             .filter_map(|e| {
-                let name: String = match &e.payload {
-                    HeldPayload::Str { name } => name.clone(),
-                    HeldPayload::Custom(c) => c.str_overlay()?.to_string(),
+                let (name, repeat): (String, bool) = match &e.payload {
+                    HeldPayload::Str { name, repeat } => (name.clone(), *repeat),
+                    HeldPayload::Custom(c) => (c.str_overlay()?.to_string(), false),
                     HeldPayload::CustomExternal { handle } => {
-                        self.external_backend.as_ref()?.str_overlay(*handle)?
+                        (self.external_backend.as_ref()?.str_overlay(*handle)?, false)
                     }
                     _ => return None,
                 };
@@ -937,6 +965,7 @@ impl EffectHolder {
                     name,
                     position: pos,
                     anim_time: e.age,
+                    repeat,
                 })
             })
             .collect()
@@ -1374,7 +1403,7 @@ mod tests {
         let mut push_keyed = |handle: u64, key: Option<u32>| {
             h.effects.push(HeldEffect {
                 handle: EffectHandle(handle),
-                payload: HeldPayload::Str { name: "x".to_string() },
+                payload: HeldPayload::Str { name: "x".to_string(), repeat: false },
                 attach: Attach::WorldPos([0.0; 3]),
                 age: 0.0,
                 duration: f32::INFINITY,

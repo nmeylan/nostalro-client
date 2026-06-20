@@ -77,6 +77,11 @@ pub enum EffectSpec {
     Str {
         file: &'static str,
         duration_ms: u32,
+        /// When `true` the STR animation loops for the effect's whole lifetime
+        /// instead of playing once and stopping. Persistent ground units
+        /// (Firewall) set this so the cell keeps burning until its disappear
+        /// packet, matching the original game's per-cell looped effect.
+        repeat: bool,
     },
     /// Behaviour dispatched by `EffectId` via
     /// [`super::factory::make_effect`]. Per-effect parameters live inside the

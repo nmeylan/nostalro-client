@@ -358,6 +358,7 @@ impl ExternalCustomBackend for HotLibEffectBackend {
             EffectAnchor::Point([0.0, 0.0, 0.0]),
             None,
             None,
+            None,
         )?;
         probe.str_overlay().map(|s| s.to_string())
     }
@@ -1118,6 +1119,7 @@ impl App {
                     EffectAnchor::Point([0.0, 0.0, 0.0]),
                     None,
                     None,
+                    None,
                 );
                 let Some(probe) = probe else { return };
                 let Some(overlay) = probe.str_overlay() else { return };
@@ -1421,6 +1423,7 @@ impl App {
                 str_name: &s.name,
                 position: s.position,
                 anim_time: s.anim_time,
+                repeat: s.repeat,
             })
             .collect();
         let mut effect_batches = build_str_effect_batches(

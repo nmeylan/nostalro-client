@@ -319,7 +319,7 @@ mod tests {
             "green-dominant tint"
         );
 
-        let mut eff = make_effect(EffectId::Green995, EffectAnchor::Point([0.0; 3]), None, None)
+        let mut eff = make_effect(EffectId::Green995, EffectAnchor::Point([0.0; 3]), None, None, None)
             .expect("Green995 dispatches via factory");
         eff.update(&EffectUpdateCtx { delta: FADE_IN_FRAMES / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
         let mut list = EffectDrawList::new();

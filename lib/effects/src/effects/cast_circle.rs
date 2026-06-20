@@ -195,6 +195,10 @@ pub struct CastCircleEffect {
     params: CastCircleParams,
     world_pos: [f32; 3],
     age: f32,
+    /// Total visible lifetime in frames. Defaults to the authored
+    /// [`TOTAL_FRAMES`]; a cast aura overrides it (via [`Self::with_life_ms`])
+    /// so the ring sustains and fades out over the skill's cast time.
+    life_frames: f32,
 }
 
 impl CastCircleEffect {
@@ -203,7 +207,17 @@ impl CastCircleEffect {
             params,
             world_pos,
             age: 0.0,
+            life_frames: TOTAL_FRAMES,
         }
+    }
+
+    /// Stretch the ring to last `ms` (the skill's cast time). `None` keeps the
+    /// authored default lifetime.
+    pub fn with_life_ms(mut self, ms: Option<u32>) -> Self {
+        if let Some(ms) = ms {
+            self.life_frames = (ms as f32 / 1000.0 * FRAMES_PER_SECOND).max(1.0);
+        }
+        self
     }
 
     fn frame(&self) -> f32 {
@@ -235,7 +249,7 @@ impl Effect for CastCircleEffect {
         let frame = self.frame();
 
         // -------- Element 1: central vertical column --------
-        let col_alpha = fade(frame, TOTAL_FRAMES, COLUMN_ALPHA_MAX);
+        let col_alpha = fade(frame, self.life_frames, COLUMN_ALPHA_MAX);
         if col_alpha > 0.0 {
             let growth = (frame / COLUMN_GROWTH_FRAMES).clamp(0.0, 1.0);
             let col_rise_rad = COLUMN_RISE_ANGLE_DEG.to_radians();
@@ -269,7 +283,7 @@ impl Effect for CastCircleEffect {
         }
 
         // -------- Element 2: ground ring --------
-        let ring_alpha = fade(frame, TOTAL_FRAMES, RING_ALPHA_MAX);
+        let ring_alpha = fade(frame, self.life_frames, RING_ALPHA_MAX);
         if ring_alpha > 0.0 {
             out.push(EffectPrimitiveDraw::GroundDisc {
                 center: self.world_pos,
@@ -286,7 +300,7 @@ impl Effect for CastCircleEffect {
 
         // -------- Element 3: three flame rings at rotation 0°/90°/180° --------
         let spin_rad = (frame * PETAL_ROT_SPEED_DEG_PER_FRAME).to_radians();
-        let alpha = fade(frame, TOTAL_FRAMES, PETAL_ALPHA_MAX);
+        let alpha = fade(frame, self.life_frames, PETAL_ALPHA_MAX);
         if alpha > 0.0 {
             for i in 0..NUM_PETALS {
                 let rise_rad = PETAL_RISE_ANGLES_DEG[i].to_radians();
@@ -411,6 +425,25 @@ mod tests {
         assert!((h_full - expected).abs() < 1e-3,
             "column should reach full height by frame {}, got {} (expected {})",
             COLUMN_GROWTH_FRAMES, h_full, expected);
+    }
+
+    #[test]
+    fn with_life_ms_keeps_the_ring_visible_for_the_whole_cast() {
+        // Past the default 56-frame window the unstretched ring has faded to
+        // nothing; a 2s cast (120 frames) is still painting its petals.
+        let frame = TOTAL_FRAMES + 34.0; // frame 90
+        let mut default = CastCircleEffect::new([0.0; 3], YELLOW);
+        run_to(&mut default, frame);
+        assert!(
+            collect(&default).is_empty(),
+            "default ring is gone past its 56-frame life"
+        );
+        let mut long = CastCircleEffect::new([0.0; 3], YELLOW).with_life_ms(Some(2000));
+        run_to(&mut long, frame);
+        assert!(
+            !collect(&long).is_empty(),
+            "stretched ring is still visible at frame {frame}"
+        );
     }
 
     #[test]

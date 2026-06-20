@@ -58,6 +58,12 @@ impl ColorCastingEffect {
     pub fn new(world_pos: [f32; 3], cfg: SaintCastingConfig) -> Self {
         Self(SaintCastingEffect::new(world_pos, cfg))
     }
+
+    /// Stretch the cast aura to the skill's cast time (`None` keeps the
+    /// authored default). See [`SaintCastingEffect::with_life_ms`].
+    pub fn with_life_ms(self, ms: Option<u32>) -> Self {
+        Self(self.0.with_life_ms(ms))
+    }
 }
 
 impl Effect for ColorCastingEffect {

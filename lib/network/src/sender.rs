@@ -318,6 +318,18 @@ pub fn build_use_skill_to_ground_packet(
     pkt.raw
 }
 
+pub fn build_select_warppoint_packet(skill_id: u16, map_name: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzSelectWarppoint::new(packetver);
+    pkt.set_skid(skill_id);
+    let mut bytes = [0u8; 16];
+    let src = map_name.as_bytes();
+    let n = src.len().min(15);
+    bytes[..n].copy_from_slice(&src[..n]);
+    pkt.set_map_name(std::array::from_fn(|i| bytes[i] as char));
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_remove_option_packet(packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzReqCartoff::new(packetver);
     pkt.fill_raw();

@@ -73,8 +73,12 @@ impl TextureCache {
                 },
             };
 
+            // Extension casing varies in GRFs (e.g. yuno ground/model textures
+            // use `.BMP`); match case-insensitively so the color key applies.
+            let is_bmp = name.to_ascii_lowercase().ends_with(".bmp");
+
             // RO BMP convention: magenta (FF00FF) pixels become transparent
-            if name.ends_with(".bmp") {
+            if is_bmp {
                 apply_magenta_transparency(&mut img);
             }
 
@@ -82,7 +86,7 @@ impl TextureCache {
             let logical_h = img.height();
 
             // CPU-upscale UI textures by dpi_scale for crisp rendering on high DPI
-            let bind_group = if name.ends_with(".bmp") {
+            let bind_group = if is_bmp {
                 if dpi_upscale && self.dpi_scale > 1.0 {
                     let phys_w = (logical_w as f32 * self.dpi_scale) as u32;
                     let phys_h = (logical_h as f32 * self.dpi_scale) as u32;

@@ -103,6 +103,16 @@ impl EffectQueue {
         self.push(SpawnRequest::new(effect_id, Attach::Entity(entity_id)));
     }
 
+    /// Spawn an entity-attached effect whose lifetime is fixed to
+    /// `duration_ms` instead of the spec default — the begin-spell cast circle
+    /// uses this so its duration tracks the skill's cast time.
+    pub fn spawn_on_for(&mut self, effect_id: EffectId, entity_id: u32, duration_ms: u32) {
+        self.push(SpawnRequest {
+            override_duration_ms: Some(duration_ms),
+            ..SpawnRequest::new(effect_id, Attach::Entity(entity_id))
+        });
+    }
+
     /// Spawn an entity-attached effect with a count (the `ZC_NOTIFY_EFFECT3`
     /// extra datum maps onto `hit_count`).
     pub fn spawn_on_with_count(&mut self, effect_id: EffectId, entity_id: u32, hit_count: u8) {

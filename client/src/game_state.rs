@@ -32,6 +32,7 @@ use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::game::minimap_window::{MarkerType, MinimapMarker, MinimapWindow};
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
+use ragnarok_ui_component::game::warp_list_window::WarpListWindow;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
 use ragnarok_ui_component::game::status_window::{StatusWindow, STATUS_WINDOW_ID};
@@ -61,6 +62,7 @@ pub struct GameState {
     pub equipment_window: EquipmentWindow,
     pub inventory_window: InventoryWindow,
     pub npc_dialog: NpcDialog,
+    pub warp_list_window: WarpListWindow,
     pub confirm_dialog: ConfirmDialog,
     pub npc_shop: NpcShop,
     pub system_menu: SystemMenu,
@@ -193,7 +195,10 @@ impl GameState {
             self.npc_shop
                 .build(ui, &mut self.character, &self.data_table),
         );
-        let mut allow_escape = !chat_was_active && !npc_dialog_open && !shop_open;
+        let warp_list_open = self.warp_list_window.is_open();
+        events.extend(self.warp_list_window.build(ui));
+        let mut allow_escape =
+            !chat_was_active && !npc_dialog_open && !shop_open && !warp_list_open;
         if allow_escape && ui.ctx.key_escape && self.pending_skill_target.is_some() {
             self.pending_skill_target = None;
             allow_escape = false;
@@ -381,6 +386,7 @@ impl GameState {
             equipment_window: EquipmentWindow::new(),
             inventory_window: InventoryWindow::new(),
             npc_dialog: NpcDialog::new(),
+            warp_list_window: WarpListWindow::new(),
             confirm_dialog: ConfirmDialog::new(),
             npc_shop: NpcShop::new(),
             system_menu: SystemMenu::new(),

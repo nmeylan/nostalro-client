@@ -26,15 +26,12 @@ use models::enums::skill_enums::SkillEnum;
 /// slot plays nothing.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CasterSkillEffects {
-    /// `ZC_USESKILL_ACK` — cast **starts**: the begin-spell / cast-bar glyph,
-    /// often element-colored.
-    pub begin_cast: &'static [EffectId],
     /// Skill **released** on the caster. For no-damage skills this is the
     /// `ZC_USE_SKILL` moment, for damage skills the `ZC_NOTIFY_SKILL` moment.
     pub cast: &'static [EffectId],
     /// Suppress the cast progress bar for this skill (Bowling Bash, Brandish).
     pub hide_cast_bar: bool,
-    /// Suppress the elemental cast circle for this skill.
+    /// Suppress the begin-spell cast circle for this skill.
     pub hide_cast_aura: bool,
 }
 
@@ -54,10 +51,7 @@ pub struct TargetSkillEffects {
 
 impl CasterSkillEffects {
     const fn cast(cast: &'static [EffectId]) -> Self {
-        Self { begin_cast: &[], cast, hide_cast_bar: false, hide_cast_aura: false }
-    }
-    const fn begin(begin_cast: &'static [EffectId]) -> Self {
-        Self { begin_cast, cast: &[], hide_cast_bar: false, hide_cast_aura: false }
+        Self { cast, hide_cast_bar: false, hide_cast_aura: false }
     }
 }
 
@@ -67,6 +61,261 @@ impl TargetSkillEffects {
     }
     const fn hit(hit: &'static [EffectId]) -> Self {
         Self { on_target: &[], before_hit: &[], hit }
+    }
+}
+
+/// The begin-spell / cast-start glyph shown on the caster at `ZC_USESKILL_ACK`
+/// (the cast circle). A faithful transcription of the original game's per-skill
+/// begin-effect switch — **not** derived from the skill element (the engine's
+/// element parameter is unused; the colored `Beginspell2-7` variants are
+/// assigned per skill). Offensive/support magic gets the neutral `Beginspell`;
+/// Sage element skills, holy, and poison skills get colored variants; a handful
+/// of skills get signature glyphs (Asura, blue-casting, couple-casting). An
+/// unmapped skill shows nothing — conservative, like the rest of the table.
+/// Ground-cast (cell-targeted) skills — `TargetType: Ground` in the skill
+/// database (`INF_GROUND_SKILL`). Their `cast`/`on_target` effects are **placed
+/// at the targeted cell** by `ZC_NOTIFY_GROUNDSKILL` (the original game's
+/// `Am_Groundskill`), so the damage path (`spawn_skill_attack_effect`) must not
+/// also stamp `on_target` on each hit entity — the original's damage handler
+/// (`Am_Skill`) plays only the begin/special/hit effects, never `target_on_spell`.
+/// Entity-targeted skills (the bolts, Waterball, Brandish, …) are absent here
+/// and keep their damage-path landing visual.
+///
+/// Transcribed from rathena `db/pre-re/skill_db.yml` (`TargetType: Ground`),
+/// limited to the skills present in our classic `SkillEnum`.
+pub fn is_ground_cast(skill: SkillEnum) -> bool {
+    use SkillEnum as S;
+    matches!(
+        skill,
+        S::MgSafetywall
+            | S::MgFirewall
+            | S::MgThunderstorm
+            | S::AlPneuma
+            | S::AlWarp
+            | S::AcShower
+            | S::PrBenedictio
+            | S::PrSanctuary
+            | S::PrMagnus
+            | S::WzFirepillar
+            | S::WzMeteor
+            | S::WzVermilion
+            | S::WzIcewall
+            | S::WzStormgust
+            | S::WzHeavendrive
+            | S::WzQuagmire
+            | S::BsHammerfall
+            | S::HtSkidtrap
+            | S::HtLandmine
+            | S::HtAnklesnare
+            | S::HtShockwave
+            | S::HtSandman
+            | S::HtFlasher
+            | S::HtFreezingtrap
+            | S::HtBlastmine
+            | S::HtClaymoretrap
+            | S::HtTalkiebox
+            | S::AsVenomdust
+            | S::RgGraffiti
+            | S::AmDemonstration
+            | S::AmCannibalize
+            | S::AmSpheremine
+            | S::MoBodyrelocation
+            | S::SaVolcano
+            | S::SaDeluge
+            | S::SaViolentgale
+            | S::SaLandprotector
+            | S::WsSystemcreate
+            | S::PfFogwall
+            | S::CrSlimpitcher
+            | S::HwGanbantein
+            | S::HwGravitation
+            | S::CrCultivation
+            | S::GsGrounddrift
+            | S::NjShadowjump
+            | S::NjSuiton
+    )
+}
+
+/// Effect **placed at the targeted cell** when a position-cast skill lands
+/// (`ZC_NOTIFY_GROUNDSKILL`). Transcribed from the original game's
+/// `Am_Groundskill` per-skill `PlaceEffect(cell, EF_*, …)` switch — the
+/// authoritative cell placement, which is where these AoE visuals live (NOT the
+/// caster `cast` slot; Storm Gust's storm, Meteor's strike and Lord of
+/// Vermilion's field all render on the ground, not on the wizard).
+///
+/// Skills that create persistent units (Volcano, traps, Ice Wall, Quagmire,
+/// Pneuma, Magnus, songs, Land Protector, …) render from their unit packets
+/// (`skill_units.rs`) and are intentionally omitted here so they aren't placed
+/// twice. `level` selects the Slim Pitcher tier, matching the original.
+pub fn ground_placed_effect(skill: SkillEnum, level: i16) -> &'static [EffectId] {
+    use EffectId as E;
+    use SkillEnum as S;
+    match skill {
+        S::WzStormgust => &[E::Stormgust],
+        S::WzMeteor => &[E::Meteorstorm],
+        S::WzVermilion => &[E::Lord],
+        S::WzHeavendrive => &[E::Heavensdrive],
+        S::MgThunderstorm => &[E::Thunderstorm],
+        S::BsHammerfall => &[E::Crashearth],
+        S::HwGanbantein => &[E::Ganbantein],
+        S::HtDetecting => &[E::Detecting],
+        S::PrBenedictio => &[E::Benedictio],
+        S::CrSlimpitcher if level < 6 => &[E::Slim],
+        S::CrSlimpitcher if level < 10 => &[E::Slim2],
+        S::CrSlimpitcher => &[E::Slim3],
+        _ => &[],
+    }
+}
+
+pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
+    use EffectId as E;
+    use SkillEnum as S;
+    match skill {
+        // Generic skill-begin spark for physical attack skills with no
+        // signature cast glyph (Double Strafe, Mammonite, …).
+        S::AcDouble | S::McMammonite | S::HtPower | S::HtPhantasmic => &[E::Bash],
+
+        // Neutral begin-spell circle — offensive/support magic.
+        S::MgNapalmbeat
+        | S::MgSoulstrike
+        | S::MgColdbolt
+        | S::MgFrostdiver
+        | S::MgStonecurse
+        | S::MgFireball
+        | S::MgFirewall
+        | S::MgFirebolt
+        | S::MgLightningbolt
+        | S::MgThunderstorm
+        | S::MgSafetywall
+        | S::MgSrecovery
+        | S::MgSight
+        | S::MgEnergycoat
+        | S::WzFirepillar
+        | S::WzSightrasher
+        | S::WzMeteor
+        | S::WzJupitel
+        | S::WzVermilion
+        | S::WzIcewall
+        | S::WzSightblaster
+        | S::WzFrostnova
+        | S::WzStormgust
+        | S::WzEarthspike
+        | S::WzHeavendrive
+        | S::WzQuagmire
+        | S::WzWaterball
+        | S::MerMagnificat
+        | S::PrImpositio
+        | S::PrSuffragium
+        | S::PrAspersio
+        | S::PrBenedictio
+        | S::PrSanctuary
+        | S::PrStrecovery
+        | S::PrKyrie
+        | S::PrMagnificat
+        | S::PrGloria
+        | S::PrLexdivina
+        | S::PrTurnundead
+        | S::PrLexaeterna
+        | S::PrMagnus
+        | S::AlHeal
+        | S::AlBlessing
+        | S::CashBlessing
+        | S::AlIncagi
+        | S::CashIncagi
+        | S::AlPneuma
+        | S::AlRuwach
+        | S::AlHolywater
+        | S::AlCrucis
+        | S::AlAngelus
+        | S::AlCure
+        | S::AlHolylight
+        | S::AllResurrection
+        | S::BsRepairweapon
+        | S::CrGrandcross
+        | S::CrProvidence
+        | S::CrDevotion
+        | S::CrFullprotection
+        | S::MoSteelbody
+        | S::MoCallspirits
+        | S::MoAbsorbspirits
+        | S::MoFingeroffensive
+        | S::MoInvestigate
+        | S::AmPotionpitcher
+        | S::AmAcidterror
+        | S::AmCannibalize
+        | S::CrSlimpitcher
+        | S::CrAciddemonstration
+        | S::HwMagiccrasher
+        | S::HwNapalmvulcan
+        | S::PfHpconversion
+        | S::PfSoulchange
+        | S::PfMemorize => &[E::Beginspell],
+
+        // Sage element-change skills — colored by their element.
+        S::SaElementwater => &[E::Beginspell2],
+        S::SaElementfire => &[E::Beginspell3],
+        S::SaElementground => &[E::Beginspell4],
+        S::SaElementwind => &[E::Beginspell5],
+
+        // Holy (saint) begin circle.
+        S::PaPressure
+        | S::HpAssumptio
+        | S::HpBasilica
+        | S::SnSharpshooting
+        | S::CgArrowvulcan
+        | S::SnWindwalk
+        | S::PaShieldchain
+        | S::CgTarotcard => &[E::Beginspell6],
+
+        // Poison / dark begin circle.
+        S::AsSplasher | S::StPreserve | S::AscBreaker | S::AscMeteorassault => {
+            &[E::Beginspell7]
+        }
+
+        S::AlDemonbane => &[E::Beginspellwhite],
+        S::AcConcentration => &[E::Incagidex],
+        S::KnBrandishspear => &[E::Brandish2],
+        // Asura Strife — the trans-Monk `Beginasura11` variant is job-gated in
+        // the original; we show the base glyph (the common, non-trans case).
+        S::MoExtremityfist => &[E::Beginasura],
+
+        // Couple-casting (homunculus calls, wedding skills).
+        S::AmCallhomun | S::AmRest | S::AmResurrecthomun => &[E::Couplecasting],
+
+        S::StChasewalk => &[E::Castspin],
+
+        // Blue casting glyph — Taekwon run, Star-Gladiator feel/hate, Soul
+        // Linker spirit skills.
+        S::TkRun
+        | S::SgFeel
+        | S::SgHate
+        | S::SgFusion
+        | S::TkSevenwind
+        | S::TkMission
+        | S::SlStin
+        | S::SlStun
+        | S::SlSma
+        | S::SlKaahi
+        | S::SlKaupe
+        | S::SlKaite
+        | S::SlKaizel => &[E::Bluecasting],
+
+        _ => &[],
+    }
+}
+
+/// Element-colored begin-spell circle for the generic cast aura. Only the
+/// neutral `Beginspell` is recolored by the skill's element (carried in the
+/// cast packet); signature glyphs keep their own effect.
+pub fn beginspell_for_element(property: u32) -> EffectId {
+    match property {
+        1 => EffectId::Beginspell2, // water
+        3 => EffectId::Beginspell3, // fire
+        2 => EffectId::Beginspell4, // earth
+        4 => EffectId::Beginspell5, // wind
+        6 => EffectId::Beginspell6, // holy
+        5 => EffectId::Beginspell7, // poison
+        _ => EffectId::Beginspell,  // neutral / unknown
     }
 }
 
@@ -82,21 +331,19 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::SmMagnum => C::cast(&[E::Magnumbreak]),
         S::SmEndure => C::cast(&[E::Endure]),
         S::MgEnergycoat => C::cast(&[E::Energycoat]),
+        S::MgSight => C::cast(&[E::Sight]),
+        S::AlRuwach => C::cast(&[E::Ruwach]),
         S::AlHolywater => C::cast(&[E::Aqua]),
         S::AlCrucis => C::cast(&[E::Signum]),
         S::AlAngelus => C::cast(&[E::Angelus]),
         S::McCartrevolution => C::cast(&[E::Cartrevolution]),
         S::McLoud => C::cast(&[E::Loud]),
         S::AcConcentration => C::cast(&[E::Concentration]),
-        // Physical attack skills with no signature visual fall back to the
-        // generic skill-begin spark (EF_BASH) on the caster — the begin-effect
-        // default for any attack skill that doesn't override it. Double Strafe,
-        // Mammonite, Beast Strafing and Phantasmic Arrow all land here.
-        S::AcDouble | S::McMammonite | S::HtPower | S::HtPhantasmic => C::begin(&[E::Bash]),
         S::NvFirstaid => C::cast(&[E::Firstaid]),
 
         // --- Knight / Priest / Wizard / Blacksmith / Hunter / Assassin ---
         S::KnPierce => C::cast(&[E::Pierceself]),
+        S::KnSpearstab => C::cast(&[E::Spearstabself]),
         S::KnSpearboomerang => C::cast(&[E::Spearbmrself]),
         S::KnBowlingbash => C {
             cast: &[E::Bowlingself],
@@ -122,7 +369,7 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::BsOverthrust | S::WsOverthrustmax => C::cast(&[E::Overthrust]),
         S::HtSpringtrap => C::cast(&[E::Springtrap]),
         S::HtRemovetrap => C::cast(&[E::Removetrap]),
-        S::AsSonicblow => C::cast(&[E::Sonicblow]),
+        S::AsSonicblow => C::cast(&[E::Sonicblow, E::Sonicblow2]),
         S::AsGrimtooth => C::cast(&[E::Grimtooth]),
 
         // --- Monk combo (Steel Body / Explosion Spirits stack an aux ring) ---
@@ -139,6 +386,7 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::CrSpearquicken => C::cast(&[E::Spearquicken]),
         S::CrReflectshield => C::cast(&[E::Reflectshield]),
         S::CrDefender | S::MlDefender => C::cast(&[E::Defender]),
+        S::CrAutoguard | S::MlAutoguard => C::cast(&[E::Guard]),
         S::PaSacrifice => C::cast(&[E::Bash3d]),
         S::LkSpiralpierce => C {
             hide_cast_bar: true,
@@ -148,6 +396,7 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::LkHeadcrush => C::cast(&[E::Bash3d3]),
         S::LkJointbeat => C::cast(&[E::Bash3d4]),
         S::LkAurablade => C::cast(&[E::Aurablade, E::Aurablade2]),
+        S::LkParrying | S::MsParrying => C::cast(&[E::Guard]),
         S::LkBerserk | S::LkFury | S::MsBerserk => C::cast(&[E::Redbody]),
         S::WsMeltdown => C::cast(&[E::Meltdown]),
         S::WsCartboost => C::cast(&[E::Cartboost]),
@@ -254,8 +503,12 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::MgLightningbolt => {
             T { on_target: &[E::Lightbolt], hit: &[E::Windhit], ..Default::default() }
         }
+        // Frost Diver's ice spikes travel the caster→target line (effect 27 is
+        // a projectile trail, not an on-target burst), so it rides the
+        // `before_hit` trail slot to get real endpoints; the freeze burst
+        // (28) lands on the target.
         S::MgFrostdiver => {
-            T { on_target: &[E::Frostdiver], hit: &[E::Frostdiver2], ..Default::default() }
+            T { before_hit: &[E::Frostdiver], hit: &[E::Frostdiver2], ..Default::default() }
         }
         S::MgStonecurse => {
             T { on_target: &[E::Stonecurse], hit: &[E::Stonecurse], ..Default::default() }
@@ -276,7 +529,9 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
 
         // --- Knight / Priest / Wizard / Blacksmith / Hunter / Assassin ---
         S::KnPierce => T::hit(&[E::Pierce]),
-        S::KnSpearstab => T { on_target: &[E::Spearstabself], hit: &[E::Pierce], ..Default::default() },
+        // Spear Stab's self-glyph plays on the caster (see caster table); the
+        // target only takes the Pierce spark.
+        S::KnSpearstab => T::hit(&[E::Pierce]),
         S::KnSpearboomerang => {
             T { on_target: &[E::Spearbmr], hit: &[E::Hit4], ..Default::default() }
         }
@@ -297,6 +552,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         }
         S::PrSlowpoison => T::on_target(&[E::Slowpoison]),
         S::PrStrecovery => T::on_target(&[E::Recovery]),
+        S::HpAssumptio | S::CashAssumptio => T::on_target(&[E::Assumptio, E::Assumptio2]),
         S::WzFirepillar => T::hit(&[E::Firehit]),
         S::WzSightrasher => T::hit(&[E::Firehit]),
         S::WzJupitel => T { on_target: &[E::Yufitel], hit: &[E::Yufitelhit], ..Default::default() },
@@ -332,6 +588,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
 
         // --- Crusader / Paladin / Lord Knight / WS ------------------------
         S::CrHolycross => T::on_target(&[E::Holycross]),
+        S::CrAciddemonstration => T::on_target(&[E::Aciddemon]),
         S::CrShieldcharge => T::on_target(&[E::Shieldcharge]),
         S::CrProvidence => T::on_target(&[E::Providence]),
         S::CrFullprotection => T::on_target(&[E::Chemicalprotection, E::Chemicalbody]),
@@ -356,6 +613,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
             T { on_target: &[E::Falconassault], hit: &[E::Hit1, E::Blitzbeat], ..Default::default() }
         }
         S::CgTarotcard => T::on_target(&[E::Chemicalbody]),
+        S::CgMarionette => T::on_target(&[E::Pinkbody]),
 
         // --- Sage / High Wizard / Professor -------------------------------
         S::SaSpellbreaker => T::on_target(&[E::Spellbreaker]),
@@ -515,17 +773,45 @@ mod tests {
     #[test]
     fn physical_attack_skills_share_the_bash_begin_effect() {
         // Skills with no signature attack visual show the generic EF_BASH spark
-        // on the caster, from the begin-cast slot (not the cast slot).
+        // on the caster, from the begin-cast circle (not the cast slot).
         for skill in [
             SkillEnum::AcDouble,
             SkillEnum::McMammonite,
             SkillEnum::HtPower,
             SkillEnum::HtPhantasmic,
         ] {
-            let caster = caster_skill_effects(skill);
-            assert_eq!(caster.begin_cast, &[EffectId::Bash], "{skill:?}");
-            assert!(caster.cast.is_empty(), "{skill:?} has no cast-slot visual");
+            assert_eq!(begin_cast_effect(skill), &[EffectId::Bash], "{skill:?}");
+            assert!(
+                caster_skill_effects(skill).cast.is_empty(),
+                "{skill:?} has no cast-slot visual"
+            );
         }
+    }
+
+    #[test]
+    fn begin_cast_circle_is_per_skill_neutral_colored_and_special() {
+        // The cast circle is chosen per skill, not by element: bolts get the
+        // neutral circle, Sage element skills the colored ones, and signature
+        // skills their own glyph. Skills that hide their cast aura suppress it
+        // at the call site, so the slot data must still carry the flag.
+        assert_eq!(begin_cast_effect(SkillEnum::MgFirebolt), &[EffectId::Beginspell]);
+        assert_eq!(begin_cast_effect(SkillEnum::SaElementwater), &[EffectId::Beginspell2]);
+        assert_eq!(begin_cast_effect(SkillEnum::HpAssumptio), &[EffectId::Beginspell6]);
+        assert_eq!(begin_cast_effect(SkillEnum::MoExtremityfist), &[EffectId::Beginasura]);
+        assert!(begin_cast_effect(SkillEnum::MoBodyrelocation).is_empty());
+        assert!(caster_skill_effects(SkillEnum::KnBowlingbash).hide_cast_aura);
+    }
+
+    #[test]
+    fn neutral_begin_circle_recolors_by_skill_element() {
+        // The generic Beginspell is remapped to the element-colored ring at
+        // cast start, so Fire Bolt (Fire) shows the red circle while neutral
+        // and unknown elements keep the default.
+        assert_eq!(beginspell_for_element(3), EffectId::Beginspell3); // fire
+        assert_eq!(beginspell_for_element(1), EffectId::Beginspell2); // water
+        assert_eq!(beginspell_for_element(4), EffectId::Beginspell5); // wind
+        assert_eq!(beginspell_for_element(0), EffectId::Beginspell); // neutral
+        assert_eq!(beginspell_for_element(99), EffectId::Beginspell); // unknown
     }
 
     #[test]
@@ -538,6 +824,49 @@ mod tests {
             target_skill_effects(SkillEnum::MoBodyrelocation),
             TargetSkillEffects::default()
         );
+    }
+
+    #[test]
+    fn ground_cast_classifier_matches_skill_db_target_type() {
+        // `is_ground_cast` follows the skill DB's `TargetType: Ground`, so the
+        // damage path places cast/on_target at the cell (not per hit entity).
+        // Cell-targeted AoE/units are ground-cast across magic/trap/unit kinds:
+        for s in [
+            SkillEnum::MgThunderstorm,
+            SkillEnum::WzStormgust,
+            SkillEnum::WzMeteor,
+            SkillEnum::PrSanctuary,
+            SkillEnum::HtAnklesnare,
+            SkillEnum::SaLandprotector,
+        ] {
+            assert!(is_ground_cast(s), "{s:?} is TargetType:Ground");
+        }
+        // Entity-targeted spells keep their damage-path landing visual.
+        for s in [
+            SkillEnum::MgColdbolt,
+            SkillEnum::WzWaterball,
+            SkillEnum::WzEarthspike,
+            SkillEnum::AlHeal,
+        ] {
+            assert!(!is_ground_cast(s), "{s:?} targets an entity");
+        }
+    }
+
+    #[test]
+    fn ground_placed_effect_renders_aoe_at_cell_not_caster() {
+        use EffectId as E;
+        // Pure AoE ground skills place their signature visual at the cell
+        // (the original's `Am_Groundskill` switch), not the caster `cast` slot.
+        assert_eq!(ground_placed_effect(SkillEnum::WzStormgust, 10), &[E::Stormgust]);
+        assert_eq!(ground_placed_effect(SkillEnum::WzMeteor, 10), &[E::Meteorstorm]);
+        assert_eq!(ground_placed_effect(SkillEnum::WzVermilion, 10), &[E::Lord]);
+        assert_eq!(ground_placed_effect(SkillEnum::MgThunderstorm, 10), &[E::Thunderstorm]);
+        // Slim Pitcher tiers by level.
+        assert_eq!(ground_placed_effect(SkillEnum::CrSlimpitcher, 1), &[E::Slim]);
+        assert_eq!(ground_placed_effect(SkillEnum::CrSlimpitcher, 10), &[E::Slim3]);
+        // Unit skills render from their unit packets, not here.
+        assert!(ground_placed_effect(SkillEnum::SaVolcano, 5).is_empty());
+        assert!(ground_placed_effect(SkillEnum::WzIcewall, 5).is_empty());
     }
 
     #[test]
@@ -569,6 +898,29 @@ mod tests {
         assert_eq!(
             derive_hit_effect(Some(SkillEnum::TkStormkick), false, Novice, false),
             &[] as &[EffectId]
+        );
+    }
+
+    #[test]
+    fn damage_skill_slots_drive_projectile_landing_and_cast() {
+        // The three damage-side slots the B5 fan-out fires at `ZC_NOTIFY_SKILL`:
+        // a projectile (`before_hit`), a spell landing (`on_target`), and a
+        // caster-released glyph (`cast`). Soul Strike is the projectile case and
+        // must keep firing only via `before_hit` (no regression). Cold Bolt
+        // lands on the target and sparks per hit. Storm Gust shows its glyph on
+        // the caster.
+        let soulstrike = target_skill_effects(SkillEnum::MgSoulstrike);
+        assert_eq!(soulstrike.before_hit, &[EffectId::Soulstrike]);
+        assert!(soulstrike.on_target.is_empty() && soulstrike.hit.is_empty());
+
+        let coldbolt = target_skill_effects(SkillEnum::MgColdbolt);
+        assert_eq!(coldbolt.on_target, &[EffectId::Icearrow]);
+        assert_eq!(coldbolt.hit, &[EffectId::Coldhit]);
+        assert!(coldbolt.before_hit.is_empty());
+
+        assert_eq!(
+            caster_skill_effects(SkillEnum::WzStormgust).cast,
+            &[EffectId::Stormgust]
         );
     }
 }

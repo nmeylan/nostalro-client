@@ -111,7 +111,7 @@ dependencies = [
 [[package]]
 name = "accessor"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=0362dc12#0362dc12cb5bc0f6638fa292589f575a2b4cbeb5"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=ab0a3050#ab0a30501373cbcf6700998a193b03e23f37bc83"
 dependencies = [
  "quote",
  "syn",
@@ -1031,7 +1031,7 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 [[package]]
 name = "enum_macro"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=0362dc12#0362dc12cb5bc0f6638fa292589f575a2b4cbeb5"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=ab0a3050#ab0a30501373cbcf6700998a193b03e23f37bc83"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2033,7 +2033,7 @@ dependencies = [
 [[package]]
 name = "models"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=0362dc12#0362dc12cb5bc0f6638fa292589f575a2b4cbeb5"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=ab0a3050#ab0a30501373cbcf6700998a193b03e23f37bc83"
 dependencies = [
  "accessor",
  "enum_macro",
@@ -2044,9 +2044,9 @@ dependencies = [
 [[package]]
 name = "movement"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=0362dc12#0362dc12cb5bc0f6638fa292589f575a2b4cbeb5"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=ab0a3050#ab0a30501373cbcf6700998a193b03e23f37bc83"
 dependencies = [
- "packets",
+ "packets 0.1.0 (git+https://github.com/nmeylan/rust-ro.git?rev=ab0a3050)",
  "tracing",
 ]
 
@@ -2555,7 +2555,16 @@ dependencies = [
 [[package]]
 name = "packets"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=0362dc12#0362dc12cb5bc0f6638fa292589f575a2b4cbeb5"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=20204558#20204558960c5c60c8f3225174bb2ed5ec0a5f70"
+dependencies = [
+ "byteorder",
+ "json-flat-parser",
+]
+
+[[package]]
+name = "packets"
+version = "0.1.0"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=ab0a3050#ab0a30501373cbcf6700998a193b03e23f37bc83"
 dependencies = [
  "byteorder",
  "json-flat-parser",
@@ -2845,7 +2854,7 @@ version = "0.1.0"
 dependencies = [
  "models",
  "movement",
- "packets",
+ "packets 0.1.0 (git+https://github.com/nmeylan/rust-ro.git?rev=20204558)",
  "ragnarok-effects",
  "ragnarok-formats",
  "tracing",
@@ -2869,7 +2878,7 @@ name = "ragnarok-network"
 version = "0.1.0"
 dependencies = [
  "models",
- "packets",
+ "packets 0.1.0 (git+https://github.com/nmeylan/rust-ro.git?rev=20204558)",
  "ragnarok-game",
  "tokio",
  "tracing",

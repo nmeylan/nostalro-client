@@ -656,6 +656,7 @@ impl App {
                     EffectAnchor::Point([0.0, 0.0, 0.0]),
                     None,
                     None,
+                    None,
                 );
                 let Some(probe) = probe else { return };
                 let Some(overlay) = probe.str_overlay() else { return };

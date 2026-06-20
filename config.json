@@ -33,12 +33,12 @@
       "open": false,
       "collapsed": false
     },
-    "1500": {
+    "1200": {
       "position": [
-        1128.0,
-        27.738281
+        400.0,
+        100.0
       ],
-      "open": false,
+      "open": true,
       "collapsed": false
     },
     "10": {
@@ -67,8 +67,8 @@
     },
     "1300": {
       "position": [
-        487.6159,
-        6.7460938
+        280.58075,
+        4.2148438
       ],
       "open": false,
       "collapsed": false

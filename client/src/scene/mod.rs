@@ -383,6 +383,19 @@ impl App {
                 .map_coords
                 .as_ref()
                 .map_or(10.0, |c| c.zoom());
+            // Live entity→world resolver for entity-anchored STR/Spr effects
+            // (cast glyphs, buff overlays). Mirrors the holder's update-time
+            // resolver: interpolated cell → world at the ground. Without it
+            // these effects can't resolve their position and never draw.
+            let entities = &self.game.entities;
+            let gat = self.game.gat.as_ref();
+            let map_coords = self.game.map_coords.as_ref();
+            let resolve_entity = |id: u32| {
+                let (gat, coords) = (gat?, map_coords?);
+                let (cx, cy) = entities.get(id)?.movement.position();
+                let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
+                Some([wx, gat.get_height(cx + 0.5, cy + 0.5), wz])
+            };
             let frame = compose_effect_frame(&EffectFrameInputs {
                 effect_holder: &self.effect_holder,
                 effect_sprites: &self.effect_sprites,
@@ -392,10 +405,7 @@ impl App {
                 screen_h,
                 zoom,
                 elapsed,
-                // Caster-attached buff STR overlays will resolve here once the
-                // game wires status-packet → `spawn_on`; body tint/shake are
-                // applied directly in the actor pass and don't need this.
-                resolve_entity: &|_| None,
+                resolve_entity: &resolve_entity,
                 extra_sprite_particles: &arrow_draws,
             });
 

@@ -1,20 +1,15 @@
 //! `EF_ICEWALL` — Wizard Ice Wall (id 74).
 //!
-//! In the original game the wall is three tall vertical `ice.tga` blades in a
-//! short row, persistent until the wall is destroyed. Blades are near-vertical,
-//! tall and chunky, spaced about 2 units apart. Our blades are near-vertical
-//! (tilt ~90°), tall (height ~16), chunky (size ~1.4) and spaced tightly.
+//! The original game lays the wall as one independent effect **per ground
+//! cell**: the server sends one unit packet per occupied cell and the wall's
+//! line shape comes entirely from those positions. Each cell sprouts three
+//! near-vertical `ice.tga` blades clustered on the cell at **random**
+//! Y-rotations and a slight random tilt — there is no per-blade orientation to
+//! the wall line. Persistent until the cell's disappear packet kills it.
 //!
-//!
-//! The original game lays the row at a fixed orientation; we instead orient
-//! the wall by the **cast direction** (the caster→target trail anchor) so the
-//! wall stands across the targeted line, like the in-game crosshair shows.
-//! The row runs perpendicular to that direction. Heights/sizes are scaled to
-//! our world units (~½ of the original height) and the spacing kept tight.
-//!
-//! The wall is just these three blades; no extra sparkle particle accompanies
-//! it, so none is emitted here.
-//!
+//! Blades grow upward for ~20 frames then freeze (the speed-limit rise). The
+//! cluster is seeded from the cell position so a given cell always sprouts the
+//! same blades (deterministic for tests and the viewer).
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -24,11 +19,14 @@ use crate::effects::spike_util::{FRAMES_PER_SECOND, apex_velocity, rise_step};
 pub const TEXTURES: &[&str] = &[ICE_TEXTURE];
 
 const BLADE_COUNT: usize = 3;
-/// Tight spacing between blades (the original steps 2 units; ~½ scale here).
-const ROW_SPACING: f32 = 1.3;
-const TILT_DEG: f32 = 90.0;
+/// Near-vertical with a few degrees of random jitter (original `latitude`
+/// 87..93°).
+const TILT_BASE_DEG: f32 = 90.0;
+const TILT_JITTER_DEG: f32 = 3.0;
 const SIZE: f32 = 1.4;
 const HEIGHT: f32 = 16.0;
+/// Blades scatter along the cell (original steps `length` -2/0/2; ~½ scale).
+const SCATTER_STEP: f32 = 1.0;
 
 const SPIKE_SPEED_PER_S: f32 = 0.18 * FRAMES_PER_SECOND;
 /// Blade grows for 20 frames then freezes.
@@ -40,6 +38,7 @@ struct Blade {
     base: [f32; 3],
     velocity: [f32; 3],
     heading_deg: f32,
+    tilt_deg: f32,
 }
 
 pub struct IceWallEffect {
@@ -48,35 +47,30 @@ pub struct IceWallEffect {
 }
 
 impl IceWallEffect {
-    /// `from` is the wall's ground location; `to` provides the cast
-    /// direction. When the two coincide (no direction available) the wall
-    /// defaults to a row along world +X.
-    pub fn new(from: [f32; 3], to: [f32; 3]) -> Self {
-        let dx = to[0] - from[0];
-        let dz = to[2] - from[2];
-        let len = (dx * dx + dz * dz).sqrt();
-        // Cast direction (defaults to +Z) and the perpendicular the row runs
-        // along (defaults to +X).
-        let (dir_x, dir_z) = if len > 1e-3 {
-            (dx / len, dz / len)
-        } else {
-            (0.0, 1.0)
-        };
-        let (perp_x, perp_z) = (-dir_z, dir_x);
-        // Blades stand facing along the cast direction.
-        let heading_deg = dir_x.atan2(dir_z).to_degrees();
-
+    /// Sprout the cell's three randomly-rotated blades around `center` (the
+    /// unit cell's ground world position).
+    pub fn new(center: [f32; 3]) -> Self {
+        let seed = position_hash(&center);
         let blades = (0..BLADE_COUNT)
             .map(|i| {
-                let offset = (i as f32 - (BLADE_COUNT as f32 - 1.0) / 2.0) * ROW_SPACING;
+                let salt = i as u64 * 7;
+                let angle = rand_in_range(seed, salt, 0.0, std::f32::consts::TAU);
+                let heading_deg = rand_in_range(seed, salt + 1, 0.0, 360.0);
+                let tilt_deg = rand_in_range(
+                    seed,
+                    salt + 2,
+                    TILT_BASE_DEG - TILT_JITTER_DEG,
+                    TILT_BASE_DEG + TILT_JITTER_DEG,
+                );
+                // Original scatters each blade along the cell by `-length·cos`
+                // (steps -1/0/1 here); the cross-axis offset is intentionally 0.
+                let length = -SCATTER_STEP + i as f32 * SCATTER_STEP;
+                let base = [center[0], center[1], center[2] - length * angle.cos()];
                 Blade {
-                    base: [
-                        from[0] + perp_x * offset,
-                        from[1],
-                        from[2] + perp_z * offset,
-                    ],
-                    velocity: apex_velocity(TILT_DEG, heading_deg, SPIKE_SPEED_PER_S),
+                    base,
+                    velocity: apex_velocity(tilt_deg, heading_deg, SPIKE_SPEED_PER_S),
                     heading_deg,
+                    tilt_deg,
                 }
             })
             .collect();
@@ -100,7 +94,7 @@ impl Effect for IceWallEffect {
                 base: blade.base,
                 size: SIZE,
                 height: HEIGHT,
-                tilt_x_deg: TILT_DEG,
+                tilt_x_deg: blade.tilt_deg,
                 rotation_y_deg: blade.heading_deg,
                 texture: ICE_TEXTURE,
                 color: [1.0, 1.0, 1.0, ALPHA],
@@ -108,6 +102,27 @@ impl Effect for IceWallEffect {
             });
         }
     }
+}
+
+fn position_hash(pos: &[f32; 3]) -> u64 {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut h = DefaultHasher::new();
+    pos[0].to_bits().hash(&mut h);
+    pos[1].to_bits().hash(&mut h);
+    pos[2].to_bits().hash(&mut h);
+    h.finish()
+}
+
+fn rand_in_range(seed: u64, salt: u64, lo: f32, hi: f32) -> f32 {
+    let mut x = seed.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(salt);
+    x ^= x >> 30;
+    x = x.wrapping_mul(0xBF58476D1CE4E5B9);
+    x ^= x >> 27;
+    x = x.wrapping_mul(0x94D049BB133111EB);
+    x ^= x >> 31;
+    let t = ((x >> 40) as f32) / ((1u64 << 24) as f32);
+    lo + t * (hi - lo)
 }
 
 #[cfg(test)]
@@ -129,49 +144,35 @@ mod tests {
         list.primitives
     }
 
-    fn bases(e: &IceWallEffect) -> Vec<[f32; 3]> {
-        draws(e)
-            .into_iter()
-            .map(|p| match p {
-                EffectPrimitiveDraw::QuadHorn { base, .. } => base,
-                _ => panic!("expected QuadHorn"),
-            })
-            .collect()
-    }
-
     #[test]
-    fn row_runs_perpendicular_to_cast_direction_and_persists() {
-        // Sociable test: three tall ice blades, the row laid perpendicular to
-        // the caster→target direction, persistent. Casting along +Z lays the
-        // row along the X axis (shared Z); casting along +X lays it along Z.
-        let along_z = IceWallEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 10.0]);
-        let prims = draws(&along_z);
-        assert_eq!(prims.len(), 3);
+    fn cell_sprouts_three_tall_randomly_rotated_blades_and_persists() {
+        // Sociable test: one cell yields three tall near-vertical ice blades
+        // clustered on the cell, each at its own random Y-rotation, persistent.
+        let e = IceWallEffect::new([5.0, 0.0, 7.0]);
+        let prims = draws(&e);
+        assert_eq!(prims.len(), BLADE_COUNT);
+        let mut headings = vec![];
         for p in &prims {
-            let EffectPrimitiveDraw::QuadHorn { height, texture, tilt_x_deg, .. } = p else {
+            let EffectPrimitiveDraw::QuadHorn {
+                base, height, texture, tilt_x_deg, rotation_y_deg, ..
+            } = p else {
                 panic!("expected QuadHorn");
             };
             assert_eq!(*texture, ICE_TEXTURE);
             assert!(*height > 12.0, "blades are tall");
-            assert!((*tilt_x_deg - 90.0).abs() < 15.0, "near-vertical");
+            assert!((*tilt_x_deg - 90.0).abs() <= TILT_JITTER_DEG, "near-vertical");
+            // Clustered on the cell (only scattered a little along Z).
+            assert!((base[0] - 5.0).abs() < 1e-3, "no cross-axis offset");
+            assert!((base[2] - 7.0).abs() <= SCATTER_STEP + 1e-3, "scatter bounded");
+            headings.push(*rotation_y_deg);
         }
-        // Row spans X, shares Z.
-        for b in bases(&along_z) {
-            assert!(b[2].abs() < 1e-3, "row shares Z when casting along Z");
-        }
-        let xs: Vec<f32> = bases(&along_z).iter().map(|b| b[0]).collect();
-        assert!(xs.iter().any(|x| *x < -1e-3) && xs.iter().any(|x| *x > 1e-3));
-
-        // Casting along +X rotates the row to span Z instead.
-        let along_x = IceWallEffect::new([0.0, 0.0, 0.0], [10.0, 0.0, 0.0]);
-        for b in bases(&along_x) {
-            assert!(b[0].abs() < 1e-3, "row shares X when casting along X");
-        }
-        let zs: Vec<f32> = bases(&along_x).iter().map(|b| b[2]).collect();
-        assert!(zs.iter().any(|z| *z < -1e-3) && zs.iter().any(|z| *z > 1e-3));
+        assert!(
+            headings.windows(2).any(|w| (w[0] - w[1]).abs() > 1.0),
+            "blades carry distinct random rotations"
+        );
 
         // Persistent: still Running far past any one-shot lifetime.
-        let mut e = along_z;
+        let mut e = e;
         for _ in 0..1200 {
             assert_eq!(
                 e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None }),
@@ -181,13 +182,19 @@ mod tests {
     }
 
     #[test]
-    fn blades_are_tightly_spaced() {
-        // Sociable test: adjacent blades sit ROW_SPACING apart — tighter than
-        // a character width so the wall reads as a solid barrier.
-        let e = IceWallEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 5.0]);
-        let mut xs: Vec<f32> = bases(&e).iter().map(|b| b[0]).collect();
-        xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        assert!((xs[1] - xs[0] - ROW_SPACING).abs() < 1e-3);
-        assert!((xs[2] - xs[1] - ROW_SPACING).abs() < 1e-3);
+    fn same_cell_is_deterministic_distinct_cells_differ() {
+        // Seeded from the cell position: re-spawning the same cell reproduces
+        // the blades; a different cell sprouts a different cluster.
+        let headings = |c: [f32; 3]| -> Vec<f32> {
+            draws(&IceWallEffect::new(c))
+                .into_iter()
+                .map(|p| match p {
+                    EffectPrimitiveDraw::QuadHorn { rotation_y_deg, .. } => rotation_y_deg,
+                    _ => panic!("expected QuadHorn"),
+                })
+                .collect()
+        };
+        assert_eq!(headings([5.0, 0.0, 7.0]), headings([5.0, 0.0, 7.0]));
+        assert_ne!(headings([5.0, 0.0, 7.0]), headings([9.0, 0.0, 3.0]));
     }
 }
