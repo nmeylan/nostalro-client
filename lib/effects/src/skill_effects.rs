@@ -343,7 +343,6 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
 
         // --- Knight / Priest / Wizard / Blacksmith / Hunter / Assassin ---
         S::KnPierce => C::cast(&[E::Pierceself]),
-        S::KnSpearstab => C::cast(&[E::Spearstabself]),
         S::KnSpearboomerang => C::cast(&[E::Spearbmrself]),
         S::KnBowlingbash => C {
             cast: &[E::Bowlingself],
@@ -357,7 +356,6 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
             ..Default::default()
         },
         S::KnTwohandquicken | S::KnOnehand => C::cast(&[E::Twohandquicken]),
-        S::PrTurnundead => C::cast(&[E::Turnundead]),
         S::PrMagnificat | S::MerMagnificat => C::cast(&[E::Magnificat]),
         S::PrGloria => C::cast(&[E::Gloria]),
         S::PrKyrie => C::cast(&[E::Kyrie]),
@@ -369,7 +367,7 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::BsOverthrust | S::WsOverthrustmax => C::cast(&[E::Overthrust]),
         S::HtSpringtrap => C::cast(&[E::Springtrap]),
         S::HtRemovetrap => C::cast(&[E::Removetrap]),
-        S::AsSonicblow => C::cast(&[E::Sonicblow, E::Sonicblow2]),
+        S::AsSonicblow => C::cast(&[E::Sonicblow2]),
         S::AsGrimtooth => C::cast(&[E::Grimtooth]),
 
         // --- Monk combo (Steel Body / Explosion Spirits stack an aux ring) ---
@@ -457,8 +455,6 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
 
         // --- Gunslinger / Ninja -------------------------------------------
         S::GsPiercingshot => C::cast(&[E::Chemical4]),
-        S::GsFullbuster => C::cast(&[E::M02]),
-        S::GsSpreadattack => C::cast(&[E::Spreadattack]),
         S::GsMadnesscancel => C::cast(&[E::MadnessBlue]),
         S::GsAdjustment | S::GsGatlingfever => C::cast(&[E::MadnessRed]),
         S::GsIncreasing => C::cast(&[E::Agiup]),
@@ -529,9 +525,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
 
         // --- Knight / Priest / Wizard / Blacksmith / Hunter / Assassin ---
         S::KnPierce => T::hit(&[E::Pierce]),
-        // Spear Stab's self-glyph plays on the caster (see caster table); the
-        // target only takes the Pierce spark.
-        S::KnSpearstab => T::hit(&[E::Pierce]),
+        S::KnSpearstab => T { on_target: &[E::Spearstabself], hit: &[E::Pierce], ..Default::default() },
         S::KnSpearboomerang => {
             T { on_target: &[E::Spearbmr], hit: &[E::Hit4], ..Default::default() }
         }
@@ -542,7 +536,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
             T { on_target: &[E::Suffragium], hit: &[E::Suffragium], ..Default::default() }
         }
         S::PrAspersio => T { on_target: &[E::Aspersio], hit: &[E::Holyhit], ..Default::default() },
-        S::PrTurnundead => T::hit(&[E::Holyhit]),
+        S::PrTurnundead => T { on_target: &[E::Turnundead], hit: &[E::Holyhit], ..Default::default() },
         S::PrMagnus => T::hit(&[E::Holyhit]),
         S::PrMagnificat | S::MerMagnificat => T::hit(&[E::Magnificat]),
         S::PrGloria => T::hit(&[E::Gloria]),
@@ -571,7 +565,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::BsWeaponperfect => T::on_target(&[E::Perfection]),
         S::HtSkidtrap => T::hit(&[E::Bowlingbash]),
         S::HtBlitzbeat => T::hit(&[E::Blitzbeat]),
-        S::AsSonicblow => T::hit(&[E::Sonicblowhit]),
+        S::AsSonicblow => T { on_target: &[E::Sonicblow], hit: &[E::Sonicblowhit], ..Default::default() },
         S::AsGrimtooth => T::hit(&[E::Grimtoothatk]),
         S::AsVenomdust => T::hit(&[E::Venomdust]),
         S::AsEnchantpoison => T::on_target(&[E::EnchantpoisonFlow]),
@@ -654,6 +648,8 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
 
         // --- Gunslinger / Ninja -------------------------------------------
         S::GsFling => T::on_target(&[E::RedHit]),
+        S::GsFullbuster => T::on_target(&[E::M02]),
+        S::GsSpreadattack => T::on_target(&[E::Spreadattack]),
         S::GsDust => T::on_target(&[E::Bash3d5]),
         S::GsRapidshower => T::on_target(&[E::Rapidshower]),
         S::GsMagicalbullet => T::on_target(&[E::Magicalbullet]),
@@ -921,6 +917,86 @@ mod tests {
         assert_eq!(
             caster_skill_effects(SkillEnum::WzStormgust).cast,
             &[EffectId::Stormgust]
+        );
+    }
+
+    #[test]
+    fn caster_launched_at_target_effects_land_on_the_target() {
+        // The original positions these at the target (`SETPOS(tActor)`), so they
+        // must sit in the target `on_target` slot — a point effect left in the
+        // caster `cast` slot collapses onto the caster instead.
+        for (skill, effect) in [
+            (SkillEnum::PrTurnundead, EffectId::Turnundead),
+            (SkillEnum::GsFullbuster, EffectId::M02),
+            (SkillEnum::GsSpreadattack, EffectId::Spreadattack),
+            (SkillEnum::AsSonicblow, EffectId::Sonicblow),
+            (SkillEnum::KnSpearstab, EffectId::Spearstabself),
+        ] {
+            assert!(target_skill_effects(skill).on_target.contains(&effect), "{skill:?}");
+            assert!(!caster_skill_effects(skill).cast.contains(&effect), "{skill:?}");
+        }
+        // Sonic Blow's caster-side motion lines stay on the caster.
+        assert!(
+            caster_skill_effects(SkillEnum::AsSonicblow).cast.contains(&EffectId::Sonicblow2)
+        );
+    }
+
+    #[test]
+    fn on_target_projectiles_are_classified_as_trails() {
+        // Fireball, Waterball, Jupitel, Spear Boomerang and Demon Bane park a
+        // travelling projectile in their `on_target` slot. The skill spawner
+        // routes any `on_target` effect that `is_trail_effect` along the
+        // caster→target line (same rule the viewer uses), so these must stay
+        // classified as trails or they collapse onto the target in-game.
+        use crate::effect_queue::is_trail_effect;
+        for skill in [
+            SkillEnum::MgFireball,
+            SkillEnum::WzWaterball,
+            SkillEnum::WzJupitel,
+            SkillEnum::KnSpearboomerang,
+            SkillEnum::AlDemonbane,
+        ] {
+            for e in target_skill_effects(skill).on_target {
+                assert!(is_trail_effect(*e), "{e:?} on {skill:?} must be a trail effect");
+            }
+        }
+        // Cold Bolt's on_target bolt rains onto the target (a count-point
+        // effect), so it must NOT be trail-routed.
+        assert!(!is_trail_effect(EffectId::Icearrow));
+    }
+
+    #[test]
+    fn every_reachable_skill_projectile_has_a_reach_time() {
+        // Any trail effect parked in a skill slot that the spawner can launch as
+        // a travelling projectile — the caster-released `cast`, `on_target` or
+        // `before_hit` — must report a reach time (`trail_arrival_secs`) or the
+        // hit fires on cast instead of on impact. Walk every skill the damage
+        // path can resolve (`from_id` covers 1..=745 and panics outside it, the
+        // same range the client can reach).
+        use crate::effect_queue::{is_trail_effect, trail_arrival_secs};
+        let prev = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let mut missing = std::collections::BTreeSet::new();
+        for id in 1u32..=745 {
+            let Ok(skill) = std::panic::catch_unwind(|| SkillEnum::from_id(id)) else {
+                continue;
+            };
+            let t = target_skill_effects(skill);
+            for e in caster_skill_effects(skill)
+                .cast
+                .iter()
+                .chain(t.on_target.iter())
+                .chain(t.before_hit.iter())
+            {
+                if is_trail_effect(*e) && trail_arrival_secs(*e, 50.0).is_none() {
+                    missing.insert(format!("{e:?}"));
+                }
+            }
+        }
+        std::panic::set_hook(prev);
+        assert!(
+            missing.is_empty(),
+            "trail projectiles in a skill slot with no reach time: {missing:?}"
         );
     }
 }

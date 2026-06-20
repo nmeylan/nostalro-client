@@ -37,6 +37,14 @@ const STREAKS_PER_WAVE: usize = 4;
 /// The first 5 frames ramp the alpha up; afterwards it ramps down.
 const RAMP_FRAMES: i32 = 5;
 
+/// The streaks flash in at a fixed reach rather than travelling, so the time is
+/// just the launch delay plus the alpha ramp — distance-independent, and
+/// effectively no flight delay for the melee variant.
+pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
+    crate::effect_queue::ProjectileFlight::FixedFrames(
+        (TRIPLEATTACK.delay_base + RAMP_FRAMES) as f32,
+    );
+
 /// Per-variant parameters. All spatial literals are in world units
 /// (`fixed_reach = 20` maps ~1:1 onto our caster→target trail length), scaled
 /// uniformly by [`WORLD_SCALE`].

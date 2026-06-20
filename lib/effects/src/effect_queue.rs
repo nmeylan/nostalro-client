@@ -423,6 +423,91 @@ pub fn is_trail_effect(id: EffectId) -> bool {
     )
 }
 
+/// How a trail effect's projectile covers the caster→target gap. Lets the skill
+/// spawner time the hit to the projectile's arrival instead of flashing it on
+/// cast. Each trail effect declares its own; [`reach_secs`](Self::reach_secs)
+/// turns it into a delay for the actual distance.
+#[derive(Clone, Copy, Debug)]
+pub enum ProjectileFlight {
+    /// Reaches in a fixed number of frames regardless of distance — the effect
+    /// scales its speed to the gap (the bolt/ball families cover any distance in
+    /// a set frame count). Includes any pre-launch delay.
+    FixedFrames(f32),
+    /// Travels at a fixed speed (world units/frame), so the reach scales with
+    /// distance: `delay_frames + distance / units_per_frame`.
+    ConstantSpeed { delay_frames: f32, units_per_frame: f32 },
+    /// Bursts at the target — no caster→target flight delay.
+    AtTarget,
+}
+
+impl ProjectileFlight {
+    const FPS: f32 = 60.0;
+
+    /// Seconds after spawn at which the projectile reaches a target
+    /// `distance_units` (world units) away.
+    pub fn reach_secs(self, distance_units: f32) -> f32 {
+        let frames = match self {
+            ProjectileFlight::FixedFrames(f) => f,
+            ProjectileFlight::ConstantSpeed { delay_frames, units_per_frame } => {
+                delay_frames + distance_units / units_per_frame.max(1e-3)
+            }
+            ProjectileFlight::AtTarget => 0.0,
+        };
+        frames / Self::FPS
+    }
+}
+
+/// Seconds after spawn at which `id`'s projectile reaches a target
+/// `distance_units` (world units) away — the moment the hit spark and damage
+/// should land, so the skill spawner can defer the hit until the projectile
+/// arrives instead of flashing it on cast. `None` for trail effects that aren't
+/// skill projectiles (they keep the attack-motion timing). Mirrors the arrow's
+/// land-on-hit timing; distance-bound for fixed-speed projectiles.
+pub fn trail_arrival_secs(id: EffectId, distance_units: f32) -> Option<f32> {
+    use crate::effects;
+    let flight = match id {
+        EffectId::Fireball => effects::fireball::PROJECTILE_FLIGHT,
+        EffectId::Waterball2 => effects::waterball2::PROJECTILE_FLIGHT,
+        EffectId::Yufitel => effects::yupitel::PROJECTILE_FLIGHT,
+        EffectId::Spearbmr => effects::spearbmr::PROJECTILE_FLIGHT,
+        EffectId::Soulstrike | EffectId::Soulstrike2 => effects::soul_strike::PROJECTILE_FLIGHT,
+        // Grimtooth reuses Frost Diver's travelling-spike projectile.
+        EffectId::Frostdiver | EffectId::Grimtooth => effects::frost_diver::PROJECTILE_FLIGHT,
+        EffectId::Throwitem
+        | EffectId::Throwitem2
+        | EffectId::Throwitem3
+        | EffectId::Throwitem4
+        | EffectId::Throwitem5
+        | EffectId::Throwitem6
+        | EffectId::Throwitem7
+        | EffectId::Throwitem8
+        | EffectId::Throwitem9
+        | EffectId::Throwitem10 => effects::throw_item::PROJECTILE_FLIGHT,
+        EffectId::Pressure => effects::pressure::PROJECTILE_FLIGHT,
+        EffectId::Tripleattack | EffectId::Tripleattack2 | EffectId::Tripleattack3 => {
+            effects::tripleattack::PROJECTILE_FLIGHT
+        }
+        EffectId::Teihit2 | EffectId::Backstap => effects::teihit::PROJECTILE_FLIGHT,
+        EffectId::Soulbreaker => effects::soul_breaker::PROJECTILE_FLIGHT,
+        EffectId::Stin
+        | EffectId::Stin2
+        | EffectId::Stin3
+        | EffectId::Stin4
+        | EffectId::Stin5 => effects::stin::PROJECTILE_FLIGHT,
+        EffectId::Chemical2
+        | EffectId::Chemical2dash
+        | EffectId::Chemical3
+        | EffectId::Chemical4 => effects::chemical::PROJECTILE_FLIGHT,
+        EffectId::Tanji
+        | EffectId::Tanji2
+        | EffectId::Shieldboomerang
+        | EffectId::Shieldboomerang2
+        | EffectId::Shieldboomerang3 => effects::cloud_projectile::PROJECTILE_FLIGHT,
+        _ => return None,
+    };
+    Some(flight.reach_secs(distance_units))
+}
+
 /// `true` for the Soul Linker tether family: a persistent
 /// ribbon between the caster and a second, independently-moving actor. In game
 /// these spawn via [`EffectQueue::spawn_link`] so both endpoints track live;

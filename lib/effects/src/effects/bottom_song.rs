@@ -338,6 +338,14 @@ impl Effect for BottomSongEffect {
         EffectStatus::Running
     }
 
+    // A song area slides with its performer: the server relocates a cell by
+    // re-sending its unit at a new position, so the marker must move there.
+    // Only the render origin changes; the spawn-hashed texture and bob phase
+    // stay, so the song keeps its look instead of re-rolling each step.
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let fade = (self.age / FADE_IN_SECS).clamp(0.0, 1.0);
         let frames = self.age * FRAMES_PER_SECOND;

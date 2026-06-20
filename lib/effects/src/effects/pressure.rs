@@ -55,6 +55,12 @@ const RING_THICKNESS: f32 = 1.5;
 const MAX_TOTAL_FRAMES: f32 = 90.0;
 pub const PRESSURE_TOTAL_DURATION_MS: u32 = (MAX_TOTAL_FRAMES / FPS * 1000.0) as u32;
 
+/// The icon drops vertically onto the target, so its reach is a fixed time
+/// (drop height over fall speed) independent of the caster→target distance.
+/// (`drop_y` is negative, −Y = up.)
+pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
+    crate::effect_queue::ProjectileFlight::FixedFrames(-PRESSURE.drop_y / FALL_SPEED);
+
 const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
 const RING_RED: [f32; 3] = [1.0, 0.0, 0.0];
 const RING_YELLOW: [f32; 3] = [1.0, 1.0, 0.0];

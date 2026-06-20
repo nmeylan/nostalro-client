@@ -587,6 +587,12 @@ impl App {
         let (cx, cy) = (x as f32 + 0.5, y as f32 + 0.5);
         let (wx, _, wz) = coords.cell_to_world(cx, cy);
         let world = [wx, gat.get_height(cx, cy), wz];
+        // A re-sent entry for a live `aid` is the server relocating that unit
+        // (a song area sliding with its performer), not a new one — move the
+        // existing effect instead of stacking a duplicate at the old cell.
+        if self.effect_holder.reposition_by_key(aid, world) {
+            return;
+        }
         self.effect_queue.spawn_at_keyed(effect, world, aid);
     }
 

@@ -35,6 +35,16 @@ use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
+/// The swirls travel along the heading at a per-frame step, so the reach scales
+/// with distance. Uses STIN's base step (0.8 units/frame) as the family
+/// representative; the step grows slightly over the flight, so this is a small
+/// overestimate.
+pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
+    crate::effect_queue::ProjectileFlight::ConstantSpeed {
+        delay_frames: 0.0,
+        units_per_frame: 0.8,
+    };
+
 /// The English-named `wind.tga` is absent from the classic GRF; the real
 /// resource is the Korean-named `270바람.tga` (바람 = "wind"), a feathery
 /// fibre ring matching the gif's swirl.

@@ -69,6 +69,15 @@ const LAND_FADE_PER_FRAME: f32 = 20.0 / 255.0;
 const MAX_TOTAL_FRAMES: f32 = 90.0;
 pub const TOTAL_DURATION_MS: u32 = (MAX_TOTAL_FRAMES / FPS * 1000.0) as u32;
 
+/// Reaches the target in a fixed frame count: the default arc covers the ground
+/// distance in 25 frames (`dist/25` per frame), so the time is
+/// distance-independent. Launch delay plus that flight. (Fixed-step throws
+/// differ only marginally.)
+pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
+    crate::effect_queue::ProjectileFlight::FixedFrames(
+        (THROW_ITEM3.launch_delay_frames + 25) as f32,
+    );
+
 /// Tuning for one thrown item.
 #[derive(Clone, Copy)]
 pub struct ThrowItemParams {

@@ -734,6 +734,24 @@ impl EffectHolder {
         self.shake.offset().to_array()
     }
 
+    /// Move every live effect spawned under `key` to a new world point,
+    /// returning `true` when at least one was found. A ground-skill unit that
+    /// relocates (a song area sliding with its performer) arrives as a
+    /// re-sent `ZC_SKILL_ENTRY` carrying the *same* `aid` at a new cell — never
+    /// a disappear+respawn — so the original client reuses the existing unit
+    /// rather than stacking a duplicate at every step.
+    pub fn reposition_by_key(&mut self, key: u32, world_pos: [f32; 3]) -> bool {
+        let mut moved = false;
+        for e in self.effects.iter_mut().filter(|e| e.key == Some(key)) {
+            e.attach = Attach::WorldPos(world_pos);
+            if let HeldPayload::Custom(c) = &mut e.payload {
+                c.set_position(world_pos);
+            }
+            moved = true;
+        }
+        moved
+    }
+
     /// Every per-frame body modifier from effects attached to `entity_id`,
     /// bundled for the actor pass (shake/tint/scale/yaw sum or last-writer as
     /// the original game shows; plus the newer spin/lift/copy channels). The
@@ -1420,6 +1438,44 @@ mod tests {
         assert_eq!(h.len(), 2, "both key=7 effects gone; key=9 and the keyless one remain");
         h.despawn_by_key(123); // unknown key is a no-op
         assert_eq!(h.len(), 2);
+    }
+
+    #[test]
+    fn reposition_by_key_moves_existing_unit_without_duplicating() {
+        // A relocating ground unit (song area sliding with its performer)
+        // re-enters under the same aid at a new cell: the holder moves the live
+        // effect (Custom payloads get a fresh set_position) rather than stacking
+        // a new one, and an unknown key is a no-op the caller spawns fresh.
+        use std::sync::{Arc, Mutex};
+        struct MoveFake {
+            seen: Arc<Mutex<Vec<[f32; 3]>>>,
+        }
+        impl GameEffect for MoveFake {
+            fn update(&mut self, _: &EffectUpdateCtx) -> EffectStatus {
+                EffectStatus::Running
+            }
+            fn collect_draws(&self, _: &mut EffectDrawList, _: &EffectRenderCtx) {}
+            fn set_position(&mut self, pos: [f32; 3]) {
+                self.seen.lock().unwrap().push(pos);
+            }
+        }
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let mut h = EffectHolder::new();
+        h.effects.push(HeldEffect {
+            handle: EffectHandle(1),
+            payload: HeldPayload::Custom(Box::new(MoveFake { seen: seen.clone() })),
+            attach: Attach::WorldPos([105.0, 0.0, 154.0]),
+            age: 0.0,
+            duration: f32::INFINITY,
+            key: Some(1312),
+        });
+
+        assert!(h.reposition_by_key(1312, [112.0, 0.0, 154.0]), "found the live unit");
+        assert_eq!(h.len(), 1, "moved in place — no duplicate at the old cell");
+        assert_eq!(*seen.lock().unwrap(), vec![[112.0, 0.0, 154.0]], "Custom got the new pos");
+
+        assert!(!h.reposition_by_key(9999, [0.0; 3]), "unknown aid → caller spawns fresh");
+        assert_eq!(h.len(), 1);
     }
 
     #[test]

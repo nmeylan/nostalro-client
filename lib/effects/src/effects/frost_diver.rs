@@ -171,6 +171,15 @@ const SPIKE_SPEED_PER_FRAME: f32 = 0.18;
 const SPIKE_SPEED_PER_S: f32 = SPIKE_SPEED_PER_FRAME * FRAMES_PER_SECOND;
 const SPEED_LIMIT_FRAMES: f32 = 20.0;
 const SPEED_LIMIT_S: f32 = SPEED_LIMIT_FRAMES / FRAMES_PER_SECOND;
+
+/// The ice spikes are laid one per frame along the caster→target line at
+/// `TRAIL_STEP_PER_FRAME` units/frame, so the freeze lands later for farther
+/// targets — the reach scales with distance.
+pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
+    crate::effect_queue::ProjectileFlight::ConstantSpeed {
+        delay_frames: 0.0,
+        units_per_frame: TRAIL_STEP_PER_FRAME,
+    };
 /// Peak alpha 200/255; fade-out begins 10 frames before the spike dies.
 const PEAK_ALPHA: f32 = 200.0 / 255.0;
 const FADE_OUT_FRAMES: f32 = 10.0;

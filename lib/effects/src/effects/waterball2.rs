@@ -37,6 +37,11 @@ const SPIN_DEG_PER_FRAME: f32 = 52.0;
 pub const TOTAL_DURATION_MS: u32 =
     ((DURATION_FRAMES + NUM_SEGMENT as u32) as f32 / FRAMES_PER_SECOND * 1000.0) as u32;
 
+/// Reaches the target in a fixed frame count; the head covers any distance in
+/// `DURATION_FRAMES`, so the time is distance-independent.
+pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
+    crate::effect_queue::ProjectileFlight::FixedFrames(DURATION_FRAMES as f32);
+
 /// Swirl + rise/sink offset from the travelling base at a given (head) frame.
 fn head_offset(frame: f32) -> [f32; 3] {
     let t = (frame / DURATION_FRAMES as f32).clamp(0.0, 1.0);

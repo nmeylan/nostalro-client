@@ -52,6 +52,15 @@ const FADE_OUT: f32 = 5.0;
 /// Longest slash: ~33-frame delay (radial `shoot` stagger) + ~28 visible.
 pub const TOTAL_DURATION_MS: u32 = 1200;
 
+/// The dark slash charges up (`SPAWN_DELAY`) then flies at `BASE_STEP`
+/// units/frame, so its reach scales with distance. (It then accelerates, so
+/// this slightly overestimates for far targets.)
+pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
+    crate::effect_queue::ProjectileFlight::ConstantSpeed {
+        delay_frames: SPAWN_DELAY as f32,
+        units_per_frame: BASE_STEP,
+    };
+
 struct Rng(u32);
 impl Rng {
     fn from_seed(seed: u32) -> Self {

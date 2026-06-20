@@ -15,8 +15,8 @@ pub mod table;
 
 pub use draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 pub use effect_queue::{
-    EffectQueue, SpawnRequest, body_attached, is_count_point_effect, is_link_effect,
-    is_trail_effect,
+    EffectQueue, ProjectileFlight, SpawnRequest, body_attached, is_count_point_effect,
+    is_link_effect, is_trail_effect, trail_arrival_secs,
 };
 pub use effect_trait::{
     Afterimage, BodyAction, BodyCopy, BodyTint, BodyVertical, CameraShake, CameraView, Effect,

@@ -38,6 +38,16 @@ const FRAME_DT: f32 = 1.0 / FPS;
 /// Tanji's `process = -15`: the orb is invisible for 15 frames after spawn.
 /// The shield modes launch immediately (`process = 0`).
 const TANJI_SPAWN_DELAY_FRAMES: i32 = 15;
+
+/// Cloud projectiles home at `speed` (2 units/frame) after the spawn delay, so
+/// the reach scales with distance. Uses Tanji's spawn delay as the family
+/// representative (the shield modes launch immediately, so this slightly
+/// overestimates them).
+pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
+    crate::effect_queue::ProjectileFlight::ConstantSpeed {
+        delay_frames: TANJI_SPAWN_DELAY_FRAMES as f32,
+        units_per_frame: 2.0,
+    };
 /// Spin `-15°` per frame.
 const SPIN_PER_FRAME_DEG: f32 = -15.0;
 /// Launches 8 units below the entity origin — chest height (−Y is up).

@@ -25,6 +25,14 @@ const Y_OFFSET: f32 = -10.0;
 const SPAWN_DIST: u32 = 11;
 const SPAWN_DELAY: u32 = 5;
 
+/// Reaches the target in a fixed frame count: the lead bolt spawns at
+/// `SPAWN_DIST - SPAWN_DELAY` then flies for `BOLT_DURATION_FRAMES`, covering any
+/// distance in that span, so the time is distance-independent.
+pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
+    crate::effect_queue::ProjectileFlight::FixedFrames(
+        (SPAWN_DIST - SPAWN_DELAY + BOLT_DURATION_FRAMES) as f32,
+    );
+
 const STATIC_DURATION_S: f32 = 60.0 / FPS;
 const STATIC_KILL_DIST: f32 = 3.0;
 

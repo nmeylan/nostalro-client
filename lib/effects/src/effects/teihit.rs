@@ -131,6 +131,11 @@ pub const TEXTURES: &[&str] =
 
 pub const TOTAL_DURATION_MS: u32 = 3000;
 
+/// The directional dart-burst erupts at the target (a short-range hit), so it
+/// has no caster→target flight delay — the hit keeps the attack-motion timing.
+pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
+    crate::effect_queue::ProjectileFlight::AtTarget;
+
 struct Rng(u32);
 impl Rng {
     fn from_seed(seed: u32) -> Self {

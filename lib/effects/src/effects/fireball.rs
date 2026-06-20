@@ -38,6 +38,12 @@ const LAST_SPAWN_FRAME: f32 = SPAWN_FRAMES[3];
 const TOTAL_VISIBLE_FRAMES: f32 = LAST_SPAWN_FRAME + PARTICLE_DURATION_FRAMES;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_VISIBLE_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
+/// Reaches the target in a fixed frame count (lead spawn + travel); each
+/// particle covers the whole caster→target gap in `PARTICLE_DURATION_FRAMES`,
+/// so the time is distance-independent.
+pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
+    crate::effect_queue::ProjectileFlight::FixedFrames(SPAWN_FRAMES[0] + PARTICLE_DURATION_FRAMES);
+
 const STATIC_DURATION_FRAMES: f32 = 60.0;
 const STATIC_DURATION_S: f32 = STATIC_DURATION_FRAMES / FRAMES_PER_SECOND;
 const STATIC_BASE_SIZE: f32 = 2.0;

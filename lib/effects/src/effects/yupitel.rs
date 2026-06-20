@@ -36,6 +36,11 @@ const DURATION_FRAMES: f32 = 20.0;
 const DURATION_S: f32 = DURATION_FRAMES / FPS;
 pub const TOTAL_DURATION_MS: u32 = (DURATION_S * 1000.0) as u32;
 
+/// Reaches the target in a fixed frame count; the balls cover any distance in
+/// `DURATION_FRAMES`, so the time is distance-independent.
+pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
+    crate::effect_queue::ProjectileFlight::FixedFrames(DURATION_FRAMES);
+
 const CENTER_SIZE: [f32; 2] = [3.5, 3.5];
 const BALL_SIZE: [f32; 2] = [4.5, 4.5];
 const CENTER_ALPHA: f32 = 170.0 / 255.0;

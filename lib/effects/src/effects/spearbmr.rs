@@ -28,6 +28,11 @@ const ANIM_FRAMES_PER_MOTION: f32 = 2.0;
 const TOTAL_FRAMES: f32 = SPAWN_FRAMES[3] + FLIGHT_FRAMES;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
+/// Reaches the target in a fixed frame count; each spear covers any distance in
+/// `FLIGHT_FRAMES`, so the time is distance-independent.
+pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
+    crate::effect_queue::ProjectileFlight::FixedFrames(SPAWN_FRAMES[0] + FLIGHT_FRAMES);
+
 pub struct SpearBmrEffect {
     from: [f32; 3],
     to: [f32; 3],

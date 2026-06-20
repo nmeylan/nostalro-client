@@ -32,6 +32,11 @@ use crate::effect_trait::{
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
+/// The streak is drawn along the whole caster→target line and scrolls in place,
+/// so it is present at the target from the start — no caster→target flight delay.
+pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
+    crate::effect_queue::ProjectileFlight::AtTarget;
+
 /// 100 — the spoke length (Protection) and the band
 /// half-span (CHEMICAL2/3). Engine units ≈ world units; the viewer frames
 /// ~125 units of height, so a streak fills most of it.

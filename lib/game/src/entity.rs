@@ -287,18 +287,19 @@ impl Entity {
         if self.state == EntityState::Dead {
             return;
         }
+        // A requested death waits until every queued hit has landed, then takes
+        // effect from whatever state we're in — including a resting one with no
+        // transient timer. A delayed projectile (Fireball, Soul Strike) keeps
+        // its damage number and flinch on the queue, so without this a monster
+        // killed at rest would stay on its feet until that late hit arrived.
+        if self.pending_death && self.scheduled_hits.is_empty() {
+            self.enter_dead();
+            return;
+        }
         if self.state_timer > 0.0 {
             self.state_timer -= dt;
             if self.state_timer <= 0.0 {
                 self.state_timer = 0.0;
-                // If a death was requested while we were in a transient state,
-                // transition to Dead now that the hurt animation has finished.
-                if self.pending_death {
-                    self.state = EntityState::Dead;
-                    self.pending_death = false;
-                    self.movement.stop();
-                    return;
-                }
                 match self.state {
                     EntityState::Attacking if self.entity_type == EntityType::Player => {
                         self.state = EntityState::ReadyFight;
@@ -794,6 +795,36 @@ mod tests {
         assert_eq!(e.action_index(), 3);
         e.state = EntityState::Dead;
         assert_eq!(e.action_index(), 4);
+    }
+
+    #[test]
+    fn pending_death_resolves_when_a_delayed_hit_lands_even_at_rest() {
+        // A projectile skill (Fireball) queues its damage/flinch for when the
+        // bolt arrives. If the Die packet lands first while the monster is at
+        // rest, death must wait for that hit, then take effect — not leave the
+        // monster standing until something else gives it a transient timer.
+        use crate::scheduled_hit::ScheduledHit;
+        let mut e = Entity::new(
+            2,
+            EntityType::Monster,
+            1002,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            100, 100, 0, 200,
+        );
+        e.state = EntityState::Standing; // resting: no transient state_timer
+        let mut hit = ScheduledHit::single(50, 17, false);
+        hit.fire_at = 10.0; // the bolt is still in flight
+        e.scheduled_hits.push(hit);
+
+        e.request_pending_death();
+        e.update_state(0.1);
+        assert_eq!(e.state, EntityState::Standing, "stays alive while the bolt flies");
+        assert!(e.pending_death);
+
+        e.scheduled_hits.drain_ready(10.0); // the bolt lands
+        e.update_state(0.1);
+        assert_eq!(e.state, EntityState::Dead, "dies once the delayed hit has landed");
+        assert!(!e.pending_death);
     }
 
     #[test]

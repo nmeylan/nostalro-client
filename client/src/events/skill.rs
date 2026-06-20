@@ -5,7 +5,7 @@ use models::enums::skill_enums::SkillEnum;
 use models::enums::weapon::WeaponType;
 use ragnarok_game::effect::{
     begin_cast_effect, beginspell_for_element, caster_skill_effects, ground_placed_effect,
-    is_ground_cast, target_skill_effects,
+    is_ground_cast, is_trail_effect, target_skill_effects, trail_arrival_secs,
 };
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::skill_action::{skill_motion_type, SkillMotionType};
@@ -129,10 +129,29 @@ impl App {
             DamageMessage::Attacked
         };
 
+        // A trailing projectile (Fireball, Soul Strike, …) takes time to reach
+        // the target. Hold the hit — spark, damage number and flinch — until it
+        // arrives, mirroring how the flying arrow lands on the scheduled hit.
+        // The projectile plays from real time, so its arrival sits `age` (the
+        // server-anchor backdate) ahead of `now`. Fixed-speed projectiles take
+        // longer for farther targets, so the flight is measured at the actual
+        // caster→target distance.
+        let projectile_distance = self
+            .skill_trail_endpoints(src_gid, target_gid)
+            .map(|(from, to)| {
+                let (dx, dz) = (to[0] - from[0], to[2] - from[2]);
+                (dx * dx + dz * dz).sqrt()
+            })
+            .unwrap_or(0.0);
+        let hit_delay = match Self::skill_projectile_flight_secs(skill_id, projectile_distance) {
+            flight if flight > 0.0 => delay_time.max(age + flight),
+            _ => delay_time,
+        };
+
         let double_attack_term = 0.2;
         if let Some(target) = self.game.entities.get_mut(target_gid) {
             for i in 0..effective_count {
-                let hit_time = now + delay_time + (i as f32 * double_attack_term);
+                let hit_time = now + hit_delay + (i as f32 * double_attack_term);
                 target.scheduled_hits.push(ScheduledHit {
                     message,
                     damage: per_hit_damage,
@@ -207,17 +226,39 @@ impl App {
         // spark for them, so skip the use-time slots.
         let ground_cast = is_ground_cast(skill);
 
-        // Caster-released visual (Pierce self-glyph, the boomerang
-        // out-and-back). Once at the damage moment.
+        // Caster→target endpoints, snapshotted once at spawn — faithful to the
+        // original, which passes the positions by value rather than re-tracking
+        // a moving target. Shared by every slot that can hold a travelling trail
+        // (caster-released `cast`, `on_target`, `before_hit`).
+        let trail = self.skill_trail_endpoints(src_gid, target_gid);
+
+        // The skill's hit count drives how many sub-projectiles/sub-bolts the
+        // effect renders (one per hit). Pass it through verbatim — each effect
+        // clamps to its own meaningful range (Soul Strike to its soul count,
+        // etc.). Only narrow to the `u8` the channel carries.
+        let hits = count.min(u8::MAX as u16) as u8;
+
+        // Caster-released visual (Pierce self-glyph, the boomerang out-and-back).
+        // Once at the damage moment. Trail effects here (Grimtooth, Finger
+        // Offensive, Shield Boomerang) are projectiles released from the caster,
+        // so they travel the caster→target line rather than collapsing onto the
+        // caster; the rest are self-anchored glyphs/auras.
         if !ground_cast {
             for e in caster_skill_effects(skill).cast {
-                self.effect_queue.spawn_on(*e, src_gid);
+                match trail {
+                    Some((from, to)) if is_trail_effect(*e) => {
+                        self.effect_queue.spawn_trail_with_count(*e, from, to, hits);
+                    }
+                    _ => self.effect_queue.spawn_on(*e, src_gid),
+                }
             }
         }
 
         let target = target_skill_effects(skill);
-        // Spell landing on the target (bolts, Waterball, Brandish, Frost Diver).
-        // Once, count-aware — the effect renders the per-hit sub-bolts itself.
+        // Spell landing on the target (bolts, Brandish, Frost Diver). The effect
+        // renders the per-hit sub-bolts itself. Trail effects parked here
+        // (Fireball, Waterball, Jupitel) travel the caster→target line instead
+        // of collapsing onto the target, matching how the viewer routes them.
         for e in target.on_target.iter().filter(|_| !ground_cast) {
             // Lif Moonlight visual scales with skill level (1/2/3+ -> moon 1/2/3).
             let e = match (*e, level) {
@@ -225,21 +266,39 @@ impl App {
                 (EffectId::Hflimoon1, l) if l >= 3 => EffectId::Hflimoon3,
                 (other, _) => other,
             };
-            self.effect_queue
-                .spawn_on_with_count(e, target_gid, count.min(10) as u8);
-        }
-
-        // Projectile toward the target (Soul Strike). Endpoints are snapshotted
-        // at spawn — faithful to the original, which passes the target position
-        // by value rather than re-tracking a moving target.
-        if !target.before_hit.is_empty()
-            && let Some((from, to)) = self.skill_trail_endpoints(src_gid, target_gid)
-        {
-            for e in target.before_hit {
-                self.effect_queue
-                    .spawn_trail_with_count(*e, from, to, count.min(5) as u8);
+            match trail {
+                Some((from, to)) if is_trail_effect(e) => {
+                    self.effect_queue.spawn_trail_with_count(e, from, to, hits);
+                }
+                _ => self.effect_queue.spawn_on_with_count(e, target_gid, hits),
             }
         }
+
+        // Projectile toward the target (Soul Strike).
+        if !target.before_hit.is_empty()
+            && let Some((from, to)) = trail
+        {
+            for e in target.before_hit {
+                self.effect_queue.spawn_trail_with_count(*e, from, to, hits);
+            }
+        }
+    }
+
+    /// Seconds the skill's trailing projectile takes to reach a target
+    /// `distance_units` away, taken across every slot that can launch one — the
+    /// caster-released `cast` (Shield Boomerang, Grimtooth), `on_target` and
+    /// `before_hit` (the longest wins). Fixed-speed projectiles scale with
+    /// distance; fixed-frame ones ignore it. `0.0` if no timed projectile.
+    fn skill_projectile_flight_secs(skill_id: u16, distance_units: f32) -> f32 {
+        let skill = SkillEnum::from_id(skill_id as u32);
+        let t = target_skill_effects(skill);
+        caster_skill_effects(skill)
+            .cast
+            .iter()
+            .chain(t.on_target.iter())
+            .chain(t.before_hit.iter())
+            .filter_map(|e| trail_arrival_secs(*e, distance_units))
+            .fold(0.0_f32, f32::max)
     }
 
     /// Feet-world positions of caster and target for a projectile trail. `None`

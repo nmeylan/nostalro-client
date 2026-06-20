@@ -24,7 +24,7 @@ const SPIKE_COUNT: usize = 3;
 /// Tilt 75°; a lower tilt leans the blades further out so the
 /// tripod silhouette reads clearly from the side.
 const TILT_DEG: f32 = 70.0;
-const SIZE: f32 = 1.3;
+const SIZE: f32 = 0.7;
 const HEIGHT: f32 = 15.0;
 /// XZ base offsets per blade (the original horizontal placement, scaled)
 /// so the three blades fan out from a shared footprint.
