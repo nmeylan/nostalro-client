@@ -17,6 +17,11 @@ impl App {
         {
             return;
         }
+        // Incapacitated (stun/freeze/stone/sleep): the server rejects the action,
+        // so swallow the click instead of mis-predicting movement client-side.
+        if self.is_local_player_incapacitated() {
+            return;
+        }
         // Skill targeting mode: consume pending skill on click
         if let Some(pending) = self.game.pending_skill_target.take() {
             let mut skill_cast = false;

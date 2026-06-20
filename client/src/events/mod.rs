@@ -177,8 +177,18 @@ impl App {
                 GameEvent::EntityHpChanged { gid, hp, max_hp } => {
                     self.handle_entity_hp_changed(gid, hp, max_hp);
                 }
-                GameEvent::EntityOptionChanged { gid, effect_state } => {
-                    self.handle_entity_option_changed(gid, effect_state);
+                GameEvent::EntityOptionChanged {
+                    gid,
+                    body_state,
+                    health_state,
+                    effect_state,
+                } => {
+                    self.handle_entity_option_changed(
+                        gid,
+                        body_state,
+                        health_state,
+                        effect_state,
+                    );
                 }
                 GameEvent::PlayEffectOnEntity {
                     gid,

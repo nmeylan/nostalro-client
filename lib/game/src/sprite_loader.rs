@@ -357,6 +357,16 @@ pub fn load_emotion_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     )
 }
 
+/// Persistent head-anchored status overlay sprite (stun stars, sleep Z's,
+/// curse mark, angelus halo) — the original game billboards these on the actor.
+pub fn load_status_overlay_sprite(
+    grf: &GrfArchive,
+    overlay: crate::ailment::AilmentOverlay,
+) -> Option<SpriteData> {
+    let (base, _) = overlay.sprite();
+    load_sprite_data(grf, &format!("{base}.spr"), &format!("{base}.act"))
+}
+
 pub fn load_damage_number_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     load_sprite_data(
         grf,

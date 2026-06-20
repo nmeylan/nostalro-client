@@ -458,6 +458,8 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if let Some(p) = any.downcast_ref::<PacketZcStateChange3>() {
         return vec![GameEvent::EntityOptionChanged {
             gid: p.aid,
+            body_state: p.body_state,
+            health_state: p.health_state,
             effect_state: p.effect_state,
         }];
     }
@@ -1644,16 +1646,23 @@ mod tests {
         let packetver = 20120307;
         let mut pkt = PacketZcStateChange3::new(packetver);
         pkt.set_aid(150000);
-        pkt.set_body_state(0);
-        pkt.set_health_state(0);
+        pkt.set_body_state(3); // OPT1_STUN
+        pkt.set_health_state(0x1); // OPT2_POISON
         pkt.set_effect_state(0x20); // OPTION_RIDING
         pkt.set_is_pkmode_on(false);
         pkt.fill_raw();
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            GameEvent::EntityOptionChanged { gid, effect_state } => {
+            GameEvent::EntityOptionChanged {
+                gid,
+                body_state,
+                health_state,
+                effect_state,
+            } => {
                 assert_eq!(*gid, 150000);
+                assert_eq!(*body_state, 3);
+                assert_eq!(*health_state, 0x1);
                 assert_eq!(*effect_state, 0x20);
             }
             other => panic!("expected EntityOptionChanged, got {other:?}"),

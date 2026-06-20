@@ -4,6 +4,7 @@ use models::enums::action::ActionType;
 use models::enums::effect_id::EffectId;
 use models::enums::vanish::VanishType;
 use models::enums::weapon::WeaponType;
+use ragnarok_game::ailment;
 use ragnarok_game::arrow::{flight_secs_for_cell_distance, ArrowProjectile};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
@@ -39,14 +40,14 @@ impl App {
     ) {
         if self.game.entities.player_id() == Some(gid) {
             if effect_state != 0 {
-                self.handle_entity_option_changed(gid, effect_state);
+                self.handle_entity_option_changed(gid, body_state, health_state, effect_state);
             }
             return;
         }
         if let Some(existing) = self.game.entities.get_mut(gid) {
             existing.movement.set_speed(speed);
             if existing.effect_state != effect_state {
-                self.handle_entity_option_changed(gid, effect_state);
+                self.handle_entity_option_changed(gid, body_state, health_state, effect_state);
             }
             return;
         }
@@ -356,10 +357,50 @@ impl App {
         }
     }
 
-    pub(super) fn handle_entity_option_changed(&mut self, gid: u32, effect_state: i32) {
-        tracing::debug!("EntityOptionChanged: gid={gid} effect_state=0x{effect_state:08x}");
+    pub(super) fn handle_entity_option_changed(
+        &mut self,
+        gid: u32,
+        body_state: i16,
+        health_state: i16,
+        effect_state: i32,
+    ) {
+        tracing::debug!(
+            "EntityOptionChanged: gid={gid} body=0x{body_state:04x} health=0x{health_state:04x} effect_state=0x{effect_state:08x}"
+        );
         if self.game.entities.is_player(gid) {
             self.game.character.effect_state = effect_state;
+        }
+        let is_player = self.game.entities.player_id() == Some(gid);
+        let prev_health = self
+            .game
+            .entities
+            .get(gid)
+            .map(|e| e.health_state)
+            .unwrap_or(0);
+        if let Some(entity) = self.game.entities.get_mut(gid) {
+            entity.body_state = body_state;
+            entity.health_state = health_state;
+        }
+        // Stop optimistic move prediction the instant an incapacitating ailment
+        // lands — the server won't ack the move, so without this the local
+        // player keeps walking client-side (STONEWAIT still allows movement).
+        if is_player
+            && ailment::movement_blocked(body_state)
+            && let Some(player) = self.game.entities.player_mut()
+        {
+            player.movement.stop();
+        }
+        // Blind washes the screen, but only for the local player (others' blind
+        // is invisible). Toggle the persistent fullscreen overlay on its edges,
+        // keyed by the player gid so it can be despawned when blind clears.
+        if is_player {
+            let was_blind = prev_health & ailment::OPT2_BLIND != 0;
+            let now_blind = health_state & ailment::OPT2_BLIND != 0;
+            if now_blind && !was_blind {
+                self.effect_queue.spawn_on_keyed(EffectId::Blind, gid, gid);
+            } else if was_blind && !now_blind {
+                self.effect_queue.despawn(gid);
+            }
         }
         if let Some(entity) = self.game.entities.get_mut(gid) {
             let old_riding = (entity.effect_state & OPTION_RIDING) != 0;
@@ -378,7 +419,6 @@ impl App {
                     entity.hair_color,
                 );
                 let entity_type = entity.entity_type;
-                let is_player = self.game.entities.player_id() == Some(gid);
                 if is_player {
                     let (weapon, cloth_color) = {
                         let e = self.game.entities.get(gid).unwrap();

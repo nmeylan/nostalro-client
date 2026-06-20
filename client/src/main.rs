@@ -1171,6 +1171,7 @@ impl ApplicationHandler for App {
 
                     self.load_cursor_sprite(&grf);
                     self.load_emotion_sprite(&grf);
+                    self.load_status_overlay_sprites(&grf);
                     self.load_damage_sprites(&grf);
                     self.game.data_table.accessory =
                         Some(AccessoryTable::load_from_grf(&grf));

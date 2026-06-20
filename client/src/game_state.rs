@@ -4,6 +4,7 @@ use std::rc::Rc;
 use crate::config::WindowStateEntry;
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
+use ragnarok_game::ailment::AilmentOverlay;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::character::Character;
 use ragnarok_game::cursor::{CursorAnimationState, PendingSkillTarget};
@@ -58,6 +59,9 @@ pub struct GameState {
     pub lock_cursor_animation: CursorAnimationState,
     pub emotion_textures: Option<SpriteTextures>,
     pub emotion_act: Option<ActFile>,
+    /// Persistent status-ailment overlay sprites (stun/sleep/curse/angelus),
+    /// billboarded above an afflicted actor's head; loaded once at startup.
+    pub status_overlay_sprites: HashMap<AilmentOverlay, (SpriteTextures, ActFile)>,
     pub chat_window: ChatWindow,
     pub equipment_window: EquipmentWindow,
     pub inventory_window: InventoryWindow,
@@ -382,6 +386,7 @@ impl GameState {
             lock_cursor_animation: CursorAnimationState::new(),
             emotion_textures: None,
             emotion_act: None,
+            status_overlay_sprites: HashMap::new(),
             chat_window: ChatWindow::new(),
             equipment_window: EquipmentWindow::new(),
             inventory_window: InventoryWindow::new(),

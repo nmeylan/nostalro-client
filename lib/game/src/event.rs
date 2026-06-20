@@ -141,6 +141,8 @@ pub enum GameEvent {
     },
     EntityOptionChanged {
         gid: u32,
+        body_state: i16,
+        health_state: i16,
         effect_state: i32,
     },
     /// Server-driven generic effect (`ZC_NOTIFY_EFFECT2`/`3`): play raw `EF_*`

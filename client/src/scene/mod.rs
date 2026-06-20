@@ -1,4 +1,5 @@
 use crate::{App, ClipData};
+use ragnarok_game::ailment;
 use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
 use ragnarok_game::effect::{BlendKind, EffectPrimitiveDraw};
 use ragnarok_game::entity::EntityState;
@@ -60,6 +61,13 @@ impl App {
                         // drift. Fold the hidden / death fade into the alpha.
                         let mut body_channels =
                             self.effect_holder.body_channels_for_entity(entry.id);
+                        // A status ailment holds a fixed body ARGB that overrides
+                        // any buff tint (the original's `m_isSprArgbFixed`).
+                        if let Some(rgb) =
+                            ailment::ailment_visual(entity.body_state, entity.health_state).tint
+                        {
+                            body_channels.tint = Some(rgb);
+                        }
                         body_channels.alpha *= body_alpha;
 
                         if !is_fading && !hidden {
@@ -172,6 +180,51 @@ impl App {
                                             });
                                         }
                                     }
+                                }
+                            }
+                        }
+
+                        // Status-ailment overlays (stun stars / sleep Z's / curse
+                        // mark / angelus halo): persistent head-anchored billboards
+                        // while the ailment holds. Derived from the entity's
+                        // body/health state, so no spawn/despawn bookkeeping.
+                        for overlay in
+                            ailment::ailment_overlays(entity.body_state, entity.health_state)
+                        {
+                            let Some((tex, act)) = self.game.status_overlay_sprites.get(&overlay)
+                            else {
+                                continue;
+                            };
+                            let action_idx = overlay.sprite().1;
+                            if action_idx >= act.actions.len() {
+                                continue;
+                            }
+                            let delay_ms = act
+                                .delays
+                                .get(action_idx)
+                                .map(|d| d * 25.0)
+                                .filter(|d| *d > 0.0)
+                                .unwrap_or(100.0);
+                            let motion_count = act.actions[action_idx].motions.len();
+                            if motion_count == 0 {
+                                continue;
+                            }
+                            let motion_idx =
+                                ((elapsed * 1000.0) / delay_ms) as usize % motion_count;
+                            let motion = &act.actions[action_idx].motions[motion_idx];
+                            let center =
+                                [entry.screen_anchor[0], entry.screen_anchor[1] - 100.0];
+                            for clip in &motion.clips {
+                                if let Some((vertices, indices, tex_idx)) =
+                                    build_clip_quad(clip, tex, center, entry.depth, [0, 0])
+                                    && tex_idx < tex.bind_groups.len()
+                                {
+                                    sprite_batches.push(SpriteBatch {
+                                        vertices,
+                                        indices,
+                                        texture: &tex.bind_groups[tex_idx],
+                                        additive: false,
+                                    });
                                 }
                             }
                         }

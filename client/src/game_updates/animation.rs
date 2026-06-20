@@ -1,5 +1,6 @@
 use crate::App;
 use ragnarok_formats::act::{MotionType, SpriteActionType};
+use ragnarok_game::ailment;
 use ragnarok_game::entity::{
     DEATH_FADE_DURATION, EntityFade, EntityState, EntityType, ForcedAnimation,
 };
@@ -20,6 +21,12 @@ impl App {
         for entity in self.game.entities.iter_mut() {
             if let Some(sprite) = sprites.get(&entity.id) {
                 if entity.state == EntityState::Dead && entity.animation.is_finished() {
+                    continue;
+                }
+                // Freeze / fully-petrified: hold the current pose by skipping the
+                // frame advance (the original's motion freeze). Stun/Sleep/petrify-
+                // delay keep animating.
+                if ailment::ailment_visual(entity.body_state, entity.health_state).motion_locked {
                     continue;
                 }
                 let dir = camera_dir.unwrap_or(0);
