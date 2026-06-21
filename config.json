@@ -17,18 +17,50 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
-    "10": {
+    "1300": {
       "position": [
-        283.0,
-        344.66666
+        476.6667,
+        0.0
       ],
       "open": false,
+      "collapsed": false
+    },
+    "800": {
+      "position": [
+        0.0,
+        130.10938
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "900": {
+      "position": [
+        0.0,
+        210.0
+      ],
+      "open": true,
       "collapsed": false
     },
     "1400": {
       "position": [
         0.0,
         0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "110": {
+      "position": [
+        490.0,
+        284.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "10": {
+      "position": [
+        283.0,
+        344.66666
       ],
       "open": false,
       "collapsed": false
@@ -40,33 +72,16 @@
       ],
       "open": false,
       "collapsed": false
-    },
-    "1200": {
-      "position": [
-        400.0,
-        100.0
-      ],
-      "open": true,
-      "collapsed": false
-    },
-    "110": {
-      "position": [
-        490.0,
-        284.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "1300": {
-      "position": [
-        476.6667,
-        0.0
-      ],
-      "open": false,
-      "collapsed": false
     }
   },
   "hotkey_visible_rows": 1,
   "battle_mode": false,
-  "fog": true
+  "fog": true,
+  "display": {
+    "show_other_damage": true,
+    "show_other_cast_bars": true,
+    "hide_name_player": false,
+    "hide_name_monster": false,
+    "hide_name_npc": false
+  }
 }

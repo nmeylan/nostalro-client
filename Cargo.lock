@@ -2555,7 +2555,7 @@ dependencies = [
 [[package]]
 name = "packets"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=20204558#20204558960c5c60c8f3225174bb2ed5ec0a5f70"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=ab0a3050#ab0a30501373cbcf6700998a193b03e23f37bc83"
 dependencies = [
  "byteorder",
  "json-flat-parser",
@@ -2564,7 +2564,7 @@ dependencies = [
 [[package]]
 name = "packets"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=ab0a3050#ab0a30501373cbcf6700998a193b03e23f37bc83"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=b6907d6e#b6907d6e49f45c80af681bc957747f7fee0ff68d"
 dependencies = [
  "byteorder",
  "json-flat-parser",
@@ -2854,7 +2854,7 @@ version = "0.1.0"
 dependencies = [
  "models",
  "movement",
- "packets 0.1.0 (git+https://github.com/nmeylan/rust-ro.git?rev=20204558)",
+ "packets 0.1.0 (git+https://github.com/nmeylan/rust-ro.git?rev=b6907d6e)",
  "ragnarok-effects",
  "ragnarok-formats",
  "tracing",
@@ -2878,7 +2878,7 @@ name = "ragnarok-network"
 version = "0.1.0"
 dependencies = [
  "models",
- "packets 0.1.0 (git+https://github.com/nmeylan/rust-ro.git?rev=20204558)",
+ "packets 0.1.0 (git+https://github.com/nmeylan/rust-ro.git?rev=b6907d6e)",
  "ragnarok-game",
  "tokio",
  "tracing",

@@ -42,6 +42,10 @@ impl NpcDialogData {
         self.state != NpcDialogState::Idle
     }
 
+    pub fn has_text(&self) -> bool {
+        !self.text.is_empty()
+    }
+
     pub fn open_text(&mut self, npc_id: u32, text: &str) {
         if self.state == NpcDialogState::Idle || self.npc_id != npc_id {
             self.text.clear();

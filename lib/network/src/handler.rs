@@ -6,6 +6,7 @@ use models::enums::vanish::VanishType;
 use packets::packets::*;
 use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo, SkillInfo};
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
+use ragnarok_game::targeting::{MapKind, MapProperties};
 use tracing::debug;
 
 use crate::helpers::{decode_pos, decode_pos2};
@@ -124,6 +125,34 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             base_level: p.clevel,
             is_boss: p.is_boss,
             posture: p.state,
+        }];
+    }
+    // spawn_unit (0x090f): an entity appearing in place (fresh spawn / mob
+    // respawn). Identical to standentry7 minus the `state` byte, so a spawned
+    // entity is always standing.
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyNewentry7>() {
+        let (x, y, dir) = decode_pos(&p.pos_dir);
+        return vec![GameEvent::EntitySpawned {
+            gid: p.gid,
+            job: p.job as u16,
+            speed: p.speed as u16,
+            sex: p.sex,
+            head: p.head as u16,
+            weapon: p.weapon as u16,
+            shield: p.shield as u16,
+            head_top: p.accessory2,
+            head_mid: p.accessory3,
+            head_bottom: p.accessory,
+            hair_color: p.headpalette,
+            x,
+            y,
+            direction: dir,
+            body_state: p.body_state,
+            health_state: p.health_state,
+            effect_state: p.effect_state,
+            base_level: p.clevel,
+            is_boss: p.is_boss,
+            posture: 0,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyStandentry>() {
@@ -989,8 +1018,16 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if any.downcast_ref::<PacketZcActionFailure>().is_some() {
         return vec![GameEvent::ActionFailure];
     }
-    if any.downcast_ref::<PacketZcNotifyMapproperty>().is_some() {
-        return vec![GameEvent::Acknowledged];
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyMapproperty>() {
+        let kind = MapKind::from_property(p.atype);
+        return vec![GameEvent::MapPropertyChanged(MapProperties::from_kind(kind))];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyMapproperty2>() {
+        let kind = MapKind::from_property(p.atype);
+        return vec![GameEvent::MapPropertyChanged(MapProperties::with_flags(
+            kind,
+            p.flags as u64,
+        ))];
     }
 
     debug!("unhandled packet: {}", packet.name());
@@ -1147,6 +1184,37 @@ mod tests {
                 assert_eq!((*x, *y, *dir, *tick), (100, 200, 3, 1000));
             }
             other => panic!("expected MapEntered, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_spawn_unit_returns_standing_entity_spawn() {
+        // spawn_unit (0x090f) is the in-place spawn / mob respawn packet. Unlike
+        // standentry it carries no `state` byte, so the entity is always standing.
+        let packetver = 20120307;
+        let mut pkt = PacketZcNotifyNewentry7::new(packetver);
+        pkt.set_gid(123456);
+        pkt.set_job(1002); // Poring
+        pkt.set_pos_dir(crate::helpers::encode_pos(100, 200, 3));
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::EntitySpawned {
+                gid,
+                job,
+                x,
+                y,
+                direction,
+                posture,
+                ..
+            } => {
+                assert_eq!(*gid, 123456);
+                assert_eq!(*job, 1002);
+                assert_eq!((*x, *y, *direction), (100, 200, 3));
+                assert_eq!(*posture, 0, "a freshly spawned entity is standing");
+            }
+            other => panic!("expected EntitySpawned, got {other:?}"),
         }
     }
 

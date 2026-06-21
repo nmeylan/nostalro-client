@@ -11,6 +11,7 @@ use crate::App;
 use models::enums::EnumWithMaskValueU64;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::event::GameEvent;
+use ragnarok_network::build_npc_close_packet;
 use ragnarok_renderer::Renderer;
 use ragnarok_ui_component::Window as UiWindow;
 use winit::event_loop::ActiveEventLoop;
@@ -69,6 +70,9 @@ impl App {
                 }
                 GameEvent::MapChanged { map_name, x, y } => {
                     self.handle_map_changed(map_name, x, y);
+                }
+                GameEvent::MapPropertyChanged(properties) => {
+                    self.game.map_properties = properties;
                 }
                 GameEvent::PlayerMoved {
                     start_x,
@@ -225,8 +229,14 @@ impl App {
                 GameEvent::NpcDialogNext { npc_id } => {
                     self.game.npc_dialog.dialog.wait_for_next(npc_id);
                 }
-                GameEvent::NpcDialogClose { .. } => {
-                    self.game.npc_dialog.dialog.close();
+                GameEvent::NpcDialogClose { npc_id } => {
+                    if self.game.npc_dialog.dialog.has_text() {
+                        self.game.npc_dialog.dialog.wait_for_close(npc_id);
+                    } else {
+                        self.game.npc_dialog.dialog.close();
+                        self.channel
+                            .send_packet(build_npc_close_packet(npc_id, self.config.packetver));
+                    }
                 }
                 GameEvent::NpcDialogMenu { npc_id, items } => {
                     self.game.npc_dialog.dialog.show_menu(npc_id, items);

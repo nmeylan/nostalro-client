@@ -2,6 +2,7 @@ use crate::App;
 use ragnarok_game::cursor::PendingSkillTarget;
 use ragnarok_game::entity::{EntityState, EntityType};
 use ragnarok_game::path::try_move_to;
+use ragnarok_game::targeting::{can_attack, skill_target_allowed, skill_target_class, TargetClass};
 use ragnarok_network::{
     build_contact_npc_packet, build_pickup_item_packet, build_request_move_packet,
     build_use_skill_packet, build_use_skill_to_ground_packet,
@@ -27,7 +28,20 @@ impl App {
             let mut skill_cast = false;
             match pending {
                 PendingSkillTarget::Entity { skill_id, level } => {
-                    if let Some(entity_id) = self.game.hovered_entity_id {
+                    let class = self
+                        .game
+                        .character
+                        .skills
+                        .get_skill(skill_id)
+                        .map(|s| skill_target_class(s.skill_target_type))
+                        .unwrap_or(TargetClass::Offensive);
+                    let player_id = self.game.entities.player_id();
+                    let valid_target = self.game.hovered_entity_id.filter(|&id| {
+                        self.game.entities.get(id).is_some_and(|e| {
+                            skill_target_allowed(class, e, &self.game.map_properties, player_id)
+                        })
+                    });
+                    if let Some(entity_id) = valid_target {
                         let target_pos = self
                             .game
                             .entities
@@ -139,9 +153,15 @@ impl App {
         if let Some(entity_id) = self.game.hovered_entity_id
             && let Some(entity) = self.game.entities.get(entity_id)
         {
+            let player_id = self.game.entities.player_id();
             let should_attack = match entity.entity_type {
                 EntityType::Monster => !self.input.shift_pressed,
-                EntityType::Player => self.input.shift_pressed || self.game.noshift_mode,
+                EntityType::Player => {
+                    can_attack(entity, &self.game.map_properties, player_id)
+                        && (!self.game.map_properties.no_lockon()
+                            || self.input.shift_pressed
+                            || self.game.noshift_mode)
+                }
                 _ => false,
             };
             if should_attack {

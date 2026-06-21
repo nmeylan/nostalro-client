@@ -1,4 +1,5 @@
 use crate::inventory::{EquipmentItemData, NormalItemData};
+use crate::targeting::MapProperties;
 use models::enums::action::ActionType;
 use models::enums::skill::SkillTargetType;
 use models::enums::vanish::VanishType;
@@ -37,6 +38,7 @@ pub enum GameEvent {
         x: i16,
         y: i16,
     },
+    MapPropertyChanged(MapProperties),
     ServerTick {
         server_tick: u32,
         local_send_time_ms: u32,

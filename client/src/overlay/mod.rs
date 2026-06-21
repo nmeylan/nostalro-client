@@ -1,6 +1,7 @@
 use crate::App;
 use ragnarok_game::cursor::RenderEntry;
-use ragnarok_game::entity::{EntityState, EntityType};
+use ragnarok_game::entity::{Entity, EntityState, EntityType};
+use ragnarok_game::targeting::pk_name_color;
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
 
 const HP_BAR_WIDTH: f32 = 60.0;
@@ -67,7 +68,9 @@ impl App {
                 bar_y = sp_y;
             }
         }
-        if let Some(name) = &entity.name {
+        if let Some(name) = &entity.name
+            && !self.name_hidden(entity.entity_type)
+        {
             let text_width = renderer.font_atlas.measure_text(name);
             let text_x = entry.screen_anchor[0] - text_width / 2.0;
             let text_y = bar_y + HP_BAR_HEIGHT + 13.0;
@@ -75,7 +78,7 @@ impl App {
                 name,
                 text_x,
                 text_y,
-                entity_name_color(entity.entity_type),
+                entity_name_color(entity),
                 &renderer.font_atlas,
                 calls,
             );
@@ -114,7 +117,8 @@ impl App {
         use ragnarok_game::effect::caster_skill_effects;
         use models::enums::skill_enums::SkillEnum;
         for entry in render_list {
-            if let Some(entity) = self.game.entities.get(entry.id)
+            if (self.config.display.show_other_cast_bars || self.game.entities.is_player(entry.id))
+                && let Some(entity) = self.game.entities.get(entry.id)
                 && entity.state == EntityState::Casting
                 && entity.cast_total_duration > 0.0
                 && !entity
@@ -132,6 +136,15 @@ impl App {
                     calls,
                 );
             }
+        }
+    }
+
+    fn name_hidden(&self, entity_type: EntityType) -> bool {
+        let display = &self.config.display;
+        match entity_type {
+            EntityType::Player => display.hide_name_player,
+            EntityType::Monster => display.hide_name_monster,
+            EntityType::Npc => display.hide_name_npc,
         }
     }
 
@@ -383,8 +396,11 @@ impl App {
     }
 }
 
-fn entity_name_color(entity_type: EntityType) -> [f32; 4] {
-    match entity_type {
+fn entity_name_color(entity: &Entity) -> [f32; 4] {
+    if let Some(color) = pk_name_color(entity.effect_state) {
+        return color;
+    }
+    match entity.entity_type {
         EntityType::Player => [1.0, 1.0, 1.0, 1.0],
         EntityType::Monster => [1.0, 0.776, 0.776, 1.0],
         EntityType::Npc => [0.39, 0.54, 0.76, 1.0],

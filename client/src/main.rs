@@ -20,6 +20,7 @@ use ragnarok_game::cursor::{
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::skill::SkillTargetType;
+use ragnarok_game::targeting::{skill_target_class, TargetClass};
 use ragnarok_game::{map_loader, sprite_loader};
 use ragnarok_network::{
     KeepaliveMode, NetworkCommand, build_action_request_packet, build_card_composition_list_packet,
@@ -802,6 +803,20 @@ impl App {
                     .chat_window
                     .add_system(format!("No-ctrl mode: {status}"));
             }
+            "/where" => {
+                match (self.game.current_map.as_ref(), self.game.entities.player()) {
+                    (Some(map_name), Some(player)) => {
+                        let (x, y) = player.movement.cell_position();
+                        let message = format!("{map_name}.gat ({x}, {y})");
+                        self.game.chat_window.add_system(message);
+                    }
+                    _ => {
+                        self.game
+                            .chat_window
+                            .add_system("You are not in a map yet.".to_string());
+                    }
+                }
+            }
             _ => {
                 self.game
                     .chat_window
@@ -1085,15 +1100,25 @@ impl App {
                 (CursorType::Default, None)
             } else if let Some(pending) = &self.game.pending_skill_target {
                 match pending {
-                    PendingSkillTarget::Entity { .. } => {
+                    PendingSkillTarget::Entity { skill_id, .. } => {
+                        let class = self
+                            .game
+                            .character
+                            .skills
+                            .get_skill(*skill_id)
+                            .map(|s| skill_target_class(s.skill_target_type))
+                            .unwrap_or(TargetClass::Offensive);
                         let hovered = hovered_entity_cursor_type(
                             self.input.mouse_position,
                             &self.game.entities,
                             render_list,
-                            true,
+                            &self.game.map_properties,
+                            Some(class),
                         );
-                        let entity_id = hovered.map(|(_, id)| id);
-                        (CursorType::Lock, entity_id)
+                        match hovered {
+                            Some((cursor, id)) => (cursor, Some(id)),
+                            None => (CursorType::Lock, None),
+                        }
                     }
                     PendingSkillTarget::Ground { .. } => {
                         // TODO: render effect\magic_target.tga ground overlay at hovered cell for skill area
@@ -1104,7 +1129,8 @@ impl App {
                 self.input.mouse_position,
                 &self.game.entities,
                 render_list,
-                false,
+                &self.game.map_properties,
+                None,
             ) {
                 (entity_cursor, Some(entity_id))
             } else if let Some(gat) = &self.game.gat {

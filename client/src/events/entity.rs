@@ -44,7 +44,19 @@ impl App {
             }
             return;
         }
-        if let Some(existing) = self.game.entities.get_mut(gid) {
+        // A spawn for a gid still occupied by a corpse (death fade) or an
+        // entity fading out of sight means the server reused the id for a fresh
+        // entity. Drop the stale one so it is recreated below, otherwise the
+        // respawn stays invisible until the map is reloaded.
+        let stale = self
+            .game
+            .entities
+            .get(gid)
+            .is_some_and(|e| e.state == EntityState::Dead || e.is_fading());
+        if stale {
+            self.game.entities.remove(gid);
+            self.game.sprites.remove(&gid);
+        } else if let Some(existing) = self.game.entities.get_mut(gid) {
             existing.movement.set_speed(speed);
             if existing.effect_state != effect_state {
                 self.handle_entity_option_changed(gid, body_state, health_state, effect_state);

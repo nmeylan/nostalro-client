@@ -17,6 +17,7 @@ use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::floor_item::FloorItem;
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::server_time::ServerTimeClock;
+use ragnarok_game::targeting::MapProperties;
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
@@ -46,6 +47,7 @@ pub struct GameState {
     pub login_session: Option<Session>,
     pub selected_character: Option<CharacterInfo>,
     pub current_map: Option<String>,
+    pub map_properties: MapProperties,
     pub map_coords: Option<MapCoordinates>,
     pub gat: Option<GatFile>,
     pub entities: EntityCollection,
@@ -373,6 +375,7 @@ impl GameState {
             login_session: None,
             selected_character: None,
             current_map: None,
+            map_properties: MapProperties::default(),
             map_coords: None,
             gat: None,
             entities: EntityCollection::new(),

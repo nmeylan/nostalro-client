@@ -23,6 +23,30 @@ impl Default for WindowStateEntry {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DisplayOptions {
+    /// Show damage numbers for hits that don't involve the local player.
+    pub show_other_damage: bool,
+    /// Show the casting bar over other actors' heads.
+    pub show_other_cast_bars: bool,
+    pub hide_name_player: bool,
+    pub hide_name_monster: bool,
+    pub hide_name_npc: bool,
+}
+
+impl Default for DisplayOptions {
+    fn default() -> Self {
+        Self {
+            show_other_damage: true,
+            show_other_cast_bars: true,
+            hide_name_player: false,
+            hide_name_monster: false,
+            hide_name_npc: false,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -45,6 +69,7 @@ pub struct Config {
     pub hotkey_visible_rows: u8,
     pub battle_mode: bool,
     pub fog: bool,
+    pub display: DisplayOptions,
 }
 
 impl Default for Config {
@@ -69,6 +94,7 @@ impl Default for Config {
             hotkey_visible_rows: 1,
             battle_mode: false,
             fog: false,
+            display: DisplayOptions::default(),
         }
     }
 }

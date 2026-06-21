@@ -336,6 +336,19 @@ impl App {
     }
 
     pub(crate) fn emit_damage_number(&mut self, entity_id: u32, hit: &ScheduledHit) {
+        // Server sentinel values mean "do not display a number".
+        const IGNORE_DAMAGE: i32 = -30000;
+        const NEVERSEE_DAMAGE: i32 = -29999;
+        if hit.damage == IGNORE_DAMAGE || hit.damage == NEVERSEE_DAMAGE {
+            return;
+        }
+        // "Show only my damage": skip hits that don't involve the local player.
+        if !self.config.display.show_other_damage {
+            let me = self.game.entities.player_id();
+            if me != Some(entity_id) && me != Some(hit.attacker_gid) {
+                return;
+            }
+        }
         let is_multi_hit = matches!(hit.message, DamageMessage::AttackedMultiHit { .. });
         let is_miss = hit.damage == 0 && !is_multi_hit;
 

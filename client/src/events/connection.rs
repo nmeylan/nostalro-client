@@ -3,6 +3,7 @@ use crate::App;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::entity::Entity;
 use ragnarok_game::sprite_path::weapon_view_id_to_type;
+use ragnarok_game::targeting::MapProperties;
 use ragnarok_network::{
     KeepaliveMode, NetworkCommand, build_map_loaded_packet, build_zone_enter_packet,
     ip_u32_to_string,
@@ -210,6 +211,7 @@ impl App {
     }
 
     pub(super) fn handle_map_changed(&mut self, map_name: String, x: i16, y: i16) {
+        self.game.map_properties = MapProperties::default();
         self.game.pending_skill_target = None;
         self.game.pending_skill_id = None;
         self.game.pending_skill_level = None;

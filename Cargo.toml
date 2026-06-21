@@ -45,7 +45,7 @@ tokio = { version = "1", features = ["net", "rt", "sync", "macros", "io-util", "
 # Server crate git dependencies
 models = { git = "https://github.com/nmeylan/rust-ro.git", rev = "ab0a3050" }
 movement = { git = "https://github.com/nmeylan/rust-ro.git", rev = "ab0a3050" }
-packets = { git = "https://github.com/nmeylan/rust-ro.git", rev = "20204558" }
+packets = { git = "https://github.com/nmeylan/rust-ro.git", rev = "b6907d6e" }
 
 # Internal crates
 ragnarok-formats = { path = "lib/formats" }
