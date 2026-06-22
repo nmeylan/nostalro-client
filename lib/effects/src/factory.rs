@@ -260,11 +260,11 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
             Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::SPEAR_QUICKEN))
         }
         EffectId::Lkconcentration => {
-            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::LK_CONCENTRATION))
+            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::LK_CONCENTRATION).with_life_ms(duration_ms))
         }
         // Bunsinjyutsu — light-blue body tint + afterimage trail, no STR/sound.
         EffectId::Bunsinjyutsu => {
-            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::BUNSINJYUTSU))
+            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::BUNSINJYUTSU).with_life_ms(duration_ms))
         }
 
         // Body-shake effects — shake the attached actor's sprite, emit no
@@ -309,9 +309,9 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         // Body tints (recolour + light-body / double-body / hit flash) —
         // tint/flicker/flash the actor sprite, no primitives. Falconassault is a
         // light-body + facing spin (no tint).
-        EffectId::Redbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::REDBODY)),
+        EffectId::Redbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::REDBODY).with_life_ms(duration_ms)),
         EffectId::Transbluebody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::TRANSBLUEBODY)),
-        EffectId::Pinkbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::PINKBODY)),
+        EffectId::Pinkbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::PINKBODY).with_life_ms(duration_ms)),
         EffectId::Linklight => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::LINKLIGHT)),
         EffectId::Magiccrasher => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::MAGICCRASHER)),
         EffectId::Magiccrasher2 => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::MAGICCRASHER2)),
@@ -347,10 +347,10 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         // / spark-sword glow) — concentric sprite copies behind the actor,
         // no primitives.
         EffectId::Reflectbody => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::REFLECTBODY)),
-        EffectId::Assumptio => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::ASSUMPTIO)),
+        EffectId::Assumptio => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::ASSUMPTIO).with_life_ms(duration_ms)),
         EffectId::Lightblade => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::LIGHTBLADE)),
         // Undeadbody — rising green additive aura (2 concentric copies).
-        EffectId::Undeadbody => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::UNDEADBODY)),
+        EffectId::Undeadbody => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::UNDEADBODY).with_life_ms(duration_ms)),
 
         // Body-copy lights (asura halo / blue-hit flash / 4-way ghosts) —
         // draw extra sprite copies behind the actor, no primitives.

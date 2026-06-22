@@ -482,7 +482,26 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
                 delay_ms: p.remain_ms,
             }];
         }
-        return vec![GameEvent::Acknowledged];
+        return vec![GameEvent::StatusEffectChanged {
+            gid: p.aid,
+            efst: p.index,
+            active: p.state,
+            remain_ms: p.remain_ms,
+        }];
+    }
+    // The no-tick variant (`0x196`). The server uses this whenever
+    // `flag && display_status_timers` is false — crucially it is ALWAYS the
+    // status-OFF packet (flag=0), so without this arm buffs never clear on
+    // early removal. It carries no duration; `remain_ms: 0` means
+    // until-cleared (the off-packet despawns it; an on-packet here persists
+    // until its own off arrives).
+    if let Some(p) = any.downcast_ref::<PacketZcMsgStateChange>() {
+        return vec![GameEvent::StatusEffectChanged {
+            gid: p.aid,
+            efst: p.index,
+            active: p.state,
+            remain_ms: 0,
+        }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcStateChange3>() {
         return vec![GameEvent::EntityOptionChanged {
@@ -1734,6 +1753,62 @@ mod tests {
                 assert_eq!(*effect_state, 0x20);
             }
             other => panic!("expected EntityOptionChanged, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_msg_state_change_routes_buff_and_keeps_postdelay() {
+        let packetver = 20120307;
+
+        // A buff EFST (Berserk = 192) becomes a StatusEffectChanged event.
+        let mut pkt = PacketZcMsgStateChange2::new(packetver);
+        pkt.set_index(192);
+        pkt.set_aid(150000);
+        pkt.set_state(true);
+        pkt.set_remain_ms(60000);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::StatusEffectChanged { gid, efst, active, remain_ms } => {
+                assert_eq!(*gid, 150000);
+                assert_eq!(*efst, 192);
+                assert!(*active);
+                assert_eq!(*remain_ms, 60000);
+            }
+            other => panic!("expected StatusEffectChanged, got {other:?}"),
+        }
+
+        // Index 46 (EFST_POSTDELAY) still routes to the after-cast delay.
+        let mut pkt = PacketZcMsgStateChange2::new(packetver);
+        pkt.set_index(46);
+        pkt.set_aid(150000);
+        pkt.set_state(true);
+        pkt.set_remain_ms(500);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert!(matches!(
+            &result[0],
+            GameEvent::AfterCastDelay { delay_ms: 500 }
+        ));
+
+        // The no-tick variant (0x196) is the status-OFF packet (flag=0) — it
+        // must also route to StatusEffectChanged so buffs clear on removal.
+        let mut pkt = PacketZcMsgStateChange::new(packetver);
+        pkt.set_index(192);
+        pkt.set_aid(150000);
+        pkt.set_state(false);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::StatusEffectChanged { gid, efst, active, remain_ms } => {
+                assert_eq!(*gid, 150000);
+                assert_eq!(*efst, 192);
+                assert!(!*active, "0x196 off-packet must deactivate");
+                assert_eq!(*remain_ms, 0);
+            }
+            other => panic!("expected StatusEffectChanged, got {other:?}"),
         }
     }
 }

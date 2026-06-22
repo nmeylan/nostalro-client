@@ -137,6 +137,11 @@ pub struct Params {
     /// Body opacity (1.0 = opaque). `<1.0` makes the whole body translucent —
     /// **tune this for see-through-ness** (Pinkbody is the most translucent).
     body_alpha: f32,
+    /// Light-body: the whole body sprite blends **additively** while keeping its
+    /// multiply tint — dark texels vanish (see-through) and lit texels glow the
+    /// tint over the scene. This is what makes Berserk's red body look almost
+    /// translucent, distinct from `body_alpha` (which uniformly fades the body).
+    light_body: bool,
     /// Concentric double-body halo behind the body (Pinkbody), or `None`.
     double_body: Option<DoubleBody>,
     /// Camera-quake frame (one-shot), if any.
@@ -157,8 +162,12 @@ pub const REDBODY: Params = Params {
     mode: TintMode::Fixed([255, 100, 100]),
     window: (0.0, 120.0),
     total_frames: 120.0,
-    glow: 1.0,
+    // Light-body: a red multiply tint over an additively-blended body, so the
+    // body reads as an almost-translucent red glow (the Berserk look) for the
+    // whole buff. The translucency is the additive blend, not lowered alpha.
+    glow: 0.0,
     body_alpha: 1.0,
+    light_body: true,
     double_body: None,
     quake_at: None,
     sfx: None,
@@ -171,6 +180,7 @@ pub const TRANSBLUEBODY: Params = Params {
     total_frames: 200.0,
     glow: 0.0,
     body_alpha: 1.0,
+    light_body: false,
     double_body: None,
     quake_at: None,
     sfx: None,
@@ -181,11 +191,12 @@ pub const PINKBODY: Params = Params {
     mode: TintMode::Fixed([255, 89, 182]),
     window: (0.0, 120.0),
     total_frames: 120.0,
-    // Opaque pink body (multiply tint) + a pink ghost halo behind. The body is
-    // opaque so the larger halo only shows as a margin around it (a translucent
-    // body would let the enlarged copy bleed through and double the sprite).
+    // Light-body pink (translucent additive body, like Redbody) + a pink ghost
+    // halo behind it. Same BL_LIGHT_BODY translucency as Redbody, plus the
+    // double-body margin around the silhouette.
     glow: 0.0,
     body_alpha: 1.0,
+    light_body: true,
     double_body: Some(DoubleBody { margin_px: 16.0, alpha: 0.4 }),
     quake_at: None,
     sfx: None,
@@ -198,6 +209,7 @@ pub const LINKLIGHT: Params = Params {
     total_frames: 70.0,
     glow: 1.0,
     body_alpha: 1.0,
+    light_body: false,
     double_body: None,
     quake_at: None,
     sfx: None,
@@ -210,6 +222,7 @@ pub const MAGICCRASHER: Params = Params {
     total_frames: 60.0,
     glow: 1.0,
     body_alpha: 1.0,
+    light_body: false,
     double_body: None,
     quake_at: Some(30.0),
     sfx: Some((25.0, "effect\\magiccrash.wav")),
@@ -222,6 +235,7 @@ pub const MAGICCRASHER2: Params = Params {
     total_frames: 60.0,
     glow: 0.0,
     body_alpha: 1.0,
+    light_body: false,
     double_body: None,
     quake_at: None,
     sfx: None,
@@ -234,6 +248,7 @@ pub const HITBODY: Params = Params {
     total_frames: 15.0,
     glow: 0.0,
     body_alpha: 1.0,
+    light_body: false,
     double_body: None,
     quake_at: None,
     sfx: None,
@@ -248,6 +263,7 @@ pub const FALCONASSAULT: Params = Params {
     total_frames: 54.0,
     glow: 0.8,
     body_alpha: 1.0,
+    light_body: false,
     double_body: None,
     quake_at: Some(30.0),
     sfx: None,
@@ -269,6 +285,7 @@ const fn pulse(rgb: [u8; 3]) -> Params {
         total_frames: PULSE_TOTAL,
         glow: 0.0,
         body_alpha: 1.0,
+        light_body: false,
         double_body: None,
         quake_at: None,
         sfx: None,
@@ -295,6 +312,7 @@ const fn hit_flash(rgb: [u8; 3], bt2_scale: f32, bt2_cap: f32, end: f32) -> Para
         total_frames: end,
         glow: 0.0,
         body_alpha: 1.0,
+        light_body: false,
         double_body: None,
         quake_at: None,
         sfx: None,
@@ -321,6 +339,7 @@ const fn strobe(rgb: [u8; 3]) -> Params {
         total_frames: 60.0,
         glow: 0.0,
         body_alpha: 1.0,
+        light_body: false,
         double_body: None,
         quake_at: None,
         sfx: None,
@@ -381,15 +400,32 @@ pub struct BodyTintEffect {
     process: f32,
     quake_pending: bool,
     sfx_pending: bool,
+    /// Status-tied lifetime in frames. When set (a persistent buff like
+    /// Berserk), the fixed colour holds and the effect stays alive for this
+    /// long instead of the authored `total_frames` — the EFST's `remain_ms`
+    /// drives it. `None` keeps the one-shot skill-flash timing.
+    life_frames: Option<f32>,
 }
 
 impl BodyTintEffect {
     pub fn new(params: Params) -> Self {
-        Self { params, process: 0.0, quake_pending: false, sfx_pending: false }
+        Self { params, process: 0.0, quake_pending: false, sfx_pending: false, life_frames: None }
+    }
+
+    /// Tie this tint to a status duration so it persists (and holds its colour)
+    /// for `ms` instead of its authored window. Only meaningful for the fixed
+    /// buff tints (Berserk/Marionette); skill-flash modes pass `None`.
+    pub fn with_life_ms(mut self, ms: Option<u32>) -> Self {
+        self.life_frames = ms.map(|m| m as f32 / 1000.0 * FPS);
+        self
+    }
+
+    fn window_end(&self) -> f32 {
+        self.life_frames.unwrap_or(self.params.window.1)
     }
 
     fn in_window(&self) -> bool {
-        self.process >= self.params.window.0 && self.process < self.params.window.1
+        self.process >= self.params.window.0 && self.process < self.window_end()
     }
 
     /// The tint colour for this frame, or `None` outside
@@ -454,7 +490,7 @@ impl Effect for BodyTintEffect {
                 self.sfx_pending = true;
             }
         }
-        if self.process >= self.params.total_frames {
+        if self.process >= self.life_frames.unwrap_or(self.params.total_frames) {
             EffectStatus::Dead
         } else {
             EffectStatus::Running
@@ -482,7 +518,9 @@ impl Effect for BodyTintEffect {
         if let TintMode::Pulse(_) = self.params.mode {
             return self.pulse_render().0;
         }
-        false
+        // Light-body (Redbody/Pinkbody): the whole body blends additively under
+        // its multiply tint, so it reads as an almost-translucent coloured glow.
+        self.params.light_body && self.in_window()
     }
 
     fn body_vertical(&self) -> Option<BodyVertical> {
@@ -620,12 +658,25 @@ mod tests {
     }
 
     #[test]
-    fn pinkbody_is_an_opaque_pink_body_with_a_ghost_halo() {
+    fn redbody_is_a_translucent_additive_red_body_held_for_the_status() {
+        // Berserk: a red multiply tint over an additively-blended (almost
+        // see-through) body, persisting for the EFST duration, not the 120-frame
+        // authored window.
+        let mut e = BodyTintEffect::new(REDBODY).with_life_ms(Some(60_000));
+        assert!(e.body_additive(), "light-body blends additively");
+        assert_eq!(e.body_tint().map(|t| t.rgb), Some([255, 100, 100]), "red multiply tint");
+        // Well past the 120-frame default, still alive and still glowing.
+        assert_eq!(step(&mut e, 300.0), EffectStatus::Running, "persists for the status");
+        assert!(e.body_additive() && e.body_tint().is_some(), "still a red light-body");
+    }
+
+    #[test]
+    fn pinkbody_is_a_translucent_additive_pink_body_with_a_ghost_halo() {
         let e = BodyTintEffect::new(PINKBODY);
-        // Opaque pink body (multiply tint) + a larger ghost copy behind it; the
-        // body stays opaque so the halo only shows as a margin (no bleed-through).
+        // Light-body pink (additive, translucent like Redbody) + a ghost copy
+        // behind it showing as a margin around the silhouette.
+        assert!(e.body_additive(), "light-body blends additively");
         assert_eq!(e.body_tint().map(|t| t.rgb), Some([255, 89, 182]), "pink multiply tint");
-        assert!(e.body_vertical().is_none(), "body stays opaque");
         let copies = e.body_copies().expect("halo");
         let halo = copies.iter().find(|c| !c.additive).expect("behind ghost");
         assert!(halo.margin_px > 0.0 && halo.tint == [255, 89, 182], "pink halo margin");

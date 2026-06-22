@@ -82,6 +82,9 @@ pub struct BodyBuffEffect {
     params: Params,
     age_frames: f32,
     sfx_pending: bool,
+    /// Status-tied lifetime in frames; the buff's `remain_ms` overrides the
+    /// authored `TOTAL_FRAMES` so the tint persists while the EFST is active.
+    life_frames: Option<f32>,
 }
 
 impl BodyBuffEffect {
@@ -90,14 +93,20 @@ impl BodyBuffEffect {
             params,
             age_frames: 0.0,
             sfx_pending: true,
+            life_frames: None,
         }
+    }
+
+    pub fn with_life_ms(mut self, ms: Option<u32>) -> Self {
+        self.life_frames = ms.map(|m| m as f32 / 1000.0 * FPS);
+        self
     }
 }
 
 impl Effect for BodyBuffEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.age_frames += ctx.delta * FPS;
-        if self.age_frames >= TOTAL_FRAMES {
+        if self.age_frames >= self.life_frames.unwrap_or(TOTAL_FRAMES) {
             EffectStatus::Dead
         } else {
             EffectStatus::Running

@@ -10,6 +10,7 @@ pub mod skill_units;
 pub mod spec;
 pub mod spr_aliases;
 pub mod spr_burst;
+pub mod status_buff;
 pub mod str_aliases;
 pub mod table;
 
@@ -31,6 +32,7 @@ pub use skill_effects::{
 };
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBurstParams};
 pub use spr_aliases::{SprDef, spr_def};
+pub use status_buff::{BuffEffect, buff_effect};
 pub use spr_burst::spr_burst_params;
 pub use str_aliases::str_aliases;
 pub use table::{effect_spec, spawn_camera_shake};

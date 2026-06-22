@@ -204,6 +204,14 @@ impl App {
                 GameEvent::PlayMiscEffectOnEntity { gid, code } => {
                     self.handle_play_misc_effect_on_entity(gid, code);
                 }
+                GameEvent::StatusEffectChanged {
+                    gid,
+                    efst,
+                    active,
+                    remain_ms,
+                } => {
+                    self.handle_status_effect_changed(gid, efst, active, remain_ms);
+                }
                 GameEvent::EntityResurrected { gid } => {
                     self.handle_entity_resurrected(gid);
                 }

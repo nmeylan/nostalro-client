@@ -170,18 +170,27 @@ pub const TEXTURES: &[&str] = &[];
 pub struct MultiBodyEffect {
     params: Params,
     age_frames: f32,
+    /// Status-tied lifetime in frames; the buff's `remain_ms` overrides the
+    /// authored `total_frames` so the glow holds while the EFST is active
+    /// (Assumptio / Undead property). `None` keeps the one-shot timing.
+    life_frames: Option<f32>,
 }
 
 impl MultiBodyEffect {
     pub fn new(params: Params) -> Self {
-        Self { params, age_frames: 0.0 }
+        Self { params, age_frames: 0.0, life_frames: None }
+    }
+
+    pub fn with_life_ms(mut self, ms: Option<u32>) -> Self {
+        self.life_frames = ms.map(|m| m as f32 / 1000.0 * FPS);
+        self
     }
 }
 
 impl Effect for MultiBodyEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.age_frames += ctx.delta * FPS;
-        if self.age_frames >= self.params.total_frames {
+        if self.age_frames >= self.life_frames.unwrap_or(self.params.total_frames) {
             EffectStatus::Dead
         } else {
             EffectStatus::Running

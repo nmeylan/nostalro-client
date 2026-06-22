@@ -111,6 +111,14 @@ pub struct GameState {
     /// Toggles the network sync overlay (RTT/offset). Seeded from config, toggled with F10.
     pub debug_overlay: bool,
     pub ambient_effects: AmbientEffectScheduler,
+    /// Live EFST status-buff effects, keyed by `(gid, efst)` → the synthetic
+    /// owner key its effect was spawned with, so a status-off packet despawns
+    /// exactly that buff without touching the entity's other buffs.
+    pub status_buff_keys: HashMap<(u32, i16), u32>,
+    /// Monotonic source for buff owner keys. The high bit is set so these never
+    /// collide with the real `gid`/`aid` values other keyed effects use (Blind,
+    /// ground units).
+    pub next_status_buff_key: u32,
     /// Set to true when disconnect dialog is shown.
     pub disconnect_dialog_shown: bool,
     /// Set to true after disconnect dialog is confirmed/cancelled.
@@ -438,6 +446,8 @@ impl GameState {
             debug_show_pick_bounds: false,
             debug_overlay: false,
             ambient_effects: AmbientEffectScheduler::empty(),
+            status_buff_keys: HashMap::new(),
+            next_status_buff_key: 0,
         }
     }
 

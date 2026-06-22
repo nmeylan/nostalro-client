@@ -133,6 +133,27 @@ impl EffectQueue {
         });
     }
 
+    /// Spawn a keyed entity-anchored effect that auto-expires after
+    /// `duration_ms` — the canonical caller is a status buff carrying the
+    /// EFST's `remain_ms`. The `key` lets a status-off packet despawn it early;
+    /// the duration is the fallback when no off-packet arrives (the entity left
+    /// view while buffed). A `remain_ms` of 0 means "until cleared" → maps to
+    /// `u32::MAX` (effectively permanent) so the buff isn't truncated.
+    pub fn spawn_on_keyed_for(
+        &mut self,
+        effect_id: EffectId,
+        entity_id: u32,
+        key: u32,
+        duration_ms: u32,
+    ) {
+        let duration_ms = if duration_ms == 0 { u32::MAX } else { duration_ms };
+        self.push(SpawnRequest {
+            key: Some(key),
+            override_duration_ms: Some(duration_ms),
+            ..SpawnRequest::new(effect_id, Attach::Entity(entity_id))
+        });
+    }
+
     /// Spawn a persistent, fixed-position effect tagged with an owner `key`.
     /// The canonical caller is a ground-skill unit keyed by its `aid`
     /// (removed when its `ZC_SKILL_DISAPPEAR` arrives).
@@ -234,6 +255,24 @@ mod tests {
         q.despawn(7);
         assert_eq!(q.drain_despawns(), vec![7]);
         assert!(q.drain_despawns().is_empty(), "despawn channel emptied");
+    }
+
+    #[test]
+    fn keyed_timed_spawn_carries_key_and_duration() {
+        // A status buff spawns keyed (for the off-packet) and timed (the
+        // remain_ms fallback); a remain_ms of 0 maps to "permanent".
+        let mut q = EffectQueue::new();
+        q.spawn_on_keyed_for(EffectId::Redbody, 42, 0x8000_0001, 60_000);
+        q.spawn_on_keyed_for(EffectId::Pinkbody, 42, 0x8000_0002, 0);
+
+        let pending = q.drain();
+        assert_eq!(pending[0].key, Some(0x8000_0001));
+        assert_eq!(pending[0].override_duration_ms, Some(60_000));
+        assert_eq!(
+            pending[1].override_duration_ms,
+            Some(u32::MAX),
+            "remain_ms 0 means until-cleared (no truncation)"
+        );
     }
 }
 

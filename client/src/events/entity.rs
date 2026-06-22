@@ -4,7 +4,9 @@ use models::enums::action::ActionType;
 use models::enums::effect_id::EffectId;
 use models::enums::vanish::VanishType;
 use models::enums::weapon::WeaponType;
+use models::enums::client_effect_icon::ClientEffectIcon;
 use ragnarok_game::ailment;
+use ragnarok_game::effect::buff_effect;
 use ragnarok_game::arrow::{flight_secs_for_cell_distance, ArrowProjectile};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
@@ -467,6 +469,41 @@ impl App {
                 }
             }
         }
+    }
+
+    /// Toggle a persistent body-buff visual from `ZC_MSG_STATE_CHANGE`. Each
+    /// `(gid, efst)` gets a unique owner key so turning one buff off despawns
+    /// exactly that effect, leaving the entity's other buffs untouched.
+    pub(super) fn handle_status_effect_changed(
+        &mut self,
+        gid: u32,
+        efst: i16,
+        active: bool,
+        remain_ms: u32,
+    ) {
+        let Ok(icon) = ClientEffectIcon::try_from_value(efst as usize) else {
+            return;
+        };
+        let Some(buff) = buff_effect(icon) else {
+            return;
+        };
+        let map_key = (gid, efst);
+        // Drop any prior instance first — clears it on the off-packet, and
+        // re-ups the timer when the same buff is re-applied.
+        if let Some(old_key) = self.game.status_buff_keys.remove(&map_key) {
+            self.effect_queue.despawn(old_key);
+        }
+        if !active {
+            return;
+        }
+        // High bit set so buff keys never collide with the real gid/aid values
+        // other keyed effects use (Blind, ground units).
+        let key = 0x8000_0000 | self.game.next_status_buff_key;
+        self.game.next_status_buff_key = (self.game.next_status_buff_key + 1) & 0x7fff_ffff;
+        for &id in buff.body {
+            self.effect_queue.spawn_on_keyed_for(id, gid, key, remain_ms);
+        }
+        self.game.status_buff_keys.insert(map_key, key);
     }
 
     pub(super) fn handle_entity_sprite_changed(

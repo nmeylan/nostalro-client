@@ -160,6 +160,16 @@ pub enum GameEvent {
         gid: u32,
         code: u8,
     },
+    /// Buff/debuff status toggled on an entity (`ZC_MSG_STATE_CHANGE`): `efst`
+    /// is an EFST code (`ClientEffectIcon`), `active` its on/off state, and
+    /// `remain_ms` the duration (0 = until cleared). Drives the persistent
+    /// body-buff visuals (Berserk/Marionette/auras).
+    StatusEffectChanged {
+        gid: u32,
+        efst: i16,
+        active: bool,
+        remain_ms: u32,
+    },
     /// Entity revived (`ZC_RESURRECTION`): clear its dead pose. The resurrection
     /// visual rides the skill path, not this packet.
     EntityResurrected {

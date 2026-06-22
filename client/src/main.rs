@@ -1115,10 +1115,9 @@ impl App {
                             &self.game.map_properties,
                             Some(class),
                         );
-                        match hovered {
-                            Some((cursor, id)) => (cursor, Some(id)),
-                            None => (CursorType::Lock, None),
-                        }
+                        // Skill targeting always shows the lock/skill-level cursor;
+                        // the hover result only tells us which entity is targeted.
+                        (CursorType::Lock, hovered.map(|(_, id)| id))
                     }
                     PendingSkillTarget::Ground { .. } => {
                         // TODO: render effect\magic_target.tga ground overlay at hovered cell for skill area

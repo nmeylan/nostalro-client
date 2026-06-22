@@ -330,7 +330,8 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         // --- Swordman / Mage / Acolyte / Merchant / Thief (first job) ----
         S::SmMagnum => C::cast(&[E::Magnumbreak]),
         S::SmEndure => C::cast(&[E::Endure]),
-        S::MgEnergycoat => C::cast(&[E::Energycoat]),
+        // Energy Coat's aura is a persistent status appearance (EFST → Energycoat,
+        // status_buff.rs), not a cast flash — avoid the double-spawn.
         S::MgSight => C::cast(&[E::Sight]),
         S::AlRuwach => C::cast(&[E::Ruwach]),
         S::AlHolywater => C::cast(&[E::Aqua]),
@@ -374,7 +375,8 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::MoFingeroffensive => C::cast(&[E::Tanji]),
         S::MoAbsorbspirits => C::cast(&[E::Absorbspirits]),
         S::MoExplosionspirits => C::cast(&[E::Gumgang, E::Gumgang2]),
-        S::MoSteelbody => C::cast(&[E::Steelbody, E::Gumgang2]),
+        // Keep only the shockwave burst; the steel aura is the persistent EFST status.
+        S::MoSteelbody => C::cast(&[E::Gumgang2]),
 
         // --- Crusader / Paladin / Lord Knight / WS ------------------------
         S::CrGrandcross => C::cast(&[E::Grandcross]),
@@ -395,7 +397,8 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::LkJointbeat => C::cast(&[E::Bash3d4]),
         S::LkAurablade => C::cast(&[E::Aurablade, E::Aurablade2]),
         S::LkParrying | S::MsParrying => C::cast(&[E::Guard]),
-        S::LkBerserk | S::LkFury | S::MsBerserk => C::cast(&[E::Redbody]),
+        // Berserk's red body is a persistent status appearance (EFST → Redbody,
+        // see status_buff.rs), not a transient cast flash. No caster cast effect.
         S::WsMeltdown => C::cast(&[E::Meltdown]),
         S::WsCartboost => C::cast(&[E::Cartboost]),
 
@@ -414,7 +417,7 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::CgArrowvulcan => C::cast(&[E::Tripleattack3]),
         S::CgLongingfreedom => C::cast(&[E::Chemicalbody]),
         S::CgMoonlit => C::cast(&[E::Spherewind2]),
-        S::CgMarionette => C::cast(&[E::Pinkbody]),
+        // Marionette's pink body is a persistent EFST status (status_buff.rs), not a cast flash.
         S::BaFrostjoker => C::cast(&[E::TalkFrostjoke]),
         S::BaPangvoice => C::cast(&[E::Fvoice]),
         S::DcScream => C::cast(&[E::TalkScream]),
@@ -546,7 +549,8 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         }
         S::PrSlowpoison => T::on_target(&[E::Slowpoison]),
         S::PrStrecovery => T::on_target(&[E::Recovery]),
-        S::HpAssumptio | S::CashAssumptio => T::on_target(&[E::Assumptio, E::Assumptio2]),
+        // Keep only the cast burst; the white glow is the persistent EFST status.
+        S::HpAssumptio | S::CashAssumptio => T::on_target(&[E::Assumptio2]),
         S::WzFirepillar => T::hit(&[E::Firehit]),
         S::WzSightrasher => T::hit(&[E::Firehit]),
         S::WzJupitel => T { on_target: &[E::Yufitel], hit: &[E::Yufitelhit], ..Default::default() },
@@ -607,7 +611,6 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
             T { on_target: &[E::Falconassault], hit: &[E::Hit1, E::Blitzbeat], ..Default::default() }
         }
         S::CgTarotcard => T::on_target(&[E::Chemicalbody]),
-        S::CgMarionette => T::on_target(&[E::Pinkbody]),
 
         // --- Sage / High Wizard / Professor -------------------------------
         S::SaSpellbreaker => T::on_target(&[E::Spellbreaker]),
@@ -640,7 +643,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::SlSma => T::on_target(&[E::Ef4waybody, E::Hitline6, E::Hittexture]),
         S::SlSwoo => T::on_target(&[E::Babybody, E::M07]),
         S::SlSke => T::on_target(&[E::AsurabodyMonster]),
-        S::SlSka => T::on_target(&[E::Steelbody, E::Gumgang2]),
+        S::SlSka => T::on_target(&[E::Gumgang2]),
         S::SlKaizel => T::on_target(&[E::Hated, E::Kaizel]),
         S::SlKaahi | S::SgHate => T::on_target(&[E::Hated]),
         S::SlKaupe => T::on_target(&[E::Bluebody]),
@@ -758,11 +761,11 @@ mod tests {
 
     #[test]
     fn same_slot_stack_keeps_every_effect() {
-        // Steel Body launches the body buff AND its shockwave on the caster —
-        // both must survive (the old single-slot model dropped the aux).
+        // Aura Blade launches two aura layers on the caster — both must
+        // survive (the old single-slot model dropped the aux).
         assert_eq!(
-            caster_skill_effects(SkillEnum::MoSteelbody).cast,
-            &[EffectId::Steelbody, EffectId::Gumgang2]
+            caster_skill_effects(SkillEnum::LkAurablade).cast,
+            &[EffectId::Aurablade, EffectId::Aurablade2]
         );
     }
 
