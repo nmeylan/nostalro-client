@@ -25,7 +25,7 @@ use super::effects::{
     particle_up, peong, peong_up, sma, stin, soul_breaker, storm_kick, m_ef02, slash, super_angel, teihit, thunderstorm2,
     body_tint, multibody, squarebody,
 };
-use super::spec::EffectSpec;
+use super::spec::{EffectSpec, SprBodyRecolor};
 use super::spr_aliases::spr_def;
 use super::spr_burst::spr_burst_params;
 use super::str_aliases::str_aliases;
@@ -680,6 +680,12 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Shrink => EffectSpec::Custom {
             duration_ms: body_tint::SHRINK.total_duration_ms(),
         },
+        // Reject Sword: gray body flicker + `sword.str` overlay (hybrid). The
+        // explicit Custom spec routes the factory's hybrid arm and bypasses the
+        // `sword` str_alias that would otherwise shadow it.
+        EffectId::Rejectsword => EffectSpec::Custom {
+            duration_ms: body_tint::REJECTSWORD.total_duration_ms(),
+        },
 
         // Body-flash family (red / blue hit flash) — Custom; aliases removed.
         EffectId::Bluebody => EffectSpec::Custom {
@@ -1227,6 +1233,19 @@ pub fn spawn_camera_shake(id: EffectId) -> Option<CameraShake> {
     })
 }
 
+/// Caster body recolor for the hybrid `SprBurst` effects that both emit a
+/// particle burst and flicker the body. Enchant Deadly Poison flickers magenta
+/// over frames 0..=80 (the original's `255,0,255 ↔ white`).
+fn spr_body_recolor(id: EffectId) -> Option<SprBodyRecolor> {
+    match id {
+        EffectId::Edp => Some(SprBodyRecolor {
+            window_frames: (0, 80),
+            rgb: [255, 0, 255],
+        }),
+        _ => None,
+    }
+}
+
 fn bucket_default(id: EffectId) -> EffectSpec {
     if let Some(def) = spr_def(id) {
         return EffectSpec::Spr {
@@ -1245,6 +1264,7 @@ fn bucket_default(id: EffectId) -> EffectSpec {
             sprite,
             duration_ms: default_duration_ms(id),
             burst,
+            body_recolor: spr_body_recolor(id),
         };
     }
     if !str_aliases(id).is_empty() {
@@ -1687,12 +1707,25 @@ mod tests {
         assert_eq!(burst.pos_y_start, -20.0);
         assert!(burst.speed_range.1 < 0.0, "speed range stays negative for downward drift");
 
-        // Edp: faster cadence + smaller particles than EnchantPoison.
-        let Some(EffectSpec::SprBurst { burst, .. }) = effect_spec(EffectId::Edp) else {
+        // Edp: faster cadence + smaller particles than EnchantPoison, plus the
+        // hybrid magenta body flicker over the burst.
+        let Some(EffectSpec::SprBurst { burst, body_recolor, .. }) = effect_spec(EffectId::Edp)
+        else {
             panic!("Edp should resolve to EffectSpec::SprBurst");
         };
         assert_eq!(burst.period_frames, Some(3));
         assert!((burst.size - 0.3).abs() < 1e-6);
+        assert_eq!(
+            body_recolor,
+            Some(SprBodyRecolor { window_frames: (0, 80), rgb: [255, 0, 255] }),
+            "Enchant Deadly Poison flickers the caster magenta",
+        );
+        // Ambient bursts carry no body recolor.
+        let Some(EffectSpec::SprBurst { body_recolor: none, .. }) = effect_spec(EffectId::Slowpoison)
+        else {
+            unreachable!();
+        };
+        assert_eq!(none, None);
     }
 
     #[test]

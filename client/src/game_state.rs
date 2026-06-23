@@ -7,6 +7,7 @@ use ragnarok_formats::gat::GatFile;
 use ragnarok_game::ailment::AilmentOverlay;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::character::Character;
+use ragnarok_game::chat_room::ChatRoomRegistry;
 use ragnarok_game::cursor::{CursorAnimationState, PendingSkillTarget};
 use ragnarok_game::damage_number::DamageNumberManager;
 use ragnarok_game::data_table::DataTable;
@@ -71,6 +72,7 @@ pub struct GameState {
     pub warp_list_window: WarpListWindow,
     pub confirm_dialog: ConfirmDialog,
     pub npc_shop: NpcShop,
+    pub chat_rooms: ChatRoomRegistry,
     pub system_menu: SystemMenu,
     pub hovered_entity_id: Option<u32>,
     pub hovered_floor_item_id: Option<u32>,
@@ -405,6 +407,7 @@ impl GameState {
             warp_list_window: WarpListWindow::new(),
             confirm_dialog: ConfirmDialog::new(),
             npc_shop: NpcShop::new(),
+            chat_rooms: ChatRoomRegistry::new(),
             system_menu: SystemMenu::new(),
             hovered_entity_id: None,
             hovered_floor_item_id: None,

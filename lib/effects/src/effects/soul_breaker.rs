@@ -21,7 +21,7 @@
 //! `dz.atan2(dx)` (`cos→x`, `sin→z`).
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
+use crate::effect_trait::{BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
@@ -89,6 +89,9 @@ struct Streak {
 pub struct SoulBreakerEffect {
     streaks: Vec<Streak>,
     frame_accum: f32,
+    /// Whole-effect age in frames — drives the caster's brief magenta body
+    /// flash (the original recolors `m_master` over the first frames).
+    age_frames: u32,
 }
 
 impl SoulBreakerEffect {
@@ -103,7 +106,7 @@ impl SoulBreakerEffect {
             let jitter = (rng.random(31) as f32 - 15.0).to_radians();
             streaks.push(new_streak(from, base + jitter, SPAWN_DELAY - ec as i32, &mut rng));
         }
-        Self { streaks, frame_accum: 0.0 }
+        Self { streaks, frame_accum: 0.0, age_frames: 0 }
     }
 
     /// 409 — eight radial directions, each firing four slashes outward.
@@ -121,7 +124,7 @@ impl SoulBreakerEffect {
             }
             dir_deg += 45;
         }
-        Self { streaks, frame_accum: 0.0 }
+        Self { streaks, frame_accum: 0.0, age_frames: 0 }
     }
 
     fn step_frame(&mut self) {
@@ -181,6 +184,7 @@ impl Effect for SoulBreakerEffect {
         self.frame_accum += ctx.delta * FRAMES_PER_SECOND;
         while self.frame_accum >= 1.0 {
             self.frame_accum -= 1.0;
+            self.age_frames += 1;
             self.step_frame();
         }
         if self.streaks.is_empty() {
@@ -188,6 +192,13 @@ impl Effect for SoulBreakerEffect {
         } else {
             EffectStatus::Running
         }
+    }
+
+    fn body_tint(&self) -> Option<BodyTint> {
+        // The caster flashes magenta for the first ~10 frames (the original's
+        // `SetArgb(255,0,255)` on the slasher's body). Composes only when the
+        // effect is caster-anchored (`Attach::Link`, see the holder).
+        (self.age_frames <= 10).then_some(BodyTint { rgb: [255, 0, 255] })
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
@@ -244,6 +255,16 @@ mod tests {
                 other => panic!("expected Billboard, got {other:?}"),
             })
             .collect()
+    }
+
+    #[test]
+    fn caster_flashes_magenta_for_the_first_frames() {
+        let mut e = SoulBreakerEffect::new_directed([0.0; 3], [10.0, 0.0, 0.0]);
+        assert_eq!(e.body_tint(), Some(BodyTint { rgb: [255, 0, 255] }), "magenta at spawn");
+        tick(&mut e, 5);
+        assert_eq!(e.body_tint(), Some(BodyTint { rgb: [255, 0, 255] }), "still flashing");
+        tick(&mut e, 10); // past frame 10
+        assert_eq!(e.body_tint(), None, "flash clears after ~10 frames");
     }
 
     #[test]

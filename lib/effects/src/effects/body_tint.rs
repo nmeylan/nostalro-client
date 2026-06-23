@@ -300,6 +300,10 @@ pub const DOUBLECASTBODY: Params = pulse([255, 0, 0]);
 pub const GREENBODY: Params = pulse([0, 255, 0]);
 // `EF_SHRINK` is a yellow tint-pulse (the original sets no pixel ratio), not a resize.
 pub const SHRINK: Params = pulse([250, 250, 100]);
+// `EF_REJECTSWORD` flickers the caster gray while `sword.str` plays (wired with
+// `with_str_overlay`). The original alternates two grays; the pulse blink reads
+// the same against the body.
+pub const REJECTSWORD: Params = pulse([150, 150, 150]);
 
 // Body-flash family (the §8b red / blue hit-flash effects). One fixed
 // colour is laid over the opaque body as an additive overlay whose alpha breathes
@@ -405,11 +409,29 @@ pub struct BodyTintEffect {
     /// long instead of the authored `total_frames` — the EFST's `remain_ms`
     /// drives it. `None` keeps the one-shot skill-flash timing.
     life_frames: Option<f32>,
+    /// STR played alongside the body flash (the original's hybrid effects that
+    /// recolor the body *and* play a world STR — e.g. Reject Sword's
+    /// `sword.str`). `None` for the pure body flashes.
+    str_overlay: Option<&'static str>,
 }
 
 impl BodyTintEffect {
     pub fn new(params: Params) -> Self {
-        Self { params, process: 0.0, quake_pending: false, sfx_pending: false, life_frames: None }
+        Self {
+            params,
+            process: 0.0,
+            quake_pending: false,
+            sfx_pending: false,
+            life_frames: None,
+            str_overlay: None,
+        }
+    }
+
+    /// Play `name`'s STR alongside the body flash (the hybrid effects that both
+    /// recolor the body and draw a world STR).
+    pub fn with_str_overlay(mut self, name: &'static str) -> Self {
+        self.str_overlay = Some(name);
+        self
     }
 
     /// Tie this tint to a status duration so it persists (and holds its colour)
@@ -498,6 +520,10 @@ impl Effect for BodyTintEffect {
     }
 
     fn collect_draws(&self, _out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {}
+
+    fn str_overlay(&self) -> Option<&'static str> {
+        self.str_overlay
+    }
 
     fn body_tint(&self) -> Option<BodyTint> {
         // The §8a pulse family: white flash (additive) or the multiply colour.
@@ -746,6 +772,20 @@ mod tests {
         step(&mut e, (PULSE_TOTAL - PULSE_COLOR_FULL) * 0.6); // partway through the fade
         let faded = e.body_tint().expect("fading tint").rgb;
         assert!(faded[0] > full[0], "tint fades back toward normal (white)");
+    }
+
+    #[test]
+    fn reject_sword_pairs_a_gray_flicker_with_the_sword_str() {
+        // The hybrid: a gray body flicker (pulse) plus the `sword.str` world
+        // overlay played for the effect's lifetime.
+        let e = BodyTintEffect::new(REJECTSWORD).with_str_overlay("sword");
+        assert_eq!(e.str_overlay(), Some("sword"), "plays the world STR");
+        // First frame is the pulse's white additive flash, like the other
+        // gray/colour flickers.
+        assert!(e.body_additive());
+        assert_eq!(e.body_tint().map(|t| t.rgb), Some([255, 255, 255]));
+        // A pure body flash (no str) keeps str_overlay None.
+        assert_eq!(BodyTintEffect::new(PIERCEBODY).str_overlay(), None);
     }
 
     #[test]

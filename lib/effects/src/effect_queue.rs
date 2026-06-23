@@ -370,6 +370,15 @@ pub fn is_count_point_effect(id: EffectId) -> bool {
     )
 }
 
+/// Effects spawned anchored to the **caster** (so they can recolor the caster
+/// body) while still drawing toward the target — the original launches them on
+/// `m_master` with the target passed by value. Routed via `spawn_link` instead
+/// of `spawn_trail`. Soul Breaker flashes the caster magenta as its crescent
+/// flies out.
+pub fn is_caster_link_effect(id: EffectId) -> bool {
+    matches!(id, EffectId::Soulbreaker)
+}
+
 pub fn is_trail_effect(id: EffectId) -> bool {
     matches!(
         id,

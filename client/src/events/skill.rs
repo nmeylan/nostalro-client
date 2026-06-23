@@ -5,7 +5,8 @@ use models::enums::skill_enums::SkillEnum;
 use models::enums::weapon::WeaponType;
 use ragnarok_game::effect::{
     begin_cast_effect, beginspell_for_element, caster_skill_effects, ground_placed_effect,
-    is_ground_cast, is_trail_effect, target_skill_effects, trail_arrival_secs,
+    is_cast_circle, is_caster_link_effect, is_ground_cast, is_trail_effect, target_skill_effects,
+    trail_arrival_secs,
 };
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::skill_action::{skill_motion_type, SkillMotionType};
@@ -256,6 +257,12 @@ impl App {
         if !ground_cast {
             for e in caster_skill_effects(skill).cast {
                 match trail {
+                    // Caster-anchored-with-target (Soul Breaker): spawn on the
+                    // caster so it recolors the caster body, crescent still aimed
+                    // at the target via the link endpoints.
+                    _ if is_caster_link_effect(*e) => {
+                        self.effect_queue.spawn_link(*e, src_gid, target_gid);
+                    }
                     Some((from, to)) if is_trail_effect(*e) => {
                         self.effect_queue.spawn_trail_with_count(*e, from, to, hits);
                     }
@@ -344,19 +351,26 @@ impl App {
         cast_ms: u32,
     ) {
         let skill = SkillEnum::from_id(skill_id as u32);
-        if cast_ms == 0 {
-            return;
-        }
-        if caster_skill_effects(skill).hide_cast_aura {
-            return;
-        }
+        let hide_aura = caster_skill_effects(skill).hide_cast_aura;
         for e in begin_cast_effect(skill) {
-            let e = if *e == EffectId::Beginspell {
-                beginspell_for_element(property)
+            if is_cast_circle(*e) {
+                // The cast circle's lifetime is the cast time; an instant cast
+                // or a skill that hides its aura shows no circle.
+                if cast_ms == 0 || hide_aura {
+                    continue;
+                }
+                let e = if *e == EffectId::Beginspell {
+                    beginspell_for_element(property)
+                } else {
+                    *e
+                };
+                self.effect_queue.spawn_on_for(e, caster_gid, cast_ms);
             } else {
-                *e
-            };
-            self.effect_queue.spawn_on_for(e, caster_gid, cast_ms);
+                // Caster body-flash (e.g. Spiral Pierce's yellow flash): plays
+                // for its own fixed duration, even on instant casts and when
+                // the cast aura is hidden.
+                self.effect_queue.spawn_on(*e, caster_gid);
+            }
         }
     }
 
@@ -403,6 +417,14 @@ impl App {
         for e in effects {
             self.effect_queue.spawn_at(*e, world);
         }
+    }
+
+    /// A (global or per-skill) cooldown is still running, so the skill cannot
+    /// be cast yet. Targeting mode is still entered on cooldown so the cursor
+    /// keeps showing the skill ring; only the actual cast is suppressed.
+    pub(crate) fn skill_on_cooldown(&self, skill_id: u16) -> bool {
+        let now = self.start_time.elapsed().as_secs_f32();
+        self.game.character.cooldowns.is_on_cooldown(skill_id, now)
     }
 
     pub(super) fn handle_skill_failed(&mut self, skill_id: u16, cause: u8) {

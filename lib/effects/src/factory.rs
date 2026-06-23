@@ -326,6 +326,11 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::Doublecastbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::DOUBLECASTBODY)),
         EffectId::Greenbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::GREENBODY)),
         EffectId::Shrink => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::SHRINK)),
+        // Reject Sword — gray body flicker + the `sword.str` world overlay.
+        EffectId::Rejectsword => Box::new(
+            effects::body_tint::BodyTintEffect::new(effects::body_tint::REJECTSWORD)
+                .with_str_overlay("sword"),
+        ),
 
         // Body-flash family — one fixed colour (blue/red) glowing over the body
         // with an alpha ramp (up → hold → down), drawn 2x additive.

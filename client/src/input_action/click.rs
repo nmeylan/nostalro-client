@@ -3,9 +3,10 @@ use ragnarok_game::cursor::PendingSkillTarget;
 use ragnarok_game::entity::{EntityState, EntityType};
 use ragnarok_game::path::try_move_to;
 use ragnarok_game::targeting::{can_attack, skill_target_allowed, skill_target_class, TargetClass};
+use ragnarok_game::chat_room::{room_box_rect, BOX_PADDING};
 use ragnarok_network::{
-    build_contact_npc_packet, build_pickup_item_packet, build_request_move_packet,
-    build_use_skill_packet, build_use_skill_to_ground_packet,
+    build_contact_npc_packet, build_pickup_item_packet, build_req_enter_room_packet,
+    build_request_move_packet, build_use_skill_packet, build_use_skill_to_ground_packet,
 };
 
 impl App {
@@ -23,8 +24,15 @@ impl App {
         if self.is_local_player_incapacitated() {
             return;
         }
-        // Skill targeting mode: consume pending skill on click
-        if let Some(pending) = self.game.pending_skill_target.take() {
+        // Skill targeting mode: consume pending skill on click. While a (global
+        // or per-skill) cooldown is running the cursor keeps showing the skill
+        // ring, but the click casts nothing — leave the pending target armed so
+        // the player can cast once the cooldown clears.
+        if let Some(pending) = self.game.pending_skill_target {
+            if self.skill_on_cooldown(pending.skill_id()) {
+                return;
+            }
+            self.game.pending_skill_target = None;
             let mut skill_cast = false;
             match pending {
                 PendingSkillTarget::Entity { skill_id, level } => {
@@ -139,6 +147,13 @@ impl App {
             }
             return;
         }
+        // Click on a chat-room box (it covers its owner, e.g. an arena NPC) joins
+        // directly; it must win over NPC-contact and walking since it overlaps both.
+        if let Some(room_id) = self.hovered_chat_room() {
+            self.channel
+                .send_packet(build_req_enter_room_packet(room_id, self.config.packetver));
+            return;
+        }
         // Click on NPC to talk
         if let Some(entity_id) = self.game.hovered_entity_id
             && let Some(entity) = self.game.entities.get(entity_id)
@@ -202,5 +217,28 @@ impl App {
         if let Some(entity) = self.game.entities.player_mut() {
             entity.movement.start_move(move_action.path, elapsed);
         }
+    }
+
+    /// Room whose floating box is under the cursor, if any. Box geometry mirrors
+    /// the renderer (`build_chat_room_boxes`) via the shared `room_box_rect`.
+    fn hovered_chat_room(&self) -> Option<u32> {
+        let renderer = self.renderer.as_ref()?;
+        let (mx, my) = self.input.mouse_position;
+        let (mx, my) = (mx as f32, my as f32);
+        let render_list = self.compute_render_list();
+        for room in self.game.chat_rooms.iter() {
+            let entry = match render_list.iter().find(|e| e.id == room.owner_aid) {
+                Some(e) => e,
+                None => continue,
+            };
+            let label = room.box_label();
+            let box_w = renderer.font_atlas.measure_text(&label) + BOX_PADDING * 2.0;
+            let box_h = renderer.font_atlas.line_height + BOX_PADDING * 2.0;
+            let [left, top, right, bottom] = room_box_rect(entry, box_w, box_h);
+            if mx >= left && mx <= right && my >= top && my <= bottom {
+                return Some(room.room_id);
+            }
+        }
+        None
     }
 }

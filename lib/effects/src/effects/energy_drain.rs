@@ -9,7 +9,7 @@
 //!   strands integrated as sprite particles along a spline path.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
+use crate::effect_trait::{BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const DRAIN_SPRITE: &str = "data/sprite/이팩트/particle1";
 pub const SPRITES: &[&str] = &[DRAIN_SPRITE];
@@ -102,6 +102,20 @@ const DEFAULT_SPLINES: LineParams = LineParams {
     max_dist: 40.0,
     fan_deg: 45.0,
 };
+/// Caster body recolor played alongside the drain — Soul Drain glows the
+/// caster blue, HP Conversion fades it toward blue (the original's `SetArgb`
+/// over a frame window). `rgb` is a static 8-bit multiply; `None` selects HP
+/// Conversion's per-frame fade (`250−2f` on R/G, `250` on B).
+#[derive(Clone, Copy)]
+pub struct BodyRecolor {
+    /// Inclusive effect-age frame window.
+    pub window: (u32, u32),
+    pub rgb: Option<[f32; 3]>,
+    /// Render the body additively within the window (the original's
+    /// `BL_LIGHT_BODY` glow — Soul Drain).
+    pub additive: bool,
+}
+
 #[derive(Clone, Copy)]
 pub struct DrainParams {
     pub color: [f32; 4],
@@ -111,6 +125,8 @@ pub struct DrainParams {
     pub shape: DrainShape,
     /// Straight-line burst tuning; ignored by the `Spline` shape.
     pub lines: LineParams,
+    /// Optional caster body recolor; `None` for the drains that don't tint.
+    pub body_recolor: Option<BodyRecolor>,
 }
 
 impl DrainParams {
@@ -130,6 +146,7 @@ pub const BLOOD_DRAIN: DrainParams = DrainParams {
     size_jitter: 0.0,
     shape: DrainShape::LinesOut,
     lines: DEFAULT_LINES,
+    body_recolor: None,
 };
 
 pub const ENERGY_DRAIN: DrainParams = DrainParams {
@@ -139,6 +156,7 @@ pub const ENERGY_DRAIN: DrainParams = DrainParams {
     size_jitter: 0.0,
     shape: DrainShape::LinesOut,
     lines: DEFAULT_LINES,
+    body_recolor: None,
 };
 
 // red = 160 + random(81), blue = 255, size = 1.5 + random(6)*0.1.
@@ -149,6 +167,12 @@ pub const ENERGY_DRAIN2: DrainParams = DrainParams {
     size_jitter: 0.6,
     shape: DrainShape::LinesIn,
     lines: DEFAULT_LINES,
+    // Soul Drain glows the caster blue over frames 55..=65.
+    body_recolor: Some(BodyRecolor {
+        window: (55, 65),
+        rgb: Some([100.0, 100.0, 255.0]),
+        additive: true,
+    }),
 };
 
 // green = 255, red/blue = 160 + random(81), spawns on frames 0..=4.
@@ -159,6 +183,12 @@ pub const ENERGY_DRAIN3: DrainParams = DrainParams {
     size_jitter: 0.6,
     shape: DrainShape::Spline,
     lines: DEFAULT_SPLINES,
+    // HP Conversion fades the caster toward blue over frames 50..=80.
+    body_recolor: Some(BodyRecolor {
+        window: (50, 80),
+        rgb: None,
+        additive: false,
+    }),
 };
 
 /// Deterministic per-strand pseudo-random in `[0, 1)` so colour/size/heading
@@ -458,6 +488,28 @@ impl Effect for DrainEffect {
             _ => self.collect_lines(out),
         }
     }
+
+    fn body_tint(&self) -> Option<BodyTint> {
+        let r = self.params.body_recolor?;
+        if !(r.window.0..=r.window.1).contains(&self.effect_frame) {
+            return None;
+        }
+        let rgb = match r.rgb {
+            Some(c) => [c[0] as u8, c[1] as u8, c[2] as u8],
+            // HP Conversion: 250 − 2·frame on R/G (clamped), 250 on B.
+            None => {
+                let v = (250i32 - 2 * self.effect_frame as i32).clamp(0, 255) as u8;
+                [v, v, 250]
+            }
+        };
+        Some(BodyTint { rgb })
+    }
+
+    fn body_additive(&self) -> bool {
+        self.params
+            .body_recolor
+            .is_some_and(|r| r.additive && (r.window.0..=r.window.1).contains(&self.effect_frame))
+    }
 }
 
 #[cfg(test)]
@@ -571,6 +623,25 @@ mod tests {
         let ec = spr(&draws(&energy)[0]).1;
         assert!(bc[0] > bc[2], "blood drain is red-dominant");
         assert!(ec[2] > ec[0], "energy drain is blue-dominant");
+    }
+
+    #[test]
+    fn soul_drain_glows_blue_and_hp_conversion_fades_in_window() {
+        // Soul Drain: blue glow (additive) over frames 55..=65, nothing before.
+        let mut sd = DrainEffect::new([0.0; 3], [0.0; 3], ENERGY_DRAIN2);
+        run(&mut sd, 50);
+        assert_eq!(sd.body_tint(), None, "no tint before the window");
+        run(&mut sd, 10); // frame ~60
+        assert_eq!(sd.body_tint(), Some(BodyTint { rgb: [100, 100, 255] }));
+        assert!(sd.body_additive(), "Soul Drain glows (BL_LIGHT_BODY)");
+
+        // HP Conversion: fade toward blue (250−2f) over 50..=80, not additive.
+        let mut hp = DrainEffect::new([0.0; 3], [0.0, 0.0, 20.0], ENERGY_DRAIN3);
+        run(&mut hp, 60); // frame ~60 → 250 − 120 = 130
+        let tint = hp.body_tint().expect("inside the fade window");
+        assert_eq!(tint.rgb[2], 250, "blue stays at 250");
+        assert!(tint.rgb[0] < 200 && tint.rgb[0] == tint.rgb[1], "R/G fade together");
+        assert!(!hp.body_additive(), "HP Conversion is a multiply, not a glow");
     }
 
     #[test]

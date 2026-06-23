@@ -116,12 +116,30 @@ pub enum EffectSpec {
         /// total time (when one-shot).
         duration_ms: u32,
         burst: SprBurstParams,
+        /// Optional caster body recolor played over the burst (the original's
+        /// hybrid effects that emit particles *and* recolor the body — e.g.
+        /// Enchant Deadly Poison's magenta flicker). `None` for the ambient
+        /// bursts that leave the body alone.
+        body_recolor: Option<SprBodyRecolor>,
     },
     /// Effect with no rendering — original game has neither a sprintf STR
     /// load nor primitive dispatch for this id (pass-through / data-only
     /// effects: status markers, screen messages, no-op packet hooks).
     /// Holder skips the spawn; viewers exclude it from listings.
     Noop,
+}
+
+/// Caster body recolor played alongside a [`EffectSpec::SprBurst`] — the
+/// original's hybrid effects that emit a particle burst *and* recolor the body
+/// (Enchant Deadly Poison flickers the assassin magenta). The recolor is a
+/// per-frame multiply tint, strobed on even frames within the window (the
+/// original's `colour ↔ white` alternation).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SprBodyRecolor {
+    /// Inclusive effect-age frame window (60 fps) the recolor is active.
+    pub window_frames: (u32, u32),
+    /// 8-bit multiply tint applied on the flicker's coloured frames.
+    pub rgb: [u8; 3],
 }
 
 /// Tunables for `EffectSpec::SprBurst` — a rising/drifting particle burst

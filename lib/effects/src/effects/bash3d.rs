@@ -29,7 +29,7 @@
 //! half-spread per variant; we approximate with shared `inner/outer_half_spread_deg`.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
+use crate::effect_trait::{BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::radial_emitter::{RADIAL_EMITTER_SLOTS, RadialEmitter, RadialEmitterSlot};
 
 pub const TEXTURE: &str = "alpha_center.tga";
@@ -106,6 +106,17 @@ pub struct BashParams {
     /// The 0/2/4/5 family ships as a hybrid with `bash3d.str`;
     /// Truesight is pure-procedural and sets `None`.
     pub str_overlay: Option<&'static str>,
+    /// Caster body recolor (8-bit RGB multiply) held over `body_tint_window`
+    /// frames — the original recolors the master sprite while the speed-lines
+    /// fan out (pink for Bash, pale yellow for Head Crush, white for Joint
+    /// Beat). `None` for variants that only glow or leave the body alone.
+    pub body_tint_8bit: Option<[f32; 3]>,
+    /// Inclusive frame window (effect age) for `body_tint_8bit`.
+    pub body_tint_window: (u32, u32),
+    /// Inclusive frame window during which the body renders additively (the
+    /// original's `BL_LIGHT_BODY` glow — the linear-growth variant's white body
+    /// light); no colour multiply. `None` for variants with no body light.
+    pub body_light_window: Option<(u32, u32)>,
 }
 
 impl BashParams {
@@ -153,6 +164,9 @@ pub const BASH3D: BashParams = BashParams {
     flatten_to_horizontal: false,
     rise_angle_step_per_f1_deg: 22.0,
     str_overlay: Some("bash3d"),
+    body_tint_8bit: Some([255.0, 200.0, 200.0]),
+    body_tint_window: (20, 40),
+    body_light_window: None,
 };
 
 pub const BASH3D2: BashParams = BashParams {
@@ -178,6 +192,11 @@ pub const BASH3D2: BashParams = BashParams {
     flatten_to_horizontal: false,
     rise_angle_step_per_f1_deg: 22.0,
     str_overlay: Some("bash3d"),
+    // The linear-growth variant glows white (BL_LIGHT_BODY) instead of a
+    // colour multiply, over frames 5..=35.
+    body_tint_8bit: None,
+    body_tint_window: (0, 0),
+    body_light_window: Some((5, 35)),
 };
 
 pub const BASH3D3: BashParams = BashParams {
@@ -194,6 +213,9 @@ pub const BASH3D3: BashParams = BashParams {
     flatten_to_horizontal: false,
     rise_angle_step_per_f1_deg: 22.0,
     str_overlay: Some("bash3d"),
+    body_tint_8bit: Some([255.0, 255.0, 200.0]),
+    body_tint_window: (20, 50),
+    body_light_window: None,
 };
 
 pub const BASH3D4: BashParams = BashParams {
@@ -210,11 +232,18 @@ pub const BASH3D4: BashParams = BashParams {
     flatten_to_horizontal: false,
     rise_angle_step_per_f1_deg: 22.0,
     str_overlay: Some("bash3d"),
+    body_tint_8bit: Some([255.0, 255.0, 255.0]),
+    body_tint_window: (20, 50),
+    body_light_window: None,
 };
 
-/// `EF_BASH3D5` shares all visual parameters with `EF_BASH3D4` (in the
-/// original game the only difference is the spawn sound).
-pub const BASH3D5: BashParams = BASH3D4;
+/// `EF_BASH3D5` shares the speed-line visuals of `EF_BASH3D4` but the original
+/// recolors neither the body (only the spawn sound differs).
+pub const BASH3D5: BashParams = BashParams {
+    body_tint_8bit: None,
+    body_tint_window: (0, 0),
+    ..BASH3D4
+};
 
 /// `EF_TRUESIGHT` — 12 sub-instances (`i=0..11`) of the speed-line fan.
 /// 12 sub-instances × 4 sectors = 48 white speed-lines forming the
@@ -237,6 +266,9 @@ pub const TRUESIGHT: BashParams = BashParams {
     flatten_to_horizontal: false,
     rise_angle_step_per_f1_deg: 7.0,
     str_overlay: None,
+    body_tint_8bit: None,
+    body_tint_window: (0, 0),
+    body_light_window: None,
 };
 
 pub struct Bash3dEffect {
@@ -361,6 +393,24 @@ impl Effect for Bash3dEffect {
         // The 0/2/4/5 family ships as a hybrid alongside `bash3d.str`;
         // Truesight is pure-procedural and returns `None`.
         self.params.str_overlay
+    }
+
+    fn body_tint(&self) -> Option<BodyTint> {
+        let frame = self.age_frames as u32;
+        let (lo, hi) = self.params.body_tint_window;
+        self.params
+            .body_tint_8bit
+            .filter(|_| (lo..=hi).contains(&frame))
+            .map(|rgb| BodyTint {
+                rgb: [rgb[0] as u8, rgb[1] as u8, rgb[2] as u8],
+            })
+    }
+
+    fn body_additive(&self) -> bool {
+        let frame = self.age_frames as u32;
+        self.params
+            .body_light_window
+            .is_some_and(|(lo, hi)| (lo..=hi).contains(&frame))
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
@@ -495,6 +545,26 @@ mod tests {
 
         step(&mut e, 50.0);
         assert!(draws(&e).is_empty(), "fans fully faded");
+    }
+
+    #[test]
+    fn bash3d_recolors_the_caster_body_inside_its_window() {
+        // EF_BASH3D recolors the master sprite pink (255,200,200) over frames
+        // 20..=40 — before and after that window the body is untouched.
+        let mut e = Bash3dEffect::new([0.0; 3], BASH3D);
+        step(&mut e, 10.0);
+        assert_eq!(e.body_tint(), None, "no tint before the window");
+        step(&mut e, 20.0); // frame ~30, inside 20..=40
+        assert_eq!(e.body_tint(), Some(BodyTint { rgb: [255, 200, 200] }));
+        assert!(!e.body_additive(), "Bash uses a colour multiply, not a glow");
+        step(&mut e, 20.0); // frame ~50, past the window
+        assert_eq!(e.body_tint(), None, "tint clears after the window");
+
+        // The linear-growth variant glows white (additive body light) instead.
+        let mut g = Bash3dEffect::new([0.0; 3], BASH3D2);
+        step(&mut g, 15.0); // inside 5..=35
+        assert!(g.body_additive(), "BL_LIGHT_BODY glow");
+        assert_eq!(g.body_tint(), None, "glow carries no colour multiply");
     }
 
     #[test]

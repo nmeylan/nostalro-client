@@ -72,6 +72,7 @@ impl Connection {
             [0xb4, 0x00] | // ZC_SAY_DIALOG
             [0xb7, 0x00] | // ZC_MENU_LIST
             [0xd7, 0x00] | // ZC_ROOM_NEWENTRY
+            [0xdb, 0x00] | // ZC_ENTER_ROOM
             [0xdf, 0x00] | // ZC_CHANGE_CHATROOM
             [0x09, 0x01] | // ZC_NOTIFY_CHAT_PARTY
             [0x11, 0x01] | // ZC_ADD_SKILL

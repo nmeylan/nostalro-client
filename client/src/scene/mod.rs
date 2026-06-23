@@ -4,7 +4,7 @@ use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
 use ragnarok_game::effect::{BlendKind, EffectPrimitiveDraw};
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::shadow::shadow_size;
-use ragnarok_game::sprite_path::{HIDDEN_BODY_ALPHA, is_hidden};
+use ragnarok_game::sprite_path::{HiddenRender, hidden_render};
 use ragnarok_renderer::effect::holder::AfterimageSnapshot;
 use ragnarok_renderer::effect::{EffectFrameInputs, compose_effect_frame};
 use ragnarok_renderer::ui_renderer::UiVertex;
@@ -44,14 +44,22 @@ impl App {
                         self.game.sprites.get(&entry.id),
                         self.game.entities.get(entry.id),
                     ) {
-                        // Hiding / Cloaking / Chase Walk: the body stays visible
-                        // but translucent (alpha ~135/255) and loses its
-                        // shadow. Folds into the death /
-                        // vanish fade alpha.
-                        let hidden = is_hidden(entity.effect_state);
+                        // Hiding / Cloaking / Chase Walk: cloak is a faint body
+                        // for everyone; hide / chase walk keep the body faintly
+                        // visible only for the local player and hide it entirely
+                        // from everyone else. A hidden state also drops the
+                        // shadow. Folds into the death / vanish fade alpha.
+                        let is_self = Some(entry.id) == self.game.entities.player_id();
+                        let render = hidden_render(entity.effect_state, is_self);
+                        if render == HiddenRender::Skip {
+                            continue;
+                        }
                         let fade_alpha = entity.alpha();
-                        let body_alpha =
-                            fade_alpha * if hidden { HIDDEN_BODY_ALPHA } else { 1.0 };
+                        let body_alpha = fade_alpha
+                            * match render {
+                                HiddenRender::Alpha(a) => a,
+                                _ => 1.0,
+                            };
                         let is_fading = fade_alpha < 1.0;
 
                         // All per-entity body modifiers (shake / tint / scale /
@@ -70,7 +78,7 @@ impl App {
                         }
                         body_channels.alpha *= body_alpha;
 
-                        if !is_fading && !hidden {
+                        if !is_fading && render == HiddenRender::Visible {
                             let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
                             let mut shadow = sprite.build_shadow_batches(
                                 entry.screen_anchor,

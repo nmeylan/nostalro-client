@@ -284,6 +284,11 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
 
         S::StChasewalk => &[E::Castspin],
 
+        // Spiral Pierce flashes the caster's body yellow at skill start (the
+        // original's begin effect); the cast circle is hidden (see its
+        // `hide_cast_aura`), but the body flash still plays.
+        S::LkSpiralpierce => &[E::Piercebody],
+
         // Blue casting glyph — Taekwon run, Star-Gladiator feel/hate, Soul
         // Linker spirit skills.
         S::TkRun
@@ -302,6 +307,31 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
 
         _ => &[],
     }
+}
+
+/// Whether a begin-cast effect is the on-the-ground cast *circle* (the
+/// `Beginspell` family + the blue/asura/couple casting glyphs), as opposed to a
+/// caster body-flash like `Piercebody`. `hide_cast_aura` suppresses the circle
+/// but must still let the body-flash play.
+pub fn is_cast_circle(id: EffectId) -> bool {
+    use EffectId as E;
+    matches!(
+        id,
+        E::Beginspell
+            | E::Beginspell2
+            | E::Beginspell3
+            | E::Beginspell4
+            | E::Beginspell5
+            | E::Beginspell6
+            | E::Beginspell7
+            | E::Beginspellwhite
+            | E::Bluecasting
+            | E::Beginasura
+            | E::Couplecasting
+            | E::Castspin
+            | E::Incagidex
+            | E::Brandish2
+    )
 }
 
 /// Element-colored begin-spell circle for the generic cast aura. Only the
@@ -379,6 +409,10 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::MoExplosionspirits => C::cast(&[E::Gumgang, E::Gumgang2]),
         // Keep only the shockwave burst; the steel aura is the persistent EFST status.
         S::MoSteelbody => C::cast(&[E::Gumgang2]),
+        // Champion combo finishers — Tiger Fist flashes the caster (white body
+        // light) + shockwave; Palm Strike / Chain Crush recolor the target
+        // (see `target_skill_effects`).
+        S::ChTigerfist => C::cast(&[E::Bash3d2, E::Gumgang3]),
 
         // --- Crusader / Paladin / Lord Knight / WS ------------------------
         S::CrGrandcross => C::cast(&[E::Grandcross]),
@@ -586,6 +620,10 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::MoExtremityfist => T::on_target(&[E::Teihit1x]),
         S::MoTripleattack => T::on_target(&[E::Tripleattack]),
         S::MoInvestigate => T::on_target(&[E::Teihit2, E::Chimto]),
+        // Champion finishers: Palm Strike flashes the target orange (Hitline2),
+        // Chain Crush bursts + recolors it pale yellow (Chemical2).
+        S::ChPalmstrike => T::on_target(&[E::Hitline2]),
+        S::ChChaincrush => T::on_target(&[E::Gumgang3, E::Chemical2]),
 
         // --- Crusader / Paladin / Lord Knight / WS ------------------------
         S::CrHolycross => T::on_target(&[E::Holycross]),
@@ -802,6 +840,41 @@ mod tests {
         assert_eq!(begin_cast_effect(SkillEnum::MoExtremityfist), &[EffectId::Beginasura]);
         assert!(begin_cast_effect(SkillEnum::MoBodyrelocation).is_empty());
         assert!(caster_skill_effects(SkillEnum::KnBowlingbash).hide_cast_aura);
+    }
+
+    #[test]
+    fn spiral_pierce_begin_is_a_body_flash_that_survives_a_hidden_cast_aura() {
+        // Spiral Pierce's begin effect is the yellow body flash, not a cast
+        // circle, so it must NOT be classified as a circle (the call site keeps
+        // firing it even though the skill hides its cast aura).
+        assert_eq!(
+            begin_cast_effect(SkillEnum::LkSpiralpierce),
+            &[EffectId::Piercebody]
+        );
+        assert!(caster_skill_effects(SkillEnum::LkSpiralpierce).hide_cast_aura);
+        assert!(!is_cast_circle(EffectId::Piercebody), "body flash is not a circle");
+        // The cast-circle family is still recognised so the aura gate suppresses it.
+        assert!(is_cast_circle(EffectId::Beginspell));
+        assert!(is_cast_circle(EffectId::Beginspell6));
+        assert!(is_cast_circle(EffectId::Bluecasting));
+    }
+
+    #[test]
+    fn champion_combo_skills_route_their_body_recolors() {
+        // Tiger Fist flashes the caster (Bash3d2 white glow) + shockwave; Palm
+        // Strike / Chain Crush recolor the target via tint-capable effects.
+        assert_eq!(
+            caster_skill_effects(SkillEnum::ChTigerfist).cast,
+            &[EffectId::Bash3d2, EffectId::Gumgang3]
+        );
+        assert_eq!(
+            target_skill_effects(SkillEnum::ChPalmstrike).on_target,
+            &[EffectId::Hitline2]
+        );
+        assert_eq!(
+            target_skill_effects(SkillEnum::ChChaincrush).on_target,
+            &[EffectId::Gumgang3, EffectId::Chemical2]
+        );
     }
 
     #[test]

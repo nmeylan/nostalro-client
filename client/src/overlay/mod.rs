@@ -1,4 +1,5 @@
 use crate::App;
+use ragnarok_game::chat_room::{room_box_rect, BOX_PADDING};
 use ragnarok_game::cursor::RenderEntry;
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::targeting::pk_name_color;
@@ -22,6 +23,7 @@ impl App {
         self.build_player_bars(hovered_entity_id, render_list, &mut calls);
         self.build_cast_bars(render_list, &mut calls);
         self.build_chat_bubbles(render_list, &mut calls);
+        self.build_chat_room_boxes(render_list, &mut calls);
         self.build_floor_item_tooltip(hovered_floor_item_id, floor_item_render_list, &mut calls);
         self.build_debug_pick_bounds(render_list, floor_item_render_list, &mut calls);
 
@@ -213,6 +215,48 @@ impl App {
                     });
                 }
             }
+        }
+    }
+
+    fn build_chat_room_boxes(&self, render_list: &[RenderEntry], calls: &mut Vec<UiDrawCall>) {
+        let renderer = match &self.renderer {
+            Some(r) => r,
+            None => return,
+        };
+        for room in self.game.chat_rooms.iter() {
+            let entry = match render_list.iter().find(|e| e.id == room.owner_aid) {
+                Some(e) => e,
+                None => continue,
+            };
+            let label = room.box_label();
+            let line_h = renderer.font_atlas.line_height;
+            let box_w = renderer.font_atlas.measure_text(&label) + BOX_PADDING * 2.0;
+            let box_h = line_h + BOX_PADDING * 2.0;
+            let [left, top, _right, _bottom] = room_box_rect(entry, box_w, box_h);
+
+            let bg = match room.atype {
+                0 => [0.25, 0.25, 0.25, 0.85], // private
+                3 => [0.45, 0.1, 0.1, 0.85],   // pk zone
+                _ => [0.5, 0.4, 0.1, 0.85],    // public / arena
+            };
+            let (bg_verts, bg_idx) =
+                ragnarok_ui::draw::quad_vertices(left, top, box_w, box_h, bg);
+            calls.push(UiDrawCall {
+                vertices: bg_verts.to_vec(),
+                indices: bg_idx.to_vec(),
+                texture: UiTextureRef::White,
+            });
+
+            let text_x = entry.screen_anchor[0] - renderer.font_atlas.measure_text(&label) / 2.0;
+            let text_y = top + BOX_PADDING + line_h / 2.0;
+            build_outlined_text(
+                &label,
+                text_x,
+                text_y,
+                [1.0, 1.0, 1.0, 1.0],
+                &renderer.font_atlas,
+                calls,
+            );
         }
     }
 

@@ -57,6 +57,7 @@ impl App {
         self.game.sprite_cache.clear();
         self.game.floor_items.clear();
         self.game.floor_item_sprites.clear();
+        self.game.chat_rooms.clear();
         self.game.waiting_item_throw_ack = false;
         self.game.drop_quantity_dialog = None;
         self.game.card_insert_dialog = None;

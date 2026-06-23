@@ -371,6 +371,33 @@ pub enum GameEvent {
     },
     RequestNpcShopClose,
 
+    // Chat room / waitingroom (server → client)
+    /// A room appeared or changed over its owner (ZC_ROOM_NEWENTRY / ZC_CHANGE_CHATROOM).
+    ChatRoomUpsert {
+        owner_aid: u32,
+        room_id: u32,
+        max_count: i16,
+        cur_count: i16,
+        atype: u8,
+        title: String,
+    },
+    ChatRoomDestroy {
+        room_id: u32,
+    },
+    /// We successfully joined a room (ZC_ENTER_ROOM).
+    ChatRoomEntered {
+        room_id: u32,
+    },
+    /// Our join request was refused (ZC_REFUSE_ENTER_ROOM).
+    ChatRoomJoinRefused {
+        result: u8,
+    },
+
+    // Chat room (client → server)
+    RequestJoinChatRoom {
+        room_id: u32,
+    },
+
     // Inventory (server → client)
     InventoryNormalItems {
         items: Vec<NormalItemData>,

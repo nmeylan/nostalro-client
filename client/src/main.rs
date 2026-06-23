@@ -29,7 +29,7 @@ use ragnarok_network::{
     build_npc_close_packet, build_npc_deal_type_packet, build_npc_input_number_packet,
     build_npc_input_string_packet, build_npc_menu_select_packet, build_npc_next_packet,
     build_pickup_item_packet, build_purchase_item_list_packet, build_remove_option_packet,
-    build_reqname_packet, build_restart_packet, build_select_char_packet,
+    build_req_enter_room_packet, build_reqname_packet, build_restart_packet, build_select_char_packet,
     build_select_warppoint_packet, build_sell_item_list_packet,
     build_shortcut_key_change_packet, build_stat_change_packet,
     build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_use_skill_packet,
@@ -486,6 +486,10 @@ impl App {
                         self.config.packetver,
                     ));
                 }
+                GameEvent::RequestJoinChatRoom { room_id } => {
+                    self.channel
+                        .send_packet(build_req_enter_room_packet(room_id, self.config.packetver));
+                }
                 GameEvent::RequestSelectWarppoint { skill_id, map_name } => {
                     self.channel.send_packet(build_select_warppoint_packet(
                         skill_id,
@@ -654,13 +658,15 @@ impl App {
                         .unwrap_or(SkillTargetType::Target);
                     match skill_target_type {
                         SkillTargetType::MySelf => {
-                            let target_id = self.game.entities.player_id().unwrap_or(0);
-                            self.channel.send_packet(build_use_skill_packet(
-                                skill_id,
-                                level,
-                                target_id,
-                                self.config.packetver,
-                            ));
+                            if !self.skill_on_cooldown(skill_id) {
+                                let target_id = self.game.entities.player_id().unwrap_or(0);
+                                self.channel.send_packet(build_use_skill_packet(
+                                    skill_id,
+                                    level,
+                                    target_id,
+                                    self.config.packetver,
+                                ));
+                            }
                         }
                         SkillTargetType::Target | SkillTargetType::Friend => {
                             self.game.pending_skill_target =

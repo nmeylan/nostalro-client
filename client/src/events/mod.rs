@@ -10,6 +10,7 @@ mod skill;
 use crate::App;
 use models::enums::EnumWithMaskValueU64;
 use ragnarok_formats::grf::GrfArchive;
+use ragnarok_game::chat_room::ChatRoom;
 use ragnarok_game::event::GameEvent;
 use ragnarok_network::build_npc_close_packet;
 use ragnarok_renderer::Renderer;
@@ -277,6 +278,45 @@ impl App {
                 }
                 GameEvent::NpcShopSellResult { result } => {
                     self.handle_npc_shop_sell_result(result);
+                }
+
+                // Chat room / waitingroom
+                GameEvent::ChatRoomUpsert {
+                    owner_aid,
+                    room_id,
+                    max_count,
+                    cur_count,
+                    atype,
+                    title,
+                } => {
+                    self.game.chat_rooms.upsert(ChatRoom {
+                        room_id,
+                        owner_aid,
+                        title,
+                        cur_count,
+                        max_count,
+                        atype,
+                    });
+                }
+                GameEvent::ChatRoomDestroy { room_id } => {
+                    self.game.chat_rooms.remove(room_id);
+                }
+                GameEvent::ChatRoomEntered { .. } => {
+                    self.game
+                        .chat_window
+                        .add_system("You entered the room.".to_string());
+                }
+                GameEvent::ChatRoomJoinRefused { result } => {
+                    let reason = match result {
+                        1 => "Room is full.",
+                        2 => "Wrong password.",
+                        3 => "You have been kicked from this room.",
+                        4 => "Not enough Zeny to enter.",
+                        5 => "Your level is too low to enter.",
+                        6 => "Your level is too high to enter.",
+                        _ => "Cannot enter the room.",
+                    };
+                    self.game.chat_window.add_system(reason.to_string());
                 }
 
                 // Inventory

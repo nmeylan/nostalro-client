@@ -16,7 +16,8 @@ use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
     Afterimage, AlphaKeyframe, Attach, BodyAction, CameraShake, Effect as GameEffect,
     EffectDrawList, EffectQueue, EffectRenderCtx, EffectSpec, EffectStatus, EffectUpdateCtx,
-    NumberRequest, SpawnRequest, SprBurstParams, effect_spec, make_effect, spawn_camera_shake,
+    NumberRequest, SpawnRequest, SprBodyRecolor, SprBurstParams, effect_spec, make_effect,
+    spawn_camera_shake,
 };
 
 use crate::effect_sprite::Smoke3DParticle;
@@ -181,6 +182,9 @@ struct BurstState {
     has_emitted: bool,
     /// Time since the last burst was emitted; reset on respawn.
     cooldown_timer: f32,
+    /// Optional caster body flicker played alongside the burst (hybrid effects
+    /// like Enchant Deadly Poison). `None` for plain ambient bursts.
+    body_recolor: Option<SprBodyRecolor>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -434,7 +438,7 @@ impl EffectHolder {
                     action_index: *action_index,
                 }
             }
-            EffectSpec::SprBurst { sprite, burst, .. } => {
+            EffectSpec::SprBurst { sprite, burst, body_recolor, .. } => {
                 self.last_spawn = Some(SpawnOutcome::SprBurst);
                 let mut params = *burst;
                 params.size *= size_scale_override.unwrap_or(1.0);
@@ -444,6 +448,7 @@ impl EffectHolder {
                     particles: Vec::new(),
                     has_emitted: false,
                     cooldown_timer: 0.0,
+                    body_recolor: *body_recolor,
                 })
             }
             EffectSpec::Noop => unreachable!("Noop handled above"),
@@ -688,6 +693,9 @@ impl EffectHolder {
                     HeldPayload::Spr { .. } => "Spr",
                     HeldPayload::SprBurst(_) => "SprBurst",
                 };
+
+                if let (HeldPayload::CustomExternal { handle }, Some(b)) =
+                    (&e.payload, &backend)
                 {
                     b.drop_handle(*handle);
                 }
@@ -774,8 +782,26 @@ impl EffectHolder {
     pub fn body_channels_for_entity(&self, entity_id: u32) -> crate::sprite::BodyChannels {
         let mut ch = crate::sprite::BodyChannels::default();
         for e in &self.effects {
-            let (Attach::Entity(id), HeldPayload::Custom(c)) = (e.attach, &e.payload) else {
-                continue;
+            // Hybrid SprBurst effects (e.g. Enchant Deadly Poison) recolor the
+            // caster body alongside their particle burst: flicker the multiply
+            // tint on even frames within the recolor window.
+            if let (Attach::Entity(id), HeldPayload::SprBurst(b)) = (e.attach, &e.payload)
+                && id == entity_id
+                && let Some(r) = b.body_recolor
+            {
+                let frame = (e.age * 60.0) as u32;
+                if (r.window_frames.0..=r.window_frames.1).contains(&frame) && frame % 2 == 0 {
+                    ch.tint = Some(r.rgb);
+                }
+            }
+            // Body channels compose on the actor an effect is anchored to:
+            // `Attach::Entity` (most body flashes) or the *caster* of an
+            // `Attach::Link` effect (Soul Breaker recolors the caster while its
+            // crescent flies to the target).
+            let (id, c) = match (e.attach, &e.payload) {
+                (Attach::Entity(id), HeldPayload::Custom(c)) => (id, c),
+                (Attach::Link { caster, .. }, HeldPayload::Custom(c)) => (caster, c),
+                _ => continue,
             };
             if id != entity_id {
                 continue;

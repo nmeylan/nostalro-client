@@ -25,34 +25,10 @@
       "open": false,
       "collapsed": false
     },
-    "1200": {
-      "position": [
-        400.0,
-        100.0
-      ],
-      "open": true,
-      "collapsed": false
-    },
-    "800": {
-      "position": [
-        0.0,
-        130.10938
-      ],
-      "open": true,
-      "collapsed": false
-    },
     "210": {
       "position": [
         342.0,
         173.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "1300": {
-      "position": [
-        476.6667,
-        0.0
       ],
       "open": false,
       "collapsed": false
@@ -65,18 +41,18 @@
       "open": false,
       "collapsed": false
     },
-    "900": {
-      "position": [
-        0.0,
-        210.0
-      ],
-      "open": true,
-      "collapsed": false
-    },
     "110": {
       "position": [
         490.0,
         284.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "1300": {
+      "position": [
+        476.6667,
+        0.0
       ],
       "open": false,
       "collapsed": false

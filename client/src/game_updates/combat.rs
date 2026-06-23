@@ -175,6 +175,11 @@ impl App {
             if let Some(player) = self.game.entities.player_mut() {
                 player.movement.stop();
             }
+            // In range but still on cooldown: hold the cast and retry next frame
+            // once the cooldown clears, rather than dropping the queued skill.
+            if self.skill_on_cooldown(skill_id) {
+                return;
+            }
             self.channel.send_packet(build_use_skill_packet(
                 skill_id,
                 level,

@@ -100,14 +100,15 @@ impl HotkeyBarWindow {
         }
     }
 
-    fn execute_slot(&self, index: usize, character: &Character, events: &mut Vec<GameEvent>, elapsed: f32) {
+    fn execute_slot(&self, index: usize, character: &Character, events: &mut Vec<GameEvent>) {
         let content = character.hotkeys.get_slot(index);
         match content {
             HotkeySlotContent::Empty => {}
             HotkeySlotContent::Skill { skill_id, level } => {
-                if !character.cooldowns.is_on_cooldown(skill_id, elapsed) {
-                    events.push(GameEvent::RequestUseSkill { skill_id, level });
-                }
+                // Always request the skill, even on cooldown: targeting skills
+                // still enter cursor mode (the skill-level ring), and the cast
+                // itself is gated when the packet would be sent.
+                events.push(GameEvent::RequestUseSkill { skill_id, level });
             }
             HotkeySlotContent::Item { inventory_index, .. } => {
                 if let Some(item) = character.inventory.get_item(inventory_index) {
@@ -402,7 +403,7 @@ impl InGameWindow for HotkeyBarWindow {
                         }
 
                     if resp.double_clicked() {
-                        self.execute_slot(slot_index, character, &mut events, ui.elapsed_secs);
+                        self.execute_slot(slot_index, character, &mut events);
                     } else if resp.clicked() {
                         ui.drag_source(
                             HOTKEY_BAR_WINDOW_ID,
@@ -456,7 +457,7 @@ impl InGameWindow for HotkeyBarWindow {
         ];
         for (i, &pressed) in f_keys.iter().enumerate() {
             if pressed {
-                self.execute_slot(i, character, &mut events, ui.elapsed_secs);
+                self.execute_slot(i, character, &mut events);
             }
         }
 
@@ -466,15 +467,15 @@ impl InGameWindow for HotkeyBarWindow {
                 let lower = ch.to_ascii_lowercase();
                 if let Some(col) = ROW2_CHARS.iter().position(|&c| c == lower) {
                     if visible_rows > 1 {
-                        self.execute_slot(HOTKEY_COLS + col, character, &mut events, ui.elapsed_secs);
+                        self.execute_slot(HOTKEY_COLS + col, character, &mut events);
                     }
                 } else if let Some(col) = ROW3_CHARS.iter().position(|&c| c == lower) {
                     if visible_rows > 2 {
-                        self.execute_slot(HOTKEY_COLS * 2 + col, character, &mut events, ui.elapsed_secs);
+                        self.execute_slot(HOTKEY_COLS * 2 + col, character, &mut events);
                     }
                 } else if let Some(col) = ROW4_CHARS.iter().position(|&c| c == lower)
                     && visible_rows > 3 {
-                        self.execute_slot(HOTKEY_COLS * 3 + col, character, &mut events, ui.elapsed_secs);
+                        self.execute_slot(HOTKEY_COLS * 3 + col, character, &mut events);
                     }
             }
         }

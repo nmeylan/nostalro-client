@@ -42,14 +42,46 @@ pub const OPTION_CLOAK: i32 = 0x04;
 pub const OPTION_CHASEWALK: i32 = 0x4000;
 pub const OPTION_HIDDEN_MASK: i32 = OPTION_HIDE | OPTION_CLOAK | OPTION_CHASEWALK;
 
-/// Body opacity for a hiding/cloaking actor — 135/255 as the original game
-/// shows it. The sprite stays visible but translucent (and drops its
-/// shadow) for the local player / detectors; others aren't sent the unit.
-pub const HIDDEN_BODY_ALPHA: f32 = 135.0 / 255.0;
+/// Cloak body opacity — the original game's `SetArgb(50, …)`. Faint, distinctly
+/// more transparent than Hide so a cloaking unit reads differently.
+pub const CLOAK_BODY_ALPHA: f32 = 50.0 / 255.0;
+/// Hide / Chase Walk body opacity for the *local* player — the original applies
+/// `EF_ACTOR_COLOR` (`SetArgb(100, 255, 255, 255)`: white = no tint, just the
+/// reduced alpha). Other units in these states are not drawn at all.
+pub const HIDE_BODY_ALPHA: f32 = 100.0 / 255.0;
+
+/// How an actor's body draws while a visibility OPTION is set.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum HiddenRender {
+    /// Drawn at full opacity (no visibility option active).
+    Visible,
+    /// Drawn translucent at this alpha; the shadow is dropped.
+    Alpha(f32),
+    /// Not drawn at all (a hiding/chase-walking unit seen by others).
+    Skip,
+}
 
 /// `true` while `effect_state` carries Hide, Cloak, or Chase Walk.
 pub fn is_hidden(effect_state: i32) -> bool {
     (effect_state & OPTION_HIDDEN_MASK) != 0
+}
+
+/// Per-state body visibility, matching the original client: cloak is a faint
+/// translucent body for everyone; hide / chase walk keep the body faintly
+/// visible only for the local player (`is_self`) and hide it entirely from
+/// everyone else. Cloak takes precedence when several bits are set.
+pub fn hidden_render(effect_state: i32, is_self: bool) -> HiddenRender {
+    if effect_state & OPTION_CLOAK != 0 {
+        HiddenRender::Alpha(CLOAK_BODY_ALPHA)
+    } else if effect_state & (OPTION_HIDE | OPTION_CHASEWALK) != 0 {
+        if is_self {
+            HiddenRender::Alpha(HIDE_BODY_ALPHA)
+        } else {
+            HiddenRender::Skip
+        }
+    } else {
+        HiddenRender::Visible
+    }
 }
 
 pub fn mounted_job(job: u16) -> Option<u16> {
@@ -436,6 +468,23 @@ mod tests {
         assert!(is_hidden(OPTION_RIDING | OPTION_CLOAK), "set among other options");
         assert!(!is_hidden(0));
         assert!(!is_hidden(OPTION_RIDING), "mount alone is not hidden");
+    }
+
+    #[test]
+    fn hidden_render_is_per_state_and_self_aware() {
+        use HiddenRender::*;
+        // No visibility option: always fully drawn.
+        assert_eq!(hidden_render(0, true), Visible);
+        assert_eq!(hidden_render(OPTION_RIDING, false), Visible);
+        // Cloak: faint for everyone, cloak alpha wins over hide.
+        assert_eq!(hidden_render(OPTION_CLOAK, false), Alpha(CLOAK_BODY_ALPHA));
+        assert_eq!(hidden_render(OPTION_CLOAK, true), Alpha(CLOAK_BODY_ALPHA));
+        assert_eq!(hidden_render(OPTION_CLOAK | OPTION_HIDE, false), Alpha(CLOAK_BODY_ALPHA));
+        // Hide / Chase Walk: faintly visible to self, invisible to others.
+        assert_eq!(hidden_render(OPTION_HIDE, true), Alpha(HIDE_BODY_ALPHA));
+        assert_eq!(hidden_render(OPTION_HIDE, false), Skip);
+        assert_eq!(hidden_render(OPTION_CHASEWALK, true), Alpha(HIDE_BODY_ALPHA));
+        assert_eq!(hidden_render(OPTION_CHASEWALK, false), Skip);
     }
 
     #[test]

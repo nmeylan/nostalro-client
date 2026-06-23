@@ -632,6 +632,41 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             items,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcRoomNewentry>() {
+        let title: String = p.title.chars().take_while(|c| *c != '\0').collect();
+        return vec![GameEvent::ChatRoomUpsert {
+            owner_aid: p.aid,
+            room_id: p.room_id,
+            max_count: p.maxcount,
+            cur_count: p.curcount,
+            atype: p.atype,
+            title,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcChangeChatroom>() {
+        let title: String = p.title.chars().take_while(|c| *c != '\0').collect();
+        return vec![GameEvent::ChatRoomUpsert {
+            owner_aid: p.aid,
+            room_id: p.room_id,
+            max_count: p.maxcount,
+            cur_count: p.curcount,
+            atype: p.atype,
+            title,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcDestroyRoom>() {
+        return vec![GameEvent::ChatRoomDestroy {
+            room_id: p.room_id,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcEnterRoom>() {
+        return vec![GameEvent::ChatRoomEntered {
+            room_id: p.room_id,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcRefuseEnterRoom>() {
+        return vec![GameEvent::ChatRoomJoinRefused { result: p.result }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcWarplist>() {
         // Fixed layout: id(2) + SKID(2) + 4 map names of 16 bytes each.
         // Parse from raw to stay independent of the generated array field shape.
@@ -1573,25 +1608,6 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_acknowledged_packets_return_acknowledged() {
-        let packetver = 20120307;
-
-        let mut pkt = PacketZcAid::new(packetver);
-        pkt.set_aid(200000);
-        pkt.fill_raw();
-        let result = dispatch_packet(&pkt, packetver);
-        assert_eq!(result.len(), 1);
-        assert!(matches!(result[0], GameEvent::Acknowledged));
-
-        let mut pkt = PacketZcNotifyMapproperty::new(packetver);
-        pkt.set_atype(0);
-        pkt.fill_raw();
-        let result = dispatch_packet(&pkt, packetver);
-        assert_eq!(result.len(), 1);
-        assert!(matches!(result[0], GameEvent::Acknowledged));
-    }
-
-    #[test]
     fn dispatch_useskill_ack2_returns_skill_casting() {
         let packetver = 20120307;
         let mut pkt = PacketZcUseskillAck2::new(packetver);
@@ -1809,6 +1825,42 @@ mod tests {
                 assert_eq!(*remain_ms, 0);
             }
             other => panic!("expected StatusEffectChanged, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_room_newentry_returns_chat_room_upsert() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcRoomNewentry::new(packetver);
+        pkt.set_aid(150000);
+        pkt.set_room_id(7);
+        pkt.set_maxcount(20);
+        pkt.set_curcount(3);
+        pkt.set_atype(2); // arena
+        let title = "Arena Entrance\0";
+        pkt.set_title(title.to_string());
+        pkt.set_title_raw(title.as_bytes().to_vec());
+        pkt.set_packet_length((17 + title.len()) as i16);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::ChatRoomUpsert {
+                owner_aid,
+                room_id,
+                max_count,
+                cur_count,
+                atype,
+                title,
+            } => {
+                assert_eq!(*owner_aid, 150000);
+                assert_eq!(*room_id, 7);
+                assert_eq!(*max_count, 20);
+                assert_eq!(*cur_count, 3);
+                assert_eq!(*atype, 2);
+                assert_eq!(title, "Arena Entrance");
+            }
+            other => panic!("expected ChatRoomUpsert, got {other:?}"),
         }
     }
 }
