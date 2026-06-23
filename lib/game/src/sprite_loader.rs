@@ -239,6 +239,42 @@ pub fn load_weapon_sprite(
     None
 }
 
+/// The weapon-swing trail (`검광`) sprite, with the same job-fallback chain as
+/// the weapon. Many weapons / classic GRFs lack one — `None` then (no trail).
+pub fn load_weapon_trail_sprite(
+    grf: &GrfArchive,
+    job: u16,
+    sex: u8,
+    weapon_type: WeaponType,
+) -> Option<SpriteData> {
+    let base_path = crate::sprite_path::weapon_trail_sprite_path(job, sex, weapon_type);
+    let result = load_sprite_data(
+        grf,
+        &format!("{base_path}.spr"),
+        &format!("{base_path}.act"),
+    );
+    if result.is_some() {
+        return result;
+    }
+    if let Some(base_job) = crate::sprite_path::unmounted_job(job) {
+        return load_weapon_trail_sprite(grf, base_job, sex, weapon_type);
+    }
+    if let Some(base_job) = crate::sprite_path::transcendent_to_base_class(job) {
+        use models::enums::EnumWithNumberValue;
+        let fallback_path = crate::sprite_path::weapon_trail_sprite_path(
+            base_job.value() as u16,
+            sex,
+            weapon_type,
+        );
+        return load_sprite_data(
+            grf,
+            &format!("{fallback_path}.spr"),
+            &format!("{fallback_path}.act"),
+        );
+    }
+    None
+}
+
 pub fn load_headgear_sprite(grf: &GrfArchive, suffix: &str, sex: u8) -> Option<SpriteData> {
     let base_path = crate::sprite_path::headgear_sprite_path(suffix, sex);
     load_sprite_data(
@@ -283,6 +319,7 @@ pub struct PlayerSpriteData {
     pub body: SpriteData,
     pub head: Option<SpriteData>,
     pub weapon: Option<SpriteData>,
+    pub weapon_trail: Option<SpriteData>,
     pub headgear_top: Option<SpriteData>,
     pub headgear_mid: Option<SpriteData>,
     pub headgear_bottom: Option<SpriteData>,
@@ -319,7 +356,14 @@ pub fn load_player_sprite_data(
 ) -> Option<PlayerSpriteData> {
     let body = load_body_sprite(grf, job, sex, cloth_color)?;
     let head = load_head_sprite(grf, head_id, sex, hair_color);
-    let weapon = weapon.and_then(|wt| load_weapon_sprite(grf, job, sex, wt));
+    let weapon_type = weapon;
+    let weapon = weapon_type.and_then(|wt| load_weapon_sprite(grf, job, sex, wt));
+    // Only load the trail when the weapon itself loaded (a weaponless actor has
+    // no swing arc).
+    let weapon_trail = weapon
+        .as_ref()
+        .and_then(|_| weapon_type)
+        .and_then(|wt| load_weapon_trail_sprite(grf, job, sex, wt));
     let headgear_top = load_headgear(grf, accessory_table, head_top, sex);
     let headgear_mid = load_headgear(grf, accessory_table, head_mid, sex);
     let headgear_bottom = load_headgear(grf, accessory_table, head_bottom, sex);
@@ -333,6 +377,7 @@ pub fn load_player_sprite_data(
         body,
         head,
         weapon,
+        weapon_trail,
         headgear_top,
         headgear_mid,
         headgear_bottom,

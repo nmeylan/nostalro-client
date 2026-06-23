@@ -272,6 +272,13 @@ impl Effect for StatusUpEffect {
         }
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+        for p in &mut self.particles {
+            p.anchor = pos;
+        }
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         for p in &self.particles {
             let alpha = p.alpha();

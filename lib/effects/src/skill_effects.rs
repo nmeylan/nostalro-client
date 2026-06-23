@@ -356,7 +356,9 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
             hide_cast_aura: true,
             ..Default::default()
         },
-        S::KnTwohandquicken | S::KnOnehand => C::cast(&[E::Twohandquicken]),
+        // The yellow body buff is the persistent EFST status (server-driven
+        // duration), not a transient cast effect.
+        S::KnTwohandquicken | S::KnOnehand => C::cast(&[]),
         S::PrMagnificat | S::MerMagnificat => C::cast(&[E::Magnificat]),
         S::PrGloria => C::cast(&[E::Gloria]),
         S::PrKyrie => C::cast(&[E::Kyrie]),
@@ -383,7 +385,8 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::CrShieldboomerang => C::cast(&[E::Shieldboomerang]),
         S::CrShrink => C::cast(&[E::Shrink]),
         S::CrDevotion => C::cast(&[E::Devotion]),
-        S::CrSpearquicken => C::cast(&[E::Spearquicken]),
+        // Persistent EFST status, like Two Hand Quicken.
+        S::CrSpearquicken => C::cast(&[]),
         S::CrReflectshield => C::cast(&[E::Reflectshield]),
         S::CrDefender | S::MlDefender => C::cast(&[E::Defender]),
         S::CrAutoguard | S::MlAutoguard => C::cast(&[E::Guard]),

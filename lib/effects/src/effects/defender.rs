@@ -179,6 +179,10 @@ impl Effect for DefenderEffect {
         }
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         for (_ec, slot) in self.emitter.active() {
             if slot.alpha_b <= 0.0 {
@@ -242,6 +246,25 @@ mod tests {
                 ..
             } => (*distance, *segments, color[3], *heights),
             _ => panic!("expected RadialRing, got {:?}", prim),
+        }
+    }
+
+    #[test]
+    fn rings_follow_entity_after_set_position() {
+        // The holder re-anchors entity-attached effects every frame; the buff
+        // must redraw its rings around the new position, not the spawn cell.
+        let mut e = DefenderEffect::new([5.0, 0.0, -3.0], DEFENDER);
+        step(&mut e, 30.0);
+        e.set_position([12.0, 1.0, 8.0]);
+        let prims = draws(&e);
+        assert!(!prims.is_empty());
+        for p in &prims {
+            match p {
+                EffectPrimitiveDraw::RadialRing { center, .. } => {
+                    assert_eq!(*center, [12.0, 1.0, 8.0]);
+                }
+                _ => panic!("expected RadialRing, got {p:?}"),
+            }
         }
     }
 

@@ -210,6 +210,10 @@ impl Effect for BlessingEffect {
         }
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         if self.age_frames <= PARENT_DURATION_FRAMES {
             let alpha = disc_alpha(self.age_frames);

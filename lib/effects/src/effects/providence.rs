@@ -89,6 +89,10 @@ impl Effect for ProvidenceEffect {
         }
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let alpha = self.alpha();
         if alpha <= 0.0 {

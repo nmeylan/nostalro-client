@@ -7,7 +7,6 @@
 //! the game crate; tooling can swap that for an [`ExternalCustomBackend`]
 //! to load effects from a hot-reload cdylib.
 
-use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use models::enums::EnumWithNumberValue;
@@ -236,6 +235,8 @@ enum HeldPayload {
 
 struct HeldEffect {
     handle: EffectHandle,
+    /// (debug) the id this effect was spawned from.
+    effect_id: EffectId,
     payload: HeldPayload,
     attach: Attach,
     age: f32,
@@ -253,6 +254,12 @@ pub struct AfterimageSnapshot {
     pub anim: SpriteAnimationState,
     pub camera_dir: Option<u8>,
     pub head_dir: u8,
+    /// World cell position where the copy was dropped. The game re-projects this
+    /// with the live camera each frame so the copy stays put in the world
+    /// (trailing behind the actor) instead of following the camera-tracked
+    /// screen anchor. The frozen `anchor`/`depth`/`scale` below are the fallback
+    /// used by tooling that previews a stationary actor (no world projection).
+    pub world_pos: (f32, f32),
     pub anchor: [f32; 2],
     pub depth: f32,
     pub scale: f32,
@@ -268,6 +275,7 @@ impl AfterimageSnapshot {
         anim: SpriteAnimationState,
         camera_dir: Option<u8>,
         head_dir: u8,
+        world_pos: (f32, f32),
         anchor: [f32; 2],
         depth: f32,
         scale: f32,
@@ -278,6 +286,7 @@ impl AfterimageSnapshot {
             anim,
             camera_dir,
             head_dir,
+            world_pos,
             anchor,
             depth,
             scale,
@@ -301,15 +310,38 @@ pub struct EffectHolder {
     /// Live afterimage snapshots (the original game's motion-blur clones),
     /// decayed each frame by the holder.
     afterimages: Vec<AfterimageSnapshot>,
-    /// Per-entity frame accumulator for the emit interval.
-    afterimage_emit: HashMap<u32, f32>,
-    /// Entities whose emit interval elapsed this frame (a snapshot is due).
-    afterimage_due: HashSet<u32>,
 }
 
 impl EffectHolder {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// (debug) Outcome of the most recent spawn attempt.
+    pub fn last_spawn(&self) -> Option<&SpawnOutcome> {
+        self.last_spawn.as_ref()
+    }
+
+    /// (debug) Number of live held effects.
+    pub fn effect_count(&self) -> usize {
+        self.effects.len()
+    }
+
+    /// (debug) Number of live Custom (factory-built) effects.
+    pub fn custom_count(&self) -> usize {
+        self.effects
+            .iter()
+            .filter(|e| matches!(e.payload, HeldPayload::Custom(_)))
+            .count()
+    }
+
+    /// (debug) `(effect_id, age, duration)` of every live Custom effect.
+    pub fn debug_live(&self) -> Vec<(EffectId, f32, f32)> {
+        self.effects
+            .iter()
+            .filter(|e| matches!(e.payload, HeldPayload::Custom(_)))
+            .map(|e| (e.effect_id, e.age, e.duration))
+            .collect()
     }
 
     /// Install (or remove) an external custom-effect backend. Drops every
@@ -498,6 +530,7 @@ impl EffectHolder {
         self.next_id += 1;
         self.effects.push(HeldEffect {
             handle,
+            effect_id,
             payload,
             attach,
             age: 0.0,
@@ -648,8 +681,13 @@ impl EffectHolder {
                 }
             };
             if !alive || expired {
-                if let (HeldPayload::CustomExternal { handle }, Some(b)) =
-                    (&e.payload, &backend)
+                let kind = match &e.payload {
+                    HeldPayload::Custom(_) => "Custom",
+                    HeldPayload::CustomExternal { .. } => "CustomExternal",
+                    HeldPayload::Str { .. } => "Str",
+                    HeldPayload::Spr { .. } => "Spr",
+                    HeldPayload::SprBurst(_) => "SprBurst",
+                };
                 {
                     b.drop_handle(*handle);
                 }
@@ -664,34 +702,14 @@ impl EffectHolder {
         self.tick_afterimages(dt);
     }
 
-    /// Decay live afterimage snapshots and advance the per-entity emit timers,
-    /// flagging entities whose interval elapsed this frame. The actor pass
-    /// consumes the flag (only emitting while the actor is actually moving),
-    /// matching the original game's motion-blur cadence (every 5th frame).
+    /// Decay live afterimage snapshots, dropping any that have faded out. The
+    /// actor pass decides when to drop a new copy (one per displayed animation
+    /// frame, while the actor moves).
     fn tick_afterimages(&mut self, dt: f32) {
         for img in &mut self.afterimages {
             img.alpha -= img.fade_per_sec * dt;
         }
         self.afterimages.retain(|i| i.alpha > 0.0);
-
-        let mut active: HashMap<u32, Afterimage> = HashMap::new();
-        for e in &self.effects {
-            if let (Attach::Entity(id), HeldPayload::Custom(c)) = (e.attach, &e.payload)
-                && let Some(ai) = c.body_afterimage()
-            {
-                active.insert(id, ai);
-            }
-        }
-        self.afterimage_emit.retain(|id, _| active.contains_key(id));
-        self.afterimage_due.clear();
-        for (id, ai) in active {
-            let acc = self.afterimage_emit.entry(id).or_insert(0.0);
-            *acc += dt * 60.0;
-            if *acc >= ai.interval_frames {
-                *acc -= ai.interval_frames;
-                self.afterimage_due.insert(id);
-            }
-        }
     }
 
     /// Afterimage parameters of the effect attached to `entity_id`, if any
@@ -706,11 +724,6 @@ impl EffectHolder {
                 None
             }
         })
-    }
-
-    /// `true` if a fresh afterimage snapshot is due for `entity_id` this frame.
-    pub fn afterimage_emit_due(&self, entity_id: u32) -> bool {
-        self.afterimage_due.contains(&entity_id)
     }
 
     /// Store a snapshot of the moving actor; the holder decays it until gone.
@@ -776,6 +789,9 @@ impl EffectHolder {
             }
             if c.body_additive() {
                 ch.additive = true;
+            }
+            if c.weapon_trail() {
+                ch.weapon_trail = true;
             }
             if let Some(s) = c.body_scale() {
                 ch.scale *= s;
@@ -1397,6 +1413,7 @@ mod tests {
         let mut h = EffectHolder::new();
         h.effects.push(HeldEffect {
             handle: EffectHandle(1),
+            effect_id: EffectId::Beginspell,
             payload: HeldPayload::Custom(Box::new(FollowFake { seen: seen.clone() })),
             attach: Attach::Entity(7),
             age: 0.0,
@@ -1421,6 +1438,7 @@ mod tests {
         let mut push_keyed = |handle: u64, key: Option<u32>| {
             h.effects.push(HeldEffect {
                 handle: EffectHandle(handle),
+                effect_id: EffectId::Beginspell,
                 payload: HeldPayload::Str { name: "x".to_string(), repeat: false },
                 attach: Attach::WorldPos([0.0; 3]),
                 age: 0.0,
@@ -1463,6 +1481,7 @@ mod tests {
         let mut h = EffectHolder::new();
         h.effects.push(HeldEffect {
             handle: EffectHandle(1),
+            effect_id: EffectId::Beginspell,
             payload: HeldPayload::Custom(Box::new(MoveFake { seen: seen.clone() })),
             attach: Attach::WorldPos([105.0, 0.0, 154.0]),
             age: 0.0,
@@ -1508,16 +1527,14 @@ mod tests {
             "only the attached entity trails"
         );
 
-        // One interval (5 frames) elapses → a snapshot is due.
-        h.update(&ctx(5.0 / 60.0), &|_| None, &|_| None);
-        assert!(h.afterimage_emit_due(7), "snapshot due after the interval");
-
-        // The actor pass snapshots only while moving; store one here.
+        // The actor pass drops a copy per displayed frame while moving; store
+        // one here.
         h.push_afterimage(AfterimageSnapshot::new(
             7,
             SpriteAnimationState::new(0),
             Some(0),
             0,
+            (10.0, 20.0),
             [10.0, 20.0],
             0.5,
             1.0,
@@ -1609,6 +1626,7 @@ mod tests {
         let mut h = EffectHolder::new();
         h.effects.push(HeldEffect {
             handle: EffectHandle(1),
+            effect_id: EffectId::Beginspell,
             payload: HeldPayload::Custom(Box::new(HybridFake)),
             attach: Attach::WorldPos([1.0, 2.0, 3.0]),
             age: 0.5,

@@ -55,6 +55,10 @@ impl Effect for BeginSpellEffect {
         self.0.update(ctx)
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.0.set_position(pos);
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx) {
         self.0.collect_draws(out, ctx);
     }

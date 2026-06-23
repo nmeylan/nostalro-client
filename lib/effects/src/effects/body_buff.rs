@@ -31,13 +31,14 @@ pub struct Params {
     /// Movement afterimage trail, when the buff spawns blur clones.
     /// `None` for buffs that only tint (LK Concentration).
     pub afterimage: Option<Afterimage>,
+    /// Quicken family: render the per-weapon swing trail (`검광`) during attacks.
+    pub weapon_trail: bool,
 }
 
-/// The original game's blur cadence: a clone every 5 frames, born at alpha
-/// `180/255` and losing `4/255` per frame (~0.75 s lifetime).
+/// The original game's blur: each clone is born at alpha `180/255` and loses
+/// `4/255` per frame (~0.75 s lifetime).
 const QUICKEN_BLUR: Afterimage = Afterimage {
     tint: [200, 200, 0],
-    interval_frames: 5.0,
     start_alpha: 180.0 / 255.0,
     fade_per_frame: 4.0 / 255.0,
 };
@@ -47,25 +48,27 @@ pub const TWOHAND_QUICKEN: Params = Params {
     str_name: Some("twohand"),
     sfx: Some("effect\\knight_twohandquicken.wav"),
     afterimage: Some(QUICKEN_BLUR),
+    weapon_trail: true,
 };
 pub const SPEAR_QUICKEN: Params = Params {
     tint: [200, 200, 0],
     str_name: Some("twohand"),
     sfx: Some("effect\\knight_twohandquicken.wav"),
     afterimage: Some(QUICKEN_BLUR),
+    weapon_trail: true,
 };
 pub const LK_CONCENTRATION: Params = Params {
     tint: [255, 255, 160],
     str_name: Some("twohand"),
     sfx: Some("effect\\knight_twohandquicken.wav"),
     afterimage: None,
+    weapon_trail: true,
 };
 
 /// `EF_BUNSINJYUTSU`: no STR / SFX — a light-blue body tint
-/// `(155,155,255)` plus a same-tinted afterimage clone every 20 frames.
+/// `(155,155,255)` plus a same-tinted afterimage clone.
 const BUNSIN_BLUR: Afterimage = Afterimage {
     tint: [155, 155, 255],
-    interval_frames: 20.0,
     start_alpha: 150.0 / 255.0,
     fade_per_frame: 4.0 / 255.0,
 };
@@ -74,6 +77,7 @@ pub const BUNSINJYUTSU: Params = Params {
     str_name: None,
     sfx: None,
     afterimage: Some(BUNSIN_BLUR),
+    weapon_trail: false,
 };
 
 pub const TEXTURES: &[&str] = &[];
@@ -128,6 +132,10 @@ impl Effect for BodyBuffEffect {
         self.params.afterimage
     }
 
+    fn weapon_trail(&self) -> bool {
+        self.params.weapon_trail
+    }
+
     fn take_sfx_request(&mut self) -> Option<&'static str> {
         if self.sfx_pending {
             self.sfx_pending = false;
@@ -163,6 +171,11 @@ mod tests {
         let lk = BodyBuffEffect::new(LK_CONCENTRATION);
         assert_eq!(lk.body_tint().map(|t| t.rgb), Some([255, 255, 160]));
         assert_eq!(lk.body_afterimage(), None);
+
+        // The server's remaining time overrides the authored TOTAL_FRAMES
+        // window so the tint persists for the whole status.
+        let mut held = BodyBuffEffect::new(TWOHAND_QUICKEN).with_life_ms(Some(60_000));
+        assert_eq!(step(&mut held, TOTAL_FRAMES + 1.0), EffectStatus::Running);
     }
 
     #[test]
@@ -171,7 +184,6 @@ mod tests {
         assert_eq!(e.body_tint().map(|t| t.rgb), Some([155, 155, 255]), "light-blue tint");
         let blur = e.body_afterimage().expect("afterimage clones");
         assert_eq!(blur.tint, [155, 155, 255]);
-        assert_eq!(blur.interval_frames, 20.0);
         assert_eq!(e.str_overlay(), None, "no STR overlay");
         assert_eq!(e.take_sfx_request(), None, "no sound");
     }

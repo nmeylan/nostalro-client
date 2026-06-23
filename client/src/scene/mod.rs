@@ -91,34 +91,84 @@ impl App {
                             &body_channels,
                         );
 
-                        // Movement afterimage: Two-Hand / Spear
-                        // Quicken drop fading sprite copies behind the actor
-                        // while it walks. Snapshot the current frame on the
-                        // emit interval, then draw every live copy *before*
-                        // the sprite so the live one stays on top.
+                        // Quicken afterimage: drop fading sprite copies behind
+                        // the actor while it moves, attacks, or casts a skill
+                        // (the speed-buff blur is iconic on the fast attacks, not
+                        // just walking). Drop one copy each time the displayed
+                        // animation frame changes, so the trail is a sequence of
+                        // distinct past poses rather than duplicates of the
+                        // current one. Copies draw *before* the sprite so the
+                        // live one stays on top.
                         if let Some(ai) = self.effect_holder.afterimage_params_for_entity(entry.id) {
-                            if entity.state == EntityState::Moving
-                                && self.effect_holder.afterimage_emit_due(entry.id)
-                            {
-                                self.effect_holder.push_afterimage(AfterimageSnapshot::new(
-                                    entry.id,
-                                    entity.animation.clone(),
-                                    Some(entry.camera_dir),
-                                    entity.head_dir,
-                                    entry.screen_anchor,
-                                    entry.depth,
-                                    entry.sprite_scale,
-                                    &ai,
-                                ));
+                            let trailing = entity.state == EntityState::Moving;
+                            let action = entity.animation.action();
+                            let motion = entity.animation.motion_index();
+                            let last = self
+                                .effect_holder
+                                .afterimages_for_entity(entry.id)
+                                .last()
+                                .map(|i| (i.anim.action(), i.anim.motion_index()));
+                            // Frames to drop this render. A fast (Quicken-boosted)
+                            // attack can advance several frames in one render, so
+                            // fill every frame the animation passed through — the
+                            // swing arc would otherwise have gaps. Same-frame ⇒
+                            // nothing; a new action / looped-back frame ⇒ just the
+                            // current one.
+                            let frames: Vec<usize> = match last {
+                                Some((a, m)) if a == action && motion > m => (m + 1..=motion).collect(),
+                                Some((a, m)) if a == action && motion == m => Vec::new(),
+                                _ => vec![motion],
+                            };
+                            if trailing {
+                                for frame in frames {
+                                    let mut anim = entity.animation.clone();
+                                    anim.set_motion_index(frame);
+                                    self.effect_holder.push_afterimage(AfterimageSnapshot::new(
+                                        entry.id,
+                                        anim,
+                                        Some(entry.camera_dir),
+                                        entity.head_dir,
+                                        entity.movement.position(),
+                                        entry.screen_anchor,
+                                        entry.depth,
+                                        entry.sprite_scale,
+                                        &ai,
+                                    ));
+                                }
                             }
                             for img in self.effect_holder.afterimages_for_entity(entry.id) {
+                                // Re-project the frozen world position with the
+                                // live camera so the copy stays where the actor
+                                // was and trails behind it; a frozen screen
+                                // anchor would follow the camera and clump on the
+                                // actor instead.
+                                let (anchor, depth, scale) = self
+                                    .renderer
+                                    .as_ref()
+                                    .zip(self.game.map_coords.as_ref())
+                                    .and_then(|(r, coords)| {
+                                        let sw = r.device.surface_config.width as f32
+                                            / r.dpi_scale;
+                                        let sh = r.device.surface_config.height as f32
+                                            / r.dpi_scale;
+                                        crate::input::entity_screen_params(
+                                            img.world_pos,
+                                            self.game.gat.as_ref(),
+                                            coords,
+                                            &r.camera,
+                                            sw,
+                                            sh,
+                                        )
+                                    })
+                                    .map(|(a, d, _cd, s, _dg)| (a, d, s))
+                                    .unwrap_or((entry.screen_anchor, entry.depth, entry.sprite_scale));
                                 let mut copy = sprite.build_batches(
                                     &img.anim,
                                     img.camera_dir,
                                     img.head_dir,
-                                    img.anchor,
-                                    img.depth,
-                                    img.scale,
+                                    anchor,
+                                    depth,
+                                    scale,
                                     0.0,
                                 );
                                 let (tr, tg, tb) = (
@@ -127,6 +177,10 @@ impl App {
                                     img.tint[2] as f32 / 255.0,
                                 );
                                 for batch in &mut copy {
+                                    // Blend additively so the tinted copies read
+                                    // as a glowing speed-trail (dark texels add
+                                    // nothing), not solid duplicate bodies.
+                                    batch.additive = true;
                                     for vertex in &mut batch.vertices {
                                         vertex.color[0] *= tr;
                                         vertex.color[1] *= tg;
@@ -461,6 +515,22 @@ impl App {
                 resolve_entity: &resolve_entity,
                 extra_sprite_particles: &arrow_draws,
             });
+
+            let custom = self.effect_holder.custom_count();
+            if custom > 0 {
+                let frustums = frame
+                    .effect_draws
+                    .primitives
+                    .iter()
+                    .filter(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. }))
+                    .count();
+                let billboards = frame
+                    .effect_draws
+                    .primitives
+                    .iter()
+                    .filter(|p| matches!(p, EffectPrimitiveDraw::Billboard { .. }))
+                    .count();
+            }
 
             renderer.render(
                 &all_ui_calls,

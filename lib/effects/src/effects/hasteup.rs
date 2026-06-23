@@ -185,6 +185,10 @@ impl Effect for HasteUpEffect {
         }
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         self.spikes.collect_draws(out, self.world_pos);
         for p in &self.particles {

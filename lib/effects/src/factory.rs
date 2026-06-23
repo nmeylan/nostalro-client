@@ -254,10 +254,10 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         // Caster body-tint buffs (recolour + STR overlay): tint the actor +
         // play twohand.str. One struct, per-buff colour/sound param set.
         EffectId::Twohandquicken => {
-            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::TWOHAND_QUICKEN))
+            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::TWOHAND_QUICKEN).with_life_ms(duration_ms))
         }
         EffectId::Spearquicken => {
-            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::SPEAR_QUICKEN))
+            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::SPEAR_QUICKEN).with_life_ms(duration_ms))
         }
         EffectId::Lkconcentration => {
             Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::LK_CONCENTRATION).with_life_ms(duration_ms))

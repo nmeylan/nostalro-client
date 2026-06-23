@@ -240,6 +240,23 @@ impl Effect for ParticleUpEffect {
         }
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        // Motes carry absolute world positions, so translate the whole field
+        // by the same delta the anchor moved — they keep their spread and rise
+        // while following the entity.
+        let delta = [
+            pos[0] - self.center[0],
+            pos[1] - self.center[1],
+            pos[2] - self.center[2],
+        ];
+        self.center = pos;
+        for p in &mut self.particles {
+            p.pos[0] += delta[0];
+            p.pos[1] += delta[1];
+            p.pos[2] += delta[2];
+        }
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let (r, g, b) = self.params.tint_rgb;
         let tint = rgb(r, g, b);

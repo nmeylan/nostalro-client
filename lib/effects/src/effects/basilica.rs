@@ -173,6 +173,10 @@ impl Effect for BasilicaEffect {
         EffectStatus::Running
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         for cell in INNER_CELLS.iter() {
             let wall_h = Self::wall_height(cell.max_height, self.age_frames);

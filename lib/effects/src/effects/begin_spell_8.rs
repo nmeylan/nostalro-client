@@ -83,6 +83,11 @@ impl Effect for BeginSpell8Effect {
         }
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+        self.rings.set_position(pos);
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx) {
         self.rings.collect_draws(out, ctx);
 

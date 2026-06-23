@@ -105,6 +105,10 @@ impl Effect for AgiUpEffect {
         }
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.base = pos;
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         for i in 0..self.particle_count() {
             let p = Particle::from_index(i);

@@ -29,7 +29,7 @@ const DIVISION: usize = RADIAL_EMITTER_DIVISION;
 const SEGMENTS: u32 = (RADIAL_EMITTER_DIVISION - 1) as u32;
 const FULL_ARC_RAD: f32 = std::f32::consts::TAU;
 
-const ALPHA_MAX: f32 = 180.0 / 255.0;
+const ALPHA_MAX: f32 = 200.0 / 255.0;
 const FADE_IN_STEP: f32 = 5.0 / 255.0;
 const FADE_IN_STEP_ENTRY2: f32 = 3.0 / 255.0;
 /// `flag1 == 3` rings ramp alpha at +2/frame.
@@ -268,6 +268,13 @@ impl Effect for HealEffect {
         }
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+        if let Some(particles) = &mut self.particles {
+            particles.set_position(pos);
+        }
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         for slot in &self.slots {
             if slot.alpha <= 0.0 {
@@ -395,7 +402,9 @@ pub const TELEPORTATION2: HealParams = HealParams {
 };
 
 // ── Canonical heal-skill effects (not part of Batch 29 but the same family) ──
-const GREEN: [f32; 3] = [140.0 / 255.0, 210.0 / 255.0, 140.0 / 255.0];
+// Green-dominant so the additive rings read as green over bright ground rather
+// than washing toward white (R/B pulled well below G).
+const GREEN: [f32; 3] = [76.0 / 255.0, 230.0 / 255.0, 90.0 / 255.0];
 
 // 312 Heal — Heal("alpha_down.tga", 0): 2 green rings + green sparkles.
 const HEAL_SLOTS: &[SlotSeed] = &[
@@ -406,10 +415,10 @@ pub const HEAL: HealParams = HealParams {
     texture: "alpha_down.tga",
     tint_rgb: GREEN,
     blend: BlendKind::Additive,
-    // Matches the proven sibling scale (healsp ~35-tall cylinders, defender
-    // 0.9): `max_height = 40` renders ~1:1, a tall green
-    // pillar — not the downscaled column the larger-literal effects need.
-    height_scale: 0.8,
+    // The source `max_height = 40` is a world-space column; rendered against a
+    // screen-space (unforeshortened) character billboard it towers ~2x the
+    // sprite, so the column is brought down to roughly the sprite's height.
+    height_scale: 0.45,
     law: RiseLaw::Heal,
     slots: HEAL_SLOTS,
     duration_frames: 102.0,

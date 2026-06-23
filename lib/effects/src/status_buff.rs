@@ -9,7 +9,8 @@
 //! Only statuses whose visual **persists cleanly** for an arbitrary duration are
 //! mapped here: flat body tints (Berserk/Marionette) and auras whose effect
 //! holds steady once it ramps in (Steel Body, Energy Coat, Assumptio, Undead
-//! property, LK Concentration, Bunsinjyutsu). The short *animated* auras
+//! property, LK Concentration, Bunsinjyutsu, the Quicken family). The short
+//! *animated* auras
 //! (Overthrust blur, Endure, Aura Blade, Reflect Shield, Soul Link) and the
 //! fullscreen darken (Soul Link / SKE) are not mapped yet — they play a one-shot
 //! animation that would flicker if held, and need per-effect looping support.
@@ -40,6 +41,10 @@ pub fn buff_effect(efst: ClientEffectIcon) -> Option<BuffEffect> {
         I::Propertyundead => &[EffectId::Undeadbody],
         I::Lkconcentration => &[EffectId::Lkconcentration],
         I::NjBunsinjyutsu => &[EffectId::Bunsinjyutsu],
+        // Quicken family — yellow body tint + looping twohand.str aura. One Hand
+        // Quicken shares Two Hand Quicken's visual.
+        I::Twohandquicken | I::Onehandquicken => &[EffectId::Twohandquicken],
+        I::Spearquicken => &[EffectId::Spearquicken],
         _ => return None,
     };
     Some(BuffEffect { body })
@@ -67,6 +72,19 @@ mod tests {
         assert_eq!(
             buff_effect(ClientEffectIcon::Propertyundead),
             Some(BuffEffect { body: &[EffectId::Undeadbody] })
+        );
+        // Quicken family — Two Hand and One Hand share the same body visual.
+        assert_eq!(
+            buff_effect(ClientEffectIcon::Twohandquicken),
+            Some(BuffEffect { body: &[EffectId::Twohandquicken] })
+        );
+        assert_eq!(
+            buff_effect(ClientEffectIcon::Onehandquicken),
+            Some(BuffEffect { body: &[EffectId::Twohandquicken] })
+        );
+        assert_eq!(
+            buff_effect(ClientEffectIcon::Spearquicken),
+            Some(BuffEffect { body: &[EffectId::Spearquicken] })
         );
         // An icon-only / deferred status maps to nothing — fire nothing.
         assert_eq!(buff_effect(ClientEffectIcon::Overthrust), None);

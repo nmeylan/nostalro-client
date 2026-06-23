@@ -380,6 +380,12 @@ impl SpriteAnimationState {
         self.accumulated_ms = 0.0;
     }
 
+    /// Pin the displayed frame. Used to rebuild a frozen snapshot of a specific
+    /// past frame (afterimage gap-fill when the live animation skipped frames).
+    pub fn set_motion_index(&mut self, idx: usize) {
+        self.motion_index = idx;
+    }
+
     pub fn step_forward(&mut self, motion_count: usize) {
         if motion_count > 0 {
             self.motion_index = (self.motion_index + 1) % motion_count;

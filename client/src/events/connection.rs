@@ -1,6 +1,7 @@
 use super::preload_window;
 use crate::App;
 use ragnarok_game::app_state::AppState;
+use ragnarok_game::effect::EffectQueue;
 use ragnarok_game::entity::Entity;
 use ragnarok_game::sprite_path::weapon_view_id_to_type;
 use ragnarok_game::targeting::MapProperties;
@@ -65,6 +66,14 @@ impl App {
         self.game.current_map = None;
         self.game.map_coords = None;
         self.game.gat = None;
+        // Drop live effects and the status-buff key registry with the entities
+        // they were attached to. Otherwise a persistent buff (e.g. Berserk's
+        // RedBody) keyed to the player gid is reused when the same character
+        // logs back in, so the tint lingers even though the server cleared it.
+        self.effect_holder.clear();
+        self.effect_queue = EffectQueue::new();
+        self.game.status_buff_keys.clear();
+        self.game.next_status_buff_key = 0;
         if let Some(renderer) = &mut self.renderer {
             renderer.ground_renderer = None;
             renderer.model_renderer = None;

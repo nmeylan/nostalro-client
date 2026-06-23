@@ -65,14 +65,13 @@ pub struct CameraShake {
 /// Movement afterimage ("blur") request — the original game's motion-blur
 /// trail spawned by `EF_TWOHANDQUICKEN` / `EF_SPEARQUICKEN` / `EF_OVERTHRUST`
 /// while the caster moves. The effect only declares *what* the trail looks
-/// like; the actor pass owns the periodic snapshotting (it has the sprite
-/// frame + world transform) and a controller decays each snapshot's alpha.
+/// like; the actor pass drops a snapshot per displayed animation frame (it has
+/// the sprite frame + world transform) and a controller decays each snapshot's
+/// alpha.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Afterimage {
     /// Tint applied to each snapshot, e.g. Quicken's `[200,200,0]`.
     pub tint: [u8; 3],
-    /// Frames between snapshots — a snapshot every 5th frame.
-    pub interval_frames: f32,
     /// Starting opacity of a fresh snapshot — `180/255`.
     pub start_alpha: f32,
     /// Opacity lost per 60 fps frame — 4 of 255 per frame,
@@ -177,6 +176,13 @@ pub trait Effect: Send {
     /// the same world position. Default `None` — pure-primitive effects.
     fn str_overlay(&self) -> Option<&'static str> {
         None
+    }
+
+    /// Whether this buff shows the weapon-swing trail (`검광`) on the attached
+    /// actor — the Quicken family (Two/One Hand, Spear, LK Concentration). The
+    /// actor pass renders the per-weapon trail sprite while this is true.
+    fn weapon_trail(&self) -> bool {
+        false
     }
 
     /// Per-frame body tint to apply to the master sprite. Returns `Some`

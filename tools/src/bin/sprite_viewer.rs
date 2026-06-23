@@ -214,6 +214,7 @@ impl App {
             None,
             None,
             None,
+            None,
         ));
 
         if let Some(window) = &self.window {
@@ -266,6 +267,7 @@ impl App {
             data.body,
             data.head,
             data.weapon,
+            data.weapon_trail,
             data.headgear_top,
             data.headgear_mid,
             data.headgear_bottom,

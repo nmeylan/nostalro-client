@@ -313,6 +313,7 @@ impl App {
             data.body,
             data.head,
             data.weapon,
+            None,
             data.headgear_top,
             data.headgear_mid,
             data.headgear_bottom,
@@ -1245,17 +1246,37 @@ fn build_character_batches<'a>(
     // uses the un-yawed facing, so it stays outside the shared composer.
     let mut batches: Vec<ragnarok_renderer::sprite::SpriteBatch<'a>> = Vec::new();
     if let Some(ai) = effect_holder.afterimage_params_for_entity(entity_id) {
-        if emitting && effect_holder.afterimage_emit_due(entity_id) {
-            effect_holder.push_afterimage(AfterimageSnapshot::new(
-                entity_id,
-                animation.clone(),
-                Some(camera_dir),
-                animation.direction() as u8,
-                screen_anchor,
-                depth,
-                sprite_scale,
-                &ai,
-            ));
+        let action = animation.action();
+        let motion = animation.motion_index();
+        let last = effect_holder
+            .afterimages_for_entity(entity_id)
+            .last()
+            .map(|i| (i.anim.action(), i.anim.motion_index()));
+        // Fill every frame the animation passed through this tick so a fast
+        // swing's arc has no gaps (same as the game scene).
+        let frames: Vec<usize> = match last {
+            Some((a, m)) if a == action && motion > m => (m + 1..=motion).collect(),
+            Some((a, m)) if a == action && motion == m => Vec::new(),
+            _ => vec![motion],
+        };
+        if emitting {
+            for frame in frames {
+                let mut anim = animation.clone();
+                anim.set_motion_index(frame);
+                effect_holder.push_afterimage(AfterimageSnapshot::new(
+                    entity_id,
+                    anim,
+                    Some(camera_dir),
+                    animation.direction() as u8,
+                    // The preview actor is stationary in screen space; no world
+                    // projection, so the frozen anchor/depth/scale below are used.
+                    (0.0, 0.0),
+                    screen_anchor,
+                    depth,
+                    sprite_scale,
+                    &ai,
+                ));
+            }
         }
         for img in effect_holder.afterimages_for_entity(entity_id) {
             let mut copy = entity.build_batches(

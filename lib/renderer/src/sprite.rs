@@ -660,6 +660,7 @@ pub struct CompositeClips {
     pub headgear_mid: Vec<ClipQuad>,
     pub headgear_top: Vec<ClipQuad>,
     pub weapon: Vec<ClipQuad>,
+    pub weapon_trail: Vec<ClipQuad>,
     pub shield: Vec<ClipQuad>,
 }
 
@@ -802,6 +803,28 @@ pub fn build_composite_clips(
         }
     }
 
+    // Weapon trail (`검광`): attaches to the body exactly like the weapon.
+    let mut weapon_trail = Vec::new();
+    if let (Some(trail_act), Some(trail_tex)) =
+        (&entity.weapon_trail_act, &entity.weapon_trail_textures)
+    {
+        let trail_action_idx = action_idx % trail_act.actions.len();
+        let trail_action = &trail_act.actions[trail_action_idx];
+        if !trail_action.motions.is_empty() {
+            let trail_motion_idx = motion_idx % trail_action.motions.len();
+            let trail_motion = &trail_action.motions[trail_motion_idx];
+            let (off_x, off_y) = attachment_offset(body_motion, trail_motion);
+            for clip in &trail_motion.clips {
+                if let Some((vertices, indices, tex_idx)) =
+                    build_clip_quad(clip, trail_tex, screen_anchor, depth, [off_x, off_y])
+                    && tex_idx < trail_tex.bind_groups.len()
+                {
+                    weapon_trail.push((vertices, indices, tex_idx));
+                }
+            }
+        }
+    }
+
     let mut shield = Vec::new();
     if let (Some(shield_act), Some(shield_tex)) = (&entity.shield_act, &entity.shield_textures) {
         let shield_action_idx = action_idx % shield_act.actions.len();
@@ -828,6 +851,7 @@ pub fn build_composite_clips(
         headgear_mid,
         headgear_top,
         weapon,
+        weapon_trail,
         shield,
     })
 }
@@ -866,6 +890,8 @@ pub struct EntitySprite {
     pub head_act: Option<ActFile>,
     pub weapon_textures: Option<SpriteTextures>,
     pub weapon_act: Option<ActFile>,
+    pub weapon_trail_textures: Option<SpriteTextures>,
+    pub weapon_trail_act: Option<ActFile>,
     pub headgear_top_textures: Option<SpriteTextures>,
     pub headgear_top_act: Option<ActFile>,
     pub headgear_mid_textures: Option<SpriteTextures>,
@@ -900,6 +926,7 @@ pub fn build_entity_sprite(
     body: SpriteData,
     head: Option<SpriteData>,
     weapon: Option<SpriteData>,
+    weapon_trail: Option<SpriteData>,
     headgear_top: Option<SpriteData>,
     headgear_mid: Option<SpriteData>,
     headgear_bottom: Option<SpriteData>,
@@ -911,6 +938,8 @@ pub fn build_entity_sprite(
     let body_act = body.act;
     let (head_textures, head_act) = upload_optional(head, device, queue, layout);
     let (weapon_textures, weapon_act) = upload_optional(weapon, device, queue, layout);
+    let (weapon_trail_textures, weapon_trail_act) =
+        upload_optional(weapon_trail, device, queue, layout);
     let (headgear_top_textures, headgear_top_act) =
         upload_optional(headgear_top, device, queue, layout);
     let (headgear_mid_textures, headgear_mid_act) =
@@ -927,6 +956,8 @@ pub fn build_entity_sprite(
         head_act,
         weapon_textures,
         weapon_act,
+        weapon_trail_textures,
+        weapon_trail_act,
         headgear_top_textures,
         headgear_top_act,
         headgear_mid_textures,
@@ -1198,6 +1229,49 @@ impl EntitySprite {
         batches
     }
 
+    /// Render only the weapon-trail (`검광`) layer — the Quicken swing arc. The
+    /// caller draws it additively on top of the body and tints it (yellow under
+    /// Quicken). Empty when the weapon has no trail sprite or the current motion
+    /// has no trail frames (so it only shows during the attack swing).
+    pub fn build_weapon_trail_batches(
+        &self,
+        animation: &ragnarok_formats::act::SpriteAnimationState,
+        camera_dir: Option<u8>,
+        head_dir: u8,
+        screen_anchor: [f32; 2],
+        depth: f32,
+        scale: f32,
+    ) -> Vec<SpriteBatch<'_>> {
+        let Some(trail_tex) = &self.weapon_trail_textures else {
+            return Vec::new();
+        };
+        let action_idx = match camera_dir {
+            Some(dir) => animation.action_index(&self.body_act, dir),
+            None => animation.flat_action_index(&self.body_act),
+        };
+        let Some(clips) = build_composite_clips(
+            self,
+            action_idx,
+            animation.motion_index(),
+            head_dir,
+            screen_anchor,
+            depth,
+        ) else {
+            return Vec::new();
+        };
+        let mut batches = Vec::new();
+        for (mut vertices, indices, tex_idx) in clips.weapon_trail {
+            scale_clip_vertices(&mut vertices, screen_anchor, scale, 0.0);
+            batches.push(SpriteBatch {
+                vertices,
+                indices,
+                texture: &trail_tex.bind_groups[tex_idx],
+                additive: true,
+            });
+        }
+        batches
+    }
+
     pub fn build_shadow_batches(
         &self,
         screen_anchor: [f32; 2],
@@ -1253,6 +1327,9 @@ pub struct BodyChannels {
     /// Render the live body additively (light-body glow): a glowing, partly
     /// see-through body (dark pixels vanish) instead of the opaque sprite.
     pub additive: bool,
+    /// Render the per-weapon swing trail (`검광`) on top of the body — the
+    /// Quicken family's attack arc.
+    pub weapon_trail: bool,
     pub copies: Vec<ragnarok_game::effect::BodyCopy>,
 }
 
@@ -1268,6 +1345,7 @@ impl Default for BodyChannels {
             angle: 0.0,
             squeeze: 1.0,
             additive: false,
+            weapon_trail: false,
             copies: Vec::new(),
         }
     }
@@ -1416,6 +1494,16 @@ pub fn compose_actor_batches<'a>(
         }
     }
     out.append(&mut live);
+
+    // Quicken weapon-swing trail (`검광`): drawn on top of the body, additive,
+    // tinted by the buff (yellow). The trail sprite only carries frames in the
+    // attack motions, so it appears only during the swing — the iconic arc.
+    if channels.weapon_trail {
+        let mut trail =
+            sprite.build_weapon_trail_batches(animation, Some(dir), head_dir, anchor, depth, scale);
+        apply_tint_alpha(&mut trail, channels.tint, channels.alpha);
+        out.append(&mut trail);
+    }
 
     // Copies marked on-top overlay the live sprite (glow rim,
     // asura halo, hit flash).

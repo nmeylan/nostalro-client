@@ -334,6 +334,10 @@ impl Effect for GumGangEffect {
         EffectStatus::Running
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx) {
         let fade = alpha_at(self.age_frames);
         if fade <= 0.0 {

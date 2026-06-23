@@ -219,6 +219,16 @@ impl App {
     ) {
         let skill = SkillEnum::from_id(skill_id as u32);
 
+        // AL_HEAL is dual-natured: cast on the living it restores HP and plays the
+        // green heal from the no-damage path; cast on undead/demon it deals damage
+        // and arrives here on the damage packet, where the original game plays the
+        // white heal instead. It has no projectile or caster glyph, so this is its
+        // only damage-path visual.
+        if skill == SkillEnum::AlHeal {
+            self.effect_queue.spawn_on(EffectId::Smdef, target_gid);
+            return;
+        }
+
         // Ground-cast skills (Storm Gust, Thunderstorm, …) launch their
         // `cast`/`on_target` slots once from `ZC_NOTIFY_GROUNDSKILL` (placed at
         // the cell), matching the original's split between the ground packet
@@ -333,10 +343,10 @@ impl App {
         property: u32,
         cast_ms: u32,
     ) {
+        let skill = SkillEnum::from_id(skill_id as u32);
         if cast_ms == 0 {
             return;
         }
-        let skill = SkillEnum::from_id(skill_id as u32);
         if caster_skill_effects(skill).hide_cast_aura {
             return;
         }

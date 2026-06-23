@@ -365,6 +365,12 @@ pub fn weapon_sprite_path(job_class: u16, sex: u8, weapon_type: WeaponType) -> S
     format!("data/sprite/인간족/{job}/{job}_{sex_str}{suffix}")
 }
 
+/// The per-weapon swing-trail sprite (`검광`, "sword-light") — the weapon sprite
+/// path with a `_검광` suffix. Shown during attacks under the Quicken family.
+pub fn weapon_trail_sprite_path(job_class: u16, sex: u8, weapon_type: WeaponType) -> String {
+    format!("{}_검광", weapon_sprite_path(job_class, sex, weapon_type))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

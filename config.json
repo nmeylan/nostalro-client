@@ -25,18 +25,26 @@
       "open": false,
       "collapsed": false
     },
-    "10": {
-      "position": [
-        283.0,
-        344.66666
-      ],
-      "open": false,
-      "collapsed": false
-    },
     "1200": {
       "position": [
         400.0,
         100.0
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "800": {
+      "position": [
+        0.0,
+        130.10938
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "210": {
+      "position": [
+        342.0,
+        173.0
       ],
       "open": false,
       "collapsed": false
@@ -45,6 +53,14 @@
       "position": [
         476.6667,
         0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "10": {
+      "position": [
+        283.0,
+        344.66666
       ],
       "open": false,
       "collapsed": false
@@ -63,22 +79,6 @@
         284.0
       ],
       "open": false,
-      "collapsed": false
-    },
-    "210": {
-      "position": [
-        342.0,
-        173.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "800": {
-      "position": [
-        0.0,
-        130.10938
-      ],
-      "open": true,
       "collapsed": false
     }
   },

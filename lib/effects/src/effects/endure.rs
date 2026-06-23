@@ -242,6 +242,13 @@ impl Effect for EndureEffect {
         }
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+        for s in &mut self.spikes {
+            s.anchor = pos;
+        }
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         if self.age_frames <= PARENT_DURATION_FRAMES {
             let alpha = fade_in_out(

@@ -191,6 +191,13 @@ impl Effect for EnhanceEffect {
         }
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+        for s in &mut self.streaks {
+            s.anchor = pos;
+        }
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let parent_frame = self.age_frames.min(PARENT_DURATION_FRAMES);
 

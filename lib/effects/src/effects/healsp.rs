@@ -188,6 +188,15 @@ impl Effect for HealSpEffect {
         }
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+        // Re-anchor in-flight motes too — each keeps its relative offset but
+        // rides the entity instead of trailing at the spawn cell.
+        for p in &mut self.particles {
+            p.anchor = pos;
+        }
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         if self.age_frames <= PARENT_DURATION_FRAMES {
             let rotation = (self.age_frames * SPIN_DEG_PER_FRAME).to_radians();
@@ -254,6 +263,36 @@ mod tests {
     fn step_frames(e: &mut HealSpEffect, n: i32) {
         for _ in 0..n {
             e.update(&ctx(1.0 / FRAMES_PER_SECOND));
+        }
+    }
+
+    #[test]
+    fn cylinders_and_inflight_motes_follow_entity() {
+        // Re-anchoring must move both the cylinders (drawn from world_pos) and
+        // the already-spawned orbit particles (each carries a baked anchor).
+        let mut e = HealSpEffect::new([5.0, 0.0, 7.0]);
+        step_frames(&mut e, 11);
+        e.set_position([20.0, 2.0, -4.0]);
+        let mut list = EffectDrawList::new();
+        e.collect_draws(&mut list, &render_ctx());
+
+        for prim in &list.primitives {
+            match prim {
+                EffectPrimitiveDraw::Cylinder { base, .. } => {
+                    assert_eq!(*base, [20.0, 2.0, -4.0]);
+                }
+                EffectPrimitiveDraw::SpriteParticle { position, .. } => {
+                    // Still on the orbit ring, now centred on the new position.
+                    let dx = position[0] - 20.0;
+                    let dz = position[2] - (-4.0);
+                    let r = (dx * dx + dz * dz).sqrt();
+                    assert!(
+                        (r - PARTICLE_ORBIT_RADIUS).abs() < 0.1,
+                        "mote re-anchored to new centre: r={r}",
+                    );
+                }
+                _ => {}
+            }
         }
     }
 

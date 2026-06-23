@@ -163,6 +163,10 @@ impl Effect for CastingRingEffect {
         EffectStatus::Running
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let [r, g, b] = self.params.color_rgb;
         let frame = self.frame();

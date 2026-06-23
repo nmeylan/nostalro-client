@@ -249,7 +249,16 @@ impl Effect for SaintCastingEffect {
         self.age += ctx.delta;
         let frame_after = self.frame();
         let steps = (frame_after.floor() - frame_before.floor()).max(0.0) as i32;
-        let reset_limit = self.life_frames as i32 - RESET_PROCESS_MARGIN;
+        // Re-pulsing stops `RESET_PROCESS_MARGIN` frames before the end so the
+        // last pulse fades out. That margin is sized for the full animation; a
+        // short cast aura (cast time cut by stats) is briefer than the margin,
+        // which would drive the limit negative and stop emitters from ever
+        // refilling — the aura would render nothing. Scale the margin to the
+        // lifetime (capped at the authored value) so it stays positive and the
+        // aura is visible however short the cast.
+        let margin =
+            (RESET_PROCESS_MARGIN as f32 * (self.life_frames / TOTAL_FRAMES)).min(RESET_PROCESS_MARGIN as f32);
+        let reset_limit = self.life_frames as i32 - margin as i32;
         for _ in 0..steps {
             for em in &mut self.emitters {
                 em.step(self.cfg.refill_per_frame, self.cfg.reset_rise_deg, reset_limit);
@@ -260,6 +269,10 @@ impl Effect for SaintCastingEffect {
         } else {
             EffectStatus::Running
         }
+    }
+
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
@@ -381,6 +394,23 @@ mod tests {
                 _ => None,
             })
             .fold(0.0_f32, f32::max)
+    }
+
+    #[test]
+    fn short_cast_aura_still_emits_cones() {
+        // A cast time cut short by stats (~280 ms ≈ 17 frames) must still
+        // render. The fade-out margin scales to the lifetime so emitters keep
+        // refilling instead of the limit going negative and leaving them dark.
+        let mut e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG).with_life_ms(Some(280));
+        let mut emitted = false;
+        for _ in 0..17 {
+            step_frames(&mut e, 1);
+            if !draws(&e).is_empty() {
+                emitted = true;
+                break;
+            }
+        }
+        assert!(emitted, "short-lived cast aura must emit cones within its lifetime");
     }
 
     #[test]
