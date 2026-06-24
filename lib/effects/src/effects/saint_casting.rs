@@ -299,6 +299,7 @@ impl Effect for SaintCastingEffect {
             // cone is alive.
             let wave_amplitude = WAVE_REL_AMPLITUDE * em.max_height * em.wave_phase_rad().sin();
             out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
                 base: self.world_pos,
                 bottom_size: bottom,
                 top_size: top,

@@ -148,6 +148,7 @@ impl Effect for GrandcrossEffect {
             let height = WALL_MAX_HEIGHT * swell;
             for (rot_start, sx, sz) in WALLS {
                 out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
                     base: [cx + sx * CORNER, cy, cz + sz * CORNER],
                     bottom_size: WALL_DISTANCE,
                     top_size: WALL_DISTANCE,

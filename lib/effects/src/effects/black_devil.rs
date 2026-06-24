@@ -130,6 +130,7 @@ impl Effect for BlackDevilEffect {
             let top = ring.distance + cs * ring.max_height;
             let alpha = (ring.alpha_b / 255.0).clamp(0.0, 1.0);
             out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
                 base: self.world_pos,
                 bottom_size: bottom,
                 top_size: top,

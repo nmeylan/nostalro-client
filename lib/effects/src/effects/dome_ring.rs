@@ -176,6 +176,7 @@ impl Effect for MagnumSpiralEffect {
             let max_h = r.max_height * MAGNUM2_SCALE;
             let bottom = r.distance * MAGNUM2_SCALE;
             out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
                 base,
                 bottom_size: bottom,
                 top_size: bottom + cos_rise * max_h,
@@ -306,6 +307,7 @@ impl Effect for GiExplosionEffect {
             }
             let bottom = r.distance * GI_SCALE;
             out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
                 base: self.world_pos,
                 bottom_size: bottom,
                 top_size: bottom + cos_rise * max_h,

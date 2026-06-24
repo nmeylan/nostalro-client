@@ -17,6 +17,7 @@ use ragnarok_ui_component::account::login_window::LoginWindow;
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
 use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
 use ragnarok_ui_component::game::card_insert_dialog::{CardInsertDialog, EligibleItem};
+use ragnarok_ui_component::game::chat_room_window::{ChatRoomPlacement, ChatRoomWindow};
 use ragnarok_ui_component::game::chat_window::ChatWindow;
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
@@ -49,6 +50,7 @@ const GAME_COMPONENTS: &[&str] = &[
     "confirm_dialog",
     "number_input",
     "chat",
+    "chat_room",
     "dialog_container",
     "item_info",
     "skill_tree",
@@ -78,6 +80,11 @@ enum State {
     },
     Chat {
         chat: ChatWindow,
+        character: Character,
+        data: DataTable,
+    },
+    ChatRoomBox {
+        win: ChatRoomWindow,
         character: Character,
         data: DataTable,
     },
@@ -206,6 +213,48 @@ fn create_single(name: &str) -> State {
             chat.add_chat("[Mage]: Trading Fire Bolt 10 for Cold Bolt 10".into());
             State::Chat {
                 chat,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
+        "chat_room" => {
+            let mut win = ChatRoomWindow::new();
+            // No entities in the viewer: place a few boxes at fixed screen anchors,
+            // one per room type, so render + textures + labels are all exercised.
+            win.placements = vec![
+                ChatRoomPlacement {
+                    room_id: 1,
+                    atype: 2, // arena
+                    title: "Izlude Arena".to_string(),
+                    cur_count: 3,
+                    max_count: 20,
+                    anchor_x: 200.0,
+                    anchor_y: 150.0,
+                    head_offset: 40.0,
+                },
+                ChatRoomPlacement {
+                    room_id: 2,
+                    atype: 1, // public
+                    title: "Party Recruiting".to_string(),
+                    cur_count: 2,
+                    max_count: 8,
+                    anchor_x: 420.0,
+                    anchor_y: 250.0,
+                    head_offset: 40.0,
+                },
+                ChatRoomPlacement {
+                    room_id: 3,
+                    atype: 0, // private/password
+                    title: "Guild Only".to_string(),
+                    cur_count: 5,
+                    max_count: 12,
+                    anchor_x: 300.0,
+                    anchor_y: 360.0,
+                    head_offset: 40.0,
+                },
+            ];
+            State::ChatRoomBox {
+                win,
                 character: Character::new(),
                 data: DataTable::new(),
             }
@@ -993,6 +1042,10 @@ fn grf_init_single(
         State::Chat { chat, .. } => {
             chat.has_grf_textures = true;
         }
+        State::ChatRoomBox { win, .. } => {
+            win.has_grf_textures = true;
+            win.set_texture_sizes(size_fn);
+        }
         State::NpcDialog { npc, .. } => {
             npc.has_grf_textures = true;
             npc.set_texture_sizes(size_fn);
@@ -1171,6 +1224,13 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             data,
         } => {
             chat.build(ui, character, data);
+        }
+        State::ChatRoomBox {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, character, data);
         }
         State::NpcDialog {
             npc,

@@ -149,6 +149,7 @@ impl Effect for FlowerCastEffect {
             let top = a.distance + cos_rise * max_h * grow;
             let wave_amplitude = WAVE_REL_AMPLITUDE * max_h * grow;
             out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
                 base: self.world_pos,
                 bottom_size: bottom,
                 top_size: top,

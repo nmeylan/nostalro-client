@@ -98,6 +98,7 @@ impl Effect for BeginSpell8Effect {
         let [r, g, b] = RING_PARAMS.color_rgb;
         let spin = -(self.frame() * COLUMN_SPIN_DEG_PER_FRAME).to_radians();
         out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
             base: self.world_pos,
             bottom_size: COLUMN_BOTTOM,
             top_size: COLUMN_TOP,

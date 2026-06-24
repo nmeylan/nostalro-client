@@ -181,6 +181,7 @@ pub fn prepare_frustum_records<'tex>(
             tilt_x_rad,
             rotation_y_rad,
             cull_back,
+            base_alpha,
             texture,
             color,
             blend,
@@ -285,6 +286,10 @@ pub fn prepare_frustum_records<'tex>(
             let segment_alpha = 1.0 - fade_strength * (1.0 - front_weight);
             let mut seg_color = *color;
             seg_color[3] *= segment_alpha;
+            // Fade the base ring of vertices so a tight, additively-overlapped
+            // cone base doesn't bloom into a solid disc. Top rim stays full.
+            let mut base_color = seg_color;
+            base_color[3] *= *base_alpha;
 
             vertices.push(SpriteVertex {
                 position: transform_local(
@@ -293,7 +298,7 @@ pub fn prepare_frustum_records<'tex>(
                     bottom_size * sin_a,
                 ),
                 tex_coord: [u, 1.0 + scroll_v],
-                color: seg_color,
+                color: base_color,
             });
             vertices.push(SpriteVertex {
                 position: transform_local(

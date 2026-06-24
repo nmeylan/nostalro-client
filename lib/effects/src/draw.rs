@@ -265,6 +265,13 @@ pub enum EffectPrimitiveDraw {
         /// preserves the existing behaviour where both faces of the cone
         /// are visible (BottomSanc pillar, cast-circle petals).
         cull_back: bool,
+        /// Alpha multiplier applied to the **bottom** ring of vertices (the
+        /// cone base), lerped to `1.0` at the top rim. `1.0` = uniform alpha
+        /// (default, matches the original game's casting cones). Below `1.0`
+        /// fades the base out so a tight, additively-overlapped base ring
+        /// (the level-99 aura cone) doesn't bloom into a solid disc that
+        /// drowns the layers beneath it.
+        base_alpha: f32,
         texture: &'static str,
         color: [f32; 4],
         blend: BlendKind,

@@ -64,11 +64,15 @@ pub struct FloorAuraParams {
     pub alpha_max: f32,
 }
 
-/// `EF_LEVEL992` — blue floor aura (`pikapika2.bmp`).
+/// `EF_LEVEL992` — the level-99 pikapika sparkle ring (`pikapika2.bmp`). The
+/// original `Render3DAura` draws this layer **white additive** (default color,
+/// `m_size=4` → the plain branch), NOT blue — the white flash is what makes the
+/// aura read as bright/flashy rather than washed out. Corner radius oscillates
+/// ~12–15; we sit just under that so the ring reads tighter than the cone above.
 pub const LV99_BLUE: FloorAuraParams = FloorAuraParams {
     texture: "pikapika2.bmp",
-    color_rgb: [0.39, 0.39, 1.00],
-    radius: 15.0,
+    color_rgb: [1.00, 1.00, 1.00],
+    radius: 13.0,
     alpha_max: 200.0 / 255.0,
 };
 
@@ -112,6 +116,10 @@ impl Effect for FloorAuraEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.age += ctx.delta;
         EffectStatus::Running
+    }
+
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {

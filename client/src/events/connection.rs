@@ -75,6 +75,7 @@ impl App {
         self.effect_queue = EffectQueue::new();
         self.game.status_buff_keys.clear();
         self.game.next_status_buff_key = 0;
+        self.game.level_aura_keys.clear();
         if let Some(renderer) = &mut self.renderer {
             renderer.ground_renderer = None;
             renderer.model_renderer = None;
@@ -175,6 +176,7 @@ impl App {
             preload_window(&mut self.game.npc_dialog, renderer, grf);
             preload_window(&mut self.game.warp_list_window, renderer, grf);
             preload_window(&mut self.game.npc_shop, renderer, grf);
+            preload_window(&mut self.game.chat_room_window, renderer, grf);
             preload_window(&mut self.game.item_info_window, renderer, grf);
             preload_window(&mut self.game.item_pickup_notification, renderer, grf);
             preload_window(&mut self.game.skill_tree_window, renderer, grf);
@@ -204,6 +206,9 @@ impl App {
         if let Some(info) = &self.game.selected_character {
             self.game.character.init_from_info(info);
         }
+        // The local player's level is known only after `init_from_info`; spawn
+        // its level aura here (the entity already exists from the spawn above).
+        self.refresh_level_aura(account_id);
 
         self.game.app_state = AppState::InGame;
         self.game.apply_window_state(&self.config.window_state);

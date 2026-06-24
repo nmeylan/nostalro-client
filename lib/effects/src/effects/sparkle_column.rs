@@ -60,15 +60,20 @@ pub struct SparkleColumnParams {
     pub scatter: f32,
 }
 
-/// `EF_LEVEL993` — freezing-circle motes hugging the caster.
+/// `EF_LEVEL993` — freezing-circle motes hugging the caster. The original
+/// `Render3DAura_2` orbs are small (~0.8 half-size) and clustered tight on the
+/// body axis (horizontal jitter ≤0.15), but **bright white additive** (drawn
+/// twice at alpha ~250) — a vivid inner shimmer, not a faint one. The earlier
+/// "too visible" was the wide *scatter*, not the brightness: keep them tight but
+/// bright so they add to the flashy white core.
 pub const FREEZING: SparkleColumnParams = SparkleColumnParams {
     texture: "freezing_circle.bmp",
     color_rgb: [1.00, 1.00, 1.00],
-    alpha_max: 0.85,
-    sprite_radius: 0.9,
+    alpha_max: 0.80,
+    sprite_radius: 0.8,
     rise_speed: 6.0,
-    count: 20,
-    scatter: 1.5,
+    count: 16,
+    scatter: 0.5,
 };
 
 /// `EF_LEVEL994` — blue whitelight motes, wider spread.
@@ -173,6 +178,10 @@ impl Effect for SparkleColumnEffect {
             }
         }
         EffectStatus::Running
+    }
+
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {

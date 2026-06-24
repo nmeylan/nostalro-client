@@ -72,16 +72,25 @@ pub struct CastingRingParams {
     /// Per-ring peak alpha. Level-99 rings stack to ~0.30; the map-zone aura
     /// (`MAP_AURA`) is fainter (alpha 50/255 → ~0.20).
     pub alpha_max: f32,
+    /// Alpha multiplier at the cone base (lerps to full at the rim). The
+    /// level-99 ring fades its base so three closed, additively-overlapped
+    /// rings don't bloom into a solid disc at the feet that drowns the
+    /// pikapika/orbs layers; flat cast circles keep `1.0`.
+    pub base_alpha: f32,
 }
 
-/// `EF_LEVEL99` — blue level-99 ring (`ring_blue.tga`, size 4).
+/// `EF_LEVEL99` — blue level-99 ring (`ring_blue.tga`, size 4). Geometry matches
+/// the original `Render3DCasting` cone: bottom rim = `distance` (3.9), top rim =
+/// `distance + cos(rise_angle)·max_height` ≈ 12.5, cone height =
+/// `sin(rise_angle)·max_height` ≈ 12.3 — a wide flared funnel, not a narrow tube.
 pub const LV99: CastingRingParams = CastingRingParams {
     texture: "ring_blue.tga",
     color_rgb: [0.55, 0.55, 1.00],
-    bottom_size: 2.0,
-    top_size: 7.0,
-    height: 13.0,
-    alpha_max: 0.30,
+    bottom_size: 3.9,
+    top_size: 12.5,
+    height: 12.3,
+    alpha_max: 0.47,
+    base_alpha: 0.25,
 };
 
 /// `EF_LEVEL995` — white transcendant ring (`ring_white.tga`, F1=1,
@@ -93,6 +102,7 @@ pub const LV995: CastingRingParams = CastingRingParams {
     top_size: 8.0,
     height: 14.0,
     alpha_max: 0.30,
+    base_alpha: 1.0,
 };
 
 /// `EF_GREEN99_5` (#679) — green level-99 ring. Same flared
@@ -107,6 +117,7 @@ pub const GREEN995: CastingRingParams = CastingRingParams {
     top_size: 8.0,
     height: 14.0,
     alpha_max: 0.30,
+    base_alpha: 1.0,
 };
 
 /// The flared blue ring under
@@ -119,6 +130,7 @@ pub const MAP_AURA: CastingRingParams = CastingRingParams {
     top_size: 18.0,
     height: 12.0,
     alpha_max: 50.0 / 255.0,
+    base_alpha: 1.0,
 };
 
 /// `EF_BEGINSPELL8` — green cast cylinder (`ring_green.tga`, F1=1).
@@ -132,6 +144,7 @@ pub const BEGINSPELL8: CastingRingParams = CastingRingParams {
     top_size: 7.5,
     height: 13.0,
     alpha_max: 0.30,
+    base_alpha: 1.0,
 };
 
 pub const TEXTURES: &[&str] = &["ring_blue.tga", "ring_white.tga"];
@@ -186,6 +199,7 @@ impl Effect for CastingRingEffect {
             let spin = -(frame * (RING_SPIN_BASE_DEG_PER_FRAME + fi)).to_radians();
 
             out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: self.params.base_alpha,
                 base: self.world_pos,
                 bottom_size,
                 top_size,

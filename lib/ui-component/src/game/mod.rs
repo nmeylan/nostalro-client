@@ -1,5 +1,6 @@
 pub mod basic_info_window;
 pub mod card_insert_dialog;
+pub mod chat_room_window;
 pub mod chat_window;
 pub mod confirm_dialog;
 pub mod drop_quantity_dialog;

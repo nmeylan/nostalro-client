@@ -382,6 +382,7 @@ impl Effect for PortalWindEffect {
                 self.world_pos[2],
             ];
             out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
                 base,
                 bottom_size: bottom,
                 top_size: top,

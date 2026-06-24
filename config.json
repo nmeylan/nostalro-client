@@ -17,22 +17,6 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
-    "1400": {
-      "position": [
-        0.0,
-        0.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "210": {
-      "position": [
-        342.0,
-        173.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
     "10": {
       "position": [
         283.0,
@@ -49,9 +33,25 @@
       "open": false,
       "collapsed": false
     },
+    "210": {
+      "position": [
+        342.0,
+        173.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "1400": {
+      "position": [
+        0.0,
+        0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
     "1300": {
       "position": [
-        476.6667,
+        319.3333,
         0.0
       ],
       "open": false,
@@ -66,6 +66,7 @@
     "show_other_cast_bars": true,
     "hide_name_player": false,
     "hide_name_monster": false,
-    "hide_name_npc": false
+    "hide_name_npc": false,
+    "show_level_aura": true
   }
 }

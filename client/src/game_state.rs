@@ -8,7 +8,7 @@ use ragnarok_game::ailment::AilmentOverlay;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::character::Character;
 use ragnarok_game::chat_room::ChatRoomRegistry;
-use ragnarok_game::cursor::{CursorAnimationState, PendingSkillTarget};
+use ragnarok_game::cursor::{CursorAnimationState, PendingSkillTarget, RenderEntry};
 use ragnarok_game::damage_number::DamageNumberManager;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::effects::AmbientEffectScheduler;
@@ -26,6 +26,7 @@ use ragnarok_ui::state::StateCache;
 use ragnarok_game::entity::EntityType;
 use ragnarok_ui_component::game::basic_info_window::{BASIC_INFO_WINDOW_ID, BasicInfoWindow};
 use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
+use ragnarok_ui_component::game::chat_room_window::{ChatRoomPlacement, ChatRoomWindow};
 use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
@@ -73,6 +74,7 @@ pub struct GameState {
     pub confirm_dialog: ConfirmDialog,
     pub npc_shop: NpcShop,
     pub chat_rooms: ChatRoomRegistry,
+    pub chat_room_window: ChatRoomWindow,
     pub system_menu: SystemMenu,
     pub hovered_entity_id: Option<u32>,
     pub hovered_floor_item_id: Option<u32>,
@@ -121,6 +123,9 @@ pub struct GameState {
     /// collide with the real `gid`/`aid` values other keyed effects use (Blind,
     /// ground units).
     pub next_status_buff_key: u32,
+    /// Live level-99 auras, keyed by the holder gid → the owner key its ring was
+    /// spawned with, so it can be despawned when the actor hides or leaves view.
+    pub level_aura_keys: HashMap<u32, u32>,
     /// Set to true when disconnect dialog is shown.
     pub disconnect_dialog_shown: bool,
     /// Set to true after disconnect dialog is confirmed/cancelled.
@@ -141,6 +146,7 @@ impl GameState {
         &mut self,
         ui: &mut UiFrame,
         texture_size_fn: &dyn Fn(&str) -> Option<(u32, u32)>,
+        render_list: &[RenderEntry],
     ) -> Vec<GameEvent> {
         let chat_was_active = self.chat_window.is_active();
         let mut events = Vec::new();
@@ -200,6 +206,30 @@ impl GameState {
                 .build(ui, &mut self.character, &self.data_table),
         );
 
+        // Chat-room boxes (world-anchored, non-draggable, one per active room).
+        // Position follows the owner entity, so placements are rebuilt each frame
+        // from the registry joined with the world render list.
+        self.chat_room_window.placements = self
+            .chat_rooms
+            .iter()
+            .filter_map(|room| {
+                let entry = render_list.iter().find(|e| e.id == room.owner_aid)?;
+                Some(ChatRoomPlacement {
+                    room_id: room.room_id,
+                    atype: room.atype,
+                    title: room.title.clone(),
+                    cur_count: room.cur_count,
+                    max_count: room.max_count,
+                    anchor_x: entry.screen_anchor[0],
+                    anchor_y: entry.screen_anchor[1],
+                    head_offset: entry.head_offset,
+                })
+            })
+            .collect();
+        events.extend(
+            self.chat_room_window
+                .build(ui, &mut self.character, &self.data_table),
+        );
 
         let npc_dialog_open = self.npc_dialog.dialog.is_open();
         events.extend(
@@ -408,6 +438,7 @@ impl GameState {
             confirm_dialog: ConfirmDialog::new(),
             npc_shop: NpcShop::new(),
             chat_rooms: ChatRoomRegistry::new(),
+            chat_room_window: ChatRoomWindow::new(),
             system_menu: SystemMenu::new(),
             hovered_entity_id: None,
             hovered_floor_item_id: None,
@@ -451,6 +482,7 @@ impl GameState {
             ambient_effects: AmbientEffectScheduler::empty(),
             status_buff_keys: HashMap::new(),
             next_status_buff_key: 0,
+            level_aura_keys: HashMap::new(),
         }
     }
 

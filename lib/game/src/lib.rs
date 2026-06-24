@@ -19,6 +19,7 @@ pub mod event;
 pub mod floor_item;
 pub mod hotkey;
 pub mod job_class;
+pub mod level_aura;
 pub mod map_coordinates;
 pub mod map_loader;
 pub mod movement;

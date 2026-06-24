@@ -174,6 +174,7 @@ impl Effect for AcidDemonEffect {
             let wave_phase = self.process * PHASE_DRIFT_PER_FRAME
                 + frame_jitter(frame, idx as u32) * std::f32::consts::TAU;
             out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
                 base,
                 bottom_size: bottom,
                 top_size: top,

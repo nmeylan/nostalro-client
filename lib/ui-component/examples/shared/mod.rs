@@ -12,13 +12,16 @@ use ragnarok_ui_component::game::{
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tracing::warn;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
+
+/// Redraw cadence (~60 fps). Rendering faster only burns CPU.
+const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 struct Gpu {
     device: RenderDevice,
@@ -51,6 +54,7 @@ pub struct UiExampleApp<F> {
     start_time: Instant,
     grf_path: Option<String>,
     texture_paths: Vec<&'static str>,
+    next_frame: Instant,
 }
 
 impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
@@ -70,6 +74,7 @@ impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
             start_time: Instant::now(),
             grf_path: None,
             texture_paths: Vec::new(),
+            next_frame: Instant::now(),
         }
     }
 
@@ -307,6 +312,16 @@ impl<F: FnMut(&mut ExampleCtx)> ApplicationHandler for UiExampleApp<F> {
         self.window = Some(window);
     }
 
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let now = Instant::now();
+        if now >= self.next_frame {
+            self.next_frame = now + FRAME_INTERVAL;
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+        }
+        event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_frame));
+    }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         self.ui_ctx.handle_event(&event);
 

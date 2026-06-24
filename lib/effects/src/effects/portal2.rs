@@ -328,6 +328,7 @@ impl Effect for Portal2Effect {
             let h = s.current_height();
             // rise=90°: sin=1, cos=0 → top_size==bottom_size, height==h.
             out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
                 base: self.world_pos,
                 bottom_size: s.distance,
                 top_size: s.distance,
@@ -388,6 +389,7 @@ fn push_portal_slot_draw(
     let vert = sin_rise * h_now;
     let base = [world_pos[0], world_pos[1] + PORTAL_VY_OFFSET, world_pos[2]];
     out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
         base,
         bottom_size: bottom,
         top_size: top,

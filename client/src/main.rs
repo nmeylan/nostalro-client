@@ -903,6 +903,10 @@ impl App {
                 }
             }
             AppState::InGame => {
+                // Chat-room boxes follow their owner entity, so the UI needs the
+                // projected screen anchors. Computed here (read-only) before the
+                // mutable UI build borrow.
+                let render_list = self.compute_render_list();
                 if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
                     let initial_focus = if self.game.chat_window.is_active() {
                         Some(self.game.chat_window.focused_input)
@@ -918,9 +922,11 @@ impl App {
                         initial_focus,
                         &self.saved_window_positions,
                     );
-                    let events = self.game.build_in_game_ui(&mut ui, &|name| {
-                        renderer.texture_cache.texture_size(name)
-                    });
+                    let events = self.game.build_in_game_ui(
+                        &mut ui,
+                        &|name| renderer.texture_cache.texture_size(name),
+                        &render_list,
+                    );
 
                     if self.game.debug_overlay {
                         let local_ms = self.start_time.elapsed().as_millis() as u32;

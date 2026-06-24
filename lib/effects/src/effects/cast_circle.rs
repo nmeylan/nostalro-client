@@ -263,6 +263,7 @@ impl Effect for CastCircleEffect {
             let height = col_sin * max_h;
             if height > 0.0 {
                 out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
                     base: self.world_pos,
                     bottom_size: col_radius,
                     top_size: col_radius + col_cos * max_h,
@@ -314,6 +315,7 @@ impl Effect for CastCircleEffect {
                 let offset_rad =
                     (i as f32) * std::f32::consts::FRAC_PI_2;
                 out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
                     base: self.world_pos,
                     bottom_size: distance,
                     top_size: distance + cos_rise * max_h,

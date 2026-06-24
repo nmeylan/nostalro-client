@@ -33,6 +33,8 @@ pub struct DisplayOptions {
     pub hide_name_player: bool,
     pub hide_name_monster: bool,
     pub hide_name_npc: bool,
+    /// Show the level-99 aura ring on max-level characters (the `/aura` toggle).
+    pub show_level_aura: bool,
 }
 
 impl Default for DisplayOptions {
@@ -43,6 +45,7 @@ impl Default for DisplayOptions {
             hide_name_player: false,
             hide_name_monster: false,
             hide_name_npc: false,
+            show_level_aura: true,
         }
     }
 }

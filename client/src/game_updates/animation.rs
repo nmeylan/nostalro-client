@@ -122,6 +122,7 @@ impl App {
             .map(|e| e.id)
             .collect();
         for gid in expired {
+            self.despawn_level_aura(gid);
             self.game.entities.remove(gid);
             self.game.sprites.remove(&gid);
         }

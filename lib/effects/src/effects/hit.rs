@@ -765,6 +765,7 @@ impl Effect for HitEffect {
                 self.world_pos[2] + state.position_offset[2],
             ];
             out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
                 base: cylinder_base,
                 // The effect's local cone frame:
                 //   inner ring at y=0          → at master level

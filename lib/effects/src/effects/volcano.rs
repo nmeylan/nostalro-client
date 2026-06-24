@@ -223,6 +223,7 @@ impl Effect for VolcanoEffect {
             let rotation_rad = rotation_deg.to_radians();
 
             out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
                 base: self.world_pos,
                 bottom_size: radius,
                 top_size: radius + max_outward,

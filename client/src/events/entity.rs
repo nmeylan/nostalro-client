@@ -6,6 +6,7 @@ use models::enums::vanish::VanishType;
 use models::enums::weapon::WeaponType;
 use models::enums::client_effect_icon::ClientEffectIcon;
 use ragnarok_game::ailment;
+use ragnarok_game::level_aura;
 use ragnarok_game::effect::buff_effect;
 use ragnarok_game::arrow::{flight_secs_for_cell_distance, ArrowProjectile};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
@@ -14,6 +15,10 @@ use ragnarok_game::effect::skill_unit_effect;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::sprite_path::{entity_type_from_job, is_hidden, visual_job, OPTION_RIDING};
+
+/// The level-99 aura is a composite the original game stacks together: the blue
+/// spinning ring, the rising pikapika sparkles, and the orbiting light motes.
+const LEVEL_AURA_LAYERS: &[EffectId] = &[EffectId::Level99, EffectId::Level992, EffectId::Level993];
 
 impl App {
     #[allow(clippy::too_many_arguments)]
@@ -56,6 +61,7 @@ impl App {
             .get(gid)
             .is_some_and(|e| e.state == EntityState::Dead || e.is_fading());
         if stale {
+            self.despawn_level_aura(gid);
             self.game.entities.remove(gid);
             self.game.sprites.remove(&gid);
         } else if let Some(existing) = self.game.entities.get_mut(gid) {
@@ -114,6 +120,7 @@ impl App {
         if entity_type == EntityType::Player && !is_hidden(effect_state) {
             self.effect_queue.spawn_on(EffectId::Entry2, gid);
         }
+        self.refresh_level_aura(gid);
     }
 
     pub(super) fn handle_entity_moved(
@@ -185,6 +192,7 @@ impl App {
                 {
                     self.effect_queue.spawn_at(effect, pos);
                 }
+                self.despawn_level_aura(gid);
                 let r1 = self.game.entities.remove(gid).is_some();
                 let r2 = self.game.sprites.remove(&gid).is_some();
                 tracing::debug!("EntityVanished: gid={gid} type={vanish_type:?} r1={r1} r2={r2}");
@@ -469,6 +477,8 @@ impl App {
                 }
             }
         }
+        // Hide/cloak/burrow deletes the level aura; reappearing respawns it.
+        self.refresh_level_aura(gid);
     }
 
     /// Toggle a persistent body-buff visual from `ZC_MSG_STATE_CHANGE`. Each
@@ -504,6 +514,58 @@ impl App {
             self.effect_queue.spawn_on_keyed_for(id, gid, key, remain_ms);
         }
         self.game.status_buff_keys.insert(map_key, key);
+    }
+
+    /// Spawn or despawn a character's level-99 aura to match its current level
+    /// and visibility. The single chokepoint for the state-driven trigger:
+    /// callers invoke it after an entity's level or `effect_state` changes. The
+    /// aura is entity-anchored, so it follows the actor for free; every layer is
+    /// keyed the same so hiding/cloaking (or leaving view) despawns the whole
+    /// aura at once.
+    pub(super) fn refresh_level_aura(&mut self, gid: u32) {
+        let Some((entity_type, effect_state, entity_level)) = self
+            .game
+            .entities
+            .get(gid)
+            .map(|e| (e.entity_type, e.effect_state, e.base_level))
+        else {
+            return;
+        };
+        // The local player's level lives on `Character`; its entity is created
+        // at login before any level is known, so its `base_level` stays 0.
+        let base_level = if self.game.entities.player_id() == Some(gid) {
+            self.game.character.base_level as i16
+        } else {
+            entity_level
+        };
+        let want = self.config.display.show_level_aura
+            && level_aura::level_aura_visible(entity_type, base_level, effect_state);
+        let have = self.game.level_aura_keys.contains_key(&gid);
+        match (want, have) {
+            (true, false) => {
+                let key = 0x8000_0000 | self.game.next_status_buff_key;
+                self.game.next_status_buff_key = (self.game.next_status_buff_key + 1) & 0x7fff_ffff;
+                // The full aura is three composed layers, not just the ring:
+                // the blue ring (`Level99`), the rising pikapika sparkles
+                // (`Level992`), and the orbiting freezing-circle motes
+                // (`Level993`) — the original game's `EF_LEVEL99` + `_2` + `_3`.
+                for &id in LEVEL_AURA_LAYERS {
+                    self.effect_queue.spawn_on_keyed(id, gid, key);
+                }
+                self.game.level_aura_keys.insert(gid, key);
+            }
+            (false, true) => self.despawn_level_aura(gid),
+            _ => {}
+        }
+    }
+
+    /// Drop a tracked level aura when its entity leaves view. The holder keeps
+    /// entity-anchored effects alive after the entity is gone, so without this
+    /// the ring would freeze at the actor's last cell.
+    pub(crate) fn despawn_level_aura(&mut self, gid: u32) {
+        if let Some(key) = self.game.level_aura_keys.remove(&gid) {
+            self.effect_queue.despawn(key);
+        }
     }
 
     pub(super) fn handle_entity_sprite_changed(
