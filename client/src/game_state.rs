@@ -24,6 +24,7 @@ use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::state::StateCache;
 use ragnarok_game::entity::EntityType;
+use ragnarok_game::sprite_path::JT_WARPNPC;
 use ragnarok_ui_component::game::basic_info_window::{BASIC_INFO_WINDOW_ID, BasicInfoWindow};
 use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
 use ragnarok_ui_component::game::chat_room_window::{ChatRoomPlacement, ChatRoomWindow};
@@ -126,6 +127,13 @@ pub struct GameState {
     /// Live level-99 auras, keyed by the holder gid → the owner key its ring was
     /// spawned with, so it can be despawned when the actor hides or leaves view.
     pub level_aura_keys: HashMap<u32, u32>,
+    /// Live boss auras (green level-99 reskin on MVP/boss monsters), keyed by the
+    /// holder gid → the owner key, so they despawn when the monster leaves view
+    /// or dies.
+    pub boss_aura_keys: HashMap<u32, u32>,
+    /// Live warp-portal effects, keyed by the warp NPC's gid → the owner key, so
+    /// the portal despawns when the NPC leaves view.
+    pub warp_portal_keys: HashMap<u32, u32>,
     /// Set to true when disconnect dialog is shown.
     pub disconnect_dialog_shown: bool,
     /// Set to true after disconnect dialog is confirmed/cancelled.
@@ -191,7 +199,7 @@ impl GameState {
             }
             if entity.entity_type == EntityType::Npc {
                 let (ex, ey) = entity.movement.position();
-                let marker_type = if entity.job == 45 {
+                let marker_type = if entity.job == JT_WARPNPC {
                     MarkerType::WarpPortal
                 } else {
                     MarkerType::Npc
@@ -483,6 +491,8 @@ impl GameState {
             status_buff_keys: HashMap::new(),
             next_status_buff_key: 0,
             level_aura_keys: HashMap::new(),
+            boss_aura_keys: HashMap::new(),
+            warp_portal_keys: HashMap::new(),
         }
     }
 

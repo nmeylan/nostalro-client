@@ -5,10 +5,14 @@ use models::enums::class::JobName;
 use models::enums::EnumWithNumberValue;
 use crate::data_table::name_table::NameTable;
 
+/// View class of the visible warp portal NPC. The original game renders it with
+/// no body — its whole visual is the launched warp-zone effect.
+pub const JT_WARPNPC: u16 = 45;
+
 pub fn entity_type_from_job(job: u16) -> EntityType {
     match job {
         0..=44 | 4001..=5999 => EntityType::Player,
-        45 => EntityType::Npc,
+        JT_WARPNPC => EntityType::Npc,
         46..=999 => EntityType::Npc,
         1000..=3999 => EntityType::Monster,
         _ => EntityType::Monster,

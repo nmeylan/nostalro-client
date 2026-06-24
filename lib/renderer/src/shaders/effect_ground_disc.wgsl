@@ -32,9 +32,11 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let tex_color = textureSample(ring_texture, ring_sampler, in.tex_coord) * in.color;
-    if tex_color.a < 0.01 {
+    let tex = textureSample(ring_texture, ring_sampler, in.tex_coord);
+    let shaped_a = pow(tex.a, 2.2);
+    let a = shaped_a * in.color.a;
+    if a < 0.002 {
         discard;
     }
-    return tex_color;
+    return vec4<f32>(tex.rgb * in.color.rgb, a);
 }

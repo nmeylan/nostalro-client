@@ -76,6 +76,8 @@ impl App {
         self.game.status_buff_keys.clear();
         self.game.next_status_buff_key = 0;
         self.game.level_aura_keys.clear();
+        self.game.boss_aura_keys.clear();
+        self.game.warp_portal_keys.clear();
         if let Some(renderer) = &mut self.renderer {
             renderer.ground_renderer = None;
             renderer.model_renderer = None;

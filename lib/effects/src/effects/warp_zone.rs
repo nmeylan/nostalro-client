@@ -1,24 +1,27 @@
-//! EF_WARPZONE / EF_WARPZONE2 — looping portal pad.
-//! The effect's frame counter wraps at frame 78, so the spawn pattern repeats
-//! every 78 frames (~1.3 s @ 60 fps). Each cycle emits:
+//! EF_WARPZONE / EF_WARPZONE2 — two distinct portal effects sharing a base pad.
+//!
+//! `EF_WARPZONE` (`PARAMS_BURST`, the 250-tick warp flash) is a flat pad: its
+//! frame counter wraps at 78, and each cycle emits:
 //!   * frame 0 — one base disc (`alpha_down.tga`, radius 15, duration 158,
 //!     fade-in over 11 frames, fade-out last 10);
-//!   * frames 0, 28, 56 — an inner ring (`ring_blue.tga`, radius 14, slight
-//!     shrink, duration 80, keyframed alpha curve — we
-//!     approximate with the same fade-in/fade-out pattern used elsewhere);
+//!   * frames 0, 28, 56 — a flat inner ring (`ring_blue.tga`, radius 14, slight
+//!     shrink, duration 80 — the original lays it flat with `latitude=90`);
 //!   * every 10 frames — an orbiting `particle1.spr` sparkle that circles the
 //!     pad and drifts upward under decelerating gravity (~70-frame life).
 //!
-//! WARPZONE2 (`PARAMS_SUSTAINED`) additionally tints the disc + ring periwinkle
-//! blue (the original game's portal casting ring colour, RGB 170/170/255) and
-//! lifts both off the floor by `ground_lift` units so the additive rings read
-//! blue rather than washing out to white and don't get swallowed by the ground.
+//! `EF_WARPZONE2` (`PARAMS_SUSTAINED`, the persistent warp-NPC portal) keeps the
+//! same flat base disc + sparkles, but replaces the flat inner ring with the
+//! original's `PP_3DCASTING_4` *flared funnel*: concentric `ring_blue.tga` bands
+//! that rise from the ground at an angle and slowly collapse inward
+//! (`distance -= 0.05`/frame, wrapping back to 10), tilting from flat at radius
+//! 10 (`rise_angle = 90 − distance·9`) toward vertical as they shrink. That angle
+//! + slow inward drift is what reads as a 3-D swirling portal rather than a flat
+//! disc.
 //!
 //! `EffectId::Warpzone` runs for the spec's `duration_ms` (2.5 s in the
-//! generated table → 2 cycles); `EffectId::Warpzone2` runs effectively
-//! forever — same emitter, infinite lifetime.
+//! generated table → 2 cycles); `EffectId::Warpzone2` runs effectively forever.
 
-use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const BASE_TEXTURE: &str = "alpha_down.tga";
@@ -81,14 +84,18 @@ const SPARKLE_ANIM_TICKS: f32 = 4.0;
 #[derive(Clone, Copy)]
 pub struct WarpZoneParams {
     pub total_duration_s: f32,
-    /// RGB multiplier on the disc + ring colour. WARPZONE2 tints periwinkle so
-    /// the additive rings read blue instead of washing out to white.
+    /// RGB multiplier on the disc + ring colour. The original game applies no
+    /// tint — the blue comes entirely from `ring_blue.tga` — so this stays white;
+    /// it exists only as a hook for reskins.
     pub tint: [f32; 3],
     /// World units to raise the disc/ring centre off the floor (native RO up
     /// is −Y) so the pad isn't swallowed by the ground at grazing angles.
     pub ground_lift: f32,
     /// Enable the orbiting `particle1.spr` sparkles.
     pub sparkles: bool,
+    /// Render the inner ring as the original `PP_3DCASTING_4` flared funnel
+    /// (`EF_WARPZONE2`) instead of a flat shrinking disc (`EF_WARPZONE`).
+    pub funnel: bool,
 }
 
 pub const PARAMS_BURST: WarpZoneParams = WarpZoneParams {
@@ -96,18 +103,50 @@ pub const PARAMS_BURST: WarpZoneParams = WarpZoneParams {
     tint: [1.0, 1.0, 1.0],
     ground_lift: 1.0,
     sparkles: false,
+    funnel: false,
 };
 pub const PARAMS_SUSTAINED: WarpZoneParams = WarpZoneParams {
     // Effectively infinite — the holder respects the spec's u32::MAX duration.
     total_duration_s: f32::INFINITY,
-    // The original game tints the portal casting rings periwinkle blue
-    // (observed shades 170/170/255 and 100/100/255). We take
-    // the more saturated of the two so the additive ring still reads blue
-    // rather than washing out toward white over bright ground.
-    tint: [0.7, 0.7, 1.0],
+    // No tint: the original game renders `ring_blue.tga` at white vertex colour,
+    // so the blue is the texture's own. A periwinkle multiplier here only
+    // over-saturates the already-blue ring and forces the warm sparkles blue.
+    tint: [0.8, 0.8, 1.0],
     ground_lift: 1.0,
     sparkles: true,
+    funnel: true,
 };
+
+// --- EF_WARPZONE2 flared funnel (`PP_3DCASTING_4` / `Prim3DCasting4`) ---
+
+/// Band start radii + texture-phase offsets, transcribed from the original's two
+/// `PP_3DCASTING_4` launches. The four radii are doubled into near-coincident
+/// pairs (0.2 apart); since every band drifts inward at the same rate and wraps
+/// at the same boundary, that spacing is preserved, so the eight bands read as
+/// **four** rings — each a tight pair, not eight separate rings.
+const FUNNEL_BANDS: [(f32, f32); 8] = [
+    (2.5, 270.0),
+    (5.0, 0.0),
+    (7.5, 90.0),
+    (10.0, 180.0),
+    (2.7, 271.0),
+    (5.2, 1.0),
+    (7.7, 91.0),
+    (10.2, 181.0),
+];
+/// Segments around each band — matches the casting-ring division so `ring_blue`'s
+/// ray stripes land on the same cadence.
+const FUNNEL_SIDES: u32 = 20;
+/// Largest band radius; a band resets here once it collapses to the centre.
+const FUNNEL_DIST_MAX: f32 = 10.0;
+/// Inward drift: the original shrinks `distance` by 0.05 per frame — the slow
+/// movement that distinguishes the portal from the flat warp flash.
+const FUNNEL_SHRINK_PER_FRAME: f32 = 0.05;
+/// Peak band alpha — the original ramps `alphaB` to 70/255.
+const FUNNEL_MAX_ALPHA: f32 = 70.0 / 255.0;
+/// `alphaB` ramps +1/frame from a band's reset, so it reaches peak after this
+/// many frames of inward travel.
+const FUNNEL_FADE_IN_FRAMES: f32 = FUNNEL_MAX_ALPHA * 255.0;
 
 #[derive(Clone, Copy)]
 struct BaseDisc {
@@ -272,6 +311,54 @@ impl WarpZoneEffect {
             self.world_pos[2],
         ]
     }
+
+    /// The `EF_WARPZONE2` flared funnel: each band is a flared cone rising from a
+    /// ground ring at `distance` toward `rise_angle`, the whole set drifting
+    /// inward over time (`Prim3DCasting4`). Computed analytically from `age` so
+    /// the persistent effect needs no per-band state.
+    fn collect_funnel_rings(&self, out: &mut EffectDrawList, [r, g, b]: [f32; 3]) {
+        let frame = self.age * FRAMES_PER_SECOND;
+        let startup = (frame / FUNNEL_FADE_IN_FRAMES).clamp(0.0, 1.0);
+        for (start, rot) in FUNNEL_BANDS {
+            // Inward drift, wrapping back to the outermost radius on collapse.
+            let mut d = (start - FUNNEL_SHRINK_PER_FRAME * frame).rem_euclid(FUNNEL_DIST_MAX);
+            if d <= 0.0 {
+                d = FUNNEL_DIST_MAX;
+            }
+            // alphaB ramps +1/frame from the band's reset at radius 10.
+            let frames_since_reset = (FUNNEL_DIST_MAX - d) / FUNNEL_SHRINK_PER_FRAME;
+            let alpha = FUNNEL_MAX_ALPHA
+                * (frames_since_reset / FUNNEL_FADE_IN_FRAMES).clamp(0.0, 1.0)
+                * startup;
+            if alpha <= 0.0 {
+                continue;
+            }
+            let rise = (90.0 - d * 9.0).clamp(0.0, 90.0).to_radians();
+            let height = d;
+            out.push(EffectPrimitiveDraw::Frustum {
+                base_alpha: 1.0,
+                base: self.world_pos,
+                bottom_size: d,
+                top_size: d + rise.cos() * height,
+                height: rise.sin() * height,
+                sides: FUNNEL_SIDES,
+                arc_angle_deg: 360.0,
+                rotation: rot.to_radians(),
+                uv_repeat: 1.0,
+                uv_scroll: [0.0, 0.0],
+                wave_amplitude: 0.0,
+                wave_frequency: 1.0,
+                wave_phase: 0.0,
+                wave_mode: FrustumWaveMode::Sine,
+                tilt_x_rad: 0.0,
+                rotation_y_rad: 0.0,
+                cull_back: false,
+                texture: INNER_TEXTURE,
+                color: [r, g, b, alpha],
+                blend: BlendKind::Additive,
+            });
+        }
+    }
 }
 
 impl Effect for WarpZoneEffect {
@@ -295,7 +382,9 @@ impl Effect for WarpZoneEffect {
             self.base_discs.push(BaseDisc { age: initial_age });
             self.next_base_at += CYCLE_S;
         }
-        while still_spawning && self.next_inner_at <= self.age {
+        // The funnel variant renders its rings analytically from `age`, so it
+        // doesn't spawn flat inner-ring instances.
+        while !self.params.funnel && still_spawning && self.next_inner_at <= self.age {
             let initial_age = (self.age - self.next_inner_at).max(0.0);
             self.inner_rings.push(InnerRing { age: initial_age });
             self.next_inner_at += INNER_INTERVAL_S;
@@ -339,26 +428,30 @@ impl Effect for WarpZoneEffect {
                 blend: BlendKind::Alpha,
             });
         }
-        for r in &self.inner_rings {
-            let outer = r.radius();
-            if outer <= 0.0 {
-                continue;
+        if self.params.funnel {
+            self.collect_funnel_rings(out, [tr, tg, tb]);
+        } else {
+            for r in &self.inner_rings {
+                let outer = r.radius();
+                if outer <= 0.0 {
+                    continue;
+                }
+                let thickness = outer.min(INNER_THICKNESS);
+                out.push(EffectPrimitiveDraw::GroundDisc {
+                    center,
+                    radius: outer,
+                    thickness,
+                    rotation: 0.0,
+                    arc_angle_deg: 360.0,
+                    uv_repeat: INNER_UV_REPEAT,
+                    texture: INNER_TEXTURE,
+                    color: [1.0, 1.0, 1.0, r.alpha()],
+                    // The WarpZone inner ring + orbit sparkles render
+                    // source/inverse-source alpha, not additive —
+                    // additive vanishes against a bright lightmap.
+                    blend: BlendKind::Alpha  ,
+                });
             }
-            let thickness = outer.min(INNER_THICKNESS);
-            out.push(EffectPrimitiveDraw::GroundDisc {
-                center,
-                radius: outer,
-                thickness,
-                rotation: 0.0,
-                arc_angle_deg: 360.0,
-                uv_repeat: INNER_UV_REPEAT,
-                texture: INNER_TEXTURE,
-                color: [tr, tg, tb, r.alpha()],
-                // The WarpZone inner ring + orbit sparkles render
-                // source/inverse-source alpha, not additive —
-                // additive vanishes against a bright lightmap.
-                blend: BlendKind::Alpha,
-            });
         }
         for s in &self.sparkles {
             let a = s.alpha();
@@ -371,9 +464,8 @@ impl Effect for WarpZoneEffect {
                 action_index: 0,
                 motion_index: s.motion_index(),
                 size_scale: SPARKLE_SIZE,
-                // The original game applies no tint, so its `particle1.spr`
-                // sparkle reads warm/yellow. We tint to the portal colour so
-                // the sparkle matches the rings instead of clashing yellow.
+                // Untinted like the rings — the original game leaves the
+                // `particle1.spr` sparkle its warm/yellow colour.
                 color: [tr, tg, tb, a],
                 blend: BlendKind::Alpha,
                 aim_target: None,
@@ -441,7 +533,9 @@ mod tests {
 
     #[test]
     fn spawns_a_base_disc_and_inner_at_frame_zero() {
-        let mut wz = WarpZoneEffect::new([0.0; 3], PARAMS_SUSTAINED);
+        // The flat inner disc belongs to the burst variant; the sustained portal
+        // uses the analytic funnel instead.
+        let mut wz = WarpZoneEffect::new([0.0; 3], PARAMS_BURST);
         step(&mut wz, 0.0);
         let prims = draws(&wz);
         assert_eq!(count_base(&prims), 1);
@@ -450,7 +544,7 @@ mod tests {
 
     #[test]
     fn inner_ring_spawn_cadence_is_28_frames() {
-        let mut wz = WarpZoneEffect::new([0.0; 3], PARAMS_SUSTAINED);
+        let mut wz = WarpZoneEffect::new([0.0; 3], PARAMS_BURST);
         step(&mut wz, 0.0);
         assert_eq!(count_inner(&draws(&wz)), 1);
         // Walk forward 28 frames → 2nd inner spawn.
@@ -479,15 +573,16 @@ mod tests {
         step(&mut sustained, SPARKLE_INTERVAL_S * 2.5);
         let prims = draws(&sustained);
         assert!(count_sparkles(&prims) >= 2);
-        // Disc, inner ring and orbit sparkles all render alpha-blended;
-        // none are additive.
+        // The flat base pad + sparkles render alpha-blended; the funnel rings
+        // are additive glow (the casting-ring primitive).
         assert!(
             prims.iter().all(|p| matches!(
                 p,
                 EffectPrimitiveDraw::GroundDisc { blend: BlendKind::Alpha, .. }
                     | EffectPrimitiveDraw::SpriteParticle { blend: BlendKind::Alpha, .. }
+                    | EffectPrimitiveDraw::Frustum { blend: BlendKind::Additive, .. }
             )),
-            "WarpZone prims are all alpha-blended"
+            "base/sparkles alpha, funnel rings additive"
         );
 
         let mut burst = WarpZoneEffect::new([0.0; 3], PARAMS_BURST);
@@ -495,16 +590,58 @@ mod tests {
         assert_eq!(count_sparkles(&draws(&burst)), 0);
     }
 
-    #[test]
-    fn sustained_tints_periwinkle_and_lifts_off_floor() {
-        let mut sustained = WarpZoneEffect::new([0.0; 3], PARAMS_SUSTAINED);
-        step(&mut sustained, 0.0);
-        let prims = draws(&sustained);
-        let rgb = inner_rgb(&prims).expect("inner ring present");
-        assert_eq!(rgb, PARAMS_SUSTAINED.tint);
-        assert!(rgb != [1.0, -1.0, 1.0], "periwinkle tint, not white");
-        assert!(disc_center_y(&prims).unwrap() < 0.0, "disc lifted off floor");
+    fn funnel_rings(prims: &[EffectPrimitiveDraw]) -> Vec<&EffectPrimitiveDraw> {
+        prims
+            .iter()
+            .filter(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. }))
+            .collect()
+    }
 
+    #[test]
+    fn sustained_funnel_is_flared_untinted_and_drifts_inward_slowly() {
+        // Past the startup ramp the funnel shows flared, untinted bands.
+        let mut sustained = WarpZoneEffect::new([0.0; 3], PARAMS_SUSTAINED);
+        step(&mut sustained, 2.0);
+        let prims = draws(&sustained);
+        let rings = funnel_rings(&prims);
+        assert!(!rings.is_empty(), "sustained portal emits flared funnel rings");
+        let mut saw_flare = false;
+        for p in &rings {
+            let EffectPrimitiveDraw::Frustum { color, top_size, bottom_size, height, .. } = p else {
+                unreachable!()
+            };
+            // Untinted — blue comes from `ring_blue.tga`, not an RGB multiplier.
+            assert_eq!([color[0], color[1], color[2]], [1.0, 1.0, 1.0]);
+            assert!(*top_size >= *bottom_size, "band flares outward as it rises");
+            if *height > 0.1 {
+                saw_flare = true;
+            }
+        }
+        assert!(saw_flare, "at least one band stands up off the ground");
+
+        // The base pad is still a flat lifted GroundDisc.
+        assert!(disc_center_y(&prims).unwrap() < 0.0, "base pad lifted off floor");
+        assert!(inner_rgb(&prims).is_none(), "no flat inner disc on the funnel");
+
+        // Slow inward drift: a band's radius shrinks only ~0.05/frame, so over a
+        // single frame the outermost band barely moves (well under one unit).
+        let outer = |e: &WarpZoneEffect| {
+            funnel_rings(&draws(e))
+                .iter()
+                .map(|p| match p {
+                    EffectPrimitiveDraw::Frustum { bottom_size, .. } => *bottom_size,
+                    _ => unreachable!(),
+                })
+                .fold(0.0_f32, f32::max)
+        };
+        let before = outer(&sustained);
+        step(&mut sustained, 1.0 / FRAMES_PER_SECOND);
+        let after = outer(&sustained);
+        assert!((before - after).abs() < 0.2, "rings drift inward slowly");
+    }
+
+    #[test]
+    fn burst_inner_ring_is_untinted_and_lifts_off_floor() {
         let mut burst = WarpZoneEffect::new([0.0; 3], PARAMS_BURST);
         step(&mut burst, 0.0);
         let burst_prims = draws(&burst);
