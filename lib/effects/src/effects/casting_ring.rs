@@ -240,7 +240,11 @@ mod tests {
     fn run_to(c: &mut CastingRingEffect, target_frame: f32) {
         let delta = (target_frame - c.frame()) / FRAMES_PER_SECOND;
         if delta > 0.0 {
-            c.update(&EffectUpdateCtx { delta, camera_target: None, caster_yaw: None });
+            c.update(&EffectUpdateCtx {
+                delta,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
     }
 
@@ -258,11 +262,22 @@ mod tests {
         let prims = rings(&c);
         assert_eq!(prims.len(), NUM_RINGS);
         for p in &prims {
-            let EffectPrimitiveDraw::Frustum { base, top_size, bottom_size, arc_angle_deg, blend, .. } = p else {
+            let EffectPrimitiveDraw::Frustum {
+                base,
+                top_size,
+                bottom_size,
+                arc_angle_deg,
+                blend,
+                ..
+            } = p
+            else {
                 panic!("expected Frustum");
             };
             assert!((base[0] - caster[0]).abs() < 1e-4 && (base[2] - caster[2]).abs() < 1e-4);
-            assert!(top_size > bottom_size, "ring should flare outward as it rises");
+            assert!(
+                top_size > bottom_size,
+                "ring should flare outward as it rises"
+            );
             assert_eq!(*arc_angle_deg, RING_ARC_DEG);
             assert_eq!(*blend, BlendKind::Additive);
         }
@@ -337,20 +352,41 @@ mod tests {
             "green-dominant tint"
         );
 
-        let mut eff = make_effect(EffectId::Green995, EffectAnchor::Point([0.0; 3]), None, None, None)
-            .expect("Green995 dispatches via factory");
-        eff.update(&EffectUpdateCtx { delta: FADE_IN_FRAMES / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+        let mut eff = make_effect(
+            EffectId::Green995,
+            EffectAnchor::Point([0.0; 3]),
+            None,
+            None,
+            None,
+        )
+        .expect("Green995 dispatches via factory");
+        eff.update(&EffectUpdateCtx {
+            delta: FADE_IN_FRAMES / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        });
         let mut list = EffectDrawList::new();
         eff.collect_draws(&mut list, &render_ctx());
         assert_eq!(list.primitives.len(), NUM_RINGS);
-        assert!(list.primitives.iter().all(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. })));
+        assert!(
+            list.primitives
+                .iter()
+                .all(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. }))
+        );
     }
 
     #[test]
     fn never_self_terminates() {
         let mut c = CastingRingEffect::new([0.0; 3], LV99);
         for _ in 0..200 {
-            assert_eq!(c.update(&EffectUpdateCtx { delta: 0.1, camera_target: None, caster_yaw: None }), EffectStatus::Running);
+            assert_eq!(
+                c.update(&EffectUpdateCtx {
+                    delta: 0.1,
+                    camera_target: None,
+                    caster_yaw: None
+                }),
+                EffectStatus::Running
+            );
         }
     }
 }

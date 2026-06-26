@@ -110,7 +110,9 @@ impl HeavensDriveEffect {
         // the grid keeps the original's varied look while tests stay stable.
         let mut rng_state = seed_from_world(world_pos) ^ 0x9E37_79B9;
         let mut lcg = || {
-            rng_state = rng_state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            rng_state = rng_state
+                .wrapping_mul(1_664_525)
+                .wrapping_add(1_013_904_223);
             (rng_state >> 8) as f32 / ((1u32 << 24) as f32)
         };
 
@@ -136,7 +138,10 @@ impl HeavensDriveEffect {
                 });
             }
         }
-        Self { spikes, age_frames: 0.0 }
+        Self {
+            spikes,
+            age_frames: 0.0,
+        }
     }
 }
 
@@ -213,7 +218,11 @@ mod tests {
         // Sociable: 5×5 grid of QuadHorn stone blades at frame 0, all on a
         // square footprint around the anchor; the effect ends after its window.
         let mut e = HeavensDriveEffect::new([0.0, 0.0, 0.0]);
-        e.update(&EffectUpdateCtx { delta: 0.0, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: 0.0,
+            camera_target: None,
+            caster_yaw: None,
+        });
         let prims = draws(&e);
         assert_eq!(prims.len(), 25);
         for p in &prims {
@@ -222,12 +231,19 @@ mod tests {
             };
             assert_eq!(*texture, STONE_TEXTURE);
             let span = (GRID - 1) as f32 / 2.0 * GRID_STEP + 0.001;
-            assert!(base[0].abs() <= span && base[2].abs() <= span, "blade inside grid footprint");
+            assert!(
+                base[0].abs() <= span && base[2].abs() <= span,
+                "blade inside grid footprint"
+            );
         }
 
         let mut status = EffectStatus::Running;
         for _ in 0..(DURATION_FRAMES as i32 + 5) {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            status = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
             if status == EffectStatus::Dead {
                 break;
             }
@@ -241,28 +257,49 @@ mod tests {
         // speed window, holds, then sinks back below its risen height once
         // the return-down phase kicks in near the end.
         let mut e = HeavensDriveEffect::new([0.0, 0.0, 0.0]);
-        e.update(&EffectUpdateCtx { delta: 0.0, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: 0.0,
+            camera_target: None,
+            caster_yaw: None,
+        });
         let y_start = sample_y(&e);
 
         // Step to just past the freeze frame (14).
         for _ in 0..16 {
-            e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         let y_risen = sample_y(&e);
-        assert!(y_risen < y_start, "blade rose during speed window: {y_start} -> {y_risen}");
+        assert!(
+            y_risen < y_start,
+            "blade rose during speed window: {y_start} -> {y_risen}"
+        );
 
         // Run out the rest of the life; the sink pulls it back down (Y up
         // toward / past start).
-        while e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None })
-            != EffectStatus::Dead
+        while e.update(&EffectUpdateCtx {
+            delta: 1.0 / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        }) != EffectStatus::Dead
         {}
         // Re-create and sample just before death to read the sunk position.
         let mut e2 = HeavensDriveEffect::new([0.0, 0.0, 0.0]);
         let mut prev = sample_y(&e2);
         for _ in 0..(DURATION_FRAMES as i32 - 1) {
-            e2.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            e2.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
             prev = sample_y(&e2);
         }
-        assert!(prev > y_risen, "blade sank back down at end of life: {y_risen} -> {prev}");
+        assert!(
+            prev > y_risen,
+            "blade sank back down at end of life: {y_risen} -> {prev}"
+        );
     }
 }

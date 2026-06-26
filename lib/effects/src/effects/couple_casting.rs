@@ -91,7 +91,10 @@ mod tests {
         for (texture, color) in &cones {
             assert_eq!(*texture, TEXTURE);
             // Rose tint: red dominant, blue above green.
-            assert!(color[0] > color[1] && color[2] > color[1], "rose tint {color:?}");
+            assert!(
+                color[0] > color[1] && color[2] > color[1],
+                "rose tint {color:?}"
+            );
         }
     }
 }

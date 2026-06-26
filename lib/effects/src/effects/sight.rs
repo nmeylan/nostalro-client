@@ -292,7 +292,8 @@ impl Effect for OrbitEffect {
         if self.age_frames <= self.params.parent_duration_frames {
             let next_frame = self.last_spawn_frame + 1;
             for f in next_frame..=current_frame {
-                if f >= 0 && f as f32 <= self.params.parent_duration_frames
+                if f >= 0
+                    && f as f32 <= self.params.parent_duration_frames
                     && (f as u32) % self.params.spawn_period_frames == 0
                 {
                     self.spawn_pair(f);
@@ -306,8 +307,7 @@ impl Effect for OrbitEffect {
         }
         self.particles.retain(|p| p.alive());
 
-        if self.age_frames / FRAMES_PER_SECOND >= self.total_duration_s
-            && self.particles.is_empty()
+        if self.age_frames / FRAMES_PER_SECOND >= self.total_duration_s && self.particles.is_empty()
         {
             EffectStatus::Dead
         } else {
@@ -341,7 +341,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -381,7 +385,9 @@ mod tests {
         assert!(sprites.contains(&SHADOW_SPRITE), "lower uses shadow sprite");
 
         for prim in &list.primitives {
-            let EffectPrimitiveDraw::SpriteParticle { position, .. } = prim else { unreachable!() };
+            let EffectPrimitiveDraw::SpriteParticle { position, .. } = prim else {
+                unreachable!()
+            };
             let dx = position[0] - 10.0;
             let dz = position[2] - 20.0;
             let r = (dx * dx + dz * dz).sqrt();
@@ -448,8 +454,11 @@ mod tests {
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         assert_eq!(list.primitives.len(), 1, "single particle, no shadow pair");
-        let EffectPrimitiveDraw::SpriteParticle { sprite_path, position, .. } =
-            &list.primitives[0]
+        let EffectPrimitiveDraw::SpriteParticle {
+            sprite_path,
+            position,
+            ..
+        } = &list.primitives[0]
         else {
             panic!("expected SpriteParticle");
         };

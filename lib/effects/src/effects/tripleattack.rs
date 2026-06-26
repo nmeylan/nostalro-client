@@ -335,7 +335,9 @@ impl Effect for TripleAttackEffect {
             let points = vec![s.base, s.tip];
             // Wider pale halo first, then the bright core on top (additive — the
             // overlap reads as the glowing centre line).
-            for (half_width, mut color) in [(s.outer_w, self.outer_color), (s.inner_w, self.inner_color)] {
+            for (half_width, mut color) in
+                [(s.outer_w, self.outer_color), (s.inner_w, self.inner_color)]
+            {
                 color[3] = a;
                 out.push(EffectPrimitiveDraw::LineStrip {
                     points: points.clone(),
@@ -357,7 +359,11 @@ mod tests {
     use super::*;
 
     fn ctx() -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: 1.0 / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn tick(e: &mut TripleAttackEffect, frames: u32) -> EffectStatus {
@@ -370,18 +376,24 @@ mod tests {
 
     fn strips(e: &TripleAttackEffect) -> Vec<(Vec<[f32; 3]>, f32, f32)> {
         let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 256.0,
-            screen_h: 256.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut list,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 256.0,
+                screen_h: 256.0,
+                elapsed: 0.0,
+            },
+        );
         list.primitives
             .iter()
             .map(|p| match p {
-                EffectPrimitiveDraw::LineStrip { points, half_width, color, .. } => {
-                    (points.clone(), *half_width, color[3])
-                }
+                EffectPrimitiveDraw::LineStrip {
+                    points,
+                    half_width,
+                    color,
+                    ..
+                } => (points.clone(), *half_width, color[3]),
                 other => panic!("expected LineStrip, got {other:?}"),
             })
             .collect()
@@ -400,7 +412,10 @@ mod tests {
         // ribbon layers (inner + outer) come out.
         for (points, _, _) in &drawn {
             assert_eq!(points.len(), 2, "two-point ribbon");
-            assert!(points[1][2] > points[0][2], "tip is further along +Z than base");
+            assert!(
+                points[1][2] > points[0][2],
+                "tip is further along +Z than base"
+            );
         }
     }
 

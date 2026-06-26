@@ -34,7 +34,7 @@
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
-use super::slash::{SlashEffect, SUPERANGEL_RING};
+use super::slash::{SUPERANGEL_RING, SlashEffect};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
@@ -90,18 +90,48 @@ pub struct SuperAngelParams {
 // 338 Angel2 — angel body + flapping wings + two feathers, all lifted 40.
 pub const ANGEL2: SuperAngelParams = SuperAngelParams {
     layers: &[
-        AngelLayer { sprite: SPR_ANGEL, f1: 0, y_offset: -40.0, wing: false },
-        AngelLayer { sprite: SPR_ANGEL_WINGS, f1: 1, y_offset: -40.0, wing: true },
-        AngelLayer { sprite: SPR_FEATHER, f1: 2, y_offset: -40.0, wing: false },
-        AngelLayer { sprite: SPR_FEATHER, f1: 3, y_offset: -40.0, wing: false },
+        AngelLayer {
+            sprite: SPR_ANGEL,
+            f1: 0,
+            y_offset: -40.0,
+            wing: false,
+        },
+        AngelLayer {
+            sprite: SPR_ANGEL_WINGS,
+            f1: 1,
+            y_offset: -40.0,
+            wing: true,
+        },
+        AngelLayer {
+            sprite: SPR_FEATHER,
+            f1: 2,
+            y_offset: -40.0,
+            wing: false,
+        },
+        AngelLayer {
+            sprite: SPR_FEATHER,
+            f1: 3,
+            y_offset: -40.0,
+            wing: false,
+        },
     ],
 };
 
 // 582 Angel3 — hanbok-angel wings + costume body, lifted 30.
 pub const ANGEL3: SuperAngelParams = SuperAngelParams {
     layers: &[
-        AngelLayer { sprite: SPR_HANBOK_WINGS, f1: 11, y_offset: -30.0, wing: true },
-        AngelLayer { sprite: SPR_HANBOK_BODY, f1: 10, y_offset: -30.0, wing: false },
+        AngelLayer {
+            sprite: SPR_HANBOK_WINGS,
+            f1: 11,
+            y_offset: -30.0,
+            wing: true,
+        },
+        AngelLayer {
+            sprite: SPR_HANBOK_BODY,
+            f1: 10,
+            y_offset: -30.0,
+            wing: false,
+        },
     ],
 };
 
@@ -135,7 +165,11 @@ fn layer_alpha(f1: u8, birth_frame: f32, process: f32) -> f32 {
 
     // Fade-out window + rate.
     let (fade_t, fade_rate) = if f1 == 1 || f1 == 11 {
-        if birth_frame != 0.0 { (75.0, 3.0) } else { (75.0, 6.0) }
+        if birth_frame != 0.0 {
+            (75.0, 3.0)
+        } else {
+            (75.0, 6.0)
+        }
     } else {
         match f1 {
             0 => (100.0, 4.0),
@@ -145,13 +179,21 @@ fn layer_alpha(f1: u8, birth_frame: f32, process: f32) -> f32 {
             _ => (70.0, 3.0),
         }
     };
-    let fade = if process > fade_t { fade_rate * (process - fade_t) } else { 0.0 };
+    let fade = if process > fade_t {
+        fade_rate * (process - fade_t)
+    } else {
+        0.0
+    };
     (rise - fade).clamp(0.0, cap)
 }
 
 /// Effect layers are additive; only the `f1` 10 costume body is alpha-blended.
 fn layer_blend(f1: u8) -> BlendKind {
-    if f1 == 10 { BlendKind::Alpha } else { BlendKind::Additive }
+    if f1 == 10 {
+        BlendKind::Alpha
+    } else {
+        BlendKind::Additive
+    }
 }
 
 /// Motion index within action 0: holds frame 0 for 30 frames, then advances.
@@ -198,7 +240,13 @@ impl SuperAngelEffect {
                 });
             }
         }
-        Self { anchor, age_frames: 0.0, instances, ring: None, ring_spawned: false }
+        Self {
+            anchor,
+            age_frames: 0.0,
+            instances,
+            ring: None,
+            ring_spawned: false,
+        }
     }
 }
 
@@ -253,13 +301,22 @@ mod tests {
     use super::*;
 
     fn ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn step(e: &mut SuperAngelEffect, frames: u32) -> EffectStatus {
         let mut s = EffectStatus::Running;
         for _ in 0..frames {
-            s = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            s = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         s
     }
@@ -270,9 +327,14 @@ mod tests {
         l.primitives
             .iter()
             .filter_map(|p| match p {
-                EffectPrimitiveDraw::SpriteParticle { sprite_path, position, motion_index, color, blend, .. } => {
-                    Some((*sprite_path, position[1], *motion_index, color[3], *blend))
-                }
+                EffectPrimitiveDraw::SpriteParticle {
+                    sprite_path,
+                    position,
+                    motion_index,
+                    color,
+                    blend,
+                    ..
+                } => Some((*sprite_path, position[1], *motion_index, color[3], *blend)),
                 _ => None,
             })
             .collect()
@@ -313,12 +375,25 @@ mod tests {
         let a_early = sprites(&e).iter().find(|x| x.0 == SPR_ANGEL).unwrap().1;
         let alpha_early = sprites(&e).iter().find(|x| x.0 == SPR_ANGEL).unwrap().3;
         let motion_early = sprites(&e).iter().find(|x| x.0 == SPR_ANGEL).unwrap().2;
-        assert_eq!(motion_early, 0, "animation holds frame 0 for first 30 frames");
+        assert_eq!(
+            motion_early, 0,
+            "animation holds frame 0 for first 30 frames"
+        );
 
         step(&mut e, 45); // frame 50: faded in, drifted up, animating
         let body = *sprites(&e).iter().find(|x| x.0 == SPR_ANGEL).unwrap();
-        assert!(body.3 > alpha_early, "angel fades in: {} -> {}", alpha_early, body.3);
-        assert!(body.1 < a_early, "angel drifts up (−Y up): {} -> {}", a_early, body.1);
+        assert!(
+            body.3 > alpha_early,
+            "angel fades in: {} -> {}",
+            alpha_early,
+            body.3
+        );
+        assert!(
+            body.1 < a_early,
+            "angel drifts up (−Y up): {} -> {}",
+            a_early,
+            body.1
+        );
         assert!(body.2 > 0, "animation advances past frame 30");
     }
 
@@ -338,15 +413,26 @@ mod tests {
         let s = sprites(&e);
         // Hanbok body present; its first wing is invisible (alpha 0) so only the
         // echoes show.
-        assert!(s.iter().any(|x| x.0 == SPR_HANBOK_BODY), "costume body present");
+        assert!(
+            s.iter().any(|x| x.0 == SPR_HANBOK_BODY),
+            "costume body present"
+        );
         let wings = s.iter().filter(|x| x.0 == SPR_HANBOK_WINGS).count();
-        assert!(wings >= 1 && wings < WING_BIRTH_FRAMES.len(), "only dim wing echoes show, not the invisible primary");
+        assert!(
+            wings >= 1 && wings < WING_BIRTH_FRAMES.len(),
+            "only dim wing echoes show, not the invisible primary"
+        );
         // Costume body is alpha-blended, wings additive — the Alpha
         // bucket flushes first, so the wings draw over the body.
         let body = s.iter().find(|x| x.0 == SPR_HANBOK_BODY).unwrap();
-        assert!(matches!(body.4, BlendKind::Alpha), "costume body alpha-blended");
         assert!(
-            s.iter().filter(|x| x.0 == SPR_HANBOK_WINGS).all(|x| matches!(x.4, BlendKind::Additive)),
+            matches!(body.4, BlendKind::Alpha),
+            "costume body alpha-blended"
+        );
+        assert!(
+            s.iter()
+                .filter(|x| x.0 == SPR_HANBOK_WINGS)
+                .all(|x| matches!(x.4, BlendKind::Additive)),
             "hanbok wings additive"
         );
     }

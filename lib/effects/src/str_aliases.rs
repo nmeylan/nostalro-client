@@ -136,7 +136,7 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Deffender => &["Deffender"],
         EffectId::Keeping => &["Keeping"],
         EffectId::PotionCon => &["집중", "concentration2"],
-        EffectId::Potion => &["awakening", "각성"],
+        EffectId::Potion => &["각성", "awakening"],
         EffectId::Spellbreaker => &["spell"],
         EffectId::Dispell => &["디스펠", "dispelled"],
         EffectId::Magicrod => &["매직로드", "magicroad_silvery"],

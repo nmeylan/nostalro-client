@@ -75,8 +75,7 @@ impl Effect for CallzoneEffect {
         let alpha = if visible_frame <= FADE_IN_FRAMES {
             PEAK_ALPHA * (visible_frame / FADE_IN_FRAMES).clamp(0.0, 1.0)
         } else if visible_frame >= fade_out_at {
-            let fade =
-                ((visible_frame - fade_out_at) / FADE_OUT_FRAMES).clamp(0.0, 1.0);
+            let fade = ((visible_frame - fade_out_at) / FADE_OUT_FRAMES).clamp(0.0, 1.0);
             PEAK_ALPHA * (1.0 - fade)
         } else {
             PEAK_ALPHA
@@ -123,7 +122,8 @@ mod tests {
     fn step(effect: &mut CallzoneEffect, dt: f32) -> EffectStatus {
         effect.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 

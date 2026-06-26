@@ -64,7 +64,10 @@ pub struct ProvidenceEffect {
 
 impl ProvidenceEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        Self { world_pos, age_frames: 0.0 }
+        Self {
+            world_pos,
+            age_frames: 0.0,
+        }
     }
 
     fn alpha(&self) -> f32 {
@@ -137,7 +140,11 @@ mod tests {
     }
 
     fn step_and_draw(e: &mut ProvidenceEffect, frames: f32) -> Vec<EffectPrimitiveDraw> {
-        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: frames / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        });
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         list.primitives
@@ -153,15 +160,21 @@ mod tests {
         let rings: Vec<_> = prims
             .iter()
             .filter_map(|p| match p {
-                EffectPrimitiveDraw::RadialRing { distance, rise_angle_rad, texture, .. } => {
-                    Some((*distance, *rise_angle_rad, *texture))
-                }
+                EffectPrimitiveDraw::RadialRing {
+                    distance,
+                    rise_angle_rad,
+                    texture,
+                    ..
+                } => Some((*distance, *rise_angle_rad, *texture)),
                 _ => None,
             })
             .collect();
         assert_eq!(rings.len(), 4, "four-ring funnel");
         for (_, rise, tex) in &rings {
-            assert!(*rise < std::f32::consts::FRAC_PI_2, "rings flare outward (< 90°)");
+            assert!(
+                *rise < std::f32::consts::FRAC_PI_2,
+                "rings flare outward (< 90°)"
+            );
             assert_eq!(*tex, TEXTURE);
         }
         let mut dists: Vec<f32> = rings.iter().map(|(d, ..)| *d).collect();
@@ -185,10 +198,13 @@ mod tests {
         assert!(a_mid > a_early, "alpha climbs during fade-in");
         // Walk deep into the fade-out tail.
         let late = step_and_draw(&mut e, TOTAL_FRAMES - FADE_IN_FRAMES - 4.0 - 2.0);
-        let a_late = late.first().map(|p| match p {
-            EffectPrimitiveDraw::RadialRing { color, .. } => color[3],
-            _ => unreachable!(),
-        }).unwrap_or(0.0);
+        let a_late = late
+            .first()
+            .map(|p| match p {
+                EffectPrimitiveDraw::RadialRing { color, .. } => color[3],
+                _ => unreachable!(),
+            })
+            .unwrap_or(0.0);
         assert!(a_late < a_mid, "alpha drops during fade-out");
     }
 
@@ -197,7 +213,8 @@ mod tests {
         let mut e = ProvidenceEffect::new([0.0; 3]);
         let s = e.update(&EffectUpdateCtx {
             delta: TOTAL_DURATION_MS as f32 / 1000.0 + 0.1,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
         assert!(matches!(s, EffectStatus::Dead));
     }

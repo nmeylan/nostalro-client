@@ -38,8 +38,7 @@ pub const TEXTURES: &[&str] = &[TEXTURE];
 const FRAMES_PER_SECOND: f32 = 60.0;
 /// All five family members run for 200 frames, like the original game.
 const TOTAL_FRAMES: u32 = 200;
-pub const TOTAL_DURATION_MS: u32 =
-    ((TOTAL_FRAMES as f32) / FRAMES_PER_SECOND * 1000.0) as u32;
+pub const TOTAL_DURATION_MS: u32 = ((TOTAL_FRAMES as f32) / FRAMES_PER_SECOND * 1000.0) as u32;
 
 /// Apex Y offset above the
 /// caster's feet. Native RO `-Y = up`, so apex is `|APEX_Y_OFFSET|` units up.
@@ -462,7 +461,8 @@ mod tests {
     fn step(e: &mut Bash3dEffect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FRAMES_PER_SECOND,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -555,8 +555,16 @@ mod tests {
         step(&mut e, 10.0);
         assert_eq!(e.body_tint(), None, "no tint before the window");
         step(&mut e, 20.0); // frame ~30, inside 20..=40
-        assert_eq!(e.body_tint(), Some(BodyTint { rgb: [255, 200, 200] }));
-        assert!(!e.body_additive(), "Bash uses a colour multiply, not a glow");
+        assert_eq!(
+            e.body_tint(),
+            Some(BodyTint {
+                rgb: [255, 200, 200]
+            })
+        );
+        assert!(
+            !e.body_additive(),
+            "Bash uses a colour multiply, not a glow"
+        );
         step(&mut e, 20.0); // frame ~50, past the window
         assert_eq!(e.body_tint(), None, "tint clears after the window");
 
@@ -592,6 +600,9 @@ mod tests {
         let EffectPrimitiveDraw::WorldQuad { color, .. } = prims[0] else {
             panic!("expected WorldQuad");
         };
-        assert!(color[0] > 0.9 && color[1] > 0.9 && color[2] > 0.9, "white tint");
+        assert!(
+            color[0] > 0.9 && color[1] > 0.9 && color[2] > 0.9,
+            "white tint"
+        );
     }
 }

@@ -98,9 +98,27 @@ impl Sma2Band {
         Self {
             center,
             strands: [
-                Strand { max_height: 13.0, rise_deg: 55.0, distance: dist(3.4, 2.4), rot_deg: 0.0, spin_rate: 3.0 },
-                Strand { max_height: 11.0, rise_deg: 50.0, distance: dist(3.6, 2.6), rot_deg: 90.0, spin_rate: 4.0 },
-                Strand { max_height: 9.0, rise_deg: 45.0, distance: dist(3.8, 2.8), rot_deg: 180.0, spin_rate: 5.0 },
+                Strand {
+                    max_height: 13.0,
+                    rise_deg: 55.0,
+                    distance: dist(3.4, 2.4),
+                    rot_deg: 0.0,
+                    spin_rate: 3.0,
+                },
+                Strand {
+                    max_height: 11.0,
+                    rise_deg: 50.0,
+                    distance: dist(3.6, 2.6),
+                    rot_deg: 90.0,
+                    spin_rate: 4.0,
+                },
+                Strand {
+                    max_height: 9.0,
+                    rise_deg: 45.0,
+                    distance: dist(3.8, 2.8),
+                    rot_deg: 180.0,
+                    spin_rate: 5.0,
+                },
             ],
             process: 0,
             alpha: 0.0,
@@ -142,7 +160,11 @@ impl Sma2Band {
             for order in 0..E_DIVISION {
                 let angle = (order as f32 * step_deg + s.rot_deg).to_radians();
                 let (ca, sa) = (angle.cos(), angle.sin());
-                let base = [self.center[0] + ca * s.distance, self.center[1], self.center[2] + sa * s.distance];
+                let base = [
+                    self.center[0] + ca * s.distance,
+                    self.center[1],
+                    self.center[2] + sa * s.distance,
+                ];
                 let sin_limit = (90.0 + (order as i32 - middle) as f32 * 9.0).to_radians();
                 let height = s.max_height * sin_limit.sin() * ramp;
                 let rx = rc * height;
@@ -174,7 +196,10 @@ pub struct Sma2Effect {
 
 impl Sma2Effect {
     pub fn new(anchor: [f32; 3]) -> Self {
-        Self { band: Sma2Band::new(anchor, false, BAND_DURATION_FRAMES), frame_accum: 0.0 }
+        Self {
+            band: Sma2Band::new(anchor, false, BAND_DURATION_FRAMES),
+            frame_accum: 0.0,
+        }
     }
 }
 
@@ -185,7 +210,11 @@ impl Effect for Sma2Effect {
             self.frame_accum -= 1.0;
             self.band.step();
         }
-        if self.band.dead() { EffectStatus::Dead } else { EffectStatus::Running }
+        if self.band.dead() {
+            EffectStatus::Dead
+        } else {
+            EffectStatus::Running
+        }
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
@@ -230,7 +259,11 @@ impl SmaEffect {
         let dz = to[2] - from[2];
         let len = (dx * dx + dz * dz).sqrt();
         // The emitter advances 0.8/frame along the heading.
-        let step = if len > 0.0 { [0.8 * dx / len, 0.0, 0.8 * dz / len] } else { [0.0; 3] };
+        let step = if len > 0.0 {
+            [0.8 * dx / len, 0.0, 0.8 * dz / len]
+        } else {
+            [0.0; 3]
+        };
         let seed = from[0].to_bits() ^ to[2].to_bits() ^ 0x51A_3C9D;
         Self {
             kind,
@@ -271,7 +304,8 @@ impl SmaEffect {
             SmaKind::Bands => {
                 if emitting && self.frame % BAND_EMIT_PERIOD == 0 {
                     let tight = (self.frame / BAND_EMIT_PERIOD) % 2 == 1;
-                    self.bands.push(Sma2Band::new(self.emitter, tight, BAND_DURATION_FRAMES));
+                    self.bands
+                        .push(Sma2Band::new(self.emitter, tight, BAND_DURATION_FRAMES));
                 }
             }
             SmaKind::Particles => {
@@ -298,7 +332,8 @@ impl SmaEffect {
                 pt.alpha -= 3.0 / 255.0;
             }
         }
-        self.particles.retain(|pt| !(pt.process > 10 && pt.alpha <= 0.0));
+        self.particles
+            .retain(|pt| !(pt.process > 10 && pt.alpha <= 0.0));
         self.frame += 1;
     }
 }
@@ -311,7 +346,11 @@ impl Effect for SmaEffect {
             self.step_frame();
         }
         let done = self.frame >= EMIT_FRAMES && self.bands.is_empty() && self.particles.is_empty();
-        if done { EffectStatus::Dead } else { EffectStatus::Running }
+        if done {
+            EffectStatus::Dead
+        } else {
+            EffectStatus::Running
+        }
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
@@ -329,7 +368,12 @@ impl Effect for SmaEffect {
                 uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
                 rotation: pt.rotation,
                 texture: pt.texture,
-                color: [PARTICLE_TINT[0], PARTICLE_TINT[1], PARTICLE_TINT[2], pt.alpha],
+                color: [
+                    PARTICLE_TINT[0],
+                    PARTICLE_TINT[1],
+                    PARTICLE_TINT[2],
+                    pt.alpha,
+                ],
                 blend: BlendKind::Additive,
             });
         }
@@ -341,17 +385,24 @@ mod tests {
     use super::*;
 
     fn ctx() -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: 1.0 / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn collect(e: &dyn Effect) -> EffectDrawList {
         let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 256.0,
-            screen_h: 256.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut list,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 256.0,
+                screen_h: 256.0,
+                elapsed: 0.0,
+            },
+        );
         list
     }
 
@@ -363,7 +414,11 @@ mod tests {
         }
         let list = collect(&e);
         // 3 strands × (E_DIVISION-1) segments.
-        assert!(list.primitives.len() > 30, "spiral strip: {}", list.primitives.len());
+        assert!(
+            list.primitives.len() > 30,
+            "spiral strip: {}",
+            list.primitives.len()
+        );
         match &list.primitives[0] {
             EffectPrimitiveDraw::WorldQuad { blend, color, .. } => {
                 assert_eq!(*blend, BlendKind::Additive);
@@ -383,7 +438,11 @@ mod tests {
         for _ in 0..30 {
             e.update(&ctx());
         }
-        assert!(e.bands.len() > early, "more bands accumulate: {early} -> {}", e.bands.len());
+        assert!(
+            e.bands.len() > early,
+            "more bands accumulate: {early} -> {}",
+            e.bands.len()
+        );
         // Runs out long after emission ends.
         let mut st = EffectStatus::Running;
         for _ in 0..400 {
@@ -400,7 +459,9 @@ mod tests {
         }
         let list = collect(&e);
         assert!(
-            list.primitives.iter().all(|p| matches!(p, EffectPrimitiveDraw::Billboard { .. })),
+            list.primitives
+                .iter()
+                .all(|p| matches!(p, EffectPrimitiveDraw::Billboard { .. })),
             "particles render as billboards",
         );
         assert!(!list.primitives.is_empty(), "particles spawned");

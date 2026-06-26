@@ -16,11 +16,9 @@
 //!   * Parent emitter lives 300 frames for the audio cue (plays
 //!     at frame 30) but emits no further primitives.
 
+use super::spike_burst::{self, ChangeGrowth, SpikeBurst, SpikeBurstParams, seed_from_world};
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use super::spike_burst::{
-    self, ChangeGrowth, SpikeBurst, SpikeBurstParams, seed_from_world,
-};
 
 pub const TEXTURES: &[&str] = &[spike_burst::SPIKE_TEXTURE];
 pub const PARTICLE_SPRITE: &str = "data/sprite/이팩트/particle1";
@@ -220,7 +218,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -269,8 +271,14 @@ mod tests {
         step_frames(&mut e, 30);
         let late_lon = e.particles[0].longitude_deg();
         let late_y = e.particles[0].y_offset;
-        assert!(late_lon > early_lon, "longitude advances {early_lon} → {late_lon}");
-        assert!(late_y < early_y, "drifts up (Y decreases) {early_y} → {late_y}");
+        assert!(
+            late_lon > early_lon,
+            "longitude advances {early_lon} → {late_lon}"
+        );
+        assert!(
+            late_y < early_y,
+            "drifts up (Y decreases) {early_y} → {late_y}"
+        );
     }
 
     #[test]

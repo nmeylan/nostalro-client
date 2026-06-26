@@ -231,7 +231,12 @@ impl FullscreenOverlayEffect {
 
     /// Tint+opacity colour for the wash / vignette.
     fn body_color(&self) -> [f32; 4] {
-        [self.params.tint[0], self.params.tint[1], self.params.tint[2], self.alpha]
+        [
+            self.params.tint[0],
+            self.params.tint[1],
+            self.params.tint[2],
+            self.alpha,
+        ]
     }
 }
 
@@ -249,7 +254,11 @@ fn sub(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
 
 fn normalize(v: [f32; 3]) -> [f32; 3] {
     let len = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
-    if len < 1e-6 { [0.0, 0.0, 0.0] } else { [v[0] / len, v[1] / len, v[2] / len] }
+    if len < 1e-6 {
+        [0.0, 0.0, 0.0]
+    } else {
+        [v[0] / len, v[1] / len, v[2] / len]
+    }
 }
 
 fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
@@ -312,8 +321,7 @@ fn push_world_vignette(
     // back in — that bleed showed as a grey cross along the screen axes (the
     // `u=0` / `v=1` edges that touch the transparent corner).
     const E: f32 = 0.01;
-    const GRAD_UV: [[f32; 2]; 4] =
-        [[E, 1.0 - E], [1.0 - E, 1.0 - E], [1.0 - E, E], [E, E]];
+    const GRAD_UV: [[f32; 2]; 4] = [[E, 1.0 - E], [1.0 - E, 1.0 - E], [1.0 - E, E], [E, E]];
     const QUADRANTS: [[f32; 2]; 4] = [[1.0, 1.0], [-1.0, 1.0], [-1.0, -1.0], [1.0, -1.0]];
     let d = distance;
     for [sx, sz] in QUADRANTS {
@@ -470,7 +478,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     /// Camera looking down-ish at the origin from `eye_dist` away — gives a
@@ -501,7 +513,12 @@ mod tests {
         list.primitives
             .iter()
             .filter_map(|p| match p {
-                EffectPrimitiveDraw::WorldQuad { corners, texture, no_depth, .. } => {
+                EffectPrimitiveDraw::WorldQuad {
+                    corners,
+                    texture,
+                    no_depth,
+                    ..
+                } => {
                     assert!(*no_depth, "overlay quads ignore depth");
                     Some((*corners, *texture))
                 }
@@ -516,15 +533,21 @@ mod tests {
         }
     }
 
-    fn quads(e: &FullscreenOverlayEffect) -> Vec<([[f32; 2]; 4], [[f32; 2]; 4], &'static str, [f32; 4])> {
+    fn quads(
+        e: &FullscreenOverlayEffect,
+    ) -> Vec<([[f32; 2]; 4], [[f32; 2]; 4], &'static str, [f32; 4])> {
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         list.primitives
             .iter()
             .filter_map(|p| match p {
-                EffectPrimitiveDraw::ScreenQuad { corners, uvs, texture, color, .. } => {
-                    Some((*corners, *uvs, *texture, *color))
-                }
+                EffectPrimitiveDraw::ScreenQuad {
+                    corners,
+                    uvs,
+                    texture,
+                    color,
+                    ..
+                } => Some((*corners, *uvs, *texture, *color)),
                 _ => None,
             })
             .collect()
@@ -553,10 +576,24 @@ mod tests {
         }
         // Clear hole spans `distance` world units; the dark frame reaches well
         // beyond it.
-        let hole = grad.iter().flat_map(|(c, _)| *c).map(radius).fold(0.0_f32, f32::max);
-        let frame = fill.iter().flat_map(|(c, _)| *c).map(radius).fold(0.0_f32, f32::max);
-        assert!((hole - BLIND.distance * std::f32::consts::SQRT_2).abs() < 1.0, "hole = distance: {hole}");
-        assert!(frame > hole * 3.0, "frame blankets far beyond the hole: {frame} vs {hole}");
+        let hole = grad
+            .iter()
+            .flat_map(|(c, _)| *c)
+            .map(radius)
+            .fold(0.0_f32, f32::max);
+        let frame = fill
+            .iter()
+            .flat_map(|(c, _)| *c)
+            .map(radius)
+            .fold(0.0_f32, f32::max);
+        assert!(
+            (hole - BLIND.distance * std::f32::consts::SQRT_2).abs() < 1.0,
+            "hole = distance: {hole}"
+        );
+        assert!(
+            frame > hole * 3.0,
+            "frame blankets far beyond the hole: {frame} vs {hole}"
+        );
     }
 
     #[test]
@@ -569,17 +606,31 @@ mod tests {
 
         let measure = |dist: f32| {
             let qs = world_quads(&e, &render_ctx_at(dist));
-            let hole = qs.iter().filter(|(_, t)| *t == "fullb.tga")
-                .flat_map(|(c, _)| *c).map(radius).fold(0.0_f32, f32::max);
-            let frame = qs.iter().filter(|(_, t)| *t == "white02.bmp")
-                .flat_map(|(c, _)| *c).map(radius).fold(0.0_f32, f32::max);
+            let hole = qs
+                .iter()
+                .filter(|(_, t)| *t == "fullb.tga")
+                .flat_map(|(c, _)| *c)
+                .map(radius)
+                .fold(0.0_f32, f32::max);
+            let frame = qs
+                .iter()
+                .filter(|(_, t)| *t == "white02.bmp")
+                .flat_map(|(c, _)| *c)
+                .map(radius)
+                .fold(0.0_f32, f32::max);
             (hole, frame)
         };
         let (near_hole, near_frame) = measure(100.0);
         let (far_hole, far_frame) = measure(400.0);
 
-        assert!((near_hole - far_hole).abs() < 1e-3, "clear hole is zoom-independent");
-        assert!(far_frame > near_frame * 3.5, "dark frame grows with zoom-out: {near_frame} -> {far_frame}");
+        assert!(
+            (near_hole - far_hole).abs() < 1e-3,
+            "clear hole is zoom-independent"
+        );
+        assert!(
+            far_frame > near_frame * 3.5,
+            "dark frame grows with zoom-out: {near_frame} -> {far_frame}"
+        );
     }
 
     #[test]
@@ -598,20 +649,32 @@ mod tests {
         // Past every slash's staggered start, still in the hold.
         step_frames(&mut e, 30);
         let qs = quads(&e);
-        let slashes: Vec<_> = qs.iter().filter(|(_, _, tex, _)| *tex == "lens_r.bmp").collect();
+        let slashes: Vec<_> = qs
+            .iter()
+            .filter(|(_, _, tex, _)| *tex == "lens_r.bmp")
+            .collect();
         assert_eq!(slashes.len(), SLASH_COUNT, "three claw slashes");
-        assert!(qs.iter().any(|(_, _, tex, _)| *tex == "white02.bmp"), "red wash present");
+        assert!(
+            qs.iter().any(|(_, _, tex, _)| *tex == "white02.bmp"),
+            "red wash present"
+        );
         // Claw runs top-right (first vertex) to bottom-left (third vertex).
         let (corners, _, _, _) = slashes[0];
-        assert!(corners[0][0] > corners[2][0] && corners[0][1] > corners[2][1],
-            "top end is up-right of the bottom end: {corners:?}");
+        assert!(
+            corners[0][0] > corners[2][0] && corners[0][1] > corners[2][1],
+            "top end is up-right of the bottom end: {corners:?}"
+        );
     }
 
     #[test]
     fn bleeding_pulses_up_then_down() {
         let mut e = FullscreenOverlayEffect::new([0.0, 0.0, 0.0], BLEEDING);
         step_frames(&mut e, 20);
-        let peak = quads(&e).iter().find(|(_, _, t, _)| *t == "white02.bmp").unwrap().3[3];
+        let peak = quads(&e)
+            .iter()
+            .find(|(_, _, t, _)| *t == "white02.bmp")
+            .unwrap()
+            .3[3];
         step_frames(&mut e, 60);
         let tail = quads(&e)
             .iter()
@@ -619,6 +682,9 @@ mod tests {
             .map(|q| q.3[3])
             .unwrap_or(0.0);
         assert!(peak > 0.0);
-        assert!(tail < peak, "bleeding wash should fade after the pulse: {peak} -> {tail}");
+        assert!(
+            tail < peak,
+            "bleeding wash should fade after the pulse: {peak} -> {tail}"
+        );
     }
 }

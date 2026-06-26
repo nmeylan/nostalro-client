@@ -94,7 +94,11 @@ impl SakuraEffect {
             top
         };
         self.petals.push(Petal {
-            pos: [cx + self.rng.range(-SPREAD, SPREAD), y, cz + self.rng.range(-SPREAD, SPREAD)],
+            pos: [
+                cx + self.rng.range(-SPREAD, SPREAD),
+                y,
+                cz + self.rng.range(-SPREAD, SPREAD),
+            ],
             fall_speed: self.rng.range(FALL_MIN, FALL_MAX),
             size: self.rng.range(SIZE_MIN, SIZE_MAX),
             action_index: (self.rng.next_u32() % 3) as usize,
@@ -164,12 +168,21 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn tick(e: &mut SakuraEffect, frames: u32) {
         for _ in 0..frames {
-            e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
     }
 
@@ -194,15 +207,23 @@ mod tests {
     fn petals_fall_toward_the_ground() {
         let mut e = SakuraEffect::new([0.0; 3]);
         tick(&mut e, 30);
-        let y0: f32 = petals(&e).iter().map(|p| match p {
-            EffectPrimitiveDraw::SpriteParticle { position, .. } => position[1],
-            _ => 0.0,
-        }).sum::<f32>() / petals(&e).len() as f32;
+        let y0: f32 = petals(&e)
+            .iter()
+            .map(|p| match p {
+                EffectPrimitiveDraw::SpriteParticle { position, .. } => position[1],
+                _ => 0.0,
+            })
+            .sum::<f32>()
+            / petals(&e).len() as f32;
         tick(&mut e, 60);
-        let y1: f32 = petals(&e).iter().map(|p| match p {
-            EffectPrimitiveDraw::SpriteParticle { position, .. } => position[1],
-            _ => 0.0,
-        }).sum::<f32>() / petals(&e).len() as f32;
+        let y1: f32 = petals(&e)
+            .iter()
+            .map(|p| match p {
+                EffectPrimitiveDraw::SpriteParticle { position, .. } => position[1],
+                _ => 0.0,
+            })
+            .sum::<f32>()
+            / petals(&e).len() as f32;
         // Native -Y up: falling means the mean y increases.
         assert!(y1 > y0, "petals drift downward ({y0} → {y1})");
     }
@@ -211,10 +232,13 @@ mod tests {
     fn action_index_varies_across_petals() {
         let mut e = SakuraEffect::new([3.0, 0.0, 7.0]);
         tick(&mut e, 400);
-        let actions: std::collections::BTreeSet<usize> = petals(&e).iter().filter_map(|p| match p {
-            EffectPrimitiveDraw::SpriteParticle { action_index, .. } => Some(*action_index),
-            _ => None,
-        }).collect();
+        let actions: std::collections::BTreeSet<usize> = petals(&e)
+            .iter()
+            .filter_map(|p| match p {
+                EffectPrimitiveDraw::SpriteParticle { action_index, .. } => Some(*action_index),
+                _ => None,
+            })
+            .collect();
         assert!(actions.len() > 1, "random action 0–2 across petals");
         assert!(actions.iter().all(|a| *a < 3));
     }

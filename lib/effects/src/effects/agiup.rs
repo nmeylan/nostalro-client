@@ -12,9 +12,7 @@
 //! the effect is reproducible frame-for-frame). Each live particle emits two
 //! `Texture3D` `VerticalYaw` quads (yaw and yaw + 90°).
 
-use crate::draw::{
-    BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane,
-};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const AC_CENTER2_TEXTURE: &str = "ac_center2.tga";
@@ -155,7 +153,8 @@ mod tests {
     fn step(e: &mut AgiUpEffect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FPS,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -190,7 +189,9 @@ mod tests {
             } => *y,
             other => panic!("expected VerticalYaw Texture3D, got {other:?}"),
         };
-        assert!((((yaw(&prims[1]) - yaw(&prims[0])).abs()) - std::f32::consts::FRAC_PI_2).abs() < 1e-4);
+        assert!(
+            (((yaw(&prims[1]) - yaw(&prims[0])).abs()) - std::f32::consts::FRAC_PI_2).abs() < 1e-4
+        );
     }
 
     #[test]

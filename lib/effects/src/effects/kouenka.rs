@@ -166,7 +166,11 @@ mod tests {
     }
 
     fn step(e: &mut KouenkaEffect, frames: f32) {
-        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: frames / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     fn draws(e: &KouenkaEffect) -> Vec<EffectPrimitiveDraw> {
@@ -185,7 +189,12 @@ mod tests {
         let prims = draws(&e);
         assert_eq!(prims.len(), 20, "20 petals spawned during the spawn window");
         for p in &prims {
-            let EffectPrimitiveDraw::SpriteParticle { sprite_path, position, action_index, .. } = p
+            let EffectPrimitiveDraw::SpriteParticle {
+                sprite_path,
+                position,
+                action_index,
+                ..
+            } = p
             else {
                 panic!("expected SpriteParticle");
             };
@@ -193,7 +202,10 @@ mod tests {
             assert!(*action_index < 3, "one of three blossom actions");
             let dx = position[0] - 10.0;
             let dz = position[2] - 20.0;
-            assert!(((dx * dx + dz * dz).sqrt() - RING_RADIUS).abs() < 1e-2, "on the ring");
+            assert!(
+                ((dx * dx + dz * dz).sqrt() - RING_RADIUS).abs() < 1e-2,
+                "on the ring"
+            );
         }
     }
 
@@ -204,7 +216,8 @@ mod tests {
         assert_eq!(draws(&e).len(), 20, "no new petals after frame 20");
         let s = e.update(&EffectUpdateCtx {
             delta: TOTAL_DURATION_MS as f32 / 1000.0 + 0.1,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
         assert!(matches!(s, EffectStatus::Dead));
     }

@@ -71,8 +71,8 @@ fn alpha_fade_out(frame: f32, peak: f32, fade_out_at: f32) -> f32 {
 }
 
 fn outer_alpha(frame: f32) -> f32 {
-    let fade_in_target = (OUTER_ALPHA_INIT + OUTER_ALPHA_SPEED_PER_FRAME * frame)
-        .min(OUTER_ALPHA_MAX);
+    let fade_in_target =
+        (OUTER_ALPHA_INIT + OUTER_ALPHA_SPEED_PER_FRAME * frame).min(OUTER_ALPHA_MAX);
     alpha_fade_out(frame, fade_in_target, OUTER_FADE_OUT_AT)
 }
 
@@ -87,7 +87,10 @@ pub struct EntryEffect {
 
 impl EntryEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        Self { world_pos, age: 0.0 }
+        Self {
+            world_pos,
+            age: 0.0,
+        }
     }
 
     fn frame(&self) -> f32 {
@@ -164,7 +167,11 @@ mod tests {
     }
 
     fn step(effect: &mut EntryEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
+        effect.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     fn draws(effect: &EntryEffect) -> Vec<EffectPrimitiveDraw> {
@@ -242,16 +249,20 @@ mod tests {
         let mut e = EntryEffect::new([0.0; 3]);
         step(&mut e, 0.0);
         let (b0, t0) = match &draws(&e)[0] {
-            EffectPrimitiveDraw::Cylinder { bottom_size, top_size, .. } => {
-                (*bottom_size, *top_size)
-            }
+            EffectPrimitiveDraw::Cylinder {
+                bottom_size,
+                top_size,
+                ..
+            } => (*bottom_size, *top_size),
             _ => unreachable!(),
         };
         step(&mut e, DURATION_S * 0.8);
         let (b1, t1) = match draws(&e).first() {
-            Some(EffectPrimitiveDraw::Cylinder { bottom_size, top_size, .. }) => {
-                (*bottom_size, *top_size)
-            }
+            Some(EffectPrimitiveDraw::Cylinder {
+                bottom_size,
+                top_size,
+                ..
+            }) => (*bottom_size, *top_size),
             _ => panic!("outer cone disappeared too early"),
         };
         assert!((b1 - b0).abs() < 1e-4, "bottom stays at innerSize=5");
@@ -321,7 +332,11 @@ mod tests {
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         while t < DURATION_S * 2.0 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
+            status = e.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
+                camera_target: None,
+                caster_yaw: None,
+            });
             t += 1.0 / 60.0;
             if matches!(status, EffectStatus::Dead) {
                 break;

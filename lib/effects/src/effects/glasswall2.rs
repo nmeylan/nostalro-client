@@ -64,7 +64,10 @@ pub struct Glasswall2Effect {
 
 impl Glasswall2Effect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        Self { world_pos, age_frames: 0.0 }
+        Self {
+            world_pos,
+            age_frames: 0.0,
+        }
     }
 
     /// 0 → 1 ramp over the first `RISE_FRAMES`, then held.
@@ -125,7 +128,11 @@ mod tests {
     }
 
     fn step_and_draw(e: &mut Glasswall2Effect, frames: f32) -> Vec<EffectPrimitiveDraw> {
-        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: frames / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        });
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         list.primitives
@@ -141,9 +148,12 @@ mod tests {
         let rings: Vec<_> = prims
             .iter()
             .filter_map(|p| match p {
-                EffectPrimitiveDraw::RadialRing { distance, rise_angle_rad, texture, .. } => {
-                    Some((*distance, *rise_angle_rad, *texture))
-                }
+                EffectPrimitiveDraw::RadialRing {
+                    distance,
+                    rise_angle_rad,
+                    texture,
+                    ..
+                } => Some((*distance, *rise_angle_rad, *texture)),
                 _ => None,
             })
             .collect();
@@ -178,7 +188,14 @@ mod tests {
     #[test]
     fn persists_past_the_normal_effect_lifetime() {
         let mut e = Glasswall2Effect::new([0.0; 3]);
-        let s = e.update(&EffectUpdateCtx { delta: 10.0, camera_target: None, caster_yaw: None });
-        assert!(matches!(s, EffectStatus::Running), "Safety Wall is persistent");
+        let s = e.update(&EffectUpdateCtx {
+            delta: 10.0,
+            camera_target: None,
+            caster_yaw: None,
+        });
+        assert!(
+            matches!(s, EffectStatus::Running),
+            "Safety Wall is persistent"
+        );
     }
 }

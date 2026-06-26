@@ -18,11 +18,9 @@
 //! alpha gradient. Two discs (bright core + softer rim) reproduce the
 //! layered "outer lighter than centre" silhouette from the gif.
 
+use super::spike_burst::{self, SpikeBurst, SpikeBurstParams, fade_in_out, seed_from_world};
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use super::spike_burst::{
-    self, SpikeBurst, SpikeBurstParams, fade_in_out, seed_from_world,
-};
 
 pub const HALO_TEXTURE: &str = "alpha_down.tga";
 pub const TEXTURES: &[&str] = &[HALO_TEXTURE, spike_burst::SPIKE_TEXTURE];
@@ -65,8 +63,7 @@ pub const SPIKES: SpikeBurstParams = SpikeBurstParams {
     blend: BlendKind::Alpha,
 };
 
-pub const TOTAL_DURATION_MS: u32 =
-    (DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
+pub const TOTAL_DURATION_MS: u32 = (DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
 pub struct BashEffect {
     world_pos: [f32; 3],
@@ -133,7 +130,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {

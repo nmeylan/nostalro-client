@@ -292,7 +292,11 @@ mod tests {
     }
 
     fn step(effect: &mut BottomVerticalEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
+        effect.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     fn draws(effect: &BottomVerticalEffect) -> Vec<EffectPrimitiveDraw> {
@@ -338,7 +342,12 @@ mod tests {
         let prims = draws(&e);
         assert_eq!(prims.len(), 4);
         match &prims[0] {
-            EffectPrimitiveDraw::WorldQuad { color, blend, texture, .. } => {
+            EffectPrimitiveDraw::WorldQuad {
+                color,
+                blend,
+                texture,
+                ..
+            } => {
                 assert_eq!(*blend, BlendKind::Alpha);
                 assert_eq!(*texture, "magic_green.tga");
                 assert!(color[1] > color[0]);
@@ -375,10 +384,16 @@ mod tests {
         step(&mut e, FADE_IN_SECS);
         let s0 = e.strips[0];
         let s1 = e.strips[1];
-        assert!((s0.pre[0] - s1.pre[0]).abs() > 0.05, "ec=0/1 rx must differ");
+        assert!(
+            (s0.pre[0] - s1.pre[0]).abs() > 0.05,
+            "ec=0/1 rx must differ"
+        );
         let s2 = e.strips[2];
         let s3 = e.strips[3];
-        assert!((s2.pre[1] - s3.pre[1]).abs() > 0.05, "ec=2/3 rz must differ");
+        assert!(
+            (s2.pre[1] - s3.pre[1]).abs() > 0.05,
+            "ec=2/3 rz must differ"
+        );
     }
 
     #[test]

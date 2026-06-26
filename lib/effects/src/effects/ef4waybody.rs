@@ -71,7 +71,11 @@ mod tests {
     use super::*;
 
     fn step(e: &mut Ef4wayBodyEffect, frames: f32) {
-        e.update(&EffectUpdateCtx { delta: frames / FPS, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: frames / FPS,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     #[test]
@@ -84,7 +88,10 @@ mod tests {
         let spread_early = early[0].offset_px[0];
         step(&mut e, 10.0);
         let later = e.body_copies().unwrap();
-        assert!(later[0].offset_px[0] > spread_early, "ghosts slide further out");
+        assert!(
+            later[0].offset_px[0] > spread_early,
+            "ghosts slide further out"
+        );
         assert!(later[0].alpha < early[0].alpha, "and fade");
     }
 }

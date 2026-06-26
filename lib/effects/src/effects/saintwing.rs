@@ -50,7 +50,11 @@ pub struct SaintwingEffect {
 
 impl SaintwingEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        Self { world_pos, caster_yaw_deg: 0.0, rise_angle: 0.0 }
+        Self {
+            world_pos,
+            caster_yaw_deg: 0.0,
+            rise_angle: 0.0,
+        }
     }
 }
 
@@ -88,7 +92,11 @@ impl Effect for SaintwingEffect {
             for i in 0..FEATHERS_PER_WING {
                 let bank = i / 5;
                 let rank = i % 5;
-                let rz = if bank == 0 { MAX_HEIGHT } else { MAX_HEIGHT + tip_grow };
+                let rz = if bank == 0 {
+                    MAX_HEIGHT
+                } else {
+                    MAX_HEIGHT + tip_grow
+                };
                 let add = if bank == 0 {
                     rank as f32 * 3.0 + flap
                 } else {
@@ -133,7 +141,12 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn tick(e: &mut SaintwingEffect, frames: u32) {
@@ -157,18 +170,29 @@ mod tests {
         let e = SaintwingEffect::new([0.0; 3]);
         let q = quads(&e);
         assert_eq!(q.len(), FEATHERS_PER_WING * 2);
-        assert!(q.iter().all(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { .. })));
+        assert!(
+            q.iter()
+                .all(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { .. }))
+        );
     }
 
     #[test]
     fn alpha_ramps_toward_bright_tip_feathers() {
         let e = SaintwingEffect::new([0.0; 3]);
-        let alphas: Vec<f32> = quads(&e).iter().filter_map(|p| match p {
-            EffectPrimitiveDraw::WorldQuad { color, .. } => Some(color[3]),
-            _ => None,
-        }).collect();
+        let alphas: Vec<f32> = quads(&e)
+            .iter()
+            .filter_map(|p| match p {
+                EffectPrimitiveDraw::WorldQuad { color, .. } => Some(color[3]),
+                _ => None,
+            })
+            .collect();
         // Within the first bank, alpha increases toward the bright 5th feather.
-        assert!(alphas[0] < alphas[3], "coverts dim → bright ({} < {})", alphas[0], alphas[3]);
+        assert!(
+            alphas[0] < alphas[3],
+            "coverts dim → bright ({} < {})",
+            alphas[0],
+            alphas[3]
+        );
         assert!(alphas[4] >= alphas[3], "tip feather is brightest");
     }
 
@@ -185,7 +209,10 @@ mod tests {
         };
         let a = tip(&before, 0);
         let b = tip(&after, 0);
-        assert!((a[0] - b[0]).abs() + (a[1] - b[1]).abs() > 1e-4, "feather flaps");
+        assert!(
+            (a[0] - b[0]).abs() + (a[1] - b[1]).abs() > 1e-4,
+            "feather flaps"
+        );
     }
 
     #[test]
@@ -193,7 +220,11 @@ mod tests {
         let mut e = SaintwingEffect::new([0.0; 3]);
         for _ in 0..120 {
             assert_eq!(
-                e.update(&EffectUpdateCtx { delta: 0.1, camera_target: None, caster_yaw: None }),
+                e.update(&EffectUpdateCtx {
+                    delta: 0.1,
+                    camera_target: None,
+                    caster_yaw: None
+                }),
                 EffectStatus::Running
             );
         }

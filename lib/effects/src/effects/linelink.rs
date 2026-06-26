@@ -203,7 +203,12 @@ impl LinelinkEffect {
 }
 
 fn rgb(c: [u8; 3], alpha: f32) -> [f32; 4] {
-    [c[0] as f32 / 255.0, c[1] as f32 / 255.0, c[2] as f32 / 255.0, alpha.min(1.0)]
+    [
+        c[0] as f32 / 255.0,
+        c[1] as f32 / 255.0,
+        c[2] as f32 / 255.0,
+        alpha.min(1.0),
+    ]
 }
 
 impl Effect for LinelinkEffect {
@@ -233,7 +238,11 @@ impl Effect for LinelinkEffect {
         // Target endpoint eases out from the caster over the first 15 frames.
         let target = if self.process < 15.0 {
             let s = (self.process * 6.0).to_radians().sin();
-            [now[0] + (pre[0] - now[0]) * s, now[1] + (pre[1] - now[1]) * s, now[2] + (pre[2] - now[2]) * s]
+            [
+                now[0] + (pre[0] - now[0]) * s,
+                now[1] + (pre[1] - now[1]) * s,
+                now[2] + (pre[2] - now[2]) * s,
+            ]
         } else {
             pre
         };
@@ -241,8 +250,20 @@ impl Effect for LinelinkEffect {
         // (heading + 90°).
         let angle = (now[2] - pre[2]).atan2(now[0] - pre[0]) + FRAC_PI_2;
         let inner_r = self.max_height * WORLD_SCALE;
-        self.collect_cylinder(inner_r, rgb(self.params.inner, self.alpha_b / 255.0), target, angle, out);
-        self.collect_cylinder(inner_r * 2.0, rgb(self.params.outer, self.alpha_b * 2.0 / 255.0), target, angle, out);
+        self.collect_cylinder(
+            inner_r,
+            rgb(self.params.inner, self.alpha_b / 255.0),
+            target,
+            angle,
+            out,
+        );
+        self.collect_cylinder(
+            inner_r * 2.0,
+            rgb(self.params.outer, self.alpha_b * 2.0 / 255.0),
+            target,
+            angle,
+            out,
+        );
     }
 }
 
@@ -251,24 +272,39 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn step(e: &mut LinelinkEffect, frames: u32) {
         for _ in 0..frames {
-            e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
     }
 
     fn world_quads(e: &LinelinkEffect) -> usize {
         let mut out = EffectDrawList::new();
         e.collect_draws(&mut out, &render_ctx());
-        out.primitives.iter().filter(|d| matches!(d, EffectPrimitiveDraw::WorldQuad { .. })).count()
+        out.primitives
+            .iter()
+            .filter(|d| matches!(d, EffectPrimitiveDraw::WorldQuad { .. }))
+            .count()
     }
 
     #[test]
     fn linelink_tracks_live_endpoints_and_renders_two_cylinders() {
-        let anchor = EffectAnchor::Trail { from: [0.0, 0.0, 0.0], to: [10.0, 0.0, 0.0] };
+        let anchor = EffectAnchor::Trail {
+            from: [0.0, 0.0, 0.0],
+            to: [10.0, 0.0, 0.0],
+        };
         let mut e = LinelinkEffect::new(anchor, &LINELINK);
 
         // Live feed (in-game path) overrides the spawn endpoints each frame.

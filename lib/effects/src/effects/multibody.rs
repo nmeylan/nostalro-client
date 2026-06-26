@@ -178,7 +178,11 @@ pub struct MultiBodyEffect {
 
 impl MultiBodyEffect {
     pub fn new(params: Params) -> Self {
-        Self { params, age_frames: 0.0, life_frames: None }
+        Self {
+            params,
+            age_frames: 0.0,
+            life_frames: None,
+        }
     }
 
     pub fn with_life_ms(mut self, ms: Option<u32>) -> Self {
@@ -200,8 +204,11 @@ impl Effect for MultiBodyEffect {
     fn collect_draws(&self, _out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {}
 
     fn body_vertical(&self) -> Option<BodyVertical> {
-        (self.params.body_alpha < 1.0)
-            .then_some(BodyVertical { lift_px: 0.0, alpha: self.params.body_alpha, squeeze: 1.0 })
+        (self.params.body_alpha < 1.0).then_some(BodyVertical {
+            lift_px: 0.0,
+            alpha: self.params.body_alpha,
+            squeeze: 1.0,
+        })
     }
 
     fn body_copies(&self) -> Option<Vec<BodyCopy>> {
@@ -237,7 +244,8 @@ impl Effect for MultiBodyEffect {
 impl MultiBodyEffect {
     /// Undeadbody aura: see [`UndeadAura`] for the model.
     fn undead_copies(&self, undead: UndeadAura) -> Vec<BodyCopy> {
-        let alpha = (self.age_frames.min(undead.ramp_frames) / undead.ramp_frames) * undead.max_alpha;
+        let alpha =
+            (self.age_frames.min(undead.ramp_frames) / undead.ramp_frames) * undead.max_alpha;
         (1..=undead.count)
             .map(|i| BodyCopy {
                 offset_px: [0.0, 0.0],
@@ -281,7 +289,11 @@ mod tests {
     use super::*;
 
     fn step(e: &mut MultiBodyEffect, frames: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: frames / FPS, camera_target: None, caster_yaw: None })
+        e.update(&EffectUpdateCtx {
+            delta: frames / FPS,
+            camera_target: None,
+            caster_yaw: None,
+        })
     }
 
     #[test]
@@ -291,10 +303,20 @@ mod tests {
         assert!(copies.len() >= 3, "several concentric ghosts");
         assert!(copies.iter().all(|c| !c.additive), "alpha-blended ghosts");
         // Growth is a small pixel margin (a few up to <20px), not a big scale.
-        assert!(copies.iter().all(|c| c.margin_px < 20.0 && c.scale == [1.0, 1.0]));
+        assert!(
+            copies
+                .iter()
+                .all(|c| c.margin_px < 20.0 && c.scale == [1.0, 1.0])
+        );
         // A wider ghost is fainter (alpha fades as the ripple grows).
-        let widest = copies.iter().max_by(|a, b| a.margin_px.total_cmp(&b.margin_px)).unwrap();
-        let narrowest = copies.iter().min_by(|a, b| a.margin_px.total_cmp(&b.margin_px)).unwrap();
+        let widest = copies
+            .iter()
+            .max_by(|a, b| a.margin_px.total_cmp(&b.margin_px))
+            .unwrap();
+        let narrowest = copies
+            .iter()
+            .min_by(|a, b| a.margin_px.total_cmp(&b.margin_px))
+            .unwrap();
         assert!(widest.alpha < narrowest.alpha, "outer ring fainter");
     }
 
@@ -304,16 +326,29 @@ mod tests {
         let a = assumptio.body_copies().expect("halo");
         assert_eq!(a.len(), 1);
         // Additive glow BEHIND the body → white margin, main sprite untouched.
-        assert!(a[0].additive && a[0].behind && a[0].scale[0] > 1.0, "larger glow behind");
+        assert!(
+            a[0].additive && a[0].behind && a[0].scale[0] > 1.0,
+            "larger glow behind"
+        );
 
         let lightblade = MultiBodyEffect::new(LIGHTBLADE);
-        assert!(lightblade.body_copies().unwrap().iter().all(|c| c.additive && !c.behind), "glow on top");
+        assert!(
+            lightblade
+                .body_copies()
+                .unwrap()
+                .iter()
+                .all(|c| c.additive && !c.behind),
+            "glow on top"
+        );
     }
 
     #[test]
     fn reflectbody_dims_the_live_body() {
         let e = MultiBodyEffect::new(REFLECTBODY);
-        assert!(e.body_vertical().unwrap().alpha < 1.0, "body is translucent");
+        assert!(
+            e.body_vertical().unwrap().alpha < 1.0,
+            "body is translucent"
+        );
     }
 
     #[test]
@@ -321,9 +356,16 @@ mod tests {
         let mut e = MultiBodyEffect::new(UNDEADBODY);
         let early = e.body_copies().expect("aura");
         assert_eq!(early.len(), 2, "two concentric copies");
-        assert!(early.iter().all(|c| c.additive && !c.behind && c.tint == [5, 155, 5]));
+        assert!(
+            early
+                .iter()
+                .all(|c| c.additive && !c.behind && c.tint == [5, 155, 5])
+        );
         // The outer copy has the larger margin.
-        assert!(early[1].margin_px > early[0].margin_px, "concentric expansion");
+        assert!(
+            early[1].margin_px > early[0].margin_px,
+            "concentric expansion"
+        );
         let early_alpha = early[0].alpha;
         step(&mut e, 100.0);
         let later_alpha = e.body_copies().unwrap()[0].alpha;

@@ -133,7 +133,8 @@ mod tests {
     fn step(e: &mut QuakeBodyEffect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FPS,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -172,13 +173,19 @@ mod tests {
     fn dies_after_total_frames_and_emits_no_primitives() {
         let mut e = QuakeBodyEffect::new(QUAKEBODY);
         let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 800.0,
-            screen_h: 600.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut list,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 800.0,
+                screen_h: 600.0,
+                elapsed: 0.0,
+            },
+        );
         assert!(list.primitives.is_empty(), "body shake draws nothing");
-        assert_eq!(step(&mut e, QUAKEBODY.total_frames + 1.0), EffectStatus::Dead);
+        assert_eq!(
+            step(&mut e, QUAKEBODY.total_frames + 1.0),
+            EffectStatus::Dead
+        );
     }
 }

@@ -98,7 +98,10 @@ pub const HATED: ParticleUpParams = ParticleUpParams {
     rise_rand: 0.3,
     ..p("pok1.tga", (150, 150, 250))
 };
-pub const HATED2: ParticleUpParams = ParticleUpParams { tint_rgb: (250, 100, 100), ..HATED }; // red
+pub const HATED2: ParticleUpParams = ParticleUpParams {
+    tint_rgb: (250, 100, 100),
+    ..HATED
+}; // red
 pub const SMAREADY: ParticleUpParams = ParticleUpParams {
     spawn_start: 40,
     spawn_end: 120,
@@ -131,7 +134,12 @@ pub const SMA3: ParticleUpParams = ParticleUpParams {
 /// Single burst that fades in over 10 frames then out at `-3/255`/frame.
 pub const SMA3_TOTAL_DURATION_MS: u32 = 1100;
 
-pub const TEXTURES: &[&str] = &["pok1.tga", "pok3.tga", "thunder_center.bmp", "thunder_ball_0002.bmp"];
+pub const TEXTURES: &[&str] = &[
+    "pok1.tga",
+    "pok3.tga",
+    "thunder_center.bmp",
+    "thunder_ball_0002.bmp",
+];
 
 struct Rng(u32);
 impl Rng {
@@ -220,7 +228,8 @@ impl ParticleUpEffect {
                 }
             }
         }
-        self.particles.retain(|pt| !(pt.process > 10 && pt.alpha <= 0.0));
+        self.particles
+            .retain(|pt| !(pt.process > 10 && pt.alpha <= 0.0));
         self.frame += 1;
     }
 }
@@ -298,23 +307,35 @@ mod tests {
     fn tick(e: &mut ParticleUpEffect, frames: u32) -> EffectStatus {
         let mut st = EffectStatus::Running;
         for _ in 0..frames {
-            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            st = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         st
     }
 
     fn billboards(e: &ParticleUpEffect) -> Vec<([f32; 3], [f32; 4])> {
         let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 256.0,
-            screen_h: 256.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut list,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 256.0,
+                screen_h: 256.0,
+                elapsed: 0.0,
+            },
+        );
         list.primitives
             .iter()
             .map(|p| match p {
-                EffectPrimitiveDraw::Billboard { pos, color, blend: BlendKind::Additive, .. } => (*pos, *color),
+                EffectPrimitiveDraw::Billboard {
+                    pos,
+                    color,
+                    blend: BlendKind::Additive,
+                    ..
+                } => (*pos, *color),
                 _ => panic!("expected additive Billboard sparkles"),
             })
             .collect()
@@ -341,7 +362,10 @@ mod tests {
         let bb = billboards(&e);
         if !bb.is_empty() {
             let y_late = bb.iter().map(|(p, _)| p[1]).sum::<f32>() / bb.len() as f32;
-            assert!(y_late < y_early, "particles drift up (native -Y): {y_early} -> {y_late}");
+            assert!(
+                y_late < y_early,
+                "particles drift up (native -Y): {y_early} -> {y_late}"
+            );
         }
         assert_eq!(tick(&mut e, 400), EffectStatus::Dead);
     }

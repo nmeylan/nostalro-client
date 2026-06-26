@@ -190,12 +190,10 @@ impl HitCrossEffect {
         let base_roll = self.params.base_roll_offset_rad;
         let roll_speed_per_frame = ROLL_SPEED_DEG_PER_FRAME.to_radians();
         // Roll accel = -(roll speed / duration) / 1.5 (per-frame).
-        let roll_accel_per_frame =
-            -(roll_speed_per_frame / self.params.duration_frames) / 1.5;
+        let roll_accel_per_frame = -(roll_speed_per_frame / self.params.duration_frames) / 1.5;
         for k in 0..PETAL_COUNT {
             let width = self.params.width_min
-                + lcg_float(&mut self.rng_state)
-                    * (self.params.width_max - self.params.width_min);
+                + lcg_float(&mut self.rng_state) * (self.params.width_max - self.params.width_min);
             let height = self.params.height_min
                 + lcg_float(&mut self.rng_state)
                     * (self.params.height_max - self.params.height_min);
@@ -208,8 +206,7 @@ impl HitCrossEffect {
                 // Width speed = -width / duration per-frame ->
                 // per-second by × 60.
                 width_speed_world_per_s: -width / self.lifetime,
-                height_speed_per_frame: self.params.height_speed_init_orig
-                    * SIZE_SCALE,
+                height_speed_per_frame: self.params.height_speed_init_orig * SIZE_SCALE,
                 height_accel_per_frame: self.params.height_accel_orig * SIZE_SCALE,
             };
         }
@@ -288,7 +285,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     #[test]

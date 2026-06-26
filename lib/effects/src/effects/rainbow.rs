@@ -167,7 +167,8 @@ mod tests {
     fn step(e: &mut RainbowEffect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FPS,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -205,9 +206,19 @@ mod tests {
         // Past the sweep + per-column ramp, before the tail fade-out.
         step(&mut e, SWEEP_FRAMES + SEGMENT_RAMP_FRAMES + 2.0);
         let prims = draws(&e);
-        assert_eq!(prims.len(), 7 * SEGMENTS, "7 bands × all segments now drawn");
+        assert_eq!(
+            prims.len(),
+            7 * SEGMENTS,
+            "7 bands × all segments now drawn"
+        );
         for p in &prims {
-            assert!(matches!(p, EffectPrimitiveDraw::WorldQuad { blend: BlendKind::Additive, .. }));
+            assert!(matches!(
+                p,
+                EffectPrimitiveDraw::WorldQuad {
+                    blend: BlendKind::Additive,
+                    ..
+                }
+            ));
         }
         let colors = distinct_band_colors(&prims);
         assert_eq!(colors.len(), 7, "seven spectrum bands");
@@ -224,7 +235,10 @@ mod tests {
         step(&mut e, SWEEP_FRAMES * 0.5);
         let later = draws(&e).len();
         assert!(early > 0, "the leading edge has started drawing: {early}");
-        assert!(later > early, "more of the arch is drawn as the front sweeps: {early} -> {later}");
+        assert!(
+            later > early,
+            "more of the arch is drawn as the front sweeps: {early} -> {later}"
+        );
         assert!(early < 7 * SEGMENTS, "not the whole arch yet at 30% sweep");
     }
 
@@ -233,7 +247,11 @@ mod tests {
         // The apex (t = 90°) sits well above the base plane (native -Y up).
         let e = RainbowEffect::new([0.0, 0.0, 0.0]);
         let apex = e.arch_point(std::f32::consts::FRAC_PI_2, BASE_RADIUS, 0.0);
-        assert!(apex[1] < -BASE_RADIUS, "apex rises above radius: {}", apex[1]);
+        assert!(
+            apex[1] < -BASE_RADIUS,
+            "apex rises above radius: {}",
+            apex[1]
+        );
     }
 
     #[test]

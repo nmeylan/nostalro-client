@@ -47,8 +47,7 @@ pub const TOTAL_DURATION_MS: u32 =
 
 const INITIAL_RADIUS: f32 = 2.0;
 const RADIUS_SPEED_PER_FRAME: f32 = 1.25;
-const RADIUS_ACCEL_PER_FRAME2: f32 =
-    -(RADIUS_SPEED_PER_FRAME / RING_DURATION_FRAMES) / 2.0;
+const RADIUS_ACCEL_PER_FRAME2: f32 = -(RADIUS_SPEED_PER_FRAME / RING_DURATION_FRAMES) / 2.0;
 const RING_THICKNESS: f32 = 10.0;
 const PEAK_ALPHA: f32 = 200.0 / 255.0;
 const FADE_START_FRAMES: f32 = RING_DURATION_FRAMES / 2.0;
@@ -71,9 +70,7 @@ impl Ring {
 
     fn outer_radius(&self) -> f32 {
         let n = self.frame();
-        INITIAL_RADIUS
-            + n * RADIUS_SPEED_PER_FRAME
-            + RADIUS_ACCEL_PER_FRAME2 * n * (n + 1.0) / 2.0
+        INITIAL_RADIUS + n * RADIUS_SPEED_PER_FRAME + RADIUS_ACCEL_PER_FRAME2 * n * (n + 1.0) / 2.0
     }
 
     fn alpha(&self) -> f32 {
@@ -81,8 +78,7 @@ impl Ring {
         if n <= FADE_START_FRAMES {
             PEAK_ALPHA
         } else {
-            let fade = ((n - FADE_START_FRAMES)
-                / (RING_DURATION_FRAMES - FADE_START_FRAMES))
+            let fade = ((n - FADE_START_FRAMES) / (RING_DURATION_FRAMES - FADE_START_FRAMES))
                 .clamp(0.0, 1.0);
             PEAK_ALPHA * (1.0 - fade)
         }
@@ -122,9 +118,7 @@ impl Effect for WarpEffect {
         // window — one every 20 frames. The
         // ring's initial age compensates for the spawn happening at a frame
         // boundary that's slightly behind `parent_age`.
-        while self.next_spawn_at <= PARENT_DURATION_S
-            && self.next_spawn_at <= self.parent_age
-        {
+        while self.next_spawn_at <= PARENT_DURATION_S && self.next_spawn_at <= self.parent_age {
             let initial_age = (self.parent_age - self.next_spawn_at).max(0.0);
             self.rings.push(Ring { age: initial_age });
             self.next_spawn_at += SPAWN_INTERVAL_S;
@@ -181,7 +175,11 @@ mod tests {
     }
 
     fn step(effect: &mut WarpEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
+        effect.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     #[test]

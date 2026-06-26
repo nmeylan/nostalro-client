@@ -98,13 +98,33 @@ struct FadeRule {
 
 const fn fade_rule(kind: ChemKind, group: u8) -> FadeRule {
     match kind {
-        ChemKind::Protection => FadeRule { fade_in: 18.0, until: 10.0, fade_out: 15.0, after: 20.0 },
-        ChemKind::Chemical2 => FadeRule { fade_in: 4.0, until: 20.0, fade_out: 2.0, after: 50.0 },
+        ChemKind::Protection => FadeRule {
+            fade_in: 18.0,
+            until: 10.0,
+            fade_out: 15.0,
+            after: 20.0,
+        },
+        ChemKind::Chemical2 => FadeRule {
+            fade_in: 4.0,
+            until: 20.0,
+            fade_out: 2.0,
+            after: 50.0,
+        },
         ChemKind::Chemical3 => {
             if group < 10 {
-                FadeRule { fade_in: 12.0, until: 10.0, fade_out: 4.0, after: 20.0 }
+                FadeRule {
+                    fade_in: 12.0,
+                    until: 10.0,
+                    fade_out: 4.0,
+                    after: 20.0,
+                }
             } else {
-                FadeRule { fade_in: 20.0, until: 10.0, fade_out: 2.0, after: 20.0 }
+                FadeRule {
+                    fade_in: 20.0,
+                    until: 10.0,
+                    fade_out: 2.0,
+                    after: 20.0,
+                }
             }
         }
     }
@@ -145,8 +165,10 @@ pub const CHEMICALPROTECTION: ChemicalParams = ChemicalParams {
     quake_at: None,
     sfx: None,
 };
-pub const MGATTACK2: ChemicalParams =
-    ChemicalParams { body_tint: Some((YELLOW_GLOW, (0.0, 60.0))), ..CHEMICALPROTECTION };
+pub const MGATTACK2: ChemicalParams = ChemicalParams {
+    body_tint: Some((YELLOW_GLOW, (0.0, 60.0))),
+    ..CHEMICALPROTECTION
+};
 pub const CHEMICAL2: ChemicalParams = ChemicalParams {
     kind: ChemKind::Chemical2,
     group: 0,
@@ -340,11 +362,23 @@ impl ChemicalEffect {
         let mag = 15.0 + self.rng.random(11);
         let lateral = if call == 0 { -mag } else { mag };
         let (max_height, length, speed) = if g < 10 {
-            (0.3 + self.rng.random(4) * 0.1, 20.0 + self.rng.random(31), 1.5 + self.rng.random(21) * 0.1)
+            (
+                0.3 + self.rng.random(4) * 0.1,
+                20.0 + self.rng.random(31),
+                1.5 + self.rng.random(21) * 0.1,
+            )
         } else if g < 20 {
-            (0.5 + self.rng.random(6) * 0.1, 40.0 + self.rng.random(31), 1.0 + self.rng.random(11) * 0.1)
+            (
+                0.5 + self.rng.random(6) * 0.1,
+                40.0 + self.rng.random(31),
+                1.0 + self.rng.random(11) * 0.1,
+            )
         } else {
-            (0.4 + self.rng.random(4) * 0.1, 30.0 + self.rng.random(31), 1.5 + self.rng.random(21) * 0.1)
+            (
+                0.4 + self.rng.random(4) * 0.1,
+                30.0 + self.rng.random(31),
+                1.5 + self.rng.random(21) * 0.1,
+            )
         };
         let flag = self.rng.random(3) as u8 + g; // 0..2 / 10..12 / 20..22
         Streak {
@@ -406,7 +440,11 @@ impl ChemicalEffect {
         let a = lateral - width;
         let b = lateral + width;
         let pt = |along: f32, across: f32| {
-            [self.center[0] + f[0] * along + l[0] * across, y, self.center[2] + f[2] * along + l[2] * across]
+            [
+                self.center[0] + f[0] * along + l[0] * across,
+                y,
+                self.center[2] + f[2] * along + l[2] * across,
+            ]
         };
         [pt(far, a), pt(near, a), pt(near, b), pt(far, b)]
     }
@@ -414,7 +452,13 @@ impl ChemicalEffect {
     /// Camera-facing spoke for one CHEMICALPROTECTION wedge:
     /// a thin triangle from the entity out to `length`
     /// at `screen_angle ± half_deg`, in the camera's right/up basis.
-    fn spoke_corners(&self, cam: &CameraView, angle: f32, half_deg: f32, length: f32) -> [[f32; 3]; 4] {
+    fn spoke_corners(
+        &self,
+        cam: &CameraView,
+        angle: f32,
+        half_deg: f32,
+        length: f32,
+    ) -> [[f32; 3]; 4] {
         let (right, up) = camera_right_up(cam);
         let far = |a: f32| {
             let (s, c) = a.sin_cos();
@@ -449,7 +493,11 @@ fn chemical3_color(flag: u8) -> [f32; 3] {
 fn camera_right_up(cam: &CameraView) -> ([f32; 3], [f32; 3]) {
     let sub = |a: [f32; 3], b: [f32; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
     let cross = |a: [f32; 3], b: [f32; 3]| {
-        [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+        [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ]
     };
     let norm = |v: [f32; 3]| {
         let len = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt().max(1e-6);
@@ -472,8 +520,15 @@ impl Effect for ChemicalEffect {
         if !self.spawned {
             return EffectStatus::Running;
         }
-        let alive = self.streaks.iter().any(|s| s.process <= self.fade.after || s.alpha > 0.0);
-        if alive { EffectStatus::Running } else { EffectStatus::Dead }
+        let alive = self
+            .streaks
+            .iter()
+            .any(|s| s.process <= self.fade.after || s.alpha > 0.0);
+        if alive {
+            EffectStatus::Running
+        } else {
+            EffectStatus::Dead
+        }
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx) {
@@ -516,7 +571,11 @@ impl Effect for ChemicalEffect {
             // CHEMICAL2: static band ±DISTANCE; CHEMICAL3: scrolling segment.
             // Both alpha-blended.
             ChemKind::Chemical2 | ChemKind::Chemical3 => {
-                let lift = if self.params.kind == ChemKind::Chemical3 { STREAK_LIFT } else { 0.0 };
+                let lift = if self.params.kind == ChemKind::Chemical3 {
+                    STREAK_LIFT
+                } else {
+                    0.0
+                };
                 let y = self.center[1] - lift;
                 for s in &self.streaks {
                     if s.alpha <= 0.0 {
@@ -550,7 +609,10 @@ impl Effect for ChemicalEffect {
         match self.params.quake_at {
             Some(at) if !self.shake_fired && self.age >= at => {
                 self.shake_fired = true;
-                Some(CameraShake { amplitude: QUAKE_AMPLITUDE, duration_ms: QUAKE_DURATION_MS })
+                Some(CameraShake {
+                    amplitude: QUAKE_AMPLITUDE,
+                    duration_ms: QUAKE_DURATION_MS,
+                })
             }
             _ => None,
         }
@@ -566,11 +628,20 @@ mod tests {
     use super::*;
 
     fn ctx(frames: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: frames / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 256.0, screen_h: 256.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 256.0,
+            screen_h: 256.0,
+            elapsed: 0.0,
+        }
     }
 
     fn step(e: &mut ChemicalEffect, frames: u32) -> EffectStatus {
@@ -599,7 +670,12 @@ mod tests {
         // Blue palette, alpha-blended.
         for p in &draws(&e) {
             match p {
-                EffectPrimitiveDraw::WorldQuad { color, blend: BlendKind::Alpha, texture, .. } => {
+                EffectPrimitiveDraw::WorldQuad {
+                    color,
+                    blend: BlendKind::Alpha,
+                    texture,
+                    ..
+                } => {
                     assert_eq!(*texture, "line3.tga");
                     assert!(color[2] >= color[0], "blue dominant {color:?}");
                 }
@@ -614,7 +690,10 @@ mod tests {
         step(&mut e, 6);
         let z0 = e.streaks[0].scroll;
         step(&mut e, 10);
-        assert!(e.streaks[0].scroll != z0, "scroll advances (segment travels +aim)");
+        assert!(
+            e.streaks[0].scroll != z0,
+            "scroll advances (segment travels +aim)"
+        );
         // Green-ish palette for the 20-group.
         assert!(draws(&e).iter().any(|p| matches!(p,
             EffectPrimitiveDraw::WorldQuad { color, .. } if color[1] >= color[0] && color[1] >= color[2])));
@@ -634,7 +713,11 @@ mod tests {
         let mut e = ChemicalEffect::new_dir([0.0; 3], [0.0, 0.0, 10.0], CHEMICAL2);
         step(&mut e, 30);
         assert!(e.streaks.is_empty(), "nothing before frame 40");
-        assert_eq!(e.body_tint(), Some(BodyTint { rgb: YELLOW_GLOW }), "tint window 20-120");
+        assert_eq!(
+            e.body_tint(),
+            Some(BodyTint { rgb: YELLOW_GLOW }),
+            "tint window 20-120"
+        );
         step(&mut e, 20); // past 40 (spawn) and 44 (quake)
         assert_eq!(e.streaks.len(), 8);
         assert!(e.take_camera_shake().is_some(), "quake fires once");

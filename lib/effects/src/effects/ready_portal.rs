@@ -57,8 +57,7 @@ impl Disc {
         // `radius = n*s0 + a*n(n+1)/2` (closed form of the running sum).
         // Starts at 0 — the ring radius is not seeded.
         let n = self.age_frames.clamp(0.0, DISC_DURATION_FRAMES);
-        n * DISC_RADIUS_SPEED_PER_FRAME
-            + DISC_RADIUS_ACCEL_PER_FRAME2 * n * (n + 1.0) / 2.0
+        n * DISC_RADIUS_SPEED_PER_FRAME + DISC_RADIUS_ACCEL_PER_FRAME2 * n * (n + 1.0) / 2.0
     }
 
     fn alpha(&self) -> f32 {
@@ -108,7 +107,9 @@ impl ReadyPortalDiscEmitter {
                     && (f as u32) % DISC_SPAWN_PERIOD_FRAMES == 0
                 {
                     let initial_age = (self.age_frames - f as f32).max(0.0);
-                    self.discs.push(Disc { age_frames: initial_age });
+                    self.discs.push(Disc {
+                        age_frames: initial_age,
+                    });
                 }
             }
             self.last_spawn_frame = current_frame;
@@ -193,7 +194,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {

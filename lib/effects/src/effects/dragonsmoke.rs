@@ -171,7 +171,8 @@ mod tests {
     fn step(e: &mut DragonsmokeEffect, dt: f32) {
         e.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
     }
 
@@ -200,7 +201,11 @@ mod tests {
         // Y rises (negative Y in native RO coords).
         assert!(oldest[1] < 0.0, "puff rises, got y = {}", oldest[1]);
         // X drifts in the wind direction (positive).
-        assert!(oldest[0] > 0.0, "puff curves along +X wind, got x = {}", oldest[0]);
+        assert!(
+            oldest[0] > 0.0,
+            "puff curves along +X wind, got x = {}",
+            oldest[0]
+        );
         // Z stays at 0 (wind blows purely along X).
         assert!(oldest[2].abs() < 1e-3, "no Z drift, got z = {}", oldest[2]);
     }
@@ -212,7 +217,11 @@ mod tests {
         let pos = positions(&e);
         assert!(!pos.is_empty());
         for p in pos {
-            assert!(p[0].abs() < 1e-3 && p[2].abs() < 1e-3, "no wind drift, got {:?}", p);
+            assert!(
+                p[0].abs() < 1e-3 && p[2].abs() < 1e-3,
+                "no wind drift, got {:?}",
+                p
+            );
             assert!(p[1] <= 0.0, "rises only");
         }
     }

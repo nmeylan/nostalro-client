@@ -17,9 +17,7 @@
 //! uniform rise from zero — with a gentle `±2.5·sin` `max_height` pulse and an
 //! alpha that ramps in (`process<20`), holds, then fades out (`process>110`).
 
-use crate::draw::{
-    BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode,
-};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const RING_BLUE_TEXTURE: &str = "ring_blue.tga";
@@ -93,12 +91,14 @@ impl FlowerCastEffect {
         let arcs = PASS_F1_0
             .iter()
             .chain(PASS_F1_1.iter())
-            .map(|&(distance, rise_deg, base_max_height, rot_start_deg)| Arc {
-                distance,
-                rise_deg,
-                base_max_height,
-                rot_start_deg,
-            })
+            .map(
+                |&(distance, rise_deg, base_max_height, rot_start_deg)| Arc {
+                    distance,
+                    rise_deg,
+                    base_max_height,
+                    rot_start_deg,
+                },
+            )
             .collect();
         Self {
             world_pos,
@@ -118,7 +118,8 @@ impl FlowerCastEffect {
         } else if self.process < FADE_OUT_START_FRAME {
             PEAK_ALPHA
         } else {
-            PEAK_ALPHA * (1.0 - (self.process - FADE_OUT_START_FRAME) / FADE_OUT_FRAMES).clamp(0.0, 1.0)
+            PEAK_ALPHA
+                * (1.0 - (self.process - FADE_OUT_START_FRAME) / FADE_OUT_FRAMES).clamp(0.0, 1.0)
         };
         a / OVERDRAW_DIVISOR
     }
@@ -196,7 +197,11 @@ mod tests {
     fn step(e: &mut FlowerCastEffect, frames: i32) -> EffectStatus {
         let mut s = EffectStatus::Running;
         for _ in 0..frames {
-            s = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            s = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         s
     }
@@ -218,11 +223,13 @@ mod tests {
         let prims = draws(&e);
         let cones = prims
             .iter()
-            .filter(|p| matches!(
-                p,
-                EffectPrimitiveDraw::Frustum { texture, blend: BlendKind::Additive, .. }
-                    if *texture == RING_BLUE_TEXTURE
-            ))
+            .filter(|p| {
+                matches!(
+                    p,
+                    EffectPrimitiveDraw::Frustum { texture, blend: BlendKind::Additive, .. }
+                        if *texture == RING_BLUE_TEXTURE
+                )
+            })
             .count();
         assert_eq!(cones, 8, "two passes of four arcs");
     }
@@ -238,7 +245,10 @@ mod tests {
         let mid = tallest(&draws(&e));
         step(&mut e, 44); // ~frame 89, near full
         let full = tallest(&draws(&e));
-        assert!(early < mid && mid < full, "height grows: {early} -> {mid} -> {full}");
+        assert!(
+            early < mid && mid < full,
+            "height grows: {early} -> {mid} -> {full}"
+        );
         assert!(early < 0.2 * full, "starts small relative to full height");
     }
 

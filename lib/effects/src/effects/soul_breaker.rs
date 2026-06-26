@@ -107,9 +107,18 @@ impl SoulBreakerEffect {
         for ec in 0..STREAKS_PER_EMITTER {
             // Heading ±15° random spread per slash.
             let jitter = (rng.random(31) as f32 - 15.0).to_radians();
-            streaks.push(new_streak(from, base + jitter, SPAWN_DELAY - ec as i32, &mut rng));
+            streaks.push(new_streak(
+                from,
+                base + jitter,
+                SPAWN_DELAY - ec as i32,
+                &mut rng,
+            ));
         }
-        Self { streaks, frame_accum: 0.0, age_frames: 0 }
+        Self {
+            streaks,
+            frame_accum: 0.0,
+            age_frames: 0,
+        }
     }
 
     /// 409 — eight radial directions, each firing four slashes outward.
@@ -123,11 +132,20 @@ impl SoulBreakerEffect {
             // Random 0..6 frame stagger applied to all four slashes in this dir.
             let shoot = rng.random(6) as i32;
             for ec in 0..STREAKS_PER_EMITTER {
-                streaks.push(new_streak(center, heading, SPAWN_DELAY - ec as i32 + shoot, &mut rng));
+                streaks.push(new_streak(
+                    center,
+                    heading,
+                    SPAWN_DELAY - ec as i32 + shoot,
+                    &mut rng,
+                ));
             }
             dir_deg += 45;
         }
-        Self { streaks, frame_accum: 0.0, age_frames: 0 }
+        Self {
+            streaks,
+            frame_accum: 0.0,
+            age_frames: 0,
+        }
     }
 
     fn step_frame(&mut self) {
@@ -232,7 +250,11 @@ mod tests {
     use super::*;
 
     fn ctx() -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: 1.0 / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn tick(e: &mut SoulBreakerEffect, frames: u32) -> EffectStatus {
@@ -245,16 +267,24 @@ mod tests {
 
     fn billboards(e: &SoulBreakerEffect) -> Vec<([f32; 3], f32, f32)> {
         let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 256.0,
-            screen_h: 256.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut list,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 256.0,
+                screen_h: 256.0,
+                elapsed: 0.0,
+            },
+        );
         list.primitives
             .iter()
             .map(|p| match p {
-                EffectPrimitiveDraw::Billboard { pos, rotation, color, .. } => (*pos, *rotation, color[3]),
+                EffectPrimitiveDraw::Billboard {
+                    pos,
+                    rotation,
+                    color,
+                    ..
+                } => (*pos, *rotation, color[3]),
                 other => panic!("expected Billboard, got {other:?}"),
             })
             .collect()
@@ -263,9 +293,17 @@ mod tests {
     #[test]
     fn caster_flashes_magenta_for_the_first_frames() {
         let mut e = SoulBreakerEffect::new_directed([0.0; 3], [10.0, 0.0, 0.0]);
-        assert_eq!(e.body_tint(), Some(BodyTint { rgb: [255, 0, 255] }), "magenta at spawn");
+        assert_eq!(
+            e.body_tint(),
+            Some(BodyTint { rgb: [255, 0, 255] }),
+            "magenta at spawn"
+        );
         tick(&mut e, 5);
-        assert_eq!(e.body_tint(), Some(BodyTint { rgb: [255, 0, 255] }), "still flashing");
+        assert_eq!(
+            e.body_tint(),
+            Some(BodyTint { rgb: [255, 0, 255] }),
+            "still flashing"
+        );
         tick(&mut e, 10); // past frame 10
         assert_eq!(e.body_tint(), None, "flash clears after ~10 frames");
     }
@@ -282,7 +320,10 @@ mod tests {
         tick(&mut e, 6);
         let late = billboards(&e);
         let z_late: f32 = late.iter().map(|b| b.0[2]).sum::<f32>() / late.len() as f32;
-        assert!(z_late > z_early, "slashes advance toward +Z target: {z_early} -> {z_late}");
+        assert!(
+            z_late > z_early,
+            "slashes advance toward +Z target: {z_early} -> {z_late}"
+        );
     }
 
     #[test]
@@ -294,7 +335,10 @@ mod tests {
             .iter()
             .map(|s| (s.heading.to_degrees().rem_euclid(360.0)).round() as i32)
             .collect();
-        assert!(dirs.len() >= 4, "radial spans multiple directions: {dirs:?}");
+        assert!(
+            dirs.len() >= 4,
+            "radial spans multiple directions: {dirs:?}"
+        );
         tick(&mut e, SPAWN_DELAY as u32 + 4);
         assert!(!billboards(&e).is_empty(), "radial slashes render");
     }

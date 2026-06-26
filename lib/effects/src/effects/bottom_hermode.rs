@@ -240,7 +240,8 @@ mod tests {
     fn step(effect: &mut BottomHermodeEffect, dt: f32) {
         effect.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
     }
 
@@ -304,8 +305,14 @@ mod tests {
         let max_b = b_channels.iter().copied().fold(0.0_f32, f32::max);
         assert!((max_b - 250.0 / 255.0).abs() < 1e-3);
         // At least 2 faces share the max value (top + bottom).
-        let max_count = b_channels.iter().filter(|b| (*b - max_b).abs() < 1e-3).count();
-        assert!(max_count >= 2, "expected top+bottom to share max B; got {max_count}");
+        let max_count = b_channels
+            .iter()
+            .filter(|b| (*b - max_b).abs() < 1e-3)
+            .count();
+        assert!(
+            max_count >= 2,
+            "expected top+bottom to share max B; got {max_count}"
+        );
     }
 
     #[test]
@@ -324,6 +331,9 @@ mod tests {
             _ => panic!(),
         };
         let d = (p_a[0] - p_b[0]).hypot(p_a[2] - p_b[2]);
-        assert!(d > 0.2, "expected cube rotation to displace corner; got d={d}");
+        assert!(
+            d > 0.2,
+            "expected cube rotation to displace corner; got d={d}"
+        );
     }
 }

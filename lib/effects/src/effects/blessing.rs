@@ -33,7 +33,11 @@ const PARENT_DURATION_FRAMES: f32 = 120.0;
 
 // Filled ground disc.
 const DISC_RADIUS: f32 = 10.0;
-const DISC_TINT: [f32; 3] = [0x20 as f32 / 255.0, 0xb0 as f32 / 255.0, 0xe8 as f32 / 255.0];
+const DISC_TINT: [f32; 3] = [
+    0x20 as f32 / 255.0,
+    0xb0 as f32 / 255.0,
+    0xe8 as f32 / 255.0,
+];
 const DISC_MAX_ALPHA: f32 = 100.0 / 255.0;
 const DISC_FADE_IN_FRAMES: f32 = 30.0;
 const DISC_FADE_OUT_AT: f32 = PARENT_DURATION_FRAMES - 30.0;
@@ -126,9 +130,8 @@ pub struct BlessingEffect {
 
 impl BlessingEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        let rng_state = 0x9E37_79B9
-            ^ world_pos[0].to_bits()
-            ^ world_pos[2].to_bits().rotate_left(13);
+        let rng_state =
+            0x9E37_79B9 ^ world_pos[0].to_bits() ^ world_pos[2].to_bits().rotate_left(13);
         Self {
             world_pos,
             angels: Vec::new(),
@@ -153,8 +156,8 @@ impl BlessingEffect {
 
     fn spawn_twinkle(&mut self) {
         let longitude_deg = self.lcg_float() * 360.0;
-        let radius = TWINKLE_RADIUS_MIN
-            + self.lcg_float() * (TWINKLE_RADIUS_MAX - TWINKLE_RADIUS_MIN);
+        let radius =
+            TWINKLE_RADIUS_MIN + self.lcg_float() * (TWINKLE_RADIUS_MAX - TWINKLE_RADIUS_MIN);
         let rise = TWINKLE_RISE_SPEED_MIN
             + self.lcg_float() * (TWINKLE_RISE_SPEED_MAX - TWINKLE_RISE_SPEED_MIN);
         let (sn, cs) = longitude_deg.to_radians().sin_cos();
@@ -180,17 +183,14 @@ impl Effect for BlessingEffect {
             let fu = f as u32;
             // Angel sprites: frames 0, 3, 6, 9.
             if fu <= BLESSING_SPAWN_END_FRAME && fu % BLESSING_SPAWN_PERIOD_FRAMES == 0 {
-                let alpha_at_spawn =
-                    ((200.0 - fu as f32 * 6.0) / 255.0).clamp(0.0, 1.0);
+                let alpha_at_spawn = ((200.0 - fu as f32 * 6.0) / 255.0).clamp(0.0, 1.0);
                 self.angels.push(AngelParticle {
                     spawn_frame: f as f32,
                     alpha_at_spawn,
                 });
             }
             // Twinkles every 4 frames while parent alive.
-            if (f as f32) <= PARENT_DURATION_FRAMES
-                && fu % TWINKLE_SPAWN_PERIOD_FRAMES == 0
-            {
+            if (f as f32) <= PARENT_DURATION_FRAMES && fu % TWINKLE_SPAWN_PERIOD_FRAMES == 0 {
                 self.spawn_twinkle();
             }
         }
@@ -275,8 +275,7 @@ impl Effect for BlessingEffect {
             if alpha <= 0.0 {
                 continue;
             }
-            let motion =
-                (t.age_frames * (1000.0 / FRAMES_PER_SECOND) / TWINKLE_FRAME_MS) as usize;
+            let motion = (t.age_frames * (1000.0 / FRAMES_PER_SECOND) / TWINKLE_FRAME_MS) as usize;
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: TWINKLE_SPRITE,
                 position: t.position(self.world_pos),
@@ -297,7 +296,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {

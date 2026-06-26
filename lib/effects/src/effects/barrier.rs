@@ -52,7 +52,10 @@ pub struct BarrierEffect {
 
 impl BarrierEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        Self { world_pos, age_frames: 0.0 }
+        Self {
+            world_pos,
+            age_frames: 0.0,
+        }
     }
 
     fn alpha(&self) -> f32 {
@@ -114,7 +117,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {

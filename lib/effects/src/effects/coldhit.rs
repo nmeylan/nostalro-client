@@ -21,10 +21,10 @@
 //!
 //! [`BillboardFlash`]: EffectPrimitiveDraw::BillboardFlash
 
-use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use super::energy_drain::hash01;
 use super::spike_burst::fade_in_out;
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
+use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 /// Needle texture: a vertically symmetric lens streak whose alpha tapers to
 /// both tips, giving the crisp double-ended spikes the reference gif shows
@@ -79,9 +79,17 @@ fn shard_dims(a: usize, seed: u32) -> (f32, f32, f32) {
     // the reference gif shows ~9 fairly even needles, so the disparity is
     // narrowed here (the gif outranks the source).
     if a % 3 == 0 {
-        (9.0, 90.0 + hash01(seed) * 10.0, 12.0 + hash01(seed ^ 0x11) * 4.5)
+        (
+            9.0,
+            90.0 + hash01(seed) * 10.0,
+            12.0 + hash01(seed ^ 0x11) * 4.5,
+        )
     } else {
-        (5.0, 65.0 + hash01(seed) * 5.0, 9.0 + hash01(seed ^ 0x11) * 4.5)
+        (
+            5.0,
+            65.0 + hash01(seed) * 5.0,
+            9.0 + hash01(seed ^ 0x11) * 4.5,
+        )
     }
 }
 
@@ -99,7 +107,10 @@ pub struct ColdHitEffect {
 
 impl ColdHitEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        Self { world_pos, age: 0.0 }
+        Self {
+            world_pos,
+            age: 0.0,
+        }
     }
 
     fn frame(&self) -> f32 {
@@ -107,7 +118,13 @@ impl ColdHitEffect {
     }
 
     fn collect_shards(&self, out: &mut EffectDrawList, frame: f32) {
-        let alpha = fade_in_out(frame, SHARD_MAX_ALPHA, SHARD_FADE_IN, SHARD_FADE_START, SHARD_LIFE);
+        let alpha = fade_in_out(
+            frame,
+            SHARD_MAX_ALPHA,
+            SHARD_FADE_IN,
+            SHARD_FADE_START,
+            SHARD_LIFE,
+        );
         if alpha <= 0.0 {
             return;
         }
@@ -154,7 +171,13 @@ impl ColdHitEffect {
             if local < 0.0 || local > SMOKE_LIFE {
                 continue;
             }
-            let alpha = fade_in_out(local, SMOKE_MAX_ALPHA, SMOKE_FADE_IN, SMOKE_FADE_START, SMOKE_LIFE);
+            let alpha = fade_in_out(
+                local,
+                SMOKE_MAX_ALPHA,
+                SMOKE_FADE_IN,
+                SMOKE_FADE_START,
+                SMOKE_LIFE,
+            );
             if alpha <= 0.0 {
                 continue;
             }
@@ -162,7 +185,8 @@ impl ColdHitEffect {
             let half = if local <= SMOKE_CHANGE_FRAME {
                 SMOKE_HALF_INIT + SMOKE_GROWTH_FAST * local
             } else {
-                SMOKE_HALF_INIT + SMOKE_GROWTH_FAST * SMOKE_CHANGE_FRAME
+                SMOKE_HALF_INIT
+                    + SMOKE_GROWTH_FAST * SMOKE_CHANGE_FRAME
                     + SMOKE_GROWTH_SLOW * (local - SMOKE_CHANGE_FRAME)
             };
             let full = 2.0 * half * WORLD_SCALE;
@@ -171,7 +195,11 @@ impl ColdHitEffect {
             let ox = (hash01(s) - 0.5) * 2.0 * WORLD_SCALE;
             let oy = (hash01(s ^ 0x9) - 0.5) * 2.0 * WORLD_SCALE;
             out.push(EffectPrimitiveDraw::BillboardFlash {
-                pos: [self.world_pos[0] + ox, self.world_pos[1] - BODY_LIFT + oy, self.world_pos[2]],
+                pos: [
+                    self.world_pos[0] + ox,
+                    self.world_pos[1] - BODY_LIFT + oy,
+                    self.world_pos[2],
+                ],
                 size: [full, full],
                 uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
                 rotation: 0.0,
@@ -205,13 +233,21 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn run_to(c: &mut ColdHitEffect, target_frame: f32) {
         let delta = (target_frame - c.frame()) / FRAMES_PER_SECOND;
         if delta > 0.0 {
-            c.update(&EffectUpdateCtx { delta, ..Default::default() });
+            c.update(&EffectUpdateCtx {
+                delta,
+                ..Default::default()
+            });
         }
     }
 
@@ -224,8 +260,10 @@ mod tests {
     fn count_tex(c: &ColdHitEffect, tex: &str) -> usize {
         draws(c)
             .iter()
-            .filter(|p| matches!(p, EffectPrimitiveDraw::BillboardFlash { texture, blend, .. }
-                if *texture == tex && *blend == BlendKind::Alpha))
+            .filter(|p| {
+                matches!(p, EffectPrimitiveDraw::BillboardFlash { texture, blend, .. }
+                if *texture == tex && *blend == BlendKind::Alpha)
+            })
             .count()
     }
 
@@ -238,18 +276,32 @@ mod tests {
         assert!(count_tex(&c, SMOKE_TEXTURE) >= 1, "smoke born at frame 0");
         // Phase 2: needles fade out, both smoke puffs present.
         run_to(&mut c, 12.0);
-        assert_eq!(count_tex(&c, SMOKE_TEXTURE), SMOKE_BIRTHS.len(), "both puffs alive");
+        assert_eq!(
+            count_tex(&c, SMOKE_TEXTURE),
+            SMOKE_BIRTHS.len(),
+            "both puffs alive"
+        );
         run_to(&mut c, SHARD_LIFE + 1.0);
-        assert_eq!(count_tex(&c, NEEDLE_TEXTURE), 0, "needles gone after their life");
+        assert_eq!(
+            count_tex(&c, NEEDLE_TEXTURE),
+            0,
+            "needles gone after their life"
+        );
     }
 
     fn first_shard(c: &ColdHitEffect) -> (f32, f32) {
-        draws(c).into_iter().find_map(|p| match p {
-            EffectPrimitiveDraw::BillboardFlash { size, color, texture, .. } if texture == NEEDLE_TEXTURE => {
-                Some((size[1], color[3]))
-            }
-            _ => None,
-        }).expect("ice needle")
+        draws(c)
+            .into_iter()
+            .find_map(|p| match p {
+                EffectPrimitiveDraw::BillboardFlash {
+                    size,
+                    color,
+                    texture,
+                    ..
+                } if texture == NEEDLE_TEXTURE => Some((size[1], color[3])),
+                _ => None,
+            })
+            .expect("ice needle")
     }
 
     #[test]
@@ -259,10 +311,16 @@ mod tests {
         let (len_early, _) = first_shard(&c);
         run_to(&mut c, SHARD_EXTEND_FRAMES);
         let (len_full, a_hold) = first_shard(&c);
-        assert!(len_full > len_early, "needle extends ({len_early} → {len_full})");
+        assert!(
+            len_full > len_early,
+            "needle extends ({len_early} → {len_full})"
+        );
         run_to(&mut c, SHARD_FADE_START + 2.0);
         let (_, a_late) = first_shard(&c);
-        assert!(a_late < a_hold, "needle fades after frame {SHARD_FADE_START}");
+        assert!(
+            a_late < a_hold,
+            "needle fades after frame {SHARD_FADE_START}"
+        );
     }
 
     #[test]

@@ -10,9 +10,9 @@
 //! Particles are deterministic in their birth index, so the cloud replays
 //! identically (no RNG dependency, testable).
 
+use super::energy_drain::hash01;
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use super::energy_drain::hash01;
 
 pub const DUST_SPRITE: &str = "data/sprite/이팩트/particle3";
 pub const SPRITES: &[&str] = &[DUST_SPRITE];
@@ -49,7 +49,10 @@ pub struct VenomDust2Effect {
 
 impl VenomDust2Effect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        Self { world_pos, age: 0.0 }
+        Self {
+            world_pos,
+            age: 0.0,
+        }
     }
 
     fn frame(&self) -> f32 {
@@ -127,13 +130,21 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn run_to(c: &mut VenomDust2Effect, target_frame: f32) {
         let delta = (target_frame - c.frame()) / FRAMES_PER_SECOND;
         if delta > 0.0 {
-            c.update(&EffectUpdateCtx { delta, ..Default::default() });
+            c.update(&EffectUpdateCtx {
+                delta,
+                ..Default::default()
+            });
         }
     }
 
@@ -150,7 +161,11 @@ mod tests {
     fn emits_dust_on_a_five_frame_cadence() {
         let mut c = VenomDust2Effect::new([0.0; 3]);
         run_to(&mut c, 1.0);
-        assert_eq!(particle_count(&c), MOTES_PER_TICK as usize, "frame-0 fan ramping in");
+        assert_eq!(
+            particle_count(&c),
+            MOTES_PER_TICK as usize,
+            "frame-0 fan ramping in"
+        );
         // At frame 12: tick-5 (mid-life) and tick-10 (ramping) fans are visible;
         // tick-0 has expired (local 12 > 10).
         run_to(&mut c, 12.0);
@@ -174,7 +189,13 @@ mod tests {
     fn never_self_terminates() {
         let mut c = VenomDust2Effect::new([0.0; 3]);
         for _ in 0..200 {
-            assert_eq!(c.update(&EffectUpdateCtx { delta: 0.1, ..Default::default() }), EffectStatus::Running);
+            assert_eq!(
+                c.update(&EffectUpdateCtx {
+                    delta: 0.1,
+                    ..Default::default()
+                }),
+                EffectStatus::Running
+            );
         }
     }
 }

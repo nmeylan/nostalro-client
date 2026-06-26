@@ -80,7 +80,11 @@ mod tests {
     use super::*;
 
     fn step(e: &mut AsuraBodyEffect, frames: f32) {
-        e.update(&EffectUpdateCtx { delta: frames / FPS, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: frames / FPS,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     #[test]
@@ -89,11 +93,19 @@ mod tests {
         assert!(e.body_copies().is_none(), "no halo before BodyTime 50");
         step(&mut e, 100.0);
         let copies = e.body_copies().expect("blooming");
-        assert!(copies.iter().all(|c| c.additive && c.tint == [255, 255, 255]));
+        assert!(
+            copies
+                .iter()
+                .all(|c| c.additive && c.tint == [255, 255, 255])
+        );
         assert!(copies.iter().all(|c| c.scale[0] > 1.0), "copies expand");
         step(&mut e, 60.0);
         assert_eq!(
-            e.update(&EffectUpdateCtx { delta: 0.0, camera_target: None, caster_yaw: None }),
+            e.update(&EffectUpdateCtx {
+                delta: 0.0,
+                camera_target: None,
+                caster_yaw: None
+            }),
             EffectStatus::Dead
         );
     }

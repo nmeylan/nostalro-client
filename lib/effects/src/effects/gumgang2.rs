@@ -30,8 +30,7 @@ const FRAMES_PER_SECOND: f32 = 60.0;
 /// 180 frames = 3000 ms — matches `effect/table.rs` `EffectId::Gumgang2`.
 /// The reference gif is shorter (~120 frames); the tail covers fade-out.
 const TOTAL_FRAMES: f32 = 180.0;
-pub const TOTAL_DURATION_MS: u32 =
-    (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
+pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
 const SIDES: u32 = 24;
 
@@ -166,7 +165,8 @@ mod tests {
     fn step(e: &mut Gumgang2Effect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FRAMES_PER_SECOND,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -207,7 +207,10 @@ mod tests {
                 (bottom - expected_base).abs() < 1e-3,
                 "ring {i} bottom={bottom}, want {expected_base}"
             );
-            assert!(top > bottom, "ring {i} should flare: top={top}, bottom={bottom}");
+            assert!(
+                top > bottom,
+                "ring {i} should flare: top={top}, bottom={bottom}"
+            );
             assert!(height > 0.0, "ring {i} should have height");
             assert_eq!(tex, TEXTURE);
         }
@@ -234,7 +237,10 @@ mod tests {
             h_late < h_early,
             "vertical reach shrinks as petals open: {h_early} -> {h_late}"
         );
-        assert!(b_late > b_early, "ring expands outward: {b_early} -> {b_late}");
+        assert!(
+            b_late > b_early,
+            "ring expands outward: {b_early} -> {b_late}"
+        );
     }
 
     #[test]

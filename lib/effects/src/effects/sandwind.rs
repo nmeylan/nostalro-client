@@ -101,9 +101,8 @@ pub struct SandwindEffect {
 
 impl SandwindEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        let rng_state = 0x5A5A_C0DE
-            ^ world_pos[0].to_bits()
-            ^ world_pos[2].to_bits().rotate_left(3);
+        let rng_state =
+            0x5A5A_C0DE ^ world_pos[0].to_bits() ^ world_pos[2].to_bits().rotate_left(3);
         Self {
             world_pos,
             age_frames: 0.0,
@@ -130,9 +129,7 @@ impl Effect for SandwindEffect {
         let current_frame = self.age_frames.floor() as i32;
         let next_frame = self.last_spawn_frame + 1;
         for f in next_frame..=current_frame {
-            if f >= 0
-                && (f as f32) < SPAWN_WINDOW_FRAMES
-                && (f as u32) % SPAWN_INTERVAL_FRAMES == 0
+            if f >= 0 && (f as f32) < SPAWN_WINDOW_FRAMES && (f as u32) % SPAWN_INTERVAL_FRAMES == 0
             {
                 // Per-particle wind: heading 130..145° in the 2D screen
                 // convention `(sin(lon), -cos(lon))`. Map screen y to
@@ -148,8 +145,7 @@ impl Effect for SandwindEffect {
                 let z = (self.lcg() - 0.5) * 2.0 * SPAWN_Z_HALF_RANGE;
                 let y = SPAWN_Y_MIN + self.lcg() * (SPAWN_Y_MAX - SPAWN_Y_MIN);
                 let duration = PARTICLE_DURATION_MIN_FRAMES
-                    + self.lcg()
-                        * (PARTICLE_DURATION_MAX_FRAMES - PARTICLE_DURATION_MIN_FRAMES);
+                    + self.lcg() * (PARTICLE_DURATION_MAX_FRAMES - PARTICLE_DURATION_MIN_FRAMES);
                 self.particles.push(Particle {
                     age_frames: 0.0,
                     spawn_xz_offset: [x, z],
@@ -197,7 +193,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn drift(p: &Particle) -> (f32, f32) {
@@ -229,8 +229,7 @@ mod tests {
     #[test]
     fn dies_after_full_lifetime() {
         let mut e = SandwindEffect::new([0.0; 3]);
-        let total =
-            (PARENT_DURATION_FRAMES + PARTICLE_DURATION_MAX_FRAMES + 5.0) as i32;
+        let total = (PARENT_DURATION_FRAMES + PARTICLE_DURATION_MAX_FRAMES + 5.0) as i32;
         let mut status = EffectStatus::Running;
         for _ in 0..total {
             status = e.update(&ctx(1.0 / FRAMES_PER_SECOND));

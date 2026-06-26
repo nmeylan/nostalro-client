@@ -38,11 +38,19 @@ struct SpinConfig {
 }
 
 /// 414: `BodyTime = frame·2`, window `frame < 18`, no sound.
-const SPINEDBODY: SpinConfig =
-    SpinConfig { start_frame: 0.0, end_frame: 18.0, speed: 2.0, sfx: false };
+const SPINEDBODY: SpinConfig = SpinConfig {
+    start_frame: 0.0,
+    end_frame: 18.0,
+    speed: 2.0,
+    sfx: false,
+};
 /// 466: `BodyTime = frame − 14`, window `14 ≤ frame < 50`, `kicking.wav`.
-const SPINEDBODY2: SpinConfig =
-    SpinConfig { start_frame: 14.0, end_frame: 14.0 + ROLL_BODY_TIME, speed: 1.0, sfx: true };
+const SPINEDBODY2: SpinConfig = SpinConfig {
+    start_frame: 14.0,
+    end_frame: 14.0 + ROLL_BODY_TIME,
+    speed: 1.0,
+    sfx: true,
+};
 
 pub const TEXTURES: &[&str] = &[];
 
@@ -55,12 +63,20 @@ pub struct SpinedBodyEffect {
 impl SpinedBodyEffect {
     /// `Spinedbody` (414) — immediate 2× roll.
     pub fn spinedbody() -> Self {
-        Self { cfg: SPINEDBODY, age_frames: 0.0, sfx_pending: false }
+        Self {
+            cfg: SPINEDBODY,
+            age_frames: 0.0,
+            sfx_pending: false,
+        }
     }
 
     /// `Spinedbody2` (466) — delayed 1× roll with `kicking.wav`.
     pub fn spinedbody2() -> Self {
-        Self { cfg: SPINEDBODY2, age_frames: 0.0, sfx_pending: false }
+        Self {
+            cfg: SPINEDBODY2,
+            age_frames: 0.0,
+            sfx_pending: false,
+        }
     }
 
     /// Roll-animation time for the current frame.
@@ -116,7 +132,11 @@ mod tests {
     use super::*;
 
     fn step(e: &mut SpinedBodyEffect, frames: f32) {
-        e.update(&EffectUpdateCtx { delta: frames / FPS, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: frames / FPS,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     #[test]
@@ -126,10 +146,17 @@ mod tests {
         assert!(e.body_angle().is_some(), "rolls from the first frame");
         step(&mut e, 9.0); // BodyTime ≈ 18 → ~half a turn (upside down)
         let a = e.body_angle().expect("mid-roll").to_degrees();
-        assert!((a - 180.0).abs() < 30.0, "near a half-turn at frame 9, got {a}");
+        assert!(
+            (a - 180.0).abs() < 30.0,
+            "near a half-turn at frame 9, got {a}"
+        );
         step(&mut e, 10.0); // past frame 18
         assert_eq!(
-            e.update(&EffectUpdateCtx { delta: 0.0, camera_target: None, caster_yaw: None }),
+            e.update(&EffectUpdateCtx {
+                delta: 0.0,
+                camera_target: None,
+                caster_yaw: None
+            }),
             EffectStatus::Dead
         );
     }

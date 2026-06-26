@@ -80,7 +80,11 @@ pub struct BubbleDropEffect {
 
 impl BubbleDropEffect {
     pub fn new(anchor: [f32; 3]) -> Self {
-        Self { anchor, history: Vec::new(), age_frames: 0.0 }
+        Self {
+            anchor,
+            history: Vec::new(),
+            age_frames: 0.0,
+        }
     }
 
     /// Main bubble state at integer frame `f`.
@@ -129,7 +133,12 @@ impl Effect for BubbleDropEffect {
                 uv: UNIT_UV,
                 rotation: s.spin_rad,
                 texture: BUBBLE_TEXTURE,
-                color: [BUBBLE_COLOR[0], BUBBLE_COLOR[1], BUBBLE_COLOR[2], alpha_255 / 255.0],
+                color: [
+                    BUBBLE_COLOR[0],
+                    BUBBLE_COLOR[1],
+                    BUBBLE_COLOR[2],
+                    alpha_255 / 255.0,
+                ],
                 blend: BlendKind::Additive,
             });
         };
@@ -153,13 +162,22 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn step(e: &mut BubbleDropEffect, frames: u32) -> EffectStatus {
         let mut s = EffectStatus::Running;
         for _ in 0..frames {
-            s = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            s = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         s
     }
@@ -167,10 +185,13 @@ mod tests {
     fn bubbles(e: &BubbleDropEffect) -> Vec<([f32; 3], f32)> {
         let mut l = EffectDrawList::new();
         e.collect_draws(&mut l, &render_ctx());
-        l.primitives.iter().filter_map(|p| match p {
-            EffectPrimitiveDraw::Billboard { pos, color, .. } => Some((*pos, color[3])),
-            _ => None,
-        }).collect()
+        l.primitives
+            .iter()
+            .filter_map(|p| match p {
+                EffectPrimitiveDraw::Billboard { pos, color, .. } => Some((*pos, color[3])),
+                _ => None,
+            })
+            .collect()
     }
 
     #[test]
@@ -191,11 +212,19 @@ mod tests {
         // frame are past the alpha cap, so all echoes clear their alpha drop.
         step(&mut e, 24);
         let draws = bubbles(&e);
-        assert!(draws.len() >= 4, "main + 3 echoes visible, got {}", draws.len());
+        assert!(
+            draws.len() >= 4,
+            "main + 3 echoes visible, got {}",
+            draws.len()
+        );
         // The last draw is the main bubble (brightest); echoes precede it with lower alpha.
         let main_alpha = draws.last().unwrap().1;
-        assert!(draws[..draws.len() - 1].iter().all(|(_, a)| *a < main_alpha),
-            "echoes dimmer than main: {draws:?}");
+        assert!(
+            draws[..draws.len() - 1]
+                .iter()
+                .all(|(_, a)| *a < main_alpha),
+            "echoes dimmer than main: {draws:?}"
+        );
     }
 
     #[test]

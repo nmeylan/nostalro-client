@@ -194,7 +194,8 @@ mod tests {
     fn step(effect: &mut BottomOutEffect, dt: f32) {
         effect.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
     }
 
@@ -273,10 +274,16 @@ mod tests {
                 zero_alpha_seen = true;
             }
         }
-        assert!(max_alpha_seen >= 0.95, "alpha should peak near 1.0; got {max_alpha_seen}");
+        assert!(
+            max_alpha_seen >= 0.95,
+            "alpha should peak near 1.0; got {max_alpha_seen}"
+        );
         assert!(zero_alpha_seen, "alpha should hit 0 at end of fade");
         // Y drifts upward (Y decreases in native -Y up).
-        assert!(min_y < -5.0, "Y should drift up at least 5 units; got {min_y}");
+        assert!(
+            min_y < -5.0,
+            "Y should drift up at least 5 units; got {min_y}"
+        );
     }
 
     #[test]

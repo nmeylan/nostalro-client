@@ -12,18 +12,22 @@ use models::enums::effect_id::EffectId;
 use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effect_trait::CameraShake;
 use super::effects::{
-    aciddemon, agiup, attack_energy, aura_blade, banjjakii, barrier, big_portal, bash, bash3d, begin_asura, begin_spell, begin_spell_8, blessing, soullink, grandcross, saintwing, chookgi, sakura, pokjuk, firstaid, blitzbeat, body_buff, bottom_box, bottom_sanctuary_pillar,
-    light_sphere, linelink, mapzone, rainbow,
-    bowling_bash, callzone, cartrevolution, cast_circle, chemical, colorpaper, cone, couple_casting, curseattack, defender, detecting,
-    dome_ring, dragonsmoke, summon_slave, bubble_drop, cartter, magic_bolt, endure, energy_drain, enhance, entry, exit as exit_effect, fireivy, fireball, flasher, flowercast,
-    firepillaron, frost_diver, fullscreen_overlay, glasswall, glasswall2, gravitation, ground_sample, guard, gumgang, gumgang2, hasteup, heal, healsp, heartcasting, heavensdrive, hit, hit2, hit5_6, hitdark,
-    kouenka, magnum_break, napalmbeat,
-    napalmvalcan, orbit_burst, overthrust, pierce, portal, portal2, portal_wind, potion_berserk, potion_con, potion_pillar, providence,
-    quakebody, ready_portal, revive, sandwind, sight, sonicblowhit, soul_strike, spearbmr, spraypond, status_up,
-    cloud_projectile, twilight, tripleattack, spherewind, pressure, stormgust, teleportation, texture_falling, throw_item, rg_coin, turnundead, volcano, warp, waterball, waterball2,
-    wind, yufitel2, yupitel,
-    particle_up, peong, peong_up, sma, stin, soul_breaker, storm_kick, m_ef02, slash, super_angel, teihit, thunderstorm2,
-    body_tint, multibody, squarebody,
+    aciddemon, agiup, attack_energy, aura_blade, banjjakii, barrier, bash, bash3d, begin_asura,
+    begin_spell, begin_spell_8, big_portal, blessing, blitzbeat, body_buff, body_tint, bottom_box,
+    bottom_sanctuary_pillar, bowling_bash, bubble_drop, callzone, cartrevolution, cartter,
+    cast_circle, chemical, chookgi, cloud_projectile, colorpaper, cone, couple_casting,
+    curseattack, defender, detecting, dome_ring, dragonsmoke, endure, energy_drain, enhance, entry,
+    exit as exit_effect, fireball, fireivy, firepillaron, firstaid, flasher, flowercast,
+    frost_diver, fullscreen_overlay, glasswall, glasswall2, grandcross, gravitation, ground_sample,
+    guard, gumgang, gumgang2, hasteup, heal, healsp, heartcasting, heavensdrive, hit, hit2, hit5_6,
+    hitdark, kouenka, light_sphere, linelink, m_ef02, magic_bolt, magnum_break, mapzone, multibody,
+    napalmbeat, napalmvalcan, orbit_burst, overthrust, particle_up, peong, peong_up, pierce,
+    pokjuk, portal, portal_wind, portal2, potion_berserk, potion_con, potion_pillar, pressure,
+    providence, quakebody, rainbow, ready_portal, revive, rg_coin, saintwing, sakura, sandwind,
+    sight, slash, sma, sonicblowhit, soul_breaker, soul_strike, soullink, spearbmr, spherewind,
+    spraypond, squarebody, status_up, stin, storm_kick, stormgust, summon_slave, super_angel,
+    teihit, teleportation, texture_falling, throw_item, thunderstorm2, tripleattack, turnundead,
+    twilight, volcano, warp, waterball, waterball2, wind, yufitel2, yupitel,
 };
 use super::spec::{EffectSpec, SprBodyRecolor};
 use super::spr_aliases::spr_def;
@@ -1285,7 +1289,11 @@ fn bucket_default(id: EffectId) -> EffectSpec {
 fn default_str_spec(id: EffectId) -> EffectSpec {
     let duration_ms = default_duration_ms(id);
     let file = str_aliases(id)[0];
-    EffectSpec::Str { file, duration_ms, repeat: false }
+    EffectSpec::Str {
+        file,
+        duration_ms,
+        repeat: false,
+    }
 }
 
 /// Persistent ground-skill units (`ZC_SKILL_ENTRY`) live until their
@@ -1308,7 +1316,10 @@ mod tests {
     fn known_str_files_resolve() {
         assert!(matches!(
             effect_spec(EffectId::Bubble),
-            Some(EffectSpec::Str { file: "bubble1", .. })
+            Some(EffectSpec::Str {
+                file: "bubble1",
+                ..
+            })
         ));
         assert!(matches!(
             effect_spec(EffectId::Lvup),
@@ -1420,11 +1431,26 @@ mod tests {
             (EffectId::M05, "data/sprite/이팩트/m_ef05", 4.0, 1667),
             (EffectId::M06, "data/sprite/이팩트/m_ef06", 4.0, 1667),
             (EffectId::M07, "data/sprite/이팩트/m_ef07", 4.0, 1667),
-            (EffectId::PokWhite, "data/sprite/이팩트/폭죽_화이트데이", 4.0, 1000),
-            (EffectId::PokValen, "data/sprite/이팩트/폭죽_발렌타인", 4.0, 1000),
+            (
+                EffectId::PokWhite,
+                "data/sprite/이팩트/폭죽_화이트데이",
+                4.0,
+                1000,
+            ),
+            (
+                EffectId::PokValen,
+                "data/sprite/이팩트/폭죽_발렌타인",
+                4.0,
+                1000,
+            ),
         ] {
-            let Some(EffectSpec::Spr { sprite: got, anim_speed, repeat, duration_ms, .. }) =
-                effect_spec(id)
+            let Some(EffectSpec::Spr {
+                sprite: got,
+                anim_speed,
+                repeat,
+                duration_ms,
+                ..
+            }) = effect_spec(id)
             else {
                 panic!("{id:?} should resolve to EffectSpec::Spr");
             };
@@ -1439,11 +1465,20 @@ mod tests {
             Some(EffectSpec::Spr { repeat: true, .. })
         ));
         // M02 (directional) and Kaizel (cross-slash) are Custom factory effects.
-        assert!(matches!(effect_spec(EffectId::M02), Some(EffectSpec::Custom { .. })));
-        assert!(matches!(effect_spec(EffectId::Kaizel), Some(EffectSpec::Custom { .. })));
+        assert!(matches!(
+            effect_spec(EffectId::M02),
+            Some(EffectSpec::Custom { .. })
+        ));
+        assert!(matches!(
+            effect_spec(EffectId::Kaizel),
+            Some(EffectSpec::Custom { .. })
+        ));
         // Kaahi renders nothing in the original game; the stale STR alias is
         // gone so it must resolve to Noop, not a missing kaahi.str.
-        assert!(matches!(effect_spec(EffectId::Kaahi), Some(EffectSpec::Noop)));
+        assert!(matches!(
+            effect_spec(EffectId::Kaahi),
+            Some(EffectSpec::Noop)
+        ));
     }
 
     #[test]
@@ -1452,8 +1487,13 @@ mod tests {
         // vallentine.spr but plays ACT action 1; Itemfast is fast.spr action 0
         // at animSpeed 4. The spr_def path must win over the file-missing
         // str_aliases ("vallentine2"/"itemfast").
-        let Some(EffectSpec::Spr { sprite, action_index, anim_speed, repeat, .. }) =
-            effect_spec(EffectId::Vallentine2)
+        let Some(EffectSpec::Spr {
+            sprite,
+            action_index,
+            anim_speed,
+            repeat,
+            ..
+        }) = effect_spec(EffectId::Vallentine2)
         else {
             panic!("Vallentine2 should resolve to EffectSpec::Spr");
         };
@@ -1462,8 +1502,12 @@ mod tests {
         assert_eq!(anim_speed, 2.0);
         assert!(!repeat);
 
-        let Some(EffectSpec::Spr { sprite, action_index, anim_speed, .. }) =
-            effect_spec(EffectId::Itemfast)
+        let Some(EffectSpec::Spr {
+            sprite,
+            action_index,
+            anim_speed,
+            ..
+        }) = effect_spec(EffectId::Itemfast)
         else {
             panic!("Itemfast should resolve to EffectSpec::Spr");
         };
@@ -1474,7 +1518,10 @@ mod tests {
         // The default action is unchanged for the original sibling.
         assert!(matches!(
             effect_spec(EffectId::Vallentine),
-            Some(EffectSpec::Spr { action_index: 0, .. })
+            Some(EffectSpec::Spr {
+                action_index: 0,
+                ..
+            })
         ));
     }
 
@@ -1500,11 +1547,17 @@ mod tests {
         // not a missing ghost/bat/bat2.str.
         for id in [EffectId::Ghost, EffectId::Bat, EffectId::Bat2] {
             assert!(
-                matches!(effect_spec(id), Some(EffectSpec::Custom { duration_ms: 40000 })),
+                matches!(
+                    effect_spec(id),
+                    Some(EffectSpec::Custom { duration_ms: 40000 })
+                ),
                 "{id:?} should resolve to Custom 40000, got {:?}",
                 effect_spec(id)
             );
-            assert!(super::super::factory::is_real_impl(id), "{id:?} must have a real impl");
+            assert!(
+                super::super::factory::is_real_impl(id),
+                "{id:?} must have a real impl"
+            );
         }
     }
 
@@ -1676,7 +1729,11 @@ mod tests {
         let Some(EffectSpec::Custom { duration_ms }) = effect_spec(EffectId::Dragonsmoke) else {
             panic!("Dragonsmoke should resolve to EffectSpec::Custom");
         };
-        assert_eq!(duration_ms, u32::MAX, "ambient loop, persists for the map's lifetime");
+        assert_eq!(
+            duration_ms,
+            u32::MAX,
+            "ambient loop, persists for the map's lifetime"
+        );
     }
 
     #[test]
@@ -1688,28 +1745,32 @@ mod tests {
         // absent from the classic GRF, but its constituent bolt + flash
         // textures survive, so it is a procedural `Custom` effect rather than
         // an STR fallback.
-        let Some(EffectSpec::Custom { duration_ms }) =
-            effect_spec(EffectId::Thunderstorm2)
-        else {
+        let Some(EffectSpec::Custom { duration_ms }) = effect_spec(EffectId::Thunderstorm2) else {
             panic!("Thunderstorm2 should resolve to EffectSpec::Custom");
         };
         assert_eq!(duration_ms, thunderstorm2::TOTAL_DURATION_MS);
 
         // Slowpoison: periodic SprBurst with negative speed_range
         // (downward drift) and pos_y_start = -20.
-        let Some(EffectSpec::SprBurst { sprite, burst, .. }) =
-            effect_spec(EffectId::Slowpoison)
+        let Some(EffectSpec::SprBurst { sprite, burst, .. }) = effect_spec(EffectId::Slowpoison)
         else {
             panic!("Slowpoison should resolve to EffectSpec::SprBurst");
         };
         assert_eq!(sprite, "data/sprite/이팩트/particle3");
         assert_eq!(burst.period_frames, Some(5));
         assert_eq!(burst.pos_y_start, -20.0);
-        assert!(burst.speed_range.1 < 0.0, "speed range stays negative for downward drift");
+        assert!(
+            burst.speed_range.1 < 0.0,
+            "speed range stays negative for downward drift"
+        );
 
         // Edp: faster cadence + smaller particles than EnchantPoison, plus the
         // hybrid magenta body flicker over the burst.
-        let Some(EffectSpec::SprBurst { burst, body_recolor, .. }) = effect_spec(EffectId::Edp)
+        let Some(EffectSpec::SprBurst {
+            burst,
+            body_recolor,
+            ..
+        }) = effect_spec(EffectId::Edp)
         else {
             panic!("Edp should resolve to EffectSpec::SprBurst");
         };
@@ -1717,11 +1778,16 @@ mod tests {
         assert!((burst.size - 0.3).abs() < 1e-6);
         assert_eq!(
             body_recolor,
-            Some(SprBodyRecolor { window_frames: (0, 80), rgb: [255, 0, 255] }),
+            Some(SprBodyRecolor {
+                window_frames: (0, 80),
+                rgb: [255, 0, 255]
+            }),
             "Enchant Deadly Poison flickers the caster magenta",
         );
         // Ambient bursts carry no body recolor.
-        let Some(EffectSpec::SprBurst { body_recolor: none, .. }) = effect_spec(EffectId::Slowpoison)
+        let Some(EffectSpec::SprBurst {
+            body_recolor: none, ..
+        }) = effect_spec(EffectId::Slowpoison)
         else {
             unreachable!();
         };

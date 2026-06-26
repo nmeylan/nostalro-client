@@ -101,7 +101,11 @@ pub struct GrandcrossEffect {
 
 impl GrandcrossEffect {
     pub fn new(world_pos: [f32; 3], params: GrandcrossParams) -> Self {
-        Self { params, world_pos, process: 0.0 }
+        Self {
+            params,
+            world_pos,
+            process: 0.0,
+        }
     }
 
     /// Common swell + ramp/drain envelope. `ramp_per_frame` differs between the
@@ -148,7 +152,7 @@ impl Effect for GrandcrossEffect {
             let height = WALL_MAX_HEIGHT * swell;
             for (rot_start, sx, sz) in WALLS {
                 out.push(EffectPrimitiveDraw::Frustum {
-                base_alpha: 1.0,
+                    base_alpha: 1.0,
                     base: [cx + sx * CORNER, cy, cz + sz * CORNER],
                     bottom_size: WALL_DISTANCE,
                     top_size: WALL_DISTANCE,
@@ -233,13 +237,22 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn run_to(e: &mut GrandcrossEffect, frame: f32) {
         let d = (frame - e.process) / FRAMES_PER_SECOND;
         if d > 0.0 {
-            e.update(&EffectUpdateCtx { delta: d, camera_target: None, caster_yaw: None });
+            e.update(&EffectUpdateCtx {
+                delta: d,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
     }
 
@@ -254,9 +267,17 @@ mod tests {
         let mut e = GrandcrossEffect::new([0.0; 3], GRANDCROSS);
         run_to(&mut e, RAMP_FRAMES);
         let d = draws(&e);
-        let walls = d.iter().filter(|p| matches!(p,
-            EffectPrimitiveDraw::Frustum { arc_angle_deg, .. } if *arc_angle_deg == 90.0)).count();
-        let quads = d.iter().filter(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { .. })).count();
+        let walls = d
+            .iter()
+            .filter(|p| {
+                matches!(p,
+            EffectPrimitiveDraw::Frustum { arc_angle_deg, .. } if *arc_angle_deg == 90.0)
+            })
+            .count();
+        let quads = d
+            .iter()
+            .filter(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { .. }))
+            .count();
         assert_eq!(walls, 4, "four corner arc-walls");
         // Two beams × (4 sides + 1 top).
         assert_eq!(quads, 10, "two beam boxes");
@@ -272,7 +293,10 @@ mod tests {
         let late_h = wall_height(&e);
         let late_a = wall_alpha(&e);
         assert!(late_h > peak_h, "wall keeps swelling ({peak_h} → {late_h})");
-        assert!(late_a < peak_a, "alpha drains after the ramp ({peak_a} → {late_a})");
+        assert!(
+            late_a < peak_a,
+            "alpha drains after the ramp ({peak_a} → {late_a})"
+        );
     }
 
     #[test]
@@ -295,22 +319,32 @@ mod tests {
         let mut e = GrandcrossEffect::new([0.0; 3], GRANDCROSS);
         run_to(&mut e, TOTAL_FRAMES - 1.0);
         assert_eq!(
-            e.update(&EffectUpdateCtx { delta: 0.1, camera_target: None, caster_yaw: None }),
+            e.update(&EffectUpdateCtx {
+                delta: 0.1,
+                camera_target: None,
+                caster_yaw: None
+            }),
             EffectStatus::Dead
         );
     }
 
     fn wall_height(e: &GrandcrossEffect) -> f32 {
-        draws(e).into_iter().find_map(|p| match p {
-            EffectPrimitiveDraw::Frustum { height, .. } => Some(height),
-            _ => None,
-        }).unwrap()
+        draws(e)
+            .into_iter()
+            .find_map(|p| match p {
+                EffectPrimitiveDraw::Frustum { height, .. } => Some(height),
+                _ => None,
+            })
+            .unwrap()
     }
 
     fn wall_alpha(e: &GrandcrossEffect) -> f32 {
-        draws(e).into_iter().find_map(|p| match p {
-            EffectPrimitiveDraw::Frustum { color, .. } => Some(color[3]),
-            _ => None,
-        }).unwrap()
+        draws(e)
+            .into_iter()
+            .find_map(|p| match p {
+                EffectPrimitiveDraw::Frustum { color, .. } => Some(color[3]),
+                _ => None,
+            })
+            .unwrap()
     }
 }

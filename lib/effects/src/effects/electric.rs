@@ -310,9 +310,7 @@ impl ElectricEffect {
     }
 
     fn any_alive(&self) -> bool {
-        self.arcs
-            .iter()
-            .any(|a| a.process <= 0 || a.alpha_b > 0.0)
+        self.arcs.iter().any(|a| a.process <= 0 || a.alpha_b > 0.0)
     }
 }
 
@@ -335,7 +333,10 @@ impl Effect for ElectricEffect {
         for _ in 0..steps {
             self.frame += 1;
             for (ai, arc) in self.arcs.iter_mut().enumerate() {
-                arc.step(&self.variant, noise(self.frame.wrapping_mul(31).wrapping_add(ai as u32)));
+                arc.step(
+                    &self.variant,
+                    noise(self.frame.wrapping_mul(31).wrapping_add(ai as u32)),
+                );
             }
         }
         if self.frame > 0 && !self.any_alive() {
@@ -361,7 +362,9 @@ impl Effect for ElectricEffect {
                         .wrapping_mul(131)
                         .wrapping_add((ai * SEGMENTS + j) as u32),
                 );
-                let jit = |shift: u32| ((noise(n.wrapping_add(shift)) % 7) as f32 * 0.1 - 0.3) * (v.jitter / 0.3);
+                let jit = |shift: u32| {
+                    ((noise(n.wrapping_add(shift)) % 7) as f32 * 0.1 - 0.3) * (v.jitter / 0.3)
+                };
                 let local = arc.point(v, j, [jit(1), jit(2), jit(3)]);
                 points.push([
                     self.anchor[0] + local[0],
@@ -461,7 +464,10 @@ mod tests {
             .collect();
         azimuths.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let spread = azimuths.last().unwrap() - azimuths.first().unwrap();
-        assert!(spread > std::f32::consts::PI, "bolts cover most of the circle, got {spread}");
+        assert!(
+            spread > std::f32::consts::PI,
+            "bolts cover most of the circle, got {spread}"
+        );
         for (pts, colors) in &s {
             assert_eq!(pts.len(), colors.len());
             // Gradient: every segment is blue-dominant and red/green grade
@@ -481,7 +487,10 @@ mod tests {
         assert_eq!(s.len(), 8, "two handler calls × 4 bolts");
         for (pts, colors) in &s {
             let tip = pts.last().unwrap();
-            assert!(tip[0] > tip[2].abs(), "bolt {tip:?} should lead toward +X target");
+            assert!(
+                tip[0] > tip[2].abs(),
+                "bolt {tip:?} should lead toward +X target"
+            );
             // Mid-peaked alpha: the middle segment outshines both ends.
             let mid = colors[colors.len() / 2][3];
             assert!(mid >= colors.first().unwrap()[3] && mid >= colors.last().unwrap()[3]);

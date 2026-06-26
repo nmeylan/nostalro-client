@@ -5,7 +5,7 @@ TODO:
 - ~~Shield sprite~~ (done — render order fix for direction-based layering)
 - ~~Headgear/accessories~~ (done — three-layer system: top/mid/bottom)
 ~~- Mount/Peco (costume job swap, loads mounted body sprite)~~
-- cart
+~~- cart~~
 - ~~Other players / NPCs / monsters entity sprites~~ (done — entity collection manages Player/NPC/Monster types)
 - ~~Doridori head animation~~ (done — head_dir from server selects head/headgear motion)
 - Divide attachment offset by clip zoom for weapons/accessories (original compensates when sprClip zoom != 1.0)
@@ -44,7 +44,7 @@ TODO:
 - Game menu: graphic/audio options
 - Emotion selector
 - Quest window
-- Cart window
+~~- Cart window~~
 - Storage/warehouse window
 - ~~Item tooltips (description, stats, cards, refine level)~~
 - Context menu (right-click on player/NPC)[ui-component](../lib/ui-component)
@@ -82,7 +82,7 @@ TODO:
 - ~~Item info window~~
 - Item crafting (arrows, cooking)
 - Item refining
-- Cart system
+~~- Cart system~~
 - Storage/warehouse
 
 # Social

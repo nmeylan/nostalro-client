@@ -40,12 +40,18 @@ pub struct JumpBodyEffect {
 impl JumpBodyEffect {
     /// `Jumpbody` (445).
     pub fn high() -> Self {
-        Self { kind: Kind::High, age_frames: 0.0 }
+        Self {
+            kind: Kind::High,
+            age_frames: 0.0,
+        }
     }
 
     /// `Landbody` (446).
     pub fn land() -> Self {
-        Self { kind: Kind::Land, age_frames: 0.0 }
+        Self {
+            kind: Kind::Land,
+            age_frames: 0.0,
+        }
     }
 
     /// `BodyTime` for the high jump (`age − 35`); negative before the
@@ -124,21 +130,32 @@ mod tests {
     use super::*;
 
     fn step(e: &mut JumpBodyEffect, frames: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: frames / FPS, camera_target: None, caster_yaw: None })
+        e.update(&EffectUpdateCtx {
+            delta: frames / FPS,
+            camera_target: None,
+            caster_yaw: None,
+        })
     }
 
     #[test]
     fn jumpbody_rises_and_fades_only_after_frame_35() {
         let mut e = JumpBodyEffect::high();
         step(&mut e, 10.0);
-        assert!(e.body_vertical().is_none(), "stands normally before frame 35");
+        assert!(
+            e.body_vertical().is_none(),
+            "stands normally before frame 35"
+        );
         step(&mut e, 30.0); // ~frame 40, into the rise
         let v = e.body_vertical().expect("rising");
         assert!(v.lift_px > 0.0, "lifts off the ground");
         assert!(v.alpha < 1.0, "fading out");
         step(&mut e, 20.0); // past the fade
         assert_eq!(
-            e.update(&EffectUpdateCtx { delta: 0.0, camera_target: None, caster_yaw: None }),
+            e.update(&EffectUpdateCtx {
+                delta: 0.0,
+                camera_target: None,
+                caster_yaw: None
+            }),
             EffectStatus::Dead
         );
     }
@@ -147,7 +164,10 @@ mod tests {
     fn landbody_drops_in_fades_in_and_spins() {
         let mut e = JumpBodyEffect::land();
         let v0 = e.body_vertical().expect("starts high");
-        assert!(v0.lift_px > 0.0 && v0.alpha < 0.5, "high and faint at first");
+        assert!(
+            v0.lift_px > 0.0 && v0.alpha < 0.5,
+            "high and faint at first"
+        );
         assert!(e.body_angle().is_some(), "Landbody spins");
         step(&mut e, 15.0); // lands (~frame 15)
         let v1 = e.body_vertical().expect("near ground");

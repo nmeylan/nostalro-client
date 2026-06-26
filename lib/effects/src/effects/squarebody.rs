@@ -78,7 +78,12 @@ impl SquareBodyEffect {
     }
 
     fn new(cfg: Config) -> Self {
-        Self { cfg, process: 0.0, next_sfx: 0, pending_sfx: None }
+        Self {
+            cfg,
+            process: 0.0,
+            next_sfx: 0,
+            pending_sfx: None,
+        }
     }
 
     /// Deform-animation time (negative before the deform starts).
@@ -117,7 +122,11 @@ impl Effect for SquareBodyEffect {
                 } else {
                     return None;
                 };
-                Some(BodyVertical { lift_px: 0.0, alpha: 1.0, squeeze: size })
+                Some(BodyVertical {
+                    lift_px: 0.0,
+                    alpha: 1.0,
+                    squeeze: size,
+                })
             }
             Kind::Kicked => {
                 let size = if t <= 18.0 {
@@ -129,7 +138,11 @@ impl Effect for SquareBodyEffect {
                 } else {
                     return None;
                 };
-                Some(BodyVertical { lift_px: size * KICK_LIFT_PX, alpha: 1.0, squeeze: 1.0 })
+                Some(BodyVertical {
+                    lift_px: size * KICK_LIFT_PX,
+                    alpha: 1.0,
+                    squeeze: 1.0,
+                })
             }
         }
     }
@@ -144,16 +157,26 @@ mod tests {
     use super::*;
 
     fn step(e: &mut SquareBodyEffect, frames: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: frames / FPS, camera_target: None, caster_yaw: None })
+        e.update(&EffectUpdateCtx {
+            delta: frames / FPS,
+            camera_target: None,
+            caster_yaw: None,
+        })
     }
 
     #[test]
     fn pressedbody_squeezes_toward_the_feet_inside_its_window() {
         let mut e = SquareBodyEffect::pressed();
-        assert!(e.body_vertical().is_none(), "stands normally before frame 17");
+        assert!(
+            e.body_vertical().is_none(),
+            "stands normally before frame 17"
+        );
         step(&mut e, 30.0); // BodyTime ~13 → held squash
         let v = e.body_vertical().expect("squashing");
-        assert!(v.squeeze < 1.0 && v.lift_px == 0.0, "vertical squeeze, no lift");
+        assert!(
+            v.squeeze < 1.0 && v.lift_px == 0.0,
+            "vertical squeeze, no lift"
+        );
         assert_eq!(step(&mut e, 25.0), EffectStatus::Dead);
     }
 
@@ -161,7 +184,11 @@ mod tests {
     fn kickedbody_lifts_then_settles_with_two_hit_sounds() {
         let mut e = SquareBodyEffect::kicked();
         step(&mut e, 26.0); // past both sound frames (17, 25), before the lift (30)
-        assert_eq!(e.take_sfx_request(), Some("effect\\EF_hit4.wav"), "latest queued sound");
+        assert_eq!(
+            e.take_sfx_request(),
+            Some("effect\\EF_hit4.wav"),
+            "latest queued sound"
+        );
         assert!(e.body_vertical().is_none(), "no lift before frame 30");
         step(&mut e, 18.0); // BodyTime ~14, rising
         let v = e.body_vertical().expect("airborne");

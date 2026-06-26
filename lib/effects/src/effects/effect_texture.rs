@@ -109,7 +109,11 @@ impl Effect for EffectTextureEffect {
         }
         let [r, g, b] = self.params.tint;
         out.push(EffectPrimitiveDraw::Texture3D {
-            center: [self.center[0], self.center[1] + self.params.y_offset, self.center[2]],
+            center: [
+                self.center[0],
+                self.center[1] + self.params.y_offset,
+                self.center[2],
+            ],
             size: [self.distance, self.distance],
             plane: QuadPlane::HorizontalYaw(self.params.yaw_deg.to_radians()),
             uv: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
@@ -128,21 +132,33 @@ mod tests {
         let mut st = EffectStatus::Running;
         let real = (frames as f32 / TIME_SCALE).ceil() as u32;
         for _ in 0..real {
-            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            st = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         st
     }
 
     fn quad(e: &EffectTextureEffect) -> Option<([f32; 2], f32)> {
         let mut l = EffectDrawList::new();
-        e.collect_draws(&mut l, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 256.0,
-            screen_h: 256.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut l,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 256.0,
+                screen_h: 256.0,
+                elapsed: 0.0,
+            },
+        );
         l.primitives.first().map(|p| match p {
-            EffectPrimitiveDraw::Texture3D { size, color, plane: QuadPlane::HorizontalYaw(_), .. } => (*size, color[3]),
+            EffectPrimitiveDraw::Texture3D {
+                size,
+                color,
+                plane: QuadPlane::HorizontalYaw(_),
+                ..
+            } => (*size, color[3]),
             _ => panic!("expected a yawed Texture3D ground quad"),
         })
     }
@@ -154,7 +170,12 @@ mod tests {
         let (size_a, alpha_a) = quad(&e).expect("visible during fade-in");
         tick(&mut e, HITTEXTURE.fade_in_frames as u32);
         let (size_b, alpha_b) = quad(&e).expect("visible at peak/fade-out");
-        assert!(size_b[0] > size_a[0], "quad expands: {} -> {}", size_a[0], size_b[0]);
+        assert!(
+            size_b[0] > size_a[0],
+            "quad expands: {} -> {}",
+            size_a[0],
+            size_b[0]
+        );
         assert!(alpha_b < alpha_a + HITTEXTURE.max_alpha, "alpha is bounded");
         // alpha rises during fade-in.
         assert!(alpha_a > 0.0);

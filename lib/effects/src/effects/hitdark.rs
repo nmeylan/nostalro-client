@@ -16,9 +16,9 @@
 //! ring/spray use a fixed heading (`+Z`); the gif frames the ring roughly
 //! face-on, so this matches the captured silhouette.
 
+use super::spike_burst::seed_from_world;
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use super::spike_burst::seed_from_world;
 
 pub const RING_TEXTURE: &str = "ring_blue.tga";
 pub const PARTICLE_SPRITE: &str = "data/sprite/이팩트/particle1";
@@ -44,8 +44,7 @@ const DARK_RGB: f32 = 20.0 / 255.0;
 const PARTICLE_MAX_ALPHA: f32 = 0.8;
 const MAX_PARTICLE_LIFE_FRAMES: f32 = 30.0;
 
-pub const TOTAL_DURATION_MS: u32 =
-    (MAX_PARTICLE_LIFE_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
+pub const TOTAL_DURATION_MS: u32 = (MAX_PARTICLE_LIFE_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
 struct Lcg(u32);
 impl Lcg {
@@ -93,7 +92,11 @@ impl DarkParticle {
 /// `gravity` adds a downward pull (the backward gravity pair).
 fn spawn_particle(rng: &mut Lcg, origin: [f32; 3], forward: bool, gravity: bool) -> DarkParticle {
     // Azimuth: forward cone around the heading, backward cone opposite.
-    let base = if forward { HEADING_RAD } else { HEADING_RAD + std::f32::consts::PI };
+    let base = if forward {
+        HEADING_RAD
+    } else {
+        HEADING_RAD + std::f32::consts::PI
+    };
     let azimuth = base + rng.range(-40.0, 40.0).to_radians();
     // Elevation biased upward (`−90+40+random(100)` → −10..+90°).
     let elevation = rng.range(-10.0, 50.0).to_radians();
@@ -109,7 +112,11 @@ fn spawn_particle(rng: &mut Lcg, origin: [f32; 3], forward: bool, gravity: bool)
         speed,
         accel: -speed / (2.0 * life),
         vy: 0.0,
-        gravity_accel: if gravity { rng.range(0.3, 1.2) * WORLD_SCALE / life } else { 0.0 },
+        gravity_accel: if gravity {
+            rng.range(0.3, 1.2) * WORLD_SCALE / life
+        } else {
+            0.0
+        },
         size: rng.range(0.6, 1.6),
         age_frames: 0.0,
         life_frames: life,
@@ -133,7 +140,11 @@ impl HitDarkEffect {
         for _ in 0..2 {
             particles.push(spawn_particle(&mut rng, origin, false, true));
         }
-        Self { world_pos, particles, age_frames: 0.0 }
+        Self {
+            world_pos,
+            particles,
+            age_frames: 0.0,
+        }
     }
 
     fn ring_alpha(&self) -> f32 {
@@ -144,7 +155,8 @@ impl HitDarkEffect {
         if f <= RING_FADE_OUT_AT {
             RING_MAX_ALPHA
         } else {
-            RING_MAX_ALPHA * ((RING_DURATION_FRAMES - f) / (RING_DURATION_FRAMES - RING_FADE_OUT_AT)).max(0.0)
+            RING_MAX_ALPHA
+                * ((RING_DURATION_FRAMES - f) / (RING_DURATION_FRAMES - RING_FADE_OUT_AT)).max(0.0)
         }
     }
 }
@@ -168,7 +180,11 @@ impl Effect for HitDarkEffect {
         let ring_a = self.ring_alpha();
         if ring_a > 0.0 {
             out.push(EffectPrimitiveDraw::Cylinder {
-                base: [self.world_pos[0], self.world_pos[1] + Y_OFFSET, self.world_pos[2]],
+                base: [
+                    self.world_pos[0],
+                    self.world_pos[1] + Y_OFFSET,
+                    self.world_pos[2],
+                ],
                 bottom_size: RING_OUTER,
                 top_size: RING_INNER,
                 height: RING_HEIGHT,
@@ -208,11 +224,20 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     #[test]
@@ -222,7 +247,11 @@ mod tests {
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         let rings = list.primitives.iter().filter(|p| matches!(p, EffectPrimitiveDraw::Cylinder { texture, .. } if *texture == RING_TEXTURE)).count();
-        let parts = list.primitives.iter().filter(|p| matches!(p, EffectPrimitiveDraw::SpriteParticle { .. })).count();
+        let parts = list
+            .primitives
+            .iter()
+            .filter(|p| matches!(p, EffectPrimitiveDraw::SpriteParticle { .. }))
+            .count();
         assert_eq!(rings, 1);
         assert_eq!(parts, 4);
     }
@@ -237,7 +266,11 @@ mod tests {
         assert_eq!(e.ring_alpha(), 0.0);
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
-        let rings = list.primitives.iter().filter(|p| matches!(p, EffectPrimitiveDraw::Cylinder { .. })).count();
+        let rings = list
+            .primitives
+            .iter()
+            .filter(|p| matches!(p, EffectPrimitiveDraw::Cylinder { .. }))
+            .count();
         assert_eq!(rings, 0, "ring gone");
     }
 

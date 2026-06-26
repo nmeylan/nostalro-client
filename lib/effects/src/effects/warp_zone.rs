@@ -74,8 +74,7 @@ const SPARKLE_RADIUS_STEP: f32 = 0.75;
 const SPARKLE_LONG_SPEED_DEG: f32 = 2.5;
 /// Vertical speed `-0.3` (negative Y = up), decelerating via the accel below.
 const SPARKLE_Y_SPEED_PER_FRAME: f32 = -0.3;
-const SPARKLE_Y_ACCEL_PER_FRAME: f32 =
-    -(SPARKLE_Y_SPEED_PER_FRAME / SPARKLE_DURATION_FRAMES) / 1.5;
+const SPARKLE_Y_ACCEL_PER_FRAME: f32 = -(SPARKLE_Y_SPEED_PER_FRAME / SPARKLE_DURATION_FRAMES) / 1.5;
 const SPARKLE_SIZE: f32 = 0.7;
 const SPARKLE_ANIM_TICKS: f32 = 4.0;
 
@@ -449,7 +448,7 @@ impl Effect for WarpZoneEffect {
                     // The WarpZone inner ring + orbit sparkles render
                     // source/inverse-source alpha, not additive —
                     // additive vanishes against a bright lightmap.
-                    blend: BlendKind::Alpha  ,
+                    blend: BlendKind::Alpha,
                 });
             }
         }
@@ -495,7 +494,11 @@ mod tests {
     }
 
     fn step(effect: &mut WarpZoneEffect, dt: f32) -> EffectStatus {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None })
+        effect.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        })
     }
 
     fn count_base(prims: &[EffectPrimitiveDraw]) -> usize {
@@ -578,9 +581,16 @@ mod tests {
         assert!(
             prims.iter().all(|p| matches!(
                 p,
-                EffectPrimitiveDraw::GroundDisc { blend: BlendKind::Alpha, .. }
-                    | EffectPrimitiveDraw::SpriteParticle { blend: BlendKind::Alpha, .. }
-                    | EffectPrimitiveDraw::Frustum { blend: BlendKind::Additive, .. }
+                EffectPrimitiveDraw::GroundDisc {
+                    blend: BlendKind::Alpha,
+                    ..
+                } | EffectPrimitiveDraw::SpriteParticle {
+                    blend: BlendKind::Alpha,
+                    ..
+                } | EffectPrimitiveDraw::Frustum {
+                    blend: BlendKind::Additive,
+                    ..
+                }
             )),
             "base/sparkles alpha, funnel rings additive"
         );
@@ -604,10 +614,20 @@ mod tests {
         step(&mut sustained, 2.0);
         let prims = draws(&sustained);
         let rings = funnel_rings(&prims);
-        assert!(!rings.is_empty(), "sustained portal emits flared funnel rings");
+        assert!(
+            !rings.is_empty(),
+            "sustained portal emits flared funnel rings"
+        );
         let mut saw_flare = false;
         for p in &rings {
-            let EffectPrimitiveDraw::Frustum { color, top_size, bottom_size, height, .. } = p else {
+            let EffectPrimitiveDraw::Frustum {
+                color,
+                top_size,
+                bottom_size,
+                height,
+                ..
+            } = p
+            else {
                 unreachable!()
             };
             // Untinted — blue comes from `ring_blue.tga`, not an RGB multiplier.
@@ -620,8 +640,14 @@ mod tests {
         assert!(saw_flare, "at least one band stands up off the ground");
 
         // The base pad is still a flat lifted GroundDisc.
-        assert!(disc_center_y(&prims).unwrap() < 0.0, "base pad lifted off floor");
-        assert!(inner_rgb(&prims).is_none(), "no flat inner disc on the funnel");
+        assert!(
+            disc_center_y(&prims).unwrap() < 0.0,
+            "base pad lifted off floor"
+        );
+        assert!(
+            inner_rgb(&prims).is_none(),
+            "no flat inner disc on the funnel"
+        );
 
         // Slow inward drift: a band's radius shrinks only ~0.05/frame, so over a
         // single frame the outermost band barely moves (well under one unit).

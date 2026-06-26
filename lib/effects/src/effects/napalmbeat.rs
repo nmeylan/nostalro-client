@@ -5,9 +5,9 @@
 //! particle cycles through 8 `폭발{1-8}.tga` frames with anim speed 2, fades
 //! in over 10 frames, fades out from frame 20, and dies at frame 30.
 
+use super::spike_burst::seed_from_world;
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use super::spike_burst::seed_from_world;
 
 const EXPLOSION_TEXTURES: &[&str] = &[
     "폭발1.tga",
@@ -106,8 +106,8 @@ impl Effect for NapalmBeatEffect {
                 continue;
             }
 
-            let tex_step = (local_age * ANIM_SPEED * TEXTURE_COUNT as f32 / PARTICLE_DURATION)
-                as usize;
+            let tex_step =
+                (local_age * ANIM_SPEED * TEXTURE_COUNT as f32 / PARTICLE_DURATION) as usize;
             let tex_idx = tex_step.min(TEXTURE_COUNT - 1);
 
             let alpha = if local_age < FADE_IN_FRAMES {
@@ -140,7 +140,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -199,8 +203,14 @@ mod tests {
         let mut e = NapalmBeatEffect::new([0.0; 3]);
         advance(&mut e, 35.0);
         let count = draw_count(&e);
-        assert!(count < 15, "some early particles should have died by frame 35, got {count}");
-        assert!(count > 0, "late particles should still be alive at frame 35");
+        assert!(
+            count < 15,
+            "some early particles should have died by frame 35, got {count}"
+        );
+        assert!(
+            count > 0,
+            "late particles should still be alive at frame 35"
+        );
     }
 
     #[test]
@@ -208,7 +218,10 @@ mod tests {
         let mut e = NapalmBeatEffect::new([0.0; 3]);
         advance(&mut e, 0.5);
         let first = first_texture(&e);
-        assert!(first.starts_with("폭발"), "texture should be an explosion frame");
+        assert!(
+            first.starts_with("폭발"),
+            "texture should be an explosion frame"
+        );
 
         advance(&mut e, 14.0);
         let mid = first_texture(&e);
@@ -221,11 +234,17 @@ mod tests {
 
         advance(&mut e, 0.5);
         let alpha_early = first_alpha(&e);
-        assert!(alpha_early < 0.2, "near-zero alpha at start (fade in), got {alpha_early}");
+        assert!(
+            alpha_early < 0.2,
+            "near-zero alpha at start (fade in), got {alpha_early}"
+        );
 
         advance(&mut e, 14.5);
         let alpha_mid = first_alpha(&e);
-        assert!((alpha_mid - 1.0).abs() < 0.01, "full alpha in middle, got {alpha_mid}");
+        assert!(
+            (alpha_mid - 1.0).abs() < 0.01,
+            "full alpha in middle, got {alpha_mid}"
+        );
 
         advance(&mut e, 13.0);
         let alpha_late = first_alpha(&e);

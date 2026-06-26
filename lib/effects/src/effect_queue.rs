@@ -8,8 +8,8 @@
 //! Keeping spawns one-way via a queue means the game crate never needs to
 //! know about renderer types (wgpu, etc).
 
-use models::enums::effect_id::EffectId;
 use super::spec::Attach;
+use models::enums::effect_id::EffectId;
 
 /// One request to spawn a single effect.
 #[derive(Clone, Debug)]
@@ -146,7 +146,11 @@ impl EffectQueue {
         key: u32,
         duration_ms: u32,
     ) {
-        let duration_ms = if duration_ms == 0 { u32::MAX } else { duration_ms };
+        let duration_ms = if duration_ms == 0 {
+            u32::MAX
+        } else {
+            duration_ms
+        };
         self.push(SpawnRequest {
             key: Some(key),
             override_duration_ms: Some(duration_ms),
@@ -184,12 +188,7 @@ impl EffectQueue {
     /// pre-resolved world positions (caster → target). Frost Diver is
     /// the canonical caller; future arrow-shower style effects route
     /// through here as well.
-    pub fn spawn_trail(
-        &mut self,
-        effect_id: EffectId,
-        from: [f32; 3],
-        to: [f32; 3],
-    ) {
+    pub fn spawn_trail(&mut self, effect_id: EffectId, from: [f32; 3], to: [f32; 3]) {
         self.push(SpawnRequest::new(effect_id, Attach::Trail { from, to }));
     }
 
@@ -211,7 +210,10 @@ impl EffectQueue {
     /// Both account ids are re-resolved to world positions every frame by the
     /// renderer holder, so the ribbon follows the linked actor as it moves.
     pub fn spawn_link(&mut self, effect_id: EffectId, caster: u32, target: u32) {
-        self.push(SpawnRequest::new(effect_id, Attach::Link { caster, target }));
+        self.push(SpawnRequest::new(
+            effect_id,
+            Attach::Link { caster, target },
+        ));
     }
 
     /// Request that every live effect spawned with `key` be despawned this
@@ -249,7 +251,11 @@ mod tests {
         let pending = q.drain();
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].attach, Attach::Entity(42));
-        assert_eq!(pending[0].key, Some(7), "the owner key rides the spawn request");
+        assert_eq!(
+            pending[0].key,
+            Some(7),
+            "the owner key rides the spawn request"
+        );
         assert!(q.drain().is_empty(), "drain emptied the pending list");
 
         q.despawn(7);
@@ -483,7 +489,10 @@ pub enum ProjectileFlight {
     FixedFrames(f32),
     /// Travels at a fixed speed (world units/frame), so the reach scales with
     /// distance: `delay_frames + distance / units_per_frame`.
-    ConstantSpeed { delay_frames: f32, units_per_frame: f32 },
+    ConstantSpeed {
+        delay_frames: f32,
+        units_per_frame: f32,
+    },
     /// Bursts at the target — no caster→target flight delay.
     AtTarget,
 }
@@ -496,9 +505,10 @@ impl ProjectileFlight {
     pub fn reach_secs(self, distance_units: f32) -> f32 {
         let frames = match self {
             ProjectileFlight::FixedFrames(f) => f,
-            ProjectileFlight::ConstantSpeed { delay_frames, units_per_frame } => {
-                delay_frames + distance_units / units_per_frame.max(1e-3)
-            }
+            ProjectileFlight::ConstantSpeed {
+                delay_frames,
+                units_per_frame,
+            } => delay_frames + distance_units / units_per_frame.max(1e-3),
             ProjectileFlight::AtTarget => 0.0,
         };
         frames / Self::FPS
@@ -537,11 +547,9 @@ pub fn trail_arrival_secs(id: EffectId, distance_units: f32) -> Option<f32> {
         }
         EffectId::Teihit2 | EffectId::Backstap => effects::teihit::PROJECTILE_FLIGHT,
         EffectId::Soulbreaker => effects::soul_breaker::PROJECTILE_FLIGHT,
-        EffectId::Stin
-        | EffectId::Stin2
-        | EffectId::Stin3
-        | EffectId::Stin4
-        | EffectId::Stin5 => effects::stin::PROJECTILE_FLIGHT,
+        EffectId::Stin | EffectId::Stin2 | EffectId::Stin3 | EffectId::Stin4 | EffectId::Stin5 => {
+            effects::stin::PROJECTILE_FLIGHT
+        }
         EffectId::Chemical2
         | EffectId::Chemical2dash
         | EffectId::Chemical3
@@ -562,5 +570,8 @@ pub fn trail_arrival_secs(id: EffectId, distance_units: f32) -> Option<f32> {
 /// the effect viewer treats them like trail effects, anchoring the partner end
 /// to the green-cross fake entity.
 pub fn is_link_effect(id: EffectId) -> bool {
-    matches!(id, EffectId::Linelink | EffectId::Linelink2 | EffectId::Linelink3)
+    matches!(
+        id,
+        EffectId::Linelink | EffectId::Linelink2 | EffectId::Linelink3
+    )
 }

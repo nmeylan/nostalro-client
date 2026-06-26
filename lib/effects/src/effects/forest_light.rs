@@ -111,10 +111,26 @@ struct Column {
 }
 
 const COLUMNS: [Column; 4] = [
-    Column { rot_start_deg: 0.0, process_start: 0, breathes: false },
-    Column { rot_start_deg: 25.0, process_start: 0, breathes: true },
-    Column { rot_start_deg: 50.0, process_start: 0, breathes: false },
-    Column { rot_start_deg: 75.0, process_start: FADE_DURATION_FRAMES, breathes: true },
+    Column {
+        rot_start_deg: 0.0,
+        process_start: 0,
+        breathes: false,
+    },
+    Column {
+        rot_start_deg: 25.0,
+        process_start: 0,
+        breathes: true,
+    },
+    Column {
+        rot_start_deg: 50.0,
+        process_start: 0,
+        breathes: false,
+    },
+    Column {
+        rot_start_deg: 75.0,
+        process_start: FADE_DURATION_FRAMES,
+        breathes: true,
+    },
 ];
 
 pub struct ForestLightEffect {
@@ -126,7 +142,12 @@ pub struct ForestLightEffect {
 
 impl ForestLightEffect {
     pub fn new(world_pos: [f32; 3], params: ForestLightParams) -> Self {
-        Self { world_pos, params, age: 0.0, frames: 0 }
+        Self {
+            world_pos,
+            params,
+            age: 0.0,
+            frames: 0,
+        }
     }
 
     /// Alpha (out of 255) for a column whose counter is at `process`. Fade
@@ -218,12 +239,21 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn draws_after(params: ForestLightParams, secs: f32) -> Vec<EffectPrimitiveDraw> {
         let mut e = ForestLightEffect::new([10.0, 0.0, 20.0], params);
-        e.update(&EffectUpdateCtx { delta: secs, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: secs,
+            camera_target: None,
+            caster_yaw: None,
+        });
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         list.primitives
@@ -237,24 +267,40 @@ mod tests {
         let prims = draws_after(ITEM_LIGHT, 1.0); // frame 60 — full hold alpha.
         assert_eq!(prims.len(), 3 * SEGMENTS, "3 visible columns × 5 quads");
         for p in &prims {
-            let EffectPrimitiveDraw::WorldQuad { corners, color, blend, texture, .. } = p else {
+            let EffectPrimitiveDraw::WorldQuad {
+                corners,
+                color,
+                blend,
+                texture,
+                ..
+            } = p
+            else {
                 panic!("expected WorldQuad, got {p:?}");
             };
             assert_eq!(*blend, BlendKind::Additive);
             assert_eq!(*texture, "cloud11.tga");
             assert!(color[1] >= color[0] && color[1] >= color[2], "greenish");
             assert!((color[3] - PEAK_ALPHA / 255.0).abs() < 1e-3, "hold alpha");
-            assert!(corners[0][1] - corners[3][1] > 100.0, "tube spans the offset");
+            assert!(
+                corners[0][1] - corners[3][1] > 100.0,
+                "tube spans the offset"
+            );
         }
         // Fade-in: at frame 10 the alpha is a tenth of the hold value.
         let early = draws_after(ITEM_LIGHT, 10.0 / 60.0);
-        let EffectPrimitiveDraw::WorldQuad { color, .. } = &early[0] else { panic!() };
+        let EffectPrimitiveDraw::WorldQuad { color, .. } = &early[0] else {
+            panic!()
+        };
         assert!(color[3] < PEAK_ALPHA / 255.0, "still fading in");
         // Self-terminates once the 180-frame duration elapses.
         let mut e = ForestLightEffect::new([0.0; 3], ITEM_LIGHT);
         let mut status = EffectStatus::Running;
         for _ in 0..FADE_DURATION_FRAMES + 5 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
+            status = e.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         assert_eq!(status, EffectStatus::Dead);
     }
@@ -267,13 +313,22 @@ mod tests {
         let mut e = ForestLightEffect::new([0.0, 0.0, 0.0], FORESTLIGHT3);
         let mut status = EffectStatus::Running;
         for _ in 0..FADE_DURATION_FRAMES + 60 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
+            status = e.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         assert_eq!(status, EffectStatus::Running, "persistent");
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         assert_eq!(list.primitives.len(), 4 * SEGMENTS, "all 4 columns visible");
-        let EffectPrimitiveDraw::WorldQuad { color, .. } = &list.primitives[0] else { panic!() };
-        assert!((color[3] - 30.0 / 255.0).abs() < 1e-3, "flat alpha_base 30/255");
+        let EffectPrimitiveDraw::WorldQuad { color, .. } = &list.primitives[0] else {
+            panic!()
+        };
+        assert!(
+            (color[3] - 30.0 / 255.0).abs() < 1e-3,
+            "flat alpha_base 30/255"
+        );
     }
 }

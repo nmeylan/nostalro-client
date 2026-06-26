@@ -48,7 +48,12 @@ const CLOUD_TEX: [&str; 3] = ["cloud4.tga", "cloud1.tga", "cloud2.tga"];
 const FOG_TEX: [&str; 3] = ["fog1.tga", "fog2.tga", "fog3.tga"];
 
 pub const TEXTURES: &[&str] = &[
-    "cloud4.tga", "cloud1.tga", "cloud2.tga", "fog1.tga", "fog2.tga", "fog3.tga",
+    "cloud4.tga",
+    "cloud1.tga",
+    "cloud2.tga",
+    "fog1.tga",
+    "fog2.tga",
+    "fog3.tga",
 ];
 
 /// How a quad's centre wanders each frame (per-map drift).
@@ -103,10 +108,18 @@ pub const CLOUD: CloudParams = CloudParams {
     count: 160,
 };
 /// `EF_CLOUD2` → `Cloud(1)` ×60. yuno field clouds.
-pub const CLOUD2: CloudParams =
-    CloudParams { elevation: 40.0, centered: false, alpha_rate: 3.0, count: 240, ..CLOUD };
+pub const CLOUD2: CloudParams = CloudParams {
+    elevation: 40.0,
+    centered: false,
+    alpha_rate: 3.0,
+    count: 240,
+    ..CLOUD
+};
 /// `EF_CLOUD3` → `Cloud(2)` ×40.
-pub const CLOUD3: CloudParams = CloudParams { elevation: 0.0, ..CLOUD };
+pub const CLOUD3: CloudParams = CloudParams {
+    elevation: 0.0,
+    ..CLOUD
+};
 /// `EF_CLOUD4` → `Cloud(3)` ×80. einbroch warm ground fog.
 pub const CLOUD4: CloudParams = CloudParams {
     textures: FOG_TEX,
@@ -203,8 +216,14 @@ pub struct CloudEffect {
 
 impl CloudEffect {
     pub fn new(world_pos: [f32; 3], params: CloudParams) -> Self {
-        let clouds = (0..params.count).map(|i| spawn_cloud(i, 0, &params, world_pos)).collect();
-        Self { world_pos, params, clouds }
+        let clouds = (0..params.count)
+            .map(|i| spawn_cloud(i, 0, &params, world_pos))
+            .collect();
+        Self {
+            world_pos,
+            params,
+            clouds,
+        }
     }
 
     fn step(&mut self, df: f32) {
@@ -240,7 +259,10 @@ impl CloudEffect {
 fn spawn_cloud(i: u32, generation: u32, p: &CloudParams, world_pos: [f32; 3]) -> Cloud {
     let s = generation.wrapping_mul(11);
     let (dx, dz) = if p.centered {
-        (hash01(i, s + 1) * 300.0 - 150.0, hash01(i, s + 2) * 300.0 - 150.0)
+        (
+            hash01(i, s + 1) * 300.0 - 150.0,
+            hash01(i, s + 2) * 300.0 - 150.0,
+        )
     } else {
         let sign = |h: f32| if h < 0.5 { -1.0 } else { 1.0 };
         (
@@ -248,11 +270,20 @@ fn spawn_cloud(i: u32, generation: u32, p: &CloudParams, world_pos: [f32; 3]) ->
             (hash01(i, s + 2) * 200.0 + 25.0) * sign(hash01(i, s + 9)),
         )
     };
-    let y = world_pos[1] + p.elevation + if p.use_ground { -hash01(i, s + 3) * 5.0 } else { hash01(i, s + 3) * 10.0 };
+    let y = world_pos[1]
+        + p.elevation
+        + if p.use_ground {
+            -hash01(i, s + 3) * 5.0
+        } else {
+            hash01(i, s + 3) * 10.0
+        };
     Cloud {
         pos: [world_pos[0] + dx, y, world_pos[2] + dz],
         distance: p.size_base + hash01(i, s + 4) * p.size_rand,
-        drift_phase: [hash01(i, s + 5) * std::f32::consts::TAU, hash01(i, s + 6) * std::f32::consts::TAU],
+        drift_phase: [
+            hash01(i, s + 5) * std::f32::consts::TAU,
+            hash01(i, s + 6) * std::f32::consts::TAU,
+        ],
         drift_rate: [0.3 + hash01(i, s + 10) * 0.5, 0.3 + hash01(i, s + 11) * 0.5],
         breath_phase: hash01(i, s + 7) * std::f32::consts::TAU,
         process: 0.0,
@@ -281,7 +312,8 @@ impl Effect for CloudEffect {
                 size: [side, side],
                 uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
                 rotation: 0.0,
-                texture: self.params.textures[(c.generation as usize).wrapping_add(c.distance as usize) % 3],
+                texture: self.params.textures
+                    [(c.generation as usize).wrapping_add(c.distance as usize) % 3],
                 color: [r, g, b, (c.alpha / 255.0).min(1.0)],
                 blend: BlendKind::Alpha,
             });
@@ -294,11 +326,20 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn step(e: &mut CloudEffect, frames: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None })
+        e.update(&EffectUpdateCtx {
+            delta: frames / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        })
     }
 
     fn draws(e: &CloudEffect) -> Vec<EffectPrimitiveDraw> {
@@ -316,13 +357,29 @@ mod tests {
         assert!(draws(&e).is_empty(), "alpha starts at 0");
         step(&mut e, CLOUD3.ramp_frames);
         let prims = draws(&e);
-        assert_eq!(prims.len(), CLOUD3.count as usize, "all quads visible at peak");
+        assert_eq!(
+            prims.len(),
+            CLOUD3.count as usize,
+            "all quads visible at peak"
+        );
         let peak = CLOUD3.alpha_rate * CLOUD3.ramp_frames / 255.0;
         for p in &prims {
-            let EffectPrimitiveDraw::Billboard { blend, texture, color, .. } = p else { unreachable!() };
+            let EffectPrimitiveDraw::Billboard {
+                blend,
+                texture,
+                color,
+                ..
+            } = p
+            else {
+                unreachable!()
+            };
             assert_eq!(*blend, BlendKind::Alpha);
             assert!(CLOUD_TEX.contains(texture));
-            assert!((color[3] - peak).abs() < 0.05, "near peak alpha: {}", color[3]);
+            assert!(
+                (color[3] - peak).abs() < 0.05,
+                "near peak alpha: {}",
+                color[3]
+            );
         }
     }
 
@@ -334,14 +391,22 @@ mod tests {
         step(&mut fog, CLOUD4.ramp_frames);
         let fp = draws(&fog);
         assert_eq!(fp.len(), 320);
-        let EffectPrimitiveDraw::Billboard { texture, color, .. } = &fp[0] else { unreachable!() };
+        let EffectPrimitiveDraw::Billboard { texture, color, .. } = &fp[0] else {
+            unreachable!()
+        };
         assert!(FOG_TEX.contains(texture), "fog textures");
         assert!(color[0] > color[2], "warm peach tint (r>b)");
 
         let mut black = CloudEffect::new([0.0, 0.0, 0.0], CLOUD7);
         step(&mut black, CLOUD7.ramp_frames);
-        let EffectPrimitiveDraw::Billboard { color, .. } = &draws(&black)[0] else { unreachable!() };
-        assert_eq!([color[0], color[1], color[2]], [0.0, 0.0, 0.0], "black tint");
+        let EffectPrimitiveDraw::Billboard { color, .. } = &draws(&black)[0] else {
+            unreachable!()
+        };
+        assert_eq!(
+            [color[0], color[1], color[2]],
+            [0.0, 0.0, 0.0],
+            "black tint"
+        );
     }
 
     #[test]
@@ -359,9 +424,15 @@ mod tests {
         // Size breathes around the base side over the run.
         let mut e2 = CloudEffect::new([0.0, 0.0, 0.0], CLOUD3);
         step(&mut e2, CLOUD3.ramp_frames);
-        let side_a = match &draws(&e2)[0] { EffectPrimitiveDraw::Billboard { size, .. } => size[0], _ => unreachable!() };
+        let side_a = match &draws(&e2)[0] {
+            EffectPrimitiveDraw::Billboard { size, .. } => size[0],
+            _ => unreachable!(),
+        };
         step(&mut e2, 90.0);
-        let side_b = match &draws(&e2)[0] { EffectPrimitiveDraw::Billboard { size, .. } => size[0], _ => unreachable!() };
+        let side_b = match &draws(&e2)[0] {
+            EffectPrimitiveDraw::Billboard { size, .. } => size[0],
+            _ => unreachable!(),
+        };
         assert!((side_a - side_b).abs() > 1e-3, "size breathes over time");
     }
 }

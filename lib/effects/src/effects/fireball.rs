@@ -9,7 +9,7 @@
 //! When spawned without trail data (`from == to`), falls back to a single
 //! expanding sprite at the spawn point (viewer / single-point callers).
 
-use crate::draw::{aim_backward, BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, aim_backward};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const FIREBALL_SPRITE: &str = "data/sprite/이팩트/fireball";
@@ -139,8 +139,7 @@ impl Effect for FireballEffect {
 
         if self.is_trail {
             while (self.next_spawn_index as usize) < SPAWN_FRAMES.len() {
-                let spawn_time_s =
-                    SPAWN_FRAMES[self.next_spawn_index as usize] / FRAMES_PER_SECOND;
+                let spawn_time_s = SPAWN_FRAMES[self.next_spawn_index as usize] / FRAMES_PER_SECOND;
                 if self.age >= spawn_time_s {
                     self.spawn_particle();
                 } else {
@@ -218,7 +217,11 @@ mod tests {
     use super::*;
 
     fn step(e: &mut FireballEffect, dt: f32) {
-        e.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -245,7 +248,8 @@ mod tests {
         for _ in 0..120 {
             status = e.update(&EffectUpdateCtx {
                 delta: 1.0 / FRAMES_PER_SECOND,
-                camera_target: None, caster_yaw: None,
+                camera_target: None,
+                caster_yaw: None,
             });
             if status == EffectStatus::Dead {
                 break;
@@ -349,7 +353,8 @@ mod tests {
         for _ in 0..200 {
             status = e.update(&EffectUpdateCtx {
                 delta: 1.0 / FRAMES_PER_SECOND,
-                camera_target: None, caster_yaw: None,
+                camera_target: None,
+                caster_yaw: None,
             });
             if status == EffectStatus::Dead {
                 break;

@@ -59,8 +59,7 @@ pub const AWAKENING: PotionConParams = PotionConParams {
 
 pub const CONCENTRATION_DURATION_MS: u32 =
     (CONCENTRATION.total_frames * 1000.0 / FRAMES_PER_SECOND) as u32;
-pub const AWAKENING_DURATION_MS: u32 =
-    (AWAKENING.total_frames * 1000.0 / FRAMES_PER_SECOND) as u32;
+pub const AWAKENING_DURATION_MS: u32 = (AWAKENING.total_frames * 1000.0 / FRAMES_PER_SECOND) as u32;
 
 pub struct PotionConEffect {
     world_pos: [f32; 3],
@@ -141,7 +140,8 @@ mod tests {
     fn step(e: &mut PotionConEffect, dt: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -178,9 +178,6 @@ mod tests {
     fn dies_after_total_duration() {
         let mut e = PotionConEffect::new([0.0; 3], "집중", CONCENTRATION);
         let total_s = CONCENTRATION.total_frames / FRAMES_PER_SECOND;
-        assert!(matches!(
-            step(&mut e, total_s + 0.1),
-            EffectStatus::Dead
-        ));
+        assert!(matches!(step(&mut e, total_s + 0.1), EffectStatus::Dead));
     }
 }

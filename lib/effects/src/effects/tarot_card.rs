@@ -139,7 +139,10 @@ impl TarotCardEffect {
     /// Breathing scale: grows ~`wobble_amp` as the phase climbs 0°→90°, then
     /// shrinks back. Matches the original's `1 + sin(phase) * 0.05` breathe.
     fn scale(&self) -> f32 {
-        1.0 + self.params.wobble_amp * (self.process * self.params.wobble_speed_deg).to_radians().sin()
+        1.0 + self.params.wobble_amp
+            * (self.process * self.params.wobble_speed_deg)
+                .to_radians()
+                .sin()
     }
 }
 
@@ -160,7 +163,11 @@ impl Effect for TarotCardEffect {
         }
         let s = self.scale();
         out.push(EffectPrimitiveDraw::Billboard {
-            pos: [self.center[0], self.center[1] + self.params.y_offset, self.center[2]],
+            pos: [
+                self.center[0],
+                self.center[1] + self.params.y_offset,
+                self.center[2],
+            ],
             size: [self.params.width * s, self.params.height * s],
             uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
             rotation: 0.0,
@@ -178,23 +185,34 @@ mod tests {
     fn tick(e: &mut TarotCardEffect, frames: u32) -> EffectStatus {
         let mut st = EffectStatus::Running;
         for _ in 0..frames {
-            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            st = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         st
     }
 
     fn card(e: &TarotCardEffect) -> Option<([f32; 2], f32, &'static str)> {
         let mut l = EffectDrawList::new();
-        e.collect_draws(&mut l, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 256.0,
-            screen_h: 256.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut l,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 256.0,
+                screen_h: 256.0,
+                elapsed: 0.0,
+            },
+        );
         l.primitives.first().map(|p| match p {
-            EffectPrimitiveDraw::Billboard { size, color, texture, blend: BlendKind::Alpha, .. } => {
-                (*size, color[3], *texture)
-            }
+            EffectPrimitiveDraw::Billboard {
+                size,
+                color,
+                texture,
+                blend: BlendKind::Alpha,
+                ..
+            } => (*size, color[3], *texture),
             _ => panic!("expected an alpha-blended Billboard"),
         })
     }
@@ -206,9 +224,19 @@ mod tests {
         let (_, a_in, _) = card(&e).expect("visible during fade-in");
         tick(&mut e, 30);
         let (_, a_hold, _) = card(&e).expect("visible at hold");
-        assert!(a_hold > a_in, "alpha rises into the hold: {a_in} -> {a_hold}");
-        assert!(a_hold <= tarot_params(0).max_alpha + 1e-3, "alpha is capped at max");
-        assert_eq!(tick(&mut e, 400), EffectStatus::Dead, "self-terminates after its lifetime");
+        assert!(
+            a_hold > a_in,
+            "alpha rises into the hold: {a_in} -> {a_hold}"
+        );
+        assert!(
+            a_hold <= tarot_params(0).max_alpha + 1e-3,
+            "alpha is capped at max"
+        );
+        assert_eq!(
+            tick(&mut e, 400),
+            EffectStatus::Dead,
+            "self-terminates after its lifetime"
+        );
     }
 
     #[test]
@@ -220,8 +248,18 @@ mod tests {
         let (peak, ..) = card(&e).expect("visible at peak");
         tick(&mut e, 50); // ~frame 95: phase past 180°, size dips back
         let (late, ..) = card(&e).expect("visible at tail");
-        assert!(peak[0] > early[0], "card grows as it appears: {} -> {}", early[0], peak[0]);
-        assert!(late[0] < peak[0], "card shrinks again: {} -> {}", peak[0], late[0]);
+        assert!(
+            peak[0] > early[0],
+            "card grows as it appears: {} -> {}",
+            early[0],
+            peak[0]
+        );
+        assert!(
+            late[0] < peak[0],
+            "card shrinks again: {} -> {}",
+            peak[0],
+            late[0]
+        );
     }
 
     #[test]

@@ -42,8 +42,7 @@ pub const TEXTURES: &[&str] = &[TEXTURE];
 const FRAMES_PER_SECOND: f32 = 60.0;
 /// 300 frames at 60 fps = 5 s, matching the original game.
 const TOTAL_FRAMES: u32 = 300;
-pub const TOTAL_DURATION_MS: u32 =
-    ((TOTAL_FRAMES as f32) / FRAMES_PER_SECOND * 1000.0) as u32;
+pub const TOTAL_DURATION_MS: u32 = ((TOTAL_FRAMES as f32) / FRAMES_PER_SECOND * 1000.0) as u32;
 
 const SEGMENTS: u32 = (RADIAL_EMITTER_DIVISION - 1) as u32;
 const RISE_ANGLE_RAD: f32 = std::f32::consts::FRAC_PI_2;
@@ -182,7 +181,8 @@ mod tests {
     fn step(e: &mut WindEffect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FRAMES_PER_SECOND,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -249,7 +249,10 @@ mod tests {
         // from 93 to 120 = +27 → 9 frames; step 20 to be safe).
         step(&mut e, 20.0);
         let (_, arc_late, _, _, _) = ring(&draws(&e)[0]);
-        assert!((arc_late - ARC_MAX_DEG).abs() < 0.1, "arc capped: {arc_late}");
+        assert!(
+            (arc_late - ARC_MAX_DEG).abs() < 0.1,
+            "arc capped: {arc_late}"
+        );
     }
 
     #[test]

@@ -18,9 +18,9 @@
 //! this module generalises it (radius growth + mid-life reversal + gravity)
 //! and drives two configs.
 
+use super::spike_burst::seed_from_world;
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use super::spike_burst::seed_from_world;
 
 pub const PARTICLE_SPRITE: &str = "data/sprite/이팩트/particle1";
 pub const SPRITES: &[&str] = &[PARTICLE_SPRITE];
@@ -217,8 +217,11 @@ impl Effect for SphereEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         let dt = ctx.delta * FRAMES_PER_SECOND;
         self.age_frames += dt;
-        while self.age_frames >= self.next_spawn_frame && self.next_spawn_frame <= SPHERE_SPAWN_END_FRAME {
-            self.particles.push(OrbitParticle::new(&SPHERE, SPHERE_LONGITUDE_INIT_DEG));
+        while self.age_frames >= self.next_spawn_frame
+            && self.next_spawn_frame <= SPHERE_SPAWN_END_FRAME
+        {
+            self.particles
+                .push(OrbitParticle::new(&SPHERE, SPHERE_LONGITUDE_INIT_DEG));
             self.next_spawn_frame += SPHERE_SPAWN_INTERVAL_FRAMES;
         }
         for p in &mut self.particles {
@@ -304,11 +307,20 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn count_particles(prims: &[EffectPrimitiveDraw]) -> usize {
@@ -327,7 +339,11 @@ mod tests {
         for _ in 0..45 {
             e.update(&ctx(1.0 / FRAMES_PER_SECOND));
         }
-        assert!(e.particles.len() > early, "more particles after spawns {early} → {}", e.particles.len());
+        assert!(
+            e.particles.len() > early,
+            "more particles after spawns {early} → {}",
+            e.particles.len()
+        );
     }
 
     #[test]
@@ -342,7 +358,10 @@ mod tests {
         }
         let r_after = e.particles[0].radius;
         assert!(e.particles[0].reversed, "radius reversed past frame 95");
-        assert!(r_after < r_before, "radius shrinks after reversal {r_before} → {r_after}");
+        assert!(
+            r_after < r_before,
+            "radius shrinks after reversal {r_before} → {r_after}"
+        );
     }
 
     #[test]
@@ -350,14 +369,22 @@ mod tests {
         let mut e = RemoveTrapEffect::new([3.0, 0.0, 4.0]);
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
-        assert_eq!(count_particles(&list.primitives), REMOVETRAP_PER_BURST, "first burst");
+        assert_eq!(
+            count_particles(&list.primitives),
+            REMOVETRAP_PER_BURST,
+            "first burst"
+        );
         // Past frame 7 the second burst has fired.
         for _ in 0..8 {
             e.update(&ctx(1.0 / FRAMES_PER_SECOND));
         }
         let mut list2 = EffectDrawList::new();
         e.collect_draws(&mut list2, &render_ctx());
-        assert_eq!(count_particles(&list2.primitives), REMOVETRAP_PER_BURST * 2, "both bursts");
+        assert_eq!(
+            count_particles(&list2.primitives),
+            REMOVETRAP_PER_BURST * 2,
+            "both bursts"
+        );
     }
 
     #[test]

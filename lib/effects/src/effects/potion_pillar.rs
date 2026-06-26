@@ -149,7 +149,8 @@ mod tests {
     fn step_and_collect(e: &mut PotionPillarEffect, dt: f32) -> Vec<EffectPrimitiveDraw> {
         e.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &ctx());
@@ -199,7 +200,8 @@ mod tests {
         let total_s = DEFAULT.duration_frames as f32 / FRAMES_PER_SECOND;
         let s = e.update(&EffectUpdateCtx {
             delta: total_s + 0.1,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
         assert!(matches!(s, EffectStatus::Dead));
     }

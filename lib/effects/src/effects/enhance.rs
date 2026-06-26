@@ -35,8 +35,7 @@ const PARENT_DURATION_FRAMES: f32 = 48.0;
 // height accel = -(height_speed/duration)/1.5, max height 50, alpha 128.
 const CYLINDER_RADIUS: f32 = 6.0;
 const CYLINDER_HEIGHT_SPEED: f32 = 2.0;
-const CYLINDER_HEIGHT_ACCEL: f32 =
-    -(CYLINDER_HEIGHT_SPEED / PARENT_DURATION_FRAMES) / 1.5;
+const CYLINDER_HEIGHT_ACCEL: f32 = -(CYLINDER_HEIGHT_SPEED / PARENT_DURATION_FRAMES) / 1.5;
 const CYLINDER_MAX_HEIGHT: f32 = 50.0;
 const CYLINDER_MAX_ALPHA: f32 = 128.0 / 255.0;
 const CYLINDER_FADE_OUT_AT: f32 = PARENT_DURATION_FRAMES - PARENT_DURATION_FRAMES / 3.0;
@@ -67,8 +66,7 @@ fn fade_out(frame: f32, peak: f32, fade_out_at: f32, total: f32) -> f32 {
 }
 
 fn cylinder_height(frame: f32) -> f32 {
-    let raw = CYLINDER_HEIGHT_SPEED * frame
-        + CYLINDER_HEIGHT_ACCEL * frame * (frame + 1.0) / 2.0;
+    let raw = CYLINDER_HEIGHT_SPEED * frame + CYLINDER_HEIGHT_ACCEL * frame * (frame + 1.0) / 2.0;
     raw.clamp(0.0, CYLINDER_MAX_HEIGHT)
 }
 
@@ -121,9 +119,8 @@ pub struct EnhanceEffect {
 
 impl EnhanceEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        let rng_state = 0x9E37_79B9
-            ^ world_pos[0].to_bits()
-            ^ world_pos[2].to_bits().rotate_left(13);
+        let rng_state =
+            0x9E37_79B9 ^ world_pos[0].to_bits() ^ world_pos[2].to_bits().rotate_left(13);
         Self {
             world_pos,
             streaks: Vec::new(),
@@ -147,8 +144,7 @@ impl EnhanceEffect {
 
     fn spawn_streak(&mut self) {
         let longitude_deg = self.lcg_float() * 360.0;
-        let radius = STREAK_RADIUS_MIN
-            + self.lcg_float() * (STREAK_RADIUS_MAX - STREAK_RADIUS_MIN);
+        let radius = STREAK_RADIUS_MIN + self.lcg_float() * (STREAK_RADIUS_MAX - STREAK_RADIUS_MIN);
         let (sn, cs) = longitude_deg.to_radians().sin_cos();
         self.streaks.push(Streak {
             anchor: self.world_pos,
@@ -251,7 +247,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {

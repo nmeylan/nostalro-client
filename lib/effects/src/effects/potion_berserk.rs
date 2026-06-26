@@ -1,21 +1,22 @@
-//! EF_POTIONBERSERK — Awakening Potion / Berserk Potion sustained buff.
+//! EF_POTIONBERSERK — Berserk Potion sustained buff.
 //!
-//! Reference: `ro-effects/effects/imgs/200-250/218.gif`.
+//! Reference: `ro-effects/effects/imgs/200-250/220.gif`.
 //!
 //! Observed behaviour:
 //!
-//! 1. Frame 0 — tints the master red and raises the pillar column with
+//! 1. Frame 0 — recolours the master reddish ([`BODY_TINT_RGB`], via the
+//!    [`Effect::body_tint`] channel) and raises the pillar column with
 //!    height speed 1.0 over 50 frames (in [`super::potion_pillar`]).
 //! 2. Frame 12 → 110 (every 4 frames) — spawns a cross-texture
 //!    spark: two perpendicular thin red strips at a random XZ offset
 //!    around the master, rising upward at 0.3 → 1.2 units/frame, lifetime
 //!    40 frames, texture `ac_center2.tga`. Both quads share a 0→180 alpha
 //!    ramp over 20 frames.
-//! 3. Frame 18 — quake + `ac_concentration.wav` (gameplay-side, not
-//!    rendered).
-//! 4. A `berserk.str` overlay plays alongside everything else;
+//! 3. Frame 18 — a one-shot screen quake ([`Effect::take_camera_shake`]) and
+//!    `ac_concentration.wav` ([`Effect::take_sfx_request`]).
+//! 4. A `버서크.str` overlay plays alongside everything else;
 //!    exposed via the [`Effect::str_overlay`] hook.
-//! 5. Frame > 150 — dies.
+//! 5. Frame > 150 — the body tint is dropped and the effect dies.
 //!
 //! Implementation notes:
 //! * The cylinder pillar is delegated to [`super::potion_pillar`] so both
@@ -29,17 +30,23 @@
 //! [`super::potion_pillar`]: crate::effects::potion_pillar
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effects::potion_pillar::{
-    PotionPillarEffect, PotionPillarParams, BERSERK,
-};
+use crate::effect_trait::{BodyTint, CameraShake, Effect, EffectRenderCtx, EffectUpdateCtx};
+use crate::effects::potion_pillar::{BERSERK, PotionPillarEffect, PotionPillarParams};
 
-pub const STR_OVERLAY: &str = "berserk";
+pub const STR_OVERLAY: &str = "버서크";
 pub const SPARK_TEXTURE: &str = "ac_center2.tga";
-pub const TEXTURES: &[&str] = &[
-    SPARK_TEXTURE,
-    super::potion_pillar::TEXTURE,
-];
+pub const TEXTURES: &[&str] = &[SPARK_TEXTURE, super::potion_pillar::TEXTURE];
+
+/// One-shot quake + SFX, fired together at frame 18 (`MM_QUAKE, 1` +
+/// `ac_concentration.wav` in the original game).
+const QUAKE_FRAME: f32 = 18.0;
+const QUAKE_AMPLITUDE: f32 = 1.0;
+const QUAKE_DURATION_MS: u32 = 350;
+const SFX_PATH: &str = "effect\\ac_concentration.wav";
+
+/// Reddish body recolour applied to the master while the buff is up
+/// (`AM_CHANGE_COLOR(250,120,120)` → `AM_RETURN_COLOR` past frame 150).
+const BODY_TINT_RGB: [u8; 3] = [250, 120, 120];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
@@ -132,6 +139,10 @@ pub struct PotionBerserkEffect {
     sparks: Vec<Spark>,
     /// Next parent-frame index that should spawn a spark.
     next_spark_frame: f32,
+    /// Quake and SFX each fire once at [`QUAKE_FRAME`]; tracked separately so
+    /// neither drain order can swallow the other.
+    quake_fired: bool,
+    sfx_fired: bool,
     rng: Rng,
 }
 
@@ -143,9 +154,9 @@ impl PotionBerserkEffect {
             pillar: PotionPillarEffect::new(world_pos, BERSERK as PotionPillarParams),
             sparks: Vec::new(),
             next_spark_frame: SPARK_FIRST_FRAME,
-            rng: Rng::from_seed(
-                (world_pos[0].to_bits() ^ world_pos[2].to_bits()) ^ 0xBE_15_E1_C0,
-            ),
+            quake_fired: false,
+            sfx_fired: false,
+            rng: Rng::from_seed((world_pos[0].to_bits() ^ world_pos[2].to_bits()) ^ 0xBE_15_E1_C0),
         }
     }
 
@@ -260,6 +271,31 @@ impl Effect for PotionBerserkEffect {
     fn str_overlay(&self) -> Option<&'static str> {
         Some(STR_OVERLAY)
     }
+
+    fn body_tint(&self) -> Option<BodyTint> {
+        // Reddish recolour while the buff is up, dropped past frame 150.
+        let frame = self.age * FRAMES_PER_SECOND;
+        (frame < PARENT_TOTAL_FRAMES).then_some(BodyTint { rgb: BODY_TINT_RGB })
+    }
+
+    fn take_camera_shake(&mut self) -> Option<CameraShake> {
+        let frame = self.age * FRAMES_PER_SECOND;
+        (!self.quake_fired && frame >= QUAKE_FRAME).then(|| {
+            self.quake_fired = true;
+            CameraShake {
+                amplitude: QUAKE_AMPLITUDE,
+                duration_ms: QUAKE_DURATION_MS,
+            }
+        })
+    }
+
+    fn take_sfx_request(&mut self) -> Option<&'static str> {
+        let frame = self.age * FRAMES_PER_SECOND;
+        (!self.sfx_fired && frame >= QUAKE_FRAME).then(|| {
+            self.sfx_fired = true;
+            SFX_PATH
+        })
+    }
 }
 
 #[cfg(test)]
@@ -284,7 +320,8 @@ mod tests {
     fn step(e: &mut PotionBerserkEffect, dt: f32) {
         e.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
     }
 
@@ -317,7 +354,10 @@ mod tests {
             .iter()
             .filter(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { .. }))
             .count();
-        assert!(quads >= 2, "expected at least 2 spark quads at frame ~13, got {quads}");
+        assert!(
+            quads >= 2,
+            "expected at least 2 spark quads at frame ~13, got {quads}"
+        );
         assert!(quads.is_multiple_of(2), "cross-texture emits in pairs");
     }
 
@@ -328,12 +368,34 @@ mod tests {
     }
 
     #[test]
+    fn tints_body_then_quakes_and_plays_sfx_at_frame_eighteen() {
+        // Sociable: body tint is live from frame 0; the quake + wave both fire
+        // once on reaching frame 18 and never again.
+        let mut e = PotionBerserkEffect::new([0.0; 3]);
+        step(&mut e, 1.0 / FRAMES_PER_SECOND);
+        assert_eq!(e.body_tint(), Some(BodyTint { rgb: BODY_TINT_RGB }));
+        assert!(e.take_camera_shake().is_none(), "no quake before frame 18");
+        assert!(e.take_sfx_request().is_none(), "no sfx before frame 18");
+
+        step(&mut e, 18.0 / FRAMES_PER_SECOND);
+        assert!(e.take_camera_shake().is_some(), "quake fires at frame 18");
+        assert_eq!(e.take_sfx_request(), Some(SFX_PATH), "wave fires at frame 18");
+        assert!(e.take_camera_shake().is_none(), "quake is one-shot");
+        assert!(e.take_sfx_request().is_none(), "wave is one-shot");
+
+        // Tint is dropped once the buff window ends (past frame 150).
+        step(&mut e, 140.0 / FRAMES_PER_SECOND);
+        assert_eq!(e.body_tint(), None, "tint cleared past frame 150");
+    }
+
+    #[test]
     fn dies_after_full_duration() {
         let mut e = PotionBerserkEffect::new([0.0; 3]);
         let total_s = TOTAL_DURATION_MS as f32 / 1000.0;
         let s = e.update(&EffectUpdateCtx {
             delta: total_s + 0.5,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
         assert!(matches!(s, EffectStatus::Dead));
     }

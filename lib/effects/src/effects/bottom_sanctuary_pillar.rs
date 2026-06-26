@@ -78,8 +78,7 @@ impl Effect for BottomSanctuaryPillarEffect {
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let frame = self.age * FRAMES_PER_SECOND;
         let alpha = BASE_ALPHA * (frame / FADE_IN_FRAMES).clamp(0.0, 1.0);
-        let rotation = self.initial_rotation
-            + (frame * ROT_DEG_PER_FRAME).to_radians();
+        let rotation = self.initial_rotation + (frame * ROT_DEG_PER_FRAME).to_radians();
 
         out.push(EffectPrimitiveDraw::Cylinder {
             base: self.world_pos,
@@ -118,7 +117,11 @@ mod tests {
     }
 
     fn step(effect: &mut BottomSanctuaryPillarEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
+        effect.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     #[test]
@@ -134,7 +137,10 @@ mod tests {
                 ..
             } => {
                 assert_eq!(*sides, 4);
-                assert!((bottom_size - top_size).abs() < f32::EPSILON, "cylinder, not cone");
+                assert!(
+                    (bottom_size - top_size).abs() < f32::EPSILON,
+                    "cylinder, not cone"
+                );
                 assert!(*height > 0.0);
             }
             other => panic!("expected Cylinder, got {other:?}"),
@@ -177,7 +183,11 @@ mod tests {
     #[test]
     fn runs_for_full_duration() {
         let mut bs = BottomSanctuaryPillarEffect::new([0.0; 3]);
-        let s = bs.update(&EffectUpdateCtx { delta: 1.0, camera_target: None, caster_yaw: None });
+        let s = bs.update(&EffectUpdateCtx {
+            delta: 1.0,
+            camera_target: None,
+            caster_yaw: None,
+        });
         assert!(matches!(s, EffectStatus::Running));
     }
 }

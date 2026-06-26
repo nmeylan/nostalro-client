@@ -178,14 +178,20 @@ mod tests {
     fn run_to(c: &mut FloorAuraEffect, frame: f32) {
         let delta = (frame - c.age * FRAMES_PER_SECOND) / FRAMES_PER_SECOND;
         if delta > 0.0 {
-            c.update(&EffectUpdateCtx { delta, camera_target: None, caster_yaw: None });
+            c.update(&EffectUpdateCtx {
+                delta,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
     }
 
     /// Corner radius (half-diagonal) of a quad, and whether it's flat on a
     /// single ground plane.
     fn radius_and_flat(p: &EffectPrimitiveDraw, center: [f32; 3]) -> (f32, bool) {
-        let EffectPrimitiveDraw::WorldQuad { corners, .. } = p else { panic!("expected WorldQuad") };
+        let EffectPrimitiveDraw::WorldQuad { corners, .. } = p else {
+            panic!("expected WorldQuad")
+        };
         let y0 = corners[0][1];
         let flat = corners.iter().all(|c| (c[1] - y0).abs() < 1e-4);
         let r = ((corners[0][0] - center[0]).powi(2) + (corners[0][2] - center[2]).powi(2)).sqrt();
@@ -201,8 +207,13 @@ mod tests {
         assert_eq!(prims.len(), NUM_QUADS);
         for p in &prims {
             let (_, flat) = radius_and_flat(p, center);
-            assert!(flat, "floor aura quad must lie on a single horizontal plane");
-            let EffectPrimitiveDraw::WorldQuad { blend, .. } = p else { panic!() };
+            assert!(
+                flat,
+                "floor aura quad must lie on a single horizontal plane"
+            );
+            let EffectPrimitiveDraw::WorldQuad { blend, .. } = p else {
+                panic!()
+            };
             assert_eq!(*blend, BlendKind::Additive);
         }
     }
@@ -219,7 +230,10 @@ mod tests {
         let prims = quads(&c);
         let (r0, _) = radius_and_flat(&prims[0], center);
         let (r1, _) = radius_and_flat(&prims[1], center);
-        assert!((r0 - r1).abs() > 1e-3, "quads expand/shrink out of phase ({r0} vs {r1})");
+        assert!(
+            (r0 - r1).abs() > 1e-3,
+            "quads expand/shrink out of phase ({r0} vs {r1})"
+        );
     }
 
     #[test]
@@ -234,7 +248,14 @@ mod tests {
     fn never_self_terminates() {
         let mut c = FloorAuraEffect::new([0.0; 3], LV99_GREEN);
         for _ in 0..200 {
-            assert_eq!(c.update(&EffectUpdateCtx { delta: 0.1, camera_target: None, caster_yaw: None }), EffectStatus::Running);
+            assert_eq!(
+                c.update(&EffectUpdateCtx {
+                    delta: 0.1,
+                    camera_target: None,
+                    caster_yaw: None
+                }),
+                EffectStatus::Running
+            );
         }
     }
 }

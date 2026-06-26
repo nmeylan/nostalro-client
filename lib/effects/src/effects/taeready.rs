@@ -68,7 +68,11 @@ mod tests {
     use super::*;
 
     fn step(e: &mut TaeReadyEffect, frames: f32) {
-        e.update(&EffectUpdateCtx { delta: frames / FPS, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: frames / FPS,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     #[test]

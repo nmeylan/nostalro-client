@@ -108,7 +108,11 @@ impl LightSphereEffect {
                     dir,
                     angle_deg: (h % 360) as f32,
                     spin_deg_per_frame: ((h >> 9) & 1) as f32 + 1.0, // 1 or 2 deg/frame
-                    color: if (h >> 10) & 1 == 0 { BLADE_COLOR_A } else { BLADE_COLOR_B },
+                    color: if (h >> 10) & 1 == 0 {
+                        BLADE_COLOR_A
+                    } else {
+                        BLADE_COLOR_B
+                    },
                 }
             })
             .collect();
@@ -138,7 +142,8 @@ impl Effect for LightSphereEffect {
         let frames = ctx.delta * FPS;
         self.age_frames += frames;
         if self.distance < DISTANCE_CAP {
-            self.distance = (self.distance * DISTANCE_GROWTH_PER_FRAME.powf(frames)).min(DISTANCE_CAP);
+            self.distance =
+                (self.distance * DISTANCE_GROWTH_PER_FRAME.powf(frames)).min(DISTANCE_CAP);
         }
         for blade in &mut self.blades {
             blade.angle_deg = (blade.angle_deg + blade.spin_deg_per_frame * frames) % 360.0;
@@ -234,7 +239,12 @@ mod tests {
         // Two crossed quads per blade — a dense burst, not one sphere.
         assert_eq!(prims.len(), BLADE_COUNT * 2);
         match &prims[0] {
-            EffectPrimitiveDraw::WorldQuad { color, blend, corners, .. } => {
+            EffectPrimitiveDraw::WorldQuad {
+                color,
+                blend,
+                corners,
+                ..
+            } => {
                 assert_eq!(*blend, BlendKind::Additive);
                 assert!(color[2] > color[0], "bluish");
                 // Tip (corner 1) is lifted off the base cross (corner 0).
@@ -248,7 +258,10 @@ mod tests {
             e.update(&ctx(1.0));
         }
         assert!(e.distance > early);
-        assert!((e.distance - DISTANCE_CAP).abs() < 1e-3, "distance caps at 10");
+        assert!(
+            (e.distance - DISTANCE_CAP).abs() < 1e-3,
+            "distance caps at 10"
+        );
     }
 
     #[test]
@@ -263,10 +276,18 @@ mod tests {
         let prims = behind_draws(&e);
         assert_eq!(prims.len(), BLADE_COUNT * 2);
         match &prims[0] {
-            EffectPrimitiveDraw::WorldQuad { texture, blend, color, .. } => {
+            EffectPrimitiveDraw::WorldQuad {
+                texture,
+                blend,
+                color,
+                ..
+            } => {
                 assert_eq!(*texture, WHITE02_TEXTURE);
                 assert_eq!(*blend, BlendKind::Additive);
-                assert!((color[3] - BLADE_ALPHA).abs() < 1e-4, "holds peak alpha (no fade-out)");
+                assert!(
+                    (color[3] - BLADE_ALPHA).abs() < 1e-4,
+                    "holds peak alpha (no fade-out)"
+                );
             }
             other => panic!("expected WorldQuad, got {other:?}"),
         }

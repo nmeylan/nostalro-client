@@ -95,23 +95,41 @@ pub const WATERFALL: WaterfallParams = WaterfallParams {
     speed_step: 13,
 };
 /// `EF_WATERFALL_90` — base sheet rotated 90° (F1=1).
-pub const WATERFALL_90: WaterfallParams = WaterfallParams { rotate90: true, ..WATERFALL };
+pub const WATERFALL_90: WaterfallParams = WaterfallParams {
+    rotate90: true,
+    ..WATERFALL
+};
 /// `EF_WATERFALL_SMALL` — narrow sheet (F2=1) + 20 mist calls.
-pub const WATERFALL_SMALL: WaterfallParams =
-    WaterfallParams { small: true, mist_calls: 20, ..WATERFALL };
+pub const WATERFALL_SMALL: WaterfallParams = WaterfallParams {
+    small: true,
+    mist_calls: 20,
+    ..WATERFALL
+};
 /// `EF_WATERFALL_SMALL_90` — narrow sheet rotated 90° (F1=1, F2=1).
-pub const WATERFALL_SMALL_90: WaterfallParams =
-    WaterfallParams { rotate90: true, ..WATERFALL_SMALL };
+pub const WATERFALL_SMALL_90: WaterfallParams = WaterfallParams {
+    rotate90: true,
+    ..WATERFALL_SMALL
+};
 /// `EF_WATERFALL_T2` — brighter texture set (F3=1).
-pub const WATERFALL_T2: WaterfallParams = WaterfallParams { textures: T2, ..WATERFALL };
+pub const WATERFALL_T2: WaterfallParams = WaterfallParams {
+    textures: T2,
+    ..WATERFALL
+};
 /// `EF_WATERFALL_T2_90` — brighter set rotated 90° (F1=1, F3=1).
-pub const WATERFALL_T2_90: WaterfallParams = WaterfallParams { rotate90: true, ..WATERFALL_T2 };
+pub const WATERFALL_T2_90: WaterfallParams = WaterfallParams {
+    rotate90: true,
+    ..WATERFALL_T2
+};
 /// `EF_WATERFALL_SMALL_T2` — narrow brighter sheet (F2=1, F3=1).
-pub const WATERFALL_SMALL_T2: WaterfallParams =
-    WaterfallParams { textures: T2, ..WATERFALL_SMALL };
+pub const WATERFALL_SMALL_T2: WaterfallParams = WaterfallParams {
+    textures: T2,
+    ..WATERFALL_SMALL
+};
 /// `EF_WATERFALL_SMALL_T2_90` — narrow brighter sheet rotated 90° (F1=1, F2=1, F3=1).
-pub const WATERFALL_SMALL_T2_90: WaterfallParams =
-    WaterfallParams { rotate90: true, ..WATERFALL_SMALL_T2 };
+pub const WATERFALL_SMALL_T2_90: WaterfallParams = WaterfallParams {
+    rotate90: true,
+    ..WATERFALL_SMALL_T2
+};
 
 /// `EF_BLUEFALL` — the WaterFall sheet tinted additive blue
 /// (alpha `120/255`) with reversed scroll and no mist.
@@ -127,12 +145,21 @@ pub const BLUEFALL: WaterfallParams = WaterfallParams {
     speed_step: 13,
 };
 /// `EF_BLUEFALL_90` — blue sheet rotated 90° (F1=1).
-pub const BLUEFALL_90: WaterfallParams = WaterfallParams { rotate90: true, ..BLUEFALL };
+pub const BLUEFALL_90: WaterfallParams = WaterfallParams {
+    rotate90: true,
+    ..BLUEFALL
+};
 /// `EF_FASTBLUEFALL` — blue sheet at `speed = 30 − 6·ec` (faster scroll).
-pub const FASTBLUEFALL: WaterfallParams =
-    WaterfallParams { speed_base: 30, speed_step: 6, ..BLUEFALL };
+pub const FASTBLUEFALL: WaterfallParams = WaterfallParams {
+    speed_base: 30,
+    speed_step: 6,
+    ..BLUEFALL
+};
 /// `EF_FASTBLUEFALL_90` — fast blue sheet rotated 90° (F1=1).
-pub const FASTBLUEFALL_90: WaterfallParams = WaterfallParams { rotate90: true, ..FASTBLUEFALL };
+pub const FASTBLUEFALL_90: WaterfallParams = WaterfallParams {
+    rotate90: true,
+    ..FASTBLUEFALL
+};
 
 fn hash01(i: u32, salt: u32) -> f32 {
     let x = i
@@ -165,7 +192,12 @@ impl WaterfallEffect {
     pub fn new(world_pos: [f32; 3], params: WaterfallParams) -> Self {
         let count = params.mist_calls * PARTICLES_PER_CALL;
         let mist = (0..count).map(|i| spawn_mist(i, 0, params)).collect();
-        Self { world_pos, params, age_frames: 0.0, mist }
+        Self {
+            world_pos,
+            params,
+            age_frames: 0.0,
+            mist,
+        }
     }
 
     fn step_mist(&mut self, df: f32) {
@@ -314,11 +346,20 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn step(e: &mut WaterfallEffect, frames: f32) {
-        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: frames / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     fn draws(e: &WaterfallEffect) -> Vec<EffectPrimitiveDraw> {
@@ -328,7 +369,11 @@ mod tests {
     }
 
     fn sheet_quads(prims: &[EffectPrimitiveDraw]) -> Vec<EffectPrimitiveDraw> {
-        prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { .. })).cloned().collect()
+        prims
+            .iter()
+            .filter(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { .. }))
+            .cloned()
+            .collect()
     }
 
     #[test]
@@ -341,18 +386,31 @@ mod tests {
         let bq = sheet_quads(&draws(&big));
         assert_eq!(bq.len(), EMITTERS * STRIPS);
         for p in &bq {
-            let EffectPrimitiveDraw::WorldQuad { color, blend, texture, .. } = p else { unreachable!() };
+            let EffectPrimitiveDraw::WorldQuad {
+                color,
+                blend,
+                texture,
+                ..
+            } = p
+            else {
+                unreachable!()
+            };
             assert_eq!(*blend, BlendKind::Alpha);
             assert_eq!(*color, [1.0, 1.0, 1.0, SHEET_ALPHA]);
             assert!(T1.contains(texture), "T1 textures, got {texture}");
         }
         let span = |p: &EffectPrimitiveDraw| {
-            let EffectPrimitiveDraw::WorldQuad { corners, .. } = p else { unreachable!() };
+            let EffectPrimitiveDraw::WorldQuad { corners, .. } = p else {
+                unreachable!()
+            };
             (corners[1][0] - corners[0][0]).abs()
         };
         let mut small = WaterfallEffect::new([10.0, 0.0, 20.0], WATERFALL_SMALL);
         step(&mut small, 1.0);
-        assert!(span(&sheet_quads(&draws(&small))[0]) < span(&bq[0]), "small sheet is narrower");
+        assert!(
+            span(&sheet_quads(&draws(&small))[0]) < span(&bq[0]),
+            "small sheet is narrower"
+        );
     }
 
     #[test]
@@ -361,17 +419,29 @@ mod tests {
         // Z (constant X). T2 selects the waterfall3x textures.
         let mut plain = WaterfallEffect::new([0.0, 0.0, 0.0], WATERFALL);
         step(&mut plain, 1.0);
-        let EffectPrimitiveDraw::WorldQuad { corners, .. } = &sheet_quads(&draws(&plain))[0] else { unreachable!() };
-        assert!((corners[0][0] - corners[1][0]).abs() > 1.0 && (corners[0][2] - corners[1][2]).abs() < 1e-3);
+        let EffectPrimitiveDraw::WorldQuad { corners, .. } = &sheet_quads(&draws(&plain))[0] else {
+            unreachable!()
+        };
+        assert!(
+            (corners[0][0] - corners[1][0]).abs() > 1.0
+                && (corners[0][2] - corners[1][2]).abs() < 1e-3
+        );
 
         let mut rot = WaterfallEffect::new([0.0, 0.0, 0.0], WATERFALL_90);
         step(&mut rot, 1.0);
-        let EffectPrimitiveDraw::WorldQuad { corners, .. } = &sheet_quads(&draws(&rot))[0] else { unreachable!() };
-        assert!((corners[0][2] - corners[1][2]).abs() > 1.0 && (corners[0][0] - corners[1][0]).abs() < 1e-3);
+        let EffectPrimitiveDraw::WorldQuad { corners, .. } = &sheet_quads(&draws(&rot))[0] else {
+            unreachable!()
+        };
+        assert!(
+            (corners[0][2] - corners[1][2]).abs() > 1.0
+                && (corners[0][0] - corners[1][0]).abs() < 1e-3
+        );
 
         let mut t2 = WaterfallEffect::new([0.0, 0.0, 0.0], WATERFALL_T2);
         step(&mut t2, 1.0);
-        let EffectPrimitiveDraw::WorldQuad { texture, .. } = &sheet_quads(&draws(&t2))[0] else { unreachable!() };
+        let EffectPrimitiveDraw::WorldQuad { texture, .. } = &sheet_quads(&draws(&t2))[0] else {
+            unreachable!()
+        };
         assert!(T2.contains(texture), "T2 textures, got {texture}");
     }
 
@@ -386,7 +456,12 @@ mod tests {
         for _ in 0..240 {
             step(&mut e, 1.0);
             let q = sheet_quads(&draws(&e));
-            let EffectPrimitiveDraw::WorldQuad { corners, texture, .. } = &q[5] else { unreachable!() };
+            let EffectPrimitiveDraw::WorldQuad {
+                corners, texture, ..
+            } = &q[5]
+            else {
+                unreachable!()
+            };
             seen.insert(*texture);
             if let Some(p) = prev_y {
                 if (corners[0][1] - p).abs() > 1e-4 {
@@ -406,15 +481,21 @@ mod tests {
         step(&mut e, 1.0);
         let all = draws(&e);
         assert!(
-            all.iter().all(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { .. })),
+            all.iter()
+                .all(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { .. })),
             "no Billboard mist for BlueFall",
         );
         let q = sheet_quads(&all);
         assert_eq!(q.len(), EMITTERS * STRIPS);
         for p in &q {
-            let EffectPrimitiveDraw::WorldQuad { color, blend, .. } = p else { unreachable!() };
+            let EffectPrimitiveDraw::WorldQuad { color, blend, .. } = p else {
+                unreachable!()
+            };
             assert_eq!(*blend, BlendKind::Additive);
-            assert!(color[2] > color[0] && color[2] > color[1], "blue tint: {color:?}");
+            assert!(
+                color[2] > color[0] && color[2] > color[1],
+                "blue tint: {color:?}"
+            );
         }
     }
 
@@ -429,7 +510,9 @@ mod tests {
             for _ in 0..120 {
                 step(&mut e, 1.0);
                 let q = sheet_quads(&draws(&e));
-                let EffectPrimitiveDraw::WorldQuad { texture, .. } = &q[0] else { unreachable!() };
+                let EffectPrimitiveDraw::WorldQuad { texture, .. } = &q[0] else {
+                    unreachable!()
+                };
                 if prev.is_some_and(|p| p != *texture) {
                     changes += 1;
                 }
@@ -450,7 +533,11 @@ mod tests {
         let mut e = WaterfallEffect::new([0.0, 0.0, 0.0], WATERFALL);
         let mut status = EffectStatus::Running;
         for _ in 0..600 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            status = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         assert_eq!(status, EffectStatus::Running, "persistent map effect");
         let mist: Vec<_> = draws(&e)
@@ -459,10 +546,21 @@ mod tests {
             .collect();
         assert!(!mist.is_empty(), "some puffs are in the visible band");
         for p in &mist {
-            let EffectPrimitiveDraw::Billboard { blend, color, texture, .. } = p else { unreachable!() };
+            let EffectPrimitiveDraw::Billboard {
+                blend,
+                color,
+                texture,
+                ..
+            } = p
+            else {
+                unreachable!()
+            };
             assert_eq!(*blend, BlendKind::Additive);
             assert_eq!(*texture, "freeze_a_small.bmp");
-            assert!(color[1] >= color[0] && color[1] >= color[2], "greenish tint");
+            assert!(
+                color[1] >= color[0] && color[1] >= color[2],
+                "greenish tint"
+            );
         }
     }
 }

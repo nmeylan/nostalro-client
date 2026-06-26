@@ -6,9 +6,7 @@
 //! axis. Tint varies by rank tier (red / blue / green); the entity-attached
 //! spawn picks the tint outside the effect.
 
-use crate::draw::{
-    BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane,
-};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const TOPRANK_TEXTURE: &str = "LockOn128.tga";

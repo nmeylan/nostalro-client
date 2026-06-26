@@ -126,8 +126,12 @@ const TEIHIT2_TINT: [f32; 3] = [1.0, 1.0, 1.0];
 /// is the diameter. Kept close to the source so the bubbles stay small.
 const TEIHIT2_BUBBLE_SCALE: f32 = 1.2;
 
-pub const TEXTURES: &[&str] =
-    &[TEIHIT1.texture, TEIHIT1X.texture, TEIHIT3.texture, TEIHIT2_TEXTURE];
+pub const TEXTURES: &[&str] = &[
+    TEIHIT1.texture,
+    TEIHIT1X.texture,
+    TEIHIT3.texture,
+    TEIHIT2_TEXTURE,
+];
 
 pub const TOTAL_DURATION_MS: u32 = 3000;
 
@@ -316,7 +320,10 @@ impl TeiHit2Effect {
                 }
             })
             .collect();
-        Self { darts, frame_accum: 0.0 }
+        Self {
+            darts,
+            frame_accum: 0.0,
+        }
     }
 
     fn step_frame(&mut self) {
@@ -349,7 +356,11 @@ impl Effect for TeiHit2Effect {
             self.step_frame();
         }
         let alive = self.darts.iter().any(|d| d.process <= 10 || d.alpha > 0.0);
-        if alive { EffectStatus::Running } else { EffectStatus::Dead }
+        if alive {
+            EffectStatus::Running
+        } else {
+            EffectStatus::Dead
+        }
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
@@ -382,23 +393,34 @@ mod tests {
         let mut st = EffectStatus::Running;
         let real_ticks = (source_frames as f32 / TIME_SCALE).ceil() as u32;
         for _ in 0..real_ticks {
-            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            st = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         st
     }
 
     fn quads(e: &TeihitEffect) -> Vec<[[f32; 3]; 4]> {
         let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 256.0,
-            screen_h: 256.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut list,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 256.0,
+                screen_h: 256.0,
+                elapsed: 0.0,
+            },
+        );
         list.primitives
             .iter()
             .map(|p| match p {
-                EffectPrimitiveDraw::WorldQuad { corners, blend: BlendKind::Additive, .. } => *corners,
+                EffectPrimitiveDraw::WorldQuad {
+                    corners,
+                    blend: BlendKind::Additive,
+                    ..
+                } => *corners,
                 _ => panic!("expected additive WorldQuad streaks"),
             })
             .collect()
@@ -415,16 +437,23 @@ mod tests {
 
     fn billboards(e: &TeiHit2Effect) -> Vec<[f32; 3]> {
         let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 256.0,
-            screen_h: 256.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut list,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 256.0,
+                screen_h: 256.0,
+                elapsed: 0.0,
+            },
+        );
         list.primitives
             .iter()
             .map(|p| match p {
-                EffectPrimitiveDraw::Billboard { pos, blend: BlendKind::Alpha, .. } => *pos,
+                EffectPrimitiveDraw::Billboard {
+                    pos,
+                    blend: BlendKind::Alpha,
+                    ..
+                } => *pos,
                 _ => panic!("expected alpha-blended Billboard bubbles"),
             })
             .collect()
@@ -434,7 +463,9 @@ mod tests {
     fn teihit2_count_scales_with_prim_count_and_darts_fly_then_die() {
         // 5 prims × 4 = 20 darts (Teihit2); Backstap = 20 × 4 = 80.
         assert_eq!(
-            TeiHit2Effect::new([0.0; 3], [0.0, 0.0, 30.0], TEIHIT2).darts.len(),
+            TeiHit2Effect::new([0.0; 3], [0.0, 0.0, 30.0], TEIHIT2)
+                .darts
+                .len(),
             20,
         );
         let mut e = TeiHit2Effect::new([0.0; 3], [0.0, 0.0, 30.0], BACKSTAP);
@@ -443,18 +474,31 @@ mod tests {
         // Past the staggered start + fade-in, darts are visible and have flown
         // outward from the target origin toward +Z (the demo heading).
         for _ in 0..(40 + 12) {
-            e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         let visible = billboards(&e);
         assert!(!visible.is_empty(), "darts visible after fade-in");
         let mean_z: f32 = visible.iter().map(|p| p[2]).sum::<f32>() / visible.len() as f32;
-        assert!(mean_z > 30.0, "darts erupt past the target along the heading: {mean_z}");
+        assert!(
+            mean_z > 30.0,
+            "darts erupt past the target along the heading: {mean_z}"
+        );
 
         // Every dart eventually fades out and the burst dies.
         let mut st = EffectStatus::Running;
         for _ in 0..2000 {
-            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
-            if st == EffectStatus::Dead { break; }
+            st = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
+            if st == EffectStatus::Dead {
+                break;
+            }
         }
         assert_eq!(st, EffectStatus::Dead);
     }
@@ -464,22 +508,33 @@ mod tests {
         let mut e = TeihitEffect::new([0.0; 3], TEIHIT1);
         assert!(quads(&e).is_empty(), "nothing visible before fade-in");
         // Advance past the longest start delay + fade-in.
-        tick(&mut e, (TEIHIT1.delay_base as u32 + TEIHIT1.delay_rand) + 18);
+        tick(
+            &mut e,
+            (TEIHIT1.delay_base as u32 + TEIHIT1.delay_rand) + 18,
+        );
         let n = quads(&e).len();
-        assert!(n > 0 && n <= TEIHIT1.prim_count * 4, "some of the {} streaks show", TEIHIT1.prim_count * 4);
+        assert!(
+            n > 0 && n <= TEIHIT1.prim_count * 4,
+            "some of the {} streaks show",
+            TEIHIT1.prim_count * 4
+        );
     }
 
     #[test]
     fn streaks_travel_outward_then_burst_dies() {
         let mut e = TeihitEffect::new([0.0; 3], TEIHIT3);
         let center = e.center;
-        tick(&mut e, (TEIHIT3.delay_base as u32 + TEIHIT3.delay_rand) + 15);
+        tick(
+            &mut e,
+            (TEIHIT3.delay_base as u32 + TEIHIT3.delay_rand) + 15,
+        );
         let early: f32 = quads(&e).iter().map(|c| radius(c, center)).sum::<f32>()
             / quads(&e).len().max(1) as f32;
         tick(&mut e, 12);
         let late_qs = quads(&e);
         if !late_qs.is_empty() {
-            let late = late_qs.iter().map(|c| radius(c, center)).sum::<f32>() / late_qs.len() as f32;
+            let late =
+                late_qs.iter().map(|c| radius(c, center)).sum::<f32>() / late_qs.len() as f32;
             assert!(late > early, "streaks slide outward: {early} -> {late}");
         }
         // Eventually every streak fades out and the effect dies.

@@ -346,11 +346,20 @@ mod tests {
     use super::*;
 
     fn step(e: &mut ThrowItemEffect, dt: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None })
+        e.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        })
     }
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn billboards(e: &ThrowItemEffect) -> Vec<([f32; 3], &'static str, [f32; 4])> {
@@ -359,7 +368,12 @@ mod tests {
         list.primitives
             .iter()
             .map(|p| match p {
-                EffectPrimitiveDraw::Billboard { pos, texture, color, .. } => (*pos, *texture, *color),
+                EffectPrimitiveDraw::Billboard {
+                    pos,
+                    texture,
+                    color,
+                    ..
+                } => (*pos, *texture, *color),
                 _ => panic!("throw item only emits Billboard"),
             })
             .collect()
@@ -369,7 +383,11 @@ mod tests {
     /// after-images.
     fn lead(e: &ThrowItemEffect) -> ([f32; 3], &'static str) {
         let b = billboards(e);
-        let (pos, tex, _) = b.iter().max_by(|a, c| a.2[3].total_cmp(&c.2[3])).copied().unwrap();
+        let (pos, tex, _) = b
+            .iter()
+            .max_by(|a, c| a.2[3].total_cmp(&c.2[3]))
+            .copied()
+            .unwrap();
         (pos, tex)
     }
 
@@ -400,9 +418,18 @@ mod tests {
             dists.push(pos[2]);
         }
         let min_y = ys.iter().cloned().fold(f32::INFINITY, f32::min);
-        assert!(min_y < HAND_Y - 1.0, "projectile rises above hand height mid-arc");
-        assert!(*ys.last().unwrap() > min_y, "comes back down toward the end");
-        assert!(dists.windows(2).all(|w| w[1] >= w[0]), "advances toward target");
+        assert!(
+            min_y < HAND_Y - 1.0,
+            "projectile rises above hand height mid-arc"
+        );
+        assert!(
+            *ys.last().unwrap() > min_y,
+            "comes back down toward the end"
+        );
+        assert!(
+            dists.windows(2).all(|w| w[1] >= w[0]),
+            "advances toward target"
+        );
     }
 
     #[test]

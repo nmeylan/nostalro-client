@@ -29,8 +29,7 @@ pub const TEXTURES: &[&str] = &[RING_TEXTURE, SPHERE_TEXTURE];
 const FRAMES_PER_SECOND: f32 = 60.0;
 
 const PARENT_DURATION_FRAMES: f32 = 300.0;
-pub const TOTAL_DURATION_MS: u32 =
-    (PARENT_DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
+pub const TOTAL_DURATION_MS: u32 = (PARENT_DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
 const BURST_FRAMES: [f32; 2] = [7.0, 20.0];
 const SUB_DURATION_FRAMES: f32 = 20.0;
@@ -197,7 +196,11 @@ mod tests {
     }
 
     fn step_and_draw(e: &mut CartRevolutionEffect, dt: f32) -> Vec<EffectPrimitiveDraw> {
-        e.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        });
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         list.primitives
@@ -248,7 +251,8 @@ mod tests {
         let mut e = CartRevolutionEffect::new([0.0; 3]);
         let s = e.update(&EffectUpdateCtx {
             delta: TOTAL_DURATION_MS as f32 / 1000.0 + 0.1,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
         assert!(matches!(s, EffectStatus::Dead));
     }

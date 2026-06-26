@@ -27,9 +27,7 @@
 //!
 //! Reference gifs: `300-350/339.gif`, `500-550/514.gif`.
 
-use crate::draw::{
-    BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode,
-};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const MAGNUM2_TEXTURE: &str = "ring_yellow.tga";
@@ -276,7 +274,8 @@ impl GiExplosionEffect {
         if self.age_frames <= GI_FADE_START_FRAME {
             1.0
         } else {
-            (1.0 - (self.age_frames - GI_FADE_START_FRAME) / (GI_TOTAL_FRAMES - GI_FADE_START_FRAME))
+            (1.0 - (self.age_frames - GI_FADE_START_FRAME)
+                / (GI_TOTAL_FRAMES - GI_FADE_START_FRAME))
                 .clamp(0.0, 1.0)
         }
     }
@@ -354,7 +353,8 @@ mod tests {
     fn step<E: Effect>(e: &mut E, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FRAMES_PER_SECOND,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -368,7 +368,11 @@ mod tests {
         step(&mut e, 20.0); // frame 40
         let prims = draws_of(&e);
         assert!(!prims.is_empty(), "rings visible mid-life");
-        assert!(prims.iter().all(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. })));
+        assert!(
+            prims
+                .iter()
+                .all(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. }))
+        );
         // Exactly 11 prims (×2 sub-rings) spawn total.
         step(&mut e, 60.0);
         assert_eq!(e.spawn_count, 11, "11 prims spawned over frames 25–55");
@@ -382,7 +386,11 @@ mod tests {
         let early = draws_of(&e);
         assert_eq!(early.len(), GI_EMITTERS, "4 concentric arc rings");
         let arc = match &early[0] {
-            EffectPrimitiveDraw::Frustum { arc_angle_deg, wave_mode, .. } => {
+            EffectPrimitiveDraw::Frustum {
+                arc_angle_deg,
+                wave_mode,
+                ..
+            } => {
                 assert_eq!(*wave_mode, FrustumWaveMode::SaintBell);
                 *arc_angle_deg
             }

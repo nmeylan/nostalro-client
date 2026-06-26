@@ -126,8 +126,7 @@ impl Effect for BottomLandProtectorEffect {
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let f = self.frames as f32;
-        let rise_angle =
-            (self.rise_angle_init + f * self.params.rise_speed_deg_per_frame) % 360.0;
+        let rise_angle = (self.rise_angle_init + f * self.params.rise_speed_deg_per_frame) % 360.0;
         let rx = self.params.distance * 0.1 * (rise_angle.to_radians().sin() + 1.0);
         let r = self.params.distance * 0.8 + rx;
 
@@ -136,11 +135,7 @@ impl Effect for BottomLandProtectorEffect {
         for (i, c) in corners.iter_mut().enumerate() {
             let angle_deg = (self.params.rot_start_deg + i as f32 * 90.0) % 360.0;
             let (s, cs) = angle_deg.to_radians().sin_cos();
-            *c = [
-                self.world_pos[0] + cs * r,
-                y,
-                self.world_pos[2] + s * r,
-            ];
+            *c = [self.world_pos[0] + cs * r, y, self.world_pos[2] + s * r];
         }
 
         let [tr, tg, tb] = self.params.tint_rgb;
@@ -195,7 +190,8 @@ mod tests {
     fn step(effect: &mut BottomLandProtectorEffect, dt: f32) {
         effect.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
     }
 
@@ -210,10 +206,7 @@ mod tests {
         // Sociable test: 1 WorldQuad, all 4 corners share a Y plane
         // (horizontal), at `actor.y - 2.0` (native -Y up), centred on
         // the actor's XZ.
-        let mut e = BottomLandProtectorEffect::new(
-            [12.0, 5.0, 34.0],
-            LA,
-        );
+        let mut e = BottomLandProtectorEffect::new([12.0, 5.0, 34.0], LA);
         step(&mut e, 0.0);
         let prims = draws(&e);
         assert_eq!(prims.len(), 1, "single horizontal quad per spawn");
@@ -256,14 +249,10 @@ mod tests {
         // The square is rotated 225° vs LA's 0°, so corner 0 sits at
         // (cos(225°), sin(225°)) ≈ (-0.707, -0.707) — distinct from
         // (+r, 0) that LA produces.
-        let mut e =
-            BottomLandProtectorEffect::new([0.0, 0.0, 0.0], RUNNER);
+        let mut e = BottomLandProtectorEffect::new([0.0, 0.0, 0.0], RUNNER);
         step(&mut e, 0.0);
         let prims = draws(&e);
-        let EffectPrimitiveDraw::WorldQuad {
-            corners, color, ..
-        } = &prims[0]
-        else {
+        let EffectPrimitiveDraw::WorldQuad { corners, color, .. } = &prims[0] else {
             panic!();
         };
         // Blue-leaning: B > R, B > G

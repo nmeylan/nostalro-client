@@ -75,12 +75,17 @@ const MOLOTOV: &str = "유저인터페이스/item/화염병.bmp";
 const ACID_BOTTLE: &str = "유저인터페이스/item/염산병.bmp";
 const ALCOHOL: &str = "유저인터페이스/item/알코올.bmp";
 
-pub const TWILIGHT1: TwilightParams = TwilightParams { textures: &[HAYAN_HERB] };
-pub const TWILIGHT2: TwilightParams = TwilightParams { textures: &[WHITE_SLIM_POTION] };
-pub const TWILIGHT3: TwilightParams = TwilightParams { textures: &[MOLOTOV, ACID_BOTTLE, ALCOHOL] };
+pub const TWILIGHT1: TwilightParams = TwilightParams {
+    textures: &[HAYAN_HERB],
+};
+pub const TWILIGHT2: TwilightParams = TwilightParams {
+    textures: &[WHITE_SLIM_POTION],
+};
+pub const TWILIGHT3: TwilightParams = TwilightParams {
+    textures: &[MOLOTOV, ACID_BOTTLE, ALCOHOL],
+};
 
-pub const TEXTURES: &[&str] =
-    &[HAYAN_HERB, WHITE_SLIM_POTION, MOLOTOV, ACID_BOTTLE, ALCOHOL];
+pub const TEXTURES: &[&str] = &[HAYAN_HERB, WHITE_SLIM_POTION, MOLOTOV, ACID_BOTTLE, ALCOHOL];
 
 const UNIT_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 
@@ -136,7 +141,12 @@ impl TwilightEffect {
                 }
             })
             .collect();
-        Self { anchor, params, age: 0.0, icons }
+        Self {
+            anchor,
+            params,
+            age: 0.0,
+            icons,
+        }
     }
 
     /// Alpha curve normalised to `0..MAX_ALPHA`.
@@ -171,10 +181,14 @@ impl Effect for TwilightEffect {
         for icon in &self.icons {
             let drift_x = DRIFT_AMP
                 * WORLD_SCALE
-                * (icon.drift_phase_x + age_frames * DRIFT_DEG_PER_FRAME).to_radians().sin();
+                * (icon.drift_phase_x + age_frames * DRIFT_DEG_PER_FRAME)
+                    .to_radians()
+                    .sin();
             let drift_z = DRIFT_AMP
                 * WORLD_SCALE
-                * (icon.drift_phase_z + age_frames * DRIFT_DEG_PER_FRAME).to_radians().sin();
+                * (icon.drift_phase_z + age_frames * DRIFT_DEG_PER_FRAME)
+                    .to_radians()
+                    .sin();
             let pos = [
                 self.anchor[0] + icon.offset[0] + drift_x,
                 self.anchor[1] + icon.offset[1],
@@ -205,13 +219,22 @@ mod tests {
     use super::*;
 
     fn ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn step(e: &mut TwilightEffect, frames: u32) -> EffectStatus {
         let mut s = EffectStatus::Running;
         for _ in 0..frames {
-            s = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            s = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         s
     }
@@ -222,7 +245,12 @@ mod tests {
         l.primitives
             .iter()
             .map(|p| match p {
-                EffectPrimitiveDraw::Billboard { pos, texture, color, .. } => (*pos, *texture, color[3]),
+                EffectPrimitiveDraw::Billboard {
+                    pos,
+                    texture,
+                    color,
+                    ..
+                } => (*pos, *texture, color[3]),
                 _ => panic!("twilight only emits Billboard"),
             })
             .collect()
@@ -240,7 +268,10 @@ mod tests {
         let spread = xs.iter().cloned().fold(f32::MIN, f32::max)
             - xs.iter().cloned().fold(f32::MAX, f32::min);
         assert!(spread > 1.0, "icons scatter horizontally: {spread}");
-        assert!(draws.iter().all(|d| d.0[1] < anchor[1]), "icons hover above caster");
+        assert!(
+            draws.iter().all(|d| d.0[1] < anchor[1]),
+            "icons hover above caster"
+        );
         // Twilight3 mixes all three textures.
         let textures: std::collections::BTreeSet<&str> = draws.iter().map(|d| d.1).collect();
         assert_eq!(textures.len(), 3);

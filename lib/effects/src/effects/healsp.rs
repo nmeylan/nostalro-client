@@ -31,7 +31,11 @@ const PARENT_DURATION_FRAMES: f32 = 100.0;
 const FADE_IN_FRAMES: f32 = 30.0;
 const FADE_OUT_AT: f32 = PARENT_DURATION_FRAMES - 20.0;
 const SPIN_DEG_PER_FRAME: f32 = 5.0;
-const TINT: [f32; 3] = [0x20 as f32 / 255.0, 0xb0 as f32 / 255.0, 0xe8 as f32 / 255.0];
+const TINT: [f32; 3] = [
+    0x20 as f32 / 255.0,
+    0xb0 as f32 / 255.0,
+    0xe8 as f32 / 255.0,
+];
 
 // Three nested cylinders, launched innermost first. All three share
 // roughly the same height — only the radii (and tint alpha) stack from
@@ -50,8 +54,7 @@ const SPAWN_PERIOD_FRAMES: u32 = 2;
 const PARTICLE_DURATION_FRAMES: f32 = 30.0;
 const PARTICLE_ORBIT_RADIUS: f32 = 5.5;
 const PARTICLE_SIZE: f32 = 0.55;
-const PARTICLE_FADEOUT_AT: f32 =
-    PARTICLE_DURATION_FRAMES - PARTICLE_DURATION_FRAMES / 3.0;
+const PARTICLE_FADEOUT_AT: f32 = PARTICLE_DURATION_FRAMES - PARTICLE_DURATION_FRAMES / 3.0;
 const PARTICLE_ANIM_TICKS: f32 = 4.0;
 const PARTICLE_FRAME_MS: f32 = 1000.0 / FRAMES_PER_SECOND * PARTICLE_ANIM_TICKS;
 const PARTICLE_INITIAL_Y_SPEED_PER_FRAME: f32 = -1.2;
@@ -119,9 +122,8 @@ pub struct HealSpEffect {
 
 impl HealSpEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        let rng_state = 0x9E37_79B9
-            ^ world_pos[0].to_bits()
-            ^ world_pos[2].to_bits().rotate_left(13);
+        let rng_state =
+            0x9E37_79B9 ^ world_pos[0].to_bits() ^ world_pos[2].to_bits().rotate_left(13);
         Self {
             world_pos,
             particles: Vec::new(),
@@ -248,7 +250,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -321,10 +327,7 @@ mod tests {
             .collect();
         assert_eq!(cylinders.len(), 3);
         for (b, t, _, _) in &cylinders {
-            assert!(
-                (b - t).abs() < 1e-3,
-                "cylinder (bottom == top)",
-            );
+            assert!((b - t).abs() < 1e-3, "cylinder (bottom == top)",);
         }
         // Heights stack: 15 < 25 < 35.
         let heights: Vec<f32> = cylinders.iter().map(|(_, _, h, _)| *h).collect();
@@ -335,7 +338,10 @@ mod tests {
             .iter()
             .filter(|p| matches!(p, EffectPrimitiveDraw::SpriteParticle { .. }))
             .count();
-        assert!(particles >= 5, "frames 0, 2, 4, 6, 8, 10 each spawn a particle");
+        assert!(
+            particles >= 5,
+            "frames 0, 2, 4, 6, 8, 10 each spawn a particle"
+        );
 
         // Each particle sits on the radius-3 orbit.
         for prim in &list.primitives {

@@ -47,8 +47,7 @@ const SPIKE_FADE_FRAMES: f32 = 10.0;
 /// Total wall-clock duration of the visible burst, ms. Used as the spec's
 /// `Custom { duration_ms }` so the holder despawns at the right time even
 /// though the duration table claims 9990 ms.
-pub const TOTAL_DURATION_MS: u32 =
-    ((FINAL_FRAME / FRAMES_PER_SECOND) * 1000.0) as u32;
+pub const TOTAL_DURATION_MS: u32 = ((FINAL_FRAME / FRAMES_PER_SECOND) * 1000.0) as u32;
 
 /// Spike length apex-to-base (base literal 20). The gif silhouette
 /// shows each shard taking maybe a quarter of the cloud's vertical extent
@@ -142,9 +141,8 @@ impl IceSpike {
     }
 
     fn alpha(&self) -> f32 {
-        let fade_start_s = (self.duration * FRAMES_PER_SECOND - SPIKE_FADE_FRAMES)
-            .max(0.0)
-            / FRAMES_PER_SECOND;
+        let fade_start_s =
+            (self.duration * FRAMES_PER_SECOND - SPIKE_FADE_FRAMES).max(0.0) / FRAMES_PER_SECOND;
         if self.age <= fade_start_s {
             PEAK_ALPHA
         } else {
@@ -185,9 +183,7 @@ impl StormgustEffect {
             // Seed mixes effect origin so concurrent Stormgusts at different
             // locations produce different spike patterns. Stable for a given
             // origin → reproducible in tests.
-            rng_state: 0x9E37_79B9
-                ^ (origin[0].to_bits())
-                ^ (origin[2].to_bits().rotate_left(13)),
+            rng_state: 0x9E37_79B9 ^ (origin[0].to_bits()) ^ (origin[2].to_bits().rotate_left(13)),
             spawn_index: 0,
         }
     }
@@ -204,8 +200,7 @@ impl StormgustEffect {
             // mod 360° spreads N successive spikes evenly around the circle
             // for any N (avoids the clustering of `random(360)` at small N).
             let golden_angle_deg: f32 = 137.507_76; // 360° · (1 − 1/φ)
-            let placement_angle =
-                (self.spawn_index as f32 * golden_angle_deg).to_radians();
+            let placement_angle = (self.spawn_index as f32 * golden_angle_deg).to_radians();
             self.spawn_index = self.spawn_index.wrapping_add(1);
             // Spike's compass heading — random, independent
             // of placement.
@@ -344,7 +339,11 @@ mod tests {
     }
 
     fn step(effect: &mut StormgustEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
+        effect.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     #[test]

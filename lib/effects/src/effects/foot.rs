@@ -12,9 +12,7 @@
 //! The decal is yawed to point along the caster→target direction (from the
 //! anchor trail) so a step reads as facing the way the actor moves.
 
-use crate::draw::{
-    BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane,
-};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 /// Below this caster→target distance the trail carries no usable direction
@@ -36,15 +34,33 @@ pub struct FootParams {
     pub half_size: f32,
 }
 
-pub const FOOT: FootParams = FootParams { texture: "foot_l_b.tga", half_size: 2.5 };
-pub const FOOT2: FootParams = FootParams { texture: "foot_r_b.tga", half_size: 2.5 };
-pub const FOOT3: FootParams = FootParams { texture: "foot_l2.tga", half_size: 3.0 };
-pub const FOOT4: FootParams = FootParams { texture: "foot_r2.tga", half_size: 3.0 };
+pub const FOOT: FootParams = FootParams {
+    texture: "foot_l_b.tga",
+    half_size: 2.5,
+};
+pub const FOOT2: FootParams = FootParams {
+    texture: "foot_r_b.tga",
+    half_size: 2.5,
+};
+pub const FOOT3: FootParams = FootParams {
+    texture: "foot_l2.tga",
+    half_size: 3.0,
+};
+pub const FOOT4: FootParams = FootParams {
+    texture: "foot_r2.tga",
+    half_size: 3.0,
+};
 // Foot5/Foot6 want `print_foot_l/r.tga`, which are absent
 // from the classic GRF — fall back to the sibling footprint art so they still
 // render a footprint rather than a white placeholder quad.
-pub const FOOT5: FootParams = FootParams { texture: "foot_l2.tga", half_size: 3.0 };
-pub const FOOT6: FootParams = FootParams { texture: "foot_r2.tga", half_size: 3.0 };
+pub const FOOT5: FootParams = FootParams {
+    texture: "foot_l2.tga",
+    half_size: 3.0,
+};
+pub const FOOT6: FootParams = FootParams {
+    texture: "foot_r2.tga",
+    half_size: 3.0,
+};
 
 pub const TEXTURES: &[&str] = &[
     FOOT.texture,
@@ -88,7 +104,12 @@ impl FootEffect {
         } else {
             0.0
         };
-        Self { params, world_pos: from, yaw, age: 0.0 }
+        Self {
+            params,
+            world_pos: from,
+            yaw,
+            age: 0.0,
+        }
     }
 
     fn alpha(&self) -> f32 {
@@ -140,7 +161,11 @@ mod tests {
         let mut status = EffectStatus::Running;
         let steps = (secs * FRAMES_PER_SECOND).round() as usize;
         for _ in 0..steps {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            status = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         status
     }
@@ -155,15 +180,25 @@ mod tests {
 
     fn only_quad(e: &FootEffect) -> Quad {
         let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 256.0,
-            screen_h: 256.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut list,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 256.0,
+                screen_h: 256.0,
+                elapsed: 0.0,
+            },
+        );
         assert_eq!(list.primitives.len(), 1);
         match &list.primitives[0] {
-            EffectPrimitiveDraw::Texture3D { center, size, plane, color, texture, .. } => Quad {
+            EffectPrimitiveDraw::Texture3D {
+                center,
+                size,
+                plane,
+                color,
+                texture,
+                ..
+            } => Quad {
                 center: *center,
                 size: *size,
                 alpha: color[3],
@@ -195,7 +230,10 @@ mod tests {
         };
         let (sin, cos) = yaw.sin_cos();
         // toe direction = -right = (sin yaw, 0, -cos yaw) should align with +Z.
-        assert!(sin.abs() < 1e-4 && (-cos - 1.0).abs() < 1e-4, "toe should face +Z (yaw={yaw})");
+        assert!(
+            sin.abs() < 1e-4 && (-cos - 1.0).abs() < 1e-4,
+            "toe should face +Z (yaw={yaw})"
+        );
 
         // single-point anchor keeps the default orientation (yaw 0).
         let e0 = FootEffect::new([1.0, 0.0, 2.0], [1.0, 0.0, 2.0], FOOT);
@@ -208,7 +246,10 @@ mod tests {
         let a_start = only_quad(&e).alpha;
         tick(&mut e, FADE_IN_SECS);
         let a_peak = only_quad(&e).alpha;
-        tick(&mut e, DURATION_SECS - FADE_IN_SECS - 1.0 / FRAMES_PER_SECOND);
+        tick(
+            &mut e,
+            DURATION_SECS - FADE_IN_SECS - 1.0 / FRAMES_PER_SECOND,
+        );
         let a_late = only_quad(&e).alpha;
         assert!(a_start < a_peak, "alpha should fade in");
         assert!(a_late < a_peak, "alpha should fade out before death");

@@ -192,7 +192,8 @@ impl Glyph {
         }
         if self.process < RAMP_FRAMES {
             for i in 1..=NUM_LAYERS {
-                self.layer_alpha[i] = (self.layer_alpha[i] + RAMP_PER_FRAME * frames).min(Self::layer_cap(i));
+                self.layer_alpha[i] =
+                    (self.layer_alpha[i] + RAMP_PER_FRAME * frames).min(Self::layer_cap(i));
             }
         } else {
             for i in 1..NUM_LAYERS {
@@ -283,13 +284,25 @@ impl BeginAsuraEffect {
     /// Base cast `EF_BEGINASURA` — 阿修羅覇凰拳 plus the white saint rings.
     /// Tints the glyphs black.
     pub fn base(anchor: [f32; 3]) -> Self {
-        Self::phrase(anchor, &PHRASE, PHRASE_DISTANCE, &PHRASE_X, PHRASE_TINT_BLACK)
+        Self::phrase(
+            anchor,
+            &PHRASE,
+            PHRASE_DISTANCE,
+            &PHRASE_X,
+            PHRASE_TINT_BLACK,
+        )
     }
 
     /// Champion cast `EF_BEGINASURA11` — larger glyphs (`asura11..16`).
     /// Tints them near-black.
     pub fn champion(anchor: [f32; 3]) -> Self {
-        Self::phrase(anchor, &PHRASE_CHAMPION, CHAMPION_DISTANCE, &CHAMPION_X, PHRASE_TINT_DARK)
+        Self::phrase(
+            anchor,
+            &PHRASE_CHAMPION,
+            CHAMPION_DISTANCE,
+            &CHAMPION_X,
+            PHRASE_TINT_DARK,
+        )
     }
 
     /// `EF_SOULLINK` — the "SOUL LINK" glyph cascade, no
@@ -306,7 +319,13 @@ impl BeginAsuraEffect {
         }
     }
 
-    fn phrase(anchor: [f32; 3], textures: &[&'static str; 6], distance: f32, xs: &[f32; 6], tint: [f32; 3]) -> Self {
+    fn phrase(
+        anchor: [f32; 3],
+        textures: &[&'static str; 6],
+        distance: f32,
+        xs: &[f32; 6],
+        tint: [f32; 3],
+    ) -> Self {
         let glyphs = (0..6)
             .map(|k| {
                 // First half spawns immediately, the second half a group later.
@@ -398,7 +417,8 @@ mod tests {
         for _ in 0..frames {
             st = e.update(&EffectUpdateCtx {
                 delta: 1.0 / FRAMES_PER_SECOND,
-                camera_target: None, caster_yaw: None,
+                camera_target: None,
+                caster_yaw: None,
             });
         }
         st
@@ -430,10 +450,21 @@ mod tests {
     fn glyph_ramps_holds_then_fades_and_dies() {
         let mut e = BeginAsuraEffect::elemental([0.0; 3], 0);
         tick(&mut e, 5);
-        let early = billboards(&e).iter().map(|(_, a)| a).cloned().fold(0.0, f32::max);
+        let early = billboards(&e)
+            .iter()
+            .map(|(_, a)| a)
+            .cloned()
+            .fold(0.0, f32::max);
         tick(&mut e, 12); // ~frame 17, near the top of the ramp
-        let peak = billboards(&e).iter().map(|(_, a)| a).cloned().fold(0.0, f32::max);
-        assert!(peak > early, "alpha rises through the ramp: {early} -> {peak}");
+        let peak = billboards(&e)
+            .iter()
+            .map(|(_, a)| a)
+            .cloned()
+            .fold(0.0, f32::max);
+        assert!(
+            peak > early,
+            "alpha rises through the ramp: {early} -> {peak}"
+        );
         assert_eq!(tick(&mut e, 400), EffectStatus::Dead, "self-terminates");
         assert!(billboards(&e).is_empty(), "nothing left to draw once dead");
     }
@@ -466,7 +497,10 @@ mod tests {
 
         let champ_textures: std::collections::HashSet<_> =
             billboards(&champ).into_iter().map(|(t, _)| t).collect();
-        assert!(champ_textures.contains("asura11.tga"), "champion uses the asura1x set");
+        assert!(
+            champ_textures.contains("asura11.tga"),
+            "champion uses the asura1x set"
+        );
     }
 
     #[test]
@@ -478,6 +512,9 @@ mod tests {
         // Group one (asura1..3) is already fading in; group two (asura4..6) is
         // still delayed and not yet drawn.
         assert!(visible.contains("asura1.tga"), "group one is visible early");
-        assert!(!visible.contains("asura6.tga"), "group two has not started yet");
+        assert!(
+            !visible.contains("asura6.tga"),
+            "group two has not started yet"
+        );
     }
 }

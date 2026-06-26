@@ -30,8 +30,7 @@ pub const TEXTURES: &[&str] = &[TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const DURATION_FRAMES: f32 = 40.0;
-pub const TOTAL_DURATION_MS: u32 =
-    (DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
+pub const TOTAL_DURATION_MS: u32 = (DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
 // Lifts the screen-space anchor above the caster's centre — matches the
 // original game's 20-unit lift (native RO Y is up = -Y).
@@ -139,7 +138,8 @@ mod tests {
     fn step(effect: &mut OverthrustEffect, frames: f32) -> EffectStatus {
         effect.update(&EffectUpdateCtx {
             delta: frames / FRAMES_PER_SECOND,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 

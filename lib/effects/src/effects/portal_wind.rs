@@ -20,9 +20,7 @@
 //! every other effect). The renderer-side wiring that consumes those is a
 //! separate piece of infrastructure noted in the holder.
 
-use crate::draw::{
-    BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode,
-};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const TEXTURES: &[&str] = &["cloud11.tga"];
@@ -433,7 +431,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -514,8 +516,8 @@ mod tests {
         step_frames(&mut e, 13);
         let after = wind_frustums(&draws(&e));
         for (i, &(_arc, _rot, bot)) in after.iter().enumerate() {
-            let init_lo = PORTAL4.distance_base
-                + DISTANCE_JITTER_FRACTION[i] * PORTAL4.distance_jitter;
+            let init_lo =
+                PORTAL4.distance_base + DISTANCE_JITTER_FRACTION[i] * PORTAL4.distance_jitter;
             assert!(
                 bot > init_lo + 0.3,
                 "slot {i} distance grew past {init_lo}+0.3 (got {bot})"
@@ -562,7 +564,10 @@ mod tests {
         step_frames(&mut e, 60);
         let arcs = wind_frustums(&draws(&e));
         for (arc, _, _) in arcs {
-            assert!((arc - 180.0).abs() < 0.01, "gust arc opens to 180°, got {arc}");
+            assert!(
+                (arc - 180.0).abs() < 0.01,
+                "gust arc opens to 180°, got {arc}"
+            );
         }
     }
 

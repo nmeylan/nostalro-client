@@ -21,7 +21,7 @@
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::effects::casting_ring::{CastingRingEffect, BEGINSPELL8 as RING_PARAMS};
+use crate::effects::casting_ring::{BEGINSPELL8 as RING_PARAMS, CastingRingEffect};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 /// The cast aura runs for at least 70 frames; the visible cylinder runs that
@@ -98,7 +98,7 @@ impl Effect for BeginSpell8Effect {
         let [r, g, b] = RING_PARAMS.color_rgb;
         let spin = -(self.frame() * COLUMN_SPIN_DEG_PER_FRAME).to_radians();
         out.push(EffectPrimitiveDraw::Frustum {
-                base_alpha: 1.0,
+            base_alpha: 1.0,
             base: self.world_pos,
             bottom_size: COLUMN_BOTTOM,
             top_size: COLUMN_TOP,
@@ -138,7 +138,11 @@ mod tests {
     fn run_to(c: &mut BeginSpell8Effect, target_frame: f32) {
         let delta = (target_frame - c.frame()) / FRAMES_PER_SECOND;
         if delta > 0.0 {
-            c.update(&EffectUpdateCtx { delta, camera_target: None, caster_yaw: None });
+            c.update(&EffectUpdateCtx {
+                delta,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
     }
 
@@ -155,12 +159,19 @@ mod tests {
         let p = prims(&c);
         // 3 flared rings (reused) + 1 tall narrow column.
         assert_eq!(p.len(), 4);
-        let tallest = p.iter().filter_map(|d| match d {
-            EffectPrimitiveDraw::Frustum { height, top_size, bottom_size, .. } => {
-                Some((*height, *top_size - *bottom_size))
-            }
-            _ => None,
-        }).max_by(|a, b| a.0.partial_cmp(&b.0).unwrap()).unwrap();
+        let tallest = p
+            .iter()
+            .filter_map(|d| match d {
+                EffectPrimitiveDraw::Frustum {
+                    height,
+                    top_size,
+                    bottom_size,
+                    ..
+                } => Some((*height, *top_size - *bottom_size)),
+                _ => None,
+            })
+            .max_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
+            .unwrap();
         // The column is the tallest and the narrowest (least flare).
         assert!(tallest.0 >= COLUMN_HEIGHT - 1e-3);
         assert!(tallest.1 < 1.0, "column barely flares");
@@ -195,7 +206,11 @@ mod tests {
         let mut c = BeginSpell8Effect::new([0.0; 3]);
         run_to(&mut c, TOTAL_FRAMES - 1.0);
         assert_eq!(
-            c.update(&EffectUpdateCtx { delta: 0.1, camera_target: None, caster_yaw: None }),
+            c.update(&EffectUpdateCtx {
+                delta: 0.1,
+                camera_target: None,
+                caster_yaw: None
+            }),
             EffectStatus::Dead
         );
     }

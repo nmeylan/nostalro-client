@@ -182,7 +182,13 @@ mod tests {
         list.primitives
             .iter()
             .map(|p| match p {
-                EffectPrimitiveDraw::Frustum { bottom_size, height, color, blend, .. } => {
+                EffectPrimitiveDraw::Frustum {
+                    bottom_size,
+                    height,
+                    color,
+                    blend,
+                    ..
+                } => {
                     assert!(
                         color[0] < 0.3 && color[1] < 0.3 && color[2] < 0.3,
                         "ripples are dark-gray tinted, got {color:?}"
@@ -225,7 +231,10 @@ mod tests {
         tick(&mut e, 40);
         assert!(e.rings[0].distance > start, "ring expands outward");
         tick(&mut e, 200);
-        assert!(e.rings[0].distance < 13.0, "radius stays within the ripple band");
+        assert!(
+            e.rings[0].distance < 13.0,
+            "radius stays within the ripple band"
+        );
     }
 
     #[test]
@@ -241,6 +250,9 @@ mod tests {
         let late = e.rings[0].alpha_b;
         assert!(early > 0.0, "alpha ramps in as the ring grows");
         assert!(peak > early, "alpha climbs to a peak ({early} → {peak})");
-        assert!(late < peak, "alpha drains as the ring flattens ({peak} → {late})");
+        assert!(
+            late < peak,
+            "alpha drains as the ring flattens ({peak} → {late})"
+        );
     }
 }

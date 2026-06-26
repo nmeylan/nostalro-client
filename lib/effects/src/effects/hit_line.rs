@@ -37,9 +37,7 @@
 //! `(255, 200-(20-j)·7, ·)` plus an orange body flash on frames 10-20).
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-use crate::effect_trait::{
-    BodyCopy, BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx,
-};
+use crate::effect_trait::{BodyCopy, BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 pub const TEXTURE: &str = "white02.bmp";
@@ -303,13 +301,7 @@ impl HitLineEffect {
         }
     }
 
-    fn push_ribbon(
-        &self,
-        out: &mut EffectDrawList,
-        s: &Streak,
-        width_scale: f32,
-        halo: bool,
-    ) {
+    fn push_ribbon(&self, out: &mut EffectDrawList, s: &Streak, width_scale: f32, halo: bool) {
         let n_points = self.params.segments + 1;
         let mut points = Vec::with_capacity(n_points);
         let mut colors = Vec::with_capacity(n_points);
@@ -578,8 +570,9 @@ impl Effect for HitLineBounceEffect {
     }
 
     fn body_tint(&self) -> Option<BodyTint> {
-        (self.body_flash && (10..=20).contains(&self.frame))
-            .then_some(BodyTint { rgb: [255, 120, 50] })
+        (self.body_flash && (10..=20).contains(&self.frame)).then_some(BodyTint {
+            rgb: [255, 120, 50],
+        })
     }
 
     fn body_copies(&self) -> Option<Vec<BodyCopy>> {
@@ -662,13 +655,19 @@ mod tests {
         let has_halo = r
             .iter()
             .any(|(_, c)| c.iter().any(|c| c[2] > 0.2 && c[0] < 1e-6 && c[1] < 1e-6));
-        assert!(has_core && has_halo, "gray-white core + blue glow both present");
+        assert!(
+            has_core && has_halo,
+            "gray-white core + blue glow both present"
+        );
         // At least one streak rises above head height (y well negative).
         let highest = r
             .iter()
             .flat_map(|(pts, _)| pts.iter().map(|p| p[1]))
             .fold(0.0_f32, f32::min);
-        assert!(highest < HEAD_LIFT, "streak rises past the head lift, got {highest}");
+        assert!(
+            highest < HEAD_LIFT,
+            "streak rises past the head lift, got {highest}"
+        );
     }
 
     #[test]
@@ -736,7 +735,12 @@ mod tests {
         tick_bounce(&mut e, 5);
         assert_eq!(e.body_tint(), None, "no flash before frame 10");
         tick_bounce(&mut e, 10);
-        assert_eq!(e.body_tint(), Some(BodyTint { rgb: [255, 120, 50] }));
+        assert_eq!(
+            e.body_tint(),
+            Some(BodyTint {
+                rgb: [255, 120, 50]
+            })
+        );
         tick_bounce(&mut e, 10);
         assert_eq!(e.body_tint(), None, "flash ends after frame 20");
     }
@@ -757,6 +761,10 @@ mod tests {
                 break;
             }
         }
-        assert_eq!(st, EffectStatus::Dead, "all streaks fade and the effect dies");
+        assert_eq!(
+            st,
+            EffectStatus::Dead,
+            "all streaks fade and the effect dies"
+        );
     }
 }

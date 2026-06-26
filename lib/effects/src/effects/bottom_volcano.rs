@@ -181,8 +181,8 @@ impl BottomVolcanoEffect {
             for i in 0..RADIAL_EMITTER_DIVISION {
                 let sin_limit_deg = 90.0 + (i as f32 - MIDDLE) * M2;
                 let amplitude = sin_limit_deg.to_radians().sin();
-                slot.height[i] = slot.max_height
-                    + slot.max_height * amplitude * WOBBLE_AMPLITUDE * pr_sin;
+                slot.height[i] =
+                    slot.max_height + slot.max_height * amplitude * WOBBLE_AMPLITUDE * pr_sin;
             }
         }
     }
@@ -257,7 +257,8 @@ mod tests {
     fn step(e: &mut BottomVolcanoEffect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FRAMES_PER_SECOND,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 

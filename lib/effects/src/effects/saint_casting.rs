@@ -21,9 +21,7 @@
 //! additionally refills alpha at
 //! `+5`/frame instead of `+10` and resets to a `64°` rise instead of `74°`.
 
-use crate::draw::{
-    BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode,
-};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
@@ -256,12 +254,16 @@ impl Effect for SaintCastingEffect {
         // refilling — the aura would render nothing. Scale the margin to the
         // lifetime (capped at the authored value) so it stays positive and the
         // aura is visible however short the cast.
-        let margin =
-            (RESET_PROCESS_MARGIN as f32 * (self.life_frames / TOTAL_FRAMES)).min(RESET_PROCESS_MARGIN as f32);
+        let margin = (RESET_PROCESS_MARGIN as f32 * (self.life_frames / TOTAL_FRAMES))
+            .min(RESET_PROCESS_MARGIN as f32);
         let reset_limit = self.life_frames as i32 - margin as i32;
         for _ in 0..steps {
             for em in &mut self.emitters {
-                em.step(self.cfg.refill_per_frame, self.cfg.reset_rise_deg, reset_limit);
+                em.step(
+                    self.cfg.refill_per_frame,
+                    self.cfg.reset_rise_deg,
+                    reset_limit,
+                );
             }
         }
         if frame_after >= self.life_frames {
@@ -371,7 +373,8 @@ mod tests {
         for _ in 0..n {
             status = e.update(&EffectUpdateCtx {
                 delta: 1.0 / 60.0,
-                camera_target: None, caster_yaw: None,
+                camera_target: None,
+                caster_yaw: None,
             });
         }
         status
@@ -411,7 +414,10 @@ mod tests {
                 break;
             }
         }
-        assert!(emitted, "short-lived cast aura must emit cones within its lifetime");
+        assert!(
+            emitted,
+            "short-lived cast aura must emit cones within its lifetime"
+        );
     }
 
     #[test]
@@ -536,7 +542,10 @@ mod tests {
         let early = count(&e);
         step_frames(&mut e, 14);
         let late = count(&e);
-        assert!(early > 0 && early < 8, "only the lead emitters are up: {early}");
+        assert!(
+            early > 0 && early < 8,
+            "only the lead emitters are up: {early}"
+        );
         assert_eq!(late, 8, "the whole cascade is up by frame 18");
     }
 }

@@ -65,7 +65,6 @@ fn wall_alpha(frame: f32) -> f32 {
     (frame / WALL_FADE_IN_FRAMES).clamp(0.0, 1.0) * WALL_MAX_ALPHA
 }
 
-
 pub struct GlasswallEffect {
     world_pos: [f32; 3],
     age_frames: f32,
@@ -73,7 +72,10 @@ pub struct GlasswallEffect {
 
 impl GlasswallEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        Self { world_pos, age_frames: 0.0 }
+        Self {
+            world_pos,
+            age_frames: 0.0,
+        }
     }
 }
 
@@ -83,12 +85,7 @@ impl GlasswallEffect {
 ///
 /// Corners are returned in perimeter order so the WorldQuad renderer's
 /// triangulation `(0,1,2) + (0,2,3)` covers the full quad: `TL → TR → BR → BL`.
-fn wall_quad(
-    centre: [f32; 3],
-    half_along_x: f32,
-    half_along_z: f32,
-    height: f32,
-) -> [[f32; 3]; 4] {
+fn wall_quad(centre: [f32; 3], half_along_x: f32, half_along_z: f32, height: f32) -> [[f32; 3]; 4] {
     let bx0 = centre[0] - half_along_x;
     let bz0 = centre[2] - half_along_z;
     let bx1 = centre[0] + half_along_x;
@@ -172,7 +169,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -198,9 +199,9 @@ mod tests {
             .primitives
             .iter()
             .filter_map(|p| match p {
-                EffectPrimitiveDraw::WorldQuad { corners, texture, .. } => {
-                    Some((*corners, *texture))
-                }
+                EffectPrimitiveDraw::WorldQuad {
+                    corners, texture, ..
+                } => Some((*corners, *texture)),
                 _ => None,
             })
             .collect();

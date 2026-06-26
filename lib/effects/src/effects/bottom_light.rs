@@ -147,12 +147,7 @@ impl Effect for BottomLightEffect {
             // the curtain.
             let u_pre = (order as f32 - 1.0) / E_DIVISION as f32;
             let u_now = order as f32 / E_DIVISION as f32;
-            let uv = [
-                [u_now, 1.0],
-                [u_pre, 1.0],
-                [u_pre, 0.0],
-                [u_now, 0.0],
-            ];
+            let uv = [[u_now, 1.0], [u_pre, 1.0], [u_pre, 0.0], [u_now, 0.0]];
             out.push(EffectPrimitiveDraw::WorldQuad {
                 corners,
                 uv,
@@ -200,7 +195,11 @@ mod tests {
     }
 
     fn step(effect: &mut BottomLightEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
+        effect.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     fn draws(effect: &BottomLightEffect) -> Vec<EffectPrimitiveDraw> {
@@ -221,7 +220,14 @@ mod tests {
 
         let mut peak_drop = 0.0_f32;
         for p in &prims {
-            let EffectPrimitiveDraw::WorldQuad { corners, blend, color, texture, .. } = p else {
+            let EffectPrimitiveDraw::WorldQuad {
+                corners,
+                blend,
+                color,
+                texture,
+                ..
+            } = p
+            else {
                 panic!("expected WorldQuad, got {p:?}");
             };
             assert_eq!(*blend, BlendKind::Additive);
@@ -272,6 +278,9 @@ mod tests {
             _ => panic!(),
         };
         let d = (p_a[0] - p_b[0]).hypot(p_a[2] - p_b[2]);
-        assert!(d > 0.5, "expected rotation to displace the first base point, got d={d}");
+        assert!(
+            d > 0.5,
+            "expected rotation to displace the first base point, got d={d}"
+        );
     }
 }

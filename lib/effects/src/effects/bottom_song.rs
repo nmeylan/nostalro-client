@@ -354,8 +354,7 @@ impl Effect for BottomSongEffect {
             * (self.rot_start_deg + BOB_SPEED_DEG_PER_FRAME * frames)
                 .to_radians()
                 .sin();
-        let pulse =
-            1.0 + PULSE_AMPLITUDE * (PULSE_SPEED_DEG_PER_FRAME * frames).to_radians().sin();
+        let pulse = 1.0 + PULSE_AMPLITUDE * (PULSE_SPEED_DEG_PER_FRAME * frames).to_radians().sin();
         let rotation = if self.params.spin {
             (SPIN_SPEED_DEG_PER_FRAME * frames).to_radians()
         } else {
@@ -436,7 +435,11 @@ mod tests {
     }
 
     fn step(effect: &mut BottomSongEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
+        effect.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     fn draws(effect: &BottomSongEffect) -> Vec<EffectPrimitiveDraw> {
@@ -457,12 +460,22 @@ mod tests {
         let prims = draws(&e);
         assert_eq!(prims.len(), 1);
         match &prims[0] {
-            EffectPrimitiveDraw::Billboard { pos, size, texture, blend, .. } => {
+            EffectPrimitiveDraw::Billboard {
+                pos,
+                size,
+                texture,
+                blend,
+                ..
+            } => {
                 assert_eq!(pos[0], 5.0);
                 assert_eq!(pos[2], 7.0);
                 let y_min = VERTICAL_OFFSET - BOB_AMPLITUDE - 1e-2;
                 let y_max = VERTICAL_OFFSET + BOB_AMPLITUDE + 1e-2;
-                assert!(pos[1] >= y_min && pos[1] <= y_max, "icon Y {} in bob band", pos[1]);
+                assert!(
+                    pos[1] >= y_min && pos[1] <= y_max,
+                    "icon Y {} in bob band",
+                    pos[1]
+                );
                 let expected = WHISTLE.distance * EDGE_PER_DISTANCE;
                 assert!(
                     (size[0] - expected).abs() < WHISTLE.distance * 0.1,
@@ -507,7 +520,10 @@ mod tests {
         // brightest, smallest cell lands on top.
         let (mut prev_a, mut prev_sz) = (f32::NEG_INFINITY, f32::INFINITY);
         for p in &prims {
-            let EffectPrimitiveDraw::Billboard { color, size, blend, .. } = p else {
+            let EffectPrimitiveDraw::Billboard {
+                color, size, blend, ..
+            } = p
+            else {
                 panic!("expected Billboard, got {p:?}");
             };
             assert_eq!(*blend, BlendKind::Additive);
@@ -531,7 +547,11 @@ mod tests {
         for tex in chosen.iter() {
             assert!(POEMBRAGI.textures.contains(tex), "picked {tex} not in pool");
         }
-        assert!(chosen.len() >= 4, "expected ≥4 distinct, got {}", chosen.len());
+        assert!(
+            chosen.len() >= 4,
+            "expected ≥4 distinct, got {}",
+            chosen.len()
+        );
     }
 
     #[test]
@@ -547,8 +567,16 @@ mod tests {
             let mut e = BottomSongEffect::new(pos, INTOABYSS);
             step(&mut e, FADE_IN_SECS);
             match &draws(&e)[0] {
-                EffectPrimitiveDraw::SpriteParticle { sprite_path, blend, position, .. } => {
-                    assert!(GEMSTONE_SPRITES.contains(sprite_path), "{sprite_path} not a gem");
+                EffectPrimitiveDraw::SpriteParticle {
+                    sprite_path,
+                    blend,
+                    position,
+                    ..
+                } => {
+                    assert!(
+                        GEMSTONE_SPRITES.contains(sprite_path),
+                        "{sprite_path} not a gem"
+                    );
                     assert_eq!(*blend, BlendKind::Alpha, "F1=5 flag1[2]=4 → alpha");
                     assert!((position[1] - VERTICAL_OFFSET).abs() <= BOB_AMPLITUDE + 1e-2);
                     chosen.insert(*sprite_path);
@@ -556,7 +584,11 @@ mod tests {
                 other => panic!("expected SpriteParticle, got {other:?}"),
             }
         }
-        assert!(chosen.len() >= 2, "expected ≥2 distinct gems, got {}", chosen.len());
+        assert!(
+            chosen.len() >= 2,
+            "expected ≥2 distinct gems, got {}",
+            chosen.len()
+        );
     }
 
     #[test]
@@ -576,7 +608,11 @@ mod tests {
         }
         assert!(min_y < VERTICAL_OFFSET, "saw a trough: {min_y}");
         assert!(max_y > VERTICAL_OFFSET, "saw a peak: {max_y}");
-        assert!((max_y - min_y) > BOB_AMPLITUDE, "spread {} > amplitude", max_y - min_y);
+        assert!(
+            (max_y - min_y) > BOB_AMPLITUDE,
+            "spread {} > amplitude",
+            max_y - min_y
+        );
     }
 
     #[test]

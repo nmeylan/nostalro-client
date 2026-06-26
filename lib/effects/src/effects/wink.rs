@@ -57,7 +57,12 @@ pub struct WinkEffect {
 
 impl WinkEffect {
     pub fn new(caster: [f32; 3], target: [f32; 3], sprite: &'static str) -> Self {
-        Self { caster, target, sprite, age: 0.0 }
+        Self {
+            caster,
+            target,
+            sprite,
+            age: 0.0,
+        }
     }
 
     fn motion_index(&self) -> usize {
@@ -116,7 +121,11 @@ fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
 
 fn normalize(v: [f32; 3]) -> [f32; 3] {
     let len = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
-    if len <= 1e-6 { v } else { [v[0] / len, v[1] / len, v[2] / len] }
+    if len <= 1e-6 {
+        v
+    } else {
+        [v[0] / len, v[1] / len, v[2] / len]
+    }
 }
 
 /// Camera azimuth in degrees `[0, 360)` — the direction from the look target
@@ -195,15 +204,28 @@ mod tests {
     }
 
     fn render_ctx(camera: CameraView) -> EffectRenderCtx {
-        EffectRenderCtx { camera, screen_w: 256.0, screen_h: 256.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera,
+            screen_w: 256.0,
+            screen_h: 256.0,
+            elapsed: 0.0,
+        }
     }
 
     fn particle(e: &WinkEffect, camera: CameraView) -> ([f32; 3], usize) {
         let mut l = EffectDrawList::new();
         e.collect_draws(&mut l, &render_ctx(camera));
         match l.primitives.first() {
-            Some(EffectPrimitiveDraw::SpriteParticle { position, action_index, no_depth, .. }) => {
-                assert!(*no_depth, "CHIMTO is RF_NODEPTHCHECK so it isn't swallowed by the floor");
+            Some(EffectPrimitiveDraw::SpriteParticle {
+                position,
+                action_index,
+                no_depth,
+                ..
+            }) => {
+                assert!(
+                    *no_depth,
+                    "CHIMTO is RF_NODEPTHCHECK so it isn't swallowed by the floor"
+                );
                 (*position, *action_index)
             }
             _ => panic!("expected a SpriteParticle"),
@@ -217,7 +239,10 @@ mod tests {
         // grid is 0=left/low, 1=left/high, 2=right/high, 3=right/low.
         let cam = cam_at(0.0);
         // Self-cast sits on the caster and uses the camera-only fallback action.
-        let (self_pos, self_act) = particle(&WinkEffect::new([2.0, 0.0, 3.0], [2.0, 0.0, 3.0], FVOICE), cam);
+        let (self_pos, self_act) = particle(
+            &WinkEffect::new([2.0, 0.0, 3.0], [2.0, 0.0, 3.0], FVOICE),
+            cam,
+        );
         assert_eq!(self_pos, [2.0, 0.0, 3.0], "self-cast draws on the caster");
         assert_eq!(self_act, action_for_angle(camera_longitude_deg(&cam)));
         // Targeted: the emote is drawn at the target, not the caster.
@@ -227,7 +252,10 @@ mod tests {
         // Casters on opposite sides of the target pick the left vs right action.
         let east = particle(&WinkEffect::new([20.0, 0.0, 0.0], target, FVOICE), cam).1;
         let west = particle(&WinkEffect::new([-20.0, 0.0, 0.0], target, FVOICE), cam).1;
-        assert_ne!(east, west, "caster side of the target changes the fly-off action");
+        assert_ne!(
+            east, west,
+            "caster side of the target changes the fly-off action"
+        );
     }
 
     #[test]
@@ -235,14 +263,22 @@ mod tests {
         let mut e = WinkEffect::new([0.0; 3], [0.0; 3], WINK);
         let m0 = e.motion_index();
         for _ in 0..6 {
-            e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         let m_mid = e.motion_index();
         assert!(m_mid > m0, "motion advances: {m0} -> {m_mid}");
 
         let mut status = EffectStatus::Running;
         for _ in 0..200 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
+            status = e.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
+                camera_target: None,
+                caster_yaw: None,
+            });
             if status == EffectStatus::Dead {
                 break;
             }

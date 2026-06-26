@@ -158,13 +158,22 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn tick(e: &mut PokjukEffect, frames: u32) -> EffectStatus {
         let mut st = EffectStatus::Running;
         for _ in 0..frames {
-            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            st = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         st
     }
@@ -182,7 +191,10 @@ mod tests {
         let early = draws(&e).len();
         tick(&mut e, NUM_SPARKS as u32 * LAUNCH_STAGGER_FRAMES as u32 + 2);
         let all = draws(&e).len();
-        assert!(early < NUM_SPARKS, "not all sparks burst at frame 0 ({early})");
+        assert!(
+            early < NUM_SPARKS,
+            "not all sparks burst at frame 0 ({early})"
+        );
         assert_eq!(all, NUM_SPARKS, "all sparks bursting once staggered in");
     }
 
@@ -201,7 +213,8 @@ mod tests {
     #[test]
     fn sparks_carry_varied_colors_and_textures() {
         let e = PokjukEffect::new([5.0, 0.0, 9.0]);
-        let textures: std::collections::BTreeSet<&str> = e.sparks.iter().map(|s| s.texture).collect();
+        let textures: std::collections::BTreeSet<&str> =
+            e.sparks.iter().map(|s| s.texture).collect();
         assert!(textures.iter().all(|t| TEXTURES.contains(t)));
         // Colours come from the 5-entry palette.
         assert!(e.sparks.iter().all(|s| COLORS.contains(&s.color)));

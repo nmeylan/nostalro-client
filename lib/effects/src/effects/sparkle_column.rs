@@ -132,7 +132,8 @@ pub struct SparkleColumnEffect {
 
 impl SparkleColumnEffect {
     pub fn new(world_pos: [f32; 3], params: SparkleColumnParams) -> Self {
-        let mut rng_state = 0x9E37_79B9 ^ world_pos[0].to_bits() ^ world_pos[2].to_bits().rotate_left(13);
+        let mut rng_state =
+            0x9E37_79B9 ^ world_pos[0].to_bits() ^ world_pos[2].to_bits().rotate_left(13);
         let mut motes = Vec::with_capacity(params.count);
         for _ in 0..params.count {
             motes.push(seed_mote(&mut rng_state, &params, true));
@@ -198,7 +199,8 @@ impl Effect for SparkleColumnEffect {
             let fade_out = if m.y_offset > fade_top_start {
                 1.0
             } else {
-                ((m.y_offset - (-COLUMN_HEIGHT)) / (fade_top_start - (-COLUMN_HEIGHT))).clamp(0.0, 1.0)
+                ((m.y_offset - (-COLUMN_HEIGHT)) / (fade_top_start - (-COLUMN_HEIGHT)))
+                    .clamp(0.0, 1.0)
             };
             let alpha = self.params.alpha_max * fade_in * fade_out;
             if alpha <= 0.0 {
@@ -243,14 +245,20 @@ mod tests {
     }
 
     fn step(c: &mut SparkleColumnEffect, dt: f32) {
-        c.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
+        c.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     #[test]
     fn only_motes_above_ground_are_drawn_as_additive_billboards() {
         let c = SparkleColumnEffect::new([5.0, 0.0, 5.0], FREEZING);
         for p in draws(&c) {
-            let EffectPrimitiveDraw::Billboard { pos, blend, .. } = p else { panic!() };
+            let EffectPrimitiveDraw::Billboard { pos, blend, .. } = p else {
+                panic!()
+            };
             assert_eq!(blend, BlendKind::Additive);
             // Visible motes are at/above ground: native RO up = negative y.
             assert!(pos[1] <= 0.0 + 1e-4);
@@ -263,14 +271,20 @@ mod tests {
         // Track the lowest mote (largest y_offset) so it can't respawn during
         // the step and the comparison stays on the same particle.
         let lowest = |c: &SparkleColumnEffect| {
-            c.motes.iter().enumerate().max_by(|a, b| {
-                a.1.y_offset.partial_cmp(&b.1.y_offset).unwrap()
-            }).map(|(i, m)| (i, m.y_offset)).unwrap()
+            c.motes
+                .iter()
+                .enumerate()
+                .max_by(|a, b| a.1.y_offset.partial_cmp(&b.1.y_offset).unwrap())
+                .map(|(i, m)| (i, m.y_offset))
+                .unwrap()
         };
         let (idx, y0) = lowest(&c);
         step(&mut c, 0.1);
         let y1 = c.motes[idx].y_offset;
-        assert!(y1 < y0, "mote should rise (y decreases in native RO): {y0} → {y1}");
+        assert!(
+            y1 < y0,
+            "mote should rise (y decreases in native RO): {y0} → {y1}"
+        );
     }
 
     #[test]
@@ -296,7 +310,10 @@ mod tests {
         };
         // Ghost's wide footprint (scatter 7) vs the freezing column's tight
         // cluster (scatter 1.5) — both bounded by their `scatter` radius.
-        assert!(spread(&ghost) > spread(&freezing) * 2.0, "ghost should scatter far wider");
+        assert!(
+            spread(&ghost) > spread(&freezing) * 2.0,
+            "ghost should scatter far wider"
+        );
         assert!(spread(&freezing) <= FREEZING.scatter + 1e-4);
         assert!(spread(&ghost) <= GHOST.scatter + 1e-4);
     }
@@ -307,14 +324,24 @@ mod tests {
         for t in texs {
             assert!(TEXTURES.contains(&t));
         }
-        assert_eq!(texs.iter().collect::<std::collections::HashSet<_>>().len(), 3);
+        assert_eq!(
+            texs.iter().collect::<std::collections::HashSet<_>>().len(),
+            3
+        );
     }
 
     #[test]
     fn never_self_terminates() {
         let mut c = SparkleColumnEffect::new([0.0; 3], GHOST);
         for _ in 0..200 {
-            assert_eq!(c.update(&EffectUpdateCtx { delta: 0.1, camera_target: None, caster_yaw: None }), EffectStatus::Running);
+            assert_eq!(
+                c.update(&EffectUpdateCtx {
+                    delta: 0.1,
+                    camera_target: None,
+                    caster_yaw: None
+                }),
+                EffectStatus::Running
+            );
         }
     }
 }

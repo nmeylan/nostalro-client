@@ -109,7 +109,13 @@ pub struct GuardEffect {
 
 impl GuardEffect {
     pub fn new(world_pos: [f32; 3], params: GuardParams) -> Self {
-        Self { world_pos, params, caster_yaw: None, age: 0.0, frames: 0 }
+        Self {
+            world_pos,
+            params,
+            caster_yaw: None,
+            age: 0.0,
+            frames: 0,
+        }
     }
 
     /// `process` counter (1-based on the first drawn frame).
@@ -144,7 +150,15 @@ impl GuardEffect {
 /// Place a panel corner offset
 /// `(rx, ry)` in the panel's local frame, oriented by the latitude pair
 /// `(sn2, cs2)` and longitude pair `(sn1, cs1)`, then translate to `center`.
-fn guard_point(rx: f32, ry: f32, sn2: f32, cs2: f32, sn1: f32, cs1: f32, center: [f32; 3]) -> [f32; 3] {
+fn guard_point(
+    rx: f32,
+    ry: f32,
+    sn2: f32,
+    cs2: f32,
+    sn1: f32,
+    cs1: f32,
+    center: [f32; 3],
+) -> [f32; 3] {
     let y = ry * sn2;
     let z0 = ry * cs2;
     let x0 = rx;
@@ -189,7 +203,8 @@ impl Effect for GuardEffect {
                 let (sn_o1, cs_o1) = (rot_start + add - 90.0).to_radians().sin_cos();
 
                 for layer in 0..3 {
-                    let radius = mh + LAYER_RADIUS_ADD[layer] + if layer == 2 { height0 } else { 0.0 };
+                    let radius =
+                        mh + LAYER_RADIUS_ADD[layer] + if layer == 2 { height0 } else { 0.0 };
                     // Shell-relative panel centre. Layer 0 sits slightly lower.
                     let y_off = if layer == 0 { -(mh + 2.0) } else { -mh };
                     let center = [
@@ -199,7 +214,11 @@ impl Effect for GuardEffect {
                     ];
                     let corner = |rx: f32, ry: f32| {
                         let p = guard_point(rx, ry, sn_o2, cs_o2, sn_o1, cs_o1, center);
-                        [p[0] + self.world_pos[0], p[1] + self.world_pos[1], p[2] + self.world_pos[2]]
+                        [
+                            p[0] + self.world_pos[0],
+                            p[1] + self.world_pos[1],
+                            p[2] + self.world_pos[2],
+                        ]
                     };
                     let corners = [
                         corner(dist, dist),
@@ -228,7 +247,9 @@ impl Effect for GuardEffect {
 
     fn body_tint(&self) -> Option<BodyTint> {
         if self.params.body_flash && (10..=30).contains(&self.frames) && self.frames % 2 == 0 {
-            Some(BodyTint { rgb: [250, 250, 250] })
+            Some(BodyTint {
+                rgb: [250, 250, 250],
+            })
         } else {
             None
         }
@@ -240,12 +261,21 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn draws_after(params: GuardParams, secs: f32) -> Vec<EffectPrimitiveDraw> {
         let mut e = GuardEffect::new([10.0, 0.0, 20.0], params);
-        e.update(&EffectUpdateCtx { delta: secs, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: secs,
+            camera_target: None,
+            caster_yaw: None,
+        });
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         list.primitives
@@ -257,10 +287,20 @@ mod tests {
         // tex0, layer 2 alpha on tex1; every corner sits within the shell
         // radius of the caster.
         let prims = draws_after(GUARD, 15.0 / 60.0);
-        assert_eq!(prims.len(), (COLUMNS * ROWS * 3) as usize, "5×3 panels, 3 layers");
+        assert_eq!(
+            prims.len(),
+            (COLUMNS * ROWS * 3) as usize,
+            "5×3 panels, 3 layers"
+        );
         let (mut additive_tex0, mut alpha_tex1) = (0, 0);
         for p in &prims {
-            let EffectPrimitiveDraw::WorldQuad { corners, texture, blend, .. } = p else {
+            let EffectPrimitiveDraw::WorldQuad {
+                corners,
+                texture,
+                blend,
+                ..
+            } = p
+            else {
                 panic!("expected WorldQuad, got {p:?}");
             };
             match blend {
@@ -292,25 +332,38 @@ mod tests {
         let early = draws_after(GUARD, 0.0);
         let hold = draws_after(GUARD, 15.0 / 60.0);
         let alpha_of = |p: &EffectPrimitiveDraw| {
-            let EffectPrimitiveDraw::WorldQuad { color, .. } = p else { panic!() };
+            let EffectPrimitiveDraw::WorldQuad { color, .. } = p else {
+                panic!()
+            };
             color[3]
         };
         assert!(alpha_of(&early[0]) < alpha_of(&hold[0]), "ramps in");
-        assert!((alpha_of(&hold[0]) - 100.0 / 255.0).abs() < 1e-3, "holds at 100/255");
+        assert!(
+            (alpha_of(&hold[0]) - 100.0 / 255.0).abs() < 1e-3,
+            "holds at 100/255"
+        );
 
         // Gold variant is red-dominant; green variant is green-dominant.
-        let EffectPrimitiveDraw::WorldQuad { color: gold, .. } = &draws_after(GUARD3, 15.0 / 60.0)[0] else {
+        let EffectPrimitiveDraw::WorldQuad { color: gold, .. } =
+            &draws_after(GUARD3, 15.0 / 60.0)[0]
+        else {
             panic!()
         };
         assert!(gold[0] > gold[1], "gold: r > g");
-        let EffectPrimitiveDraw::WorldQuad { color: green, .. } = &hold[0] else { panic!() };
+        let EffectPrimitiveDraw::WorldQuad { color: green, .. } = &hold[0] else {
+            panic!()
+        };
         assert!(green[1] >= green[0], "green: g >= r");
 
         // Self-terminates once the fade-out completes.
         let mut e = GuardEffect::new([0.0; 3], GUARD);
         let mut status = EffectStatus::Running;
         for _ in 0..DEATH_PROCESS + 5 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
+            status = e.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         assert_eq!(status, EffectStatus::Dead);
     }
@@ -322,15 +375,30 @@ mod tests {
         // for an even frame in the window and off for Guard/Guard3.
         let f1 = draws_after(GUARD2, 5.0 / 60.0);
         let f2 = draws_after(GUARD2, 6.0 / 60.0);
-        let EffectPrimitiveDraw::WorldQuad { corners: c1, .. } = &f1[0] else { panic!() };
-        let EffectPrimitiveDraw::WorldQuad { corners: c2, .. } = &f2[0] else { panic!() };
+        let EffectPrimitiveDraw::WorldQuad { corners: c1, .. } = &f1[0] else {
+            panic!()
+        };
+        let EffectPrimitiveDraw::WorldQuad { corners: c2, .. } = &f2[0] else {
+            panic!()
+        };
         assert!(c1[0] != c2[0], "spinning shell rotates between frames");
 
         let mut spin = GuardEffect::new([0.0; 3], GUARD2);
-        spin.update(&EffectUpdateCtx { delta: 12.0 / 60.0, camera_target: None, caster_yaw: None });
-        assert!(spin.body_tint().is_some(), "body flashes on even frame in window");
+        spin.update(&EffectUpdateCtx {
+            delta: 12.0 / 60.0,
+            camera_target: None,
+            caster_yaw: None,
+        });
+        assert!(
+            spin.body_tint().is_some(),
+            "body flashes on even frame in window"
+        );
         let mut still = GuardEffect::new([0.0; 3], GUARD);
-        still.update(&EffectUpdateCtx { delta: 12.0 / 60.0, camera_target: None, caster_yaw: None });
+        still.update(&EffectUpdateCtx {
+            delta: 12.0 / 60.0,
+            camera_target: None,
+            caster_yaw: None,
+        });
         assert!(still.body_tint().is_none(), "static guard never flashes");
     }
 }

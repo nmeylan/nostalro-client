@@ -292,7 +292,11 @@ impl StinEffect {
 
         let distance = self.params.distance + self.rng.random(11) * 0.1 * self.params.distance_rand;
         let spin = self.rng.random(360).to_radians();
-        let slot = Slot { pos: origin, alpha: 0.0, spin };
+        let slot = Slot {
+            pos: origin,
+            alpha: 0.0,
+            spin,
+        };
         self.swirls.push(Swirl {
             process: 0,
             heading,
@@ -407,7 +411,6 @@ impl StinEffect {
             }
         }
     }
-
 }
 
 /// Per-frame max steer (radians) for the homing swirls. A touch above a
@@ -448,7 +451,11 @@ impl Effect for StinEffect {
             // already *is* the swirl. The trail's only role is the motion smear
             // of a flying swirl; in-place (`!has_dir`), stacking 4 spun copies of
             // a ring just makes moiré, so draw the head alone.
-            let slots: &[Slot] = if self.has_dir { &swirl.slots } else { &swirl.slots[..1] };
+            let slots: &[Slot] = if self.has_dir {
+                &swirl.slots
+            } else {
+                &swirl.slots[..1]
+            };
             for slot in slots {
                 if slot.alpha <= 0.0 {
                     continue;
@@ -478,7 +485,11 @@ mod tests {
     use super::*;
 
     fn ctx() -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: 1.0 / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn tick(e: &mut StinEffect, frames: u32) -> EffectStatus {
@@ -491,12 +502,15 @@ mod tests {
 
     fn quads(e: &StinEffect) -> Vec<([f32; 4], BlendKind)> {
         let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 256.0,
-            screen_h: 256.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut list,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 256.0,
+                screen_h: 256.0,
+                elapsed: 0.0,
+            },
+        );
         list.primitives
             .iter()
             .map(|p| match p {
@@ -514,7 +528,10 @@ mod tests {
         assert!(!q.is_empty(), "swirl quads emitted");
         let (color, blend) = q[0];
         assert_eq!(blend, BlendKind::Alpha);
-        assert!(color[2] > color[0] && color[2] > color[1], "blue tint: {color:?}");
+        assert!(
+            color[2] > color[0] && color[2] > color[1],
+            "blue tint: {color:?}"
+        );
         // Eventually fades out and the effect reports Dead.
         assert_eq!(tick(&mut e, 300), EffectStatus::Dead);
     }
@@ -528,7 +545,10 @@ mod tests {
         let peak_alpha: f32 = quads(&e).iter().map(|(c, _)| c[3]).sum();
         tick(&mut e, 30);
         let late_alpha: f32 = quads(&e).iter().map(|(c, _)| c[3]).sum();
-        assert!(late_alpha < peak_alpha, "alpha fades: {peak_alpha} -> {late_alpha}");
+        assert!(
+            late_alpha < peak_alpha,
+            "alpha fades: {peak_alpha} -> {late_alpha}"
+        );
     }
 
     #[test]
@@ -538,9 +558,16 @@ mod tests {
         let q = quads(&e);
         assert!(!q.is_empty());
         let (color, _) = q[0];
-        assert!(color[1] > color[0] && color[1] > color[2], "green tint: {color:?}");
+        assert!(
+            color[1] > color[0] && color[1] > color[2],
+            "green tint: {color:?}"
+        );
         // Five staggered swirls → more visible quads than a single swirl.
-        assert!(e.swirls.len() >= 4, "staggered batch alive: {}", e.swirls.len());
+        assert!(
+            e.swirls.len() >= 4,
+            "staggered batch alive: {}",
+            e.swirls.len()
+        );
         // §9c: a real caster→target direction makes each swirl a projectile
         // flying toward the target (+Z here), not an in-place swirl.
         assert!(e.has_dir, "directional anchor → travels");
@@ -562,13 +589,27 @@ mod tests {
         assert_eq!(e.swirls.len(), 2);
         let base = e.base_heading();
         let (h0, h1) = (e.swirls[0].heading, e.swirls[1].heading);
-        assert!(((h0 + h1) * 0.5 - base).abs() < 1e-4, "symmetric about heading");
+        assert!(
+            ((h0 + h1) * 0.5 - base).abs() < 1e-4,
+            "symmetric about heading"
+        );
         assert!((h0 - h1).abs() > 1e-3, "launched to opposite sides");
         // The seeker pulls each swirl toward the target's actual position.
-        let before: f32 = e.swirls.iter().map(|s| dist(s.slots[0].pos, target)).fold(f32::MAX, f32::min);
+        let before: f32 = e
+            .swirls
+            .iter()
+            .map(|s| dist(s.slots[0].pos, target))
+            .fold(f32::MAX, f32::min);
         tick(&mut e, 40);
-        let after: f32 = e.swirls.iter().map(|s| dist(s.slots[0].pos, target)).fold(f32::MAX, f32::min);
-        assert!(after < before, "swirls close on the target: {before:.1} -> {after:.1}");
+        let after: f32 = e
+            .swirls
+            .iter()
+            .map(|s| dist(s.slots[0].pos, target))
+            .fold(f32::MAX, f32::min);
+        assert!(
+            after < before,
+            "swirls close on the target: {before:.1} -> {after:.1}"
+        );
     }
 
     fn dist(p: [f32; 3], q: [f32; 3]) -> f32 {

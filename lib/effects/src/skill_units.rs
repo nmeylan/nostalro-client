@@ -142,9 +142,18 @@ mod tests {
         assert_eq!(skill_unit_effect(UNT_FIREWALL), Some(EffectId::Firewall));
         assert_eq!(skill_unit_effect(UNT_ICEWALL), Some(EffectId::Icewall));
         assert_eq!(skill_unit_effect(UNT_SANCTUARY), Some(EffectId::BottomSanc));
-        assert_eq!(skill_unit_effect(UNT_LANDPROTECTOR), Some(EffectId::BottomLa));
-        assert_eq!(skill_unit_effect(UNT_FREEZINGTRAP), Some(EffectId::Freezing));
-        assert_eq!(skill_unit_effect(UNT_POEMBRAGI), Some(EffectId::BottomPoembragi));
+        assert_eq!(
+            skill_unit_effect(UNT_LANDPROTECTOR),
+            Some(EffectId::BottomLa)
+        );
+        assert_eq!(
+            skill_unit_effect(UNT_FREEZINGTRAP),
+            Some(EffectId::Freezing)
+        );
+        assert_eq!(
+            skill_unit_effect(UNT_POEMBRAGI),
+            Some(EffectId::BottomPoembragi)
+        );
         // 0x86 = UNT_DUMMYSKILL (invisible), 0x00 unused → no visual.
         assert_eq!(skill_unit_effect(0x86), None);
         assert_eq!(skill_unit_effect(0x00), None);

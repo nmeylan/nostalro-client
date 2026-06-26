@@ -642,8 +642,7 @@ impl HitEffect {
                 // Random direction within the cone:
                 // longitude in (base ± cone) and latitude in
                 // (-90 + 40 ± random(100)) — an upper-hemisphere bias.
-                let yaw_jitter =
-                    (lcg_float(&mut self.rng_state) * 2.0 - 1.0) * cone_half_rad;
+                let yaw_jitter = (lcg_float(&mut self.rng_state) * 2.0 - 1.0) * cone_half_rad;
                 let yaw = base_yaw_rad + yaw_jitter;
                 // latitude `−90 + 40 + random(100)` ∈ −50..50,
                 // measured from "facing down the local Z axis". Convert
@@ -667,8 +666,7 @@ impl HitEffect {
                 // Per-frame decel = `-(speed / duration) / 2`.
                 // Converting to per-second: divide by frame time (1/60s)
                 // to get per-second decel.
-                let decel_per_frame =
-                    -(speed_per_frame / duration_frames) / 2.0;
+                let decel_per_frame = -(speed_per_frame / duration_frames) / 2.0;
                 let decel_world_per_s2 = decel_per_frame * FRAMES_PER_SECOND * FRAMES_PER_SECOND;
 
                 let size = burst.size_min
@@ -831,12 +829,8 @@ impl Effect for HitEffect {
                 continue;
             }
             for i in 0..NUM_SEGMENTS {
-                let seg_alpha = base_alpha
-                    * (NUM_SEGMENTS - i) as f32
-                    / NUM_SEGMENTS as f32;
-                let seg_size = p.size
-                    * (2 * NUM_SEGMENTS - i) as f32
-                    / (2 * NUM_SEGMENTS) as f32;
+                let seg_alpha = base_alpha * (NUM_SEGMENTS - i) as f32 / NUM_SEGMENTS as f32;
+                let seg_size = p.size * (2 * NUM_SEGMENTS - i) as f32 / (2 * NUM_SEGMENTS) as f32;
                 let frame_index = (p.age * 1000.0 / PARTICLE_FRAME_MS) as usize;
                 let motion = frame_index.saturating_sub(i);
                 out.push(EffectPrimitiveDraw::SpriteParticle {
@@ -861,7 +855,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -885,11 +883,7 @@ mod tests {
         // native RO frame is +Y = downward).
         // Centre stays at the target `to` [1,2,3]; the source 10 units along
         // +X only drives the heading = atan2(10, 0) = π/2.
-        let mut e = HitEffect::new_with_endpoints(
-            [11.0, 2.0, 3.0],
-            [1.0, 2.0, 3.0],
-            HIT1,
-        );
+        let mut e = HitEffect::new_with_endpoints([11.0, 2.0, 3.0], [1.0, 2.0, 3.0], HIT1);
         e.update(&ctx(1.0 / 60.0));
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
@@ -905,12 +899,27 @@ mod tests {
             ..
         } = list.primitives[0]
         else {
-            panic!("first draw must be the cylinder Frustum, got {:?}", list.primitives[0]);
+            panic!(
+                "first draw must be the cylinder Frustum, got {:?}",
+                list.primitives[0]
+            );
         };
-        assert_eq!(blend, BlendKind::Alpha, "Hit ring is alpha-blended (RF_EFFECT_OM_2)");
+        assert_eq!(
+            blend,
+            BlendKind::Alpha,
+            "Hit ring is alpha-blended (RF_EFFECT_OM_2)"
+        );
         // XZ stays put (no horizontal translation).
-        assert!((base[0] - 1.0).abs() < 1e-4, "X stays at spawn: {}", base[0]);
-        assert!((base[2] - 3.0).abs() < 1e-4, "Z stays at spawn: {}", base[2]);
+        assert!(
+            (base[0] - 1.0).abs() < 1e-4,
+            "X stays at spawn: {}",
+            base[0]
+        );
+        assert!(
+            (base[2] - 3.0).abs() < 1e-4,
+            "Z stays at spawn: {}",
+            base[2]
+        );
         // Y starts at master_y + y_offset and moves DOWNWARD (+Y
         // in native RO) by speed × dt_frames. After 1 frame at
         // speed=0.7, base[1] should be > spawn-offset Y.
@@ -935,9 +944,18 @@ mod tests {
         );
         // inner=5 at y=0 → Frustum bottom_size=inner=5.
         // outer=10 at y=-height_size → Frustum top_size=outer=10.
-        assert!((bottom_size - 5.0).abs() < 1e-4, "bottom_size=inner_size=5: {bottom_size}");
-        assert!((top_size - 10.0).abs() < 1e-4, "top_size=outer_size=10: {top_size}");
-        assert!((height - 3.5).abs() < 1e-4, "Hit1 heightSize is static at 3.5");
+        assert!(
+            (bottom_size - 5.0).abs() < 1e-4,
+            "bottom_size=inner_size=5: {bottom_size}"
+        );
+        assert!(
+            (top_size - 10.0).abs() < 1e-4,
+            "top_size=outer_size=10: {top_size}"
+        );
+        assert!(
+            (height - 3.5).abs() < 1e-4,
+            "Hit1 heightSize is static at 3.5"
+        );
 
         // The remaining draws are SpriteParticles.
         let particles: Vec<_> = list
@@ -999,7 +1017,10 @@ mod tests {
             .iter()
             .filter(|p| matches!(p, EffectPrimitiveDraw::SpriteParticle { .. }))
             .count();
-        assert_eq!(ring_count, 2, "HIT3 launches 2 concentric rings after height>0");
+        assert_eq!(
+            ring_count, 2,
+            "HIT3 launches 2 concentric rings after height>0"
+        );
         // inner=outer=1.5 for HIT3 ring 1 (so both ends of the
         // Frustum are 1.5), and inner=1.5/outer=4.0 for ring 2 (so
         // bottom=1.5, top=4.0). At least one Frustum should carry
@@ -1061,17 +1082,14 @@ mod tests {
         // several ticks the speed-decel should slow the motion.
         let mut e = HitEffect::new([0.0; 3], HIT1);
         e.update(&ctx(0.0)); // triggers spawn
-        let spawn_positions: Vec<[f32; 3]> =
-            e.particles.iter().map(|p| p.history[0]).collect();
+        let spawn_positions: Vec<[f32; 3]> = e.particles.iter().map(|p| p.history[0]).collect();
         e.update(&ctx(1.0 / 60.0));
         // At least one particle has moved.
-        let moved = e
-            .particles
-            .iter()
-            .zip(&spawn_positions)
-            .any(|(p, s)| (p.history[0][0] - s[0]).abs() > 0.01
+        let moved = e.particles.iter().zip(&spawn_positions).any(|(p, s)| {
+            (p.history[0][0] - s[0]).abs() > 0.01
                 || (p.history[0][1] - s[1]).abs() > 0.01
-                || (p.history[0][2] - s[2]).abs() > 0.01);
+                || (p.history[0][2] - s[2]).abs() > 0.01
+        });
         assert!(moved, "particles must move on integration step");
     }
 

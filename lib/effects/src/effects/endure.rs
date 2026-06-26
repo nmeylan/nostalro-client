@@ -63,8 +63,7 @@ const SPIKE_RADIUS_MAX: f32 = 14.0;
 // accel = -speed / duration = +0.1 px/frame² (decelerating inward
 // motion that stops near the centre). 10 px/wu → 0.4 / 0.01.
 const SPIKE_INWARD_SPEED_PER_FRAME: f32 = 0.4;
-const SPIKE_INWARD_ACCEL_PER_FRAME2: f32 =
-    SPIKE_INWARD_SPEED_PER_FRAME / SPIKE_DURATION_FRAMES;
+const SPIKE_INWARD_ACCEL_PER_FRAME2: f32 = SPIKE_INWARD_SPEED_PER_FRAME / SPIKE_DURATION_FRAMES;
 // Spikes orbit the icon's anchor — lifted 20 px in screen space so
 // they sit at the icon's centre, not on the ground.
 const SPIKE_VERTICAL_OFFSET: f32 = -5.0;
@@ -136,8 +135,8 @@ impl Spike {
     /// settles on the centre once the slide overshoots.
     fn radius(&self) -> f32 {
         let n = self.age_frames.clamp(0.0, SPIKE_DURATION_FRAMES);
-        let displacement = SPIKE_INWARD_SPEED_PER_FRAME * n
-            - SPIKE_INWARD_ACCEL_PER_FRAME2 * n * (n + 1.0) / 2.0;
+        let displacement =
+            SPIKE_INWARD_SPEED_PER_FRAME * n - SPIKE_INWARD_ACCEL_PER_FRAME2 * n * (n + 1.0) / 2.0;
         (self.initial_radius - displacement).max(0.0)
     }
 
@@ -172,9 +171,8 @@ pub struct EndureEffect {
 
 impl EndureEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        let rng_state = 0x9E37_79B9
-            ^ world_pos[0].to_bits()
-            ^ world_pos[2].to_bits().rotate_left(13);
+        let rng_state =
+            0x9E37_79B9 ^ world_pos[0].to_bits() ^ world_pos[2].to_bits().rotate_left(13);
         Self {
             world_pos,
             spikes: Vec::new(),
@@ -302,7 +300,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -344,7 +346,13 @@ mod tests {
         assert_eq!(icon, 1, "one central icon");
         assert!(spikes.len() >= 20, "≈ one spike per frame, after 25 frames");
         assert!(
-            spikes.iter().all(|p| matches!(p, EffectPrimitiveDraw::Billboard { blend: BlendKind::Alpha, .. })),
+            spikes.iter().all(|p| matches!(
+                p,
+                EffectPrimitiveDraw::Billboard {
+                    blend: BlendKind::Alpha,
+                    ..
+                }
+            )),
             "Endure spikes are alpha-blended (RF_EFFECT_OM)"
         );
 
@@ -380,7 +388,11 @@ mod tests {
         s_mid.age_frames = SPIKE_DURATION_FRAMES * 0.5;
         let mut s_end = spike;
         s_end.age_frames = SPIKE_DURATION_FRAMES;
-        assert!(s_mid.radius() < r0, "slides inward: {r0} -> {}", s_mid.radius());
+        assert!(
+            s_mid.radius() < r0,
+            "slides inward: {r0} -> {}",
+            s_mid.radius()
+        );
         assert!(s_end.radius() < s_mid.radius(), "still inward at end");
     }
 
@@ -393,9 +405,27 @@ mod tests {
         let s_mid = icon_size(PARENT_DURATION_FRAMES / 2.0);
         assert!(s0 > s_mid, "shrinks from initial → final");
         assert!((s0 - ICON_INITIAL_SIZE).abs() < 1e-3);
-        let a0 = fade_in_out(0.0, ICON_MAX_ALPHA, ICON_FADE_IN_FRAMES, ICON_FADE_OUT_AT, PARENT_DURATION_FRAMES);
-        let a_peak = fade_in_out(ICON_FADE_IN_FRAMES, ICON_MAX_ALPHA, ICON_FADE_IN_FRAMES, ICON_FADE_OUT_AT, PARENT_DURATION_FRAMES);
-        let a_end = fade_in_out(PARENT_DURATION_FRAMES, ICON_MAX_ALPHA, ICON_FADE_IN_FRAMES, ICON_FADE_OUT_AT, PARENT_DURATION_FRAMES);
+        let a0 = fade_in_out(
+            0.0,
+            ICON_MAX_ALPHA,
+            ICON_FADE_IN_FRAMES,
+            ICON_FADE_OUT_AT,
+            PARENT_DURATION_FRAMES,
+        );
+        let a_peak = fade_in_out(
+            ICON_FADE_IN_FRAMES,
+            ICON_MAX_ALPHA,
+            ICON_FADE_IN_FRAMES,
+            ICON_FADE_OUT_AT,
+            PARENT_DURATION_FRAMES,
+        );
+        let a_end = fade_in_out(
+            PARENT_DURATION_FRAMES,
+            ICON_MAX_ALPHA,
+            ICON_FADE_IN_FRAMES,
+            ICON_FADE_OUT_AT,
+            PARENT_DURATION_FRAMES,
+        );
         assert!(a0 < a_peak);
         assert!(a_end < a_peak);
     }

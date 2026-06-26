@@ -61,9 +61,8 @@ impl Effect for GroundSampleEffect {
         // Quad lies flat on the XZ plane at Y = cy. Corners start at the
         // axis-aligned positions ±HALF_SIZE in X / Z, then rotate around
         // the Y axis to spin the magic circle each frame.
-        let rotate = |dx: f32, dz: f32| -> [f32; 3] {
-            [cx + dx * c - dz * s, cy, cz + dx * s + dz * c]
-        };
+        let rotate =
+            |dx: f32, dz: f32| -> [f32; 3] { [cx + dx * c - dz * s, cy, cz + dx * s + dz * c] };
         let corners = [
             rotate(-HALF_SIZE, -HALF_SIZE),
             rotate(HALF_SIZE, -HALF_SIZE),
@@ -104,7 +103,8 @@ mod tests {
     fn step(effect: &mut GroundSampleEffect, dt: f32) -> EffectStatus {
         effect.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -160,7 +160,10 @@ mod tests {
         // Distance from center is preserved.
         let dist = |p: [f32; 3]| (p[0] * p[0] + p[2] * p[2]).sqrt();
         for (a, b) in c0.iter().zip(c1.iter()) {
-            assert!((dist(*a) - dist(*b)).abs() < 1e-4, "corners stay on the same ring");
+            assert!(
+                (dist(*a) - dist(*b)).abs() < 1e-4,
+                "corners stay on the same ring"
+            );
         }
     }
 

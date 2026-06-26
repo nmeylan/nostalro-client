@@ -11,8 +11,8 @@
 //! effects (Frost Diver) unpack `EffectAnchor::Trail`; everything else
 //! collapses to the caster-side anchor via `EffectAnchor::point`.
 
-use models::enums::effect_id::EffectId;
 use super::buckets::is_hybrid;
+use models::enums::effect_id::EffectId;
 // `bash` lives here in alphabetical order; the match arm is below near
 // the other bucket-0-50 ids.
 use super::effect_trait::Effect;
@@ -22,7 +22,13 @@ use super::str_aliases::str_aliases;
 
 /// Build a concrete custom-effect instance. Ids with a real implementation
 /// hit an explicit arm below; anything else lands on the placeholder.
-pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, target_size: Option<[f32; 2]>, duration_ms: Option<u32>) -> Option<Box<dyn Effect>> {
+pub fn make_effect(
+    id: EffectId,
+    anchor: EffectAnchor,
+    hit_count: Option<u8>,
+    target_size: Option<[f32; 2]>,
+    duration_ms: Option<u32>,
+) -> Option<Box<dyn Effect>> {
     Some(match id {
         EffectId::Warp => Box::new(effects::warp::WarpEffect::new(anchor.point())),
         EffectId::Bash => Box::new(effects::bash::BashEffect::new(anchor.point())),
@@ -35,9 +41,18 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::Exit => Box::new(effects::exit::ExitEffect::new(anchor.point())),
         EffectId::Glasswall => Box::new(effects::glasswall::GlasswallEffect::new(anchor.point())),
         EffectId::Healsp => Box::new(effects::healsp::HealSpEffect::new(anchor.point())),
-        EffectId::Guard => Box::new(effects::guard::GuardEffect::new(anchor.point(), effects::guard::GUARD)),
-        EffectId::Guard3 => Box::new(effects::guard::GuardEffect::new(anchor.point(), effects::guard::GUARD3)),
-        EffectId::Guard2 => Box::new(effects::guard::GuardEffect::new(anchor.point(), effects::guard::GUARD2)),
+        EffectId::Guard => Box::new(effects::guard::GuardEffect::new(
+            anchor.point(),
+            effects::guard::GUARD,
+        )),
+        EffectId::Guard3 => Box::new(effects::guard::GuardEffect::new(
+            anchor.point(),
+            effects::guard::GUARD3,
+        )),
+        EffectId::Guard2 => Box::new(effects::guard::GuardEffect::new(
+            anchor.point(),
+            effects::guard::GUARD2,
+        )),
         EffectId::Portal => Box::new(effects::portal::PortalEffect::new(anchor.point())),
         EffectId::Portal2 => Box::new(effects::portal2::Portal2Effect::new(
             anchor.point(),
@@ -61,10 +76,7 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
 
         // Mgdef1-4: the magic-defense buff wind — four wind cones rising
         // taller with the buff level, tinted per id.
-        EffectId::Mgdef1
-        | EffectId::Mgdef2
-        | EffectId::Mgdef3
-        | EffectId::Mgdef4 => {
+        EffectId::Mgdef1 | EffectId::Mgdef2 | EffectId::Mgdef3 | EffectId::Mgdef4 => {
             use effects::portal_wind as pw;
             let cfg = match id {
                 EffectId::Mgdef1 => pw::MGDEF1,
@@ -74,13 +86,19 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
             };
             Box::new(pw::PortalWindEffect::new(anchor.point(), cfg))
         }
-        EffectId::Halfsphere => Box::new(effects::attack_energy::HalfSphereEffect::new(anchor.point())),
-        EffectId::Attackenergy => Box::new(effects::attack_energy::AttackEnergyEffect::new(anchor.point())),
-        EffectId::Attackenergy2 => Box::new(effects::attack_energy::AttackEnergy2Effect::new(anchor.point())),
+        EffectId::Halfsphere => Box::new(effects::attack_energy::HalfSphereEffect::new(
+            anchor.point(),
+        )),
+        EffectId::Attackenergy => Box::new(effects::attack_energy::AttackEnergyEffect::new(
+            anchor.point(),
+        )),
+        EffectId::Attackenergy2 => Box::new(effects::attack_energy::AttackEnergy2Effect::new(
+            anchor.point(),
+        )),
         EffectId::BigPortal => Box::new(effects::big_portal::BigPortalEffect::new(anchor.point())),
-        EffectId::BigPortal2 => {
-            Box::new(effects::big_portal::BigPortalEffect::new_persistent(anchor.point()))
-        }
+        EffectId::BigPortal2 => Box::new(effects::big_portal::BigPortalEffect::new_persistent(
+            anchor.point(),
+        )),
         EffectId::Stormkick => Box::new(effects::storm_kick::StormKickEffect::new(
             anchor.point(),
             effects::storm_kick::STORMKICK0,
@@ -116,9 +134,9 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
 
         // Heartcasting: a heart outline of 20 rising pink flame-rings, each a
         // `heal.rs` Heal ring offset to its heart-outline point.
-        EffectId::Heartcasting => {
-            Box::new(effects::heartcasting::HeartcastingEffect::new(anchor.point()))
-        }
+        EffectId::Heartcasting => Box::new(effects::heartcasting::HeartcastingEffect::new(
+            anchor.point(),
+        )),
 
         // Colorpaper: 200 tumbling confetti chips falling from overhead.
         EffectId::Colorpaper => {
@@ -129,8 +147,12 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::Gravitation => {
             Box::new(effects::gravitation::GravitationEffect::new(anchor.point()))
         }
-        EffectId::Readyportal => Box::new(effects::ready_portal::ReadyPortalEffect::new(anchor.point())),
-        EffectId::Teleportation => Box::new(effects::teleportation::TeleportationEffect::new(anchor.point())),
+        EffectId::Readyportal => Box::new(effects::ready_portal::ReadyPortalEffect::new(
+            anchor.point(),
+        )),
+        EffectId::Teleportation => Box::new(effects::teleportation::TeleportationEffect::new(
+            anchor.point(),
+        )),
         EffectId::Spraypond => Box::new(effects::spraypond::SpraypondEffect::new(anchor.point())),
         // Only the four ids without an STR file in the classic GRF
         // (firearrow, fireball, napalmbeat, sandwind) need a Custom
@@ -156,9 +178,7 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
             };
             Box::new(effects::yupitel::YupitelEffect::new(from, to))
         }
-        EffectId::Blitzbeat => {
-            Box::new(effects::blitzbeat::BlitzbeatEffect::new(anchor.point()))
-        }
+        EffectId::Blitzbeat => Box::new(effects::blitzbeat::BlitzbeatEffect::new(anchor.point())),
         EffectId::Waterball => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
@@ -201,24 +221,54 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
 
         // BlueFall (`BlueFall(F1, F2, 0)`): the WaterFall sheet in additive blue
         // with reversed scroll and no mist; F1 rotates 90°, F2 = fast scroll.
-        EffectId::Bluefall | EffectId::Bluefall90 | EffectId::Fastbluefall | EffectId::Fastbluefall90 => {
+        EffectId::Bluefall
+        | EffectId::Bluefall90
+        | EffectId::Fastbluefall
+        | EffectId::Fastbluefall90 => {
             let params = match id {
                 EffectId::Bluefall => effects::waterfall::BLUEFALL,
                 EffectId::Bluefall90 => effects::waterfall::BLUEFALL_90,
                 EffectId::Fastbluefall => effects::waterfall::FASTBLUEFALL,
                 _ => effects::waterfall::FASTBLUEFALL_90,
             };
-            Box::new(effects::waterfall::WaterfallEffect::new(anchor.point(), params))
+            Box::new(effects::waterfall::WaterfallEffect::new(
+                anchor.point(),
+                params,
+            ))
         }
 
-        EffectId::Cloud => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD)),
-        EffectId::Cloud2 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD2)),
-        EffectId::Cloud3 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD3)),
-        EffectId::Cloud4 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD4)),
-        EffectId::Cloud5 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD5)),
-        EffectId::Cloud6 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD6)),
-        EffectId::Cloud7 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD7)),
-        EffectId::Cloud8 => Box::new(effects::cloud::CloudEffect::new(anchor.point(), effects::cloud::CLOUD8)),
+        EffectId::Cloud => Box::new(effects::cloud::CloudEffect::new(
+            anchor.point(),
+            effects::cloud::CLOUD,
+        )),
+        EffectId::Cloud2 => Box::new(effects::cloud::CloudEffect::new(
+            anchor.point(),
+            effects::cloud::CLOUD2,
+        )),
+        EffectId::Cloud3 => Box::new(effects::cloud::CloudEffect::new(
+            anchor.point(),
+            effects::cloud::CLOUD3,
+        )),
+        EffectId::Cloud4 => Box::new(effects::cloud::CloudEffect::new(
+            anchor.point(),
+            effects::cloud::CLOUD4,
+        )),
+        EffectId::Cloud5 => Box::new(effects::cloud::CloudEffect::new(
+            anchor.point(),
+            effects::cloud::CLOUD5,
+        )),
+        EffectId::Cloud6 => Box::new(effects::cloud::CloudEffect::new(
+            anchor.point(),
+            effects::cloud::CLOUD6,
+        )),
+        EffectId::Cloud7 => Box::new(effects::cloud::CloudEffect::new(
+            anchor.point(),
+            effects::cloud::CLOUD7,
+        )),
+        EffectId::Cloud8 => Box::new(effects::cloud::CloudEffect::new(
+            anchor.point(),
+            effects::cloud::CLOUD8,
+        )),
         EffectId::Fireivy => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
@@ -226,26 +276,31 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
             };
             Box::new(effects::fireivy::FireivyEffect::new(from, to))
         }
-        EffectId::Detecting => {
-            Box::new(effects::detecting::DetectingEffect::new(anchor.point()))
-        }
+        EffectId::Detecting => Box::new(effects::detecting::DetectingEffect::new(anchor.point())),
         EffectId::Toprank => Box::new(effects::toprank::ToprankEffect::new(anchor.point())),
-        EffectId::Lockon => Box::new(effects::lockon::LockonEffect::new(anchor.point(), target_size)),
+        EffectId::Lockon => Box::new(effects::lockon::LockonEffect::new(
+            anchor.point(),
+            target_size,
+        )),
         EffectId::Party => Box::new(effects::party::PartyEffect::new(anchor.point())),
         EffectId::Curseattack => {
             Box::new(effects::curseattack::CurseattackEffect::new(anchor.point()))
         }
-        EffectId::Napalmbeat => Box::new(effects::napalmbeat::NapalmBeatEffect::new(anchor.point())),
+        EffectId::Napalmbeat => {
+            Box::new(effects::napalmbeat::NapalmBeatEffect::new(anchor.point()))
+        }
         EffectId::Sandwind => Box::new(effects::sandwind::SandwindEffect::new(anchor.point())),
 
         // Batch FR — see `table.rs`. Flowercast2/3 have no factory arm; the
         // original game's procedural dispatch for them is an empty break, so
         // they fall through to their STR alias (or render nothing).
-        EffectId::Heavensdrive => {
-            Box::new(effects::heavensdrive::HeavensDriveEffect::new(anchor.point()))
-        }
+        EffectId::Heavensdrive => Box::new(effects::heavensdrive::HeavensDriveEffect::new(
+            anchor.point(),
+        )),
         EffectId::Bottom => Box::new(effects::bottom_box::BottomBoxEffect::bottom(anchor.point())),
-        EffectId::Bottom2 => Box::new(effects::bottom_box::BottomBoxEffect::bottom2(anchor.point())),
+        EffectId::Bottom2 => Box::new(effects::bottom_box::BottomBoxEffect::bottom2(
+            anchor.point(),
+        )),
         EffectId::Cone => Box::new(effects::cone::ConeEffect::new(anchor.point())),
         EffectId::Flowercast => {
             Box::new(effects::flowercast::FlowerCastEffect::new(anchor.point()))
@@ -253,34 +308,38 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
 
         // Caster body-tint buffs (recolour + STR overlay): tint the actor +
         // play twohand.str. One struct, per-buff colour/sound param set.
-        EffectId::Twohandquicken => {
-            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::TWOHAND_QUICKEN).with_life_ms(duration_ms))
-        }
-        EffectId::Spearquicken => {
-            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::SPEAR_QUICKEN).with_life_ms(duration_ms))
-        }
-        EffectId::Lkconcentration => {
-            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::LK_CONCENTRATION).with_life_ms(duration_ms))
-        }
+        EffectId::Twohandquicken => Box::new(
+            effects::body_buff::BodyBuffEffect::new(effects::body_buff::TWOHAND_QUICKEN)
+                .with_life_ms(duration_ms),
+        ),
+        EffectId::Spearquicken => Box::new(
+            effects::body_buff::BodyBuffEffect::new(effects::body_buff::SPEAR_QUICKEN)
+                .with_life_ms(duration_ms),
+        ),
+        EffectId::Lkconcentration => Box::new(
+            effects::body_buff::BodyBuffEffect::new(effects::body_buff::LK_CONCENTRATION)
+                .with_life_ms(duration_ms),
+        ),
         // Bunsinjyutsu — light-blue body tint + afterimage trail, no STR/sound.
-        EffectId::Bunsinjyutsu => {
-            Box::new(effects::body_buff::BodyBuffEffect::new(effects::body_buff::BUNSINJYUTSU).with_life_ms(duration_ms))
-        }
+        EffectId::Bunsinjyutsu => Box::new(
+            effects::body_buff::BodyBuffEffect::new(effects::body_buff::BUNSINJYUTSU)
+                .with_life_ms(duration_ms),
+        ),
 
         // Body-shake effects — shake the attached actor's sprite, emit no
         // primitives. One struct, four timing/amplitude param sets.
-        EffectId::Quakebody => {
-            Box::new(effects::quakebody::QuakeBodyEffect::new(effects::quakebody::QUAKEBODY))
-        }
-        EffectId::Quakebody2 => {
-            Box::new(effects::quakebody::QuakeBodyEffect::new(effects::quakebody::QUAKEBODY2))
-        }
-        EffectId::Quakebody3 => {
-            Box::new(effects::quakebody::QuakeBodyEffect::new(effects::quakebody::QUAKEBODY3))
-        }
-        EffectId::Quakebody4 => {
-            Box::new(effects::quakebody::QuakeBodyEffect::new(effects::quakebody::QUAKEBODY4))
-        }
+        EffectId::Quakebody => Box::new(effects::quakebody::QuakeBodyEffect::new(
+            effects::quakebody::QUAKEBODY,
+        )),
+        EffectId::Quakebody2 => Box::new(effects::quakebody::QuakeBodyEffect::new(
+            effects::quakebody::QUAKEBODY2,
+        )),
+        EffectId::Quakebody3 => Box::new(effects::quakebody::QuakeBodyEffect::new(
+            effects::quakebody::QUAKEBODY3,
+        )),
+        EffectId::Quakebody4 => Box::new(effects::quakebody::QuakeBodyEffect::new(
+            effects::quakebody::QUAKEBODY4,
+        )),
 
         // Body scale (giant grow / baby shrink) — scales the attached
         // actor's sprite, emits no primitives. *body ramps in; *body2
@@ -309,23 +368,53 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         // Body tints (recolour + light-body / double-body / hit flash) —
         // tint/flicker/flash the actor sprite, no primitives. Falconassault is a
         // light-body + facing spin (no tint).
-        EffectId::Redbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::REDBODY).with_life_ms(duration_ms)),
-        EffectId::Transbluebody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::TRANSBLUEBODY)),
-        EffectId::Pinkbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::PINKBODY).with_life_ms(duration_ms)),
-        EffectId::Linklight => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::LINKLIGHT)),
-        EffectId::Magiccrasher => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::MAGICCRASHER)),
-        EffectId::Magiccrasher2 => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::MAGICCRASHER2)),
-        EffectId::Hitbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::HITBODY)),
-        EffectId::Falconassault => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::FALCONASSAULT)),
+        EffectId::Redbody => Box::new(
+            effects::body_tint::BodyTintEffect::new(effects::body_tint::REDBODY)
+                .with_life_ms(duration_ms),
+        ),
+        EffectId::Transbluebody => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::TRANSBLUEBODY,
+        )),
+        EffectId::Pinkbody => Box::new(
+            effects::body_tint::BodyTintEffect::new(effects::body_tint::PINKBODY)
+                .with_life_ms(duration_ms),
+        ),
+        EffectId::Linklight => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::LINKLIGHT,
+        )),
+        EffectId::Magiccrasher => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::MAGICCRASHER,
+        )),
+        EffectId::Magiccrasher2 => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::MAGICCRASHER2,
+        )),
+        EffectId::Hitbody => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::HITBODY,
+        )),
+        EffectId::Falconassault => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::FALCONASSAULT,
+        )),
 
         // Tint-flicker family — colour ↔ white every other frame + a light-body
         // glow, most with a double-body halo. Shrink is a tint, not a resize.
-        EffectId::Chemicalbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::CHEMICALBODY)),
-        EffectId::Piercebody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::PIERCEBODY)),
-        EffectId::Memorize => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::MEMORIZE)),
-        EffectId::Doublecastbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::DOUBLECASTBODY)),
-        EffectId::Greenbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::GREENBODY)),
-        EffectId::Shrink => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::SHRINK)),
+        EffectId::Chemicalbody => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::CHEMICALBODY,
+        )),
+        EffectId::Piercebody => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::PIERCEBODY,
+        )),
+        EffectId::Memorize => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::MEMORIZE,
+        )),
+        EffectId::Doublecastbody => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::DOUBLECASTBODY,
+        )),
+        EffectId::Greenbody => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::GREENBODY,
+        )),
+        EffectId::Shrink => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::SHRINK,
+        )),
         // Reject Sword — gray body flicker + the `sword.str` world overlay.
         EffectId::Rejectsword => Box::new(
             effects::body_tint::BodyTintEffect::new(effects::body_tint::REJECTSWORD)
@@ -334,14 +423,26 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
 
         // Body-flash family — one fixed colour (blue/red) glowing over the body
         // with an alpha ramp (up → hold → down), drawn 2x additive.
-        EffectId::Bluebody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::BLUEBODY)),
-        EffectId::Redlightbody => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::REDLIGHTBODY)),
-        EffectId::RedHit => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::REDHIT)),
-        EffectId::BlueHit => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::BLUEHIT)),
+        EffectId::Bluebody => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::BLUEBODY,
+        )),
+        EffectId::Redlightbody => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::REDLIGHTBODY,
+        )),
+        EffectId::RedHit => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::REDHIT,
+        )),
+        EffectId::BlueHit => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::BLUEHIT,
+        )),
 
         // Madness — a solid blue/red colour strobed over the body (flash every 4 frames).
-        EffectId::MadnessBlue => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::MADNESSBLUE)),
-        EffectId::MadnessRed => Box::new(effects::body_tint::BodyTintEffect::new(effects::body_tint::MADNESSRED)),
+        EffectId::MadnessBlue => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::MADNESSBLUE,
+        )),
+        EffectId::MadnessRed => Box::new(effects::body_tint::BodyTintEffect::new(
+            effects::body_tint::MADNESSRED,
+        )),
 
         // Vertical body squares (pressed squash / kicked lift) — deform the
         // actor sprite, no primitives.
@@ -351,11 +452,21 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         // Multi-render body lights (reflect russian-doll / double-body halo
         // / spark-sword glow) — concentric sprite copies behind the actor,
         // no primitives.
-        EffectId::Reflectbody => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::REFLECTBODY)),
-        EffectId::Assumptio => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::ASSUMPTIO).with_life_ms(duration_ms)),
-        EffectId::Lightblade => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::LIGHTBLADE)),
+        EffectId::Reflectbody => Box::new(effects::multibody::MultiBodyEffect::new(
+            effects::multibody::REFLECTBODY,
+        )),
+        EffectId::Assumptio => Box::new(
+            effects::multibody::MultiBodyEffect::new(effects::multibody::ASSUMPTIO)
+                .with_life_ms(duration_ms),
+        ),
+        EffectId::Lightblade => Box::new(effects::multibody::MultiBodyEffect::new(
+            effects::multibody::LIGHTBLADE,
+        )),
         // Undeadbody — rising green additive aura (2 concentric copies).
-        EffectId::Undeadbody => Box::new(effects::multibody::MultiBodyEffect::new(effects::multibody::UNDEADBODY).with_life_ms(duration_ms)),
+        EffectId::Undeadbody => Box::new(
+            effects::multibody::MultiBodyEffect::new(effects::multibody::UNDEADBODY)
+                .with_life_ms(duration_ms),
+        ),
 
         // Body-copy lights (asura halo / blue-hit flash / 4-way ghosts) —
         // draw extra sprite copies behind the actor, no primitives.
@@ -367,25 +478,28 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::Aciddemon => Box::new(effects::aciddemon::AcidDemonEffect::new(anchor.point())),
         EffectId::Rainbow => Box::new(effects::rainbow::RainbowEffect::new(anchor.point())),
         EffectId::Agiup => Box::new(effects::agiup::AgiUpEffect::new(anchor.point())),
-        EffectId::Lightsphere => {
-            Box::new(effects::light_sphere::LightSphereEffect::new(anchor.point()))
-        }
-        EffectId::Lightsphere2 => {
-            Box::new(effects::light_sphere::LightSphereEffect::new_persistent(anchor.point()))
-        }
+        EffectId::Lightsphere => Box::new(effects::light_sphere::LightSphereEffect::new(
+            anchor.point(),
+        )),
+        EffectId::Lightsphere2 => Box::new(
+            effects::light_sphere::LightSphereEffect::new_persistent(anchor.point()),
+        ),
 
         // Linelink 1-3 — Soul Linker tether ribbon. `anchor` carries the
         // initial caster→partner endpoints; the holder feeds live positions each
         // frame via `set_link_endpoints` (in-game) or leaves them static (viewer).
-        EffectId::Linelink => {
-            Box::new(effects::linelink::LinelinkEffect::new(anchor, &effects::linelink::LINELINK))
-        }
-        EffectId::Linelink2 => {
-            Box::new(effects::linelink::LinelinkEffect::new(anchor, &effects::linelink::LINELINK2))
-        }
-        EffectId::Linelink3 => {
-            Box::new(effects::linelink::LinelinkEffect::new(anchor, &effects::linelink::LINELINK3))
-        }
+        EffectId::Linelink => Box::new(effects::linelink::LinelinkEffect::new(
+            anchor,
+            &effects::linelink::LINELINK,
+        )),
+        EffectId::Linelink2 => Box::new(effects::linelink::LinelinkEffect::new(
+            anchor,
+            &effects::linelink::LINELINK2,
+        )),
+        EffectId::Linelink3 => Box::new(effects::linelink::LinelinkEffect::new(
+            anchor,
+            &effects::linelink::LINELINK3,
+        )),
 
         // Batch MAPZONE — `Map_MagicZone` spinning ground rings + sparkle motes
         // / pika floor + flared aura. Persistent map-scale zones.
@@ -436,78 +550,144 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
 
         // Teihit streak-burst family — radial streaks (1/1x/3) and the
         // directional spray (Teihit2/Backstap).
-        EffectId::Teihit1 => {
-            Box::new(effects::teihit::TeihitEffect::new(anchor.point(), effects::teihit::TEIHIT1))
-        }
-        EffectId::Teihit1x => {
-            Box::new(effects::teihit::TeihitEffect::new(anchor.point(), effects::teihit::TEIHIT1X))
-        }
-        EffectId::Teihit3 => {
-            Box::new(effects::teihit::TeihitEffect::new(anchor.point(), effects::teihit::TEIHIT3))
-        }
+        EffectId::Teihit1 => Box::new(effects::teihit::TeihitEffect::new(
+            anchor.point(),
+            effects::teihit::TEIHIT1,
+        )),
+        EffectId::Teihit1x => Box::new(effects::teihit::TeihitEffect::new(
+            anchor.point(),
+            effects::teihit::TEIHIT1X,
+        )),
+        EffectId::Teihit3 => Box::new(effects::teihit::TeihitEffect::new(
+            anchor.point(),
+            effects::teihit::TEIHIT3,
+        )),
         EffectId::Teihit2 => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
             };
-            Box::new(effects::teihit::TeiHit2Effect::new(from, to, effects::teihit::TEIHIT2))
+            Box::new(effects::teihit::TeiHit2Effect::new(
+                from,
+                to,
+                effects::teihit::TEIHIT2,
+            ))
         }
         EffectId::Backstap => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
             };
-            Box::new(effects::teihit::TeiHit2Effect::new(from, to, effects::teihit::BACKSTAP))
+            Box::new(effects::teihit::TeiHit2Effect::new(
+                from,
+                to,
+                effects::teihit::BACKSTAP,
+            ))
         }
 
         // ParticleUp family — rising sparkle bursts. (Firstaid uses a
         // different recipe and is not yet done.)
-        EffectId::Hptime => {
-            Box::new(effects::particle_up::ParticleUpEffect::new(anchor.point(), effects::particle_up::HPTIME))
-        }
-        EffectId::Sptime => {
-            Box::new(effects::particle_up::ParticleUpEffect::new(anchor.point(), effects::particle_up::SPTIME))
-        }
-        EffectId::Hated => {
-            Box::new(effects::particle_up::ParticleUpEffect::new(anchor.point(), effects::particle_up::HATED))
-        }
-        EffectId::Hated2 => {
-            Box::new(effects::particle_up::ParticleUpEffect::new(anchor.point(), effects::particle_up::HATED2))
-        }
-        EffectId::SmaReady => {
-            Box::new(effects::particle_up::ParticleUpEffect::new(anchor.point(), effects::particle_up::SMAREADY))
-        }
-        EffectId::Sprinklesand => {
-            Box::new(effects::particle_up::ParticleUpEffect::new(anchor.point(), effects::particle_up::SPRINKLESAND))
-        }
+        EffectId::Hptime => Box::new(effects::particle_up::ParticleUpEffect::new(
+            anchor.point(),
+            effects::particle_up::HPTIME,
+        )),
+        EffectId::Sptime => Box::new(effects::particle_up::ParticleUpEffect::new(
+            anchor.point(),
+            effects::particle_up::SPTIME,
+        )),
+        EffectId::Hated => Box::new(effects::particle_up::ParticleUpEffect::new(
+            anchor.point(),
+            effects::particle_up::HATED,
+        )),
+        EffectId::Hated2 => Box::new(effects::particle_up::ParticleUpEffect::new(
+            anchor.point(),
+            effects::particle_up::HATED2,
+        )),
+        EffectId::SmaReady => Box::new(effects::particle_up::ParticleUpEffect::new(
+            anchor.point(),
+            effects::particle_up::SMAREADY,
+        )),
+        EffectId::Sprinklesand => Box::new(effects::particle_up::ParticleUpEffect::new(
+            anchor.point(),
+            effects::particle_up::SPRINKLESAND,
+        )),
 
         // EffectTextureSet flat ground-texture effects.
-        EffectId::Hittexture => {
-            Box::new(effects::effect_texture::EffectTextureEffect::new(anchor.point(), effects::effect_texture::HITTEXTURE))
-        }
+        EffectId::Hittexture => Box::new(effects::effect_texture::EffectTextureEffect::new(
+            anchor.point(),
+            effects::effect_texture::HITTEXTURE,
+        )),
 
         // Camera-facing tarot cards + the slow-cast clock — same alpha
         // curve, one texture each.
-        EffectId::Tarotcard1 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(0))),
-        EffectId::Tarotcard2 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(1))),
-        EffectId::Tarotcard3 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(2))),
-        EffectId::Tarotcard4 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(3))),
-        EffectId::Tarotcard5 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(4))),
-        EffectId::Tarotcard6 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(5))),
-        EffectId::Tarotcard7 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(6))),
-        EffectId::Tarotcard8 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(7))),
-        EffectId::Tarotcard9 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(8))),
-        EffectId::Tarotcard10 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(9))),
-        EffectId::Tarotcard11 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(10))),
-        EffectId::Tarotcard12 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(11))),
-        EffectId::Tarotcard13 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(12))),
-        EffectId::Tarotcard14 => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::tarot_params(13))),
-        EffectId::NpcSlowcast => Box::new(effects::tarot_card::TarotCardEffect::new(anchor.point(), effects::tarot_card::NPC_SLOWCAST)),
+        EffectId::Tarotcard1 => Box::new(effects::tarot_card::TarotCardEffect::new(
+            anchor.point(),
+            effects::tarot_card::tarot_params(0),
+        )),
+        EffectId::Tarotcard2 => Box::new(effects::tarot_card::TarotCardEffect::new(
+            anchor.point(),
+            effects::tarot_card::tarot_params(1),
+        )),
+        EffectId::Tarotcard3 => Box::new(effects::tarot_card::TarotCardEffect::new(
+            anchor.point(),
+            effects::tarot_card::tarot_params(2),
+        )),
+        EffectId::Tarotcard4 => Box::new(effects::tarot_card::TarotCardEffect::new(
+            anchor.point(),
+            effects::tarot_card::tarot_params(3),
+        )),
+        EffectId::Tarotcard5 => Box::new(effects::tarot_card::TarotCardEffect::new(
+            anchor.point(),
+            effects::tarot_card::tarot_params(4),
+        )),
+        EffectId::Tarotcard6 => Box::new(effects::tarot_card::TarotCardEffect::new(
+            anchor.point(),
+            effects::tarot_card::tarot_params(5),
+        )),
+        EffectId::Tarotcard7 => Box::new(effects::tarot_card::TarotCardEffect::new(
+            anchor.point(),
+            effects::tarot_card::tarot_params(6),
+        )),
+        EffectId::Tarotcard8 => Box::new(effects::tarot_card::TarotCardEffect::new(
+            anchor.point(),
+            effects::tarot_card::tarot_params(7),
+        )),
+        EffectId::Tarotcard9 => Box::new(effects::tarot_card::TarotCardEffect::new(
+            anchor.point(),
+            effects::tarot_card::tarot_params(8),
+        )),
+        EffectId::Tarotcard10 => Box::new(effects::tarot_card::TarotCardEffect::new(
+            anchor.point(),
+            effects::tarot_card::tarot_params(9),
+        )),
+        EffectId::Tarotcard11 => Box::new(effects::tarot_card::TarotCardEffect::new(
+            anchor.point(),
+            effects::tarot_card::tarot_params(10),
+        )),
+        EffectId::Tarotcard12 => Box::new(effects::tarot_card::TarotCardEffect::new(
+            anchor.point(),
+            effects::tarot_card::tarot_params(11),
+        )),
+        EffectId::Tarotcard13 => Box::new(effects::tarot_card::TarotCardEffect::new(
+            anchor.point(),
+            effects::tarot_card::tarot_params(12),
+        )),
+        EffectId::Tarotcard14 => Box::new(effects::tarot_card::TarotCardEffect::new(
+            anchor.point(),
+            effects::tarot_card::tarot_params(13),
+        )),
+        EffectId::NpcSlowcast => Box::new(effects::tarot_card::TarotCardEffect::new(
+            anchor.point(),
+            effects::tarot_card::NPC_SLOWCAST,
+        )),
 
         // Status-overlay family (BLIND / POISON): camera-locked full-viewport
         // tint via one FullscreenOverlay quad. Devil1-10 share the BLIND-level
         // params (the original game only varies the vignette zoom across them).
-        EffectId::Blind => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(anchor.point(), effects::fullscreen_overlay::BLIND)),
+        EffectId::Blind => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(
+            anchor.point(),
+            effects::fullscreen_overlay::BLIND,
+        )),
         EffectId::Devil1
         | EffectId::Devil2
         | EffectId::Devil3
@@ -517,19 +697,38 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         | EffectId::Devil7
         | EffectId::Devil8
         | EffectId::Devil9
-        | EffectId::Devil10 => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(anchor.point(), effects::fullscreen_overlay::DEVIL)),
-        EffectId::DevilRed => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(anchor.point(), effects::fullscreen_overlay::DEVIL_RED)),
-        EffectId::Poison => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(anchor.point(), effects::fullscreen_overlay::POISON)),
-        EffectId::Bleeding => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(anchor.point(), effects::fullscreen_overlay::BLEEDING)),
-        EffectId::CrystalBlue => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(anchor.point(), effects::fullscreen_overlay::CRYSTAL_BLUE)),
+        | EffectId::Devil10 => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(
+            anchor.point(),
+            effects::fullscreen_overlay::DEVIL,
+        )),
+        EffectId::DevilRed => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(
+            anchor.point(),
+            effects::fullscreen_overlay::DEVIL_RED,
+        )),
+        EffectId::Poison => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(
+            anchor.point(),
+            effects::fullscreen_overlay::POISON,
+        )),
+        EffectId::Bleeding => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(
+            anchor.point(),
+            effects::fullscreen_overlay::BLEEDING,
+        )),
+        EffectId::CrystalBlue => {
+            Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(
+                anchor.point(),
+                effects::fullscreen_overlay::CRYSTAL_BLUE,
+            ))
+        }
 
         // Camera-facing result banners above the caster.
-        EffectId::TempOk => {
-            Box::new(effects::temp_result::TempResultEffect::new(anchor.point(), effects::temp_result::TEMP_OK))
-        }
-        EffectId::TempFail => {
-            Box::new(effects::temp_result::TempResultEffect::new(anchor.point(), effects::temp_result::TEMP_FAIL))
-        }
+        EffectId::TempOk => Box::new(effects::temp_result::TempResultEffect::new(
+            anchor.point(),
+            effects::temp_result::TEMP_OK,
+        )),
+        EffectId::TempFail => Box::new(effects::temp_result::TempResultEffect::new(
+            anchor.point(),
+            effects::temp_result::TEMP_FAIL,
+        )),
 
         // ForestLight family: faint green pentagonal light-beam columns
         // rising above the caster. One struct, per-variant params. ItemLight
@@ -563,19 +762,36 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         // direction reduces to the camera longitude.
         EffectId::Wink => {
             let (from, to) = anchor.trail();
-            Box::new(effects::wink::WinkEffect::new(from, to, effects::wink::WINK))
+            Box::new(effects::wink::WinkEffect::new(
+                from,
+                to,
+                effects::wink::WINK,
+            ))
         }
         EffectId::Fvoice => {
             let (from, to) = anchor.trail();
-            Box::new(effects::wink::WinkEffect::new(from, to, effects::wink::FVOICE))
+            Box::new(effects::wink::WinkEffect::new(
+                from,
+                to,
+                effects::wink::FVOICE,
+            ))
         }
 
         // Ghost/Bat/Bat2 (`Ghost(0/1/2)`): a swarm of animated SPR sprites
         // orbiting the caster while bobbing. Ghost faces the camera (8-dir
         // sprite); the bats flap (2-action sprite); Bat2 orbits a figure-eight.
-        EffectId::Ghost => Box::new(effects::ghost::GhostEffect::new(anchor.point(), effects::ghost::GHOST)),
-        EffectId::Bat => Box::new(effects::ghost::GhostEffect::new(anchor.point(), effects::ghost::BAT)),
-        EffectId::Bat2 => Box::new(effects::ghost::GhostEffect::new(anchor.point(), effects::ghost::BAT2)),
+        EffectId::Ghost => Box::new(effects::ghost::GhostEffect::new(
+            anchor.point(),
+            effects::ghost::GHOST,
+        )),
+        EffectId::Bat => Box::new(effects::ghost::GhostEffect::new(
+            anchor.point(),
+            effects::ghost::BAT,
+        )),
+        EffectId::Bat2 => Box::new(effects::ghost::GhostEffect::new(
+            anchor.point(),
+            effects::ghost::BAT2,
+        )),
 
         // Twilight1/2/3 (`Twilight(0/1/2)`): a swarm of floating item-icon
         // billboards that hover, drift, and fade in/out around the caster. The
@@ -604,7 +820,9 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
                 EffectId::Tripleattack2 => effects::tripleattack::TRIPLEATTACK2,
                 _ => effects::tripleattack::TRIPLEATTACK3,
             };
-            Box::new(effects::tripleattack::TripleAttackEffect::new(from, to, params))
+            Box::new(effects::tripleattack::TripleAttackEffect::new(
+                from, to, params,
+            ))
         }
 
         // Spherewind/Spherewind2/Baby (`SphereWind*()` ×5): a globe of orbiting
@@ -617,7 +835,10 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
                 EffectId::Spherewind3 => effects::spherewind::SPHEREWIND3,
                 _ => effects::spherewind::BABY,
             };
-            Box::new(effects::spherewind::SpherewindEffect::new(anchor.point(), params))
+            Box::new(effects::spherewind::SpherewindEffect::new(
+                anchor.point(),
+                params,
+            ))
         }
 
         // M02: directional emote, same camera-angle action
@@ -625,21 +846,27 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::M02 => Box::new(effects::m_ef02::MEf02Effect::new(anchor.point())),
 
         // Kaizel: a cross-slash (two blades, one rotated 45°).
-        EffectId::Kaizel => {
-            Box::new(effects::slash::SlashEffect::new(anchor.point(), effects::slash::KAIZEL))
-        }
+        EffectId::Kaizel => Box::new(effects::slash::SlashEffect::new(
+            anchor.point(),
+            effects::slash::KAIZEL,
+        )),
 
         // Stopeffect: a cross-slash with flat-start blades and a shorter
         // lift than Kaizel.
-        EffectId::Stopeffect => {
-            Box::new(effects::slash::SlashEffect::new(anchor.point(), effects::slash::STOPEFFECT))
-        }
+        EffectId::Stopeffect => Box::new(effects::slash::SlashEffect::new(
+            anchor.point(),
+            effects::slash::STOPEFFECT,
+        )),
 
         // SuperAngel (Angel2/Angel3): the Super Novice/Taekwon level-up angel —
         // layered SPR body/wings/feathers + a blue ring flash at frame 65.
         EffectId::Angel2 | EffectId::Angel3 => {
             use effects::super_angel as sa;
-            let params = if id == EffectId::Angel2 { sa::ANGEL2 } else { sa::ANGEL3 };
+            let params = if id == EffectId::Angel2 {
+                sa::ANGEL2
+            } else {
+                sa::ANGEL3
+            };
             Box::new(sa::SuperAngelEffect::new(anchor.point(), params))
         }
 
@@ -653,14 +880,18 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
                 EffectAnchor::Point(p) => (p, p),
             };
             Box::new(effects::frost_diver::FrostDiverEffect::new(
-                from, to, effects::frost_diver::FROSTDIVER,
+                from,
+                to,
+                effects::frost_diver::FROSTDIVER,
             ))
         }
         EffectId::Frostdiver2 => {
             // FrostDiver2 is a single-point burst — no trail behaviour.
             let p = anchor.point();
             Box::new(effects::frost_diver::FrostDiverEffect::new(
-                p, p, effects::frost_diver::FROSTDIVER2,
+                p,
+                p,
+                effects::frost_diver::FROSTDIVER2,
             ))
         }
         EffectId::Grimtooth => {
@@ -671,15 +902,18 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
                 EffectAnchor::Point(p) => (p, p),
             };
             Box::new(effects::frost_diver::FrostDiverEffect::new(
-                from, to, effects::frost_diver::GRIMTOOTH,
+                from,
+                to,
+                effects::frost_diver::GRIMTOOTH,
             ))
         }
-        EffectId::Grimtoothatk => {
-            Box::new(effects::grimtooth_atk::GrimToothAtkEffect::new(anchor.point()))
-        }
-        EffectId::Earthspike => {
-            Box::new(effects::earthspike::EarthSpikeEffect::new(anchor.point(), effects::earthspike::EARTHSPIKE))
-        }
+        EffectId::Grimtoothatk => Box::new(effects::grimtooth_atk::GrimToothAtkEffect::new(
+            anchor.point(),
+        )),
+        EffectId::Earthspike => Box::new(effects::earthspike::EarthSpikeEffect::new(
+            anchor.point(),
+            effects::earthspike::EARTHSPIKE,
+        )),
         EffectId::Electric => Box::new(effects::electric::ElectricEffect::new_ring(anchor.point())),
         EffectId::Electric2 => {
             let (from, to) = match anchor {
@@ -718,11 +952,14 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
                 EffectId::Hitline6 => effects::hit_line::HITLINE6,
                 _ => effects::hit_line::HITLINE7,
             };
-            Box::new(effects::hit_line::HitLineEffect::new(anchor_pos, params, aim))
+            Box::new(effects::hit_line::HitLineEffect::new(
+                anchor_pos, params, aim,
+            ))
         }
-        EffectId::Hyousensou => {
-            Box::new(effects::earthspike::EarthSpikeEffect::new(anchor.point(), effects::earthspike::HYOUSENSOU))
-        }
+        EffectId::Hyousensou => Box::new(effects::earthspike::EarthSpikeEffect::new(
+            anchor.point(),
+            effects::earthspike::HYOUSENSOU,
+        )),
         EffectId::Icewall => {
             // One independent cluster per ground cell — the wall's line shape
             // comes from the server's per-cell unit packets, not from here.
@@ -733,7 +970,11 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
             };
-            Box::new(effects::soul_strike::SoulStrikeEffect::new(from, to, hit_count.unwrap_or(1)))
+            Box::new(effects::soul_strike::SoulStrikeEffect::new(
+                from,
+                to,
+                hit_count.unwrap_or(1),
+            ))
         }
         // Soulstrike2 = `SoulStrike(1)`: identical to Soulstrike (same
         // packet-driven hit count) but with the red `particle5` sprite.
@@ -756,54 +997,70 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
             };
-            Box::new(effects::soul_breaker::SoulBreakerEffect::new_directed(from, to))
+            Box::new(effects::soul_breaker::SoulBreakerEffect::new_directed(
+                from, to,
+            ))
         }
-        EffectId::Soulbreaker2 => {
-            Box::new(effects::soul_breaker::SoulBreakerEffect::new_radial(anchor.point()))
-        }
+        EffectId::Soulbreaker2 => Box::new(effects::soul_breaker::SoulBreakerEffect::new_radial(
+            anchor.point(),
+        )),
         EffectId::Blooddrain => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
             };
-            Box::new(effects::energy_drain::DrainEffect::new(from, to, effects::energy_drain::BLOOD_DRAIN))
+            Box::new(effects::energy_drain::DrainEffect::new(
+                from,
+                to,
+                effects::energy_drain::BLOOD_DRAIN,
+            ))
         }
         EffectId::Energydrain => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
             };
-            Box::new(effects::energy_drain::DrainEffect::new(from, to, effects::energy_drain::ENERGY_DRAIN))
+            Box::new(effects::energy_drain::DrainEffect::new(
+                from,
+                to,
+                effects::energy_drain::ENERGY_DRAIN,
+            ))
         }
         EffectId::Energydrain2 => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
             };
-            Box::new(effects::energy_drain::DrainEffect::new(from, to, effects::energy_drain::ENERGY_DRAIN2))
+            Box::new(effects::energy_drain::DrainEffect::new(
+                from,
+                to,
+                effects::energy_drain::ENERGY_DRAIN2,
+            ))
         }
         EffectId::Energydrain3 => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
             };
-            Box::new(effects::energy_drain::DrainEffect::new(from, to, effects::energy_drain::ENERGY_DRAIN3))
+            Box::new(effects::energy_drain::DrainEffect::new(
+                from,
+                to,
+                effects::energy_drain::ENERGY_DRAIN3,
+            ))
         }
-        EffectId::Magnumbreak => {
-            Box::new(effects::magnum_break::MagnumBreakEffect::new(anchor.point()))
-        }
+        EffectId::Magnumbreak => Box::new(effects::magnum_break::MagnumBreakEffect::new(
+            anchor.point(),
+        )),
         // Magnum2 (Spiral Pierce) / GiExplosion — cone-band ring strips, both
         // `Frustum`-based (see effects/dome_ring.rs).
-        EffectId::Magnum2 => {
-            Box::new(effects::dome_ring::MagnumSpiralEffect::new(anchor.point()))
-        }
+        EffectId::Magnum2 => Box::new(effects::dome_ring::MagnumSpiralEffect::new(anchor.point())),
         EffectId::GiExplosion => {
             Box::new(effects::dome_ring::GiExplosionEffect::new(anchor.point()))
         }
 
-        EffectId::Thunderstorm2 => {
-            Box::new(effects::thunderstorm2::Thunderstorm2Effect::new(anchor.point()))
-        }
+        EffectId::Thunderstorm2 => Box::new(effects::thunderstorm2::Thunderstorm2Effect::new(
+            anchor.point(),
+        )),
 
         // Throw Item family — ballistic-arc item projectiles. `from`/`to`
         // give the caster→target heading; one struct, per-variant params.
@@ -875,7 +1132,10 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
             // Shieldboomerang3 is a ranged attack: the 5-shield fan bursts at
             // the impact point (the anchor's target), not the caster.
             if id == EffectId::Shieldboomerang3 {
-                return Some(Box::new(cp::CloudProjectileEffect::new_spray(to, cp::SHIELDBOOMERANG3)));
+                return Some(Box::new(cp::CloudProjectileEffect::new_spray(
+                    to,
+                    cp::SHIELDBOOMERANG3,
+                )));
             }
             let params = match id {
                 EffectId::Tanji => cp::TANJI,
@@ -887,7 +1147,12 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
                 EffectId::Shieldboomerang => cp::SHIELDBOOMERANG,
                 _ => cp::SHIELDBOOMERANG2,
             };
-            Box::new(cp::CloudProjectileEffect::new(from, to, hit_count.unwrap_or(0), params))
+            Box::new(cp::CloudProjectileEffect::new(
+                from,
+                to,
+                hit_count.unwrap_or(0),
+                params,
+            ))
         }
 
         // Slim potion throws + Pressure — a falling icon + an expanding ground
@@ -910,12 +1175,14 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
 
         // Chemical streak family — radial wedges (Protection, point-anchored)
         // and caster→target streak lines (Chemical2/3/4, dash, Smatk).
-        EffectId::Chemicalprotection => {
-            Box::new(effects::chemical::ChemicalEffect::new(anchor.point(), effects::chemical::CHEMICALPROTECTION))
-        }
-        EffectId::Mgattack2 => {
-            Box::new(effects::chemical::ChemicalEffect::new(anchor.point(), effects::chemical::MGATTACK2))
-        }
+        EffectId::Chemicalprotection => Box::new(effects::chemical::ChemicalEffect::new(
+            anchor.point(),
+            effects::chemical::CHEMICALPROTECTION,
+        )),
+        EffectId::Mgattack2 => Box::new(effects::chemical::ChemicalEffect::new(
+            anchor.point(),
+            effects::chemical::MGATTACK2,
+        )),
         EffectId::Chemical2
         | EffectId::Chemical2dash
         | EffectId::Chemical3
@@ -945,10 +1212,7 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         // STIN wind-card family — flying spinning cards with a motion trail.
         // Stin2/Stin4 home, Stin5 flies straight; all aim along the
         // caster→target heading (trail anchor).
-        EffectId::Stin
-        | EffectId::Stin2
-        | EffectId::Stin4
-        | EffectId::Stin5 => {
+        EffectId::Stin | EffectId::Stin2 | EffectId::Stin4 | EffectId::Stin5 => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
@@ -1022,16 +1286,28 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         // heading to 0.
         EffectId::Hit1 => {
             let (from, to) = anchor.trail();
-            Box::new(effects::hit::HitEffect::new_with_endpoints(from, to, effects::hit::HIT1))
+            Box::new(effects::hit::HitEffect::new_with_endpoints(
+                from,
+                to,
+                effects::hit::HIT1,
+            ))
         }
         EffectId::Hit2 => Box::new(effects::hit2::Hit2Effect::new(anchor.point())),
         EffectId::Hit3 => {
             let (from, to) = anchor.trail();
-            Box::new(effects::hit::HitEffect::new_with_endpoints(from, to, effects::hit::HIT3))
+            Box::new(effects::hit::HitEffect::new_with_endpoints(
+                from,
+                to,
+                effects::hit::HIT3,
+            ))
         }
         EffectId::Hit4 => {
             let (from, to) = anchor.trail();
-            Box::new(effects::hit::HitEffect::new_with_endpoints(from, to, effects::hit::HIT4))
+            Box::new(effects::hit::HitEffect::new_with_endpoints(
+                from,
+                to,
+                effects::hit::HIT4,
+            ))
         }
         EffectId::Hit5 => Box::new(effects::hit5_6::HitCrossEffect::new(
             anchor.point(),
@@ -1049,19 +1325,27 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
             };
-            Box::new(effects::sonicblowhit::SonicBlowHitEffect::new_with_trail(from, to))
+            Box::new(effects::sonicblowhit::SonicBlowHitEffect::new_with_trail(
+                from, to,
+            ))
         }
         // EF_CARTREVOLUTION — twin ground ring + sphere burst, with the
         // `CartRevolution.str` overlay playing alongside (Hybrid).
-        EffectId::Cartrevolution => {
-            Box::new(effects::cartrevolution::CartRevolutionEffect::new(anchor.point()))
-        }
+        EffectId::Cartrevolution => Box::new(effects::cartrevolution::CartRevolutionEffect::new(
+            anchor.point(),
+        )),
         EffectId::Barrier => Box::new(effects::barrier::BarrierEffect::new(anchor.point())),
         EffectId::Banjjakii => Box::new(effects::banjjakii::BanjjakiiEffect::new(anchor.point())),
         EffectId::Sphere => Box::new(effects::orbit_burst::SphereEffect::new(anchor.point())),
-        EffectId::Removetrap => Box::new(effects::orbit_burst::RemoveTrapEffect::new(anchor.point())),
-        EffectId::Turnundead => Box::new(effects::turnundead::TurnUndeadEffect::new(anchor.point())),
-        EffectId::Firepillaron => Box::new(effects::firepillaron::FirePillarOnEffect::new(anchor.point())),
+        EffectId::Removetrap => {
+            Box::new(effects::orbit_burst::RemoveTrapEffect::new(anchor.point()))
+        }
+        EffectId::Turnundead => {
+            Box::new(effects::turnundead::TurnUndeadEffect::new(anchor.point()))
+        }
+        EffectId::Firepillaron => Box::new(effects::firepillaron::FirePillarOnEffect::new(
+            anchor.point(),
+        )),
         // EF_DARKATTACK looks identical to Hitdark, so it shares the effect.
         EffectId::Hitdark | EffectId::Darkattack => {
             Box::new(effects::hitdark::HitDarkEffect::new(anchor.point()))
@@ -1109,17 +1393,15 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
             effects::mappillar::MAPPILLAR4,
         )),
         // EF_KOUENKA — sakura sprite scatter + firehit.str.
-        EffectId::Kouenka => {
-            Box::new(effects::kouenka::KouenkaEffect::new(anchor.point()))
-        }
+        EffectId::Kouenka => Box::new(effects::kouenka::KouenkaEffect::new(anchor.point())),
         // EF_NAPALMVALCAN — five timed Hit2 bursts.
-        EffectId::Napalmvalcan => {
-            Box::new(effects::napalmvalcan::NapalmValcanEffect::new(anchor.point()))
-        }
+        EffectId::Napalmvalcan => Box::new(effects::napalmvalcan::NapalmValcanEffect::new(
+            anchor.point(),
+        )),
         EffectId::Stormgust => Box::new(effects::stormgust::StormgustEffect::new(anchor.point())),
-        EffectId::BottomSanc => {
-            Box::new(effects::bottom_sanctuary_pillar::BottomSanctuaryPillarEffect::new(anchor.point()))
-        }
+        EffectId::BottomSanc => Box::new(
+            effects::bottom_sanctuary_pillar::BottomSanctuaryPillarEffect::new(anchor.point()),
+        ),
         EffectId::Warpzone => Box::new(effects::warp_zone::WarpZoneEffect::new(
             anchor.point(),
             effects::warp_zone::PARAMS_BURST,
@@ -1163,12 +1445,30 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
 
         // GUMGANG family — orbiting electric-arc wreaths (single and double
         // rings). Unrelated to Gumgang2/Gumgang3 above.
-        EffectId::Gumgang => Box::new(effects::gumgang::GumGangEffect::new(anchor.point(), effects::gumgang::GUMGANG)),
-        EffectId::Steelbody => Box::new(effects::gumgang::GumGangEffect::new(anchor.point(), effects::gumgang::STEELBODY)),
-        EffectId::Gumgangnpc => Box::new(effects::gumgang::GumGangEffect::new(anchor.point(), effects::gumgang::GUMGANGNPC)),
-        EffectId::Doublegumgang => Box::new(effects::gumgang::GumGangEffect::new(anchor.point(), effects::gumgang::DOUBLE_RED)),
-        EffectId::Doublegumgang2 => Box::new(effects::gumgang::GumGangEffect::new(anchor.point(), effects::gumgang::DOUBLE_WHITE)),
-        EffectId::Doublegumgang3 => Box::new(effects::gumgang::GumGangEffect::new(anchor.point(), effects::gumgang::DOUBLE_BLUE)),
+        EffectId::Gumgang => Box::new(effects::gumgang::GumGangEffect::new(
+            anchor.point(),
+            effects::gumgang::GUMGANG,
+        )),
+        EffectId::Steelbody => Box::new(effects::gumgang::GumGangEffect::new(
+            anchor.point(),
+            effects::gumgang::STEELBODY,
+        )),
+        EffectId::Gumgangnpc => Box::new(effects::gumgang::GumGangEffect::new(
+            anchor.point(),
+            effects::gumgang::GUMGANGNPC,
+        )),
+        EffectId::Doublegumgang => Box::new(effects::gumgang::GumGangEffect::new(
+            anchor.point(),
+            effects::gumgang::DOUBLE_RED,
+        )),
+        EffectId::Doublegumgang2 => Box::new(effects::gumgang::GumGangEffect::new(
+            anchor.point(),
+            effects::gumgang::DOUBLE_WHITE,
+        )),
+        EffectId::Doublegumgang3 => Box::new(effects::gumgang::GumGangEffect::new(
+            anchor.point(),
+            effects::gumgang::DOUBLE_BLUE,
+        )),
 
         EffectId::Defender => Box::new(effects::defender::DefenderEffect::new(
             anchor.point(),
@@ -1181,11 +1481,11 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
 
         // §9b floating recoloured "1" numbers.
         // No primitive — they emit a one-shot number request drained by the holder.
-        EffectId::Damage1 | EffectId::Damage12 => Box::new(
-            effects::damage_number_effect::DamageNumberEffect::new(
+        EffectId::Damage1 | EffectId::Damage12 => {
+            Box::new(effects::damage_number_effect::DamageNumberEffect::new(
                 effects::damage_number_effect::DAMAGE1,
-            ),
-        ),
+            ))
+        }
         EffectId::Damage13 => Box::new(effects::damage_number_effect::DamageNumberEffect::new(
             effects::damage_number_effect::DAMAGE1_3,
         )),
@@ -1335,60 +1635,84 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::Beginspell => Box::new(
             effects::begin_spell::BeginSpellEffect::new(anchor.point()).with_life_ms(duration_ms),
         ),
-        EffectId::Couplecasting => {
-            Box::new(effects::couple_casting::CoupleCastingEffect::new(anchor.point()))
-        }
+        EffectId::Couplecasting => Box::new(effects::couple_casting::CoupleCastingEffect::new(
+            anchor.point(),
+        )),
         EffectId::Aurablade => Box::new(effects::aura_blade::AuraBladeEffect::new(anchor.point())),
-        EffectId::Blackdevil => Box::new(effects::black_devil::BlackDevilEffect::new(anchor.point())),
-        EffectId::Bluecasting => Box::new(effects::color_casting::ColorCastingEffect::new(
-            anchor.point(),
-            effects::color_casting::BLUE,
-        ).with_life_ms(duration_ms)),
-        EffectId::Darkcasting => Box::new(effects::color_casting::ColorCastingEffect::new(
-            anchor.point(),
-            effects::color_casting::DARK,
-        ).with_life_ms(duration_ms)),
-        EffectId::Beginspell2 => Box::new(effects::cast_circle::CastCircleEffect::new(
-            anchor.point(),
-            effects::cast_circle::WATER,
-        ).with_life_ms(duration_ms)),
-        EffectId::Beginspell3 => Box::new(effects::cast_circle::CastCircleEffect::new(
-            anchor.point(),
-            effects::cast_circle::FIRE,
-        ).with_life_ms(duration_ms)),
-        EffectId::Beginspell4 => Box::new(effects::cast_circle::CastCircleEffect::new(
-            anchor.point(),
-            effects::cast_circle::WIND,
-        ).with_life_ms(duration_ms)),
-        EffectId::Beginspell5 => Box::new(effects::cast_circle::CastCircleEffect::new(
-            anchor.point(),
-            effects::cast_circle::EARTH,
-        ).with_life_ms(duration_ms)),
-        EffectId::Beginspell6 => Box::new(
-            effects::begin_spell_6::BeginSpell6Effect::new(anchor.point()).with_life_ms(duration_ms),
+        EffectId::Blackdevil => {
+            Box::new(effects::black_devil::BlackDevilEffect::new(anchor.point()))
+        }
+        EffectId::Bluecasting => Box::new(
+            effects::color_casting::ColorCastingEffect::new(
+                anchor.point(),
+                effects::color_casting::BLUE,
+            )
+            .with_life_ms(duration_ms),
         ),
-        EffectId::Beginspell7 => Box::new(effects::cast_circle::CastCircleEffect::new(
-            anchor.point(),
-            effects::cast_circle::POISON,
-        ).with_life_ms(duration_ms)),
+        EffectId::Darkcasting => Box::new(
+            effects::color_casting::ColorCastingEffect::new(
+                anchor.point(),
+                effects::color_casting::DARK,
+            )
+            .with_life_ms(duration_ms),
+        ),
+        EffectId::Beginspell2 => Box::new(
+            effects::cast_circle::CastCircleEffect::new(
+                anchor.point(),
+                effects::cast_circle::WATER,
+            )
+            .with_life_ms(duration_ms),
+        ),
+        EffectId::Beginspell3 => Box::new(
+            effects::cast_circle::CastCircleEffect::new(anchor.point(), effects::cast_circle::FIRE)
+                .with_life_ms(duration_ms),
+        ),
+        EffectId::Beginspell4 => Box::new(
+            effects::cast_circle::CastCircleEffect::new(anchor.point(), effects::cast_circle::WIND)
+                .with_life_ms(duration_ms),
+        ),
+        EffectId::Beginspell5 => Box::new(
+            effects::cast_circle::CastCircleEffect::new(
+                anchor.point(),
+                effects::cast_circle::EARTH,
+            )
+            .with_life_ms(duration_ms),
+        ),
+        EffectId::Beginspell6 => Box::new(
+            effects::begin_spell_6::BeginSpell6Effect::new(anchor.point())
+                .with_life_ms(duration_ms),
+        ),
+        EffectId::Beginspell7 => Box::new(
+            effects::cast_circle::CastCircleEffect::new(
+                anchor.point(),
+                effects::cast_circle::POISON,
+            )
+            .with_life_ms(duration_ms),
+        ),
         // Beginspell8: green casting cylinder (no `ring_green.tga` in the
         // classic GRF → `ring_white` tinted green). Three flared casting
         // rings (reused) + a tall central light shaft.
-        EffectId::Beginspell8 => {
-            Box::new(effects::begin_spell_8::BeginSpell8Effect::new(anchor.point()))
-        }
-        EffectId::Beginspellred => Box::new(effects::cast_circle::CastCircleEffect::new(
+        EffectId::Beginspell8 => Box::new(effects::begin_spell_8::BeginSpell8Effect::new(
             anchor.point(),
-            effects::cast_circle::RED,
-        ).with_life_ms(duration_ms)),
-        EffectId::Beginspellwhite => Box::new(effects::cast_circle::CastCircleEffect::new(
-            anchor.point(),
-            effects::cast_circle::WHITE,
-        ).with_life_ms(duration_ms)),
-        EffectId::BeginspellN => Box::new(effects::cast_circle::CastCircleEffect::new(
-            anchor.point(),
-            effects::cast_circle::N_BLUE,
-        ).with_life_ms(duration_ms)),
+        )),
+        EffectId::Beginspellred => Box::new(
+            effects::cast_circle::CastCircleEffect::new(anchor.point(), effects::cast_circle::RED)
+                .with_life_ms(duration_ms),
+        ),
+        EffectId::Beginspellwhite => Box::new(
+            effects::cast_circle::CastCircleEffect::new(
+                anchor.point(),
+                effects::cast_circle::WHITE,
+            )
+            .with_life_ms(duration_ms),
+        ),
+        EffectId::BeginspellN => Box::new(
+            effects::cast_circle::CastCircleEffect::new(
+                anchor.point(),
+                effects::cast_circle::N_BLUE,
+            )
+            .with_life_ms(duration_ms),
+        ),
 
         // Change-element casting rings (`EF_CHANGE*`) — `BeginCasting("ring_X.tga",
         // 3)` in the original game: the cast circle differing only by ring texture.
@@ -1429,17 +1753,17 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::Sightrasher => {
             Box::new(effects::sightrasher::SightrasherEffect::new(anchor.point()))
         }
-        EffectId::Firesplashhit => {
-            Box::new(effects::firesplashhit::FireSplashHitEffect::new(anchor.point()))
-        }
+        EffectId::Firesplashhit => Box::new(effects::firesplashhit::FireSplashHitEffect::new(
+            anchor.point(),
+        )),
         EffectId::Coldhit => Box::new(effects::coldhit::ColdHitEffect::new(anchor.point())),
         EffectId::Venomdust2 => {
             Box::new(effects::venomdust2::VenomDust2Effect::new(anchor.point()))
         }
 
-        EffectId::Beginasura => Box::new(effects::begin_asura::BeginAsuraEffect::base(
-            anchor.point(),
-        )),
+        EffectId::Beginasura => {
+            Box::new(effects::begin_asura::BeginAsuraEffect::base(anchor.point()))
+        }
         EffectId::Beginasura1 => Box::new(effects::begin_asura::BeginAsuraEffect::elemental(
             anchor.point(),
             0,
@@ -1670,20 +1994,16 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
 
         // BottomHermode — small rotating cube emitted as 6 WorldQuad
         // faces with per-face shading.
-        EffectId::BottomHermode => Box::new(
-            effects::bottom_hermode::BottomHermodeEffect::new(
-                anchor.point(),
-                effects::bottom_hermode::HERMODE,
-            ),
-        ),
+        EffectId::BottomHermode => Box::new(effects::bottom_hermode::BottomHermodeEffect::new(
+            anchor.point(),
+            effects::bottom_hermode::HERMODE,
+        )),
         // BottomRokisweil — pulsing camera-facing billboards. Uses the
         // existing Billboard primitive.
-        EffectId::BottomRokisweil => Box::new(
-            effects::bottom_out::BottomOutEffect::new(
-                anchor.point(),
-                effects::bottom_out::ROKISWEIL,
-            ),
-        ),
+        EffectId::BottomRokisweil => Box::new(effects::bottom_out::BottomOutEffect::new(
+            anchor.point(),
+            effects::bottom_out::ROKISWEIL,
+        )),
 
         // BottomLandProtector — single horizontal square ward with
         // radially-breathing corners. 4 ids.
@@ -1715,51 +2035,45 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         // BottomLight — 315° curtain-cone wall built from ~20 WorldQuad
         // ribbon segments per frame. Same geometry for both ids; a flag
         // picks the tint/blend.
-        EffectId::BottomEternalchaos => Box::new(
-            effects::bottom_light::BottomLightEffect::new(
-                anchor.point(),
-                effects::bottom_light::ETERNALCHAOS,
-            ),
-        ),
-        EffectId::BottomSiegfried => Box::new(
-            effects::bottom_light::BottomLightEffect::new(
-                anchor.point(),
-                effects::bottom_light::SIEGFRIED,
-            ),
-        ),
+        EffectId::BottomEternalchaos => Box::new(effects::bottom_light::BottomLightEffect::new(
+            anchor.point(),
+            effects::bottom_light::ETERNALCHAOS,
+        )),
+        EffectId::BottomSiegfried => Box::new(effects::bottom_light::BottomLightEffect::new(
+            anchor.point(),
+            effects::bottom_light::SIEGFRIED,
+        )),
 
         // BottomVertical — vertical "curtain" strips via the
         // `EffectPrimitiveDraw::WorldQuad` primitive. 5 ids.
-        EffectId::BottomDissonance => Box::new(
-            effects::bottom_vertical::BottomVerticalEffect::new(
+        EffectId::BottomDissonance => {
+            Box::new(effects::bottom_vertical::BottomVerticalEffect::new(
                 anchor.point(),
                 effects::bottom_vertical::DISSONANCE,
-            ),
-        ),
-        EffectId::BottomUglydance => Box::new(
-            effects::bottom_vertical::BottomVerticalEffect::new(
-                anchor.point(),
-                effects::bottom_vertical::UGLYDANCE,
-            ),
-        ),
-        EffectId::BottomAssassincross => Box::new(
-            effects::bottom_vertical::BottomVerticalEffect::new(
+            ))
+        }
+        EffectId::BottomUglydance => Box::new(effects::bottom_vertical::BottomVerticalEffect::new(
+            anchor.point(),
+            effects::bottom_vertical::UGLYDANCE,
+        )),
+        EffectId::BottomAssassincross => {
+            Box::new(effects::bottom_vertical::BottomVerticalEffect::new(
                 anchor.point(),
                 effects::bottom_vertical::ASSASSINCROSS,
-            ),
-        ),
-        EffectId::BottomDontforgetme => Box::new(
-            effects::bottom_vertical::BottomVerticalEffect::new(
+            ))
+        }
+        EffectId::BottomDontforgetme => {
+            Box::new(effects::bottom_vertical::BottomVerticalEffect::new(
                 anchor.point(),
                 effects::bottom_vertical::DONTFORGETME,
-            ),
-        ),
-        EffectId::BottomServiceforyou => Box::new(
-            effects::bottom_vertical::BottomVerticalEffect::new(
+            ))
+        }
+        EffectId::BottomServiceforyou => {
+            Box::new(effects::bottom_vertical::BottomVerticalEffect::new(
                 anchor.point(),
                 effects::bottom_vertical::SERVICEFORYOU,
-            ),
-        ),
+            ))
+        }
 
         // Batch CYL — cylinder effects.
         EffectId::Potionpillar => Box::new(effects::potion_pillar::PotionPillarEffect::new(
@@ -1784,9 +2098,9 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
                 hit_count.unwrap_or(1),
             ))
         }
-        EffectId::PotionBerserk => Box::new(
-            effects::potion_berserk::PotionBerserkEffect::new(anchor.point()),
-        ),
+        EffectId::PotionBerserk => Box::new(effects::potion_berserk::PotionBerserkEffect::new(
+            anchor.point(),
+        )),
         // Concentration / Awakening potions: white pillar + STR overlay; the
         // STR (alias[0]) carries the yellow star-burst / green ground ring.
         EffectId::PotionCon => Box::new(effects::potion_con::PotionConEffect::new(
@@ -1824,17 +2138,15 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         }
 
         // Summonslave (215) — radial 2DFlash burst + a frame-35 smoke puff.
-        EffectId::Summonslave => {
-            Box::new(effects::summon_slave::SummonSlaveEffect::new(anchor.point()))
-        }
+        EffectId::Summonslave => Box::new(effects::summon_slave::SummonSlaveEffect::new(
+            anchor.point(),
+        )),
         // BubbleDrop (665) — a single falling bubble with a 3-deep echo tail.
         EffectId::BubbleDrop => {
             Box::new(effects::bubble_drop::BubbleDropEffect::new(anchor.point()))
         }
         // Cartter (518) — a white-sparkle burst that erupts at frame 30.
-        EffectId::Cartter => {
-            Box::new(effects::cartter::CartterEffect::new(anchor.point()))
-        }
+        EffectId::Cartter => Box::new(effects::cartter::CartterEffect::new(anchor.point())),
         // Icearrow (26, Cold Bolt) — a rain of falling cross-texture bolts on the
         // target; bolt count = hit_count (spell level).
         EffectId::Icearrow => Box::new(effects::magic_bolt::MagicBoltEffect::new(
@@ -1846,12 +2158,10 @@ pub fn make_effect(id: EffectId, anchor: EffectAnchor, hit_count: Option<u8>, ta
         EffectId::Overthrust | EffectId::Sonicblow => {
             Box::new(effects::overthrust::OverthrustEffect::new(anchor.point()))
         }
-        EffectId::Callzone => {
-            Box::new(effects::callzone::CallzoneEffect::new(anchor.point()))
-        }
-        EffectId::Groundsample => {
-            Box::new(effects::ground_sample::GroundSampleEffect::new(anchor.point()))
-        }
+        EffectId::Callzone => Box::new(effects::callzone::CallzoneEffect::new(anchor.point())),
+        EffectId::Groundsample => Box::new(effects::ground_sample::GroundSampleEffect::new(
+            anchor.point(),
+        )),
 
         // Placeholder catchall. Hybrid ids (12 effects, e.g. Stormgust,
         // Coin, Glasswall) declare an STR overlay so the original game's
@@ -2116,7 +2426,13 @@ mod tests {
 
     #[test]
     fn warp_dispatches() {
-        let e = make_effect(EffectId::Warp, EffectAnchor::Point([0.0; 3]), None, None, None);
+        let e = make_effect(
+            EffectId::Warp,
+            EffectAnchor::Point([0.0; 3]),
+            None,
+            None,
+            None,
+        );
         assert!(e.is_some());
         assert!(is_real_impl(EffectId::Warp));
     }
@@ -2145,12 +2461,19 @@ mod tests {
             (EffectId::PinkNumber, [1.0, 85.0 / 255.0, 177.0 / 255.0]),
         ] {
             assert!(
-                matches!(effect_spec(id), Some(crate::spec::EffectSpec::Custom { .. })),
+                matches!(
+                    effect_spec(id),
+                    Some(crate::spec::EffectSpec::Custom { .. })
+                ),
                 "{id:?} must resolve to Custom, not a shadowing str alias",
             );
             let mut e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None)
                 .expect("damage-number effect must dispatch");
-            e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
+                camera_target: None,
+                caster_yaw: None,
+            });
             let req = e.take_number_request().expect("emits a number request");
             assert_eq!(req.value, 1);
             assert_eq!(req.color, expected);
@@ -2185,7 +2508,8 @@ mod tests {
         // pattern matters for future effects).
         effect.update(&EffectUpdateCtx {
             delta: 1.0 / 60.0,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
         let mut draws = EffectDrawList::new();
         effect.collect_draws(
@@ -2207,8 +2531,7 @@ mod tests {
             })
             .expect("magnum_break emits a GroundDisc");
         assert!(
-            (center[0] - anchor_pos[0]).abs() < 1e-3
-                && (center[2] - anchor_pos[2]).abs() < 1e-3,
+            (center[0] - anchor_pos[0]).abs() < 1e-3 && (center[2] - anchor_pos[2]).abs() < 1e-3,
             "GroundDisc centre {center:?} should match anchor {anchor_pos:?}",
         );
     }
@@ -2237,7 +2560,16 @@ mod tests {
         // Pick an EffectId in the Custom bucket that doesn't yet have a
         // real Rust impl — factory returns the pink placeholder and
         // `is_real_impl` reports false.
-        assert!(make_effect(EffectId::Spherewind, EffectAnchor::Point([0.0; 3]), None, None, None).is_some());
+        assert!(
+            make_effect(
+                EffectId::Spherewind,
+                EffectAnchor::Point([0.0; 3]),
+                None,
+                None,
+                None
+            )
+            .is_some()
+        );
         assert!(!is_real_impl(EffectId::Spherewind));
     }
 
@@ -2257,11 +2589,7 @@ mod tests {
             EffectId::Glow11,
             EffectId::Glow12,
         ] {
-            assert!(
-                is_real_impl(id),
-                "{:?} must have a real factory impl",
-                id
-            );
+            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(
                 e.str_overlay(),
@@ -2292,14 +2620,28 @@ mod tests {
     #[test]
     fn bottom_hermode_dispatches_to_world_quad_cube() {
         assert!(is_real_impl(EffectId::BottomHermode));
-        let e = make_effect(EffectId::BottomHermode, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
+        let e = make_effect(
+            EffectId::BottomHermode,
+            EffectAnchor::Point([0.0; 3]),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(e.str_overlay(), None);
     }
 
     #[test]
     fn bottom_rokisweil_dispatches_to_billboard_pulse() {
         assert!(is_real_impl(EffectId::BottomRokisweil));
-        let e = make_effect(EffectId::BottomRokisweil, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
+        let e = make_effect(
+            EffectId::BottomRokisweil,
+            EffectAnchor::Point([0.0; 3]),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(e.str_overlay(), None);
     }
 
@@ -2362,11 +2704,7 @@ mod tests {
             EffectId::BottomAppleidun,
             EffectId::BottomHumming,
         ] {
-            assert!(
-                is_real_impl(id),
-                "{:?} must have a real factory impl",
-                id
-            );
+            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(
                 e.str_overlay(),
@@ -2482,21 +2820,37 @@ mod tests {
         }
         // Cartrevolution still emits its STR overlay so the holder plays
         // CartRevolution.str alongside the primitive bursts.
-        let cart =
-            make_effect(EffectId::Cartrevolution, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
+        let cart = make_effect(
+            EffectId::Cartrevolution,
+            EffectAnchor::Point([0.0; 3]),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(cart.str_overlay(), Some("CartRevolution"));
         // Hamicastle is SPR-driven; spec must resolve via the bucket
         // default, not the Custom factory path.
         use super::super::spec::EffectSpec;
         use super::super::table::effect_spec;
-        assert!(matches!(effect_spec(EffectId::Hamicastle), Some(EffectSpec::Spr { .. })));
+        assert!(matches!(
+            effect_spec(EffectId::Hamicastle),
+            Some(EffectSpec::Spr { .. })
+        ));
     }
 
     #[test]
     fn hybrid_placeholder_carries_str_overlay() {
         // Coin is a StrHybrid id with no real impl — factory routes it
         // through `HybridPlaceholderEffect` so its STR file still plays.
-        let e = make_effect(EffectId::Coin, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
+        let e = make_effect(
+            EffectId::Coin,
+            EffectAnchor::Point([0.0; 3]),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(e.str_overlay(), Some(str_aliases(EffectId::Coin)[0]));
     }
 
@@ -2537,10 +2891,16 @@ mod tests {
         ] {
             assert!(is_real_impl(id), "{id:?} must have a real impl");
             // Must route through the procedural factory, not its STR alias.
-            assert!(matches!(effect_spec(id), Some(EffectSpec::Custom { .. })), "{id:?} spec");
+            assert!(
+                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                "{id:?} spec"
+            );
             let e = make_effect(
                 id,
-                EffectAnchor::Trail { from: [0.0, 0.0, 0.0], to: [0.0, 0.0, 40.0] },
+                EffectAnchor::Trail {
+                    from: [0.0, 0.0, 0.0],
+                    to: [0.0, 0.0, 40.0],
+                },
                 Some(1),
                 None,
                 None,

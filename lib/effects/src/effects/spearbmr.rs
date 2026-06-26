@@ -8,7 +8,7 @@
 //! sprite faces along travel. Successive spears are launched
 //! at decreasing alpha (255 / 180 / 130 / 80) for a trailing-barrage look.
 
-use crate::draw::{aim_backward, BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, aim_backward};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const SPEAR_SPRITE: &str = "data/sprite/이팩트/창";
@@ -42,7 +42,11 @@ pub struct SpearBmrEffect {
 impl SpearBmrEffect {
     pub fn new(from: [f32; 3], to: [f32; 3]) -> Self {
         let lift = |p: [f32; 3]| [p[0], p[1] + FLIGHT_Y_OFFSET, p[2]];
-        Self { from: lift(from), to: lift(to), age_frames: 0.0 }
+        Self {
+            from: lift(from),
+            to: lift(to),
+            age_frames: 0.0,
+        }
     }
 
     fn spear_pos(&self, local_frame: f32) -> [f32; 3] {
@@ -96,11 +100,20 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn spears(e: &mut SpearBmrEffect, frames: f32) -> Vec<EffectPrimitiveDraw> {
@@ -135,7 +148,10 @@ mod tests {
             EffectPrimitiveDraw::SpriteParticle { position, .. } => position[2],
             _ => unreachable!(),
         };
-        assert!(z_later > z_early, "spear advances toward +Z target {z_early} → {z_later}");
+        assert!(
+            z_later > z_early,
+            "spear advances toward +Z target {z_early} → {z_later}"
+        );
     }
 
     #[test]

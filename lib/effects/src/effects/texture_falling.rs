@@ -157,7 +157,8 @@ mod tests {
     fn step(e: &mut FallingTrailEffect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FPS,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -196,7 +197,10 @@ mod tests {
         step(&mut e, 20.0);
         let y_late = ys(&draws(&e))[0];
         assert!(y_early < 0.0, "starts above the anchor: {y_early}");
-        assert!(y_late > y_early, "descends over time: {y_early} -> {y_late}");
+        assert!(
+            y_late > y_early,
+            "descends over time: {y_early} -> {y_late}"
+        );
     }
 
     #[test]

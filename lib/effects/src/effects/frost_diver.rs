@@ -216,7 +216,13 @@ struct IceSpike {
 
 impl IceSpike {
     fn step(&mut self, dt: f32) {
-        rise_step(&mut self.base_pos, self.velocity, self.age, dt, SPEED_LIMIT_S);
+        rise_step(
+            &mut self.base_pos,
+            self.velocity,
+            self.age,
+            dt,
+            SPEED_LIMIT_S,
+        );
         self.age += dt;
     }
 
@@ -258,9 +264,7 @@ impl FrostDiverEffect {
     pub fn new(from: [f32; 3], to: [f32; 3], params: FrostDiverParams) -> Self {
         let (origin, trail_anchors) = derive_anchors(from, to, params.trail_initial_offset);
 
-        let mut rng_state = 0x9E37_79B9
-            ^ origin[0].to_bits()
-            ^ origin[2].to_bits().rotate_left(11);
+        let mut rng_state = 0x9E37_79B9 ^ origin[0].to_bits() ^ origin[2].to_bits().rotate_left(11);
 
         let spike_count = if !trail_anchors.is_empty() {
             // Projectile mode: spike count is determined by the
@@ -307,21 +311,20 @@ impl FrostDiverEffect {
         // Trail mode walks `trail_anchors` in order so the visible
         // spike-trail follows the caster→target line. Cluster mode
         // picks a random offset around `origin`.
-        let spawn_pos = if let Some(anchor) =
-            self.trail_anchors.get(self.spike_index as usize).copied()
-        {
-            anchor
-        } else {
-            let (radius_min, radius_max) = self.params.spawn_radius_range;
-            let placement_angle = lcg_float(&mut self.rng_state) * std::f32::consts::TAU;
-            let placement_radius =
-                radius_min + lcg_float(&mut self.rng_state) * (radius_max - radius_min);
-            [
-                self.origin[0] + placement_radius * placement_angle.cos(),
-                self.origin[1],
-                self.origin[2] + placement_radius * placement_angle.sin(),
-            ]
-        };
+        let spawn_pos =
+            if let Some(anchor) = self.trail_anchors.get(self.spike_index as usize).copied() {
+                anchor
+            } else {
+                let (radius_min, radius_max) = self.params.spawn_radius_range;
+                let placement_angle = lcg_float(&mut self.rng_state) * std::f32::consts::TAU;
+                let placement_radius =
+                    radius_min + lcg_float(&mut self.rng_state) * (radius_max - radius_min);
+                [
+                    self.origin[0] + placement_radius * placement_angle.cos(),
+                    self.origin[1],
+                    self.origin[2] + placement_radius * placement_angle.sin(),
+                ]
+            };
 
         let heading_deg = lcg_float(&mut self.rng_state) * 360.0;
         let tilt_deg = SPIKE_TILT_MIN_DEG
@@ -367,11 +370,7 @@ impl FrostDiverEffect {
 /// `TRAIL_INITIAL_OFFSET`. The cursor snaps to the target on arrival, so the
 /// final spike lands exactly on the target point. Spike Y stays on the caster's
 /// ground plane (`from[1]`).
-fn derive_anchors(
-    from: [f32; 3],
-    to: [f32; 3],
-    initial_offset: f32,
-) -> ([f32; 3], Vec<[f32; 3]>) {
+fn derive_anchors(from: [f32; 3], to: [f32; 3], initial_offset: f32) -> ([f32; 3], Vec<[f32; 3]>) {
     let mut cursor = ProjectileCursor::new(from, to, TRAIL_STEP_PER_FRAME);
     if cursor.dist() <= initial_offset {
         // Caster and target are too close to draw a meaningful trail
@@ -408,8 +407,7 @@ impl Effect for FrostDiverEffect {
         let window_frames = self.spawn_window_frames();
         if window_frames > 0.0 {
             let burst_s = window_frames / FRAMES_PER_SECOND;
-            let target_spawned =
-                ((self.age / burst_s) * self.spike_count as f32) as u32;
+            let target_spawned = ((self.age / burst_s) * self.spike_count as f32) as u32;
             let target = target_spawned.min(self.spike_count);
             while self.spike_index < target {
                 self.spawn_one();
@@ -462,7 +460,11 @@ mod tests {
     }
 
     fn step(effect: &mut FrostDiverEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
+        effect.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     fn draws(effect: &FrostDiverEffect) -> Vec<EffectPrimitiveDraw> {
@@ -489,7 +491,10 @@ mod tests {
         let mut e = FrostDiverEffect::new(from, to, FROSTDIVER);
         // Burst-mode spawn-on-spawn schedule needs the update tick to
         // populate; step past the full burst window.
-        step(&mut e, FROSTDIVER.burst_over_frames / FRAMES_PER_SECOND + 0.01);
+        step(
+            &mut e,
+            FROSTDIVER.burst_over_frames / FRAMES_PER_SECOND + 0.01,
+        );
         let spawned = e.spike_index;
         // Cursor steps 2 units from the caster, dropping a spike each step once
         // past the 5-unit setback, through to the target (z = 6,8,…,24,25).
@@ -502,7 +507,10 @@ mod tests {
             let EffectPrimitiveDraw::QuadHorn { base, .. } = prim else {
                 panic!("expected QuadHorn, got {prim:?}");
             };
-            assert!(base[0].abs() < 1e-3, "spike X stays on the +Z line: {base:?}");
+            assert!(
+                base[0].abs() < 1e-3,
+                "spike X stays on the +Z line: {base:?}"
+            );
             assert!(
                 base[2] >= TRAIL_INITIAL_OFFSET - 1e-3 && base[2] <= to[2] + 1e-3,
                 "spike Z {} must lie within [{}, {}]",
@@ -604,7 +612,10 @@ mod tests {
         step(&mut e, 0.0);
         let n0 = draws(&e).len();
 
-        step(&mut e, FROSTDIVER.burst_over_frames / FRAMES_PER_SECOND / 2.0);
+        step(
+            &mut e,
+            FROSTDIVER.burst_over_frames / FRAMES_PER_SECOND / 2.0,
+        );
         let n_mid = draws(&e).len();
         assert!(n_mid >= n0);
 
@@ -628,7 +639,10 @@ mod tests {
         ] {
             let mut e = FrostDiverEffect::new(origin, origin, FROSTDIVER);
             // Step past burst window so all scheduled spikes have spawned.
-            step(&mut e, FROSTDIVER.burst_over_frames / FRAMES_PER_SECOND + 0.01);
+            step(
+                &mut e,
+                FROSTDIVER.burst_over_frames / FRAMES_PER_SECOND + 0.01,
+            );
             let drawn = draws(&e).len() as u32;
             // Some spikes may have started fading at this point but
             // `spike_index` is the authoritative spawn count.
@@ -638,8 +652,10 @@ mod tests {
                 (lo..=hi).contains(&spawned),
                 "{label}: spawned {spawned} not in [{lo}, {hi}]"
             );
-            assert!(spawned < FROSTDIVER2.spike_count_range.0,
-                "{label}: FD spawned {spawned} >= FD2's fixed 8");
+            assert!(
+                spawned < FROSTDIVER2.spike_count_range.0,
+                "{label}: FD spawned {spawned} >= FD2's fixed 8"
+            );
             assert!(drawn <= spawned, "{label}: drawn ≤ spawned");
         }
     }
@@ -711,7 +727,11 @@ mod tests {
         let mut t = 0.0;
         let end_s = total_duration_ms(&FROSTDIVER2) as f32 / 1000.0;
         while t < end_s * 2.0 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
+            status = e.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
+                camera_target: None,
+                caster_yaw: None,
+            });
             t += 1.0 / 60.0;
             if matches!(status, EffectStatus::Dead) {
                 break;

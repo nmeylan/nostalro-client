@@ -81,8 +81,7 @@ const SPAWN_RADIUS_MAX: f32 = 5.0 * SIZE_SCALE;
 /// → ±15° around the slice's centre, in degrees.
 const ANGLE_JITTER_DEG: f32 = 15.0;
 
-pub const TOTAL_DURATION_MS: u32 =
-    (DURATION_MAX_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
+pub const TOTAL_DURATION_MS: u32 = (DURATION_MAX_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
 /// Deterministic LCG — same convention as `stormgust.rs` and
 /// `hit.rs`; keeps tests stable.
@@ -153,9 +152,8 @@ pub struct Hit2Effect {
 
 impl Hit2Effect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        let rng_state = 0x9E37_79B9
-            ^ world_pos[0].to_bits()
-            ^ world_pos[2].to_bits().rotate_left(13);
+        let rng_state =
+            0x9E37_79B9 ^ world_pos[0].to_bits() ^ world_pos[2].to_bits().rotate_left(13);
         Self {
             world_pos,
             petals: Vec::with_capacity(PETAL_COUNT),
@@ -172,32 +170,26 @@ impl Hit2Effect {
             let slice_angle = k as f32 * slice;
             // Roll jitter: ±15° around the slice direction
             // (`(slice - 15) + random(30)`).
-            let jitter = (lcg_float(&mut self.rng_state) * 2.0 - 1.0)
-                * ANGLE_JITTER_DEG.to_radians();
+            let jitter =
+                (lcg_float(&mut self.rng_state) * 2.0 - 1.0) * ANGLE_JITTER_DEG.to_radians();
             let roll = slice_angle + jitter;
 
-            let initial_radius =
-                lcg_float(&mut self.rng_state) * SPAWN_RADIUS_MAX;
+            let initial_radius = lcg_float(&mut self.rng_state) * SPAWN_RADIUS_MAX;
 
             let speed_per_frame = SPEED_MIN_PER_FRAME
-                + lcg_float(&mut self.rng_state)
-                    * (SPEED_MAX_PER_FRAME - SPEED_MIN_PER_FRAME);
+                + lcg_float(&mut self.rng_state) * (SPEED_MAX_PER_FRAME - SPEED_MIN_PER_FRAME);
             let duration_frames = DURATION_MIN_FRAMES
-                + lcg_float(&mut self.rng_state)
-                    * (DURATION_MAX_FRAMES - DURATION_MIN_FRAMES);
+                + lcg_float(&mut self.rng_state) * (DURATION_MAX_FRAMES - DURATION_MIN_FRAMES);
             let lifetime = duration_frames / FRAMES_PER_SECOND;
 
             // Per-frame accel = `-(speed / duration) / 2`.
             // Convert to per-second^2.
             let decel_per_frame = -(speed_per_frame / duration_frames) / 2.0;
             let speed_world_per_s = speed_per_frame * FRAMES_PER_SECOND;
-            let decel_world_per_s2 =
-                decel_per_frame * FRAMES_PER_SECOND * FRAMES_PER_SECOND;
+            let decel_world_per_s2 = decel_per_frame * FRAMES_PER_SECOND * FRAMES_PER_SECOND;
 
-            let width = WIDTH_MIN
-                + lcg_float(&mut self.rng_state) * (WIDTH_MAX - WIDTH_MIN);
-            let height = HEIGHT_MIN
-                + lcg_float(&mut self.rng_state) * (HEIGHT_MAX - HEIGHT_MIN);
+            let width = WIDTH_MIN + lcg_float(&mut self.rng_state) * (WIDTH_MAX - WIDTH_MIN);
+            let height = HEIGHT_MIN + lcg_float(&mut self.rng_state) * (HEIGHT_MAX - HEIGHT_MIN);
             // Width shrinks linearly from `width` to 0 over `lifetime`.
             let width_speed_world_per_s = -width / lifetime;
             // Height initial speed + accel are scaled the same way as
@@ -230,8 +222,7 @@ impl Hit2Effect {
         let dt_frames = dt * FRAMES_PER_SECOND;
         for p in &mut self.petals {
             // Radial outward velocity + deceleration.
-            p.speed_world_per_s =
-                (p.speed_world_per_s + p.decel_world_per_s2 * dt).max(0.0);
+            p.speed_world_per_s = (p.speed_world_per_s + p.decel_world_per_s2 * dt).max(0.0);
             p.radius += p.speed_world_per_s * dt;
             // Width shrinks linearly until clamped at 0.
             p.width = (p.width + p.width_speed_world_per_s * dt).max(0.0);
@@ -250,7 +241,11 @@ impl Hit2Effect {
 fn camera_right_up(cam: &CameraView) -> ([f32; 3], [f32; 3]) {
     let sub = |a: [f32; 3], b: [f32; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
     let cross = |a: [f32; 3], b: [f32; 3]| {
-        [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+        [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ]
     };
     let norm = |v: [f32; 3]| {
         let len = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt().max(1e-6);
@@ -324,7 +319,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -358,7 +357,10 @@ mod tests {
         assert!(
             list.primitives.iter().all(|p| matches!(
                 p,
-                EffectPrimitiveDraw::Billboard { blend: BlendKind::Alpha, .. }
+                EffectPrimitiveDraw::Billboard {
+                    blend: BlendKind::Alpha,
+                    ..
+                }
             )),
             "Hit2 petals are alpha-blended (RF_EFFECT_OM_2)"
         );
@@ -421,17 +423,18 @@ mod tests {
     fn petal_width_shrinks_height_grows() {
         let mut e = Hit2Effect::new([0.0; 3]);
         e.update(&ctx(0.0));
-        let initial: Vec<(f32, f32)> =
-            e.petals.iter().map(|p| (p.width, p.height)).collect();
+        let initial: Vec<(f32, f32)> = e.petals.iter().map(|p| (p.width, p.height)).collect();
         // Advance ~half a typical petal's lifetime.
         for _ in 0..10 {
             e.update(&ctx(1.0 / 60.0));
         }
         // At least one petal should still be alive with a smaller
         // width and larger height than its initial values.
-        let shrunk_and_grew = e.petals.iter().zip(&initial).any(|(p, (w0, h0))| {
-            p.width < *w0 && p.height > *h0
-        });
+        let shrunk_and_grew = e
+            .petals
+            .iter()
+            .zip(&initial)
+            .any(|(p, (w0, h0))| p.width < *w0 && p.height > *h0);
         assert!(
             shrunk_and_grew,
             "expected at least one petal with shrunk width + grown height"

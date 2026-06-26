@@ -40,8 +40,7 @@ const FADE_OUT_START_FRAME: f32 = 6.0;
 const CYLINDER_PIVOT_Y_OFFSET: f32 = -10.0;
 const RING_ALPHA: f32 = 1.0;
 
-pub const TOTAL_DURATION_MS: u32 =
-    (CYLINDER_LIFETIME_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
+pub const TOTAL_DURATION_MS: u32 = (CYLINDER_LIFETIME_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
 pub struct SonicBlowHitEffect {
     pivot: [f32; 3],
@@ -143,7 +142,11 @@ mod tests {
         // with the expected tilt and texture; then advance past the lifetime
         // and confirm the effect reports Dead.
         let mut e = SonicBlowHitEffect::new([5.0, 0.0, 7.0]);
-        e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: 1.0 / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        });
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
 
@@ -158,9 +161,11 @@ mod tests {
             .primitives
             .iter()
             .find_map(|p| match p {
-                EffectPrimitiveDraw::Cylinder { tilt_x_rad, texture, .. } => {
-                    Some((*tilt_x_rad, *texture))
-                }
+                EffectPrimitiveDraw::Cylinder {
+                    tilt_x_rad,
+                    texture,
+                    ..
+                } => Some((*tilt_x_rad, *texture)),
                 _ => None,
             })
             .unwrap();
@@ -169,7 +174,8 @@ mod tests {
 
         let status = e.update(&EffectUpdateCtx {
             delta: TOTAL_DURATION_MS as f32 / 1000.0,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
         assert!(matches!(status, EffectStatus::Dead));
     }

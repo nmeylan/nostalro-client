@@ -17,9 +17,7 @@
 //! `target_size`) so the reticle fits the target rather than using a fixed
 //! footprint. With no target size we fall back to a fixed half (8).
 
-use crate::draw::{
-    BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane,
-};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const LOCKON_TEXTURE: &str = "lockon128.tga";
@@ -123,7 +121,11 @@ impl Effect for LockonEffect {
         let yaw = (frames * DEG_PER_FRAME).to_radians();
         let half = self.half_size();
         let color = self.color();
-        let center = [self.world_pos[0], self.world_pos[1] + GROUND_LIFT, self.world_pos[2]];
+        let center = [
+            self.world_pos[0],
+            self.world_pos[1] + GROUND_LIFT,
+            self.world_pos[2],
+        ];
         for offset in [0.0, QUAD_OFFSET] {
             out.push(EffectPrimitiveDraw::Texture3D {
                 center,
@@ -210,7 +212,10 @@ mod tests {
 
         // RGB cycle drives green/blue down to pure red within ~30 frames.
         let color = e.color();
-        assert!(color[1] <= 0.02 && color[2] <= 0.02, "reticle reaches pure red");
+        assert!(
+            color[1] <= 0.02 && color[2] <= 0.02,
+            "reticle reaches pure red"
+        );
 
         // After the change point the size holds — it does not keep shrinking.
         advance(&mut e, 30);

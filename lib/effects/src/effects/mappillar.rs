@@ -115,7 +115,11 @@ pub struct MappillarEffect {
 
 impl MappillarEffect {
     pub fn new(world_pos: [f32; 3], params: MappillarParams) -> Self {
-        Self { params, world_pos, age_frames: 0.0 }
+        Self {
+            params,
+            world_pos,
+            age_frames: 0.0,
+        }
     }
 
     /// Height for slot `slot_idx`: zero until its start frame, then a 90° sine
@@ -176,11 +180,20 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn advance(e: &mut MappillarEffect, frames: f32) {
@@ -193,9 +206,13 @@ mod tests {
         list.primitives
             .iter()
             .filter_map(|p| match p {
-                EffectPrimitiveDraw::RadialRing { distance, rot_start_rad, heights, color, .. } => {
-                    Some((*distance, *rot_start_rad, heights[0], color[3]))
-                }
+                EffectPrimitiveDraw::RadialRing {
+                    distance,
+                    rot_start_rad,
+                    heights,
+                    color,
+                    ..
+                } => Some((*distance, *rot_start_rad, heights[0], color[3])),
                 _ => None,
             })
             .collect()
@@ -246,12 +263,17 @@ mod tests {
 
         // rot = (slot*90 + age_frames) deg. At frame 100:
         //   slot 0 → 100°, slot 1 → 190°, slot 2 → 280°, slot 3 → 370°=10°.
-        let rots_deg: Vec<f32> =
-            rings.iter().map(|(_, r, _, _)| r.to_degrees().rem_euclid(360.0)).collect();
+        let rots_deg: Vec<f32> = rings
+            .iter()
+            .map(|(_, r, _, _)| r.to_degrees().rem_euclid(360.0))
+            .collect();
         // Each adjacent pair should be exactly 90° apart (mod 360).
         for i in 0..3 {
             let diff = (rots_deg[i + 1] - rots_deg[i]).rem_euclid(360.0);
-            assert!((diff - 90.0).abs() < 1.0, "adjacent slots 90° apart (diff={diff:.1}°)");
+            assert!(
+                (diff - 90.0).abs() < 1.0,
+                "adjacent slots 90° apart (diff={diff:.1}°)"
+            );
         }
     }
 
@@ -263,7 +285,10 @@ mod tests {
         let rings = radial_rings(&e);
         assert_eq!(rings.len(), 4);
         for (dist, _, _, _) in &rings {
-            assert!(*dist >= 11.0 && *dist <= 12.5, "Mappillar2 rings at distant base ({dist})");
+            assert!(
+                *dist >= 11.0 && *dist <= 12.5,
+                "Mappillar2 rings at distant base ({dist})"
+            );
         }
     }
 

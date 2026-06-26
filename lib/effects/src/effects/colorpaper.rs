@@ -123,7 +123,11 @@ impl ColorpaperEffect {
                     radius,
                     rot_deg: rng.range(0.0, 360.0),
                     tilt_deg: rng.range(0.0, 4.0) * 45.0, // ec*45
-                    color: [rng.range(0.2, 1.0), rng.range(0.2, 1.0), rng.range(0.2, 1.0)],
+                    color: [
+                        rng.range(0.2, 1.0),
+                        rng.range(0.2, 1.0),
+                        rng.range(0.2, 1.0),
+                    ],
                     alpha: 0.0,
                     process: 0,
                     respawns: 0,
@@ -190,13 +194,22 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 256.0, screen_h: 256.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 256.0,
+            screen_h: 256.0,
+            elapsed: 0.0,
+        }
     }
 
     fn tick(e: &mut ColorpaperEffect, frames: u32) -> EffectStatus {
         let mut st = EffectStatus::Running;
         for _ in 0..frames {
-            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            st = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         st
     }
@@ -207,9 +220,12 @@ mod tests {
         list.primitives
             .iter()
             .map(|p| match p {
-                EffectPrimitiveDraw::WorldQuad { corners, color, blend: BlendKind::Alpha, .. } => {
-                    (*corners, *color)
-                }
+                EffectPrimitiveDraw::WorldQuad {
+                    corners,
+                    color,
+                    blend: BlendKind::Alpha,
+                    ..
+                } => (*corners, *color),
                 other => panic!("expected alpha WorldQuad, got {other:?}"),
             })
             .collect()
@@ -226,7 +242,10 @@ mod tests {
         assert!(mean_y < 0.0, "cloud starts overhead: {mean_y}");
         // Colors vary across chips.
         let c0 = q[0].1;
-        assert!(q.iter().any(|(_, c)| (c[0] - c0[0]).abs() > 0.1), "varied RGB");
+        assert!(
+            q.iter().any(|(_, c)| (c[0] - c0[0]).abs() > 0.1),
+            "varied RGB"
+        );
     }
 
     #[test]
@@ -237,7 +256,10 @@ mod tests {
         let early_corner = quads(&e)[0].0;
         tick(&mut e, 30);
         let y_late: f32 = quads(&e).iter().map(|(c, _)| c[0][1]).sum();
-        assert!(y_late > y_early, "chips fall (native +y down): {y_early} -> {y_late}");
+        assert!(
+            y_late > y_early,
+            "chips fall (native +y down): {y_early} -> {y_late}"
+        );
         // Tumble changes the quad's z extent over time.
         let late_corner = quads(&e)[0].0;
         assert!(early_corner != late_corner, "chip tumbles");

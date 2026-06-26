@@ -18,9 +18,9 @@
 //! The two gust rings are composed verbatim
 //! from [`super::portal_wind`] (configs `PORTAL_WIND2` / `PORTAL_WIND3`).
 
+use super::portal_wind::{PORTAL_WIND2, PORTAL_WIND3, PortalWindEffect};
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use super::portal_wind::{PortalWindEffect, PORTAL_WIND2, PORTAL_WIND3};
 
 pub const TEXTURES: &[&str] = &["storm2.tga", "cloud11.tga"];
 
@@ -225,9 +225,7 @@ impl Effect for StormKickEffect {
     }
 
     fn body_yaw(&self) -> Option<f32> {
-        if self.cfg.spin_per_frame != 0.0
-            && self.current_frame_int() <= self.cfg.spin_until_frame
-        {
+        if self.cfg.spin_per_frame != 0.0 && self.current_frame_int() <= self.cfg.spin_until_frame {
             Some(self.spin_accum_deg.to_radians())
         } else {
             None
@@ -240,7 +238,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -327,6 +329,9 @@ mod tests {
 
         let mut no_spin = StormKickEffect::new([0.0; 3], STORMKICK2);
         step_frames(&mut no_spin, 10);
-        assert!(no_spin.body_yaw().is_none(), "STORMKICK2 never spins caster");
+        assert!(
+            no_spin.body_yaw().is_none(),
+            "STORMKICK2 never spins caster"
+        );
     }
 }

@@ -22,9 +22,9 @@
 //! single-sprite structure and seed the random action / scale from the world
 //! anchor so a given spawn point is deterministic.
 
+use super::spike_burst::seed_from_world;
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use super::spike_burst::seed_from_world;
 
 pub const SPARKLE_SPRITE: &str = "data/sprite/이팩트/크리스마스";
 pub const SPRITES: &[&str] = &[SPARKLE_SPRITE];
@@ -54,8 +54,17 @@ impl BanjjakiiEffect {
         // Action `random(0..4) / 2` → action 0, 1 or 2.
         let action_index = ((seed % 5) / 2) as usize;
         // `random(10) % 3 == 1` → tiny one time in three.
-        let size_scale = if (seed / 5) % 3 == 1 { TINY_SCALE } else { NORMAL_SCALE };
-        Self { world_pos, age_frames: 0.0, action_index, size_scale }
+        let size_scale = if (seed / 5) % 3 == 1 {
+            TINY_SCALE
+        } else {
+            NORMAL_SCALE
+        };
+        Self {
+            world_pos,
+            age_frames: 0.0,
+            action_index,
+            size_scale,
+        }
     }
 }
 
@@ -73,7 +82,11 @@ impl Effect for BanjjakiiEffect {
         let motion = (self.age_frames / ANIM_FRAMES_PER_MOTION) as usize;
         out.push(EffectPrimitiveDraw::SpriteParticle {
             sprite_path: SPARKLE_SPRITE,
-            position: [self.world_pos[0], self.world_pos[1] + Y_OFFSET, self.world_pos[2]],
+            position: [
+                self.world_pos[0],
+                self.world_pos[1] + Y_OFFSET,
+                self.world_pos[2],
+            ],
             action_index: self.action_index,
             motion_index: motion,
             size_scale: self.size_scale,
@@ -90,7 +103,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -114,17 +131,21 @@ mod tests {
             .filter(|p| matches!(p, EffectPrimitiveDraw::SpriteParticle { sprite_path, .. } if *sprite_path == SPARKLE_SPRITE))
             .collect();
         assert_eq!(sprites.len(), 1);
-        let early_motion = if let EffectPrimitiveDraw::SpriteParticle { motion_index, .. } = sprites[0] {
-            *motion_index
-        } else {
-            unreachable!()
-        };
+        let early_motion =
+            if let EffectPrimitiveDraw::SpriteParticle { motion_index, .. } = sprites[0] {
+                *motion_index
+            } else {
+                unreachable!()
+            };
 
         e.update(&ctx(20.0 / FRAMES_PER_SECOND));
         let mut list2 = EffectDrawList::new();
         e.collect_draws(&mut list2, &render_ctx());
         if let EffectPrimitiveDraw::SpriteParticle { motion_index, .. } = list2.primitives[0] {
-            assert!(motion_index > early_motion, "anim advances {early_motion} → {motion_index}");
+            assert!(
+                motion_index > early_motion,
+                "anim advances {early_motion} → {motion_index}"
+            );
         }
     }
 

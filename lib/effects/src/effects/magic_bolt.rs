@@ -144,7 +144,11 @@ pub const FIRE_ARROW: BoltParams = BoltParams {
 
 fn norm(v: [f32; 3]) -> [f32; 3] {
     let len = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
-    if len < 1e-5 { [0.0, 0.0, 1.0] } else { [v[0] / len, v[1] / len, v[2] / len] }
+    if len < 1e-5 {
+        [0.0, 0.0, 1.0]
+    } else {
+        [v[0] / len, v[1] / len, v[2] / len]
+    }
 }
 
 fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
@@ -203,8 +207,8 @@ impl MagicBoltEffect {
                     OFFSET_BASE[1] * WORLD_SCALE,
                     (OFFSET_BASE[2] + (lcg() * 2.0 - 1.0) * OFFSET_JITTER) * WORLD_SCALE,
                 ];
-                let dist = (offset[0] * offset[0] + offset[1] * offset[1] + offset[2] * offset[2])
-                    .sqrt();
+                let dist =
+                    (offset[0] * offset[0] + offset[1] * offset[1] + offset[2] * offset[2]).sqrt();
                 let fall_dir = [-offset[0] / dist, -offset[1] / dist, -offset[2] / dist];
                 let mut perp_a = cross(fall_dir, [0.0, -1.0, 0.0]);
                 if perp_a[0].abs() + perp_a[1].abs() + perp_a[2].abs() < 1e-4 {
@@ -271,22 +275,55 @@ impl MagicBoltEffect {
         }
     }
 
-    fn push_plane(&self, out: &mut EffectDrawList, bolt: &Bolt, center: [f32; 3], perp: [f32; 3], alpha: f32, texture: &'static str) {
+    fn push_plane(
+        &self,
+        out: &mut EffectDrawList,
+        bolt: &Bolt,
+        center: [f32; 3],
+        perp: [f32; 3],
+        alpha: f32,
+        texture: &'static str,
+    ) {
         let hl = self.params.half_len * WORLD_SCALE;
         let hw = self.params.half_wid * WORLD_SCALE;
-        let l = [bolt.fall_dir[0] * hl, bolt.fall_dir[1] * hl, bolt.fall_dir[2] * hl];
+        let l = [
+            bolt.fall_dir[0] * hl,
+            bolt.fall_dir[1] * hl,
+            bolt.fall_dir[2] * hl,
+        ];
         let w = [perp[0] * hw, perp[1] * hw, perp[2] * hw];
         let corners = [
-            [center[0] - l[0] - w[0], center[1] - l[1] - w[1], center[2] - l[2] - w[2]],
-            [center[0] + l[0] - w[0], center[1] + l[1] - w[1], center[2] + l[2] - w[2]],
-            [center[0] + l[0] + w[0], center[1] + l[1] + w[1], center[2] + l[2] + w[2]],
-            [center[0] - l[0] + w[0], center[1] - l[1] + w[1], center[2] - l[2] + w[2]],
+            [
+                center[0] - l[0] - w[0],
+                center[1] - l[1] - w[1],
+                center[2] - l[2] - w[2],
+            ],
+            [
+                center[0] + l[0] - w[0],
+                center[1] + l[1] - w[1],
+                center[2] + l[2] - w[2],
+            ],
+            [
+                center[0] + l[0] + w[0],
+                center[1] + l[1] + w[1],
+                center[2] + l[2] + w[2],
+            ],
+            [
+                center[0] - l[0] + w[0],
+                center[1] - l[1] + w[1],
+                center[2] - l[2] + w[2],
+            ],
         ];
         out.push(EffectPrimitiveDraw::WorldQuad {
             corners,
             uv: UNIT_UV,
             texture,
-            color: [self.params.bolt_color[0], self.params.bolt_color[1], self.params.bolt_color[2], alpha],
+            color: [
+                self.params.bolt_color[0],
+                self.params.bolt_color[1],
+                self.params.bolt_color[2],
+                alpha,
+            ],
             blend: BlendKind::Additive,
             no_depth: false,
         });
@@ -308,13 +345,16 @@ impl MagicBoltEffect {
         // Outer radius integrates a decelerating speed; the band thickness is
         // `min(radius, innerSize)` so it fills as a disc
         // until `innerSize`, then holds that width as the ring widens.
-        let outer =
-            (RING_SPEED0 * ring_age + 0.5 * RING_ACCEL * ring_age * ring_age) * RING_SCALE;
+        let outer = (RING_SPEED0 * ring_age + 0.5 * RING_ACCEL * ring_age * ring_age) * RING_SCALE;
         if outer <= 0.0 {
             return;
         }
         let thickness = outer.min(RING_INNER_SIZE);
-        let center = [self.target[0], self.target[1] + RING_GROUND_LIFT, self.target[2]];
+        let center = [
+            self.target[0],
+            self.target[1] + RING_GROUND_LIFT,
+            self.target[2],
+        ];
         out.push(EffectPrimitiveDraw::GroundDisc {
             center,
             radius: outer,
@@ -323,7 +363,12 @@ impl MagicBoltEffect {
             arc_angle_deg: 360.0,
             uv_repeat: RING_UV_REPEAT,
             texture: self.params.ring_texture,
-            color: [self.params.ring_color[0], self.params.ring_color[1], self.params.ring_color[2], alpha],
+            color: [
+                self.params.ring_color[0],
+                self.params.ring_color[1],
+                self.params.ring_color[2],
+                alpha,
+            ],
             blend: BlendKind::Additive,
         });
     }
@@ -403,7 +448,12 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn step(e: &mut MagicBoltEffect, frames: u32) -> EffectStatus {
@@ -448,7 +498,11 @@ mod tests {
             let q = quads(&e);
             // Two planes per still-alive bolt; all bolts are within their 70-frame
             // life this early, so every spawned bolt is present.
-            assert_eq!(q.len(), count as usize * 2, "hit_count={count} → {count} bolts × 2 planes");
+            assert_eq!(
+                q.len(),
+                count as usize * 2,
+                "hit_count={count} → {count} bolts × 2 planes"
+            );
         }
     }
 
@@ -460,12 +514,21 @@ mod tests {
         step(&mut e, spawn);
         let early = quad_center(&quads(&e)[0]);
         // -Y is up: a fresh bolt starts above the target (negative y).
-        assert!(early[1] < target[1], "bolt starts above the target: y={}", early[1]);
+        assert!(
+            early[1] < target[1],
+            "bolt starts above the target: y={}",
+            early[1]
+        );
         // Advance to the frame the bolt reaches the target.
         let impact_frame = (SPAWN_START_FRAME + e.bolts[0].impact_life).round() as u32;
         step(&mut e, impact_frame - spawn);
         let landed = quad_center(&quads(&e)[0]);
-        assert!(landed[1] > early[1], "bolt descends toward the ground: {} -> {}", early[1], landed[1]);
+        assert!(
+            landed[1] > early[1],
+            "bolt descends toward the ground: {} -> {}",
+            early[1],
+            landed[1]
+        );
         let dxz = (landed[0] * landed[0] + landed[2] * landed[2]).sqrt();
         assert!(dxz < 1.5, "bolt converges on the target in XZ: {dxz}");
     }
@@ -479,17 +542,32 @@ mod tests {
 
         let mut fl = EffectDrawList::new();
         fire.collect_draws(&mut fl, &render_ctx());
-        let sprites = fl.primitives.iter().filter(|p| matches!(p, EffectPrimitiveDraw::SpriteParticle { .. })).count();
-        let fire_tex: Vec<&str> = fl.primitives.iter().filter_map(|p| match p {
-            EffectPrimitiveDraw::WorldQuad { texture, .. } => Some(*texture),
-            _ => None,
-        }).collect();
+        let sprites = fl
+            .primitives
+            .iter()
+            .filter(|p| matches!(p, EffectPrimitiveDraw::SpriteParticle { .. }))
+            .count();
+        let fire_tex: Vec<&str> = fl
+            .primitives
+            .iter()
+            .filter_map(|p| match p {
+                EffectPrimitiveDraw::WorldQuad { texture, .. } => Some(*texture),
+                _ => None,
+            })
+            .collect();
         assert!(sprites > 0, "fire emits a spark spray");
-        assert!(fire_tex.iter().all(|t| FIRE_FRAMES.contains(t)), "fire bolt uses the animated flame frames");
+        assert!(
+            fire_tex.iter().all(|t| FIRE_FRAMES.contains(t)),
+            "fire bolt uses the animated flame frames"
+        );
 
         let mut il = EffectDrawList::new();
         ice.collect_draws(&mut il, &render_ctx());
-        let ice_sprites = il.primitives.iter().filter(|p| matches!(p, EffectPrimitiveDraw::SpriteParticle { .. })).count();
+        let ice_sprites = il
+            .primitives
+            .iter()
+            .filter(|p| matches!(p, EffectPrimitiveDraw::SpriteParticle { .. }))
+            .count();
         assert_eq!(ice_sprites, 0, "ice has no spray");
     }
 

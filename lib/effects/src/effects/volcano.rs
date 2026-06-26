@@ -233,8 +233,7 @@ impl Effect for VolcanoEffect {
                 rotation: rotation_rad,
                 uv_repeat: UV_REPEAT,
                 uv_scroll: [0.0, 0.0],
-                wave_amplitude: self.params.max_flame_tilt
-                    * self.params.wave_amplitude_factor,
+                wave_amplitude: self.params.max_flame_tilt * self.params.wave_amplitude_factor,
                 wave_frequency: 0.5,
                 wave_phase: 0.0,
                 wave_mode: FrustumWaveMode::Sine,
@@ -269,7 +268,11 @@ mod tests {
     }
 
     fn step(effect: &mut VolcanoEffect, dt: f32) -> EffectStatus {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None })
+        effect.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        })
     }
 
     fn frustum_fields(prim: &EffectPrimitiveDraw) -> (f32, f32, f32, &'static str) {
@@ -287,12 +290,23 @@ mod tests {
 
     #[test]
     fn each_variant_emits_four_emitters_with_its_texture() {
-        for params in [LANDPROTECTOR, VOLCANO, DELUGE, VIOLENTGALE, GANBANTEIN, GUMGANG3]
-        {
+        for params in [
+            LANDPROTECTOR,
+            VOLCANO,
+            DELUGE,
+            VIOLENTGALE,
+            GANBANTEIN,
+            GUMGANG3,
+        ] {
             let mut e = VolcanoEffect::new([0.0; 3], params);
             step(&mut e, 1.0 / FRAMES_PER_SECOND);
             let prims = draws(&e);
-            assert_eq!(prims.len(), NUM_EMITTERS, "{} should emit 4 frustums", params.texture);
+            assert_eq!(
+                prims.len(),
+                NUM_EMITTERS,
+                "{} should emit 4 frustums",
+                params.texture
+            );
             for prim in &prims {
                 let (_, _, _, tex) = frustum_fields(prim);
                 assert_eq!(tex, params.texture);
@@ -310,7 +324,10 @@ mod tests {
         step(&mut g3, dt);
         let a_lp = frustum_fields(&draws(&lp)[0]).2;
         let a_g3 = frustum_fields(&draws(&g3)[0]).2;
-        assert!(a_lp > a_g3, "LP {a_lp} should ramp faster than GUMGANG3 {a_g3}");
+        assert!(
+            a_lp > a_g3,
+            "LP {a_lp} should ramp faster than GUMGANG3 {a_g3}"
+        );
     }
 
     #[test]
@@ -324,7 +341,10 @@ mod tests {
         let mut e = VolcanoEffect::new([0.0; 3], LANDPROTECTOR);
         step(&mut e, 1.0 / FRAMES_PER_SECOND);
         let (r0, rot0, _, _) = frustum_fields(&draws(&e)[0]);
-        step(&mut e, (LANDPROTECTOR.visible_frames() / 2.0) / FRAMES_PER_SECOND);
+        step(
+            &mut e,
+            (LANDPROTECTOR.visible_frames() / 2.0) / FRAMES_PER_SECOND,
+        );
         let (r1, rot1, _, _) = frustum_fields(&draws(&e)[0]);
         assert!(r1 > r0, "innermost ring should grow over time");
         assert!(rot1 > rot0, "rotation should advance over time");
@@ -335,7 +355,10 @@ mod tests {
         let mut e = VolcanoEffect::new([0.0; 3], LANDPROTECTOR);
         step(&mut e, 0.5 / FRAMES_PER_SECOND);
         let a_early = frustum_fields(&draws(&e)[0]).2;
-        step(&mut e, (LANDPROTECTOR.ramp_up_frames() - 0.5) / FRAMES_PER_SECOND);
+        step(
+            &mut e,
+            (LANDPROTECTOR.ramp_up_frames() - 0.5) / FRAMES_PER_SECOND,
+        );
         let a_peak = frustum_fields(&draws(&e)[0]).2;
         step(
             &mut e,

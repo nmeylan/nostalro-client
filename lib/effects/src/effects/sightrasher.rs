@@ -57,7 +57,10 @@ pub struct SightrasherEffect {
 
 impl SightrasherEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        Self { world_pos, age: 0.0 }
+        Self {
+            world_pos,
+            age: 0.0,
+        }
     }
 
     fn frame(&self) -> f32 {
@@ -170,13 +173,21 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn run_to(c: &mut SightrasherEffect, target_frame: f32) {
         let delta = (target_frame - c.frame()) / FRAMES_PER_SECOND;
         if delta > 0.0 {
-            c.update(&EffectUpdateCtx { delta, ..Default::default() });
+            c.update(&EffectUpdateCtx {
+                delta,
+                ..Default::default()
+            });
         }
     }
 
@@ -202,7 +213,9 @@ mod tests {
     fn ring_punches_out_at_frame_ten_and_grows() {
         let mut c = SightrasherEffect::new([0.0; 3]);
         run_to(&mut c, 5.0);
-        let early = draws(&c).iter().any(|p| matches!(p, EffectPrimitiveDraw::GroundDisc { .. }));
+        let early = draws(&c)
+            .iter()
+            .any(|p| matches!(p, EffectPrimitiveDraw::GroundDisc { .. }));
         assert!(!early, "no ring before frame 10");
         run_to(&mut c, 15.0);
         let r1 = ring_radius(&c);
@@ -212,10 +225,13 @@ mod tests {
     }
 
     fn ring_radius(c: &SightrasherEffect) -> f32 {
-        draws(c).into_iter().find_map(|p| match p {
-            EffectPrimitiveDraw::GroundDisc { radius, .. } => Some(radius),
-            _ => None,
-        }).unwrap_or(0.0)
+        draws(c)
+            .into_iter()
+            .find_map(|p| match p {
+                EffectPrimitiveDraw::GroundDisc { radius, .. } => Some(radius),
+                _ => None,
+            })
+            .unwrap_or(0.0)
     }
 
     #[test]

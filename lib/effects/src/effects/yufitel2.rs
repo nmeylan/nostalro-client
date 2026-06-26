@@ -147,7 +147,8 @@ mod tests {
     fn step(e: &mut Yufitel2Effect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FPS,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -186,7 +187,10 @@ mod tests {
         assert_eq!(textures(&prims), vec![BURST_TEXTURE]);
         assert!(matches!(
             prims[0],
-            EffectPrimitiveDraw::Billboard { blend: BlendKind::Additive, .. }
+            EffectPrimitiveDraw::Billboard {
+                blend: BlendKind::Additive,
+                ..
+            }
         ));
     }
 

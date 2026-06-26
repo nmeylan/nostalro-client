@@ -71,7 +71,11 @@ impl WaterBall2Effect {
         // Speed = radius / duration: cover the full horizontal
         // span across the strand's `DURATION_FRAMES` flight.
         let vel = if dist > 0.001 {
-            [dx / DURATION_FRAMES as f32, 0.0, dz / DURATION_FRAMES as f32]
+            [
+                dx / DURATION_FRAMES as f32,
+                0.0,
+                dz / DURATION_FRAMES as f32,
+            ]
         } else {
             [0.0; 3]
         };
@@ -163,11 +167,20 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn step(e: &mut WaterBall2Effect, n: i32) {
@@ -198,8 +211,14 @@ mod tests {
         let late = head_xz(&e);
         // Head advances along the caster→target line (swirl radius is tiny
         // next to the travelled span, so the trend is unambiguous).
-        assert!(late[0] > early[0], "advances along +X: {early:?} → {late:?}");
-        assert!(late[1] > early[1], "advances along +Z: {early:?} → {late:?}");
+        assert!(
+            late[0] > early[0],
+            "advances along +X: {early:?} → {late:?}"
+        );
+        assert!(
+            late[1] > early[1],
+            "advances along +Z: {early:?} → {late:?}"
+        );
         assert_eq!(segs(&e).len(), NUM_SEGMENT, "strand fills to 12 segments");
     }
 
@@ -222,7 +241,10 @@ mod tests {
         let y_peak = e.segments[0][1];
         step(&mut e, 18); // ~frame 38 = sinking back
         let y_late = e.segments[0][1];
-        assert!(y_peak < y_early, "rises (Y more negative) {y_early} → {y_peak}");
+        assert!(
+            y_peak < y_early,
+            "rises (Y more negative) {y_early} → {y_peak}"
+        );
         assert!(y_late > y_peak, "sinks back {y_peak} → {y_late}");
     }
 

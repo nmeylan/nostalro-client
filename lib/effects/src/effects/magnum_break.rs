@@ -34,8 +34,7 @@ const SECOND_RING_DURATION_S: f32 = SECOND_RING_DURATION_FRAMES / FRAMES_PER_SEC
 /// Wall-clock total: every sub-primitive spawns at frame 0; the parent-bound
 /// ones live the parent's duration, the second ring lives 30 frames. The
 /// longest of those is the parent.
-pub const TOTAL_DURATION_MS: u32 =
-    (PARENT_DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
+pub const TOTAL_DURATION_MS: u32 = (PARENT_DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
 // Ring (parent-bound) — numbers verbatim.
 const RING_INITIAL_RADIUS: f32 = 2.0;
@@ -170,8 +169,7 @@ impl Effect for MagnumBreakEffect {
                 RING_FADE_OUT_FRAMES,
                 PARENT_DURATION_FRAMES,
             );
-            let longitude_offset_rad =
-                (parent_frame * EXPLOSION_ROT_DEG_PER_FRAME).to_radians();
+            let longitude_offset_rad = (parent_frame * EXPLOSION_ROT_DEG_PER_FRAME).to_radians();
             let sphere_center = [
                 self.world_pos[0],
                 self.world_pos[1] + explosion_radius * EXPLOSION_SINK_FRAC,
@@ -244,7 +242,11 @@ mod tests {
     }
 
     fn step(effect: &mut MagnumBreakEffect, dt: f32) {
-        effect.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
+        effect.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     #[test]
@@ -253,9 +255,27 @@ mod tests {
         step(&mut mb, 0.0);
         let prims = draws(&mb);
         assert_eq!(prims.len(), 3, "ring + sphere + second ring");
-        assert!(matches!(prims[0], EffectPrimitiveDraw::GroundDisc { blend: BlendKind::Alpha, .. }));
-        assert!(matches!(prims[1], EffectPrimitiveDraw::Sphere { blend: BlendKind::Alpha, .. }));
-        assert!(matches!(prims[2], EffectPrimitiveDraw::GroundDisc { blend: BlendKind::Alpha, .. }));
+        assert!(matches!(
+            prims[0],
+            EffectPrimitiveDraw::GroundDisc {
+                blend: BlendKind::Alpha,
+                ..
+            }
+        ));
+        assert!(matches!(
+            prims[1],
+            EffectPrimitiveDraw::Sphere {
+                blend: BlendKind::Alpha,
+                ..
+            }
+        ));
+        assert!(matches!(
+            prims[2],
+            EffectPrimitiveDraw::GroundDisc {
+                blend: BlendKind::Alpha,
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -342,7 +362,11 @@ mod tests {
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         while t < PARENT_DURATION_S * 2.0 {
-            status = mb.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
+            status = mb.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
+                camera_target: None,
+                caster_yaw: None,
+            });
             t += 1.0 / 60.0;
             if matches!(status, EffectStatus::Dead) {
                 break;

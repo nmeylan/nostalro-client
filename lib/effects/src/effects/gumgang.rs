@@ -141,19 +141,46 @@ const RED_SINGLE: &[GumGangLayer] = &[GumGangLayer {
 }];
 
 const RED_TRIPLE: &[GumGangLayer] = &[
-    GumGangLayer { rdist: 1.0, color_rgb: norm(255, 100, 100) },
-    GumGangLayer { rdist: 1.2, color_rgb: norm(120, 0, 0) },
-    GumGangLayer { rdist: 2.0, color_rgb: norm(120, 0, 0) },
+    GumGangLayer {
+        rdist: 1.0,
+        color_rgb: norm(255, 100, 100),
+    },
+    GumGangLayer {
+        rdist: 1.2,
+        color_rgb: norm(120, 0, 0),
+    },
+    GumGangLayer {
+        rdist: 2.0,
+        color_rgb: norm(120, 0, 0),
+    },
 ];
 const WHITE_TRIPLE: &[GumGangLayer] = &[
-    GumGangLayer { rdist: 1.0, color_rgb: norm(90, 90, 80) },
-    GumGangLayer { rdist: 1.2, color_rgb: norm(60, 60, 50) },
-    GumGangLayer { rdist: 2.0, color_rgb: norm(30, 30, 20) },
+    GumGangLayer {
+        rdist: 1.0,
+        color_rgb: norm(90, 90, 80),
+    },
+    GumGangLayer {
+        rdist: 1.2,
+        color_rgb: norm(60, 60, 50),
+    },
+    GumGangLayer {
+        rdist: 2.0,
+        color_rgb: norm(30, 30, 20),
+    },
 ];
 const BLUE_TRIPLE: &[GumGangLayer] = &[
-    GumGangLayer { rdist: 1.0, color_rgb: norm(100, 100, 255) },
-    GumGangLayer { rdist: 1.2, color_rgb: norm(0, 0, 120) },
-    GumGangLayer { rdist: 2.0, color_rgb: norm(0, 0, 120) },
+    GumGangLayer {
+        rdist: 1.0,
+        color_rgb: norm(100, 100, 255),
+    },
+    GumGangLayer {
+        rdist: 1.2,
+        color_rgb: norm(0, 0, 120),
+    },
+    GumGangLayer {
+        rdist: 2.0,
+        color_rgb: norm(0, 0, 120),
+    },
 ];
 
 /// #203 Gumgang — blue, single emitter.
@@ -248,7 +275,8 @@ impl Streak {
     fn scatter(&mut self) {
         self.angle = rand_range(&mut self.rng, std::f32::consts::TAU);
         self.y_off = -(Y_BASE + rand_range(&mut self.rng, Y_RAND));
-        self.tex = (rand_range(&mut self.rng, TEXTURES.len() as f32) as usize).min(TEXTURES.len() - 1);
+        self.tex =
+            (rand_range(&mut self.rng, TEXTURES.len() as f32) as usize).min(TEXTURES.len() - 1);
     }
 
     fn respawn(&mut self) {
@@ -284,7 +312,9 @@ impl GumGangEffect {
             for ring in 0..RINGS_PER_EMITTER {
                 let idx = ec * RINGS_PER_EMITTER + ring;
                 // Distinct, deterministic seed per streak.
-                let seed = (idx as u32).wrapping_mul(2_654_435_761).wrapping_add(0x9E37_79B9);
+                let seed = (idx as u32)
+                    .wrapping_mul(2_654_435_761)
+                    .wrapping_add(0x9E37_79B9);
                 streaks.push(Streak::new(seed, params.ring_init[ring]));
             }
         }
@@ -413,7 +443,8 @@ mod tests {
     fn step(e: &mut GumGangEffect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FRAMES_PER_SECOND,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -423,11 +454,18 @@ mod tests {
         list.primitives
     }
 
-    fn billboard(p: &EffectPrimitiveDraw) -> ([f32; 3], [f32; 2], [f32; 4], &'static str, BlendKind) {
+    fn billboard(
+        p: &EffectPrimitiveDraw,
+    ) -> ([f32; 3], [f32; 2], [f32; 4], &'static str, BlendKind) {
         match p {
-            EffectPrimitiveDraw::Billboard { pos, size, color, texture, blend, .. } => {
-                (*pos, *size, *color, *texture, *blend)
-            }
+            EffectPrimitiveDraw::Billboard {
+                pos,
+                size,
+                color,
+                texture,
+                blend,
+                ..
+            } => (*pos, *size, *color, *texture, *blend),
             _ => panic!("expected Billboard, got {:?}", p),
         }
     }
@@ -468,8 +506,14 @@ mod tests {
         assert_eq!(p1.0, p2.0, "layers share a position");
 
         let (s0, s1, s2) = (p0.1[0], p1.1[0], p2.1[0]);
-        assert!((s1 / s0 - 1.2).abs() < 0.01, "mid layer ≈ 1.2× ({s0} -> {s1})");
-        assert!((s2 / s0 - 2.0).abs() < 0.01, "outer layer ≈ 2.0× ({s0} -> {s2})");
+        assert!(
+            (s1 / s0 - 1.2).abs() < 0.01,
+            "mid layer ≈ 1.2× ({s0} -> {s1})"
+        );
+        assert!(
+            (s2 / s0 - 2.0).abs() < 0.01,
+            "outer layer ≈ 2.0× ({s0} -> {s2})"
+        );
 
         let lum = |c: [f32; 4]| c[0] + c[1] + c[2];
         assert!(lum(p0.2) > lum(p2.2), "outer layer must be darker");
@@ -511,7 +555,13 @@ mod tests {
     #[test]
     fn variants_keep_distinct_tints() {
         assert_ne!(GUMGANG.layers[0].color_rgb, GUMGANGNPC.layers[0].color_rgb);
-        assert_ne!(DOUBLE_RED.layers[0].color_rgb, DOUBLE_BLUE.layers[0].color_rgb);
-        assert_ne!(DOUBLE_WHITE.layers[0].color_rgb, DOUBLE_BLUE.layers[0].color_rgb);
+        assert_ne!(
+            DOUBLE_RED.layers[0].color_rgb,
+            DOUBLE_BLUE.layers[0].color_rgb
+        );
+        assert_ne!(
+            DOUBLE_WHITE.layers[0].color_rgb,
+            DOUBLE_BLUE.layers[0].color_rgb
+        );
     }
 }

@@ -18,9 +18,9 @@
 //! The parent emitter lasts 250 ms; the visible
 //! effect runs to the phase-2 ring's death at frame 80.
 
+use super::spike_burst::{self, SpikeBurst, SpikeBurstParams, fade_in_out, seed_from_world};
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use super::spike_burst::{self, SpikeBurst, SpikeBurstParams, fade_in_out, seed_from_world};
 
 pub const HALO_TEXTURE: &str = "alpha_down.tga";
 pub const RING_TEXTURE: &str = "ring_liner.tga";
@@ -77,7 +77,8 @@ fn ring_half_extent(frame: f32) -> f32 {
     let raw = if frame <= RING_CHANGE_FRAME {
         1.5 * frame + 0.075 * frame * (frame + 1.0) / 2.0
     } else {
-        let s15 = 1.5 * RING_CHANGE_FRAME + 0.075 * RING_CHANGE_FRAME * (RING_CHANGE_FRAME + 1.0) / 2.0;
+        let s15 =
+            1.5 * RING_CHANGE_FRAME + 0.075 * RING_CHANGE_FRAME * (RING_CHANGE_FRAME + 1.0) / 2.0;
         let g = frame - RING_CHANGE_FRAME;
         s15 + 0.5 * g - (0.5 / 15.0) * g * (g + 1.0) / 2.0
     };
@@ -124,7 +125,11 @@ impl Effect for TurnUndeadEffect {
             let radius = HALO_INITIAL_RADIUS * (1.0 - self.age_frames / PHASE1_DURATION_FRAMES);
             if a > 0.0 && radius > 0.0 {
                 out.push(EffectPrimitiveDraw::BillboardDisc {
-                    pos: [self.world_pos[0], self.world_pos[1] + HALO_HEIGHT_OFFSET, self.world_pos[2]],
+                    pos: [
+                        self.world_pos[0],
+                        self.world_pos[1] + HALO_HEIGHT_OFFSET,
+                        self.world_pos[2],
+                    ],
                     radius,
                     segments: 32,
                     uv_repeat: 1.0,
@@ -142,10 +147,20 @@ impl Effect for TurnUndeadEffect {
         let ring_frame = self.age_frames - RING_SPAWN_FRAME;
         if (0.0..RING_DURATION_FRAMES).contains(&ring_frame) {
             let half = ring_half_extent(ring_frame);
-            let a = fade_in_out(ring_frame, RING_MAX_ALPHA, 1.0, RING_FADE_OUT_AT, RING_DURATION_FRAMES);
+            let a = fade_in_out(
+                ring_frame,
+                RING_MAX_ALPHA,
+                1.0,
+                RING_FADE_OUT_AT,
+                RING_DURATION_FRAMES,
+            );
             if half > 0.0 && a > 0.0 {
                 out.push(EffectPrimitiveDraw::Texture3D {
-                    center: [self.world_pos[0], self.world_pos[1] + RING_HEIGHT_OFFSET, self.world_pos[2]],
+                    center: [
+                        self.world_pos[0],
+                        self.world_pos[1] + RING_HEIGHT_OFFSET,
+                        self.world_pos[2],
+                    ],
                     size: [half, half],
                     plane: QuadPlane::Horizontal,
                     uv: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
@@ -167,11 +182,20 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn draw_at(e: &mut TurnUndeadEffect, frames: f32) -> Vec<EffectPrimitiveDraw> {
@@ -185,9 +209,15 @@ mod tests {
     fn phase1_emits_disc_plus_five_rays() {
         let mut e = TurnUndeadEffect::new([0.0; 3]);
         let prims = draw_at(&mut e, 3.0);
-        let discs = prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::BillboardDisc { .. })).count();
+        let discs = prims
+            .iter()
+            .filter(|p| matches!(p, EffectPrimitiveDraw::BillboardDisc { .. }))
+            .count();
         let rays = prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::BillboardFlash { texture, .. } if *texture == spike_burst::SPIKE_TEXTURE)).count();
-        let rings = prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::Texture3D { .. })).count();
+        let rings = prims
+            .iter()
+            .filter(|p| matches!(p, EffectPrimitiveDraw::Texture3D { .. }))
+            .count();
         assert_eq!(discs, 1);
         assert_eq!(rays, 5);
         assert_eq!(rings, 0, "ring has not spawned yet");

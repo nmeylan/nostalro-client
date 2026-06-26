@@ -224,7 +224,14 @@ struct DrainStrand {
 }
 
 impl DrainStrand {
-    fn new(org_pos: [f32; 3], radius: f32, heading_rad: f32, roll_deg: f32, color: [f32; 4], size: f32) -> Self {
+    fn new(
+        org_pos: [f32; 3],
+        radius: f32,
+        heading_rad: f32,
+        roll_deg: f32,
+        color: [f32; 4],
+        size: f32,
+    ) -> Self {
         let longitude = -heading_rad;
         let dur = DURATION_FRAMES as f32;
         Self {
@@ -370,8 +377,14 @@ impl DrainEffect {
             color[2] = (color[2] + (hash01(seed ^ 0x03) - 0.5) * j).clamp(0.0, 1.0);
             let size = self.params.size + hash01(seed ^ 0x04) * self.params.size_jitter;
 
-            self.strands
-                .push(DrainStrand::new(self.org_pos, self.radius, heading, roll, color, size));
+            self.strands.push(DrainStrand::new(
+                self.org_pos,
+                self.radius,
+                heading,
+                roll,
+                color,
+                size,
+            ));
         }
     }
 
@@ -386,7 +399,9 @@ impl DrainEffect {
             }
             self.strands.retain(|s| s.alive());
 
-            while self.next_spawn_frame <= SPLINE_SPAWN_THROUGH && self.effect_frame >= self.next_spawn_frame {
+            while self.next_spawn_frame <= SPLINE_SPAWN_THROUGH
+                && self.effect_frame >= self.next_spawn_frame
+            {
                 self.spawn_spline_burst();
                 self.next_spawn_frame += 1;
             }
@@ -408,9 +423,14 @@ impl DrainEffect {
                 }
                 // LinesOut: sprites leave the caster (distance grows from 0).
                 // LinesIn: sprites arrive from the far end and converge on it.
-                let dist = if outward { traveled } else { lines.max_dist - traveled };
+                let dist = if outward {
+                    traveled
+                } else {
+                    lines.max_dist - traveled
+                };
                 // Fade in at the source end, out at the destination end.
-                let alpha = self.params.color[3] * (std::f32::consts::PI * traveled / lines.max_dist).sin();
+                let alpha =
+                    self.params.color[3] * (std::f32::consts::PI * traveled / lines.max_dist).sin();
                 out.push(EffectPrimitiveDraw::SpriteParticle {
                     sprite_path: DRAIN_SPRITE,
                     position: [
@@ -421,7 +441,12 @@ impl DrainEffect {
                     action_index: 0,
                     motion_index: motion,
                     size_scale: size,
-                    color: [self.params.color[0], self.params.color[1], self.params.color[2], alpha],
+                    color: [
+                        self.params.color[0],
+                        self.params.color[1],
+                        self.params.color[2],
+                        alpha,
+                    ],
                     blend: BlendKind::Additive,
                     aim_target: None,
                     no_depth: false,
@@ -519,7 +544,8 @@ mod tests {
     fn step(e: &mut DrainEffect, dt: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -540,7 +566,9 @@ mod tests {
 
     fn spr(p: &EffectPrimitiveDraw) -> ([f32; 3], [f32; 4]) {
         match p {
-            EffectPrimitiveDraw::SpriteParticle { position, color, .. } => (*position, *color),
+            EffectPrimitiveDraw::SpriteParticle {
+                position, color, ..
+            } => (*position, *color),
             _ => panic!("expected SpriteParticle"),
         }
     }
@@ -572,7 +600,10 @@ mod tests {
         for params in [BLOOD_DRAIN, ENERGY_DRAIN, ENERGY_DRAIN2] {
             let lines = params.lines;
             let mut e = DrainEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], params);
-            run(&mut e, (lines.num_line_dots - 1) * lines.emit_period_frames + 1);
+            run(
+                &mut e,
+                (lines.num_line_dots - 1) * lines.emit_period_frames + 1,
+            );
             assert_eq!(draws(&e).len(), 3 * lines.num_line_dots as usize);
         }
     }
@@ -583,8 +614,14 @@ mod tests {
         // LinesIn reaches in from the south (-Z).
         let out = DrainEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], ENERGY_DRAIN);
         let inn = DrainEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], ENERGY_DRAIN2);
-        assert!(out.line_dirs.iter().all(|d| d[2] > 0.0), "out lines head north");
-        assert!(inn.line_dirs.iter().all(|d| d[2] < 0.0), "in lines come from south");
+        assert!(
+            out.line_dirs.iter().all(|d| d[2] > 0.0),
+            "out lines head north"
+        );
+        assert!(
+            inn.line_dirs.iter().all(|d| d[2] < 0.0),
+            "in lines come from south"
+        );
         // Outer lines splay east/west, centre line is straight ahead.
         assert!(out.line_dirs[0][0] < -0.1 && out.line_dirs[2][0] > 0.1);
         assert!(out.line_dirs[1][0].abs() < 0.01);
@@ -599,8 +636,14 @@ mod tests {
         let (o_early, i_early) = (mean_dist(&out), mean_dist(&inn));
         run(&mut out, 30);
         run(&mut inn, 30);
-        assert!(mean_dist(&out) > o_early, "out: the burst streams away from the caster");
-        assert!(mean_dist(&inn) < i_early, "in: the burst converges onto the caster");
+        assert!(
+            mean_dist(&out) > o_early,
+            "out: the burst streams away from the caster"
+        );
+        assert!(
+            mean_dist(&inn) < i_early,
+            "in: the burst converges onto the caster"
+        );
     }
 
     #[test]
@@ -632,7 +675,12 @@ mod tests {
         run(&mut sd, 50);
         assert_eq!(sd.body_tint(), None, "no tint before the window");
         run(&mut sd, 10); // frame ~60
-        assert_eq!(sd.body_tint(), Some(BodyTint { rgb: [100, 100, 255] }));
+        assert_eq!(
+            sd.body_tint(),
+            Some(BodyTint {
+                rgb: [100, 100, 255]
+            })
+        );
         assert!(sd.body_additive(), "Soul Drain glows (BL_LIGHT_BODY)");
 
         // HP Conversion: fade toward blue (250−2f) over 50..=80, not additive.
@@ -640,8 +688,14 @@ mod tests {
         run(&mut hp, 60); // frame ~60 → 250 − 120 = 130
         let tint = hp.body_tint().expect("inside the fade window");
         assert_eq!(tint.rgb[2], 250, "blue stays at 250");
-        assert!(tint.rgb[0] < 200 && tint.rgb[0] == tint.rgb[1], "R/G fade together");
-        assert!(!hp.body_additive(), "HP Conversion is a multiply, not a glow");
+        assert!(
+            tint.rgb[0] < 200 && tint.rgb[0] == tint.rgb[1],
+            "R/G fade together"
+        );
+        assert!(
+            !hp.body_additive(),
+            "HP Conversion is a multiply, not a glow"
+        );
     }
 
     #[test]

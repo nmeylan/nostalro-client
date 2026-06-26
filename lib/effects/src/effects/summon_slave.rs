@@ -13,9 +13,9 @@
 //! Flasher we render it as world-space billboards straddling the entity
 //! centre, which reads identically in a perspective view.
 
+use super::spike_burst::{self, SpikeBurst, SpikeBurstParams, seed_from_world};
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use super::spike_burst::{self, SpikeBurst, SpikeBurstParams, seed_from_world};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
@@ -139,13 +139,22 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn step(e: &mut SummonSlaveEffect, frames: u32) -> EffectStatus {
         let mut s = EffectStatus::Running;
         for _ in 0..frames {
-            s = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            s = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         s
     }
@@ -154,7 +163,11 @@ mod tests {
         let mut l = EffectDrawList::new();
         e.collect_draws(&mut l, &render_ctx());
         let spikes = l.primitives.iter().filter(|p| matches!(p, EffectPrimitiveDraw::BillboardFlash { texture, .. } if *texture == spike_burst::SPIKE_TEXTURE)).count();
-        let smoke = l.primitives.iter().filter(|p| matches!(p, EffectPrimitiveDraw::SpriteParticle { .. })).count();
+        let smoke = l
+            .primitives
+            .iter()
+            .filter(|p| matches!(p, EffectPrimitiveDraw::SpriteParticle { .. }))
+            .count();
         (spikes, smoke)
     }
 
@@ -181,17 +194,23 @@ mod tests {
         let motion = |e: &SummonSlaveEffect| {
             let mut l = EffectDrawList::new();
             e.collect_draws(&mut l, &render_ctx());
-            l.primitives.iter().find_map(|p| match p {
-                EffectPrimitiveDraw::SpriteParticle { motion_index, .. } => Some(*motion_index),
-                _ => None,
-            }).unwrap()
+            l.primitives
+                .iter()
+                .find_map(|p| match p {
+                    EffectPrimitiveDraw::SpriteParticle { motion_index, .. } => Some(*motion_index),
+                    _ => None,
+                })
+                .unwrap()
         };
         let mut e = SummonSlaveEffect::new([0.0; 3]);
         step(&mut e, 40);
         let early = motion(&e);
         step(&mut e, 10);
         let later = motion(&e);
-        assert!(later > early, "smoke ACT frame advances over time: {early} -> {later}");
+        assert!(
+            later > early,
+            "smoke ACT frame advances over time: {early} -> {later}"
+        );
         let status = step(&mut e, (TOTAL_FRAMES as u32) + 2);
         assert_eq!(status, EffectStatus::Dead);
     }

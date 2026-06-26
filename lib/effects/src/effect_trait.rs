@@ -17,7 +17,6 @@ pub struct CameraView {
     pub up: [f32; 3],
 }
 
-
 #[derive(Default, Clone, Copy)]
 pub struct EffectUpdateCtx {
     pub delta: f32,

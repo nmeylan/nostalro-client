@@ -50,8 +50,7 @@ const RING_SPAWN_PERIOD_FRAMES: u32 = 20;
 const RING_DURATION_FRAMES: f32 = 25.0;
 const RING_INNER_RADIUS: f32 = 13.0;
 const RING_RADIUS_SPEED_PER_FRAME: f32 = 0.25;
-const RING_RADIUS_ACCEL_PER_FRAME: f32 =
-    -(RING_RADIUS_SPEED_PER_FRAME / RING_DURATION_FRAMES);
+const RING_RADIUS_ACCEL_PER_FRAME: f32 = -(RING_RADIUS_SPEED_PER_FRAME / RING_DURATION_FRAMES);
 const RING_MAX_ALPHA: f32 = 100.0 / 255.0;
 const RING_THICKNESS: f32 = 1.25;
 
@@ -83,9 +82,13 @@ impl SpraypondEffect {
     }
 }
 
-fn vertical_panel(centre: [f32; 3], tangent: [f32; 2], half_tan: f32, top: f32, bot: f32)
-    -> [[f32; 3]; 4]
-{
+fn vertical_panel(
+    centre: [f32; 3],
+    tangent: [f32; 2],
+    half_tan: f32,
+    top: f32,
+    bot: f32,
+) -> [[f32; 3]; 4] {
     // Panel lies in a vertical plane whose tangent is `tangent` (XZ
     // unit), top at `centre.y + top`, bottom at `centre.y + bot`.
     let tx = tangent[0] * half_tan;
@@ -112,10 +115,14 @@ impl Effect for SpraypondEffect {
                 }
                 let fu = f as u32;
                 if fu % CREST_SPAWN_PERIOD_FRAMES == 0 {
-                    self.crests.push(Burst { spawn_frame: f as f32 });
+                    self.crests.push(Burst {
+                        spawn_frame: f as f32,
+                    });
                 }
                 if fu % RING_SPAWN_PERIOD_FRAMES == 0 {
-                    self.rings.push(Burst { spawn_frame: f as f32 });
+                    self.rings.push(Burst {
+                        spawn_frame: f as f32,
+                    });
                 }
             }
             self.last_spawn_frame = current_frame;
@@ -246,7 +253,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -310,7 +321,10 @@ mod tests {
 
         let mut angles: Vec<f32> = Vec::new();
         for prim in &list.primitives {
-            if let EffectPrimitiveDraw::WorldQuad { corners, texture, .. } = prim {
+            if let EffectPrimitiveDraw::WorldQuad {
+                corners, texture, ..
+            } = prim
+            {
                 if *texture != WATER_TEXTURE {
                     continue;
                 }

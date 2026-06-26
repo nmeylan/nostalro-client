@@ -137,7 +137,12 @@ impl ChookgiEffect {
                 pulse: rng.deg(),
             })
             .collect();
-        Self { world_pos, params, orbs, alpha: 0.0 }
+        Self {
+            world_pos,
+            params,
+            orbs,
+            alpha: 0.0,
+        }
     }
 }
 
@@ -211,12 +216,21 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn tick(e: &mut ChookgiEffect, frames: u32) {
         for _ in 0..frames {
-            e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
     }
 
@@ -252,7 +266,10 @@ mod tests {
         let a = first_pos(&e);
         tick(&mut e, 60);
         let b = first_pos(&e);
-        assert!((a[0] - b[0]).abs() + (a[2] - b[2]).abs() > 1e-3, "orb orbits");
+        assert!(
+            (a[0] - b[0]).abs() + (a[2] - b[2]).abs() > 1e-3,
+            "orb orbits"
+        );
         assert!(b[1] < 0.0, "orb rides above the caster's feet");
     }
 
@@ -271,8 +288,14 @@ mod tests {
         let mut e = ChookgiEffect::new([0.0; 3], CHOOKGI, MAX_ORBS);
         tick(&mut e, 5);
         let b = billboards(&e);
-        let outer = match &b[0] { EffectPrimitiveDraw::BillboardDepthAnchored { color, size, .. } => (*color, size[0]), _ => panic!() };
-        let inner = match &b[1] { EffectPrimitiveDraw::BillboardDepthAnchored { color, size, .. } => (*color, size[0]), _ => panic!() };
+        let outer = match &b[0] {
+            EffectPrimitiveDraw::BillboardDepthAnchored { color, size, .. } => (*color, size[0]),
+            _ => panic!(),
+        };
+        let inner = match &b[1] {
+            EffectPrimitiveDraw::BillboardDepthAnchored { color, size, .. } => (*color, size[0]),
+            _ => panic!(),
+        };
         assert!(outer.1 > inner.1, "outer quad is larger");
         assert_ne!(outer.0, inner.0, "blue outer vs yellow inner");
     }
@@ -294,9 +317,15 @@ mod tests {
     }
 
     fn first_pos(e: &ChookgiEffect) -> [f32; 3] {
-        match &billboards(e)[0] { EffectPrimitiveDraw::BillboardDepthAnchored { pos, .. } => *pos, _ => panic!() }
+        match &billboards(e)[0] {
+            EffectPrimitiveDraw::BillboardDepthAnchored { pos, .. } => *pos,
+            _ => panic!(),
+        }
     }
     fn billboard_alpha(e: &ChookgiEffect) -> f32 {
-        match &billboards(e)[0] { EffectPrimitiveDraw::BillboardDepthAnchored { color, .. } => color[3], _ => panic!() }
+        match &billboards(e)[0] {
+            EffectPrimitiveDraw::BillboardDepthAnchored { color, .. } => color[3],
+            _ => panic!(),
+        }
     }
 }

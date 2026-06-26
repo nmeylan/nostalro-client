@@ -38,9 +38,13 @@ pub struct EarthSpikeParams {
 }
 
 /// `F1 = 0` — Wizard Earth Spike, brown stone blades.
-pub const EARTHSPIKE: EarthSpikeParams = EarthSpikeParams { texture: STONE_TEXTURE };
+pub const EARTHSPIKE: EarthSpikeParams = EarthSpikeParams {
+    texture: STONE_TEXTURE,
+};
 /// `F1 = 2` — Hyousensou, white-blue ice crystal blades.
-pub const HYOUSENSOU: EarthSpikeParams = EarthSpikeParams { texture: ICE_TEXTURE };
+pub const HYOUSENSOU: EarthSpikeParams = EarthSpikeParams {
+    texture: ICE_TEXTURE,
+};
 
 const RING_COUNT: usize = 6;
 const RING_RADIUS: f32 = 3.0;
@@ -123,7 +127,11 @@ impl EarthSpikeEffect {
                 vibrate: false,
             });
         }
-        Self { spikes, age: 0.0, texture: params.texture }
+        Self {
+            spikes,
+            age: 0.0,
+            texture: params.texture,
+        }
     }
 
     fn duration_s(&self) -> f32 {
@@ -200,19 +208,28 @@ mod tests {
         match &spawn[0] {
             EffectPrimitiveDraw::QuadHorn { base, texture, .. } => {
                 assert_eq!(*texture, STONE_TEXTURE);
-                assert!(base[0].abs() < 1e-3 && base[2].abs() < 1e-3, "central on anchor");
+                assert!(
+                    base[0].abs() < 1e-3 && base[2].abs() < 1e-3,
+                    "central on anchor"
+                );
             }
             _ => panic!("expected QuadHorn"),
         }
         for p in &spawn[1..] {
-            let EffectPrimitiveDraw::QuadHorn { base, .. } = p else { panic!("expected QuadHorn") };
+            let EffectPrimitiveDraw::QuadHorn { base, .. } = p else {
+                panic!("expected QuadHorn")
+            };
             let r = (base[0] * base[0] + base[2] * base[2]).sqrt();
             assert!((r - RING_RADIUS).abs() < 1e-3, "ring blade at radius");
         }
 
         // Once the central spring grows it dominates every ring shard.
         for _ in 0..8 {
-            e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         let grown = draws(&e);
         let central_h = match &grown[0] {
@@ -220,14 +237,20 @@ mod tests {
             _ => unreachable!(),
         };
         for p in &grown[1..] {
-            let EffectPrimitiveDraw::QuadHorn { height, .. } = p else { panic!("expected QuadHorn") };
+            let EffectPrimitiveDraw::QuadHorn { height, .. } = p else {
+                panic!("expected QuadHorn")
+            };
             assert!(*height < central_h, "central blade is the tallest");
         }
 
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         while t < TOTAL_DURATION_MS as f32 / 1000.0 + 0.1 {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
+            status = e.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
+                camera_target: None,
+                caster_yaw: None,
+            });
             t += 1.0 / 60.0;
             if status == EffectStatus::Dead {
                 break;
@@ -256,18 +279,35 @@ mod tests {
 
         // Peak overshoot lands around frame 7 (first half-period).
         for _ in 0..7 {
-            e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         let h_peak = central_height(&e);
-        assert!(h_peak > CENTER_HEIGHT, "overshoots its rest height: {h_peak}");
+        assert!(
+            h_peak > CENTER_HEIGHT,
+            "overshoots its rest height: {h_peak}"
+        );
 
         // After the spring settles it rings back down to ~rest height.
         for _ in 0..40 {
-            e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None });
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         let h_settled = central_height(&e);
-        assert!(h_settled < h_peak, "rings back down: {h_peak} -> {h_settled}");
-        assert!((h_settled - CENTER_HEIGHT).abs() < 1.0, "settles near rest: {h_settled}");
+        assert!(
+            h_settled < h_peak,
+            "rings back down: {h_peak} -> {h_settled}"
+        );
+        assert!(
+            (h_settled - CENTER_HEIGHT).abs() < 1.0,
+            "settles near rest: {h_settled}"
+        );
     }
 
     #[test]
@@ -276,8 +316,16 @@ mod tests {
         // Earth Spike but textured with ice instead of stone.
         let mut stone = EarthSpikeEffect::new([0.0, 0.0, 0.0], EARTHSPIKE);
         let mut ice = EarthSpikeEffect::new([0.0, 0.0, 0.0], HYOUSENSOU);
-        stone.update(&EffectUpdateCtx { delta: 0.0, camera_target: None, caster_yaw: None });
-        ice.update(&EffectUpdateCtx { delta: 0.0, camera_target: None, caster_yaw: None });
+        stone.update(&EffectUpdateCtx {
+            delta: 0.0,
+            camera_target: None,
+            caster_yaw: None,
+        });
+        ice.update(&EffectUpdateCtx {
+            delta: 0.0,
+            camera_target: None,
+            caster_yaw: None,
+        });
         let (sp, ip) = (draws(&stone), draws(&ice));
         assert_eq!(sp.len(), ip.len(), "same blade count");
         for p in &ip {
@@ -288,8 +336,12 @@ mod tests {
         }
         match (&sp[0], &ip[0]) {
             (
-                EffectPrimitiveDraw::QuadHorn { base: sb, size: ss, .. },
-                EffectPrimitiveDraw::QuadHorn { base: ib, size: is, .. },
+                EffectPrimitiveDraw::QuadHorn {
+                    base: sb, size: ss, ..
+                },
+                EffectPrimitiveDraw::QuadHorn {
+                    base: ib, size: is, ..
+                },
             ) => {
                 assert_eq!(sb, ib, "central blade at same position");
                 assert_eq!(ss, is, "central blade same size");

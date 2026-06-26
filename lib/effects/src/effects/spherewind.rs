@@ -167,7 +167,8 @@ pub struct SpherewindEffect {
 
 impl SpherewindEffect {
     pub fn new(anchor: [f32; 3], params: SpherewindParams) -> Self {
-        let seed = anchor[0].to_bits() ^ anchor[2].to_bits() ^ params.distance.to_bits() ^ 0x59_E2_C1_07;
+        let seed =
+            anchor[0].to_bits() ^ anchor[2].to_bits() ^ params.distance.to_bits() ^ 0x59_E2_C1_07;
         let mut rng = Rng::from_seed(seed);
         let mut ribbons = Vec::with_capacity(LAUNCH_OFFSETS.len() * EMITTERS_PER_LAUNCH as usize);
 
@@ -175,11 +176,16 @@ impl SpherewindEffect {
             for ec in 0..EMITTERS_PER_LAUNCH {
                 // max_height = base + random(11)*0.2, rotation = random(360),
                 // spin = 3 + random(4), full display = 180 + random(91) deg.
-                let max_height = params.max_height_base + rng.random(11) as f32 * params.max_height_step;
+                let max_height =
+                    params.max_height_base + rng.random(11) as f32 * params.max_height_step;
                 let rot_start_deg = rng.random(360) as f32;
                 let spin_deg = (3 + rng.random(4)) as f32;
                 let full_display_deg = (180 + rng.random(91)) as f32;
-                let process = if params.transient { -(rng.random(20) as i32) } else { 0 };
+                let process = if params.transient {
+                    -(rng.random(20) as i32)
+                } else {
+                    0
+                };
                 ribbons.push(Ribbon {
                     rise_angle_deg: (ec * 45 + time) as f32,
                     rot_start_deg,
@@ -194,7 +200,13 @@ impl SpherewindEffect {
             }
         }
 
-        Self { anchor, params, ribbons, rng, frame_accum: 0.0 }
+        Self {
+            anchor,
+            params,
+            ribbons,
+            rng,
+            frame_accum: 0.0,
+        }
     }
 
     fn step_frame(&mut self) {
@@ -316,7 +328,11 @@ mod tests {
     use super::*;
 
     fn ctx() -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: 1.0 / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn tick(e: &mut SpherewindEffect, frames: u32) -> EffectStatus {
@@ -330,12 +346,15 @@ mod tests {
     /// All band quads' first corner + alpha.
     fn quads(e: &SpherewindEffect) -> Vec<([f32; 3], f32)> {
         let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 256.0,
-            screen_h: 256.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut list,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 256.0,
+                screen_h: 256.0,
+                elapsed: 0.0,
+            },
+        );
         list.primitives
             .iter()
             .map(|p| match p {
@@ -365,7 +384,13 @@ mod tests {
             }
             hi - lo
         };
-        assert!(spread(0) > 4.0 && spread(1) > 4.0 && spread(2) > 4.0, "extent x/y/z: {} {} {}", spread(0), spread(1), spread(2));
+        assert!(
+            spread(0) > 4.0 && spread(1) > 4.0 && spread(2) > 4.0,
+            "extent x/y/z: {} {} {}",
+            spread(0),
+            spread(1),
+            spread(2)
+        );
     }
 
     #[test]
@@ -376,7 +401,11 @@ mod tests {
         let after = quads(&e)[SEGMENTS / 2].0;
         let moved = (before[0] - after[0]).abs() + (before[2] - after[2]).abs();
         assert!(moved > 0.01, "band spins: {before:?} -> {after:?}");
-        assert_eq!(tick(&mut e, 600), EffectStatus::Running, "buff aura persists");
+        assert_eq!(
+            tick(&mut e, 600),
+            EffectStatus::Running,
+            "buff aura persists"
+        );
     }
 
     #[test]

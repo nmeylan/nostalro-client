@@ -19,9 +19,7 @@
 //! same `(distance, rise, max_height) → (bottom, top, height)` decomposition
 //! `flowercast` uses, plus per-frame rotation.
 
-use crate::draw::{
-    BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode,
-};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{CameraShake, Effect, EffectRenderCtx, EffectUpdateCtx};
 
 /// Stepped per-frame jitter → `[0, 1)`, varied by `salt`. Stepping on the
@@ -218,7 +216,8 @@ mod tests {
     fn step(e: &mut AcidDemonEffect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FRAMES_PER_SECOND,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -317,7 +316,10 @@ mod tests {
         step(&mut e, 1.0);
         let p2 = wave_phase(&e);
         // Frame-to-frame deltas differ (jitter), not a constant smooth step.
-        assert!(((p1 - p0) - (p2 - p1)).abs() > 1e-3, "phase jitters, not smooth");
+        assert!(
+            ((p1 - p0) - (p2 - p1)).abs() > 1e-3,
+            "phase jitters, not smooth"
+        );
     }
 
     #[test]

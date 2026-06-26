@@ -58,33 +58,47 @@ mod tests {
     fn maps_persistent_buffs_and_ignores_unmapped() {
         assert_eq!(
             buff_effect(ClientEffectIcon::Berserk),
-            Some(BuffEffect { body: &[EffectId::Redbody] })
+            Some(BuffEffect {
+                body: &[EffectId::Redbody]
+            })
         );
         // Both Marionette forms share the pink body.
         assert_eq!(
             buff_effect(ClientEffectIcon::Marionette),
-            Some(BuffEffect { body: &[EffectId::Pinkbody] })
+            Some(BuffEffect {
+                body: &[EffectId::Pinkbody]
+            })
         );
         assert_eq!(
             buff_effect(ClientEffectIcon::MarionetteMaster),
-            Some(BuffEffect { body: &[EffectId::Pinkbody] })
+            Some(BuffEffect {
+                body: &[EffectId::Pinkbody]
+            })
         );
         assert_eq!(
             buff_effect(ClientEffectIcon::Propertyundead),
-            Some(BuffEffect { body: &[EffectId::Undeadbody] })
+            Some(BuffEffect {
+                body: &[EffectId::Undeadbody]
+            })
         );
         // Quicken family — Two Hand and One Hand share the same body visual.
         assert_eq!(
             buff_effect(ClientEffectIcon::Twohandquicken),
-            Some(BuffEffect { body: &[EffectId::Twohandquicken] })
+            Some(BuffEffect {
+                body: &[EffectId::Twohandquicken]
+            })
         );
         assert_eq!(
             buff_effect(ClientEffectIcon::Onehandquicken),
-            Some(BuffEffect { body: &[EffectId::Twohandquicken] })
+            Some(BuffEffect {
+                body: &[EffectId::Twohandquicken]
+            })
         );
         assert_eq!(
             buff_effect(ClientEffectIcon::Spearquicken),
-            Some(BuffEffect { body: &[EffectId::Spearquicken] })
+            Some(BuffEffect {
+                body: &[EffectId::Spearquicken]
+            })
         );
         // An icon-only / deferred status maps to nothing — fire nothing.
         assert_eq!(buff_effect(ClientEffectIcon::Overthrust), None);

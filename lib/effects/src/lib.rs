@@ -18,24 +18,24 @@ pub mod table;
 
 pub use draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 pub use effect_queue::{
-    EffectQueue, ProjectileFlight, SpawnRequest, body_attached, is_count_point_effect,
-    is_caster_link_effect, is_link_effect, is_trail_effect, trail_arrival_secs,
+    EffectQueue, ProjectileFlight, SpawnRequest, body_attached, is_caster_link_effect,
+    is_count_point_effect, is_link_effect, is_trail_effect, trail_arrival_secs,
 };
 pub use effect_trait::{
     Afterimage, BodyAction, BodyCopy, BodyTint, BodyVertical, CameraShake, CameraView, Effect,
     EffectRenderCtx, EffectUpdateCtx, NumberRequest,
 };
 pub use factory::{is_real_impl, make_effect};
-pub use skill_units::skill_unit_effect;
 pub use skill_effects::{
     CasterSkillEffects, TargetSkillEffects, begin_cast_effect, beginspell_for_element,
     caster_skill_effects, derive_hit_effect, fire_glyph_effect, ground_placed_effect,
     is_cast_circle, is_ground_cast, target_skill_effects,
 };
+pub use skill_units::skill_unit_effect;
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBodyRecolor, SprBurstParams};
 pub use spr_aliases::{SprDef, spr_def};
-pub use status_buff::{BuffEffect, buff_effect};
 pub use spr_burst::spr_burst_params;
+pub use status_buff::{BuffEffect, buff_effect};
 pub use str_aliases::str_aliases;
 pub use table::{effect_spec, spawn_camera_shake};
 
@@ -307,7 +307,9 @@ mod tests {
         // Most are effect-dir textures; a few (thrown item icons) live
         // elsewhere under data/texture/ via the path-bearing-name convention.
         assert!(
-            paths.iter().any(|p| p.starts_with("data/texture/유저인터페이스/item/")),
+            paths
+                .iter()
+                .any(|p| p.starts_with("data/texture/유저인터페이스/item/")),
             "thrown item icons resolve under the item dir",
         );
         assert!(

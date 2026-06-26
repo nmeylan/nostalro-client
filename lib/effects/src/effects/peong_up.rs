@@ -169,7 +169,8 @@ mod tests {
         for _ in 0..frames {
             st = e.update(&EffectUpdateCtx {
                 delta: 1.0 / FRAMES_PER_SECOND,
-                camera_target: None, caster_yaw: None,
+                camera_target: None,
+                caster_yaw: None,
             });
         }
         st
@@ -177,12 +178,15 @@ mod tests {
 
     fn billboards(e: &PeongUpEffect) -> Vec<([f32; 3], [f32; 4])> {
         let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 256.0,
-            screen_h: 256.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut list,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 256.0,
+                screen_h: 256.0,
+                elapsed: 0.0,
+            },
+        );
         list.primitives
             .iter()
             .map(|p| match p {
@@ -218,7 +222,10 @@ mod tests {
         let bb = billboards(&e);
         if !bb.is_empty() {
             let y_late = bb.iter().map(|(p, _)| p[1]).sum::<f32>() / bb.len() as f32;
-            assert!(y_late < y_early, "particles drift up (native −Y): {y_early} -> {y_late}");
+            assert!(
+                y_late < y_early,
+                "particles drift up (native −Y): {y_early} -> {y_late}"
+            );
         }
         assert_eq!(tick(&mut e, 400), EffectStatus::Dead);
     }

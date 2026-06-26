@@ -53,9 +53,18 @@ fn main() {
         }
     }
 
-    print_group("NOOP_TAGGED_WITH_ALIAS (review individually — some are real asset-blocked effects)", &shadowed);
-    print_group("STR_BACKLOG (real STR effect, unimplemented / asset-missing)", &backlog);
-    print_group_owned("HYBRID_OVERLAY (Custom effect intentionally plays an STR)", &hybrid);
+    print_group(
+        "NOOP_TAGGED_WITH_ALIAS (review individually — some are real asset-blocked effects)",
+        &shadowed,
+    );
+    print_group(
+        "STR_BACKLOG (real STR effect, unimplemented / asset-missing)",
+        &backlog,
+    );
+    print_group_owned(
+        "HYBRID_OVERLAY (Custom effect intentionally plays an STR)",
+        &hybrid,
+    );
 
     eprintln!(
         "\nTOTAL str-load attempts: {} ({} noop-tagged-with-alias, {} backlog, {} hybrid)",

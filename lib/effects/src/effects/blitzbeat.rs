@@ -31,9 +31,7 @@
 //! needle's long axis along the caster's forward direction. This keeps the
 //! needle silhouette readable from any camera angle.
 
-use crate::draw::{
-    BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane,
-};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const BLITZBEAT_TEXTURE: &str = "ac_center2.tga";
@@ -224,7 +222,8 @@ mod tests {
         for _ in 0..n {
             s = e.update(&EffectUpdateCtx {
                 delta: 1.0 / FRAMES_PER_SECOND,
-                camera_target: None, caster_yaw: None,
+                camera_target: None,
+                caster_yaw: None,
             });
             if s == EffectStatus::Dead {
                 break;

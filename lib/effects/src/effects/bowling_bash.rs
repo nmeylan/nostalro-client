@@ -256,7 +256,8 @@ mod tests {
     fn step(effect: &mut BowlingBashEffect, dt: f32) -> EffectStatus {
         effect.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -293,7 +294,10 @@ mod tests {
                     assert_eq!(*texture, SLASH_TEXTURE);
                     // Concave-at-the-base wave: top is wider than bottom
                     // (renderer convention shared with revive.rs).
-                    assert!(top_size > bottom_size, "cylinder flares outward toward the top");
+                    assert!(
+                        top_size > bottom_size,
+                        "cylinder flares outward toward the top"
+                    );
                     saw_cylinder = true;
                 }
                 _ => panic!("unexpected primitive {:?}", prim),
@@ -303,7 +307,6 @@ mod tests {
         step(&mut eff, RING_LIFE_FRAMES / FRAMES_PER_SECOND + 0.01);
         assert_eq!(draws(&eff).len(), 0, "everything expires by frame 50");
     }
-
 
     #[test]
     fn ring_grows_then_fade_begins_after_frame_35() {

@@ -104,12 +104,19 @@ enum TintMode {
     /// glow holds lit). Drawn as **two** additive copies = a 2×
     /// additive sprite pass. Distinct from the §8a `Pulse` family: no
     /// white flashes, no multiply tint, just a coloured glow that breathes once.
-    HitFlash { rgb: [u8; 3], bt2_scale: f32, bt2_cap: f32 },
+    HitFlash {
+        rgb: [u8; 3],
+        bt2_scale: f32,
+        bt2_cap: f32,
+    },
     /// Red/blue **strobed** (the Madness effects): the flash
     /// re-sets every `period` frames at the hold alpha (glow clock 20
     /// → 160) with no ramp, so the body blinks a solid colour on/off. Rendered
     /// like `HitFlash` (two additive copies) but only on the `% period == 0` frame.
-    Strobe { rgb: [u8; 3], period: f32 },
+    Strobe {
+        rgb: [u8; 3],
+        period: f32,
+    },
 }
 
 /// Double-body halo: a tinted alpha copy behind the body, showing as a
@@ -197,7 +204,10 @@ pub const PINKBODY: Params = Params {
     glow: 0.0,
     body_alpha: 1.0,
     light_body: true,
-    double_body: Some(DoubleBody { margin_px: 16.0, alpha: 0.4 }),
+    double_body: Some(DoubleBody {
+        margin_px: 16.0,
+        alpha: 0.4,
+    }),
     quake_at: None,
     sfx: None,
     yaw_per_frame: None,
@@ -311,7 +321,11 @@ pub const REJECTSWORD: Params = pulse([150, 150, 150]);
 // knobs are colour, the glow-clock advance rate, and its cap.
 const fn hit_flash(rgb: [u8; 3], bt2_scale: f32, bt2_cap: f32, end: f32) -> Params {
     Params {
-        mode: TintMode::HitFlash { rgb, bt2_scale, bt2_cap },
+        mode: TintMode::HitFlash {
+            rgb,
+            bt2_scale,
+            bt2_cap,
+        },
         window: (0.0, end),
         total_frames: end,
         glow: 0.0,
@@ -483,7 +497,11 @@ impl BodyTintEffect {
             // White additive flash: on for the first half of each blink period,
             // with a pause between the 2-blink and 4-blink groups.
             let in_pause = (PULSE_PAUSE_START..PULSE_PAUSE_END).contains(&p);
-            let phase = if p < PULSE_PAUSE_START { p } else { p - PULSE_PAUSE_END };
+            let phase = if p < PULSE_PAUSE_START {
+                p
+            } else {
+                p - PULSE_PAUSE_END
+            };
             let on = !in_pause && (phase.rem_euclid(PULSE_BLINK_P) < PULSE_FLASH_W);
             (on, on.then_some(WHITE))
         } else if p < PULSE_COLOR_FULL {
@@ -551,13 +569,17 @@ impl Effect for BodyTintEffect {
 
     fn body_vertical(&self) -> Option<BodyVertical> {
         // Body translucency knob — `<1.0` makes the whole body see-through.
-        (self.params.body_alpha < 1.0 && self.in_window())
-            .then_some(BodyVertical { lift_px: 0.0, alpha: self.params.body_alpha, squeeze: 1.0 })
+        (self.params.body_alpha < 1.0 && self.in_window()).then_some(BodyVertical {
+            lift_px: 0.0,
+            alpha: self.params.body_alpha,
+            squeeze: 1.0,
+        })
     }
 
     fn body_yaw(&self) -> Option<f32> {
         let y = self.params.yaw_per_frame?;
-        self.in_window().then(|| (self.process - self.params.window.0) * y)
+        self.in_window()
+            .then(|| (self.process - self.params.window.0) * y)
     }
 
     fn body_copies(&self) -> Option<Vec<BodyCopy>> {
@@ -575,7 +597,12 @@ impl Effect for BodyTintEffect {
             }]);
         }
 
-        if let TintMode::HitFlash { rgb, bt2_scale, bt2_cap } = self.params.mode {
+        if let TintMode::HitFlash {
+            rgb,
+            bt2_scale,
+            bt2_cap,
+        } = self.params.mode
+        {
             // Body-flash: a fixed colour over the opaque body, drawn as two
             // additive overlays (a 2× additive pass) with the
             // glow-clock-driven alpha ramp.
@@ -650,7 +677,10 @@ impl Effect for BodyTintEffect {
     fn take_camera_shake(&mut self) -> Option<CameraShake> {
         self.quake_pending.then(|| {
             self.quake_pending = false;
-            CameraShake { amplitude: QUAKE_AMPLITUDE, duration_ms: QUAKE_DURATION_MS }
+            CameraShake {
+                amplitude: QUAKE_AMPLITUDE,
+                duration_ms: QUAKE_DURATION_MS,
+            }
         })
     }
 
@@ -668,7 +698,11 @@ mod tests {
     use super::*;
 
     fn step(e: &mut BodyTintEffect, frames: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: frames / FPS, camera_target: None, caster_yaw: None })
+        e.update(&EffectUpdateCtx {
+            delta: frames / FPS,
+            camera_target: None,
+            caster_yaw: None,
+        })
     }
 
     #[test]
@@ -679,7 +713,10 @@ mod tests {
         step(&mut e, 50.0);
         assert_eq!(e.body_tint(), None, "glow effects don't multiply-tint");
         let glow = e.body_copies().expect("glowing");
-        assert!(glow[0].additive && glow[0].tint == [200, 150, 50], "yellow additive glow");
+        assert!(
+            glow[0].additive && glow[0].tint == [200, 150, 50],
+            "yellow additive glow"
+        );
         assert_eq!(step(&mut e, 30.0), EffectStatus::Dead);
     }
 
@@ -690,10 +727,21 @@ mod tests {
         // authored window.
         let mut e = BodyTintEffect::new(REDBODY).with_life_ms(Some(60_000));
         assert!(e.body_additive(), "light-body blends additively");
-        assert_eq!(e.body_tint().map(|t| t.rgb), Some([255, 100, 100]), "red multiply tint");
+        assert_eq!(
+            e.body_tint().map(|t| t.rgb),
+            Some([255, 100, 100]),
+            "red multiply tint"
+        );
         // Well past the 120-frame default, still alive and still glowing.
-        assert_eq!(step(&mut e, 300.0), EffectStatus::Running, "persists for the status");
-        assert!(e.body_additive() && e.body_tint().is_some(), "still a red light-body");
+        assert_eq!(
+            step(&mut e, 300.0),
+            EffectStatus::Running,
+            "persists for the status"
+        );
+        assert!(
+            e.body_additive() && e.body_tint().is_some(),
+            "still a red light-body"
+        );
     }
 
     #[test]
@@ -702,10 +750,17 @@ mod tests {
         // Light-body pink (additive, translucent like Redbody) + a ghost copy
         // behind it showing as a margin around the silhouette.
         assert!(e.body_additive(), "light-body blends additively");
-        assert_eq!(e.body_tint().map(|t| t.rgb), Some([255, 89, 182]), "pink multiply tint");
+        assert_eq!(
+            e.body_tint().map(|t| t.rgb),
+            Some([255, 89, 182]),
+            "pink multiply tint"
+        );
         let copies = e.body_copies().expect("halo");
         let halo = copies.iter().find(|c| !c.additive).expect("behind ghost");
-        assert!(halo.margin_px > 0.0 && halo.tint == [255, 89, 182], "pink halo margin");
+        assert!(
+            halo.margin_px > 0.0 && halo.tint == [255, 89, 182],
+            "pink halo margin"
+        );
     }
 
     #[test]
@@ -724,7 +779,11 @@ mod tests {
     fn hitbody_is_a_single_additive_white_flash_no_tint() {
         let mut e = BodyTintEffect::new(HITBODY);
         step(&mut e, 4.0); // frame ~4, fade-in
-        assert_eq!(e.body_tint(), None, "white flash is a copy, not a tint multiply");
+        assert_eq!(
+            e.body_tint(),
+            None,
+            "white flash is a copy, not a tint multiply"
+        );
         let copies = e.body_copies().expect("flashing");
         assert_eq!(copies.len(), 1);
         assert!(copies[0].additive && copies[0].tint == [255, 255, 255]);
@@ -740,7 +799,10 @@ mod tests {
         assert_eq!(e.body_tint(), None, "Falconassault has no multiply tint");
         assert!(e.body_yaw().unwrap() > 0.0, "facing spins");
         let glow = e.body_copies().expect("glowing");
-        assert!(glow[0].additive && glow[0].tint == [255, 255, 255], "white BL_LIGHT_BODY glow");
+        assert!(
+            glow[0].additive && glow[0].tint == [255, 255, 255],
+            "white BL_LIGHT_BODY glow"
+        );
     }
 
     #[test]
@@ -758,15 +820,25 @@ mod tests {
         // Phase 1: a white additive flash (frame 0 is white-on). No halo.
         let mut e = BodyTintEffect::new(CHEMICALBODY);
         assert!(e.body_additive(), "white flash blends additively");
-        assert_eq!(e.body_tint().map(|t| t.rgb), Some([255, 255, 255]), "flash is white");
+        assert_eq!(
+            e.body_tint().map(|t| t.rgb),
+            Some([255, 255, 255]),
+            "flash is white"
+        );
         assert!(e.body_copies().is_none(), "no halo / glow copies");
         // Between flashes within a blink → normal body.
         step(&mut e, PULSE_FLASH_W); // into the off-half of the first blink
-        assert!(!e.body_additive() && e.body_tint().is_none(), "normal between flashes");
+        assert!(
+            !e.body_additive() && e.body_tint().is_none(),
+            "normal between flashes"
+        );
         // Colour phase: a darkening multiply blue (not additive), fading out.
         let mut e = BodyTintEffect::new(CHEMICALBODY);
         step(&mut e, PULSE_COLOR_FULL); // colour fully in
-        assert!(!e.body_additive(), "colour phase is a multiply, not additive");
+        assert!(
+            !e.body_additive(),
+            "colour phase is a multiply, not additive"
+        );
         let full = e.body_tint().expect("blue tint").rgb;
         assert!(full[2] > full[0] && full[2] > full[1], "blue dominant");
         step(&mut e, (PULSE_TOTAL - PULSE_COLOR_FULL) * 0.6); // partway through the fade
@@ -791,7 +863,11 @@ mod tests {
     #[test]
     fn pulse_family_ends_with_its_timeline() {
         let mut e = BodyTintEffect::new(MEMORIZE);
-        assert_eq!(step(&mut e, PULSE_TOTAL + 1.0), EffectStatus::Dead, "dies at PULSE_TOTAL");
+        assert_eq!(
+            step(&mut e, PULSE_TOTAL + 1.0),
+            EffectStatus::Dead,
+            "dies at PULSE_TOTAL"
+        );
     }
 
     #[test]

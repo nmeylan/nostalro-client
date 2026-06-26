@@ -8,9 +8,9 @@
 //! screen-space quad reproduces it directly — no geometry annulus, no tiled
 //! flame puffs.
 
+use super::spike_burst::fade_in_out;
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use super::spike_burst::fade_in_out;
 
 /// The ring-of-fire texture itself draws the circle (fire on transparent).
 pub const FIRE_RING_TEXTURE: &str = "FireRing.tga";
@@ -50,7 +50,11 @@ impl FireSplashHitEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
         let bits = world_pos[0].to_bits() ^ world_pos[2].to_bits().rotate_left(13);
         let roll0_deg = (bits % 360) as f32;
-        Self { world_pos, age: 0.0, roll0_deg }
+        Self {
+            world_pos,
+            age: 0.0,
+            roll0_deg,
+        }
     }
 
     fn frame(&self) -> f32 {
@@ -60,9 +64,8 @@ impl FireSplashHitEffect {
     /// Closed-form integral of `roll += rollSpeed; rollSpeed += rollAccel`
     /// over `n` frames: `roll0 + speed*n + accel*n*(n-1)/2`, in radians.
     fn roll_rad(&self, frame: f32) -> f32 {
-        let deg = self.roll0_deg
-            + ROLL_SPEED_INIT * frame
-            + ROLL_ACCEL * frame * (frame - 1.0) * 0.5;
+        let deg =
+            self.roll0_deg + ROLL_SPEED_INIT * frame + ROLL_ACCEL * frame * (frame - 1.0) * 0.5;
         deg.to_radians()
     }
 }
@@ -79,12 +82,22 @@ impl Effect for FireSplashHitEffect {
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let frame = self.frame();
-        let alpha = fade_in_out(frame, MAX_ALPHA, FADE_IN_FRAMES, FADE_OUT_START, DURATION_FRAMES);
+        let alpha = fade_in_out(
+            frame,
+            MAX_ALPHA,
+            FADE_IN_FRAMES,
+            FADE_OUT_START,
+            DURATION_FRAMES,
+        );
         if alpha <= 0.0 {
             return;
         }
         let full = 2.0 * (HALF_INIT + HALF_GROWTH_PER_FRAME * frame) * WORLD_SCALE;
-        let pos = [self.world_pos[0], self.world_pos[1] - BODY_LIFT, self.world_pos[2]];
+        let pos = [
+            self.world_pos[0],
+            self.world_pos[1] - BODY_LIFT,
+            self.world_pos[2],
+        ];
         out.push(EffectPrimitiveDraw::BillboardFlash {
             pos,
             size: [full, full],
@@ -102,13 +115,21 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn run_to(c: &mut FireSplashHitEffect, target_frame: f32) {
         let delta = (target_frame - c.frame()) / FRAMES_PER_SECOND;
         if delta > 0.0 {
-            c.update(&EffectUpdateCtx { delta, ..Default::default() });
+            c.update(&EffectUpdateCtx {
+                delta,
+                ..Default::default()
+            });
         }
     }
 
@@ -117,7 +138,14 @@ mod tests {
         let mut list = EffectDrawList::new();
         c.collect_draws(&mut list, &render_ctx());
         list.primitives.into_iter().find_map(|p| match p {
-            EffectPrimitiveDraw::BillboardFlash { size, rotation, color, texture, blend, .. } => {
+            EffectPrimitiveDraw::BillboardFlash {
+                size,
+                rotation,
+                color,
+                texture,
+                blend,
+                ..
+            } => {
                 assert_eq!(texture, FIRE_RING_TEXTURE);
                 assert_eq!(blend, BlendKind::Alpha);
                 Some((size[0], rotation, color[3]))
@@ -144,7 +172,10 @@ mod tests {
         let hold = ring(&c).unwrap().2;
         run_to(&mut c, DURATION_FRAMES - 1.0);
         let late = ring(&c).unwrap().2;
-        assert!(late < hold, "alpha fades after frame {FADE_OUT_START} ({hold} → {late})");
+        assert!(
+            late < hold,
+            "alpha fades after frame {FADE_OUT_START} ({hold} → {late})"
+        );
     }
 
     #[test]

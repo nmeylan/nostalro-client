@@ -45,8 +45,7 @@ const SPIN_DEG_PER_FRAME: f32 = 2.0;
 const SIDES: u32 = 10;
 const MAX_ALPHA: f32 = 1.0;
 
-pub const TOTAL_DURATION_MS: u32 =
-    (DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
+pub const TOTAL_DURATION_MS: u32 = (DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
 pub struct TeleportationEffect {
     world_pos: [f32; 3],
@@ -119,7 +118,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {

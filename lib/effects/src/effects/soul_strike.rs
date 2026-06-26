@@ -296,7 +296,8 @@ mod tests {
     fn step(e: &mut SoulStrikeEffect, dt: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -471,11 +472,7 @@ mod tests {
         for _ in 0..55 {
             step(&mut e, dt);
         }
-        let lead_positions: Vec<[f32; 3]> = e
-            .bolts
-            .iter()
-            .map(|b| b.segments[0])
-            .collect();
+        let lead_positions: Vec<[f32; 3]> = e.bolts.iter().map(|b| b.segments[0]).collect();
         assert!(
             lead_positions.len() >= 2,
             "need at least 2 active bolts for spread check"

@@ -102,13 +102,22 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn run_to(e: &mut FirstaidEffect, frame: f32) {
         // Step one frame at a time (the holder updates once per render frame).
         while e.process < frame {
-            e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
     }
 
@@ -116,7 +125,9 @@ mod tests {
         let mut l = EffectDrawList::new();
         e.collect_draws(&mut l, &render_ctx());
         l.primitives.into_iter().find_map(|p| match p {
-            EffectPrimitiveDraw::Billboard { color, size, pos, .. } => Some((color[3], size[0], pos)),
+            EffectPrimitiveDraw::Billboard {
+                color, size, pos, ..
+            } => Some((color[3], size[0], pos)),
             _ => None,
         })
     }
@@ -165,7 +176,11 @@ mod tests {
         let mut e = FirstaidEffect::new([0.0; 3]);
         run_to(&mut e, TOTAL_FRAMES - 1.0);
         assert_eq!(
-            e.update(&EffectUpdateCtx { delta: 0.1, camera_target: None, caster_yaw: None }),
+            e.update(&EffectUpdateCtx {
+                delta: 0.1,
+                camera_target: None,
+                caster_yaw: None
+            }),
             EffectStatus::Dead
         );
     }

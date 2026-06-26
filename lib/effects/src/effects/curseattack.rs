@@ -9,9 +9,7 @@
 //! UV must put the texture top (`v = 0`) at the quad's top vertex — matching the
 //! observed orientation — or the reaper renders upside down.
 
-use crate::draw::{
-    BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane,
-};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const CURSE_TEXTURE: &str = "curse.bmp";
@@ -111,7 +109,8 @@ mod tests {
         for _ in 0..200 {
             status = e.update(&EffectUpdateCtx {
                 delta: 1.0 / FRAMES_PER_SECOND,
-                camera_target: None, caster_yaw: None,
+                camera_target: None,
+                caster_yaw: None,
             });
             if status == EffectStatus::Dead {
                 break;

@@ -75,7 +75,10 @@ pub struct FirePillarOnEffect {
 
 impl FirePillarOnEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        Self { world_pos, age_frames: 0.0 }
+        Self {
+            world_pos,
+            age_frames: 0.0,
+        }
     }
 }
 
@@ -113,11 +116,20 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     #[test]

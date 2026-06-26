@@ -78,11 +78,27 @@ struct InnerCell {
 
 const INNER_CELLS: [InnerCell; 4] = [
     // Variant A
-    InnerCell { half_extent: 12.5, max_height: 30.0, alpha_b: 65.0 / 255.0 },
-    InnerCell { half_extent: 12.9, max_height: 31.0, alpha_b: 65.0 / 255.0 },
+    InnerCell {
+        half_extent: 12.5,
+        max_height: 30.0,
+        alpha_b: 65.0 / 255.0,
+    },
+    InnerCell {
+        half_extent: 12.9,
+        max_height: 31.0,
+        alpha_b: 65.0 / 255.0,
+    },
     // Variant B
-    InnerCell { half_extent: 14.0, max_height: 20.0, alpha_b: 32.0 / 255.0 },
-    InnerCell { half_extent: 14.4, max_height: 21.0, alpha_b: 32.0 / 255.0 },
+    InnerCell {
+        half_extent: 14.0,
+        max_height: 20.0,
+        alpha_b: 32.0 / 255.0,
+    },
+    InnerCell {
+        half_extent: 14.4,
+        max_height: 21.0,
+        alpha_b: 32.0 / 255.0,
+    },
 ];
 
 /// Master Y-offset for the wall base. Native RO `-Y = up`,
@@ -117,13 +133,7 @@ impl BasilicaEffect {
         }
     }
 
-    fn push_cube_walls(
-        &self,
-        out: &mut EffectDrawList,
-        cell: InnerCell,
-        alpha: f32,
-        wall_h: f32,
-    ) {
+    fn push_cube_walls(&self, out: &mut EffectDrawList, cell: InnerCell, alpha: f32, wall_h: f32) {
         if wall_h <= 0.0 {
             return;
         }
@@ -201,7 +211,8 @@ mod tests {
     fn step(e: &mut BasilicaEffect, frames: f32) {
         e.update(&EffectUpdateCtx {
             delta: frames / FRAMES_PER_SECOND,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
     }
 

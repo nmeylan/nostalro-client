@@ -14,9 +14,21 @@ use super::spec::{AlphaKeyframe, CurveParams, SprBurstParams};
 /// The implicit frame-0 entry (alpha 0, max 80/255) primes the
 /// sawtooth at spawn so the dim opening pulse matches.
 const FIREFLY_ALPHA_KEYFRAMES: &[AlphaKeyframe] = &[
-    AlphaKeyframe { at_frame: 0, alpha_init: 0.0, alpha_max: 80.0 / 255.0 },
-    AlphaKeyframe { at_frame: 40, alpha_init: 120.0 / 255.0, alpha_max: 200.0 / 255.0 },
-    AlphaKeyframe { at_frame: 100, alpha_init: 0.0, alpha_max: 80.0 / 255.0 },
+    AlphaKeyframe {
+        at_frame: 0,
+        alpha_init: 0.0,
+        alpha_max: 80.0 / 255.0,
+    },
+    AlphaKeyframe {
+        at_frame: 40,
+        alpha_init: 120.0 / 255.0,
+        alpha_max: 200.0 / 255.0,
+    },
+    AlphaKeyframe {
+        at_frame: 100,
+        alpha_init: 0.0,
+        alpha_max: 80.0 / 255.0,
+    },
 ];
 
 pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> {
@@ -57,9 +69,7 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
         // frame, which our SprBurst pipeline already
         // does because particles snapshot positions at spawn). Parent
         // duration comes from `default_duration_ms`, not this struct.
-        EffectId::Pattack
-        | EffectId::Enchantpoison
-        | EffectId::EnchantpoisonFlow => Some((
+        EffectId::Pattack | EffectId::Enchantpoison | EffectId::EnchantpoisonFlow => Some((
             "data/sprite/이팩트/particle3",
             SprBurstParams {
                 particle_lifetime_ms: 666.0,

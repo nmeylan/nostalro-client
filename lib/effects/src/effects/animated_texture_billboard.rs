@@ -353,7 +353,8 @@ mod tests {
     fn ctx(dt: f32) -> EffectUpdateCtx {
         EffectUpdateCtx {
             delta: dt,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         }
     }
 
@@ -394,11 +395,12 @@ mod tests {
     fn quad_anchors_below_master_with_distance_sized_side() {
         // Spawn at a known world position; one render should put the
         // billboard at world_y - 10 with side √2 × distance ≈ 28.28.
-        let e =
-            AnimatedTextureBillboardEffect::new([5.0, 100.0, 7.0], TORCH_GREEN);
+        let e = AnimatedTextureBillboardEffect::new([5.0, 100.0, 7.0], TORCH_GREEN);
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
-        let EffectPrimitiveDraw::Billboard { pos, size, color, .. } = list.primitives[0]
+        let EffectPrimitiveDraw::Billboard {
+            pos, size, color, ..
+        } = list.primitives[0]
         else {
             panic!("expected Billboard");
         };
@@ -429,13 +431,16 @@ mod tests {
         // quad is anchored at master Y (no offset), uses the wider 30u
         // distance, and renders at 50/255 alpha. The glow is depth-free
         // (BillboardFlash) so its lower half isn't clipped by the floor.
-        let mut e =
-            AnimatedTextureBillboardEffect::new([4.0, 50.0, 9.0], GLOW_01);
+        let mut e = AnimatedTextureBillboardEffect::new([4.0, 50.0, 9.0], GLOW_01);
         for _ in 0..20 {
             let mut list = EffectDrawList::new();
             e.collect_draws(&mut list, &render_ctx());
             let EffectPrimitiveDraw::BillboardFlash {
-                pos, size, color, texture, ..
+                pos,
+                size,
+                color,
+                texture,
+                ..
             } = list.primitives[0]
             else {
                 panic!("expected BillboardFlash");

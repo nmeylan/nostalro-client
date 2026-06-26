@@ -113,7 +113,10 @@ impl TempResultEffect {
     /// Breathing scale: grows ~`wobble_amp` as the phase climbs 0°→90°, then
     /// shrinks back. Matches `1 + sin(phase) * 0.05`.
     fn scale(&self) -> f32 {
-        1.0 + self.params.wobble_amp * (self.process * self.params.wobble_speed_deg).to_radians().sin()
+        1.0 + self.params.wobble_amp
+            * (self.process * self.params.wobble_speed_deg)
+                .to_radians()
+                .sin()
     }
 }
 
@@ -134,7 +137,11 @@ impl Effect for TempResultEffect {
         }
         let s = self.scale();
         out.push(EffectPrimitiveDraw::Billboard {
-            pos: [self.center[0], self.center[1] + self.params.y_offset, self.center[2]],
+            pos: [
+                self.center[0],
+                self.center[1] + self.params.y_offset,
+                self.center[2],
+            ],
             size: [self.params.width * s, self.params.height * s],
             uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
             rotation: 0.0,
@@ -152,23 +159,34 @@ mod tests {
     fn tick(e: &mut TempResultEffect, frames: u32) -> EffectStatus {
         let mut st = EffectStatus::Running;
         for _ in 0..frames {
-            st = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            st = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         st
     }
 
     fn banner(e: &TempResultEffect) -> Option<([f32; 2], f32, &'static str)> {
         let mut l = EffectDrawList::new();
-        e.collect_draws(&mut l, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 256.0,
-            screen_h: 256.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut l,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 256.0,
+                screen_h: 256.0,
+                elapsed: 0.0,
+            },
+        );
         l.primitives.first().map(|p| match p {
-            EffectPrimitiveDraw::Billboard { size, color, texture, blend: BlendKind::Alpha, .. } => {
-                (*size, color[3], *texture)
-            }
+            EffectPrimitiveDraw::Billboard {
+                size,
+                color,
+                texture,
+                blend: BlendKind::Alpha,
+                ..
+            } => (*size, color[3], *texture),
             _ => panic!("expected an alpha-blended Billboard"),
         })
     }
@@ -178,11 +196,21 @@ mod tests {
         let mut e = TempResultEffect::new([0.0; 3], TEMP_OK);
         tick(&mut e, 4);
         let (_, a_in, _) = banner(&e).expect("visible during fade-in");
-        tick(&mut e, (TEMP_OK.fade_in_frames + TEMP_OK.hold_frames / 2.0) as u32);
+        tick(
+            &mut e,
+            (TEMP_OK.fade_in_frames + TEMP_OK.hold_frames / 2.0) as u32,
+        );
         let (_, a_hold, _) = banner(&e).expect("visible at hold");
-        assert!(a_hold > a_in, "alpha rises into the hold: {a_in} -> {a_hold}");
+        assert!(
+            a_hold > a_in,
+            "alpha rises into the hold: {a_in} -> {a_hold}"
+        );
         assert!(a_hold <= TEMP_OK.max_alpha + 1e-3, "alpha is capped at max");
-        assert_eq!(tick(&mut e, 200), EffectStatus::Dead, "self-terminates after its lifetime");
+        assert_eq!(
+            tick(&mut e, 200),
+            EffectStatus::Dead,
+            "self-terminates after its lifetime"
+        );
     }
 
     #[test]
@@ -194,8 +222,18 @@ mod tests {
         let (peak, ..) = banner(&e).expect("visible at peak");
         tick(&mut e, 50); // ~frame 95: phase past 180°, size dips back below
         let (late, ..) = banner(&e).expect("visible at tail");
-        assert!(peak[0] > early[0], "banner grows as it appears: {} -> {}", early[0], peak[0]);
-        assert!(late[0] < peak[0], "banner shrinks as it leaves: {} -> {}", peak[0], late[0]);
+        assert!(
+            peak[0] > early[0],
+            "banner grows as it appears: {} -> {}",
+            early[0],
+            peak[0]
+        );
+        assert!(
+            late[0] < peak[0],
+            "banner shrinks as it leaves: {} -> {}",
+            peak[0],
+            late[0]
+        );
     }
 
     #[test]
@@ -210,6 +248,9 @@ mod tests {
         assert_eq!(fail_tex, "failed.bmp");
         let ok_aspect = ok_size[0] / ok_size[1];
         let fail_aspect = fail_size[0] / fail_size[1];
-        assert!(ok_aspect > fail_aspect, "success banner is wider per height than failed");
+        assert!(
+            ok_aspect > fail_aspect,
+            "success banner is wider per height than failed"
+        );
     }
 }

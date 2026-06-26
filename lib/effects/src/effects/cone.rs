@@ -181,7 +181,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -216,7 +220,11 @@ mod tests {
         step(&mut e, 131);
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
-        assert_eq!(list.primitives.len(), 2, "second particle spawned at frame 130");
+        assert_eq!(
+            list.primitives.len(),
+            2,
+            "second particle spawned at frame 130"
+        );
     }
 
     #[test]

@@ -62,8 +62,7 @@ const FRAMES_PER_SECOND: f32 = 60.0;
 /// table.rs's existing 2000 ms entry is the legacy STR-driven duration;
 /// we honour the original-game frame budget here.
 const TOTAL_FRAMES: u32 = 200;
-pub const TOTAL_DURATION_MS: u32 =
-    ((TOTAL_FRAMES as f32) / FRAMES_PER_SECOND * 1000.0) as u32;
+pub const TOTAL_DURATION_MS: u32 = ((TOTAL_FRAMES as f32) / FRAMES_PER_SECOND * 1000.0) as u32;
 
 /// Number of segments rendered per slot. The original game divides
 /// the full display angle by 9 — a perf compromise (dividing by the
@@ -226,7 +225,8 @@ mod tests {
     fn step(e: &mut DefenderEffect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FRAMES_PER_SECOND,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -317,7 +317,10 @@ mod tests {
         // After FADE_IN_FRAMES the alpha has reached ALPHA_PEAK and holds.
         step(&mut e, (FADE_IN_FRAMES - 1) as f32);
         let alpha_peak = ring(&draws(&e)[0]).2;
-        assert!((alpha_peak - ALPHA_PEAK).abs() < 1e-3, "alpha at peak: {alpha_peak}");
+        assert!(
+            (alpha_peak - ALPHA_PEAK).abs() < 1e-3,
+            "alpha at peak: {alpha_peak}"
+        );
 
         // After the fade-out window the alpha is back to zero — the
         // collect_draws() filter then omits the slot. Step past TOTAL_FRAMES

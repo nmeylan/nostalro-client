@@ -142,12 +142,23 @@ const BLACK_SWORD: &str = "black_sword.bmp";
 const LEXAETERNA_SWORD: &str = "lexaeterna_sword.bmp";
 const WHITE01: &str = "white01.bmp";
 
-pub const TEXTURES: &[&str] = &[COIN_A, SHIELD, SWORD, BLACK_SWORD, LEXAETERNA_SWORD, WHITE01];
+pub const TEXTURES: &[&str] = &[
+    COIN_A,
+    SHIELD,
+    SWORD,
+    BLACK_SWORD,
+    LEXAETERNA_SWORD,
+    WHITE01,
+];
 
 // 274 Steal Coin — 30 launches × 4 = 120 gold coins flipping around Y,
 // pale-yellow tint, plus the money-bag STR at the anchor.
 pub const RG_COIN: RgCoinParams = RgCoinParams {
-    groups: &[CoinGroup { texture: COIN_A, count: 120, size: 3.5 }],
+    groups: &[CoinGroup {
+        texture: COIN_A,
+        count: 120,
+        size: 3.5,
+    }],
     color: [250.0 / 255.0, 250.0 / 255.0, 155.0 / 255.0],
     growth: 1.5,
     spin_deg_per_frame: 5.0,
@@ -162,8 +173,16 @@ pub const RG_COIN: RgCoinParams = RgCoinParams {
 // reddish tint, larger icons.
 pub const RG_COIN2: RgCoinParams = RgCoinParams {
     groups: &[
-        CoinGroup { texture: SHIELD, count: 16, size: 5.0 },
-        CoinGroup { texture: SWORD, count: 16, size: 9.0 },
+        CoinGroup {
+            texture: SHIELD,
+            count: 16,
+            size: 5.0,
+        },
+        CoinGroup {
+            texture: SWORD,
+            count: 16,
+            size: 9.0,
+        },
     ],
     color: [250.0 / 255.0, 100.0 / 255.0, 100.0 / 255.0],
     growth: 1.0,
@@ -180,10 +199,26 @@ pub const RG_COIN2: RgCoinParams = RgCoinParams {
 // textures (4 of each).
 pub const RG_COIN3: RgCoinParams = RgCoinParams {
     groups: &[
-        CoinGroup { texture: SWORD, count: 4, size: 5.0 },
-        CoinGroup { texture: BLACK_SWORD, count: 4, size: 5.0 },
-        CoinGroup { texture: LEXAETERNA_SWORD, count: 4, size: 5.0 },
-        CoinGroup { texture: SHIELD, count: 4, size: 5.0 },
+        CoinGroup {
+            texture: SWORD,
+            count: 4,
+            size: 5.0,
+        },
+        CoinGroup {
+            texture: BLACK_SWORD,
+            count: 4,
+            size: 5.0,
+        },
+        CoinGroup {
+            texture: LEXAETERNA_SWORD,
+            count: 4,
+            size: 5.0,
+        },
+        CoinGroup {
+            texture: SHIELD,
+            count: 4,
+            size: 5.0,
+        },
     ],
     color: [250.0 / 255.0, 100.0 / 255.0, 100.0 / 255.0],
     growth: 1.0,
@@ -203,7 +238,11 @@ pub const RG_COIN3: RgCoinParams = RgCoinParams {
 // (the dim branch ramps `+15`/frame, capping at 150) and the
 // `white01.bmp` spark texture.
 pub const INTIMIDATE: RgCoinParams = RgCoinParams {
-    groups: &[CoinGroup { texture: WHITE01, count: 80, size: 3.5 }],
+    groups: &[CoinGroup {
+        texture: WHITE01,
+        count: 80,
+        size: 3.5,
+    }],
     color: [100.0 / 255.0, 150.0 / 255.0, 255.0 / 255.0],
     growth: 1.5,
     spin_deg_per_frame: 5.0,
@@ -256,9 +295,7 @@ impl RgCoinEffect {
         let coins = params
             .groups
             .iter()
-            .flat_map(|g| {
-                (0..g.count).map(move |_| (g.texture, g.size))
-            })
+            .flat_map(|g| (0..g.count).map(move |_| (g.texture, g.size)))
             .map(|(texture, size)| {
                 let delay = (params.delay_base + (lcg_next(&mut state) % DELAY_RANGE)) as f32;
                 Coin {
@@ -272,7 +309,12 @@ impl RgCoinEffect {
                 }
             })
             .collect();
-        Self { anchor, params, coins, age: 0.0 }
+        Self {
+            anchor,
+            params,
+            coins,
+            age: 0.0,
+        }
     }
 }
 
@@ -373,7 +415,12 @@ mod tests {
     use super::*;
 
     fn ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn step(e: &mut RgCoinEffect, frames: u32) -> EffectStatus {
@@ -397,10 +444,19 @@ mod tests {
         l.primitives
             .iter()
             .map(|p| match p {
-                EffectPrimitiveDraw::Billboard { pos, texture, color, rotation, .. } => {
-                    (*pos, *texture, color[3], *rotation)
-                }
-                EffectPrimitiveDraw::WorldQuad { corners, texture, color, .. } => {
+                EffectPrimitiveDraw::Billboard {
+                    pos,
+                    texture,
+                    color,
+                    rotation,
+                    ..
+                } => (*pos, *texture, color[3], *rotation),
+                EffectPrimitiveDraw::WorldQuad {
+                    corners,
+                    texture,
+                    color,
+                    ..
+                } => {
                     let center = [
                         corners.iter().map(|c| c[0]).sum::<f32>() / 4.0,
                         corners.iter().map(|c| c[1]).sum::<f32>() / 4.0,
@@ -417,7 +473,11 @@ mod tests {
     #[test]
     fn steal_coin_emits_flipping_world_quads_after_their_delay() {
         let e = RgCoinEffect::new([0.0; 3], RG_COIN);
-        assert_eq!(e.str_overlay(), Some("steal_coin"), "money-bag STR plays alongside");
+        assert_eq!(
+            e.str_overlay(),
+            Some("steal_coin"),
+            "money-bag STR plays alongside"
+        );
         let mut e = e;
         // Before any delay elapses nothing is visible.
         step(&mut e, 1);
@@ -427,7 +487,9 @@ mod tests {
         let mut l = EffectDrawList::new();
         e.collect_draws(&mut l, &ctx());
         assert!(
-            l.primitives.iter().all(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { .. })),
+            l.primitives
+                .iter()
+                .all(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { .. })),
             "coins are world-space flipping diamonds, not billboards"
         );
         let draws = quads(&e);
@@ -440,9 +502,15 @@ mod tests {
         let mut e = RgCoinEffect::new([0.0; 3], INTIMIDATE);
         // Coins are already long gone by the time Intimidate's trickle starts.
         step(&mut e, RG_COIN.delay_base + DELAY_RANGE + 5);
-        assert!(quads(&e).is_empty(), "Intimidate quads delayed past the coin window");
+        assert!(
+            quads(&e).is_empty(),
+            "Intimidate quads delayed past the coin window"
+        );
         // Past the max delay (100) every quad is live but none have faded yet.
-        step(&mut e, INTIMIDATE.delay_base + DELAY_RANGE + 5 - (RG_COIN.delay_base + DELAY_RANGE + 5));
+        step(
+            &mut e,
+            INTIMIDATE.delay_base + DELAY_RANGE + 5 - (RG_COIN.delay_base + DELAY_RANGE + 5),
+        );
         let draws = quads(&e);
         assert_eq!(draws.len(), 80, "20 launches × 4 = 80 quads");
         assert!(draws.iter().all(|d| d.1 == "white01.bmp"));
@@ -483,8 +551,14 @@ mod tests {
             / late.len() as f32;
         let late_rot = late[0].3;
 
-        assert!(late_radius > early_radius, "burst expands: {early_radius} -> {late_radius}");
-        assert!((late_rot - early_rot).abs() > 1e-3, "coins tumble over time");
+        assert!(
+            late_radius > early_radius,
+            "burst expands: {early_radius} -> {late_radius}"
+        );
+        assert!(
+            (late_rot - early_rot).abs() > 1e-3,
+            "coins tumble over time"
+        );
     }
 
     #[test]
@@ -496,7 +570,10 @@ mod tests {
         let total_frames = (RG_COIN.total_duration_ms() as f32 / 1000.0 * FRAMES_PER_SECOND) as u32;
         let status = step(&mut e, total_frames);
         let late = quads(&e).iter().map(|d| d.2).fold(0.0_f32, f32::max);
-        assert!(peak > late, "coins fade after their hold window: {peak} -> {late}");
+        assert!(
+            peak > late,
+            "coins fade after their hold window: {peak} -> {late}"
+        );
         assert_eq!(status, EffectStatus::Dead);
     }
 }

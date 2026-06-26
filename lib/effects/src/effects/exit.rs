@@ -111,9 +111,8 @@ impl ExitEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
         // Stable per (world_pos) so the same spawn yields the same orbit
         // angles in tests / replays.
-        let rng_state = 0x9E37_79B9
-            ^ world_pos[0].to_bits()
-            ^ world_pos[2].to_bits().rotate_left(13);
+        let rng_state =
+            0x9E37_79B9 ^ world_pos[0].to_bits() ^ world_pos[2].to_bits().rotate_left(13);
         Self {
             world_pos,
             particles: Vec::new(),
@@ -171,8 +170,7 @@ impl Effect for ExitEffect {
         }
         self.particles.retain(|p| p.alive());
 
-        if self.age_frames
-            >= PARENT_DURATION_FRAMES + PARTICLE_DURATION_FRAMES
+        if self.age_frames >= PARENT_DURATION_FRAMES + PARTICLE_DURATION_FRAMES
             && self.particles.is_empty()
         {
             EffectStatus::Dead
@@ -229,7 +227,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {

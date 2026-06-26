@@ -12,9 +12,9 @@
 //!     ground-disc emission (every 14 frames, `ring_blue.tga`).
 //!     Shared via [`super::ready_portal::ReadyPortalDiscEmitter`].
 
+use super::ready_portal::ReadyPortalDiscEmitter;
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use super::ready_portal::ReadyPortalDiscEmitter;
 
 pub const RING_TEXTURE: &str = "ring_blue.tga";
 pub const TEXTURES: &[&str] = &[RING_TEXTURE];
@@ -106,7 +106,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -146,7 +150,10 @@ mod tests {
             .iter()
             .filter(|p| matches!(p, EffectPrimitiveDraw::GroundDisc { texture, .. } if *texture == RING_TEXTURE))
             .count();
-        assert!(ground_rings >= 2, "ReadyPortal disc respawns every 14 frames");
+        assert!(
+            ground_rings >= 2,
+            "ReadyPortal disc respawns every 14 frames"
+        );
     }
 
     #[test]

@@ -111,7 +111,11 @@ fn ghost_action_for_angle(angle_deg: f32) -> usize {
 
 impl GhostEffect {
     pub fn new(anchor: [f32; 3], params: GhostParams) -> Self {
-        Self { anchor, params, age: 0.0 }
+        Self {
+            anchor,
+            params,
+            age: 0.0,
+        }
     }
 
     fn motion_index(&self, local_frame: f32) -> usize {
@@ -209,7 +213,11 @@ mod tests {
 
     fn step(e: &mut GhostEffect, frames: u32) {
         for _ in 0..frames {
-            e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
     }
 
@@ -240,7 +248,10 @@ mod tests {
             let dx = p[0] - anchor[0];
             let dz = p[2] - anchor[2];
             let r = (dx * dx + dz * dz).sqrt();
-            assert!((r - RADIUS).abs() < 1e-3, "ghost orbits on a circle of RADIUS: {r}");
+            assert!(
+                (r - RADIUS).abs() < 1e-3,
+                "ghost orbits on a circle of RADIUS: {r}"
+            );
         }
         // Y oscillates: sample a later frame and confirm the lead Y moved.
         let y0 = pos[0][1];
@@ -268,8 +279,16 @@ mod tests {
 
         let mut b = GhostEffect::new([0.0; 3], BAT);
         step(&mut b, 5);
-        assert!(draws(&b, 123.0).iter().all(|p| matches!(p,
-            EffectPrimitiveDraw::SpriteParticle { action_index: 0, .. })), "bat holds action 0");
+        assert!(
+            draws(&b, 123.0).iter().all(|p| matches!(
+                p,
+                EffectPrimitiveDraw::SpriteParticle {
+                    action_index: 0,
+                    ..
+                }
+            )),
+            "bat holds action 0"
+        );
     }
 
     #[test]
@@ -283,12 +302,19 @@ mod tests {
             .collect();
         let max = radii.iter().cloned().fold(0.0_f32, f32::max);
         let min = radii.iter().cloned().fold(f32::MAX, f32::min);
-        assert!(max - min > 1e-2, "bat2 path is not a constant-radius circle");
+        assert!(
+            max - min > 1e-2,
+            "bat2 path is not a constant-radius circle"
+        );
 
         // Self-terminates at the 40 s lifetime.
         let mut status = EffectStatus::Running;
         for _ in 0..(TOTAL_DURATION_MS / 16 + 100) {
-            status = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            status = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
             if status == EffectStatus::Dead {
                 break;
             }

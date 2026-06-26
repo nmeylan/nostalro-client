@@ -256,7 +256,12 @@ impl Effect for PressureEffect {
         if !self.icon_done {
             const TRAIL_ALPHA: [f32; 3] = [0.4, 0.25, 0.1];
             for (k, factor) in TRAIL_ALPHA.iter().enumerate() {
-                if let Some(&pos) = self.icon_history.len().checked_sub(2 + k).and_then(|i| self.icon_history.get(i)) {
+                if let Some(&pos) = self
+                    .icon_history
+                    .len()
+                    .checked_sub(2 + k)
+                    .and_then(|i| self.icon_history.get(i))
+                {
                     self.push_icon(out, pos, self.icon_alpha * factor);
                 }
             }
@@ -270,7 +275,10 @@ impl Effect for PressureEffect {
                 let alpha = if age < RING_FADE_IN_FRAMES {
                     RING_PEAK_ALPHA * (age / RING_FADE_IN_FRAMES)
                 } else {
-                    RING_PEAK_ALPHA * (1.0 - (age - RING_FADE_IN_FRAMES) / (RING_LIFE_FRAMES - RING_FADE_IN_FRAMES))
+                    RING_PEAK_ALPHA
+                        * (1.0
+                            - (age - RING_FADE_IN_FRAMES)
+                                / (RING_LIFE_FRAMES - RING_FADE_IN_FRAMES))
                 };
                 let t = self.params.ring_tint;
                 out.push(EffectPrimitiveDraw::GroundDisc {
@@ -291,7 +299,10 @@ impl Effect for PressureEffect {
     fn take_camera_shake(&mut self) -> Option<CameraShake> {
         if self.params.quake && !self.shake_fired && self.icon_landed {
             self.shake_fired = true;
-            Some(CameraShake { amplitude: 1.5, duration_ms: 350 })
+            Some(CameraShake {
+                amplitude: 1.5,
+                duration_ms: 350,
+            })
         } else {
             None
         }
@@ -305,13 +316,22 @@ mod tests {
     fn step(e: &mut PressureEffect, frames: u32) -> EffectStatus {
         let mut s = EffectStatus::Running;
         for _ in 0..frames {
-            s = e.update(&EffectUpdateCtx { delta: FRAME_DT, camera_target: None, caster_yaw: None });
+            s = e.update(&EffectUpdateCtx {
+                delta: FRAME_DT,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         s
     }
 
     fn ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn list(e: &PressureEffect) -> Vec<EffectPrimitiveDraw> {
@@ -368,7 +388,10 @@ mod tests {
                 EffectPrimitiveDraw::GroundDisc { color, .. }
                     if color[0] == ring_tint[0] && color[1] == ring_tint[1] && color[2] == ring_tint[2]));
             assert!(has_tinted_ring, "ring carries the variant colour");
-            assert!(e.take_camera_shake().is_none(), "Slim never shakes the screen");
+            assert!(
+                e.take_camera_shake().is_none(),
+                "Slim never shakes the screen"
+            );
         }
     }
 
@@ -390,7 +413,10 @@ mod tests {
             "the explosion ring expands after the delay"
         );
         // The screen shake fires exactly once, after the cross lands.
-        assert!(e.take_camera_shake().is_some(), "Pressure shakes the screen on landing");
+        assert!(
+            e.take_camera_shake().is_some(),
+            "Pressure shakes the screen on landing"
+        );
         assert!(e.take_camera_shake().is_none(), "the shake is a one-shot");
     }
 

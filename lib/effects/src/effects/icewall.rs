@@ -81,7 +81,13 @@ impl IceWallEffect {
 impl Effect for IceWallEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         for blade in &mut self.blades {
-            rise_step(&mut blade.base, blade.velocity, self.age, ctx.delta, SPEED_LIMIT_S);
+            rise_step(
+                &mut blade.base,
+                blade.velocity,
+                self.age,
+                ctx.delta,
+                SPEED_LIMIT_S,
+            );
         }
         self.age += ctx.delta;
         // Persistent: killed by the wall-destroyed packet, never self-expires.
@@ -154,16 +160,28 @@ mod tests {
         let mut headings = vec![];
         for p in &prims {
             let EffectPrimitiveDraw::QuadHorn {
-                base, height, texture, tilt_x_deg, rotation_y_deg, ..
-            } = p else {
+                base,
+                height,
+                texture,
+                tilt_x_deg,
+                rotation_y_deg,
+                ..
+            } = p
+            else {
                 panic!("expected QuadHorn");
             };
             assert_eq!(*texture, ICE_TEXTURE);
             assert!(*height > 12.0, "blades are tall");
-            assert!((*tilt_x_deg - 90.0).abs() <= TILT_JITTER_DEG, "near-vertical");
+            assert!(
+                (*tilt_x_deg - 90.0).abs() <= TILT_JITTER_DEG,
+                "near-vertical"
+            );
             // Clustered on the cell (only scattered a little along Z).
             assert!((base[0] - 5.0).abs() < 1e-3, "no cross-axis offset");
-            assert!((base[2] - 7.0).abs() <= SCATTER_STEP + 1e-3, "scatter bounded");
+            assert!(
+                (base[2] - 7.0).abs() <= SCATTER_STEP + 1e-3,
+                "scatter bounded"
+            );
             headings.push(*rotation_y_deg);
         }
         assert!(
@@ -175,7 +193,11 @@ mod tests {
         let mut e = e;
         for _ in 0..1200 {
             assert_eq!(
-                e.update(&EffectUpdateCtx { delta: 1.0 / 60.0, camera_target: None, caster_yaw: None }),
+                e.update(&EffectUpdateCtx {
+                    delta: 1.0 / 60.0,
+                    camera_target: None,
+                    caster_yaw: None
+                }),
                 EffectStatus::Running
             );
         }

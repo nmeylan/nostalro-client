@@ -228,17 +228,14 @@ impl PierceEffect {
                     + self
                         .rng
                         .range_f32(-PARTICLE_HEADING_SPREAD_DEG, PARTICLE_HEADING_SPREAD_DEG);
-                let lat_deg =
-                    self.rng.range_f32(PARTICLE_CONE_LAT_MIN_DEG, PARTICLE_CONE_LAT_MAX_DEG);
+                let lat_deg = self
+                    .rng
+                    .range_f32(PARTICLE_CONE_LAT_MIN_DEG, PARTICLE_CONE_LAT_MAX_DEG);
                 let yaw_rad = yaw_deg.to_radians();
                 let lat_rad = lat_deg.to_radians();
                 let speed = self.rng.range_f32(PARTICLE_SPEED_MIN, PARTICLE_SPEED_MAX);
                 let (sin_y, cos_y) = yaw_rad.sin_cos();
-                let dir = [
-                    sin_y * lat_rad.sin(),
-                    -lat_rad.cos(),
-                    cos_y * lat_rad.sin(),
-                ];
+                let dir = [sin_y * lat_rad.sin(), -lat_rad.cos(), cos_y * lat_rad.sin()];
                 let lifetime = self
                     .rng
                     .range_f32(PARTICLE_LIFETIME_MIN_FRAMES, PARTICLE_LIFETIME_MAX_FRAMES);
@@ -297,14 +294,9 @@ impl Effect for PierceEffect {
             // ramp rate). Match the integration with discrete `t · (t+1)/2`.
             let t = local;
             let cap = CYLINDER_LIFETIME_FRAMES;
-            let s = CYLINDER_INITIAL_SPEED
-                * (t - t * (t + 1.0) / (4.0 * cap));
+            let s = CYLINDER_INITIAL_SPEED * (t - t * (t + 1.0) / (4.0 * cap));
             let (sin_h, cos_h) = self.heading_rad.sin_cos();
-            let centre = [
-                c.pivot[0] + s * sin_h,
-                c.pivot[1],
-                c.pivot[2] + s * cos_h,
-            ];
+            let centre = [c.pivot[0] + s * sin_h, c.pivot[1], c.pivot[2] + s * cos_h];
 
             let fade_start = CYLINDER_LIFETIME_FRAMES - CYLINDER_LIFETIME_FRAMES / 2.0;
             let alpha = if local < fade_start {
@@ -376,7 +368,8 @@ mod tests {
     fn step_and_collect(e: &mut PierceEffect, dt: f32) -> Vec<EffectPrimitiveDraw> {
         e.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &ctx());
@@ -443,7 +436,11 @@ mod tests {
             .iter()
             .filter(|p| matches!(p, EffectPrimitiveDraw::SpriteParticle { .. }))
             .count();
-        assert_eq!(part21, 2 * PARTICLES_PER_DIR, "burst #2 spawned 8 particles");
+        assert_eq!(
+            part21,
+            2 * PARTICLES_PER_DIR,
+            "burst #2 spawned 8 particles"
+        );
     }
 
     #[test]
@@ -452,7 +449,8 @@ mod tests {
         let total_s = TOTAL_DURATION_MS as f32 / 1000.0;
         let s = e.update(&EffectUpdateCtx {
             delta: total_s + 0.5,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
         assert!(matches!(s, EffectStatus::Dead));
     }

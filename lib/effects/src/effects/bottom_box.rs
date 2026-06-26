@@ -22,9 +22,7 @@
 
 use std::f32::consts::FRAC_PI_2;
 
-use crate::draw::{
-    BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane,
-};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const VIOLET_TEXTURE: &str = "magic_violet.tga";
@@ -174,7 +172,11 @@ mod tests {
 
     fn step(e: &mut BottomBoxEffect, frames: i32) {
         for _ in 0..frames {
-            e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
     }
 
@@ -198,13 +200,19 @@ mod tests {
         let h0 = e.height;
         step(&mut e, 20); // age ~26, still growing
         let h_before_peak = e.height;
-        assert!(h_before_peak > h0, "height grows before the flip: {h0} -> {h_before_peak}");
+        assert!(
+            h_before_peak > h0,
+            "height grows before the flip: {h0} -> {h_before_peak}"
+        );
 
         step(&mut e, 17); // age ~43, near the 50-frame peak
         let h_peak = e.height;
         step(&mut e, 15); // age ~58, past the oscillation flip
         let h_after = e.height;
-        assert!(h_after < h_peak, "waveringly reversed the height trend: {h_peak} -> {h_after}");
+        assert!(
+            h_after < h_peak,
+            "waveringly reversed the height trend: {h_peak} -> {h_after}"
+        );
     }
 
     #[test]

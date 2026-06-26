@@ -28,7 +28,12 @@ use std::f32::consts::{PI, TAU};
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
-pub const TEXTURES: &[&str] = &["blue_ivy.bmp", "emp shock.tga", "shield_boomerang.bmp", "토마.bmp"];
+pub const TEXTURES: &[&str] = &[
+    "blue_ivy.bmp",
+    "emp shock.tga",
+    "shield_boomerang.bmp",
+    "토마.bmp",
+];
 
 const UNIT_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 
@@ -126,32 +131,95 @@ pub struct CloudParams {
 }
 
 // 265 Tanji — blue boomerang sphere, no sparks.
-pub const TANJI: CloudParams =
-    CloudParams { texture: "blue_ivy.bmp", tint: BLUE, base_distance: 2.0, speed: 2.0, mode: FlightMode::Overshoot, spark: None, blend: BlendKind::Additive };
+pub const TANJI: CloudParams = CloudParams {
+    texture: "blue_ivy.bmp",
+    tint: BLUE,
+    base_distance: 2.0,
+    speed: 2.0,
+    mode: FlightMode::Overshoot,
+    spark: None,
+    blend: BlendKind::Additive,
+};
 // 412 Tanji2 — blue straight-flight sphere, white impact sparks.
-pub const TANJI2: CloudParams =
-    CloudParams { texture: "blue_ivy.bmp", tint: BLUE, base_distance: 2.0, speed: 2.0, mode: FlightMode::HitStop, spark: Some(SPARK_WHITE), blend: BlendKind::Additive };
+pub const TANJI2: CloudParams = CloudParams {
+    texture: "blue_ivy.bmp",
+    tint: BLUE,
+    base_distance: 2.0,
+    speed: 2.0,
+    mode: FlightMode::HitStop,
+    spark: Some(SPARK_WHITE),
+    blend: BlendKind::Additive,
+};
 // 2016-2019 Alattack1-4 — yellow sphere; size and spark colour per variant.
-pub const ALATTACK1: CloudParams =
-    CloudParams { texture: "blue_ivy.bmp", tint: YELLOW, base_distance: 2.0, speed: 2.0, mode: FlightMode::HitStop, spark: Some(SPARK_WHITE), blend: BlendKind::Additive };
-pub const ALATTACK2: CloudParams =
-    CloudParams { texture: "blue_ivy.bmp", tint: YELLOW, base_distance: 3.0, speed: 2.0, mode: FlightMode::HitStop, spark: Some(SPARK_BLUE), blend: BlendKind::Additive };
-pub const ALATTACK3: CloudParams =
-    CloudParams { texture: "blue_ivy.bmp", tint: YELLOW, base_distance: 4.0, speed: 2.0, mode: FlightMode::HitStop, spark: Some(SPARK_GREEN), blend: BlendKind::Additive };
-pub const ALATTACK4: CloudParams =
-    CloudParams { texture: "blue_ivy.bmp", tint: YELLOW, base_distance: 4.0, speed: 2.0, mode: FlightMode::HitStop, spark: Some(SPARK_YELLOW), blend: BlendKind::Additive };
+pub const ALATTACK1: CloudParams = CloudParams {
+    texture: "blue_ivy.bmp",
+    tint: YELLOW,
+    base_distance: 2.0,
+    speed: 2.0,
+    mode: FlightMode::HitStop,
+    spark: Some(SPARK_WHITE),
+    blend: BlendKind::Additive,
+};
+pub const ALATTACK2: CloudParams = CloudParams {
+    texture: "blue_ivy.bmp",
+    tint: YELLOW,
+    base_distance: 3.0,
+    speed: 2.0,
+    mode: FlightMode::HitStop,
+    spark: Some(SPARK_BLUE),
+    blend: BlendKind::Additive,
+};
+pub const ALATTACK3: CloudParams = CloudParams {
+    texture: "blue_ivy.bmp",
+    tint: YELLOW,
+    base_distance: 4.0,
+    speed: 2.0,
+    mode: FlightMode::HitStop,
+    spark: Some(SPARK_GREEN),
+    blend: BlendKind::Additive,
+};
+pub const ALATTACK4: CloudParams = CloudParams {
+    texture: "blue_ivy.bmp",
+    tint: YELLOW,
+    base_distance: 4.0,
+    speed: 2.0,
+    mode: FlightMode::HitStop,
+    spark: Some(SPARK_YELLOW),
+    blend: BlendKind::Additive,
+};
 
 // 249 Shieldboomerang — white shield, homing return. Source size 7; halved
 // to the gif's ~1-character shield.
-pub const SHIELDBOOMERANG: CloudParams =
-    CloudParams { texture: "shield_boomerang.bmp", tint: WHITE, base_distance: 3.5, speed: 2.0, mode: FlightMode::Homing, spark: None, blend: BlendKind::Alpha };
+pub const SHIELDBOOMERANG: CloudParams = CloudParams {
+    texture: "shield_boomerang.bmp",
+    tint: WHITE,
+    base_distance: 3.5,
+    speed: 2.0,
+    mode: FlightMode::Homing,
+    spark: None,
+    blend: BlendKind::Alpha,
+};
 // 494 Shieldboomerang2 — a thrown axe; the original's "toma" texture is
 // `axe.bmp` in the classic GRF.
-pub const SHIELDBOOMERANG2: CloudParams =
-    CloudParams { texture: "토마.bmp", tint: WHITE, base_distance: 3.5, speed: 2.0, mode: FlightMode::Homing, spark: None, blend: BlendKind::Alpha };
+pub const SHIELDBOOMERANG2: CloudParams = CloudParams {
+    texture: "토마.bmp",
+    tint: WHITE,
+    base_distance: 3.5,
+    speed: 2.0,
+    mode: FlightMode::Homing,
+    spark: None,
+    blend: BlendKind::Alpha,
+};
 // 520 Shieldboomerang3 — 5-shield fan; source size 5, speed 2.5.
-pub const SHIELDBOOMERANG3: CloudParams =
-    CloudParams { texture: "shield_boomerang.bmp", tint: WHITE, base_distance: 2.5, speed: 2.5, mode: FlightMode::StraightFade, spark: None, blend: BlendKind::Alpha };
+pub const SHIELDBOOMERANG3: CloudParams = CloudParams {
+    texture: "shield_boomerang.bmp",
+    tint: WHITE,
+    base_distance: 2.5,
+    speed: 2.5,
+    mode: FlightMode::StraightFade,
+    spark: None,
+    blend: BlendKind::Alpha,
+};
 
 #[derive(Clone, Copy)]
 struct TrailSample {
@@ -215,7 +283,14 @@ struct Projectile {
 }
 
 impl Projectile {
-    fn new(from: [f32; 3], to: [f32; 3], heading_rad: f32, distance: f32, launch_delay_frames: u32, params: CloudParams) -> Self {
+    fn new(
+        from: [f32; 3],
+        to: [f32; 3],
+        heading_rad: f32,
+        distance: f32,
+        launch_delay_frames: u32,
+        params: CloudParams,
+    ) -> Self {
         let dx = to[0] - from[0];
         let dz = to[2] - from[2];
         let max_height = (dx * dx + dz * dz).sqrt().max(1e-3);
@@ -292,7 +367,11 @@ impl Projectile {
             FlightMode::StraightFade => self.tick_straight_fade(),
         }
 
-        self.trail.push(TrailSample { pos: self.pos, angle_deg: self.angle_deg, pulse: self.pulse });
+        self.trail.push(TrailSample {
+            pos: self.pos,
+            angle_deg: self.angle_deg,
+            pulse: self.pulse,
+        });
         if self.trail.len() > 4 {
             self.trail.remove(0);
         }
@@ -410,7 +489,12 @@ impl Projectile {
 
         if self.flying && self.process > 0 {
             for (k, lag) in TRAIL_ALPHA_LAG.iter().enumerate() {
-                if let Some(sample) = self.trail.len().checked_sub(2 + k).and_then(|i| self.trail.get(i)) {
+                if let Some(sample) = self
+                    .trail
+                    .len()
+                    .checked_sub(2 + k)
+                    .and_then(|i| self.trail.get(i))
+                {
                     self.push_quad(out, sample, self.alpha - lag);
                 }
             }
@@ -443,7 +527,9 @@ impl Projectile {
 /// burst looks random (the original picks a random rotation per shield) while
 /// staying reproducible for tests.
 fn spray_heading(k: usize) -> f32 {
-    let mut s = (k as u32).wrapping_mul(2_654_435_761).wrapping_add(0x9E37_79B9);
+    let mut s = (k as u32)
+        .wrapping_mul(2_654_435_761)
+        .wrapping_add(0x9E37_79B9);
     s ^= s >> 15;
     s = s.wrapping_mul(2_246_822_519);
     s ^= s >> 13;
@@ -475,9 +561,17 @@ impl CloudProjectileEffect {
     pub fn new(from: [f32; 3], to: [f32; 3], hit_count: u8, params: CloudParams) -> Self {
         let dx = to[0] - from[0];
         let dz = to[2] - from[2];
-        let heading = if dx * dx + dz * dz > 1e-6 { dx.atan2(dz) } else { 0.0 };
+        let heading = if dx * dx + dz * dz > 1e-6 {
+            dx.atan2(dz)
+        } else {
+            0.0
+        };
         let distance = params.base_distance + hit_count as f32 * 0.4;
-        Self { projectiles: vec![Projectile::new(from, to, heading, distance, 0, params)], global_frame: 0, time_accum: 0.0 }
+        Self {
+            projectiles: vec![Projectile::new(from, to, heading, distance, 0, params)],
+            global_frame: 0,
+            time_accum: 0.0,
+        }
     }
 
     /// 520: [`SPRAY_COUNT`] shields converging on `center` (the impact/target
@@ -493,10 +587,21 @@ impl CloudProjectileEffect {
                 // Start `offset` units away, opposite the travel direction, so
                 // advancing `+heading` carries the shield through the centre.
                 let from = [center[0] - offset * s, center[1], center[2] - offset * c];
-                Projectile::new(from, center, heading, params.base_distance, k as u32 * SPRAY_STAGGER_FRAMES, params)
+                Projectile::new(
+                    from,
+                    center,
+                    heading,
+                    params.base_distance,
+                    k as u32 * SPRAY_STAGGER_FRAMES,
+                    params,
+                )
             })
             .collect();
-        Self { projectiles, global_frame: 0, time_accum: 0.0 }
+        Self {
+            projectiles,
+            global_frame: 0,
+            time_accum: 0.0,
+        }
     }
 
     fn tick(&mut self) {
@@ -537,13 +642,22 @@ mod tests {
     fn step(e: &mut CloudProjectileEffect, frames: u32) -> EffectStatus {
         let mut s = EffectStatus::Running;
         for _ in 0..frames {
-            s = e.update(&EffectUpdateCtx { delta: FRAME_DT, camera_target: None, caster_yaw: None });
+            s = e.update(&EffectUpdateCtx {
+                delta: FRAME_DT,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         s
     }
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn draws(e: &CloudProjectileEffect) -> Vec<([f32; 3], &'static str, [f32; 4])> {
@@ -552,27 +666,45 @@ mod tests {
         list.primitives
             .iter()
             .map(|p| match p {
-                EffectPrimitiveDraw::Billboard { pos, texture, color, .. } => (*pos, *texture, *color),
+                EffectPrimitiveDraw::Billboard {
+                    pos,
+                    texture,
+                    color,
+                    ..
+                } => (*pos, *texture, *color),
                 _ => panic!("cloud projectile only emits Billboard"),
             })
             .collect()
     }
 
     fn orbs(e: &CloudProjectileEffect, tex: &str) -> Vec<([f32; 3], [f32; 4])> {
-        draws(e).into_iter().filter(|(_, t, _)| *t == tex).map(|(p, _, c)| (p, c)).collect()
+        draws(e)
+            .into_iter()
+            .filter(|(_, t, _)| *t == tex)
+            .map(|(p, _, c)| (p, c))
+            .collect()
     }
 
     fn lead(e: &CloudProjectileEffect) -> ([f32; 3], [f32; 4]) {
-        orbs(e, "blue_ivy.bmp").into_iter().max_by(|a, b| a.1[3].total_cmp(&b.1[3])).unwrap()
+        orbs(e, "blue_ivy.bmp")
+            .into_iter()
+            .max_by(|a, b| a.1[3].total_cmp(&b.1[3]))
+            .unwrap()
     }
 
     #[test]
     fn invisible_during_spawn_delay_then_emits_orb() {
         let mut e = CloudProjectileEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 30.0], 0, TANJI);
         step(&mut e, TANJI_SPAWN_DELAY_FRAMES as u32);
-        assert!(orbs(&e, "blue_ivy.bmp").is_empty(), "no orb until the 15-frame delay elapses");
+        assert!(
+            orbs(&e, "blue_ivy.bmp").is_empty(),
+            "no orb until the 15-frame delay elapses"
+        );
         step(&mut e, 1);
-        assert!(lead(&e).0[2] > 0.0, "orb has started flying toward +Z target");
+        assert!(
+            lead(&e).0[2] > 0.0,
+            "orb has started flying toward +Z target"
+        );
     }
 
     #[test]
@@ -591,16 +723,23 @@ mod tests {
     fn tanji2_emits_sparks_but_tanji_does_not() {
         let mut t2 = CloudProjectileEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 40.0], 0, TANJI2);
         step(&mut t2, TANJI_SPAWN_DELAY_FRAMES as u32 + 10);
-        assert!(draws(&t2).iter().any(|(_, t, _)| *t == "emp shock.tga"), "Tanji2 sprays impact sparks");
+        assert!(
+            draws(&t2).iter().any(|(_, t, _)| *t == "emp shock.tga"),
+            "Tanji2 sprays impact sparks"
+        );
 
         let mut t1 = CloudProjectileEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 40.0], 0, TANJI);
         step(&mut t1, TANJI_SPAWN_DELAY_FRAMES as u32 + 10);
-        assert!(!draws(&t1).iter().any(|(_, t, _)| *t == "emp shock.tga"), "Tanji (boomerang) has no sparks");
+        assert!(
+            !draws(&t1).iter().any(|(_, t, _)| *t == "emp shock.tga"),
+            "Tanji (boomerang) has no sparks"
+        );
     }
 
     #[test]
     fn alattack_orb_is_yellow_vs_tanji_blue() {
-        let mut yellow = CloudProjectileEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 40.0], 0, ALATTACK1);
+        let mut yellow =
+            CloudProjectileEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 40.0], 0, ALATTACK1);
         let mut blue = CloudProjectileEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 40.0], 0, TANJI);
         step(&mut yellow, TANJI_SPAWN_DELAY_FRAMES as u32 + 3);
         step(&mut blue, TANJI_SPAWN_DELAY_FRAMES as u32 + 3);
@@ -614,7 +753,8 @@ mod tests {
     fn shieldboomerang_flies_out_then_homes_back_toward_caster() {
         // White shield, no spawn delay. Track xz-distance to the caster (origin):
         // it must grow on the outbound leg, then shrink once homing kicks in.
-        let mut e = CloudProjectileEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 30.0], 0, SHIELDBOOMERANG);
+        let mut e =
+            CloudProjectileEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 30.0], 0, SHIELDBOOMERANG);
         let mut max_d = 0.0_f32;
         let mut returned = false;
         for _ in 0..120 {
@@ -631,7 +771,12 @@ mod tests {
         }
         assert!(max_d > 10.0, "shield flies outward");
         assert!(returned, "shield curves back toward the caster");
-        assert_eq!(draws(&e).iter().all(|(_, t, _)| *t == "shield_boomerang.bmp" || t.is_empty()), true);
+        assert_eq!(
+            draws(&e)
+                .iter()
+                .all(|(_, t, _)| *t == "shield_boomerang.bmp" || t.is_empty()),
+            true
+        );
     }
 
     #[test]
@@ -641,24 +786,41 @@ mod tests {
         let mut e = CloudProjectileEffect::new_spray(center, SHIELDBOOMERANG3);
         assert_eq!(e.projectiles.len(), 5);
         // Each shield starts far out (≈ speed*15) in its own direction.
-        assert!(e.projectiles.iter().all(|p| dist(p) > 30.0), "shields start far out");
+        assert!(
+            e.projectiles.iter().all(|p| dist(p) > 30.0),
+            "shields start far out"
+        );
         let h0 = e.projectiles[0].heading_rad;
-        assert!(e.projectiles.iter().any(|p| (p.heading_rad - h0).abs() > 0.5), "random distinct headings");
+        assert!(
+            e.projectiles
+                .iter()
+                .any(|p| (p.heading_rad - h0).abs() > 0.5),
+            "random distinct headings"
+        );
         let before: Vec<f32> = e.projectiles.iter().map(dist).collect();
         step(&mut e, 2);
         let early = e.projectiles.iter().filter(|p| p.flight_frame > 0).count();
         assert!(early < 5, "later shields are still staggered");
         step(&mut e, 14);
-        assert_eq!(e.projectiles.iter().filter(|p| p.flight_frame > 0).count(), 5, "all launched");
+        assert_eq!(
+            e.projectiles.iter().filter(|p| p.flight_frame > 0).count(),
+            5,
+            "all launched"
+        );
         // The lead shield has moved inward toward the centre.
-        assert!(dist(&e.projectiles[0]) < before[0], "shield flies inward through the centre");
+        assert!(
+            dist(&e.projectiles[0]) < before[0],
+            "shield flies inward through the centre"
+        );
     }
 
     #[test]
     fn terminates_after_flight() {
         for params in [TANJI2, SHIELDBOOMERANG, SHIELDBOOMERANG3] {
             let mut e = match params.mode {
-                FlightMode::StraightFade => CloudProjectileEffect::new_spray([0.0, 0.0, 0.0], params),
+                FlightMode::StraightFade => {
+                    CloudProjectileEffect::new_spray([0.0, 0.0, 0.0], params)
+                }
                 _ => CloudProjectileEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 20.0], 0, params),
             };
             let mut status = EffectStatus::Running;

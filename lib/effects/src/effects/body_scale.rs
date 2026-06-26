@@ -44,27 +44,52 @@ pub struct BodyScaleEffect {
 impl BodyScaleEffect {
     /// `Giantbody` (422) — eases 1.0 → 1.5 over ~45 frames.
     pub fn giant_ramped() -> Self {
-        Self { kind: Kind::Giant, body_sin: 0.0, ramp_per_frame: 1.0, transient: false }
+        Self {
+            kind: Kind::Giant,
+            body_sin: 0.0,
+            ramp_per_frame: 1.0,
+            transient: false,
+        }
     }
 
     /// `Giantbody2` (423) — instant 1.5×.
     pub fn giant_instant() -> Self {
-        Self { kind: Kind::Giant, body_sin: RAMP_FRAMES, ramp_per_frame: 0.0, transient: false }
+        Self {
+            kind: Kind::Giant,
+            body_sin: RAMP_FRAMES,
+            ramp_per_frame: 0.0,
+            transient: false,
+        }
     }
 
     /// `Babybody` (538) — eases 1.0 → 0.5 over ~45 frames.
     pub fn baby_ramped() -> Self {
-        Self { kind: Kind::Baby, body_sin: 0.0, ramp_per_frame: 1.0, transient: false }
+        Self {
+            kind: Kind::Baby,
+            body_sin: 0.0,
+            ramp_per_frame: 1.0,
+            transient: false,
+        }
     }
 
     /// `Babybody2` (539) — instant 0.5×.
     pub fn baby_instant() -> Self {
-        Self { kind: Kind::Baby, body_sin: RAMP_FRAMES, ramp_per_frame: 0.0, transient: false }
+        Self {
+            kind: Kind::Baby,
+            body_sin: RAMP_FRAMES,
+            ramp_per_frame: 0.0,
+            transient: false,
+        }
     }
 
     /// `BabybodyBack` (540) — reverses 0.5 → 1.0 over ~15 frames (`−3`/frame).
     pub fn baby_back() -> Self {
-        Self { kind: Kind::Baby, body_sin: RAMP_FRAMES, ramp_per_frame: -3.0, transient: true }
+        Self {
+            kind: Kind::Baby,
+            body_sin: RAMP_FRAMES,
+            ramp_per_frame: -3.0,
+            transient: true,
+        }
     }
 
     fn ratio(&self) -> f32 {
@@ -108,16 +133,26 @@ mod tests {
     use super::*;
 
     fn step(e: &mut BodyScaleEffect, frames: f32) {
-        e.update(&EffectUpdateCtx { delta: frames / FPS, camera_target: None, caster_yaw: None });
+        e.update(&EffectUpdateCtx {
+            delta: frames / FPS,
+            camera_target: None,
+            caster_yaw: None,
+        });
     }
 
     #[test]
     fn giant_eases_from_one_to_one_and_a_half() {
         let mut e = BodyScaleEffect::giant_ramped();
-        assert!((e.body_scale().unwrap() - 1.0).abs() < 1e-4, "starts at 1.0");
+        assert!(
+            (e.body_scale().unwrap() - 1.0).abs() < 1e-4,
+            "starts at 1.0"
+        );
         step(&mut e, 22.0);
         let mid = e.body_scale().unwrap();
-        assert!(mid > 1.0 && mid < 1.5, "eases through the middle, got {mid}");
+        assert!(
+            mid > 1.0 && mid < 1.5,
+            "eases through the middle, got {mid}"
+        );
         step(&mut e, 30.0); // past the ramp
         assert!((e.body_scale().unwrap() - 1.5).abs() < 1e-3, "reaches 1.5");
     }
@@ -125,28 +160,47 @@ mod tests {
     #[test]
     fn baby_shrinks_from_one_to_one_half_and_instant_is_half() {
         let mut e = BodyScaleEffect::baby_ramped();
-        assert!((e.body_scale().unwrap() - 1.0).abs() < 1e-4, "starts at 1.0");
+        assert!(
+            (e.body_scale().unwrap() - 1.0).abs() < 1e-4,
+            "starts at 1.0"
+        );
         step(&mut e, 22.0);
         let mid = e.body_scale().unwrap();
-        assert!(mid < 1.0 && mid > 0.5, "eases through the middle, got {mid}");
+        assert!(
+            mid < 1.0 && mid > 0.5,
+            "eases through the middle, got {mid}"
+        );
         step(&mut e, 30.0);
         assert!((e.body_scale().unwrap() - 0.5).abs() < 1e-3, "reaches 0.5");
 
         let inst = BodyScaleEffect::baby_instant();
-        assert!((inst.body_scale().unwrap() - 0.5).abs() < 1e-3, "instant baby is 0.5");
+        assert!(
+            (inst.body_scale().unwrap() - 0.5).abs() < 1e-3,
+            "instant baby is 0.5"
+        );
     }
 
     #[test]
     fn baby_back_restores_to_one_then_dies() {
         let mut e = BodyScaleEffect::baby_back();
-        assert!((e.body_scale().unwrap() - 0.5).abs() < 1e-3, "starts shrunk");
+        assert!(
+            (e.body_scale().unwrap() - 0.5).abs() < 1e-3,
+            "starts shrunk"
+        );
         // ~15 frames at -3/frame returns the ease 45 → 0 (ratio 1.0), then ends.
         for _ in 0..20 {
             step(&mut e, 1.0);
         }
-        assert!((e.body_scale().unwrap() - 1.0).abs() < 1e-3, "restored to normal");
+        assert!(
+            (e.body_scale().unwrap() - 1.0).abs() < 1e-3,
+            "restored to normal"
+        );
         assert_eq!(
-            e.update(&EffectUpdateCtx { delta: 0.0, camera_target: None, caster_yaw: None }),
+            e.update(&EffectUpdateCtx {
+                delta: 0.0,
+                camera_target: None,
+                caster_yaw: None
+            }),
             EffectStatus::Dead,
             "the restore is transient",
         );

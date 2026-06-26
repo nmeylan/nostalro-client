@@ -113,7 +113,15 @@ impl Mote {
             return;
         }
         match &mut self.kind {
-            Kind::Sparkle { rise, amp, wx_phase, wx_speed, wz_phase, wz_speed, grow } => {
+            Kind::Sparkle {
+                rise,
+                amp,
+                wx_phase,
+                wx_speed,
+                wz_phase,
+                wz_speed,
+                grow,
+            } => {
                 *wx_phase += *wx_speed;
                 *wz_phase += *wz_speed;
                 // Accumulating sine drift → a random left/right wander.
@@ -164,7 +172,13 @@ pub struct PeongEffect {
 
 impl PeongEffect {
     pub fn new(anchor: [f32; 3]) -> Self {
-        Self { anchor, motes: Vec::new(), age_frames: 0.0, step_accumulator: 0.0, spawned: false }
+        Self {
+            anchor,
+            motes: Vec::new(),
+            age_frames: 0.0,
+            step_accumulator: 0.0,
+            spawned: false,
+        }
     }
 
     fn spawn(&mut self) {
@@ -190,7 +204,11 @@ impl PeongEffect {
             // so the drift wanders rather than oscillating in lockstep.
             let amp = 0.08 * WORLD_SCALE;
             self.motes.push(Mote {
-                pos: [ax + angle.cos() * radius, ay - up, az + angle.sin() * radius],
+                pos: [
+                    ax + angle.cos() * radius,
+                    ay - up,
+                    az + angle.sin() * radius,
+                ],
                 size,
                 alpha: 0.0,
                 process: -rng.int(26),
@@ -222,7 +240,10 @@ impl PeongEffect {
                 // for most of its life and only opens into a ring near the end
                 // — the reference keeps the bloom solid far longer than a fast
                 // expansion would (user: "too fast").
-                let drift = [angle.cos() * 0.05 * WORLD_SCALE, angle.sin() * 0.05 * WORLD_SCALE];
+                let drift = [
+                    angle.cos() * 0.05 * WORLD_SCALE,
+                    angle.sin() * 0.05 * WORLD_SCALE,
+                ];
                 self.motes.push(Mote {
                     pos: [ax + angle.cos() * offset, base_y, az + angle.sin() * offset],
                     size,
@@ -323,12 +344,15 @@ mod tests {
 
     fn draws(e: &PeongEffect) -> Vec<EffectPrimitiveDraw> {
         let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 256.0,
-            screen_h: 256.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut list,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 256.0,
+                screen_h: 256.0,
+                elapsed: 0.0,
+            },
+        );
         list.primitives
     }
 
@@ -381,7 +405,10 @@ mod tests {
         let y_early = sparkle_y_sum(&draws(&e));
         tick(&mut e, 8);
         let y_late = sparkle_y_sum(&draws(&e));
-        assert!(y_late < y_early, "sparkles drift up (native −Y): {y_early} -> {y_late}");
+        assert!(
+            y_late < y_early,
+            "sparkles drift up (native −Y): {y_early} -> {y_late}"
+        );
     }
 
     #[test]
@@ -399,7 +426,11 @@ mod tests {
         let half_second = |dt: f32, steps: u32| {
             let mut e = PeongEffect::new([0.0; 3]);
             for _ in 0..steps {
-                e.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None });
+                e.update(&EffectUpdateCtx {
+                    delta: dt,
+                    camera_target: None,
+                    caster_yaw: None,
+                });
             }
             e.motes.iter().map(|m| m.process).sum::<i32>()
         };

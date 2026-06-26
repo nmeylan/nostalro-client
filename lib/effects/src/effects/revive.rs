@@ -231,7 +231,8 @@ mod tests {
     fn step(e: &mut ReviveEffect, dt: f32) {
         e.update(&EffectUpdateCtx {
             delta: dt,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
     }
 
@@ -298,7 +299,8 @@ mod tests {
         let total_s = TOTAL_DURATION_MS as f32 / 1000.0;
         let s = e.update(&EffectUpdateCtx {
             delta: total_s + 0.5,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         });
         assert!(matches!(s, EffectStatus::Dead));
     }

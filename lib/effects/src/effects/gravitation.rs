@@ -97,7 +97,11 @@ impl GravitationEffect {
                 }
             })
             .collect();
-        Self { spikes, age_frames: 0.0, shake_fired: false }
+        Self {
+            spikes,
+            age_frames: 0.0,
+            shake_fired: false,
+        }
     }
 
     fn alpha(&self) -> f32 {
@@ -131,7 +135,11 @@ impl Effect for GravitationEffect {
             // In/out writhe along the inward direction (the gravitation pull).
             let pulse = (self.age_frames * 0.25 + s.pulse_phase).sin();
             let reach = pulse * 1.2 * WORLD_SCALE;
-            let base = [s.base[0] + s.inward[0] * reach, s.base[1], s.base[2] + s.inward[1] * reach];
+            let base = [
+                s.base[0] + s.inward[0] * reach,
+                s.base[1],
+                s.base[2] + s.inward[1] * reach,
+            ];
             out.push(EffectPrimitiveDraw::QuadHorn {
                 base,
                 size: s.size,
@@ -148,7 +156,10 @@ impl Effect for GravitationEffect {
     fn take_camera_shake(&mut self) -> Option<CameraShake> {
         if !self.shake_fired {
             self.shake_fired = true;
-            Some(CameraShake { amplitude: QUAKE_AMPLITUDE, duration_ms: TOTAL_DURATION_MS })
+            Some(CameraShake {
+                amplitude: QUAKE_AMPLITUDE,
+                duration_ms: TOTAL_DURATION_MS,
+            })
         } else {
             None
         }
@@ -160,11 +171,20 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 256.0, screen_h: 256.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 256.0,
+            screen_h: 256.0,
+            elapsed: 0.0,
+        }
     }
 
     fn step(e: &mut GravitationEffect, frames: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None })
+        e.update(&EffectUpdateCtx {
+            delta: frames / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        })
     }
 
     fn horns(e: &GravitationEffect) -> Vec<([f32; 3], f32, &'static str)> {
@@ -173,9 +193,13 @@ mod tests {
         list.primitives
             .iter()
             .map(|p| match p {
-                EffectPrimitiveDraw::QuadHorn { base, color, texture, blend: BlendKind::Alpha, .. } => {
-                    (*base, color[3], *texture)
-                }
+                EffectPrimitiveDraw::QuadHorn {
+                    base,
+                    color,
+                    texture,
+                    blend: BlendKind::Alpha,
+                    ..
+                } => (*base, color[3], *texture),
                 other => panic!("expected alpha QuadHorn, got {other:?}"),
             })
             .collect()
@@ -187,11 +211,15 @@ mod tests {
         step(&mut e, 8.0);
         let h = horns(&e);
         assert_eq!(h.len(), SPIKE_COUNT, "full shard field");
-        assert!(h.iter().any(|(_, _, t)| *t == STONE), "stone shards present");
+        assert!(
+            h.iter().any(|(_, _, t)| *t == STONE),
+            "stone shards present"
+        );
         assert!(h.iter().any(|(_, _, t)| *t == ICE), "ice shards present");
         // Spread across a disc, not a single point.
         let xs: Vec<f32> = h.iter().map(|(b, _, _)| b[0]).collect();
-        let spread = xs.iter().cloned().fold(f32::MIN, f32::max) - xs.iter().cloned().fold(f32::MAX, f32::min);
+        let spread = xs.iter().cloned().fold(f32::MIN, f32::max)
+            - xs.iter().cloned().fold(f32::MAX, f32::min);
         assert!(spread > 4.0, "shards spread across the field: {spread}");
     }
 

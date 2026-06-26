@@ -14,10 +14,10 @@
 //!     disabled so it never times out); the holder removes it when
 //!     the portal NPC is gone.
 
-use crate::draw::{EffectDrawList, EffectStatus};
-use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use super::heal::{self, HealEffect};
 use super::portal_wind::{self, PortalWindEffect};
+use crate::draw::{EffectDrawList, EffectStatus};
+use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const TEXTURES: &[&str] = &["Magic_Violet.tga", "cloud11.tga"];
 
@@ -80,7 +80,11 @@ mod tests {
     }
 
     fn step(e: &mut BigPortalEffect, frames: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: frames / FPS, camera_target: None, caster_yaw: None })
+        e.update(&EffectUpdateCtx {
+            delta: frames / FPS,
+            camera_target: None,
+            caster_yaw: None,
+        })
     }
 
     fn draws(e: &BigPortalEffect) -> Vec<EffectPrimitiveDraw> {
@@ -116,7 +120,13 @@ mod tests {
         let mut persistent = BigPortalEffect::new_persistent([0.0; 3]);
         let s_finite = step(&mut finite, 1300.0); // > 1200 frame ring life
         let s_persistent = step(&mut persistent, 1300.0);
-        assert!(matches!(s_finite, EffectStatus::Dead), "561 dies by duration");
-        assert!(matches!(s_persistent, EffectStatus::Running), "562 persists");
+        assert!(
+            matches!(s_finite, EffectStatus::Dead),
+            "561 dies by duration"
+        );
+        assert!(
+            matches!(s_persistent, EffectStatus::Running),
+            "562 persists"
+        );
     }
 }

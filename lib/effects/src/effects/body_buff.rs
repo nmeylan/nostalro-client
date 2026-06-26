@@ -125,7 +125,9 @@ impl Effect for BodyBuffEffect {
     }
 
     fn body_tint(&self) -> Option<BodyTint> {
-        Some(BodyTint { rgb: self.params.tint })
+        Some(BodyTint {
+            rgb: self.params.tint,
+        })
     }
 
     fn body_afterimage(&self) -> Option<Afterimage> {
@@ -153,7 +155,8 @@ mod tests {
     fn step(e: &mut BodyBuffEffect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FPS,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -162,7 +165,10 @@ mod tests {
         let mut e = BodyBuffEffect::new(TWOHAND_QUICKEN);
         assert_eq!(e.body_tint().map(|t| t.rgb), Some([200, 200, 0]));
         assert_eq!(e.str_overlay(), Some("twohand"));
-        assert_eq!(e.take_sfx_request(), Some("effect\\knight_twohandquicken.wav"));
+        assert_eq!(
+            e.take_sfx_request(),
+            Some("effect\\knight_twohandquicken.wav")
+        );
         assert_eq!(e.take_sfx_request(), None, "sfx is one-shot");
 
         // Quicken leaves a yellow movement trail; LK Concentration only
@@ -181,7 +187,11 @@ mod tests {
     #[test]
     fn bunsinjyutsu_is_a_blue_tint_with_afterimage_and_no_str_or_sfx() {
         let mut e = BodyBuffEffect::new(BUNSINJYUTSU);
-        assert_eq!(e.body_tint().map(|t| t.rgb), Some([155, 155, 255]), "light-blue tint");
+        assert_eq!(
+            e.body_tint().map(|t| t.rgb),
+            Some([155, 155, 255]),
+            "light-blue tint"
+        );
         let blur = e.body_afterimage().expect("afterimage clones");
         assert_eq!(blur.tint, [155, 155, 255]);
         assert_eq!(e.str_overlay(), None, "no STR overlay");
@@ -192,12 +202,15 @@ mod tests {
     fn emits_no_primitives_and_dies_after_window() {
         let mut e = BodyBuffEffect::new(SPEAR_QUICKEN);
         let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, &EffectRenderCtx {
-            camera: Default::default(),
-            screen_w: 800.0,
-            screen_h: 600.0,
-            elapsed: 0.0,
-        });
+        e.collect_draws(
+            &mut list,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 800.0,
+                screen_h: 600.0,
+                elapsed: 0.0,
+            },
+        );
         assert!(list.primitives.is_empty());
         assert_eq!(step(&mut e, TOTAL_FRAMES + 1.0), EffectStatus::Dead);
     }

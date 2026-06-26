@@ -18,10 +18,9 @@ const HIT2_LIFETIME_FRAMES: f32 = 30.0;
 
 /// Last burst spawns at frame 60; its petals can live up to 30 frames after
 /// that. Round up to give the holder a comfortable margin.
-pub const TOTAL_DURATION_MS: u32 = (((*SPAWN_FRAMES.last().unwrap()
-    + HIT2_LIFETIME_FRAMES) as u32)
-    * 1000)
-    / FRAMES_PER_SECOND as u32;
+pub const TOTAL_DURATION_MS: u32 =
+    (((*SPAWN_FRAMES.last().unwrap() + HIT2_LIFETIME_FRAMES) as u32) * 1000)
+        / FRAMES_PER_SECOND as u32;
 
 pub struct NapalmValcanEffect {
     world_pos: [f32; 3],
@@ -47,8 +46,7 @@ impl Effect for NapalmValcanEffect {
         self.age += ctx.delta;
         let frame = self.age * FRAMES_PER_SECOND;
 
-        while self.next_burst_idx < SPAWN_FRAMES.len()
-            && frame >= SPAWN_FRAMES[self.next_burst_idx]
+        while self.next_burst_idx < SPAWN_FRAMES.len() && frame >= SPAWN_FRAMES[self.next_burst_idx]
         {
             self.bursts.push(Hit2Effect::new(self.world_pos));
             self.next_burst_idx += 1;
@@ -61,7 +59,11 @@ impl Effect for NapalmValcanEffect {
         let dt = ctx.delta;
         self.bursts.retain_mut(|child| {
             !matches!(
-                child.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }),
+                child.update(&EffectUpdateCtx {
+                    delta: dt,
+                    camera_target: None,
+                    caster_yaw: None
+                }),
                 EffectStatus::Dead
             )
         });
@@ -95,7 +97,11 @@ mod tests {
     }
 
     fn step(e: &mut NapalmValcanEffect, dt: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None })
+        e.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        })
     }
 
     #[test]

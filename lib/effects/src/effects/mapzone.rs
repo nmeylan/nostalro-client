@@ -95,8 +95,24 @@ pub struct MapZoneParams {
 /// `EF_MAP_MAGICZONE` (650): two white magic-circle rings + sparkle floor + aura.
 pub const MAP_MAGICZONE: MapZoneParams = MapZoneParams {
     rings: &[
-        GroundRing { texture: "mjin2.tga", distance: 30.0, color_rgb: WHITE, alpha: 200.0 / 255.0, y_lift: -0.5, spin_ccw: false, additive: false },
-        GroundRing { texture: "mjin.tga", distance: 30.0, color_rgb: WHITE, alpha: 50.0 / 255.0, y_lift: -0.4, spin_ccw: false, additive: false },
+        GroundRing {
+            texture: "mjin2.tga",
+            distance: 30.0,
+            color_rgb: WHITE,
+            alpha: 200.0 / 255.0,
+            y_lift: -0.5,
+            spin_ccw: false,
+            additive: false,
+        },
+        GroundRing {
+            texture: "mjin.tga",
+            distance: 30.0,
+            color_rgb: WHITE,
+            alpha: 50.0 / 255.0,
+            y_lift: -0.4,
+            spin_ccw: false,
+            additive: false,
+        },
     ],
     particles: None,
     pika: true,
@@ -106,10 +122,29 @@ pub const MAP_MAGICZONE: MapZoneParams = MapZoneParams {
 /// `EF_MAP_MAGICZONE2` (651): two white rings + white sparkle motes.
 pub const MAP_MAGICZONE2: MapZoneParams = MapZoneParams {
     rings: &[
-        GroundRing { texture: "mjin2.tga", distance: 40.0, color_rgb: WHITE, alpha: 200.0 / 255.0, y_lift: -0.5, spin_ccw: false, additive: false },
-        GroundRing { texture: "mjin.tga", distance: 40.0, color_rgb: WHITE, alpha: 50.0 / 255.0, y_lift: -0.4, spin_ccw: false, additive: false },
+        GroundRing {
+            texture: "mjin2.tga",
+            distance: 40.0,
+            color_rgb: WHITE,
+            alpha: 200.0 / 255.0,
+            y_lift: -0.5,
+            spin_ccw: false,
+            additive: false,
+        },
+        GroundRing {
+            texture: "mjin.tga",
+            distance: 40.0,
+            color_rgb: WHITE,
+            alpha: 50.0 / 255.0,
+            y_lift: -0.4,
+            spin_ccw: false,
+            additive: false,
+        },
     ],
-    particles: Some(ParticleField { texture: "mpa3.tga", color_rgb: WHITE }),
+    particles: Some(ParticleField {
+        texture: "mpa3.tga",
+        color_rgb: WHITE,
+    }),
     pika: false,
     aura: false,
 };
@@ -126,7 +161,10 @@ pub const GLOW4: MapZoneParams = MapZoneParams {
         additive: true,
     }],
     // `Map_Particle(..., F2 = 2)` tints the motes green (155,255,155).
-    particles: Some(ParticleField { texture: "mpa3.tga", color_rgb: [155.0 / 255.0, 1.0, 155.0 / 255.0] }),
+    particles: Some(ParticleField {
+        texture: "mpa3.tga",
+        color_rgb: [155.0 / 255.0, 1.0, 155.0 / 255.0],
+    }),
     pika: false,
     aura: false,
 };
@@ -159,8 +197,12 @@ impl MapZoneEffect {
             params,
             center: world_pos,
             age_frames: 0.0,
-            pika: params.pika.then(|| FloorAuraEffect::new(world_pos, MAP_PIKA)),
-            aura: params.aura.then(|| CastingRingEffect::new(world_pos, MAP_AURA)),
+            pika: params
+                .pika
+                .then(|| FloorAuraEffect::new(world_pos, MAP_PIKA)),
+            aura: params
+                .aura
+                .then(|| CastingRingEffect::new(world_pos, MAP_AURA)),
         }
     }
 
@@ -182,7 +224,11 @@ impl MapZoneEffect {
             let mut corners = [[0.0f32; 3]; 4];
             for (k, corner) in corners.iter_mut().enumerate() {
                 let a = rot + k as f32 * FRAC_PI_2;
-                *corner = [self.center[0] + a.cos() * radius, y, self.center[2] + a.sin() * radius];
+                *corner = [
+                    self.center[0] + a.cos() * radius,
+                    y,
+                    self.center[2] + a.sin() * radius,
+                ];
             }
             let [r, g, b] = ring.color_rgb;
             out.push(EffectPrimitiveDraw::WorldQuad {
@@ -190,7 +236,11 @@ impl MapZoneEffect {
                 uv: UNIT_UV,
                 texture: ring.texture,
                 color: [r, g, b, alpha],
-                blend: if ring.additive { BlendKind::Additive } else { BlendKind::Alpha },
+                blend: if ring.additive {
+                    BlendKind::Additive
+                } else {
+                    BlendKind::Alpha
+                },
                 no_depth: false,
             });
         }
@@ -206,14 +256,19 @@ impl MapZoneEffect {
             let base_h = HEIGHT_MIN + hash01(i, 3) * (HEIGHT_MAX - HEIGHT_MIN);
             let bob = (self.age_frames * BOB_SPEED_DEG_PER_FRAME).to_radians() + hash01(i, 4) * TAU;
             let height = -(base_h + bob.sin() * BOB_AMP);
-            let twinkle_phase = (self.age_frames * TWINKLE_SPEED_DEG_PER_FRAME).to_radians() + hash01(i, 5) * TAU;
+            let twinkle_phase =
+                (self.age_frames * TWINKLE_SPEED_DEG_PER_FRAME).to_radians() + hash01(i, 5) * TAU;
             let twinkle = 0.55 + 0.45 * twinkle_phase.sin();
             let alpha = PARTICLE_PEAK_ALPHA * twinkle * ramp;
             if alpha <= 0.0 {
                 continue;
             }
             out.push(EffectPrimitiveDraw::Billboard {
-                pos: [self.center[0] + theta.cos() * radius, self.center[1] + height, self.center[2] + theta.sin() * radius],
+                pos: [
+                    self.center[0] + theta.cos() * radius,
+                    self.center[1] + height,
+                    self.center[2] + theta.sin() * radius,
+                ],
                 size: [PARTICLE_SIZE, PARTICLE_SIZE],
                 uv: UNIT_UV,
                 rotation: 0.0,
@@ -257,11 +312,20 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 256.0, screen_h: 256.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 256.0,
+            screen_h: 256.0,
+            elapsed: 0.0,
+        }
     }
 
     fn tick(e: &mut MapZoneEffect, frames: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: frames / FPS, camera_target: None, caster_yaw: None })
+        e.update(&EffectUpdateCtx {
+            delta: frames / FPS,
+            camera_target: None,
+            caster_yaw: None,
+        })
     }
 
     fn draws(e: &MapZoneEffect) -> Vec<EffectPrimitiveDraw> {
@@ -273,9 +337,15 @@ mod tests {
     fn count<F: Fn(&EffectPrimitiveDraw) -> bool>(ds: &[EffectPrimitiveDraw], f: F) -> usize {
         ds.iter().filter(|d| f(d)).count()
     }
-    fn is_quad(d: &EffectPrimitiveDraw) -> bool { matches!(d, EffectPrimitiveDraw::WorldQuad { .. }) }
-    fn is_billboard(d: &EffectPrimitiveDraw) -> bool { matches!(d, EffectPrimitiveDraw::Billboard { .. }) }
-    fn is_frustum(d: &EffectPrimitiveDraw) -> bool { matches!(d, EffectPrimitiveDraw::Frustum { .. }) }
+    fn is_quad(d: &EffectPrimitiveDraw) -> bool {
+        matches!(d, EffectPrimitiveDraw::WorldQuad { .. })
+    }
+    fn is_billboard(d: &EffectPrimitiveDraw) -> bool {
+        matches!(d, EffectPrimitiveDraw::Billboard { .. })
+    }
+    fn is_frustum(d: &EffectPrimitiveDraw) -> bool {
+        matches!(d, EffectPrimitiveDraw::Frustum { .. })
+    }
 
     #[test]
     fn magiczone2_emits_two_spinning_ground_rings_and_a_mote_field() {
@@ -283,12 +353,19 @@ mod tests {
         tick(&mut e, FADE_IN_FRAMES);
         let ds = draws(&e);
         assert_eq!(count(&ds, is_quad), 2, "two magic-circle ground rings");
-        assert_eq!(count(&ds, is_billboard), PARTICLE_COUNT as usize, "full mote field");
+        assert_eq!(
+            count(&ds, is_billboard),
+            PARTICLE_COUNT as usize,
+            "full mote field"
+        );
 
         // The ground ring is flat and spins: a corner moves between two times.
         let corner0 = match ds.iter().find(|d| is_quad(d)).unwrap() {
             EffectPrimitiveDraw::WorldQuad { corners, .. } => {
-                assert!(corners.iter().all(|c| (c[1] - corners[0][1]).abs() < 1e-4), "ring is flat");
+                assert!(
+                    corners.iter().all(|c| (c[1] - corners[0][1]).abs() < 1e-4),
+                    "ring is flat"
+                );
                 corners[0]
             }
             _ => unreachable!(),
@@ -310,7 +387,10 @@ mod tests {
         match ring {
             EffectPrimitiveDraw::WorldQuad { color, blend, .. } => {
                 assert_eq!(*blend, BlendKind::Additive);
-                assert!(color[1] > color[0] && color[1] > color[2], "green-dominant ring");
+                assert!(
+                    color[1] > color[0] && color[1] > color[2],
+                    "green-dominant ring"
+                );
             }
             _ => unreachable!(),
         }
@@ -318,7 +398,10 @@ mod tests {
         match mote {
             EffectPrimitiveDraw::Billboard { color, blend, .. } => {
                 assert_eq!(*blend, BlendKind::Additive);
-                assert!(color[1] > color[0] && color[1] > color[2], "green-dominant mote");
+                assert!(
+                    color[1] > color[0] && color[1] > color[2],
+                    "green-dominant mote"
+                );
             }
             _ => unreachable!(),
         }

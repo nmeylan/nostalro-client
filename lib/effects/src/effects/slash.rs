@@ -135,7 +135,11 @@ pub struct SlashEffect {
 
 impl SlashEffect {
     pub fn new(world_pos: [f32; 3], params: SlashParams) -> Self {
-        Self { params, world_pos, age_frames: 0.0 }
+        Self {
+            params,
+            world_pos,
+            age_frames: 0.0,
+        }
     }
 
     fn radius(&self) -> f32 {
@@ -185,7 +189,8 @@ impl Effect for SlashEffect {
             for ec in 0..EMITTERS_PER_SET {
                 let rot_start = base + ec as f32 * 90.0;
                 for i in 0..SLICES {
-                    let angle = (rot_start - SLICE_STEP_DEG + i as f32 * SLICE_STEP_DEG).to_radians();
+                    let angle =
+                        (rot_start - SLICE_STEP_DEG + i as f32 * SLICE_STEP_DEG).to_radians();
                     let (sn, cs) = angle.sin_cos();
                     let mid = i == 1;
                     // Top-edge lift (native −Y up): the middle slice is tallest.
@@ -222,11 +227,20 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn step(e: &mut SlashEffect, frames: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: frames / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None })
+        e.update(&EffectUpdateCtx {
+            delta: frames / FRAMES_PER_SECOND,
+            camera_target: None,
+            caster_yaw: None,
+        })
     }
 
     fn draws(e: &SlashEffect) -> Vec<EffectPrimitiveDraw> {
@@ -237,7 +251,13 @@ mod tests {
 
     fn quad(p: &EffectPrimitiveDraw) -> ([[f32; 3]; 4], [f32; 4]) {
         match p {
-            EffectPrimitiveDraw::WorldQuad { corners, color, texture, blend, .. } => {
+            EffectPrimitiveDraw::WorldQuad {
+                corners,
+                color,
+                texture,
+                blend,
+                ..
+            } => {
                 assert_eq!(*texture, TEXTURE);
                 assert_eq!(*blend, BlendKind::Additive);
                 (*corners, *color)
@@ -266,7 +286,10 @@ mod tests {
         step(&mut e, 6.0);
         let late = quad(&draws(&e)[1]).0;
         let late_out = (late[1][0].powi(2) + late[1][2].powi(2)).sqrt();
-        assert!(late_out > early_out, "blade flies outward: {early_out} -> {late_out}");
+        assert!(
+            late_out > early_out,
+            "blade flies outward: {early_out} -> {late_out}"
+        );
         // Middle slice's outer top is lifted above its outer bottom (native −Y up).
         assert!(late[2][1] < late[1][1], "outer edge rises");
     }
@@ -302,7 +325,10 @@ mod tests {
         step(&mut e, 6.0);
         let late = quad(&draws(&e)[1]).0;
         let late_lift = (late[1][1] - late[2][1]).abs();
-        assert!(late_lift > early_lift, "lift grows in: {early_lift} -> {late_lift}");
+        assert!(
+            late_lift > early_lift,
+            "lift grows in: {early_lift} -> {late_lift}"
+        );
         assert_eq!(draws(&e).len(), 2 * EMITTERS_PER_SET * SLICES);
     }
 
@@ -319,6 +345,9 @@ mod tests {
         let outer0 = quad(&prims[0]).1[3];
         let middle = quad(&prims[1]).1[3];
         let outer2 = quad(&prims[2]).1[3];
-        assert!(middle > outer0 && middle > outer2, "middle slice is the bright one");
+        assert!(
+            middle > outer0 && middle > outer2,
+            "middle slice is the bright one"
+        );
     }
 }

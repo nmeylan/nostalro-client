@@ -81,7 +81,11 @@ const DOME_TINT: [f32; 3] = [250.0 / 255.0, 250.0 / 255.0, 1.0];
 
 impl DomeLayer {
     fn new(world_pos: [f32; 3]) -> Self {
-        Self { world_pos, alpha_b: 0.0, process: 0 }
+        Self {
+            world_pos,
+            alpha_b: 0.0,
+            process: 0,
+        }
     }
 
     fn step(&mut self) {
@@ -134,7 +138,12 @@ pub struct HalfSphereEffect {
 
 impl HalfSphereEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        Self { dome: DomeLayer::new(world_pos), caster_yaw: None, age_frames: 0.0, last_frame: 0 }
+        Self {
+            dome: DomeLayer::new(world_pos),
+            caster_yaw: None,
+            age_frames: 0.0,
+            last_frame: 0,
+        }
     }
 }
 
@@ -176,7 +185,11 @@ struct CometLayer {
 
 impl CometLayer {
     fn new(ec: usize) -> Self {
-        Self { rise_angle_deg: ec as f32 * 45.0, spins: ec < 2, alpha_b: 0.0 }
+        Self {
+            rise_angle_deg: ec as f32 * 45.0,
+            spins: ec < 2,
+            alpha_b: 0.0,
+        }
     }
 
     fn step(&mut self) {
@@ -417,7 +430,13 @@ impl AttackEnergy2Effect {
                 layers.push(RingLayer::new(ec, spawn));
             }
         }
-        Self { world_pos, layers, caster_yaw: None, age_frames: 0.0, last_frame: 0 }
+        Self {
+            world_pos,
+            layers,
+            caster_yaw: None,
+            age_frames: 0.0,
+            last_frame: 0,
+        }
     }
 }
 
@@ -481,12 +500,21 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn step(e: &mut dyn Effect, frames: u32) {
         for _ in 0..frames {
-            e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
     }
 
@@ -504,7 +532,11 @@ mod tests {
         let (arc, a_early) = prims
             .iter()
             .find_map(|p| match p {
-                EffectPrimitiveDraw::Sphere { longitude_arc, color, .. } => Some((*longitude_arc, color[3])),
+                EffectPrimitiveDraw::Sphere {
+                    longitude_arc,
+                    color,
+                    ..
+                } => Some((*longitude_arc, color[3])),
                 _ => None,
             })
             .expect("dome sphere");
@@ -517,7 +549,10 @@ mod tests {
                 _ => None,
             })
             .unwrap();
-        assert!(a_late > a_early, "dome alpha ramps in over the first 50 frames");
+        assert!(
+            a_late > a_early,
+            "dome alpha ramps in over the first 50 frames"
+        );
     }
 
     #[test]
@@ -527,14 +562,21 @@ mod tests {
         let mut e = AttackEnergyEffect::new([0.0, 0.0, 0.0]);
         step(&mut e, 8);
         let prims = draws(&e);
-        let domes = prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::Sphere { .. })).count();
+        let domes = prims
+            .iter()
+            .filter(|p| matches!(p, EffectPrimitiveDraw::Sphere { .. }))
+            .count();
         let quads = prims
             .iter()
             .filter(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { texture, .. } if *texture == "ring_blue.tga"))
             .count();
         assert_eq!(domes, 1, "one dome");
         // 4 layers × 20 segments.
-        assert_eq!(quads, 4 * RING_SEGMENTS, "four comet ribbons of 20 segments");
+        assert_eq!(
+            quads,
+            4 * RING_SEGMENTS,
+            "four comet ribbons of 20 segments"
+        );
     }
 
     #[test]
@@ -546,7 +588,10 @@ mod tests {
         let span_early = vertical_span(&draws(&e));
         step(&mut e, 12);
         let span_late = vertical_span(&draws(&e));
-        assert!(span_late > span_early, "rings expand as height1 grows ({span_early} -> {span_late})");
+        assert!(
+            span_late > span_early,
+            "rings expand as height1 grows ({span_early} -> {span_late})"
+        );
     }
 
     #[test]
@@ -556,16 +601,18 @@ mod tests {
         fn comet_corners(yaw: Option<f32>) -> Vec<[f32; 3]> {
             let mut e = AttackEnergyEffect::new([0.0, 0.0, 0.0]);
             for _ in 0..8 {
-                e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: yaw });
+                e.update(&EffectUpdateCtx {
+                    delta: 1.0 / FRAMES_PER_SECOND,
+                    camera_target: None,
+                    caster_yaw: yaw,
+                });
             }
             draws(&e)
                 .iter()
                 .filter_map(|p| match p {
-                    EffectPrimitiveDraw::WorldQuad { corners, texture, .. }
-                        if *texture == "ring_blue.tga" =>
-                    {
-                        Some(corners[1])
-                    }
+                    EffectPrimitiveDraw::WorldQuad {
+                        corners, texture, ..
+                    } if *texture == "ring_blue.tga" => Some(corners[1]),
                     _ => None,
                 })
                 .collect()

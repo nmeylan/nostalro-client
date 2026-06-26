@@ -179,13 +179,22 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn step(e: &mut CartterEffect, frames: u32) -> EffectStatus {
         let mut s = EffectStatus::Running;
         for _ in 0..frames {
-            s = e.update(&EffectUpdateCtx { delta: 1.0 / FRAMES_PER_SECOND, camera_target: None, caster_yaw: None });
+            s = e.update(&EffectUpdateCtx {
+                delta: 1.0 / FRAMES_PER_SECOND,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
         s
     }
@@ -193,14 +202,20 @@ mod tests {
     fn sparkles(e: &CartterEffect) -> Vec<([f32; 3], f32)> {
         let mut l = EffectDrawList::new();
         e.collect_draws(&mut l, &render_ctx());
-        l.primitives.iter().filter_map(|p| match p {
-            EffectPrimitiveDraw::Billboard { pos, color, .. } => Some((*pos, color[3])),
-            _ => None,
-        }).collect()
+        l.primitives
+            .iter()
+            .filter_map(|p| match p {
+                EffectPrimitiveDraw::Billboard { pos, color, .. } => Some((*pos, color[3])),
+                _ => None,
+            })
+            .collect()
     }
 
     fn spread(s: &[([f32; 3], f32)]) -> f32 {
-        s.iter().map(|(p, _)| (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt()).sum::<f32>() / s.len() as f32
+        s.iter()
+            .map(|(p, _)| (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt())
+            .sum::<f32>()
+            / s.len() as f32
     }
 
     #[test]
@@ -209,7 +224,11 @@ mod tests {
         step(&mut e, 20);
         assert!(sparkles(&e).is_empty(), "no sparkles before frame 30");
         step(&mut e, 12);
-        assert_eq!(sparkles(&e).len(), SPARKLE_COUNT, "all 48 sparkles after frame 30");
+        assert_eq!(
+            sparkles(&e).len(),
+            SPARKLE_COUNT,
+            "all 48 sparkles after frame 30"
+        );
     }
 
     #[test]
@@ -227,7 +246,10 @@ mod tests {
         step(&mut e, 20);
         let late = spread(&sparkles(&e));
         let g2 = late - mid; // 20 frames mostly past decay
-        assert!(g2 < g1, "displacement per frame shrinks after decay: {g1} -> {g2}");
+        assert!(
+            g2 < g1,
+            "displacement per frame shrinks after decay: {g1} -> {g2}"
+        );
     }
 
     #[test]

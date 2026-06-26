@@ -206,7 +206,6 @@ pub fn spr_def(id: EffectId) -> Option<SprDef> {
         // `str_aliases.rs`) and leave SPR routing out for this id, since
         // there is no classic sprite to point at.
 
-
         // Monster effects M01..M13. Each is one billboard held until the
         // duration. Anim speed 4, plays once except M04. M02 is *not*
         // here — it's directional (see `effects/m_ef02.rs`).

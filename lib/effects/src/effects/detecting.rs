@@ -5,9 +5,7 @@
 //! then fades linearly to 0 at frame 57. Additive blend.
 //!
 
-use crate::draw::{
-    BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane,
-};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const DETECTING_TEXTURE: &str = "fashasha.tga";
@@ -51,8 +49,7 @@ impl Effect for DetectingEffect {
         let alpha = if frame < FADE_START_FRAME {
             1.0
         } else {
-            (1.0 - (frame - FADE_START_FRAME) / (TOTAL_FRAMES - FADE_START_FRAME))
-                .clamp(0.0, 1.0)
+            (1.0 - (frame - FADE_START_FRAME) / (TOTAL_FRAMES - FADE_START_FRAME)).clamp(0.0, 1.0)
         };
         out.push(EffectPrimitiveDraw::Texture3D {
             center: self.world_pos,
@@ -84,7 +81,8 @@ mod tests {
         for _ in 0..n {
             s = e.update(&EffectUpdateCtx {
                 delta: 1.0 / FRAMES_PER_SECOND,
-                camera_target: None, caster_yaw: None,
+                camera_target: None,
+                caster_yaw: None,
             });
             if s == EffectStatus::Dead {
                 break;

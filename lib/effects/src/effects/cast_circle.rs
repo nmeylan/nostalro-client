@@ -263,7 +263,7 @@ impl Effect for CastCircleEffect {
             let height = col_sin * max_h;
             if height > 0.0 {
                 out.push(EffectPrimitiveDraw::Frustum {
-                base_alpha: 1.0,
+                    base_alpha: 1.0,
                     base: self.world_pos,
                     bottom_size: col_radius,
                     top_size: col_radius + col_cos * max_h,
@@ -312,10 +312,9 @@ impl Effect for CastCircleEffect {
                 let (sin_rise, cos_rise) = rise_rad.sin_cos();
                 let max_h = self.params.petal_heights[i] * WORLD_SCALE;
                 let distance = self.params.petal_distances[i] * WORLD_SCALE;
-                let offset_rad =
-                    (i as f32) * std::f32::consts::FRAC_PI_2;
+                let offset_rad = (i as f32) * std::f32::consts::FRAC_PI_2;
                 out.push(EffectPrimitiveDraw::Frustum {
-                base_alpha: 1.0,
+                    base_alpha: 1.0,
                     base: self.world_pos,
                     bottom_size: distance,
                     top_size: distance + cos_rise * max_h,
@@ -358,7 +357,11 @@ mod tests {
         let current = c.frame();
         let delta = (target_frame - current) / FRAMES_PER_SECOND;
         if delta > 0.0 {
-            c.update(&EffectUpdateCtx { delta, camera_target: None, caster_yaw: None });
+            c.update(&EffectUpdateCtx {
+                delta,
+                camera_target: None,
+                caster_yaw: None,
+            });
         }
     }
 
@@ -376,7 +379,10 @@ mod tests {
         let prims = collect(&c);
         let columns = prims.iter().filter(|p| is_column(p)).count();
         let petals = prims.iter().filter(|p| is_petal(p)).count();
-        let discs = prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::GroundDisc { .. })).count();
+        let discs = prims
+            .iter()
+            .filter(|p| matches!(p, EffectPrimitiveDraw::GroundDisc { .. }))
+            .count();
         assert_eq!(columns, 1);
         assert_eq!(petals, NUM_PETALS);
         assert_eq!(discs, 1);
@@ -399,38 +405,73 @@ mod tests {
         run_to(&mut c, 30.0);
         let snapshot = |c: &CastCircleEffect| -> Option<([f32; 3], f32)> {
             collect(c).into_iter().find_map(|p| match p {
-                EffectPrimitiveDraw::Frustum { base, rotation, sides, .. }
-                    if sides == PETAL_SIDES => Some((base, rotation)),
+                EffectPrimitiveDraw::Frustum {
+                    base,
+                    rotation,
+                    sides,
+                    ..
+                } if sides == PETAL_SIDES => Some((base, rotation)),
                 _ => None,
             })
         };
         let (base_early, rot_early) = snapshot(&c).expect("flame ring should be emitted");
-        assert!((base_early[0] - caster[0]).abs() < 1e-3, "petal X must equal caster X");
-        assert!((base_early[2] - caster[2]).abs() < 1e-3, "petal Z must equal caster Z");
+        assert!(
+            (base_early[0] - caster[0]).abs() < 1e-3,
+            "petal X must equal caster X"
+        );
+        assert!(
+            (base_early[2] - caster[2]).abs() < 1e-3,
+            "petal Z must equal caster Z"
+        );
         run_to(&mut c, 40.0);
         let (_, rot_later) = snapshot(&c).unwrap();
-        assert!((rot_later - rot_early).abs() > 1e-3,
-            "flame ring rotation should advance over time ({} → {})", rot_early, rot_later);
+        assert!(
+            (rot_later - rot_early).abs() > 1e-3,
+            "flame ring rotation should advance over time ({} → {})",
+            rot_early,
+            rot_later
+        );
     }
 
     #[test]
     fn column_grows_over_growth_window() {
         let mut c = CastCircleEffect::new([0.0; 3], YELLOW);
         let height_of_column = |c: &CastCircleEffect| -> f32 {
-            collect(c).into_iter().find_map(|p| if is_column(&p) {
-                if let EffectPrimitiveDraw::Frustum { height, .. } = p { Some(height) } else { None }
-            } else { None }).unwrap_or(0.0)
+            collect(c)
+                .into_iter()
+                .find_map(|p| {
+                    if is_column(&p) {
+                        if let EffectPrimitiveDraw::Frustum { height, .. } = p {
+                            Some(height)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(0.0)
         };
         run_to(&mut c, 2.0);
         let h_early = height_of_column(&c);
         run_to(&mut c, COLUMN_GROWTH_FRAMES);
         let h_full = height_of_column(&c);
-        assert!(h_full > h_early, "column should grow ({} → {})", h_early, h_full);
-        let expected =
-            COLUMN_RISE_ANGLE_DEG.to_radians().sin() * YELLOW.column_max_height * COLUMN_HEIGHT_SCALE;
-        assert!((h_full - expected).abs() < 1e-3,
+        assert!(
+            h_full > h_early,
+            "column should grow ({} → {})",
+            h_early,
+            h_full
+        );
+        let expected = COLUMN_RISE_ANGLE_DEG.to_radians().sin()
+            * YELLOW.column_max_height
+            * COLUMN_HEIGHT_SCALE;
+        assert!(
+            (h_full - expected).abs() < 1e-3,
             "column should reach full height by frame {}, got {} (expected {})",
-            COLUMN_GROWTH_FRAMES, h_full, expected);
+            COLUMN_GROWTH_FRAMES,
+            h_full,
+            expected
+        );
     }
 
     #[test]
@@ -455,8 +496,19 @@ mod tests {
     #[test]
     fn every_variant_has_a_real_texture() {
         for params in [
-            YELLOW, WATER, FIRE, WIND, EARTH, HOLY, POISON, RED, WHITE, N_BLUE,
-            DARK, FLAME, EARTH_BROWN,
+            YELLOW,
+            WATER,
+            FIRE,
+            WIND,
+            EARTH,
+            HOLY,
+            POISON,
+            RED,
+            WHITE,
+            N_BLUE,
+            DARK,
+            FLAME,
+            EARTH_BROWN,
         ] {
             assert!(!params.texture.is_empty());
             assert!(TEXTURES.contains(&params.texture));
@@ -468,7 +520,14 @@ mod tests {
     fn never_self_terminates() {
         let mut c = CastCircleEffect::new([0.0; 3], YELLOW);
         for _ in 0..200 {
-            assert_eq!(c.update(&EffectUpdateCtx { delta: 0.1, camera_target: None, caster_yaw: None }), EffectStatus::Running);
+            assert_eq!(
+                c.update(&EffectUpdateCtx {
+                    delta: 0.1,
+                    camera_target: None,
+                    caster_yaw: None
+                }),
+                EffectStatus::Running
+            );
         }
     }
 }

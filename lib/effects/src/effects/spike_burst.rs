@@ -94,17 +94,14 @@ impl Spike {
         // Integrate v(N) = v0 + accel * N with accel = -v0/duration/1.5.
         // Position = v0*N + accel*N*(N+1)/2.
         let accel = -self.angular_speed_rad_per_frame / duration_frames / 1.5;
-        let travel =
-            self.angular_speed_rad_per_frame * frame + accel * frame * (frame + 1.0) / 2.0;
+        let travel = self.angular_speed_rad_per_frame * frame + accel * frame * (frame + 1.0) / 2.0;
         self.initial_longitude_rad + travel
     }
 
     fn length(&self, frame: f32, change: Option<ChangeGrowth>) -> f32 {
         match (change, self.change_growth_per_frame) {
             (Some(c), Some(post)) if frame > c.at_frame => {
-                self.length_init
-                    + self.growth_per_frame * c.at_frame
-                    + post * (frame - c.at_frame)
+                self.length_init + self.growth_per_frame * c.at_frame + post * (frame - c.at_frame)
             }
             _ => self.length_init + self.growth_per_frame * frame,
         }
@@ -139,8 +136,8 @@ impl SpikeBurst {
                 + lcg() * (params.angular_speed_deg_range.1 - params.angular_speed_deg_range.0);
             let length_init = params.length_init_range.0
                 + lcg() * (params.length_init_range.1 - params.length_init_range.0);
-            let growth = params.growth_range.0
-                + lcg() * (params.growth_range.1 - params.growth_range.0);
+            let growth =
+                params.growth_range.0 + lcg() * (params.growth_range.1 - params.growth_range.0);
             let change_growth = params
                 .change_growth
                 .map(|c| c.growth_range.0 + lcg() * (c.growth_range.1 - c.growth_range.0));
@@ -228,13 +225,7 @@ impl SpikeBurst {
 
 /// Linear fade-in to `peak` over `fade_in` frames, hold, linear fade-out
 /// from `fade_out_start` to `total`.
-pub fn fade_in_out(
-    frame: f32,
-    peak: f32,
-    fade_in: f32,
-    fade_out_start: f32,
-    total: f32,
-) -> f32 {
+pub fn fade_in_out(frame: f32, peak: f32, fade_in: f32, fade_out_start: f32, total: f32) -> f32 {
     let rise = (frame / fade_in.max(1e-3)).clamp(0.0, 1.0);
     let fall = if frame < fade_out_start {
         1.0
@@ -305,11 +296,9 @@ mod tests {
             0xDEAD_BEEF,
         );
         burst.tick(40.0 / FRAMES_PER_SECOND);
-        let mid =
-            burst.spikes[0].length(burst.age_frames(), burst.params.change_growth);
+        let mid = burst.spikes[0].length(burst.age_frames(), burst.params.change_growth);
         burst.tick(40.0 / FRAMES_PER_SECOND);
-        let late =
-            burst.spikes[0].length(burst.age_frames(), burst.params.change_growth);
+        let late = burst.spikes[0].length(burst.age_frames(), burst.params.change_growth);
         // 40 * 0.5 = 20 at frame 40; +40 * 0.05 = +2 at frame 80.
         assert!((mid - 20.0).abs() < 1e-3, "mid {mid}");
         assert!((late - 22.0).abs() < 1e-3, "late {late}");

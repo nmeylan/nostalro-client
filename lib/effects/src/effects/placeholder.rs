@@ -101,7 +101,14 @@ mod tests {
     #[test]
     fn placeholder_emits_one_billboard() {
         let mut e = PlaceholderEffect::new([10.0, 0.0, 20.0]);
-        assert_eq!(e.update(&EffectUpdateCtx { delta: 0.016, camera_target: None, caster_yaw: None }), EffectStatus::Running);
+        assert_eq!(
+            e.update(&EffectUpdateCtx {
+                delta: 0.016,
+                camera_target: None,
+                caster_yaw: None
+            }),
+            EffectStatus::Running
+        );
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         assert_eq!(list.primitives.len(), 1);
@@ -110,10 +117,7 @@ mod tests {
 
     #[test]
     fn hybrid_placeholder_renders_pink_and_declares_str_overlay() {
-        let e = HybridPlaceholderEffect::new(
-            [0.0; 3],
-            "stormgust",
-        );
+        let e = HybridPlaceholderEffect::new([0.0; 3], "stormgust");
         assert_eq!(e.str_overlay(), Some("stormgust"));
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());

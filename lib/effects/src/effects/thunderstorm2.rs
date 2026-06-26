@@ -74,7 +74,10 @@ pub struct Thunderstorm2Effect {
 
 impl Thunderstorm2Effect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        Self { world_pos, age: 0.0 }
+        Self {
+            world_pos,
+            age: 0.0,
+        }
     }
 
     fn age_frames(&self) -> f32 {
@@ -142,7 +145,11 @@ impl Effect for Thunderstorm2Effect {
         // Stacked bolt: middle segment rises from the impact, top segment caps
         // it. Native RO `-Y = up`, so each segment's center is half a side above
         // its base.
-        bolt(out, y - BOLT_SIZE * 0.5, MIDDLE_TEXTURES[self.middle_index()]);
+        bolt(
+            out,
+            y - BOLT_SIZE * 0.5,
+            MIDDLE_TEXTURES[self.middle_index()],
+        );
         bolt(out, y - BOLT_SIZE * 1.5, TOP_TEXTURE);
     }
 }
@@ -167,7 +174,11 @@ mod tests {
     }
 
     fn step(e: &mut Thunderstorm2Effect, dt: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None })
+        e.update(&EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        })
     }
 
     #[test]

@@ -16,9 +16,7 @@
 //!   * Portal2 (`F1=0`) — violet heal ring + blue portal ring, size 4
 //!   * Portal3 (`F1=3`) — red heal ring + red portal ring, size 10, CALLPARTNER
 
-use crate::draw::{
-    BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode,
-};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 /// GRF textures referenced across both Portal2 and Portal3.
@@ -361,7 +359,13 @@ impl Effect for Portal2Effect {
         // cos*height); height = sin*h is small (a few units of vertical
         // lean). Y offset -2 for max_height==6.001.
         for s in &self.portal {
-            push_portal_slot_draw(out, self.world_pos, s, self.cfg.portal_texture, self.cfg.color_rgb);
+            push_portal_slot_draw(
+                out,
+                self.world_pos,
+                s,
+                self.cfg.portal_texture,
+                self.cfg.color_rgb,
+            );
         }
     }
 }
@@ -389,7 +393,7 @@ fn push_portal_slot_draw(
     let vert = sin_rise * h_now;
     let base = [world_pos[0], world_pos[1] + PORTAL_VY_OFFSET, world_pos[2]];
     out.push(EffectPrimitiveDraw::Frustum {
-                base_alpha: 1.0,
+        base_alpha: 1.0,
         base,
         bottom_size: bottom,
         top_size: top,
@@ -477,7 +481,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -646,6 +654,10 @@ mod tests {
         for _ in 0..130 {
             status = e.update(&ctx(1.0 / 60.0));
         }
-        assert_eq!(status, EffectStatus::Dead, "dies at the 2 s parent duration");
+        assert_eq!(
+            status,
+            EffectStatus::Dead,
+            "dies at the 2 s parent duration"
+        );
     }
 }

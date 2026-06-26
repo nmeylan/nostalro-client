@@ -51,16 +51,28 @@ pub struct TargetSkillEffects {
 
 impl CasterSkillEffects {
     const fn cast(cast: &'static [EffectId]) -> Self {
-        Self { cast, hide_cast_bar: false, hide_cast_aura: false }
+        Self {
+            cast,
+            hide_cast_bar: false,
+            hide_cast_aura: false,
+        }
     }
 }
 
 impl TargetSkillEffects {
     const fn on_target(on_target: &'static [EffectId]) -> Self {
-        Self { on_target, before_hit: &[], hit: &[] }
+        Self {
+            on_target,
+            before_hit: &[],
+            hit: &[],
+        }
     }
     const fn hit(hit: &'static [EffectId]) -> Self {
-        Self { on_target: &[], before_hit: &[], hit }
+        Self {
+            on_target: &[],
+            before_hit: &[],
+            hit,
+        }
     }
 }
 
@@ -173,7 +185,7 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
     match skill {
         // Generic skill-begin spark for physical attack skills with no
         // signature cast glyph (Double Strafe, Mammonite, …).
-         S::AcDouble
+        S::AcDouble
         | S::McMammonite
         | S::HtPower
         | S::HtPhantasmic
@@ -282,9 +294,7 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
 
         // Sage element-change skills — colored by their element. The Ninja
         // element spells share the same colored begin glyphs (water/fire/wind).
-        S::SaElementwater | S::NjHyousensou | S::NjHyousyouraku | S::NjSuiton => {
-            &[E::Beginspell2]
-        }
+        S::SaElementwater | S::NjHyousensou | S::NjHyousyouraku | S::NjSuiton => &[E::Beginspell2],
         S::SaElementfire | S::NjKouenka | S::NjBakuenryu | S::NjKaensin => &[E::Beginspell3],
         S::SaElementground => &[E::Beginspell4],
         S::SaElementwind | S::NjHuujin | S::NjKamaitachi | S::NjRaigekisai => &[E::Beginspell5],
@@ -304,9 +314,7 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
         | S::BaPangvoice => &[E::Beginspell6],
 
         // Poison / dark begin circle.
-        S::AsSplasher | S::StPreserve | S::AscBreaker | S::AscMeteorassault => {
-            &[E::Beginspell7]
-        }
+        S::AsSplasher | S::StPreserve | S::AscBreaker | S::AscMeteorassault => &[E::Beginspell7],
 
         S::AlDemonbane => &[E::Beginspellwhite],
         S::AcConcentration => &[E::Incagidex],
@@ -619,23 +627,45 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         // --- Swordman / Mage / Acolyte / Merchant / Thief (first job) ----
         S::SmMagnum => T::hit(&[E::Firehit]),
         S::SmProvoke => T::on_target(&[E::Provoke]),
-        S::MgSoulstrike => T { before_hit: &[E::Soulstrike], ..Default::default() },
-        S::MgFirebolt => T { on_target: &[E::Firearrow], hit: &[E::Firehit], ..Default::default() },
-        S::MgFireball => T { on_target: &[E::Fireball], hit: &[E::Firehit], ..Default::default() },
-        S::MgColdbolt => T { on_target: &[E::Icearrow], hit: &[E::Coldhit], ..Default::default() },
-        S::MgLightningbolt => {
-            T { on_target: &[E::Lightbolt], hit: &[E::Windhit], ..Default::default() }
-        }
+        S::MgSoulstrike => T {
+            before_hit: &[E::Soulstrike],
+            ..Default::default()
+        },
+        S::MgFirebolt => T {
+            on_target: &[E::Firearrow],
+            hit: &[E::Firehit],
+            ..Default::default()
+        },
+        S::MgFireball => T {
+            on_target: &[E::Fireball],
+            hit: &[E::Firehit],
+            ..Default::default()
+        },
+        S::MgColdbolt => T {
+            on_target: &[E::Icearrow],
+            hit: &[E::Coldhit],
+            ..Default::default()
+        },
+        S::MgLightningbolt => T {
+            on_target: &[E::Lightbolt],
+            hit: &[E::Windhit],
+            ..Default::default()
+        },
         // Frost Diver's ice spikes travel the caster→target line (effect 27 is
         // a projectile trail, not an on-target burst), so it rides the
         // `before_hit` trail slot to get real endpoints; the freeze burst
         // (28) lands on the target.
-        S::MgFrostdiver => {
-            T { before_hit: &[E::Frostdiver], on_target: &[E::Frostdiver2], hit: &[E::Coldhit], ..Default::default() }
-        }
-        S::MgStonecurse => {
-            T { on_target: &[E::Stonecurse], hit: &[E::Stonecurse], ..Default::default() }
-        }
+        S::MgFrostdiver => T {
+            before_hit: &[E::Frostdiver],
+            on_target: &[E::Frostdiver2],
+            hit: &[E::Coldhit],
+            ..Default::default()
+        },
+        S::MgStonecurse => T {
+            on_target: &[E::Stonecurse],
+            hit: &[E::Stonecurse],
+            ..Default::default()
+        },
         S::MgThunderstorm => T::on_target(&[E::Thunderstorm]),
         S::AlDemonbane => T::on_target(&[E::Tanji2]),
         S::AlHeal => T::on_target(&[E::Heal3]),
@@ -652,39 +682,75 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
 
         // --- Knight / Priest / Wizard / Blacksmith / Hunter / Assassin ---
         S::KnPierce => T::hit(&[E::Pierce]),
-        S::KnSpearstab => T { on_target: &[E::Spearstabself], hit: &[E::Pierce], ..Default::default() },
-        S::KnSpearboomerang => {
-            T { on_target: &[E::Spearbmr], hit: &[E::Hit4], ..Default::default() }
-        }
+        S::KnSpearstab => T {
+            on_target: &[E::Spearstabself],
+            hit: &[E::Pierce],
+            ..Default::default()
+        },
+        S::KnSpearboomerang => T {
+            on_target: &[E::Spearbmr],
+            hit: &[E::Hit4],
+            ..Default::default()
+        },
         S::KnBowlingbash => T::hit(&[E::Bowlingbash]),
         S::KnBrandishspear => T::on_target(&[E::Brandishspear]),
-        S::PrImpositio => T { on_target: &[E::Impositio], hit: &[E::Impositio], ..Default::default() },
-        S::PrSuffragium => {
-            T { on_target: &[E::Suffragium], hit: &[E::Suffragium], ..Default::default() }
-        }
-        S::PrAspersio => T { on_target: &[E::Aspersio], hit: &[E::Holyhit], ..Default::default() },
-        S::PrTurnundead => T { on_target: &[E::Turnundead], hit: &[E::Holyhit], ..Default::default() },
+        S::PrImpositio => T {
+            on_target: &[E::Impositio],
+            hit: &[E::Impositio],
+            ..Default::default()
+        },
+        S::PrSuffragium => T {
+            on_target: &[E::Suffragium],
+            hit: &[E::Suffragium],
+            ..Default::default()
+        },
+        S::PrAspersio => T {
+            on_target: &[E::Aspersio],
+            hit: &[E::Holyhit],
+            ..Default::default()
+        },
+        S::PrTurnundead => T {
+            on_target: &[E::Turnundead],
+            hit: &[E::Holyhit],
+            ..Default::default()
+        },
         S::PrMagnus => T::hit(&[E::Holyhit]),
         S::PrMagnificat | S::MerMagnificat => T::hit(&[E::Magnificat]),
         S::PrGloria => T::hit(&[E::Gloria]),
-        S::PrLexdivina => T { on_target: &[E::Lexdivina], hit: &[E::Lexdivina], ..Default::default() },
-        S::PrLexaeterna => {
-            T { on_target: &[E::Lexaeterna], hit: &[E::Lexaeterna], ..Default::default() }
-        }
+        S::PrLexdivina => T {
+            on_target: &[E::Lexdivina],
+            hit: &[E::Lexdivina],
+            ..Default::default()
+        },
+        S::PrLexaeterna => T {
+            on_target: &[E::Lexaeterna],
+            hit: &[E::Lexaeterna],
+            ..Default::default()
+        },
         S::PrSlowpoison => T::on_target(&[E::Slowpoison]),
         S::PrStrecovery => T::on_target(&[E::Recovery]),
         // Keep only the cast burst; the white glow is the persistent EFST status.
         S::HpAssumptio | S::CashAssumptio => T::on_target(&[E::Assumptio2]),
         S::WzFirepillar => T::hit(&[E::Firehit]),
         S::WzSightrasher => T::hit(&[E::Firehit]),
-        S::WzJupitel => T { on_target: &[E::Yufitel], hit: &[E::Yufitelhit], ..Default::default() },
+        S::WzJupitel => T {
+            on_target: &[E::Yufitel],
+            hit: &[E::Yufitelhit],
+            ..Default::default()
+        },
         S::WzStormgust => T::hit(&[E::Coldhit]),
         S::WzMeteor => T::hit(&[E::Firehit]),
         S::WzVermilion => T::hit(&[E::Windhit]),
-        S::WzFrostnova => {
-            T { on_target: &[E::Frostdiver2], hit: &[E::Frostdiver2], ..Default::default() }
-        }
-        S::WzEarthspike => T { on_target: &[E::Earthspike], hit: &[E::Earthhit], ..Default::default() },
+        S::WzFrostnova => T {
+            on_target: &[E::Frostdiver2],
+            hit: &[E::Frostdiver2],
+            ..Default::default()
+        },
+        S::WzEarthspike => T {
+            on_target: &[E::Earthspike],
+            hit: &[E::Earthhit],
+            ..Default::default()
+        },
         S::WzHeavendrive => T::hit(&[E::Earthhit]),
         S::WzQuagmire => T::hit(&[E::Earthhit]),
         S::WzWaterball => T::on_target(&[E::Waterball2]),
@@ -693,8 +759,16 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::BsWeaponperfect => T::on_target(&[E::Perfection]),
         S::HtSkidtrap => T::hit(&[E::Bowlingbash]),
         S::HtBlitzbeat => T::hit(&[E::Blitzbeat]),
-        S::AsSonicblow => T { on_target: &[E::Sonicblow], hit: &[E::Sonicblowhit], ..Default::default() },
-        S::AsGrimtooth => T { on_target: &[E::Grimtooth], hit: &[E::Grimtoothatk], ..Default::default() },
+        S::AsSonicblow => T {
+            on_target: &[E::Sonicblow],
+            hit: &[E::Sonicblowhit],
+            ..Default::default()
+        },
+        S::AsGrimtooth => T {
+            on_target: &[E::Grimtooth],
+            hit: &[E::Grimtoothatk],
+            ..Default::default()
+        },
         S::AsVenomdust => T::hit(&[E::Venomdust]),
         S::AsEnchantpoison => T::on_target(&[E::EnchantpoisonFlow]),
         S::AsPoisonreact => T::on_target(&[E::Poisonreact]),
@@ -728,7 +802,11 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::CrFullprotection => T::on_target(&[E::Chemicalprotection, E::Chemicalbody]),
         S::PaShieldchain => T::on_target(&[E::Shieldboomerang3]),
         S::PaPressure => T::on_target(&[E::Pressure]),
-        S::LkSpiralpierce => T { on_target: &[E::Magnum2], hit: &[E::Pierce], ..Default::default() },
+        S::LkSpiralpierce => T {
+            on_target: &[E::Magnum2],
+            hit: &[E::Pierce],
+            ..Default::default()
+        },
         S::WsCarttermination => T::on_target(&[E::Cartter]),
 
         // --- Rogue / Stalker ----------------------------------------------
@@ -745,9 +823,11 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         // --- Sniper / Gypsy-Clown -----------------------------------------
         // The original shows the generic HIT1 ring alongside the Blitz-beat
         // spark (its `atkedEfId` stays the default EF_HIT1).
-        S::SnFalconassault => {
-            T { on_target: &[E::Falconassault], hit: &[E::Hit1, E::Blitzbeat], ..Default::default() }
-        }
+        S::SnFalconassault => T {
+            on_target: &[E::Falconassault],
+            hit: &[E::Hit1, E::Blitzbeat],
+            ..Default::default()
+        },
         S::CgTarotcard => T::on_target(&[E::Chemicalbody]),
         // Sharp Shooting / Arrow Vulcan pose their volley burst at the target.
         S::SnSharpshooting => T::on_target(&[E::Tripleattack2]),
@@ -783,8 +863,16 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::TkJumpkick => T::on_target(&[E::Chemical3, E::Quakebody2]),
         // The card burst (Stin / Stin3) is posed at the target by the original
         // game; the body shake stays on the target too.
-        S::SlStin => T { on_target: &[E::Stin, E::Quakebody3], hit: &[E::BlueHit], ..Default::default() },
-        S::SlStun => T { on_target: &[E::Stin3, E::Hitline4], hit: &[E::BlueHit], ..Default::default() },
+        S::SlStin => T {
+            on_target: &[E::Stin, E::Quakebody3],
+            hit: &[E::BlueHit],
+            ..Default::default()
+        },
+        S::SlStun => T {
+            on_target: &[E::Stin3, E::Hitline4],
+            hit: &[E::BlueHit],
+            ..Default::default()
+        },
         S::SlSma => T::on_target(&[E::Ef4waybody, E::Hitline6, E::Hittexture]),
         S::SlSwoo => T::on_target(&[E::Babybody, E::M07]),
         S::SlSke => T::on_target(&[E::AsurabodyMonster]),
@@ -813,8 +901,16 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::GsTripleaction => T::on_target(&[E::Tripleaction]),
         S::GsBullseye => T::on_target(&[E::Bullseye]),
         S::GsDisarm => T::on_target(&[E::RgCoin3]),
-        S::NjKouenka => T { on_target: &[E::Kouenka], hit: &[E::Firehit], ..Default::default() },
-        S::NjHyousensou => T { on_target: &[E::Hyousensou], hit: &[E::Coldhit], ..Default::default() },
+        S::NjKouenka => T {
+            on_target: &[E::Kouenka],
+            hit: &[E::Firehit],
+            ..Default::default()
+        },
+        S::NjHyousensou => T {
+            on_target: &[E::Hyousensou],
+            hit: &[E::Coldhit],
+            ..Default::default()
+        },
         S::NjKirikage => T::on_target(&[E::Kirikage]),
         S::NjKasumikiri => T::on_target(&[E::Kasumikiri]),
         S::NjIssen => T::on_target(&[E::Issen]),
@@ -825,7 +921,11 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::HfliSbr44 => T::on_target(&[E::Hflimoon3, E::Ef4waybody]),
         S::WeFemale => T::on_target(&[E::Absorbspirits]),
         S::WeBaby => T::on_target(&[E::Baby]),
-        S::AllResurrection => T { on_target: &[E::Resurrection], hit: &[E::Revive], ..Default::default() },
+        S::AllResurrection => T {
+            on_target: &[E::Resurrection],
+            hit: &[E::Revive],
+            ..Default::default()
+        },
         S::AllPartyflee => T::on_target(&[E::Flowerleaf]),
 
         _ => T::default(),
@@ -946,10 +1046,22 @@ mod tests {
         // neutral circle, Sage element skills the colored ones, and signature
         // skills their own glyph. Skills that hide their cast aura suppress it
         // at the call site, so the slot data must still carry the flag.
-        assert_eq!(begin_cast_effect(SkillEnum::MgFirebolt), &[EffectId::Beginspell]);
-        assert_eq!(begin_cast_effect(SkillEnum::SaElementwater), &[EffectId::Beginspell2]);
-        assert_eq!(begin_cast_effect(SkillEnum::HpAssumptio), &[EffectId::Beginspell6]);
-        assert_eq!(begin_cast_effect(SkillEnum::MoExtremityfist), &[EffectId::Beginasura]);
+        assert_eq!(
+            begin_cast_effect(SkillEnum::MgFirebolt),
+            &[EffectId::Beginspell]
+        );
+        assert_eq!(
+            begin_cast_effect(SkillEnum::SaElementwater),
+            &[EffectId::Beginspell2]
+        );
+        assert_eq!(
+            begin_cast_effect(SkillEnum::HpAssumptio),
+            &[EffectId::Beginspell6]
+        );
+        assert_eq!(
+            begin_cast_effect(SkillEnum::MoExtremityfist),
+            &[EffectId::Beginasura]
+        );
         assert!(begin_cast_effect(SkillEnum::MoBodyrelocation).is_empty());
         assert!(caster_skill_effects(SkillEnum::KnBowlingbash).hide_cast_aura);
     }
@@ -964,7 +1076,10 @@ mod tests {
             &[EffectId::Piercebody]
         );
         assert!(caster_skill_effects(SkillEnum::LkSpiralpierce).hide_cast_aura);
-        assert!(!is_cast_circle(EffectId::Piercebody), "body flash is not a circle");
+        assert!(
+            !is_cast_circle(EffectId::Piercebody),
+            "body flash is not a circle"
+        );
         // The cast-circle family is still recognised so the aura gate suppresses it.
         assert!(is_cast_circle(EffectId::Beginspell));
         assert!(is_cast_circle(EffectId::Beginspell6));
@@ -977,8 +1092,14 @@ mod tests {
         // moment (the execution path), not from the cast bar. Brandish hides its
         // cast bar/aura, so its glyph must NOT live in begin_cast_effect (which the
         // aura gate would suppress) — it belongs in the fire-glyph slot instead.
-        assert_eq!(fire_glyph_effect(SkillEnum::KnBrandishspear), &[EffectId::Brandish2]);
-        assert_eq!(fire_glyph_effect(SkillEnum::AcChargearrow), &[EffectId::Bash]);
+        assert_eq!(
+            fire_glyph_effect(SkillEnum::KnBrandishspear),
+            &[EffectId::Brandish2]
+        );
+        assert_eq!(
+            fire_glyph_effect(SkillEnum::AcChargearrow),
+            &[EffectId::Bash]
+        );
         assert!(begin_cast_effect(SkillEnum::KnBrandishspear).is_empty());
         assert!(caster_skill_effects(SkillEnum::KnBrandishspear).hide_cast_aura);
         // Skills without an execution glyph keep the empty default.
@@ -1078,12 +1199,28 @@ mod tests {
 
         // Chain Crush is the reverse move: the shockwave belongs on the caster,
         // and only the recolor stays on the target.
-        assert!(caster_skill_effects(S::ChChaincrush).cast.contains(&E::Gumgang3));
-        assert!(!target_skill_effects(S::ChChaincrush).on_target.contains(&E::Gumgang3));
-        assert!(target_skill_effects(S::ChChaincrush).on_target.contains(&E::Chemical2));
+        assert!(
+            caster_skill_effects(S::ChChaincrush)
+                .cast
+                .contains(&E::Gumgang3)
+        );
+        assert!(
+            !target_skill_effects(S::ChChaincrush)
+                .on_target
+                .contains(&E::Gumgang3)
+        );
+        assert!(
+            target_skill_effects(S::ChChaincrush)
+                .on_target
+                .contains(&E::Chemical2)
+        );
 
         // The caster-side companions of moved specials stay put.
-        assert!(caster_skill_effects(S::TkJumpkick).cast.contains(&E::Jumpkick));
+        assert!(
+            caster_skill_effects(S::TkJumpkick)
+                .cast
+                .contains(&E::Jumpkick)
+        );
     }
 
     #[test]
@@ -1129,13 +1266,28 @@ mod tests {
         use EffectId as E;
         // Pure AoE ground skills place their signature visual at the cell
         // (the original's `Am_Groundskill` switch), not the caster `cast` slot.
-        assert_eq!(ground_placed_effect(SkillEnum::WzStormgust, 10), &[E::Stormgust]);
-        assert_eq!(ground_placed_effect(SkillEnum::WzMeteor, 10), &[E::Meteorstorm]);
+        assert_eq!(
+            ground_placed_effect(SkillEnum::WzStormgust, 10),
+            &[E::Stormgust]
+        );
+        assert_eq!(
+            ground_placed_effect(SkillEnum::WzMeteor, 10),
+            &[E::Meteorstorm]
+        );
         assert_eq!(ground_placed_effect(SkillEnum::WzVermilion, 10), &[E::Lord]);
-        assert_eq!(ground_placed_effect(SkillEnum::MgThunderstorm, 10), &[E::Thunderstorm]);
+        assert_eq!(
+            ground_placed_effect(SkillEnum::MgThunderstorm, 10),
+            &[E::Thunderstorm]
+        );
         // Slim Pitcher tiers by level.
-        assert_eq!(ground_placed_effect(SkillEnum::CrSlimpitcher, 1), &[E::Slim]);
-        assert_eq!(ground_placed_effect(SkillEnum::CrSlimpitcher, 10), &[E::Slim3]);
+        assert_eq!(
+            ground_placed_effect(SkillEnum::CrSlimpitcher, 1),
+            &[E::Slim]
+        );
+        assert_eq!(
+            ground_placed_effect(SkillEnum::CrSlimpitcher, 10),
+            &[E::Slim3]
+        );
         // Unit skills render from their unit packets, not here.
         assert!(ground_placed_effect(SkillEnum::SaVolcano, 5).is_empty());
         assert!(ground_placed_effect(SkillEnum::WzIcewall, 5).is_empty());
@@ -1145,15 +1297,24 @@ mod tests {
     fn hit_derivation_follows_attack_type_then_skill_table() {
         use JobName::{Novice, Taekwon};
         // Normal attack: crit > taekwon-class bare hand > plain.
-        assert_eq!(derive_hit_effect(None, false, Novice, false), &[EffectId::Hit1]);
+        assert_eq!(
+            derive_hit_effect(None, false, Novice, false),
+            &[EffectId::Hit1]
+        );
         // A critical normal attack shows the generic HIT1 spark *and* HIT2.
         assert_eq!(
             derive_hit_effect(None, true, Novice, false),
             &[EffectId::Hit2, EffectId::Hit1]
         );
-        assert_eq!(derive_hit_effect(None, false, Taekwon, false), &[EffectId::Hitline7]);
+        assert_eq!(
+            derive_hit_effect(None, false, Taekwon, false),
+            &[EffectId::Hitline7]
+        );
         // Self-target suppresses the spark.
-        assert_eq!(derive_hit_effect(None, true, Novice, true), &[] as &[EffectId]);
+        assert_eq!(
+            derive_hit_effect(None, true, Novice, true),
+            &[] as &[EffectId]
+        );
         // A mapped skill uses its own spark; Cold Bolt is the WATER spark.
         assert_eq!(
             derive_hit_effect(Some(SkillEnum::MgColdbolt), false, Novice, false),
@@ -1202,7 +1363,10 @@ mod tests {
         // effect than our earlier wiring did. Heal uses the Heal3 special;
         // Frost Diver keeps its projectile/freeze specials but sparks the
         // explicit Coldhit per hit; Spiral Pierce's target special is Magnum2.
-        assert_eq!(target_skill_effects(SkillEnum::AlHeal).on_target, &[EffectId::Heal3]);
+        assert_eq!(
+            target_skill_effects(SkillEnum::AlHeal).on_target,
+            &[EffectId::Heal3]
+        );
 
         let frostdiver = target_skill_effects(SkillEnum::MgFrostdiver);
         assert_eq!(frostdiver.before_hit, &[EffectId::Frostdiver]);
@@ -1227,12 +1391,20 @@ mod tests {
             (SkillEnum::AsSonicblow, EffectId::Sonicblow),
             (SkillEnum::KnSpearstab, EffectId::Spearstabself),
         ] {
-            assert!(target_skill_effects(skill).on_target.contains(&effect), "{skill:?}");
-            assert!(!caster_skill_effects(skill).cast.contains(&effect), "{skill:?}");
+            assert!(
+                target_skill_effects(skill).on_target.contains(&effect),
+                "{skill:?}"
+            );
+            assert!(
+                !caster_skill_effects(skill).cast.contains(&effect),
+                "{skill:?}"
+            );
         }
         // Sonic Blow's caster-side motion lines stay on the caster.
         assert!(
-            caster_skill_effects(SkillEnum::AsSonicblow).cast.contains(&EffectId::Sonicblow2)
+            caster_skill_effects(SkillEnum::AsSonicblow)
+                .cast
+                .contains(&EffectId::Sonicblow2)
         );
     }
 
@@ -1252,7 +1424,10 @@ mod tests {
             SkillEnum::AlDemonbane,
         ] {
             for e in target_skill_effects(skill).on_target {
-                assert!(is_trail_effect(*e), "{e:?} on {skill:?} must be a trail effect");
+                assert!(
+                    is_trail_effect(*e),
+                    "{e:?} on {skill:?} must be a trail effect"
+                );
             }
         }
         // Cold Bolt's on_target bolt rains onto the target (a count-point

@@ -55,7 +55,11 @@ struct SoulLight {
 
 impl SoulLight {
     fn new() -> Self {
-        Self { process: 0.0, angle: 0.0, alpha: 0.0 }
+        Self {
+            process: 0.0,
+            angle: 0.0,
+            alpha: 0.0,
+        }
     }
 
     fn update(&mut self, frames: f32) {
@@ -134,7 +138,12 @@ mod tests {
     use super::*;
 
     fn render_ctx() -> EffectRenderCtx {
-        EffectRenderCtx { camera: Default::default(), screen_w: 800.0, screen_h: 600.0, elapsed: 0.0 }
+        EffectRenderCtx {
+            camera: Default::default(),
+            screen_w: 800.0,
+            screen_h: 600.0,
+            elapsed: 0.0,
+        }
     }
 
     fn tick(e: &mut SoullinkEffect, frames: u32) -> EffectStatus {
@@ -157,11 +166,12 @@ mod tests {
 
     fn light(e: &SoullinkEffect) -> Option<([f32; 3], f32)> {
         draws(e).into_iter().find_map(|p| match p {
-            EffectPrimitiveDraw::Billboard { texture, pos, color, .. }
-                if texture == "whitelight.tga" =>
-            {
-                Some((pos, color[3]))
-            }
+            EffectPrimitiveDraw::Billboard {
+                texture,
+                pos,
+                color,
+                ..
+            } if texture == "whitelight.tga" => Some((pos, color[3])),
             _ => None,
         })
     }

@@ -34,7 +34,12 @@ pub const STREAK_TEXTURE: &str = "ac_center2.tga";
 pub const AGI_UP_TEXTURE: &str = "agi_up.bmp";
 pub const SLOW_TEXTURE: &str = "slow.bmp";
 pub const DEX_AGI_UP_TEXTURE: &str = "dex_agi_up.bmp";
-pub const TEXTURES: &[&str] = &[STREAK_TEXTURE, AGI_UP_TEXTURE, SLOW_TEXTURE, DEX_AGI_UP_TEXTURE];
+pub const TEXTURES: &[&str] = &[
+    STREAK_TEXTURE,
+    AGI_UP_TEXTURE,
+    SLOW_TEXTURE,
+    DEX_AGI_UP_TEXTURE,
+];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const PARENT_DURATION_FRAMES: f32 = 60.0;
@@ -224,8 +229,8 @@ impl StatusUpEffect {
     fn spawn_particle(&mut self) {
         let longitude_deg = self.lcg_float() * 360.0;
         let radius = RADIUS_MIN + self.lcg_float() * (RADIUS_MAX - RADIUS_MIN);
-        let length = PARTICLE_LENGTH_MIN
-            + self.lcg_float() * (PARTICLE_LENGTH_MAX - PARTICLE_LENGTH_MIN);
+        let length =
+            PARTICLE_LENGTH_MIN + self.lcg_float() * (PARTICLE_LENGTH_MAX - PARTICLE_LENGTH_MIN);
         let (sn, cs) = longitude_deg.to_radians().sin_cos();
         // A radius vector rotated about Y by `longitude`
         // expands to (radius·sin, 0, radius·cos).
@@ -348,7 +353,11 @@ mod tests {
     use super::*;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     fn render_ctx() -> EffectRenderCtx {
@@ -372,11 +381,10 @@ mod tests {
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
 
-        let (labels, streaks): (Vec<_>, Vec<_>) =
-            list.primitives.iter().partition(|p| match p {
-                EffectPrimitiveDraw::Billboard { texture, .. } => *texture == AGI_UP_TEXTURE,
-                _ => false,
-            });
+        let (labels, streaks): (Vec<_>, Vec<_>) = list.primitives.iter().partition(|p| match p {
+            EffectPrimitiveDraw::Billboard { texture, .. } => *texture == AGI_UP_TEXTURE,
+            _ => false,
+        });
         assert_eq!(labels.len(), 1, "exactly one center label per frame");
         let EffectPrimitiveDraw::Billboard { pos, color, .. } = labels[0] else {
             unreachable!();
@@ -387,7 +395,13 @@ mod tests {
         // Frames 0,2,4 spawned → at least 3 streak particles.
         assert!(streaks.len() >= 3, "spawn cadence every 2 frames");
         assert!(
-            streaks.iter().all(|p| matches!(p, EffectPrimitiveDraw::Billboard { blend: BlendKind::Alpha, .. })),
+            streaks.iter().all(|p| matches!(
+                p,
+                EffectPrimitiveDraw::Billboard {
+                    blend: BlendKind::Alpha,
+                    ..
+                }
+            )),
             "streaks are alpha-blended (original default RF_ALPHA)"
         );
         for prim in &streaks {
@@ -449,7 +463,10 @@ mod tests {
                 _ => None,
             })
             .fold(f32::MIN, f32::max);
-        assert!(lowest_y > DECAGILITY.spawn_y_offset, "particles fall over time");
+        assert!(
+            lowest_y > DECAGILITY.spawn_y_offset,
+            "particles fall over time"
+        );
 
         // Incagidex is mauve/violet.
         assert_ne!(INCAGIDEX.tint, [1.0, 1.0, 1.0]);

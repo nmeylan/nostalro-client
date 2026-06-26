@@ -312,10 +312,46 @@ const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
 
 // ── 253 Absorbspirits — Heal2("ring_blue.tga", 2): 4 blue rings ──────────────
 const ABSORBSPIRITS_SLOTS: &[SlotSeed] = &[
-    SlotSeed { ec: 0, distance: 4.6, max_height: 60.0, rise_angle_deg: 90.0, rot_start_deg: 0.0, alpha_t: 40.0, alpha_init: 0.0, flag1: 0 },
-    SlotSeed { ec: 1, distance: 5.0, max_height: 60.0, rise_angle_deg: 90.0, rot_start_deg: 180.0, alpha_t: 40.0, alpha_init: 0.0, flag1: 0 },
-    SlotSeed { ec: 2, distance: 5.0, max_height: 18.0, rise_angle_deg: 50.0, rot_start_deg: 60.0, alpha_t: 40.0, alpha_init: 0.0, flag1: 0 },
-    SlotSeed { ec: 3, distance: 5.2, max_height: 18.0, rise_angle_deg: 48.0, rot_start_deg: 240.0, alpha_t: 40.0, alpha_init: 0.0, flag1: 0 },
+    SlotSeed {
+        ec: 0,
+        distance: 4.6,
+        max_height: 60.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 0.0,
+        alpha_t: 40.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 1,
+        distance: 5.0,
+        max_height: 60.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 180.0,
+        alpha_t: 40.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 2,
+        distance: 5.0,
+        max_height: 18.0,
+        rise_angle_deg: 50.0,
+        rot_start_deg: 60.0,
+        alpha_t: 40.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 3,
+        distance: 5.2,
+        max_height: 18.0,
+        rise_angle_deg: 48.0,
+        rot_start_deg: 240.0,
+        alpha_t: 40.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
 ];
 pub const ABSORBSPIRITS: HealParams = HealParams {
     texture: "ring_blue.tga",
@@ -330,10 +366,46 @@ pub const ABSORBSPIRITS: HealParams = HealParams {
 
 // ── 314 Exit2 — Exit2("ring_purple.tga"): tall narrow column, 4 rings ────────
 const EXIT2_SLOTS: &[SlotSeed] = &[
-    SlotSeed { ec: 0, distance: 1.8, max_height: 180.0, rise_angle_deg: 90.0, rot_start_deg: 270.0, alpha_t: 58.0, alpha_init: 0.0, flag1: 0 },
-    SlotSeed { ec: 1, distance: 2.0, max_height: 70.0, rise_angle_deg: 88.0, rot_start_deg: 180.0, alpha_t: 60.0, alpha_init: 0.0, flag1: 0 },
-    SlotSeed { ec: 2, distance: 2.2, max_height: 45.0, rise_angle_deg: 86.0, rot_start_deg: 90.0, alpha_t: 60.0, alpha_init: 0.0, flag1: 0 },
-    SlotSeed { ec: 3, distance: 2.4, max_height: 20.0, rise_angle_deg: 84.0, rot_start_deg: 0.0, alpha_t: 60.0, alpha_init: 0.0, flag1: 0 },
+    SlotSeed {
+        ec: 0,
+        distance: 1.8,
+        max_height: 180.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 270.0,
+        alpha_t: 58.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 1,
+        distance: 2.0,
+        max_height: 70.0,
+        rise_angle_deg: 88.0,
+        rot_start_deg: 180.0,
+        alpha_t: 60.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 2,
+        distance: 2.2,
+        max_height: 45.0,
+        rise_angle_deg: 86.0,
+        rot_start_deg: 90.0,
+        alpha_t: 60.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 3,
+        distance: 2.4,
+        max_height: 20.0,
+        rise_angle_deg: 84.0,
+        rot_start_deg: 0.0,
+        alpha_t: 60.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
 ];
 pub const EXIT2: HealParams = HealParams {
     texture: "ring_purple.tga",
@@ -348,10 +420,46 @@ pub const EXIT2: HealParams = HealParams {
 
 // ── 344 Entry2 — Entry2(): blue ground ring + rising flame, ENTRY2 pulse ─────
 const ENTRY2_SLOTS: &[SlotSeed] = &[
-    SlotSeed { ec: 0, distance: 3.7, max_height: 30.0, rise_angle_deg: 90.0, rot_start_deg: 0.0, alpha_t: 1400.0, alpha_init: 0.0, flag1: 2 },
-    SlotSeed { ec: 1, distance: 3.4, max_height: 30.0, rise_angle_deg: 90.0, rot_start_deg: 90.0, alpha_t: 1400.0, alpha_init: 0.0, flag1: 2 },
-    SlotSeed { ec: 2, distance: 3.6, max_height: 4.0, rise_angle_deg: 10.0, rot_start_deg: 180.0, alpha_t: 1400.0, alpha_init: 0.0, flag1: 2 },
-    SlotSeed { ec: 3, distance: 3.7, max_height: 4.0, rise_angle_deg: 5.0, rot_start_deg: 270.0, alpha_t: 1400.0, alpha_init: 0.0, flag1: 2 },
+    SlotSeed {
+        ec: 0,
+        distance: 3.7,
+        max_height: 30.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 0.0,
+        alpha_t: 1400.0,
+        alpha_init: 0.0,
+        flag1: 2,
+    },
+    SlotSeed {
+        ec: 1,
+        distance: 3.4,
+        max_height: 30.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 90.0,
+        alpha_t: 1400.0,
+        alpha_init: 0.0,
+        flag1: 2,
+    },
+    SlotSeed {
+        ec: 2,
+        distance: 3.6,
+        max_height: 4.0,
+        rise_angle_deg: 10.0,
+        rot_start_deg: 180.0,
+        alpha_t: 1400.0,
+        alpha_init: 0.0,
+        flag1: 2,
+    },
+    SlotSeed {
+        ec: 3,
+        distance: 3.7,
+        max_height: 4.0,
+        rise_angle_deg: 5.0,
+        rot_start_deg: 270.0,
+        alpha_t: 1400.0,
+        alpha_init: 0.0,
+        flag1: 2,
+    },
 ];
 pub const ENTRY2: HealParams = HealParams {
     texture: "ring_blue.tga",
@@ -366,8 +474,26 @@ pub const ENTRY2: HealParams = HealParams {
 
 // ── 2013 Smdef — Heal("alpha_down.tga", 1): 2 white rings ────────────────────
 const SMDEF_SLOTS: &[SlotSeed] = &[
-    SlotSeed { ec: 0, distance: 4.5, max_height: 50.0, rise_angle_deg: 90.0, rot_start_deg: 0.0, alpha_t: 30.0, alpha_init: 0.0, flag1: 0 },
-    SlotSeed { ec: 1, distance: 4.7, max_height: 50.0, rise_angle_deg: 90.0, rot_start_deg: 180.0, alpha_t: 30.0, alpha_init: 0.0, flag1: 0 },
+    SlotSeed {
+        ec: 0,
+        distance: 4.5,
+        max_height: 50.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 0.0,
+        alpha_t: 30.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 1,
+        distance: 4.7,
+        max_height: 50.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 180.0,
+        alpha_t: 30.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
 ];
 pub const SMDEF: HealParams = HealParams {
     texture: "alpha_down.tga",
@@ -383,10 +509,46 @@ pub const SMDEF: HealParams = HealParams {
 // ── 304 Teleportation2 — TELEPORTATION2("Magic_Violet.tga", 0): violet column ─
 // Reconstructed from observed original-game behavior + reference gif.
 const TELEPORTATION2_SLOTS: &[SlotSeed] = &[
-    SlotSeed { ec: 0, distance: 1.5, max_height: 100.0, rise_angle_deg: 90.0, rot_start_deg: 0.0, alpha_t: 0.0, alpha_init: 100.0 / 255.0, flag1: 0 },
-    SlotSeed { ec: 1, distance: 3.0, max_height: 70.0, rise_angle_deg: 89.0, rot_start_deg: 90.0, alpha_t: 0.0, alpha_init: 80.0 / 255.0, flag1: 0 },
-    SlotSeed { ec: 2, distance: 4.0, max_height: 40.0, rise_angle_deg: 88.0, rot_start_deg: 180.0, alpha_t: 0.0, alpha_init: 60.0 / 255.0, flag1: 0 },
-    SlotSeed { ec: 3, distance: 5.0, max_height: 15.0, rise_angle_deg: 87.0, rot_start_deg: 270.0, alpha_t: 0.0, alpha_init: 40.0 / 255.0, flag1: 0 },
+    SlotSeed {
+        ec: 0,
+        distance: 1.5,
+        max_height: 100.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 0.0,
+        alpha_t: 0.0,
+        alpha_init: 100.0 / 255.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 1,
+        distance: 3.0,
+        max_height: 70.0,
+        rise_angle_deg: 89.0,
+        rot_start_deg: 90.0,
+        alpha_t: 0.0,
+        alpha_init: 80.0 / 255.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 2,
+        distance: 4.0,
+        max_height: 40.0,
+        rise_angle_deg: 88.0,
+        rot_start_deg: 180.0,
+        alpha_t: 0.0,
+        alpha_init: 60.0 / 255.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 3,
+        distance: 5.0,
+        max_height: 15.0,
+        rise_angle_deg: 87.0,
+        rot_start_deg: 270.0,
+        alpha_t: 0.0,
+        alpha_init: 40.0 / 255.0,
+        flag1: 0,
+    },
 ];
 pub const TELEPORTATION2: HealParams = HealParams {
     texture: "Magic_Violet.tga",
@@ -408,8 +570,26 @@ const GREEN: [f32; 3] = [76.0 / 255.0, 230.0 / 255.0, 90.0 / 255.0];
 
 // 312 Heal — Heal("alpha_down.tga", 0): 2 green rings + green sparkles.
 const HEAL_SLOTS: &[SlotSeed] = &[
-    SlotSeed { ec: 0, distance: 4.6, max_height: 40.0, rise_angle_deg: 90.0, rot_start_deg: 0.0, alpha_t: 60.0, alpha_init: 0.0, flag1: 0 },
-    SlotSeed { ec: 1, distance: 4.8, max_height: 40.0, rise_angle_deg: 90.0, rot_start_deg: 180.0, alpha_t: 60.0, alpha_init: 0.0, flag1: 0 },
+    SlotSeed {
+        ec: 0,
+        distance: 4.6,
+        max_height: 40.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 0.0,
+        alpha_t: 60.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 1,
+        distance: 4.8,
+        max_height: 40.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 180.0,
+        alpha_t: 60.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
 ];
 pub const HEAL: HealParams = HealParams {
     texture: "alpha_down.tga",
@@ -427,10 +607,46 @@ pub const HEAL: HealParams = HealParams {
 
 // 313 Heal2 — Heal2("ring_white.tga"): 4 green rings + green sparkles.
 const HEAL2_SLOTS: &[SlotSeed] = &[
-    SlotSeed { ec: 0, distance: 4.6, max_height: 60.0, rise_angle_deg: 90.0, rot_start_deg: 0.0, alpha_t: 60.0, alpha_init: 0.0, flag1: 0 },
-    SlotSeed { ec: 1, distance: 5.0, max_height: 60.0, rise_angle_deg: 90.0, rot_start_deg: 180.0, alpha_t: 60.0, alpha_init: 0.0, flag1: 0 },
-    SlotSeed { ec: 2, distance: 5.0, max_height: 12.0, rise_angle_deg: 50.0, rot_start_deg: 60.0, alpha_t: 60.0, alpha_init: 0.0, flag1: 0 },
-    SlotSeed { ec: 3, distance: 5.2, max_height: 12.0, rise_angle_deg: 48.0, rot_start_deg: 240.0, alpha_t: 60.0, alpha_init: 0.0, flag1: 0 },
+    SlotSeed {
+        ec: 0,
+        distance: 4.6,
+        max_height: 60.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 0.0,
+        alpha_t: 60.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 1,
+        distance: 5.0,
+        max_height: 60.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 180.0,
+        alpha_t: 60.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 2,
+        distance: 5.0,
+        max_height: 12.0,
+        rise_angle_deg: 50.0,
+        rot_start_deg: 60.0,
+        alpha_t: 60.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 3,
+        distance: 5.2,
+        max_height: 12.0,
+        rise_angle_deg: 48.0,
+        rot_start_deg: 240.0,
+        alpha_t: 60.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
 ];
 pub const HEAL2: HealParams = HealParams {
     texture: "ring_white.tga",
@@ -446,10 +662,46 @@ pub const HEAL2: HealParams = HealParams {
 
 // Heal4 — Heal2("ring_white.tga", 1): green 4 rings (taller inner pair) + sparkles.
 const HEAL4_SLOTS: &[SlotSeed] = &[
-    SlotSeed { ec: 0, distance: 4.6, max_height: 60.0, rise_angle_deg: 90.0, rot_start_deg: 0.0, alpha_t: 40.0, alpha_init: 0.0, flag1: 0 },
-    SlotSeed { ec: 1, distance: 5.0, max_height: 60.0, rise_angle_deg: 90.0, rot_start_deg: 180.0, alpha_t: 40.0, alpha_init: 0.0, flag1: 0 },
-    SlotSeed { ec: 2, distance: 5.0, max_height: 18.0, rise_angle_deg: 50.0, rot_start_deg: 60.0, alpha_t: 40.0, alpha_init: 0.0, flag1: 0 },
-    SlotSeed { ec: 3, distance: 5.2, max_height: 18.0, rise_angle_deg: 48.0, rot_start_deg: 240.0, alpha_t: 40.0, alpha_init: 0.0, flag1: 0 },
+    SlotSeed {
+        ec: 0,
+        distance: 4.6,
+        max_height: 60.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 0.0,
+        alpha_t: 40.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 1,
+        distance: 5.0,
+        max_height: 60.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 180.0,
+        alpha_t: 40.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 2,
+        distance: 5.0,
+        max_height: 18.0,
+        rise_angle_deg: 50.0,
+        rot_start_deg: 60.0,
+        alpha_t: 40.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
+    SlotSeed {
+        ec: 3,
+        distance: 5.2,
+        max_height: 18.0,
+        rise_angle_deg: 48.0,
+        rot_start_deg: 240.0,
+        alpha_t: 40.0,
+        alpha_init: 0.0,
+        flag1: 0,
+    },
 ];
 pub const HEAL4: HealParams = HealParams {
     texture: "ring_white.tga",
@@ -468,9 +720,36 @@ pub const HEAL4: HealParams = HealParams {
 // vertical violet column; downscaled hard like the other large-literal columns.
 const BIGPORTAL_VIOLET: [f32; 3] = [170.0 / 255.0, 120.0 / 255.0, 1.0];
 const BIGPORTAL_SLOTS: &[SlotSeed] = &[
-    SlotSeed { ec: 0, distance: 7.0, max_height: 80.0, rise_angle_deg: 90.0, rot_start_deg: 0.0, alpha_t: 1400.0, alpha_init: 0.0, flag1: 3 },
-    SlotSeed { ec: 1, distance: 5.5, max_height: 80.0, rise_angle_deg: 90.0, rot_start_deg: 120.0, alpha_t: 1400.0, alpha_init: 0.0, flag1: 3 },
-    SlotSeed { ec: 2, distance: 4.0, max_height: 80.0, rise_angle_deg: 90.0, rot_start_deg: 240.0, alpha_t: 1400.0, alpha_init: 0.0, flag1: 3 },
+    SlotSeed {
+        ec: 0,
+        distance: 7.0,
+        max_height: 80.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 0.0,
+        alpha_t: 1400.0,
+        alpha_init: 0.0,
+        flag1: 3,
+    },
+    SlotSeed {
+        ec: 1,
+        distance: 5.5,
+        max_height: 80.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 120.0,
+        alpha_t: 1400.0,
+        alpha_init: 0.0,
+        flag1: 3,
+    },
+    SlotSeed {
+        ec: 2,
+        distance: 4.0,
+        max_height: 80.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 240.0,
+        alpha_t: 1400.0,
+        alpha_init: 0.0,
+        flag1: 3,
+    },
 ];
 /// 561 BigPortal — `Portal3(0)`, `alpha_t = 1400` (rings never fade within the
 /// portal's finite life; it despawns at the parent duration).
@@ -493,9 +772,36 @@ pub const BIGPORTAL: HealParams = HealParams {
 // persistent recall portal. Modelled with a never-reached `alpha_t` and a long
 // life; the holder kills it when the portal NPC is removed.
 const BIGPORTAL2_SLOTS: &[SlotSeed] = &[
-    SlotSeed { ec: 0, distance: 7.0, max_height: 80.0, rise_angle_deg: 90.0, rot_start_deg: 0.0, alpha_t: 1.0e9, alpha_init: 0.0, flag1: 3 },
-    SlotSeed { ec: 1, distance: 5.5, max_height: 80.0, rise_angle_deg: 90.0, rot_start_deg: 120.0, alpha_t: 1.0e9, alpha_init: 0.0, flag1: 3 },
-    SlotSeed { ec: 2, distance: 4.0, max_height: 80.0, rise_angle_deg: 90.0, rot_start_deg: 240.0, alpha_t: 1.0e9, alpha_init: 0.0, flag1: 3 },
+    SlotSeed {
+        ec: 0,
+        distance: 7.0,
+        max_height: 80.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 0.0,
+        alpha_t: 1.0e9,
+        alpha_init: 0.0,
+        flag1: 3,
+    },
+    SlotSeed {
+        ec: 1,
+        distance: 5.5,
+        max_height: 80.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 120.0,
+        alpha_t: 1.0e9,
+        alpha_init: 0.0,
+        flag1: 3,
+    },
+    SlotSeed {
+        ec: 2,
+        distance: 4.0,
+        max_height: 80.0,
+        rise_angle_deg: 90.0,
+        rot_start_deg: 240.0,
+        alpha_t: 1.0e9,
+        alpha_init: 0.0,
+        flag1: 3,
+    },
 ];
 pub const BIGPORTAL2: HealParams = HealParams {
     texture: "Magic_Violet.tga",
@@ -532,7 +838,8 @@ mod tests {
     fn step(e: &mut HealEffect, frames: f32) -> EffectStatus {
         e.update(&EffectUpdateCtx {
             delta: frames / FRAMES_PER_SECOND,
-            camera_target: None, caster_yaw: None,
+            camera_target: None,
+            caster_yaw: None,
         })
     }
 
@@ -542,9 +849,13 @@ mod tests {
         list.primitives
             .iter()
             .filter_map(|p| match p {
-                EffectPrimitiveDraw::RadialRing { distance, color, heights, blend, .. } => {
-                    Some((*distance, color[3], *heights, *blend))
-                }
+                EffectPrimitiveDraw::RadialRing {
+                    distance,
+                    color,
+                    heights,
+                    blend,
+                    ..
+                } => Some((*distance, color[3], *heights, *blend)),
                 _ => None,
             })
             .collect()
