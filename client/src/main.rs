@@ -20,6 +20,7 @@ use ragnarok_game::cursor::{
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::skill::SkillTargetType;
+use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::targeting::{skill_target_class, TargetClass};
 use ragnarok_game::{map_loader, sprite_loader};
 use ragnarok_network::{
@@ -28,6 +29,8 @@ use ragnarok_network::{
     build_contact_npc_packet, build_drop_item_packet, build_equip_item_packet, build_login_packet,
     build_npc_close_packet, build_npc_deal_type_packet, build_npc_input_number_packet,
     build_npc_input_string_packet, build_npc_menu_select_packet, build_npc_next_packet,
+    build_cartoff_packet, build_change_cart_packet, build_move_item_body_to_cart_packet, build_move_item_cart_to_body_packet,
+    build_move_item_cart_to_store_packet, build_move_item_store_to_cart_packet,
     build_pickup_item_packet, build_purchase_item_list_packet, build_remove_option_packet,
     build_req_enter_room_packet, build_reqname_packet, build_restart_packet, build_select_char_packet,
     build_select_warppoint_packet, build_sell_item_list_packet,
@@ -620,6 +623,49 @@ impl App {
                     self.channel
                         .send_packet(build_remove_option_packet(self.config.packetver));
                 }
+                GameEvent::RequestMoveItemBodyToCart { index, count } => {
+                    self.channel.send_packet(build_move_item_body_to_cart_packet(
+                        index,
+                        count,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestMoveItemCartToBody { index, count } => {
+                    self.channel.send_packet(build_move_item_cart_to_body_packet(
+                        index,
+                        count,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestMoveItemStoreToCart { index, count } => {
+                    self.channel.send_packet(build_move_item_store_to_cart_packet(
+                        index,
+                        count,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestMoveItemCartToStore { index, count } => {
+                    self.channel.send_packet(build_move_item_cart_to_store_packet(
+                        index,
+                        count,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestCartOff => {
+                    self.channel
+                        .send_packet(build_cartoff_packet(self.config.packetver));
+                }
+                GameEvent::RequestChangeCart { num } => {
+                    self.channel
+                        .send_packet(build_change_cart_packet(num, self.config.packetver));
+                }
+                GameEvent::RequestSetCartPick { .. } => {
+                    // Cart auto-pickup settings packet is not yet defined on the
+                    // server protocol; the toggles are tracked client-side only.
+                }
+                GameEvent::ToggleCart => {
+                    self.game.character.cart.toggle();
+                }
                 GameEvent::RequestSkillLevelUp { skill_id } => {
                     self.channel
                         .send_packet(build_upgrade_skill_packet(skill_id, self.config.packetver));
@@ -649,6 +695,16 @@ impl App {
                     ));
                 }
                 GameEvent::RequestUseSkill { skill_id, level } => {
+                    // Change Cart opens the cart-model picker client-side instead
+                    // of casting (the server treats the skill itself as a no-op);
+                    // the chosen model is sent as its own request.
+                    if skill_id == SkillEnum::McChangecart.id() as u16 {
+                        if self.game.character.cart_design.is_some() {
+                            self.preload_cart_previews(&[1, 2, 3, 4, 5]);
+                            self.game.cart_select_window.open();
+                        }
+                        continue;
+                    }
                     let skill_target_type = self
                         .game
                         .character
@@ -1050,6 +1106,52 @@ impl App {
         render_list
     }
 
+    /// Trailing pushcart render entries. Each carted entity gets one entry at a
+    /// world position offset behind the owner along the opposite of its facing,
+    /// matching the original client's ride-distance trail. Kept separate from
+    /// the entity list so carts never participate in mouse picking.
+    fn compute_cart_render_list(&self) -> Vec<RenderEntry> {
+        let mut render_list = Vec::new();
+        if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
+            let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
+            let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+            for entity in self.game.entities.iter() {
+                if entity.cart_type.is_none() || !self.game.carts.contains_key(&entity.id) {
+                    continue;
+                }
+                let (px, py) = entity.movement.position();
+                let (ox, oy) = crate::sprite::cart::direction_offset(entity.direction);
+                let cart_pos = (
+                    px - ox * crate::sprite::cart::CART_TRAIL_DISTANCE,
+                    py - oy * crate::sprite::cart::CART_TRAIL_DISTANCE,
+                );
+                if let Some((screen_anchor, depth, camera_dir, sprite_scale, depth_gradient)) =
+                    input::entity_screen_params(
+                        cart_pos,
+                        self.game.gat.as_ref(),
+                        coords,
+                        &renderer.camera,
+                        screen_w,
+                        screen_h,
+                    )
+                {
+                    render_list.push(RenderEntry {
+                        kind: RenderEntryKind::Cart,
+                        id: entity.id,
+                        screen_anchor,
+                        depth,
+                        depth_gradient,
+                        camera_dir,
+                        sprite_scale,
+                        pick_bounds: [0.0; 4],
+                        head_offset: 0.0,
+                    });
+                }
+            }
+        }
+        render_list
+    }
+
     fn compute_floor_item_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
         if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
@@ -1284,6 +1386,7 @@ impl ApplicationHandler for App {
                 let hovered = self.update_grid_hover();
                 let render_list = self.compute_render_list();
                 let floor_item_render_list = self.compute_floor_item_render_list();
+                let cart_render_list = self.compute_cart_render_list();
                 let hovered_entity_id = self.update_cursor_type(
                     hovered,
                     ui_any_hovered,
@@ -1338,6 +1441,7 @@ impl ApplicationHandler for App {
                 self.compose_and_render(
                     &render_list,
                     &floor_item_render_list,
+                    &cart_render_list,
                     elapsed,
                     cursor_clips,
                     lock_cursor_clips,

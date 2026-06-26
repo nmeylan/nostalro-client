@@ -14,7 +14,7 @@ use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::effect::skill_unit_effect;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
-use ragnarok_game::sprite_path::{entity_type_from_job, is_hidden, visual_job, JT_WARPNPC, OPTION_RIDING};
+use ragnarok_game::sprite_path::{cart_design_from_option, entity_type_from_job, is_hidden, visual_job, JT_WARPNPC, OPTION_RIDING};
 
 /// The level-99 aura is a composite the original game stacks together: the blue
 /// spinning ring, the rising pikapika sparkles, and the orbiting light motes.
@@ -124,6 +124,12 @@ impl App {
         );
         if entity_type == EntityType::Player && !is_hidden(effect_state) {
             self.effect_queue.spawn_on(EffectId::Entry2, gid);
+        }
+        if let Some(design) = cart_design_from_option(effect_state) {
+            if let Some(entity) = self.game.entities.get_mut(gid) {
+                entity.cart_type = Some(design);
+            }
+            self.spawn_cart_visual(gid, design);
         }
         self.refresh_level_aura(gid);
         self.refresh_boss_aura(gid);
@@ -433,9 +439,13 @@ impl App {
                 self.effect_queue.despawn(gid);
             }
         }
+        let (mut old_cart, mut new_cart) = (None, None);
         if let Some(entity) = self.game.entities.get_mut(gid) {
             let old_riding = (entity.effect_state & OPTION_RIDING) != 0;
             let new_riding = (effect_state & OPTION_RIDING) != 0;
+            old_cart = cart_design_from_option(entity.effect_state);
+            new_cart = cart_design_from_option(effect_state);
+            entity.cart_type = new_cart;
             tracing::debug!("  old_effect=0x{:08x} old_riding={old_riding} new_riding={new_riding} job={}", entity.effect_state, entity.job);
             entity.effect_state = effect_state;
             if old_riding != new_riding {
@@ -486,6 +496,13 @@ impl App {
                 }
             }
         }
+        // Spawn/replace/despawn the trailing pushcart when its OPTION bit changes.
+        if old_cart != new_cart {
+            match new_cart {
+                Some(design) => self.spawn_cart_visual(gid, design),
+                None => self.despawn_cart_visual(gid),
+            }
+        }
         // Hide/cloak/burrow deletes the aura; reappearing respawns it.
         self.refresh_level_aura(gid);
         self.refresh_boss_aura(gid);
@@ -500,10 +517,18 @@ impl App {
         efst: i16,
         active: bool,
         remain_ms: u32,
+        val1: i32,
     ) {
         let Ok(icon) = ClientEffectIcon::try_from_value(efst as usize) else {
             return;
         };
+        // The push-cart status drives the trailing cart visual: `val1` carries
+        // the cart design. This is the modern delivery path (the legacy OPTION
+        // bit is handled in `handle_entity_option_changed`).
+        if icon == ClientEffectIcon::OnPushCart {
+            self.handle_push_cart_status(gid, active, val1);
+            return;
+        }
         let Some(buff) = buff_effect(icon) else {
             return;
         };
@@ -524,6 +549,42 @@ impl App {
             self.effect_queue.spawn_on_keyed_for(id, gid, key, remain_ms);
         }
         self.game.status_buff_keys.insert(map_key, key);
+    }
+
+    /// Apply the push-cart status to an entity: spawn the trailing cart visual
+    /// (design = `val1`) when active, or tear it down when cleared. For the local
+    /// player a cleared cart also empties the cart inventory and closes its
+    /// window — reusing the cart-off path.
+    fn handle_push_cart_status(&mut self, gid: u32, active: bool, val1: i32) {
+        let is_player = self.game.entities.player_id() == Some(gid);
+        if active {
+            let design = val1.clamp(0, u8::MAX as i32) as u8;
+            let had_cart = self
+                .game
+                .entities
+                .get(gid)
+                .is_some_and(|e| e.cart_type.is_some());
+            if let Some(entity) = self.game.entities.get_mut(gid) {
+                entity.cart_type = Some(design);
+            }
+            self.spawn_cart_visual(gid, design);
+            if is_player {
+                self.game.character.cart_design = Some(design);
+                // Surface the cart inventory the moment the local player gains a
+                // cart so it is reachable without knowing the hotkey; re-applying
+                // the same cart (relog/map change) leaves the window state alone.
+                if !had_cart {
+                    self.game.character.cart.open();
+                }
+            }
+        } else if is_player {
+            self.handle_cart_off();
+        } else {
+            if let Some(entity) = self.game.entities.get_mut(gid) {
+                entity.cart_type = None;
+            }
+            self.despawn_cart_visual(gid);
+        }
     }
 
     /// Spawn or despawn a character's level-99 aura to match its current level

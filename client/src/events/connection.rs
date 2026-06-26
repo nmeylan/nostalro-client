@@ -174,6 +174,8 @@ impl App {
             preload_window(&mut self.game.chat_window, renderer, grf);
             preload_window(&mut self.game.system_menu, renderer, grf);
             preload_window(&mut self.game.inventory_window, renderer, grf);
+            preload_window(&mut self.game.cart_window, renderer, grf);
+            preload_window(&mut self.game.cart_select_window, renderer, grf);
             preload_window(&mut self.game.equipment_window, renderer, grf);
             preload_window(&mut self.game.npc_dialog, renderer, grf);
             preload_window(&mut self.game.warp_list_window, renderer, grf);

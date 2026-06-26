@@ -27,6 +27,7 @@ impl NameTable {
                 if data.starts_with(b"\x1bLua") {
                     continue;
                 }
+                tracing::info!("Loading lua file {}", path);
                 let content = lua_table::decode_euc_kr(&data);
                 let assignments = parse_jt_assignments(&content);
                 entries.extend(assignments);

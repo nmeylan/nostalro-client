@@ -17,6 +17,8 @@ use ragnarok_ui_component::account::login_window::LoginWindow;
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
 use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
 use ragnarok_ui_component::game::card_insert_dialog::{CardInsertDialog, EligibleItem};
+use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
+use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
 use ragnarok_ui_component::game::chat_room_window::{ChatRoomPlacement, ChatRoomWindow};
 use ragnarok_ui_component::game::chat_window::ChatWindow;
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
@@ -43,6 +45,8 @@ use ragnarok_game::data_table::skill_tree_table::{SkillTreeEntry, SkillTreeTable
 
 const GAME_COMPONENTS: &[&str] = &[
     "inventory",
+    "cart",
+    "cart_select",
     "npc_shop",
     "npc_dialog",
     "equipment",
@@ -64,6 +68,16 @@ const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
 enum State {
     Inventory {
         inv: InventoryWindow,
+        character: Character,
+        data: DataTable,
+    },
+    Cart {
+        win: CartWindow,
+        character: Character,
+        data: DataTable,
+    },
+    CartSelect {
+        win: CartSelectWindow,
         character: Character,
         data: DataTable,
     },
@@ -180,6 +194,31 @@ fn create_single(name: &str) -> State {
             }
             State::Inventory {
                 inv,
+                character,
+                data: DataTable::new(),
+            }
+        }
+        "cart" => {
+            let mut character = Character::new();
+            character.cart.open();
+            character.cart.set_count_info(2850, 8000, 6, 100);
+            for item in inventory_test_items() {
+                character.cart.add_item(item);
+            }
+            State::Cart {
+                win: CartWindow::new(),
+                character,
+                data: DataTable::new(),
+            }
+        }
+        "cart_select" => {
+            let mut character = Character::new();
+            character.base_level = 99;
+            character.cart_design = Some(1);
+            let mut win = CartSelectWindow::new();
+            win.open();
+            State::CartSelect {
+                win,
                 character,
                 data: DataTable::new(),
             }
@@ -1017,6 +1056,17 @@ fn grf_init_single(
             inv.has_grf_textures = true;
             inv.set_texture_sizes(size_fn);
         }
+        State::Cart { win, character, .. } => {
+            if let Some(table) = table {
+                character.cart.resolve_resource_names(table);
+            }
+            win.has_grf_textures = true;
+            win.set_texture_sizes(size_fn);
+        }
+        State::CartSelect { win, .. } => {
+            win.has_grf_textures = true;
+            win.set_texture_sizes(size_fn);
+        }
         State::NpcShop {
             shop,
             buy_items,
@@ -1174,6 +1224,8 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
     match state {
         State::Chat { .. } => Some(WidgetId(300)),
         State::Inventory { .. } => Some(WidgetId(800)),
+        State::Cart { .. } => Some(CART_WINDOW_ID),
+        State::CartSelect { .. } => Some(CART_SELECT_WINDOW_ID),
         State::Equipment { .. } => Some(WidgetId(900)),
         State::SkillTree { .. } => Some(WidgetId(1000)),
         State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
@@ -1189,6 +1241,20 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             data,
         } => {
             inv.build(ui, character, data);
+        }
+        State::Cart {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, character, data);
+        }
+        State::CartSelect {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, character, data);
         }
         State::NpcShop {
             shop,

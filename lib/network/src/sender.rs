@@ -249,6 +249,51 @@ pub fn build_pickup_item_packet(itaid: u32, packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_move_item_body_to_cart_packet(index: u16, count: i16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzMoveItemFromBodyToCart::new(packetver);
+    pkt.set_index(index as i16);
+    pkt.set_count(count as i32);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_move_item_cart_to_body_packet(index: u16, count: i16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzMoveItemFromCartToBody::new(packetver);
+    pkt.set_index(index as i16);
+    pkt.set_count(count as i32);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_move_item_store_to_cart_packet(index: u16, count: i16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzMoveItemFromStoreToCart::new(packetver);
+    pkt.set_index(index as i16);
+    pkt.set_count(count as i32);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_move_item_cart_to_store_packet(index: u16, count: i16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzMoveItemFromCartToStore::new(packetver);
+    pkt.set_index(index as i16);
+    pkt.set_count(count as i32);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_cartoff_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqCartoff::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_change_cart_packet(num: i16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqChangecart::new(packetver);
+    pkt.set_num(num);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_upgrade_skill_packet(skill_id: u16, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzUpgradeSkilllevel::new(packetver);
     pkt.set_skid(skill_id);

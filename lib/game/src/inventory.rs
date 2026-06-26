@@ -146,29 +146,7 @@ impl InventoryData {
         data_table: &crate::data_table::DataTable,
     ) -> Vec<String> {
         for info in items {
-            let name = data_table
-                .item_name
-                .as_ref()
-                .map(|t| t.get_name_or_id_for(info.item_id, info.is_identified))
-                .unwrap_or_else(|| format!("Item #{}", info.item_id));
-            let resource_name = data_table.item_resource.as_ref().and_then(|t| {
-                t.get_resource_name_for(info.item_id, info.is_identified)
-                    .map(|s| s.to_string())
-            });
-            self.add_item(Item {
-                index: info.index as u16,
-                item_id: info.item_id,
-                item_type: ItemType::from_value(info.item_type as usize),
-                count: info.count,
-                is_identified: info.is_identified,
-                is_damaged: false,
-                refining_level: 0,
-                slot: [0; 4],
-                location: info.wear_state,
-                wear_state: 0,
-                name,
-                resource_name,
-            });
+            self.add_item(normal_item_to_item(&info, data_table));
         }
         self.items
             .iter()
@@ -182,29 +160,7 @@ impl InventoryData {
         data_table: &crate::data_table::DataTable,
     ) -> Vec<String> {
         for info in items {
-            let name = data_table
-                .item_name
-                .as_ref()
-                .map(|t| t.get_name_or_id_for(info.item_id, info.is_identified))
-                .unwrap_or_else(|| format!("Item #{}", info.item_id));
-            let resource_name = data_table.item_resource.as_ref().and_then(|t| {
-                t.get_resource_name_for(info.item_id, info.is_identified)
-                    .map(|s| s.to_string())
-            });
-            self.add_item(Item {
-                index: info.index as u16,
-                item_id: info.item_id,
-                item_type: ItemType::from_value(info.item_type as usize),
-                count: 1,
-                is_identified: info.is_identified,
-                is_damaged: info.is_damaged,
-                refining_level: info.refining_level,
-                slot: info.slot,
-                location: info.location,
-                wear_state: info.wear_state,
-                name,
-                resource_name,
-            });
+            self.add_item(equipment_item_to_item(&info, data_table));
         }
         self.items
             .iter()
@@ -319,6 +275,205 @@ impl InventoryData {
 
     pub fn clear(&mut self) {
         self.items.clear();
+    }
+}
+
+fn resolve_name_and_resource(
+    item_id: u16,
+    is_identified: bool,
+    data_table: &crate::data_table::DataTable,
+) -> (String, Option<String>) {
+    let name = data_table
+        .item_name
+        .as_ref()
+        .map(|t| t.get_name_or_id_for(item_id, is_identified))
+        .unwrap_or_else(|| format!("Item #{item_id}"));
+    let resource_name = data_table.item_resource.as_ref().and_then(|t| {
+        t.get_resource_name_for(item_id, is_identified)
+            .map(|s| s.to_string())
+    });
+    (name, resource_name)
+}
+
+pub fn normal_item_to_item(info: &NormalItemData, data_table: &crate::data_table::DataTable) -> Item {
+    let (name, resource_name) = resolve_name_and_resource(info.item_id, info.is_identified, data_table);
+    Item {
+        index: info.index as u16,
+        item_id: info.item_id,
+        item_type: ItemType::from_value(info.item_type as usize),
+        count: info.count,
+        is_identified: info.is_identified,
+        is_damaged: false,
+        refining_level: 0,
+        slot: [0; 4],
+        location: info.wear_state,
+        wear_state: 0,
+        name,
+        resource_name,
+    }
+}
+
+pub fn equipment_item_to_item(
+    info: &EquipmentItemData,
+    data_table: &crate::data_table::DataTable,
+) -> Item {
+    let (name, resource_name) = resolve_name_and_resource(info.item_id, info.is_identified, data_table);
+    Item {
+        index: info.index as u16,
+        item_id: info.item_id,
+        item_type: ItemType::from_value(info.item_type as usize),
+        count: 1,
+        is_identified: info.is_identified,
+        is_damaged: info.is_damaged,
+        refining_level: info.refining_level,
+        slot: info.slot,
+        location: info.location,
+        wear_state: info.wear_state,
+        name,
+        resource_name,
+    }
+}
+
+/// The merchant pushcart inventory: a separate item store with its own
+/// weight/count limits. Items here are never "equipped", so unlike
+/// [`InventoryData`] the cart has no wear-state handling — only stacking,
+/// removal and tab filtering. `active_tab == None` shows every item ("All").
+#[derive(Debug)]
+pub struct CartData {
+    items: Vec<Item>,
+    pub active_tab: Option<InventoryTab>,
+    pub weight: i32,
+    pub max_weight: i32,
+    pub count: i16,
+    pub max_count: i16,
+    open: bool,
+}
+
+impl Default for CartData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CartData {
+    pub fn new() -> Self {
+        Self {
+            items: Vec::new(),
+            active_tab: None,
+            weight: 0,
+            max_weight: 0,
+            count: 0,
+            max_count: 0,
+            open: false,
+        }
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.open
+    }
+
+    pub fn toggle(&mut self) {
+        self.open = !self.open;
+    }
+
+    pub fn open(&mut self) {
+        self.open = true;
+    }
+
+    pub fn close(&mut self) {
+        self.open = false;
+    }
+
+    pub fn add_item(&mut self, item: Item) {
+        if let Some(existing) = self.items.iter_mut().find(|i| i.index == item.index) {
+            existing.count += item.count;
+        } else {
+            self.items.push(item);
+        }
+    }
+
+    pub fn remove_item(&mut self, index: u16) {
+        self.items.retain(|i| i.index != index);
+    }
+
+    pub fn update_item_count(&mut self, index: u16, count: i16) {
+        if count <= 0 {
+            self.remove_item(index);
+        } else if let Some(item) = self.items.iter_mut().find(|i| i.index == index) {
+            item.count = count;
+        }
+    }
+
+    pub fn subtract_item_count(&mut self, index: u16, amount: i16) {
+        if let Some(item) = self.items.iter_mut().find(|i| i.index == index) {
+            item.count -= amount;
+            if item.count <= 0 {
+                self.remove_item(index);
+            }
+        }
+    }
+
+    pub fn get_item(&self, index: u16) -> Option<&Item> {
+        self.items.iter().find(|i| i.index == index)
+    }
+
+    pub fn all_items(&self) -> &[Item] {
+        &self.items
+    }
+
+    pub fn filtered_items(&self) -> Vec<&Item> {
+        self.items
+            .iter()
+            .filter(|item| self.active_tab.map(|tab| item.tab() == tab).unwrap_or(true))
+            .collect()
+    }
+
+    pub fn apply_normal_items(
+        &mut self,
+        items: Vec<NormalItemData>,
+        data_table: &crate::data_table::DataTable,
+    ) -> Vec<String> {
+        for info in items {
+            self.add_item(normal_item_to_item(&info, data_table));
+        }
+        self.items
+            .iter()
+            .filter_map(|item| item.icon_path())
+            .collect()
+    }
+
+    pub fn apply_equipment_items(
+        &mut self,
+        items: Vec<EquipmentItemData>,
+        data_table: &crate::data_table::DataTable,
+    ) -> Vec<String> {
+        for info in items {
+            self.add_item(equipment_item_to_item(&info, data_table));
+        }
+        self.items
+            .iter()
+            .filter_map(|item| item.icon_path())
+            .collect()
+    }
+
+    pub fn resolve_resource_names(&mut self, table: &ItemResourceTable) {
+        for item in &mut self.items {
+            item.resolve_resource_name(table);
+        }
+    }
+
+    /// Server-authoritative weight/count totals from `ZC_NOTIFY_CARTITEM_COUNTINFO`.
+    pub fn set_count_info(&mut self, cur_weight: i32, max_weight: i32, cur_count: i16, max_count: i16) {
+        self.weight = cur_weight;
+        self.max_weight = max_weight;
+        self.count = cur_count;
+        self.max_count = max_count;
+    }
+
+    pub fn clear(&mut self) {
+        self.items.clear();
+        self.weight = 0;
+        self.count = 0;
     }
 }
 
@@ -623,6 +778,40 @@ mod tests {
             Entity::wear_location_to_sprite_type_for(32, Some(ItemType::Armor)),
             Some(8),
         );
+    }
+
+    #[test]
+    fn cart_inventory_stacks_filters_and_tracks_totals() {
+        let mut cart = CartData::new();
+        assert!(!cart.is_open());
+
+        cart.add_item(make_normal_item(1, 501, 0, 10)); // Red Potion - usable
+        cart.add_item(make_equip_item(2, 1201, 2)); // Knife - equip
+        cart.add_item(make_normal_item(3, 7001, 3, 50)); // Etc item
+
+        // active_tab None shows everything.
+        assert_eq!(cart.filtered_items().len(), 3);
+        cart.active_tab = Some(InventoryTab::Usable);
+        assert_eq!(cart.filtered_items().len(), 1);
+        cart.active_tab = Some(InventoryTab::Equip);
+        assert_eq!(cart.filtered_items()[0].item_id, 1201);
+
+        // Same-index add stacks (cart items never equip).
+        cart.add_item(make_normal_item(1, 501, 0, 5));
+        assert_eq!(cart.get_item(1).unwrap().count, 15);
+
+        // Moving items out reduces the stack and removes at zero.
+        cart.subtract_item_count(1, 15);
+        assert!(cart.get_item(1).is_none());
+
+        cart.set_count_info(1234, 8000, 2, 100);
+        assert_eq!(cart.weight, 1234);
+        assert_eq!(cart.max_weight, 8000);
+        assert_eq!(cart.max_count, 100);
+
+        cart.clear();
+        assert!(cart.all_items().is_empty());
+        assert_eq!(cart.weight, 0);
     }
 
     #[test]

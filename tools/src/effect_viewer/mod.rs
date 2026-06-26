@@ -586,8 +586,11 @@ fn effect_id_from_u16(value: u16) -> Option<EffectId> {
 /// supply actual caster→target positions and bypass this.
 fn demo_trail_endpoints(world: [f32; 3]) -> ([f32; 3], [f32; 3]) {
     const TRAIL_DEMO_LEN: f32 = 22.0;
-    let from = world;
-    let to = [world[0], world[1], world[2] + TRAIL_DEMO_LEN];
+    // Convention: `from` = source, `to` = target. The clicked point is the
+    // target so impact rings / directional sparks (which anchor on `to`)
+    // preview at the click; the source sits one trail-length behind it.
+    let from = [world[0], world[1], world[2] - TRAIL_DEMO_LEN];
+    let to = world;
     (from, to)
 }
 

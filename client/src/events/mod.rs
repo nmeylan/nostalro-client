@@ -210,8 +210,9 @@ impl App {
                     efst,
                     active,
                     remain_ms,
+                    val1,
                 } => {
-                    self.handle_status_effect_changed(gid, efst, active, remain_ms);
+                    self.handle_status_effect_changed(gid, efst, active, remain_ms, val1);
                 }
                 GameEvent::EntityResurrected { gid } => {
                     self.handle_entity_resurrected(gid);
@@ -393,6 +394,49 @@ impl App {
                         .subtract_item_count(index, count);
                     self.game.waiting_item_throw_ack = false;
                 }
+                // Cart
+                GameEvent::CartNormalItems { items } => {
+                    self.handle_cart_normal_items(items);
+                }
+                GameEvent::CartEquipmentItems { items } => {
+                    self.handle_cart_equipment_items(items);
+                }
+                GameEvent::CartItemAdded {
+                    index,
+                    item_id,
+                    count,
+                    item_type,
+                    is_identified,
+                    is_damaged,
+                    refining_level,
+                    slot,
+                } => {
+                    self.handle_cart_item_added(
+                        index,
+                        item_id,
+                        count,
+                        item_type,
+                        is_identified,
+                        is_damaged,
+                        refining_level,
+                        slot,
+                    );
+                }
+                GameEvent::CartItemRemoved { index, count } => {
+                    self.handle_cart_item_removed(index, count);
+                }
+                GameEvent::CartCountInfo {
+                    cur_weight,
+                    max_weight,
+                    cur_count,
+                    max_count,
+                } => {
+                    self.handle_cart_count_info(cur_weight, max_weight, cur_count, max_count);
+                }
+                GameEvent::CartOff => {
+                    self.handle_cart_off();
+                }
+
                 GameEvent::CardInsertItemList { equip_indices, .. } => {
                     self.handle_card_insert_item_list(equip_indices);
                 }

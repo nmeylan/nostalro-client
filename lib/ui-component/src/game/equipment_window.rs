@@ -22,6 +22,7 @@ pub const EQ_WINDOW_ID: WidgetId = WidgetId(900);
 const EQ_CLOSE_BTN_ID: WidgetId = WidgetId(901);
 const EQ_MINI_BTN_ID: WidgetId = WidgetId(902);
 const EQ_REMOVE_OPTION_BTN_ID: WidgetId = WidgetId(903);
+const EQ_CART_SLOT_ID: WidgetId = WidgetId(904);
 const EQ_SLOT_BASE_ID: u32 = 910;
 
 // -- Layout (matches official RO client: 3-column layout) --
@@ -83,6 +84,8 @@ pub struct EquipmentWindow {
     character_center: Option<[f32; 2]>,
     /// Index into the UI draw call list where paperdoll should be inserted
     paperdoll_insert_index: Option<usize>,
+    /// Screen-space center for the cart slot preview, set when a cart is active
+    cart_slot_center: Option<[f32; 2]>,
 }
 
 impl Default for EquipmentWindow {
@@ -100,6 +103,7 @@ impl EquipmentWindow {
             bg_size: (0.0, 0.0),
             character_center: None,
             paperdoll_insert_index: None,
+            cart_slot_center: None,
         }
     }
 
@@ -109,6 +113,10 @@ impl EquipmentWindow {
 
     pub fn paperdoll_insert_index(&self) -> Option<usize> {
         self.paperdoll_insert_index
+    }
+
+    pub fn cart_slot_center(&self) -> Option<[f32; 2]> {
+        self.cart_slot_center
     }
 
     pub fn is_open(&self) -> bool {
@@ -165,6 +173,7 @@ impl InGameWindow for EquipmentWindow {
         let card_name_table = data.card_name.as_ref();
         self.character_center = None;
         self.paperdoll_insert_index = None;
+        self.cart_slot_center = None;
 
         if !self.open {
             return Vec::new();
@@ -264,7 +273,10 @@ impl InGameWindow for EquipmentWindow {
         self.character_center = Some([character_x, character_y]);
         self.paperdoll_insert_index = Some(ui.draw_calls.len());
 
-        if character.effect_state & OPTION_REMOVABLE_MASK != 0 {
+        // The "off" button removes a falcon/peco mount. A cart is managed through
+        // the cart slot below (which also removes it), so the button is hidden
+        // while a cart is active and replaced by that slot.
+        if character.cart_design.is_none() && character.effect_state & OPTION_REMOVABLE_MASK != 0 {
             let btn_x = win.x + SIDE_COL_W + (CENTER_COL_W - REMOVE_OPTION_BTN_SIZE) / 2.0;
             let btn_y = win.y + content_h - slot_h;
             let btn_rect = Rect::new(btn_x, btn_y, REMOVE_OPTION_BTN_SIZE, REMOVE_OPTION_BTN_SIZE);
@@ -281,6 +293,30 @@ impl InGameWindow for EquipmentWindow {
             }
             if resp.clicked() {
                 events.push(GameEvent::RequestRemoveOption);
+            }
+        }
+
+        // Cart slot: a clickable area at the bottom of the centre column (over the
+        // character's feet) shown while the player has a cart, in place of the off
+        // button. The cart sprite is rendered here by the scene layer (anchor
+        // recorded below). Left-click opens the cart inventory, right-click
+        // removes the cart.
+        if character.cart_design.is_some() {
+            let slot_w = CENTER_COL_W;
+            let slot_x = win.x + SIDE_COL_W;
+            let slot_y = content_y + content_h - slot_h;
+            let cart_rect = Rect::new(slot_x, slot_y, slot_w, slot_h);
+            self.cart_slot_center = Some([slot_x + slot_w / 2.0, content_y + content_h - 4.0]);
+            let resp = ui.interact(EQ_CART_SLOT_ID, cart_rect);
+            if resp.hovered() { ui.any_interactive_hovered = true; }
+            if resp.clicked() {
+                character.cart.open();
+            }
+            if resp.right_clicked() {
+                events.push(GameEvent::RequestRemoveOption);
+            }
+            if resp.hovered() {
+                ui.tooltip(cart_rect.x, cart_rect.y - ui.atlas.line_height - 4.0, "Cart (click to open, right-click to remove)");
             }
         }
 

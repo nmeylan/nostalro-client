@@ -32,6 +32,8 @@ use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
 use ragnarok_ui_component::game::hotkey_bar::{HOTKEY_BAR_WINDOW_ID, HotkeyBarWindow};
+use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
+use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
 use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
@@ -56,6 +58,10 @@ pub struct GameState {
     pub entities: EntityCollection,
     pub sprites: HashMap<u32, Rc<EntitySprite>>,
     pub sprite_cache: HashMap<String, Rc<EntitySprite>>,
+    /// Trailing pushcart visuals keyed by owner entity id.
+    pub carts: HashMap<u32, crate::sprite::CartVisual>,
+    /// Cart sprites loaded per design for UI previews (change-cart picker), keyed by design index.
+    pub cart_preview_sprites: HashMap<u8, Rc<EntitySprite>>,
     pub character: Character,
     pub data_table: DataTable,
     pub cursor_textures: Option<SpriteTextures>,
@@ -70,6 +76,8 @@ pub struct GameState {
     pub chat_window: ChatWindow,
     pub equipment_window: EquipmentWindow,
     pub inventory_window: InventoryWindow,
+    pub cart_window: CartWindow,
+    pub cart_select_window: CartSelectWindow,
     pub npc_dialog: NpcDialog,
     pub warp_list_window: WarpListWindow,
     pub confirm_dialog: ConfirmDialog,
@@ -144,6 +152,8 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     BASIC_INFO_WINDOW_ID,
     chat_window::CHAT_WINDOW_ID,
     INV_WINDOW_ID,
+    CART_WINDOW_ID,
+    CART_SELECT_WINDOW_ID,
     EQ_WINDOW_ID,
     SKILL_WINDOW_ID,
     STATUS_WINDOW_ID,
@@ -392,6 +402,16 @@ impl GameState {
                 &mut self.character,
                 &self.data_table,
             )),
+            CART_WINDOW_ID => events.extend(self.cart_window.build(
+                ui,
+                &mut self.character,
+                &self.data_table,
+            )),
+            CART_SELECT_WINDOW_ID => events.extend(self.cart_select_window.build(
+                ui,
+                &mut self.character,
+                &self.data_table,
+            )),
             EQ_WINDOW_ID => {
                 events.extend(self.equipment_window.build(
                     ui,
@@ -428,6 +448,8 @@ impl GameState {
             gat: None,
             entities: EntityCollection::new(),
             sprites: HashMap::new(),
+            carts: HashMap::new(),
+            cart_preview_sprites: HashMap::new(),
             sprite_cache: HashMap::new(),
             character: Character::new(),
             data_table: DataTable::new(),
@@ -441,6 +463,8 @@ impl GameState {
             chat_window: ChatWindow::new(),
             equipment_window: EquipmentWindow::new(),
             inventory_window: InventoryWindow::new(),
+            cart_window: CartWindow::new(),
+            cart_select_window: CartSelectWindow::new(),
             npc_dialog: NpcDialog::new(),
             warp_list_window: WarpListWindow::new(),
             confirm_dialog: ConfirmDialog::new(),

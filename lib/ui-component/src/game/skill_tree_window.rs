@@ -389,17 +389,22 @@ impl InGameWindow for SkillTreeWindow {
                 }
             }
 
-            // Drag source for usable skills (non-passive, learned)
-            if row_resp.clicked()
-                && skill.level > 0
-                && skill.skill_target_type != SkillTargetType::Passive
-            {
-                ui.drag_source(
-                    SKILL_WINDOW_ID,
-                    skill.id as usize,
-                    Some(skill.icon_path()),
-                    (ICON_SIZE, ICON_SIZE),
-                );
+            // Usable skills (non-passive, learned): drag to a hotkey slot, or
+            // double-click to cast like a hotkey slot.
+            if skill.level > 0 && skill.skill_target_type != SkillTargetType::Passive {
+                if row_resp.double_clicked() {
+                    events.push(GameEvent::RequestUseSkill {
+                        skill_id: skill.id,
+                        level: skill.use_level(),
+                    });
+                } else if row_resp.clicked() {
+                    ui.drag_source(
+                        SKILL_WINDOW_ID,
+                        skill.id as usize,
+                        Some(skill.icon_path()),
+                        (ICON_SIZE, ICON_SIZE),
+                    );
+                }
             }
 
             // Tooltip on hover

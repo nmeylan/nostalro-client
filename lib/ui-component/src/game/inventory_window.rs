@@ -380,12 +380,23 @@ impl InGameWindow for InventoryWindow {
             self.grid_cols as f32 * CELL_SIZE,
             self.grid_rows as f32 * CELL_SIZE,
         );
-        if let Some((source_id, item_index)) = ui.drop_zone(grid_rect)
-            && source_id == EQ_WINDOW_ID {
+        if let Some((source_id, item_index)) = ui.drop_zone(grid_rect) {
+            if source_id == EQ_WINDOW_ID {
                 events.push(GameEvent::RequestUnequipItem {
                     index: item_index as u16,
                 });
+            } else if source_id == super::cart_window::CART_WINDOW_ID {
+                let count = character
+                    .cart
+                    .get_item(item_index as u16)
+                    .map(|i| i.count)
+                    .unwrap_or(1);
+                events.push(GameEvent::RequestMoveItemCartToBody {
+                    index: item_index as u16,
+                    count,
+                });
             }
+        }
 
         // -- Scrollbar (only when needed) --
         if total_rows > self.grid_rows {

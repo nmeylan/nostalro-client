@@ -169,6 +169,9 @@ pub enum GameEvent {
         efst: i16,
         active: bool,
         remain_ms: u32,
+        /// First status value (`val1`). Carries the cart design for the push-cart
+        /// status; 0 for status packets that send no values.
+        val1: i32,
     },
     /// Entity revived (`ZC_RESURRECTION`): clear its dead pose. The resurrection
     /// visual rides the skill path, not this packet.
@@ -456,6 +459,66 @@ pub enum GameEvent {
         index: u16,
         count: i16,
     },
+
+    // Cart (server → client)
+    CartNormalItems {
+        items: Vec<NormalItemData>,
+    },
+    CartEquipmentItems {
+        items: Vec<EquipmentItemData>,
+    },
+    CartItemAdded {
+        index: u16,
+        item_id: u16,
+        count: i16,
+        item_type: u8,
+        is_identified: bool,
+        is_damaged: bool,
+        refining_level: u8,
+        slot: [u16; 4],
+    },
+    CartItemRemoved {
+        index: u16,
+        count: i16,
+    },
+    CartCountInfo {
+        cur_weight: i32,
+        max_weight: i32,
+        cur_count: i16,
+        max_count: i16,
+    },
+    /// Server removed the cart (cart-off): clear cart inventory and visual.
+    CartOff,
+
+    // Cart (client → server)
+    RequestMoveItemBodyToCart {
+        index: u16,
+        count: i16,
+    },
+    RequestMoveItemCartToBody {
+        index: u16,
+        count: i16,
+    },
+    RequestMoveItemStoreToCart {
+        index: u16,
+        count: i16,
+    },
+    RequestMoveItemCartToStore {
+        index: u16,
+        count: i16,
+    },
+    RequestCartOff,
+    RequestSetCartPick {
+        pick_equip: bool,
+        pick_usable: bool,
+        pick_etc: bool,
+    },
+    /// Pick a new pushcart visual model (`CZ_REQ_CHANGECART`); `num` is the cart
+    /// design index (1..=5).
+    RequestChangeCart {
+        num: i16,
+    },
+    ToggleCart,
 
     // Card composition (client → server)
     RequestCardInsertList {

@@ -17,6 +17,7 @@ impl App {
         &mut self,
         render_list: &[RenderEntry],
         floor_item_render_list: &[RenderEntry],
+        cart_render_list: &[RenderEntry],
         elapsed: f32,
         cursor_clips: Vec<ClipData>,
         lock_cursor_clips: Vec<ClipData>,
@@ -30,6 +31,7 @@ impl App {
         let mut unified_list: Vec<&RenderEntry> = render_list
             .iter()
             .chain(floor_item_render_list.iter())
+            .chain(cart_render_list.iter())
             .collect();
         unified_list.sort_by(|a, b| {
             b.depth
@@ -274,8 +276,12 @@ impl App {
                             let motion_idx =
                                 ((elapsed * 1000.0) / delay_ms) as usize % motion_count;
                             let motion = &act.actions[action_idx].motions[motion_idx];
-                            let center =
-                                [entry.screen_anchor[0], entry.screen_anchor[1] - 100.0];
+                            let center = [
+                                entry.screen_anchor[0],
+                                entry.screen_anchor[1]
+                                    - entry.head_offset
+                                    - 6.0 * entry.sprite_scale,
+                            ];
                             for clip in &motion.clips {
                                 if let Some((vertices, indices, tex_idx)) =
                                     build_clip_quad(clip, tex, center, entry.depth, [0, 0])
@@ -355,6 +361,39 @@ impl App {
                         }
                     }
                 }
+                RenderEntryKind::Cart => {
+                    if let (Some(cart), Some(entity)) = (
+                        self.game.carts.get(&entry.id),
+                        self.game.entities.get(entry.id),
+                    ) {
+                        // The cart inherits the owner's visibility: hidden /
+                        // cloaked owners hide (or fade) the cart too.
+                        let is_self = Some(entry.id) == self.game.entities.player_id();
+                        let render = hidden_render(entity.effect_state, is_self);
+                        if render == HiddenRender::Skip {
+                            continue;
+                        }
+                        let alpha = entity.alpha()
+                            * match render {
+                                HiddenRender::Alpha(a) => a,
+                                _ => 1.0,
+                            };
+                        let mut body_channels =
+                            self.effect_holder.body_channels_for_entity(entry.id);
+                        body_channels.alpha *= alpha;
+                        let mut batches = ragnarok_renderer::compose_actor_batches(
+                            &cart.sprite,
+                            &cart.animation,
+                            entry.camera_dir,
+                            entity.direction,
+                            entry.screen_anchor,
+                            entry.depth,
+                            entry.sprite_scale,
+                            &body_channels,
+                        );
+                        sprite_batches.append(&mut batches);
+                    }
+                }
             }
         }
 
@@ -370,6 +409,67 @@ impl App {
                 let idx = inline_textures.len();
                 inline_textures.push(batch.texture);
                 paperdoll_calls.push(UiDrawCall {
+                    vertices: batch
+                        .vertices
+                        .iter()
+                        .map(|sv| UiVertex {
+                            position: [sv.position[0], sv.position[1]],
+                            tex_coord: sv.tex_coord,
+                            color: sv.color,
+                        })
+                        .collect(),
+                    indices: batch.indices,
+                    texture: UiTextureRef::Inline(idx),
+                });
+            }
+        }
+
+        // Cart preview in the equipment window's centre cart slot.
+        if let Some(center) = self.game.equipment_window.cart_slot_center()
+            && let Some(player_id) = self.game.entities.player_id()
+            && let Some(cart) = self.game.carts.get(&player_id)
+        {
+            let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
+            let batches = cart.sprite.build_batches(&idle_anim, None, 0, center, 0.0, 0.5, 0.0);
+            for batch in batches {
+                let idx = inline_textures.len();
+                inline_textures.push(batch.texture);
+                paperdoll_calls.push(UiDrawCall {
+                    vertices: batch
+                        .vertices
+                        .iter()
+                        .map(|sv| UiVertex {
+                            position: [sv.position[0], sv.position[1]],
+                            tex_coord: sv.tex_coord,
+                            color: sv.color,
+                        })
+                        .collect(),
+                    indices: batch.indices,
+                    texture: UiTextureRef::Inline(idx),
+                });
+            }
+        }
+
+        // Cart model previews in the change-cart picker rows.
+        let mut cart_select_calls: Vec<UiDrawCall> = Vec::new();
+        for &(design, center) in self.game.cart_select_window.model_previews() {
+            let Some(sprite) = self.game.cart_preview_sprites.get(&design) else {
+                continue;
+            };
+            let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
+            let batches = sprite.build_batches(
+                &idle_anim,
+                None,
+                0,
+                center,
+                0.0,
+                ragnarok_ui_component::game::cart_select_window::PREVIEW_SCALE,
+                0.0,
+            );
+            for batch in batches {
+                let idx = inline_textures.len();
+                inline_textures.push(batch.texture);
+                cart_select_calls.push(UiDrawCall {
                     vertices: batch
                         .vertices
                         .iter()
@@ -464,9 +564,26 @@ impl App {
         let overlay_len = all_ui_calls.len();
         all_ui_calls.extend(ui_draw_calls);
 
-        if let Some(insert_idx) = self.game.equipment_window.paperdoll_insert_index() {
-            let abs_idx = (overlay_len + insert_idx).min(all_ui_calls.len());
+        let paperdoll_abs = self
+            .game
+            .equipment_window
+            .paperdoll_insert_index()
+            .map(|idx| (overlay_len + idx).min(all_ui_calls.len()));
+        let paperdoll_len = paperdoll_calls.len();
+        if let Some(abs_idx) = paperdoll_abs {
             for (i, dc) in paperdoll_calls.into_iter().enumerate() {
+                all_ui_calls.insert(abs_idx + i, dc);
+            }
+        }
+
+        if let Some(insert_idx) = self.game.cart_select_window.preview_insert_index() {
+            let mut abs_idx = (overlay_len + insert_idx).min(all_ui_calls.len());
+            // The paperdoll insertion above shifts later indices forward.
+            if paperdoll_abs.is_some_and(|pd| abs_idx >= pd) {
+                abs_idx += paperdoll_len;
+            }
+            let abs_idx = abs_idx.min(all_ui_calls.len());
+            for (i, dc) in cart_select_calls.into_iter().enumerate() {
                 all_ui_calls.insert(abs_idx + i, dc);
             }
         }

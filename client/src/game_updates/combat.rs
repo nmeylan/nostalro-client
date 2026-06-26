@@ -326,12 +326,13 @@ impl App {
         let target_is_self = hit.attacker_gid == entity_id;
         // Direction-oriented sparks (the Hit family, Pierce, SonicBlowHit…)
         // centre on the struck entity and aim their ring toward the attacker.
-        // Snapshot both world positions so those effects can spawn with
-        // endpoints; the rest stay attached to the target with no heading.
+        // The trail convention is `from` = source (attacker), `to` = target
+        // (struck entity); every trail effect anchors on `to`. Snapshot both
+        // world positions; the rest stay attached to the target with no heading.
         let target_pos = self.entity_world_pos(entity_id);
         let attacker_pos = self.entity_world_pos(hit.attacker_gid);
         for effect in derive_hit_effect(skill, hit.is_critical, attacker_job, target_is_self) {
-            match (is_trail_effect(*effect), target_pos, attacker_pos) {
+            match (is_trail_effect(*effect), attacker_pos, target_pos) {
                 (true, Some(from), Some(to)) if !target_is_self => {
                     self.effect_queue.spawn_trail(*effect, from, to);
                 }

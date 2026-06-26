@@ -14,7 +14,10 @@
 pub enum EffectAnchor {
     /// Single resolved world position.
     Point([f32; 3]),
-    /// Pre-resolved caster → target endpoints.
+    /// Pre-resolved endpoints. **Canonical convention, identical at every spawn
+    /// site:** `from` = the source (caster/attacker), `to` = the target (struck
+    /// entity / destination cell). Projectiles originate at `from`; impact rings
+    /// and directional sparks anchor on `to` and aim back toward `from`.
     Trail { from: [f32; 3], to: [f32; 3] },
 }
 
@@ -54,7 +57,8 @@ pub enum Attach {
     /// arrow-shower style effects) read both endpoints from here. Spawn
     /// callers translate `Projectile { from_entity, to_entity }` to
     /// `Trail { from_world, to_world }` when the trail geometry needs
-    /// to live for longer than one frame.
+    /// to live for longer than one frame. **Convention:** `from` = source
+    /// (caster/attacker), `to` = target (struck entity); see [`EffectAnchor::Trail`].
     Trail { from: [f32; 3], to: [f32; 3] },
     /// Persistent link between two entities, both re-resolved to world
     /// positions *every frame* (Soul Linker tether). Unlike

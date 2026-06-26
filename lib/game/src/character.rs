@@ -1,13 +1,14 @@
 use crate::cooldown::CooldownTracker;
 use crate::event::CharacterInfo;
 use crate::hotkey::HotkeyBar;
-use crate::inventory::InventoryData;
+use crate::inventory::{CartData, InventoryData};
 use crate::skill::SkillList;
 use models::enums::class::JobName;
 use models::enums::{EnumWithNumberValue, EnumWithStringValue};
 
 pub struct Character {
     pub inventory: InventoryData,
+    pub cart: CartData,
     pub skills: SkillList,
     pub hotkeys: HotkeyBar,
     pub cooldowns: CooldownTracker,
@@ -60,6 +61,10 @@ pub struct Character {
     pub critical: i32,
     pub aspd: i32,
     pub effect_state: i32,
+    /// Active pushcart design (1..=5), or `None` when no cart. Set from the
+    /// push-cart status; drives the paperdoll cart slot / off button which the
+    /// legacy `effect_state` option bit no longer carries.
+    pub cart_design: Option<u8>,
 }
 
 impl Default for Character {
@@ -72,6 +77,7 @@ impl Character {
     pub fn new() -> Self {
         Self {
             inventory: InventoryData::new(),
+            cart: CartData::new(),
             skills: SkillList::new(),
             hotkeys: HotkeyBar::new(),
             cooldowns: CooldownTracker::new(),
@@ -121,6 +127,7 @@ impl Character {
             critical: 0,
             aspd: 0,
             effect_state: 0,
+            cart_design: None,
         }
     }
 
@@ -251,6 +258,7 @@ impl Character {
 
     pub fn clear(&mut self) {
         self.inventory.clear();
+        self.cart.clear();
         self.skills.clear();
         self.hotkeys.clear();
         self.cooldowns.clear();
@@ -287,6 +295,7 @@ impl Character {
         self.critical = 0;
         self.aspd = 0;
         self.effect_state = 0;
+        self.cart_design = None;
     }
 }
 

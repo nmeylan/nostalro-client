@@ -98,7 +98,7 @@ TODO:
 - ~~Chat packets~~ (done — multi-channel chat)
 - Combat packets (attack, skill use, damage)
 - ~~Item packets (pickup, drop, use, equip, unequip)~~
-- Skill packets (cast, execute, ground target)
+~~- Skill packets (cast, execute, ground target)~~
 - ~~NPC packets (dialog, menu, shop, close)~~
 - ~~Entity spawn/despawn/update packets~~ (done — full spawn/move/vanish/act handling)
 - ~~Status change packets~~
@@ -116,7 +116,7 @@ TODO:
 
 # World
 - ~~Portal/warp transitions~~ (done — MapChanged event with full map reload)
-- Map type properties (PvP zones, no-teleport, no-skill zones)
+~~- Map type properties (PvP zones, no-teleport, no-skill zones)~~
 - Weather per map
 
 # Input

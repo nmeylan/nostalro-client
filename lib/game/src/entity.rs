@@ -162,6 +162,9 @@ pub struct Entity {
     pub is_boss: bool,
     /// Active forced animation from a body effect (Jumpkick), if any.
     pub forced_animation: Option<ForcedAnimation>,
+    /// Pushcart design index (1..=5) when a cart OPTION bit is set, else `None`.
+    /// Drives the trailing cart sprite that follows this entity.
+    pub cart_type: Option<u8>,
 }
 
 impl Entity {
@@ -232,6 +235,7 @@ impl Entity {
             base_level: 0,
             is_boss: false,
             forced_animation: None,
+            cart_type: None,
         }
     }
 

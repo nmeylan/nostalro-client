@@ -487,6 +487,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             efst: p.index,
             active: p.state,
             remain_ms: p.remain_ms,
+            val1: p.val[0],
         }];
     }
     // The no-tick variant (`0x196`). The server uses this whenever
@@ -501,6 +502,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             efst: p.index,
             active: p.state,
             remain_ms: 0,
+            val1: 0,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcStateChange3>() {
@@ -937,6 +939,109 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
+    // Cart inventory
+    // Cart inventory lists come in several packetver-dependent shapes (base / 2 /
+    // 3); the carried item fields are identical, so each maps the same way. The
+    // server picks the variant by packetver (e.g. 20120307 sends the `3` form).
+    macro_rules! cart_normal_items {
+        ($p:expr) => {{
+            let items = $p
+                .item_info
+                .iter()
+                .map(|i| NormalItemData {
+                    index: i.index,
+                    item_id: i.itid,
+                    item_type: i.atype,
+                    is_identified: i.is_identified,
+                    count: i.count,
+                    wear_state: i.wear_state,
+                })
+                .collect();
+            return vec![GameEvent::CartNormalItems { items }];
+        }};
+    }
+    macro_rules! cart_equip_items {
+        ($p:expr) => {{
+            let items = $p
+                .item_info
+                .iter()
+                .map(|i| EquipmentItemData {
+                    index: i.index,
+                    item_id: i.itid,
+                    item_type: i.atype,
+                    is_identified: i.is_identified,
+                    location: i.location,
+                    wear_state: i.wear_state,
+                    is_damaged: i.is_damaged,
+                    refining_level: i.refining_level,
+                    slot: [i.slot.card1, i.slot.card2, i.slot.card3, i.slot.card4],
+                })
+                .collect();
+            return vec![GameEvent::CartEquipmentItems { items }];
+        }};
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcCartNormalItemlist>() {
+        cart_normal_items!(p);
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcCartNormalItemlist2>() {
+        cart_normal_items!(p);
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcCartNormalItemlist3>() {
+        cart_normal_items!(p);
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcCartEquipmentItemlist>() {
+        cart_equip_items!(p);
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcCartEquipmentItemlist2>() {
+        cart_equip_items!(p);
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcCartEquipmentItemlist3>() {
+        cart_equip_items!(p);
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAddItemToCart2>() {
+        return vec![GameEvent::CartItemAdded {
+            index: p.index as u16,
+            item_id: p.itid,
+            count: p.count as i16,
+            item_type: p.atype,
+            is_identified: p.is_identified,
+            is_damaged: p.is_damaged,
+            refining_level: p.refining_level,
+            slot: [p.slot.card1, p.slot.card2, p.slot.card3, p.slot.card4],
+        }];
+    }
+    // v1 carries no item-type byte; the apply step resolves the tab from the
+    // moved source item by id.
+    if let Some(p) = any.downcast_ref::<PacketZcAddItemToCart>() {
+        return vec![GameEvent::CartItemAdded {
+            index: p.index as u16,
+            item_id: p.itid,
+            count: p.count as i16,
+            item_type: 0,
+            is_identified: p.is_identified,
+            is_damaged: p.is_damaged,
+            refining_level: p.refining_level,
+            slot: [p.slot.card1, p.slot.card2, p.slot.card3, p.slot.card4],
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcDeleteItemFromCart>() {
+        return vec![GameEvent::CartItemRemoved {
+            index: p.index as u16,
+            count: p.count as i16,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyCartitemCountinfo>() {
+        return vec![GameEvent::CartCountInfo {
+            cur_weight: p.cur_weight,
+            max_weight: p.max_weight,
+            cur_count: p.cur_count,
+            max_count: p.max_count,
+        }];
+    }
+    if any.downcast_ref::<PacketZcCartoff>().is_some() {
+        return vec![GameEvent::CartOff];
+    }
+
     // Card composition
     if let Some(p) = any.downcast_ref::<PacketZcItemcompositionList>() {
         return vec![GameEvent::CardInsertItemList {
@@ -1099,6 +1204,30 @@ mod tests {
         pkt.fill_raw();
         let result = dispatch_packet(&pkt, packetver);
         assert!(result.is_empty());
+    }
+
+    // The packetver-3 cart list (0x2e9) is what the server sends at this
+    // packetver; it must map to a cart event, not fall through silently.
+    #[test]
+    fn dispatch_cart_normal_itemlist3_yields_cart_items() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcCartNormalItemlist3::new(packetver);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert!(matches!(result.as_slice(), [GameEvent::CartNormalItems { .. }]));
+    }
+
+    // Change-cart picks a model number; the request packet must carry it.
+    #[test]
+    fn change_cart_packet_carries_model_number() {
+        let packetver = 20120307;
+        let raw = crate::sender::build_change_cart_packet(3, packetver);
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        let p = parsed
+            .as_any()
+            .downcast_ref::<PacketCzReqChangecart>()
+            .expect("parsed as change-cart request");
+        assert_eq!(p.num, 3);
     }
 
     #[test]
@@ -1786,7 +1915,7 @@ mod tests {
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            GameEvent::StatusEffectChanged { gid, efst, active, remain_ms } => {
+            GameEvent::StatusEffectChanged { gid, efst, active, remain_ms, .. } => {
                 assert_eq!(*gid, 150000);
                 assert_eq!(*efst, 192);
                 assert!(*active);
@@ -1818,7 +1947,7 @@ mod tests {
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            GameEvent::StatusEffectChanged { gid, efst, active, remain_ms } => {
+            GameEvent::StatusEffectChanged { gid, efst, active, remain_ms, .. } => {
                 assert_eq!(*gid, 150000);
                 assert_eq!(*efst, 192);
                 assert!(!*active, "0x196 off-packet must deactivate");

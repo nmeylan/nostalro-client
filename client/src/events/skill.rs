@@ -4,9 +4,9 @@ use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
 use models::enums::weapon::WeaponType;
 use ragnarok_game::effect::{
-    begin_cast_effect, beginspell_for_element, caster_skill_effects, ground_placed_effect,
-    is_cast_circle, is_caster_link_effect, is_ground_cast, is_trail_effect, target_skill_effects,
-    trail_arrival_secs,
+    begin_cast_effect, beginspell_for_element, caster_skill_effects, fire_glyph_effect,
+    ground_placed_effect, is_cast_circle, is_caster_link_effect, is_ground_cast, is_trail_effect,
+    target_skill_effects, trail_arrival_secs,
 };
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::skill_action::{skill_motion_type, SkillMotionType};
@@ -255,6 +255,13 @@ impl App {
         // so they travel the caster→target line rather than collapsing onto the
         // caster; the rest are self-anchored glyphs/auras.
         if !ground_cast {
+            // Execution-time caster glyph (Brandish Spear's burst, Charge
+            // Arrow's spark). Fired on the damage packet rather than the cast
+            // bar, so it still shows on instant casts and on skills that hide
+            // their cast aura.
+            for e in fire_glyph_effect(skill) {
+                self.effect_queue.spawn_on(*e, src_gid);
+            }
             for e in caster_skill_effects(skill).cast {
                 match trail {
                     // Caster-anchored-with-target (Soul Breaker): spawn on the

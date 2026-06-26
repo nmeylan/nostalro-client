@@ -42,6 +42,8 @@ impl PendingSkillTarget {
 pub enum RenderEntryKind {
     Entity,
     FloorItem,
+    /// A trailing pushcart; `id` is its owner entity's id.
+    Cart,
 }
 
 #[derive(Clone, Copy)]

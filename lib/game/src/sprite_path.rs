@@ -106,6 +106,33 @@ pub fn visual_job(job: u16, effect_state: i32) -> u16 {
     }
 }
 
+/// The cart design index (1..=5) carried by the cart OPTION bits, or `None`
+/// when no cart bit is set. Each bit in `OPTION_CART_MASK` selects one of the
+/// five pushcart sprite designs.
+pub fn cart_design_from_option(effect_state: i32) -> Option<u8> {
+    match effect_state & OPTION_CART_MASK {
+        0x08 => Some(1),
+        0x80 => Some(2),
+        0x100 => Some(3),
+        0x200 => Some(4),
+        0x400 => Some(5),
+        _ => None,
+    }
+}
+
+/// GRF base path (no extension) for a pushcart sprite of the given design
+/// index. The cart sprites live under the effect sprite directory with Korean
+/// names: design 1 is the base handcart, higher designs append the variant
+/// index, and design 0 is the Super Novice handcart.
+pub fn cart_sprite_path(design: u8) -> String {
+    const BASE: &str = "data/sprite/이팩트";
+    match design {
+        0 => format!("{BASE}/슈노손수레"),
+        1 => format!("{BASE}/손수레"),
+        n => format!("{BASE}/손수레{}", n - 1),
+    }
+}
+
 pub fn unmounted_job(job: u16) -> Option<u16> {
     match job {
         13 => Some(7),
@@ -624,6 +651,19 @@ mod tests {
         assert_eq!(visual_job(14, 0), 14);
         // Other flags don't trigger mount
         assert_eq!(visual_job(7, 0x01), 7);
+    }
+
+    #[test]
+    fn cart_design_from_option_maps_each_bit() {
+        assert_eq!(cart_design_from_option(0), None);
+        assert_eq!(cart_design_from_option(OPTION_RIDING), None);
+        assert_eq!(cart_design_from_option(0x08), Some(1));
+        assert_eq!(cart_design_from_option(0x80), Some(2));
+        assert_eq!(cart_design_from_option(0x100), Some(3));
+        assert_eq!(cart_design_from_option(0x200), Some(4));
+        assert_eq!(cart_design_from_option(0x400), Some(5));
+        // Cart bit set among unrelated options still resolves.
+        assert_eq!(cart_design_from_option(OPTION_RIDING | 0x100), Some(3));
     }
 
     #[test]

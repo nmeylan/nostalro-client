@@ -20,17 +20,17 @@
     "210": {
       "position": [
         342.0,
-        524.0
+        346.0
       ],
       "open": false,
       "collapsed": false
     },
-    "110": {
+    "900": {
       "position": [
-        490.0,
-        635.0
+        25.105469,
+        245.6836
       ],
-      "open": false,
+      "open": true,
       "collapsed": false
     },
     "1300": {
@@ -41,18 +41,42 @@
       "open": false,
       "collapsed": false
     },
+    "1200": {
+      "position": [
+        775.3242,
+        114.32031
+      ],
+      "open": true,
+      "collapsed": false
+    },
     "10": {
       "position": [
-        283.0,
+        566.6667,
         344.66666
       ],
       "open": false,
+      "collapsed": false
+    },
+    "800": {
+      "position": [
+        0.0,
+        126.859375
+      ],
+      "open": true,
       "collapsed": false
     },
     "1400": {
       "position": [
         0.0,
         0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "110": {
+      "position": [
+        490.0,
+        568.0
       ],
       "open": false,
       "collapsed": false

@@ -1,5 +1,8 @@
+pub(crate) mod cart;
 mod cursor;
 mod effects;
+
+pub(crate) use cart::CartVisual;
 
 use crate::App;
 use models::enums::weapon::WeaponType;

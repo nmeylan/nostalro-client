@@ -125,19 +125,20 @@ pub struct BowlingBashEffect {
 }
 
 impl BowlingBashEffect {
-    /// `to == from` (single-point anchor) keeps the slashes on a default
-    /// facing (+Z). A trail anchor's `to` rotates them to point along the
-    /// caster→target direction so the swing reads as facing the strike.
+    /// Endpoint convention: `from` = source (caster), `to` = target (the
+    /// struck entity). The swing centres on the **target** and faces back
+    /// toward the **source** (`to → from`). `to == from` (single-point anchor)
+    /// keeps the slashes on a default facing (+Z).
     pub fn new_with_direction(from: [f32; 3], to: [f32; 3]) -> Self {
-        let dx = to[0] - from[0];
-        let dz = to[2] - from[2];
+        let dx = from[0] - to[0];
+        let dz = from[2] - to[2];
         let base_heading_rad = if (dx * dx + dz * dz).sqrt() > MIN_DIR_DISTANCE {
             dx.atan2(dz)
         } else {
             0.0
         };
         Self {
-            world_pos: from,
+            world_pos: to,
             age: 0.0,
             slashes: make_slashes(base_heading_rad),
         }

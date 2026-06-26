@@ -28,6 +28,116 @@ impl App {
         self.preload_item_icons(icon_paths);
     }
 
+    pub(super) fn handle_cart_normal_items(&mut self, items: Vec<NormalItemData>) {
+        let icon_paths = self
+            .game
+            .character
+            .cart
+            .apply_normal_items(items, &self.game.data_table);
+        self.preload_item_icons(icon_paths);
+    }
+
+    pub(super) fn handle_cart_equipment_items(&mut self, items: Vec<EquipmentItemData>) {
+        let icon_paths = self
+            .game
+            .character
+            .cart
+            .apply_equipment_items(items, &self.game.data_table);
+        self.preload_item_icons(icon_paths);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn handle_cart_item_added(
+        &mut self,
+        index: u16,
+        item_id: u16,
+        count: i16,
+        item_type: u8,
+        is_identified: bool,
+        is_damaged: bool,
+        refining_level: u8,
+        slot: [u16; 4],
+    ) {
+        // The v1 add packet carries no item-type byte. Recover it from the
+        // source item still present in the body inventory so cart tab
+        // filtering classifies the item correctly.
+        let resolved_type = if item_type != 0 {
+            ItemType::from_value(item_type as usize)
+        } else {
+            self.game
+                .character
+                .inventory
+                .all_items()
+                .iter()
+                .find(|i| i.item_id == item_id)
+                .map(|i| i.item_type)
+                .unwrap_or(ItemType::from_value(item_type as usize))
+        };
+        let name = self
+            .game
+            .data_table
+            .item_name
+            .as_ref()
+            .map(|t| t.get_name_or_id_for(item_id, is_identified))
+            .unwrap_or_else(|| format!("Item #{item_id}"));
+        let resource_name = self.game.data_table.item_resource.as_ref().and_then(|t| {
+            t.get_resource_name_for(item_id, is_identified)
+                .map(|s| s.to_string())
+        });
+        self.game.character.cart.add_item(Item {
+            index,
+            item_id,
+            item_type: resolved_type,
+            count,
+            is_identified,
+            is_damaged,
+            refining_level,
+            slot,
+            location: 0,
+            wear_state: 0,
+            name,
+            resource_name,
+        });
+        let icon_path = self
+            .game
+            .character
+            .cart
+            .get_item(index)
+            .and_then(|item| item.icon_path());
+        if let Some(path) = icon_path {
+            self.preload_item_icons(vec![path]);
+        }
+    }
+
+    pub(super) fn handle_cart_item_removed(&mut self, index: u16, count: i16) {
+        self.game.character.cart.subtract_item_count(index, count);
+    }
+
+    pub(super) fn handle_cart_count_info(
+        &mut self,
+        cur_weight: i32,
+        max_weight: i32,
+        cur_count: i16,
+        max_count: i16,
+    ) {
+        self.game
+            .character
+            .cart
+            .set_count_info(cur_weight, max_weight, cur_count, max_count);
+    }
+
+    pub(super) fn handle_cart_off(&mut self) {
+        self.game.character.cart.clear();
+        self.game.character.cart.close();
+        self.game.character.cart_design = None;
+        if let Some(player_gid) = self.game.entities.player_id() {
+            if let Some(player) = self.game.entities.get_mut(player_gid) {
+                player.cart_type = None;
+            }
+            self.despawn_cart_visual(player_gid);
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn handle_inventory_item_pickup(
         &mut self,

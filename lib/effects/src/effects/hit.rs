@@ -540,21 +540,22 @@ impl HitEffect {
     }
 
     /// Spawn anchored at `from` (the effect's centre stays on the struck
-    /// entity), aiming the strike *angle* along the `from → to` heading —
-    /// only the orientation comes from the second endpoint, not the centre
-    /// (same heading derivation as `pierce.rs` / `sonicblowhit.rs`). The
-    /// flared cone tip and the forward-debris cone both point toward the
-    /// attacker direction, while Hit1's backward gravity cone points the
-    /// opposite way. Coincident endpoints collapse the heading to 0.
+    /// Endpoint convention (shared by every trail effect): `from` = the source
+    /// (caster/attacker), `to` = the target (the struck entity). The hit ring
+    /// centres on the **target** and aims its strike angle back toward the
+    /// **source** (the `to → from` heading). The flared cone tip and the
+    /// forward-debris cone point toward the attacker direction, while Hit1's
+    /// backward gravity cone points the opposite way. Coincident endpoints
+    /// collapse the heading to 0.
     pub fn new_with_endpoints(from: [f32; 3], to: [f32; 3], params: HitParams) -> Self {
-        let dx = to[0] - from[0];
-        let dz = to[2] - from[2];
+        let dx = from[0] - to[0];
+        let dz = from[2] - to[2];
         let heading_rad = if dx.abs() < 1e-4 && dz.abs() < 1e-4 {
             0.0
         } else {
             dx.atan2(dz)
         };
-        let world_pos = from;
+        let world_pos = to;
         let total_duration_s = total_duration_ms(params) as f32 / 1000.0;
         let rng_state = 0x9E37_79B9
             ^ world_pos[0].to_bits()
@@ -882,11 +883,11 @@ mod tests {
         // The cylinder also translates downward over time (the
         // translation direction in this codebase's
         // native RO frame is +Y = downward).
-        // Centre stays at `from` [1,2,3]; the target 10 units along +X only
-        // drives the heading = atan2(10, 0) = π/2.
+        // Centre stays at the target `to` [1,2,3]; the source 10 units along
+        // +X only drives the heading = atan2(10, 0) = π/2.
         let mut e = HitEffect::new_with_endpoints(
-            [1.0, 2.0, 3.0],
             [11.0, 2.0, 3.0],
+            [1.0, 2.0, 3.0],
             HIT1,
         );
         e.update(&ctx(1.0 / 60.0));
