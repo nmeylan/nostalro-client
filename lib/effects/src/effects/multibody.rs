@@ -4,8 +4,8 @@
 //! * **Reflectbody** (419) — four concentric white **alpha**
 //!   ghosts that ripple outward 0..20px and fade, staggered so a new ring is
 //!   always emerging (a repeated wave), drawn BEHIND a body dimmed to ~150 alpha.
-//! * **Assumptio** (375) — one larger ghost copy behind the
-//!   body, a doubled defensive body.
+//! * **Assumptio** (375) — one additive white copy behind the body whose
+//!   margin pulses cyclically (a doubled defensive body that breathes).
 //! * **Lightblade** (382) — a light/spark weapon glow;
 //!   approximated as a couple of small additive pale-blue copies (the original's
 //!   spark-sword render is weapon-bone specific).
@@ -39,6 +39,20 @@ struct Ripple {
     /// Alpha (0..255) at margin 0, falling by `alpha_falloff` per px.
     alpha_base: f32,
     alpha_falloff: f32,
+}
+
+/// Assumptio "double body": one additive copy behind the live sprite whose
+/// even pixel margin pulses cyclically — `base_px + amp_px·sin(phase°)` with
+/// `phase` sweeping `0..period_frames` and wrapping. Mirrors the original
+/// game's `m_BodySin` sweep (`sin·1.5 + 5`, 0..180 then reset), so the doubled
+/// silhouette gently swells and shrinks rather than holding a fixed size.
+#[derive(Clone, Copy)]
+struct DoublePulse {
+    base_px: f32,
+    amp_px: f32,
+    /// Frames for one full `0°..180°` sweep before the phase wraps.
+    period_frames: f32,
+    tint: [u8; 3],
 }
 
 /// Undeadbody aura: `count` concentric additive copies
@@ -78,6 +92,9 @@ pub struct Params {
     /// Undeadbody rising-alpha green aura, or `None`. Like `ripple`, overrides
     /// the static copy fields when set.
     undead: Option<UndeadAura>,
+    /// Assumptio cyclic-pulse double body, or `None`. Like `ripple`, overrides
+    /// the static copy fields when set.
+    pulse: Option<DoublePulse>,
     total_frames: f32,
 }
 
@@ -106,17 +123,17 @@ pub const REFLECTBODY: Params = Params {
         alpha_falloff: 5.0,
     }),
     undead: None,
+    pulse: None,
     total_frames: 120.0,
 };
 
 pub const ASSUMPTIO: Params = Params {
-    // Assumptio: one larger white copy drawn ADDITIVELY and BEHIND the
+    // Assumptio: one full-strength white copy drawn ADDITIVELY and BEHIND the
     // body — it only adds a soft white glow at the margin, leaving the opaque
-    // main sprite untouched (a darker alpha ghost would double the sprite).
-    copies: 1,
-    scale_step: 0.10,
-    // Near-opaque additive white → a bright white margin glow (the original's
-    // double body is a full-strength copy, not a faint ghost).
+    // main sprite untouched (a darker alpha ghost would double the sprite). The
+    // margin pulses cyclically (see `pulse`) so the doubled silhouette breathes.
+    copies: 0,
+    scale_step: 0.0,
     base_alpha: 1.0,
     alpha_step: 0.0,
     tint: [255, 255, 255],
@@ -125,6 +142,12 @@ pub const ASSUMPTIO: Params = Params {
     body_alpha: 1.0,
     ripple: None,
     undead: None,
+    pulse: Some(DoublePulse {
+        base_px: 5.0,
+        amp_px: 1.5,
+        period_frames: 180.0,
+        tint: [255, 255, 255],
+    }),
     total_frames: 120.0,
 };
 
@@ -139,6 +162,7 @@ pub const LIGHTBLADE: Params = Params {
     body_alpha: 1.0,
     ripple: None,
     undead: None,
+    pulse: None,
     total_frames: 120.0,
 };
 
@@ -162,6 +186,7 @@ pub const UNDEADBODY: Params = Params {
         ramp_frames: 200.0,
         max_alpha: 200.0 / 255.0,
     }),
+    pulse: None,
     total_frames: 240.0,
 };
 
@@ -218,6 +243,9 @@ impl Effect for MultiBodyEffect {
         if let Some(undead) = self.params.undead {
             return Some(self.undead_copies(undead));
         }
+        if let Some(pulse) = self.params.pulse {
+            return Some(vec![self.pulse_copy(pulse)]);
+        }
         let mut copies = Vec::with_capacity(self.params.copies as usize);
         for i in 1..=self.params.copies {
             let i_f = i as f32;
@@ -259,6 +287,24 @@ impl MultiBodyEffect {
             .collect()
     }
 
+    /// Assumptio double body: see [`DoublePulse`] for the model. One additive
+    /// copy behind the body whose even margin breathes as the phase sweeps a
+    /// half-sine and wraps.
+    fn pulse_copy(&self, pulse: DoublePulse) -> BodyCopy {
+        let phase = self.age_frames % pulse.period_frames;
+        let margin =
+            pulse.base_px + pulse.amp_px * (phase / pulse.period_frames * std::f32::consts::PI).sin();
+        BodyCopy {
+            offset_px: [0.0, 0.0],
+            margin_px: margin,
+            scale: [1.0, 1.0],
+            tint: pulse.tint,
+            alpha: 1.0,
+            additive: true,
+            behind: true,
+        }
+    }
+
     /// Reflectbody ripple: see [`Ripple`] for the model.
     fn reflect_copies(&self, ripple: Ripple) -> Vec<BodyCopy> {
         let phase = self.age_frames % 200.0;
@@ -268,7 +314,7 @@ impl MultiBodyEffect {
                 if add >= ripple.wrap {
                     add -= ripple.wrap;
                 }
-                let mut alpha = (ripple.alpha_base - add * ripple.alpha_falloff) / 255.0;
+                let alpha = (ripple.alpha_base - add * ripple.alpha_falloff) / 255.0;
 
                 (alpha > 0.0).then_some(BodyCopy {
                     offset_px: [0.0, 0.0],
@@ -321,15 +367,26 @@ mod tests {
     }
 
     #[test]
-    fn assumptio_is_one_glow_behind_lightblade_glows_on_top() {
-        let assumptio = MultiBodyEffect::new(ASSUMPTIO);
+    fn assumptio_is_one_glow_behind_whose_margin_pulses_cyclically() {
+        let mut assumptio = MultiBodyEffect::new(ASSUMPTIO);
         let a = assumptio.body_copies().expect("halo");
         assert_eq!(a.len(), 1);
         // Additive glow BEHIND the body → white margin, main sprite untouched.
+        // The pulse drives an even pixel margin, not a proportional scale.
         assert!(
-            a[0].additive && a[0].behind && a[0].scale[0] > 1.0,
-            "larger glow behind"
+            a[0].additive && a[0].behind && a[0].scale == [1.0, 1.0] && a[0].margin_px >= 5.0,
+            "additive margin glow behind"
         );
+
+        // The margin swells to its peak at the quarter-period (sin 90°) and
+        // returns to the base at the half-period (sin 180°): a cyclic breath.
+        let base = a[0].margin_px;
+        step(&mut assumptio, 90.0);
+        let peak = assumptio.body_copies().unwrap()[0].margin_px;
+        step(&mut assumptio, 90.0);
+        let back = assumptio.body_copies().unwrap()[0].margin_px;
+        assert!(peak > base, "margin grows toward the peak");
+        assert!((back - base).abs() < 0.1, "margin returns to base over a cycle");
 
         let lightblade = MultiBodyEffect::new(LIGHTBLADE);
         assert!(
