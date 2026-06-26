@@ -108,6 +108,9 @@ mod tests {
         };
         assert_eq!(table.get_name(1002), Some("Poring"));
         assert_eq!(table.get_name(46), Some("1_ETC_01"));
-        assert!(table.get_name(0).is_none());
+        // ids outside the old 46-1623 range now resolve (NPC + high monsters)
+        assert_eq!(table.get_name(1885), Some("GOPINICH"));
+        assert_eq!(table.get_name(566), Some("MYSTCASE"));
+        assert!(table.get_name(60000).is_none());
     }
 }
