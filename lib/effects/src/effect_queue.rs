@@ -530,7 +530,7 @@ pub fn trail_arrival_secs(id: EffectId, distance_units: f32) -> Option<f32> {
         | EffectId::Throwitem7
         | EffectId::Throwitem8
         | EffectId::Throwitem9
-        | EffectId::Throwitem10 => effects::throw_item::PROJECTILE_FLIGHT,
+        | EffectId::Throwitem10 => effects::throw_item::projectile_flight(id),
         EffectId::Pressure => effects::pressure::PROJECTILE_FLIGHT,
         EffectId::Tripleattack | EffectId::Tripleattack2 | EffectId::Tripleattack3 => {
             effects::tripleattack::PROJECTILE_FLIGHT

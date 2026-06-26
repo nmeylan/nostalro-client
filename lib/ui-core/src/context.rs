@@ -1,5 +1,5 @@
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
-use winit::keyboard::{Key, NamedKey};
+use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
 
 const DOUBLE_CLICK_THRESHOLD_MS: u128 = 400;
 const DOUBLE_CLICK_DISTANCE: f32 = 5.0;
@@ -146,6 +146,26 @@ impl UiContext {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state == ElementState::Pressed {
+                    // Function keys are matched on the physical scancode, not the
+                    // logical key: some keyboards/layouts deliver an Fn-remapped
+                    // logical key for the upper F-row, which a NamedKey match
+                    // silently misses.
+                    if let PhysicalKey::Code(code) = event.physical_key {
+                        match code {
+                            KeyCode::F1 => self.key_f1 = true,
+                            KeyCode::F2 => self.key_f2 = true,
+                            KeyCode::F3 => self.key_f3 = true,
+                            KeyCode::F4 => self.key_f4 = true,
+                            KeyCode::F5 => self.key_f5 = true,
+                            KeyCode::F6 => self.key_f6 = true,
+                            KeyCode::F7 => self.key_f7 = true,
+                            KeyCode::F8 => self.key_f8 = true,
+                            KeyCode::F9 => self.key_f9 = true,
+                            KeyCode::F10 => self.key_f10 = true,
+                            KeyCode::F12 => self.key_f12 = true,
+                            _ => {}
+                        }
+                    }
                     match &event.logical_key {
                         Key::Named(NamedKey::Backspace) => self.key_backspace = true,
                         Key::Named(NamedKey::Enter) => self.key_enter = true,
@@ -156,17 +176,6 @@ impl UiContext {
                         Key::Named(NamedKey::Delete) => self.key_delete = true,
                         Key::Named(NamedKey::ArrowUp) => self.key_up = true,
                         Key::Named(NamedKey::ArrowDown) => self.key_down = true,
-                        Key::Named(NamedKey::F1) => self.key_f1 = true,
-                        Key::Named(NamedKey::F2) => self.key_f2 = true,
-                        Key::Named(NamedKey::F3) => self.key_f3 = true,
-                        Key::Named(NamedKey::F4) => self.key_f4 = true,
-                        Key::Named(NamedKey::F5) => self.key_f5 = true,
-                        Key::Named(NamedKey::F6) => self.key_f6 = true,
-                        Key::Named(NamedKey::F7) => self.key_f7 = true,
-                        Key::Named(NamedKey::F8) => self.key_f8 = true,
-                        Key::Named(NamedKey::F9) => self.key_f9 = true,
-                        Key::Named(NamedKey::F10) => self.key_f10 = true,
-                        Key::Named(NamedKey::F12) => self.key_f12 = true,
                         Key::Named(NamedKey::Space) => self.typed_chars.push(' '),
                         Key::Character(_) => {
                             if let Some(text) = &event.text {

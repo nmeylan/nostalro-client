@@ -60,6 +60,19 @@ impl App {
             "SkillDamage: skill_id={skill_id}, src_gid={src_gid}, count={count}, action={action:?}, effective_count={effective_count}"
         );
 
+        // A hunter/sniper's falcon darts at the struck target on Blitz Beat and
+        // Falcon Assault. Auto Blitz Beat arrives through this same packet, so it
+        // is covered without extra wiring.
+        if self.game.falcons.contains_key(&src_gid)
+            && matches!(
+                SkillEnum::from_id(skill_id as u32),
+                SkillEnum::HtBlitzbeat | SkillEnum::SnFalconassault
+            )
+            && let Some(target) = self.entity_world_pos(target_gid)
+        {
+            self.start_falcon_flight(src_gid, target);
+        }
+
         let suppress_flinch = matches!(
             action,
             ActionType::AttackNomotion | ActionType::AttackMultipleNomotion
@@ -144,9 +157,24 @@ impl App {
                 (dx * dx + dz * dz).sqrt()
             })
             .unwrap_or(0.0);
-        let hit_delay = match Self::skill_projectile_flight_secs(skill_id, projectile_distance) {
-            flight if flight > 0.0 => delay_time.max(age + flight),
-            _ => delay_time,
+        // Blitz Beat / Falcon Assault have no flying trail effect — the falcon
+        // itself is the projectile, so hold the hit until the bird reaches the
+        // target (the falcon flight was launched at the top of this handler).
+        let falcon_flight = if self.game.falcons.contains_key(&src_gid)
+            && matches!(
+                SkillEnum::from_id(skill_id as u32),
+                SkillEnum::HtBlitzbeat | SkillEnum::SnFalconassault
+            ) {
+            crate::sprite::falcon::FALCON_FLIGHT_OUT_SECS
+        } else {
+            0.0
+        };
+        let flight =
+            Self::skill_projectile_flight_secs(skill_id, projectile_distance).max(falcon_flight);
+        let hit_delay = if flight > 0.0 {
+            delay_time.max(age + flight)
+        } else {
+            delay_time
         };
 
         let double_attack_term = 0.2;
@@ -271,6 +299,7 @@ impl App {
                         self.effect_queue.spawn_link(*e, src_gid, target_gid);
                     }
                     Some((from, to)) if is_trail_effect(*e) => {
+                        let (from, to) = Self::ground_erupting_trail(*e, (from, to));
                         self.effect_queue.spawn_trail_with_count(*e, from, to, hits);
                     }
                     _ => self.effect_queue.spawn_on(*e, src_gid),
@@ -292,6 +321,7 @@ impl App {
             };
             match trail {
                 Some((from, to)) if is_trail_effect(e) => {
+                    let (from, to) = Self::ground_erupting_trail(e, (from, to));
                     self.effect_queue.spawn_trail_with_count(e, from, to, hits);
                 }
                 _ => self.effect_queue.spawn_on_with_count(e, target_gid, hits),
@@ -327,6 +357,10 @@ impl App {
 
     /// Feet-world positions of caster and target for a projectile trail. `None`
     /// if the map or either entity is missing.
+    /// Travelling projectiles fly at chest height, so trail endpoints are lifted
+    /// this far above the ground (−Y is up).
+    const PROJECTILE_CHEST_LIFT: f32 = 10.0;
+
     fn skill_trail_endpoints(
         &self,
         src_gid: u32,
@@ -336,9 +370,26 @@ impl App {
         let cell_world = |gid: u32| {
             let (cx, cy) = self.game.entities.get(gid)?.movement.cell_position();
             let (wx, _, wz) = coords.cell_to_world(cx as f32 + 0.5, cy as f32 + 0.5);
-            Some([wx, gat.get_height(cx as f32 + 0.5, cy as f32 + 0.5) - 10.0, wz])
+            Some([
+                wx,
+                gat.get_height(cx as f32 + 0.5, cy as f32 + 0.5) - Self::PROJECTILE_CHEST_LIFT,
+                wz,
+            ])
         };
         Some((cell_world(src_gid)?, cell_world(target_gid)?))
+    }
+
+    /// Ice-spike trails (Frost Diver, Grimtooth) erupt from the ground, not the
+    /// chest-height projectile line, so drop their endpoints back to the surface.
+    fn ground_erupting_trail(
+        id: EffectId,
+        (mut from, mut to): ([f32; 3], [f32; 3]),
+    ) -> ([f32; 3], [f32; 3]) {
+        if matches!(id, EffectId::Frostdiver | EffectId::Grimtooth) {
+            from[1] += Self::PROJECTILE_CHEST_LIFT;
+            to[1] += Self::PROJECTILE_CHEST_LIFT;
+        }
+        (from, to)
     }
 
     /// Begin-cast glyph on the caster — the begin-spell cast circle fired at

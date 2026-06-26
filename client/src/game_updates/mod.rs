@@ -23,6 +23,7 @@ impl App {
         self.load_missing_entity_sprites();
         self.update_sprite_animation(delta);
         self.update_cart_animations(delta);
+        self.update_falcon_visuals(delta);
         self.update_fades(delta);
         // RSW ambient effects (torch/smoke/bubble/…) spawn through the shared
         // queue, driven only near the camera. Run before `drain_queue` so this

@@ -37,7 +37,10 @@ const CARD_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 /// rather than a chunky ratio (which, under additive blend, fills
 /// the centre into a blob instead of clearing into a ring).
 const BASE_DISTANCE: f32 = 20.0 * 0.35;
-const BASE_STEP: f32 = 0.8 * 0.85;
+/// Per-frame travel before the slash accelerates. The original's `0.8` reads as
+/// a crawl in our coordinate scale, so the slash flies ~2.5× faster to feel like
+/// the snappy dark slash it is.
+const BASE_STEP: f32 = 0.8 * 2.0;
 
 /// Invisible for ~28 frames, then the four slashes start
 /// one frame apart.

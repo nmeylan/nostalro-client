@@ -14,7 +14,7 @@ use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::effect::skill_unit_effect;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
-use ragnarok_game::sprite_path::{cart_design_from_option, entity_type_from_job, is_hidden, visual_job, JT_WARPNPC, OPTION_RIDING};
+use ragnarok_game::sprite_path::{cart_design_from_option, entity_type_from_job, has_falcon, is_hidden, visual_job, JT_WARPNPC, OPTION_RIDING};
 
 /// The level-99 aura is a composite the original game stacks together: the blue
 /// spinning ring, the rising pikapika sparkles, and the orbiting light motes.
@@ -130,6 +130,9 @@ impl App {
                 entity.cart_type = Some(design);
             }
             self.spawn_cart_visual(gid, design);
+        }
+        if has_falcon(effect_state) {
+            self.spawn_falcon_visual(gid);
         }
         self.refresh_level_aura(gid);
         self.refresh_boss_aura(gid);
@@ -440,11 +443,14 @@ impl App {
             }
         }
         let (mut old_cart, mut new_cart) = (None, None);
+        let (mut old_falcon, mut new_falcon) = (false, false);
         if let Some(entity) = self.game.entities.get_mut(gid) {
             let old_riding = (entity.effect_state & OPTION_RIDING) != 0;
             let new_riding = (effect_state & OPTION_RIDING) != 0;
             old_cart = cart_design_from_option(entity.effect_state);
             new_cart = cart_design_from_option(effect_state);
+            old_falcon = has_falcon(entity.effect_state);
+            new_falcon = has_falcon(effect_state);
             entity.cart_type = new_cart;
             tracing::debug!("  old_effect=0x{:08x} old_riding={old_riding} new_riding={new_riding} job={}", entity.effect_state, entity.job);
             entity.effect_state = effect_state;
@@ -501,6 +507,14 @@ impl App {
             match new_cart {
                 Some(design) => self.spawn_cart_visual(gid, design),
                 None => self.despawn_cart_visual(gid),
+            }
+        }
+        // Spawn/despawn the falcon companion when its OPTION bit changes.
+        if old_falcon != new_falcon {
+            if new_falcon {
+                self.spawn_falcon_visual(gid);
+            } else {
+                self.despawn_falcon_visual(gid);
             }
         }
         // Hide/cloak/burrow deletes the aura; reappearing respawns it.

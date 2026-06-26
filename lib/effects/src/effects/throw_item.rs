@@ -36,6 +36,8 @@
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
+use crate::projectile::ProjectileCursor;
+use models::enums::effect_id::EffectId;
 
 /// Item icons to preload. Korean names live under the item dir; `coin_a` is
 /// an effect-dir texture referenced by its bare name.
@@ -69,14 +71,32 @@ const LAND_FADE_PER_FRAME: f32 = 20.0 / 255.0;
 const MAX_TOTAL_FRAMES: f32 = 90.0;
 pub const TOTAL_DURATION_MS: u32 = (MAX_TOTAL_FRAMES / FPS * 1000.0) as u32;
 
-/// Reaches the target in a fixed frame count: the default arc covers the ground
-/// distance in 25 frames (`dist/25` per frame), so the time is
-/// distance-independent. Launch delay plus that flight. (Fixed-step throws
-/// differ only marginally.)
-pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
-    crate::effect_queue::ProjectileFlight::FixedFrames(
-        (THROW_ITEM3.launch_delay_frames + 25) as f32,
-    );
+/// When `id`'s thrown item reaches the target, so the spawner can hold the hit
+/// until it lands. Fixed-step variants (stone, coin/ninja throws) travel at a
+/// constant speed, so the reach scales with distance; the default arc variants
+/// cover any gap in 25 frames. Mirrors the per-id variant table in `factory.rs`.
+pub fn projectile_flight(id: EffectId) -> crate::effect_queue::ProjectileFlight {
+    use crate::effect_queue::ProjectileFlight;
+    let p = match id {
+        EffectId::Throwitem => THROW_BOTTLES,
+        EffectId::Throwitem2 => THROW_ITEM2,
+        EffectId::Throwitem3 => THROW_STONE,
+        EffectId::Throwitem4 => THROW_MOLOTOV,
+        EffectId::Throwitem5 => THROW_ITEM4,
+        EffectId::Throwitem6 => THROW_ITEM6,
+        EffectId::Throwitem7 => THROW_ITEM7,
+        EffectId::Throwitem8 => THROW_ITEM8,
+        EffectId::Throwitem9 => THROW_ITEM9,
+        _ => THROW_COIN,
+    };
+    match p.fixed_step {
+        Some(step) => ProjectileFlight::ConstantSpeed {
+            delay_frames: p.launch_delay_frames as f32,
+            units_per_frame: step,
+        },
+        None => ProjectileFlight::FixedFrames(p.launch_delay_frames as f32 + 25.0),
+    }
+}
 
 /// Tuning for one thrown item.
 #[derive(Clone, Copy)]
@@ -162,18 +182,14 @@ pub const THROW_ITEM9: ThrowItemParams = coin_throw(concat!(
 // 616 Throw Money (effect/coin_a.bmp).
 pub const THROW_COIN: ThrowItemParams = coin_throw("coin_a.bmp");
 
-/// One in-flight projectile. State is integrated per fixed frame, matching
-/// the original game's throw motion.
+/// One in-flight projectile. Travel and arrival are delegated to the shared
+/// [`ProjectileCursor`] so the item lands exactly on the target; the arc and
+/// spin are layered on top.
 struct Projectile {
     params: ThrowItemParams,
-    sin_h: f32,
-    cos_h: f32,
-    step: f32,
-    steps_to_target: f32,
-    y_lerp_per_frame: f32,
+    cursor: ProjectileCursor,
 
     pos: [f32; 3],
-    base_y: f32,
     spin_deg: f32,
     alpha: f32,
     flight_frame: u32,
@@ -186,30 +202,19 @@ struct Projectile {
 
 impl Projectile {
     fn new(from: [f32; 3], to: [f32; 3], params: ThrowItemParams) -> Self {
+        // Launch from hand/chest height and land on the target point. The arc is
+        // a half-sine hump on top of the cursor's straight flight.
+        let launch = [from[0], from[1] + HAND_Y, from[2]];
         let dx = to[0] - from[0];
         let dz = to[2] - from[2];
-        let ground_dist = (dx * dx + dz * dz).sqrt();
-        let (sin_h, cos_h) = if ground_dist > 1e-3 {
-            dx.atan2(dz).sin_cos()
-        } else {
-            (0.0, 1.0)
-        };
-
-        let dist = ground_dist.max(1e-3);
+        let dist = (dx * dx + dz * dz).sqrt().max(1e-3);
         let step = params.fixed_step.unwrap_or(dist / 25.0).max(1e-3);
-        let steps_to_target = (dist / step).ceil().max(1.0);
-        let y_lerp_per_frame = (to[1] - from[1]) / steps_to_target;
-        let base_y = from[1] + HAND_Y;
+        let cursor = ProjectileCursor::new(launch, to, step);
 
         Self {
             params,
-            sin_h,
-            cos_h,
-            step,
-            steps_to_target,
-            y_lerp_per_frame,
-            pos: [from[0], base_y, from[2]],
-            base_y,
+            pos: launch,
+            cursor,
             spin_deg: 0.0,
             alpha: 1.0,
             flight_frame: 0,
@@ -224,21 +229,22 @@ impl Projectile {
         self.started = true;
         self.spin_deg = (self.spin_deg + self.params.spin_deg) % 360.0;
 
-        let b = self.flight_frame as f32 / self.steps_to_target;
-        if b > 1.05 {
-            self.landed = true;
+        if self.landed {
             self.alpha -= LAND_FADE_PER_FRAME;
             if self.alpha <= 0.0 {
                 self.alpha = 0.0;
                 self.dead = true;
             }
         } else {
-            self.base_y += self.y_lerp_per_frame;
-            let hump = (std::f32::consts::PI * b.min(1.0)).sin() * self.params.arc_peak;
-            // −Y is up: subtract the hump so the projectile rises.
-            self.pos[1] = self.base_y - hump;
-            self.pos[0] += self.step * self.sin_h;
-            self.pos[2] += self.step * self.cos_h;
+            let arrived = self.cursor.advance();
+            let base = self.cursor.pos();
+            let hump = (std::f32::consts::PI * self.cursor.progress()).sin() * self.params.arc_peak;
+            // −Y is up: subtract the hump so the projectile rises. The hump is 0
+            // at arrival, so the item lands exactly on the target point.
+            self.pos = [base[0], base[1] - hump, base[2]];
+            if arrived {
+                self.landed = true;
+            }
         }
 
         self.history.push(self.pos);
@@ -413,6 +419,47 @@ mod tests {
         }
         let started: usize = e.projectiles.iter().filter(|p| p.started).count();
         assert_eq!(started, 1, "only the molotov has launched at frame 7");
+    }
+
+    #[test]
+    fn lands_exactly_on_the_target_point() {
+        // A non-divisible distance (the dead-reckoning drift case): the lead
+        // item must end on the target XZ, not short of or past it.
+        let target = [13.0, 0.0, 41.0];
+        let mut e = ThrowItemEffect::new([10.0, 0.0, 10.0], target, &[THROW_STONE]);
+        let mut landed = [f32::NAN; 3];
+        for _ in 0..(MAX_TOTAL_FRAMES as u32) {
+            step(&mut e, FRAME_DT);
+            let p = &e.projectiles[0];
+            if p.landed {
+                landed = p.pos;
+                break;
+            }
+        }
+        assert!(
+            (landed[0] - target[0]).abs() < 0.01 && (landed[2] - target[2]).abs() < 0.01,
+            "throw landed at {landed:?}, expected target {target:?}"
+        );
+    }
+
+    #[test]
+    fn projectile_flight_scales_with_distance_for_fixed_step_variants() {
+        use crate::effect_queue::ProjectileFlight;
+        // Stone is a fixed-step variant → ConstantSpeed (reach scales with range).
+        assert!(matches!(
+            projectile_flight(EffectId::Throwitem3),
+            ProjectileFlight::ConstantSpeed { units_per_frame, .. } if (units_per_frame - 2.0).abs() < 1e-6
+        ));
+        // Venom Knife / coin throws use the coin step (3.0).
+        assert!(matches!(
+            projectile_flight(EffectId::Throwitem6),
+            ProjectileFlight::ConstantSpeed { units_per_frame, .. } if (units_per_frame - 3.0).abs() < 1e-6
+        ));
+        // The default bottle arc reaches in a fixed frame count.
+        assert!(matches!(
+            projectile_flight(EffectId::Throwitem),
+            ProjectileFlight::FixedFrames(_)
+        ));
     }
 
     #[test]

@@ -394,6 +394,39 @@ impl App {
                         sprite_batches.append(&mut batches);
                     }
                 }
+                RenderEntryKind::Falcon => {
+                    if let (Some(falcon), Some(entity)) = (
+                        self.game.falcons.get(&entry.id),
+                        self.game.entities.get(entry.id),
+                    ) {
+                        // The falcon inherits the owner's visibility: hidden /
+                        // cloaked owners hide (or fade) the bird too.
+                        let is_self = Some(entry.id) == self.game.entities.player_id();
+                        let render = hidden_render(entity.effect_state, is_self);
+                        if render == HiddenRender::Skip {
+                            continue;
+                        }
+                        let alpha = entity.alpha()
+                            * match render {
+                                HiddenRender::Alpha(a) => a,
+                                _ => 1.0,
+                            };
+                        let mut body_channels =
+                            self.effect_holder.body_channels_for_entity(entry.id);
+                        body_channels.alpha *= alpha;
+                        let mut batches = ragnarok_renderer::compose_actor_batches(
+                            &falcon.sprite,
+                            &falcon.animation,
+                            entry.camera_dir,
+                            falcon.motion.direction,
+                            entry.screen_anchor,
+                            entry.depth,
+                            entry.sprite_scale,
+                            &body_channels,
+                        );
+                        sprite_batches.append(&mut batches);
+                    }
+                }
             }
         }
 

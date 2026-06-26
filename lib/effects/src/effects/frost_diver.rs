@@ -29,6 +29,7 @@
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::effects::spike_util::{FRAMES_PER_SECOND, apex_velocity, fade_tail_alpha, rise_step};
+use crate::projectile::ProjectileCursor;
 
 pub const ICE_TEXTURE: &str = "ice.tga";
 pub const STONE_TEXTURE: &str = "stone.bmp";
@@ -187,11 +188,7 @@ const FADE_OUT_FRAMES: f32 = 10.0;
 /// The projectile cursor advances 2
 /// world units toward the target each frame.
 const TRAIL_STEP_PER_FRAME: f32 = 2.0;
-/// Stop condition — once the cursor is closer
-/// than this to the target, no more spikes are spawned.
-const TRAIL_STOP_DISTANCE: f32 = 2.5;
-/// Initial cursor offset — the first spike spawns 5 units back from the
-/// target.
+/// Initial cursor offset — the first spike spawns this far out from the caster.
 const TRAIL_INITIAL_OFFSET: f32 = 5.0;
 
 /// Deterministic per-effect LCG so tests are repeatable and concurrent
@@ -364,39 +361,36 @@ impl FrostDiverEffect {
 }
 
 /// Resolve the spawn anchor and (if applicable) the per-spike trail
-/// positions from the `Attach`. For `Attach::Trail { from, to }` we
-/// reproduce the projectile cursor: starting `TRAIL_INITIAL_OFFSET`
-/// units back from the target, step `TRAIL_STEP_PER_FRAME` units toward
-/// the caster, stopping once the remaining distance to the target is
-/// `≤ TRAIL_STOP_DISTANCE`. Each cursor position becomes one spike's
-/// XZ anchor; spike Y stays on the caster's ground plane (`from[1]`).
+/// positions from the `Attach`. For `Attach::Trail { from, to }` we walk the
+/// shared [`ProjectileCursor`] from the caster toward the target at
+/// `TRAIL_STEP_PER_FRAME`, dropping one spike per step once past
+/// `TRAIL_INITIAL_OFFSET`. The cursor snaps to the target on arrival, so the
+/// final spike lands exactly on the target point. Spike Y stays on the caster's
+/// ground plane (`from[1]`).
 fn derive_anchors(
     from: [f32; 3],
     to: [f32; 3],
     initial_offset: f32,
 ) -> ([f32; 3], Vec<[f32; 3]>) {
-    let dx = to[0] - from[0];
-    let dz = to[2] - from[2];
-    let total_dist = (dx * dx + dz * dz).sqrt();
-    if total_dist <= initial_offset {
+    let mut cursor = ProjectileCursor::new(from, to, TRAIL_STEP_PER_FRAME);
+    if cursor.dist() <= initial_offset {
         // Caster and target are too close to draw a meaningful trail
         // (most likely a self-cast, the `from == to` collapse from the
         // single-point factory fallback, or a viewer stub call). Fall
         // back to cluster mode at the caster's position.
         return (from, Vec::new());
     }
-    // Unit vector caster → target on the XZ plane.
-    let ux = dx / total_dist;
-    let uz = dz / total_dist;
+    let ground_y = from[1];
     let mut anchors = Vec::new();
-    // Cursor: distance-remaining-to-target. Starts at
-    // `total_dist - initial_offset`, decreases by `TRAIL_STEP_PER_FRAME`
-    // each iteration.
-    let mut remaining = total_dist - initial_offset;
-    while remaining > TRAIL_STOP_DISTANCE {
-        let along = total_dist - remaining;
-        anchors.push([from[0] + ux * along, from[1], from[2] + uz * along]);
-        remaining -= TRAIL_STEP_PER_FRAME;
+    loop {
+        let arrived = cursor.advance();
+        if cursor.traveled() >= initial_offset {
+            let p = cursor.pos();
+            anchors.push([p[0], ground_y, p[2]]);
+        }
+        if arrived {
+            break;
+        }
     }
     (from, anchors)
 }
@@ -497,28 +491,32 @@ mod tests {
         // populate; step past the full burst window.
         step(&mut e, FROSTDIVER.burst_over_frames / FRAMES_PER_SECOND + 0.01);
         let spawned = e.spike_index;
-        assert_eq!(spawned, 9, "9 spikes expected for 25-unit trail");
+        // Cursor steps 2 units from the caster, dropping a spike each step once
+        // past the 5-unit setback, through to the target (z = 6,8,…,24,25).
+        assert_eq!(spawned, 11, "11 spikes expected for a 25-unit trail");
 
-        // Every spike's XZ position must lie on the from→to line.
+        // Every spike's XZ position must lie on the from→to line, and the trail
+        // must run from the setback all the way onto the target point.
+        let mut max_z = f32::NEG_INFINITY;
         for prim in draws(&e) {
             let EffectPrimitiveDraw::QuadHorn { base, .. } = prim else {
                 panic!("expected QuadHorn, got {prim:?}");
             };
             assert!(base[0].abs() < 1e-3, "spike X stays on the +Z line: {base:?}");
-            // Spikes lie strictly between TRAIL_INITIAL_OFFSET from the
-            // caster (first cursor stop) and TRAIL_STOP_DISTANCE from
-            // the target (last cursor stop, exclusive — `remaining`
-            // must still be > TRAIL_STOP_DISTANCE to spawn).
-            let first_anchor_z = TRAIL_INITIAL_OFFSET;
-            let last_anchor_z = to[2] - TRAIL_STOP_DISTANCE;
             assert!(
-                first_anchor_z - 1e-3 <= base[2] && base[2] < last_anchor_z,
-                "spike Z {} must lie inside the trail span [{}, {})",
+                base[2] >= TRAIL_INITIAL_OFFSET - 1e-3 && base[2] <= to[2] + 1e-3,
+                "spike Z {} must lie within [{}, {}]",
                 base[2],
-                first_anchor_z,
-                last_anchor_z,
+                TRAIL_INITIAL_OFFSET,
+                to[2],
             );
+            max_z = max_z.max(base[2]);
         }
+        assert!(
+            (max_z - to[2]).abs() < 1e-3,
+            "the last spike must land on the target (z={}), got {max_z}",
+            to[2],
+        );
     }
 
     #[test]

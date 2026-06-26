@@ -1152,6 +1152,42 @@ impl App {
         render_list
     }
 
+    /// Hovering falcon render entries. Each falcon flies at its own world
+    /// position (above the terrain, possibly mid-dart to a skill target), so it
+    /// projects from that point directly rather than from a ground cell. Kept out
+    /// of the entity list so falcons never participate in mouse picking.
+    fn compute_falcon_render_list(&self) -> Vec<RenderEntry> {
+        let mut render_list = Vec::new();
+        if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
+            let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
+            let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+            for (gid, falcon) in self.game.falcons.iter() {
+                if let Some((screen_anchor, depth, camera_dir, sprite_scale, depth_gradient)) =
+                    input::project_world_screen(
+                        falcon.motion.pos,
+                        coords,
+                        &renderer.camera,
+                        screen_w,
+                        screen_h,
+                    )
+                {
+                    render_list.push(RenderEntry {
+                        kind: RenderEntryKind::Falcon,
+                        id: *gid,
+                        screen_anchor,
+                        depth,
+                        depth_gradient,
+                        camera_dir,
+                        sprite_scale,
+                        pick_bounds: [0.0; 4],
+                        head_offset: 0.0,
+                    });
+                }
+            }
+        }
+        render_list
+    }
+
     fn compute_floor_item_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
         if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
@@ -1386,7 +1422,8 @@ impl ApplicationHandler for App {
                 let hovered = self.update_grid_hover();
                 let render_list = self.compute_render_list();
                 let floor_item_render_list = self.compute_floor_item_render_list();
-                let cart_render_list = self.compute_cart_render_list();
+                let mut cart_render_list = self.compute_cart_render_list();
+                cart_render_list.extend(self.compute_falcon_render_list());
                 let hovered_entity_id = self.update_cursor_type(
                     hovered,
                     ui_any_hovered,

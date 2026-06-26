@@ -375,6 +375,15 @@ impl SpriteAnimationState {
         (self.action * 8 + self.direction) % act.actions.len()
     }
 
+    /// Override the per-frame delay so a looping animation plays a full cycle in
+    /// `total_ms` regardless of the ACT's per-direction delays. Pass `None` to
+    /// restore the ACT's own timing. Useful for sprites whose authored delays
+    /// differ across directional slots (which otherwise makes playback speed vary
+    /// with the displayed direction / camera angle).
+    pub fn set_motion_speed_override(&mut self, total_ms: Option<f32>) {
+        self.motion_speed_override_ms = total_ms;
+    }
+
     pub fn reset_motion(&mut self) {
         self.motion_index = 0;
         self.accumulated_ms = 0.0;

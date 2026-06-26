@@ -44,6 +44,8 @@ pub enum RenderEntryKind {
     FloorItem,
     /// A trailing pushcart; `id` is its owner entity's id.
     Cart,
+    /// A hovering falcon companion; `id` is its owner entity's id.
+    Falcon,
 }
 
 #[derive(Clone, Copy)]

@@ -38,6 +38,25 @@ pub fn entity_sprite_base_path(name_table: &NameTable, job: u16) -> Option<Strin
 
 pub const OPTION_FALCON: i32 = 0x10;
 pub const OPTION_RIDING: i32 = 0x20;
+
+/// `true` while `effect_state` carries the falcon OPTION bit — the hunter/sniper
+/// rented falcon companion. Set/cleared server-side (`setoption`) and delivered
+/// in the same option-change packet as cart/riding.
+pub fn has_falcon(effect_state: i32) -> bool {
+    (effect_state & OPTION_FALCON) != 0
+}
+
+/// GRF base path (no extension) for the hunter/sniper falcon companion sprite,
+/// selected per job like the original game: the base falcon (`매`) for Hunter,
+/// the advanced variant (`매2`) for Sniper. The sprites live in the effect
+/// directory beside the pushcart.
+pub fn falcon_sprite_path(job: u16) -> &'static str {
+    match job {
+        // Sniper gets the advanced falcon.
+        4012 => "data/sprite/이팩트/매2",
+        _ => "data/sprite/이팩트/매",
+    }
+}
 pub const OPTION_CART_MASK: i32 = 0x08 | 0x80 | 0x100 | 0x200 | 0x400;
 pub const OPTION_REMOVABLE_MASK: i32 = OPTION_FALCON | OPTION_RIDING | OPTION_CART_MASK;
 
@@ -664,6 +683,16 @@ mod tests {
         assert_eq!(cart_design_from_option(0x400), Some(5));
         // Cart bit set among unrelated options still resolves.
         assert_eq!(cart_design_from_option(OPTION_RIDING | 0x100), Some(3));
+    }
+
+    #[test]
+    fn falcon_bit_and_sprite_path() {
+        assert!(has_falcon(OPTION_FALCON));
+        assert!(has_falcon(OPTION_FALCON | OPTION_RIDING));
+        assert!(!has_falcon(0));
+        assert!(!has_falcon(OPTION_RIDING));
+        assert_eq!(falcon_sprite_path(11), "data/sprite/이팩트/매");
+        assert_eq!(falcon_sprite_path(4012), "data/sprite/이팩트/매2");
     }
 
     #[test]

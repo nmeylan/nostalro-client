@@ -60,6 +60,8 @@ pub struct GameState {
     pub sprite_cache: HashMap<String, Rc<EntitySprite>>,
     /// Trailing pushcart visuals keyed by owner entity id.
     pub carts: HashMap<u32, crate::sprite::CartVisual>,
+    /// Hovering falcon companion visuals keyed by owner entity id.
+    pub falcons: HashMap<u32, crate::sprite::FalconVisual>,
     /// Cart sprites loaded per design for UI previews (change-cart picker), keyed by design index.
     pub cart_preview_sprites: HashMap<u8, Rc<EntitySprite>>,
     pub character: Character,
@@ -449,6 +451,7 @@ impl GameState {
             entities: EntityCollection::new(),
             sprites: HashMap::new(),
             carts: HashMap::new(),
+            falcons: HashMap::new(),
             cart_preview_sprites: HashMap::new(),
             sprite_cache: HashMap::new(),
             character: Character::new(),

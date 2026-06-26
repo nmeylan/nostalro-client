@@ -99,3 +99,4 @@ pub fn handle_camera_zoom(camera: &mut Camera, scroll: f32) {
 }
 
 pub use ragnarok_renderer::sprite_projection::project_entity_screen as entity_screen_params;
+pub use ragnarok_renderer::sprite_projection::project_world_screen;

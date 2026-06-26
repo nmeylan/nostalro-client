@@ -9,6 +9,7 @@ mod skill;
 
 use crate::App;
 use models::enums::EnumWithMaskValueU64;
+use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::chat_room::ChatRoom;
 use ragnarok_game::event::GameEvent;
@@ -358,6 +359,24 @@ impl App {
                     success,
                 } => {
                     if success {
+                        // The use-ack carries no item id, but the inventory slot
+                        // still holds it — resolve the consumable's use effect and
+                        // play it on the player, matching the original game.
+                        let used_effect = self
+                            .game
+                            .character
+                            .inventory
+                            .get_item(index)
+                            .and_then(|item| {
+                                ragnarok_game::effect::consumable_effects::consumable_use_effect(
+                                    item.item_id as u32,
+                                )
+                            });
+                        if let (Some(effect), Some(player_gid)) =
+                            (used_effect, self.game.entities.player_id())
+                        {
+                            self.effect_queue.spawn_on(effect, player_gid);
+                        }
                         self.game
                             .character
                             .inventory
@@ -592,6 +611,26 @@ impl App {
                         .entities
                         .apply_ground_skill(skill_id, src_gid, x, y);
                     self.spawn_ground_skill_effects(skill_id, level, x, y);
+                    // Detecting / Sight send the falcon out to scout the cell.
+                    let falcon_target = if self.game.falcons.contains_key(&src_gid)
+                        && matches!(
+                            SkillEnum::from_id(skill_id as u32),
+                            SkillEnum::HtDetecting | SkillEnum::SnSight
+                        ) {
+                        match (self.game.map_coords.as_ref(), self.game.gat.as_ref()) {
+                            (Some(coords), Some(gat)) => {
+                                let (wx, _, wz) =
+                                    coords.cell_to_world(x as f32 + 0.5, y as f32 + 0.5);
+                                Some([wx, gat.get_height(x as f32 + 0.5, y as f32 + 0.5), wz])
+                            }
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    };
+                    if let Some(target) = falcon_target {
+                        self.start_falcon_flight(src_gid, target);
+                    }
                 }
                 GameEvent::SkillUnitEntered {
                     aid,

@@ -43,6 +43,44 @@ pub fn project_entity_screen(
     Some(([sx, sy], ndc_z, camera_dir, sprite_scale, depth_gradient))
 }
 
+/// Project an arbitrary world-space point (not snapped to ground height) to the
+/// same parameters [`project_entity_screen`] returns. Used by hovering sprites —
+/// the falcon companion flies above the terrain, so its height is intrinsic to
+/// its world position rather than derived from the GAT cell.
+///
+/// Returns `None` when the point is behind/off-screen the camera.
+pub fn project_world_screen(
+    world: [f32; 3],
+    coords: &MapCoordinates,
+    camera: &Camera,
+    screen_w: f32,
+    screen_h: f32,
+) -> Option<([f32; 2], f32, u8, f32, f32)> {
+    let [wx, wy, wz] = world;
+    let (sx, sy, ndc_z_raw, clip_w) =
+        camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h)?;
+    let ndc_z = ndc_z_raw
+        - camera.near * crate::effect_sprite::ENTITY_DEPTH_BIAS_UNITS / (clip_w * clip_w);
+
+    let depth_gradient = camera
+        .world_to_screen_with_depth(wx, wy - 1.0, wz, screen_w, screen_h)
+        .map(|(_, sy_above, ndc_z_above, _)| {
+            let dy = sy_above - sy;
+            if dy.abs() > 1e-6 {
+                (ndc_z_above - ndc_z_raw) / dy
+            } else {
+                0.0
+            }
+        })
+        .unwrap_or(0.0);
+
+    let camera_dir = camera.direction_index();
+    let ppu = camera.perspective_scale(wx, wy, wz, screen_h);
+    let sprite_scale = ppu * coords.zoom() / 75.0;
+
+    Some(([sx, sy], ndc_z, camera_dir, sprite_scale, depth_gradient))
+}
+
 /// World position (with GAT height) of the center of `cell`. Mirrors the
 /// position `project_entity_screen` uses internally so effect anchors and
 /// sprite anchors stay in sync.

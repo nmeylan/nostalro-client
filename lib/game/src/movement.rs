@@ -194,7 +194,7 @@ pub fn direction_from_positions(src_x: u16, src_y: u16, dst_x: u16, dst_y: u16) 
     direction_from_delta(dx, dy)
 }
 
-fn direction_from_delta(dx: f32, dy: f32) -> Option<u8> {
+pub fn direction_from_delta(dx: f32, dy: f32) -> Option<u8> {
     if dx.abs() < 0.01 && dy.abs() < 0.01 {
         return None;
     }

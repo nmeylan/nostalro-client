@@ -167,6 +167,13 @@ impl App {
             shield_id,
         );
 
+        // Spawn the falcon companion when joining with it already active. Unlike
+        // other entities (whose `EntitySpawned` carries this), the local player is
+        // created here, so its persistent option visuals must be seeded directly.
+        if ragnarok_game::sprite_path::has_falcon(effect_state) {
+            self.spawn_falcon_visual(account_id);
+        }
+
         self.position_camera_at(x as f32, y as f32);
         self.char_select_window = None;
 

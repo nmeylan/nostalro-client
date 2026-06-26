@@ -1,9 +1,11 @@
 pub mod buckets;
+pub mod consumable_effects;
 pub mod draw;
 pub mod effect_queue;
 pub mod effect_trait;
 pub mod effects;
 pub mod factory;
+pub mod projectile;
 pub mod radial_emitter;
 pub mod skill_effects;
 pub mod skill_units;
