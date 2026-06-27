@@ -38,6 +38,10 @@ pub struct UiContext {
     pub key_f12: bool,
     pub scroll_delta: f32,
     pub dpi_scale: f32,
+    /// Monotonic local-clock time in milliseconds, set each frame. Used by
+    /// time-driven widgets (e.g. the status-icon countdown) without threading a
+    /// clock through every `build()`.
+    pub now_ms: u64,
 }
 
 impl UiContext {
@@ -54,6 +58,7 @@ impl UiContext {
             typed_chars: Vec::new(),
             last_click_time: std::time::Instant::now(),
             last_click_pos: (0.0, 0.0),
+            now_ms: 0,
             key_backspace: false,
             key_enter: false,
             key_tab: false,

@@ -13,6 +13,7 @@ use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::effect::skill_unit_effect;
 use ragnarok_game::movement::direction_from_positions;
+use ragnarok_game::status_icon::status_icon_info;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::sprite_path::{cart_design_from_option, entity_type_from_job, has_falcon, is_hidden, visual_job, JT_WARPNPC, OPTION_RIDING};
 
@@ -542,6 +543,23 @@ impl App {
         if icon == ClientEffectIcon::OnPushCart {
             self.handle_push_cart_status(gid, active, val1);
             return;
+        }
+        if self.game.entities.player_id() == Some(gid) {
+            if let Some(info) = status_icon_info(efst) {
+                if !active {
+                    self.game.character.clear_status(efst);
+                } else {
+                    let path = format!("data/texture/effect/{}", info.icon);
+                    let loaded = match (self.renderer.as_mut(), self.grf.as_ref()) {
+                        (Some(r), Some(g)) => r.preload_textures(&[path.as_str()], g),
+                        _ => false,
+                    };
+                    let now_ms = self.start_time.elapsed().as_millis() as u64;
+                    self.game
+                        .character
+                        .apply_status(efst, val1, now_ms, remain_ms as u64, loaded);
+                }
+            }
         }
         let Some(buff) = buff_effect(icon) else {
             return;

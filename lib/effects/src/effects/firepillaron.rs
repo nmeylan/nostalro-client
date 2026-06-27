@@ -105,6 +105,7 @@ impl Effect for FirePillarOnEffect {
                 uv_scroll: [0.0, scroll_v],
                 texture: TEXTURE,
                 color: [FLAME_TINT[0], FLAME_TINT[1], FLAME_TINT[2], alpha],
+                alpha_bottom: alpha,
                 blend: BlendKind::Additive,
             });
         }

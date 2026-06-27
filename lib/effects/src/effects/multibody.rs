@@ -128,10 +128,6 @@ pub const REFLECTBODY: Params = Params {
 };
 
 pub const ASSUMPTIO: Params = Params {
-    // Assumptio: one full-strength white copy drawn ADDITIVELY and BEHIND the
-    // body — it only adds a soft white glow at the margin, leaving the opaque
-    // main sprite untouched (a darker alpha ghost would double the sprite). The
-    // margin pulses cyclically (see `pulse`) so the doubled silhouette breathes.
     copies: 0,
     scale_step: 0.0,
     base_alpha: 1.0,
@@ -143,8 +139,8 @@ pub const ASSUMPTIO: Params = Params {
     ripple: None,
     undead: None,
     pulse: Some(DoublePulse {
-        base_px: 5.0,
-        amp_px: 1.5,
+        base_px: 8.0,
+        amp_px: 2.0,
         period_frames: 180.0,
         tint: [255, 255, 255],
     }),

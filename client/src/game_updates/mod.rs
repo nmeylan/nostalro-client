@@ -9,6 +9,8 @@ use ragnarok_renderer::effect::EffectUpdateCtx;
 
 impl App {
     pub(crate) fn run_game_updates(&mut self, delta: f32, elapsed: f32) {
+        let now_ms = self.start_time.elapsed().as_millis() as u64;
+        self.game.character.prune_expired(now_ms);
         self.update_movement(delta, elapsed);
         self.process_continuous_walk(delta);
         self.update_entity_state(delta);

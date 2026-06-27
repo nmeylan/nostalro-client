@@ -219,6 +219,7 @@ impl Effect for HealSpEffect {
                     uv_scroll: [0.0, 0.0],
                     texture: CYLINDER_TEXTURE,
                     color: [TINT[0], TINT[1], TINT[2], alpha],
+                    alpha_bottom: alpha,
                     blend: BlendKind::Additive,
                 });
             }

@@ -42,6 +42,7 @@ use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::warp_list_window::WarpListWindow;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
+use ragnarok_ui_component::game::status_icon_bar::StatusIconBarWindow;
 use ragnarok_ui_component::game::status_window::{StatusWindow, STATUS_WINDOW_ID};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::{InGameWindow, Window};
@@ -117,6 +118,7 @@ pub struct GameState {
     pub status_window: StatusWindow,
     pub hotkey_bar: HotkeyBarWindow,
     pub minimap_window: MinimapWindow,
+    pub status_icon_bar: StatusIconBarWindow,
     pub damage_numbers: DamageNumberManager,
     pub damage_number_textures: Option<SpriteTextures>,
     pub damage_number_act: Option<ragnarok_formats::act::ActFile>,
@@ -223,6 +225,12 @@ impl GameState {
         }
         events.extend(
             self.minimap_window
+                .build(ui, &mut self.character, &self.data_table),
+        );
+
+        // Status-icon bar (always visible, right edge below the minimap)
+        events.extend(
+            self.status_icon_bar
                 .build(ui, &mut self.character, &self.data_table),
         );
 
@@ -505,6 +513,7 @@ impl GameState {
             skill_tree_window: SkillTreeWindow::new(),
             hotkey_bar: HotkeyBarWindow::new(),
             minimap_window: MinimapWindow::new(),
+            status_icon_bar: StatusIconBarWindow::new(),
             disconnect_dialog_shown: false,
             pending_disconnect_exit: false,
             damage_numbers: DamageNumberManager::new(),

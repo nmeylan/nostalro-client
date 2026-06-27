@@ -59,7 +59,7 @@ TODO:
 - ~~NPCs~~ (done — entity type with sprite rendering)
 - ~~Monsters~~ (done — job-based sprites with animation states)
 - ~~Ground items (dropped items with pickup)~~
-- Skill ground units (AoE, traps, bottom song)
+~~- Skill ground units (AoE, traps, bottom song)~~
 - Pet companion rendering
 - Homunculus rendering
 - Mercenary rendering
@@ -69,7 +69,7 @@ TODO:
 - ~~Skill casting (cast bar, cast animation)~~
 - Skill execution + effects
 - ~~Damage/heal numbers~~
-- Status effects (buff/debuff icons + visuals: poison, freeze, stun, etc.)
+~~- Status effects (buff/debuff icons + visuals: poison, freeze, stun, etc.)~~
 - ~~HP/SP bars~~
 - ~~Death~~ + respawn
 - ~~Sit/stand actions~~ (done — Insert key toggle, PacketZcNotifyAct handling)

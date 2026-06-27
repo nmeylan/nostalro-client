@@ -175,6 +175,7 @@ pub fn prepare_cylinder_records<'tex>(
             uv_scroll,
             texture,
             color,
+            alpha_bottom,
             blend,
         } = prim
         else {
@@ -230,7 +231,7 @@ pub fn prepare_cylinder_records<'tex>(
                     bottom_size * sin_a,
                 ),
                 tex_coord: [u_raw, 1.0 + scroll_v],
-                color: *color,
+                color: [color[0], color[1], color[2], *alpha_bottom],
             });
             vertices.push(SpriteVertex {
                 position: transform_local(top_size * cos_a, top_local_y, top_size * sin_a),

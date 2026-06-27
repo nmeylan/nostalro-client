@@ -888,6 +888,10 @@ impl App {
     }
 
     fn build_ui(&mut self, elapsed: f32) -> (Vec<UiDrawCall>, Vec<GameEvent>, bool, bool) {
+        let now_ms = self.start_time.elapsed().as_millis() as u64;
+        if let Some(ui_ctx) = &mut self.ui_context {
+            ui_ctx.now_ms = now_ms;
+        }
         match self.game.app_state {
             AppState::Login => {
                 if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {

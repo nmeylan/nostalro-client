@@ -37,7 +37,7 @@ pub struct CasterSkillEffects {
 
 /// Effects a skill plays on the **target** entity, by packet moment. An empty
 /// slot plays nothing.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct TargetSkillEffects {
     /// Effect that lands on the **recipient** at the spell moment
     /// (`target_on_spell` — e.g. Frost Diver's ice on the target).
@@ -47,6 +47,11 @@ pub struct TargetSkillEffects {
     /// Per-damaging-hit spark on the **target** (`target_on_hit`). See
     /// [`derive_hit_effect`].
     pub hit: &'static [EffectId],
+    /// Extra seconds added to the hit-spark / damage-number delay, beyond the
+    /// normal projectile-flight delay. Used when the skill's visual impact
+    /// happens after the damage packet arrives (e.g. Turn Undead's ring spawns
+    /// 833 ms into the effect).
+    pub hit_extra_delay_secs: f32,
 }
 
 impl CasterSkillEffects {
@@ -65,6 +70,7 @@ impl TargetSkillEffects {
             on_target,
             before_hit: &[],
             hit: &[],
+            hit_extra_delay_secs: 0.0,
         }
     }
     const fn hit(hit: &'static [EffectId]) -> Self {
@@ -72,6 +78,7 @@ impl TargetSkillEffects {
             on_target: &[],
             before_hit: &[],
             hit,
+            hit_extra_delay_secs: 0.0,
         }
     }
 }
@@ -712,6 +719,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::PrTurnundead => T {
             on_target: &[E::Turnundead],
             hit: &[E::Holyhit],
+            hit_extra_delay_secs: 50.0 / 60.0,
             ..Default::default()
         },
         S::PrMagnus => T::hit(&[E::Holyhit]),

@@ -128,6 +128,7 @@ impl Effect for PotionPillarEffect {
             uv_scroll: [0.0, 0.0],
             texture: TEXTURE,
             color: [1.0, 1.0, 1.0, alpha],
+            alpha_bottom: alpha,
             blend: BlendKind::Alpha,
         });
     }

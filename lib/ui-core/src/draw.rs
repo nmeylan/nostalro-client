@@ -124,6 +124,61 @@ pub fn quad_vertices_rotated(
     (verts, indices)
 }
 
+/// Filled square sector as a triangle fan, for cooldown/clock overlays that
+/// cover a square icon. The sweep runs from `start_rad` over `sweep_rad` (screen
+/// space: angle 0 points right, +y is down); each boundary point is projected
+/// onto a `half`-extent axis-aligned square centred at `(cx, cy)`. Corner
+/// directions inside the sweep are inserted so the fill follows the square edges
+/// exactly (no chamfer).
+pub fn square_wedge_vertices(
+    cx: f32,
+    cy: f32,
+    half: f32,
+    start_rad: f32,
+    sweep_rad: f32,
+    color: [f32; 4],
+) -> (Vec<UiVertex>, Vec<u32>) {
+    use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, TAU};
+    let end_rad = start_rad + sweep_rad;
+    // Sample angles: the endpoints plus any square-corner direction strictly
+    // between them. The square boundary is straight between corners, so the
+    // projection of any in-between angle is collinear — corners are all we need.
+    let mut angles = vec![start_rad, end_rad];
+    for k in 0..4 {
+        let base = FRAC_PI_4 + k as f32 * FRAC_PI_2;
+        for n in -1..=1 {
+            let a = base + n as f32 * TAU;
+            if a > start_rad && a < end_rad {
+                angles.push(a);
+            }
+        }
+    }
+    angles.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    let mut verts = Vec::with_capacity(angles.len() + 1);
+    let mut indices = Vec::with_capacity(angles.len() * 3);
+    verts.push(UiVertex {
+        position: [cx, cy],
+        tex_coord: [0.5, 0.5],
+        color,
+    });
+    for a in &angles {
+        let (c, s) = (a.cos(), a.sin());
+        let m = c.abs().max(s.abs()).max(f32::EPSILON);
+        verts.push(UiVertex {
+            position: [cx + half * c / m, cy + half * s / m],
+            tex_coord: [0.0, 0.0],
+            color,
+        });
+    }
+    for i in 1..verts.len() as u32 - 1 {
+        indices.push(0);
+        indices.push(i);
+        indices.push(i + 1);
+    }
+    (verts, indices)
+}
+
 pub struct ColoredSpan<'a> {
     pub text: &'a str,
     pub color: [f32; 4],

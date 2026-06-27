@@ -27,15 +27,13 @@ pub enum AilmentOverlay {
     Stun,
     Sleep,
     Curse,
-    Angelus,
 }
 
 impl AilmentOverlay {
-    pub const ALL: [AilmentOverlay; 4] = [
+    pub const ALL: [AilmentOverlay; 3] = [
         AilmentOverlay::Stun,
         AilmentOverlay::Sleep,
         AilmentOverlay::Curse,
-        AilmentOverlay::Angelus,
     ];
 
     /// GRF sprite/act base path (without extension) and the ACT action to play.
@@ -45,7 +43,6 @@ impl AilmentOverlay {
             AilmentOverlay::Stun => ("data/sprite/이팩트/status-stun", 0),
             AilmentOverlay::Sleep => ("data/sprite/이팩트/status-sleep", 0),
             AilmentOverlay::Curse => ("data/sprite/이팩트/status-curse", 0),
-            AilmentOverlay::Angelus => ("data/sprite/이팩트/msg", 1),
         }
     }
 }
@@ -112,9 +109,6 @@ pub fn ailment_overlays(body_state: i16, health_state: i16) -> Vec<AilmentOverla
     if health_state & OPT2_CURSE != 0 {
         out.push(AilmentOverlay::Curse);
     }
-    if health_state & OPT2_ANGELUS != 0 {
-        out.push(AilmentOverlay::Angelus);
-    }
     out
 }
 
@@ -163,15 +157,14 @@ mod tests {
     #[test]
     fn overlays_combine_body_and_health_states() {
         assert_eq!(ailment_overlays(OPT1_STUN, 0), vec![AilmentOverlay::Stun]);
-        // Stun body + Curse + Angelus health -> three overlays.
+        // Stun body + Curse health -> two overlays.
         assert_eq!(
-            ailment_overlays(OPT1_STUN, OPT2_CURSE | OPT2_ANGELUS),
-            vec![
-                AilmentOverlay::Stun,
-                AilmentOverlay::Curse,
-                AilmentOverlay::Angelus
-            ]
+            ailment_overlays(OPT1_STUN, OPT2_CURSE),
+            vec![AilmentOverlay::Stun, AilmentOverlay::Curse]
         );
+        // Angelus produces NO head overlay — the original game never shows the
+        // "guard" text for it (that text is the Guard-block effect only).
+        assert!(ailment_overlays(0, OPT2_ANGELUS).is_empty());
         // Blind alone produces no head overlay (it is the fullscreen wash).
         assert!(ailment_overlays(0, OPT2_BLIND).is_empty());
     }

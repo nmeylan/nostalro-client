@@ -29,6 +29,9 @@ pub fn monster_sprite_path(name: &str) -> String {
 
 pub fn entity_sprite_base_path(name_table: &NameTable, job: u16) -> Option<String> {
     let name = name_table.get_name(job)?;
+ dd    if job == JT_WARPNPC {
+        return None;
+    }
     match entity_type_from_job(job) {
         EntityType::Npc => Some(npc_sprite_path(name)),
         EntityType::Monster => Some(monster_sprite_path(name)),

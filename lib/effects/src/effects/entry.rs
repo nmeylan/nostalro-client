@@ -115,6 +115,7 @@ impl Effect for EntryEffect {
         let outer_height = (OUTER_HEIGHT_INIT + OUTER_HEIGHT_SPEED * frame).max(0.0);
         let outer_top = OUTER_TOP_RADIUS_INIT + OUTER_TOP_RADIUS_SPEED * frame;
         if outer_height > 0.0 {
+            let outer_a = outer_alpha(frame);
             out.push(EffectPrimitiveDraw::Cylinder {
                 base: self.world_pos,
                 bottom_size: OUTER_BOTTOM_RADIUS,
@@ -126,7 +127,8 @@ impl Effect for EntryEffect {
                 rotation_y_rad: 0.0,
                 uv_scroll: [0.0, 0.0],
                 texture: RING_TEXTURE,
-                color: [1.0, 1.0, 1.0, outer_alpha(frame)],
+                color: [1.0, 1.0, 1.0, outer_a],
+                alpha_bottom: outer_a,
                 blend: BlendKind::Additive,
             });
         }
@@ -147,6 +149,7 @@ impl Effect for EntryEffect {
                 uv_scroll: [0.0, 0.0],
                 texture: RING_TEXTURE,
                 color: [1.0, 1.0, 1.0, inner_alpha],
+                alpha_bottom: inner_alpha,
                 blend: BlendKind::Additive,
             });
         }

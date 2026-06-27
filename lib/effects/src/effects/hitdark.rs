@@ -195,6 +195,7 @@ impl Effect for HitDarkEffect {
                 uv_scroll: [0.0, 0.0],
                 texture: RING_TEXTURE,
                 color: [1.0, 1.0, 1.0, ring_a],
+                alpha_bottom: ring_a,
                 blend: BlendKind::Additive,
             });
         }

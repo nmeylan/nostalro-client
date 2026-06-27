@@ -108,6 +108,7 @@ impl Effect for TeleportationEffect {
             uv_scroll: [0.0, 0.0],
             texture: RING_TEXTURE,
             color: [1.0, 1.0, 1.0, alpha],
+            alpha_bottom: alpha,
             blend: BlendKind::Additive,
         });
     }

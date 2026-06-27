@@ -171,11 +171,13 @@ impl App {
         };
         let flight =
             Self::skill_projectile_flight_secs(skill_id, projectile_distance).max(falcon_flight);
-        let hit_delay = if flight > 0.0 {
+        let hit_extra_delay =
+            target_skill_effects(SkillEnum::from_id(skill_id as u32)).hit_extra_delay_secs;
+        let hit_delay = (if flight > 0.0 {
             delay_time.max(age + flight)
         } else {
             delay_time
-        };
+        }) + hit_extra_delay;
 
         let double_attack_term = 0.2;
         if let Some(target) = self.game.entities.get_mut(target_gid) {

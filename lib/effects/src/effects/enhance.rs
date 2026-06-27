@@ -219,6 +219,7 @@ impl Effect for EnhanceEffect {
                     uv_scroll: [0.0, 0.0],
                     texture: ALPHA_TEXTURE,
                     color: [1.0, 1.0, 1.0, cyl_alpha],
+                    alpha_bottom: cyl_alpha,
                     blend: BlendKind::Alpha,
                 });
             }

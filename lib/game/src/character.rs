@@ -6,6 +6,19 @@ use crate::skill::SkillList;
 use models::enums::class::JobName;
 use models::enums::{EnumWithNumberValue, EnumWithStringValue};
 
+/// One live EFST status on the local player, used to drive the status-icon bar.
+/// Times are local-clock milliseconds; `end_ms` is `None` for permanent statuses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ActiveStatus {
+    pub efst: i16,
+    pub val1: i32,
+    pub start_ms: u64,
+    pub end_ms: Option<u64>,
+    /// Whether the icon texture was found in the GRF; when false the bar draws a
+    /// category-colored placeholder instead of a missing texture.
+    pub icon_loaded: bool,
+}
+
 pub struct Character {
     pub inventory: InventoryData,
     pub cart: CartData,
@@ -65,6 +78,9 @@ pub struct Character {
     /// push-cart status; drives the paperdoll cart slot / off button which the
     /// legacy `effect_state` option bit no longer carries.
     pub cart_design: Option<u8>,
+    /// Live EFST statuses on the local player, in arrival order (drives the
+    /// right-side status-icon bar).
+    pub active_statuses: Vec<ActiveStatus>,
 }
 
 impl Default for Character {
@@ -128,7 +144,43 @@ impl Character {
             aspd: 0,
             effect_state: 0,
             cart_design: None,
+            active_statuses: Vec::new(),
         }
+    }
+
+    /// Add or refresh a status icon. A non-zero `life_ms` sets an expiry; `0`
+    /// means "until cleared" (no countdown wedge). Re-applying an existing
+    /// status updates its timing in place, preserving its position in the bar.
+    pub fn apply_status(&mut self, efst: i16, val1: i32, now_ms: u64, life_ms: u64, icon_loaded: bool) {
+        let end_ms = if life_ms == 0 {
+            None
+        } else {
+            Some(now_ms + life_ms)
+        };
+        if let Some(existing) = self.active_statuses.iter_mut().find(|s| s.efst == efst) {
+            existing.val1 = val1;
+            existing.start_ms = now_ms;
+            existing.end_ms = end_ms;
+            existing.icon_loaded = icon_loaded;
+        } else {
+            self.active_statuses.push(ActiveStatus {
+                efst,
+                val1,
+                start_ms: now_ms,
+                end_ms,
+                icon_loaded,
+            });
+        }
+    }
+
+    pub fn clear_status(&mut self, efst: i16) {
+        self.active_statuses.retain(|s| s.efst != efst);
+    }
+
+    /// Drop statuses whose finite duration has elapsed.
+    pub fn prune_expired(&mut self, now_ms: u64) {
+        self.active_statuses
+            .retain(|s| s.end_ms.is_none_or(|end| now_ms < end));
     }
 
     pub fn init_from_info(&mut self, info: &CharacterInfo) {
@@ -296,6 +348,7 @@ impl Character {
         self.aspd = 0;
         self.effect_state = 0;
         self.cart_design = None;
+        self.active_statuses.clear();
     }
 }
 
@@ -400,5 +453,30 @@ mod tests {
         char.apply_status_changed(17, 99, -2); // DEX with negative bonus
         assert_eq!(char.dex, 99);
         assert_eq!(char.dex_bonus, -2);
+    }
+
+    #[test]
+    fn status_lifecycle_apply_clear_and_prune() {
+        let mut char = Character::new();
+        // A finite buff and a permanent one (life 0 = until cleared).
+        char.apply_status(10, 0, 1_000, 30_000, true); // Blessing, expires at 31_000
+        char.apply_status(2, 0, 1_000, 0, true); // Two Hand Quicken, no expiry
+        assert_eq!(char.active_statuses.len(), 2);
+
+        // Re-applying refreshes timing in place (no duplicate, position kept).
+        char.apply_status(10, 0, 5_000, 60_000, true);
+        assert_eq!(char.active_statuses.len(), 2);
+        assert_eq!(char.active_statuses[0].efst, 10);
+        assert_eq!(char.active_statuses[0].end_ms, Some(65_000));
+
+        // Off-packet clears one explicitly.
+        char.clear_status(2);
+        assert_eq!(char.active_statuses.len(), 1);
+
+        // Pruning before/after the finite buff's expiry.
+        char.prune_expired(64_000);
+        assert_eq!(char.active_statuses.len(), 1);
+        char.prune_expired(65_000);
+        assert!(char.active_statuses.is_empty());
     }
 }

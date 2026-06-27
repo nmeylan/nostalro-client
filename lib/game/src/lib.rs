@@ -32,6 +32,7 @@ pub mod shadow;
 pub mod skill;
 pub mod skill_action;
 pub mod sprite_loader;
+pub mod status_icon;
 pub mod targeting;
 pub mod sprite_path;
 pub mod data_table;

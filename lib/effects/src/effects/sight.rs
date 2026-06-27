@@ -281,6 +281,10 @@ impl OrbitEffect {
 }
 
 impl Effect for OrbitEffect {
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+    }
+
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         let dt_frames = ctx.delta * FRAMES_PER_SECOND;
         self.age_frames += dt_frames;

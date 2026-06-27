@@ -375,7 +375,14 @@ pub enum EffectPrimitiveDraw {
         rotation_y_rad: f32,
         uv_scroll: [f32; 2],
         texture: &'static str,
+        /// RGB tint + **top** alpha. The bottom ring uses `alpha_bottom`; the
+        /// GPU interpolates between the two so the pillar fades from
+        /// nearly-transparent at the base to the top alpha at the crown.
         color: [f32; 4],
+        /// Alpha at the bottom ring of the cylinder. Set equal to `color[3]`
+        /// for a uniform-alpha cylinder (the common case); set lower for a
+        /// gradient that keeps the character visible through the base.
+        alpha_bottom: f32,
         blend: BlendKind,
     },
     /// Connected ribbon ring driven by a `RadialEmitterSlot`'s `distance`

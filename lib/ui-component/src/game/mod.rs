@@ -16,6 +16,7 @@ pub mod npc_dialog;
 pub mod npc_shop;
 pub mod number_input;
 pub mod skill_tree_window;
+pub mod status_icon_bar;
 pub mod status_window;
 pub mod system_menu;
 pub mod warp_list_window;
