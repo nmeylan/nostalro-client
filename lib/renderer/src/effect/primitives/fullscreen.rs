@@ -1,10 +1,3 @@
-//! Screen-space quad primitive — a textured quad whose corners are supplied
-//! in NDC clip space, used by the status-overlay effects (Blind / Poison
-//! family) which the original game draws as camera-locked screen overlays
-//! (centred vignette, full-viewport wash, claw slashes). Camera-independent
-//! and depth-disabled: the game layer builds the geometry and the shader
-//! passes the clip-space vertices straight through.
-
 use crate::device::DEPTH_FORMAT;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind};
 use crate::effect::{EffectDrawList, EffectPrimitiveDraw};
@@ -29,8 +22,6 @@ impl FullscreenOverlayRenderer {
             ),
         });
 
-        // Group 0 (camera) is declared so the dispatcher's existing group-0
-        // bind works unchanged; the shader ignores it.
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("effect_fullscreen"),
             bind_group_layouts: &[camera_bind_group_layout, texture_bind_group_layout],
@@ -92,8 +83,6 @@ impl FullscreenOverlayRenderer {
                 cull_mode: None,
                 ..Default::default()
             },
-            // Overlay always paints over the 3D scene regardless of scene
-            // depth — depth-test disabled (Always), no depth write.
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_FORMAT,
                 depth_write_enabled: false,
@@ -115,12 +104,14 @@ pub fn prepare_screen_quad_records<'tex>(
 ) -> Vec<DrawRecord<'tex>> {
     let mut records: Vec<DrawRecord<'tex>> = Vec::new();
     for (emission, prim) in list.primitives.iter().enumerate() {
-        // Camera-independent: depth is meaningless. Use `f32::MAX` so the
-        // overlay sorts last within its blend bucket (drawn over everything
-        // else in the effect pass); ties break on emission order, so the game
-        // layer's push order (wash before slashes) is preserved.
         let (texture, blend, vertices, indices) = match prim {
-            EffectPrimitiveDraw::ScreenQuad { texture, color, blend, corners, uvs } => {
+            EffectPrimitiveDraw::ScreenQuad {
+                texture,
+                color,
+                blend,
+                corners,
+                uvs,
+            } => {
                 let vertices: Vec<SpriteVertex> = (0..4)
                     .map(|i| SpriteVertex {
                         position: [corners[i][0], corners[i][1], 0.0],
@@ -130,9 +121,12 @@ pub fn prepare_screen_quad_records<'tex>(
                     .collect();
                 (texture, blend, vertices, vec![0, 1, 2, 0, 2, 3])
             }
-            EffectPrimitiveDraw::ScreenMesh { texture, blend, vertices, indices } => {
-                // Sample the (solid) texture at its centre so per-vertex colour
-                // drives the result.
+            EffectPrimitiveDraw::ScreenMesh {
+                texture,
+                blend,
+                vertices,
+                indices,
+            } => {
                 let verts: Vec<SpriteVertex> = vertices
                     .iter()
                     .map(|(pos, color)| SpriteVertex {

@@ -79,8 +79,6 @@ impl ConfirmDialog {
         }
     }
 
-    /// Open the dialog with a message and an optional callback.
-    /// If `show_cancel` is true, a Cancel button will be shown alongside OK.
     pub fn show<F>(&mut self, message: &str, show_cancel: bool, onclose: F)
     where
         F: FnMut(ConfirmResult) + 'static,
@@ -91,9 +89,6 @@ impl ConfirmDialog {
         self.state = Some(state);
     }
 
-    /// Open the dialog with a message and an output parameter.
-    /// The result is stored in `out_param` when a button is clicked.
-    /// If `show_cancel` is true, a Cancel button will be shown alongside OK.
     pub fn show_with_out<F>(
         &mut self,
         message: &str,
@@ -110,7 +105,6 @@ impl ConfirmDialog {
         self.state = Some(state);
     }
 
-    /// Close the dialog (e.g. on ESC when no cancel button).
     pub fn close(&mut self) {
         if let Some(ref mut state) = self.state {
             eprintln!(
@@ -119,13 +113,11 @@ impl ConfirmDialog {
                 state.onclose.is_some()
             );
             if !state.show_cancel {
-                // No cancel button: ESC acts as OK
                 if let Some(ref mut callback) = state.onclose.take() {
                     eprintln!("calling Ok callback");
                     callback(ConfirmResult::Ok);
                 }
             } else {
-                // Cancel button present: ESC acts as Cancel
                 if let Some(ref mut callback) = state.onclose.take() {
                     eprintln!("calling Cancel callback");
                     callback(ConfirmResult::Cancel);
@@ -141,7 +133,6 @@ impl ConfirmDialog {
             None => return,
         };
 
-        // Full-screen overlay to block input behind
         let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
         ui.interact(OVERLAY_ID, screen);
         let (v, i) = draw::quad_vertices(
@@ -157,7 +148,6 @@ impl ConfirmDialog {
             texture: TextureRef::White,
         });
 
-        // Dialog box centered on screen
         let (dialog_w, dialog_h) = self.win_size;
         let dx = ((ui.ctx.screen_width - dialog_w) / 2.0).floor();
         let dy = ((ui.ctx.screen_height - dialog_h) / 2.0).floor();
@@ -192,7 +182,6 @@ impl ConfirmDialog {
             }
         }
 
-        // Buttons right-aligned at bottom
         let (btn_w, btn_h) = self.btn_size;
         let container = Rect::new(dx, dy, dialog_w, dialog_h);
         let num_buttons = if state.show_cancel { 2 } else { 1 };
@@ -205,7 +194,6 @@ impl ConfirmDialog {
             BTN_SPACING,
         );
 
-        // Message text centered
         let (text_y, text_x) =
             container.text_dialog_alignment(PADDING, btns[0].y, ui.atlas.line_height);
         let text_color = if self.has_grf_textures {
@@ -244,7 +232,6 @@ impl ConfirmDialog {
             return;
         }
 
-        // Restore callback for next frame (not clicked yet)
         state.onclose = callback;
     }
 }
@@ -330,7 +317,6 @@ mod tests {
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &mut state);
 
-        // Should not panic when state is None
         dialog.build(&mut ui);
     }
 }

@@ -1,47 +1,7 @@
-//! `Cloud(map)` family — ambient drifting cloud quads (ids 229,
-//! 230, 233, 515, 516, 592, 697, 698).
-//!
-//! The original game scatters a field of large camera-facing cloud billboards
-//! across a 300×300 area around the player and lets them drift, breathe in size,
-//! fade in, hold, then fade out and respawn at a fresh spot — a persistent map
-//! atmosphere. Each `Cloud(map)` call spawns four
-//! quads; the dispatch fires it 40–80× per id, so one of our effects owns
-//! `calls × 4` clouds. The `map` byte selects everything that varies:
-//!
-//! | id  | name   | map | texture set      | tint          | elevation | spread   | count |
-//! |-----|--------|-----|------------------|---------------|-----------|----------|-------|
-//! | 229 | Cloud  | 0   | cloud4/1/2       | white         | −125 (sky)| centered | 160   |
-//! | 230 | Cloud2 | 1   | cloud4/1/2       | white         | +40       | ring     | 240   |
-//! | 233 | Cloud3 | 2   | cloud4/1/2       | white         | 0         | centered | 160   |
-//! | 515 | Cloud4 | 3   | fog1/2/3         | (252,171,143) | ground−20 | centered | 320   |
-//! | 516 | Cloud5 | 4   | cloud4/1/2       | white         | +40       | ring     | 320   |
-//! | 592 | Cloud6 | 5   | cloud4/1/2       | (94,0,0)      | +20       | centered | 320   |
-//! | 697 | Cloud7 | 7   | cloud4/1/2       | (0,0,0)       | +40       | ring     | 320   |
-//! | 698 | Cloud8 | 8   | cloud4/1/2       | (255,180,180) | +40       | ring     | 320   |
-//!
-//! Every variant is a plain alpha-blended camera-facing
-//! square of side ≈ `distance·√2` (`distance` 30–55), breathing ±5% on a slow
-//! sine, tinted per the `map` byte. Each quad ramps its alpha
-//! up over a per-map window (peak ≈ `rate · window`), holds until a per-quad
-//! hold timer in `[300,500)`, fades out, then relocates and repeats.
-//!
-//! Native RO coords (−Y up): a negative elevation lifts the cloud above the
-//! caster (the sky overcast), a positive one drops it below (sky-city / boss
-//! maps where the player stands above the cloud deck).
-//!
-//! Two parts of the original depend on world context an effect doesn't carry, so
-//! they are approximated (and only matter for two of the eight maps):
-//!   * einbroch (map 3) samples the terrain height under each quad; we anchor at
-//!     `caster.y − 20` instead.
-//!   * map 0 only ramps alpha while the player is *above* the cloud deck; we
-//!     always ramp so the overcast is visible wherever it is spawned.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// A camera-facing square whose corners sit at `distance` from centre has a
-/// side of `distance·√2`.
 const SQRT2: f32 = std::f32::consts::SQRT_2;
 
 const CLOUD_TEX: [&str; 3] = ["cloud4.tga", "cloud1.tga", "cloud2.tga"];
@@ -56,44 +16,29 @@ pub const TEXTURES: &[&str] = &[
     "fog3.tga",
 ];
 
-/// How a quad's centre wanders each frame (per-map drift).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Drift {
-    /// `x,z += speed · sin(phase)` — isotropic meander.
     Isotropic(f32),
-    /// airplane (map 4): steady `x += 0.20·|sin|` wind plus a `z` wobble.
     Airplane,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct CloudParams {
     pub textures: [&'static str; 3],
-    /// RGB tint (0..1) selected by the `map` byte.
     pub tint: [f32; 3],
-    /// Base elevation offset from the caster (native −Y up). einbroch resolves
-    /// it against `caster.y` (see [`use_ground`]).
     pub elevation: f32,
-    /// einbroch: anchor at `caster.y + elevation` (a terrain approximation)
-    /// rather than treating `elevation` as a sky offset. Visual only.
     pub use_ground: bool,
-    /// `true`: scatter in a ±150 box; `false`: a 25..225 signed ring (the
-    /// sky-city maps push clouds away from the centre).
     pub centered: bool,
-    /// Quad size base / random span (`distance = base + rand·hash`).
     pub size_base: f32,
     pub size_rand: f32,
     pub drift: Drift,
-    /// Alpha gained per frame while ramping, and the ramp window in frames.
-    /// Peak alpha (out of 255) is `alpha_rate · ramp_frames`.
     pub alpha_rate: f32,
     pub ramp_frames: f32,
-    /// `calls × 4` — total quads this effect owns.
     pub count: u32,
 }
 
 const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
 
-/// `EF_CLOUD` → `Cloud(0)` ×40. Sky overcast (mjolnir / gef_fil07).
 pub const CLOUD: CloudParams = CloudParams {
     textures: CLOUD_TEX,
     tint: WHITE,
@@ -107,7 +52,6 @@ pub const CLOUD: CloudParams = CloudParams {
     ramp_frames: 80.0,
     count: 160,
 };
-/// `EF_CLOUD2` → `Cloud(1)` ×60. yuno field clouds.
 pub const CLOUD2: CloudParams = CloudParams {
     elevation: 40.0,
     centered: false,
@@ -115,12 +59,10 @@ pub const CLOUD2: CloudParams = CloudParams {
     count: 240,
     ..CLOUD
 };
-/// `EF_CLOUD3` → `Cloud(2)` ×40.
 pub const CLOUD3: CloudParams = CloudParams {
     elevation: 0.0,
     ..CLOUD
 };
-/// `EF_CLOUD4` → `Cloud(3)` ×80. einbroch warm ground fog.
 pub const CLOUD4: CloudParams = CloudParams {
     textures: FOG_TEX,
     tint: [252.0 / 255.0, 171.0 / 255.0, 143.0 / 255.0],
@@ -134,7 +76,6 @@ pub const CLOUD4: CloudParams = CloudParams {
     count: 320,
     ..CLOUD
 };
-/// `EF_CLOUD5` → `Cloud(4)` ×80. airplane drift.
 pub const CLOUD5: CloudParams = CloudParams {
     elevation: 40.0,
     centered: false,
@@ -143,7 +84,6 @@ pub const CLOUD5: CloudParams = CloudParams {
     count: 320,
     ..CLOUD
 };
-/// `EF_CLOUD6` → `Cloud(5)` ×80. thana_boss dark red haze.
 pub const CLOUD6: CloudParams = CloudParams {
     tint: [94.0 / 255.0, 0.0, 0.0],
     elevation: 20.0,
@@ -151,7 +91,6 @@ pub const CLOUD6: CloudParams = CloudParams {
     count: 320,
     ..CLOUD
 };
-/// `EF_CLOUD7` → `Cloud(7)` ×80. black tower clouds.
 pub const CLOUD7: CloudParams = CloudParams {
     tint: [0.0, 0.0, 0.0],
     elevation: 40.0,
@@ -160,7 +99,6 @@ pub const CLOUD7: CloudParams = CloudParams {
     count: 320,
     ..CLOUD
 };
-/// `EF_CLOUD8` → `Cloud(8)` ×80. pink tower clouds.
 pub const CLOUD8: CloudParams = CloudParams {
     tint: [1.0, 180.0 / 255.0, 180.0 / 255.0],
     elevation: 40.0,
@@ -170,9 +108,6 @@ pub const CLOUD8: CloudParams = CloudParams {
     ..CLOUD
 };
 
-/// Alpha (out of 255) for a quad at frame `process`: linear ramp `0 → peak`
-/// over `ramp_frames`, hold until `rot_start`, then linear fade `−1/frame`.
-/// `peak = alpha_rate · ramp_frames`.
 fn cloud_alpha(p: &CloudParams, process: f32, rot_start: f32) -> f32 {
     let peak = p.alpha_rate * p.ramp_frames;
     if process < p.ramp_frames {
@@ -193,8 +128,6 @@ fn hash01(i: u32, salt: u32) -> f32 {
     (x % 100_000) as f32 / 100_000.0
 }
 
-/// One cloud quad, position in world space (the original game anchors each
-/// quad at spawn and never re-bases, so we keep absolute world coords too).
 #[derive(Clone, Copy)]
 struct Cloud {
     pos: [f32; 3],
@@ -230,7 +163,6 @@ impl CloudEffect {
         let peak = self.params.alpha_rate * self.params.ramp_frames;
         for (i, c) in self.clouds.iter_mut().enumerate() {
             c.process += df;
-            // Relocate once the fade-out has run its full `peak` frames.
             if c.process >= c.rot_start + peak {
                 *c = spawn_cloud(i as u32, c.generation + 1, &self.params, self.world_pos);
                 continue;
@@ -253,9 +185,6 @@ impl CloudEffect {
     }
 }
 
-/// Spawn (or respawn) a quad: pick a position in the map's spread, an elevation,
-/// a size and per-quad wander/breathe phases. `generation` salts the hash so a
-/// looping quad lands somewhere new each cycle.
 fn spawn_cloud(i: u32, generation: u32, p: &CloudParams, world_pos: [f32; 3]) -> Cloud {
     let s = generation.wrapping_mul(11);
     let (dx, dz) = if p.centered {
@@ -305,7 +234,6 @@ impl Effect for CloudEffect {
             if c.alpha <= 0.0 {
                 continue;
             }
-            // ±5% size breathing on a slow sine (`side += sin·distance·0.05`).
             let side = c.distance * (1.0 + 0.05 * c.breath_phase.sin()) * SQRT2;
             out.push(EffectPrimitiveDraw::Billboard {
                 pos: c.pos,
@@ -350,9 +278,6 @@ mod tests {
 
     #[test]
     fn ramps_in_to_an_alpha_blended_tinted_billboard_field() {
-        // After the ramp window every quad is visible: alpha-blended camera-facing
-        // billboards on the cloud textures, tinted per the variant, at the peak
-        // alpha `rate · window` (≈160/255 here). None before the first frame.
         let mut e = CloudEffect::new([0.0, 0.0, 0.0], CLOUD3);
         assert!(draws(&e).is_empty(), "alpha starts at 0");
         step(&mut e, CLOUD3.ramp_frames);
@@ -385,8 +310,6 @@ mod tests {
 
     #[test]
     fn variants_differ_in_texture_set_tint_and_count() {
-        // einbroch fog: fog textures, warm tint, 320 quads. Black tower clouds:
-        // zero tint. Both distinct from the plain white overcast.
         let mut fog = CloudEffect::new([0.0, 0.0, 0.0], CLOUD4);
         step(&mut fog, CLOUD4.ramp_frames);
         let fp = draws(&fog);
@@ -411,9 +334,7 @@ mod tests {
 
     #[test]
     fn quads_drift_breathe_and_persist_through_a_full_loop() {
-        // The field never dies; quads drift, their size breathes, and after the
-        // fade-out a relocating quad keeps the population bounded.
-        let mut e = CloudEffect::new([0.0, 0.0, 0.0], CLOUD5); // airplane drift
+        let mut e = CloudEffect::new([0.0, 0.0, 0.0], CLOUD5);
         let pos0 = e.clouds[0].pos;
         let mut status = EffectStatus::Running;
         for _ in 0..600 {
@@ -421,7 +342,6 @@ mod tests {
         }
         assert_eq!(status, EffectStatus::Running, "persistent atmosphere");
         assert!(e.clouds[0].pos[0] != pos0[0], "airplane wind drifts +x");
-        // Size breathes around the base side over the run.
         let mut e2 = CloudEffect::new([0.0, 0.0, 0.0], CLOUD3);
         step(&mut e2, CLOUD3.ramp_frames);
         let side_a = match &draws(&e2)[0] {

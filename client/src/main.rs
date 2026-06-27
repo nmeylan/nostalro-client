@@ -11,39 +11,51 @@ mod sprite;
 use config::Config;
 use game_state::GameState;
 use input::InputState;
+use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::{
     CursorType, PendingSkillTarget, RenderEntry, RenderEntryKind, cursor_type_for_cell,
     hovered_entity_cursor_type,
 };
+use ragnarok_game::data_table::accessory_table::AccessoryTable;
+use ragnarok_game::data_table::card_illustration_table::CardIllustrationTable;
+use ragnarok_game::data_table::card_name_table::CardNameTable;
+use ragnarok_game::data_table::item_description_table::ItemDescriptionTable;
+use ragnarok_game::data_table::item_name_table::ItemNameTable;
+use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
+use ragnarok_game::data_table::item_slot_count_table::ItemSlotCountTable;
+use ragnarok_game::data_table::name_table::NameTable;
+use ragnarok_game::data_table::skill_description_table::SkillDescriptionTable;
+use ragnarok_game::data_table::skill_name_table::SkillNameTable;
+use ragnarok_game::data_table::skill_tree_table::SkillTreeTable;
+use ragnarok_game::data_table::skill_use_level_table::SkillUseLevelTable;
+use ragnarok_game::effect::EffectQueue;
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::skill::SkillTargetType;
-use models::enums::skill_enums::SkillEnum;
-use ragnarok_game::targeting::{skill_target_class, TargetClass};
+use ragnarok_game::targeting::{TargetClass, skill_target_class};
 use ragnarok_game::{map_loader, sprite_loader};
 use ragnarok_network::{
     KeepaliveMode, NetworkCommand, build_action_request_packet, build_card_composition_list_packet,
-    build_card_composition_packet, build_char_enter_packet, build_chat_packet,
-    build_contact_npc_packet, build_drop_item_packet, build_equip_item_packet, build_login_packet,
-    build_npc_close_packet, build_npc_deal_type_packet, build_npc_input_number_packet,
-    build_npc_input_string_packet, build_npc_menu_select_packet, build_npc_next_packet,
-    build_cartoff_packet, build_change_cart_packet, build_move_item_body_to_cart_packet, build_move_item_cart_to_body_packet,
-    build_move_item_cart_to_store_packet, build_move_item_store_to_cart_packet,
-    build_pickup_item_packet, build_purchase_item_list_packet, build_remove_option_packet,
-    build_req_enter_room_packet, build_reqname_packet, build_restart_packet, build_select_char_packet,
-    build_select_warppoint_packet, build_sell_item_list_packet,
-    build_shortcut_key_change_packet, build_stat_change_packet,
-    build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet, build_use_skill_packet,
-    ip_u32_to_string, network_loop,
+    build_card_composition_packet, build_cartoff_packet, build_change_cart_packet,
+    build_char_enter_packet, build_chat_packet, build_contact_npc_packet, build_drop_item_packet,
+    build_equip_item_packet, build_login_packet, build_move_item_body_to_cart_packet,
+    build_move_item_cart_to_body_packet, build_move_item_cart_to_store_packet,
+    build_move_item_store_to_cart_packet, build_npc_close_packet, build_npc_deal_type_packet,
+    build_npc_input_number_packet, build_npc_input_string_packet, build_npc_menu_select_packet,
+    build_npc_next_packet, build_pickup_item_packet, build_purchase_item_list_packet,
+    build_remove_option_packet, build_req_enter_room_packet, build_reqname_packet,
+    build_restart_packet, build_select_char_packet, build_select_warppoint_packet,
+    build_sell_item_list_packet, build_shortcut_key_change_packet, build_stat_change_packet,
+    build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet,
+    build_use_skill_packet, ip_u32_to_string, network_loop,
 };
-use ragnarok_game::effect::EffectQueue;
+use ragnarok_renderer::effect::EffectHolder;
 use ragnarok_renderer::{
     EffectSpriteCache, GridSelectorRenderer, Renderer, SpriteVertex, StrEffectCache, UiDrawCall,
     block_on, upload_sprite_textures,
 };
-use ragnarok_renderer::effect::EffectHolder;
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::state::StateCache;
@@ -60,23 +72,9 @@ use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
-use ragnarok_game::data_table::accessory_table::AccessoryTable;
-use ragnarok_game::data_table::card_illustration_table::CardIllustrationTable;
-use ragnarok_game::data_table::card_name_table::CardNameTable;
-use ragnarok_game::data_table::item_description_table::ItemDescriptionTable;
-use ragnarok_game::data_table::item_name_table::ItemNameTable;
-use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
-use ragnarok_game::data_table::item_slot_count_table::ItemSlotCountTable;
-use ragnarok_game::data_table::name_table::NameTable;
-use ragnarok_game::data_table::skill_description_table::SkillDescriptionTable;
-use ragnarok_game::data_table::skill_name_table::SkillNameTable;
-use ragnarok_game::data_table::skill_tree_table::SkillTreeTable;
-use ragnarok_game::data_table::skill_use_level_table::SkillUseLevelTable;
 
 type ClipData = (Vec<SpriteVertex>, Vec<u32>, usize);
 
-/// ~60 FPS render cadence; the loop sleeps (`ControlFlow::WaitUntil`) between
-/// frames instead of spinning so an idle client doesn't peg a CPU core.
 const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 struct GameChannel {
@@ -104,7 +102,6 @@ impl GameChannel {
         }
     }
 
-
     fn drain_events(&mut self) -> Vec<GameEvent> {
         self.event_rx
             .as_mut()
@@ -120,11 +117,7 @@ struct App {
     renderer: Option<Renderer>,
     effect_sprites: EffectSpriteCache,
     str_effects: StrEffectCache,
-    /// Runtime store for every live effect — skill/level-up/refining/custom
-    /// effects and the RSW ambient effects (torch/smoke/bubble/…), all spawned
-    /// through the queue.
     effect_holder: EffectHolder,
-    /// Queue triggers push spawn requests into; drained each frame.
     effect_queue: EffectQueue,
     grf: Option<GrfArchive>,
     input: InputState,
@@ -137,8 +130,6 @@ struct App {
     game: GameState,
     start_time: Instant,
     last_frame_instant: Instant,
-    /// Deadline for the next redraw; the event loop waits until this point
-    /// instead of spinning.
     next_frame: Instant,
 }
 
@@ -189,14 +180,10 @@ impl App {
         self.game.map_coords = map_data.coordinates;
         self.game.gat = map_data.gat;
 
-        // Tear down the previous map's ambient effects, then rebuild from the
-        // new RSW. Spawning is driven per-frame by the scheduler (near camera).
         self.game.ambient_effects.clear(&mut self.effect_queue);
         self.game.ambient_effects =
             ragnarok_game::effects::AmbientEffectScheduler::from_rsw(&map_data.rsw, &map_data.gnd);
 
-        // Resolve each RSW ambient effect to its spec so we can preload the
-        // SPR/STR assets it will draw through the holder.
         let (mut spr_paths, mut str_names) =
             ragnarok_game::effects::ambient_effect_assets(&map_data.rsw);
 
@@ -207,8 +194,6 @@ impl App {
             let effect_textures = ragnarok_game::effect::effect_texture_paths();
             renderer.preload_effect_textures(&effect_textures, grf);
 
-            // Sprite paths used by Custom-effect modules (Hit's particle1, etc.)
-            // — same loader path as the RSW ambient emitter sprites.
             spr_paths.extend(ragnarok_game::effect::custom_effect_sprite_paths());
             spr_paths.sort();
             spr_paths.dedup();
@@ -235,10 +220,6 @@ impl App {
                 );
             }
 
-            // Skill / ground-unit STR effects (Fire Wall, casting glyphs, …):
-            // preload every STR-rendered effect so a triggered effect's STR is
-            // in the cache when it spawns. The ambient list above only covers
-            // RSW emitters, so without this skill STRs never draw.
             for aliases in ragnarok_game::effect::effect_str_names() {
                 self.str_effects.load(
                     aliases[0],
@@ -357,7 +338,6 @@ impl App {
             .and_then(|t| t.get_resource_name_for(item_id, is_identified))
             .map(|s| s.to_string());
 
-        // Compute initial_y for fall animation
         let cell_x = x as f32 + sub_x as f32 / 16.0;
         let cell_y = y as f32 + sub_y as f32 / 16.0;
         let ground_y = self
@@ -384,7 +364,6 @@ impl App {
         };
         self.game.floor_items.insert(id, floor_item);
 
-        // Load item SPR/ACT sprite
         if let Some(res_name) = &resource_name
             && let (Some(grf), Some(renderer)) = (&self.grf, &self.renderer)
         {
@@ -624,32 +603,36 @@ impl App {
                         .send_packet(build_remove_option_packet(self.config.packetver));
                 }
                 GameEvent::RequestMoveItemBodyToCart { index, count } => {
-                    self.channel.send_packet(build_move_item_body_to_cart_packet(
-                        index,
-                        count,
-                        self.config.packetver,
-                    ));
+                    self.channel
+                        .send_packet(build_move_item_body_to_cart_packet(
+                            index,
+                            count,
+                            self.config.packetver,
+                        ));
                 }
                 GameEvent::RequestMoveItemCartToBody { index, count } => {
-                    self.channel.send_packet(build_move_item_cart_to_body_packet(
-                        index,
-                        count,
-                        self.config.packetver,
-                    ));
+                    self.channel
+                        .send_packet(build_move_item_cart_to_body_packet(
+                            index,
+                            count,
+                            self.config.packetver,
+                        ));
                 }
                 GameEvent::RequestMoveItemStoreToCart { index, count } => {
-                    self.channel.send_packet(build_move_item_store_to_cart_packet(
-                        index,
-                        count,
-                        self.config.packetver,
-                    ));
+                    self.channel
+                        .send_packet(build_move_item_store_to_cart_packet(
+                            index,
+                            count,
+                            self.config.packetver,
+                        ));
                 }
                 GameEvent::RequestMoveItemCartToStore { index, count } => {
-                    self.channel.send_packet(build_move_item_cart_to_store_packet(
-                        index,
-                        count,
-                        self.config.packetver,
-                    ));
+                    self.channel
+                        .send_packet(build_move_item_cart_to_store_packet(
+                            index,
+                            count,
+                            self.config.packetver,
+                        ));
                 }
                 GameEvent::RequestCartOff => {
                     self.channel
@@ -659,10 +642,7 @@ impl App {
                     self.channel
                         .send_packet(build_change_cart_packet(num, self.config.packetver));
                 }
-                GameEvent::RequestSetCartPick { .. } => {
-                    // Cart auto-pickup settings packet is not yet defined on the
-                    // server protocol; the toggles are tracked client-side only.
-                }
+                GameEvent::RequestSetCartPick { .. } => {}
                 GameEvent::ToggleCart => {
                     self.game.character.cart.toggle();
                 }
@@ -671,7 +651,11 @@ impl App {
                         .send_packet(build_upgrade_skill_packet(skill_id, self.config.packetver));
                 }
                 GameEvent::RequestStatChange { status_id, amount } => {
-                    self.channel.send_packet(build_stat_change_packet(status_id, amount, self.config.packetver));
+                    self.channel.send_packet(build_stat_change_packet(
+                        status_id,
+                        amount,
+                        self.config.packetver,
+                    ));
                 }
                 GameEvent::HotkeyListReceived { slots } => {
                     self.game
@@ -695,9 +679,6 @@ impl App {
                     ));
                 }
                 GameEvent::RequestUseSkill { skill_id, level } => {
-                    // Change Cart opens the cart-model picker client-side instead
-                    // of casting (the server treats the skill itself as a no-op);
-                    // the chosen model is sent as its own request.
                     if skill_id == SkillEnum::McChangecart.id() as u16 {
                         if self.game.character.cart_design.is_some() {
                             self.preload_cart_previews(&[1, 2, 3, 4, 5]);
@@ -823,8 +804,6 @@ impl App {
             .send_cmd(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer {
                 account_id: session.account_id,
             }));
-        // Switch to CharacterSelect immediately; char_select_window is None
-        // until CharacterListReceived arrives, so the screen will be blank briefly
         self.game.app_state = AppState::CharacterSelect;
         true
     }
@@ -865,20 +844,18 @@ impl App {
                     .chat_window
                     .add_system(format!("No-ctrl mode: {status}"));
             }
-            "/where" => {
-                match (self.game.current_map.as_ref(), self.game.entities.player()) {
-                    (Some(map_name), Some(player)) => {
-                        let (x, y) = player.movement.cell_position();
-                        let message = format!("{map_name}.gat ({x}, {y})");
-                        self.game.chat_window.add_system(message);
-                    }
-                    _ => {
-                        self.game
-                            .chat_window
-                            .add_system("You are not in a map yet.".to_string());
-                    }
+            "/where" => match (self.game.current_map.as_ref(), self.game.entities.player()) {
+                (Some(map_name), Some(player)) => {
+                    let (x, y) = player.movement.cell_position();
+                    let message = format!("{map_name}.gat ({x}, {y})");
+                    self.game.chat_window.add_system(message);
                 }
-            }
+                _ => {
+                    self.game
+                        .chat_window
+                        .add_system("You are not in a map yet.".to_string());
+                }
+            },
             _ => {
                 self.game
                     .chat_window
@@ -963,9 +940,6 @@ impl App {
                 }
             }
             AppState::InGame => {
-                // Chat-room boxes follow their owner entity, so the UI needs the
-                // projected screen anchors. Computed here (read-only) before the
-                // mutable UI build borrow.
                 let render_list = self.compute_render_list();
                 if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
                     let initial_focus = if self.game.chat_window.is_active() {
@@ -1110,10 +1084,6 @@ impl App {
         render_list
     }
 
-    /// Trailing pushcart render entries. Each carted entity gets one entry at a
-    /// world position offset behind the owner along the opposite of its facing,
-    /// matching the original client's ride-distance trail. Kept separate from
-    /// the entity list so carts never participate in mouse picking.
     fn compute_cart_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
         if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
@@ -1156,10 +1126,6 @@ impl App {
         render_list
     }
 
-    /// Hovering falcon render entries. Each falcon flies at its own world
-    /// position (above the terrain, possibly mid-dart to a skill target), so it
-    /// projects from that point directly rather than from a ground cell. Kept out
-    /// of the entity list so falcons never participate in mouse picking.
     fn compute_falcon_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
         if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
@@ -1269,14 +1235,9 @@ impl App {
                             &self.game.map_properties,
                             Some(class),
                         );
-                        // Skill targeting always shows the lock/skill-level cursor;
-                        // the hover result only tells us which entity is targeted.
                         (CursorType::Lock, hovered.map(|(_, id)| id))
                     }
-                    PendingSkillTarget::Ground { .. } => {
-                        // TODO: render effect\magic_target.tga ground overlay at hovered cell for skill area
-                        (CursorType::Lock, None)
-                    }
+                    PendingSkillTarget::Ground { .. } => (CursorType::Lock, None),
                 }
             } else if let Some((entity_cursor, entity_id)) = hovered_entity_cursor_type(
                 self.input.mouse_position,
@@ -1337,7 +1298,6 @@ impl ApplicationHandler for App {
         ui_ctx.dpi_scale = dpi_scale;
         self.ui_context = Some(ui_ctx);
 
-        // Load GRF
         if let Some(grf_path) = self.config.grf_paths.first() {
             match GrfArchive::open(Path::new(grf_path)) {
                 Ok(grf) => {
@@ -1352,33 +1312,20 @@ impl ApplicationHandler for App {
                     self.load_emotion_sprite(&grf);
                     self.load_status_overlay_sprites(&grf);
                     self.load_damage_sprites(&grf);
-                    self.game.data_table.accessory =
-                        Some(AccessoryTable::load_from_grf(&grf));
+                    self.game.data_table.accessory = Some(AccessoryTable::load_from_grf(&grf));
                     self.game.data_table.name = Some(NameTable::load(&grf));
-                    self.game.data_table.item_name =
-                        Some(ItemNameTable::load(&grf));
-                    self.game.data_table.item_resource = Some(
-                        ItemResourceTable::load(&grf),
-                    );
-                    self.game.data_table.item_slot_count =
-                        Some(ItemSlotCountTable::load(&grf));
-                    self.game.data_table.card_name =
-                        Some(CardNameTable::load(&grf));
-                    self.game.data_table.card_illustration = Some(
-                        CardIllustrationTable::load(&grf),
-                    );
-                    self.game.data_table.item_description = Some(
-                        ItemDescriptionTable::load(&grf),
-                    );
-                    self.game.data_table.skill_name =
-                        Some(SkillNameTable::load(&grf));
-                    self.game.data_table.skill_description = Some(
-                        SkillDescriptionTable::load(&grf),
-                    );
-                    self.game.data_table.skill_tree =
-                        Some(SkillTreeTable::load(&grf));
-                    self.game.data_table.skill_use_level =
-                        Some(SkillUseLevelTable::load(&grf));
+                    self.game.data_table.item_name = Some(ItemNameTable::load(&grf));
+                    self.game.data_table.item_resource = Some(ItemResourceTable::load(&grf));
+                    self.game.data_table.item_slot_count = Some(ItemSlotCountTable::load(&grf));
+                    self.game.data_table.card_name = Some(CardNameTable::load(&grf));
+                    self.game.data_table.card_illustration =
+                        Some(CardIllustrationTable::load(&grf));
+                    self.game.data_table.item_description = Some(ItemDescriptionTable::load(&grf));
+                    self.game.data_table.skill_name = Some(SkillNameTable::load(&grf));
+                    self.game.data_table.skill_description =
+                        Some(SkillDescriptionTable::load(&grf));
+                    self.game.data_table.skill_tree = Some(SkillTreeTable::load(&grf));
+                    self.game.data_table.skill_use_level = Some(SkillUseLevelTable::load(&grf));
                     self.grf = Some(grf);
                 }
                 Err(e) => {
@@ -1413,7 +1360,6 @@ impl ApplicationHandler for App {
                 self.input.ui_hovered = ui_any_hovered;
                 self.handle_ui_events(ui_events, event_loop);
 
-                // Check for disconnect dialog exit
                 if self.game.pending_disconnect_exit {
                     event_loop.exit();
                 }

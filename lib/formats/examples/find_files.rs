@@ -1,4 +1,3 @@
-//! Find files in the GRF matching a substring.
 use std::path::PathBuf;
 
 use ragnarok_formats::grf::GrfArchive;

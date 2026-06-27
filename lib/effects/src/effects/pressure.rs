@@ -1,23 +1,3 @@
-//! A spinning item icon falls from the sky onto a ground point and a coloured
-//! shockwave ring expands from the impact. Used by the Slim potion-throw
-//! effects (497-499) and, with a `quake`-enabled param, by Pressure (365, a
-//! sibling batch).
-//!
-//! The falling, spinning, fading icon quad carries a 4-slot ghost trail. The
-//! flat ground ring is an [`EffectPrimitiveDraw::GroundDisc`] that starts after
-//! a delay and grows ×1.07/frame, expanding outward from the impact point.
-//! Only plain Pressure (F1 0) shakes the screen; the Slim effects (F1 1/2/3)
-//! do not.
-//!
-//! Texture note: the slim-potion icons are the inventory item icons, stored in
-//! the classic GRF under their Korean names (`레드슬림포션` / `옐로우슬림포션`
-//! / `화이트슬림포션`). They are already the right colour, so the falling quad
-//! is drawn untinted (white) and only the ground ring carries the red/yellow/
-//! white grade. Ring texture `bbbb.bmp` is present. The icons stay white so
-//! only the ring grades the colour. Reference distances (drop height 80, icon
-//! radius 8, ring 15) are downscaled to the gif's ~½-character bottle and
-//! ~1-character splash.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{CameraShake, Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -35,17 +15,12 @@ const UNIT_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 const FPS: f32 = 60.0;
 const FRAME_DT: f32 = 1.0 / FPS;
 
-/// Spawns at a random angle, then spins -15°/frame.
 const SPIN_PER_FRAME_DEG: f32 = -15.0;
-/// Icon fall speed (units/frame), downscaled from the reference 3/frame over
-/// an 80-unit drop to the gif's short visible fall.
 const FALL_SPEED: f32 = 0.8;
-/// Icon alpha +20/frame fade-in, -5/frame fade-out after landing.
 const ICON_FADE_IN_PER_FRAME: f32 = 20.0 / 255.0;
 const ICON_FADE_OUT_PER_FRAME: f32 = 5.0 / 255.0;
 const ICON_FADE_IN_UNTIL: i32 = 10;
 
-/// Ring radius scales by 1.07 each frame.
 const RING_GROWTH_PER_FRAME: f32 = 1.07;
 const RING_FADE_IN_FRAMES: f32 = 6.0;
 const RING_LIFE_FRAMES: f32 = 30.0;
@@ -55,9 +30,6 @@ const RING_THICKNESS: f32 = 1.5;
 const MAX_TOTAL_FRAMES: f32 = 90.0;
 pub const PRESSURE_TOTAL_DURATION_MS: u32 = (MAX_TOTAL_FRAMES / FPS * 1000.0) as u32;
 
-/// The icon drops vertically onto the target, so its reach is a fixed time
-/// (drop height over fall speed) independent of the caster→target distance.
-/// (`drop_y` is negative, −Y = up.)
 pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
     crate::effect_queue::ProjectileFlight::FixedFrames(-PRESSURE.drop_y / FALL_SPEED);
 
@@ -67,31 +39,19 @@ const RING_YELLOW: [f32; 3] = [1.0, 1.0, 0.0];
 
 #[derive(Clone, Copy)]
 pub struct PressureParams {
-    /// Falling icon texture (already coloured for the slim potions).
     pub icon_texture: &'static str,
-    /// Tint applied to the falling icon quad (white = show the icon as-is).
     pub icon_tint: [f32; 3],
-    /// Tint applied to the ground ring.
     pub ring_tint: [f32; 3],
     /// Start height above the impact point (negative = up; −Y is up).
     pub drop_y: f32,
-    /// Icon quad corner radius (side = `distance * √2`).
     pub icon_distance: f32,
-    /// Ring starting radius.
     pub ring_start_radius: f32,
-    /// Ground shockwave ring texture.
     pub ring_texture: &'static str,
-    /// Frames the ring waits (until the icon lands) before it starts
-    /// expanding.
     pub ring_delay_frames: i32,
-    /// Ring blend: bright additive splash (Slim) vs. dark alpha smoke (Pressure).
     pub ring_blend: BlendKind,
-    /// Fire a one-shot camera shake when the icon lands (Pressure only).
     pub quake: bool,
 }
 
-// 497/498/499 Slim — the real coloured potion icon drops + a matching ground
-// splash ring; no screen shake. Icon drawn untinted (already coloured).
 pub const SLIM: PressureParams = PressureParams {
     icon_texture: "유저인터페이스/item/레드슬림포션.bmp",
     icon_tint: WHITE,
@@ -129,12 +89,6 @@ pub const SLIM3: PressureParams = PressureParams {
     quake: false,
 };
 
-// 365 Pressure — a large spinning cross icon falls onto the target, lands with
-// a screen-shake, and a dark explosion ring expands from the impact. The cross
-// uses `cross_old.bmp` and the ring `explosive_1_128.bmp` after a 28-frame
-// delay (F1=0). The cross carries no colour grade (drawn white) and the ring is
-// the no-colour alpha-blended smoke variant. Sizes scale up from Slim by the
-// F1=0 ratios (icon distance 12 vs 8, drop height 115 vs 80).
 pub const PRESSURE: PressureParams = PressureParams {
     icon_texture: "cross_old.bmp",
     icon_tint: WHITE,
@@ -252,7 +206,6 @@ impl Effect for PressureEffect {
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
-        // Falling icon: lead + a short motion-blur trail.
         if !self.icon_done {
             const TRAIL_ALPHA: [f32; 3] = [0.4, 0.25, 0.1];
             for (k, factor) in TRAIL_ALPHA.iter().enumerate() {
@@ -268,7 +221,6 @@ impl Effect for PressureEffect {
             self.push_icon(out, self.icon_pos, self.icon_alpha);
         }
 
-        // Expanding ground shockwave ring (after the landing delay).
         if let Some(age) = self.ring_age() {
             if age < RING_LIFE_FRAMES {
                 let radius = self.params.ring_start_radius * RING_GROWTH_PER_FRAME.powf(age);
@@ -356,7 +308,6 @@ mod tests {
 
     #[test]
     fn potion_falls_toward_the_ground() {
-        // Impact at the origin; icon spawns drop_y above (−Y up) and descends.
         let mut e = PressureEffect::new([0.0, 0.0, 0.0], SLIM);
         step(&mut e, 1);
         let y0 = icon_y(&e).expect("icon visible");
@@ -405,14 +356,12 @@ mod tests {
                 EffectPrimitiveDraw::Billboard { texture, .. } if *texture == "cross_old.bmp")),
             "the falling icon is the cross texture"
         );
-        // Drives past the landing: the explosion ring appears and the cross is down.
         step(&mut e, 44);
         assert!(
             list(&e).iter().any(|p| matches!(p,
                 EffectPrimitiveDraw::GroundDisc { texture, .. } if *texture == "explosive_1_128.bmp")),
             "the explosion ring expands after the delay"
         );
-        // The screen shake fires exactly once, after the cross lands.
         assert!(
             e.take_camera_shake().is_some(),
             "Pressure shakes the screen on landing"

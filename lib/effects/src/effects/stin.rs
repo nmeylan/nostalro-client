@@ -568,7 +568,7 @@ mod tests {
             "staggered batch alive: {}",
             e.swirls.len()
         );
-        // §9c: a real caster→target direction makes each swirl a projectile
+        // A real caster→target direction makes each swirl a projectile
         // flying toward the target (+Z here), not an in-place swirl.
         assert!(e.has_dir, "directional anchor → travels");
         let head_z = e.swirls[0].slots[0].pos[2];

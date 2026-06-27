@@ -1,32 +1,4 @@
-//! `EF_BASH3D` family — Knight's Bash impact speed-lines (and siblings).
-//!
-//! References:
-//! * `ro-effects/effects/imgs/350-400/364.gif` (`EF_BASH3D`)
-//! * `350-400/375.gif` (`EF_BASH3D2`)
-//! * `350-400/397.gif` (`EF_BASH3D3`)
-//! * `350-400/398.gif` (`EF_BASH3D4`)
-//! * `600-650/626.gif` (`EF_BASH3D5`)
-//!
-//! Not a ring like Defender/Wind — each "slot" renders two layered
-//! triangular fan blades: apex above the caster, two outer points at
-//! exponentially-growing distance, fading after a brief alpha pulse.
-//!
-//! The original game spawns N sub-instances
-//! per cast (one per F1 index in a loop). Each sub-instance holds 4 fan
-//! blades pointing in different directions (`rise_angle = 90·ec + F1·step`).
-//! Per variant:
-//!
-//! | Effect       | F2 | N | Distance law       | Alpha ramp/fade   | Inner / outer tint      |
-//! |--------------|----|---|--------------------|-------------------|-------------------------|
-//! | `EF_BASH3D`  | 0  | 5 | `× 1.15`           | `+20 / −15`       | cyan / red              |
-//! | `EF_BASH3D2` | 2  | 8 | `+ 3.0`            | `+10 / −3`        | blue / yellow           |
-//! | `EF_BASH3D3` | 4  | 6 | `× 1.15`           | `+20 / −15`       | blue / yellow           |
-//! | `EF_BASH3D4` | 5  | 6 | `× 1.15`           | `+20 / −15`       | grey / white            |
-//! | `EF_BASH3D5` | 5  | 6 | `× 1.15`           | `+20 / −15`       | grey / white            |
-//!
-//! F2 = 0/4/5 also start `process` at -24 (24-frame silent wind-up); F2 = 2
-//! starts at 0 (immediate). Both blades per slot use a slightly different
-//! half-spread per variant; we approximate with shared `inner/outer_half_spread_deg`.
+//! `EF_BASH3D` family (ids 364/375/397/398/626) — Bash speed-line fan burst.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -36,22 +8,12 @@ pub const TEXTURE: &str = "alpha_center.tga";
 pub const TEXTURES: &[&str] = &[TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// All five family members run for 200 frames, like the original game.
 const TOTAL_FRAMES: u32 = 200;
 pub const TOTAL_DURATION_MS: u32 = ((TOTAL_FRAMES as f32) / FRAMES_PER_SECOND * 1000.0) as u32;
 
-/// Apex Y offset above the
-/// caster's feet. Native RO `-Y = up`, so apex is `|APEX_Y_OFFSET|` units up.
 const APEX_Y_OFFSET: f32 = -12.0;
-
-/// Initial fan radius before growth kicks in.
 const DISTANCE_INITIAL: f32 = 2.0;
-
-/// `rise_angle = 90·ec + F1·step`. The 0/2/4/5 variants use 22°/F1; the
-/// Truesight variant uses 7°/F1 — see [`BashParams::rise_angle_step_per_f1_deg`].
 const RISE_ANGLE_STEP_PER_SLOT_DEG: f32 = 90.0;
-
-/// Maximum sub-instances any variant uses (Truesight = 12).
 const MAX_SUB_INSTANCES: usize = 12;
 
 /// Per-frame distance update law.
@@ -65,61 +27,26 @@ pub enum DistanceGrowth {
 
 #[derive(Clone, Copy)]
 pub struct BashParams {
-    /// Number of sub-instances spawned per cast (the loop count the
-    /// original game's dispatcher uses).
     pub sub_instances: usize,
-    /// `process` initial value. Negative values create a silent wind-up
-    /// (per-frame physics is gated by `process > 0`).
+    /// Negative values create a silent wind-up (per-frame physics is gated by `process > 0`).
     pub process_initial: i32,
     pub distance_growth: DistanceGrowth,
-    /// Alpha gained per frame (8-bit) for `process ∈ 1..=10`.
     pub alpha_ramp_step_8bit: f32,
-    /// Fade kicks in when `process > fade_after_frame`.
     pub fade_after_frame: i32,
-    /// Alpha lost per frame (8-bit) after the hold window.
     pub alpha_fade_step_8bit: f32,
-    /// Half-spread of the inner blade in degrees.
     pub inner_half_spread_deg: f32,
-    /// Half-spread of the outer blade in degrees.
     pub outer_half_spread_deg: f32,
-    /// 8-bit RGB tint for the inner blade (matches the inner-blade
-    /// colour the original game draws).
     pub inner_color_8bit: [f32; 3],
-    /// 8-bit RGB tint for the outer blade.
     pub outer_color_8bit: [f32; 3],
-    /// If `true`, every fan's spin axis is locked to 0° — the
-    /// out-of-plane axis (which would otherwise rotate the spike's
-    /// direction out of the XZ plane and toward vertical) is disabled,
-    /// and `rise_angle` alone sweeps the horizontal plane. Produces a
-    /// flat 2D starburst silhouette in the XZ plane. The original game
-    /// randomises the spin axis on every variant; we depart
-    /// here for `EF_BASH3D2` whose reference gif shows uniformly
-    /// horizontal needles.
     pub flatten_to_horizontal: bool,
-    /// `rise_angle = 90·ec + F1·this`. 22° for the 0/2/4/5 family, 7°
-    /// for Truesight — its 12 sub-instances pack into a tighter
-    /// fan so the detection ring reads as a dense burst, not 12 sparse
-    /// spokes.
     pub rise_angle_step_per_f1_deg: f32,
-    /// STR layer played alongside the primitives (`Effect::str_overlay`).
-    /// The 0/2/4/5 family ships as a hybrid with `bash3d.str`;
-    /// Truesight is pure-procedural and sets `None`.
     pub str_overlay: Option<&'static str>,
-    /// Caster body recolor (8-bit RGB multiply) held over `body_tint_window`
-    /// frames — the original recolors the master sprite while the speed-lines
-    /// fan out (pink for Bash, pale yellow for Head Crush, white for Joint
-    /// Beat). `None` for variants that only glow or leave the body alone.
     pub body_tint_8bit: Option<[f32; 3]>,
-    /// Inclusive frame window (effect age) for `body_tint_8bit`.
     pub body_tint_window: (u32, u32),
-    /// Inclusive frame window during which the body renders additively (the
-    /// original's `BL_LIGHT_BODY` glow — the linear-growth variant's white body
-    /// light); no colour multiply. `None` for variants with no body light.
     pub body_light_window: Option<(u32, u32)>,
 }
 
 impl BashParams {
-    /// Alpha cap = `ramp_step * 10` (10 ramp frames, then hold).
     fn alpha_cap(&self) -> f32 {
         (self.alpha_ramp_step_8bit * 10.0 / 255.0).min(1.0)
     }
@@ -175,24 +102,13 @@ pub const BASH3D2: BashParams = BashParams {
     alpha_ramp_step_8bit: 10.0,
     fade_after_frame: 11,
     alpha_fade_step_8bit: 3.0,
-    // The original game's literal ±1° / ±2° reads as fat blades at
-    // our world scale because the linear `+3/frame` growth pushes distance
-    // far enough that the angular spread sweeps a wide base. Tightened
-    // here so the silhouette reads as the thin-needle starburst the
-    // reference gif shows.
     inner_half_spread_deg: 0.3,
     outer_half_spread_deg: 0.7,
     inner_color_8bit: [0.0, 0.0, 250.0],
     outer_color_8bit: [250.0, 250.0, 0.0],
-    // The original's mixed 3D direction is the right look — roughly half the
-    // fans (those with `ec = 1` or `ec = 3`, where `cos(rise_angle) ≈ 0`)
-    // naturally fall into the horizontal "middle" plane; the rest tilt
-    // up/down per their spin-axis offset.
     flatten_to_horizontal: false,
     rise_angle_step_per_f1_deg: 22.0,
     str_overlay: Some("bash3d"),
-    // The linear-growth variant glows white (BL_LIGHT_BODY) instead of a
-    // colour multiply, over frames 5..=35.
     body_tint_8bit: None,
     body_tint_window: (0, 0),
     body_light_window: Some((5, 35)),
@@ -236,21 +152,12 @@ pub const BASH3D4: BashParams = BashParams {
     body_light_window: None,
 };
 
-/// `EF_BASH3D5` shares the speed-line visuals of `EF_BASH3D4` but the original
-/// recolors neither the body (only the spawn sound differs).
 pub const BASH3D5: BashParams = BashParams {
     body_tint_8bit: None,
     body_tint_window: (0, 0),
     ..BASH3D4
 };
 
-/// `EF_TRUESIGHT` — 12 sub-instances (`i=0..11`) of the speed-line fan.
-/// 12 sub-instances × 4 sectors = 48 white speed-lines forming the
-/// True Sight detection burst. It differs from the base family: process
-/// starts at 0 (no wind-up), `distance += 3.0` per frame (additive, like
-/// the linear-growth variant), a gentle alpha curve (`+6`/frame to 60 over 10 frames, then
-/// `−1`/frame), a tight 7°/F1 rise-angle step, and white inner+outer blades.
-/// Pure-procedural — no STR overlay.
 pub const TRUESIGHT: BashParams = BashParams {
     sub_instances: 12,
     process_initial: 0,
@@ -275,9 +182,6 @@ pub struct Bash3dEffect {
     params: BashParams,
     age_frames: f32,
     last_processed_frame: u32,
-    /// Per-fan signed process counter. We need a parallel signed array
-    /// because the emitter slot's own counter is `u32` and the family seeds
-    /// `process_initial = -24` for the multiplicative branch.
     process: [[i32; RADIAL_EMITTER_SLOTS]; MAX_SUB_INSTANCES],
     emitters: [RadialEmitter; MAX_SUB_INSTANCES],
 }
@@ -345,10 +249,6 @@ impl Bash3dEffect {
     }
 }
 
-/// The original game randomises the spin axis per fan. We use a
-/// deterministic hash of `(f1, ec)` over the total fan count so tests are
-/// stable and the visual stays consistent; the even spread reads better
-/// as a star burst than uniform random anyway.
 fn fan_rot_start_deg(f1: usize, ec: usize, sub_instances: usize) -> f32 {
     let total = sub_instances * RADIAL_EMITTER_SLOTS;
     let index = (f1 * RADIAL_EMITTER_SLOTS + ec) as f32;
@@ -389,8 +289,6 @@ impl Effect for Bash3dEffect {
     }
 
     fn str_overlay(&self) -> Option<&'static str> {
-        // The 0/2/4/5 family ships as a hybrid alongside `bash3d.str`;
-        // Truesight is pure-procedural and returns `None`.
         self.params.str_overlay
     }
 
@@ -481,7 +379,6 @@ mod tests {
 
     #[test]
     fn bash3d_silent_then_full_starburst_two_layers() {
-        // Base variant: 24-frame wind-up, then 5 sub × 4 slots × 2 blades = 40 quads.
         let mut e = Bash3dEffect::new([5.0, 0.0, -3.0], BASH3D);
         step(&mut e, 10.0);
         assert!(draws(&e).is_empty(), "silent wind-up");
@@ -497,8 +394,6 @@ mod tests {
 
     #[test]
     fn bash3d2_starts_immediately_with_8_sub_instances_linear_growth() {
-        // Linear-growth variant: process starts at 0 — first frame already ramps alpha and
-        // grows distance. 8 sub × 4 slots × 2 blades = 64 quads.
         let mut e = Bash3dEffect::new([0.0; 3], BASH3D2);
         step(&mut e, 1.0);
         let prims = draws(&e);
@@ -523,12 +418,9 @@ mod tests {
                 _ => panic!(),
             }
         };
-        let dist_1 = apex_to_outer(&prims[1]); // outer blade of fan 0
+        let dist_1 = apex_to_outer(&prims[1]);
         step(&mut e, 1.0);
         let dist_2 = apex_to_outer(&draws(&e)[1]);
-        // Growth = distance increment per frame = 3.0, scaled by the
-        // geometry (cos terms). dist_2 - dist_1 should be roughly 3 ×
-        // (length per unit distance), > 1 in any case — not a 15% bump.
         let delta = dist_2 - dist_1;
         assert!(delta > 1.0, "additive growth visible: Δ = {delta}");
     }
@@ -549,30 +441,24 @@ mod tests {
 
     #[test]
     fn bash3d_recolors_the_caster_body_inside_its_window() {
-        // EF_BASH3D recolors the master sprite pink (255,200,200) over frames
-        // 20..=40 — before and after that window the body is untouched.
         let mut e = Bash3dEffect::new([0.0; 3], BASH3D);
         step(&mut e, 10.0);
         assert_eq!(e.body_tint(), None, "no tint before the window");
-        step(&mut e, 20.0); // frame ~30, inside 20..=40
+        step(&mut e, 20.0);
         assert_eq!(
             e.body_tint(),
             Some(BodyTint {
                 rgb: [255, 200, 200]
             })
         );
-        assert!(
-            !e.body_additive(),
-            "Bash uses a colour multiply, not a glow"
-        );
-        step(&mut e, 20.0); // frame ~50, past the window
+        assert!(!e.body_additive());
+        step(&mut e, 20.0);
         assert_eq!(e.body_tint(), None, "tint clears after the window");
 
-        // The linear-growth variant glows white (additive body light) instead.
         let mut g = Bash3dEffect::new([0.0; 3], BASH3D2);
-        step(&mut g, 15.0); // inside 5..=35
-        assert!(g.body_additive(), "BL_LIGHT_BODY glow");
-        assert_eq!(g.body_tint(), None, "glow carries no colour multiply");
+        step(&mut g, 15.0);
+        assert!(g.body_additive());
+        assert_eq!(g.body_tint(), None);
     }
 
     #[test]
@@ -584,25 +470,17 @@ mod tests {
 
     #[test]
     fn truesight_immediate_12_sub_white_no_str() {
-        // Truesight: process starts at 0 (no wind-up), so the first frame already
-        // shows all 12 sub × 4 slots × 2 blades = 96 quads, tinted white,
-        // and the effect declares no STR overlay (pure-procedural).
         let mut e = Bash3dEffect::new([0.0; 3], TRUESIGHT);
-        assert_eq!(e.str_overlay(), None, "Truesight is pure-procedural");
+        assert_eq!(e.str_overlay(), None);
         step(&mut e, 2.0);
         let prims = draws(&e);
         assert_eq!(
             prims.len(),
             TRUESIGHT.sub_instances * RADIAL_EMITTER_SLOTS * 2,
-            "12 × 4 × 2 = 96 quads with no wind-up",
         );
-        // White blades: RGB all near 1.0.
         let EffectPrimitiveDraw::WorldQuad { color, .. } = prims[0] else {
             panic!("expected WorldQuad");
         };
-        assert!(
-            color[0] > 0.9 && color[1] > 0.9 && color[2] > 0.9,
-            "white tint"
-        );
+        assert!(color[0] > 0.9 && color[1] > 0.9 && color[2] > 0.9);
     }
 }

@@ -22,6 +22,14 @@ pub use fps::Fps;
 pub use global_uniforms::{FogUniform, GlobalUniforms, LightUniform, PointLightGpu};
 
 pub use damage_number::render_damage_number_quads;
+pub use effect::{
+    BlendBucket, BlendKind, DrawRecord, EffectDispatcher, PipelineKind, StrEffectCache,
+    StrEffectEntry, StrEmitterInput, build_str_effect_batches, d3d_blend_to_wgpu,
+    prepare_billboard_records, prepare_cylinder_records, prepare_frustum_records,
+    prepare_ground_disc_records, prepare_line_strip_records, prepare_quad_horn_records,
+    prepare_radial_ring_records, prepare_screen_quad_records, prepare_sphere_records,
+    prepare_texture3d_records, prepare_world_quad_records,
+};
 pub use effect_sprite::{
     EffectSpriteCache, EffectSpriteEntry, EmitterDraw, Smoke3DParticle, SpriteEffectEmitter,
     build_emitter_batches, collect_sprite_effect_draws, prepare_sprite_particle_records,
@@ -38,13 +46,6 @@ pub use sprite::{
     build_entity_sprite, compose_actor_batches, scale_clip_vertices, transform_batch_vertices,
     upload_sprite_textures,
 };
-pub use effect::{
-    BlendBucket, BlendKind, DrawRecord, EffectDispatcher, PipelineKind, StrEffectCache,
-    StrEffectEntry, StrEmitterInput, build_str_effect_batches, d3d_blend_to_wgpu,
-    prepare_billboard_records, prepare_cylinder_records, prepare_frustum_records, prepare_radial_ring_records,
-    prepare_screen_quad_records, prepare_ground_disc_records, prepare_line_strip_records, prepare_quad_horn_records,
-    prepare_sphere_records, prepare_texture3d_records, prepare_world_quad_records,
-};
 pub use texture::TextureCache;
 pub use ui_renderer::{UiDrawCommand, UiRenderer, UiVertex};
 pub use water::WaterRenderer;
@@ -56,11 +57,6 @@ use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::rsw::{RswFile, RswObject};
 use std::sync::Arc;
 
-/// Selects which floor (if any) the main pass renders. `RswMap` uses the
-/// real `ground_renderer`; `GroundProxy` uses the debug checker floor;
-/// `Clear` skips both so only `clear_color` shows through. Tooling like
-/// the unified viewer toggles this at runtime; the game and `rsw_viewer`
-/// rely on the default (`RswMap`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BackgroundMode {
     Clear,
@@ -74,16 +70,13 @@ impl Default for BackgroundMode {
     }
 }
 
-/// Texture reference used by UI draw calls, resolved to bind groups at render time.
 pub enum UiTextureRef {
     FontAtlas,
     White,
     Named(String),
-    /// Index into the `inline_textures` slice passed to `Renderer::render()`.
     Inline(usize),
 }
 
-/// Owned UI draw command produced by the UI layer.
 pub struct UiDrawCall {
     pub vertices: Vec<UiVertex>,
     pub indices: Vec<u32>,
@@ -96,18 +89,11 @@ pub struct Renderer {
     pub global_uniforms: GlobalUniforms,
     pub texture_cache: TextureCache,
     pub ground_renderer: Option<GroundRenderer>,
-    /// Debug/tooling stand-in for the real ground; renders when
-    /// `background_mode == GroundProxy`. Provides a floor for effect
-    /// primitives to depth-clip against when no real `.gnd` is loaded.
     pub ground_proxy: Option<GroundProxyRenderer>,
     pub model_renderer: Option<ModelRenderer>,
     pub water_renderer: Option<WaterRenderer>,
     pub grid_selector: Option<GridSelectorRenderer>,
     pub sprite_renderer: SpriteRenderer,
-    /// Dedicated sprite-pipeline instance for the effect-world pass. Owns its
-    /// own vertex/index buffers so we can render effects + entities in the
-    /// same encoder without an intermediate submit. Will be retired in C-2
-    /// when effects move to dedicated primitive pipelines.
     pub effect_sprite_renderer: SpriteRenderer,
     pub effect_ground_disc_renderer: effect::GroundDiscRenderer,
     pub effect_frustum_renderer: effect::FrustumRenderer,
@@ -119,9 +105,6 @@ pub struct Renderer {
     pub effect_radial_ring_renderer: effect::RadialRingRenderer,
     pub effect_line_strip_renderer: effect::LineStripRenderer,
     pub effect_fullscreen_renderer: effect::FullscreenOverlayRenderer,
-    /// Owns the per-frame unified vertex / index buffer for the effect
-    /// dispatch path; pipelines themselves live on the per-primitive
-    /// renderer structs above.
     pub effect_dispatcher: effect::EffectDispatcher,
     pub ui_renderer: UiRenderer,
     pub font_atlas: FontAtlas,
@@ -133,12 +116,6 @@ pub struct Renderer {
     pub background_mode: BackgroundMode,
 }
 
-/// Build the unified effect [`DrawRecord`] list for one [`EffectDrawList`] by
-/// running it through every `prepare_*_records` helper. Pulled out of
-/// `render_into` so the same logic feeds both the pre-sprite ("behind entity")
-/// and post-sprite passes. Borrows only the disjoint fields the records need
-/// (`texture_cache` / `white_bind_group`), so the caller can still take a
-/// `&mut` borrow of `effect_dispatcher` for the dispatch itself.
 #[allow(clippy::too_many_arguments)]
 fn build_effect_records<'tex>(
     effect_draws: &effect::EffectDrawList,
@@ -148,10 +125,6 @@ fn build_effect_records<'tex>(
     logical_w: f32,
     logical_h: f32,
 ) -> Vec<DrawRecord<'tex>> {
-    // A texture field may list several `|`-separated alias candidates; the
-    // first present in the cache wins. Bare names live under the effect
-    // texture dir, names already containing a path are relative to
-    // `data/texture/`. Mirrors `effect_texture_paths()` in the game crate.
     let texture_lookup = |name: &str| -> Option<&'tex wgpu::BindGroup> {
         if name.is_empty() {
             return None;
@@ -167,18 +140,72 @@ fn build_effect_records<'tex>(
     };
     let mut records: Vec<DrawRecord<'tex>> = Vec::new();
     records.extend(prepare_billboard_records(
-        effect_draws, camera, logical_w, logical_h, white_bind_group, texture_lookup,
+        effect_draws,
+        camera,
+        logical_w,
+        logical_h,
+        white_bind_group,
+        texture_lookup,
     ));
-    records.extend(prepare_frustum_records(effect_draws, camera, white_bind_group, texture_lookup));
-    records.extend(prepare_cylinder_records(effect_draws, camera, white_bind_group, texture_lookup));
-    records.extend(prepare_ground_disc_records(effect_draws, camera, white_bind_group, texture_lookup));
-    records.extend(prepare_quad_horn_records(effect_draws, camera, white_bind_group, texture_lookup));
-    records.extend(prepare_sphere_records(effect_draws, camera, white_bind_group, texture_lookup));
-    records.extend(prepare_world_quad_records(effect_draws, camera, white_bind_group, texture_lookup));
-    records.extend(prepare_texture3d_records(effect_draws, camera, white_bind_group, texture_lookup));
-    records.extend(prepare_radial_ring_records(effect_draws, camera, white_bind_group, texture_lookup));
-    records.extend(prepare_line_strip_records(effect_draws, camera, white_bind_group, texture_lookup));
-    records.extend(prepare_screen_quad_records(effect_draws, white_bind_group, texture_lookup));
+    records.extend(prepare_frustum_records(
+        effect_draws,
+        camera,
+        white_bind_group,
+        texture_lookup,
+    ));
+    records.extend(prepare_cylinder_records(
+        effect_draws,
+        camera,
+        white_bind_group,
+        texture_lookup,
+    ));
+    records.extend(prepare_ground_disc_records(
+        effect_draws,
+        camera,
+        white_bind_group,
+        texture_lookup,
+    ));
+    records.extend(prepare_quad_horn_records(
+        effect_draws,
+        camera,
+        white_bind_group,
+        texture_lookup,
+    ));
+    records.extend(prepare_sphere_records(
+        effect_draws,
+        camera,
+        white_bind_group,
+        texture_lookup,
+    ));
+    records.extend(prepare_world_quad_records(
+        effect_draws,
+        camera,
+        white_bind_group,
+        texture_lookup,
+    ));
+    records.extend(prepare_texture3d_records(
+        effect_draws,
+        camera,
+        white_bind_group,
+        texture_lookup,
+    ));
+    records.extend(prepare_radial_ring_records(
+        effect_draws,
+        camera,
+        white_bind_group,
+        texture_lookup,
+    ));
+    records.extend(prepare_line_strip_records(
+        effect_draws,
+        camera,
+        white_bind_group,
+        texture_lookup,
+    ));
+    records.extend(prepare_screen_quad_records(
+        effect_draws,
+        white_bind_group,
+        texture_lookup,
+    ));
     records
 }
 
@@ -217,18 +244,6 @@ impl Renderer {
         let logical_w = device.surface_config.width as f32 / dpi_scale;
         let logical_h = device.surface_config.height as f32 / dpi_scale;
 
-        // Entity sprites write depth so the post-sprite effect pass
-        // depth-tests against the sprite — the entity sprite pass keeps
-        // depth-write enabled, matching the original game's on-screen
-        // occlusion. Front-facing fragments of a translucent
-        // cylinder around the caster pass `LessEqual` and draw on top of
-        // the sprite; back-facing fragments fail and the sprite remains
-        // visible (sprite "in the middle" of the cylinder).
-        // Entity sprites depth-WRITE so later passes (skill effects, other
-        // entities) are correctly occluded by the character body. Coplanar
-        // z-fighting between the body's own overlapping alpha layers (head over
-        // body, body over shadow) is avoided by a small per-layer depth
-        // separation applied in paint order — see `build_batches`.
         let sprite_renderer = SpriteRenderer::new(
             &device.device,
             device.surface_format,
@@ -381,12 +396,10 @@ impl Renderer {
         self.global_uniforms
             .update_fog(&self.device.queue, &fog_uniform);
 
-        // Set camera target to map center
         let center_x = gnd.width as f32 * gnd.zoom / 2.0;
         let center_z = gnd.height as f32 * gnd.zoom / 2.0;
         self.camera.target = glam::Vec3::new(center_x, 0.0, center_z);
 
-        // Apply RSW light settings
         if let (Some(longitude), Some(latitude)) = (rsw.light.longitude, rsw.light.latitude) {
             let lon_rad = (longitude as f32).to_radians();
             let lat_rad = (latitude as f32).to_radians();
@@ -477,10 +490,6 @@ impl Renderer {
         self.background_mode = BackgroundMode::RswMap;
     }
 
-    /// Load each `data/texture/effect/<name>` entry into the texture cache,
-    /// applying the keyed-transparency conventions used by STR effect textures
-    /// (magenta → transparent, pure black → transparent for additive
-    /// rendering). Missing files log once via `tracing::warn` and skip.
     pub fn preload_effect_textures(&mut self, paths: &[String], grf: &GrfArchive) {
         let mut loaded: Vec<&str> = Vec::new();
         let mut missing: Vec<&str> = Vec::new();
@@ -550,9 +559,6 @@ impl Renderer {
         }
     }
 
-    /// Install a debug checker floor at `y = 0`. Whether it actually
-    /// renders is controlled by `background_mode`; callers usually pair
-    /// this with `set_background_mode(BackgroundMode::GroundProxy)`.
     pub fn enable_ground_proxy(&mut self) {
         if self.ground_proxy.is_some() {
             return;
@@ -613,11 +619,6 @@ impl Renderer {
         output.present();
     }
 
-    /// Render a full frame to caller-provided color + depth views. Used by
-    /// `render()` for the surface path and by offline capture (gif export)
-    /// for an in-memory target. The render pipelines are baked against
-    /// `self.device.surface_format`, so offscreen color targets must use
-    /// that format too.
     pub fn render_into(
         &mut self,
         color_view: &wgpu::TextureView,
@@ -712,11 +713,6 @@ impl Renderer {
             }
         }
 
-        // "Behind entity" effect primitives dispatch BEFORE the sprite pass:
-        // the character sprite (drawn next, writing depth) then occludes them,
-        // so the effect reads as radiating from behind the caster (e.g.
-        // Lightsphere's blade burst). They still depth-test against the
-        // already-drawn ground / models.
         if !effect_draws.behind.is_empty() {
             let behind_list = effect_draws.behind_as_list();
             let behind_records = build_effect_records(
@@ -752,10 +748,6 @@ impl Renderer {
             }
         }
 
-        // Entity sprites render before the unified effect pass so effects
-        // sit on top of the character — matches the original game's draw
-        // order, where the player is drawn first and effects spawned on it
-        // layer over the top.
         if !sprite_batches.is_empty() {
             self.sprite_renderer.render(
                 &mut encoder,
@@ -768,20 +760,6 @@ impl Renderer {
             );
         }
 
-        // STR + ambient SPR / Smoke3D sprite batches go through the
-        // dedicated effect sprite renderer pass. They share blend state
-        // (additive vs alpha) but stay outside the unified queue: STR runs
-        // its own keyframe animation system and ambient emitters aren't
-        // emitted into `EffectDrawList` today, so they don't have a
-        // per-primitive depth to sort by. The dedicated pass keeps them
-        // off the unified vertex buffer (avoids the cost of rebuilding
-        // their geometry every dispatch).
-        //
-        // Depth-test (read-only) against the scene depth so world-anchored
-        // effects (RSW torches/smoke, ground STR) are occluded by buildings
-        // and terrain instead of floating on top. `effect_sprite_renderer` is
-        // built with `depth_write=false`, so transparent effects still don't
-        // occlude each other.
         if !effect_sprite_batches.is_empty() {
             self.effect_sprite_renderer.render(
                 &mut encoder,
@@ -794,13 +772,6 @@ impl Renderer {
             );
         }
 
-        // Unified effect-primitive pass: every Billboard / BillboardDisc /
-        // SpriteParticle / Frustum / GroundDisc / QuadHorn / Sphere /
-        // WorldQuad in `effect_draws` lands in one of [`BlendBucket`]'s
-        // deferred lists, sorted back-to-front by view-space depth, then
-        // flushed in alpha → additive → multiply order, matching the
-        // original game's batched look. (The `behind` sub-list was already
-        // dispatched above, before the sprite pass.)
         let mut records: Vec<DrawRecord<'_>> = build_effect_records(
             effect_draws,
             &self.camera,
@@ -810,12 +781,6 @@ impl Renderer {
             logical_h,
         );
         records.extend(sprite_particle_records);
-        // SpriteParticle records reference textures inside their respective
-        // EffectSpriteCache entries (`&sprite.textures.bind_groups[i]`), which
-        // the renderer doesn't own. Callers that want SpriteParticle
-        // dispatched today pass the records in `extra_effect_records`;
-        // future cleanup will hoist particle preparation into
-        // `compose_effect_frame`.
         if !records.is_empty() {
             self.effect_dispatcher.dispatch(
                 records,
@@ -840,8 +805,6 @@ impl Renderer {
             );
         }
 
-        // Submit 3D + effects + sprites so sprite_renderer's write_buffer is
-        // flushed before cursor reuses the same buffers.
         self.device.queue.submit(std::iter::once(encoder.finish()));
 
         let mut encoder = self
@@ -850,7 +813,6 @@ impl Renderer {
             .create_command_encoder(&Default::default());
 
         if !ui_draw_calls.is_empty() {
-            // Resolve TextureRef -> &wgpu::BindGroup using field-level borrow splitting
             let resolved: Vec<UiDrawCommand> = ui_draw_calls
                 .iter()
                 .map(|call| {
@@ -928,9 +890,6 @@ mod tests {
 
     #[test]
     fn background_mode_cycle_round_trip() {
-        // The unified viewer's B key advances RswMap -> GroundProxy -> Clear ->
-        // back. The renderer doesn't own the cycling, but the order matters
-        // because clients read this enum directly.
         let mut mode = BackgroundMode::default();
         let cycle = [
             BackgroundMode::GroundProxy,

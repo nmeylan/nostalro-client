@@ -89,9 +89,7 @@ mod tests {
     #[test]
     fn get_unidentified_falls_back_to_identified() {
         let table = make_table();
-        // Has unidentified entry
         assert_eq!(table.get(1201, false).unwrap()[0], "An unknown weapon.");
-        // Falls back to identified
         assert_eq!(table.get(501, false).unwrap()[0], "A red potion.");
     }
 

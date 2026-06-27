@@ -1,34 +1,3 @@
-//! EF_POTIONBERSERK — Berserk Potion sustained buff.
-//!
-//! Reference: `ro-effects/effects/imgs/200-250/220.gif`.
-//!
-//! Observed behaviour:
-//!
-//! 1. Frame 0 — recolours the master reddish ([`BODY_TINT_RGB`], via the
-//!    [`Effect::body_tint`] channel) and raises the pillar column with
-//!    height speed 1.0 over 50 frames (in [`super::potion_pillar`]).
-//! 2. Frame 12 → 110 (every 4 frames) — spawns a cross-texture
-//!    spark: two perpendicular thin red strips at a random XZ offset
-//!    around the master, rising upward at 0.3 → 1.2 units/frame, lifetime
-//!    40 frames, texture `ac_center2.tga`. Both quads share a 0→180 alpha
-//!    ramp over 20 frames.
-//! 3. Frame 18 — a one-shot screen quake ([`Effect::take_camera_shake`]) and
-//!    `ac_concentration.wav` ([`Effect::take_sfx_request`]).
-//! 4. A `버서크.str` overlay plays alongside everything else;
-//!    exposed via the [`Effect::str_overlay`] hook.
-//! 5. Frame > 150 — the body tint is dropped and the effect dies.
-//!
-//! Implementation notes:
-//! * The cylinder pillar is delegated to [`super::potion_pillar`] so both
-//!   IDs share one Rust effect for the column. PotionBerserk drives the
-//!   pillar via a wrapped [`super::potion_pillar::PotionPillarEffect`].
-//! * The cross-texture spark is rendered as two `WorldQuad` primitives per
-//!   spark — two perpendicular strips, matching the original game's
-//!   crossed-quad look.
-//!
-//! [`Effect::str_overlay`]: crate::effect_trait::Effect::str_overlay
-//! [`super::potion_pillar`]: crate::effects::potion_pillar
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{BodyTint, CameraShake, Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::effects::potion_pillar::{BERSERK, PotionPillarEffect, PotionPillarParams};
@@ -37,15 +6,11 @@ pub const STR_OVERLAY: &str = "버서크";
 pub const SPARK_TEXTURE: &str = "ac_center2.tga";
 pub const TEXTURES: &[&str] = &[SPARK_TEXTURE, super::potion_pillar::TEXTURE];
 
-/// One-shot quake + SFX, fired together at frame 18 (`MM_QUAKE, 1` +
-/// `ac_concentration.wav` in the original game).
 const QUAKE_FRAME: f32 = 18.0;
 const QUAKE_AMPLITUDE: f32 = 1.0;
 const QUAKE_DURATION_MS: u32 = 350;
 const SFX_PATH: &str = "effect\\ac_concentration.wav";
 
-/// Reddish body recolour applied to the master while the buff is up
-/// (`AM_CHANGE_COLOR(250,120,120)` → `AM_RETURN_COLOR` past frame 150).
 const BODY_TINT_RGB: [u8; 3] = [250, 120, 120];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
@@ -71,8 +36,6 @@ const SPARK_COLOR_R: f32 = 240.0 / 255.0;
 pub const TOTAL_DURATION_MS: u32 =
     ((PARENT_TOTAL_FRAMES + SPARK_LIFETIME_FRAMES) * 1000.0 / FRAMES_PER_SECOND) as u32;
 
-/// Deterministic PRNG identical to [`super::pierce::Rng`] in approach;
-/// kept private so the two effects don't share a re-export surface.
 #[derive(Clone, Copy)]
 struct Rng(u32);
 
@@ -118,8 +81,6 @@ impl Spark {
     }
 
     fn alpha(&self, local: f32) -> f32 {
-        // Ramp up over 20 frames, hold, fade over last 20 (alpha
-        // 0 → 180; fade starts 20 frames before the end).
         let fade_start = SPARK_LIFETIME_FRAMES - SPARK_FADE_OUT_FRAMES;
         if local < SPARK_ALPHA_RAMP_FRAMES {
             SPARK_ALPHA_MAX * (local / SPARK_ALPHA_RAMP_FRAMES)
@@ -137,10 +98,7 @@ pub struct PotionBerserkEffect {
     age: f32,
     pillar: PotionPillarEffect,
     sparks: Vec<Spark>,
-    /// Next parent-frame index that should spawn a spark.
     next_spark_frame: f32,
-    /// Quake and SFX each fire once at [`QUAKE_FRAME`]; tracked separately so
-    /// neither drain order can swallow the other.
     quake_fired: bool,
     sfx_fired: bool,
     rng: Rng,
@@ -164,8 +122,6 @@ impl PotionBerserkEffect {
         let yaw_rad = self.rng.range_f32(0.0, std::f32::consts::TAU);
         let radial = self.rng.range_f32(SPARK_RADIAL_MIN, SPARK_RADIAL_MAX);
         let (s, c) = yaw_rad.sin_cos();
-        // Offset from the master is `(0, 0, radial)` yawed →
-        // (radial * sin(yaw), 0, radial * cos(yaw)) in world space.
         let origin = [
             self.world_pos[0] + radial * s,
             self.world_pos[1],
@@ -176,8 +132,6 @@ impl PotionBerserkEffect {
         self.sparks.push(Spark {
             spawn_frame: frame,
             origin,
-            // Native RO: -Y is up; the spark rises at `(0, -speed, 0)`
-            // per frame.
             speed_per_frame_y: -speed,
             width,
         });
@@ -188,16 +142,7 @@ impl PotionBerserkEffect {
         let h = SPARK_HEIGHT;
         let w = spark.width;
         let color = [SPARK_COLOR_R, 0.0, 0.0, alpha];
-
-        // Corner / UV layout for the two crossed strips,
-        // stood upright in the vertical plane:
-        //   v0 → (0, 1), v1 → (1, 1), v2 → (0, 0), v3 → (1, 0).
-        // `WorldQuad`'s index pattern (0,1,2 + 0,2,3) shares the v0-v2
-        // diagonal and covers the full rectangle.
         let uv = [[0.0, 1.0], [1.0, 1.0], [0.0, 0.0], [1.0, 0.0]];
-
-        // Quad #1 — vertical
-        // strip in the X-Y plane (z = 0).
         let q1 = [
             [pos[0] - h, pos[1] - w, pos[2]],
             [pos[0] - h, pos[1] + w, pos[2]],
@@ -213,8 +158,6 @@ impl PotionBerserkEffect {
             no_depth: false,
         });
 
-        // Quad #2 — vertical
-        // strip in the Y-Z plane (x = 0).
         let q2 = [
             [pos[0], pos[1] - w, pos[2] - h],
             [pos[0], pos[1] + w, pos[2] - h],
@@ -273,7 +216,6 @@ impl Effect for PotionBerserkEffect {
     }
 
     fn body_tint(&self) -> Option<BodyTint> {
-        // Reddish recolour while the buff is up, dropped past frame 150.
         let frame = self.age * FRAMES_PER_SECOND;
         (frame < PARENT_TOTAL_FRAMES).then_some(BodyTint { rgb: BODY_TINT_RGB })
     }
@@ -327,12 +269,9 @@ mod tests {
 
     #[test]
     fn pillar_visible_from_frame_zero_sparks_appear_at_frame_12() {
-        // Sociable test: validates the dispatch of both pillar and spark
-        // emission against the original game's frame schedule.
         let mut e = PotionBerserkEffect::new([0.0; 3]);
         step(&mut e, 1.0 / FRAMES_PER_SECOND);
         let prims0 = collect(&e);
-        // Pillar's cylinder is emitted from frame 0.
         assert!(
             prims0
                 .iter()
@@ -346,8 +285,6 @@ mod tests {
             "no sparks yet at frame 1"
         );
 
-        // Step to frame ~13 → first spark spawned at frame 12, two
-        // WorldQuads per spark.
         step(&mut e, 12.0 / FRAMES_PER_SECOND);
         let prims12 = collect(&e);
         let quads = prims12
@@ -369,8 +306,6 @@ mod tests {
 
     #[test]
     fn tints_body_then_quakes_and_plays_sfx_at_frame_eighteen() {
-        // Sociable: body tint is live from frame 0; the quake + wave both fire
-        // once on reaching frame 18 and never again.
         let mut e = PotionBerserkEffect::new([0.0; 3]);
         step(&mut e, 1.0 / FRAMES_PER_SECOND);
         assert_eq!(e.body_tint(), Some(BodyTint { rgb: BODY_TINT_RGB }));
@@ -379,11 +314,14 @@ mod tests {
 
         step(&mut e, 18.0 / FRAMES_PER_SECOND);
         assert!(e.take_camera_shake().is_some(), "quake fires at frame 18");
-        assert_eq!(e.take_sfx_request(), Some(SFX_PATH), "wave fires at frame 18");
+        assert_eq!(
+            e.take_sfx_request(),
+            Some(SFX_PATH),
+            "wave fires at frame 18"
+        );
         assert!(e.take_camera_shake().is_none(), "quake is one-shot");
         assert!(e.take_sfx_request().is_none(), "wave is one-shot");
 
-        // Tint is dropped once the buff window ends (past frame 150).
         step(&mut e, 140.0 / FRAMES_PER_SECOND);
         assert_eq!(e.body_tint(), None, "tint cleared past frame 150");
     }

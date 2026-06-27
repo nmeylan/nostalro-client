@@ -1,5 +1,3 @@
-//! Quick helper: list all `.str` files in the GRF that contain a pattern.
-//! Usage: cargo run -p ragnarok-formats --example list_str -- <grf> [pattern]
 use std::path::PathBuf;
 
 use ragnarok_formats::grf::GrfArchive;
@@ -13,8 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .file_names()
         .iter()
         .filter(|n| {
-            n.to_lowercase().ends_with(".str")
-                && n.to_lowercase().contains(&pattern.to_lowercase())
+            n.to_lowercase().ends_with(".str") && n.to_lowercase().contains(&pattern.to_lowercase())
         })
         .map(|s| s.to_string())
         .collect();

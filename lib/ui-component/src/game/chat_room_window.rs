@@ -12,19 +12,12 @@ pub const CHAT_ROOM_WINDOW_ID: WidgetId = WidgetId(1700);
 const CHAT_OPEN_TEX: &str = "data/texture/유저인터페이스/chat_open.bmp";
 const CHAT_CLOSE_TEX: &str = "data/texture/유저인터페이스/chat_close.bmp";
 
-/// Fixed box width over the owner, matching the original client's title bar.
 const BOX_W: f32 = 140.0;
 const PADDING: f32 = 4.0;
-/// Icon footprint used until the GRF texture is loaded (chat_open/close are 24×24).
 const ICON_SIZE: (f32, f32) = (24.0, 24.0);
-/// Vertical gap between the owner's head and the bottom of the box.
 const HEAD_GAP: f32 = 5.0;
-/// Longest title (before the occupancy suffix) that fits the fixed-width box.
 const TITLE_MAX_CHARS: usize = 12;
 
-/// One room to draw this frame: its data plus the owner's projected screen anchor.
-/// The caller fills `placements` each frame from the chat-room registry joined
-/// with the world render list, since the box position follows the owner entity.
 #[derive(Clone)]
 pub struct ChatRoomPlacement {
     pub room_id: u32,
@@ -33,16 +26,11 @@ pub struct ChatRoomPlacement {
     pub title: String,
     pub cur_count: i16,
     pub max_count: i16,
-    /// Owner's feet in screen pixels.
     pub anchor_x: f32,
     pub anchor_y: f32,
-    /// Pixels from the feet up to the top of the idle pose.
     pub head_offset: f32,
 }
 
-/// Floating "waitingroom" box(es) drawn above the owning NPC/player. Unlike the
-/// other in-game windows this is not draggable, not unique, and its position is
-/// driven by the owner's world position rather than a saved layout.
 pub struct ChatRoomWindow {
     pub has_grf_textures: bool,
     pub container: DialogContainer,
@@ -68,7 +56,6 @@ impl ChatRoomWindow {
         }
     }
 
-    /// Private/password rooms use the "closed" door icon; public/arena/pk "open".
     fn icon_texture(atype: u8) -> &'static str {
         if atype == 0 {
             CHAT_CLOSE_TEX
@@ -77,8 +64,6 @@ impl ChatRoomWindow {
         }
     }
 
-    /// Caption: title plus occupancy, except pk-zone rooms which have no limit.
-    /// The title is clipped so the caption stays within the fixed-width box.
     fn label(p: &ChatRoomPlacement) -> String {
         let title = if p.title.chars().count() > TITLE_MAX_CHARS {
             let kept: String = p.title.chars().take(TITLE_MAX_CHARS).collect();
@@ -101,7 +86,6 @@ impl ChatRoomWindow {
         }
     }
 
-    /// Fixed-width box centred over the owner's head, sitting above it.
     fn box_rect(p: &ChatRoomPlacement) -> Rect {
         let box_h = PADDING + ICON_SIZE.1 + PADDING;
         Rect::new(
@@ -157,18 +141,15 @@ impl InGameWindow for ChatRoomWindow {
 
         for (i, p) in self.placements.iter().enumerate() {
             let rect = Self::box_rect(p);
-            // Per-room id, stable within a frame, so each box hit-tests independently.
             let id = WidgetId(CHAT_ROOM_WINDOW_ID.0 + 1 + i as u32);
             let resp = ui.interact(id, rect);
             if resp.hovered() {
                 ui.any_interactive_hovered = true;
             }
 
-            // Sysbox nine-slice background, the same frame the dialog boxes use.
             self.container
                 .draw(&mut ui.draw_calls, rect.x, rect.y, rect.w, rect.h, [1.0; 4]);
 
-            // Open/closed door icon at the left, drawn at its native size.
             let (icon_w, icon_h) = self.icon_size(p.atype);
             let icon_rect = Rect::new(
                 rect.x + PADDING,
@@ -186,7 +167,6 @@ impl InGameWindow for ChatRoomWindow {
                 });
             }
 
-            // Title left-aligned after the icon, coloured to suit the background.
             let text_x = icon_rect.x + icon_w + PADDING;
             let text_y = rect.y + (rect.h + ui.atlas.line_height) / 2.0;
             ui.text(text_x, text_y, &Self::label(p), self.container.text_color());
@@ -222,16 +202,14 @@ mod tests {
         let rect = ChatRoomWindow::box_rect(&placement(2));
         assert!((rect.x + rect.w / 2.0 - 100.0).abs() < f32::EPSILON);
         assert_eq!(rect.w, BOX_W);
-        // Box is fully above the feet (the anchor), not overlapping them.
         assert!(rect.y + rect.h < 200.0);
     }
 
     #[test]
     fn icon_and_label_follow_room_type() {
-        assert_eq!(ChatRoomWindow::icon_texture(2), CHAT_OPEN_TEX); // arena
-        assert_eq!(ChatRoomWindow::icon_texture(0), CHAT_CLOSE_TEX); // private
+        assert_eq!(ChatRoomWindow::icon_texture(2), CHAT_OPEN_TEX);
+        assert_eq!(ChatRoomWindow::icon_texture(0), CHAT_CLOSE_TEX);
         assert_eq!(ChatRoomWindow::label(&placement(2)), "Arena (3/20)");
-        // pk zone: no occupancy shown
         assert_eq!(ChatRoomWindow::label(&placement(3)), "Arena");
     }
 

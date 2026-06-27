@@ -42,7 +42,6 @@ impl AccessoryTable {
             return Self { entries: table };
         }
 
-        // Fallback: built-in table covers classic-era headgear
         tracing::info!(
             "No lua files in GRF, using built-in accessory table ({} entries)",
             BUILTIN_ACCESSORY_TABLE.len()
@@ -62,7 +61,6 @@ impl AccessoryTable {
         self.entries.len()
     }
 
-    /// Returns sorted list of (view_id, suffix) for browsing.
     pub fn sorted_entries(&self) -> Vec<(u16, &str)> {
         let mut entries: Vec<_> = self
             .entries
@@ -73,7 +71,6 @@ impl AccessoryTable {
         entries
     }
 
-    /// Next valid view_id after current (wraps to 0 = none).
     pub fn next_id(&self, current: u16) -> u16 {
         let sorted = self.sorted_entries();
         if sorted.is_empty() {
@@ -89,7 +86,6 @@ impl AccessoryTable {
             .unwrap_or(0)
     }
 
-    /// Previous valid view_id before current (wraps to last, then 0 = none).
     pub fn prev_id(&self, current: u16) -> u16 {
         let sorted = self.sorted_entries();
         if sorted.is_empty() {

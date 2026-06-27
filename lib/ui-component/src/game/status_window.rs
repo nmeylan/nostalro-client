@@ -28,31 +28,25 @@ const SYS_MINI_ON: &str = "data/texture/유저인터페이스/basic_interface/sy
 const ARW_RIGHT: &str = "data/texture/유저인터페이스/basic_interface/arw_right.bmp";
 const ARW_RIGHT_ON: &str = "data/texture/유저인터페이스/basic_interface/arw_right_on.bmp";
 
-// Window dimensions: titlebar 17 + panel 103 = 120
 const WIN_W: f32 = 280.0;
 const TITLE_H: f32 = 17.0;
 const PANEL_H: f32 = 103.0;
 const WIN_H: f32 = TITLE_H + PANEL_H;
 
-// Layout from WinStatsV0.css. All offsets relative to window origin.
-// Stats column: rows of 16px height starting at panel top + 23 = 17 + 23 = 40
 const ROW_H: f32 = 16.0;
 const ROWS_TOP: f32 = TITLE_H + 2.0;
-const TEXT_BASELINE_OFF: f32 = 13.0; // baseline offset within a 16-tall row
+const TEXT_BASELINE_OFF: f32 = 13.0;
 
-const STATS_LEFT: f32 = 53.0; // left:53px
-const BONUS_LEFT: f32 = 70.0; // left:70px
-const UP_LEFT: f32 = 89.0; // .up left:89px, top:18px (so first arrow y = TITLE_H + 18 + 5 = 40)
-const UP_TOP: f32 = TITLE_H + 6.0; // first arrow top y; subsequent +(11+5)=16
-const REQ_LEFT: f32 = 96.0; // requirement (cost) left:96px width:12px right-aligned
+const STATS_LEFT: f32 = 53.0;
+const BONUS_LEFT: f32 = 70.0;
+const UP_LEFT: f32 = 89.0;
+const UP_TOP: f32 = TITLE_H + 6.0;
+const REQ_LEFT: f32 = 96.0;
 const REQ_WIDTH: f32 = 12.0;
 
-// column1: top:23px, right:87px  → right_edge_x = WIN_W - 87 = 193
 const COL1_RIGHT: f32 = WIN_W - 87.0;
-// column2: top:23px, right:5px   → right_edge_x = WIN_W - 5 = 275
 const COL2_RIGHT: f32 = WIN_W - 5.0;
 
-// StatusTypes numeric IDs
 const STAT_ID_STR: u16 = 13;
 const STAT_ID_AGI: u16 = 14;
 const STAT_ID_VIT: u16 = 15;
@@ -112,8 +106,6 @@ impl StatusWindow {
         }
     }
 
-    /// Pre-renewal stat-up cost: floor((stat - 1) / 10) + 2.
-    /// Used as fallback when the server hasn't pushed StrNextLevelIncreaseCost yet.
     fn computed_cost(stat: u8, server_cost: u16) -> u16 {
         if server_cost > 0 {
             server_cost
@@ -185,19 +177,15 @@ impl InGameWindow for StatusWindow {
         let x = win.x;
         let y = win.y;
 
-        // ===== Title bar =====
         draw_titlebar(ui, win.x, win.y, WIN_W, TITLE_H, grf);
 
-        // ===== Title text =====
         ui.text(x + 18.0, y + 13.0, "Status", tc);
 
-        // ===== Title-bar buttons (right side: mini, then close) =====
         let sys_w = self.sys_btn_size.0;
         let sys_h = self.sys_btn_size.1;
         let close_x = x + WIN_W - 3.0 - sys_w;
         let mini_x = close_x - sys_w - 1.0;
 
-        // Close
         let close_rect = Rect::new(close_x, y + 3.0, sys_w, sys_h);
         let close_resp = ui.interact(CLOSE_BTN_ID, close_rect);
         if close_resp.hovered() {
@@ -220,7 +208,6 @@ impl InGameWindow for StatusWindow {
             [0.6, 0.3, 0.3, 1.0],
         );
 
-        // Mini (also closes for now - same behavior)
         let mini_rect = Rect::new(mini_x, y + 3.0, sys_w, sys_h);
         let mini_resp = ui.interact(MINI_BTN_ID, mini_rect);
         if mini_resp.hovered() {
@@ -246,7 +233,6 @@ impl InGameWindow for StatusWindow {
             return events;
         }
 
-        // ===== Panel background (textures contain baked stat labels) =====
         if grf {
             draw_textured_quad(ui, x, y + TITLE_H, WIN_W, PANEL_H, BG_TEX);
         } else {
@@ -257,7 +243,6 @@ impl InGameWindow for StatusWindow {
                 indices: i.to_vec(),
                 texture: TextureRef::White,
             });
-            // Print the stat labels in fallback mode since the BG won't have them
             for (i, label) in ["STR", "AGI", "VIT", "INT", "DEX", "LUK"]
                 .iter()
                 .enumerate()
@@ -342,7 +327,6 @@ impl InGameWindow for StatusWindow {
             let baseline = y + ROWS_TOP + i as f32 * ROW_H + TEXT_BASELINE_OFF;
             let display_cost = Self::computed_cost(base, cost);
 
-            // base value
             ui.text(x + STATS_LEFT, baseline, &base.to_string(), tc);
             if bonus != 0 {
                 ui.text(
@@ -352,10 +336,8 @@ impl InGameWindow for StatusWindow {
                     tc,
                 );
             }
-            // up arrow - visible when status_point can cover the cost
             let can_raise = (display_cost as u32) <= status_point;
             if can_raise {
-                // .up margin-top:5px → first arrow at UP_TOP, then +(arr_h+5) per row
                 let arr_y = y + UP_TOP + i as f32 * (arr_h + 5.0);
                 let arr_rect = Rect::new(x + UP_LEFT, arr_y, arr_w, arr_h);
                 let resp = ui.interact(up_id, arr_rect);
@@ -389,7 +371,6 @@ impl InGameWindow for StatusWindow {
                     });
                 }
             }
-            // cost (right-aligned in 12px box at REQ_LEFT)
             ui.text_right(
                 x + REQ_LEFT + REQ_WIDTH,
                 baseline,
@@ -398,8 +379,6 @@ impl InGameWindow for StatusWindow {
             );
         }
 
-        // ===== Combat column 1 (right edge x+193) =====
-        // rows: ATK b + b2, MATK b + b2, HIT, CRIT
         let col1_lines: [String; 4] = [
             format!("{} {}", character.atk1, Self::fmt_signed(character.atk2)),
             format!("{} {}", character.matk1, Self::fmt_signed(character.matk2)),
@@ -411,8 +390,6 @@ impl InGameWindow for StatusWindow {
             ui.text_right(x + COL1_RIGHT, baseline, t, tc);
         }
 
-        // ===== Combat column 2 (right edge x+275) =====
-        // rows: DEF b + b2, MDEF b + b2, FLEE f1 + f2, ASPD, statuspoint
         let aspd_disp = (200 - character.aspd / 10).max(0);
         let col2_lines: [String; 5] = [
             format!("{} {}", character.def1, Self::fmt_signed(character.def2)),

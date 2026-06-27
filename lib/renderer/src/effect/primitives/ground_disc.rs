@@ -1,6 +1,3 @@
-//! GroundDisc primitive — flat-on-ground textured annulus or partial-arc
-//! wedge rendered in world space.
-
 use crate::camera::Camera;
 use crate::device::DEPTH_FORMAT;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};
@@ -137,7 +134,6 @@ impl GroundDiscRenderer {
     }
 }
 
-/// Build one [`DrawRecord`] per `EffectPrimitiveDraw::GroundDisc` entry.
 pub fn prepare_ground_disc_records<'tex>(
     list: &EffectDrawList,
     camera: &Camera,

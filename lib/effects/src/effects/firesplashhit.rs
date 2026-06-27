@@ -1,48 +1,28 @@
-//! `EF_FIRESPLASHHIT` (#50) — the expanding ring of fire of a fire-property
-//! hit.
-//!
-//! A single screen-space `FireRing.tga` quad is drawn over the target's
-//! projected position: it starts small, grows `+5.7`/frame, spins
-//! (-18°/frame, with a decelerating spin) and fades out over the back half
-//! of its 30-frame life. The texture *is* a circular ring of fire, so one
-//! screen-space quad reproduces it directly — no geometry annulus, no tiled
-//! flame puffs.
-
 use super::spike_burst::fade_in_out;
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
-/// The ring-of-fire texture itself draws the circle (fire on transparent).
 pub const FIRE_RING_TEXTURE: &str = "FireRing.tga";
 pub const TEXTURES: &[&str] = &[FIRE_RING_TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// The original sizes are screen pixels; our `BillboardFlash` is sized in
-/// world units (a character is ~5-8). Downscaled uniformly so the frame-15
-/// ring is roughly one-and-a-half characters wide.
 const WORLD_SCALE: f32 = 0.06;
-/// Ring lifted to the target's body centre (native RO — negative Y = up);
-/// stands in for the original -20 px screen lift.
+/// Ring lifted to the target's body centre (native RO: negative Y = up).
 const BODY_LIFT: f32 = 3.0;
 
-// Ring sizing/lifetime literals (screen-pixel half-extents → full quad is
-// `2 * half`).
 const HALF_INIT: f32 = 10.0;
 const HALF_GROWTH_PER_FRAME: f32 = 5.7;
 const DURATION_FRAMES: f32 = 30.0;
 const FADE_OUT_START: f32 = 15.0;
 const FADE_IN_FRAMES: f32 = 2.0;
 const MAX_ALPHA: f32 = 1.0;
-/// Spin: start angle `random(360)`, speed -18°/frame,
-/// accel `-(roll_speed / duration) / 2.5` → the spin decelerates.
 const ROLL_SPEED_INIT: f32 = -18.0;
 const ROLL_ACCEL: f32 = -(ROLL_SPEED_INIT / DURATION_FRAMES) / 2.5;
 
 pub struct FireSplashHitEffect {
     world_pos: [f32; 3],
     age: f32,
-    /// Initial spin angle, seeded per spawn so repeated hits don't line up.
     roll0_deg: f32,
 }
 
@@ -61,8 +41,6 @@ impl FireSplashHitEffect {
         self.age * FRAMES_PER_SECOND
     }
 
-    /// Closed-form integral of `roll += rollSpeed; rollSpeed += rollAccel`
-    /// over `n` frames: `roll0 + speed*n + accel*n*(n-1)/2`, in radians.
     fn roll_rad(&self, frame: f32) -> f32 {
         let deg =
             self.roll0_deg + ROLL_SPEED_INIT * frame + ROLL_ACCEL * frame * (frame - 1.0) * 0.5;
@@ -133,7 +111,6 @@ mod tests {
         }
     }
 
-    /// Returns `(size, rotation, alpha)` of the single fire-ring quad.
     fn ring(c: &FireSplashHitEffect) -> Option<(f32, f32, f32)> {
         let mut list = EffectDrawList::new();
         c.collect_draws(&mut list, &render_ctx());

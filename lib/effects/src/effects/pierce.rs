@@ -1,32 +1,4 @@
-//! EF_PIERCE — repeated horizontal cylinder rings sliding along the strike
-//! axis, plus radial particle bursts.
-//!
-//! Reference: `ro-effects/effects/imgs/50-100/81.gif`.
-//!
-//! The original fires a burst every
-//! 20 parent frames while the count is below `level * 20`. Each burst emits:
-//!
-//! * One horizontal cylinder ring, laid on its side and yawed by
-//!   `180 − target_heading`.
-//!   Its velocity is `(0, −speed, 0)` rotated by that orientation, so the
-//!   cylinder slides along the strike heading at 0.7 → 0 over 15 frames.
-//!   Outer radius `11 + 0.1·frame`; inner radius `6 + 0.1·frame`
-//!   (each successive burst is fractionally wider). Height 2.5.
-//!   Texture `ring_yellow.tga`.
-//! * On every burst **after** the first: 4× particles (forward cone
-//!   spread, no gravity) and 4× particles (rear cone, falls).
-//!   Both use the `particle1` sprite.
-//!
-//! The target's facing drives the strike heading in the original game.
-//! We reconstruct the same heading from the caster→target vector
-//! (`atan2(to.x − from.x, to.z − from.z)`); single-point anchors collapse
-//! to heading 0.
-//!
-//! Skill level isn't yet carried through the spawn pipeline as its own
-//! field, but the `hit_count` parameter on `SpawnRequest` (used by
-//! multi-bolt skills like Soul Strike) is plumbed end-to-end and maps
-//! naturally to Pierce's level. Level 1 fires one burst; level N
-//! fires N bursts spaced 20 frames apart.
+//! EF_PIERCE — horizontal cylinder rings sliding along the strike axis, plus radial particle bursts.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -45,9 +17,7 @@ const CYLINDER_INITIAL_OUTER: f32 = 11.0;
 const CYLINDER_INITIAL_INNER: f32 = 6.0;
 const CYLINDER_GROWTH_PER_BURST: f32 = 0.1 * BURST_INTERVAL_FRAMES;
 const CYLINDER_HEIGHT: f32 = 2.5;
-/// The cylinder centre sits 10 units above the target in native RO
-/// coords — a pure Y offset applied before the orientation is built.
-const CYLINDER_PIVOT_Y_OFFSET: f32 = -10.0;
+const CYLINDER_PIVOT_Y_OFFSET: f32 = -10.0; // −Y is up.
 const RING_ALPHA: f32 = 1.0;
 
 const PARTICLES_PER_DIR: usize = 4;
@@ -57,30 +27,21 @@ const PARTICLE_SIZE_MIN: f32 = 0.6;
 const PARTICLE_SIZE_MAX: f32 = 1.6;
 const PARTICLE_SPEED_MIN: f32 = 0.6;
 const PARTICLE_SPEED_MAX: f32 = 1.5;
-/// Outer cone half-angle (latitudes 40-140°).
 const PARTICLE_CONE_LAT_MIN_DEG: f32 = 40.0;
 const PARTICLE_CONE_LAT_MAX_DEG: f32 = 140.0;
-/// Heading spread around the strike axis (`angle ± 40°`).
 const PARTICLE_HEADING_SPREAD_DEG: f32 = 40.0;
-/// Gravity ≈ −0.3..−1.2 per frame with deceleration in the original game. We
-/// approximate the average integrated drop with a constant downward accel
-/// applied each frame.
 const PARTICLE_GRAVITY_PER_FRAME: f32 = -0.012;
 const PARTICLE_MAX_LIFE_FRAMES: f32 = PARTICLE_LIFETIME_MAX_FRAMES;
 
 const DEFAULT_LEVEL: u8 = 1;
 const MAX_LEVEL: u8 = 10;
 
-/// Parent emitter holds until the last burst's particles finish. With
-/// level N: last burst spawns at (N-1) × 20 frames; particles live up to
-/// PARTICLE_MAX_LIFE_FRAMES after that.
 pub const TOTAL_DURATION_MS: u32 = ((MAX_LEVEL as f32 - 1.0) * BURST_INTERVAL_FRAMES
     + CYLINDER_LIFETIME_FRAMES
     + PARTICLE_MAX_LIFE_FRAMES) as u32
     * 1000
     / FRAMES_PER_SECOND as u32;
 
-/// Deterministic PRNG so unit tests reproduce frames.
 #[derive(Clone, Copy)]
 struct Rng(u32);
 
@@ -155,7 +116,6 @@ pub struct PierceEffect {
     heading_rad: f32,
     level: u8,
     age: f32,
-    /// Next burst index that should still be emitted (`0..level`).
     next_burst_idx: u8,
     cylinders: Vec<Cylinder>,
     particles: Vec<Particle>,
@@ -189,11 +149,6 @@ impl PierceEffect {
         }
     }
 
-    /// Pivot point — `target + (0, -10, 0)` in native RO coords (`-Y` is
-    /// up, so this lifts the ring 10 units above the target). The
-    /// offset is applied to the target position *before*
-    /// the rotation is built, so it stays a pure Y offset and
-    /// does **not** rotate with `heading`.
     fn cylinder_pivot(&self) -> [f32; 3] {
         [
             self.target_pos[0],
@@ -212,7 +167,6 @@ impl PierceEffect {
             pivot,
         });
 
-        // Bursts after the first add the radial particle storm.
         if burst_idx == 0 {
             return;
         }
@@ -287,11 +241,6 @@ impl Effect for PierceEffect {
             if local < 0.0 || local >= CYLINDER_LIFETIME_FRAMES {
                 continue;
             }
-            // Speed decays each frame by `-(speed / duration) / 2.0`,
-            // giving a velocity that ramps down smoothly. Closed-form
-            // displacement is
-            // `v0 * (t - t²/(4·T))` (since accel is half the linear
-            // ramp rate). Match the integration with discrete `t · (t+1)/2`.
             let t = local;
             let cap = CYLINDER_LIFETIME_FRAMES;
             let s = CYLINDER_INITIAL_SPEED * (t - t * (t + 1.0) / (4.0 * cap));
@@ -306,13 +255,6 @@ impl Effect for PierceEffect {
                 RING_ALPHA * (1.0 - (local - fade_start) / span).max(0.0)
             };
 
-            // Tilt/yaw conventions: the renderer's `transform_local`
-            // uses opposite signs to the "rotate -90° about X,
-            // then yaw" ordering. Compensate at the call site (rather than
-            // changing the shared renderer) so the other effects that
-            // already work with `tilt_x_rad = 0` keep their behaviour.
-            // Net effect: top-ring offset = `(h·sin(heading), 0,
-            // h·cos(heading))`, as the original game shows.
             out.push(EffectPrimitiveDraw::Cylinder {
                 base: centre,
                 bottom_size: c.inner0,
@@ -379,10 +321,6 @@ mod tests {
 
     #[test]
     fn cylinder_aims_along_caster_to_target_direction() {
-        // Caster at origin, target 10 units along +X. Strike heading is
-        // atan2(10, 0) = π/2. Tilt is always -π/2 (axis horizontal);
-        // pivot is target + (0, -10, 0) in native RO coords (no
-        // horizontal offset — the Y lift is applied pre-rotation).
         let mut e = PierceEffect::new([0.0; 3], [10.0, 0.0, 0.0]);
         let prims = step_and_collect(&mut e, 1.0 / FRAMES_PER_SECOND);
         let (tilt, yaw, base) = prims
@@ -397,25 +335,16 @@ mod tests {
                 _ => None,
             })
             .expect("pierce emits a cylinder");
-        // Tilt = +π/2 (axis horizontal); yaw = -heading to compensate
-        // for the renderer's flipped sign conventions.
         assert!((tilt - std::f32::consts::FRAC_PI_2).abs() < 1e-4);
         assert!((yaw + std::f32::consts::FRAC_PI_2).abs() < 1e-4);
-        // Bottom-ring centre = pivot + a small slide along heading at
-        // frame 1. Pivot = (target.x, target.y - 10, target.z) =
-        // (10, -10, 0); base.x stays at 10 (slide is along +X but small);
-        // base.y is the elevated -10.
         assert!((base[1] - (-CYLINDER_PIVOT_Y_OFFSET.abs())).abs() < 0.1);
         assert!((base[0] - 10.0).abs() < 1.0);
     }
 
     #[test]
     fn level_n_emits_n_cylinders_with_first_skipping_particles() {
-        // Sociable test: covers burst scheduling, particle skip on the
-        // first burst, and particle emission on subsequent bursts.
         let mut e = PierceEffect::new_with_level([0.0; 3], [10.0, 0.0, 0.0], 3);
 
-        // Frame ~1 → first burst only, no particles yet.
         let p1 = step_and_collect(&mut e, 1.0 / FRAMES_PER_SECOND);
         let cyl1 = p1
             .iter()
@@ -427,11 +356,6 @@ mod tests {
             .count();
         assert_eq!(cyl1, 1);
         assert_eq!(part1, 0, "first burst has no particles");
-
-        // Frame ~21 → second burst landed: now 2 cylinders + 8 particles
-        // (4 forward + 4 gravity). The first cylinder is still in its
-        // 15-frame window only at frame 20 boundary; conservatively just
-        // check the new particle count.
         let p21 = step_and_collect(&mut e, 20.0 / FRAMES_PER_SECOND);
         let part21 = p21
             .iter()

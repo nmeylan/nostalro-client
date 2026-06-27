@@ -1,10 +1,3 @@
-//! Shared effect-frame composer used by both the game client and `tools/viewer`.
-//!
-//! Collects sprite-emitter draws, STR snapshots, and custom primitive draws
-//! from an `EffectHolder` (SPR / SprBurst / STR / custom primitives, including
-//! the RSW ambient effects spawned through the queue). Returns the resulting
-//! sprite batches and primitive draw list ready to hand to `Renderer::render`.
-
 use ragnarok_game::effect::CameraView;
 
 use crate::camera::Camera;
@@ -18,12 +11,6 @@ use crate::effect_sprite::{
 use crate::sprite::SpriteBatch;
 use ragnarok_game::effect::{EffectDrawList, EffectPrimitiveDraw, EffectRenderCtx};
 
-/// `'cache` ties together the borrows that survive into the output
-/// (`effect_sprites`, `str_effects`). `'tmp` covers borrows that are only
-/// needed during the call (the camera, the effect holder, the extras).
-/// Splitting these lifetimes lets the caller drop the camera/holder borrow
-/// as soon as the function returns, freeing up `&mut renderer` for the
-/// subsequent render call.
 pub struct EffectFrameInputs<'cache, 'tmp> {
     pub effect_holder: &'tmp EffectHolder,
     pub effect_sprites: &'cache EffectSpriteCache,
@@ -33,52 +20,24 @@ pub struct EffectFrameInputs<'cache, 'tmp> {
     pub screen_h: f32,
     pub zoom: f32,
     pub elapsed: f32,
-    /// Resolves an `Attach::Entity(id)` to a world position so caster-attached
-    /// effects (buff STR overlays) follow the actor. Callers without an entity
-    /// table pass `&|_| None`.
     pub resolve_entity: &'tmp dyn Fn(u32) -> Option<[f32; 3]>,
-    /// Caller-owned `SpriteParticle` draws for transient world sprites that are
-    /// not `EffectId` effects (the bow arrow projectile). Appended to the
-    /// custom-draw list so they depth-sort and project like any other sprite
-    /// particle. Viewer passes `&[]`.
     pub extra_sprite_particles: &'tmp [EffectPrimitiveDraw],
 }
 
 pub struct EffectFrameOutputs<'cache> {
-    /// Batches that stay outside the unified effect queue: STR keyframe
-    /// animations and ambient SPR / Smoke3D emitters. They render in their
-    /// own dedicated sprite pass.
     pub effect_batches: Vec<SpriteBatch<'cache>>,
-    /// Custom-effect primitive draws (Billboard, BillboardDisc,
-    /// SpriteParticle, Frustum, GroundDisc, …). Consumed by the unified
-    /// `EffectDispatcher` pass inside the renderer.
     pub effect_draws: EffectDrawList,
-    /// `SpriteParticle` records pre-projected against the camera. These
-    /// reference textures inside the [`EffectSpriteCache`] (which only the
-    /// caller borrows), so the renderer can't build them itself.
     pub sprite_particle_records: Vec<DrawRecord<'cache>>,
 }
 
-/// Build the per-frame effect sprite batches and custom-primitive draw list.
-///
-/// Pipeline mirrors what the client and viewer were duplicating inline:
-/// 1. Project caller-supplied SPR/Smoke3D emitters into sprite batches, then
-///    the holder's own SPR / SprBurst emitters (EffectId effects).
-/// 2. Merge caller STR inputs with `EffectHolder::collect_str_emitters` and
-///    project the union into sprite batches.
-/// 3. Collect custom-effect primitive draws (Ring/Frustum/...) into
-///    `effect_draws`.
-/// 4. Project any `SpriteParticle` primitives produced by step 3 and append
-///    them to the same sprite batch list.
 pub fn compose_effect_frame<'cache, 'tmp>(
     input: &EffectFrameInputs<'cache, 'tmp>,
 ) -> EffectFrameOutputs<'cache> {
     let mut effect_batches: Vec<SpriteBatch<'cache>> = Vec::new();
 
-    // SPR / SprBurst effects held by the `EffectHolder` (EffectId effects like
-    // Detoxification, Snow, Torch, and the RSW ambient emitters spawned by the
-    // ambient scheduler). Pulled from the holder here or they never draw.
-    let spr_snapshots = input.effect_holder.collect_spr_emitters(input.resolve_entity);
+    let spr_snapshots = input
+        .effect_holder
+        .collect_spr_emitters(input.resolve_entity);
     let burst_snapshots = input
         .effect_holder
         .collect_spr_burst_emitters(input.resolve_entity);
@@ -96,16 +55,20 @@ pub fn compose_effect_frame<'cache, 'tmp>(
             action_index: s.action_index,
         })
         .collect();
-    holder_spr_inputs.extend(burst_snapshots.iter().map(|b| SpriteEffectEmitter::Smoke3D {
-        sprite_path: &b.sprite,
-        alpha_max: b.alpha_max,
-        color: [1.0, 1.0, 1.0, 1.0],
-        size_scale: b.size_scale,
-        anim_speed: b.anim_speed,
-        size_shrink: b.size_shrink,
-        twinkle: b.twinkle,
-        particles: b.particles.clone(),
-    }));
+    holder_spr_inputs.extend(
+        burst_snapshots
+            .iter()
+            .map(|b| SpriteEffectEmitter::Smoke3D {
+                sprite_path: &b.sprite,
+                alpha_max: b.alpha_max,
+                color: [1.0, 1.0, 1.0, 1.0],
+                size_scale: b.size_scale,
+                anim_speed: b.anim_speed,
+                size_shrink: b.size_shrink,
+                twinkle: b.twinkle,
+                particles: b.particles.clone(),
+            }),
+    );
     let holder_spr_draws = collect_sprite_effect_draws(
         &holder_spr_inputs,
         input.effect_sprites,
@@ -115,9 +78,10 @@ pub fn compose_effect_frame<'cache, 'tmp>(
     );
     effect_batches.extend(build_emitter_batches(&holder_spr_draws));
 
-    let holder_str_snapshots = input.effect_holder.collect_str_emitters(input.resolve_entity);
-    let mut str_inputs: Vec<StrEmitterInput<'_>> =
-        Vec::with_capacity(holder_str_snapshots.len());
+    let holder_str_snapshots = input
+        .effect_holder
+        .collect_str_emitters(input.resolve_entity);
+    let mut str_inputs: Vec<StrEmitterInput<'_>> = Vec::with_capacity(holder_str_snapshots.len());
     for snap in &holder_str_snapshots {
         str_inputs.push(StrEmitterInput {
             str_name: &snap.name,
@@ -151,15 +115,10 @@ pub fn compose_effect_frame<'cache, 'tmp>(
         .effect_holder
         .collect_custom_draws(&mut effect_draws, &render_ctx);
 
-    // Transient world sprites that aren't EffectId effects (bow arrows) ride
-    // the same SpriteParticle path so they depth-sort with everything else.
     for prim in input.extra_sprite_particles {
         effect_draws.push(prim.clone());
     }
 
-    // SpriteParticle entries now flow through the unified effect queue so
-    // they can depth-sort against Billboard / 3D records. Project them
-    // here while the caller's `EffectSpriteCache` is still borrowed.
     let sprite_particle_records = prepare_sprite_particle_records(
         &effect_draws,
         input.effect_sprites,
@@ -185,12 +144,18 @@ mod tests {
     fn compose_effect_frame_collects_custom_primitive_draws() {
         let mut holder = EffectHolder::new();
         holder
-            .spawn(EffectId::Warp, Attach::WorldPos([0.0, 0.0, 0.0]), Some(2000))
+            .spawn(
+                EffectId::Warp,
+                Attach::WorldPos([0.0, 0.0, 0.0]),
+                Some(2000),
+            )
             .expect("spawn warp");
-        // Warp spawns a ring at age 0, but its outer_radius starts at 0.
-        // Tick the effect so the ring grows and `collect_draws` emits.
         holder.update(
-            &EffectUpdateCtx { delta: 0.1, camera_target: None, caster_yaw: None },
+            &EffectUpdateCtx {
+                delta: 0.1,
+                camera_target: None,
+                caster_yaw: None,
+            },
             &|_| None,
             &|_| None,
         );
@@ -212,16 +177,8 @@ mod tests {
             extra_sprite_particles: &[],
         });
 
-        assert!(
-            !out.effect_draws.primitives.is_empty(),
-            "Warp should emit at least one primitive draw after one update tick"
-        );
-        // No SPR/STR caches loaded, so the sprite batch list stays empty —
-        // the assertion just exercises the path without crashing.
+        assert!(!out.effect_draws.primitives.is_empty());
         assert!(out.effect_batches.is_empty());
-        // SpriteParticle records require sprites in the cache; none are
-        // loaded so the records list is empty too. The field exists and
-        // is wired through.
         assert!(out.sprite_particle_records.is_empty());
     }
 }

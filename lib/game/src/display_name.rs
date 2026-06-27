@@ -46,7 +46,6 @@ fn build_card_affixes(slots: &[u16; 4], card_table: Option<&CardNameTable>) -> (
         return (String::new(), String::new());
     };
 
-    // Count occurrences preserving insertion order
     let mut card_counts: Vec<(u16, usize)> = Vec::new();
     for &card_id in slots {
         if card_id == 0 {

@@ -1,29 +1,12 @@
-//! `EF_SAKURA` (id 163) — a gentle rain of drifting cherry-blossom petals.
-//!
-//! The original game spawns one petal every 2 frames
-//! (up to frame 300, then it loops), each a `sakura01` sprite with a random
-//! action (0–2) on a 36-frame loop. A petal spawns in a `±150` XZ box at
-//! `y = pos.y - 200` (high up), falls by `[0.2, 0.4]` per frame
-//! and sways `±0.24/0.30·sin` in X/Z; when it reaches the
-//! ground it respawns at the top. Alpha 200. Persistent.
-//!
-//! Petals are [`SpriteParticle`]s on the resolved `sakura01` sprite. No
-//! reference gif — validated against observed original-game behaviour.
-//!
-//! [`SpriteParticle`]: EffectPrimitiveDraw::SpriteParticle
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// Persistent (effectively unbounded); clamps to 5 s in the exporter.
 pub const TOTAL_DURATION_MS: u32 = 99990;
 
-/// `sakura01.spr/.act` lives under the effect sprite folder with this name.
 const SPRITE: &str = "data/sprite/이팩트/sakura01";
 pub const SPRITES: &[&str] = &[SPRITE];
 
-/// Large literals (`±150` spread, `200` fall height) → ~0.15×.
 const WORLD_SCALE: f32 = 0.15;
 const SPREAD: f32 = 150.0 * WORLD_SCALE;
 const TOP_HEIGHT: f32 = 200.0 * WORLD_SCALE;
@@ -37,9 +20,6 @@ const SPAWN_INTERVAL_FRAMES: f32 = 2.0;
 const SIZE_MIN: f32 = 0.22;
 const SIZE_MAX: f32 = 0.28;
 const ALPHA: f32 = 200.0 / 255.0;
-/// The effect prims ignore
-/// the `.act` delay and advance one motion frame every 36 ticks
-/// at 60 fps, so the petal tumbles slowly.
 const ANIM_SPEED_TICKS: f32 = 36.0;
 
 struct Petal {
@@ -83,8 +63,6 @@ impl SakuraEffect {
         }
     }
 
-    /// Spawn high (or, for the initial fill, at a random fall progress so the
-    /// rain is populated from the first frame rather than after the warm-up).
     fn spawn(&mut self, initial_fill: bool) {
         let [cx, cy, cz] = self.world_pos;
         let top = cy - TOP_HEIGHT;
@@ -114,7 +92,6 @@ impl Effect for SakuraEffect {
         let frames = ctx.delta * FRAMES_PER_SECOND;
         self.frame += frames;
 
-        // Spawn one petal per 2 frames until the cap; recycling keeps the count.
         self.spawn_accumulator += frames;
         while self.spawn_accumulator >= SPAWN_INTERVAL_FRAMES && self.petals.len() < MAX_PETALS {
             self.spawn_accumulator -= SPAWN_INTERVAL_FRAMES;
@@ -126,14 +103,12 @@ impl Effect for SakuraEffect {
         let ground = cy;
         for p in &mut self.petals {
             p.age_frames += frames;
-            // Native -Y = up: falling means y increases toward the ground.
             p.pos[1] += p.fall_speed * frames;
             p.sway_x_phase = (p.sway_x_phase + 3.0 * frames) % 360.0;
             p.sway_z_phase = (p.sway_z_phase + 3.0 * frames) % 360.0;
             p.pos[0] += DRIFT_X * p.sway_x_phase.to_radians().sin() * frames;
             p.pos[2] += DRIFT_Z * p.sway_z_phase.to_radians().sin() * frames;
             if p.pos[1] > ground {
-                // Respawn at the top with a fresh column.
                 p.pos[0] = self.world_pos[0] + self.rng.range(-SPREAD, SPREAD);
                 p.pos[1] = cy - TOP_HEIGHT;
                 p.pos[2] = self.world_pos[2] + self.rng.range(-SPREAD, SPREAD);
@@ -146,7 +121,6 @@ impl Effect for SakuraEffect {
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         for p in &self.petals {
-            // One motion frame per 36 ticks (renderer wraps by motion count).
             let motion = (p.age_frames / ANIM_SPEED_TICKS) as usize;
             out.push(EffectPrimitiveDraw::SpriteParticle {
                 sprite_path: SPRITE,
@@ -224,7 +198,6 @@ mod tests {
             })
             .sum::<f32>()
             / petals(&e).len() as f32;
-        // Native -Y up: falling means the mean y increases.
         assert!(y1 > y0, "petals drift downward ({y0} → {y1})");
     }
 

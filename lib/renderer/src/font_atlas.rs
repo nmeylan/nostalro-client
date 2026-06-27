@@ -26,9 +26,6 @@ impl FontAtlas {
         Self::build(FALLBACK_FONT, px_height, dpi_scale)
     }
 
-    /// Build a font atlas from the system NotoSansCJK font, falling back to the
-    /// embedded font if the CJK font is not available. Includes ASCII plus the
-    /// given extra characters (typically collected from GRF file paths).
     pub fn from_system_cjk(px_height: f32, dpi_scale: f32, extra_chars: &[char]) -> Self {
         match std::fs::read(CJK_FONT_PATH) {
             Ok(data) => Self::build_with_extra_chars(&data, px_height, dpi_scale, extra_chars),
@@ -41,8 +38,6 @@ impl FontAtlas {
         }
     }
 
-    /// Rasterize at physical resolution (`px_height * dpi_scale`) for crispness,
-    /// but store all glyph metrics in logical pixels (divided by `dpi_scale`).
     pub fn build(font_data: &[u8], px_height: f32, dpi_scale: f32) -> Self {
         Self::build_with_extra_chars(font_data, px_height, dpi_scale, &[])
     }
@@ -82,7 +77,6 @@ impl FontAtlas {
             glyph_renders.push((ch, glyph_id, outlined, advance));
         }
 
-        // Shelf-pack: estimate atlas size
         let padding = 1;
         let max_glyph_width = glyph_renders
             .iter()
@@ -99,7 +93,6 @@ impl FontAtlas {
             })
             .sum();
 
-        // 1.5x margin accounts for shelf-packing row waste
         let mut atlas_size = ((total_area as f64 * 1.5).sqrt().ceil() as u32)
             .next_power_of_two()
             .max(64);
@@ -110,7 +103,6 @@ impl FontAtlas {
         let mut image = image::RgbaImage::new(atlas_size, atlas_size);
         let mut glyphs_map = HashMap::new();
 
-        // Shelf packing
         let mut cursor_x = 0u32;
         let mut cursor_y = 0u32;
         let mut row_height = 0u32;
@@ -128,7 +120,6 @@ impl FontAtlas {
                 }
 
                 if cursor_y + gh + padding > atlas_size {
-                    // Atlas too small - this shouldn't happen with our estimate
                     break;
                 }
 
@@ -161,7 +152,6 @@ impl FontAtlas {
                 cursor_x += gw + padding;
                 row_height = row_height.max(gh);
             } else {
-                // Whitespace glyph
                 glyphs_map.insert(
                     *ch,
                     GlyphInfo {

@@ -17,7 +17,6 @@ pub fn decode_pos2(data: &[u8; 6]) -> (u16, u16, u16, u16) {
     (x1, y1, x2, y2)
 }
 
-/// Convert u32 IP (little-endian as sent by server) to dotted-quad string.
 pub fn ip_u32_to_string(ip: u32) -> String {
     let bytes = ip.to_le_bytes();
     format!("{}.{}.{}.{}", bytes[0], bytes[1], bytes[2], bytes[3])
@@ -57,14 +56,10 @@ mod tests {
 
     #[test]
     fn decode_pos2_extracts_two_positions() {
-        // Encode (100, 200) and (110, 210) manually
-        // x1=100 (0b0001100100), y1=200 (0b0011001000)
-        // x2=110 (0b0001101110), y2=210 (0b0011010010)
         let x1: u16 = 100;
         let y1: u16 = 200;
         let x2: u16 = 110;
         let y2: u16 = 210;
-        // Pack into 6 bytes: x1[9:0] y1[9:0] x2[9:0] y2[9:0] padding[7:0]
         let b0 = (x1 >> 2) as u8;
         let b1 = ((x1 << 6) as u8) | ((y1 >> 4) as u8);
         let b2 = ((y1 << 4) as u8) | ((x2 >> 6) as u8);

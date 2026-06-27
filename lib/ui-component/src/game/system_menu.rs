@@ -16,7 +16,6 @@ const OPTION_ID: WidgetId = WidgetId(501);
 const CHARSELECT_ID: WidgetId = WidgetId(502);
 const QUIT_ID: WidgetId = WidgetId(503);
 
-// Fallback layout constants
 const MENU_W: f32 = 140.0;
 const FALLBACK_BTN_W: f32 = 120.0;
 const FALLBACK_BTN_H: f32 = 24.0;
@@ -42,7 +41,6 @@ const QUIT_BTN: ButtonTextures = ButtonTextures {
     hover: "data/texture/유저인터페이스/esc_03b.bmp",
     pressed: "data/texture/유저인터페이스/esc_03c.bmp",
 };
-// Fallback-only button (no GRF texture for "Option")
 const DUMMY_BTN: ButtonTextures = ButtonTextures {
     normal: "",
     hover: "",
@@ -62,7 +60,6 @@ pub struct SystemMenu {
     pub allow_escape_toggle: bool,
     pending_confirm: PendingConfirm,
     confirm_dialog: ConfirmDialog,
-    /// Output parameter for the confirm dialog result.
     confirm_dialog_out_param: Rc<Cell<Option<ConfirmResult>>>,
     win_size: (f32, f32),
     btn_size: (f32, f32),
@@ -135,7 +132,6 @@ impl InGameWindow for SystemMenu {
     ) -> Vec<GameEvent> {
         let mut events = Vec::new();
 
-        // Toggle menu on Escape (only when no confirm dialog is showing)
         if self.allow_escape_toggle
             && ui.ctx.key_escape
             && self.pending_confirm == PendingConfirm::None
@@ -150,11 +146,9 @@ impl InGameWindow for SystemMenu {
             return events;
         }
 
-        // Full-screen interact to block game input
         let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
         ui.interact(BG_ID, screen);
 
-        // Handle confirmation dialog if pending
         if self.pending_confirm != PendingConfirm::None {
             let pending = self.pending_confirm;
             let out_param = Rc::clone(&self.confirm_dialog_out_param);
@@ -182,7 +176,6 @@ impl InGameWindow for SystemMenu {
                     }
                 }
             } else if ui.ctx.key_escape {
-                // ESC without cancel button acts as cancel
                 self.pending_confirm = PendingConfirm::None;
             }
             return events;
@@ -202,7 +195,6 @@ impl SystemMenu {
     fn build_grf(&mut self, ui: &mut UiFrame, _events: &mut Vec<GameEvent>) {
         let (btn_w, btn_h) = self.btn_size;
         let (titlebar_w, titlebar_h) = self.win_size;
-        // 3 buttons in GRF mode (no Option button)
         let grf_btn_spacing = 3.0;
         let body_padding_top = 6.0;
         let body_padding_bottom = 6.0;
@@ -213,7 +205,6 @@ impl SystemMenu {
         let mx = ((ui.ctx.screen_width - menu_w) / 2.0).floor();
         let my = ((ui.ctx.screen_height - menu_h) / 2.0).floor();
 
-        // Titlebar texture at top (actual size, not stretched)
         let titlebar_x = mx + (menu_w - titlebar_w) / 2.0;
         let (v, i) =
             draw::quad_vertices(titlebar_x, my, titlebar_w, titlebar_h, [1.0, 1.0, 1.0, 1.0]);
@@ -223,7 +214,6 @@ impl SystemMenu {
             texture: TextureRef::Named(WIN_TEXTURE.to_string()),
         });
 
-        // White body below titlebar
         let body_y = my + titlebar_h;
         let (v, i) = draw::quad_vertices(mx, body_y, menu_w, body_h, [1.0, 1.0, 1.0, 1.0]);
         ui.draw_calls.push(DrawCall {
@@ -269,7 +259,6 @@ impl SystemMenu {
         let mx = ((ui.ctx.screen_width - MENU_W) / 2.0).floor();
         let my = ((ui.ctx.screen_height - MENU_H) / 2.0).floor();
 
-        // Background
         let (v, i) = draw::quad_vertices(mx, my, MENU_W, MENU_H, [0.2, 0.2, 0.28, 0.95]);
         ui.draw_calls.push(DrawCall {
             vertices: v.to_vec(),
@@ -291,7 +280,6 @@ impl SystemMenu {
             });
         }
 
-        // Buttons
         let btn_x = mx + (MENU_W - FALLBACK_BTN_W) / 2.0;
         let btn_y = |idx: usize| my + PADDING_TOP + idx as f32 * (FALLBACK_BTN_H + BTN_SPACING);
 
@@ -357,7 +345,6 @@ mod tests {
         let data = DataTable::new();
         assert!(!menu.open);
 
-        // Escape opens the menu
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
@@ -365,7 +352,6 @@ mod tests {
         menu.build(&mut ui, &mut character, &data);
         assert!(menu.open);
 
-        // Escape again closes it
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
         menu.build(&mut ui, &mut character, &data);
@@ -395,8 +381,6 @@ mod tests {
         let mut character = Character::new();
         let data = DataTable::new();
 
-        // Click on the Resume button area
-        // Menu is centered at (330, 230) for 800x600 screen, resume btn at y=230+12=242
         let mut ctx = UiContext::new(800.0, 600.0);
         let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - FALLBACK_BTN_W) / 2.0;
         let btn_y = ((600.0 - MENU_H) / 2.0).floor() + PADDING_TOP;
@@ -417,7 +401,6 @@ mod tests {
         let mut character = Character::new();
         let data = DataTable::new();
 
-        // Click Character Select button (index 2)
         let mut ctx = UiContext::new(800.0, 600.0);
         let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - FALLBACK_BTN_W) / 2.0;
         let btn_y =
@@ -431,8 +414,6 @@ mod tests {
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::CharacterSelect);
 
-        // Press Enter to confirm (simulates button click via mouse)
-        // OK button is rightmost of two buttons (Cancel, OK)
         let mut ctx = UiContext::new(800.0, 600.0);
         let dialog_w: f32 = 220.0;
         let dialog_h: f32 = 40.0;
@@ -440,7 +421,6 @@ mod tests {
         let dy = ((600.0 - dialog_h) / 2.0).floor();
         let btn_w = 42.0;
         let btn_h = 20.0;
-        // With 2 buttons right-aligned: OK is at far right, Cancel is to its left
         let btn_x = dx + dialog_w - 5.0 - btn_w * 2.0 - 3.0;
         let btn_y = dy + dialog_h - 4.0 - btn_h;
         ctx.mouse_x = btn_x + btn_w / 2.0;
@@ -449,9 +429,11 @@ mod tests {
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
         let events = menu.build(&mut ui, &mut character, &data);
-        assert!(events
-            .iter()
-            .any(|e| matches!(e, GameEvent::BackToCharacterSelect)));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::BackToCharacterSelect))
+        );
         assert!(!menu.open);
     }
 
@@ -463,7 +445,6 @@ mod tests {
         let mut character = Character::new();
         let data = DataTable::new();
 
-        // Click Quit button (index 3)
         let mut ctx = UiContext::new(800.0, 600.0);
         let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - FALLBACK_BTN_W) / 2.0;
         let btn_y =
@@ -477,7 +458,6 @@ mod tests {
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::QuitGame);
 
-        // Click OK button to confirm
         let mut ctx = UiContext::new(800.0, 600.0);
         let dialog_w: f32 = 220.0;
         let dialog_h: f32 = 40.0;
@@ -485,7 +465,6 @@ mod tests {
         let dy = ((600.0 - dialog_h) / 2.0).floor();
         let btn_w = 42.0;
         let btn_h = 20.0;
-        // With 2 buttons right-aligned: OK is at far right, Cancel is to its left
         let btn_x = dx + dialog_w - 5.0 - btn_w * 2.0 - 3.0;
         let btn_y = dy + dialog_h - 4.0 - btn_h;
         ctx.mouse_x = btn_x + btn_w / 2.0;
@@ -507,7 +486,6 @@ mod tests {
         let mut character = Character::new();
         let data = DataTable::new();
 
-        // Click Cancel button to cancel the confirm dialog
         let mut ctx = UiContext::new(800.0, 600.0);
         let dialog_w: f32 = 220.0;
         let dialog_h: f32 = 40.0;
@@ -515,7 +493,6 @@ mod tests {
         let dy = ((600.0 - dialog_h) / 2.0).floor();
         let btn_w = 42.0;
         let btn_h = 20.0;
-        // Cancel button is left of OK (rightmost button)
         let cancel_btn_x = dx + dialog_w - 5.0 - btn_w;
         let cancel_btn_y = dy + dialog_h - 4.0 - btn_h;
         ctx.mouse_x = cancel_btn_x + btn_w / 2.0;

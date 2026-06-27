@@ -1,16 +1,3 @@
-//! `EF_GRIMTOOTHATK` — Assassin Cross Grimtooth impact (id 132).
-//!
-//! The original game launches three big
-//! `stone.bmp` blades at frame 0, splayed 120° apart into a
-//! tripod over the impact point. This is the "bigger spike" half of the
-//! attack; the travelling small-spike trail is [`super::frost_diver`]'s
-//! `GRIMTOOTH` param set.
-//!
-//! Per blade: tilt 75° (leaning out), headings
-//! 0 / 240 / 120, width 0.9, height 25,
-//! 10-frame speed-limit window. Heights are scaled to our world
-//! units (~⅓ of the original, cf. `frost_diver`) and tuned against the gif.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::effects::frost_diver::STONE_TEXTURE;
@@ -19,19 +6,13 @@ use crate::effects::spike_util::{FRAMES_PER_SECOND, apex_velocity, fade_tail_alp
 pub const TEXTURES: &[&str] = &[STONE_TEXTURE];
 
 const SPIKE_COUNT: usize = 3;
-/// Tilt 75°; a lower tilt leans the blades further out so the
-/// tripod silhouette reads clearly from the side.
 const TILT_DEG: f32 = 70.0;
 const SIZE: f32 = 0.7;
 const HEIGHT: f32 = 15.0;
-/// XZ base offsets per blade (the original horizontal placement, scaled)
-/// so the three blades fan out from a shared footprint.
 const BASE_OFFSETS: [[f32; 2]; SPIKE_COUNT] = [[0.0, -3.0], [3.0, 1.5], [-3.0, 1.5]];
-/// Headings 0 / 240 / 120, 120° apart.
 const HEADINGS_DEG: [f32; SPIKE_COUNT] = [0.0, 240.0, 120.0];
 
 const SPIKE_SPEED_PER_S: f32 = 0.21 * FRAMES_PER_SECOND;
-/// Speed-limit window of 10 frames — blade grows then freezes.
 const SPEED_LIMIT_S: f32 = 10.0 / FRAMES_PER_SECOND;
 const DURATION_FRAMES: f32 = 150.0;
 const FADE_OUT_FRAMES: f32 = 20.0;
@@ -98,7 +79,6 @@ impl Effect for GrimToothAtkEffect {
                 rotation_y_deg: blade.heading_deg,
                 texture: STONE_TEXTURE,
                 color: [1.0, 1.0, 1.0, alpha],
-                // Opaque brown stone — alpha keeps the colour (cf. grimtooth).
                 blend: BlendKind::Alpha,
             });
         }
@@ -126,9 +106,6 @@ mod tests {
 
     #[test]
     fn emits_three_splayed_blades_then_dies() {
-        // Sociable test: three big stone blades present at frame 0, each at a
-        // distinct 120°-apart heading, all using stone.bmp; the effect ends
-        // after its fixed duration.
         let mut e = GrimToothAtkEffect::new([5.0, 0.0, -2.0]);
         e.update(&EffectUpdateCtx {
             delta: 0.0,
@@ -156,7 +133,6 @@ mod tests {
         headings.sort_by(|a, b| a.partial_cmp(b).unwrap());
         assert_eq!(headings, vec![0.0, 120.0, 240.0]);
 
-        // Runs until the fixed duration, then dies.
         let mut status = EffectStatus::Running;
         let mut t = 0.0;
         while t < TOTAL_DURATION_MS as f32 / 1000.0 + 0.1 {
@@ -175,7 +151,6 @@ mod tests {
 
     #[test]
     fn alpha_fades_in_final_window() {
-        // Sociable test: full alpha until the fade tail, then it drops.
         let mut e = GrimToothAtkEffect::new([0.0, 0.0, 0.0]);
         e.update(&EffectUpdateCtx {
             delta: 0.0,

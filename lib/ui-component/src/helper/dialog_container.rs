@@ -11,9 +11,8 @@ const SYSBOX_MD: &str = "data/texture/유저인터페이스/sysbox_md.bmp";
 const SYSBOX_RD: &str = "data/texture/유저인터페이스/sysbox_rd.bmp";
 
 const SYSBOX_TEXTURES: [&str; 9] = [
-    SYSBOX_LU, SYSBOX_MU, SYSBOX_RU,
-    SYSBOX_LM, SYSBOX_MM, SYSBOX_RM,
-    SYSBOX_LD, SYSBOX_MD, SYSBOX_RD,
+    SYSBOX_LU, SYSBOX_MU, SYSBOX_RU, SYSBOX_LM, SYSBOX_MM, SYSBOX_RM, SYSBOX_LD, SYSBOX_MD,
+    SYSBOX_RD,
 ];
 
 #[derive(Clone, Copy)]
@@ -73,12 +72,21 @@ impl DialogContainer {
         }
     }
 
-    pub fn draw(&self, draw_calls: &mut Vec<DrawCall>, x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) {
+    pub fn draw(
+        &self,
+        draw_calls: &mut Vec<DrawCall>,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        color: [f32; 4],
+    ) {
         if self.has_grf_textures
-            && let Some(sizes) = &self.sysbox_sizes {
-                draw_nine_slice(draw_calls, x, y, w, h, sizes, color);
-                return;
-            }
+            && let Some(sizes) = &self.sysbox_sizes
+        {
+            draw_nine_slice(draw_calls, x, y, w, h, sizes, color);
+            return;
+        }
         draw_fallback(draw_calls, x, y, w, h);
     }
 
@@ -89,7 +97,10 @@ impl DialogContainer {
 
 fn draw_nine_slice(
     draw_calls: &mut Vec<DrawCall>,
-    x: f32, y: f32, w: f32, h: f32,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
     sizes: &NineSliceSizes,
     color: [f32; 4],
 ) {
@@ -115,31 +126,54 @@ fn draw_nine_slice(
     let right_edge = x + w;
     let bottom_edge = y + h;
 
-    // Row 0: top
     push_bounds(draw_calls, SYSBOX_LU, x, y, mid_x, mid_y, color);
     if mw > 0.0 {
         push_bounds(draw_calls, SYSBOX_MU, mid_x, y, right_x, mid_y, color);
     }
     push_bounds(draw_calls, SYSBOX_RU, right_x, y, right_edge, mid_y, color);
 
-    // Row 1: middle
     if mh > 0.0 {
         push_bounds(draw_calls, SYSBOX_LM, x, mid_y, mid_x, bot_y, color);
         if mw > 0.0 {
             push_bounds(draw_calls, SYSBOX_MM, mid_x, mid_y, right_x, bot_y, color);
         }
-        push_bounds(draw_calls, SYSBOX_RM, right_x, mid_y, right_edge, bot_y, color);
+        push_bounds(
+            draw_calls, SYSBOX_RM, right_x, mid_y, right_edge, bot_y, color,
+        );
     }
 
-    // Row 2: bottom
     push_bounds(draw_calls, SYSBOX_LD, x, bot_y, mid_x, bottom_edge, color);
     if mw > 0.0 {
-        push_bounds(draw_calls, SYSBOX_MD, mid_x, bot_y, right_x, bottom_edge, color);
+        push_bounds(
+            draw_calls,
+            SYSBOX_MD,
+            mid_x,
+            bot_y,
+            right_x,
+            bottom_edge,
+            color,
+        );
     }
-    push_bounds(draw_calls, SYSBOX_RD, right_x, bot_y, right_edge, bottom_edge, color);
+    push_bounds(
+        draw_calls,
+        SYSBOX_RD,
+        right_x,
+        bot_y,
+        right_edge,
+        bottom_edge,
+        color,
+    );
 }
 
-fn push_bounds(draw_calls: &mut Vec<DrawCall>, texture: &str, x0: f32, y0: f32, x1: f32, y1: f32, color: [f32; 4]) {
+fn push_bounds(
+    draw_calls: &mut Vec<DrawCall>,
+    texture: &str,
+    x0: f32,
+    y0: f32,
+    x1: f32,
+    y1: f32,
+    color: [f32; 4],
+) {
     let (v, i) = draw::quad_from_bounds(x0, y0, x1, y1, color);
     draw_calls.push(DrawCall {
         vertices: v.to_vec(),
@@ -176,7 +210,12 @@ mod tests {
     use super::*;
 
     fn test_sizes() -> NineSliceSizes {
-        NineSliceSizes { left_w: 10.0, right_w: 12.0, top_h: 8.0, bottom_h: 6.0 }
+        NineSliceSizes {
+            left_w: 10.0,
+            right_w: 12.0,
+            top_h: 8.0,
+            bottom_h: 6.0,
+        }
     }
 
     #[test]
@@ -191,9 +230,8 @@ mod tests {
         let mut calls = Vec::new();
         draw_nine_slice(&mut calls, 0.0, 0.0, 100.0, 80.0, &test_sizes(), [1.0; 4]);
         let expected = [
-            SYSBOX_LU, SYSBOX_MU, SYSBOX_RU,
-            SYSBOX_LM, SYSBOX_MM, SYSBOX_RM,
-            SYSBOX_LD, SYSBOX_MD, SYSBOX_RD,
+            SYSBOX_LU, SYSBOX_MU, SYSBOX_RU, SYSBOX_LM, SYSBOX_MM, SYSBOX_RM, SYSBOX_LD, SYSBOX_MD,
+            SYSBOX_RD,
         ];
         for (i, call) in calls.iter().enumerate() {
             match &call.texture {
@@ -208,7 +246,6 @@ mod tests {
         let sizes = test_sizes();
         let mut calls = Vec::new();
         draw_nine_slice(&mut calls, 50.0, 100.0, 200.0, 150.0, &sizes, [1.0; 4]);
-        // MM is index 4 (row1, col1)
         let center = &calls[4];
         let min_x = center.vertices[0].position[0];
         let min_y = center.vertices[0].position[1];
@@ -222,10 +259,14 @@ mod tests {
 
     #[test]
     fn nine_slice_skips_middle_when_too_small() {
-        let sizes = NineSliceSizes { left_w: 50.0, right_w: 50.0, top_h: 40.0, bottom_h: 40.0 };
+        let sizes = NineSliceSizes {
+            left_w: 50.0,
+            right_w: 50.0,
+            top_h: 40.0,
+            bottom_h: 40.0,
+        };
         let mut calls = Vec::new();
         draw_nine_slice(&mut calls, 0.0, 0.0, 100.0, 80.0, &sizes, [1.0; 4]);
-        // Middle width = 0 and middle height = 0, so only corners: LU, RU, LD, RD
         assert_eq!(calls.len(), 4);
     }
 
@@ -233,7 +274,6 @@ mod tests {
     fn fallback_draws_background_and_border() {
         let mut calls = Vec::new();
         draw_fallback(&mut calls, 0.0, 0.0, 100.0, 80.0);
-        // 1 background + 4 border edges
         assert_eq!(calls.len(), 5);
         for call in &calls {
             assert!(matches!(call.texture, TextureRef::White));
@@ -266,14 +306,13 @@ mod tests {
 
     #[test]
     fn from_texture_sizes_extracts_dimensions() {
-        let sizes = NineSliceSizes::from_texture_sizes(&|name| {
-            match name {
-                SYSBOX_LU => Some((12, 10)),
-                SYSBOX_RU => Some((14, 10)),
-                SYSBOX_LD => Some((12, 8)),
-                _ => Some((5, 5)),
-            }
-        }).unwrap();
+        let sizes = NineSliceSizes::from_texture_sizes(&|name| match name {
+            SYSBOX_LU => Some((12, 10)),
+            SYSBOX_RU => Some((14, 10)),
+            SYSBOX_LD => Some((12, 8)),
+            _ => Some((5, 5)),
+        })
+        .unwrap();
         assert_eq!(sizes.left_w, 12.0);
         assert_eq!(sizes.right_w, 14.0);
         assert_eq!(sizes.top_h, 10.0);

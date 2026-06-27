@@ -1,22 +1,3 @@
-//! `EF_SONICBLOWHIT` — single horizontal impact cone fired once at the
-//! target on hit.
-//!
-//! Reference gif: `100-150/122.gif`.
-//!
-//! Launches one horizontal cylinder on the spawn frame, with these
-//! parameters:
-//!   * latitude −90° + longitude `180 − target heading` → axis lies
-//!     horizontal, yawed to face the strike heading.
-//!   * a one-shot positional impulse along the strike axis added to the spawn
-//!     point.
-//!   * initial speed 0.4, decelerating → 12-frame slide.
-//!   * outer radius 7, inner radius 4, height 3.5.
-//!   * fade-out begins at frame 6 → fade in the second half.
-//!   * Texture `effect/magic_red.tga`.
-//!
-//! Single-point anchor → heading defaults to 0 (same convention as Hit1/3/4).
-//! Trail anchor supplies caster→target so the cone can aim correctly.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -32,11 +13,6 @@ const CYLINDER_OUTER: f32 = 7.0;
 const CYLINDER_INNER: f32 = 4.0;
 const CYLINDER_HEIGHT: f32 = 3.5;
 const FADE_OUT_START_FRAME: f32 = 6.0;
-/// Pre-rotation Y offset for the cylinder centre. The original jitters the
-/// centre between chest height (-11) and waist height
-/// (-1); we match `pierce.rs` and pin at chest level — pure-Y offset, doesn't
-/// rotate with heading (a jittered X component would
-/// add inconsistent direction).
 const CYLINDER_PIVOT_Y_OFFSET: f32 = -10.0;
 const RING_ALPHA: f32 = 1.0;
 
@@ -139,9 +115,6 @@ mod tests {
 
     #[test]
     fn emits_single_cylinder_at_spawn_and_dies_at_12_frames() {
-        // Sociable: spawn, step once, expect exactly one Cylinder primitive
-        // with the expected tilt and texture; then advance past the lifetime
-        // and confirm the effect reports Dead.
         let mut e = SonicBlowHitEffect::new([5.0, 0.0, 7.0]);
         e.update(&EffectUpdateCtx {
             delta: 1.0 / FRAMES_PER_SECOND,

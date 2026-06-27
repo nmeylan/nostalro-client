@@ -111,21 +111,14 @@ impl GrfArchive {
             .open(path)
             .map_err(FormatError::Io)?;
 
-        // Write v2 header
         let mut header = [0u8; HEADER_SIZE];
         header[..16].copy_from_slice(b"Master of Magic\0");
-        // encryption key: zeros (already zeroed)
-        // file_table_offset = 0 (table immediately after header)
         header[30..34].copy_from_slice(&0u32.to_le_bytes());
-        // reserved_files = 0
         header[34..38].copy_from_slice(&0u32.to_le_bytes());
-        // file_count = FILE_OFFSET (no actual files)
         header[38..42].copy_from_slice(&(FILE_OFFSET as u32).to_le_bytes());
-        // version = 0x200
         header[42..46].copy_from_slice(&0x200u32.to_le_bytes());
         file.write_all(&header)?;
 
-        // Write empty file table
         let empty_table = Vec::new();
         let compressed = zlib_compress(&empty_table)?;
         file.write_all(&(compressed.len() as u32).to_le_bytes())?;
@@ -227,13 +220,12 @@ impl GrfArchive {
         let end_pos = self.file_data_end_offset + 8 + table_compressed.len() as u64;
         file.set_len(end_pos)?;
 
-        // Update header
         let file_table_offset = (self.file_data_end_offset - HEADER_SIZE as u64) as u32;
         let file_count = (self.entries.len() + FILE_OFFSET) as u32;
 
         file.seek(SeekFrom::Start(30))?;
         file.write_all(&file_table_offset.to_le_bytes())?;
-        file.write_all(&0u32.to_le_bytes())?; // reserved_files
+        file.write_all(&0u32.to_le_bytes())?;
         file.write_all(&file_count.to_le_bytes())?;
         file.flush()?;
 
@@ -245,7 +237,6 @@ impl GrfArchive {
             return Err(FormatError::ReadOnly);
         }
 
-        // Read all compressed blobs into memory
         let mut blobs: Vec<(String, GrfEntry, Vec<u8>)> = Vec::with_capacity(self.entries.len());
         {
             let file = self.file.get_mut().unwrap();
@@ -268,7 +259,6 @@ impl GrfArchive {
             }
         }
 
-        // Rewrite all blobs sequentially from HEADER_SIZE
         let file = self.file.get_mut().unwrap();
         let mut write_pos = HEADER_SIZE as u64;
         self.entries.clear();
@@ -350,7 +340,7 @@ fn build_file_table(entries: &HashMap<String, GrfEntry>) -> Vec<u8> {
         let backslash_name = name.replace('/', "\\");
         let (encoded, _, _) = encoding_rs::EUC_KR.encode(&backslash_name);
         table.extend_from_slice(&encoded);
-        table.push(0); // null terminator
+        table.push(0);
         table.extend_from_slice(&entry.compressed_size.to_le_bytes());
         table.extend_from_slice(&entry.compressed_size_aligned.to_le_bytes());
         table.extend_from_slice(&entry.uncompressed_size.to_le_bytes());
@@ -434,12 +424,10 @@ fn parse_v1_entries(
             return Err(FormatError::UnexpectedEof);
         }
         let entry_len = u32::from_le_bytes(table[ofs..ofs + 4].try_into().unwrap()) as usize;
-        // ofs+4..ofs+6: skip 2 bytes
         let name_len = (entry_len as u8).wrapping_sub(6) as usize;
         if ofs + 6 + name_len > table.len() {
             return Err(FormatError::UnexpectedEof);
         }
-        // Round up to 8-byte boundary for DES decryption
         let decrypt_len = (name_len + 7) & !7;
         let mut name_buf = vec![0u8; decrypt_len];
         let copy_len = name_len.min(table.len() - (ofs + 6));

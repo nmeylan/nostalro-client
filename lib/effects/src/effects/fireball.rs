@@ -1,14 +1,3 @@
-//! `EF_FIREBALL` — Mage Fireball (id 24).
-//!
-//! The original game spawns 4 staggered rotating sprites at frames
-//! {20, 24, 28, 32}. Each particle travels from
-//! caster toward target over 20 frames. The lead sprite is full-white; the
-//! three trailing ghosts are tinted golden with decreasing alpha, creating a
-//! comet-tail trail behind the projectile.
-//!
-//! When spawned without trail data (`from == to`), falls back to a single
-//! expanding sprite at the spawn point (viewer / single-point callers).
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, aim_backward};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -38,9 +27,6 @@ const LAST_SPAWN_FRAME: f32 = SPAWN_FRAMES[3];
 const TOTAL_VISIBLE_FRAMES: f32 = LAST_SPAWN_FRAME + PARTICLE_DURATION_FRAMES;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_VISIBLE_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
-/// Reaches the target in a fixed frame count (lead spawn + travel); each
-/// particle covers the whole caster→target gap in `PARTICLE_DURATION_FRAMES`,
-/// so the time is distance-independent.
 pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
     crate::effect_queue::ProjectileFlight::FixedFrames(SPAWN_FRAMES[0] + PARTICLE_DURATION_FRAMES);
 
@@ -274,7 +260,6 @@ mod tests {
     #[test]
     fn particles_move_toward_target() {
         let mut e = FireballEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 60.0]);
-        // Step past frame 20 to spawn the first particle
         for _ in 0..21 {
             step(&mut e, 1.0 / FRAMES_PER_SECOND);
         }
@@ -295,10 +280,6 @@ mod tests {
 
     #[test]
     fn trail_sprite_aims_away_from_target_for_180_flip() {
-        // fireball.spr's head points opposite the arrow convention, so the
-        // shared screen-space aim is corrected by aiming at the mirror of the
-        // sprite across itself (heading flipped 180°). The aim
-        // vector must therefore point *away* from the target.
         let to = [0.0, 0.0, 60.0];
         let mut e = FireballEffect::new([0.0, 0.0, 0.0], to);
         for _ in 0..21 {
@@ -310,7 +291,6 @@ mod tests {
                 aim_target: Some(aim),
                 ..
             } => {
-                // toward-target Z delta is positive; the corrected aim is negative.
                 assert!(
                     aim[2] - position[2] < 0.0,
                     "aim must point away from +Z target: pos {position:?} aim {aim:?}"
@@ -323,7 +303,6 @@ mod tests {
     #[test]
     fn lead_white_trail_golden_decreasing_alpha() {
         let mut e = FireballEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 80.0]);
-        // Step frame by frame past frame 32 so all 4 are spawned and alive
         for _ in 0..33 {
             step(&mut e, 1.0 / FRAMES_PER_SECOND);
         }

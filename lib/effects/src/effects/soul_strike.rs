@@ -2,9 +2,6 @@ use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const SOUL_STRIKE_SPRITE: &str = "data/sprite/이팩트/particle1";
-/// Soulstrike2: the only difference from Soulstrike is the
-/// sprite — `particle5` (red) instead of `particle1`. The hit count comes from
-/// the packet, same as Soulstrike — it is **not** a fixed 2-hit.
 pub const SOUL_STRIKE2_SPRITE: &str = "data/sprite/이팩트/particle5";
 pub const SPRITES: &[&str] = &[SOUL_STRIKE_SPRITE, SOUL_STRIKE2_SPRITE];
 
@@ -25,9 +22,6 @@ const Y_OFFSET: f32 = -10.0;
 const SPAWN_DIST: u32 = 11;
 const SPAWN_DELAY: u32 = 5;
 
-/// Reaches the target in a fixed frame count: the lead bolt spawns at
-/// `SPAWN_DIST - SPAWN_DELAY` then flies for `BOLT_DURATION_FRAMES`, covering any
-/// distance in that span, so the time is distance-independent.
 pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
     crate::effect_queue::ProjectileFlight::FixedFrames(
         (SPAWN_DIST - SPAWN_DELAY + BOLT_DURATION_FRAMES) as f32,

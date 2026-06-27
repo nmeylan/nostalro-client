@@ -1,34 +1,3 @@
-//! `Electric` (432) / `Electric2` (433) —
-//! lightning arcs drawn with `elec1.tga`.
-//!
-//! Each bolt is a 20-segment filament that crackles outward from the
-//! caster. A
-//! per-segment phase ramp `height[j]` drives both the outward reach
-//! (`speed = height[j]/90 · distance`, along the bolt's compass `rise_angle`)
-//! and a sine vertical bump (`y = -scale · sin(height[j]) · width`). Per-vertex
-//! random jitter each frame gives the crackle. The original draws a thin
-//! triangular tube (radius 0.1) of 3 additive faces; we
-//! collapse it to a `LineStrip` ribbon and fold the ~3× face overdraw into
-//! the alpha.
-//!
-//! Render details:
-//! * the full `elec1.tga` is mapped onto **each segment** (`u_along` UV with
-//!   ~one repeat per segment) — its horizontal arc art runs along the bolt;
-//! * **per-segment tint**: Electric grades `(120-(20-j)·6, ·, 255)` along the
-//!   filament; Electric2 flickers `(rand(121), rand(121), 255)` every frame;
-//! * **per-segment alpha**: Electric drains `alpha - j·5` toward the caster;
-//!   Electric2 peaks mid-bolt (`alpha - |9-j|·15`-ish).
-//!
-//! * **Electric (432)** = two fans (0° and 180° offset), each launching
-//!   a 4-bolt burst every frame of frames 20–23 → 4 staggered waves of
-//!   8 directions (`ec·45° + F2`). `distance += 0.4`/frame; alpha ramps
-//!   `+5+rand(4)` to process 25 then drains −2 once `distance > 15`.
-//! * **Electric2 (433)** = two bursts at frame 0 → 8 bolts
-//!   all aimed at the target (`rise_angle = atan2(Δ)`), reach grows linearly
-//!   down the bolt (`speed = j/5 · distance`), taller bow (`scale = 15`,
-//!   baseline −8) crawling at +8°/frame. `distance += 0.6`/frame; alpha ramps
-//!   `+15+rand(6)` to process 10, drains −5 past process 20.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -36,63 +5,45 @@ const FRAMES_PER_SECOND: f32 = 60.0;
 pub const TEXTURE: &str = "elec1.tga";
 pub const TEXTURES: &[&str] = &[TEXTURE];
 
-/// Segment count per bolt.
 const SEGMENTS: usize = 20;
-/// Tube radius → ribbon half-width. The original is 0.1; widened
-/// a touch so the additive `elec1` strip reads as a bolt rather than a hairline.
 const HALF_WIDTH: f32 = 0.35;
-/// The original render overdraws 3 tube faces additively per segment; a single
-/// ribbon needs the equivalent brightness folded into its alpha.
+/// 3-face tube overdraw folded into a single ribbon alpha.
 const FACE_OVERDRAW: f32 = 2.5;
 
 #[derive(Clone, Copy)]
 enum SpeedLaw {
-    /// Electric: `speed = height[j]/90 · distance` (reach follows the phase ramp).
     PhaseRamp,
-    /// Electric2: `speed = j/5 · distance` (reach grows linearly down the bolt).
     Linear,
 }
 
 #[derive(Clone, Copy, PartialEq)]
 enum ColorLaw {
-    /// Electric: fixed blue gradient along the filament.
     BlueGradient,
-    /// Electric2: blue-white flicker re-rolled every frame.
     Flicker,
 }
 
 #[derive(Clone, Copy)]
 enum AlphaLaw {
-    /// Electric: `alpha - j·5` — brightest at the far tip.
     TipBiased,
-    /// Electric2: peak at mid-bolt, tapered toward both ends.
     MidPeaked,
 }
 
 #[derive(Clone, Copy)]
 struct Variant {
     distance_grow: f32,
-    /// `None` → vertical scale is the live `distance` (Electric); `Some` → fixed
-    /// (Electric2 uses 15).
     vertical_scale: Option<f32>,
     baseline_y: f32,
     speed_law: SpeedLaw,
     color_law: ColorLaw,
     alpha_law: AlphaLaw,
-    /// Phase increment when (re)building the per-segment ramp.
     phase_step: f32,
-    /// Ramp wraps/caps here (180 caps for Electric, 360 wraps for Electric2).
     phase_wrap: f32,
-    /// Frames over which alpha ramps up (`alpha += ramp_rate + rand(ramp_rand)`).
     ramp_frames: i32,
     ramp_rate: f32,
     ramp_rand: u32,
-    /// Alpha drains by `drain_rate` once past the gate (distance > 15 for
-    /// Electric, process > 20 for Electric2).
     drain_rate: f32,
-    /// `true` → drain is gated on `distance > 15`; `false` → on `process > 20`.
+    /// `true` → drain gates on `distance > 15`; `false` → on `process > 20`.
     drain_on_distance: bool,
-    /// Electric2 scrolls every frame after the first.
     scroll_phase: bool,
     jitter: f32,
 }
@@ -135,12 +86,10 @@ const AIMED: Variant = Variant {
 
 struct Arc {
     rise_angle_deg: f32,
-    /// Sine amplitude factor for the vertical bow.
     width: f32,
     distance: f32,
     alpha_b: f32,
     process: i32,
-    /// Per-segment phase ramp; index `0..=SEGMENTS`.
     height: [f32; SEGMENTS + 2],
 }
 
@@ -158,9 +107,6 @@ impl Arc {
         }
     }
 
-    /// Build the phase ramp the first active frame: push `phase_step` into
-    /// `height[0]` and shift the array up, leaving a descending ramp from the
-    /// cap at index 0 down to 0 at the tail.
     fn build_ramp(&mut self, v: &Variant) {
         for _ in 0..=SEGMENTS {
             self.height[0] += v.phase_step;
@@ -202,8 +148,6 @@ impl Arc {
         self.alpha_b = self.alpha_b.clamp(0.0, 255.0);
     }
 
-    /// Centreline point at segment `j`, in bolt-local space (before adding the
-    /// caster anchor).
     fn point(&self, v: &Variant, j: usize, jitter: [f32; 3]) -> [f32; 3] {
         let phase = self.height[j];
         let speed = match v.speed_law {
@@ -225,7 +169,6 @@ impl Arc {
         ]
     }
 
-    /// Per-segment vertex tint and alpha.
     fn segment_color(&self, v: &Variant, j: usize, rng: u32) -> [f32; 4] {
         let a_raw = match v.alpha_law {
             AlphaLaw::TipBiased => self.alpha_b - (j as f32) * 5.0,
@@ -262,8 +205,6 @@ pub struct ElectricEffect {
 }
 
 impl ElectricEffect {
-    /// Electric (432): 4 launch waves (frames 20-23), each fanning 8 bolts at
-    /// 45° spacing (two fans offset 0° / 180°).
     pub fn new_ring(anchor: [f32; 3]) -> Self {
         let mut arcs = Vec::with_capacity(32);
         for wave in 0..4u32 {
@@ -282,7 +223,6 @@ impl ElectricEffect {
         Self::with(anchor, RING, arcs)
     }
 
-    /// Electric2 (433): 8 bolts aimed at the target, phase-staggered 0°/180°.
     pub fn new_aimed(from: [f32; 3], to: [f32; 3]) -> Self {
         let angle = (to[2] - from[2]).atan2(to[0] - from[0]).to_degrees();
         let arcs = (0..8)
@@ -314,8 +254,6 @@ impl ElectricEffect {
     }
 }
 
-/// Cheap deterministic noise — keeps the crackle reproducible (and tests
-/// stable) without a live RNG.
 fn noise(seed: u32) -> u32 {
     let mut x = seed.wrapping_mul(0x9E3779B1).wrapping_add(0x7F4A7C15);
     x ^= x >> 15;
@@ -352,8 +290,6 @@ impl Effect for ElectricEffect {
             if arc.process <= 0 || arc.alpha_b <= 0.0 {
                 continue;
             }
-            // Skip the two endpoint segments — the visible
-            // bolt is the bowed middle.
             let mut points = Vec::with_capacity(SEGMENTS);
             let mut colors = Vec::with_capacity(SEGMENTS);
             for j in 1..SEGMENTS {
@@ -376,8 +312,6 @@ impl Effect for ElectricEffect {
             if points.len() < 2 {
                 continue;
             }
-            // Full elec1 texture per segment: its arc art runs along U, so U
-            // accumulates with path length at ~one repeat per segment.
             let total_len: f32 = points
                 .windows(2)
                 .map(|w| {
@@ -446,15 +380,12 @@ mod tests {
 
     #[test]
     fn ring_waves_fan_eight_blue_gradient_bolts_after_the_launch_delay() {
-        // Sociable: nothing before the frame-20 launch gate,
-        // then staggered waves of 8-direction bolts, each a blue-gradient
-        // multi-point ribbon (deep blue far tip → paler toward the caster).
         let mut e = ElectricEffect::new_ring([10.0, 0.0, 20.0]);
         tick(&mut e, 15);
         assert!(strips(&e).is_empty(), "silent during the 20-frame delay");
         tick(&mut e, 15);
         let s = strips(&e);
-        assert!(s.len() >= 8, "all four waves launched, got {}", s.len());
+        assert!(s.len() >= 8);
         let mut azimuths: Vec<f32> = s
             .iter()
             .map(|(pts, _)| {
@@ -470,8 +401,6 @@ mod tests {
         );
         for (pts, colors) in &s {
             assert_eq!(pts.len(), colors.len());
-            // Gradient: every segment is blue-dominant and red/green grade
-            // along the filament.
             assert!(colors.iter().all(|c| c[2] > c[0]));
             assert!(colors.first().unwrap()[0] < colors.last().unwrap()[0]);
         }
@@ -480,18 +409,17 @@ mod tests {
     #[test]
     fn aimed_bolts_point_at_the_target_and_peak_mid_bolt() {
         let from = [0.0, 0.0, 0.0];
-        let to = [10.0, 0.0, 0.0]; // +X
+        let to = [10.0, 0.0, 0.0];
         let mut e = ElectricEffect::new_aimed(from, to);
         tick(&mut e, 6);
         let s = strips(&e);
-        assert_eq!(s.len(), 8, "two handler calls × 4 bolts");
+        assert_eq!(s.len(), 8);
         for (pts, colors) in &s {
             let tip = pts.last().unwrap();
             assert!(
                 tip[0] > tip[2].abs(),
                 "bolt {tip:?} should lead toward +X target"
             );
-            // Mid-peaked alpha: the middle segment outshines both ends.
             let mid = colors[colors.len() / 2][3];
             assert!(mid >= colors.first().unwrap()[3] && mid >= colors.last().unwrap()[3]);
         }
@@ -505,8 +433,6 @@ mod tests {
         tick(&mut e, 15);
         let peak: f32 = strips(&e)[0].1.iter().map(|c| c[3]).sum();
         assert!(peak >= early, "alpha ramps up ({early} → {peak})");
-        // Run well past the drain window: distance climbs past 15 and alpha
-        // bleeds to 0, killing the effect.
         let mut st = EffectStatus::Running;
         for _ in 0..400 {
             st = e.update(&ctx());

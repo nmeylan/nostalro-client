@@ -131,7 +131,6 @@ impl GridSelectorRenderer {
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
 
-        // GAT cell size in world units: account for GAT/GND dimension ratio
         let cell_w = (gnd_w as f32 / gat_w as f32) * zoom;
         let cell_h = (gnd_h as f32 / gat_h as f32) * zoom;
 

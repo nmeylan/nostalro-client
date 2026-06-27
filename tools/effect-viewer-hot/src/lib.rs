@@ -8,15 +8,14 @@ use models::enums::EnumWithStringValue;
 use models::enums::effect_id::EffectId;
 use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
-    Effect as GameEffect, EffectDrawList,
-    EffectRenderCtx as GameEffectRenderCtx, EffectSpec, EffectStatus,
-    EffectUpdateCtx as GameEffectUpdateCtx, effect_spec, make_effect,
+    Effect as GameEffect, EffectDrawList, EffectRenderCtx as GameEffectRenderCtx, EffectSpec,
+    EffectStatus, EffectUpdateCtx as GameEffectUpdateCtx, effect_spec, make_effect,
 };
-use std::collections::HashMap;
-use std::sync::Mutex;
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
 use ragnarok_ui::draw::{quad_vertices, text_vertices};
+use std::collections::HashMap;
+use std::sync::Mutex;
 
 // === Action codes (FFI contract - host duplicates these) ===
 pub const ACTION_NEXT_EFFECT: u32 = 1;
@@ -462,7 +461,10 @@ pub unsafe extern "C" fn hot_get_flags(state_ptr: *mut (), out: *mut ViewerFlags
         show_info: state.show_info as u8,
         _pad0: [0; 2],
         speed_x100: (state.speed * 100.0) as u32,
-        selected_effect_id: state.current_effect().map(|id| id.value() as u16).unwrap_or(u16::MAX),
+        selected_effect_id: state
+            .current_effect()
+            .map(|id| id.value() as u16)
+            .unwrap_or(u16::MAX),
         _pad1: [0; 2],
     };
     unsafe { *out = f };
@@ -866,8 +868,16 @@ pub unsafe extern "C" fn hot_spawn_custom_effect(
     let Some(id) = EffectId::try_from_value(effect_id as usize).ok() else {
         return 0;
     };
-    let from = if from_ptr.is_null() { [0.0; 3] } else { unsafe { *from_ptr } };
-    let to = if to_ptr.is_null() { from } else { unsafe { *to_ptr } };
+    let from = if from_ptr.is_null() {
+        [0.0; 3]
+    } else {
+        unsafe { *from_ptr }
+    };
+    let to = if to_ptr.is_null() {
+        from
+    } else {
+        unsafe { *to_ptr }
+    };
     let anchor = if from == to {
         EffectAnchor::Point(from)
     } else {
@@ -908,7 +918,11 @@ pub unsafe extern "C" fn hot_update_custom_effect(
     };
     // NaN means "no caster facing" (the host's C-ABI encoding of `None`).
     let caster_yaw = (!caster_yaw.is_nan()).then_some(caster_yaw);
-    let status = effect.update(&GameEffectUpdateCtx { delta: dt, camera_target: None, caster_yaw });
+    let status = effect.update(&GameEffectUpdateCtx {
+        delta: dt,
+        camera_target: None,
+        caster_yaw,
+    });
     matches!(status, EffectStatus::Dead) as u8
 }
 

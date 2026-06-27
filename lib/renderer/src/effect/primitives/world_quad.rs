@@ -1,7 +1,3 @@
-//! WorldQuad primitive — textured quad in 3D world space defined by four
-//! explicit corner points. Shares the GroundDisc shader / camera bind group
-//! layout.
-
 use crate::camera::Camera;
 use crate::device::DEPTH_FORMAT;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};
@@ -11,9 +7,6 @@ use crate::sprite::SpriteVertex;
 pub struct WorldQuadRenderer {
     pub pipeline_alpha: wgpu::RenderPipeline,
     pub pipeline_additive: wgpu::RenderPipeline,
-    /// No-depth-check siblings — same shader/blend but `depth_compare:
-    /// Always`, so the quad draws over coincident terrain instead of being
-    /// occluded by the ground it sits at or below.
     pub pipeline_alpha_no_depth: wgpu::RenderPipeline,
     pub pipeline_additive_no_depth: wgpu::RenderPipeline,
 }
@@ -179,7 +172,6 @@ pub fn prepare_world_quad_records<'tex>(
         }
         let indices: Vec<u32> = vec![0, 1, 2, 0, 2, 3];
 
-        // Use the centroid as the depth anchor.
         let centroid = [
             (corners[0][0] + corners[1][0] + corners[2][0] + corners[3][0]) * 0.25,
             (corners[0][1] + corners[1][1] + corners[2][1] + corners[3][1]) * 0.25,

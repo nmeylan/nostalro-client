@@ -1,27 +1,4 @@
 //! `EF_HALFSPHERE` (436) / `EF_ATTACKENERGY` (437) / `EF_ATTACKENERGY2` (438).
-//!
-//! Three related shield/energy effects from the original game:
-//!   * 436 `white02.bmp` — a translucent half-dome bubble
-//!     (one layer, longitude swept 180° → a half-sphere split
-//!     by a vertical plane).
-//!   * 437 `white02.bmp` dome + `ring_blue.tga` — the
-//!     dome plus a 4-layer **comet fan**: vertical ring ribbons whose outer
-//!     edge is shoved ~100 units along the facing direction,
-//!     making a long horn of streaks. The dome ramps in, the comet
-//!     spins.
-//!
-//!   * 438 `cloud11.tga` — 4-layer **expanding rings** in a
-//!     vertical plane: radius = `distance·sin(height1)` with `height1`
-//!     growing 0→90°, pushed forward by `cos(height1)`, spawned in
-//!     two waves (frame 0 and 4).
-//!
-//! The dome reuses [`EffectPrimitiveDraw::Sphere`] (with the partial
-//! `longitude_arc`); the ribbons are emitted segment-by-segment as
-//! [`EffectPrimitiveDraw::WorldQuad`]s.
-//!
-//! Facing: the original derives the ring plane from the caster's heading; with
-//! no heading on the anchor we bake heading 0 (base angle 180°), the same
-//! orientation the headless export shows.
 
 use std::f32::consts::PI;
 
@@ -31,23 +8,14 @@ use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 pub const TEXTURES: &[&str] = &["white02.bmp", "ring_blue.tga", "cloud11.tga"];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// 20 ring segments over a 360° sweep.
 const RING_SEGMENTS: usize = 20;
 
-/// Ring base angle = `caster_heading + 180` (the facing offset); the
-/// push axis is base angle + 90°. The caster yaw is fed live each frame; with no
-/// caster facing it defaults to 0 (a fixed front, matching `guard.rs`).
 const ROT_OFFSET_DEG: f32 = 180.0;
 
 pub const HALFSPHERE_DURATION_MS: u32 = 3000;
 pub const ATTACKENERGY_DURATION_MS: u32 = 3000;
 pub const ATTACKENERGY2_DURATION_MS: u32 = 1000;
 
-/// The dome's `distance = 8` is an honest small literal → ~0.7× keeps it
-/// sprite-sized. The ribbon base radii (`distance = 8`) are also small literals;
-/// 0.45 makes the comet a dominant fan and the 438 rings prominent. (The comet
-/// points along +Z so the headless export foreshortens it; it reads full-length
-/// on a side-on / in-game camera.)
 const DOME_SCALE: f32 = 0.75;
 const RIBBON_SCALE: f32 = 0.45;
 
@@ -58,16 +26,10 @@ fn sin_deg(d: f32) -> f32 {
     d.to_radians().sin()
 }
 
-/// Ring base angle = `caster_heading + 180`. `caster_yaw` is the live facing (radians);
-/// `None` (no caster facing resolved) → 0, a fixed front.
 fn rot_start_deg(caster_yaw: Option<f32>) -> f32 {
     caster_yaw.map(f32::to_degrees).unwrap_or(0.0) + ROT_OFFSET_DEG
 }
 
-// ── 436 + the dome shared by 437 ─────────────────────────────────────────────
-
-/// One half-dome layer: alpha ramps +5/frame to 120 over
-/// the first 50 frames, then holds (no fade).
 struct DomeLayer {
     world_pos: [f32; 3],
     alpha_b: f32,
@@ -100,8 +62,6 @@ impl DomeLayer {
         if alpha <= 0.0 {
             return;
         }
-        // Centre: shifted up by max_height and sideways along the push
-        // axis (raise by max_height, then offset along the facing).
         let vect_angle = rot_start_deg + 90.0;
         let vx = cos_deg(vect_angle) * DOME_VECT_MAG;
         let vz = sin_deg(vect_angle) * DOME_VECT_MAG;
@@ -113,17 +73,13 @@ impl DomeLayer {
         out.push(EffectPrimitiveDraw::Sphere {
             center,
             radius: DOME_DISTANCE * DOME_SCALE,
-            // 10 latitude bands, 10 longitude segments over the 180° sweep.
             sides_lat: 10,
             sides_lon: 10,
-            // Rotate the swept half so the rounded face bulges toward the
-            // camera rather than away from it.
             longitude_offset: PI,
             longitude_arc: PI,
             uv_repeat: [1.0, 1.0],
             texture: "white02.bmp",
             color: [DOME_TINT[0], DOME_TINT[1], DOME_TINT[2], alpha],
-            // Translucent dome → alpha blend.
             blend: BlendKind::Alpha,
         });
     }
@@ -168,14 +124,11 @@ impl Effect for HalfSphereEffect {
     }
 }
 
-// ── 437 comet ribbon ─────────────────────────────────────────────────────────
-
 const COMET_DISTANCE: f32 = 8.0;
 const COMET_MAX_HEIGHT: f32 = 8.0;
 const COMET_HEIGHT0: f32 = 20.0;
 const COMET_VECT_MAG: f32 = 5.0;
 
-/// One comet layer — a vertical ring ribbon stretched into a comet.
 #[derive(Clone, Copy)]
 struct CometLayer {
     rise_angle_deg: f32,
@@ -302,15 +255,11 @@ impl Effect for AttackEnergyEffect {
     }
 }
 
-// ── 438 expanding rings ──────────────────────────────────────────────────────
-
 const RING_DISTANCE: f32 = 8.0;
 const RING_MAX_HEIGHT: f32 = 8.0;
 const RING_VECT_MAG: f32 = 1.0;
 const RING_BLUE_TINT: [f32; 3] = [100.0 / 255.0, 100.0 / 255.0, 1.0];
 
-/// One expanding-ring layer — a vertical ring whose radius breathes with
-/// `height1` (0→90°) and whose forward push relaxes as it expands.
 #[derive(Clone, Copy)]
 struct RingLayer {
     rise_angle_deg: f32,
@@ -374,7 +323,6 @@ impl RingLayer {
         let outer_dist = RING_DISTANCE * sin_deg(ang3);
         let cos_h1o = cos_deg(ang3);
 
-        // Per-edge forward push along the facing: 3 + cos(h1)*max_height.
         let push_inner = 3.0 + cos_h1 * RING_MAX_HEIGHT;
         let push_outer = 3.0 + cos_h1o * RING_MAX_HEIGHT;
 
@@ -423,7 +371,6 @@ pub struct AttackEnergy2Effect {
 
 impl AttackEnergy2Effect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        // Two waves: the rings are launched at frame 0 and frame 4.
         let mut layers = Vec::with_capacity(8);
         for &spawn in &[0u32, 4u32] {
             for ec in 0..4 {
@@ -467,11 +414,6 @@ impl Effect for AttackEnergy2Effect {
     }
 }
 
-// ── shared ───────────────────────────────────────────────────────────────────
-
-/// One ribbon segment quad — corners wound in the order
-/// `prev_inner, cur_inner, cur_outer, prev_outer`. Both ribbons are additive
-/// (the streaks glow).
 fn ribbon_quad(
     prev_inner: [f32; 3],
     inner: [f32; 3],
@@ -557,8 +499,6 @@ mod tests {
 
     #[test]
     fn attackenergy_emits_dome_plus_four_comet_ribbons() {
-        // Sociable: dome (Sphere) + 4 ring-ribbon layers (WorldQuad) once alpha
-        // has ramped off zero.
         let mut e = AttackEnergyEffect::new([0.0, 0.0, 0.0]);
         step(&mut e, 8);
         let prims = draws(&e);
@@ -581,8 +521,6 @@ mod tests {
 
     #[test]
     fn attackenergy2_rings_expand_as_height1_grows() {
-        // The ring radius is distance·sin(height1); as height1 climbs from its
-        // seed toward 90° the vertical extent of the emitted ribbon grows.
         let mut e = AttackEnergy2Effect::new([0.0, 0.0, 0.0]);
         step(&mut e, 6);
         let span_early = vertical_span(&draws(&e));
@@ -596,8 +534,6 @@ mod tests {
 
     #[test]
     fn comet_orientation_tracks_caster_facing() {
-        // Live `caster_yaw` rotates the comet ribbon: feeding a 90° facing must
-        // move the emitted quad corners vs. the default (no-facing) front.
         fn comet_corners(yaw: Option<f32>) -> Vec<[f32; 3]> {
             let mut e = AttackEnergyEffect::new([0.0, 0.0, 0.0]);
             for _ in 0..8 {

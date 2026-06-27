@@ -1,22 +1,4 @@
-//! `EF_BASH` — Swordman Bash skill impact.
-//!
-//!
-//! Pure screen-space recipe — a 2D halo disc plus 20 radial flash
-//! spikes:
-//!
-//!   * Frame 0 — a filled 2D halo disc (`alpha_down.tga`, radius 100 px,
-//!     peak alpha 170/255, fade-in 6 frames, fade-out 10 frames at the end
-//!     of a 40-frame lifetime).
-//!   * Frame 0 — 20 radial spikes (`alpha_center.tga`). Random longitude,
-//!     decelerating angular speed, growing length. See [`super::spike_burst`]
-//!     for the shared recipe — Bash, HasteUp, and Flasher all use the same
-//!     20-spike flash burst, differing only in numeric parameters.
-//!
-//! Halo: two stacked `BillboardDisc` primitives textured with
-//! `alpha_down.tga`. The polar UV mapping (V=1 centre, V=0 rim) makes
-//! the disc read as a radial
-//! alpha gradient. Two discs (bright core + softer rim) reproduce the
-//! layered "outer lighter than centre" silhouette from the gif.
+//! `EF_BASH` — Swordman Bash impact halo + spike burst.
 
 use super::spike_burst::{self, SpikeBurst, SpikeBurstParams, fade_in_out, seed_from_world};
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
@@ -28,24 +10,15 @@ pub const TEXTURES: &[&str] = &[HALO_TEXTURE, spike_burst::SPIKE_TEXTURE];
 const FRAMES_PER_SECOND: f32 = 60.0;
 const DURATION_FRAMES: f32 = 40.0;
 
-// Halo billboard — the central radial glow at the impact point. Two
-// stacked alpha-down discs: a tight bright core and a wider softer outer
-// halo, matching the layered "bright centre, faded surround" silhouette
-// in the original game's gif. Sits one character above the ground.
 const HALO_INNER_RADIUS: f32 = 3.5;
 const HALO_INNER_MAX_ALPHA: f32 = 220.0 / 255.0;
 const HALO_OUTER_RADIUS: f32 = 9.0;
 const HALO_OUTER_MAX_ALPHA: f32 = 130.0 / 255.0;
-// Warm tint matching the original game's golden halo (vs. pure white).
 const HALO_TINT: [f32; 3] = [1.0, 0.95, 0.75];
 const HALO_FADE_IN_FRAMES: f32 = 6.0;
 const HALO_FADE_OUT_AT: f32 = DURATION_FRAMES - 10.0;
 const HALO_HEIGHT_OFFSET: f32 = -5.0;
 
-// 20 radial flash spikes. Spike numeric values are tuned against
-// the gif: initial length 20-60 px and
-// growth 2.0-5.0 px/frame in the original game, scaled
-// so spikes span roughly the outer-halo diameter by mid-life.
 pub const SPIKES: SpikeBurstParams = SpikeBurstParams {
     count: 20,
     duration_frames: DURATION_FRAMES,
@@ -154,10 +127,6 @@ mod tests {
 
     #[test]
     fn halo_discs_plus_twenty_spike_billboards_at_spawn() {
-        // Sociable: 2 halo BillboardDiscs + 20 spike Billboards all
-        // anchored at the same centre. Confirms the spike count matches
-        // the original game's 20-spike burst and that every spike is
-        // positioned at the world anchor.
         let mut e = BashEffect::new([0.0; 3]);
         step_frames(&mut e, 8);
         let mut list = EffectDrawList::new();

@@ -1,18 +1,3 @@
-//! `EF_READYPORTAL` — the blue scalloped disc that precedes a portal
-//! materialising. The same disc emitter is reused by `EF_PORTAL` alongside
-//! its two rotating cylinders (portal and ready-portal share this ground-ring
-//! block verbatim).
-//!
-//! Recipe:
-//!   * parent duration 100 frames; every 14 frames spawn a ground ring with
-//!     a 30-frame lifetime and thickness 8 (inner-vertex radius =
-//!     `radius - thickness`),
-//!     radius speed 1.0/frame, radius accel `-(1/30)/2 = -1/60` per frame,
-//!     lifted 1 wu above ground (native RO `-Y = up`),
-//!     fade-out starting at frame 15 (half-life), texture `ring_blue.tga`,
-//!     flattened onto the XZ plane → our `GroundDisc`.
-//!   * UV advances 0.25/ring and wraps at 1.0 → `uv_repeat = 4`.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -30,18 +15,12 @@ const DISC_RADIUS_ACCEL_PER_FRAME2: f32 =
 const DISC_FADE_OUT_AT_FRAME: f32 = DISC_DURATION_FRAMES / 2.0;
 const DISC_MAX_ALPHA: f32 = 200.0 / 255.0;
 const DISC_UV_REPEAT: f32 = 4.0;
-/// Native-RO `-Y = up`: lift the ring 1 wu above the ground plane to
-/// avoid z-fighting.
+/// Native-RO `-Y = up`: lift the ring 1 wu above the ground plane to avoid z-fighting.
 const GROUND_OFFSET_Y: f32 = -1.0;
 
-/// Wall-clock lifetime: last disc spawns near the end of the parent
-/// window and then lives one full disc-duration on its own.
 pub const TOTAL_DURATION_MS: u32 =
     ((PARENT_DURATION_FRAMES + DISC_DURATION_FRAMES) / FRAMES_PER_SECOND * 1000.0) as u32;
 
-/// One in-flight disc. `age_frames` advances each tick; `outer_radius`
-/// integrates `radius_speed + (n-1)*radius_accel` per the per-frame
-/// update.
 #[derive(Clone, Copy, Debug)]
 struct Disc {
     age_frames: f32,
@@ -53,9 +32,6 @@ impl Disc {
     }
 
     fn outer_radius(&self) -> f32 {
-        // Increment speed-then-radius each tick, so after n ticks
-        // `radius = n*s0 + a*n(n+1)/2` (closed form of the running sum).
-        // Starts at 0 — the ring radius is not seeded.
         let n = self.age_frames.clamp(0.0, DISC_DURATION_FRAMES);
         n * DISC_RADIUS_SPEED_PER_FRAME + DISC_RADIUS_ACCEL_PER_FRAME2 * n * (n + 1.0) / 2.0
     }
@@ -71,9 +47,6 @@ impl Disc {
     }
 }
 
-/// Periodic ring emitter shared by `EF_READYPORTAL` (standalone) and
-/// `EF_PORTAL` (alongside the two cylinder columns). Holds its own
-/// frame-counter so each can drive its own parent lifetime.
 pub struct ReadyPortalDiscEmitter {
     world_pos: [f32; 3],
     discs: Vec<Disc>,
@@ -91,9 +64,6 @@ impl ReadyPortalDiscEmitter {
         }
     }
 
-    /// Advance the emitter by `dt_frames` (60 fps ticks). `spawn_window_frames`
-    /// caps how long new discs keep spawning — pass `f32::INFINITY` for a
-    /// sustained emitter (Portal column persists indefinitely).
     pub fn step(&mut self, dt_frames: f32, spawn_window_frames: f32) {
         self.age_frames += dt_frames;
 
@@ -140,9 +110,6 @@ impl ReadyPortalDiscEmitter {
             if alpha <= 0.0 {
                 continue;
             }
-            // Until the outer radius exceeds the thickness the ring caps
-            // to a filled disc (thickness clamps to the radius while the
-            // radius is still smaller than the configured thickness).
             let thickness = outer.min(DISC_THICKNESS);
             out.push(EffectPrimitiveDraw::GroundDisc {
                 center,
@@ -222,9 +189,6 @@ mod tests {
 
     #[test]
     fn emits_a_ground_disc_with_blue_ring_texture() {
-        // Sociable: a few frames in, the first spawned disc has the
-        // correct texture, uv-tile count, blend, and is lifted 1 wu off
-        // the ground in native-RO -Y coords.
         let mut e = ReadyPortalEffect::new([3.0, -2.0, 5.0]);
         for _ in 0..3 {
             step(&mut e, 1.0 / FRAMES_PER_SECOND);
@@ -253,11 +217,7 @@ mod tests {
 
     #[test]
     fn disc_grows_then_fades_over_its_life() {
-        // Sociable: cross `Disc::outer_radius` + `Disc::alpha` together —
-        // radius is bigger and alpha non-zero at mid-life, alpha drops
-        // toward the end.
         let mut e = ReadyPortalEffect::new([0.0, 0.0, 0.0]);
-        // First few ticks: radius leaves zero and the disc becomes visible.
         for _ in 0..2 {
             step(&mut e, 1.0 / FRAMES_PER_SECOND);
         }
@@ -266,7 +226,6 @@ mod tests {
             _ => unreachable!(),
         };
 
-        // Mid-life: ~frame 12, before fade-out kicks in at 15.
         step(&mut e, 10.0 / FRAMES_PER_SECOND);
         let (r_mid, a_mid) = match &draws(&e)[0] {
             EffectPrimitiveDraw::GroundDisc { radius, color, .. } => (*radius, color[3]),
@@ -275,7 +234,6 @@ mod tests {
         assert!(r_mid > r0, "outer radius grows: {r0} -> {r_mid}");
         assert!((a_mid - DISC_MAX_ALPHA).abs() < 1e-4);
 
-        // Past fade-out point: alpha drops below the cap.
         step(&mut e, 12.0 / FRAMES_PER_SECOND);
         let a_late = match &draws(&e)[0] {
             EffectPrimitiveDraw::GroundDisc { color, .. } => color[3],
@@ -290,9 +248,6 @@ mod tests {
 
     #[test]
     fn discs_respawn_every_fourteen_frames_until_parent_dies() {
-        // Spawns at frames 0, 14, 28, …, 98 inside the 100-frame parent
-        // window. After the parent dies, no new ones are queued even as
-        // old ones fade.
         let mut e = ReadyPortalEffect::new([0.0, 0.0, 0.0]);
         step(&mut e, 0.0);
         assert_eq!(alive_disc_count(&e), 1, "1st disc at frame 0");
@@ -300,10 +255,8 @@ mod tests {
         for _ in 0..(DISC_SPAWN_PERIOD_FRAMES as i32) {
             step(&mut e, 1.0 / FRAMES_PER_SECOND);
         }
-        // Frame 14 landed — 2nd disc spawned, 1st still alive (lives 30 frames).
         assert_eq!(alive_disc_count(&e), 2);
 
-        // Run past parent death (frame 100) — count peaks then drains.
         let mut max_seen = 2;
         for _ in 0..130 {
             step(&mut e, 1.0 / FRAMES_PER_SECOND);

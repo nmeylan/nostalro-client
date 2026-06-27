@@ -1,16 +1,3 @@
-//! `EF_QUAKEBODY` / `2` / `3` / `4` — body-shake effects. Unlike
-//! `ScreenQuake` / `NpcEarthquake` these shake
-//! the **attached actor's sprite**, not the camera, so they emit no primitives
-//! and produce no screen shake — only a per-frame [`Effect::body_shake`]
-//! pixel offset the client's actor pass applies to the entity anchor.
-//!
-//! Per-variant windows (60 fps):
-//! * Quakebody  — shakes for its whole 14-frame life.
-//! * Quakebody2 — whole 35-frame life.
-//! * Quakebody3 — only frames 30..50 of a 60-frame life.
-//! * Quakebody4 — frames 20..60, and also tints the body red/white each
-//!   frame, exposed via [`Effect::body_tint`].
-
 use crate::draw::{EffectDrawList, EffectStatus};
 use crate::effect_trait::{BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -24,7 +11,6 @@ pub struct Params {
     pub shake_end: f32,
     /// Peak jitter in screen pixels.
     pub amplitude: f32,
-    /// Quakebody4 alternates a red body tint each frame while shaking.
     pub red_tint: bool,
 }
 
@@ -61,7 +47,6 @@ pub const fn total_duration_ms(p: &Params) -> u32 {
     (p.total_frames / FPS * 1000.0) as u32
 }
 
-/// Stepped per-frame jitter in `[-1, 1)`, varied by `salt`.
 fn jitter(frame: u32, salt: u32) -> f32 {
     let x = frame
         .wrapping_mul(2_654_435_761)
@@ -99,7 +84,6 @@ impl Effect for QuakeBodyEffect {
         }
     }
 
-    /// Body shake emits no world primitives — it only offsets the actor.
     fn collect_draws(&self, _out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {}
 
     fn body_shake(&self) -> Option<[f32; 2]> {
@@ -115,7 +99,6 @@ impl Effect for QuakeBodyEffect {
 
     fn body_tint(&self) -> Option<BodyTint> {
         if self.params.red_tint && self.shaking() {
-            // Alternate red / white each frame.
             let on = (self.process.floor() as u32) % 2 == 0;
             Some(BodyTint {
                 rgb: if on { [250, 50, 50] } else { [255, 255, 255] },
@@ -141,29 +124,25 @@ mod tests {
     #[test]
     fn quakebody3_shakes_only_in_its_window() {
         let mut e = QuakeBodyEffect::new(QUAKEBODY3);
-        // Before the window: no shake.
         step(&mut e, 10.0);
         assert!(e.body_shake().is_none(), "idle before frame 30");
-        // Inside the window: a non-zero pixel offset.
-        step(&mut e, 25.0); // frame ~35
+        step(&mut e, 25.0);
         let off = e.body_shake().expect("shaking inside window");
         assert!(off[0].abs() <= QUAKEBODY3.amplitude && off != [0.0, 0.0]);
-        // After the window: no shake again.
-        step(&mut e, 15.0); // frame ~50+
+        step(&mut e, 15.0);
         assert!(e.body_shake().is_none(), "idle after frame 50");
     }
 
     #[test]
     fn quakebody4_alternates_red_tint_while_shaking_others_dont() {
         let mut e = QuakeBodyEffect::new(QUAKEBODY4);
-        step(&mut e, 25.0); // inside the 20..60 window
+        step(&mut e, 25.0);
         assert!(e.body_shake().is_some());
         let t0 = e.body_tint().expect("Quakebody4 tints while shaking");
         step(&mut e, 1.0);
         let t1 = e.body_tint().unwrap();
         assert_ne!(t0, t1, "tint alternates frame to frame");
 
-        // Non-tinting variant never returns a body tint.
         let mut plain = QuakeBodyEffect::new(QUAKEBODY);
         step(&mut plain, 5.0);
         assert!(plain.body_tint().is_none());

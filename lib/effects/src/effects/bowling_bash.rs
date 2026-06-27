@@ -1,36 +1,9 @@
-//! EF_BOWLINGBASH — ground impact ring + two swept cylinder slashes.
-//!
-//! Recipe:
-//!
-//! Ground ring:
-//! * texture `effect/ring_yellow.tga`, additive blend
-//! * outer radius starts at 8.0 and grows by 0.7/frame
-//! * deceleration `-(0.7 / 30) / 2 ≈ -0.0117 /frame²`
-//! * peak alpha 45/255, fades after frame 35
-//! * 50-frame visible lifetime
-//!
-//! Two cylinder slashes — one at parent frame 0, one at parent
-//! frame 5, each `20 - count` frames long. The second slash is yawed
-//! 100° relative to the first (yaw = base + count * 20°),
-//! giving the characteristic two-blade sweep. Per-slash parameters:
-//! * texture `effect/ring_blue.tga`
-//! * outer radius `8 + 0.5 t - 0.015 t²` (bottom of the cone)
-//! * inner radius `3 + 0.5 t - 0.015 t²` (top of the cone)
-//! * height 3.5
-//! * start alpha `(240 - count * 7) / 255`
-//! * fade-out begins at duration/2
-//!
-//! `TOTAL_DURATION_MS` is the table's 2500 ms; both sub-primitives are
-//! long-dead by then, so the parent simply caps the effect's lifetime.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const RING_TEXTURE: &str = "ring_yellow.tga";
 pub const SLASH_TEXTURE: &str = "ring_blue.tga";
 pub const TEXTURES: &[&str] = &[RING_TEXTURE, SLASH_TEXTURE];
-// Back-compat with callers (mod.rs, tests) that referenced the original
-// single TEXTURE constant.
 pub const TEXTURE: &str = RING_TEXTURE;
 
 const FRAMES_PER_SECOND: f32 = 60.0;
@@ -55,24 +28,13 @@ const SLASH_RADIUS_SPEED_PER_FRAME: f32 = 0.5;
 const SLASH_RADIUS_ACCEL_PER_FRAME2: f32 = -0.03;
 const SLASH_HEIGHT: f32 = 3.5;
 const SLASH_SIDES: u32 = 24;
-/// Below this caster→target horizontal distance the trail anchor carries
-/// no usable direction; fall back to a default facing.
 const MIN_DIR_DISTANCE: f32 = 0.001;
 
-/// Each slash's parameters fixed at spawn time, integrated forward as the
-/// effect ages. Reproduces the two-launch pattern (frame 0
-/// and frame 5) without an actual scheduler — the values live in the
-/// struct so they can drive both `update`'s lifetime check and
-/// `collect_draws`'s per-frame emission.
 #[derive(Clone, Copy)]
 struct SlashSpawn {
-    /// Parent age at which this slash was launched.
     spawn_frame: f32,
-    /// Per-slash lifetime (`20 - count`).
     life_frames: f32,
-    /// Yaw around Y, radians.
     yaw_rad: f32,
-    /// Peak alpha (`240 - count * 7`, normalised to 0..1).
     peak_alpha: f32,
 }
 
@@ -100,14 +62,6 @@ impl SlashSpawn {
     }
 }
 
-/// Build the two slash spawns aimed along `base_heading_rad`. One slash
-/// launches at frame 0 and a second at frame 5, with the
-/// second yawed 100° further around the swing (yaw = base +
-/// count * 20°).
-///
-/// The renderer's `Cylinder` primitive flips Y rotation versus the source
-/// brand-angle convention (same as `pierce.rs` and
-/// `sonicblowhit.rs`), so we negate the heading to compensate.
 fn make_slashes(base_heading_rad: f32) -> [SlashSpawn; 2] {
     let mk = |state_cnt: f32| SlashSpawn {
         spawn_frame: state_cnt,
@@ -125,10 +79,6 @@ pub struct BowlingBashEffect {
 }
 
 impl BowlingBashEffect {
-    /// Endpoint convention: `from` = source (caster), `to` = target (the
-    /// struck entity). The swing centres on the **target** and faces back
-    /// toward the **source** (`to → from`). `to == from` (single-point anchor)
-    /// keeps the slashes on a default facing (+Z).
     pub fn new_with_direction(from: [f32; 3], to: [f32; 3]) -> Self {
         let dx = from[0] - to[0];
         let dz = from[2] - to[2];
@@ -178,7 +128,6 @@ impl Effect for BowlingBashEffect {
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let frame = self.age * FRAMES_PER_SECOND;
 
-        // Ground impact ring — lives 50 frames from spawn.
         if frame < RING_LIFE_FRAMES {
             let ring_frame = frame.clamp(0.0, RING_LIFE_FRAMES);
             let radius = radius_at(ring_frame).max(0.0);
@@ -198,8 +147,6 @@ impl Effect for BowlingBashEffect {
             }
         }
 
-        // Two swept cylinder slashes — each lives `20 - count` frames
-        // from its own spawn.
         for s in &self.slashes {
             let local = frame - s.spawn_frame;
             if local < 0.0 || local >= s.life_frames {
@@ -211,11 +158,6 @@ impl Effect for BowlingBashEffect {
             }
             let outer = SlashSpawn::outer_at(local).max(0.0);
             let inner = SlashSpawn::inner_at(local).max(0.0);
-            // Project convention (matches `revive.rs`, `teleportation.rs`):
-            // `bottom_size = inner`, `top_size = outer` — the cylinder
-            // flares outward toward the top, concave at the base, so the
-            // shockwave reads as expanding upward instead of forming an
-            // inverted dome.
             out.push(EffectPrimitiveDraw::Cylinder {
                 base: self.world_pos,
                 bottom_size: inner,
@@ -264,9 +206,6 @@ mod tests {
 
     #[test]
     fn emits_ring_and_first_slash_at_spawn_then_expires() {
-        // Sociable test: frame 0 emits both the ground ring and the
-        // first cylinder slash; the second slash hasn't spawned yet.
-        // After 50 frames everything has died and the draw list is empty.
         let mut eff = BowlingBashEffect::new([0.0, 0.0, 0.0]);
         step(&mut eff, 0.0);
         let prims = draws(&eff);
@@ -293,8 +232,6 @@ mod tests {
                     ..
                 } => {
                     assert_eq!(*texture, SLASH_TEXTURE);
-                    // Concave-at-the-base wave: top is wider than bottom
-                    // (renderer convention shared with revive.rs).
                     assert!(
                         top_size > bottom_size,
                         "cylinder flares outward toward the top"
@@ -312,7 +249,6 @@ mod tests {
     #[test]
     fn ring_grows_then_fade_begins_after_frame_35() {
         let mut eff = BowlingBashEffect::new([0.0; 3]);
-        // Frame 10 — well before fade.
         step(&mut eff, 10.0 / FRAMES_PER_SECOND);
         let (r_early, a_early) = match &draws(&eff)[0] {
             EffectPrimitiveDraw::GroundDisc { radius, color, .. } => (*radius, color[3]),
@@ -321,7 +257,6 @@ mod tests {
         assert!(r_early > INITIAL_RADIUS, "ring grows");
         assert!((a_early - PEAK_ALPHA).abs() < 1e-6, "still at peak alpha");
 
-        // Frame 45 — deep into fade.
         step(&mut eff, 35.0 / FRAMES_PER_SECOND);
         let a_late = match &draws(&eff)[0] {
             EffectPrimitiveDraw::GroundDisc { color, .. } => color[3],

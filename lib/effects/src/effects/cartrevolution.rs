@@ -1,23 +1,3 @@
-//! `EF_CARTREVOLUTION` — twin ground ring + spherical burst on the target,
-//! repeated twice, with the `CartRevolution.str` overlay playing alongside.
-//!
-//! Reference: `ro-effects/effects/imgs/150-200/169.gif`.
-//!
-//! Fires two
-//! identical bursts at parent frame 7 and frame 20. Each burst
-//! emits:
-//!   * a flat ring on the ground, 20-frame life,
-//!     radius speed 1.75 decelerating, inner size 5, peak alpha 180,
-//!     fade-in over 15 frames, fade-out from frame 5 to 20. Texture
-//!     `effect/ring_yellow.tga`.
-//!   * an expanding burst sphere centred on the target, 20-frame life,
-//!     radius speed 1.35 decelerating, longitude spin 3°/frame,
-//!     peak alpha 240, fade-in 7 frames, fade-out from frame 5 to 20.
-//!     Texture `effect/bigbang.tga`.
-//! The parent emitter runs for 300 frames (5 s) and drives the
-//! `CartRevolution.str` overlay alongside each frame. The struct is
-//! classified as `Hybrid` so the holder also plays the STR file.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -34,7 +14,6 @@ pub const TOTAL_DURATION_MS: u32 = (PARENT_DURATION_FRAMES / FRAMES_PER_SECOND *
 const BURST_FRAMES: [f32; 2] = [7.0, 20.0];
 const SUB_DURATION_FRAMES: f32 = 20.0;
 
-// Ground ring.
 const RING_INITIAL_RADIUS: f32 = 2.0;
 const RING_RADIUS_SPEED_PER_FRAME: f32 = 1.75;
 const RING_RADIUS_ACCEL_PER_FRAME2: f32 =
@@ -42,7 +21,6 @@ const RING_RADIUS_ACCEL_PER_FRAME2: f32 =
 const RING_INNER_SIZE: f32 = 5.0;
 const RING_PEAK_ALPHA: f32 = 180.0 / 255.0;
 const RING_FADE_IN_FRAMES: f32 = 15.0;
-/// Fade-out begins at `duration - 15 = 5` → linear fade from frame 5 to 20.
 const RING_FADE_OUT_START_FRAME: f32 = 5.0;
 const RING_UV_REPEAT: f32 = 4.0;
 
@@ -94,7 +72,6 @@ impl CartRevolutionEffect {
             return;
         }
 
-        // Ground ring.
         let ring_radius = radius_at(
             RING_INITIAL_RADIUS,
             RING_RADIUS_SPEED_PER_FRAME,
@@ -123,7 +100,6 @@ impl CartRevolutionEffect {
             });
         }
 
-        // Burst sphere.
         let sphere_radius = radius_at(
             SPHERE_INITIAL_RADIUS,
             SPHERE_RADIUS_SPEED_PER_FRAME,
@@ -208,14 +184,9 @@ mod tests {
 
     #[test]
     fn emits_both_bursts_and_carries_str_overlay() {
-        // Sociable: one effect, two scheduled bursts. At frame ~8 only the
-        // first burst is alive (1 ring + 1 sphere); at frame ~21 both
-        // bursts overlap but the first is on its last frame; well past
-        // frame 40 no primitives remain.
         let mut e = CartRevolutionEffect::new([10.0, 0.0, 20.0]);
         assert_eq!(e.str_overlay(), Some(STR_FILE));
 
-        // Step to ~frame 8.
         let dt = 8.0 / FRAMES_PER_SECOND;
         let p8 = step_and_draw(&mut e, dt);
         let ring_count = p8
@@ -229,9 +200,6 @@ mod tests {
         assert_eq!(ring_count, 1, "burst #1 emits one ring");
         assert_eq!(sphere_count, 1, "burst #1 emits one sphere");
 
-        // Step to ~frame 25 → burst #1 has ended (lasted 20 frames from
-        // spawn at frame 7, dies at frame 27), burst #2 (spawn 20) is at
-        // local 5 — both rings still visible.
         let p25 = step_and_draw(&mut e, 17.0 / FRAMES_PER_SECOND);
         let rings = p25
             .iter()
@@ -239,8 +207,6 @@ mod tests {
             .count();
         assert!(rings >= 1, "second burst alive at frame 25");
 
-        // Step well past the last burst's death (~frame 60) — no
-        // primitives, but effect not yet dead (parent runs to 300).
         let p60 = step_and_draw(&mut e, 35.0 / FRAMES_PER_SECOND);
         let prim_count = p60.len();
         assert_eq!(prim_count, 0, "no primitives after both bursts expire");

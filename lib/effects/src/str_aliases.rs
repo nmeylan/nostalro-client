@@ -1,20 +1,3 @@
-//! GRF STR-filename candidates per `EffectId`.
-//!
-//! Every entry returns at least one name; the first is the canonical name used
-//! as the cache key in `EffectSpec::Str { file, .. }`. Subsequent entries are
-//! fallback names the STR loader tries when the primary doesn't resolve.
-//!
-//! Only effects that render via `EffectSpec::Str` (or fall through to
-//! `bucket_default`'s STR path) belong here. Effects with an explicit
-//! `EffectSpec::Custom` arm in `effect_spec()` never reach `bucket_default`,
-//! so a str_alias for them is dead code.
-//!
-//! Exceptions kept despite having a Custom arm:
-//!   - `PotionCon` / `Potion` — `factory.rs` calls `str_aliases()` directly.
-//!   - `Coin` / `Thunderstorm` / `Aspersio` / `Joblvup50` / `Hapgyeok` —
-//!     no specific factory arm; they hit the `is_hybrid` catchall which calls
-//!     `str_aliases()` directly.
-
 use models::enums::effect_id::EffectId;
 
 pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
@@ -122,8 +105,6 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Petrifyattack => &["StoneCurse"],
         EffectId::Sleepattack => &["sleep"],
         EffectId::Pong => &["pong1", "pong2", "pong3"],
-        // Potion STR files in the GRF are named in Korean; the english
-        // names below are documentation only — the loader uses [0].
         EffectId::Potion1 => &["빨간포션", "redpotion"],
         EffectId::Potion2 => &["주홍포션", "scarletpotion"],
         EffectId::Potion3 => &["노란포션", "yellowpotion"],
@@ -161,8 +142,6 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::PharmacyFail => &["p_failed"],
         EffectId::Loud => &["loud"],
         EffectId::Maple => &["maple"],
-        // The classic GRF has no `joblvup50.str`; id 337 reuses `joblvup`
-        // (same file the base Joblvup id plays).
         EffectId::Joblvup50 => &["joblvup"],
         EffectId::Angel => &["angel"],
         EffectId::Devil => &["devil"],

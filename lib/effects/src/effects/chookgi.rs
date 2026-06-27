@@ -1,43 +1,19 @@
-//! `EF_CHOOKGI` (id 228) — a ring of glowing orbs orbiting the caster (the
-//! "celebration" / fireworks sparkle aura).
-//!
-//! Up to five orbs (the count comes from the packet). Each is a **dual
-//! concentric camera-facing quad** on `thunder_center.bmp` — a wide outer
-//! quad (blue, `distance = 2.0`) and a half-size inner quad (yellow) —
-//! orbiting the caster at radius 7, lifted to the caster's shoulder, its
-//! orbit angle `i·72°` advancing 1°/frame. The orbit radius stays smaller
-//! than the billboard depth bias, so the caster occludes the back half of
-//! the ring (orbs pass behind the body and reappear in front). A small
-//! per-unit jitter (`±1·sin`) wanders the orb and a size pulse breathes it.
-//! Alpha ramps in slowly (`+1/frame` to ~200). A palette flag picks the
-//! colours: 0 = blue/yellow,
-//! 1 = brown/white (Chookgi2/3).
-//!
-//! Persistent effect. No reference gif — validated against the original
-//! game's observed behaviour.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// Persistent (parent `SET_DURATION = 999999`); clamps to 5 s in the exporter.
 pub const TOTAL_DURATION_MS: u32 = 99990;
 
 pub const TEXTURES: &[&str] = &["thunder_center.bmp"];
 
-/// Orbit/lift/distance are downscaled uniformly so the orbs ring the
-/// caster (a sprite is ~5–8 world units).
 const WORLD_SCALE: f32 = 0.5;
 const SQRT2: f32 = std::f32::consts::SQRT_2;
 
-/// Orb count from the packet, clamped to 5 (the celebration sphere count).
 pub const MAX_ORBS: usize = 5;
 const ORBIT_DEG_PER_FRAME: f32 = 1.0;
 const ALPHA_RAMP_PER_FRAME: f32 = 1.0 / 255.0;
 const ALPHA_PEAK: f32 = 200.0 / 255.0;
 
-/// The three Chookgi variants differ in palette *and* orbit geometry — they are
-/// not just colour swaps. Values are world units (base × `WORLD_SCALE`).
 #[derive(Clone, Copy)]
 pub struct ChookgiParams {
     pub outer: [f32; 3],
@@ -46,13 +22,10 @@ pub struct ChookgiParams {
     pub lift: f32,
     pub quad_distance: f32,
     pub jitter: f32,
-    /// Chookgi3: orbit angle advances every 2 frames.
     pub half_speed: bool,
-    /// `F1 == 3`: orbs are spread `i·360/count` instead of fixed `i·72°`.
     pub even_distribution: bool,
 }
 
-/// id 228 — blue/yellow, orbit radius 7, distance 2.0.
 pub const CHOOKGI: ChookgiParams = ChookgiParams {
     outer: [0.0, 0.0, 1.0],
     inner: [1.0, 1.0, 0.0],
@@ -64,8 +37,6 @@ pub const CHOOKGI: ChookgiParams = ChookgiParams {
     even_distribution: false,
 };
 
-/// `EF_CHOOKGI2` — same blue/yellow palette but a tighter orbit
-/// (radius 5.5, lift 14, distance 1.3).
 pub const CHOOKGI2: ChookgiParams = ChookgiParams {
     outer: [0.0, 0.0, 1.0],
     inner: [1.0, 1.0, 0.0],
@@ -77,8 +48,6 @@ pub const CHOOKGI2: ChookgiParams = ChookgiParams {
     even_distribution: false,
 };
 
-/// `EF_CHOOKGI3` — brown outer / white inner,
-/// evenly spread, smaller quads (distance 1.0), half-speed orbit.
 pub const CHOOKGI3: ChookgiParams = ChookgiParams {
     outer: [68.0 / 255.0, 42.0 / 255.0, 30.0 / 255.0],
     inner: [1.0, 1.0, 1.0],
@@ -117,9 +86,6 @@ pub struct ChookgiEffect {
 }
 
 impl ChookgiEffect {
-    /// `count` is the celebration-sphere count from the packet,
-    /// clamped to `1..=MAX_ORBS`. For `EF_CHOOKGI` (F1 = 0) the spheres are
-    /// always 72° apart regardless of count.
     pub fn new(world_pos: [f32; 3], params: ChookgiParams, count: usize) -> Self {
         let count = count.clamp(1, MAX_ORBS);
         let seed = (world_pos[0] * 73.0 + world_pos[2] * 131.0) as i64 as u32 ^ 0x9E37_79B9;
@@ -150,7 +116,6 @@ impl Effect for ChookgiEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         let frames = ctx.delta * FRAMES_PER_SECOND;
         self.alpha = (self.alpha + ALPHA_RAMP_PER_FRAME * frames).min(ALPHA_PEAK);
-        // The half-speed variant advances the orbit only every 2 frames.
         let orbit_step = ORBIT_DEG_PER_FRAME * if self.params.half_speed { 0.5 } else { 1.0 };
         for orb in &mut self.orbs {
             orb.orbit_angle = (orb.orbit_angle + orbit_step * frames) % 360.0;
@@ -175,15 +140,10 @@ impl Effect for ChookgiEffect {
                 cy - p.lift + p.jitter * orb.jit_y.to_radians().sin(),
                 cz + p.jitter * orb.jit_z.to_radians().sin() + p.orbit_radius * oa.cos(),
             ];
-            // The size pulse breathes the quad by ±5%.
             let pulse = orb.pulse.to_radians().sin() * p.quad_distance * 0.05;
             let outer = (p.quad_distance + pulse) * SQRT2;
             let inner = (p.quad_distance * 0.5 + pulse) * SQRT2;
             let uv = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
-            // The orb is lifted to shoulder height for its on-screen position,
-            // but its depth is taken from where it stands on the ground (`cy`)
-            // so the caster occludes the orbs orbiting behind the body and the
-            // front ones pass — the spheres ride behind the back and reappear.
             let depth_pos = [pos[0], cy, pos[2]];
             let [or, og, ob] = self.params.outer;
             out.push(EffectPrimitiveDraw::BillboardDepthAnchored {
@@ -244,13 +204,11 @@ mod tests {
     fn emits_dual_billboards_per_orb() {
         let mut e = ChookgiEffect::new([0.0; 3], CHOOKGI, MAX_ORBS);
         tick(&mut e, 5);
-        // Two billboards (outer + inner) per orb.
         assert_eq!(billboards(&e).len(), MAX_ORBS * 2);
     }
 
     #[test]
     fn honours_sphere_count() {
-        // Packet carries 1–5 spheres; out-of-range clamps into 1..=MAX_ORBS.
         let mut three = ChookgiEffect::new([0.0; 3], CHOOKGI, 3);
         tick(&mut three, 5);
         assert_eq!(billboards(&three).len(), 3 * 2);
@@ -302,14 +260,12 @@ mod tests {
 
     #[test]
     fn variants_differ_in_palette_and_orbit() {
-        // Chookgi2 keeps the blue/yellow palette but orbits tighter than Chookgi.
         assert_eq!(CHOOKGI2.outer, CHOOKGI.outer);
         assert!(CHOOKGI2.orbit_radius < CHOOKGI.orbit_radius);
         // Chookgi3 is brown/white, evenly spread, half-speed.
         assert_ne!(CHOOKGI3.outer, CHOOKGI.outer);
         assert!(CHOOKGI3.even_distribution && CHOOKGI3.half_speed);
 
-        // Even distribution spreads 3 orbs at 120° (not 72°).
         let three = ChookgiEffect::new([0.0; 3], CHOOKGI3, 3);
         assert!((three.orbs[1].orbit_angle - 120.0).abs() < 1e-3);
         let three_fixed = ChookgiEffect::new([0.0; 3], CHOOKGI, 3);

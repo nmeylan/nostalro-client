@@ -1,27 +1,10 @@
-//! Single dispatch point from [`EffectId`] to a concrete [`Effect`]
-//! implementation. Real implementations have explicit arms in the match
-//! below; any remaining id whose spec resolves to `EffectSpec::Custom`
-//! falls into the placeholder catchall (pink billboard, plus the original
-//! game's STR overlay for the 12 StrHybrid ids).
-//!
-//! The factory takes an [`EffectAnchor`] rather than a raw `Attach` — the
-//! renderer's spawn pipeline (`EffectHolder::spawn`) resolves
-//! `Attach::Entity` and friends to a single world position before calling
-//! `make_effect`, so individual effects don't have to. Trail-shaped
-//! effects (Frost Diver) unpack `EffectAnchor::Trail`; everything else
-//! collapses to the caster-side anchor via `EffectAnchor::point`.
-
 use super::buckets::is_hybrid;
-use models::enums::effect_id::EffectId;
-// `bash` lives here in alphabetical order; the match arm is below near
-// the other bucket-0-50 ids.
 use super::effect_trait::Effect;
 use super::effects;
 use super::spec::EffectAnchor;
 use super::str_aliases::str_aliases;
+use models::enums::effect_id::EffectId;
 
-/// Build a concrete custom-effect instance. Ids with a real implementation
-/// hit an explicit arm below; anything else lands on the placeholder.
 pub fn make_effect(
     id: EffectId,
     anchor: EffectAnchor,
@@ -74,8 +57,6 @@ pub fn make_effect(
             effects::portal_wind::PORTAL5,
         )),
 
-        // Mgdef1-4: the magic-defense buff wind — four wind cones rising
-        // taller with the buff level, tinted per id.
         EffectId::Mgdef1 | EffectId::Mgdef2 | EffectId::Mgdef3 | EffectId::Mgdef4 => {
             use effects::portal_wind as pw;
             let cfg = match id {
@@ -123,27 +104,18 @@ pub fn make_effect(
             anchor.point(),
             effects::storm_kick::STORMKICK7,
         )),
-        // Stormkick4/5 are the PeongUp fountain (Kaupe / Utsusemi dodge). 5's
-        // forced ninja animation is a separate actor hook — TODO, visuals match.
         EffectId::Stormkick4 | EffectId::Stormkick5 => Box::new(
             effects::peong_up::PeongUpEffect::new(anchor.point(), effects::peong_up::PEONGUP),
         ),
-        // Peong: the flower-pop bloom — `PeongUp(F1=0)` ×30 rising whitelight
-        // motes + `Peong()` ×16 starburst (peong{1,2,3}.tga), both at frame 35.
         EffectId::Peong => Box::new(effects::peong::PeongEffect::new(anchor.point())),
-
-        // Heartcasting: a heart outline of 20 rising pink flame-rings, each a
-        // `heal.rs` Heal ring offset to its heart-outline point.
         EffectId::Heartcasting => Box::new(effects::heartcasting::HeartcastingEffect::new(
             anchor.point(),
         )),
 
-        // Colorpaper: 200 tumbling confetti chips falling from overhead.
         EffectId::Colorpaper => {
             Box::new(effects::colorpaper::ColorpaperEffect::new(anchor.point()))
         }
 
-        // Gravitation: a trembling field of stone/ice QuadHorn shards.
         EffectId::Gravitation => {
             Box::new(effects::gravitation::GravitationEffect::new(anchor.point()))
         }
@@ -154,11 +126,6 @@ pub fn make_effect(
             anchor.point(),
         )),
         EffectId::Spraypond => Box::new(effects::spraypond::SpraypondEffect::new(anchor.point())),
-        // Only the four ids without an STR file in the classic GRF
-        // (firearrow, fireball, napalmbeat, sandwind) need a Custom
-        // impl — everything else falls back to the canonical STR.
-        // Firearrow (31, Fire Bolt) — same falling-bolt rain as Cold Bolt with an
-        // animated flame texture and spark spray; count = hit_count.
         EffectId::Firearrow => Box::new(effects::magic_bolt::MagicBoltEffect::new(
             anchor.point(),
             hit_count.unwrap_or(1),
@@ -219,8 +186,6 @@ pub fn make_effect(
             effects::waterfall::WATERFALL_SMALL_T2_90,
         )),
 
-        // BlueFall (`BlueFall(F1, F2, 0)`): the WaterFall sheet in additive blue
-        // with reversed scroll and no mist; F1 rotates 90°, F2 = fast scroll.
         EffectId::Bluefall
         | EffectId::Bluefall90
         | EffectId::Fastbluefall
@@ -291,9 +256,6 @@ pub fn make_effect(
         }
         EffectId::Sandwind => Box::new(effects::sandwind::SandwindEffect::new(anchor.point())),
 
-        // Batch FR — see `table.rs`. Flowercast2/3 have no factory arm; the
-        // original game's procedural dispatch for them is an empty break, so
-        // they fall through to their STR alias (or render nothing).
         EffectId::Heavensdrive => Box::new(effects::heavensdrive::HeavensDriveEffect::new(
             anchor.point(),
         )),
@@ -306,8 +268,6 @@ pub fn make_effect(
             Box::new(effects::flowercast::FlowerCastEffect::new(anchor.point()))
         }
 
-        // Caster body-tint buffs (recolour + STR overlay): tint the actor +
-        // play twohand.str. One struct, per-buff colour/sound param set.
         EffectId::Twohandquicken => Box::new(
             effects::body_buff::BodyBuffEffect::new(effects::body_buff::TWOHAND_QUICKEN)
                 .with_life_ms(duration_ms),
@@ -320,14 +280,11 @@ pub fn make_effect(
             effects::body_buff::BodyBuffEffect::new(effects::body_buff::LK_CONCENTRATION)
                 .with_life_ms(duration_ms),
         ),
-        // Bunsinjyutsu — light-blue body tint + afterimage trail, no STR/sound.
         EffectId::Bunsinjyutsu => Box::new(
             effects::body_buff::BodyBuffEffect::new(effects::body_buff::BUNSINJYUTSU)
                 .with_life_ms(duration_ms),
         ),
 
-        // Body-shake effects — shake the attached actor's sprite, emit no
-        // primitives. One struct, four timing/amplitude param sets.
         EffectId::Quakebody => Box::new(effects::quakebody::QuakeBodyEffect::new(
             effects::quakebody::QUAKEBODY,
         )),
@@ -341,33 +298,18 @@ pub fn make_effect(
             effects::quakebody::QUAKEBODY4,
         )),
 
-        // Body scale (giant grow / baby shrink) — scales the attached
-        // actor's sprite, emits no primitives. *body ramps in; *body2
-        // is instant; BabybodyBack reverses the shrink.
         EffectId::Giantbody => Box::new(effects::body_scale::BodyScaleEffect::giant_ramped()),
         EffectId::Giantbody2 => Box::new(effects::body_scale::BodyScaleEffect::giant_instant()),
         EffectId::Babybody => Box::new(effects::body_scale::BodyScaleEffect::baby_ramped()),
         EffectId::Babybody2 => Box::new(effects::body_scale::BodyScaleEffect::baby_instant()),
         EffectId::BabybodyBack => Box::new(effects::body_scale::BodyScaleEffect::baby_back()),
 
-        // Forced jump-kick pose — changes the actor's animation, emits no
-        // primitives.
         EffectId::Jumpkick => Box::new(effects::jumpkick::JumpkickEffect::new()),
-
-        // Vertical jump body lights (high jump / land) — translate & fade
-        // the actor sprite, no primitives. Land also spins upright.
         EffectId::Jumpbody => Box::new(effects::jumpbody::JumpBodyEffect::high()),
         EffectId::Landbody => Box::new(effects::jumpbody::JumpBodyEffect::land()),
-
-        // Full barrel-roll of the target — rotates the actor sprite, no
-        // primitives. 414 is the immediate 2× roll; 466 the delayed
-        // 1× twin.
         EffectId::Spinedbody => Box::new(effects::spinedbody::SpinedBodyEffect::spinedbody()),
         EffectId::Spinedbody2 => Box::new(effects::spinedbody::SpinedBodyEffect::spinedbody2()),
 
-        // Body tints (recolour + light-body / double-body / hit flash) —
-        // tint/flicker/flash the actor sprite, no primitives. Falconassault is a
-        // light-body + facing spin (no tint).
         EffectId::Redbody => Box::new(
             effects::body_tint::BodyTintEffect::new(effects::body_tint::REDBODY)
                 .with_life_ms(duration_ms),
@@ -395,8 +337,6 @@ pub fn make_effect(
             effects::body_tint::FALCONASSAULT,
         )),
 
-        // Tint-flicker family — colour ↔ white every other frame + a light-body
-        // glow, most with a double-body halo. Shrink is a tint, not a resize.
         EffectId::Chemicalbody => Box::new(effects::body_tint::BodyTintEffect::new(
             effects::body_tint::CHEMICALBODY,
         )),
@@ -415,14 +355,11 @@ pub fn make_effect(
         EffectId::Shrink => Box::new(effects::body_tint::BodyTintEffect::new(
             effects::body_tint::SHRINK,
         )),
-        // Reject Sword — gray body flicker + the `sword.str` world overlay.
         EffectId::Rejectsword => Box::new(
             effects::body_tint::BodyTintEffect::new(effects::body_tint::REJECTSWORD)
                 .with_str_overlay("sword"),
         ),
 
-        // Body-flash family — one fixed colour (blue/red) glowing over the body
-        // with an alpha ramp (up → hold → down), drawn 2x additive.
         EffectId::Bluebody => Box::new(effects::body_tint::BodyTintEffect::new(
             effects::body_tint::BLUEBODY,
         )),
@@ -436,7 +373,6 @@ pub fn make_effect(
             effects::body_tint::BLUEHIT,
         )),
 
-        // Madness — a solid blue/red colour strobed over the body (flash every 4 frames).
         EffectId::MadnessBlue => Box::new(effects::body_tint::BodyTintEffect::new(
             effects::body_tint::MADNESSBLUE,
         )),
@@ -444,14 +380,9 @@ pub fn make_effect(
             effects::body_tint::MADNESSRED,
         )),
 
-        // Vertical body squares (pressed squash / kicked lift) — deform the
-        // actor sprite, no primitives.
         EffectId::Pressedbody => Box::new(effects::squarebody::SquareBodyEffect::pressed()),
         EffectId::Kickedbody => Box::new(effects::squarebody::SquareBodyEffect::kicked()),
 
-        // Multi-render body lights (reflect russian-doll / double-body halo
-        // / spark-sword glow) — concentric sprite copies behind the actor,
-        // no primitives.
         EffectId::Reflectbody => Box::new(effects::multibody::MultiBodyEffect::new(
             effects::multibody::REFLECTBODY,
         )),
@@ -462,19 +393,15 @@ pub fn make_effect(
         EffectId::Lightblade => Box::new(effects::multibody::MultiBodyEffect::new(
             effects::multibody::LIGHTBLADE,
         )),
-        // Undeadbody — rising green additive aura (2 concentric copies).
         EffectId::Undeadbody => Box::new(
             effects::multibody::MultiBodyEffect::new(effects::multibody::UNDEADBODY)
                 .with_life_ms(duration_ms),
         ),
 
-        // Body-copy lights (asura halo / blue-hit flash / 4-way ghosts) —
-        // draw extra sprite copies behind the actor, no primitives.
         EffectId::Asurabody => Box::new(effects::asurabody::AsuraBodyEffect::new()),
         EffectId::TaeReady => Box::new(effects::taeready::TaeReadyEffect::new()),
         EffectId::Ef4waybody => Box::new(effects::ef4waybody::Ef4wayBodyEffect::new()),
 
-        // Batch STR-B10 — Aciddemon swirling cone funnel; Rainbow arch.
         EffectId::Aciddemon => Box::new(effects::aciddemon::AcidDemonEffect::new(anchor.point())),
         EffectId::Rainbow => Box::new(effects::rainbow::RainbowEffect::new(anchor.point())),
         EffectId::Agiup => Box::new(effects::agiup::AgiUpEffect::new(anchor.point())),
@@ -485,9 +412,6 @@ pub fn make_effect(
             effects::light_sphere::LightSphereEffect::new_persistent(anchor.point()),
         ),
 
-        // Linelink 1-3 — Soul Linker tether ribbon. `anchor` carries the
-        // initial caster→partner endpoints; the holder feeds live positions each
-        // frame via `set_link_endpoints` (in-game) or leaves them static (viewer).
         EffectId::Linelink => Box::new(effects::linelink::LinelinkEffect::new(
             anchor,
             &effects::linelink::LINELINK,
@@ -501,8 +425,6 @@ pub fn make_effect(
             &effects::linelink::LINELINK3,
         )),
 
-        // Batch MAPZONE — `Map_MagicZone` spinning ground rings + sparkle motes
-        // / pika floor + flared aura. Persistent map-scale zones.
         EffectId::MapMagiczone => Box::new(effects::mapzone::MapZoneEffect::new(
             anchor.point(),
             effects::mapzone::MAP_MAGICZONE,
@@ -516,17 +438,12 @@ pub fn make_effect(
             effects::mapzone::GLOW4,
         )),
 
-        // Batch STR-B9 — Texture3DQuad. Both anchor at a hit point.
         EffectId::Yufitel2 => Box::new(effects::yufitel2::Yufitel2Effect::new(anchor.point())),
         EffectId::TextureFalling => Box::new(effects::texture_falling::FallingTrailEffect::new(
             anchor.point(),
             effects::texture_falling::TEXTURE_FALLING,
         )),
 
-        // Footprint family — flat ground decals oriented along the
-        // caster→target direction, one struct parameterised by texture + size
-        // matching the original game's footprint decals. The trail's `from`
-        // is the footprint anchor, `to` gives the facing direction.
         EffectId::Foot
         | EffectId::Foot2
         | EffectId::Foot3
@@ -548,8 +465,6 @@ pub fn make_effect(
             Box::new(effects::foot::FootEffect::new(from, to, params))
         }
 
-        // Teihit streak-burst family — radial streaks (1/1x/3) and the
-        // directional spray (Teihit2/Backstap).
         EffectId::Teihit1 => Box::new(effects::teihit::TeihitEffect::new(
             anchor.point(),
             effects::teihit::TEIHIT1,
@@ -585,8 +500,6 @@ pub fn make_effect(
             ))
         }
 
-        // ParticleUp family — rising sparkle bursts. (Firstaid uses a
-        // different recipe and is not yet done.)
         EffectId::Hptime => Box::new(effects::particle_up::ParticleUpEffect::new(
             anchor.point(),
             effects::particle_up::HPTIME,
@@ -612,14 +525,11 @@ pub fn make_effect(
             effects::particle_up::SPRINKLESAND,
         )),
 
-        // EffectTextureSet flat ground-texture effects.
         EffectId::Hittexture => Box::new(effects::effect_texture::EffectTextureEffect::new(
             anchor.point(),
             effects::effect_texture::HITTEXTURE,
         )),
 
-        // Camera-facing tarot cards + the slow-cast clock — same alpha
-        // curve, one texture each.
         EffectId::Tarotcard1 => Box::new(effects::tarot_card::TarotCardEffect::new(
             anchor.point(),
             effects::tarot_card::tarot_params(0),
@@ -681,9 +591,6 @@ pub fn make_effect(
             effects::tarot_card::NPC_SLOWCAST,
         )),
 
-        // Status-overlay family (BLIND / POISON): camera-locked full-viewport
-        // tint via one FullscreenOverlay quad. Devil1-10 share the BLIND-level
-        // params (the original game only varies the vignette zoom across them).
         EffectId::Blind => Box::new(effects::fullscreen_overlay::FullscreenOverlayEffect::new(
             anchor.point(),
             effects::fullscreen_overlay::BLIND,
@@ -720,7 +627,6 @@ pub fn make_effect(
             ))
         }
 
-        // Camera-facing result banners above the caster.
         EffectId::TempOk => Box::new(effects::temp_result::TempResultEffect::new(
             anchor.point(),
             effects::temp_result::TEMP_OK,
@@ -730,10 +636,6 @@ pub fn make_effect(
             effects::temp_result::TEMP_FAIL,
         )),
 
-        // ForestLight family: faint green pentagonal light-beam columns
-        // rising above the caster. One struct, per-variant params. ItemLight
-        // fades and self-terminates; the four Forestlight ids are
-        // persistent ambient beams.
         EffectId::ItemLight => Box::new(effects::forest_light::ForestLightEffect::new(
             anchor.point(),
             effects::forest_light::ITEM_LIGHT,
@@ -755,11 +657,6 @@ pub fn make_effect(
             effects::forest_light::FORESTLIGHT4,
         )),
 
-        // Wink / Fvoice: directional emotes that
-        // pick their fly-off action from the caster→target angle plus the camera
-        // angle, so they're Custom effects, not `spr_def`. Same handler,
-        // different sprite. Cast on self the trail collapses to a point and the
-        // direction reduces to the camera longitude.
         EffectId::Wink => {
             let (from, to) = anchor.trail();
             Box::new(effects::wink::WinkEffect::new(
@@ -777,9 +674,6 @@ pub fn make_effect(
             ))
         }
 
-        // Ghost/Bat/Bat2 (`Ghost(0/1/2)`): a swarm of animated SPR sprites
-        // orbiting the caster while bobbing. Ghost faces the camera (8-dir
-        // sprite); the bats flap (2-action sprite); Bat2 orbits a figure-eight.
         EffectId::Ghost => Box::new(effects::ghost::GhostEffect::new(
             anchor.point(),
             effects::ghost::GHOST,
@@ -793,9 +687,6 @@ pub fn make_effect(
             effects::ghost::BAT2,
         )),
 
-        // Twilight1/2/3 (`Twilight(0/1/2)`): a swarm of floating item-icon
-        // billboards that hover, drift, and fade in/out around the caster. The
-        // variants differ only by the item icon(s) they pull from.
         EffectId::Twilight1 | EffectId::Twilight2 | EffectId::Twilight3 => {
             use effects::twilight as tw;
             let params = match id {
@@ -806,10 +697,6 @@ pub fn make_effect(
             Box::new(tw::TwilightEffect::new(anchor.point(), params))
         }
 
-        // Tripleattack/2/3 (`TRIPLEATTACK*()`): a staggered volley of thin
-        // streaks fired from the caster toward the target. 329 is the melee
-        // triple slash (yellow), 388 sharpshooting (white), 393 arrow vulcan
-        // (magenta, densest). Same struct, different param sets.
         EffectId::Tripleattack | EffectId::Tripleattack2 | EffectId::Tripleattack3 => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
@@ -825,9 +712,6 @@ pub fn make_effect(
             ))
         }
 
-        // Spherewind/Spherewind2/Baby (`SphereWind*()` ×5): a globe of orbiting
-        // ribbon-arcs around the caster. 346 blue persistent aura, 394 fire
-        // persistent, 408 a transient fire sphere that grows and fades.
         EffectId::Spherewind | EffectId::Spherewind2 | EffectId::Spherewind3 | EffectId::Baby => {
             let params = match id {
                 EffectId::Spherewind => effects::spherewind::SPHEREWIND,
@@ -841,25 +725,15 @@ pub fn make_effect(
             ))
         }
 
-        // M02: directional emote, same camera-angle action
-        // selection as Wink but a distinct quadrant map.
         EffectId::M02 => Box::new(effects::m_ef02::MEf02Effect::new(anchor.point())),
-
-        // Kaizel: a cross-slash (two blades, one rotated 45°).
         EffectId::Kaizel => Box::new(effects::slash::SlashEffect::new(
             anchor.point(),
             effects::slash::KAIZEL,
         )),
-
-        // Stopeffect: a cross-slash with flat-start blades and a shorter
-        // lift than Kaizel.
         EffectId::Stopeffect => Box::new(effects::slash::SlashEffect::new(
             anchor.point(),
             effects::slash::STOPEFFECT,
         )),
-
-        // SuperAngel (Angel2/Angel3): the Super Novice/Taekwon level-up angel —
-        // layered SPR body/wings/feathers + a blue ring flash at frame 65.
         EffectId::Angel2 | EffectId::Angel3 => {
             use effects::super_angel as sa;
             let params = if id == EffectId::Angel2 {
@@ -870,10 +744,6 @@ pub fn make_effect(
             Box::new(sa::SuperAngelEffect::new(anchor.point(), params))
         }
 
-        // Frost Diver — trail-shaped, unpacks both endpoints. Single-point
-        // anchors (effect-viewer demo, any caller that doesn't know about
-        // the trail) collapse to `from == to`, which the effect detects
-        // and falls back to cluster mode for.
         EffectId::Frostdiver => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
@@ -886,7 +756,6 @@ pub fn make_effect(
             ))
         }
         EffectId::Frostdiver2 => {
-            // FrostDiver2 is a single-point burst — no trail behaviour.
             let p = anchor.point();
             Box::new(effects::frost_diver::FrostDiverEffect::new(
                 p,
@@ -895,8 +764,6 @@ pub fn make_effect(
             ))
         }
         EffectId::Grimtooth => {
-            // The travelling small-spike trail — reuses FrostDiver's
-            // projectile with stone.bmp.
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
@@ -939,8 +806,6 @@ pub fn make_effect(
         | EffectId::Hitline5
         | EffectId::Hitline6
         | EffectId::Hitline7 => {
-            // `to` (when present) is the attacker side — `Hitline5` aims its
-            // streaks away from it; the others ignore it.
             let (anchor_pos, aim) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
@@ -960,11 +825,7 @@ pub fn make_effect(
             anchor.point(),
             effects::earthspike::HYOUSENSOU,
         )),
-        EffectId::Icewall => {
-            // One independent cluster per ground cell — the wall's line shape
-            // comes from the server's per-cell unit packets, not from here.
-            Box::new(effects::icewall::IceWallEffect::new(anchor.point()))
-        }
+        EffectId::Icewall => Box::new(effects::icewall::IceWallEffect::new(anchor.point())),
         EffectId::Soulstrike => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
@@ -976,8 +837,6 @@ pub fn make_effect(
                 hit_count.unwrap_or(1),
             ))
         }
-        // Soulstrike2 = `SoulStrike(1)`: identical to Soulstrike (same
-        // packet-driven hit count) but with the red `particle5` sprite.
         EffectId::Soulstrike2 => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
@@ -990,8 +849,6 @@ pub fn make_effect(
                 effects::soul_strike::SOUL_STRIKE2_SPRITE,
             ))
         }
-        // SoulBreaker (361, caster→target crescent) / SoulBreaker2 (409, Meteor
-        // Assault 8-way radial burst): purple-slash billboards flying outward.
         EffectId::Soulbreaker => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
@@ -1051,8 +908,6 @@ pub fn make_effect(
         EffectId::Magnumbreak => Box::new(effects::magnum_break::MagnumBreakEffect::new(
             anchor.point(),
         )),
-        // Magnum2 (Spiral Pierce) / GiExplosion — cone-band ring strips, both
-        // `Frustum`-based (see effects/dome_ring.rs).
         EffectId::Magnum2 => Box::new(effects::dome_ring::MagnumSpiralEffect::new(anchor.point())),
         EffectId::GiExplosion => {
             Box::new(effects::dome_ring::GiExplosionEffect::new(anchor.point()))
@@ -1062,9 +917,6 @@ pub fn make_effect(
             anchor.point(),
         )),
 
-        // Throw Item family — ballistic-arc item projectiles. `from`/`to`
-        // give the caster→target heading; one struct, per-variant params.
-        // Throwitem4 is a composite (two staggered projectiles).
         EffectId::Throwitem
         | EffectId::Throwitem2
         | EffectId::Throwitem3
@@ -1095,13 +947,6 @@ pub fn make_effect(
             Box::new(ti::ThrowItemEffect::new(from, to, variants))
         }
 
-        // RgCoin / RgCoin2: a swarm of tumbling item billboards bursting
-        // outward on an expanding sphere above the caster. Steal Coin (274),
-        // Full Strip (495), Disarm (627) differ only by icon set, size,
-        // tint and spin rate.
-        // Intimidate (227) reuses the same swarm (its diamonds are
-        // geometrically identical to the coins), so it's a parameter set,
-        // not a new effect.
         EffectId::RgCoin | EffectId::RgCoin2 | EffectId::RgCoin3 | EffectId::Intimidate => {
             use effects::rg_coin as rc;
             let params = match id {
@@ -1113,8 +958,6 @@ pub fn make_effect(
             Box::new(rc::RgCoinEffect::new(anchor.point(), params))
         }
 
-        // Cloud-projectile family — spinning quads that fly with a ghost
-        // trail. Tanji spirit spheres (caster→target) and shield boomerangs.
         EffectId::Tanji
         | EffectId::Tanji2
         | EffectId::Alattack1
@@ -1129,8 +972,6 @@ pub fn make_effect(
                 EffectAnchor::Point(p) => (p, p),
             };
             use effects::cloud_projectile as cp;
-            // Shieldboomerang3 is a ranged attack: the 5-shield fan bursts at
-            // the impact point (the anchor's target), not the caster.
             if id == EffectId::Shieldboomerang3 {
                 return Some(Box::new(cp::CloudProjectileEffect::new_spray(
                     to,
@@ -1155,9 +996,6 @@ pub fn make_effect(
             ))
         }
 
-        // Slim potion throws + Pressure — a falling icon + an expanding ground
-        // shockwave ring (PRESSURE + GroundShake). A ranged attack: the icon
-        // lands on the impact point (the anchor's target), not the caster.
         EffectId::Slim | EffectId::Slim2 | EffectId::Slim3 | EffectId::Pressure => {
             let impact = match anchor {
                 EffectAnchor::Trail { to, .. } => to,
@@ -1173,8 +1011,6 @@ pub fn make_effect(
             Box::new(pr::PressureEffect::new(impact, params))
         }
 
-        // Chemical streak family — radial wedges (Protection, point-anchored)
-        // and caster→target streak lines (Chemical2/3/4, dash, Smatk).
         EffectId::Chemicalprotection => Box::new(effects::chemical::ChemicalEffect::new(
             anchor.point(),
             effects::chemical::CHEMICALPROTECTION,
@@ -1209,9 +1045,6 @@ pub fn make_effect(
             Box::new(ch::ChemicalEffect::new_dir(from, to, params))
         }
 
-        // STIN wind-card family — flying spinning cards with a motion trail.
-        // Stin2/Stin4 home, Stin5 flies straight; all aim along the
-        // caster→target heading (trail anchor).
         EffectId::Stin | EffectId::Stin2 | EffectId::Stin4 | EffectId::Stin5 => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
@@ -1227,8 +1060,6 @@ pub fn make_effect(
             Box::new(st::StinEffect::new(from, to, params))
         }
 
-        // SMA wind-spiral family — travelling emitter (Sma/Stin3) + the
-        // standalone rising spiral ribbon (Sma2) + particle path (Sma3).
         EffectId::Sma | EffectId::Stin3 => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
@@ -1247,8 +1078,6 @@ pub fn make_effect(
             effects::particle_up::SMA3,
         )),
 
-        // Sight + Ruwach — orbit-spawn SpriteParticle pairs around the
-        // entity. Same struct, different per-skill `Params`.
         EffectId::Sight => Box::new(effects::sight::OrbitEffect::new(
             anchor.point(),
             effects::sight::SIGHT,
@@ -1257,15 +1086,11 @@ pub fn make_effect(
             anchor.point(),
             effects::sight::RUWACH,
         )),
-        // Sight2 = the persistent "Sight Blaster" single-particle orbit.
         EffectId::Sight2 => Box::new(effects::sight::OrbitEffect::new(
             anchor.point(),
             effects::sight::SIGHT2,
         )),
 
-        // StatusUp family — crossed-texture streak particles around
-        // the entity. Incagility/Incagidex rise; Decagility falls. Tints
-        // differ per id.
         EffectId::Incagility => Box::new(effects::status_up::StatusUpEffect::new(
             anchor.point(),
             effects::status_up::INCAGILITY,
@@ -1279,11 +1104,6 @@ pub fn make_effect(
             effects::status_up::INCAGIDEX,
         )),
 
-        // Hit family — weapon-swing impact shockwave + debris. The cylinder
-        // ring + per-segment particle trails match the original game's look;
-        // the flared cone aims along the caster→target heading (same trail
-        // convention as Pierce / SonicBlowHit). A point anchor collapses the
-        // heading to 0.
         EffectId::Hit1 => {
             let (from, to) = anchor.trail();
             Box::new(effects::hit::HitEffect::new_with_endpoints(
@@ -1317,9 +1137,6 @@ pub fn make_effect(
             anchor.point(),
             effects::hit5_6::HIT6,
         )),
-        // EF_SONICBLOWHIT — single horizontal cone yawed along the strike
-        // heading. Trail anchor carries caster→target so
-        // the cone aims correctly; single-point anchor falls back to 0°.
         EffectId::Sonicblowhit => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
@@ -1329,8 +1146,6 @@ pub fn make_effect(
                 from, to,
             ))
         }
-        // EF_CARTREVOLUTION — twin ground ring + sphere burst, with the
-        // `CartRevolution.str` overlay playing alongside (Hybrid).
         EffectId::Cartrevolution => Box::new(effects::cartrevolution::CartRevolutionEffect::new(
             anchor.point(),
         )),
@@ -1346,7 +1161,6 @@ pub fn make_effect(
         EffectId::Firepillaron => Box::new(effects::firepillaron::FirePillarOnEffect::new(
             anchor.point(),
         )),
-        // EF_DARKATTACK looks identical to Hitdark, so it shares the effect.
         EffectId::Hitdark | EffectId::Darkattack => {
             Box::new(effects::hitdark::HitDarkEffect::new(anchor.point()))
         }
@@ -1365,17 +1179,12 @@ pub fn make_effect(
             Box::new(effects::waterball2::WaterBall2Effect::new(from, to))
         }
 
-        // STR-C hybrids — each builds the primitive layer the STR file
-        // alone is missing, and re-declares its STR via `str_overlay()`.
-        // EF_GLASSWALL2 — pink rising column + SafetyWall.str.
         EffectId::Glasswall2 => {
             Box::new(effects::glasswall2::Glasswall2Effect::new(anchor.point()))
         }
-        // EF_PROVIDENCE — light funnel column + providence.str angel.
         EffectId::Providence => {
             Box::new(effects::providence::ProvidenceEffect::new(anchor.point()))
         }
-        // MAPPILLAR family — rotating ring columns (batch 8).
         EffectId::Mappillar => Box::new(effects::mappillar::MappillarEffect::new(
             anchor.point(),
             effects::mappillar::MAPPILLAR,
@@ -1392,9 +1201,7 @@ pub fn make_effect(
             anchor.point(),
             effects::mappillar::MAPPILLAR4,
         )),
-        // EF_KOUENKA — sakura sprite scatter + firehit.str.
         EffectId::Kouenka => Box::new(effects::kouenka::KouenkaEffect::new(anchor.point())),
-        // EF_NAPALMVALCAN — five timed Hit2 bursts.
         EffectId::Napalmvalcan => Box::new(effects::napalmvalcan::NapalmValcanEffect::new(
             anchor.point(),
         )),
@@ -1434,17 +1241,7 @@ pub fn make_effect(
             anchor.point(),
             effects::volcano::GUMGANG3,
         )),
-        // EF_GUMGANG2 — vertical pillar of light. Reusing the volcano
-        // effect produces the wrong silhouette here: its per-frame
-        // flame-blade sine envelope makes it look like Gumgang3 with the
-        // flame wreath rather than a clean column. A dedicated
-        // cylinder-stack impl matches the reference gif's clean vertical
-        // column instead, so we don't share the volcano code for this
-        // id.
         EffectId::Gumgang2 => Box::new(effects::gumgang2::Gumgang2Effect::new(anchor.point())),
-
-        // GUMGANG family — orbiting electric-arc wreaths (single and double
-        // rings). Unrelated to Gumgang2/Gumgang3 above.
         EffectId::Gumgang => Box::new(effects::gumgang::GumGangEffect::new(
             anchor.point(),
             effects::gumgang::GUMGANG,
@@ -1479,8 +1276,6 @@ pub fn make_effect(
             effects::defender::REFLECTSHIELD,
         )),
 
-        // §9b floating recoloured "1" numbers.
-        // No primitive — they emit a one-shot number request drained by the holder.
         EffectId::Damage1 | EffectId::Damage12 => {
             Box::new(effects::damage_number_effect::DamageNumberEffect::new(
                 effects::damage_number_effect::DAMAGE1,
@@ -1490,7 +1285,6 @@ pub fn make_effect(
             effects::damage_number_effect::DAMAGE1_3,
         )),
 
-        // EF_*_NUMBER (657-664): same recoloured-number channel, one colour each.
         EffectId::GreenNumber => Box::new(effects::damage_number_effect::DamageNumberEffect::new(
             effects::damage_number_effect::GREEN_NUMBER,
         )),
@@ -1516,7 +1310,6 @@ pub fn make_effect(
             effects::damage_number_effect::PINK_NUMBER,
         )),
 
-        // Canonical heal-skill effects (green rising rings + green sparkles).
         EffectId::Heal => Box::new(effects::heal::HealEffect::new(
             anchor.point(),
             &effects::heal::HEAL,
@@ -1534,7 +1327,6 @@ pub fn make_effect(
             &effects::heal::HEAL4,
         )),
 
-        // Rising-ring family, heal/teleport variants (Batch 29 RADIAL_MISC).
         EffectId::Absorbspirits => Box::new(effects::heal::HealEffect::new(
             anchor.point(),
             &effects::heal::ABSORBSPIRITS,
@@ -1555,7 +1347,6 @@ pub fn make_effect(
             anchor.point(),
             &effects::heal::TELEPORTATION2,
         )),
-        // EF_WIND_BUFF — Map_Aura("ring_blue.tga"): a persistent ground aura ring.
         EffectId::WindBuff => Box::new(effects::casting_ring::CastingRingEffect::new(
             anchor.point(),
             effects::casting_ring::MAP_AURA,
@@ -1583,15 +1374,11 @@ pub fn make_effect(
             anchor.point(),
             effects::bash3d::BASH3D5,
         )),
-        // Truesight = `BASH3D(alpha_center, i, 3)` — the F2=3 detection burst.
         EffectId::Truesight => Box::new(effects::bash3d::Bash3dEffect::new(
             anchor.point(),
             effects::bash3d::TRUESIGHT,
         )),
 
-        // LEVEL99 aura family — each EF_LEVEL99* is a distinct primitive layer
-        // the server composes together (ring + halo + sparkles), not a size
-        // variant of one billboard.
         EffectId::Level99 => Box::new(effects::casting_ring::CastingRingEffect::new(
             anchor.point(),
             effects::casting_ring::LV99,
@@ -1616,9 +1403,6 @@ pub fn make_effect(
             anchor.point(),
             effects::sparkle_column::WHITELIGHT,
         )),
-        // Green level-99 variants. 679 = `Level99(ring_white,1)` green ring
-        // (same cone as Level995); 680 = `Level99_2(pikapika2,1)` green floor
-        // aura (same launch as Level996, reuses LV99_GREEN verbatim).
         EffectId::Green995 => Box::new(effects::casting_ring::CastingRingEffect::new(
             anchor.point(),
             effects::casting_ring::GREEN995,
@@ -1689,9 +1473,6 @@ pub fn make_effect(
             )
             .with_life_ms(duration_ms),
         ),
-        // Beginspell8: green casting cylinder (no `ring_green.tga` in the
-        // classic GRF → `ring_white` tinted green). Three flared casting
-        // rings (reused) + a tall central light shaft.
         EffectId::Beginspell8 => Box::new(effects::begin_spell_8::BeginSpell8Effect::new(
             anchor.point(),
         )),
@@ -1714,8 +1495,6 @@ pub fn make_effect(
             .with_life_ms(duration_ms),
         ),
 
-        // Change-element casting rings (`EF_CHANGE*`) — `BeginCasting("ring_X.tga",
-        // 3)` in the original game: the cast circle differing only by ring texture.
         EffectId::Changefire => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
             effects::cast_circle::FIRE,
@@ -1749,7 +1528,6 @@ pub fn make_effect(
             effects::cast_circle::POISON,
         )),
 
-        // §5c procedural property-hit / reveal visuals.
         EffectId::Sightrasher => {
             Box::new(effects::sightrasher::SightrasherEffect::new(anchor.point()))
         }
@@ -1796,11 +1574,7 @@ pub fn make_effect(
             anchor.point(),
         )),
 
-        // Soullink: "SOUL LINK" glyph cascade + swooping soul-light billboard.
         EffectId::Soullink => Box::new(effects::soullink::SoullinkEffect::new(anchor.point())),
-
-        // Grandcross: four corner light-walls + two perpendicular beam slabs.
-        // 226 = white/yellow, 450 = all-black shadow variant.
         EffectId::Grandcross => Box::new(effects::grandcross::GrandcrossEffect::new(
             anchor.point(),
             effects::grandcross::GRANDCROSS,
@@ -1810,11 +1584,7 @@ pub fn make_effect(
             effects::grandcross::GRANDCROSS2,
         )),
 
-        // Saintwing: angel-wing feather fans behind the caster.
         EffectId::Saintwing => Box::new(effects::saintwing::SaintwingEffect::new(anchor.point())),
-
-        // Chookgi family: 1–5 orbiting dual-quad orbs (count from the packet,
-        // carried by `hit_count`). Each variant differs in palette AND orbit.
         EffectId::Chookgi => Box::new(effects::chookgi::ChookgiEffect::new(
             anchor.point(),
             effects::chookgi::CHOOKGI,
@@ -1831,18 +1601,9 @@ pub fn make_effect(
             hit_count.map_or(effects::chookgi::MAX_ORBS, |c| c as usize),
         )),
 
-        // Sakura: drifting cherry-blossom petal rain.
         EffectId::Sakura => Box::new(effects::sakura::SakuraEffect::new(anchor.point())),
-
-        // Pokjuk: firecracker — staggered colored sparks burst overhead.
         EffectId::Pokjuk => Box::new(effects::pokjuk::PokjukEffect::new(anchor.point())),
-
-        // Firstaid: single pulsing pikapika2 heal sparkle above the caster.
         EffectId::Firstaid => Box::new(effects::firstaid::FirstaidEffect::new(anchor.point())),
-
-        // Animated texture billboard — 13-frame .bmp texture cycle on a
-        // camera-facing billboard. Three colour variants share the
-        // effect with different texture lists.
         EffectId::TorchRed => Box::new(
             effects::animated_texture_billboard::AnimatedTextureBillboardEffect::new(
                 anchor.point(),
@@ -1868,9 +1629,6 @@ pub fn make_effect(
             ),
         ),
 
-        // EffectTextureSet(F1=14) — single static .bmp on the same quad as
-        // the animated torch family. distance=30, alpha=50/255, no Y
-        // offset; flag1[2]=4 → standard alpha quad.
         EffectId::Glow1 => Box::new(
             effects::animated_texture_billboard::AnimatedTextureBillboardEffect::new(
                 anchor.point(),
@@ -1896,10 +1654,6 @@ pub fn make_effect(
             ),
         ),
 
-        // BottomSong — 12 Bard/Dancer ground songs that share one
-        // ground-disc primitive with per-id texture and radius. The
-        // Magnus/Vertical/Light/LandProtector/Hermode songs look different
-        // and are deferred.
         EffectId::BottomGospel => Box::new(effects::bottom_song::BottomSongEffect::new(
             anchor.point(),
             effects::bottom_song::GOSPEL,
@@ -1949,11 +1703,6 @@ pub fn make_effect(
             effects::bottom_song::HUMMING,
         )),
 
-        // Bottom volcano — single-slot radial particle column rising at
-        // 80°. NOT a BottomSong variant despite the BottomVo/De/Vi/Suiton
-        // naming: in the original game these ids render as the rising
-        // volcano column, not a ground-song disc, so they get their own
-        // effect here.
         EffectId::BottomVo => Box::new(effects::bottom_volcano::BottomVolcanoEffect::new(
             anchor.point(),
             effects::bottom_volcano::VOLCANO_RED,
@@ -1971,18 +1720,10 @@ pub fn make_effect(
             effects::bottom_volcano::SUITON,
         )),
 
-        // Basilica — two stacked layers producing 8 cells of layered
-        // square pillars. Distinct from the BottomMagnus square pillar,
-        // which is a single 4-sided pillar.
         EffectId::BottomBasilica => {
             Box::new(effects::basilica::BasilicaEffect::new(anchor.point()))
         }
 
-        // BottomMagnus — 4-sided square pillar via
-        // `EffectPrimitiveDraw::Frustum`. BottomSanc already has its own
-        // dedicated impl (`bottom_sanctuary_pillar.rs`) that renders a
-        // 24-sided cylinder; only Magnus and Fogwall land here.
-        // Both share the same pillar geometry, differing by tint.
         EffectId::BottomMag => Box::new(effects::bottom_magnus::BottomMagnusEffect::new(
             anchor.point(),
             effects::bottom_magnus::MAGNUS,
@@ -1992,21 +1733,15 @@ pub fn make_effect(
             effects::bottom_magnus::FOGWALL,
         )),
 
-        // BottomHermode — small rotating cube emitted as 6 WorldQuad
-        // faces with per-face shading.
         EffectId::BottomHermode => Box::new(effects::bottom_hermode::BottomHermodeEffect::new(
             anchor.point(),
             effects::bottom_hermode::HERMODE,
         )),
-        // BottomRokisweil — pulsing camera-facing billboards. Uses the
-        // existing Billboard primitive.
         EffectId::BottomRokisweil => Box::new(effects::bottom_out::BottomOutEffect::new(
             anchor.point(),
             effects::bottom_out::ROKISWEIL,
         )),
 
-        // BottomLandProtector — single horizontal square ward with
-        // radially-breathing corners. 4 ids.
         EffectId::BottomLa => Box::new(
             effects::bottom_landprotector::BottomLandProtectorEffect::new(
                 anchor.point(),
@@ -2032,9 +1767,6 @@ pub fn make_effect(
             ),
         ),
 
-        // BottomLight — 315° curtain-cone wall built from ~20 WorldQuad
-        // ribbon segments per frame. Same geometry for both ids; a flag
-        // picks the tint/blend.
         EffectId::BottomEternalchaos => Box::new(effects::bottom_light::BottomLightEffect::new(
             anchor.point(),
             effects::bottom_light::ETERNALCHAOS,
@@ -2044,8 +1776,6 @@ pub fn make_effect(
             effects::bottom_light::SIEGFRIED,
         )),
 
-        // BottomVertical — vertical "curtain" strips via the
-        // `EffectPrimitiveDraw::WorldQuad` primitive. 5 ids.
         EffectId::BottomDissonance => {
             Box::new(effects::bottom_vertical::BottomVerticalEffect::new(
                 anchor.point(),
@@ -2075,18 +1805,11 @@ pub fn make_effect(
             ))
         }
 
-        // Batch CYL — cylinder effects.
         EffectId::Potionpillar => Box::new(effects::potion_pillar::PotionPillarEffect::new(
             anchor.point(),
             effects::potion_pillar::DEFAULT,
         )),
         EffectId::Revive => Box::new(effects::revive::ReviveEffect::new(anchor.point())),
-        // Pierce reads caster→target direction to aim the horizontal cone.
-        // Trail anchor carries both endpoints; a Point anchor collapses
-        // to from == to and the effect falls back to a fixed compass.
-        // `hit_count` carries the skill level (1..=10): N bursts spaced
-        // 20 frames apart, each with its own particle storm after the
-        // first.
         EffectId::Pierce => {
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
@@ -2101,8 +1824,6 @@ pub fn make_effect(
         EffectId::PotionBerserk => Box::new(effects::potion_berserk::PotionBerserkEffect::new(
             anchor.point(),
         )),
-        // Concentration / Awakening potions: white pillar + STR overlay; the
-        // STR (alias[0]) carries the yellow star-burst / green ground ring.
         EffectId::PotionCon => Box::new(effects::potion_con::PotionConEffect::new(
             anchor.point(),
             str_aliases(EffectId::PotionCon)[0],
@@ -2114,12 +1835,7 @@ pub fn make_effect(
             effects::potion_con::AWAKENING,
         )),
 
-        // Batch GD — GroundDisc decals.
         EffectId::Bowlingbash => {
-            // Trail anchor's `to` aims the two swept cylinder slashes
-            // along the caster→target direction. Single-point anchors
-            // collapse to `from == to` and the slashes fall back to a
-            // default facing.
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
@@ -2127,9 +1843,6 @@ pub fn make_effect(
             Box::new(effects::bowling_bash::BowlingBashEffect::new_with_direction(from, to))
         }
         EffectId::Dragonsmoke => {
-            // Trail anchor: `from` is the chimney source, `to - from`
-            // sets the wind direction so the smoke column curves.
-            // Single-point anchors collapse to a vertical rise.
             let (from, to) = match anchor {
                 EffectAnchor::Trail { from, to } => (from, to),
                 EffectAnchor::Point(p) => (p, p),
@@ -2137,18 +1850,13 @@ pub fn make_effect(
             Box::new(effects::dragonsmoke::DragonsmokeEffect::new(from, to))
         }
 
-        // Summonslave (215) — radial 2DFlash burst + a frame-35 smoke puff.
         EffectId::Summonslave => Box::new(effects::summon_slave::SummonSlaveEffect::new(
             anchor.point(),
         )),
-        // BubbleDrop (665) — a single falling bubble with a 3-deep echo tail.
         EffectId::BubbleDrop => {
             Box::new(effects::bubble_drop::BubbleDropEffect::new(anchor.point()))
         }
-        // Cartter (518) — a white-sparkle burst that erupts at frame 30.
         EffectId::Cartter => Box::new(effects::cartter::CartterEffect::new(anchor.point())),
-        // Icearrow (26, Cold Bolt) — a rain of falling cross-texture bolts on the
-        // target; bolt count = hit_count (spell level).
         EffectId::Icearrow => Box::new(effects::magic_bolt::MagicBoltEffect::new(
             anchor.point(),
             hit_count.unwrap_or(1),
@@ -2163,10 +1871,6 @@ pub fn make_effect(
             anchor.point(),
         )),
 
-        // Placeholder catchall. Hybrid ids (12 effects, e.g. Stormgust,
-        // Coin, Glasswall) declare an STR overlay so the original game's
-        // STR animation plays alongside the pink marker. Pure-custom ids
-        // (407 minus those with real impls above) get the marker only.
         other if is_hybrid(other) => Box::new(effects::placeholder::HybridPlaceholderEffect::new(
             anchor.point(),
             str_aliases(other)[0],
@@ -2175,9 +1879,6 @@ pub fn make_effect(
     })
 }
 
-/// `true` when [`make_effect`] returns a concrete (non-placeholder)
-/// implementation for `id`. Keep arms in sync with the explicit branches in
-/// `make_effect`.
 pub fn is_real_impl(id: EffectId) -> bool {
     matches!(
         id,
@@ -2439,10 +2140,6 @@ mod tests {
 
     #[test]
     fn damage_numbers_dispatch_as_custom_and_emit_request() {
-        // Sociable §9b test crossing spec resolution + factory + the number
-        // channel: the three ids must resolve to Custom (their str_aliases were
-        // deleted so the handler isn't shadowed), dispatch to a real effect, and
-        // emit one recoloured number request. 654 is purple, 652/653 red.
         use crate::effect_trait::EffectUpdateCtx;
         use crate::table::effect_spec;
 
@@ -2450,7 +2147,6 @@ mod tests {
             (EffectId::Damage1, [1.0, 0.0, 0.0]),
             (EffectId::Damage12, [1.0, 0.0, 0.0]),
             (EffectId::Damage13, [1.0, 100.0 / 255.0, 1.0]),
-            // EF_*_NUMBER family — same channel, original ARGB colours.
             (EffectId::GreenNumber, [0.0, 1.0, 0.0]),
             (EffectId::BlueNumber, [64.0 / 255.0, 124.0 / 255.0, 1.0]),
             (EffectId::RedNumber, [1.0, 0.0, 0.0]),
@@ -2482,15 +2178,6 @@ mod tests {
 
     #[test]
     fn effect_anchor_propagates_to_first_draw_call() {
-        // Sociable test: the whole point of the EffectAnchor refactor —
-        // an effect's primitives render at the anchor position, not at
-        // the world origin. Magnum Break's parent ring emits a
-        // `GroundDisc` centred on the spawn point, so spawning at a
-        // non-origin anchor must produce a non-origin centre. Before
-        // the refactor every effect's `new(attach)` fell back to
-        // `[0.0; 3]` for anything other than `Attach::WorldPos`, which
-        // silently broke entity-attached and trail-attached spawns;
-        // locking this assertion stops that regression.
         use crate::draw::{EffectDrawList, EffectPrimitiveDraw};
         use crate::effect_trait::{EffectRenderCtx, EffectUpdateCtx};
 
@@ -2503,9 +2190,6 @@ mod tests {
             None,
         )
         .expect("magnum break must dispatch");
-        // Step one tick so the effect has age > 0 (some effects skip
-        // emission at exactly age 0 — magnum_break doesn't but the
-        // pattern matters for future effects).
         effect.update(&EffectUpdateCtx {
             delta: 1.0 / 60.0,
             camera_target: None,
@@ -2521,7 +2205,6 @@ mod tests {
                 elapsed: 0.0,
             },
         );
-        // Find the first GroundDisc — should be centred on anchor_pos.
         let center = draws
             .primitives
             .iter()
@@ -2538,9 +2221,6 @@ mod tests {
 
     #[test]
     fn effect_anchor_point_helper_collapses_both_variants() {
-        // The Trail variant's `from` becomes the single-point anchor
-        // for non-trail effects; Point is its own value. Locks the
-        // helper since factory arms rely on `anchor.point()`.
         assert_eq!(
             EffectAnchor::Point([1.0, 2.0, 3.0]).point(),
             [1.0, 2.0, 3.0]
@@ -2557,9 +2237,6 @@ mod tests {
 
     #[test]
     fn unimplemented_custom_falls_back_to_placeholder() {
-        // Pick an EffectId in the Custom bucket that doesn't yet have a
-        // real Rust impl — factory returns the pink placeholder and
-        // `is_real_impl` reports false.
         assert!(
             make_effect(
                 EffectId::Spherewind,
@@ -2575,10 +2252,6 @@ mod tests {
 
     #[test]
     fn torch_recolours_dispatch_to_animated_texture_billboard() {
-        // All recolour variants and the Glow family resolve to a real
-        // impl. They must NOT fall through to the placeholder, otherwise
-        // the viewer would show the pink marker instead of the cycled
-        // bmp frames.
         for id in [
             EffectId::TorchRed,
             EffectId::TorchGreen,
@@ -2602,8 +2275,6 @@ mod tests {
 
     #[test]
     fn bottom_vertical_variants_dispatch_to_world_quad_strips() {
-        // 5 BottomVertical ids must land on the BottomVertical custom
-        // effect (WorldQuad primitives), not the placeholder.
         for id in [
             EffectId::BottomDissonance,
             EffectId::BottomUglydance,
@@ -2647,9 +2318,6 @@ mod tests {
 
     #[test]
     fn bottom_landprotector_variants_dispatch_to_world_quad_square() {
-        // 4 BottomLandProtector ids must land on the BottomLandProtector
-        // custom effect (single WorldQuad horizontal square), not the
-        // placeholder.
         for id in [
             EffectId::BottomLa,
             EffectId::BottomRunner,
@@ -2664,8 +2332,6 @@ mod tests {
 
     #[test]
     fn bottom_light_variants_dispatch_to_world_quad_curtain() {
-        // 2 BottomLight ids must land on the BottomLight custom effect
-        // (WorldQuad ribbon segments), not the placeholder.
         for id in [EffectId::BottomEternalchaos, EffectId::BottomSiegfried] {
             assert!(is_real_impl(id), "{:?} must have a real impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
@@ -2675,8 +2341,6 @@ mod tests {
 
     #[test]
     fn bottom_magnus_variants_dispatch_to_frustum_pillar() {
-        // BottomMag + BottomFogwall must land on the BottomMagnus
-        // custom effect (Frustum sides=4), not the placeholder.
         for id in [EffectId::BottomMag, EffectId::BottomFogwall] {
             assert!(is_real_impl(id), "{:?} must have a real impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
@@ -2686,10 +2350,6 @@ mod tests {
 
     #[test]
     fn bottom_songs_dispatch_to_real_impl() {
-        // Sociable test: 12 BottomSong ids must route to the
-        // BottomSong custom effect rather than the pink placeholder.
-        // No STR overlay (Bard/Dancer songs aren't classified as
-        // StrHybrid in our table).
         for id in [
             EffectId::BottomGospel,
             EffectId::BottomEvilland,
@@ -2717,13 +2377,6 @@ mod tests {
 
     #[test]
     fn bottom_volcano_and_basilica_dispatch_to_real_impl() {
-        // Sociable: the 5 ids historically misclassified as BottomSong
-        // (their on-screen look is the rising volcano / basilica pillars)
-        // must route to BottomVolcano / Basilica, not the pink placeholder, with no
-        // STR overlay attached. The spec must also resolve to Custom —
-        // a stray `str_aliases` entry would shadow the factory dispatch
-        // and the holder would try to load a non-existent .str file
-        // instead of running our effect.
         use super::super::spec::{EffectAnchor, EffectSpec};
         use super::super::table::effect_spec;
         for id in [
@@ -2752,10 +2405,6 @@ mod tests {
 
     #[test]
     fn tarot_and_slowcast_dispatch_to_custom_billboards() {
-        // EffectTextureSet billboards: each must route to a real impl with no
-        // STR overlay, and the spec must resolve to Custom. A leftover
-        // `str_aliases` guess (`"tarotcard1"`, `"npc_slowcast"`) would shadow
-        // the factory dispatch and the holder would chase a missing .str.
         use super::super::spec::{EffectAnchor, EffectSpec};
         use super::super::table::effect_spec;
         for id in [
@@ -2777,10 +2426,6 @@ mod tests {
 
     #[test]
     fn mappillar_family_dispatches_to_custom_without_str() {
-        // MAPPILLAR rotating ring columns: pure procedural, no STR file in
-        // the classic GRF. Their `mappillar*` str_alias entries would shadow
-        // the factory dispatch and the holder would chase a missing
-        // `mappillar.str`, so the spec must resolve to Custom.
         use super::super::spec::{EffectAnchor, EffectSpec};
         use super::super::table::effect_spec;
         for id in [
@@ -2803,11 +2448,6 @@ mod tests {
 
     #[test]
     fn batch_fh_dispatches_to_real_impls() {
-        // Sociable: the 5 effects landed in Batch FH must each route to
-        // a non-placeholder and report is_real_impl. Hamicastle's spec
-        // is SPR (resolved via spr_def in table.rs); the other 4 are
-        // Custom-dispatched. Cartrevolution is in is_hybrid() so its
-        // str_overlay must be present.
         use super::super::spec::EffectAnchor;
         for id in [
             EffectId::Sonicblowhit,
@@ -2818,8 +2458,6 @@ mod tests {
             assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
             let _ = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
         }
-        // Cartrevolution still emits its STR overlay so the holder plays
-        // CartRevolution.str alongside the primitive bursts.
         let cart = make_effect(
             EffectId::Cartrevolution,
             EffectAnchor::Point([0.0; 3]),
@@ -2829,8 +2467,6 @@ mod tests {
         )
         .unwrap();
         assert_eq!(cart.str_overlay(), Some("CartRevolution"));
-        // Hamicastle is SPR-driven; spec must resolve via the bucket
-        // default, not the Custom factory path.
         use super::super::spec::EffectSpec;
         use super::super::table::effect_spec;
         assert!(matches!(
@@ -2841,8 +2477,6 @@ mod tests {
 
     #[test]
     fn hybrid_placeholder_carries_str_overlay() {
-        // Coin is a StrHybrid id with no real impl — factory routes it
-        // through `HybridPlaceholderEffect` so its STR file still plays.
         let e = make_effect(
             EffectId::Coin,
             EffectAnchor::Point([0.0; 3]),
@@ -2890,7 +2524,6 @@ mod tests {
             EffectId::Slim3,
         ] {
             assert!(is_real_impl(id), "{id:?} must have a real impl");
-            // Must route through the procedural factory, not its STR alias.
             assert!(
                 matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
                 "{id:?} spec"

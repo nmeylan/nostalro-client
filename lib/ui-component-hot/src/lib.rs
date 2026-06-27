@@ -7,6 +7,13 @@ use models::enums::EnumWithNumberValue;
 use models::enums::item::ItemType;
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
+use ragnarok_game::data_table::card_illustration_table::CardIllustrationTable;
+use ragnarok_game::data_table::item_description_table::ItemDescriptionTable;
+use ragnarok_game::data_table::item_name_table::ItemNameTable;
+use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
+use ragnarok_game::data_table::item_slot_count_table::ItemSlotCountTable;
+use ragnarok_game::data_table::skill_name_table::SkillNameTable;
+use ragnarok_game::data_table::skill_tree_table::{SkillTreeEntry, SkillTreeTable};
 use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo};
 use ragnarok_game::item::Item;
 use ragnarok_game::npc_shop::{NpcShopMode, ShopBuyItem, ShopSellItem};
@@ -17,8 +24,8 @@ use ragnarok_ui_component::account::login_window::LoginWindow;
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
 use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
 use ragnarok_ui_component::game::card_insert_dialog::{CardInsertDialog, EligibleItem};
-use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
 use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
+use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
 use ragnarok_ui_component::game::chat_room_window::{ChatRoomPlacement, ChatRoomWindow};
 use ragnarok_ui_component::game::chat_window::ChatWindow;
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
@@ -31,17 +38,10 @@ use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::number_input::{NumberInputConfig, NumberInputDialog};
 use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
-use ragnarok_ui_component::game::status_window::{StatusWindow, STATUS_WINDOW_ID};
+use ragnarok_ui_component::game::status_window::{STATUS_WINDOW_ID, StatusWindow};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::{InGameWindow, Window};
 use std::collections::HashMap;
-use ragnarok_game::data_table::card_illustration_table::CardIllustrationTable;
-use ragnarok_game::data_table::item_description_table::ItemDescriptionTable;
-use ragnarok_game::data_table::item_name_table::ItemNameTable;
-use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
-use ragnarok_game::data_table::item_slot_count_table::ItemSlotCountTable;
-use ragnarok_game::data_table::skill_name_table::SkillNameTable;
-use ragnarok_game::data_table::skill_tree_table::{SkillTreeEntry, SkillTreeTable};
 
 const GAME_COMPONENTS: &[&str] = &[
     "inventory",
@@ -998,18 +998,35 @@ fn create_single(name: &str) -> State {
             character.job_level = 30;
             character.status_point = 12;
             character.skill_point = 3;
-            character.str = 35; character.str_bonus = 5; character.str_cost = 6;
-            character.agi = 22; character.agi_bonus = 0; character.agi_cost = 4;
-            character.vit = 28; character.vit_bonus = 2; character.vit_cost = 5;
-            character.int = 10; character.int_bonus = 0; character.int_cost = 3;
-            character.dex = 18; character.dex_bonus = -1; character.dex_cost = 4;
-            character.luk = 5;  character.luk_bonus = 0; character.luk_cost = 2;
-            character.atk1 = 250; character.atk2 = 30;
-            character.matk1 = 35; character.matk2 = 40;
-            character.def1 = 18; character.def2 = 5;
-            character.mdef1 = 4; character.mdef2 = 2;
+            character.str = 35;
+            character.str_bonus = 5;
+            character.str_cost = 6;
+            character.agi = 22;
+            character.agi_bonus = 0;
+            character.agi_cost = 4;
+            character.vit = 28;
+            character.vit_bonus = 2;
+            character.vit_cost = 5;
+            character.int = 10;
+            character.int_bonus = 0;
+            character.int_cost = 3;
+            character.dex = 18;
+            character.dex_bonus = -1;
+            character.dex_cost = 4;
+            character.luk = 5;
+            character.luk_bonus = 0;
+            character.luk_cost = 2;
+            character.atk1 = 250;
+            character.atk2 = 30;
+            character.matk1 = 35;
+            character.matk2 = 40;
+            character.def1 = 18;
+            character.def2 = 5;
+            character.mdef1 = 4;
+            character.mdef2 = 2;
             character.hit = 122;
-            character.flee1 = 95; character.flee2 = 10;
+            character.flee1 = 95;
+            character.flee2 = 10;
             character.critical = 8;
             character.aspd = 1500;
             let mut win = StatusWindow::new();
@@ -1402,7 +1419,11 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
         } => {
             win.build(ui, character, data);
         }
-        State::StatusDemo { win, character, data } => {
+        State::StatusDemo {
+            win,
+            character,
+            data,
+        } => {
             win.build(ui, character, data);
         }
         State::Category { components } => {

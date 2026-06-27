@@ -1,67 +1,27 @@
-//! ForestLight family — light-beam tubes.
-//!
-//! Each emitter column is a thin pentagonal tube of additive
-//! greenish light. Each column has two horizontal pentagon rings of equal radius
-//! — a top ring centred on the caster and a bottom ring centred far
-//! below-and-aside (caster + offset) — joined by five quads.
-//! Because both rings stay horizontal while their centres are offset on all
-//! three axes, the tube is *sheared*, not tilted, so it's built from raw
-//! `WorldQuad` corners (same approach as the bottom-light ribbon).
-//!
-//! Five variants share the geometry and the `(230, 255, 230)` additive
-//! colour; they differ only in per-column radius, base alpha, the
-//! bottom-ring offset, and whether the alpha breathes:
-//!   * Forestlight                              — radii `2,3,4,2`
-//!   * Forestlight2                             — radii `4,6,8,4`
-//!   * Forestlight3                             — radii `1,1.5,2,1`
-//!   * Forestlight4                             — short offset `(-15,-60,-15)`
-//!   * ItemLight                                — radii `4,6,8,4`, **fades**
-//!
-//! Only the ItemLight variant animates alpha: it ramps `0 → 40` over the
-//! first 40 frames, holds, then ramps back to 0 over the last 40 (out of 255 —
-//! a faint glow), and because column 3 starts its counter at 180 (= duration)
-//! its alpha never leaves 0 so only columns 0..2 show. Every other variant has
-//! a constant alpha, so all four columns render for the whole (persistent)
-//! lifetime. Columns 1 and 3 always breathe their radius by `±0.5` on a slow
-//! sine.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// ItemLight's 180-frame duration — the fade ramp keys off this exact frame
-/// count and the effect self-terminates at it. The persistent forest variants
-/// run until the holder kills them at their (much longer) table duration.
 const FADE_DURATION_FRAMES: u32 = 180;
 const ALPHA_RAMP_FRAMES: u32 = 40;
 const ALPHA_FADE_START: u32 = 140;
-/// Peak alpha reached at the end of the fade-in (out of 255).
 const PEAK_ALPHA: f32 = ALPHA_RAMP_FRAMES as f32;
-/// Pentagon: angle samples every 72°, six points closing the loop → five quads.
 const SEGMENTS: usize = 5;
-
-/// Shared colour `(230, 255, 230)` (0..1).
 const FOREST_RGB: [f32; 3] = [230.0 / 255.0, 1.0, 230.0 / 255.0];
 
 #[derive(Clone, Copy, Debug)]
 pub struct ForestLightParams {
     pub texture: &'static str,
     pub color_rgb: [f32; 3],
-    /// Per-column base radius.
     pub radii: [f32; 4],
-    /// Constant alpha out of 255 (the fade variant ramps up to this).
     pub alpha_base: f32,
-    /// ItemLight only: ramp the alpha `0 → alpha_base → 0` over the duration,
-    /// suppress column 3, and self-terminate at [`FADE_DURATION_FRAMES`].
+    /// When `true`: ramp alpha `0 → alpha_base → 0` and self-terminate at `FADE_DURATION_FRAMES`; column 3 is suppressed.
     pub fade: bool,
-    /// Bottom-ring offset from the top ring. Native RO coords (-Y up), so a
-    /// negative Y lifts the far ring above the caster.
     pub bottom_offset: [f32; 3],
 }
 
 const LONG_OFFSET: [f32; 3] = [-70.0, -300.0, -70.0];
 
-/// `EF_FORESTLIGHT` (`cloud11.tga`).
 pub const FORESTLIGHT: ForestLightParams = ForestLightParams {
     texture: "cloud11.tga",
     color_rgb: FOREST_RGB,
@@ -71,27 +31,23 @@ pub const FORESTLIGHT: ForestLightParams = ForestLightParams {
     bottom_offset: LONG_OFFSET,
 };
 
-/// `EF_FORESTLIGHT2` (`cloud11.tga`).
 pub const FORESTLIGHT2: ForestLightParams = ForestLightParams {
     radii: [4.0, 6.0, 8.0, 4.0],
     ..FORESTLIGHT
 };
 
-/// `EF_FORESTLIGHT3` (`cloud11.tga`).
 pub const FORESTLIGHT3: ForestLightParams = ForestLightParams {
     radii: [1.0, 1.5, 2.0, 1.0],
     alpha_base: 30.0,
     ..FORESTLIGHT
 };
 
-/// `EF_FORESTLIGHT4` (`cloud11.tga`): short close beams.
 pub const FORESTLIGHT4: ForestLightParams = ForestLightParams {
     alpha_base: 25.0,
     bottom_offset: [-15.0, -60.0, -15.0],
     ..FORESTLIGHT
 };
 
-/// `EF_ITEM_LIGHT` (`cloud11.tga`): fades in/out, one-shot.
 pub const ITEM_LIGHT: ForestLightParams = ForestLightParams {
     radii: [4.0, 6.0, 8.0, 4.0],
     fade: true,
@@ -100,13 +56,10 @@ pub const ITEM_LIGHT: ForestLightParams = ForestLightParams {
 
 pub const TEXTURES: &[&str] = &["cloud11.tga"];
 
-/// Per-column constants shared by every variant.
 struct Column {
     rot_start_deg: f32,
-    /// Frame the column's counter starts at — column 3 starts at the
-    /// fade duration so the fade variant suppresses it.
+    /// Column 3 starts at `FADE_DURATION_FRAMES` so the fade variant suppresses it.
     process_start: u32,
-    /// Columns 1 and 3 breathe their radius on a slow sine.
     breathes: bool,
 }
 
@@ -150,9 +103,6 @@ impl ForestLightEffect {
         }
     }
 
-    /// Alpha (out of 255) for a column whose counter is at `process`. Fade
-    /// variants ramp up over the first 40 frames, hold, then ramp back down over
-    /// the last 40; persistent variants are flat at `alpha_base`.
     fn column_alpha(&self, process: u32) -> f32 {
         if !self.params.fade {
             return self.params.alpha_base;
@@ -167,8 +117,6 @@ impl ForestLightEffect {
     }
 }
 
-/// Radius for column `ec` at `process`, with the `±0.5` sine breathing applied
-/// to the breathing columns. Sine phase is `(process % 720) / 2`.
 fn column_radius(params: &ForestLightParams, ec: usize, process: u32) -> f32 {
     let base = params.radii[ec];
     if COLUMNS[ec].breathes {
@@ -183,8 +131,6 @@ impl Effect for ForestLightEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.age += ctx.delta;
         self.frames = (self.age * FRAMES_PER_SECOND) as u32;
-        // Only the fade (ItemLight) variant self-terminates; the ambient forest
-        // beams persist until the holder removes them at their table duration.
         if self.params.fade && self.frames >= FADE_DURATION_FRAMES {
             EffectStatus::Dead
         } else {
@@ -209,7 +155,6 @@ impl Effect for ForestLightEffect {
             }
             let radius = column_radius(&self.params, ec, process);
 
-            // Six angle samples (0,72,..,360) → the last closes the pentagon.
             let ring_point = |center: [f32; 3], i: usize| {
                 let angle_deg = (i as f32 * 72.0 + col.rot_start_deg) % 360.0;
                 let (s, c) = angle_deg.to_radians().sin_cos();
@@ -261,10 +206,7 @@ mod tests {
 
     #[test]
     fn item_light_fades_suppresses_one_column_and_dies() {
-        // Fade variant mid-life: three visible pentagon tubes (column 3 is
-        // suppressed by its process_start), five-quad additive greenish ribbons
-        // leaning up above the caster, at the 40/255 hold alpha.
-        let prims = draws_after(ITEM_LIGHT, 1.0); // frame 60 — full hold alpha.
+        let prims = draws_after(ITEM_LIGHT, 1.0);
         assert_eq!(prims.len(), 3 * SEGMENTS, "3 visible columns × 5 quads");
         for p in &prims {
             let EffectPrimitiveDraw::WorldQuad {
@@ -286,13 +228,11 @@ mod tests {
                 "tube spans the offset"
             );
         }
-        // Fade-in: at frame 10 the alpha is a tenth of the hold value.
         let early = draws_after(ITEM_LIGHT, 10.0 / 60.0);
         let EffectPrimitiveDraw::WorldQuad { color, .. } = &early[0] else {
             panic!()
         };
         assert!(color[3] < PEAK_ALPHA / 255.0, "still fading in");
-        // Self-terminates once the 180-frame duration elapses.
         let mut e = ForestLightEffect::new([0.0; 3], ITEM_LIGHT);
         let mut status = EffectStatus::Running;
         for _ in 0..FADE_DURATION_FRAMES + 5 {
@@ -307,9 +247,6 @@ mod tests {
 
     #[test]
     fn persistent_forest_shows_all_four_columns_at_constant_alpha() {
-        // The ambient variants never fade or self-terminate: all four columns
-        // render every frame at their flat alpha_base, and the effect stays
-        // Running well past ItemLight's 180-frame fade duration.
         let mut e = ForestLightEffect::new([0.0, 0.0, 0.0], FORESTLIGHT3);
         let mut status = EffectStatus::Running;
         for _ in 0..FADE_DURATION_FRAMES + 60 {

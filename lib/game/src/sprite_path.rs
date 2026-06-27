@@ -1,12 +1,10 @@
 pub use models::enums::weapon::WeaponType;
 
-use crate::entity::EntityType;
-use models::enums::class::JobName;
-use models::enums::EnumWithNumberValue;
 use crate::data_table::name_table::NameTable;
+use crate::entity::EntityType;
+use models::enums::EnumWithNumberValue;
+use models::enums::class::JobName;
 
-/// View class of the visible warp portal NPC. The original game renders it with
-/// no body — its whole visual is the launched warp-zone effect.
 pub const JT_WARPNPC: u16 = 45;
 
 pub fn entity_type_from_job(job: u16) -> EntityType {
@@ -42,20 +40,12 @@ pub fn entity_sprite_base_path(name_table: &NameTable, job: u16) -> Option<Strin
 pub const OPTION_FALCON: i32 = 0x10;
 pub const OPTION_RIDING: i32 = 0x20;
 
-/// `true` while `effect_state` carries the falcon OPTION bit — the hunter/sniper
-/// rented falcon companion. Set/cleared server-side (`setoption`) and delivered
-/// in the same option-change packet as cart/riding.
 pub fn has_falcon(effect_state: i32) -> bool {
     (effect_state & OPTION_FALCON) != 0
 }
 
-/// GRF base path (no extension) for the hunter/sniper falcon companion sprite,
-/// selected per job like the original game: the base falcon (`매`) for Hunter,
-/// the advanced variant (`매2`) for Sniper. The sprites live in the effect
-/// directory beside the pushcart.
 pub fn falcon_sprite_path(job: u16) -> &'static str {
     match job {
-        // Sniper gets the advanced falcon.
         4012 => "data/sprite/이팩트/매2",
         _ => "data/sprite/이팩트/매",
     }
@@ -68,34 +58,20 @@ pub const OPTION_CLOAK: i32 = 0x04;
 pub const OPTION_CHASEWALK: i32 = 0x4000;
 pub const OPTION_HIDDEN_MASK: i32 = OPTION_HIDE | OPTION_CLOAK | OPTION_CHASEWALK;
 
-/// Cloak body opacity — the original game's `SetArgb(50, …)`. Faint, distinctly
-/// more transparent than Hide so a cloaking unit reads differently.
 pub const CLOAK_BODY_ALPHA: f32 = 50.0 / 255.0;
-/// Hide / Chase Walk body opacity for the *local* player — the original applies
-/// `EF_ACTOR_COLOR` (`SetArgb(100, 255, 255, 255)`: white = no tint, just the
-/// reduced alpha). Other units in these states are not drawn at all.
 pub const HIDE_BODY_ALPHA: f32 = 100.0 / 255.0;
 
-/// How an actor's body draws while a visibility OPTION is set.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum HiddenRender {
-    /// Drawn at full opacity (no visibility option active).
     Visible,
-    /// Drawn translucent at this alpha; the shadow is dropped.
     Alpha(f32),
-    /// Not drawn at all (a hiding/chase-walking unit seen by others).
     Skip,
 }
 
-/// `true` while `effect_state` carries Hide, Cloak, or Chase Walk.
 pub fn is_hidden(effect_state: i32) -> bool {
     (effect_state & OPTION_HIDDEN_MASK) != 0
 }
 
-/// Per-state body visibility, matching the original client: cloak is a faint
-/// translucent body for everyone; hide / chase walk keep the body faintly
-/// visible only for the local player (`is_self`) and hide it entirely from
-/// everyone else. Cloak takes precedence when several bits are set.
 pub fn hidden_render(effect_state: i32, is_self: bool) -> HiddenRender {
     if effect_state & OPTION_CLOAK != 0 {
         HiddenRender::Alpha(CLOAK_BODY_ALPHA)
@@ -128,9 +104,6 @@ pub fn visual_job(job: u16, effect_state: i32) -> u16 {
     }
 }
 
-/// The cart design index (1..=5) carried by the cart OPTION bits, or `None`
-/// when no cart bit is set. Each bit in `OPTION_CART_MASK` selects one of the
-/// five pushcart sprite designs.
 pub fn cart_design_from_option(effect_state: i32) -> Option<u8> {
     match effect_state & OPTION_CART_MASK {
         0x08 => Some(1),
@@ -142,10 +115,6 @@ pub fn cart_design_from_option(effect_state: i32) -> Option<u8> {
     }
 }
 
-/// GRF base path (no extension) for a pushcart sprite of the given design
-/// index. The cart sprites live under the effect sprite directory with Korean
-/// names: design 1 is the base handcart, higher designs append the variant
-/// index, and design 0 is the Super Novice handcart.
 pub fn cart_sprite_path(design: u8) -> String {
     const BASE: &str = "data/sprite/이팩트";
     match design {
@@ -192,7 +161,6 @@ fn job_name_kr(job_class: u16) -> &'static str {
         23 => "슈퍼노비스",
         24 => "건너",
         25 => "닌자",
-        // Transcendent 1st classes reuse base sprites
         4001 => "초보자",
         4002 => "검사",
         4003 => "마법사",
@@ -200,7 +168,6 @@ fn job_name_kr(job_class: u16) -> &'static str {
         4005 => "성직자",
         4006 => "상인",
         4007 => "도둑",
-        // Transcendent 2nd classes have their own sprites
         4008 => "로드나이트",
         4009 => "하이프리",
         4010 => "하이위저드",
@@ -225,15 +192,9 @@ fn job_name_kr(job_class: u16) -> &'static str {
 }
 
 fn sex_kr(sex: u8) -> &'static str {
-    if sex == 0 {
-        "여"
-    } else {
-        "남"
-    }
+    if sex == 0 { "여" } else { "남" }
 }
 
-/// Returns the GRF path base for a body sprite (without file extension).
-/// Example: `data/sprite/인간족/몸통/남/초보자_남`
 pub fn body_sprite_path(job_class: u16, sex: u8) -> String {
     let job = job_name_kr(job_class);
     let sex_str = sex_kr(sex);
@@ -280,10 +241,6 @@ fn weapon_suffix(weapon_type: WeaponType) -> &'static str {
     }
 }
 
-/// Converts a packet weapon value to a WeaponType.
-/// The value may be a raw view_id (0–17) or an item_id when the server
-/// has no ViewID configured for the weapon.  When an item_id is received
-/// it is resolved to a weapon type via standard item_id ranges.
 pub fn weapon_view_id_to_type(id: u16) -> Option<WeaponType> {
     dbg!("weapon view", id);
     match id {
@@ -315,7 +272,6 @@ pub fn weapon_view_id_to_type(id: u16) -> Option<WeaponType> {
     }
 }
 
-// Fallback when server sends item_id instead of view_id.
 fn weapon_type_from_item_id(id: u16) -> Option<WeaponType> {
     if id < 1100 {
         return None;
@@ -357,7 +313,6 @@ fn weapon_type_from_item_id(id: u16) -> Option<WeaponType> {
     }
 }
 
-/// Combines two single-hand weapon types into the dual-wield weapon type.
 pub fn dual_wield_type(right: WeaponType, left: WeaponType) -> Option<WeaponType> {
     match (right, left) {
         (WeaponType::Dagger, WeaponType::Dagger) => Some(WeaponType::DoubleDd),
@@ -416,7 +371,6 @@ pub fn shield_sprite_path(view_id: u16, job_class: u16, sex: u8) -> Option<Strin
     Some(format!("data/sprite/방패/{job}/{job}_{sex_str}_{shield}"))
 }
 
-/// Numeric path format used by some GRFs (e.g. original game-style)
 pub fn shield_sprite_path_numeric(view_id: u16, job_class: u16, sex: u8) -> String {
     let job = job_name_kr(job_class);
     let sex_str = sex_kr(sex);
@@ -450,8 +404,6 @@ pub fn weapon_sprite_path(job_class: u16, sex: u8, weapon_type: WeaponType) -> S
     format!("data/sprite/인간족/{job}/{job}_{sex_str}{suffix}")
 }
 
-/// The per-weapon swing-trail sprite (`검광`, "sword-light") — the weapon sprite
-/// path with a `_검광` suffix. Shown during attacks under the Quicken family.
 pub fn weapon_trail_sprite_path(job_class: u16, sex: u8, weapon_type: WeaponType) -> String {
     format!("{}_검광", weapon_sprite_path(job_class, sex, weapon_type))
 }
@@ -518,25 +470,28 @@ mod tests {
         assert!(is_hidden(OPTION_HIDE));
         assert!(is_hidden(OPTION_CLOAK));
         assert!(is_hidden(OPTION_CHASEWALK));
-        assert!(is_hidden(OPTION_RIDING | OPTION_CLOAK), "set among other options");
+        assert!(is_hidden(OPTION_RIDING | OPTION_CLOAK));
         assert!(!is_hidden(0));
-        assert!(!is_hidden(OPTION_RIDING), "mount alone is not hidden");
+        assert!(!is_hidden(OPTION_RIDING));
     }
 
     #[test]
     fn hidden_render_is_per_state_and_self_aware() {
         use HiddenRender::*;
-        // No visibility option: always fully drawn.
         assert_eq!(hidden_render(0, true), Visible);
         assert_eq!(hidden_render(OPTION_RIDING, false), Visible);
-        // Cloak: faint for everyone, cloak alpha wins over hide.
         assert_eq!(hidden_render(OPTION_CLOAK, false), Alpha(CLOAK_BODY_ALPHA));
         assert_eq!(hidden_render(OPTION_CLOAK, true), Alpha(CLOAK_BODY_ALPHA));
-        assert_eq!(hidden_render(OPTION_CLOAK | OPTION_HIDE, false), Alpha(CLOAK_BODY_ALPHA));
-        // Hide / Chase Walk: faintly visible to self, invisible to others.
+        assert_eq!(
+            hidden_render(OPTION_CLOAK | OPTION_HIDE, false),
+            Alpha(CLOAK_BODY_ALPHA)
+        );
         assert_eq!(hidden_render(OPTION_HIDE, true), Alpha(HIDE_BODY_ALPHA));
         assert_eq!(hidden_render(OPTION_HIDE, false), Skip);
-        assert_eq!(hidden_render(OPTION_CHASEWALK, true), Alpha(HIDE_BODY_ALPHA));
+        assert_eq!(
+            hidden_render(OPTION_CHASEWALK, true),
+            Alpha(HIDE_BODY_ALPHA)
+        );
         assert_eq!(hidden_render(OPTION_CHASEWALK, false), Skip);
     }
 
@@ -647,10 +602,10 @@ mod tests {
         assert_eq!(resolve_shield_view_id(1), 1);
         assert_eq!(resolve_shield_view_id(2), 2);
         assert_eq!(resolve_shield_view_id(4), 4);
-        assert_eq!(resolve_shield_view_id(2101), 1); // Guard
-        assert_eq!(resolve_shield_view_id(2103), 2); // Buckler
-        assert_eq!(resolve_shield_view_id(2105), 3); // Shield
-        assert_eq!(resolve_shield_view_id(2107), 4); // Mirror Shield
+        assert_eq!(resolve_shield_view_id(2101), 1);
+        assert_eq!(resolve_shield_view_id(2103), 2);
+        assert_eq!(resolve_shield_view_id(2105), 3);
+        assert_eq!(resolve_shield_view_id(2107), 4);
     }
 
     #[test]
@@ -665,13 +620,10 @@ mod tests {
         assert_eq!(visual_job(14, OPTION_RIDING), 21);
         assert_eq!(visual_job(4008, OPTION_RIDING), 4014);
         assert_eq!(visual_job(4015, OPTION_RIDING), 4022);
-        // Non-mountable class returns original job
         assert_eq!(visual_job(0, OPTION_RIDING), 0);
         assert_eq!(visual_job(12, OPTION_RIDING), 12);
-        // No riding flag returns original job
         assert_eq!(visual_job(7, 0), 7);
         assert_eq!(visual_job(14, 0), 14);
-        // Other flags don't trigger mount
         assert_eq!(visual_job(7, 0x01), 7);
     }
 
@@ -684,7 +636,6 @@ mod tests {
         assert_eq!(cart_design_from_option(0x100), Some(3));
         assert_eq!(cart_design_from_option(0x200), Some(4));
         assert_eq!(cart_design_from_option(0x400), Some(5));
-        // Cart bit set among unrelated options still resolves.
         assert_eq!(cart_design_from_option(OPTION_RIDING | 0x100), Some(3));
     }
 

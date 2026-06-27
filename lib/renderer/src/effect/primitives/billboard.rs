@@ -10,17 +10,6 @@ use super::super::{EffectDrawList, EffectPrimitiveDraw};
 #[cfg(test)]
 use super::super::BlendKind;
 
-/// Convert every `Billboard` / `BillboardDisc` in `list` into a
-/// [`DrawRecord`] dispatched through the sprite pipeline.
-///
-/// `texture_lookup` resolves the per-primitive texture name (bare
-/// filename, e.g. `ring_yellow.tga`) against the caller's texture cache;
-/// missing textures fall back to `fallback_texture`.
-///
-/// Vertices are in *screen space* — anchor produced by `project_billboard`
-/// plus per-corner pixel offsets — and depth is the NDC z returned by the
-/// same projection. The sprite pipeline interprets `position.xy` as screen
-/// pixels and `position.z` as NDC depth.
 pub fn prepare_billboard_records<'tex>(
     list: &EffectDrawList,
     camera: &Camera,
@@ -41,17 +30,12 @@ pub fn prepare_billboard_records<'tex>(
             blend,
         } = prim
         {
-            let Some((anchor, _ndc_z, ppu)) =
-                project_billboard(camera, *pos, screen_w, screen_h)
+            let Some((anchor, _ndc_z, ppu)) = project_billboard(camera, *pos, screen_w, screen_h)
             else {
                 continue;
             };
             let r = radius * ppu;
             let n = (*segments).max(8);
-            // Pin vertices at the near plane — a 2D overlay that
-            // ignores 3D depth — so the filled disc
-            // isn't clipped by the ground when its centre sits at or below the
-            // floor (the "swallowed by floor" halos). Matches `BillboardRing`.
             let z = 0.0;
             let mut vertices: Vec<SpriteVertex> = Vec::with_capacity(n as usize + 2);
             vertices.push(SpriteVertex {
@@ -99,8 +83,7 @@ pub fn prepare_billboard_records<'tex>(
             blend,
         } = prim
         {
-            let Some((anchor, _ndc_z, ppu)) =
-                project_billboard(camera, *pos, screen_w, screen_h)
+            let Some((anchor, _ndc_z, ppu)) = project_billboard(camera, *pos, screen_w, screen_h)
             else {
                 continue;
             };
@@ -110,10 +93,6 @@ pub fn prepare_billboard_records<'tex>(
                 continue;
             }
             let n = (*segments).max(8);
-            // Pin vertices effectively at the near plane — the ring
-            // is a 2D overlay that ignores 3D depth, as the original game
-            // shows it. Match that so the
-            // ring isn't clipped by the ground when its centre sits low.
             let z = 0.0;
             let mut vertices: Vec<SpriteVertex> = Vec::with_capacity((n as usize + 1) * 2);
             for s in 0..=n {
@@ -207,8 +186,6 @@ pub fn prepare_billboard_records<'tex>(
             continue;
         }
 
-        // Flash: same as Billboard but a near-plane 2D overlay that ignores
-        // 3D depth, so entity-centred flash rays aren't clipped by the ground.
         if let EffectPrimitiveDraw::BillboardFlash {
             pos,
             size,
@@ -219,8 +196,7 @@ pub fn prepare_billboard_records<'tex>(
             blend,
         } = prim
         {
-            let Some((anchor, _ndc_z, ppu)) =
-                project_billboard(camera, *pos, screen_w, screen_h)
+            let Some((anchor, _ndc_z, ppu)) = project_billboard(camera, *pos, screen_w, screen_h)
             else {
                 continue;
             };
@@ -273,8 +249,7 @@ pub fn prepare_billboard_records<'tex>(
             continue;
         };
 
-        let Some((anchor, ndc_z, ppu)) =
-            project_billboard_biased(camera, *pos, screen_w, screen_h)
+        let Some((anchor, ndc_z, ppu)) = project_billboard_biased(camera, *pos, screen_w, screen_h)
         else {
             continue;
         };

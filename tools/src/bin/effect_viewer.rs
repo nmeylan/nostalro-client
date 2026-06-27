@@ -72,7 +72,9 @@ fn parse_args() -> ParsedArgs {
                 println!("  effect-viewer --export-gif <effect-id> [--out <path>] [--grf <path>]");
                 println!();
                 println!("Options:");
-                println!("  --grf <path>           Path to the GRF file (defaults to {DEFAULT_GRF_PATH})");
+                println!(
+                    "  --grf <path>           Path to the GRF file (defaults to {DEFAULT_GRF_PATH})"
+                );
                 println!("  --export-gif <id>      Render <id> to GIF using the cdylib's default");
                 println!("                         camera and exit. Window is created hidden.");
                 println!("  --out <path>           GIF output path (default: gif_export/<id>.gif)");
@@ -82,7 +84,9 @@ fn parse_args() -> ParsedArgs {
                 println!("  ↑ / ↓          Prev / next filter family");
                 println!("  Tab            Open browser (filter by typing, Enter to pick)");
                 println!("  R              Replay current");
-                println!("  E              Export current effect to GIF (gif_export/<id>_<ts>.gif)");
+                println!(
+                    "  E              Export current effect to GIF (gif_export/<id>_<ts>.gif)"
+                );
                 println!("  Space          Pause / resume");
                 println!("  + / -          Speed up / down");
                 println!("  B              Toggle background (blue / black)");

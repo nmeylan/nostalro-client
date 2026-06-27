@@ -1,22 +1,3 @@
-//! `EF_HEALSP` — Soul Drain / Sp Recovery glow.
-//!
-//!
-//! Composite spawned at the master's feet, lifetime 100 frames at 60 fps:
-//!
-//!   * Three concentric translucent cylinders (all
-//!     `alpha_down.tga`, all tinted cyan `(32, 176, 232)`), each one
-//!     taller than the next. Innermost has max alpha `16/255`, middle
-//!     `32/255`, outer `64/255` — so visually the layers stack from very
-//!     faint inside to fully visible outside.
-//!   * Every 2 frames — one orbiting `particle2.spr` sprite. Radius 3
-//!     in the XZ plane, random longitude, 30-frame lifetime, rising at
-//!     -1.2 wu/frame with positive gravity decel (arcs up
-//!     then falls). Size `0.55`.
-//!
-//! All cylinders spin at 5°/frame and share the same
-//! alpha envelope: linear fade-in over 30 frames, hold, fade out over
-//! the final 20 frames.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -37,19 +18,11 @@ const TINT: [f32; 3] = [
     0xe8 as f32 / 255.0,
 ];
 
-// Three nested cylinders, launched innermost first. All three share
-// roughly the same height — only the radii (and tint alpha) stack from
-// inside out — matching the original game silhouette where the inner
-// shell rises almost as high as the outer one. The inner shell is the
-// faintest, the outer the most visible.
 const CYLINDER_RADII: [f32; 3] = [2.5, 3.5, 4.5];
 const CYLINDER_HEIGHTS: [f32; 3] = [32.0, 34.0, 35.0];
 const CYLINDER_MAX_ALPHAS: [f32; 3] = [16.0 / 255.0, 32.0 / 255.0, 64.0 / 255.0];
 const CYLINDER_SIDES: u32 = 24;
 
-// Orbiting particles (one every 2 frames). Orbit radius sits a
-// fraction outside the outermost cylinder so the sparkles read as
-// "drifting around" the column rather than inside it.
 const SPAWN_PERIOD_FRAMES: u32 = 2;
 const PARTICLE_DURATION_FRAMES: f32 = 30.0;
 const PARTICLE_ORBIT_RADIUS: f32 = 5.5;
@@ -275,8 +248,6 @@ mod tests {
 
     #[test]
     fn cylinders_and_inflight_motes_follow_entity() {
-        // Re-anchoring must move both the cylinders (drawn from world_pos) and
-        // the already-spawned orbit particles (each carries a baked anchor).
         let mut e = HealSpEffect::new([5.0, 0.0, 7.0]);
         step_frames(&mut e, 11);
         e.set_position([20.0, 2.0, -4.0]);
@@ -289,7 +260,6 @@ mod tests {
                     assert_eq!(*base, [20.0, 2.0, -4.0]);
                 }
                 EffectPrimitiveDraw::SpriteParticle { position, .. } => {
-                    // Still on the orbit ring, now centred on the new position.
                     let dx = position[0] - 20.0;
                     let dz = position[2] - (-4.0);
                     let r = (dx * dx + dz * dz).sqrt();
@@ -305,8 +275,6 @@ mod tests {
 
     #[test]
     fn three_cylinders_plus_orbit_particles_on_schedule() {
-        // Sociable: 3 nested Frustum cylinders + particles every 2
-        // frames around a radius-3 ring.
         let mut e = HealSpEffect::new([5.0, 0.0, 7.0]);
         step_frames(&mut e, 11);
         let mut list = EffectDrawList::new();
@@ -330,7 +298,6 @@ mod tests {
         for (b, t, _, _) in &cylinders {
             assert!((b - t).abs() < 1e-3, "cylinder (bottom == top)",);
         }
-        // Heights stack: 15 < 25 < 35.
         let heights: Vec<f32> = cylinders.iter().map(|(_, _, h, _)| *h).collect();
         assert!(heights[0] < heights[1] && heights[1] < heights[2]);
 
@@ -344,7 +311,6 @@ mod tests {
             "frames 0, 2, 4, 6, 8, 10 each spawn a particle"
         );
 
-        // Each particle sits on the radius-3 orbit.
         for prim in &list.primitives {
             if let EffectPrimitiveDraw::SpriteParticle { position, .. } = prim {
                 let dx = position[0] - 5.0;
@@ -360,9 +326,6 @@ mod tests {
 
     #[test]
     fn cylinder_max_alphas_stack_from_inside_out() {
-        // Sociable: peak alphas grow 16 → 32 → 64. Confirms the three
-        // constants are wired in the right order so the visible
-        // silhouette is brightest at the outer shell.
         let a0 = cylinder_alpha(FADE_IN_FRAMES, CYLINDER_MAX_ALPHAS[0]);
         let a1 = cylinder_alpha(FADE_IN_FRAMES, CYLINDER_MAX_ALPHAS[1]);
         let a2 = cylinder_alpha(FADE_IN_FRAMES, CYLINDER_MAX_ALPHAS[2]);

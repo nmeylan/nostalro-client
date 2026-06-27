@@ -7,14 +7,13 @@ use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
 use crate::helper::dialog_container::DialogContainer;
-use crate::helper::scrollbar::{self, ScrollbarIds, SCROLLBAR_W};
+use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 use crate::helper::window_chrome::{
-    draw_container, draw_footer, draw_sys_button, draw_titlebar, text_color, FOOTER_TEX,
-    TITLEBAR_TEX,
+    FOOTER_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_sys_button, draw_titlebar,
+    text_color,
 };
 use crate::{InGameWindow, Window};
 
-// -- Widget IDs --
 pub const SKILL_WINDOW_ID: WidgetId = WidgetId(1200);
 const SKILL_CLOSE_BTN_ID: WidgetId = WidgetId(1201);
 const SKILL_USE_BTN_ID: WidgetId = WidgetId(1202);
@@ -27,7 +26,6 @@ const SKILL_LEVEL_DOWN_BASE_ID: u32 = 1130;
 const SKILL_LEVEL_UP_BASE_ID: u32 = 1140;
 const SKILL_LEVELUP_BASE_ID: u32 = 1160;
 
-// -- Layout --
 const TITLE_H: f32 = 17.0;
 const FOOTER_H: f32 = 27.0;
 const ROW_H: f32 = 36.0;
@@ -152,7 +150,6 @@ impl InGameWindow for SkillTreeWindow {
 
         let total_skills = character.skills.skills().len();
 
-        // Window dimensions
         let content_h = VISIBLE_ROWS as f32 * ROW_H;
         let win_h = TITLE_H + content_h + FOOTER_H;
 
@@ -160,14 +157,11 @@ impl InGameWindow for SkillTreeWindow {
         let x = win_rect.x;
         let y = win_rect.y;
 
-        // Block clicks/scroll through window
         ui.interact(SKILL_WINDOW_ID, win_rect);
 
-        // -- Titlebar --
         draw_titlebar(ui, x, y, WIN_W, TITLE_H, has_grf);
         ui.text(x + 20.0, y + 13.0, "Skill Tree", tc);
 
-        // Close button (titlebar)
         let close_x = x + WIN_W - 17.0;
         let close_y = y + 3.0;
         let close_rect = Rect::new(close_x, close_y, 11.0, 11.0);
@@ -189,11 +183,9 @@ impl InGameWindow for SkillTreeWindow {
             return events;
         }
 
-        // -- Content area --
         let content_y = y + TITLE_H;
         draw_container(ui, x, content_y, WIN_W, content_h, has_grf);
 
-        // Scrollbar
         let max_scroll = total_skills.saturating_sub(VISIBLE_ROWS);
         let scroll_x = x + WIN_W - SCROLLBAR_W - 1.0;
         let content_area_rect = Rect::new(x, content_y, WIN_W, content_h);
@@ -213,10 +205,8 @@ impl InGameWindow for SkillTreeWindow {
             content_h,
         );
 
-        // -- Skill rows --
         let skill_area_w = WIN_W - SCROLLBAR_W - PAD_X * 2.0 - 1.0;
 
-        // Collect visible skill IDs to avoid borrowing character.skills for the whole loop
         let visible_skill_ids: Vec<u16> = character
             .skills
             .skills()
@@ -233,7 +223,6 @@ impl InGameWindow for SkillTreeWindow {
             let row_y = content_y + vis_i as f32 * ROW_H;
             let entry_id = WidgetId(SKILL_ENTRY_BASE_ID + vis_i as u32);
 
-            // Row separator line
             if vis_i > 0 {
                 let sep_color = if has_grf {
                     [0.8, 0.8, 0.8, 1.0]
@@ -248,7 +237,6 @@ impl InGameWindow for SkillTreeWindow {
                 });
             }
 
-            // Row hover
             let row_rect = Rect::new(x + PAD_X, row_y, skill_area_w, ROW_H);
             let row_resp = ui.interact(entry_id, row_rect);
             if row_resp.hovered() {
@@ -265,7 +253,6 @@ impl InGameWindow for SkillTreeWindow {
                 });
             }
 
-            // Skill icon
             let icon_x = x + PAD_X + 2.0;
             let icon_y = row_y + (ROW_H - ICON_SIZE) / 2.0;
             let icon_path = skill.icon_path();
@@ -279,7 +266,6 @@ impl InGameWindow for SkillTreeWindow {
                 texture: TextureRef::Named(icon_path),
             });
 
-            // Skill name
             let display_name = data
                 .skill_name
                 .as_ref()
@@ -289,7 +275,6 @@ impl InGameWindow for SkillTreeWindow {
             let name_y = row_y + 14.0;
             ui.text(name_x, name_y, &display_name, tc);
 
-            // Level text with optional rank selection arrows
             let level_y = row_y + 28.0;
             let level_color = [tc[0] * 0.7, tc[1] * 0.7, tc[2] * 0.7, tc[3]];
             let is_level_selectable = skill.skill_target_type != SkillTargetType::Passive
@@ -357,7 +342,6 @@ impl InGameWindow for SkillTreeWindow {
                 ui.text(name_x, level_y, &level_text, level_color);
             }
 
-            // Type text (right-aligned): "Passive" or "Sp : XX"
             let type_x = x + WIN_W - SCROLLBAR_W - PAD_X - 50.0;
             let type_y = row_y + ROW_H / 2.0 + 4.0;
             if skill.skill_target_type == SkillTargetType::Passive {
@@ -375,7 +359,6 @@ impl InGameWindow for SkillTreeWindow {
                 ui.text(type_x, type_y, &type_text, tc);
             }
 
-            // Level up button (only when upgradable and has skill points)
             if skill.upgradable && character.skill_point > 0 {
                 let (lup_w, lup_h) = self.levelup_btn_size;
                 let btn_x = type_x - lup_w - 4.0;
@@ -389,8 +372,6 @@ impl InGameWindow for SkillTreeWindow {
                 }
             }
 
-            // Usable skills (non-passive, learned): drag to a hotkey slot, or
-            // double-click to cast like a hotkey slot.
             if skill.level > 0 && skill.skill_target_type != SkillTargetType::Passive {
                 if row_resp.double_clicked() {
                     events.push(GameEvent::RequestUseSkill {
@@ -407,7 +388,6 @@ impl InGameWindow for SkillTreeWindow {
                 }
             }
 
-            // Tooltip on hover
             if row_resp.hovered() {
                 let mut tooltip_lines = vec![display_name.clone()];
 
@@ -483,7 +463,6 @@ impl InGameWindow for SkillTreeWindow {
             }
         }
 
-        // Apply deferred level changes
         for (skill_id, is_increment) in level_changes {
             if let Some(skill) = character.skills.get_skill_mut(skill_id) {
                 if is_increment {
@@ -494,15 +473,12 @@ impl InGameWindow for SkillTreeWindow {
             }
         }
 
-        // -- Footer --
         let footer_y = content_y + content_h;
         draw_footer(ui, x, footer_y, WIN_W, FOOTER_H, has_grf);
 
-        // Skill points text
         let sp_text = format!("Skill Point : {}", character.skill_point);
         ui.text(x + PAD_X, footer_y + 17.0, &sp_text, tc);
 
-        // Footer buttons (right-aligned)
         let (btn_w, btn_h) = self.btn_size;
         let btn_y = footer_y + (FOOTER_H - btn_h) / 2.0;
 
@@ -517,15 +493,6 @@ impl InGameWindow for SkillTreeWindow {
             character.skills.close();
             return events;
         }
-
-        // TODO see later if we implement this "confirm" allocation feature
-        // let use_btn_x = close_btn_x - btn_w - 4.0;
-        // let _use_btn = ui.button(
-        //     SKILL_USE_BTN_ID,
-        //     Rect::new(use_btn_x, btn_y, btn_w, btn_h),
-        //     &USE_BTN,
-        //     "use",
-        // );
 
         events
     }

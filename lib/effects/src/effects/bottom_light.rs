@@ -1,24 +1,4 @@
-//! Bottom_Light family — a 315° curtain-cone wall above the actor.
-//!
-//! A 315° curtain of light built as a fan of 20 vertical quads
-//! around the actor.
-//! Each quad's base sits on a small circle (`distance` ≈ 3), and its
-//! top sits at `(base.x, -height[order], base.z)` where `height` follows
-//! a sine-arch profile across the 20 segments (zero at ends, peak in
-//! middle) modulated by ±30% over time.
-//!
-//! Per-tick state evolution:
-//!   * `alpha_t += 1 (mod 360)` → drives `distance = 3 + sin(alpha_t)`
-//!   * `rot_start += 3 (mod 360)` → whole curtain rotates ~180°/sec
-//!   * `height[i] = max_height * sin(SinLimit(i)) * (1 + 0.3*sin(pr))`
-//!     where `SinLimit(i)` varies 0..180 as `i` goes 0..20, and
-//!     `pr = process % 360` (process incremented per frame).
-//!
-//! The variant argument doesn't change geometry — it picks the colour
-//! tint and blend mode. Both
-//! Bottom_Light ids use blend = additive:
-//!   * `Eternalchaos` variant 8 → light yellow (255,255,170)
-//!   * `Siegfried`   variant 4 → light blue   (100,100,255)
+//! Bottom_Light family — a 315° rotating curtain of light above the actor.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -31,19 +11,14 @@ const BASIC_ANGLE_DEG: f32 = FULL_DISPLAY_ANGLE_DEG / (E_DIVISION as f32 - 1.0);
 #[derive(Clone, Copy, Debug)]
 pub struct BottomLightParams {
     pub texture: &'static str,
-    /// RGB tint picked from the variant (0..1).
     pub tint_rgb: [f32; 3],
 }
 
-/// `EF_BOTTOM_ETERNALCHAOS` → `twirl.bmp`, variant 8.
-/// Variant 8 → tint (255, 255, 170), additive.
 pub const ETERNALCHAOS: BottomLightParams = BottomLightParams {
     texture: "twirl.bmp",
     tint_rgb: [1.0, 1.0, 170.0 / 255.0],
 };
 
-/// `EF_BOTTOM_SIEGFRIED` → `twirl.bmp`, variant 4.
-/// Variant 4 → tint (100, 100, 255), additive.
 pub const SIEGFRIED: BottomLightParams = BottomLightParams {
     texture: "twirl.bmp",
     tint_rgb: [100.0 / 255.0, 100.0 / 255.0, 1.0],
@@ -55,15 +30,10 @@ pub struct BottomLightEffect {
     world_pos: [f32; 3],
     params: BottomLightParams,
     age: f32,
-    /// Discrete frame counter; advances once per 1/60s tick.
     frames: u32,
-    /// Frozen at spawn — `max_height = 25 + rand(0..10)`.
     max_height: f32,
-    /// Frozen at spawn — initial rotation phase, degrees.
     rot_start_init: f32,
-    /// Frozen at spawn — initial distance oscillator phase, degrees.
     alpha_t_init: f32,
-    /// Frozen at spawn — base alpha in `[40, 50]` (out of 255).
     alpha_b: f32,
 }
 
@@ -104,8 +74,6 @@ struct FrameState {
 impl Effect for BottomLightEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.age += ctx.delta;
-        // Snap to 60 fps frame ticks so rotation / height oscillation
-        // rates match the original game.
         self.frames = (self.age * FRAMES_PER_SECOND) as u32;
         EffectStatus::Running
     }
@@ -139,12 +107,7 @@ impl Effect for BottomLightEffect {
         for order in 1..E_DIVISION {
             let (prev_base, prev_top) = points[order - 1];
             let (cur_base, cur_top) = points[order];
-            // WorldQuad corner order (CCW from front face): bottom-now,
-            // bottom-pre, top-pre, top-now.
             let corners = [cur_base, prev_base, prev_top, cur_top];
-            // U runs `(order-1)/E_DIVISION` to `order/E_DIVISION` so
-            // the texture stretches across
-            // the curtain.
             let u_pre = (order as f32 - 1.0) / E_DIVISION as f32;
             let u_now = order as f32 / E_DIVISION as f32;
             let uv = [[u_now, 1.0], [u_pre, 1.0], [u_pre, 0.0], [u_now, 0.0]];
@@ -210,13 +173,10 @@ mod tests {
 
     #[test]
     fn eternalchaos_emits_twenty_additive_segments_arched_around_master() {
-        // Sociable test: 20 ribbon segments, yellow additive tint,
-        // sine-arch peak reaches close to max_height, all anchored
-        // above the actor's XZ column.
         let mut e = BottomLightEffect::new([50.0, 0.0, 20.0], ETERNALCHAOS);
         step(&mut e, 0.5);
         let prims = draws(&e);
-        assert_eq!(prims.len(), 20, "20 ribbon segments per spawn");
+        assert_eq!(prims.len(), 20);
 
         let mut peak_drop = 0.0_f32;
         for p in &prims {
@@ -232,10 +192,8 @@ mod tests {
             };
             assert_eq!(*blend, BlendKind::Additive);
             assert_eq!(*texture, "twirl.bmp");
-            // Yellow-leaning: B < R and B < G
             assert!(color[2] < color[0]);
             assert!(color[2] < color[1]);
-            // Top corners sit above the base corners (native -Y up).
             let drop_now = corners[0][1] - corners[3][1];
             let drop_pre = corners[1][1] - corners[2][1];
             assert!(drop_now >= -1e-3 && drop_pre >= -1e-3);
@@ -243,7 +201,7 @@ mod tests {
         }
         assert!(
             peak_drop > 15.0,
-            "sine arch should peak near max_height (25..35); got {peak_drop}",
+            "sine arch should peak near max_height (25..35); got {peak_drop}"
         );
     }
 
@@ -257,15 +215,12 @@ mod tests {
             panic!("expected WorldQuad");
         };
         assert_eq!(*blend, BlendKind::Additive);
-        // Blue-leaning: B > R and B > G
         assert!(color[2] > color[0]);
         assert!(color[2] > color[1]);
     }
 
     #[test]
     fn cone_rotates_over_time() {
-        // After ~1.5s the rot_start phase has advanced enough to
-        // displace the first base point on the XZ circle.
         let mut e = BottomLightEffect::new([0.0, 0.0, 0.0], ETERNALCHAOS);
         step(&mut e, 0.5);
         let p_a = match &draws(&e)[0] {

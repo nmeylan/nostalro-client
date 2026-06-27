@@ -1,22 +1,3 @@
-//! EF_POTION_CON (Concentration Potion) and EF_POTION_ (Awakening Potion).
-//!
-//! Reference: `ro-effects/effects/imgs/200-250/218.gif` (concentration) and
-//! `219.gif` (awakening).
-//!
-//! Both are the white [`super::potion_pillar`] cylinder column plus an STR
-//! overlay — the yellow star-burst (concentration) and green ground ring
-//! (awakening) live entirely in the STR files, so the cylinder itself stays
-//! white in both. Same shape as [`super::potion_berserk`] minus the red
-//! cross-texture sparks.
-//!
-//! Observed behaviour:
-//! * Concentration — frame 0 → pillar with height speed 2.0
-//!   (default 50-frame life) + the
-//!   concentration STR overlay.
-//! * Awakening — at frame 30 → pillar with height speed 1.9 over 30 frames
-//!   + the awakening STR overlay. The STR runs from frame 0, so
-//!   the column enters partway through.
-
 use crate::draw::{EffectDrawList, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::effects::potion_pillar::{PotionPillarEffect, PotionPillarParams};
@@ -26,17 +7,10 @@ const FRAMES_PER_SECOND: f32 = 60.0;
 #[derive(Clone, Copy, Debug)]
 pub struct PotionConParams {
     pub pillar: PotionPillarParams,
-    /// Parent frame at which the cylinder column launches.
-    /// The STR overlay always plays from frame 0.
     pub launch_delay_frames: f32,
-    /// Total effect lifetime — the STR overlay plays for as long as the effect
-    /// is alive. Tuned to the reference gif so the column's growth/fade (and,
-    /// for awakening, the lead-in capsule + sparkles) play out without a long
-    /// empty tail.
     pub total_frames: f32,
 }
 
-/// EF_POTION_CON — pillar (height speed 2.0) at frame 0; column lives 50 frames.
 pub const CONCENTRATION: PotionConParams = PotionConParams {
     pillar: PotionPillarParams {
         height_speed: 2.0,
@@ -46,8 +20,6 @@ pub const CONCENTRATION: PotionConParams = PotionConParams {
     total_frames: 54.0,
 };
 
-/// EF_POTION_ — pillar (height speed 1.9, 30 frames) at frame 30; STR lead-in plays first,
-/// column lives frames 30..60.
 pub const AWAKENING: PotionConParams = PotionConParams {
     pillar: PotionPillarParams {
         height_speed: 1.9,
@@ -86,10 +58,6 @@ impl Effect for PotionConEffect {
         self.age += ctx.delta;
         let frame = self.age * FRAMES_PER_SECOND;
 
-        // Launch the column once the delay elapses, then keep ticking it so it
-        // runs its own ramp / fade / death from a frame-0 start. On the
-        // launch frame, seed the column with only the time elapsed *since* the
-        // delay so a large step doesn't overshoot its short lifetime.
         if frame >= self.params.launch_delay_frames {
             if let Some(pillar) = self.pillar.as_mut() {
                 pillar.update(ctx);
@@ -164,12 +132,10 @@ mod tests {
     #[test]
     fn awakening_delays_pillar_until_frame_thirty_but_plays_str_from_start() {
         let mut e = PotionConEffect::new([0.0; 3], "awakening", AWAKENING);
-        // STR overlay reported from the first frame.
         step(&mut e, 1.0 / FRAMES_PER_SECOND);
         assert_eq!(e.str_overlay(), Some("awakening"));
         assert!(!has_cylinder(&e), "no column before the launch delay");
 
-        // Past frame 30 the column enters.
         step(&mut e, 35.0 / FRAMES_PER_SECOND);
         assert!(has_cylinder(&e), "column enters after the launch delay");
     }

@@ -79,8 +79,6 @@ impl GlobalUniforms {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        // Storage buffers must be non-empty; seed with one zero-range light that
-        // the shader skips via `if (lr <= 0.0) continue;`.
         let initial_lights = [PointLightGpu {
             position: [0.0; 4],
             color_range: [0.0; 4],
@@ -210,9 +208,6 @@ impl GlobalUniforms {
         queue.write_buffer(&self.fog_buffer, 0, bytemuck::cast_slice(&[*fog]));
     }
 
-    /// Replace all point lights. Lights are static for the life of the loaded
-    /// map; reupload on map change. The buffer is grown when needed; the bind
-    /// group is rebuilt on grow because the underlying buffer is new.
     pub fn update_point_lights(
         &mut self,
         device: &wgpu::Device,
@@ -221,8 +216,6 @@ impl GlobalUniforms {
     ) {
         use wgpu::util::DeviceExt;
 
-        // Always upload at least one entry - wgpu disallows zero-size storage
-        // buffers, and the shader skips zero-range entries.
         let sentinel = [PointLightGpu {
             position: [0.0; 4],
             color_range: [0.0; 4],

@@ -95,14 +95,12 @@ impl RswFile {
         let ver_minor = r.read_u8()?;
         let version = (ver_major, ver_minor);
 
-        // Build version (v >= 2.5)
         let build_version = if version_at_least(version, 2, 5) {
             Some(r.read_u32::<LE>()?)
         } else {
             None
         };
 
-        // Unknown byte (v >= 2.2)
         if version_at_least(version, 2, 2) {
             let _unknown = r.read_u8()?;
         }
@@ -117,7 +115,6 @@ impl RswFile {
             None
         };
 
-        // Water settings (v < 2.6)
         let water = if !version_at_least(version, 2, 6) {
             WaterSettings {
                 level: if version_at_least(version, 1, 3) {
@@ -162,7 +159,6 @@ impl RswFile {
             }
         };
 
-        // Light settings
         let light = LightSettings {
             longitude: if version_at_least(version, 1, 5) {
                 Some(r.read_i32::<LE>()?)
@@ -191,7 +187,6 @@ impl RswFile {
             },
         };
 
-        // Ground bounds (v >= 1.6)
         let ground_top = if version_at_least(version, 1, 6) {
             Some(r.read_i32::<LE>()?)
         } else {
@@ -213,7 +208,6 @@ impl RswFile {
             None
         };
 
-        // Objects
         let object_count = r.read_u32::<LE>()? as usize;
         let mut objects = Vec::with_capacity(object_count);
         for _ in 0..object_count {
@@ -270,7 +264,6 @@ impl RswModel {
             (None, None, None, None)
         };
 
-        // v2.6 build >= 186: unknown byte
         if version_at_least(version, 2, 6) {
             if let Some(bv) = build_version {
                 if bv >= 186 {
@@ -305,7 +298,6 @@ impl RswLight {
         let name = read_string(r, 80)?;
         let position = read_vec3(r)?;
         let mut color = read_vec3(r)?;
-        // Clamp color channels to [0.0, 1.0]
         for c in &mut color {
             *c = c.clamp(0.0, 1.0);
         }

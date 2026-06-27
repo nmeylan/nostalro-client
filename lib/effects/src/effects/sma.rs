@@ -1,51 +1,21 @@
-//! SMA wind-spiral family — `EF_SMA` (551), `EF_SMA2` (552), `EF_STIN3`
-//! (555) and `EF_SMA3` (556).
-//!
-//! A rising spiral ribbon plus a travelling emitter that streams those ribbons
-//! along the caster→target heading:
-//!
-//! * **Sma2** (552): a single ribbon — three live strands (a fourth is
-//!   disabled), each a 315° spiral that rises from a
-//!   base ring to a tongue-shaped crest (max height 13/11/9, rise angle
-//!   55/50/45°, distance 3.4/3.6/3.8). The crest grows over ~90 frames and
-//!   each strand spins at `+(n+3)°/frame`, so the three bands separate into
-//!   the swirl the column is built from. Additive blue,
-//!   tint `(90,90,255)`.
-//! * **Sma** (551): a textureless travelling emitter that moves along the
-//!   caster→target heading and fires one `Sma2` ribbon every 8 frames.
-//!   Cast on self → the emitter barely moves and the ribbons stack into the
-//!   rising column.
-//! * **Stin3** (555): the same emitter, but spawns an `Sma3`
-//!   particle burst every frame → a dense rising mote column.
-//! * **Sma3** (556): rising thunder-ball motes — handled by the
-//!   shared `particle_up` effect (see factory); the in-stream variant for 555
-//!   lives here.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// Number of ring nodes per spiral strand.
 const E_DIVISION: usize = 21;
-/// The spiral sweeps 315°.
 const SWEEP_DEG: f32 = 315.0;
 
 const RING_TEXTURE: &str = "ring_blue.tga";
-/// `Sma3` alternates two thunder-ball textures.
 const PARTICLE_TEXTURES: [&str; 2] = ["thunder_ball_0002.bmp", "thunder_ball_0003.bmp"];
 
 pub const TEXTURES: &[&str] = &[RING_TEXTURE, PARTICLE_TEXTURES[0], PARTICLE_TEXTURES[1]];
 
-/// Tint `(90,90,255)`, additive.
 const BAND_TINT: [f32; 3] = [90.0 / 255.0, 90.0 / 255.0, 1.0];
 const PARTICLE_TINT: [f32; 3] = [120.0 / 255.0, 120.0 / 255.0, 1.0];
 
-/// Each `Sma2` ribbon lives this long (rise to full crest + hold + fade).
 const BAND_DURATION_FRAMES: u32 = 120;
-/// `Sma` emits a ribbon every 8 frames; `Stin3` a particle burst every frame.
 const BAND_EMIT_PERIOD: u32 = 8;
-/// How long the travelling emitter keeps spawning.
 const EMIT_FRAMES: u32 = 100;
 
 pub const SMA2_TOTAL_DURATION_MS: u32 =
@@ -69,19 +39,15 @@ impl Rng {
     }
 }
 
-/// One of the three spiral strands of an `SMA2` ribbon.
 #[derive(Clone, Copy)]
 struct Strand {
     max_height: f32,
     rise_deg: f32,
     distance: f32,
-    /// Spiral rotation, advances `+(n+3)°/frame`.
     rot_deg: f32,
     spin_rate: f32,
 }
 
-/// A rising 315° spiral ribbon. Owns its three strands and an
-/// alpha/lifetime envelope; rendered as a strip of additive `WorldQuad`s.
 pub struct Sma2Band {
     center: [f32; 3],
     strands: [Strand; 3],
@@ -91,8 +57,6 @@ pub struct Sma2Band {
 }
 
 impl Sma2Band {
-    /// `tight` selects the smaller-radius variant the emitter alternates to
-    /// every 16 frames.
     fn new(center: [f32; 3], tight: bool, duration: u32) -> Self {
         let dist = |loose: f32, narrow: f32| if tight { narrow } else { loose };
         Self {
@@ -142,15 +106,11 @@ impl Sma2Band {
         self.process >= self.duration && self.alpha <= 0.0
     }
 
-    /// Walk the 21 ring nodes, each at `order + rotation`, base on the ring
-    /// and crest raised by the rise angle; emit a quad per segment.
     fn draw(&self, out: &mut EffectDrawList) {
         if self.alpha <= 0.0 {
             return;
         }
         let a = (self.alpha / 255.0).clamp(0.0, 1.0);
-        // Crest envelope: the middle nodes are tallest, tapering at both ends
-        // (sin-limit = 90 + (i-middle)*9), ramped in over the first 90 frames.
         let middle = (E_DIVISION as i32 - 1) / 2;
         let ramp = ((self.process.min(90) as f32).to_radians()).sin();
         let step_deg = SWEEP_DEG / (E_DIVISION as f32 - 1.0);
@@ -168,12 +128,11 @@ impl Sma2Band {
                 let sin_limit = (90.0 + (order as i32 - middle) as f32 * 9.0).to_radians();
                 let height = s.max_height * sin_limit.sin() * ramp;
                 let rx = rc * height;
-                let tip = [base[0] + ca * rx, base[1] - rs * height, base[2] + sa * rx]; // native −Y up
+                let tip = [base[0] + ca * rx, base[1] - rs * height, base[2] + sa * rx];
                 if let Some((pbase, ptip)) = prev {
                     let tx1 = (order as f32 - 1.0) / E_DIVISION as f32;
                     let tx2 = order as f32 / E_DIVISION as f32;
                     out.push(EffectPrimitiveDraw::WorldQuad {
-                        // (prev base, cur base, cur tip, prev tip)
                         corners: [pbase, base, tip, ptip],
                         uv: [[tx1, 1.0], [tx2, 1.0], [tx2, 0.0], [tx1, 0.0]],
                         texture: RING_TEXTURE,
@@ -188,7 +147,6 @@ impl Sma2Band {
     }
 }
 
-/// `EF_SMA2` — one standalone rising spiral ribbon.
 pub struct Sma2Effect {
     band: Sma2Band,
     frame_accum: f32,
@@ -224,9 +182,7 @@ impl Effect for Sma2Effect {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SmaKind {
-    /// Emit `Sma2` ribbons (551).
     Bands,
-    /// Emit `Sma3` particle bursts (555).
     Particles,
 }
 
@@ -240,8 +196,6 @@ struct Particle {
     texture: &'static str,
 }
 
-/// A travelling emitter that streams either spiral ribbons (Sma)
-/// or rising particle bursts (Stin3) as it moves along the heading.
 pub struct SmaEffect {
     kind: SmaKind,
     emitter: [f32; 3],
@@ -258,7 +212,6 @@ impl SmaEffect {
         let dx = to[0] - from[0];
         let dz = to[2] - from[2];
         let len = (dx * dx + dz * dz).sqrt();
-        // The emitter advances 0.8/frame along the heading.
         let step = if len > 0.0 {
             [0.8 * dx / len, 0.0, 0.8 * dz / len]
         } else {
@@ -267,7 +220,6 @@ impl SmaEffect {
         let seed = from[0].to_bits() ^ to[2].to_bits() ^ 0x51A_3C9D;
         Self {
             kind,
-            // Emitter raised to chest height (y - 10, seeded once).
             emitter: [from[0], from[1] - 10.0, from[2]],
             step,
             frame: 0,
@@ -279,13 +231,11 @@ impl SmaEffect {
     }
 
     fn spawn_particle_burst(&mut self) {
-        // Base recipe seeds 4 motes/frame; the gif column is dense, so the
-        // emitter doubles that as it travels.
         for k in 0..8 {
             self.particles.push(Particle {
                 pos: [
                     self.emitter[0] + self.rng.range(-4.0, 4.0),
-                    self.emitter[1] + 6.0, // near the actor's feet (`-Y` up)
+                    self.emitter[1] + 6.0,
                     self.emitter[2] + self.rng.range(-4.0, 4.0),
                 ],
                 size: self.rng.range(1.5, 2.5),
@@ -324,7 +274,7 @@ impl SmaEffect {
 
         for pt in &mut self.particles {
             pt.process += 1;
-            pt.pos[1] -= pt.rise; // native −Y = up
+            pt.pos[1] -= pt.rise;
             pt.rotation -= 5.0_f32.to_radians();
             if pt.process <= 10 {
                 pt.alpha = (pt.alpha + 15.0 / 255.0).min(180.0 / 255.0);
@@ -364,7 +314,6 @@ impl Effect for SmaEffect {
             out.push(EffectPrimitiveDraw::Billboard {
                 pos: pt.pos,
                 size: [pt.size, pt.size],
-                // Renderer billboard corner order is TL, TR, BL, BR.
                 uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
                 rotation: pt.rotation,
                 texture: pt.texture,
@@ -413,7 +362,6 @@ mod tests {
             e.update(&ctx());
         }
         let list = collect(&e);
-        // 3 strands × (E_DIVISION-1) segments.
         assert!(
             list.primitives.len() > 30,
             "spiral strip: {}",
@@ -443,7 +391,6 @@ mod tests {
             "more bands accumulate: {early} -> {}",
             e.bands.len()
         );
-        // Runs out long after emission ends.
         let mut st = EffectStatus::Running;
         for _ in 0..400 {
             st = e.update(&ctx());

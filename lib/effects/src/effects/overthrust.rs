@@ -1,26 +1,4 @@
 //! `EF_OVERTHRUST` — Blacksmith Over Thrust impact ring.
-//!
-//! A single camera-facing circle
-//! primitive launched at frame 0:
-//!
-//!   * 40-frame life, 10° arc step, inner radius 10.
-//!   * Screen-space anchor lifted 20 units up (above the
-//!     caster's head).
-//!   * Radius speed 7, radius accel `-(speed/(duration+40))*2 =
-//!     -0.175` per frame — outward expansion that decelerates over the
-//!     lifetime.
-//!   * No fade-out delay → alpha linearly fades from full to zero across
-//!     the whole 40 frames.
-//!   * Texture: `alpha_center.tga`. The circle uses its own alpha write
-//!     path, so the blend is
-//!     [`BlendKind::Alpha`].
-//!
-//! Rendered as a [`BillboardRing`] (camera-facing screen-space annulus
-//! with V across the radial thickness): matches the original game's
-//! UV layout, so `alpha_center.tga` shows as a
-//! thin glowing band of constant radial thickness.
-//!
-//! [`BillboardRing`]: crate::draw::EffectPrimitiveDraw::BillboardRing
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -32,21 +10,10 @@ const FRAMES_PER_SECOND: f32 = 60.0;
 const DURATION_FRAMES: f32 = 40.0;
 pub const TOTAL_DURATION_MS: u32 = (DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
-// Lifts the screen-space anchor above the caster's centre — matches the
-// original game's 20-unit lift (native RO Y is up = -Y).
-const HEIGHT_OFFSET: f32 = -5.0;
-
-// Original game's per-frame radius integration in pixel space:
-//   speed = 7, accel = -0.175, init = 0.
-// Scaled to world units so peak disc radius sits around the bash halo
-// silhouette (~20 wu — the reference gif shows the ring filling most of
-// the frame at peak).
+const HEIGHT_OFFSET: f32 = -5.0; // −Y is up.
 const RADIUS_INIT: f32 = 0.0;
 const RADIUS_SPEED: f32 = 2.3;
 const RADIUS_ACCEL: f32 = -0.063;
-
-// Original game's inner radius 10 in pixel space; ~1.5 wu at the
-// flasher-derived ~8 px/wu conversion. Constant across the lifetime.
 const RING_THICKNESS: f32 = 1.5;
 
 const PEAK_ALPHA: f32 = 1.0;
@@ -67,15 +34,12 @@ impl OverthrustEffect {
 }
 
 fn radius_at(frame: f32) -> f32 {
-    // r(N) = init + speed*N + accel*N*(N+1)/2
     let n = frame.max(0.0);
     let r = RADIUS_INIT + RADIUS_SPEED * n + RADIUS_ACCEL * n * (n + 1.0) * 0.5;
     r.max(0.0)
 }
 
 fn alpha_at(frame: f32) -> f32 {
-    // Quick fade-in to mask the single-pixel pop, then linear fade-out
-    // across the full lifetime (no fade-out delay).
     let n = frame.clamp(0.0, DURATION_FRAMES);
     let fade_in = (n / FADE_IN_FRAMES).clamp(0.0, 1.0);
     let fade_out = (1.0 - n / DURATION_FRAMES).clamp(0.0, 1.0);

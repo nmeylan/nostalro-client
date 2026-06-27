@@ -1,11 +1,5 @@
-//! Status-ailment appearance and incapacitation rules, decoded from the
-//! `body_state` (opt1, a single enum) and `health_state` (opt2, a bitmask)
-//! fields that ride every entity-update packet. Mirrors the original game's
-//! `SetAttrState`: a fixed body recolor, an animation freeze, persistent
-//! overlay sprites, and movement blocking.
-
 // opt1 — single value (rathena `e_sc_opt1`)
-pub const OPT1_STONE: i16 = 1; // fully petrified
+pub const OPT1_STONE: i16 = 1;
 pub const OPT1_FREEZE: i16 = 2;
 pub const OPT1_STUN: i16 = 3;
 pub const OPT1_SLEEP: i16 = 4;
@@ -19,9 +13,6 @@ pub const OPT2_ANGELUS: i16 = 0x0020;
 pub const OPT2_BLEEDING: i16 = 0x0040;
 pub const OPT2_DEADLYPOISON: i16 = 0x0080;
 
-/// A persistent head-anchored status overlay whose sprite ships in the classic
-/// GRF. Silence and the freeze ice-block are absent from it, so they have no
-/// overlay (freeze still reads from its body tint + frozen pose).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AilmentOverlay {
     Stun,
@@ -36,8 +27,6 @@ impl AilmentOverlay {
         AilmentOverlay::Curse,
     ];
 
-    /// GRF sprite/act base path (without extension) and the ACT action to play.
-    /// The original game billboards these above the actor's head.
     pub fn sprite(self) -> (&'static str, usize) {
         match self {
             AilmentOverlay::Stun => ("data/sprite/이팩트/status-stun", 0),
@@ -47,14 +36,11 @@ impl AilmentOverlay {
     }
 }
 
-/// Per-frame appearance state derived from the ailment fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct AilmentVisual {
-    /// Fixed body recolor (RGB multiply); `None` keeps the natural color.
     pub tint: Option<[u8; 3]>,
-    /// Pause the sprite animation, holding the current pose.
     pub motion_locked: bool,
-    /// Fullscreen darken — applies only when the local player holds the status.
+    /// Applies only when the local player holds the status.
     pub local_fullscreen_blind: bool,
 }
 
@@ -66,9 +52,7 @@ pub fn ailment_visual(body_state: i16, health_state: i16) -> AilmentVisual {
     }
 }
 
-/// The single fixed body ARGB. The original issues sequential color writes and
-/// the last one wins, so health-state colors override body-state ones and the
-/// order is Curse > Bleeding > Poison > Freeze > Stone > StoneWait.
+/// Health-state colors override body-state ones; order: Curse > Bleeding > Poison > Freeze > Stone > StoneWait.
 fn ailment_tint(body_state: i16, health_state: i16) -> Option<[u8; 3]> {
     if health_state & OPT2_CURSE != 0 {
         return Some([200, 50, 50]);
@@ -87,9 +71,7 @@ fn ailment_tint(body_state: i16, health_state: i16) -> Option<[u8; 3]> {
     }
 }
 
-/// Walking is blocked by an opt1 ailment — but not during the petrify delay
-/// (`STONEWAIT`), and never by an opt2 bit. The server is authoritative; this
-/// gates the client's optimistic move prediction so it stops mis-predicting.
+/// STONEWAIT does not block movement; opt2 bits never do.
 pub fn movement_blocked(body_state: i16) -> bool {
     matches!(
         body_state,
@@ -97,8 +79,6 @@ pub fn movement_blocked(body_state: i16) -> bool {
     )
 }
 
-/// The persistent overlays that should be active for the state. Several can
-/// apply at once (one body-state overlay plus the independent opt2 ones).
 pub fn ailment_overlays(body_state: i16, health_state: i16) -> Vec<AilmentOverlay> {
     let mut out = Vec::new();
     match body_state {
@@ -118,27 +98,21 @@ mod tests {
 
     #[test]
     fn ailment_visual_tint_precedence_and_motion_lock() {
-        // Freeze: blue + motion locked.
         let v = ailment_visual(OPT1_FREEZE, 0);
         assert_eq!(v.tint, Some([0, 128, 255]));
         assert!(v.motion_locked);
 
-        // Poison bit: green, no lock.
         let v = ailment_visual(0, OPT2_POISON);
         assert_eq!(v.tint, Some([0, 192, 64]));
         assert!(!v.motion_locked);
 
-        // Poison + Bleeding + Curse all set: Curse wins.
         let v = ailment_visual(0, OPT2_POISON | OPT2_BLEEDING | OPT2_CURSE);
         assert_eq!(v.tint, Some([200, 50, 50]));
 
-        // Freeze body + Poison health: green wins (health over body), but the
-        // freeze still locks motion.
         let v = ailment_visual(OPT1_FREEZE, OPT2_POISON);
         assert_eq!(v.tint, Some([0, 192, 64]));
         assert!(v.motion_locked);
 
-        // StoneWait: gray, NOT motion locked (petrify delay still animates).
         let v = ailment_visual(OPT1_STONEWAIT, 0);
         assert_eq!(v.tint, Some([128, 128, 128]));
         assert!(!v.motion_locked);
@@ -150,22 +124,18 @@ mod tests {
         assert!(movement_blocked(OPT1_FREEZE));
         assert!(movement_blocked(OPT1_STUN));
         assert!(movement_blocked(OPT1_SLEEP));
-        assert!(!movement_blocked(OPT1_STONEWAIT)); // can move while petrifying
-        assert!(!movement_blocked(0)); // normal
+        assert!(!movement_blocked(OPT1_STONEWAIT));
+        assert!(!movement_blocked(0));
     }
 
     #[test]
     fn overlays_combine_body_and_health_states() {
         assert_eq!(ailment_overlays(OPT1_STUN, 0), vec![AilmentOverlay::Stun]);
-        // Stun body + Curse health -> two overlays.
         assert_eq!(
             ailment_overlays(OPT1_STUN, OPT2_CURSE),
             vec![AilmentOverlay::Stun, AilmentOverlay::Curse]
         );
-        // Angelus produces NO head overlay — the original game never shows the
-        // "guard" text for it (that text is the Guard-block effect only).
         assert!(ailment_overlays(0, OPT2_ANGELUS).is_empty());
-        // Blind alone produces no head overlay (it is the fullscreen wash).
         assert!(ailment_overlays(0, OPT2_BLIND).is_empty());
     }
 }

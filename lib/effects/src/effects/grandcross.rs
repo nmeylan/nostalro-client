@@ -1,42 +1,10 @@
-//! `EF_GRANDCROSS` (id 226) / `EF_GRANDCROSS2` (id 450) — the Crusader's Grand
-//! Cross: a cross of holy light walls and beams that flashes up and fades.
-//!
-//! Each id runs two primitives together:
-//!
-//! - **`GRANDCROSS`** — four **quarter-arc
-//!   vertical light walls**, one per corner. Each is a 90° arc of radius
-//!   `distance = 19.9` at a corner offset `(±23, ±23)`, rising straight up
-//!   (`rise_angle = 90°`), height swelling as
-//!   `max_height(120)·sin(process)`. Maps cleanly onto a [`Frustum`] cylinder
-//!   arc (`bottom_size == top_size`, `arc_angle_deg = 90`) based at the corner.
-//! - **`GRANDCROSS2`** — two long thin
-//!   **vertical beam slabs** (a 48×6.4 rectangle) at
-//!   rotation 0° and 90° — a `+` — extruded up by `max_height(60)·sin(
-//!   process)`. Rendered as box faces via [`WorldQuad`].
-//!
-//! id 226 paints white walls + yellow beams; id 450 is the all-black shadow
-//! variant (`ring_black`). Both alpha-ramp in over ~10 frames then
-//! drain. The `distance`/`max_height` literals are large values,
-//! downscaled uniformly so the cross stands a few characters tall.
-//!
-//! Validated against the reference `226.gif`; 450 (gif absent) against the
-//! observed original-game look.
-//!
-//! [`Frustum`]: EffectPrimitiveDraw::Frustum
-//! [`WorldQuad`]: EffectPrimitiveDraw::WorldQuad
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// Walls/beams alpha-drain `-1/frame` from their ~100 peak; the effect dies
-/// once it reaches 0 (`process > 30` gate already passed by then).
 const TOTAL_FRAMES: f32 = 110.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
-/// The effect literals are in world units 1:1 with ours (both
-/// add effect dimensions onto actor positions in the same GND-zoom world space),
-/// so no rescale is needed to match the original client's footprint and height.
 const WORLD_SCALE: f32 = 1.0;
 const WALL_DISTANCE: f32 = 19.9 * WORLD_SCALE;
 const WALL_MAX_HEIGHT: f32 = 120.0 * WORLD_SCALE;
@@ -46,7 +14,6 @@ const WALL_SIDES: u32 = 9;
 const BEAM_HALF_X: f32 = 24.0 * WORLD_SCALE;
 const BEAM_HALF_Z: f32 = 3.2 * WORLD_SCALE;
 const BEAM_MAX_HEIGHT: f32 = 60.0 * WORLD_SCALE;
-/// Base sits just off the ground.
 const BEAM_BASE_Y: f32 = 1.0 * WORLD_SCALE;
 
 const RAMP_FRAMES: f32 = 10.0;
@@ -66,16 +33,10 @@ const WALLS: [(f32, f32, f32); 4] = [
 pub struct GrandcrossParams {
     pub wall_texture: &'static str,
     pub beam_texture: &'static str,
-    /// Walls: white is
-    /// emissive additive so it stays vivid over light ground;
-    /// the black shadow variant is alpha so it darkens.
     pub wall_blend: BlendKind,
-    /// Wall vertex tint: white walls carry a faint pink
-    /// (255,175,175); the black variant tints to (50,50,50).
     pub wall_tint: [f32; 3],
 }
 
-/// id 226 — white walls, yellow beams.
 pub const GRANDCROSS: GrandcrossParams = GrandcrossParams {
     wall_texture: "ring_white.tga",
     beam_texture: "ring_yellow.tga",
@@ -83,7 +44,6 @@ pub const GRANDCROSS: GrandcrossParams = GrandcrossParams {
     wall_tint: [1.0, 175.0 / 255.0, 175.0 / 255.0],
 };
 
-/// id 450 — all-black shadow cross.
 pub const GRANDCROSS2: GrandcrossParams = GrandcrossParams {
     wall_texture: "ring_black.tga",
     beam_texture: "ring_black.tga",
@@ -108,8 +68,6 @@ impl GrandcrossEffect {
         }
     }
 
-    /// Common swell + ramp/drain envelope. `ramp_per_frame` differs between the
-    /// walls (`+10`) and beams (`+9`).
     fn alpha(&self, ramp_per_frame: f32) -> f32 {
         let p = self.process;
         let raw = if p < RAMP_FRAMES {
@@ -125,7 +83,6 @@ impl GrandcrossEffect {
     }
 }
 
-/// Rotate a local `(x, z)` by `angle` (radians) around Y.
 fn rot(x: f32, z: f32, c: f32, s: f32) -> (f32, f32) {
     (c * x - s * z, s * x + c * z)
 }
@@ -144,7 +101,6 @@ impl Effect for GrandcrossEffect {
         let [cx, cy, cz] = self.world_pos;
         let swell = self.swell();
 
-        // --- Four corner arc-walls ---
         let wall_alpha = self.alpha(WALL_RAMP_PER_FRAME);
         let [wt_r, wt_g, wt_b] = self.params.wall_tint;
         let wall_color = [wt_r, wt_g, wt_b, wall_alpha];
@@ -176,7 +132,6 @@ impl Effect for GrandcrossEffect {
             }
         }
 
-        // --- Two perpendicular beam slabs ---
         let beam_alpha = self.alpha(BEAM_RAMP_PER_FRAME);
         if beam_alpha > 0.0 {
             let beam_color = [1.0, 1.0, 1.0, beam_alpha];
@@ -187,7 +142,6 @@ impl Effect for GrandcrossEffect {
                     let a = (k as f32 * 90.0).to_radians();
                     (a.cos(), a.sin())
                 };
-                // Base rectangle corners (native -Y up: base near ground).
                 let base_corners = [
                     rot(BEAM_HALF_X, BEAM_HALF_Z, c, s),
                     rot(BEAM_HALF_X, -BEAM_HALF_Z, c, s),
@@ -205,7 +159,6 @@ impl Effect for GrandcrossEffect {
                     .map(|(x, z)| [cx + x, top_y, cz + z])
                     .collect();
                 let uv = [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
-                // Four side faces.
                 for i in 0..4 {
                     let j = (i + 1) % 4;
                     out.push(EffectPrimitiveDraw::WorldQuad {
@@ -213,12 +166,10 @@ impl Effect for GrandcrossEffect {
                         uv,
                         texture: self.params.beam_texture,
                         color: beam_color,
-                        // Side faces are alpha-blended.
                         blend: BlendKind::Alpha,
                         no_depth: false,
                     });
                 }
-                // Top cap is additive at half alpha.
                 out.push(EffectPrimitiveDraw::WorldQuad {
                     corners: [top[0], top[1], top[2], top[3]],
                     uv,
@@ -279,7 +230,6 @@ mod tests {
             .filter(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { .. }))
             .count();
         assert_eq!(walls, 4, "four corner arc-walls");
-        // Two beams × (4 sides + 1 top).
         assert_eq!(quads, 10, "two beam boxes");
     }
 

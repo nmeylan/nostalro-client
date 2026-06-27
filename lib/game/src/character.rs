@@ -6,7 +6,6 @@ use crate::skill::SkillList;
 use models::enums::class::JobName;
 use models::enums::{EnumWithNumberValue, EnumWithStringValue};
 
-/// One live EFST status on the local player, used to drive the status-icon bar.
 /// Times are local-clock milliseconds; `end_ms` is `None` for permanent statuses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ActiveStatus {
@@ -14,8 +13,6 @@ pub struct ActiveStatus {
     pub val1: i32,
     pub start_ms: u64,
     pub end_ms: Option<u64>,
-    /// Whether the icon texture was found in the GRF; when false the bar draws a
-    /// category-colored placeholder instead of a missing texture.
     pub icon_loaded: bool,
 }
 
@@ -45,21 +42,18 @@ pub struct Character {
     pub int: u8,
     pub dex: u8,
     pub luk: u8,
-    // Bonus from gear/buffs (signed, applied on top of base stat)
     pub str_bonus: i16,
     pub agi_bonus: i16,
     pub vit_bonus: i16,
     pub int_bonus: i16,
     pub dex_bonus: i16,
     pub luk_bonus: i16,
-    // Status point cost to raise each stat by 1
     pub str_cost: u16,
     pub agi_cost: u16,
     pub vit_cost: u16,
     pub int_cost: u16,
     pub dex_cost: u16,
     pub luk_cost: u16,
-    // Combat stats
     pub atk1: i32,
     pub atk2: i32,
     pub matk1: i32,
@@ -74,12 +68,7 @@ pub struct Character {
     pub critical: i32,
     pub aspd: i32,
     pub effect_state: i32,
-    /// Active pushcart design (1..=5), or `None` when no cart. Set from the
-    /// push-cart status; drives the paperdoll cart slot / off button which the
-    /// legacy `effect_state` option bit no longer carries.
     pub cart_design: Option<u8>,
-    /// Live EFST statuses on the local player, in arrival order (drives the
-    /// right-side status-icon bar).
     pub active_statuses: Vec<ActiveStatus>,
 }
 
@@ -148,10 +137,15 @@ impl Character {
         }
     }
 
-    /// Add or refresh a status icon. A non-zero `life_ms` sets an expiry; `0`
-    /// means "until cleared" (no countdown wedge). Re-applying an existing
-    /// status updates its timing in place, preserving its position in the bar.
-    pub fn apply_status(&mut self, efst: i16, val1: i32, now_ms: u64, life_ms: u64, icon_loaded: bool) {
+    /// `life_ms == 0` means permanent (no expiry). Re-applying an existing status updates timing in place.
+    pub fn apply_status(
+        &mut self,
+        efst: i16,
+        val1: i32,
+        now_ms: u64,
+        life_ms: u64,
+        icon_loaded: bool,
+    ) {
         let end_ms = if life_ms == 0 {
             None
         } else {
@@ -177,7 +171,6 @@ impl Character {
         self.active_statuses.retain(|s| s.efst != efst);
     }
 
-    /// Drop statuses whose finite duration has elapsed.
     pub fn prune_expired(&mut self, now_ms: u64) {
         self.active_statuses
             .retain(|s| s.end_ms.is_none_or(|end| now_ms < end));
@@ -291,12 +284,30 @@ impl Character {
         use models::enums::status::StatusTypes;
         if let Ok(status) = StatusTypes::try_from_value(status_type as usize) {
             match status {
-                StatusTypes::Str => { self.str = base as u8; self.str_bonus = bonus as i16; }
-                StatusTypes::Agi => { self.agi = base as u8; self.agi_bonus = bonus as i16; }
-                StatusTypes::Vit => { self.vit = base as u8; self.vit_bonus = bonus as i16; }
-                StatusTypes::Int => { self.int = base as u8; self.int_bonus = bonus as i16; }
-                StatusTypes::Dex => { self.dex = base as u8; self.dex_bonus = bonus as i16; }
-                StatusTypes::Luk => { self.luk = base as u8; self.luk_bonus = bonus as i16; }
+                StatusTypes::Str => {
+                    self.str = base as u8;
+                    self.str_bonus = bonus as i16;
+                }
+                StatusTypes::Agi => {
+                    self.agi = base as u8;
+                    self.agi_bonus = bonus as i16;
+                }
+                StatusTypes::Vit => {
+                    self.vit = base as u8;
+                    self.vit_bonus = bonus as i16;
+                }
+                StatusTypes::Int => {
+                    self.int = base as u8;
+                    self.int_bonus = bonus as i16;
+                }
+                StatusTypes::Dex => {
+                    self.dex = base as u8;
+                    self.dex_bonus = bonus as i16;
+                }
+                StatusTypes::Luk => {
+                    self.luk = base as u8;
+                    self.luk_bonus = bonus as i16;
+                }
                 _ => {}
             }
         }
@@ -334,16 +345,29 @@ impl Character {
         self.int = 0;
         self.dex = 0;
         self.luk = 0;
-        self.str_bonus = 0; self.agi_bonus = 0; self.vit_bonus = 0;
-        self.int_bonus = 0; self.dex_bonus = 0; self.luk_bonus = 0;
-        self.str_cost = 0; self.agi_cost = 0; self.vit_cost = 0;
-        self.int_cost = 0; self.dex_cost = 0; self.luk_cost = 0;
-        self.atk1 = 0; self.atk2 = 0;
-        self.matk1 = 0; self.matk2 = 0;
-        self.def1 = 0; self.def2 = 0;
-        self.mdef1 = 0; self.mdef2 = 0;
+        self.str_bonus = 0;
+        self.agi_bonus = 0;
+        self.vit_bonus = 0;
+        self.int_bonus = 0;
+        self.dex_bonus = 0;
+        self.luk_bonus = 0;
+        self.str_cost = 0;
+        self.agi_cost = 0;
+        self.vit_cost = 0;
+        self.int_cost = 0;
+        self.dex_cost = 0;
+        self.luk_cost = 0;
+        self.atk1 = 0;
+        self.atk2 = 0;
+        self.matk1 = 0;
+        self.matk2 = 0;
+        self.def1 = 0;
+        self.def2 = 0;
+        self.mdef1 = 0;
+        self.mdef2 = 0;
         self.hit = 0;
-        self.flee1 = 0; self.flee2 = 0;
+        self.flee1 = 0;
+        self.flee2 = 0;
         self.critical = 0;
         self.aspd = 0;
         self.effect_state = 0;
@@ -412,32 +436,25 @@ mod tests {
     fn parameter_changed_updates_stats_and_returns_speed() {
         let mut char = Character::new();
 
-        // HP (var_id 5)
         assert!(char.apply_parameter_changed(5, 500).is_none());
         assert_eq!(char.hp, 500);
 
-        // Max HP (var_id 6)
         char.apply_parameter_changed(6, 1000);
         assert_eq!(char.max_hp, 1000);
         assert!((char.hp_percentage() - 0.5).abs() < 0.01);
 
-        // SP (var_id 7)
         char.apply_parameter_changed(7, 80);
         assert_eq!(char.sp, 80);
 
-        // Zeny (var_id 20)
         char.apply_parameter_changed(20, 999999);
         assert_eq!(char.inventory.zeny, 999999);
 
-        // Speed (var_id 0) returns Some
         let result = char.apply_parameter_changed(0, 150);
         assert_eq!(result, Some(150));
 
-        // STR (var_id 13)
         char.apply_parameter_changed(13, 42);
         assert_eq!(char.str, 42);
 
-        // Skill points (var_id 12)
         char.apply_parameter_changed(12, 5);
         assert_eq!(char.skill_point, 5);
     }
@@ -445,12 +462,12 @@ mod tests {
     #[test]
     fn status_changed_updates_base_stats() {
         let mut char = Character::new();
-        char.apply_status_changed(13, 50, 5); // STR base 50, bonus 5
+        char.apply_status_changed(13, 50, 5);
         assert_eq!(char.str, 50);
         assert_eq!(char.str_bonus, 5);
-        char.apply_status_changed(14, 30, 0); // AGI
+        char.apply_status_changed(14, 30, 0);
         assert_eq!(char.agi, 30);
-        char.apply_status_changed(17, 99, -2); // DEX with negative bonus
+        char.apply_status_changed(17, 99, -2);
         assert_eq!(char.dex, 99);
         assert_eq!(char.dex_bonus, -2);
     }
@@ -458,22 +475,18 @@ mod tests {
     #[test]
     fn status_lifecycle_apply_clear_and_prune() {
         let mut char = Character::new();
-        // A finite buff and a permanent one (life 0 = until cleared).
-        char.apply_status(10, 0, 1_000, 30_000, true); // Blessing, expires at 31_000
-        char.apply_status(2, 0, 1_000, 0, true); // Two Hand Quicken, no expiry
+        char.apply_status(10, 0, 1_000, 30_000, true);
+        char.apply_status(2, 0, 1_000, 0, true);
         assert_eq!(char.active_statuses.len(), 2);
 
-        // Re-applying refreshes timing in place (no duplicate, position kept).
         char.apply_status(10, 0, 5_000, 60_000, true);
         assert_eq!(char.active_statuses.len(), 2);
         assert_eq!(char.active_statuses[0].efst, 10);
         assert_eq!(char.active_statuses[0].end_ms, Some(65_000));
 
-        // Off-packet clears one explicitly.
         char.clear_status(2);
         assert_eq!(char.active_statuses.len(), 1);
 
-        // Pruning before/after the finite buff's expiry.
         char.prune_expired(64_000);
         assert_eq!(char.active_statuses.len(), 1);
         char.prune_expired(65_000);

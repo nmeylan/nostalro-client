@@ -1,16 +1,9 @@
-//! Map-flag state and targeting rules.
-//!
-//! Mirrors the original client's world flags (PK / GvG / siege) so that targeting
-//! decisions (who is attackable, cursor shape, valid skill targets) all read from
-//! one place. Kept free of network and render dependencies so tools can reuse it.
-
 use crate::cursor::CursorType;
 use crate::entity::{Entity, EntityState, EntityType};
+use models::enums::EnumWithMaskValueU64;
 use models::enums::map::MapPropertyFlags;
 use models::enums::skill::SkillTargetType;
-use models::enums::EnumWithMaskValueU64;
 
-/// The server's `map_property` word (ZC_NOTIFY_MAPPROPERTY).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum MapKind {
     #[default]
@@ -37,9 +30,6 @@ impl MapKind {
     }
 }
 
-/// Flags for the current map. The detailed `flags` bitmask is only sent on packet
-/// versions >= 20121010; on older versions behaviour derives from `kind` alone.
-/// we want to support both
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MapProperties {
     pub kind: MapKind,
@@ -59,7 +49,6 @@ impl MapProperties {
         self.flags & flag.as_flag() != 0
     }
 
-    /// PK zone: other players are attackable (free-PVP, PK/PVP server, duel).
     pub fn is_pvp(&self) -> bool {
         matches!(
             self.kind,
@@ -67,7 +56,6 @@ impl MapProperties {
         ) || self.has(MapPropertyFlags::IsParty)
     }
 
-    /// Guild-versus-guild (WoE / agit).
     pub fn is_gvg(&self) -> bool {
         matches!(self.kind, MapKind::Agit) || self.has(MapPropertyFlags::IsGuild)
     }
@@ -76,7 +64,6 @@ impl MapProperties {
         matches!(self.kind, MapKind::Agit) || self.has(MapPropertyFlags::IsSiege)
     }
 
-    /// Attacking another player needs shift / no-shift mode (DISABLE_LOCKON).
     pub fn no_lockon(&self) -> bool {
         self.has(MapPropertyFlags::IsNoLockOn)
     }
@@ -85,18 +72,14 @@ impl MapProperties {
         self.is_pvp() || self.has(MapPropertyFlags::CountPk)
     }
 
-    /// Any zone where players are valid attack targets.
     pub fn enable_pk(&self) -> bool {
         self.is_pvp() || self.is_gvg()
     }
 }
 
-/// Effect-state bits that recolour an actor's name to mark its PK status.
 pub const EFFECT_STATE_PINK_NAME: i32 = 0x80000;
 pub const EFFECT_STATE_RED_NAME: i32 = 0x100000;
 
-/// PK name tint from an actor's effect-state: red for a murderer, pink for a
-/// candidate. None means the default name colour applies.
 pub fn pk_name_color(effect_state: i32) -> Option<[f32; 4]> {
     if effect_state & EFFECT_STATE_RED_NAME != 0 {
         Some([1.0, 0.0, 0.0, 1.0])
@@ -107,9 +90,6 @@ pub fn pk_name_color(effect_state: i32) -> Option<[f32; 4]> {
     }
 }
 
-/// How a skill picks its target, derived from the server's `SkillTargetType`.
-/// Mirrors the original client's good-target classification that drives the
-/// support-versus-attack cursor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetClass {
     Offensive,
@@ -127,8 +107,6 @@ pub fn skill_target_class(target_type: SkillTargetType) -> TargetClass {
     }
 }
 
-/// The target's relationship to the local player. Party/Guild are reserved for
-/// when that data reaches the client; for now only self versus other is known.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Relationship {
     Myself,
@@ -145,7 +123,6 @@ pub fn relationship(target_id: u32, player_id: Option<u32>) -> Relationship {
     }
 }
 
-/// Whether the local player may attack `target` on this map.
 pub fn can_attack(target: &Entity, map: &MapProperties, player_id: Option<u32>) -> bool {
     match target.entity_type {
         EntityType::Monster => true,
@@ -156,9 +133,6 @@ pub fn can_attack(target: &Entity, map: &MapProperties, player_id: Option<u32>) 
     }
 }
 
-/// Cursor to show when hovering `target`. `active_skill` is the class of the skill
-/// currently awaiting a target (None during normal play). Returns None when the
-/// target is not pickable in the current context.
 pub fn hover_cursor(
     target: &Entity,
     map: &MapProperties,
@@ -177,15 +151,15 @@ pub fn hover_cursor(
     }
     match active_skill {
         Some(TargetClass::Supportive | TargetClass::SelfOnly) => Some(CursorType::Lock),
-        Some(TargetClass::Offensive) => can_attack(target, map, player_id).then_some(CursorType::Attack),
+        Some(TargetClass::Offensive) => {
+            can_attack(target, map, player_id).then_some(CursorType::Attack)
+        }
         Some(TargetClass::Ground) | None => {
             can_attack(target, map, player_id).then_some(CursorType::Attack)
         }
     }
 }
 
-/// Client-side pre-check that a skill of `class` may be cast on `target`, so we
-/// don't send packets the server will reject.
 pub fn skill_target_allowed(
     class: TargetClass,
     target: &Entity,
@@ -216,7 +190,6 @@ mod tests {
 
         let town = MapProperties::from_kind(MapKind::Normal);
         assert!(!town.is_pvp() && !town.is_gvg() && !town.enable_pk());
-        // No-lockon never set without the detailed bitmask.
         assert!(!town.no_lockon());
     }
 
@@ -230,15 +203,43 @@ mod tests {
     }
 
     fn entity(id: u32, entity_type: EntityType, job: u16) -> Entity {
-        Entity::new(id, entity_type, job, 1, 1, 0, 0, 0, 0, 0, 0, 100, 100, 0, 150)
+        Entity::new(
+            id,
+            entity_type,
+            job,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            100,
+            100,
+            0,
+            150,
+        )
     }
 
     #[test]
     fn target_class_maps_from_skill_target_type() {
-        assert_eq!(skill_target_class(SkillTargetType::Target), TargetClass::Offensive);
-        assert_eq!(skill_target_class(SkillTargetType::Friend), TargetClass::Supportive);
-        assert_eq!(skill_target_class(SkillTargetType::MySelf), TargetClass::SelfOnly);
-        assert_eq!(skill_target_class(SkillTargetType::Ground), TargetClass::Ground);
+        assert_eq!(
+            skill_target_class(SkillTargetType::Target),
+            TargetClass::Offensive
+        );
+        assert_eq!(
+            skill_target_class(SkillTargetType::Friend),
+            TargetClass::Supportive
+        );
+        assert_eq!(
+            skill_target_class(SkillTargetType::MySelf),
+            TargetClass::SelfOnly
+        );
+        assert_eq!(
+            skill_target_class(SkillTargetType::Ground),
+            TargetClass::Ground
+        );
     }
 
     #[test]
@@ -250,34 +251,43 @@ mod tests {
         let other = entity(20, EntityType::Player, 0);
         let myself = entity(1, EntityType::Player, 0);
 
-        // Monsters: always attackable, attack cursor with no active skill.
         assert!(can_attack(&monster, &town, me));
-        assert_eq!(hover_cursor(&monster, &town, None, me), Some(CursorType::Attack));
+        assert_eq!(
+            hover_cursor(&monster, &town, None, me),
+            Some(CursorType::Attack)
+        );
 
-        // Other players: only in a PK zone.
         assert!(!can_attack(&other, &town, me));
         assert_eq!(hover_cursor(&other, &town, None, me), None);
         assert!(can_attack(&other, &pvp, me));
-        assert_eq!(hover_cursor(&other, &pvp, None, me), Some(CursorType::Attack));
+        assert_eq!(
+            hover_cursor(&other, &pvp, None, me),
+            Some(CursorType::Attack)
+        );
 
-        // Never attack yourself.
         assert!(!can_attack(&myself, &pvp, me));
 
-        // Support skill active: any actor is a lock target (incl. self).
         assert_eq!(
             hover_cursor(&myself, &town, Some(TargetClass::Supportive), me),
             Some(CursorType::Lock)
         );
-        // Offensive skill on an ally in town is not a valid target.
-        assert_eq!(hover_cursor(&other, &town, Some(TargetClass::Offensive), me), None);
+        assert_eq!(
+            hover_cursor(&other, &town, Some(TargetClass::Offensive), me),
+            None
+        );
     }
 
     #[test]
     fn pk_name_color_reads_effect_state_bits() {
         assert_eq!(pk_name_color(0), None);
-        assert_eq!(pk_name_color(EFFECT_STATE_RED_NAME), Some([1.0, 0.0, 0.0, 1.0]));
-        assert_eq!(pk_name_color(EFFECT_STATE_PINK_NAME), Some([1.0, 0.392, 0.722, 1.0]));
-        // Red takes precedence over pink.
+        assert_eq!(
+            pk_name_color(EFFECT_STATE_RED_NAME),
+            Some([1.0, 0.0, 0.0, 1.0])
+        );
+        assert_eq!(
+            pk_name_color(EFFECT_STATE_PINK_NAME),
+            Some([1.0, 0.392, 0.722, 1.0])
+        );
         assert_eq!(
             pk_name_color(EFFECT_STATE_RED_NAME | EFFECT_STATE_PINK_NAME),
             Some([1.0, 0.0, 0.0, 1.0])
@@ -292,10 +302,35 @@ mod tests {
         let other = entity(20, EntityType::Player, 0);
         let myself = entity(1, EntityType::Player, 0);
 
-        assert!(skill_target_allowed(TargetClass::Offensive, &monster, &pvp, me));
-        assert!(skill_target_allowed(TargetClass::SelfOnly, &myself, &pvp, me));
-        assert!(!skill_target_allowed(TargetClass::SelfOnly, &other, &pvp, me));
-        assert!(skill_target_allowed(TargetClass::Supportive, &other, &pvp, me));
-        assert!(!skill_target_allowed(TargetClass::Ground, &monster, &pvp, me));
+        assert!(skill_target_allowed(
+            TargetClass::Offensive,
+            &monster,
+            &pvp,
+            me
+        ));
+        assert!(skill_target_allowed(
+            TargetClass::SelfOnly,
+            &myself,
+            &pvp,
+            me
+        ));
+        assert!(!skill_target_allowed(
+            TargetClass::SelfOnly,
+            &other,
+            &pvp,
+            me
+        ));
+        assert!(skill_target_allowed(
+            TargetClass::Supportive,
+            &other,
+            &pvp,
+            me
+        ));
+        assert!(!skill_target_allowed(
+            TargetClass::Ground,
+            &monster,
+            &pvp,
+            me
+        ));
     }
 }

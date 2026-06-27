@@ -2,7 +2,7 @@ use crate::App;
 use ragnarok_game::cursor::PendingSkillTarget;
 use ragnarok_game::entity::{EntityState, EntityType};
 use ragnarok_game::path::try_move_to;
-use ragnarok_game::targeting::{can_attack, skill_target_allowed, skill_target_class, TargetClass};
+use ragnarok_game::targeting::{TargetClass, can_attack, skill_target_allowed, skill_target_class};
 use ragnarok_network::{
     build_contact_npc_packet, build_pickup_item_packet, build_request_move_packet,
     build_use_skill_packet, build_use_skill_to_ground_packet,
@@ -18,15 +18,9 @@ impl App {
         {
             return;
         }
-        // Incapacitated (stun/freeze/stone/sleep): the server rejects the action,
-        // so swallow the click instead of mis-predicting movement client-side.
         if self.is_local_player_incapacitated() {
             return;
         }
-        // Skill targeting mode: consume pending skill on click. While a (global
-        // or per-skill) cooldown is running the cursor keeps showing the skill
-        // ring, but the click casts nothing — leave the pending target armed so
-        // the player can cast once the cooldown clears.
         if let Some(pending) = self.game.pending_skill_target {
             if self.skill_on_cooldown(pending.skill_id()) {
                 return;
@@ -108,7 +102,6 @@ impl App {
             }
             return;
         }
-        // Click on floor item to pick up
         if let Some(item_id) = self.game.hovered_floor_item_id {
             self.game.attack_target_id = None;
             self.game.pending_pickup_item_id = None;
@@ -146,7 +139,6 @@ impl App {
             }
             return;
         }
-        // Click on NPC to talk
         if let Some(entity_id) = self.game.hovered_entity_id
             && let Some(entity) = self.game.entities.get(entity_id)
             && entity.entity_type == EntityType::Npc
@@ -156,7 +148,6 @@ impl App {
                 .send_packet(build_contact_npc_packet(entity_id, self.config.packetver));
             return;
         }
-        // Click on monster to attack (always), or player (shift or noshift mode)
         if let Some(entity_id) = self.game.hovered_entity_id
             && let Some(entity) = self.game.entities.get(entity_id)
         {

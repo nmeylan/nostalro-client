@@ -4,9 +4,6 @@ use ragnarok_game::path::try_move_to_range;
 use ragnarok_network::{build_action_request_packet, build_request_move_packet};
 
 impl App {
-    /// The local player is blocked from acting by an opt1 ailment
-    /// (stun/freeze/stone/sleep). Gates the client's optimistic move prediction
-    /// so it stops walking client-side when the server would reject the move.
     pub(crate) fn is_local_player_incapacitated(&self) -> bool {
         self.game
             .entities

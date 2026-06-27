@@ -25,10 +25,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
-use ragnarok_formats::grf::GrfArchive;
 use models::enums::EnumWithNumberValue;
 use models::enums::EnumWithStringValue;
 use models::enums::effect_id::EffectId;
+use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
     EffectQueue, EffectSpec, effect_spec, effect_texture_paths, is_count_point_effect,
@@ -305,13 +305,18 @@ impl ExternalCustomBackend for HotLibEffectBackend {
     ) -> u64 {
         let [tw, th] = target_size.unwrap_or([f32::NAN, f32::NAN]);
         let handle = unsafe {
-            (self.spawn_fn)(self.state, effect_id, &from as *const _, &to as *const _, hit_count, tw, th)
+            (self.spawn_fn)(
+                self.state,
+                effect_id,
+                &from as *const _,
+                &to as *const _,
+                hit_count,
+                tw,
+                th,
+            )
         };
         if handle != 0 {
-            self.handle_ids
-                .lock()
-                .unwrap()
-                .insert(handle, effect_id);
+            self.handle_ids.lock().unwrap().insert(handle, effect_id);
         }
         handle
     }
@@ -323,12 +328,7 @@ impl ExternalCustomBackend for HotLibEffectBackend {
         dead == 0
     }
 
-    fn collect(
-        &self,
-        handle: u64,
-        ctx: &GameEffectRenderCtx,
-        out: &mut EffectDrawList,
-    ) {
+    fn collect(&self, handle: u64, ctx: &GameEffectRenderCtx, out: &mut EffectDrawList) {
         let ffi = EffectRenderCtxFfi {
             eye: ctx.camera.eye,
             target: ctx.camera.target,
@@ -398,30 +398,26 @@ impl HotLib {
             let destroy_fn = *lib.get::<HotDestroyFn>(b"hot_destroy").ok()?;
             let update_fn = *lib.get::<HotUpdateFn>(b"hot_update").ok()?;
             let on_action_fn = *lib.get::<HotOnActionFn>(b"hot_on_action").ok()?;
-            let on_mouse_wheel_fn =
-                *lib.get::<HotOnMouseWheelFn>(b"hot_on_mouse_wheel").ok()?;
-            let on_mouse_drag_fn =
-                *lib.get::<HotOnMouseDragFn>(b"hot_on_mouse_drag").ok()?;
+            let on_mouse_wheel_fn = *lib.get::<HotOnMouseWheelFn>(b"hot_on_mouse_wheel").ok()?;
+            let on_mouse_drag_fn = *lib.get::<HotOnMouseDragFn>(b"hot_on_mouse_drag").ok()?;
             let get_flags_fn = *lib.get::<HotGetFlagsFn>(b"hot_get_flags").ok()?;
             let get_camera_fn = *lib.get::<HotGetCameraFn>(b"hot_get_camera").ok()?;
-            let take_pending_fn =
-                *lib.get::<HotTakePendingFn>(b"hot_take_pending_spawn").ok()?;
+            let take_pending_fn = *lib
+                .get::<HotTakePendingFn>(b"hot_take_pending_spawn")
+                .ok()?;
             let take_step_request_fn = *lib
                 .get::<HotTakeStepRequestFn>(b"hot_take_step_request")
                 .ok()?;
-            let set_last_status_fn =
-                *lib.get::<HotSetLastStatusFn>(b"hot_set_last_status").ok()?;
-            let build_overlay_fn =
-                *lib.get::<HotBuildOverlayFn>(b"hot_build_overlay").ok()?;
-            let get_filtered_ids_fn =
-                *lib.get::<HotGetFilteredIdsFn>(b"hot_get_filtered_ids").ok()?;
+            let set_last_status_fn = *lib.get::<HotSetLastStatusFn>(b"hot_set_last_status").ok()?;
+            let build_overlay_fn = *lib.get::<HotBuildOverlayFn>(b"hot_build_overlay").ok()?;
+            let get_filtered_ids_fn = *lib
+                .get::<HotGetFilteredIdsFn>(b"hot_get_filtered_ids")
+                .ok()?;
             let set_selected_effect_id_fn = *lib
                 .get::<HotSetSelectedEffectIdFn>(b"hot_set_selected_effect_id")
                 .ok()?;
-            let snapshot_state_fn =
-                *lib.get::<HotSnapshotStateFn>(b"hot_snapshot_state").ok()?;
-            let restore_state_fn =
-                *lib.get::<HotRestoreStateFn>(b"hot_restore_state").ok()?;
+            let snapshot_state_fn = *lib.get::<HotSnapshotStateFn>(b"hot_snapshot_state").ok()?;
+            let restore_state_fn = *lib.get::<HotRestoreStateFn>(b"hot_restore_state").ok()?;
             let spawn_custom_effect_fn = *lib
                 .get::<HotSpawnCustomEffectFn>(b"hot_spawn_custom_effect")
                 .ok()?;
@@ -569,7 +565,13 @@ impl HotLib {
         out: &mut Vec<UiDrawCall>,
     ) {
         unsafe {
-            (self.build_overlay_fn)(self.state, atlas as *const FontAtlas, screen_w, screen_h, out)
+            (self.build_overlay_fn)(
+                self.state,
+                atlas as *const FontAtlas,
+                screen_w,
+                screen_h,
+                out,
+            )
         };
     }
 }
@@ -867,7 +869,11 @@ impl App {
             return;
         };
         browser.open = false;
-        if let Some(idx) = self.stress_sets.iter().position(|s| stress_label(s) == selected) {
+        if let Some(idx) = self
+            .stress_sets
+            .iter()
+            .position(|s| stress_label(s) == selected)
+        {
             self.effect_holder.clear();
             self.stress.launch(idx);
         }
@@ -1090,8 +1096,7 @@ impl App {
                 // Custom effects can also drive sprite billboards via
                 // SpriteParticle. Preload the aggregated paths so the
                 // first frame after spawn isn't silently empty.
-                sprites
-                    .extend(ragnarok_game::effect::custom_effect_sprite_paths());
+                sprites.extend(ragnarok_game::effect::custom_effect_sprite_paths());
             }
             _ => return,
         }
@@ -1125,7 +1130,9 @@ impl App {
                     None,
                 );
                 let Some(probe) = probe else { return };
-                let Some(overlay) = probe.str_overlay() else { return };
+                let Some(overlay) = probe.str_overlay() else {
+                    return;
+                };
                 overlay
             }
             _ => return,
@@ -1196,8 +1203,12 @@ impl App {
                 .trail_target_override
                 .unwrap_or_else(|| demo_trail_endpoints(origin).1);
             if effect_id == EffectId::Soulstrike {
-                self.effect_queue
-                    .spawn_trail_with_count(effect_id, origin, to, self.demo_hit_count);
+                self.effect_queue.spawn_trail_with_count(
+                    effect_id,
+                    origin,
+                    to,
+                    self.demo_hit_count,
+                );
             } else {
                 self.effect_queue.spawn_trail(effect_id, origin, to);
             }
@@ -1238,10 +1249,7 @@ impl App {
         for (filename, target) in targets {
             match ShaderWatcher::new(&shader_dir, filename) {
                 Ok(w) => self.shader_watchers.push((w, *target)),
-                Err(e) => tracing::warn!(
-                    "Shader watcher unavailable for {}: {e}",
-                    filename
-                ),
+                Err(e) => tracing::warn!("Shader watcher unavailable for {}: {e}", filename),
             }
         }
     }
@@ -1325,18 +1333,10 @@ impl App {
         self.last_frame = now;
         let dt = raw_dt.min(0.1);
 
-        let flags = self
-            .hot_lib
-            .as_ref()
-            .map(|h| h.flags())
-            .unwrap_or_default();
+        let flags = self.hot_lib.as_ref().map(|h| h.flags()).unwrap_or_default();
         let speed = (flags.speed_x100 as f32 / 100.0).max(0.0);
         let paused = flags.paused != 0;
-        let step = paused
-            && self
-                .hot_lib
-                .as_ref()
-                .is_some_and(|h| h.take_step_request());
+        let step = paused && self.hot_lib.as_ref().is_some_and(|h| h.take_step_request());
         // When a GIF export is active, the simulation is driven by a fixed
         // tick so the recording is deterministic regardless of vsync jitter
         // or the user's pause/speed flags. The viewer also rebuilds the same
@@ -1363,21 +1363,21 @@ impl App {
 
         // Drain spawn requests into the holder, then tick it. Camera target
         // lets camera-anchored SprBurst effects (Snow, etc.) follow the view.
-        self.effect_holder.drain_queue(&mut self.effect_queue, &|_| None);
-        let camera_target = self
-            .renderer
-            .as_ref()
-            .map(|r| r.camera.target.to_array());
+        self.effect_holder
+            .drain_queue(&mut self.effect_queue, &|_| None);
+        let camera_target = self.renderer.as_ref().map(|r| r.camera.target.to_array());
         // Reuse the projectile crosshair to aim direction-oriented effects
         // (AttackEnergy comet, AttackEnergy2 rings, Guard shell): the caster
         // sits at the origin, so the crosshair gives a world facing yaw
         // (`dx.atan2(dz)`, the +Z = 0 heading convention). No crosshair → a
         // fixed front.
-        let caster_yaw = self
-            .trail_target_override
-            .map(|t| t[0].atan2(t[2]));
+        let caster_yaw = self.trail_target_override.map(|t| t[0].atan2(t[2]));
         self.effect_holder.update(
-            &EffectUpdateCtx { delta: scaled_dt, camera_target, caster_yaw },
+            &EffectUpdateCtx {
+                delta: scaled_dt,
+                camera_target,
+                caster_yaw,
+            },
             &|_| None,
             // Viewer has no entity table; link effects render as a static
             // tether to the green-cross fake entity via their spawn anchor.
@@ -1456,16 +1456,20 @@ impl App {
                 action_index: s.action_index,
             })
             .collect();
-        spr_inputs.extend(burst_snapshots.iter().map(|b| SpriteEffectEmitter::Smoke3D {
-            sprite_path: &b.sprite,
-            alpha_max: b.alpha_max,
-            color: [1.0, 1.0, 1.0, 1.0],
-            size_scale: b.size_scale,
-            anim_speed: b.anim_speed,
-            size_shrink: b.size_shrink,
-            twinkle: b.twinkle,
-            particles: b.particles.clone(),
-        }));
+        spr_inputs.extend(
+            burst_snapshots
+                .iter()
+                .map(|b| SpriteEffectEmitter::Smoke3D {
+                    sprite_path: &b.sprite,
+                    alpha_max: b.alpha_max,
+                    color: [1.0, 1.0, 1.0, 1.0],
+                    size_scale: b.size_scale,
+                    anim_speed: b.anim_speed,
+                    size_shrink: b.size_shrink,
+                    twinkle: b.twinkle,
+                    particles: b.particles.clone(),
+                }),
+        );
         let spr_draws = collect_sprite_effect_draws(
             &spr_inputs,
             &self.effect_sprites,
@@ -1496,14 +1500,13 @@ impl App {
         // unified effect dispatch consumes these as `DrawRecord`s so they
         // depth-sort against Billboard / 3D primitives from the same
         // EffectDrawList.
-        let sprite_particle_records =
-            ragnarok_renderer::prepare_sprite_particle_records(
-                &effect_draws,
-                &self.effect_sprites,
-                &renderer.camera,
-                screen_w,
-                screen_h,
-            );
+        let sprite_particle_records = ragnarok_renderer::prepare_sprite_particle_records(
+            &effect_draws,
+            &self.effect_sprites,
+            &renderer.camera,
+            screen_w,
+            screen_h,
+        );
 
         // cdylib overlay (status + legend + controls). Browser, when open,
         // is drawn on top by the host.
@@ -1601,14 +1604,13 @@ impl App {
                     cap_h,
                 );
                 capture_batches.extend(build_emitter_batches(&spr_draws_capture));
-                let sprite_particle_capture =
-                    ragnarok_renderer::prepare_sprite_particle_records(
-                        &effect_draws,
-                        &self.effect_sprites,
-                        &renderer.camera,
-                        cap_w,
-                        cap_h,
-                    );
+                let sprite_particle_capture = ragnarok_renderer::prepare_sprite_particle_records(
+                    &effect_draws,
+                    &self.effect_sprites,
+                    &renderer.camera,
+                    cap_w,
+                    cap_h,
+                );
                 let color_view = session.target.color_view.clone();
                 let depth_view = session.target.depth_view.clone();
                 renderer.render_into(
@@ -1763,8 +1765,10 @@ impl ApplicationHandler for App {
                     self.open_browser();
                     return;
                 }
-                if matches!(event.logical_key.as_ref(), Key::Character("e") | Key::Character("E"))
-                {
+                if matches!(
+                    event.logical_key.as_ref(),
+                    Key::Character("e") | Key::Character("E")
+                ) {
                     let id_u16 = self
                         .hot_lib
                         .as_ref()
@@ -1778,13 +1782,17 @@ impl ApplicationHandler for App {
                     }
                     return;
                 }
-                if matches!(event.logical_key.as_ref(), Key::Character("t") | Key::Character("T"))
-                {
+                if matches!(
+                    event.logical_key.as_ref(),
+                    Key::Character("t") | Key::Character("T")
+                ) {
                     self.placing_target = !self.placing_target;
                     return;
                 }
-                if matches!(event.logical_key.as_ref(), Key::Character("x") | Key::Character("X"))
-                {
+                if matches!(
+                    event.logical_key.as_ref(),
+                    Key::Character("x") | Key::Character("X")
+                ) {
                     self.trail_target_override = None;
                     self.placing_target = false;
                     if let Some(hot) = &self.hot_lib {
@@ -1792,8 +1800,10 @@ impl ApplicationHandler for App {
                     }
                     return;
                 }
-                if matches!(event.logical_key.as_ref(), Key::Character("b") | Key::Character("B"))
-                {
+                if matches!(
+                    event.logical_key.as_ref(),
+                    Key::Character("b") | Key::Character("B")
+                ) {
                     if let Some(renderer) = &mut self.renderer {
                         let blue = wgpu::Color {
                             r: 0.392,
@@ -1987,25 +1997,15 @@ fn build_target_crosshair(
     const THICK: f32 = 2.0;
     const COLOR: [f32; 4] = [0.2, 1.0, 0.2, 0.9];
     let mut calls = Vec::new();
-    let (hv, hi) = ragnarok_ui::draw::quad_vertices(
-        sx - SIZE,
-        sy - THICK * 0.5,
-        SIZE * 2.0,
-        THICK,
-        COLOR,
-    );
+    let (hv, hi) =
+        ragnarok_ui::draw::quad_vertices(sx - SIZE, sy - THICK * 0.5, SIZE * 2.0, THICK, COLOR);
     calls.push(UiDrawCall {
         vertices: hv.to_vec(),
         indices: hi.to_vec(),
         texture: UiTextureRef::White,
     });
-    let (vv, vi) = ragnarok_ui::draw::quad_vertices(
-        sx - THICK * 0.5,
-        sy - SIZE,
-        THICK,
-        SIZE * 2.0,
-        COLOR,
-    );
+    let (vv, vi) =
+        ragnarok_ui::draw::quad_vertices(sx - THICK * 0.5, sy - SIZE, THICK, SIZE * 2.0, COLOR);
     calls.push(UiDrawCall {
         vertices: vv.to_vec(),
         indices: vi.to_vec(),

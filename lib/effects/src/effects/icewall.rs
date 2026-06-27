@@ -1,16 +1,3 @@
-//! `EF_ICEWALL` — Wizard Ice Wall (id 74).
-//!
-//! The original game lays the wall as one independent effect **per ground
-//! cell**: the server sends one unit packet per occupied cell and the wall's
-//! line shape comes entirely from those positions. Each cell sprouts three
-//! near-vertical `ice.tga` blades clustered on the cell at **random**
-//! Y-rotations and a slight random tilt — there is no per-blade orientation to
-//! the wall line. Persistent until the cell's disappear packet kills it.
-//!
-//! Blades grow upward for ~20 frames then freeze (the speed-limit rise). The
-//! cluster is seeded from the cell position so a given cell always sprouts the
-//! same blades (deterministic for tests and the viewer).
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::effects::frost_diver::ICE_TEXTURE;
@@ -19,19 +6,13 @@ use crate::effects::spike_util::{FRAMES_PER_SECOND, apex_velocity, rise_step};
 pub const TEXTURES: &[&str] = &[ICE_TEXTURE];
 
 const BLADE_COUNT: usize = 3;
-/// Near-vertical with a few degrees of random jitter (original `latitude`
-/// 87..93°).
 const TILT_BASE_DEG: f32 = 90.0;
 const TILT_JITTER_DEG: f32 = 3.0;
 const SIZE: f32 = 1.4;
 const HEIGHT: f32 = 16.0;
-/// Blades scatter along the cell (original steps `length` -2/0/2; ~½ scale).
 const SCATTER_STEP: f32 = 1.0;
-
 const SPIKE_SPEED_PER_S: f32 = 0.18 * FRAMES_PER_SECOND;
-/// Blade grows for 20 frames then freezes.
 const SPEED_LIMIT_S: f32 = 20.0 / FRAMES_PER_SECOND;
-/// Blade alpha 200/255.
 const ALPHA: f32 = 200.0 / 255.0;
 
 struct Blade {
@@ -47,8 +28,6 @@ pub struct IceWallEffect {
 }
 
 impl IceWallEffect {
-    /// Sprout the cell's three randomly-rotated blades around `center` (the
-    /// unit cell's ground world position).
     pub fn new(center: [f32; 3]) -> Self {
         let seed = position_hash(&center);
         let blades = (0..BLADE_COUNT)
@@ -62,8 +41,6 @@ impl IceWallEffect {
                     TILT_BASE_DEG - TILT_JITTER_DEG,
                     TILT_BASE_DEG + TILT_JITTER_DEG,
                 );
-                // Original scatters each blade along the cell by `-length·cos`
-                // (steps -1/0/1 here); the cross-axis offset is intentionally 0.
                 let length = -SCATTER_STEP + i as f32 * SCATTER_STEP;
                 let base = [center[0], center[1], center[2] - length * angle.cos()];
                 Blade {
@@ -90,7 +67,6 @@ impl Effect for IceWallEffect {
             );
         }
         self.age += ctx.delta;
-        // Persistent: killed by the wall-destroyed packet, never self-expires.
         EffectStatus::Running
     }
 
@@ -152,8 +128,6 @@ mod tests {
 
     #[test]
     fn cell_sprouts_three_tall_randomly_rotated_blades_and_persists() {
-        // Sociable test: one cell yields three tall near-vertical ice blades
-        // clustered on the cell, each at its own random Y-rotation, persistent.
         let e = IceWallEffect::new([5.0, 0.0, 7.0]);
         let prims = draws(&e);
         assert_eq!(prims.len(), BLADE_COUNT);
@@ -176,7 +150,6 @@ mod tests {
                 (*tilt_x_deg - 90.0).abs() <= TILT_JITTER_DEG,
                 "near-vertical"
             );
-            // Clustered on the cell (only scattered a little along Z).
             assert!((base[0] - 5.0).abs() < 1e-3, "no cross-axis offset");
             assert!(
                 (base[2] - 7.0).abs() <= SCATTER_STEP + 1e-3,
@@ -189,7 +162,6 @@ mod tests {
             "blades carry distinct random rotations"
         );
 
-        // Persistent: still Running far past any one-shot lifetime.
         let mut e = e;
         for _ in 0..1200 {
             assert_eq!(
@@ -205,8 +177,6 @@ mod tests {
 
     #[test]
     fn same_cell_is_deterministic_distinct_cells_differ() {
-        // Seeded from the cell position: re-spawning the same cell reproduces
-        // the blades; a different cell sprouts a different cluster.
         let headings = |c: [f32; 3]| -> Vec<f32> {
             draws(&IceWallEffect::new(c))
                 .into_iter()

@@ -1,21 +1,4 @@
 //! `EF_LOCKON` — lock-on targeting reticle (id 60).
-//!
-//! In the original game this spawns **two** crossed
-//! `lockon128.tga` quads laid flat on the ground at the targeted
-//! entity's feet. The second quad is offset 45° in-plane from the first, so the
-//! pair reads as an 8-point targeting star. Both spin around world Y
-//! (~4.5°/frame), shrink over their life, and pulse a
-//! red tint (red holds at 250, green/blue cycle down from 150).
-//!
-//! (The single `magic_target.tga` quad variant is the *ground-cast*
-//! reticle, not the entity lock-on; we render the two-quad reticle.)
-//!
-//! Size: the original snaps the reticle in over the first `CHANGE_POINT` frames
-//! (30 → 8) and then *holds it constant* for the rest of its
-//! life — it does not shrink continuously. We keep that snap-then-hold law, but
-//! the steady size is derived from the targeted actor's sprite size (passed via
-//! `target_size`) so the reticle fits the target rather than using a fixed
-//! footprint. With no target size we fall back to a fixed half (8).
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -23,34 +6,25 @@ use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 pub const LOCKON_TEXTURE: &str = "lockon128.tga";
 pub const TEXTURES: &[&str] = &[LOCKON_TEXTURE];
 
-/// Steady-state half-extent when no target size is known (fixed `8`).
 const STEADY_HALF_FALLBACK: f32 = 8.0;
 /// Snap-in starts this many times larger than the steady size (30/8).
 const START_SCALE: f32 = 30.0 / 8.0;
-/// Frame at which the shrink stops; the size holds after.
 const CHANGE_POINT_FRAMES: f32 = 22.0;
-/// Spin speed in degrees per 60fps frame. Negative spins counter-clockwise
-/// (reverse); flip the sign to reverse the spin direction.
 const DEG_PER_FRAME: f32 = -4.5;
 const FRAMES_PER_SECOND: f32 = 60.0;
 const QUAD_OFFSET: f32 = std::f32::consts::FRAC_PI_4;
-/// RGB cycle: red holds while green/blue ramp down from 150
-/// by `-5` each frame, wrapping `0 -> 254`. So the reticle drives to pure red,
-/// flashes near-white at the wrap, pauses `RGB_CYCLE_DELAY` frames, then repeats.
 const RGB_RED: i32 = 250;
 const RGB_GB_START: i32 = 150;
 const RGB_GB_SPEED: i32 = -5;
 const RGB_CYCLE_DELAY: i32 = 20;
 const RGB_MAX: i32 = 254;
-/// Lift the flat reticle just off the ground (native RO: negative y = up) so it
-/// isn't swallowed by the terrain it lies on.
+/// −Y is up; lift prevents terrain from depth-occluding the flat quad.
 const GROUND_LIFT: f32 = -0.3;
 
 pub struct LockonEffect {
     world_pos: [f32; 3],
     steady_half: f32,
     age: f32,
-    /// Shared green/blue channel of the RGB cycle (red is fixed).
     gb: i32,
     cycle_cnt: i32,
     frame_accum: f32,
@@ -79,9 +53,6 @@ impl LockonEffect {
         self.steady_half * scale
     }
 
-    /// One 60fps step of the RGB cycle: the cycle only honours
-    /// `RGB_CYCLE_DELAY` while parked at the `254` wrap point; otherwise it ramps
-    /// every frame. Green and blue share a value, so we track one channel.
     fn step_rgb_cycle(&mut self) {
         if self.gb == RGB_MAX {
             self.cycle_cnt += 1;
@@ -134,8 +105,6 @@ impl Effect for LockonEffect {
                 uv: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
                 texture: LOCKON_TEXTURE,
                 color,
-                // This renders alpha-blended, not
-                // additive — additive vanishes against a bright lightmap.
                 blend: BlendKind::Alpha,
             });
         }
@@ -200,7 +169,6 @@ mod tests {
             "second quad is offset 45deg in-plane"
         );
 
-        // Snap-in: shrinks over the first CHANGE_POINT frames.
         advance(&mut e, 30);
         let (yaws_b, size_b) = yaws_and_size(&e);
         assert_eq!(
@@ -210,14 +178,12 @@ mod tests {
         );
         assert!(size_b < size_a, "reticle snaps inward at spawn");
 
-        // RGB cycle drives green/blue down to pure red within ~30 frames.
         let color = e.color();
         assert!(
             color[1] <= 0.02 && color[2] <= 0.02,
             "reticle reaches pure red"
         );
 
-        // After the change point the size holds — it does not keep shrinking.
         advance(&mut e, 30);
         let (_, size_c) = yaws_and_size(&e);
         advance(&mut e, 60);
@@ -227,7 +193,6 @@ mod tests {
             "reticle size is constant after the change point"
         );
 
-        // A larger target yields a proportionally larger steady reticle.
         let mut big = LockonEffect::new([0.0, 0.0, 0.0], Some([32.0, 32.0]));
         advance(&mut big, 60);
         let (_, big_steady) = yaws_and_size(&big);

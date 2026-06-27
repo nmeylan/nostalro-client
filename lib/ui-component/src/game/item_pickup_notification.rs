@@ -189,13 +189,11 @@ mod tests {
         let mut state = StateCache::new();
         let ctx = UiContext::new(800.0, 600.0);
 
-        // First build sets start_time to 0.0
         let mut ui = make_frame_with_elapsed(&ctx, &mut state, 0.0);
         let mut character = Character::new();
         notif.build(&mut ui, &mut character, &DataTable::default());
         assert!(!notif.is_empty());
 
-        // Build after total duration
         let mut ui = make_frame_with_elapsed(&ctx, &mut state, 5.0);
         let mut character = Character::new();
         notif.build(&mut ui, &mut character, &DataTable::default());

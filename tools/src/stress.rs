@@ -135,8 +135,15 @@ pub fn random_visible_ground_positions(
     let x_hi = screen_w * (1.0 - SCREEN_MARGIN);
     let y_lo = screen_h * SCREEN_MARGIN;
     let y_hi = screen_h * (1.0 - SCREEN_MARGIN);
-    let center = screen_to_ground(camera, screen_w * 0.5, screen_h * 0.5, screen_w, screen_h, plane_y)
-        .unwrap_or([0.0, plane_y, 0.0]);
+    let center = screen_to_ground(
+        camera,
+        screen_w * 0.5,
+        screen_h * 0.5,
+        screen_w,
+        screen_h,
+        plane_y,
+    )
+    .unwrap_or([0.0, plane_y, 0.0]);
 
     (0..n)
         .map(|_| {
@@ -155,12 +162,7 @@ pub fn random_visible_ground_positions(
 /// Queue one effect at `pos`, routing by effect kind the same way the viewers
 /// do for single spawns. `actor_id` is the entity body-attached effects follow;
 /// pass `None` (no actor, e.g. the effect viewer) to spawn them at `pos`.
-pub fn enqueue_effect(
-    queue: &mut EffectQueue,
-    id: EffectId,
-    pos: [f32; 3],
-    actor_id: Option<u32>,
-) {
+pub fn enqueue_effect(queue: &mut EffectQueue, id: EffectId, pos: [f32; 3], actor_id: Option<u32>) {
     if let (true, Some(aid)) = (body_attached(id), actor_id) {
         queue.spawn_on(id, aid);
     } else if is_trail_effect(id) || is_link_effect(id) {
@@ -240,7 +242,10 @@ impl StressRunner {
 
     /// A fresh RNG seed for the next reseed (varies frame-to-frame).
     pub fn next_seed(&mut self) -> u32 {
-        self.seed_counter = self.seed_counter.wrapping_mul(2_654_435_761).wrapping_add(1);
+        self.seed_counter = self
+            .seed_counter
+            .wrapping_mul(2_654_435_761)
+            .wrapping_add(1);
         self.seed_counter
     }
 }
@@ -263,7 +268,14 @@ mod tests {
         let aoe = sets.iter().find(|s| s.name == "Caster AoE mix").unwrap();
         assert!(aoe.entries.contains(&(EffectId::Icearrow, 10))); // Cold Bolt
         assert!(aoe.entries.contains(&(EffectId::Firearrow, 10))); // Fire Bolt
-        assert_eq!(aoe.entries.iter().find(|(id, _)| *id == EffectId::BottomPoembragi).unwrap().1, 20);
+        assert_eq!(
+            aoe.entries
+                .iter()
+                .find(|(id, _)| *id == EffectId::BottomPoembragi)
+                .unwrap()
+                .1,
+            20
+        );
     }
 
     #[test]
@@ -274,7 +286,10 @@ mod tests {
         runner.launch(2);
         assert!(matches!(runner.tick(0.0), StressTick::Reseed(2))); // immediate first seed
         assert!(matches!(runner.tick(0.1), StressTick::Idle)); // mid-interval
-        assert!(matches!(runner.tick(RESPAWN_INTERVAL), StressTick::Reseed(2)));
+        assert!(matches!(
+            runner.tick(RESPAWN_INTERVAL),
+            StressTick::Reseed(2)
+        ));
 
         runner.stop();
         assert!(!runner.is_active());

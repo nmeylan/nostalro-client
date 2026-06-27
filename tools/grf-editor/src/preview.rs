@@ -149,10 +149,22 @@ mod tests {
 
     #[test]
     fn image_format_detection() {
-        assert!(matches!(image_format("foo.bmp"), Some(image::ImageFormat::Bmp)));
-        assert!(matches!(image_format("foo.BMP"), Some(image::ImageFormat::Bmp)));
-        assert!(matches!(image_format("foo.tga"), Some(image::ImageFormat::Tga)));
-        assert!(matches!(image_format("foo.TGA"), Some(image::ImageFormat::Tga)));
+        assert!(matches!(
+            image_format("foo.bmp"),
+            Some(image::ImageFormat::Bmp)
+        ));
+        assert!(matches!(
+            image_format("foo.BMP"),
+            Some(image::ImageFormat::Bmp)
+        ));
+        assert!(matches!(
+            image_format("foo.tga"),
+            Some(image::ImageFormat::Tga)
+        ));
+        assert!(matches!(
+            image_format("foo.TGA"),
+            Some(image::ImageFormat::Tga)
+        ));
         assert!(image_format("foo.rsm").is_none());
         assert!(image_format("foo").is_none());
     }

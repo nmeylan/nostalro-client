@@ -58,9 +58,6 @@ impl App {
         refining_level: u8,
         slot: [u16; 4],
     ) {
-        // The v1 add packet carries no item-type byte. Recover it from the
-        // source item still present in the body inventory so cart tab
-        // filtering classifies the item correctly.
         let resolved_type = if item_type != 0 {
             ItemType::from_value(item_type as usize)
         } else {

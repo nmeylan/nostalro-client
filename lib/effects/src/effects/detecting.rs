@@ -1,10 +1,3 @@
-//! `EF_DETECTING` — Improve Concentration cast ring on the ground (id 119).
-//!
-//! A single horizontal `fashasha.tga` quad on the ground that expands from
-//! half-size 1.5 outward over ~57 frames; alpha holds at 1.0 until frame 40,
-//! then fades linearly to 0 at frame 57. Additive blend.
-//!
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 

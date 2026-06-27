@@ -1,19 +1,3 @@
-//! `EF_FLASHER` (id 99) — Hunter's Flasher trap detonation.
-//!
-//! The detonation has two layers, both spawned at frame 0:
-//!
-//!   * 1 central halo disc using `thunder_center.bmp` with
-//!     additive blend. 70-frame lifetime, max alpha
-//!     200, fades in over ~10 frames (one sixth of max per frame),
-//!     fades out over the last 10 frames. The original timeline also
-//!     scales the texture mid-life (around frames 40 and 100);
-//!     we approximate as a growing-then-shrinking disc.
-//!   * 20 radial spikes (`alpha_center.tga`) — same
-//!     shape as Bash but tuned for a longer, brighter burst:
-//!     grows ~5..8/frame and runs the full 70-frame
-//!     lifetime. See [`super::spike_burst`] for the shared
-//!     radial-spike machinery.
-
 use super::spike_burst::{self, SpikeBurst, SpikeBurstParams, fade_in_out, seed_from_world};
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -24,10 +8,6 @@ pub const TEXTURES: &[&str] = &[CENTER_TEXTURE, spike_burst::SPIKE_TEXTURE];
 const FRAMES_PER_SECOND: f32 = 60.0;
 const DURATION_FRAMES: f32 = 70.0;
 
-// Central thunder_center halo. The original's ~20 px width
-// reads as ~2 wu; the gif shows it dominating roughly half the
-// frame, so we scale up to a torso-radius glow. Two stacked discs (bright
-// core + softer halo) reproduce the layered silhouette in the gif.
 const HALO_HEIGHT_OFFSET: f32 = -5.0;
 const HALO_CORE_RADIUS: f32 = 4.5;
 const HALO_RIM_RADIUS: f32 = 10.0;
@@ -105,7 +85,6 @@ impl Effect for FlasherEffect {
                     uv_repeat: 1.0,
                     texture: CENTER_TEXTURE,
                     color: [HALO_TINT[0], HALO_TINT[1], HALO_TINT[2], a],
-                    // Emissive glow → additive blend.
                     blend: BlendKind::Additive,
                 });
             }
@@ -157,7 +136,6 @@ mod tests {
             .count();
         assert_eq!(halos.len(), 2);
         assert_eq!(spikes, SPIKES.count);
-        // Emissive halo — additive.
         for h in halos {
             if let EffectPrimitiveDraw::BillboardDisc { blend, .. } = h {
                 assert_eq!(*blend, BlendKind::Additive);

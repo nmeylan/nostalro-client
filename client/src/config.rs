@@ -26,14 +26,11 @@ impl Default for WindowStateEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DisplayOptions {
-    /// Show damage numbers for hits that don't involve the local player.
     pub show_other_damage: bool,
-    /// Show the casting bar over other actors' heads.
     pub show_other_cast_bars: bool,
     pub hide_name_player: bool,
     pub hide_name_monster: bool,
     pub hide_name_npc: bool,
-    /// Show the level-99 aura ring on max-level characters (the `/aura` toggle).
     pub show_level_aura: bool,
 }
 

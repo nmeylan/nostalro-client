@@ -1,19 +1,4 @@
-//! `Blackdevil` (487) — `ring_black.tga` dark casting circles.
-//!
-//! A begin-spell of expanding dark casting circles. Seeds two
-//! waves of 4 rings at staggered radii
-//! (radius 2.5/5/7.5/10 and 2.7/5.2/…), each a flared cone. The per-frame
-//! step makes every ring a *ripple*: the radius
-//! grows +0.1/frame and wraps `13 → 3`, the arch height bells up then down,
-//! the alpha rises while expanding then drains, and the rise angle flattens from
-//! 90° to 40°. The four phase-offset rings therefore read as continuous dark
-//! circles fanning outward from the caster.
-//!
-//! Each ring is the same flared `Frustum` cone the other casting rings use
-//! (base radius = current radius, arch = arch height at the rise angle). Like the
-//! dark casting circles, it uses a (50,50,50)
-//! vertex tint composited with **alpha blending** — the ripples genuinely
-//! darken the ground under them (additive dark would be invisible).
+//! `Blackdevil` (487) — dark casting ripple rings (`ring_black.tga`), alpha-blended.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -24,10 +9,8 @@ pub const TEXTURES: &[&str] = &[TEXTURE];
 
 const RING_SIDES: u32 = 20;
 const ALPHA_PEAK: f32 = 150.0;
-/// Vertex tint — dark gray, alpha-blended.
 const TINT: f32 = 50.0 / 255.0;
 
-/// Radius / spin-phase seeds for the two ring launch waves.
 const SEEDS: [(f32, f32); 8] = [
     (2.5, 270.0),
     (5.0, 0.0),
@@ -114,8 +97,6 @@ impl Effect for BlackDevilEffect {
                 r.step();
             }
         }
-        // Persistent begin-spell aura; the holder despawns it via the duration
-        // table.
         EffectStatus::Running
     }
 
@@ -209,8 +190,6 @@ mod tests {
 
     #[test]
     fn emits_nested_black_ring_cones_of_increasing_radius() {
-        // Sociable: after the rings have ramped in, several flared black cones
-        // are visible at distinct radii (the staggered ripples), all additive.
         let mut e = BlackDevilEffect::new([0.0, 0.0, 0.0]);
         tick(&mut e, 30);
         let c = cones(&e);
@@ -225,7 +204,6 @@ mod tests {
 
     #[test]
     fn a_ring_ripples_outward_then_resets() {
-        // Track ring 0's radius: it grows over time and wraps back near 3.
         let mut e = BlackDevilEffect::new([0.0; 3]);
         let start = e.rings[0].distance;
         tick(&mut e, 40);
@@ -239,20 +217,15 @@ mod tests {
 
     #[test]
     fn ring_alpha_bells_up_then_drains_over_the_ripple() {
-        // Ring 0 (distance 2.5): alpha grows while it expands to distance ~8,
-        // peaks, then drains as the cone flattens toward the wrap at 13.
         let mut e = BlackDevilEffect::new([0.0; 3]);
         tick(&mut e, 20);
-        let early = e.rings[0].alpha_b; // still climbing
-        tick(&mut e, 35); // ~distance 8, near the peak
+        let early = e.rings[0].alpha_b;
+        tick(&mut e, 35);
         let peak = e.rings[0].alpha_b;
-        tick(&mut e, 45); // well into the drain phase
+        tick(&mut e, 45);
         let late = e.rings[0].alpha_b;
-        assert!(early > 0.0, "alpha ramps in as the ring grows");
-        assert!(peak > early, "alpha climbs to a peak ({early} → {peak})");
-        assert!(
-            late < peak,
-            "alpha drains as the ring flattens ({peak} → {late})"
-        );
+        assert!(early > 0.0);
+        assert!(peak > early, "{early} → {peak}");
+        assert!(late < peak, "{peak} → {late}");
     }
 }

@@ -9,11 +9,11 @@ use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::effect::EffectQueue;
 use ragnarok_game::effects::{AmbientEffectScheduler, ambient_effect_assets};
 use ragnarok_game::map_loader::{self, MapData};
-use ragnarok_renderer::effect_sprite::EffectSpriteCache;
-use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::effect::{
     EffectFrameInputs, EffectHolder, EffectUpdateCtx, StrEffectCache, compose_effect_frame,
 };
+use ragnarok_renderer::effect_sprite::EffectSpriteCache;
+use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{UiDrawCall, block_on};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -1096,4 +1096,3 @@ pub fn run(args: Args) {
     let mut app = App::new(args);
     event_loop.run_app(&mut app).unwrap();
 }
-

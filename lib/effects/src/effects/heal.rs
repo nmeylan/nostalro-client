@@ -1,24 +1,3 @@
-//! Heal / Teleportation2 family — stacks of rising "casting" rings.
-//!
-//! Each of these effects is a
-//! ring of quads at radius `distance` whose tops rise to `height[i]` decomposed
-//! along `rise_angle` (vertical at 90°, flat-on-ground at 0°). One effect
-//! launches up to four ring slots; each slot is one ring. This maps 1:1
-//! onto [`EffectPrimitiveDraw::RadialRing`], the same primitive `defender.rs`
-//! drives.
-//!
-//! Two per-frame laws are implemented:
-//! * `RiseLaw::Heal`. Rings grow in over the first 90 frames
-//!   (`height *= sin(process°)`); `flag1 == 0` adds a travelling undulation
-//!   around the ring; `flag1 == 2` (ENTRY2) pulses each ring up and back to
-//!   zero by frame 45. Alpha ramps in over 16 frames, holds, then fades from
-//!   `alpha_t`.
-//! * `RiseLaw::Teleport2`. Height swells to a peak at
-//!   frame 45 (`height = target·sin(process·2°)`); each ring spins and fades.
-//!
-//! Variants (one `const HealParams` each): Absorbspirits (`Heal2`), Exit2,
-//! Entry2, Smdef (`Heal`), Teleportation2.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::effects::particle_up::{ParticleUpEffect, ParticleUpParams};
@@ -32,12 +11,10 @@ const FULL_ARC_RAD: f32 = std::f32::consts::TAU;
 const ALPHA_MAX: f32 = 200.0 / 255.0;
 const FADE_IN_STEP: f32 = 5.0 / 255.0;
 const FADE_IN_STEP_ENTRY2: f32 = 3.0 / 255.0;
-/// `flag1 == 3` rings ramp alpha at +2/frame.
 const FADE_IN_STEP_PORTAL3: f32 = 2.0 / 255.0;
 const FADE_OUT_STEP: f32 = 2.0 / 255.0;
 const FADE_IN_FRAMES: u32 = 16;
 const GROW_IN_FRAMES: u32 = 90;
-/// ENTRY2 (`flag1 == 2`) pulse window — height returns to 0 after this.
 const ENTRY2_PULSE_FRAMES: u32 = 45;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -46,21 +23,15 @@ pub enum RiseLaw {
     Teleport2,
 }
 
-/// One ring seed — one ring slot.
 #[derive(Clone, Copy)]
 pub struct SlotSeed {
-    /// `ec` slot index (drives undulation speed + spin).
     pub ec: u8,
     pub distance: f32,
     pub max_height: f32,
     pub rise_angle_deg: f32,
     pub rot_start_deg: f32,
-    /// Heal-law fade-out start frame. Large = effectively never.
     pub alpha_t: f32,
-    /// Initial alpha 0..1 — the Teleport2 law seeds per-slot alpha; the
-    /// Heal law starts at 0 and ramps in.
     pub alpha_init: f32,
-    /// `flag1`: 0 = undulating Heal ring, 2 = ENTRY2 pulse.
     pub flag1: u8,
 }
 
@@ -68,13 +39,10 @@ pub struct HealParams {
     pub texture: &'static str,
     pub tint_rgb: [f32; 3],
     pub blend: BlendKind,
-    /// Downscales the large `max_height` literals to our units.
     pub height_scale: f32,
     pub law: RiseLaw,
     pub slots: &'static [SlotSeed],
     pub duration_frames: f32,
-    /// Companion sparkle burst (green heal motes). The
-    /// original game launches it for `Heal`/`Heal2` with `F1 < 2`.
     pub particle_up: Option<&'static ParticleUpParams>,
 }
 
@@ -88,7 +56,6 @@ fn sin_deg(deg: f32) -> f32 {
     deg.to_radians().sin()
 }
 
-/// Undulation phase speed per `ec` (`process * 4|3|2`).
 fn ec_speed(ec: u8) -> f32 {
     match ec {
         0 => 4.0,
@@ -132,8 +99,6 @@ impl RingSlot {
         let p = self.process;
         let pf = p as f32;
 
-        // ENTRY2 rings spin (ec+4/ec+2); flag1 == 3 rings spin ec+6; plain Heal
-        // rings do not.
         if self.flag1 == 2 {
             let inc = if self.ec < 2 {
                 self.ec as f32 + 4.0
@@ -145,7 +110,6 @@ impl RingSlot {
             self.rot_start_deg = (self.rot_start_deg + self.ec as f32 + 6.0).rem_euclid(360.0);
         }
 
-        // Alpha: ramp in over the first 16 frames, hold, fade out from alpha_t.
         if pf >= self.alpha_t {
             self.alpha = (self.alpha - FADE_OUT_STEP).max(0.0);
         } else if p < FADE_IN_FRAMES {
@@ -159,15 +123,12 @@ impl RingSlot {
 
         for i in 0..DIVISION {
             let h = if self.flag1 == 2 {
-                // ENTRY2 pulse: rise then collapse to 0 by frame 45.
                 if p <= ENTRY2_PULSE_FRAMES {
                     self.max_height * sin_deg(pf * 4.0)
                 } else {
                     0.0
                 }
             } else if self.flag1 == 3 {
-                // No undulation: a flat ring at max_height that grows in over
-                // the first 90 frames.
                 let mut h = self.max_height;
                 if p <= GROW_IN_FRAMES {
                     h *= sin_deg(pf);
@@ -189,14 +150,11 @@ impl RingSlot {
         self.process += 1;
         let p = self.process;
         let pf = p as f32;
-        // Temporal envelope: height swells to a peak at frame 45 (pr = 90°).
         let pr = pf * 2.0;
 
         self.rot_start_deg = (self.rot_start_deg + (5.0 - self.ec as f32)).rem_euclid(360.0);
 
         let cur_max = self.max_height * sin_deg(pr.min(180.0));
-        // Spatial breathing: even slots drift at process speed, the inner two
-        // at 3× (`(process*3 + ec*90) % 360`); ±30% bell undulation.
         let pr_spatial = if self.ec < 2 {
             (pf + self.ec as f32 * 90.0).rem_euclid(360.0)
         } else {
@@ -306,11 +264,9 @@ impl Effect for HealEffect {
     }
 }
 
-// ── Tints ─────────────────────────────────────────────────────────────────
 const BLUE: [f32; 3] = [100.0 / 255.0, 100.0 / 255.0, 1.0];
 const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
 
-// ── 253 Absorbspirits — Heal2("ring_blue.tga", 2): 4 blue rings ──────────────
 const ABSORBSPIRITS_SLOTS: &[SlotSeed] = &[
     SlotSeed {
         ec: 0,
@@ -364,7 +320,6 @@ pub const ABSORBSPIRITS: HealParams = HealParams {
     particle_up: None,
 };
 
-// ── 314 Exit2 — Exit2("ring_purple.tga"): tall narrow column, 4 rings ────────
 const EXIT2_SLOTS: &[SlotSeed] = &[
     SlotSeed {
         ec: 0,
@@ -418,7 +373,6 @@ pub const EXIT2: HealParams = HealParams {
     particle_up: None,
 };
 
-// ── 344 Entry2 — Entry2(): blue ground ring + rising flame, ENTRY2 pulse ─────
 const ENTRY2_SLOTS: &[SlotSeed] = &[
     SlotSeed {
         ec: 0,
@@ -472,7 +426,6 @@ pub const ENTRY2: HealParams = HealParams {
     particle_up: None,
 };
 
-// ── 2013 Smdef — Heal("alpha_down.tga", 1): 2 white rings ────────────────────
 const SMDEF_SLOTS: &[SlotSeed] = &[
     SlotSeed {
         ec: 0,
@@ -506,8 +459,6 @@ pub const SMDEF: HealParams = HealParams {
     particle_up: None,
 };
 
-// ── 304 Teleportation2 — TELEPORTATION2("Magic_Violet.tga", 0): violet column ─
-// Reconstructed from observed original-game behavior + reference gif.
 const TELEPORTATION2_SLOTS: &[SlotSeed] = &[
     SlotSeed {
         ec: 0,
@@ -554,8 +505,6 @@ pub const TELEPORTATION2: HealParams = HealParams {
     texture: "Magic_Violet.tga",
     tint_rgb: BLUE,
     blend: BlendKind::Additive,
-    // Taller than the column's raw 100-unit target warrants — the reference
-    // reads as a tall violet shaft, so the slot heights are scaled up.
     height_scale: 0.4,
     law: RiseLaw::Teleport2,
     slots: TELEPORTATION2_SLOTS,
@@ -563,12 +512,8 @@ pub const TELEPORTATION2: HealParams = HealParams {
     particle_up: None,
 };
 
-// ── Canonical heal-skill effects (not part of Batch 29 but the same family) ──
-// Green-dominant so the additive rings read as green over bright ground rather
-// than washing toward white (R/B pulled well below G).
 const GREEN: [f32; 3] = [76.0 / 255.0, 230.0 / 255.0, 90.0 / 255.0];
 
-// 312 Heal — Heal("alpha_down.tga", 0): 2 green rings + green sparkles.
 const HEAL_SLOTS: &[SlotSeed] = &[
     SlotSeed {
         ec: 0,
@@ -595,9 +540,6 @@ pub const HEAL: HealParams = HealParams {
     texture: "alpha_down.tga",
     tint_rgb: GREEN,
     blend: BlendKind::Additive,
-    // The source `max_height = 40` is a world-space column; rendered against a
-    // screen-space (unforeshortened) character billboard it towers ~2x the
-    // sprite, so the column is brought down to roughly the sprite's height.
     height_scale: 0.45,
     law: RiseLaw::Heal,
     slots: HEAL_SLOTS,
@@ -605,7 +547,6 @@ pub const HEAL: HealParams = HealParams {
     particle_up: Some(&crate::effects::particle_up::HEAL_MOTE),
 };
 
-// 313 Heal2 — Heal2("ring_white.tga"): 4 green rings + green sparkles.
 const HEAL2_SLOTS: &[SlotSeed] = &[
     SlotSeed {
         ec: 0,
@@ -652,7 +593,6 @@ pub const HEAL2: HealParams = HealParams {
     texture: "ring_white.tga",
     tint_rgb: GREEN,
     blend: BlendKind::Additive,
-    // `max_height = 60` outer rings → ~33-tall pillars (sibling-matched scale).
     height_scale: 0.55,
     law: RiseLaw::Heal,
     slots: HEAL2_SLOTS,
@@ -660,7 +600,6 @@ pub const HEAL2: HealParams = HealParams {
     particle_up: Some(&crate::effects::particle_up::HEAL_MOTE),
 };
 
-// Heal4 — Heal2("ring_white.tga", 1): green 4 rings (taller inner pair) + sparkles.
 const HEAL4_SLOTS: &[SlotSeed] = &[
     SlotSeed {
         ec: 0,
@@ -714,10 +653,6 @@ pub const HEAL4: HealParams = HealParams {
     particle_up: Some(&crate::effects::particle_up::HEAL_MOTE),
 };
 
-// ── 561/562 BigPortal — Portal3(F1): 3 concentric violet rings (flag1 == 3) ──
-// `Portal3` seeds a random per-ring rotation; substituted with an even
-// 0/120/240° spread for determinism. `max_height = 80` with rise 90° → a tall
-// vertical violet column; downscaled hard like the other large-literal columns.
 const BIGPORTAL_VIOLET: [f32; 3] = [170.0 / 255.0, 120.0 / 255.0, 1.0];
 const BIGPORTAL_SLOTS: &[SlotSeed] = &[
     SlotSeed {
@@ -751,15 +686,10 @@ const BIGPORTAL_SLOTS: &[SlotSeed] = &[
         flag1: 3,
     },
 ];
-/// 561 BigPortal — `Portal3(0)`, `alpha_t = 1400` (rings never fade within the
-/// portal's finite life; it despawns at the parent duration).
 pub const BIGPORTAL: HealParams = HealParams {
     texture: "Magic_Violet.tga",
     tint_rgb: BIGPORTAL_VIOLET,
     blend: BlendKind::Additive,
-    // The reference column is tall and dominant (~2.4× as tall as the ring is
-    // wide); 0.6 makes the 80-unit source column read that way even through the
-    // steep export camera that foreshortens vertical columns.
     height_scale: 0.6,
     law: RiseLaw::Heal,
     slots: BIGPORTAL_SLOTS,
@@ -767,10 +697,6 @@ pub const BIGPORTAL: HealParams = HealParams {
     particle_up: None,
 };
 
-// 562 BigPortal2 — `Portal3(1)`. The original game disables the fade-out for
-// this variant — a
-// persistent recall portal. Modelled with a never-reached `alpha_t` and a long
-// life; the holder kills it when the portal NPC is removed.
 const BIGPORTAL2_SLOTS: &[SlotSeed] = &[
     SlotSeed {
         ec: 0,
@@ -863,9 +789,6 @@ mod tests {
 
     #[test]
     fn absorbspirits_emits_four_blue_additive_rings_that_grow_in() {
-        // Sociable: covers the slot→RadialRing layout (4 rings at the seeded
-        // radii), additive blend, and the Heal-law grow-in ramp (heights near
-        // zero early, larger after the sin(process) ramp climbs).
         let mut e = HealEffect::new([1.0, 0.0, -2.0], &ABSORBSPIRITS);
         step(&mut e, 3.0);
         let early = rings(&e);
@@ -886,8 +809,6 @@ mod tests {
 
     #[test]
     fn entry2_pulses_height_up_then_back_to_zero() {
-        // flag1 == 2 (ENTRY2): heights rise then collapse to ~0 by frame 45,
-        // while alpha never fades (alpha_t huge) — death comes from duration.
         let mut e = HealEffect::new([0.0; 3], &ENTRY2);
         step(&mut e, 11.0); // process*4 ≈ 44° — climbing
         let climbing = rings(&e)[0].2[0];
@@ -904,8 +825,6 @@ mod tests {
 
     #[test]
     fn teleport2_swells_then_dies() {
-        // RiseLaw::Teleport2: height swells (target·sin(process·2°)) to a peak
-        // ~frame 45, and the effect reaches Dead by its duration.
         let mut e = HealEffect::new([0.0; 3], &TELEPORTATION2);
         step(&mut e, 10.0);
         let early = rings(&e)[0].2[0];

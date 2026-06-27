@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-/// A chat room (waitingroom) anchored to an owner entity. NPC-owned rooms are
-/// how arena entrances present themselves: a clickable box floating over the NPC.
 #[derive(Debug, Clone)]
 pub struct ChatRoom {
     pub room_id: u32,
@@ -9,7 +7,6 @@ pub struct ChatRoom {
     pub title: String,
     pub cur_count: i16,
     pub max_count: i16,
-    /// 0 = private, 1 = public, 2 = arena, 3 = pk zone.
     pub atype: u8,
 }
 

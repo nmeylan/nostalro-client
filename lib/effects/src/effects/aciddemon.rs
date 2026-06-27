@@ -1,30 +1,8 @@
 //! `EF_ACIDDEMON` — Acid Demonstration cast funnel (enum id 537).
-//!
-//! Renders a `ring_black.tga` swirling-cone cast funnel via the shared
-//! casting path — the same machinery as Portal / FlowerCast. Four rings
-//! spin around
-//! a vertical axis, each at its own radius and rise angle, growing slowly and
-//! fading after the early hold. The reference reads as a tall magenta/purple
-//! funnel of flames rising from the caster.
-//!
-//! The four rings are seeded once:
-//! * ec0 `{max_height 25, distance 2.4, rise 70, arc 315, rot 0}`
-//! * ec1 `{22, 2.7, 57, 315, 90}`
-//! * ec2 `{19, 3.0, 45, 315, 180}`
-//! * ec3 `{30, 2.2, 90, 360, 0}` — the full upright ring.
-//! Per frame each ring spins (~4°/frame, ec3 slower), its radius
-//! creeps outward (×~1.005/frame), alpha ramps to a cap then fades.
-//!
-//! Reproduced with the `Frustum` primitive (one flared cone per ring), the
-//! same `(distance, rise, max_height) → (bottom, top, height)` decomposition
-//! `flowercast` uses, plus per-frame rotation.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{CameraShake, Effect, EffectRenderCtx, EffectUpdateCtx};
 
-/// Stepped per-frame jitter → `[0, 1)`, varied by `salt`. Stepping on the
-/// integer frame (not continuous) is what makes the flames *shake* frame to
-/// frame instead of drifting smoothly.
 fn frame_jitter(frame: u32, salt: u32) -> f32 {
     let x = frame
         .wrapping_mul(2_654_435_761)
@@ -39,30 +17,16 @@ pub const TEXTURES: &[&str] = &[RING_BLACK_TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// Magenta/purple flame tint (the reference funnel is distinctly purple);
-/// `ring_black.tga` is a near-white bar so the tint carries the colour.
 const TINT: [f32; 3] = [200.0 / 255.0, 80.0 / 255.0, 1.0];
 
-/// Source heights 19..30 vs a gif funnel ~2-3 characters tall — scale
-/// like `flowercast` / `saint_casting`.
 const HEIGHT_SCALE: f32 = 1.0;
 const CONE_SIDES: u32 = 28;
-/// Cones reach full height over the first ~40 frames (`sin` ramp).
 const GROW_FRAMES: f32 = 40.0;
-/// Per-frame outward radius creep (×1.005 each frame).
 const RADIUS_GROWTH_PER_FRAME: f32 = 1.005;
-/// Flame crown: many tongues around the ring (`Sine` wave frequency), at
-/// roughly half the cone height, **re-randomised every frame** so the
-/// funnel flickers/shakes rather than expanding smoothly — matching the
-/// original's jittery ~4-7°/frame spin churn.
 const WAVE_FREQUENCY: f32 = 12.0;
 const WAVE_REL_AMPLITUDE: f32 = 0.55;
-/// Continuous phase drift per frame (on top of the per-frame jitter).
 const PHASE_DRIFT_PER_FRAME: f32 = 0.6;
 
-/// The original fires a screen quake at frame 5. We emit a
-/// one-shot [`CameraShake`] request at that frame; the holder's shake
-/// controller trembles the whole view (see `Effect::take_camera_shake`).
 const QUAKE_AT_FRAME: f32 = 5.0;
 const QUAKE_AMPLITUDE: f32 = 1.6;
 const QUAKE_DURATION_MS: u32 = 600;
@@ -70,8 +34,7 @@ const QUAKE_DURATION_MS: u32 = 600;
 const FADE_IN_FRAMES: f32 = 20.0;
 const FADE_OUT_FRAMES: f32 = 40.0;
 const PEAK_ALPHA: f32 = 110.0 / 255.0;
-/// Four cones overlap additively at the centre; pre-attenuate so the
-/// `ring_black` striping survives the sum (cf. `flowercast`).
+/// Four overlapping additive cones — pre-attenuate so striping survives the sum.
 const OVERDRAW_DIVISOR: f32 = 3.0;
 
 const TOTAL_FRAMES: f32 = 120.0;
@@ -79,7 +42,6 @@ pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) a
 const FADE_OUT_START_FRAME: f32 = TOTAL_FRAMES - FADE_OUT_FRAMES;
 
 const NUM_RINGS: usize = 4;
-/// Per-ring seed: `(distance, rise_deg, max_height, arc_deg, rot_start_deg, spin_per_frame)`.
 const RINGS: [(f32, f32, f32, f32, f32, f32); NUM_RINGS] = [
     (2.4, 70.0, 25.0, 315.0, 0.0, 4.0),
     (2.7, 57.0, 22.0, 315.0, 90.0, 4.0),
@@ -124,7 +86,6 @@ impl AcidDemonEffect {
         }
     }
 
-    /// Height ramp (`sin` to the 40-frame peak) times the slow radius creep.
     fn grow(&self) -> f32 {
         let ramp = self.process.min(GROW_FRAMES).to_radians().sin();
         ramp * RADIUS_GROWTH_PER_FRAME.powf(self.process)
@@ -159,7 +120,6 @@ impl Effect for AcidDemonEffect {
         if alpha <= 0.0 {
             return;
         }
-        // Stepped jitter on the integer frame makes the flame crown flicker.
         let frame = self.process.floor() as u32;
         let base = self.world_pos;
         for (idx, r) in self.rings.iter().enumerate() {
@@ -292,9 +252,6 @@ mod tests {
 
     #[test]
     fn flame_crown_flickers_frame_to_frame() {
-        // The high-frequency Sine wave plus stepped per-frame jitter means the
-        // first ring's wave_phase jumps between consecutive integer frames
-        // (the "shake"), rather than drifting smoothly.
         let wave_phase = |e: &AcidDemonEffect| match &frustums(e)[0] {
             EffectPrimitiveDraw::Frustum {
                 wave_phase,
@@ -315,7 +272,6 @@ mod tests {
         let p1 = wave_phase(&e);
         step(&mut e, 1.0);
         let p2 = wave_phase(&e);
-        // Frame-to-frame deltas differ (jitter), not a constant smooth step.
         assert!(
             ((p1 - p0) - (p2 - p1)).abs() > 1e-3,
             "phase jitters, not smooth"
@@ -325,10 +281,8 @@ mod tests {
     #[test]
     fn fires_one_shot_camera_shake_after_frame_5() {
         let mut e = AcidDemonEffect::new([0.0; 3]);
-        // Before frame 5 there's no shake yet.
         step(&mut e, 2.0);
         assert!(e.take_camera_shake().is_none(), "no shake before frame 5");
-        // Past frame 5 it fires exactly once.
         step(&mut e, 5.0);
         let shake = e.take_camera_shake().expect("shake fires after frame 5");
         assert!(shake.amplitude > 0.0 && shake.duration_ms > 0);

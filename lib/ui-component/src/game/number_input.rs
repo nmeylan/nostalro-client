@@ -123,14 +123,12 @@ impl NumberInputDialog {
         let dx = win.x;
         let dy = win.y;
 
-        // Background
         self.container.has_grf_textures = self.has_grf_textures;
         self.container
             .draw(&mut ui.draw_calls, dx, dy, dw, dh, [1.0, 1.0, 1.0, 1.0]);
 
         let text_color = self.container.text_color();
 
-        // Label
         let mut content_y = dy + PADDING + ui.atlas.line_height;
         if let Some(label) = &self.label {
             let label_x = dx + PADDING_X;
@@ -138,7 +136,6 @@ impl NumberInputDialog {
             content_y += PADDING;
         }
 
-        // Input + OK [+ Cancel]
         let (btn_w, btn_h) = self.btn_size;
         let cancel_space = if self.show_cancel {
             btn_w + BTN_SPACING

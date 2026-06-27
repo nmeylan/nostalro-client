@@ -1,55 +1,25 @@
-//! `EF_SOULLINK` (id 503) — Soul Linker's link cast.
-//!
-//! `EF_SOULLINK` runs two parts together: a soul-light billboard and the
-//! soul-glyph cast cascade.
-//!
-//! - The **glyph cascade** is the same casting-glyph primitive the
-//!   Asura cast uses, but spells **SOUL LINK** with the `soul_*` glyphs (no
-//!   saint rings) — reused here via [`super::begin_asura`]'s `soul_link`
-//!   constructor.
-//! - The **soul-light** is a single screen-facing `whitelight.tga` billboard
-//!   (lavender tint `125,125,255`) that swoops in a horizontal arc across the
-//!   caster while bobbing up (lift `−(sin(aa)·20) − 40`), its radial
-//!   offset sliding `-30 → +30` as the angle `aa` accelerates `0 → 359`. Alpha
-//!   ramps in over ~10 frames, holds, then drains after frame 170. (The
-//!   original launches a paired soul-light on the linked actor; that
-//!   second-actor part is out of scope — see the Linelink blocker note in the
-//!   Tier 4 plan.)
-//!
-//! Validated against the original game's reference gif (`503.gif`).
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::effects::begin_asura::BeginAsuraEffect;
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// Generous wall-clock cap; the effect self-terminates earlier when the glyph
-/// cascade dies and the soul-light has faded.
 pub const TOTAL_DURATION_MS: u32 = 5000;
 
 pub const TEXTURES: &[&str] = &["whitelight.tga"];
 
-/// Soul-light swoop tuning. The `-30..+30` radial sweep and
-/// `40 ± 20` height are large literals; downscaled uniformly to sit around the
-/// caster (a sprite is ~5–8 world units).
 const SWOOP_SCALE: f32 = 0.2;
 const SWOOP_Y_BASE: f32 = 40.0;
 const SWOOP_Y_AMP: f32 = 20.0;
 const LIGHT_SIZE: f32 = 5.5;
 const LIGHT_COLOR: [f32; 3] = [125.0 / 255.0, 125.0 / 255.0, 1.0];
-/// Alpha ramps `+20/frame` for 10 frames, holds, drains `-5/frame`
-/// after frame 170.
 const ALPHA_RAMP_PER_FRAME: f32 = 20.0;
 const ALPHA_PEAK: f32 = 200.0;
 const ALPHA_DRAIN_START: f32 = 170.0;
 const ALPHA_DRAIN_PER_FRAME: f32 = 5.0;
 
 struct SoulLight {
-    /// Frame counter.
     process: f32,
-    /// Sweep angle 0..359.
     angle: f32,
-    /// Alpha, 0..255.
     alpha: f32,
 }
 
@@ -64,7 +34,6 @@ impl SoulLight {
 
     fn update(&mut self, frames: f32) {
         self.process += frames;
-        // Accelerating sweep: angle gains `process/30` per frame.
         self.angle = (self.angle + self.process / 30.0 * frames).min(359.0);
         if self.process <= 10.0 {
             self.alpha = (self.alpha + ALPHA_RAMP_PER_FRAME * frames).min(ALPHA_PEAK);
@@ -84,7 +53,6 @@ impl SoulLight {
         let aa = self.angle.to_radians();
         let radial = (-30.0 + self.angle / 6.0) * SWOOP_SCALE;
         let up = (SWOOP_Y_BASE + SWOOP_Y_AMP * aa.sin()) * SWOOP_SCALE;
-        // Native `-Y = up`: subtract the lift from the caster's feet.
         let pos = [center[0] + radial, center[1] - up, center[2]];
         let [r, g, b] = LIGHT_COLOR;
         out.push(EffectPrimitiveDraw::Billboard {

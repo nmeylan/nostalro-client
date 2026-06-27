@@ -1,74 +1,26 @@
-//! `EF_LEVEL992` (#201) / `EF_LEVEL996` (#398) — the floor aura layer of the
-//! level-99 / transcendant aura.
-//!
-//! Two flat `pikapika2` (sparkle) quads lie on the ground around the caster.
-//! Each is a square whose four corners sit at the base angle, `+90`, `+180`,
-//! `+270` around a circle of radius
-//! `distance*0.8 + distance*0.1*(sin(rise)+1)` at a constant ground height —
-//! so the quad *expands and shrinks* as the pulse angle advances
-//! (+3°/frame). The two slots run 180° out of phase (pulse 0° vs 180°): one
-//! grows while the other contracts. Their base orientations are offset by
-//! ~23° so the two squares read as an
-//! eight-point sparkle, matching the gif, and they do not spin — only pulse.
-//!
-//! The variant tint is additive only: blue for `EF_LEVEL992`,
-//! green for `EF_LEVEL996`.
-//!
-//! We render each slot as one ground-plane [`WorldQuad`] with explicit corners
-//! built from the four ring points.
-//!
-//! Persistent: lives until the server clears it (table ships `u32::MAX`).
-//!
-//! [`WorldQuad`]: EffectPrimitiveDraw::WorldQuad
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// Two ground quads (the two pulse slots).
 const NUM_QUADS: usize = 2;
-
-/// Base-orientation offset between the two squares (~23°).
-/// The `pikapika2` texture is an 8-point star; offsetting
-/// the second quad by ~23° (≈ 360/16) *interleaves* the two stars into the
-/// dense ~16-ray burst the gif shows. A 45° offset (= 360/8) would instead
-/// make the two stars coincide, leaving only 8 points.
+/// 23° offset interleaves the two pikapika2 stars into a 16-ray burst; 45° would make them coincide.
 const QUAD_ROT_OFFSET: f32 = 23.0 * std::f32::consts::PI / 180.0;
-
-/// Pulse angle advances 3°/frame → pulse angular speed in rad/s.
 const PULSE_SPEED_RAD_PER_S: f32 = 3.0 * std::f32::consts::PI / 180.0 * FRAMES_PER_SECOND;
-
-/// Radius pulses between `(MID - HALF)` and `(MID + HALF)` of `radius`
-/// (`distance*0.8` .. `distance*1.0`).
 const PULSE_MID: f32 = 0.9;
 const PULSE_HALF: f32 = 0.1;
-
-/// Lift the quad just off the ground (native RO: negative y = up) to avoid
-/// z-fighting with the terrain.
+/// Negative Y = up; lift off ground to avoid z-fighting.
 const GROUND_LIFT: f32 = -0.3;
-
-/// Alpha ramp-in window (frames) so the aura doesn't pop in.
 const FADE_IN_FRAMES: f32 = 16.0;
 
 #[derive(Clone, Copy, Debug)]
 pub struct FloorAuraParams {
     pub texture: &'static str,
-    /// Additive tint.
     pub color_rgb: [f32; 3],
-    /// Corner radius (half-diagonal of the square) at full size, world units.
-    /// Full-size radius is 15.
     pub radius: f32,
-    /// Peak alpha. Level-99 auras hold 200/255;
-    /// the map-zone sparkle floor (`MAP_PIKA`) is much fainter at 25/255.
     pub alpha_max: f32,
 }
 
-/// `EF_LEVEL992` — the level-99 pikapika sparkle ring (`pikapika2.bmp`). The
-/// original `Render3DAura` draws this layer **white additive** (default color,
-/// `m_size=4` → the plain branch), NOT blue — the white flash is what makes the
-/// aura read as bright/flashy rather than washed out. Corner radius oscillates
-/// ~12–15; we sit just under that so the ring reads tighter than the cone above.
 pub const LV99_BLUE: FloorAuraParams = FloorAuraParams {
     texture: "pikapika2.bmp",
     color_rgb: [1.00, 1.00, 1.00],
@@ -76,7 +28,6 @@ pub const LV99_BLUE: FloorAuraParams = FloorAuraParams {
     alpha_max: 200.0 / 255.0,
 };
 
-/// `EF_LEVEL996` — green floor aura (`pikapika2.bmp`).
 pub const LV99_GREEN: FloorAuraParams = FloorAuraParams {
     texture: "pikapika2.bmp",
     color_rgb: [0.14, 1.00, 0.14],
@@ -84,9 +35,6 @@ pub const LV99_GREEN: FloorAuraParams = FloorAuraParams {
     alpha_max: 200.0 / 255.0,
 };
 
-/// Faint sparkle floor (`pikapika2.bmp`) under `EF_MAP_MAGICZONE`
-/// (#650). Two big ground quads (radius 46) at a low alpha 25, blue
-/// tint. Reused by [`super::mapzone`].
 pub const MAP_PIKA: FloorAuraParams = FloorAuraParams {
     texture: "pikapika2.bmp",
     color_rgb: [0.39, 0.39, 1.00],
@@ -131,7 +79,6 @@ impl Effect for FloorAuraEffect {
         }
         let y = self.world_pos[1] + GROUND_LIFT;
         for i in 0..NUM_QUADS {
-            // 180° phase offset → one quad expands while the other contracts.
             let phase = self.age * PULSE_SPEED_RAD_PER_S + i as f32 * std::f32::consts::PI;
             let radius = self.params.radius * (PULSE_MID + PULSE_HALF * phase.sin());
             let rot = i as f32 * QUAD_ROT_OFFSET;
@@ -186,8 +133,6 @@ mod tests {
         }
     }
 
-    /// Corner radius (half-diagonal) of a quad, and whether it's flat on a
-    /// single ground plane.
     fn radius_and_flat(p: &EffectPrimitiveDraw, center: [f32; 3]) -> (f32, bool) {
         let EffectPrimitiveDraw::WorldQuad { corners, .. } = p else {
             panic!("expected WorldQuad")
@@ -222,8 +167,6 @@ mod tests {
     fn quads_pulse_out_of_phase() {
         let center = [0.0, 0.0, 0.0];
         let mut c = FloorAuraEffect::new(center, LV99_BLUE);
-        // Quarter period in so the two phase-shifted quads are clearly on
-        // opposite sides of their pulse.
         run_to(&mut c, FADE_IN_FRAMES);
         let quarter = (std::f32::consts::FRAC_PI_2 / PULSE_SPEED_RAD_PER_S) * FRAMES_PER_SECOND;
         run_to(&mut c, FADE_IN_FRAMES + quarter);

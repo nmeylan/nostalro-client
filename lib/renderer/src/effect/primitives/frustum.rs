@@ -1,16 +1,3 @@
-//! Frustum primitive — vertical "tube" between two coaxial rings.
-//!
-//! Used by effects whose silhouette is a vertical band of texture: Magnum
-//! Break's explosion cone, Sanctuary / Magnus pillars, Bottom-Sanc rotating
-//! pillar. Geometry is a closed triangle strip from a bottom polygon
-//! (`bottom_size` radius) up to a top polygon (`top_size` radius). When the
-//! two radii are equal it's a cylinder; when `top_size == 0` it's a cone.
-//! `sides == 4` gives a square pillar (Bottom-Sanc), high `sides` approximate
-//! a smooth circular tube.
-//!
-//! The texture wraps once around the lateral surface unless `rotation` shifts
-//! the seam; `v = 0` at the bottom, `v = 1` at the top.
-
 use crate::camera::Camera;
 use crate::device::DEPTH_FORMAT;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};
@@ -18,9 +5,6 @@ use crate::effect::{EffectDrawList, EffectPrimitiveDraw};
 use crate::sprite::SpriteVertex;
 use ragnarok_game::effect::draw::FrustumWaveMode;
 
-/// Pipeline holder for the Frustum primitive. The unified effect-dispatch
-/// path owns the per-frame vertex / index buffer; this struct just owns the
-/// pipelines used to draw frustum records.
 pub struct FrustumRenderer {
     pub pipeline_alpha: wgpu::RenderPipeline,
     pub pipeline_additive: wgpu::RenderPipeline,
@@ -46,9 +30,6 @@ impl FrustumRenderer {
         }
     }
 
-    /// Rebuild both pipelines from a runtime-supplied WGSL source. Used by
-    /// the effect viewer's hot-reload path; production code calls `new()`
-    /// once with the `include_str!`'d source.
     pub fn recreate_pipelines(
         &mut self,
         device: &wgpu::Device,
@@ -152,9 +133,6 @@ impl FrustumRenderer {
     }
 }
 
-/// Build one [`DrawRecord`] per `EffectPrimitiveDraw::Frustum` entry in
-/// `list`. The records reference `fallback_texture` when `texture_lookup`
-/// returns `None`.
 pub fn prepare_frustum_records<'tex>(
     list: &EffectDrawList,
     camera: &Camera,
@@ -214,9 +192,7 @@ pub fn prepare_frustum_records<'tex>(
 
         let bottom_local_y: f32 = 0.0;
         let top_local_y_base: f32 = -*height;
-        let full_span = arc_angle_deg
-            .to_radians()
-            .clamp(0.0, std::f32::consts::TAU);
+        let full_span = arc_angle_deg.to_radians().clamp(0.0, std::f32::consts::TAU);
         let geom_rotation = *rotation;
         let uv_rep = *uv_repeat;
         let scroll_v = uv_scroll[1];
@@ -240,9 +216,7 @@ pub fn prepare_frustum_records<'tex>(
         };
         let eye_xz_x = eye.x - base[0];
         let eye_xz_z = eye.z - base[2];
-        let eye_xz_len = (eye_xz_x * eye_xz_x + eye_xz_z * eye_xz_z)
-            .sqrt()
-            .max(1e-3);
+        let eye_xz_len = (eye_xz_x * eye_xz_x + eye_xz_z * eye_xz_z).sqrt().max(1e-3);
 
         let mut vertices: Vec<SpriteVertex> = Vec::with_capacity(((sides_n + 1) * 2) as usize);
         let mut indices: Vec<u32> = Vec::with_capacity((sides_n * 6) as usize);
@@ -259,20 +233,6 @@ pub fn prepare_frustum_records<'tex>(
                     *wave_amplitude * (local_angle * *wave_frequency + *wave_phase).sin()
                 }
                 FrustumWaveMode::SaintBell => {
-                    // Per-segment height formula for the saint-casting bell,
-                    // matching the original game's on-screen profile:
-                    //   middle = (E_DIVISION-1)/2 = 10
-                    //   m2     = 90 / middle      = 9     (degrees per segment)
-                    //   SinLimit_i = 90° + (i - 10) * 9°  with i = 0..20
-                    //   height[i] = max_h * (1 + sin(SinLimit_i) * 0.3 * sin(pr))
-                    // SinLimit sweeps 0°..180° across the 360° cone surface,
-                    // so the bell is `sin(local_angle / 2)` — a half-sine
-                    // peaking at the segment opposite the seam (local_angle=π)
-                    // and falling to **zero** at the seam itself (local_angle
-                    // = 0 or 2π). Always non-negative. `wave_amplitude`
-                    // carries the `sin(pr)` time pulse including its sign,
-                    // so negative wave_amplitude pulls the bell-side
-                    // inward instead of outward (the cone "breathes").
                     let bell = (local_angle * 0.5).sin();
                     *wave_amplitude * bell
                 }
@@ -286,17 +246,11 @@ pub fn prepare_frustum_records<'tex>(
             let segment_alpha = 1.0 - fade_strength * (1.0 - front_weight);
             let mut seg_color = *color;
             seg_color[3] *= segment_alpha;
-            // Fade the base ring of vertices so a tight, additively-overlapped
-            // cone base doesn't bloom into a solid disc. Top rim stays full.
             let mut base_color = seg_color;
             base_color[3] *= *base_alpha;
 
             vertices.push(SpriteVertex {
-                position: transform_local(
-                    bottom_size * cos_a,
-                    bottom_local_y,
-                    bottom_size * sin_a,
-                ),
+                position: transform_local(bottom_size * cos_a, bottom_local_y, bottom_size * sin_a),
                 tex_coord: [u, 1.0 + scroll_v],
                 color: base_color,
             });
@@ -319,14 +273,7 @@ pub fn prepare_frustum_records<'tex>(
             indices.extend_from_slice(&[b0, t0, b1, t0, t1, b1]);
         }
 
-        // Depth at the cone's midpoint matches the original game's per-RP
-        // `oow = 1/w` at the same anchor; close enough for back-to-front
-        // sort within the alpha bucket.
-        let depth_anchor = [
-            base[0],
-            base[1] - height * 0.5,
-            base[2],
-        ];
+        let depth_anchor = [base[0], base[1] - height * 0.5, base[2]];
 
         records.push(DrawRecord::new(
             view_z(camera, depth_anchor),

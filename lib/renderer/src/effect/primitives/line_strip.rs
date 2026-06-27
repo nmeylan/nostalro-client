@@ -1,12 +1,3 @@
-//! LineStrip / Spline primitive — a camera-facing textured ribbon following
-//! a polyline. Matches the original game's strip-style beams and curved
-//! trails. A `Spline` is first tessellated from its Catmull-Rom control
-//! points into a polyline, then fed through the same ribbon builder as a
-//! plain `LineStrip`.
-//!
-//! Reuses `effect_frustum.wgsl` so the camera bind group layout and vertex
-//! format match the other world-space primitives exactly.
-
 use crate::camera::Camera;
 use crate::device::DEPTH_FORMAT;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};
@@ -141,9 +132,6 @@ impl LineStripRenderer {
     }
 }
 
-/// Sample a uniform Catmull-Rom curve through `control` into `segments + 1`
-/// points. Endpoints are clamped by duplicating the first / last control
-/// point, so the curve starts and ends exactly on the outer control points.
 fn tessellate_catmull_rom(control: &[[f32; 3]], segments: u32) -> Vec<[f32; 3]> {
     let n = control.len();
     if n < 2 || segments == 0 {
@@ -157,8 +145,6 @@ fn tessellate_catmull_rom(control: &[[f32; 3]], segments: u32) -> Vec<[f32; 3]> 
         glam::Vec3::from(control[idx])
     };
     for s in 0..count {
-        // Global parameter in [0, spans]; integer part selects the span,
-        // fractional part is the local t within it.
         let u = (s as f32 / segments as f32) * spans;
         let span = (u.floor() as isize).min((n - 2) as isize);
         let t = u - span as f32;
@@ -178,11 +164,6 @@ fn tessellate_catmull_rom(control: &[[f32; 3]], segments: u32) -> Vec<[f32; 3]> 
     out
 }
 
-/// Build a camera-facing ribbon along `points`, appending vertices / indices.
-/// Two vertices per point (offset `±half_width` perpendicular to the path and
-/// the view direction); `uv_along` scales how fast the along-path texture
-/// coordinate accumulates with length (V by default, U when `u_along`).
-/// `colors` tints each path point individually; `None` → flat `color`.
 fn build_ribbon(
     points: &[[f32; 3]],
     half_width: f32,
@@ -257,7 +238,6 @@ pub fn prepare_line_strip_records<'tex>(
     let eye = camera.eye();
     let mut records: Vec<DrawRecord<'tex>> = Vec::new();
     for (emission, prim) in list.primitives.iter().enumerate() {
-        // Resolve both variants down to a polyline + shared ribbon params.
         let (points, half_width, uv_along, u_along, texture, color, colors, blend) = match prim {
             EffectPrimitiveDraw::LineStrip {
                 points,
@@ -408,7 +388,6 @@ mod tests {
         for p in &pts {
             assert!(p[0].abs() < 1e-4 && p[1].abs() < 1e-4, "off-axis: {p:?}");
         }
-        // Monotonically advancing along Z.
         for w in pts.windows(2) {
             assert!(w[1][2] >= w[0][2] - 1e-4);
         }

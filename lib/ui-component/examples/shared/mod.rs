@@ -1,4 +1,5 @@
 use ragnarok_formats::grf::GrfArchive;
+use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::texture::{self, TextureCache};
 use ragnarok_renderer::ui_renderer::{UiDrawCommand, UiRenderer};
@@ -18,7 +19,6 @@ use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
-use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
 
 /// Redraw cadence (~60 fps). Rendering faster only burns CPU.
 const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);

@@ -1,47 +1,26 @@
-//! Flat ground-texture effects — currently Hittexture
-//! (id 554).
-//!
-//! Original game (texture name + `F1` selector): a single textured quad
-//! laid **flat on the XZ plane**, rotated about Y by a yaw angle, sized
-//! by `distance`, with an `F1`-specific alpha/size curve applied as it
-//! fades and grows.
-//!
-//! Hittexture (`F1 = 2`, `freeze_a.bmp`) is the "freeze hit" splash: the frost
-//! quad fades in, **expands** (`distance += 0.7`/frame), then fades out.
-//!
-//! The large multi-layer map effects (Map_MagicZone, Mapsphere,
-//! MapGhost) that also build on the same flat-texture/aura prims are deferred —
-//! they stack several primitives and cover huge ground areas.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// The reference gif plays over ~1.6 s; the raw per-frame curve is ~0.7 s at
-/// 60 fps. Advance the state machine at this fraction of real frames to match
-/// the gif's wall-clock pace (same approach as the Teihit burst).
 const TIME_SCALE: f32 = 0.45;
 
 #[derive(Clone, Copy)]
 pub struct EffectTextureParams {
     pub texture: &'static str,
     pub tint: [f32; 3],
-    /// Initial half-extent of the flat quad.
     pub base_dist: f32,
-    /// Per-frame growth of the half-extent while visible.
     pub grow_per_frame: f32,
     pub fade_in_frames: f32,
     pub fade_out_frames: f32,
     pub max_alpha: f32,
-    /// Yaw of the quad about world Y, degrees.
     pub yaw_deg: f32,
-    /// Height above the actor's feet (native RO `-Y = up`).
+    /// Height above the actor's feet. Native RO: negative Y = up.
     pub y_offset: f32,
 }
 
 pub const HITTEXTURE: EffectTextureParams = EffectTextureParams {
     texture: "freeze_a.bmp",
-    tint: [1.0, 1.0, 1.0], // the frost texture is already blue
+    tint: [1.0, 1.0, 1.0],
     base_dist: 10.0,
     grow_per_frame: 0.7,
     fade_in_frames: 22.0,
@@ -177,7 +156,6 @@ mod tests {
             size_b[0]
         );
         assert!(alpha_b < alpha_a + HITTEXTURE.max_alpha, "alpha is bounded");
-        // alpha rises during fade-in.
         assert!(alpha_a > 0.0);
         assert_eq!(tick(&mut e, 200), EffectStatus::Dead);
     }

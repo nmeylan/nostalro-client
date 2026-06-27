@@ -1,19 +1,4 @@
 //! EF_MAGNUMBREAK — yellow ground shockwave + spherical explosion.
-//!
-//! The parent emitter launches three primitives at frame 0:
-//!   * a ground ring tied to the parent's lifetime — `ring_yellow.tga`,
-//!     radius speed 1.75, decel, thickness 12, alpha grows to peak
-//!     in 15 frames then holds and fades the last 15;
-//!   * a sphere (the explosion) — `bigbang.tga`, radius speed 1.15,
-//!     same alpha curve capped at 180/255, slow texture rotation
-//!     (3°/frame);
-//!   * a second ground ring with a hardcoded 30-frame lifetime — the small
-//!     "after-ring" that snaps into existence as the main ring is still growing.
-//!
-//! The explosion is a full UV sphere centred at the impact point. Its lower
-//! hemisphere sits below the ground plane and is hidden by the depth test
-//! against ground geometry — what reaches the screen reads as a dome
-//! bursting upward, matching the original-game silhouette.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -23,20 +8,14 @@ pub const EXPLOSION_TEXTURE: &str = "bigbang.tga";
 pub const TEXTURES: &[&str] = &[RING_TEXTURE, EXPLOSION_TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// Parent lifetime. Matches the gif at `0-50/17.gif` (~10 capture frames at
-/// 7 cs each ≈ 700 ms ≈ 42 frames at 60 fps).
 const PARENT_DURATION_FRAMES: f32 = 42.0;
 const PARENT_DURATION_S: f32 = PARENT_DURATION_FRAMES / FRAMES_PER_SECOND;
 /// Hardcoded second-ring duration.
 const SECOND_RING_DURATION_FRAMES: f32 = 30.0;
 const SECOND_RING_DURATION_S: f32 = SECOND_RING_DURATION_FRAMES / FRAMES_PER_SECOND;
 
-/// Wall-clock total: every sub-primitive spawns at frame 0; the parent-bound
-/// ones live the parent's duration, the second ring lives 30 frames. The
-/// longest of those is the parent.
 pub const TOTAL_DURATION_MS: u32 = (PARENT_DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
-// Ring (parent-bound) — numbers verbatim.
 const RING_INITIAL_RADIUS: f32 = 2.0;
 const RING_RADIUS_SPEED_PER_FRAME: f32 = 1.75;
 const RING_RADIUS_ACCEL_PER_FRAME2: f32 =
@@ -47,33 +26,21 @@ const FADE_IN_FRAMES: f32 = 15.0;
 const RING_FADE_OUT_FRAMES: f32 = PARENT_DURATION_FRAMES - 15.0;
 const RING_UV_REPEAT: f32 = 4.0;
 
-// Explosion sphere — numbers verbatim.
 const EXPLOSION_INITIAL_RADIUS: f32 = 2.0;
 const EXPLOSION_RADIUS_SPEED_PER_FRAME: f32 = 1.15;
 const EXPLOSION_RADIUS_ACCEL_PER_FRAME2: f32 =
     -(EXPLOSION_RADIUS_SPEED_PER_FRAME / PARENT_DURATION_FRAMES) / 2.0;
 const EXPLOSION_PEAK_ALPHA: f32 = 180.0 / 255.0;
-/// Texture rotation in degrees per frame.
 const EXPLOSION_ROT_DEG_PER_FRAME: f32 = 3.0;
-/// Latitude segments — 36° arc → 180/36 = 5.
 const EXPLOSION_SIDES_LAT: u32 = 5;
-/// Longitude segments — 36° arc → 360/36 = 10.
 const EXPLOSION_SIDES_LON: u32 = 10;
-/// Fraction of the sphere's radius the centre is sunk below `world_pos`.
-/// Native RO uses `-Y = up`, so sinking means adding a positive Y. Keeps
-/// the visible silhouette dome-shaped even when `world_pos.y` doesn't align
-/// with true ground level or the camera angle would otherwise expose the
-/// lower hemisphere. `0.5` → equator sits at the impact-point plane.
+/// `0.5` → equator at the impact-point plane; lower hemisphere hidden by depth test.
 const EXPLOSION_SINK_FRAC: f32 = 0.5;
 
-// Second (hardcoded-30-frame) ring — same params as the parent ring but with
-// a shorter lifetime.
 const SECOND_RING_FADE_OUT_FRAMES: f32 = SECOND_RING_DURATION_FRAMES - 15.0;
 const SECOND_RING_RADIUS_ACCEL_PER_FRAME2: f32 =
     -(RING_RADIUS_SPEED_PER_FRAME / SECOND_RING_DURATION_FRAMES) / 2.0;
 
-/// Linear fade-in to `peak` over `FADE_IN_FRAMES`, hold, then linear fade-out
-/// from `fade_out_at` to `duration`.
 fn alpha_curve(frame: f32, peak: f32, fade_out_at: f32, duration: f32) -> f32 {
     if frame <= FADE_IN_FRAMES {
         peak * (frame / FADE_IN_FRAMES).clamp(0.0, 1.0)
@@ -124,7 +91,6 @@ impl Effect for MagnumBreakEffect {
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let parent_frame = self.parent_frame();
 
-        // -- Parent ring --
         let ring_outer = radius_at(
             RING_INITIAL_RADIUS,
             RING_RADIUS_SPEED_PER_FRAME,
@@ -148,14 +114,10 @@ impl Effect for MagnumBreakEffect {
                 uv_repeat: RING_UV_REPEAT,
                 texture: RING_TEXTURE,
                 color: [1.0, 1.0, 1.0, ring_alpha],
-                // The Magnum Break ring/sphere render
-                // alpha-blended, not additive
-                // — additive vanishes against a bright lightmap.
                 blend: BlendKind::Alpha,
             });
         }
 
-        // -- Explosion sphere --
         let explosion_radius = radius_at(
             EXPLOSION_INITIAL_RADIUS,
             EXPLOSION_RADIUS_SPEED_PER_FRAME,
@@ -189,7 +151,6 @@ impl Effect for MagnumBreakEffect {
             });
         }
 
-        // -- Second ring (30-frame hardcoded life) --
         if self.age < SECOND_RING_DURATION_S {
             let second_frame = self.second_ring_frame();
             let second_outer = radius_at(
@@ -327,7 +288,6 @@ mod tests {
         let mut mb = MagnumBreakEffect::new([0.0; 3]);
         step(&mut mb, 0.0);
         assert_eq!(draws(&mb).len(), 3);
-        // Past 30 frames the hardcoded second ring should be gone.
         step(&mut mb, SECOND_RING_DURATION_S + 0.01);
         assert_eq!(draws(&mb).len(), 2, "second ring expired");
     }
@@ -340,14 +300,12 @@ mod tests {
             EffectPrimitiveDraw::GroundDisc { color, .. } => color[3],
             _ => unreachable!(),
         };
-        // Past fade-in (frame ~16).
         step(&mut mb, (FADE_IN_FRAMES + 1.0) / FRAMES_PER_SECOND);
         let a_peak = match &draws(&mb)[0] {
             EffectPrimitiveDraw::GroundDisc { color, .. } => color[3],
             _ => unreachable!(),
         };
         assert!(a_peak > a0, "alpha grows during fade-in");
-        // Deep into fade-out window.
         step(&mut mb, PARENT_DURATION_S * 0.6);
         let a_late = match &draws(&mb)[0] {
             EffectPrimitiveDraw::GroundDisc { color, .. } => color[3],

@@ -1,16 +1,10 @@
-//! Unified viewer host: combines map rendering (rsw_viewer), character
-//! composition (sprite_viewer), and effect playback (effect_viewer) into a
-//! single binary. The character stands on the map's GAT center; effects
-//! spawn at that world position so the user can preview skills on a body
-//! with the real ground beneath.
-
-use std::collections::HashMap;
-use std::path::Path;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-use models::enums::class::JobName;
+use crate::sprite_viewer::browser::SpriteBrowser;
+use crate::stress::{self, StressRunner, StressSet, StressTick, stress_label};
+use crate::viewer::controls::{ViewerAction, map_key};
+use crate::viewer::overlay::{self, StatusLine};
 use models::enums::EnumWithNumberValue;
 use models::enums::EnumWithStringValue;
+use models::enums::class::JobName;
 use models::enums::effect_id::EffectId;
 use ragnarok_formats::act::{MotionType, SpriteActionType, SpriteAnimationState};
 use ragnarok_formats::gat::GatFile;
@@ -18,6 +12,7 @@ use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::damage_number::{
     DamageNumber, DamageNumberManager, DamageNumberRenderEntry, build_damage_number_quads,
 };
+use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
     EffectQueue, EffectSpec, body_attached, effect_spec, effect_texture_paths, is_link_effect,
@@ -27,39 +22,33 @@ use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::map_loader::{self, MapData};
 use ragnarok_game::sprite_loader as game_sprite_loader;
 use ragnarok_game::sprite_path::weapon_view_id_to_type;
+use ragnarok_renderer::EffectSpriteCache;
+use ragnarok_renderer::Fps;
 use ragnarok_renderer::effect::holder::AfterimageSnapshot;
 use ragnarok_renderer::effect::{
     EffectFrameInputs, EffectHolder, EffectUpdateCtx, StrEffectCache, compose_effect_frame,
 };
-use ragnarok_renderer::EffectSpriteCache;
-use ragnarok_renderer::Fps;
 use ragnarok_renderer::sprite::{EntitySprite, build_entity_sprite, upload_sprite_textures};
 use ragnarok_renderer::sprite_projection::{cell_world_pos, project_entity_screen};
 use ragnarok_renderer::{BackgroundMode, Renderer, UiDrawCall, block_on};
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowAttributes, WindowId};
-use ragnarok_game::data_table::accessory_table::AccessoryTable;
-use crate::sprite_viewer::browser::SpriteBrowser;
-use crate::stress::{self, StressRunner, StressSet, StressTick, stress_label};
-use crate::viewer::controls::{ViewerAction, map_key};
-use crate::viewer::overlay::{self, StatusLine};
 
 pub struct Args {
     pub grf_path: String,
     pub map_name: String,
     pub effect_id: Option<u16>,
-    /// Character cell position; `None` falls back to walkable GAT center.
     pub cell: Option<(i32, i32)>,
-    /// Character facing direction (0-7); `None` keeps the default (0).
     pub direction: Option<u8>,
 }
 
-/// Build the list of effects N/P cycles through. Mirrors
-/// `tools/effect-viewer-hot`'s `build_filtered(Filter::All)`: every valid
-/// `EffectId` whose spec is non-`Noop`, in numeric order.
 fn build_effect_list() -> Vec<EffectId> {
     (0..=2027usize)
         .filter_map(|v| EffectId::try_from_value(v).ok())
@@ -77,7 +66,6 @@ pub struct App {
     grf: Option<Arc<GrfArchive>>,
     map_data: Option<MapData>,
 
-    // Character
     composite_job: u16,
     composite_sex: u8,
     composite_head: u16,
@@ -90,19 +78,12 @@ pub struct App {
     character_cell: (f32, f32),
     paused: bool,
 
-    // Effects
     effect_holder: EffectHolder,
     effect_queue: EffectQueue,
     str_effects: StrEffectCache,
-    /// Floating damage numbers spawned by §9b number effects (Damage1/12/13),
-    /// anchored to the previewed actor. Loaded lazily from the GRF.
     damage_numbers: DamageNumberManager,
     damage_number_textures: Option<ragnarok_renderer::sprite::SpriteTextures>,
     damage_number_act: Option<ragnarok_formats::act::ActFile>,
-    /// Per-frame SPR billboards for Custom effects that emit
-    /// `SpriteParticle` primitives (Sight, Ruwach, Exit, Hit). Lazily
-    /// loaded on first spawn that needs a given path; subsequent spawns
-    /// reuse the cached sprite.
     effect_sprites: EffectSpriteCache,
     attempted_spr_files: std::collections::HashSet<String>,
     effect_list: Vec<EffectId>,
@@ -110,39 +91,28 @@ pub struct App {
     current_effect_id: Option<EffectId>,
     current_effect_label: String,
 
-    // Effect browser (Tab to open)
     browser: Option<SpriteBrowser>,
     browser_lookup: HashMap<String, EffectId>,
     ctrl_pressed: bool,
 
-    // Stress test (G to open browser, K to stop)
     stress_sets: Vec<StressSet>,
     stress: StressRunner,
     stress_browser: Option<SpriteBrowser>,
     fps: Fps,
 
-    // Trail target placement
     trail_target_override: Option<[f32; 3]>,
     placing_target: bool,
 
-    // Input
     mouse_pos: (f32, f32),
     last_mouse: (f32, f32),
     mouse_down_left: bool,
     mouse_down_right: bool,
 
     last_frame: Instant,
-    /// Earliest instant the next frame may render. The event loop sleeps
-    /// (`ControlFlow::WaitUntil`) until this point instead of spinning, keeping
-    /// CPU near-idle (the preferred `Mailbox` present mode never blocks to
-    /// throttle us).
     next_frame: Instant,
-    /// Whether `BackgroundMode::Clear` should clear to black this frame.
-    /// Toggled by the B-cycle: blue clear -> black clear -> RswMap.
     clear_is_black: bool,
 }
 
-/// Redraw cadence (~60 fps). Rendering faster only burns CPU.
 const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 impl App {
@@ -211,8 +181,6 @@ impl App {
         renderer.try_load_grf_font(&grf);
         self.accessory_table = AccessoryTable::load_from_grf(&grf);
 
-        // Number sprite (숫자.spr) for §9b floating-number effects. Msg sprite
-        // is skipped: EffectNumber never uses it (no miss/crit/lucky frames).
         if let Some(sprite_data) = game_sprite_loader::load_damage_number_sprite(&grf) {
             self.damage_number_textures = Some(upload_sprite_textures(
                 &sprite_data.images,
@@ -427,12 +395,8 @@ impl App {
         };
         self.effect_holder.clear();
         if body_attached(id) {
-            // Body shake / tint effects attach to the previewed actor so the
-            // character pass can apply them (mirrors in-game `spawn_on`).
             self.effect_queue.spawn_on(id, VIEWER_ACTOR_ID);
         } else if is_trail_effect(id) || is_link_effect(id) {
-            // Link effects (Linelink) use the green-cross target as a static
-            // stand-in for the second linked actor.
             let to = self
                 .trail_target_override
                 .unwrap_or([pos[0], pos[1], pos[2] + 22.0]);
@@ -445,12 +409,7 @@ impl App {
             self.current_effect_idx = idx;
         }
         self.current_effect_label = format_effect_label(id);
-        tracing::info!(
-            "Spawning effect {} ({:?}) at {:?}",
-            id.value(),
-            id,
-            pos
-        );
+        tracing::info!("Spawning effect {} ({:?}) at {:?}", id.value(), id, pos);
     }
 
     fn open_browser(&mut self) {
@@ -570,7 +529,11 @@ impl App {
             return;
         };
         browser.open = false;
-        if let Some(idx) = self.stress_sets.iter().position(|s| stress_label(s) == selected) {
+        if let Some(idx) = self
+            .stress_sets
+            .iter()
+            .position(|s| stress_label(s) == selected)
+        {
             self.effect_holder.clear();
             self.stress.launch(idx);
         }
@@ -660,7 +623,9 @@ impl App {
                     None,
                 );
                 let Some(probe) = probe else { return };
-                let Some(overlay) = probe.str_overlay() else { return };
+                let Some(overlay) = probe.str_overlay() else {
+                    return;
+                };
                 overlay
             }
             _ => return,
@@ -1024,23 +989,33 @@ impl App {
             .map(|m| compute_world_anchor(self.character_cell, m))
             .unwrap_or([0.0, 0.0, 0.0]);
         let resolve_actor = |id: u32| (id == VIEWER_ACTOR_ID).then_some(actor_pos);
-        self.effect_holder.drain_queue(&mut self.effect_queue, &resolve_actor);
+        self.effect_holder
+            .drain_queue(&mut self.effect_queue, &resolve_actor);
         self.effect_holder.update(
-            &EffectUpdateCtx { delta: sim_dt, camera_target: None, caster_yaw: None },
+            &EffectUpdateCtx {
+                delta: sim_dt,
+                camera_target: None,
+                caster_yaw: None,
+            },
             &|_| None,
             &resolve_actor,
         );
         // One-shot forced animation (Jumpkick): drain it and play it on the
         // previewed actor so the kick pose is visible in-tool (the viewer holds
         // the actor on a static frame, so this snaps it to the action's start).
-        if let Some(ba) = self.effect_holder.take_body_action_for_entity(VIEWER_ACTOR_ID) {
-            self.animation.play(ba.action_index, ba.duration_ms, ba.start_frame);
+        if let Some(ba) = self
+            .effect_holder
+            .take_body_action_for_entity(VIEWER_ACTOR_ID)
+        {
+            self.animation
+                .play(ba.action_index, ba.duration_ms, ba.start_frame);
         }
-        // §9b floating numbers: turn each one-shot request into a number on the
+        // Floating numbers: turn each one-shot request into a number on the
         // previewed actor, then age the manager. Direction is unused (no drift).
         for (entity_id, req) in self.effect_holder.drain_number_requests() {
-            self.damage_numbers
-                .add(DamageNumber::effect_number(entity_id, req.value, req.color, 0));
+            self.damage_numbers.add(DamageNumber::effect_number(
+                entity_id, req.value, req.color, 0,
+            ));
         }
         self.damage_numbers.update(sim_dt);
         let body_channels = self.effect_holder.body_channels_for_entity(VIEWER_ACTOR_ID);
@@ -1082,8 +1057,7 @@ impl App {
                 (Some(entity), Some(map)) => {
                     // Trail only while the walk action plays (the viewer's
                     // stand-in for the in-game `Moving` state).
-                    let emitting =
-                        self.animation.action() == SpriteActionType::Walk as usize;
+                    let emitting = self.animation.action() == SpriteActionType::Walk as usize;
                     build_character_batches(
                         entity,
                         map,
@@ -1111,7 +1085,11 @@ impl App {
             target_mode: self.placing_target,
             has_target: self.trail_target_override.is_some(),
         };
-        ui_calls.extend(overlay::build_status(&renderer.font_atlas, screen_w, &status));
+        ui_calls.extend(overlay::build_status(
+            &renderer.font_atlas,
+            screen_w,
+            &status,
+        ));
         ui_calls.extend(overlay::build_legend(
             &renderer.font_atlas,
             screen_w,
@@ -1141,7 +1119,7 @@ impl App {
             ));
         }
 
-        // §9b floating numbers: project the previewed actor's head and lay the
+        // Floating numbers: project the previewed actor's head and lay the
         // recoloured numbers over it (same path as the in-game scene render).
         let mut number_inline_textures: Vec<&wgpu::BindGroup> = Vec::new();
         if let (Some(entity), Some(map), Some(num_tex), Some(num_act)) = (

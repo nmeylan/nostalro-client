@@ -1,28 +1,5 @@
-//! 4-slot RadialEmitter state machine for casting-ring / radial-shell
-//! style effects.
-//!
-//! Mirrors the original game's four-slot radial effect — four slots, each
-//! carrying the per-slot bookkeeping (`distance`, `rise_angle`, `process`
-//! frame counter, alpha pair, oscillator arrays) that the per-frame
-//! integrators advance, and that the matching render function turns into
-//! a ring / cone / shell of billboards radiating outward from a center.
-//!
-//! Scope: state container + a trivial per-frame `tick()` that bumps `process`
-//! on live slots. Each calling effect implements its own physics on top
-//! (distance growth law, rise_angle decay curve, alpha envelope) — the
-//! original game's per-frame integrators differ enough between effects that
-//! encoding them all here would be premature.
-//!
-//! Cached billboard corners are NOT mirrored: the renderer recomputes
-//! them per frame from
-//! `distance` + `rise_angle_deg` + `height[]`.
-
-/// Number of state slots per effect. Matches the original game's slot count.
 pub const RADIAL_EMITTER_SLOTS: usize = 4;
 
-/// Size of the per-slot oscillator / flag arrays. Matches the original
-/// game's per-ring subdivision. Also the maximum number of billboards a
-/// `RadialRing` draw can emit per slot.
 pub const RADIAL_EMITTER_DIVISION: usize = 21;
 
 #[derive(Clone, Copy, Debug)]

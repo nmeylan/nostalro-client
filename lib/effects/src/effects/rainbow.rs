@@ -1,20 +1,3 @@
-//! `EF_RAINBOW` — rainbow arch (enum id 410).
-//!
-//! A 180° arch on `alpha_center.tga`, swept in segments and built from **seven
-//! concentric colour bands** (red→violet), each at a slightly smaller radius
-//! (`× (1 - band·0.05)`). The arch's height is the radius **doubled**
-//! (`sin · distance · 2`), giving a tall semicircle, and the whole thing is
-//! yawed to face the camera. The arch ramps alpha in, holds, then fades out.
-//!
-//! Reference: `ro-effects/effects/imgs/400-450/410.gif`.
-//!
-//! Built as one `WorldQuad` strip per band-segment: each band is a thin
-//! ribbon following the arch between its inner and outer radius, tinted with
-//! its spectrum colour and blended additively. The arch is **drawn on**: a
-//! sweep front advances from one foot up and over to the other, and each
-//! angular column fades in just after the front passes it — a bright leading
-//! edge with a short trailing gradient, matching the reference gif.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -24,29 +7,16 @@ pub const TEXTURES: &[&str] = &[ALPHA_CENTER_TEXTURE];
 const FPS: f32 = 60.0;
 const TOTAL_FRAMES: f32 = 180.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FPS * 1000.0) as u32;
-/// Frames for the leading edge to travel foot → foot (the draw-on sweep).
 const SWEEP_FRAMES: f32 = 80.0;
-/// Frames each angular column takes to fade in once the front reaches it —
-/// the trailing gradient behind the bright leading edge.
 const SEGMENT_RAMP_FRAMES: f32 = 18.0;
-/// Whole-arch fade-out at the tail of the effect.
 const FADE_OUT_FRAMES: f32 = 50.0;
 const PEAK_ALPHA: f32 = 160.0 / 255.0;
 
-/// Outermost band radius (world units). The reference arch spans the whole
-/// capture, so this is large relative to most effects — the user asked for
-/// it bigger.
 const BASE_RADIUS: f32 = 26.0;
-/// Each band sits 5% inside the previous (`1 - band·0.05`).
 const BAND_RADIUS_STEP: f32 = 0.05;
-/// Apex height relative to radius. The reference reads ~semicircular, a touch
-/// taller than wide.
 const HEIGHT_FACTOR: f32 = 1.3;
-/// Arch sweep segments over the 180°.
 const SEGMENTS: usize = 32;
 
-/// Seven spectrum bands, outer (red) to inner (violet) — the rainbow colour
-/// table.
 const BAND_COLORS: [[f32; 3]; 7] = [
     [255.0 / 255.0, 0.0, 0.0],
     [255.0 / 255.0, 126.0 / 255.0, 0.0],
@@ -70,8 +40,6 @@ impl RainbowEffect {
         }
     }
 
-    /// Whole-arch fade-out multiplier at the tail of the effect (1.0 until
-    /// `FADE_OUT_FRAMES` before the end).
     fn fade_out(&self) -> f32 {
         if self.age_frames < TOTAL_FRAMES - FADE_OUT_FRAMES {
             1.0
@@ -81,8 +49,6 @@ impl RainbowEffect {
         }
     }
 
-    /// Per-column draw-on alpha: 0 until the sweep front reaches angle `t`,
-    /// then ramps to peak over `SEGMENT_RAMP_FRAMES` (the trailing gradient).
     fn column_alpha(&self, t_mid: f32) -> f32 {
         let front = (self.age_frames / SWEEP_FRAMES).clamp(0.0, 1.0) * std::f32::consts::PI;
         if t_mid > front {
@@ -94,15 +60,12 @@ impl RainbowEffect {
         PEAK_ALPHA * ramp * self.fade_out()
     }
 
-    /// Yaw that turns the arch plane to face the camera horizontally.
     fn facing_yaw(&self, ctx: &EffectRenderCtx) -> f32 {
         let dx = ctx.camera.eye[0] - self.center[0];
         let dz = ctx.camera.eye[2] - self.center[2];
         dx.atan2(dz)
     }
 
-    /// Arch point in world space: local `(cos t · r, -sin t · r · 2, 0)`
-    /// (native RO `-Y` up) yawed around world Y to face the camera.
     fn arch_point(&self, t: f32, radius: f32, yaw: f32) -> [f32; 3] {
         let lx = t.cos() * radius;
         let ly = -t.sin() * radius * HEIGHT_FACTOR;
@@ -244,7 +207,6 @@ mod tests {
 
     #[test]
     fn arch_rises_above_the_base_at_its_apex() {
-        // The apex (t = 90°) sits well above the base plane (native -Y up).
         let e = RainbowEffect::new([0.0, 0.0, 0.0]);
         let apex = e.arch_point(std::f32::consts::FRAC_PI_2, BASE_RADIUS, 0.0);
         assert!(

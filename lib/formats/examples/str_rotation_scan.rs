@@ -1,7 +1,3 @@
-//! Scan every `.str` in the GRF and report which use a non-zero layer angle
-//! and/or a non-centred vertical offset (offset[1] != 240). One line per file:
-//!   <name-without-dir-or-ext>  rot=<max_abs_angle_deg>  yshift=<bool>
-//! Usage: cargo run -p ragnarok-formats --example str_rotation_scan -- <grf>
 use std::path::PathBuf;
 
 use ragnarok_formats::grf::GrfArchive;
@@ -39,7 +35,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        // brand angle -> degrees
         let max_deg = max_brand * 360.0 / 1024.0;
         let stem = path
             .rsplit(['/', '\\'])

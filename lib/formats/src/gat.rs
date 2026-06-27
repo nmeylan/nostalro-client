@@ -34,7 +34,6 @@ impl GatCell {
     }
 }
 
-/// Maps raw GAT cell type values to server-compatible cell flags.
 fn raw_cell_to_flags(raw: i32) -> u16 {
     match raw {
         0 | 2 | 4 | 6 => CellType::Walkable.as_flag() | CellType::Shootable.as_flag(),
@@ -122,8 +121,8 @@ mod tests {
     fn build_gat_bytes(width: i32, height: i32, cells: &[(f32, f32, f32, f32, i32)]) -> Vec<u8> {
         let mut data = Vec::new();
         data.extend_from_slice(b"GRAT");
-        data.push(1); // major
-        data.push(2); // minor
+        data.push(1);
+        data.push(2);
         data.extend_from_slice(&width.to_le_bytes());
         data.extend_from_slice(&height.to_le_bytes());
         for &(h1, h2, h3, h4, flag) in cells {
@@ -139,10 +138,10 @@ mod tests {
     #[test]
     fn parse_2x2_gat_and_check_walkability_and_height() {
         let cells = [
-            (0.0, 2.0, 4.0, 6.0, 0),     // (0,0) walkable ground
-            (1.0, 1.0, 1.0, 1.0, 1),     // (1,0) unwalkable
-            (10.0, 10.0, 10.0, 10.0, 3), // (0,1) walkable water
-            (5.0, 5.0, 5.0, 5.0, 5),     // (1,1) shootable cliff
+            (0.0, 2.0, 4.0, 6.0, 0),
+            (1.0, 1.0, 1.0, 1.0, 1),
+            (10.0, 10.0, 10.0, 10.0, 3),
+            (5.0, 5.0, 5.0, 5.0, 5),
         ];
         let data = build_gat_bytes(2, 2, &cells);
         let gat = GatFile::parse(&data).unwrap();
@@ -158,19 +157,15 @@ mod tests {
         assert!(!gat.is_walkable(-1, 0));
         assert!(!gat.is_walkable(0, 2));
 
-        // Water flags
         assert!(!gat.cells[0].is_water());
         assert!(gat.cells[2].is_water());
 
-        // Shootable flags
         assert!(gat.cells[0].is_shootable());
         assert!(!gat.cells[1].is_shootable());
         assert!(gat.cells[3].is_shootable());
         assert!(!gat.cells[3].is_walkable());
 
-        // Height at cell corners
         assert_eq!(gat.get_height(0.0, 0.0), 0.0);
-        // Flat cell should return constant
         assert_eq!(gat.get_height(1.0, 0.0), 1.0);
     }
 }

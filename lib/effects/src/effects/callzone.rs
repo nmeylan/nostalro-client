@@ -1,10 +1,3 @@
-//! EF_CALLZONE — static white ground decal marking a called zone.
-//!
-//! Single ground disc, texture
-//! `effect/white02.bmp`, radius 8.0, full 360°, alpha runs the standard
-//! curve. Spawn is delayed by 100 frames after the parent begins; the disc
-//! then stays visible until the parent dies.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -12,12 +5,9 @@ pub const TEXTURE: &str = "white02.bmp";
 pub const TEXTURES: &[&str] = &[TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// Parent lifetime — matches `table.rs` for `EffectId::Callzone`.
 pub const TOTAL_DURATION_MS: u32 = 30_000;
 const TOTAL_DURATION_S: f32 = TOTAL_DURATION_MS as f32 / 1000.0;
 
-/// Frames the parent waits before spawning the disc
-/// (100 frames).
 const SPAWN_DELAY_FRAMES: f32 = 100.0;
 const SPAWN_DELAY_S: f32 = SPAWN_DELAY_FRAMES / FRAMES_PER_SECOND;
 
@@ -26,10 +16,6 @@ const FADE_IN_FRAMES: f32 = 15.0;
 const FADE_OUT_FRAMES: f32 = 30.0;
 const PEAK_ALPHA: f32 = 1.0;
 const UV_REPEAT: f32 = 1.0;
-/// Native RO `-Y` is up: lift the decal a hair off the ground so it isn't
-/// z-fought / swallowed by the terrain it sits on (the original game raises
-/// the disc well clear of the ground; a small lift is enough at our scale,
-/// matching `ready_portal`'s ground ring).
 const GROUND_OFFSET_Y: f32 = -1.0;
 
 pub struct CallzoneEffect {
@@ -133,7 +119,6 @@ mod tests {
         step(&mut eff, 0.0);
         assert_eq!(draws(&eff).len(), 0, "disc hidden during 100-frame delay");
 
-        // Step past the delay and into the fade-in window.
         step(&mut eff, SPAWN_DELAY_S + 0.5);
         let prims = draws(&eff);
         assert_eq!(prims.len(), 1, "single ground disc after delay");
@@ -157,19 +142,16 @@ mod tests {
     #[test]
     fn alpha_curve_fades_in_holds_then_fades_out() {
         let mut eff = CallzoneEffect::new([0.0; 3]);
-        // Just past delay → fade-in starts.
         step(&mut eff, SPAWN_DELAY_S + 0.05);
         let a_early = match &draws(&eff)[0] {
             EffectPrimitiveDraw::GroundDisc { color, .. } => color[3],
             _ => unreachable!(),
         };
-        // Middle of visible window → at peak.
         step(&mut eff, TOTAL_DURATION_S * 0.5);
         let a_mid = match &draws(&eff)[0] {
             EffectPrimitiveDraw::GroundDisc { color, .. } => color[3],
             _ => unreachable!(),
         };
-        // Deep into fade-out.
         step(&mut eff, TOTAL_DURATION_S * 0.45);
         let a_late = match &draws(&eff)[0] {
             EffectPrimitiveDraw::GroundDisc { color, .. } => color[3],

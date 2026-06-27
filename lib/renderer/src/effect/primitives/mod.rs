@@ -1,6 +1,3 @@
-//! Shared GPU primitives used by custom effects. Each primitive converts a
-//! variant of [`super::EffectPrimitiveDraw`] into renderer batches.
-
 pub mod billboard;
 pub mod cylinder;
 pub mod frustum;

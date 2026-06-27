@@ -38,9 +38,6 @@ pub struct UiContext {
     pub key_f12: bool,
     pub scroll_delta: f32,
     pub dpi_scale: f32,
-    /// Monotonic local-clock time in milliseconds, set each frame. Used by
-    /// time-driven widgets (e.g. the status-icon countdown) without threading a
-    /// clock through every `build()`.
     pub now_ms: u64,
 }
 

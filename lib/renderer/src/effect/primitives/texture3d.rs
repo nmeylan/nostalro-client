@@ -1,10 +1,3 @@
-//! Texture3D primitive — centre + size + plane world-fixed textured quad.
-//! Shares the GroundDisc shader / camera bind group layout with WorldQuad.
-//!
-//! Covers a single flat textured quad and (when emitted as two
-//! perpendicular quads) a cross billboard. Corner derivation happens here
-//! so effects can emit a single intent-level draw call.
-
 use crate::camera::Camera;
 use crate::device::DEPTH_FORMAT;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};

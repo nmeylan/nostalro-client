@@ -1,25 +1,3 @@
-//! `EF_PORTAL4` / `EF_PORTAL5` — 4-slot wind aura.
-//!
-//! The aura
-//! spawns 4 narrow wind cones at 90° spacing around the master. Each slot
-//! widens (arc `+= 3°` per frame, capped at 120°) and rotates
-//! (`+5°` per frame). After process>20 the slots drift outward by 0.10/frame
-//! and the alpha fades. The arc is
-//! walked in 21 steps,
-//! emitting one quad per step.
-//!
-//! Variants:
-//!   * Portal4 (`F1=0`) — size 5, `max_height = 5+2*ec` per slot, distance
-//!     ≈ 4.5. Adds windwalk SFX at frame 0 and a green body tint on the
-//!     master sprite during frames 5..=25.
-//!   * Portal5 (`F1=1`) — size 8, `max_height = 3+2*ec`, distance ≈ 2.5.
-//!     Yellow body tint on the master during frames 5..=65.
-//!
-//! Body-tint and SFX side effects are exposed via [`Effect::body_tint`] and
-//! [`Effect::take_sfx_request`] (default trait methods returning `None` for
-//! every other effect). The renderer-side wiring that consumes those is a
-//! separate piece of infrastructure noted in the holder.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -29,52 +7,30 @@ const FRAMES_PER_SECOND: f32 = 60.0;
 pub const TOTAL_DURATION_MS: u32 = 2000;
 const TOTAL_FRAMES: f32 = (TOTAL_DURATION_MS as f32) * FRAMES_PER_SECOND / 1000.0;
 
-/// The arc is walked in 21 steps; the closing edge produces 20
-/// bridging quads, so `sides` = 20 matches the rendered geometry.
 const WIND_SIDES: u32 = 20;
 const WIND_TEXTURE: &str = "cloud11.tga";
 
-/// Rotation starts at 0/90/180/270 for the 4 cardinal slots.
 const ROT_START_DEG: [f32; 4] = [0.0, 90.0, 180.0, 270.0];
-/// `rise_angle = 80 + random(0..21)` — we substitute fixed offsets centred
-/// in the original range so tests are deterministic. Visually
-/// indistinguishable since each slot's rise is independent and the cones
-/// are very narrow.
 const RISE_ANGLE_DEG: [f32; 4] = [82.0, 88.0, 95.0, 100.0];
-/// A small random distance jitter (`random(101)*0.01`) — substituted with
-/// per-slot constants in `[0, jitter]` range.
 const DISTANCE_JITTER_FRACTION: [f32; 4] = [0.0, 0.33, 0.66, 1.0];
 
 #[derive(Clone, Copy)]
 pub struct PortalWindConfig {
-    /// `F1` parameter — preserved so callers can read the variant if needed.
     pub f1: u8,
-    /// `alpha_t` mode: 1 = windwalk (quick fade, 120° arc), 2 =
-    /// gust (slow fade, 180° arc), 3 = persistent gust (120° arc, ramps in and
-    /// holds — no fade, no outward drift). Selects the per-frame `step` branch.
+    /// 1 = windwalk (quick fade, 120° arc), 2 = gust (slow fade, 180° arc),
+    /// 3 = persistent gust (120° arc, ramps in and holds — no fade, no outward drift).
     pub alpha_t: u8,
-    /// Frames the emitter lives before reporting `Dead`.
     pub duration_frames: f32,
-    /// Base of the per-slot `max_height = max_height_base + max_height_step*ec`.
     pub max_height_base: f32,
     pub max_height_step: f32,
-    /// `distance = distance_base + distance_step*ec + random(0..1)*distance_jitter`.
     pub distance_base: f32,
     pub distance_step: f32,
     pub distance_jitter: f32,
-    /// Frame window during which the master sprite gets tinted.
-    /// An empty window (e.g. `(0, -1)`) disables the tint.
+    /// `(0, -1)` disables the tint.
     pub body_light_frames: (i32, i32),
-    /// Body-light RGB (alpha is fully opaque).
     pub body_light_rgb: [u8; 3],
-    /// `true` for Portal4 — plays `effect\windwalk.wav` at frame 0.
     pub play_windwalk_wav: bool,
-    /// Per-segment ribbon size. The plain wind variants keep this at 1.0;
-    /// the Mgdef variants set it to `nLevel`, so the funnel grows taller and
-    /// wider with the buff strength.
     pub height_scale: f32,
-    /// Additive tint on the wind quads.
-    /// White for the untinted wind variants; coloured for Mgdef.
     pub wind_color_rgb: [u8; 3],
 }
 
@@ -110,12 +66,6 @@ pub const PORTAL5: PortalWindConfig = PortalWindConfig {
     wind_color_rgb: [255, 255, 255],
 };
 
-/// Gust ring used by the StormKick batch. `alpha_t=2`:
-/// wider 180° arc, slow fade after `process>50`. The per-slot literals
-/// (`max_height = 48 - 5*ec`, `distance = 14 - 2*ec`) are in the same inflated
-/// scale as the StormKick funnel — at face value the ribbon floats ~48 units
-/// up. Scaled by `STORMKICK_GUST_SCALE` so the gust hugs the funnel base, per
-/// the gif. No body tint, no SFX.
 pub const PORTAL_WIND2: PortalWindConfig = PortalWindConfig {
     f1: 2,
     alpha_t: 2,
@@ -132,8 +82,6 @@ pub const PORTAL_WIND2: PortalWindConfig = PortalWindConfig {
     wind_color_rgb: [255, 255, 255],
 };
 
-/// Tighter gust ring. `max_height = 28 - 5*ec`,
-/// `distance = 6 - 1*ec`, scaled to match.
 pub const PORTAL_WIND3: PortalWindConfig = PortalWindConfig {
     f1: 3,
     alpha_t: 2,
@@ -150,13 +98,6 @@ pub const PORTAL_WIND3: PortalWindConfig = PortalWindConfig {
     wind_color_rgb: [255, 255, 255],
 };
 
-/// The Mgdef (magic-defense buff) wind, 2022–
-/// 2025. Identical to `PORTAL4` (same `max_height`, `distance`, `alpha_t=1`,
-/// windwalk SFX, frame 5–25 body tint) except the per-segment height is
-/// `nLevel` rather than 1, so the four cones rise taller with the buff strength,
-/// and the wind is tinted by `nColor`. The body-light RGB tracks the original
-/// game per variant (note Mgdef3's body stays green while its wind is
-/// yellow — faithful to the original).
 const fn mgdef(n_level: f32, wind_rgb: [u8; 3], body_rgb: [u8; 3]) -> PortalWindConfig {
     PortalWindConfig {
         f1: 0,
@@ -175,25 +116,13 @@ const fn mgdef(n_level: f32, wind_rgb: [u8; 3], body_rgb: [u8; 3]) -> PortalWind
     }
 }
 
-// 2022 Mgdef1 — nLevel 1, untinted white wind, pale-green body light.
 pub const MGDEF1: PortalWindConfig = mgdef(1.0, [255, 255, 255], [220, 250, 220]);
-// 2023 Mgdef2 — nLevel 2, green wind + green body (0x59C50A).
 pub const MGDEF2: PortalWindConfig = mgdef(2.0, [89, 197, 10], [89, 197, 10]);
-// 2024 Mgdef3 — nLevel 5, yellow wind (0xFFFF11), green body.
 pub const MGDEF3: PortalWindConfig = mgdef(5.0, [255, 255, 17], [89, 197, 10]);
-// 2025 Mgdef4 — nLevel 8, yellow wind + yellow body (0xFFFF11).
 pub const MGDEF4: PortalWindConfig = mgdef(8.0, [255, 255, 17], [255, 255, 17]);
 
-/// StormKick's funnel downscales the original literals to ~sprite height (see
-/// `storm_kick.rs`'s `WORLD_SCALE`); its gust rings share that factor so they
-/// stay coherent with the funnel instead of floating tens of units up.
 const STORMKICK_GUST_SCALE: f32 = 0.15;
 
-/// Portal3's wind ring at frame 2 — the wide flat halo ring around the big
-/// warp portal. `alpha_t = 3`: ramps in and holds, no outward drift. Four
-/// cardinal slots at distance 13/11/9/8 (outside the violet ring column) rising
-/// to 2.5/5/7.5/10. The distance step isn't perfectly linear; −1.67
-/// reproduces 13/11.33/9.67/8 ≈ 13/11/9/8.
 pub const BIGPORTAL_WIND: PortalWindConfig = PortalWindConfig {
     f1: 0,
     alpha_t: 3,
@@ -210,7 +139,6 @@ pub const BIGPORTAL_WIND: PortalWindConfig = PortalWindConfig {
     wind_color_rgb: [255, 255, 255],
 };
 
-/// Persistent variant for BigPortal2 (recall portal) — same ring, long life.
 pub const BIGPORTAL_WIND2: PortalWindConfig = PortalWindConfig {
     f1: 1,
     alpha_t: 3,
@@ -256,10 +184,6 @@ impl WindSlot {
         }
     }
 
-    /// Per-frame slot update. `alpha_t==1` ("windwalk"): 120° arc, +10/f fade-in
-    /// for 12 frames, −2/f fade after process>20, grows after process>20.
-    /// `alpha_t==2` ("gust"): 180° arc, +1/f fade-in for 12 frames, −1/f fade
-    /// after process>50, grows after process>12.
     fn step(&mut self) {
         self.process += 1.0;
         if self.process <= 0.0 {
@@ -278,8 +202,6 @@ impl WindSlot {
                 self.alpha_b += 1.0;
             }
         } else if self.alpha_t == 3 {
-            // Persistent gust: arc opens to 120°, alpha ramps to 250 over the
-            // first 12 frames and holds — no fade-out, no outward drift.
             self.full_display_angle_deg = (self.full_display_angle_deg + 3.0).min(120.0);
             if self.process < 12.0 {
                 self.alpha_b = (self.alpha_b + 10.0).min(250.0);
@@ -295,8 +217,6 @@ impl WindSlot {
             }
         }
         if self.process > 1400.0 && self.alpha_t != 3 {
-            // The terminal decay applies to every mode except the persistent
-            // gust (alpha_t == 3).
             self.alpha_b = (self.alpha_b - 3.0).max(0.0);
         }
     }
@@ -307,7 +227,6 @@ pub struct PortalWindEffect {
     age_frames: f32,
     cfg: PortalWindConfig,
     slots: [WindSlot; 4],
-    /// `Some(path)` until consumed by [`Effect::take_sfx_request`].
     pending_sfx: Option<&'static str>,
 }
 
@@ -365,10 +284,6 @@ impl Effect for PortalWindEffect {
             if alpha <= 0.0 {
                 continue;
             }
-            // Wind geometry: bottom y = -max_height; top y = -(Ry + max_height).
-            // vert = sin(rise)*h; top_size = bottom_size +
-            // cos(rise)*h. h is 1.0 for the plain wind, `nLevel`
-            // (`height_scale`) for the Mgdef variants.
             let (sin_rise, cos_rise) = s.rise_angle_deg.to_radians().sin_cos();
             let h = self.cfg.height_scale;
             let bottom = s.distance;
@@ -480,12 +395,10 @@ mod tests {
         step_frames(&mut e, 1);
         let f = wind_frustums(&draws(&e));
         assert_eq!(f.len(), 4, "4 PP_WIND slots");
-        // After 1 frame: arc span = 30+3 = 33, rotation = (start+5).
         for (i, &(arc, rot, bot)) in f.iter().enumerate() {
             assert!((arc - 33.0).abs() < 0.01, "arc {arc} after 1 step");
             let expected_rot = ((ROT_START_DEG[i] + 5.0).to_radians()) as f32;
             assert!((rot - expected_rot).abs() < 1e-4, "slot {i} rotation");
-            // distance starts in [4.5, 4.53]; no growth until process>20.
             assert!(
                 bot >= 4.5 && bot <= 4.53,
                 "slot {i} distance {bot} within init range"
@@ -497,9 +410,6 @@ mod tests {
     fn portal4_windstorm_opens_then_fades() {
         let mut e = PortalWindEffect::new([0.0, 0.0, 0.0], PORTAL4);
         step_frames(&mut e, 12);
-        // alpha_b at frame 12: ramp +10/frame for first 11 frames → 110, then
-        // capped at 250. At process=12 the ramp stops adding (`process<12`),
-        // so value is 110. arc span = 30 + 12*3 = 66.
         let prims = draws(&e);
         let f = wind_frustums(&prims);
         for &(arc, _rot, _bot) in &f {
@@ -511,8 +421,6 @@ mod tests {
         });
         assert!(any_alpha, "alpha must be > 0 at frame 12");
 
-        // Frame 25: distance has been growing since frame 21 (process>20), so
-        // it's now base + ~0.4 (0.10/frame × 4 frames). alpha decaying.
         step_frames(&mut e, 13);
         let after = wind_frustums(&draws(&e));
         for (i, &(_arc, _rot, bot)) in after.iter().enumerate() {
@@ -528,10 +436,7 @@ mod tests {
     #[test]
     fn portal5_yellow_body_light_window_and_no_sfx() {
         let mut e = PortalWindEffect::new([0.0, 0.0, 0.0], PORTAL5);
-        // Portal5 does not play the windwalk SFX.
         assert!(e.take_sfx_request().is_none());
-
-        // Frame 0: body tint not yet active (window starts at frame 5).
         assert!(e.body_tint().is_none(), "tint inactive before frame 5");
 
         step_frames(&mut e, 5);
@@ -549,7 +454,6 @@ mod tests {
     #[test]
     fn portal_wind2_opens_to_180_and_fades_on_gust_schedule() {
         let mut e = PortalWindEffect::new([0.0, 0.0, 0.0], PORTAL_WIND2);
-        // alpha_t==2: +1/frame fade-in for 12 frames, arc grows +3/frame.
         step_frames(&mut e, 12);
         let alpha_12 = draws(&e)
             .iter()
@@ -560,7 +464,6 @@ mod tests {
             .unwrap_or(0.0);
         assert!(alpha_12 > 0.0, "alpha ramped in by frame 12");
 
-        // Arc caps at 180 (not 120 like alpha_t==1). 30 + 3*N reaches 180 at N=50.
         step_frames(&mut e, 60);
         let arcs = wind_frustums(&draws(&e));
         for (arc, _, _) in arcs {
@@ -599,7 +502,6 @@ mod tests {
             strong_h[0].0,
             weak_h[0].0
         );
-        // Mgdef1 wind is white; Mgdef2 wind is green (R and B suppressed).
         let mut green = PortalWindEffect::new([0.0, 0.0, 0.0], MGDEF2);
         step_frames(&mut green, 10);
         let g = wind_geometry(&draws(&green))[0].1;

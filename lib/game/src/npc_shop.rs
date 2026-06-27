@@ -1,7 +1,7 @@
+use crate::data_table::item_resource_table::ItemResourceTable;
 use crate::item::Item;
 use models::enums::EnumWithNumberValue;
 use models::enums::item::ItemType;
-use crate::data_table::item_resource_table::ItemResourceTable;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NpcShopMode {
@@ -308,10 +308,7 @@ impl NpcShopData {
         }
     }
 
-    pub fn resolve_resource_names(
-        &mut self,
-        table: &ItemResourceTable,
-    ) {
+    pub fn resolve_resource_names(&mut self, table: &ItemResourceTable) {
         for buy_item in &mut self.buy_items {
             buy_item.item.resolve_resource_name(table);
         }

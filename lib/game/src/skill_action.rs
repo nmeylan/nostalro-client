@@ -2,30 +2,20 @@ use models::enums::skill_enums::SkillEnum;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SkillMotionType {
-    /// Weapon-dependent attack (resolved via attack_action_for_weapon)
     Attack,
-    /// Action index 5 - throwing without visible weapon
     Throw,
-    /// Action index 10 - secondary attack
     Attack2,
-    /// Action index 3 - item pickup / trap placement
     Pickup,
-    /// Singing animation (bard songs) - maps to 12 for now
     Sing,
-    /// Dancing animation (dancer/ensemble) - maps to 12 for now
     Dance,
-    /// Action index 0 - stay standing (passives/buffs)
     Stand,
-    /// Action index 12 - generic skill cast (default)
     Skill,
 }
 
-/// Unfortunately all skill cannot use Skill motion type
 pub fn skill_motion_type(skill_id: u16) -> SkillMotionType {
     use SkillMotionType::*;
 
     let id = skill_id;
-    // Attack - weapon-dependent animation (same as regular attack)
     if id == SkillEnum::SmBash.id() as u16
         || id == SkillEnum::SmMagnum.id() as u16
         || id == SkillEnum::McMammonite.id() as u16
@@ -66,7 +56,6 @@ pub fn skill_motion_type(skill_id: u16) -> SkillMotionType {
         return Attack;
     }
 
-    // Attack2 - secondary attack animation
     if id == SkillEnum::BaMusicalstrike.id() as u16
         || id == SkillEnum::DcThrowarrow.id() as u16
         || id == SkillEnum::CgArrowvulcan.id() as u16
@@ -74,7 +63,6 @@ pub fn skill_motion_type(skill_id: u16) -> SkillMotionType {
         return Attack2;
     }
 
-    // Throw - throwing without visible weapon
     if id == SkillEnum::KnSpearboomerang.id() as u16
         || id == SkillEnum::CrShieldcharge.id() as u16
         || id == SkillEnum::CrShieldboomerang.id() as u16
@@ -90,7 +78,6 @@ pub fn skill_motion_type(skill_id: u16) -> SkillMotionType {
         return Throw;
     }
 
-    // Pickup - trap placement / item pickup
     if id == SkillEnum::HtSkidtrap.id() as u16
         || id == SkillEnum::HtLandmine.id() as u16
         || id == SkillEnum::HtAnklesnare.id() as u16
@@ -107,7 +94,6 @@ pub fn skill_motion_type(skill_id: u16) -> SkillMotionType {
         return Pickup;
     }
 
-    // Sing - bard songs
     if id == SkillEnum::BaAppleidun.id() as u16
         || id == SkillEnum::BaDissonance.id() as u16
         || id == SkillEnum::BaWhistle.id() as u16
@@ -117,7 +103,6 @@ pub fn skill_motion_type(skill_id: u16) -> SkillMotionType {
         return Sing;
     }
 
-    // Dance - dancer/ensemble skills
     if id == SkillEnum::DcWinkcharm.id() as u16
         || id == SkillEnum::DcFortunekiss.id() as u16
         || id == SkillEnum::DcUglydance.id() as u16
@@ -139,7 +124,6 @@ pub fn skill_motion_type(skill_id: u16) -> SkillMotionType {
         return Dance;
     }
 
-    // Stand - passives/buffs that don't change pose
     if id == SkillEnum::AlIncagi.id() as u16
         || id == SkillEnum::CrAutoguard.id() as u16
         || id == SkillEnum::CrReflectshield.id() as u16
@@ -157,7 +141,6 @@ pub fn skill_motion_type(skill_id: u16) -> SkillMotionType {
         return Stand;
     }
 
-    // Everything else: generic skill animation
     Skill
 }
 

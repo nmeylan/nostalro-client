@@ -58,10 +58,10 @@ impl SprImage {
             for x in 0..w as usize {
                 let src = (y * w as usize + x) * 4;
                 let dst = (dst_y * w as usize + x) * 4;
-                data[dst] = self.data[src + 3]; // R
-                data[dst + 1] = self.data[src + 2]; // G
-                data[dst + 2] = self.data[src + 1]; // B
-                data[dst + 3] = self.data[src]; // A
+                data[dst] = self.data[src + 3];
+                data[dst + 1] = self.data[src + 2];
+                data[dst + 2] = self.data[src + 1];
+                data[dst + 3] = self.data[src];
             }
         }
         RgbaImageData {
@@ -89,7 +89,6 @@ impl SprFile {
             return Err(FormatError::InvalidMagic);
         }
 
-        // MinorFirst: minor byte first, then major
         let ver_minor = r.read_u8()?;
         let ver_major = r.read_u8()?;
         let version = (ver_major, ver_minor);
@@ -196,7 +195,6 @@ fn decompress_indexed(data: &[u8], pixel_count: usize) -> Vec<u8> {
             } else {
                 1
             };
-            // zeros are already written (vec initialized to 0)
             next += count;
         } else {
             output[next] = data[i];
@@ -214,7 +212,6 @@ mod tests {
 
     #[test]
     fn rle_decode_with_runs_and_literals() {
-        // 3 literal, 0x00 0x02 = 2 zeros, 1 literal
         let encoded = [5, 10, 15, 0, 2, 20];
         let result = decompress_indexed(&encoded, 6);
         assert_eq!(result, [5, 10, 15, 0, 0, 20]);
@@ -228,16 +225,13 @@ mod tests {
             data: vec![0, 1, 2],
         };
         let mut palette = [[0u8; 4]; 256];
-        palette[1] = [255, 0, 0, 0]; // red
-        palette[2] = [255, 0, 255, 0]; // magenta → transparent
+        palette[1] = [255, 0, 0, 0];
+        palette[2] = [255, 0, 255, 0];
         let img = sprite.apply_palette(&palette);
         assert_eq!(img.width, 3);
         assert_eq!(img.height, 1);
-        // index 0 → transparent
         assert_eq!(&img.data[0..4], &[0, 0, 0, 0]);
-        // index 1 → red, opaque
         assert_eq!(&img.data[4..8], &[255, 0, 0, 255]);
-        // index 2 → magenta → transparent
         assert_eq!(&img.data[8..12], &[0, 0, 0, 0]);
     }
 
@@ -246,7 +240,7 @@ mod tests {
         let sprite = SprImage {
             width: 1,
             height: 1,
-            data: vec![200, 50, 100, 150], // A=200, B=50, G=100, R=150
+            data: vec![200, 50, 100, 150],
         };
         let img = sprite.swizzle_pixel_bytes();
         assert_eq!(&img.data, &[150, 100, 50, 200]);
@@ -258,19 +252,14 @@ mod tests {
             width: 2,
             height: 2,
             data: vec![
-                // row 0 (top in file = bottom in image): px(0,0) ABGR, px(1,0) ABGR
-                255, 10, 20, 30, 255, 40, 50, 60,
-                // row 1 (bottom in file = top in image): px(0,1) ABGR, px(1,1) ABGR
-                255, 70, 80, 90, 255, 100, 110, 120,
+                255, 10, 20, 30, 255, 40, 50, 60, 255, 70, 80, 90, 255, 100, 110, 120,
             ],
         };
         let img = sprite.swizzle_pixel_bytes();
         assert_eq!(img.width, 2);
         assert_eq!(img.height, 2);
-        // row 0 of output should be file row 1 (flipped), swizzled ABGR→RGBA
         assert_eq!(&img.data[0..4], &[90, 80, 70, 255]);
         assert_eq!(&img.data[4..8], &[120, 110, 100, 255]);
-        // row 1 of output should be file row 0 (flipped), swizzled
         assert_eq!(&img.data[8..12], &[30, 20, 10, 255]);
         assert_eq!(&img.data[12..16], &[60, 50, 40, 255]);
     }
@@ -279,24 +268,21 @@ mod tests {
     fn to_rgba_images_converts_all_sprites() {
         let mut data = Vec::new();
         data.extend_from_slice(b"SP");
-        data.push(1); // minor = 1
-        data.push(2); // major = 2 → version 2.1
-        data.extend_from_slice(&1u16.to_le_bytes()); // 1 palette image
-        data.extend_from_slice(&1u16.to_le_bytes()); // 1 rgba image
-        // indexed image: 2x1
+        data.push(1);
+        data.push(2);
+        data.extend_from_slice(&1u16.to_le_bytes());
+        data.extend_from_slice(&1u16.to_le_bytes());
         data.extend_from_slice(&2u16.to_le_bytes());
         data.extend_from_slice(&1u16.to_le_bytes());
         let encoded: &[u8] = &[1, 2];
         data.extend_from_slice(&(encoded.len() as u16).to_le_bytes());
         data.extend_from_slice(encoded);
-        // rgba image: 1x1 ABGR
         data.extend_from_slice(&1u16.to_le_bytes());
         data.extend_from_slice(&1u16.to_le_bytes());
-        data.extend_from_slice(&[255, 50, 100, 150]); // A=255, B=50, G=100, R=150
-        // palette
+        data.extend_from_slice(&[255, 50, 100, 150]);
         let mut palette_data = [0u8; 1024];
-        palette_data[4..8].copy_from_slice(&[255, 0, 0, 0]); // index 1 = red
-        palette_data[8..12].copy_from_slice(&[0, 255, 0, 0]); // index 2 = green
+        palette_data[4..8].copy_from_slice(&[255, 0, 0, 0]);
+        palette_data[8..12].copy_from_slice(&[0, 255, 0, 0]);
         data.extend_from_slice(&palette_data);
 
         let spr = SprFile::parse(&data).unwrap();
@@ -305,7 +291,6 @@ mod tests {
         assert_eq!(images.len(), 2);
         assert_eq!((images[0].width, images[0].height), (2, 1));
         assert_eq!((images[1].width, images[1].height), (1, 1));
-        // rgba image: ABGR [255,50,100,150] → RGBA [150,100,50,255]
         assert_eq!(&images[1].data, &[150, 100, 50, 255]);
     }
 
@@ -314,36 +299,30 @@ mod tests {
         let mut data = Vec::new();
         data.extend_from_slice(b"SP");
         data.push(1);
-        data.push(2); // version 2.1
-        data.extend_from_slice(&1u16.to_le_bytes()); // 1 indexed
-        data.extend_from_slice(&1u16.to_le_bytes()); // 1 rgba
-        // indexed: 1x1, pixel index=1
+        data.push(2);
+        data.extend_from_slice(&1u16.to_le_bytes());
+        data.extend_from_slice(&1u16.to_le_bytes());
         data.extend_from_slice(&1u16.to_le_bytes());
         data.extend_from_slice(&1u16.to_le_bytes());
         let encoded: &[u8] = &[1];
         data.extend_from_slice(&(encoded.len() as u16).to_le_bytes());
         data.extend_from_slice(encoded);
-        // rgba: 1x1 ABGR
         data.extend_from_slice(&1u16.to_le_bytes());
         data.extend_from_slice(&1u16.to_le_bytes());
         data.extend_from_slice(&[255, 50, 100, 150]);
-        // embedded palette: index 1 = red
         let mut palette_data = [0u8; 1024];
         palette_data[4..8].copy_from_slice(&[255, 0, 0, 0]);
         data.extend_from_slice(&palette_data);
 
         let spr = SprFile::parse(&data).unwrap();
 
-        // Without override: indexed pixel uses embedded red
         let (images, _) = spr.to_rgba_images();
         assert_eq!(&images[0].data[0..4], &[255, 0, 0, 255]);
 
-        // With override: indexed pixel uses override blue, rgba unchanged
         let mut override_pal = [[0u8; 4]; 256];
         override_pal[1] = [0, 0, 255, 0];
         let (images, _) = spr.to_rgba_images_with_palette(Some(&override_pal));
         assert_eq!(&images[0].data[0..4], &[0, 0, 255, 255]);
-        // RGBA sprite unaffected by palette
         assert_eq!(&images[1].data, &[150, 100, 50, 255]);
     }
 
@@ -351,18 +330,15 @@ mod tests {
     fn parse_minimal_spr_v2_1_with_rle() {
         let mut data = Vec::new();
         data.extend_from_slice(b"SP");
-        data.push(1); // minor = 1
-        data.push(2); // major = 2 → version 2.1
-        data.extend_from_slice(&1u16.to_le_bytes()); // 1 palette image
-        data.extend_from_slice(&0u16.to_le_bytes()); // 0 rgba images
-        // palette image: 2x2 = 4 pixels
-        data.extend_from_slice(&2u16.to_le_bytes()); // width
-        data.extend_from_slice(&2u16.to_le_bytes()); // height
-        // RLE: [1, 2, 0, 2] → [1, 2, 0, 0]
+        data.push(1);
+        data.push(2);
+        data.extend_from_slice(&1u16.to_le_bytes());
+        data.extend_from_slice(&0u16.to_le_bytes());
+        data.extend_from_slice(&2u16.to_le_bytes());
+        data.extend_from_slice(&2u16.to_le_bytes());
         let encoded: &[u8] = &[1, 2, 0, 2];
         data.extend_from_slice(&(encoded.len() as u16).to_le_bytes());
         data.extend_from_slice(encoded);
-        // palette at end
         let mut palette_data = [0u8; 1024];
         palette_data[4..8].copy_from_slice(&[255, 0, 0, 0]);
         data.extend_from_slice(&palette_data);

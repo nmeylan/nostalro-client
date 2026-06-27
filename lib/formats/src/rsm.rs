@@ -119,7 +119,6 @@ impl RsmFile {
             None
         };
 
-        // Textures (global, v < 2.3 only)
         let textures = if !version_at_least(version, 2, 3) {
             let count = r.read_u32::<LE>()? as usize;
             let mut names = Vec::with_capacity(count);
@@ -131,7 +130,6 @@ impl RsmFile {
             Vec::new()
         };
 
-        // Root node name(s)
         let root_node_names = if version_at_least(version, 2, 2) {
             let count = r.read_u32::<LE>()? as usize;
             let mut names = Vec::with_capacity(count);
@@ -143,7 +141,6 @@ impl RsmFile {
             vec![read_versioned_string(&mut r, version)?]
         };
 
-        // Nodes
         let node_count = r.read_u32::<LE>()? as usize;
         let mut nodes = Vec::with_capacity(node_count);
         for _ in 0..node_count {
@@ -175,7 +172,6 @@ fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, Forma
     let name = read_versioned_string(r, version)?;
     let parent_name = read_versioned_string(r, version)?;
 
-    // Texture references
     let mut texture_ids = Vec::new();
     let mut texture_names = Vec::new();
 
@@ -191,7 +187,6 @@ fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, Forma
         }
     }
 
-    // Offset matrix (3x3)
     let mut local_transform = [[0.0f32; 3]; 3];
     for row in &mut local_transform {
         for val in row.iter_mut() {
@@ -225,14 +220,12 @@ fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, Forma
         None
     };
 
-    // Vertices
     let vertex_count = r.read_u32::<LE>()? as usize;
     let mut vertices = Vec::with_capacity(vertex_count);
     for _ in 0..vertex_count {
         vertices.push(read_vec3(r)?);
     }
 
-    // Texture coordinates
     let tex_vertex_count = r.read_u32::<LE>()? as usize;
     let mut tex_vertices = Vec::with_capacity(tex_vertex_count);
     for _ in 0..tex_vertex_count {
@@ -246,7 +239,6 @@ fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, Forma
         tex_vertices.push(TexVertex { color, u, v });
     }
 
-    // Faces
     let face_count = r.read_u32::<LE>()? as usize;
     let mut faces = Vec::with_capacity(face_count);
     for _ in 0..face_count {
@@ -271,9 +263,8 @@ fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, Forma
         let two_sided = r.read_i32::<LE>()?;
         let smooth_group = r.read_i32::<LE>()?;
 
-        // v2.2+: extra smooth group data
         let extra_smooth_groups = if let Some(length) = face_length {
-            const RSM_FACE_BASE_SIZE: u32 = 24; // 6*u16 + u16 + u16 + i32 + i32
+            const RSM_FACE_BASE_SIZE: u32 = 24;
             let extra_count = (length.saturating_sub(RSM_FACE_BASE_SIZE) / 4) as usize;
             let mut extra = Vec::with_capacity(extra_count);
             for _ in 0..extra_count {
@@ -295,7 +286,6 @@ fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, Forma
         });
     }
 
-    // Scale keyframes (v >= 1.6)
     let scale_keyframes = if version_at_least(version, 1, 6) {
         let count = r.read_u32::<LE>()? as usize;
         let mut kf = Vec::with_capacity(count);
@@ -311,7 +301,6 @@ fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, Forma
         Vec::new()
     };
 
-    // Rotation keyframes (always present)
     let rot_count = r.read_u32::<LE>()? as usize;
     let mut rot_keyframes = Vec::with_capacity(rot_count);
     for _ in 0..rot_count {
@@ -326,7 +315,6 @@ fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, Forma
         });
     }
 
-    // Translation keyframes (v >= 2.2)
     let translation_keyframes = if version_at_least(version, 2, 2) {
         let count = r.read_u32::<LE>()? as usize;
         let mut kf = Vec::with_capacity(count);
@@ -342,7 +330,6 @@ fn parse_node(r: &mut Cursor<&[u8]>, version: (u8, u8)) -> Result<RsmNode, Forma
         Vec::new()
     };
 
-    // Texture keyframes (v >= 2.3)
     let textures_keyframes = if version_at_least(version, 2, 3) {
         let count = r.read_u32::<LE>()? as usize;
         let mut tkfs = Vec::with_capacity(count);

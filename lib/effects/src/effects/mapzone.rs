@@ -1,29 +1,4 @@
-//! `EF_MAP_MAGICZONE` (#650) / `EF_MAP_MAGICZONE2` (#651) / `EF_GLOW4` (#695) —
-//! map-scale magic-zone ground effects.
-//!
-//! In the original game these compose a `Map_MagicZone()` ground ring (one or
-//! more spinning flat magic-circle textures), plus either a `Map_Particle()`
-//! sparkle-mote field (651, 695) or a `Map_Pika()` sparkle floor + `Map_Aura()`
-//! flared ring (650).
-//!
-//! * `Map_MagicZone(tex, F1)`: a single flat quad whose four
-//!   corners orbit at radius `distance*0.9` around the caster, spinning `±1°`
-//!   per frame. The magic-circle / radial-glow texture carries all the detail —
-//!   geometry is just a spinning square — so we draw it as one ground
-//!   [`WorldQuad`] with spun corners. White rings alpha-blend; the
-//!   blue/green tinted ones are additive.
-//! * `Map_Particle(tex, F1, F2)`: camera-facing sparkle motes
-//!   orbiting the zone, fading with height, white or green (`F2==2`). Modeled as
-//!   a deterministic per-index hash-scattered [`Billboard`] field with a slow
-//!   orbit, vertical bob and twinkle (no RNG, matching [`super::light_sphere`]).
-//! * `Map_Pika()` and `Map_Aura()` are the same
-//!   primitives the level-99 aura uses, so 650 reuses [`super::floor_aura`] and
-//!   [`super::casting_ring`] with map-zone params.
-//!
-//! All persistent: the holder reaps them at their `u32::MAX` duration.
-//!
-//! [`WorldQuad`]: EffectPrimitiveDraw::WorldQuad
-//! [`Billboard`]: EffectPrimitiveDraw::Billboard
+//! `EF_MAP_MAGICZONE` (#650) / `EF_MAP_MAGICZONE2` (#651) / `EF_GLOW4` (#695).
 
 use std::f32::consts::{FRAC_PI_2, TAU};
 
@@ -35,25 +10,16 @@ use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 const FPS: f32 = 60.0;
 const UNIT_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
 
-/// Shared alpha ramp-in so nothing pops in (frames).
 const FADE_IN_FRAMES: f32 = 20.0;
-
-/// The corners sit at `distance*0.9`; `RING_SCALE` lets us
-/// pull the map-scale `distance` values down to the gif silhouette (the source
-/// numbers are map-scale and read larger than the capture).
 const RING_SCALE: f32 = 0.7;
-/// Rotation advances 1° per frame.
 const RING_SPIN_DEG_PER_FRAME: f32 = 1.0;
 
 const PARTICLE_COUNT: u32 = 60;
 const PARTICLE_SIZE: f32 = 1.1;
 const PARTICLE_PEAK_ALPHA: f32 = 0.8;
-/// Motes scatter across the zone disc rather than the original's tall thin
-/// orbit column — the gif shows them spread around/over the magic circle.
 const ORBIT_R_MIN: f32 = 5.0;
 const ORBIT_R_MAX: f32 = 28.0;
-/// Mote height range above the ground (native RO: negative y = up). Kept low so
-/// they hover over the circle instead of forming a column.
+/// −Y is up.
 const HEIGHT_MIN: f32 = 1.0;
 const HEIGHT_MAX: f32 = 16.0;
 const BOB_AMP: f32 = 3.0;
@@ -66,15 +32,12 @@ const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
 #[derive(Clone, Copy)]
 pub struct GroundRing {
     pub texture: &'static str,
-    /// Ring `distance`; corner radius is `distance*0.9`.
     pub distance: f32,
     pub color_rgb: [f32; 3],
     pub alpha: f32,
-    /// Ground height offset (-0.5 / -0.4).
     pub y_lift: f32,
-    /// `F1 == 14` spins counter-clockwise; everything else clockwise.
+    /// `F1 == 14` spins counter-clockwise.
     pub spin_ccw: bool,
-    /// White rings alpha-blend; tinted rings are additive.
     pub additive: bool,
 }
 
@@ -92,7 +55,6 @@ pub struct MapZoneParams {
     pub aura: bool,
 }
 
-/// `EF_MAP_MAGICZONE` (650): two white magic-circle rings + sparkle floor + aura.
 pub const MAP_MAGICZONE: MapZoneParams = MapZoneParams {
     rings: &[
         GroundRing {
@@ -119,7 +81,6 @@ pub const MAP_MAGICZONE: MapZoneParams = MapZoneParams {
     aura: true,
 };
 
-/// `EF_MAP_MAGICZONE2` (651): two white rings + white sparkle motes.
 pub const MAP_MAGICZONE2: MapZoneParams = MapZoneParams {
     rings: &[
         GroundRing {
@@ -149,7 +110,6 @@ pub const MAP_MAGICZONE2: MapZoneParams = MapZoneParams {
     aura: false,
 };
 
-/// `EF_GLOW4` (695): a green radial glow ring + green sparkle motes.
 pub const GLOW4: MapZoneParams = MapZoneParams {
     rings: &[GroundRing {
         texture: "glow04.bmp",
@@ -160,7 +120,6 @@ pub const GLOW4: MapZoneParams = MapZoneParams {
         spin_ccw: false,
         additive: true,
     }],
-    // `Map_Particle(..., F2 = 2)` tints the motes green (155,255,155).
     particles: Some(ParticleField {
         texture: "mpa3.tga",
         color_rgb: [155.0 / 255.0, 1.0, 155.0 / 255.0],
@@ -171,7 +130,6 @@ pub const GLOW4: MapZoneParams = MapZoneParams {
 
 pub const TEXTURES: &[&str] = &["mjin2.tga", "mjin.tga", "glow04.bmp", "mpa3.tga"];
 
-/// Persistent map effects — duration table ships `u32::MAX`.
 pub const TOTAL_DURATION_MS: u32 = u32::MAX;
 
 fn hash01(i: u32, salt: u32) -> f32 {
@@ -289,7 +247,6 @@ impl Effect for MapZoneEffect {
         if let Some(a) = self.aura.as_mut() {
             a.update(ctx);
         }
-        // Persistent — the holder despawns it via the duration table.
         EffectStatus::Running
     }
 
@@ -359,7 +316,6 @@ mod tests {
             "full mote field"
         );
 
-        // The ground ring is flat and spins: a corner moves between two times.
         let corner0 = match ds.iter().find(|d| is_quad(d)).unwrap() {
             EffectPrimitiveDraw::WorldQuad { corners, .. } => {
                 assert!(
@@ -412,8 +368,6 @@ mod tests {
         let mut e = MapZoneEffect::new([0.0; 3], MAP_MAGICZONE);
         tick(&mut e, FADE_IN_FRAMES);
         let ds = draws(&e);
-        // Two mjin rings + two pikapika2 floor quads (FloorAura) = 4 WorldQuads,
-        // three ring_blue Frustums (CastingRing), and no mote field.
         assert_eq!(count(&ds, is_quad), 4, "mjin rings + pika sparkle floor");
         assert_eq!(count(&ds, is_frustum), 3, "three flared aura rings");
         assert_eq!(count(&ds, is_billboard), 0, "650 has no mote field");

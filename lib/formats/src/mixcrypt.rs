@@ -1,6 +1,3 @@
-// GRF mixed encryption: G's modified DES + byte permutation.
-// DES routines derived from RustCrypto `des` crate (Apache-2.0 license).
-
 pub const GRF_FLAG_FULL_MIX_CRYPT: u8 = 1 << 1;
 pub const GRF_FLAG_HEADER_DES_CRYPT: u8 = 1 << 2;
 
@@ -59,7 +56,6 @@ fn apply_decryption(data: &mut [u8], header_only: bool, cycle: usize) {
 
     let mut non_des_count: usize = 0;
 
-    // Process aligned blocks
     for (block_idx, block) in data[..aligned_len]
         .chunks_exact_mut(DES_BLOCK_LEN)
         .enumerate()
@@ -67,7 +63,6 @@ fn apply_decryption(data: &mut [u8], header_only: bool, cycle: usize) {
         process_block(block, block_idx, header_only, cycle, &mut non_des_count);
     }
 
-    // Handle trailing partial block
     if remainder > 0 {
         let mut padded = [0u8; DES_BLOCK_LEN];
         padded[..remainder].copy_from_slice(&data[aligned_len..]);
@@ -136,7 +131,6 @@ fn permute_block(block: &mut [u8]) {
 pub fn des_decrypt_block(mut block: u64) -> u64 {
     block = g_des::initial_permutation(block);
     block = g_des::feistel_round(block, 0);
-    // Gravity's implementation swaps L/R before final permutation
     block = block.rotate_left(32);
     g_des::final_permutation(block)
 }

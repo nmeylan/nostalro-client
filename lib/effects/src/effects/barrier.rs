@@ -1,25 +1,4 @@
-//! `EF_BARRIER` (id 63) — a single faceted energy sphere flashing around the
-//! caster (Energy Coat / barrier cast).
-//!
-//! Reference: the original game gif library `50-100/63.gif`
-//! (16 frames ≈ 250 ms). The effect is a
-//! single energy sphere:
-//!
-//! ```text
-//! duration   = 250 ms
-//! radius     = 13.5
-//! delta_y    = -10        // raised to body centre (native RO -Y = up)
-//! longitude  = 2          // facets around the sphere
-//! alpha      = 100
-//! texture    = bigbang.tga
-//! growth     = 0           // radius/orientation never change
-//! ```
-//!
-//! The sphere's radius and orientation never change over its life, so the
-//! sphere is static in size and orientation — it simply fades in, holds, and
-//! fades out over its 250 ms life. There are no cylinder / particle /
-//! quad-horn layers around it; the gif confirms a
-//! lone shimmering sphere.
+//! `EF_BARRIER` (id 63) — Energy Coat / barrier cast sphere.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -32,13 +11,9 @@ const DURATION_FRAMES: f32 = 15.0;
 
 pub const TOTAL_DURATION_MS: u32 = (DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
-// radius = 13.5 in source units; a character is ~5–8 world units here, so a
-// ~0.5× port keeps the sphere about one character across (matching the gif).
 const WORLD_SCALE: f32 = 0.5;
 const SPHERE_RADIUS: f32 = 13.5 * WORLD_SCALE;
-// delta_y = -10 lifts the sphere to body centre.
 const SPHERE_Y_OFFSET: f32 = -10.0 * WORLD_SCALE;
-// alpha = 100 (of 255).
 const PEAK_ALPHA: f32 = 100.0 / 255.0;
 const FADE_IN_FRAMES: f32 = 3.0;
 const FADE_OUT_START_FRAME: f32 = DURATION_FRAMES - 5.0;
@@ -105,7 +80,6 @@ impl Effect for BarrierEffect {
             longitude_arc: std::f32::consts::TAU,
             uv_repeat: [1.0, 1.0],
             texture: SPHERE_TEXTURE,
-            // Warm yellow energy shell (matches the original game's tint).
             color: [1.0, 0.92, 0.45, a],
             blend: BlendKind::Additive,
         });

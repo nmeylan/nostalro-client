@@ -1,22 +1,3 @@
-//! `EF_FLOWERCAST` — id 486.
-//!
-//! A blue flame "goblet" that starts as a small ring and expands uniformly
-//! into an upward-flaring crown of flames — using `ring_blue.tga`
-//! with two passes of four arcs. The sibling ids `EF_FLOWERCAST2` (487) and
-//! `EF_FLOWERCAST3` (488) render nothing procedurally in the original
-//! game — they are left to
-//! their STR alias and get no factory arm.
-//!
-//! We render it with the existing `Frustum` + `FrustumWaveMode::SaintBell`
-//! primitive (the same machinery `saint_casting` uses), one flared cone per
-//! arc. The eight arcs
-//! seed at fixed `distance` / `rise_angle` / `max_height` / `rot_start`;
-//! those parameters stay fixed for the arc's life, while
-//! each arc's height grows by `max_height · sin(process°)`
-//! over the first 90 frames — a
-//! uniform rise from zero — with a gentle `±2.5·sin` `max_height` pulse and an
-//! alpha that ramps in (`process<20`), holds, then fades out (`process>110`).
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -25,40 +6,24 @@ pub const TEXTURES: &[&str] = &[RING_BLUE_TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// `max_height` is in original units (27..30); the gif's flames read about
-/// twice the ring radius, so scale to our world like `saint_casting`.
 const HEIGHT_SCALE: f32 = 0.5;
-/// Closed-cone segment count — matches `saint_casting`.
 const CONE_SIDES: u32 = 20;
-/// Per-arc height ≈ `max_h · sin(bell) · sin(process)`, rising over 90 frames.
 const GROW_FRAMES: f32 = 90.0;
-/// `max_height` breathes by `sin((process%90)·4°)·2.5` — a gentle pulse.
 const MAX_HEIGHT_PULSE: f32 = 2.5;
-/// Flame-tongue bell amplitude as a fraction of the cone height
-/// (`SaintBell` tapers the arc ends to zero, the same bell shape as the original).
 const WAVE_REL_AMPLITUDE: f32 = 0.35;
-
-// Alpha envelope: +5/frame while process<20 (we hold at
-// a brighter peak and lean on the overdraw divisor), fade out after frame 110.
 const FADE_IN_FRAMES: f32 = 20.0;
 const FADE_OUT_START_FRAME: f32 = 110.0;
 const FADE_OUT_FRAMES: f32 = 70.0;
 const PEAK_ALPHA: f32 = 180.0 / 255.0;
-/// Eight cones drawn additively at one spot saturate to white and erase the
-/// `ring_blue` flame striping; pre-attenuate so the sum keeps texture detail
-/// (cf. `saint_casting::OVERDRAW_DIVISOR`).
+/// 8 additive cones overdraw; pre-attenuate to keep texture detail.
 const OVERDRAW_DIVISOR: f32 = 4.0;
 
 const TOTAL_FRAMES: f32 = FADE_OUT_START_FRAME + FADE_OUT_FRAMES;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
-/// (100, 100, 255) light-blue tint — the flames read blue, not white,
-/// in the reference.
 const TINT: [f32; 3] = [100.0 / 255.0, 100.0 / 255.0, 1.0];
 
 const NUM_ARCS: usize = 4;
-/// Two arc passes (`F1 = 0` then `F1 = 1`). Each row is
-/// `(distance, rise_angle_deg, max_height, rot_start_deg)`.
 const PASS_F1_0: [(f32, f32, f32, f32); NUM_ARCS] = [
     (4.5, 85.0, 27.0, 0.0),
     (5.0, 80.0, 28.0, 90.0),
@@ -107,7 +72,6 @@ impl FlowerCastEffect {
         }
     }
 
-    /// Uniform rise factor: `sin(process°)` clamped at the 90-frame peak.
     fn grow(&self) -> f32 {
         (self.process.min(GROW_FRAMES)).to_radians().sin()
     }
@@ -236,8 +200,6 @@ mod tests {
 
     #[test]
     fn starts_small_and_expands_uniformly() {
-        // Sociable: the flame crown rises from near-zero height and grows over
-        // the 90-frame window — uniform expansion, like the gif.
         let mut e = FlowerCastEffect::new([0.0; 3]);
         step(&mut e, 2);
         let early = tallest(&draws(&e));

@@ -7,7 +7,6 @@ use packets::packets::{CharacterInfoNeoUnion, ServerAddr};
 
 #[derive(Debug)]
 pub enum GameEvent {
-    // Network → Game (server responses)
     LoginAccepted {
         account_id: u32,
         login_id1: i32,
@@ -44,8 +43,6 @@ pub enum GameEvent {
         local_send_time_ms: u32,
     },
     Disconnected(String),
-
-    // Game → Network (user-initiated requests)
     RequestLogin {
         username: String,
         password: String,
@@ -72,8 +69,6 @@ pub enum GameEvent {
     BackToCharacterSelect,
     RestartAck,
     QuitGame,
-
-    // Entity lifecycle
     EntitySpawned {
         gid: u32,
         job: u16,
@@ -93,10 +88,7 @@ pub enum GameEvent {
         health_state: i16,
         effect_state: i32,
         base_level: i16,
-        /// Boss flag — only the standentry7 / moveentry packets carry it; `false` elsewhere.
         is_boss: bool,
-        /// Posture byte (`1 = dead`, `2 = sitting`, `0 = standing`). Only the
-        /// standentry packets carry it; moving/new-entry packets send `0`.
         posture: u8,
     },
     EntityMoved {
@@ -147,43 +139,28 @@ pub enum GameEvent {
         health_state: i16,
         effect_state: i32,
     },
-    /// Server-driven generic effect (`ZC_NOTIFY_EFFECT2`/`3`): play raw `EF_*`
-    /// `effect_id` on the entity. `value` carries the Effect3 extra datum.
     PlayEffectOnEntity {
         gid: u32,
         effect_id: i32,
         value: Option<i32>,
     },
-    /// Server misc effect (`ZC_NOTIFY_EFFECT`): `code` is an `e_notify_effect`
-    /// code (level-up / refine / pharmacy), not an `EF_*` id.
     PlayMiscEffectOnEntity {
         gid: u32,
         code: u8,
     },
-    /// Buff/debuff status toggled on an entity (`ZC_MSG_STATE_CHANGE`): `efst`
-    /// is an EFST code (`ClientEffectIcon`), `active` its on/off state, and
-    /// `remain_ms` the duration (0 = until cleared). Drives the persistent
-    /// body-buff visuals (Berserk/Marionette/auras).
     StatusEffectChanged {
         gid: u32,
         efst: i16,
         active: bool,
         remain_ms: u32,
-        /// First status value (`val1`). Carries the cart design for the push-cart
-        /// status; 0 for status packets that send no values.
         val1: i32,
     },
-    /// Entity revived (`ZC_RESURRECTION`): clear its dead pose. The resurrection
-    /// visual rides the skill path, not this packet.
     EntityResurrected {
         gid: u32,
     },
-    /// MVP reward (`ZC_MVP`): show the MVP effect on the credited player.
     MvpReward {
         gid: u32,
     },
-
-    // Stats & parameters
     ParameterChanged {
         var_id: u16,
         value: i32,
@@ -202,8 +179,6 @@ pub enum GameEvent {
         value: u16,
         value2: u16,
     },
-
-    // Skills (effects & casting)
     SkillCasting {
         gid: u32,
         target_gid: u32,
@@ -254,8 +229,6 @@ pub enum GameEvent {
         x: i16,
         y: i16,
     },
-    /// A persistent ground-skill unit appeared at a cell (`ZC_SKILL_ENTRY`).
-    /// One packet per occupied cell; `unit_id` is the `e_skill_unit_id`.
     SkillUnitEntered {
         aid: u32,
         creator_aid: u32,
@@ -264,18 +237,13 @@ pub enum GameEvent {
         unit_id: u8,
         is_visible: bool,
     },
-    /// A ground-skill unit was removed (`ZC_SKILL_DISAPPEAR`), keyed by `aid`.
     SkillUnitDisappeared {
         aid: u32,
     },
-
-    // Effects
     EntityEmotion {
         gid: u32,
         emotion_type: u8,
     },
-
-    // Chat
     ChatMessage {
         gid: u32,
         message: String,
@@ -286,8 +254,6 @@ pub enum GameEvent {
     RequestSendChat {
         message: String,
     },
-
-    // NPC dialog (server → client)
     NpcDialogText {
         npc_id: u32,
         text: String,
@@ -311,8 +277,6 @@ pub enum GameEvent {
     NpcDealTypeSelect {
         npc_id: u32,
     },
-
-    // NPC dialog (client → server)
     RequestNpcContact {
         npc_id: u32,
     },
@@ -326,12 +290,10 @@ pub enum GameEvent {
         npc_id: u32,
         choice: u8,
     },
-    /// Server sent a warp/teleport destination list (ZC_WARPLIST).
     WarpList {
         skill_id: u16,
         destinations: Vec<String>,
     },
-    /// User picked a warp destination (or "cancel") to send back (CZ_SELECT_WARPPOINT).
     RequestSelectWarppoint {
         skill_id: u16,
         map_name: String,
@@ -348,8 +310,6 @@ pub enum GameEvent {
         npc_id: u32,
         deal_type: u8,
     },
-
-    // NPC shop (server → client)
     NpcShopBuyList {
         npc_id: u32,
         items: Vec<(u16, i32, i32, u8)>,
@@ -364,8 +324,6 @@ pub enum GameEvent {
     NpcShopSellResult {
         result: u8,
     },
-
-    // NPC shop (client → server)
     RequestNpcShopBuy {
         items: Vec<(i16, u16)>,
     },
@@ -373,9 +331,6 @@ pub enum GameEvent {
         items: Vec<(i16, i16)>,
     },
     RequestNpcShopClose,
-
-    // Chat room / waitingroom (server → client)
-    /// A room appeared or changed over its owner (ZC_ROOM_NEWENTRY / ZC_CHANGE_CHATROOM).
     ChatRoomUpsert {
         owner_aid: u32,
         room_id: u32,
@@ -387,21 +342,15 @@ pub enum GameEvent {
     ChatRoomDestroy {
         room_id: u32,
     },
-    /// We successfully joined a room (ZC_ENTER_ROOM).
     ChatRoomEntered {
         room_id: u32,
     },
-    /// Our join request was refused (ZC_REFUSE_ENTER_ROOM).
     ChatRoomJoinRefused {
         result: u8,
     },
-
-    // Chat room (client → server)
     RequestJoinChatRoom {
         room_id: u32,
     },
-
-    // Inventory (server → client)
     InventoryNormalItems {
         items: Vec<NormalItemData>,
     },
@@ -443,8 +392,6 @@ pub enum GameEvent {
         index: u16,
         count: i16,
     },
-
-    // Inventory (client → server)
     RequestUseItem {
         index: u16,
     },
@@ -459,8 +406,6 @@ pub enum GameEvent {
         index: u16,
         count: i16,
     },
-
-    // Cart (server → client)
     CartNormalItems {
         items: Vec<NormalItemData>,
     },
@@ -487,10 +432,7 @@ pub enum GameEvent {
         cur_count: i16,
         max_count: i16,
     },
-    /// Server removed the cart (cart-off): clear cart inventory and visual.
     CartOff,
-
-    // Cart (client → server)
     RequestMoveItemBodyToCart {
         index: u16,
         count: i16,
@@ -513,14 +455,10 @@ pub enum GameEvent {
         pick_usable: bool,
         pick_etc: bool,
     },
-    /// Pick a new pushcart visual model (`CZ_REQ_CHANGECART`); `num` is the cart
-    /// design index (1..=5).
     RequestChangeCart {
         num: i16,
     },
     ToggleCart,
-
-    // Card composition (client → server)
     RequestCardInsertList {
         card_index: u16,
     },
@@ -528,8 +466,6 @@ pub enum GameEvent {
         card_index: u16,
         equip_index: u16,
     },
-
-    // Card composition (server → client)
     CardInsertItemList {
         card_index: u16,
         equip_indices: Vec<u16>,
@@ -539,8 +475,6 @@ pub enum GameEvent {
         card_index: u16,
         result: u8,
     },
-
-    // Floor items (server → client)
     FloorItemAppeared {
         id: u32,
         item_id: u16,
@@ -555,13 +489,9 @@ pub enum GameEvent {
     FloorItemDisappeared {
         id: u32,
     },
-
-    // Floor items (client → server)
     RequestPickupItem {
         id: u32,
     },
-
-    // Skills (server → client)
     SkillListReceived {
         skills: Vec<SkillInfo>,
     },
@@ -575,27 +505,17 @@ pub enum GameEvent {
     SkillAdded {
         skill: SkillInfo,
     },
-
-    // Skills (client → server)
     RequestSkillLevelUp {
         skill_id: u16,
     },
-
-    // Stats (client → server)
     RequestStatChange {
         status_id: u16,
         amount: u8,
     },
-
-    // UI (client-internal)
     ToggleStatusWindow,
-
-    // Hotkeys (server → client)
     HotkeyListReceived {
         slots: Vec<(i8, u32, i16)>,
     },
-
-    // Hotkeys (client → server)
     RequestHotkeyChange {
         index: u16,
         is_skill: bool,
@@ -606,8 +526,6 @@ pub enum GameEvent {
         skill_id: u16,
         level: i16,
     },
-
-    // UI actions
     ShowItemInfo {
         index: u16,
     },
@@ -617,20 +535,12 @@ pub enum GameEvent {
     ShowCardIllustration {
         item_id: u16,
     },
-
-    // Option removal (dismount peco, remove cart/falcon, etc.)
     RequestRemoveOption,
-
-    // UI lifecycle
     DialogClosed,
-
-    // Window toggle (from basic info menu buttons)
     ToggleInventory,
     ToggleEquipment,
     ToggleSkills,
     ToggleMinimap,
-
-    // No-op acknowledgement (packet parsed but no action needed yet)
     Acknowledged,
 }
 

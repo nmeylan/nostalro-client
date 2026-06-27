@@ -1,3 +1,7 @@
+use crate::helper::dialog_container::DialogContainer;
+use crate::helper::scrollbar::{self, ScrollbarIds};
+use crate::helper::window_chrome::{draw_sys_button, draw_titlebar, text_color};
+use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
@@ -6,10 +10,6 @@ use ragnarok_game::item::Item;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef, strip_color_codes, word_wrap};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-use crate::{Window, InGameWindow};
-use crate::helper::dialog_container::DialogContainer;
-use crate::helper::scrollbar::{self, ScrollbarIds};
-use crate::helper::window_chrome::{draw_sys_button, draw_titlebar, text_color};
 
 pub const ITEM_INFO_WINDOW_ID: WidgetId = WidgetId(1000);
 const CLOSE_BTN_ID: WidgetId = WidgetId(1001);
@@ -27,7 +27,6 @@ const CARD_INFO_VIEW_BTN_ID: WidgetId = WidgetId(1016);
 const CARD_ILLUST_WINDOW_ID: WidgetId = WidgetId(1020);
 const CARD_ILLUST_CLOSE_ID: WidgetId = WidgetId(1021);
 
-// Layout - container uses the fixed GRF texture size (bg_size)
 const COLLECTION_X: f32 = 10.0;
 const COLLECTION_Y: f32 = 11.0;
 const COLLECTION_W: f32 = 75.0;
@@ -46,10 +45,10 @@ const FALLBACK_WIN_H: f32 = 120.0;
 
 const TITLE_H_ILLUS: f32 = 17.0;
 
-// GRF textures
 const COLLECTION_BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/collection_bg.bmp";
 const EMPTY_SLOT_TEX: &str = "data/texture/유저인터페이스/empty_card_slot.bmp";
-const DISABLED_SLOT_TEX: &str = "data/texture/유저인터페이스/basic_interface/coparison_disable_card_slot.bmp";
+const DISABLED_SLOT_TEX: &str =
+    "data/texture/유저인터페이스/basic_interface/coparison_disable_card_slot.bmp";
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
 
@@ -122,25 +121,29 @@ impl ItemInfoWindow {
     }
 
     pub fn show(&mut self, item: &Item, data: &DataTable) {
-        // Toggle off if same item
         if let Some(current) = &self.item
-            && current.item_id == item.item_id {
-                self.close();
-                return;
-            }
+            && current.item_id == item.item_id
+        {
+            self.close();
+            return;
+        }
 
-        let description_lines = data.item_description
+        let description_lines = data
+            .item_description
             .as_ref()
             .and_then(|table| table.get(item.item_id, item.is_identified))
             .map(|lines| lines.to_vec())
             .unwrap_or_default();
 
-        let slot_count = data.item_slot_count
+        let slot_count = data
+            .item_slot_count
             .as_ref()
             .map(|table| table.get_slot_count(item.item_id))
             .unwrap_or(0);
 
-        let collection_path = item.resource_name.as_ref()
+        let collection_path = item
+            .resource_name
+            .as_ref()
             .map(|name| format!("data/texture/유저인터페이스/collection/{name}.bmp"));
 
         let mut card_icon_paths: [Option<String>; 4] = [None, None, None, None];
@@ -148,7 +151,8 @@ impl ItemInfoWindow {
             for i in 0..4usize {
                 let card_id = item.slot[i];
                 if card_id != 0 && card_id != SLOT_EMPTY {
-                    card_icon_paths[i] = data.item_resource
+                    card_icon_paths[i] = data
+                        .item_resource
                         .as_ref()
                         .and_then(|table| table.item_icon_path(card_id));
                 }
@@ -157,7 +161,11 @@ impl ItemInfoWindow {
 
         self.item = Some(ItemInfoData {
             item_id: item.item_id,
-            name: format_equipment_display_name(item, data.item_slot_count.as_ref(), data.card_name.as_ref()),
+            name: format_equipment_display_name(
+                item,
+                data.item_slot_count.as_ref(),
+                data.card_name.as_ref(),
+            ),
             collection_path,
             is_damaged: item.is_damaged,
             is_equipment: item.is_equipment(),
@@ -171,7 +179,6 @@ impl ItemInfoWindow {
         self.scroll_offset = 0;
     }
 
-    /// Returns paths that need to be preloaded into the texture cache for the current item.
     pub fn pending_texture_paths(&self) -> Vec<String> {
         let mut paths = Vec::new();
         if let Some(data) = &self.item {
@@ -187,22 +194,30 @@ impl ItemInfoWindow {
 
     pub fn show_card(&mut self, card_id: u16, data: &DataTable) {
         if let Some(current) = &self.card_info
-            && current.item_id == card_id {
-                self.close_card();
-                return;
-            }
+            && current.item_id == card_id
+        {
+            self.close_card();
+            return;
+        }
 
-        let name = data.item_name.as_ref()
+        let name = data
+            .item_name
+            .as_ref()
             .map(|t| t.get_name_or_id(card_id))
             .unwrap_or_else(|| format!("Item #{card_id}"));
 
-        let resource_name = data.item_resource.as_ref()
+        let resource_name = data
+            .item_resource
+            .as_ref()
             .and_then(|t| t.get_resource_name(card_id).map(|s| s.to_string()));
 
-        let collection_path = resource_name.as_ref()
+        let collection_path = resource_name
+            .as_ref()
             .map(|n| format!("data/texture/유저인터페이스/collection/{n}.bmp"));
 
-        let description_lines = data.item_description.as_ref()
+        let description_lines = data
+            .item_description
+            .as_ref()
             .and_then(|table| table.get(card_id, true))
             .map(|lines| lines.to_vec())
             .unwrap_or_default();
@@ -226,9 +241,10 @@ impl ItemInfoWindow {
     pub fn pending_card_texture_paths(&self) -> Vec<String> {
         let mut paths = Vec::new();
         if let Some(data) = &self.card_info
-            && let Some(path) = &data.collection_path {
-                paths.push(path.clone());
-            }
+            && let Some(path) = &data.collection_path
+        {
+            paths.push(path.clone());
+        }
         paths
     }
 
@@ -246,11 +262,16 @@ impl ItemInfoWindow {
 
     pub fn show_illustration(&mut self, item_id: u16, name: String, texture_path: String) {
         if let Some(current) = &self.card_illustration
-            && current.item_id == item_id {
-                self.close_illustration();
-                return;
-            }
-        self.card_illustration = Some(CardIllustration { item_id, name, texture_path });
+            && current.item_id == item_id
+        {
+            self.close_illustration();
+            return;
+        }
+        self.card_illustration = Some(CardIllustration {
+            item_id,
+            name,
+            texture_path,
+        });
     }
 
     pub fn close_illustration(&mut self) {
@@ -269,20 +290,31 @@ impl ItemInfoWindow {
         self.item.is_some()
     }
 
-    fn view_card_illustration_button(ui: &mut UiFrame, events: &mut Vec<GameEvent>, info_window: InfoWindowResult, card_data: &ItemInfoData)  {
+    fn view_card_illustration_button(
+        ui: &mut UiFrame,
+        events: &mut Vec<GameEvent>,
+        info_window: InfoWindowResult,
+        card_data: &ItemInfoData,
+    ) {
         let btn_x = info_window.win_x + 6.0;
         let btn_y = info_window.win_y + 6.0;
         let btn_rect = Rect::new(btn_x, btn_y, VIEW_BTN_W, VIEW_BTN_H);
         let btn_resp = ui.button(CARD_INFO_VIEW_BTN_ID, btn_rect, &VIEW_BTN, "View");
         if btn_resp.clicked() {
-            events.push(GameEvent::ShowCardIllustration { item_id: card_data.item_id });
+            events.push(GameEvent::ShowCardIllustration {
+                item_id: card_data.item_id,
+            });
         }
     }
 }
 
 impl Window for ItemInfoWindow {
-    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
-    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+    fn has_grf_textures(&self) -> bool {
+        self.has_grf_textures
+    }
+    fn set_has_grf_textures(&mut self, value: bool) {
+        self.has_grf_textures = value;
+    }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(COLLECTION_BG_TEX) {
@@ -309,7 +341,12 @@ impl Window for ItemInfoWindow {
 }
 
 impl InGameWindow for ItemInfoWindow {
-    fn build(&mut self, ui: &mut UiFrame, _character: &mut Character, data: &DataTable) -> Vec<GameEvent> {
+    fn build(
+        &mut self,
+        ui: &mut UiFrame,
+        _character: &mut Character,
+        data: &DataTable,
+    ) -> Vec<GameEvent> {
         if self.item.is_none() && self.card_info.is_none() && self.card_illustration.is_none() {
             return Vec::new();
         }
@@ -320,13 +357,15 @@ impl InGameWindow for ItemInfoWindow {
         let bg_size = self.bg_size;
         let mut events = Vec::new();
 
-        // Main item info window
         if self.item.is_some() {
             if self.wrapped_lines.is_empty() {
                 let full_text = self.item.as_ref().unwrap().description_lines.join("\n");
-                self.wrapped_lines = word_wrap(&full_text, DESC_W, |t| {
-                    ui.atlas.measure_text(&strip_color_codes(t))
-                }, false);
+                self.wrapped_lines = word_wrap(
+                    &full_text,
+                    DESC_W,
+                    |t| ui.atlas.measure_text(&strip_color_codes(t)),
+                    false,
+                );
             }
 
             let item_data = self.item.as_ref().unwrap();
@@ -346,8 +385,15 @@ impl InGameWindow for ItemInfoWindow {
                 scroll_thumb: SCROLL_THUMB_ID,
             };
             let result = build_info_window(
-                ui, item_data, &self.wrapped_lines, self.scroll_offset,
-                &ids, grf, bg_size, extra_h, true,
+                ui,
+                item_data,
+                &self.wrapped_lines,
+                self.scroll_offset,
+                &ids,
+                grf,
+                bg_size,
+                extra_h,
+                true,
             );
             self.scroll_offset = result.scroll_offset;
 
@@ -359,19 +405,25 @@ impl InGameWindow for ItemInfoWindow {
                 Self::view_card_illustration_button(ui, &mut events, result, card_data);
             } else if self.item.as_ref().unwrap().is_equipment {
                 let item_data = self.item.as_ref().unwrap();
-                let (container_w, container_h) = if grf { bg_size } else { (FALLBACK_WIN_W, FALLBACK_WIN_H) };
+                let (container_w, container_h) = if grf {
+                    bg_size
+                } else {
+                    (FALLBACK_WIN_W, FALLBACK_WIN_H)
+                };
                 let win_w = container_w;
 
                 let section_y = result.win_y + container_h;
 
-                // Card section background
                 self.card_section_container.has_grf_textures = grf;
                 self.card_section_container.draw(
-                    &mut ui.draw_calls, result.win_x, section_y, win_w, CARD_SECTION_H,
+                    &mut ui.draw_calls,
+                    result.win_x,
+                    section_y,
+                    win_w,
+                    CARD_SECTION_H,
                     [1.0, 1.0, 1.0, 1.0],
                 );
 
-                // Inline card slot icons (horizontal row)
                 let icon_y = section_y + (CARD_SECTION_H - CARD_ICON_SIZE) / 2.0;
                 let mut icon_x = result.win_x + 8.0;
                 for i in 0..4usize {
@@ -380,11 +432,21 @@ impl InGameWindow for ItemInfoWindow {
 
                     if i < item_data.slot_count as usize {
                         if card_id != 0 && card_id != SLOT_EMPTY {
-                            let tex = item_data.card_icon_paths[i].as_ref()
+                            let tex = item_data.card_icon_paths[i]
+                                .as_ref()
                                 .map(|p| TextureRef::Named(p.clone()))
-                                .unwrap_or_else(|| if grf { TextureRef::Named(EMPTY_SLOT_TEX.to_string()) } else { TextureRef::White });
+                                .unwrap_or_else(|| {
+                                    if grf {
+                                        TextureRef::Named(EMPTY_SLOT_TEX.to_string())
+                                    } else {
+                                        TextureRef::White
+                                    }
+                                });
                             let (v, idx) = draw::quad_vertices(
-                                icon_x, icon_y, CARD_ICON_SIZE, CARD_ICON_SIZE,
+                                icon_x,
+                                icon_y,
+                                CARD_ICON_SIZE,
+                                CARD_ICON_SIZE,
                                 [1.0, 1.0, 1.0, 1.0],
                             );
                             ui.draw_calls.push(DrawCall {
@@ -393,10 +455,13 @@ impl InGameWindow for ItemInfoWindow {
                                 texture: tex,
                             });
 
-                            let slot_resp = ui.interact(WidgetId(CARD_SLOT_BASE_ID + i as u32), slot_rect);
+                            let slot_resp =
+                                ui.interact(WidgetId(CARD_SLOT_BASE_ID + i as u32), slot_rect);
                             if slot_resp.hovered() {
                                 ui.any_interactive_hovered = true;
-                                let card_name = data.item_name.as_ref()
+                                let card_name = data
+                                    .item_name
+                                    .as_ref()
                                     .map(|t| t.get_name_or_id(card_id))
                                     .unwrap_or_else(|| format!("Item #{card_id}"));
                                 ui.tooltip(icon_x, icon_y - CARD_ICON_SIZE, &card_name);
@@ -406,7 +471,10 @@ impl InGameWindow for ItemInfoWindow {
                             }
                         } else if grf {
                             let (v, idx) = draw::quad_vertices(
-                                icon_x, icon_y, CARD_ICON_SIZE, CARD_ICON_SIZE,
+                                icon_x,
+                                icon_y,
+                                CARD_ICON_SIZE,
+                                CARD_ICON_SIZE,
                                 [1.0, 1.0, 1.0, 1.0],
                             );
                             ui.draw_calls.push(DrawCall {
@@ -417,7 +485,10 @@ impl InGameWindow for ItemInfoWindow {
                         }
                     } else if grf {
                         let (v, idx) = draw::quad_vertices(
-                            icon_x, icon_y, CARD_ICON_SIZE, CARD_ICON_SIZE,
+                            icon_x,
+                            icon_y,
+                            CARD_ICON_SIZE,
+                            CARD_ICON_SIZE,
                             [1.0, 1.0, 1.0, 1.0],
                         );
                         ui.draw_calls.push(DrawCall {
@@ -432,13 +503,20 @@ impl InGameWindow for ItemInfoWindow {
             }
         }
 
-        // Card info window (independent)
         if self.card_info.is_some() {
             if self.card_wrapped_lines.is_empty() {
-                let full_text = self.card_info.as_ref().unwrap().description_lines.join("\n");
-                self.card_wrapped_lines = word_wrap(&full_text, DESC_W, |t| {
-                    ui.atlas.measure_text(&strip_color_codes(t))
-                }, false);
+                let full_text = self
+                    .card_info
+                    .as_ref()
+                    .unwrap()
+                    .description_lines
+                    .join("\n");
+                self.card_wrapped_lines = word_wrap(
+                    &full_text,
+                    DESC_W,
+                    |t| ui.atlas.measure_text(&strip_color_codes(t)),
+                    false,
+                );
             }
 
             let card_data = self.card_info.as_ref().unwrap();
@@ -450,8 +528,15 @@ impl InGameWindow for ItemInfoWindow {
                 scroll_thumb: CARD_INFO_SCROLL_THUMB_ID,
             };
             let result = build_info_window(
-                ui, card_data, &self.card_wrapped_lines, self.card_scroll_offset,
-                &ids, grf, bg_size, VIEW_SECTION_H, false,
+                ui,
+                card_data,
+                &self.card_wrapped_lines,
+                self.card_scroll_offset,
+                &ids,
+                grf,
+                bg_size,
+                VIEW_SECTION_H,
+                false,
             );
             self.card_scroll_offset = result.scroll_offset;
 
@@ -463,7 +548,6 @@ impl InGameWindow for ItemInfoWindow {
             }
         }
 
-        // Card illustration window (independent)
         if let Some(illust) = &self.card_illustration {
             let illust_w = ILLUST_FALLBACK_W;
             let illust_h = ILLUST_FALLBACK_H;
@@ -481,16 +565,12 @@ impl InGameWindow for ItemInfoWindow {
                 &illust.name,
                 text_color,
             );
-            // Background
             if grf {
-                let (_v, _i) = draw::quad_vertices(win.x, win.y, illust_w, total_h, [1.0, 1.0, 1.0, 1.0]);
-                // ui.draw_calls.push(DrawCall {
-                //     vertices: v.to_vec(),
-                //     indices: i.to_vec(),
-                //     texture: TextureRef::Named(COLLECTION_BG_TEX.to_string()),
-                // });
+                let (_v, _i) =
+                    draw::quad_vertices(win.x, win.y, illust_w, total_h, [1.0, 1.0, 1.0, 1.0]);
             } else {
-                let (v, i) = draw::quad_vertices(win.x, win.y, illust_w, total_h, [0.15, 0.15, 0.20, 0.95]);
+                let (v, i) =
+                    draw::quad_vertices(win.x, win.y, illust_w, total_h, [0.15, 0.15, 0.20, 0.95]);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: i.to_vec(),
@@ -512,8 +592,6 @@ impl InGameWindow for ItemInfoWindow {
                 }
             }
 
-
-            // Close button
             let close_rect = Rect::new(
                 win.x + illust_w - CLOSE_SIZE - 3.0,
                 win.y + 3.0,
@@ -525,20 +603,25 @@ impl InGameWindow for ItemInfoWindow {
                 ui.any_interactive_hovered = true;
             }
             draw_sys_button(
-                ui, close_rect,
+                ui,
+                close_rect,
                 (CLOSE_SIZE, CLOSE_SIZE),
-                close_resp.hovered(), grf,
-                CLOSE_ON_TEX, CLOSE_OFF_TEX,
-                Some('x'), [1.0, 0.3, 0.3, 1.0], [1.0, 1.0, 1.0, 1.0],
+                close_resp.hovered(),
+                grf,
+                CLOSE_ON_TEX,
+                CLOSE_OFF_TEX,
+                Some('x'),
+                [1.0, 0.3, 0.3, 1.0],
+                [1.0, 1.0, 1.0, 1.0],
             );
 
             if close_resp.clicked() {
                 self.close_illustration();
             } else {
-                // Card illustration image
                 let img_x = win.x;
                 let img_y = win.y + ILLUST_TITLEBAR_H;
-                let (v, i) = draw::quad_vertices(img_x, img_y, illust_w, illust_h, [1.0, 1.0, 1.0, 1.0]);
+                let (v, i) =
+                    draw::quad_vertices(img_x, img_y, illust_w, illust_h, [1.0, 1.0, 1.0, 1.0]);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: i.to_vec(),
@@ -578,7 +661,11 @@ fn build_info_window(
     extra_height: f32,
     escape_closes: bool,
 ) -> InfoWindowResult {
-    let (container_w, container_h) = if grf { bg_size } else { (FALLBACK_WIN_W, FALLBACK_WIN_H) };
+    let (container_w, container_h) = if grf {
+        bg_size
+    } else {
+        (FALLBACK_WIN_W, FALLBACK_WIN_H)
+    };
     let win_w = container_w;
     let win_h = container_h + extra_height;
 
@@ -595,9 +682,9 @@ fn build_info_window(
     let win_rect = Rect::new(win.x, win.y, win_w, win_h);
     ui.interact(ids.window, win_rect);
 
-    // Background
     if grf {
-        let (v, i) = draw::quad_vertices(win.x, win.y, container_w, container_h, [1.0, 1.0, 1.0, 1.0]);
+        let (v, i) =
+            draw::quad_vertices(win.x, win.y, container_w, container_h, [1.0, 1.0, 1.0, 1.0]);
         ui.draw_calls.push(DrawCall {
             vertices: v.to_vec(),
             indices: i.to_vec(),
@@ -626,11 +713,12 @@ fn build_info_window(
         }
     }
 
-    // Collection image
     if let Some(path) = &item_data.collection_path {
         let (v, i) = draw::quad_vertices(
-            win.x + COLLECTION_X, win.y + COLLECTION_Y,
-            COLLECTION_W, COLLECTION_H,
+            win.x + COLLECTION_X,
+            win.y + COLLECTION_Y,
+            COLLECTION_W,
+            COLLECTION_H,
             [1.0, 1.0, 1.0, 1.0],
         );
         ui.draw_calls.push(DrawCall {
@@ -640,7 +728,6 @@ fn build_info_window(
         });
     }
 
-    // Close button
     let close_rect = Rect::new(
         win.x + container_w - CLOSE_SIZE - 3.0,
         win.y + 3.0,
@@ -652,18 +739,27 @@ fn build_info_window(
         ui.any_interactive_hovered = true;
     }
     draw_sys_button(
-        ui, close_rect,
+        ui,
+        close_rect,
         (CLOSE_SIZE, CLOSE_SIZE),
-        close_resp.hovered(), grf,
-        CLOSE_ON_TEX, CLOSE_OFF_TEX,
-        Some('x'), [1.0, 0.3, 0.3, 1.0], [1.0, 1.0, 1.0, 1.0],
+        close_resp.hovered(),
+        grf,
+        CLOSE_ON_TEX,
+        CLOSE_OFF_TEX,
+        Some('x'),
+        [1.0, 0.3, 0.3, 1.0],
+        [1.0, 1.0, 1.0, 1.0],
     );
     let closed = close_resp.clicked() || (escape_closes && ui.ctx.key_escape);
     if closed {
-        return InfoWindowResult { win_x: win.x, win_y: win.y, scroll_offset, closed: true };
+        return InfoWindowResult {
+            win_x: win.x,
+            win_y: win.y,
+            scroll_offset,
+            closed: true,
+        };
     }
 
-    // Item name
     let name_color = if item_data.is_damaged {
         [1.0, 0.0, 0.0, 1.0]
     } else if grf {
@@ -678,8 +774,11 @@ fn build_info_window(
         name_color,
     );
 
-    // Description text (scrollable)
-    let text_color = if grf { [0.0, 0.0, 0.0, 1.0] } else { [0.9, 0.9, 0.9, 1.0] };
+    let text_color = if grf {
+        [0.0, 0.0, 0.0, 1.0]
+    } else {
+        [0.9, 0.9, 0.9, 1.0]
+    };
     let desc_x = win.x + DESC_X;
     let desc_top = win.y + DESC_Y;
     let start = scroll_offset;
@@ -690,7 +789,6 @@ fn build_info_window(
         text_y += TEXT_LINE_H;
     }
 
-    // Scrollbar
     let mut new_scroll = scroll_offset;
     if needs_scrollbar {
         let sb_x = win.x + container_w - scrollbar::SCROLLBAR_W - 1.0;
@@ -708,11 +806,18 @@ fn build_info_window(
             visible_lines,
             max_scroll,
             content_rect,
-            sb_x, sb_y, sb_h,
+            sb_x,
+            sb_y,
+            sb_h,
         );
     }
 
-    InfoWindowResult { win_x: win.x, win_y: win.y, scroll_offset: new_scroll, closed: false }
+    InfoWindowResult {
+        win_x: win.x,
+        win_y: win.y,
+        scroll_offset: new_scroll,
+        closed: false,
+    }
 }
 
 #[cfg(test)]
@@ -815,7 +920,6 @@ mod tests {
     fn equipment_always_shows_card_section() {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
-        // Equipment with 0 slot_count - card section should still appear
         let item = make_item(1201, 4, [0; 4]);
         win.show(&item, &data);
         let info = win.item.as_ref().unwrap();
@@ -831,7 +935,6 @@ mod tests {
         assert!(win.card_info.is_some());
         assert_eq!(win.card_info.as_ref().unwrap().item_id, 4025);
         assert!(!win.card_info.as_ref().unwrap().is_equipment);
-        // Same card toggles off
         win.show_card(4025, &data);
         assert!(win.card_info.is_none());
     }
@@ -889,12 +992,19 @@ mod tests {
     #[test]
     fn show_illustration_opens_and_toggle_closes() {
         let mut win = ItemInfoWindow::new();
-        win.show_illustration(4001, "Test Card".to_string(), "data/texture/cardbmp/test.bmp".to_string());
+        win.show_illustration(
+            4001,
+            "Test Card".to_string(),
+            "data/texture/cardbmp/test.bmp".to_string(),
+        );
         assert!(win.card_illustration.is_some());
         assert_eq!(win.card_illustration.as_ref().unwrap().item_id, 4001);
 
-        // Same id toggles off
-        win.show_illustration(4001, "Test Card".to_string(), "data/texture/cardbmp/test.bmp".to_string());
+        win.show_illustration(
+            4001,
+            "Test Card".to_string(),
+            "data/texture/cardbmp/test.bmp".to_string(),
+        );
         assert!(win.card_illustration.is_none());
     }
 
@@ -913,10 +1023,13 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         assert!(win.pending_illustration_texture_paths().is_empty());
 
-        win.show_illustration(4001, "Test".to_string(), "data/texture/cardbmp/test.bmp".to_string());
+        win.show_illustration(
+            4001,
+            "Test".to_string(),
+            "data/texture/cardbmp/test.bmp".to_string(),
+        );
         let paths = win.pending_illustration_texture_paths();
         assert_eq!(paths.len(), 1);
         assert_eq!(paths[0], "data/texture/cardbmp/test.bmp");
     }
-
 }

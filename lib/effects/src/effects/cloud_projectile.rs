@@ -1,28 +1,3 @@
-//! Cloud projectile family — a camera-facing square quad that spins,
-//! breathes (±5% size pulse), and drags a short motion-blur ghost trail as it
-//! flies. The original game renders several skills with the same look,
-//! differing only
-//! in trajectory, texture, tint, size, and a couple of extras — so one
-//! [`CloudProjectileEffect`] holding a `Vec<Projectile>` + a [`CloudParams`]
-//! table covers all of them.
-//!
-//! Trajectories ([`FlightMode`]):
-//!   * `Overshoot` — Tanji (265): fly to the target, then blast past at ×3
-//!     speed with a heading jitter while fading. No sparks.
-//!   * `HitStop` — Tanji2 (412) / Alattack1-4 (2016-2019): straight flight that
-//!     despawns on contact, spraying an `emp shock.tga` impact spark every 4
-//!     frames. Alattack tints the orb yellow and recolours the spark.
-//!   * `Homing` — Shieldboomerang (249) / Shieldboomerang2 (494): a thrown
-//!     shield that flies out to the target, curves its heading back toward the
-//!     caster, and fades on the return leg.
-//!   * `StraightFade` — Shieldboomerang3 (520): five shields fired a few frames
-//!     apart, each arriving from a random direction far out and flying inward
-//!     through the impact point and on past, ramping alpha up then down.
-//!
-//! Textures: `blue_ivy.bmp` (spirit sphere), `emp shock.tga` (impact spark),
-//! `shield_boomerang.bmp` (shield). Shieldboomerang2's original "toma" texture
-//! is `axe.bmp` in the classic GRF (a thrown axe).
-
 use std::f32::consts::{PI, TAU};
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
@@ -40,58 +15,36 @@ const UNIT_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 const FPS: f32 = 60.0;
 const FRAME_DT: f32 = 1.0 / FPS;
 
-/// Tanji's `process = -15`: the orb is invisible for 15 frames after spawn.
-/// The shield modes launch immediately (`process = 0`).
 const TANJI_SPAWN_DELAY_FRAMES: i32 = 15;
 
-/// Cloud projectiles home at `speed` (2 units/frame) after the spawn delay, so
-/// the reach scales with distance. Uses Tanji's spawn delay as the family
-/// representative (the shield modes launch immediately, so this slightly
-/// overestimates them).
 pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
     crate::effect_queue::ProjectileFlight::ConstantSpeed {
         delay_frames: TANJI_SPAWN_DELAY_FRAMES as f32,
         units_per_frame: 2.0,
     };
-/// Spin `-15°` per frame.
 const SPIN_PER_FRAME_DEG: f32 = -15.0;
-/// Launches 8 units below the entity origin — chest height (−Y is up).
 const HAND_Y: f32 = -8.0;
-/// Alpha `+25` (of 255) per frame while ramping in (Tanji fade-in).
 const FADE_IN_PER_FRAME: f32 = 25.0 / 255.0;
-/// Alpha `-12` per frame on the overshoot / homing-return fade.
 const FADE_OUT_PER_FRAME: f32 = 12.0 / 255.0;
-/// StraightFade (520) alpha ramp: `+45/frame` while `process<=5`, `-10/frame`
-/// once `process>=15`.
 const RAMP_UP_PER_FRAME: f32 = 45.0 / 255.0;
 const RAMP_DOWN_PER_FRAME: f32 = 10.0 / 255.0;
 const RAMP_UP_UNTIL: i32 = 5;
 const RAMP_DOWN_FROM: i32 = 15;
-/// Radius pulse: `distance + sin(phase) * distance * 0.05`.
 const SIZE_PULSE: f32 = 0.05;
 const PULSE_PER_FRAME: f32 = 0.3;
-/// Despawn within this xz-distance of the target (HitStop) or caster (Homing).
 const HIT_RADIUS: f32 = 3.0;
-/// Homing steers the heading toward the caster at 5°/frame.
 const HOMING_TURN_RAD: f32 = 5.0 * PI / 180.0;
-/// `process % 4 == 0` impact-spark cadence (HitStop only).
 const SPARK_INTERVAL_FRAMES: u32 = 4;
 const SPARK_LIFE_FRAMES: u32 = 18;
 const SPARK_FADE_FRAMES: f32 = 4.0;
 const SPARK_SIZE: f32 = 3.0;
-/// Tanji overshoot: ×3 speed + a fixed heading jitter (the original randoms
-/// ±45°; a fixed offset keeps the effect deterministic for tests).
 const OVERSHOOT_JITTER_RAD: f32 = 0.35;
 const OVERSHOOT_SPEED_MULT: f32 = 3.0;
 
-/// 520 fires 5 shields, 3 frames apart, each from a random direction.
 const SPRAY_COUNT: usize = 5;
 const SPRAY_STAGGER_FRAMES: u32 = 3;
-/// Each shield starts `speed * 15` units out along its random heading,
-/// then flies inward through the centre.
 const SPRAY_START_RADIUS_FRAMES: f32 = 15.0;
 
-/// Backstop lifetime for the holder; every effect here self-terminates.
 const MAX_TOTAL_FRAMES: f32 = 180.0;
 pub const TOTAL_DURATION_MS: u32 = (MAX_TOTAL_FRAMES / FPS * 1000.0) as u32;
 
@@ -99,9 +52,9 @@ const BLUE: [f32; 3] = [150.0 / 255.0, 150.0 / 255.0, 250.0 / 255.0];
 const YELLOW: [f32; 3] = [1.0, 1.0, 17.0 / 255.0];
 const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
 const SPARK_WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
-const SPARK_BLUE: [f32; 4] = [10.0 / 255.0, 58.0 / 255.0, 203.0 / 255.0, 1.0]; // 0x0A3ACB
-const SPARK_GREEN: [f32; 4] = [89.0 / 255.0, 197.0 / 255.0, 10.0 / 255.0, 1.0]; // 0x59C50A
-const SPARK_YELLOW: [f32; 4] = [1.0, 1.0, 17.0 / 255.0, 1.0]; // 0xFFFF11
+const SPARK_BLUE: [f32; 4] = [10.0 / 255.0, 58.0 / 255.0, 203.0 / 255.0, 1.0];
+const SPARK_GREEN: [f32; 4] = [89.0 / 255.0, 197.0 / 255.0, 10.0 / 255.0, 1.0];
+const SPARK_YELLOW: [f32; 4] = [1.0, 1.0, 17.0 / 255.0, 1.0];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum FlightMode {
@@ -114,23 +67,14 @@ pub enum FlightMode {
 #[derive(Clone, Copy)]
 pub struct CloudParams {
     pub texture: &'static str,
-    /// Orb tint (0..1), per variant.
     pub tint: [f32; 3],
-    /// Quad corner radius (rendered side = `distance * √2`). `hit_count * 0.4`
-    /// is added at construction.
     pub base_distance: f32,
-    /// Travel units per frame.
     pub speed: f32,
     pub mode: FlightMode,
-    /// Impact-spark colour (HitStop only), or `None`.
     pub spark: Option<[f32; 4]>,
-    /// Quad blend. Glowy energy orbs (`blue_ivy.bmp`) are `Additive`; solid
-    /// colour-keyed objects (the shields / axe) are `Alpha` — additive washes
-    /// a solid sprite out to near-invisible over a lit map.
     pub blend: BlendKind,
 }
 
-// 265 Tanji — blue boomerang sphere, no sparks.
 pub const TANJI: CloudParams = CloudParams {
     texture: "blue_ivy.bmp",
     tint: BLUE,
@@ -140,7 +84,6 @@ pub const TANJI: CloudParams = CloudParams {
     spark: None,
     blend: BlendKind::Additive,
 };
-// 412 Tanji2 — blue straight-flight sphere, white impact sparks.
 pub const TANJI2: CloudParams = CloudParams {
     texture: "blue_ivy.bmp",
     tint: BLUE,
@@ -150,7 +93,6 @@ pub const TANJI2: CloudParams = CloudParams {
     spark: Some(SPARK_WHITE),
     blend: BlendKind::Additive,
 };
-// 2016-2019 Alattack1-4 — yellow sphere; size and spark colour per variant.
 pub const ALATTACK1: CloudParams = CloudParams {
     texture: "blue_ivy.bmp",
     tint: YELLOW,
@@ -188,8 +130,6 @@ pub const ALATTACK4: CloudParams = CloudParams {
     blend: BlendKind::Additive,
 };
 
-// 249 Shieldboomerang — white shield, homing return. Source size 7; halved
-// to the gif's ~1-character shield.
 pub const SHIELDBOOMERANG: CloudParams = CloudParams {
     texture: "shield_boomerang.bmp",
     tint: WHITE,
@@ -199,8 +139,6 @@ pub const SHIELDBOOMERANG: CloudParams = CloudParams {
     spark: None,
     blend: BlendKind::Alpha,
 };
-// 494 Shieldboomerang2 — a thrown axe; the original's "toma" texture is
-// `axe.bmp` in the classic GRF.
 pub const SHIELDBOOMERANG2: CloudParams = CloudParams {
     texture: "토마.bmp",
     tint: WHITE,
@@ -210,7 +148,6 @@ pub const SHIELDBOOMERANG2: CloudParams = CloudParams {
     spark: None,
     blend: BlendKind::Alpha,
 };
-// 520 Shieldboomerang3 — 5-shield fan; source size 5, speed 2.5.
 pub const SHIELDBOOMERANG3: CloudParams = CloudParams {
     texture: "shield_boomerang.bmp",
     tint: WHITE,
@@ -256,7 +193,6 @@ enum Phase {
     Return,
 }
 
-/// One in-flight quad. State is integrated per fixed frame.
 struct Projectile {
     params: CloudParams,
     caster: [f32; 3],
@@ -483,8 +419,6 @@ impl Projectile {
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList) {
-        // Motion-blur ghost trail: lead at full alpha plus up to three lagging
-        // copies (first ghost −150/255, then −25/255 each).
         const TRAIL_ALPHA_LAG: [f32; 3] = [150.0 / 255.0, 175.0 / 255.0, 200.0 / 255.0];
 
         if self.flying && self.process > 0 {
@@ -523,9 +457,6 @@ impl Projectile {
     }
 }
 
-/// Deterministic pseudo-random heading in `[0, TAU)` for spray shield `k`, so the
-/// burst looks random (the original picks a random rotation per shield) while
-/// staying reproducible for tests.
 fn spray_heading(k: usize) -> f32 {
     let mut s = (k as u32)
         .wrapping_mul(2_654_435_761)
@@ -536,8 +467,6 @@ fn spray_heading(k: usize) -> f32 {
     (s as f32 / u32::MAX as f32) * TAU
 }
 
-/// Rotate `current` toward `target` by at most `max_step`, returning the new
-/// angle and whether it reached the target (shortest signed direction).
 fn rotate_toward(current: f32, target: f32, max_step: f32) -> (f32, bool) {
     let mut diff = (target - current).rem_euclid(TAU);
     if diff > PI {
@@ -557,7 +486,6 @@ pub struct CloudProjectileEffect {
 }
 
 impl CloudProjectileEffect {
-    /// Single projectile flying `from` → `to`.
     pub fn new(from: [f32; 3], to: [f32; 3], hit_count: u8, params: CloudParams) -> Self {
         let dx = to[0] - from[0];
         let dz = to[2] - from[2];
@@ -574,18 +502,12 @@ impl CloudProjectileEffect {
         }
     }
 
-    /// 520: [`SPRAY_COUNT`] shields converging on `center` (the impact/target
-    /// point), fired [`SPRAY_STAGGER_FRAMES`] apart. Each picks a random heading,
-    /// starts far out in that direction, and flies
-    /// inward through the centre and on past (no homing).
     pub fn new_spray(center: [f32; 3], params: CloudParams) -> Self {
         let offset = params.speed * SPRAY_START_RADIUS_FRAMES;
         let projectiles = (0..SPRAY_COUNT)
             .map(|k| {
                 let heading = spray_heading(k);
                 let (s, c) = heading.sin_cos();
-                // Start `offset` units away, opposite the travel direction, so
-                // advancing `+heading` carries the shield through the centre.
                 let from = [center[0] - offset * s, center[1], center[2] - offset * c];
                 Projectile::new(
                     from,
@@ -751,8 +673,6 @@ mod tests {
 
     #[test]
     fn shieldboomerang_flies_out_then_homes_back_toward_caster() {
-        // White shield, no spawn delay. Track xz-distance to the caster (origin):
-        // it must grow on the outbound leg, then shrink once homing kicks in.
         let mut e =
             CloudProjectileEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 30.0], 0, SHIELDBOOMERANG);
         let mut max_d = 0.0_f32;
@@ -807,7 +727,6 @@ mod tests {
             5,
             "all launched"
         );
-        // The lead shield has moved inward toward the centre.
         assert!(
             dist(&e.projectiles[0]) < before[0],
             "shield flies inward through the centre"

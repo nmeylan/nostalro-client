@@ -87,35 +87,37 @@ pub fn quad_vertices_rotated(
     let half = size / 2.0;
     let cos = angle_rad.cos();
     let sin = angle_rad.sin();
-    // Corners relative to center: TL, TR, BL, BR
-    let corners = [
-        (-half, -half),
-        (half, -half),
-        (-half, half),
-        (half, half),
-    ];
+    let corners = [(-half, -half), (half, -half), (-half, half), (half, half)];
     let verts = [
         UiVertex {
-            position: [cx + corners[0].0 * cos - corners[0].1 * sin,
-                        cy + corners[0].0 * sin + corners[0].1 * cos],
+            position: [
+                cx + corners[0].0 * cos - corners[0].1 * sin,
+                cy + corners[0].0 * sin + corners[0].1 * cos,
+            ],
             tex_coord: [0.0, 0.0],
             color,
         },
         UiVertex {
-            position: [cx + corners[1].0 * cos - corners[1].1 * sin,
-                        cy + corners[1].0 * sin + corners[1].1 * cos],
+            position: [
+                cx + corners[1].0 * cos - corners[1].1 * sin,
+                cy + corners[1].0 * sin + corners[1].1 * cos,
+            ],
             tex_coord: [1.0, 0.0],
             color,
         },
         UiVertex {
-            position: [cx + corners[2].0 * cos - corners[2].1 * sin,
-                        cy + corners[2].0 * sin + corners[2].1 * cos],
+            position: [
+                cx + corners[2].0 * cos - corners[2].1 * sin,
+                cy + corners[2].0 * sin + corners[2].1 * cos,
+            ],
             tex_coord: [0.0, 1.0],
             color,
         },
         UiVertex {
-            position: [cx + corners[3].0 * cos - corners[3].1 * sin,
-                        cy + corners[3].0 * sin + corners[3].1 * cos],
+            position: [
+                cx + corners[3].0 * cos - corners[3].1 * sin,
+                cy + corners[3].0 * sin + corners[3].1 * cos,
+            ],
             tex_coord: [1.0, 1.0],
             color,
         },
@@ -124,12 +126,6 @@ pub fn quad_vertices_rotated(
     (verts, indices)
 }
 
-/// Filled square sector as a triangle fan, for cooldown/clock overlays that
-/// cover a square icon. The sweep runs from `start_rad` over `sweep_rad` (screen
-/// space: angle 0 points right, +y is down); each boundary point is projected
-/// onto a `half`-extent axis-aligned square centred at `(cx, cy)`. Corner
-/// directions inside the sweep are inserted so the fill follows the square edges
-/// exactly (no chamfer).
 pub fn square_wedge_vertices(
     cx: f32,
     cy: f32,
@@ -353,7 +349,6 @@ pub fn text_vertices_clipped(
             let gy = atlas.snap_to_physical(y + glyph.offset[1]);
             let gx_right = gx + glyph.size[0];
 
-            // Skip fully outside glyphs
             if gx_right > clip_left && gx < clip_right {
                 let mut draw_x = gx;
                 let mut draw_w = glyph.size[0];
@@ -362,14 +357,12 @@ pub fn text_vertices_clipped(
                 let uv_span = uv_right - uv_left;
                 let px_span = glyph.size[0];
 
-                // Clip left edge
                 if draw_x < clip_left {
                     let clipped = clip_left - draw_x;
                     uv_left += uv_span * (clipped / px_span);
                     draw_w -= clipped;
                     draw_x = clip_left;
                 }
-                // Clip right edge
                 if draw_x + draw_w > clip_right {
                     let clipped = (draw_x + draw_w) - clip_right;
                     uv_right -= uv_span * (clipped / px_span);
@@ -505,14 +498,12 @@ mod tests {
 
     #[test]
     fn word_wrap_truncate_breaks_long_word() {
-        // max_width=5, measure = char count; "abcdefgh" (8 chars) should be split
         let lines = word_wrap("abcdefgh", 5.0, char_count_measure, true);
         assert_eq!(lines, vec!["abcde", "fgh"]);
     }
 
     #[test]
     fn word_wrap_truncate_mixed_short_and_long() {
-        // Truncate treats spaces as regular characters
         let lines = word_wrap("hi abcdefgh ok", 5.0, char_count_measure, true);
         assert_eq!(lines, vec!["hi ab", "cdefg", "h ok"]);
     }

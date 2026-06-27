@@ -1,20 +1,3 @@
-//! `EF_GRAVITATION` (id 522) — Gravity Field: a dense field of stone and ice
-//! shards erupting from the ground while the camera trembles.
-//!
-//! The cast triggers a continuous camera shake (amplitude 1.0)
-//! then launches 4 shard families (`stone.bmp` ×2 + `ice.tga`
-//! ×2): spikes width 3.0–3.5, height 18, tilt 60–100°,
-//! random heading, with an in/out speed oscillation (every 6 frames flips
-//! between `+1.18` push and `−1.2` pull — the "gravitation" writhe).
-//!
-//! Each spike is one 4-triangle horn. The original's 4
-//! spikes do not match the gif's dense shard field, so — gif outranking the
-//! original — this spreads many spikes across a ground disc, each a [`QuadHorn`]
-//! pointing up with a random tilt, alpha-fading in then out, the whole field
-//! pulsing toward centre. The continuous tremor is the dominant "gravity" cue.
-//!
-//! [`QuadHorn`]: crate::draw::EffectPrimitiveDraw::QuadHorn
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{CameraShake, Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -24,24 +7,15 @@ const STONE: &str = "stone.bmp";
 const ICE: &str = "ice.tga";
 pub const TEXTURES: &[&str] = &[STONE, ICE];
 
-/// Height 18 / width 3–3.5 — shards a touch taller than the caster,
-/// the field a bit wider.
 const WORLD_SCALE: f32 = 0.8;
 
 const SPIKE_COUNT: usize = 60;
-/// Ground-disc radius the shard bases spread across.
 const FIELD_RADIUS: f32 = 13.0;
 
-/// The field erupts, trembles, then fades — pinned shorter than the skill's
-/// nominal field life so the visible burst matches the reference loop.
 const DURATION_FRAMES: f32 = 240.0;
 const FADE_IN_FRAMES: f32 = 15.0;
 const FADE_OUT_FRAMES: f32 = 30.0;
-/// Alpha 20/255 (≈0.08) in the original — the shards are very translucent;
-/// overlapping ones build up but never go solid.
 const MAX_ALPHA: f32 = 0.22;
-
-/// Continuous tremor for the field's life (amplitude 1.0).
 const QUAKE_AMPLITUDE: f32 = 1.0;
 pub const TOTAL_DURATION_MS: u32 = (DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
@@ -58,13 +32,11 @@ impl Rng {
 
 struct Spike {
     base: [f32; 3],
-    /// Direction from the field centre (for the inward pulse), XZ only.
     inward: [f32; 2],
     size: f32,
     height: f32,
     latitude_deg: f32,
     longitude_deg: f32,
-    /// Per-spike phase so the field writhes rather than pulsing in lockstep.
     pulse_phase: f32,
     texture: &'static str,
 }
@@ -132,7 +104,6 @@ impl Effect for GravitationEffect {
             return;
         }
         for s in &self.spikes {
-            // In/out writhe along the inward direction (the gravitation pull).
             let pulse = (self.age_frames * 0.25 + s.pulse_phase).sin();
             let reach = pulse * 1.2 * WORLD_SCALE;
             let base = [
@@ -216,7 +187,6 @@ mod tests {
             "stone shards present"
         );
         assert!(h.iter().any(|(_, _, t)| *t == ICE), "ice shards present");
-        // Spread across a disc, not a single point.
         let xs: Vec<f32> = h.iter().map(|(b, _, _)| b[0]).collect();
         let spread = xs.iter().cloned().fold(f32::MIN, f32::max)
             - xs.iter().cloned().fold(f32::MAX, f32::min);

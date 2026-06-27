@@ -1,35 +1,4 @@
-//! `EF_BLITZBEAT` — Falcon Blitz Beat strike (id 115).
-//!
-//! Falcon Blitz Beat — a volley of translating cross-textured needles.
-//!
-//! Observed in-game: the needle direction is **world-fixed** (NE → SW),
-//! independent of the caster's facing or the camera. The yaw comes from the
-//! master's facing angle, but for Blitzbeat that angle is
-//! a fixed compass heading; rotating the camera changes how the needles
-//! appear on screen but not their world-axis direction.
-//!
-//! Forward axis = NE = `(+√2/2, 0, +√2/2)` → `yaw = π/4`. The
-//! motion sets `speed = -1.2 + accel*frame` and steps `pos += speed * forward`
-//! each frame, which moves the needles in the *opposite* of forward — i.e.
-//! SW. So needles start in the NE arc and translate SW.
-//!
-//! At spawn it emits 10 cross-textured needles. Each needle:
-//!   * scatter offset (world XZ): `(3.5*sinθ, -7, -3.5*cosθ)` for a random θ
-//!     — `-7` is "7 above ground" (native RO `-Y = up`).
-//!   * initial position offset along caster's forward: `+15` units.
-//!   * per-frame motion along caster's forward axis with `speed += accel`
-//!     each tick, starting `speed = -1.2`, `accel = -0.1`. So at frame `f`
-//!     the cumulative forward offset is `15 - 1.2*f - 0.05*f*(f+1)`. The
-//!     needle starts 15 ahead, slows, reverses, and ends ~30 units behind.
-//!   * width random `2..6`, height `0.2` (thin needle). `width_speed = 0.1`,
-//!     `width_accel = -0.01` — width grows slightly then plateaus over 20
-//!     frames.
-//!   * alpha: instant ramp to 1.0 in ~2 frames, hold, hard fade in last 2.
-//!
-//! Each needle is drawn as a cross-texture: the same texture on one
-//! horizontal quad and one vertical quad, both with the
-//! needle's long axis along the caster's forward direction. This keeps the
-//! needle silhouette readable from any camera angle.
+//! `EF_BLITZBEAT` (id 115) — Falcon Blitz Beat cross-textured needle volley.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -70,19 +39,13 @@ pub struct BlitzbeatEffect {
     needles: [Needle; NEEDLE_COUNT as usize],
 }
 
-/// World-fixed yaw for the needle volley: forward axis = NE, so the
-/// per-frame negative-speed motion translates the needles SW.
 const FIXED_YAW: f32 = std::f32::consts::FRAC_PI_4;
 
 impl BlitzbeatEffect {
-    /// Spawn at `caster_pos`. The needle direction is world-fixed (NE→SW);
-    /// caster facing and camera angle are ignored.
     pub fn new(caster_pos: [f32; 3]) -> Self {
         Self::with_yaw(caster_pos, FIXED_YAW)
     }
 
-    /// Override the world-fixed yaw — used by tests; production callers
-    /// should use [`Self::new`].
     pub fn with_yaw(caster_pos: [f32; 3], yaw: f32) -> Self {
         let seed = position_hash(&caster_pos);
         let mut needles = [Needle {
@@ -113,16 +76,10 @@ impl BlitzbeatEffect {
     }
 
     fn forward_offset_at(&self, frame: f32) -> f32 {
-        // Closed form for the per-frame `speed += accel; delta_pos
-        // += speed * forward`. At frame f (real, fractional):
-        //   speed_i = SPEED_INIT + i * SPEED_ACCEL  for i ∈ 1..f
-        //   delta = FORWARD_INIT + Σ speed_i = FORWARD_INIT + SPEED_INIT*f
-        //           + SPEED_ACCEL * f*(f+1)/2
         FORWARD_INIT + SPEED_INIT * frame + SPEED_ACCEL * frame * (frame + 1.0) * 0.5
     }
 
     fn half_width_at(&self, base: f32, frame: f32) -> f32 {
-        // width(f) = base + WIDTH_SPEED_INIT*f + WIDTH_ACCEL * f*(f+1)/2
         let w = base + WIDTH_SPEED_INIT * frame + WIDTH_ACCEL * frame * (frame + 1.0) * 0.5;
         w.max(0.05)
     }
@@ -242,14 +199,10 @@ mod tests {
     fn ten_parallel_cross_textured_needles_translate_along_forward() {
         let mut e = BlitzbeatEffect::with_yaw([0.0, 0.0, 0.0], 0.0);
 
-        // After a couple of frames the needles are visible; cross-texture =
-        // two quads (horizontal + vertical) per needle = 20 total.
         step_n(&mut e, 3);
         let prims = draws(&e);
-        assert_eq!(prims.len(), 20, "10 needles × 2 quads (cross-texture)");
+        assert_eq!(prims.len(), 20);
 
-        // All planes are HorizontalYaw / VerticalYaw with the *same* yaw —
-        // the needles are parallel, not crossed.
         for p in &prims {
             let yaw = match p {
                 EffectPrimitiveDraw::Texture3D {
@@ -258,13 +211,9 @@ mod tests {
                 } => *y,
                 _ => panic!("expected Texture3D needle plane"),
             };
-            assert_eq!(yaw, 0.0, "all needles share caster yaw");
+            assert_eq!(yaw, 0.0);
         }
 
-        // Forward translation: at frame 0 the needles sit at +15 forward
-        // (along +X for yaw=0); a few frames later they've moved less far
-        // along forward (speed is negative, decelerating). Average X across
-        // needles should drop.
         let avg_x = |prims: &[EffectPrimitiveDraw]| -> f32 {
             let xs: Vec<f32> = prims
                 .iter()
@@ -278,10 +227,7 @@ mod tests {
         let x_early = avg_x(&prims);
         step_n(&mut e, 8);
         let x_later = avg_x(&draws(&e));
-        assert!(
-            x_later < x_early,
-            "needles translate backward along forward axis: {x_early} -> {x_later}"
-        );
+        assert!(x_later < x_early, "{x_early} -> {x_later}");
     }
 
     #[test]

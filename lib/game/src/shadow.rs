@@ -264,7 +264,6 @@ pub fn shadow_size(job: u16) -> f32 {
         6015 | 6016 => 1.2,
         6049 => 1.2,
         6051 => 1.2,
-        // Player jobs default to 1.0
         _ => 1.0,
     }
 }

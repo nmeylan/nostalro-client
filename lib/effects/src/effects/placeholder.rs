@@ -1,26 +1,10 @@
-//! Placeholder effect for `EffectSpec::Custom` ids that don't yet have a
-//! real Rust implementation. Renders a small hot-pink billboard at the
-//! attach point so the spawn is visible in the effect viewer.
-//!
-//! Two flavors:
-//!   * [`PlaceholderEffect`] — pure-custom (407 effects in the original game
-//!     classification): pink square only.
-//!   * [`HybridPlaceholderEffect`] — StrHybrid (12 effects): pink square
-//!     *and* declares an `str_overlay()` so the holder plays the original
-//!     STR file alongside the marker. Mirrors the Stormgust pattern.
+//! Placeholder effect: hot-pink billboard at the attach point for unimplemented custom ids.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
-/// Soft-edged dot reused as the placeholder sprite. Already preloaded by
-/// `cast_circle` so no extra texture entry is needed.
 pub const PLACEHOLDER_TEXTURE: &str = "alpha_down.tga";
-
-/// Half-extent of the billboard quad in world units. Big enough to be
-/// obvious in the viewer; small enough not to dominate the scene.
 const PLACEHOLDER_HALF_SIZE: f32 = 3.0;
-
-/// Hot pink with full alpha — unmistakable as a debug marker.
 const PLACEHOLDER_COLOR: [f32; 4] = [1.0, 0.2, 0.8, 1.0];
 
 pub const TEXTURES: &[&str] = &[PLACEHOLDER_TEXTURE];
@@ -53,10 +37,6 @@ impl Effect for PlaceholderEffect {
     }
 }
 
-/// Placeholder that also drives the effect's original STR overlay. The
-/// holder plays `str_overlay()` automatically; this struct just adds the
-/// pink-square primitive on top to flag that the custom-primitive layer
-/// isn't implemented yet.
 pub struct HybridPlaceholderEffect {
     inner: PlaceholderEffect,
     str_file: &'static str,

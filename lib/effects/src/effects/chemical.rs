@@ -1,30 +1,3 @@
-//! Chemical streak family — `EF_CHEMICALPROTECTION` (300), `EF_CHEMICAL2`
-//! (303), `EF_CHEMICAL3` (439), `EF_CHEMICAL4` (623), `EF_CHEMICAL2DASH`
-//! (512), `EF_MGATTACK2` (2015) and `EF_SMATK1..4` (2009-2012).
-//!
-//! Three streak shapes. Each launcher fires
-//! **once** at its spawn frame and seeds `4` sub-emitters;
-//! a dual-call dispatch multiplies that into
-//! `4 × num_calls` streaks spawned in a single burst that then fade out — it
-//! is **not** continuous emission.
-//!
-//! * **Protection**: 8 spokes billboarded into
-//!   the screen plane radiating from the entity
-//!   (lifted 9 units) at angles `ec*90 + {30,60}`, length `distance = 100`.
-//!   White core (±3°) + light-blue edge (±5°), additive.
-//! * **Chemical2**: a static flat band spanning
-//!   `±distance` along the caster→target heading, offset laterally by
-//!   `∓(15 + ec*2.5)`, white, alpha. Launches at frame 40.
-//! * **Chemical3**: a short flat ribbon along the
-//!   heading whose `[near, far] = [scroll-100, scroll+length-100]` slides as
-//!   `scroll` wraps 0→200 — the segment travels from behind the
-//!   caster to ahead (bottom→top on screen). The lateral offset `±(15+rand)` puts the
-//!   two calls on opposite sides (left/right groups).
-//!   The colour group flag → `line3.tga` blue / `line3y.tga` yellow|green.
-//!
-//! Both CHEMICAL2 and CHEMICAL3 build the same flat quad ([`band_corners`]);
-//! they differ only in `near`/`far`, lift, fade rates and scrolling.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{
     BodyTint, CameraShake, CameraView, Effect, EffectRenderCtx, EffectUpdateCtx,
@@ -32,33 +5,17 @@ use crate::effect_trait::{
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// The streak is drawn along the whole caster→target line and scrolls in place,
-/// so it is present at the target from the start — no caster→target flight delay.
 pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
     crate::effect_queue::ProjectileFlight::AtTarget;
 
-/// 100 — the spoke length (Protection) and the band
-/// half-span (CHEMICAL2/3). Engine units ≈ world units; the viewer frames
-/// ~125 units of height, so a streak fills most of it.
 const DISTANCE: f32 = 100.0;
-
-/// Centre lifted 9 units (CHEMICALPROTECTION / CHEMICAL2). Native RO `-Y` is up.
 const CENTER_RISE: f32 = 9.0;
-
-/// CHEMICAL3 lifts the ribbon 6 units above the
-/// caster's feet (`-Y` up).
 const STREAK_LIFT: f32 = 6.0;
 
 const QUAKE_AMPLITUDE: f32 = 1.6;
 const QUAKE_DURATION_MS: u32 = 600;
 
-/// Visibility multiplier for the Protection spokes — the `shockwave_c` texture
-/// is dark, so the faithful alpha reads too faint under additive blend.
 const PROTECTION_BOOST: f32 = 2.5;
-
-/// Fixed UV for the four corners with default texture span:
-/// `(0,1) (1,1) (1,0) (0,0)`.
-/// Both `band_corners` and `spoke_corners` return verts in this corner order.
 const TEI_UV: [[f32; 2]; 4] = [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -71,24 +28,14 @@ enum ChemKind {
 #[derive(Clone, Copy)]
 pub struct ChemicalParams {
     kind: ChemKind,
-    /// Base group for CHEMICAL3 (0 / 10 / 20). Selects texture,
-    /// palette and the size/speed bands. Unused for the other kinds.
     group: u8,
-    /// Number of `(call, call+1)` dispatch pairs. Streaks = `pairs * 8`
-    /// (two calls × four emitters). Protection/CHEMICAL2 always use one pair.
     pairs: u32,
-    /// Parent frame the primitive launches on (0, except CHEMICAL2 at 40).
     spawn_frame: f32,
-    /// `(rgb, (start, end))` body-tint window on the parent frame counter.
     body_tint: Option<([u8; 3], (f32, f32))>,
-    /// Camera-shake frame, if any.
     quake_at: Option<f32>,
-    /// `(wave, frame)` one-shot SFX, if any.
     sfx: Option<(&'static str, f32)>,
 }
 
-/// Per-frame alpha rule (255-scale): rise `+in` while `process <= until`,
-/// fall `-out` while `process > after`.
 struct FadeRule {
     fade_in: f32,
     until: f32,
@@ -131,7 +78,6 @@ const fn fade_rule(kind: ChemKind, group: u8) -> FadeRule {
 }
 
 impl ChemicalParams {
-    /// Wall-clock end = spawn frame + rise/hold + linear fade-out tail.
     pub const fn total_duration_ms(&self) -> u32 {
         let f = fade_rule(self.kind, self.group);
         let peak = f.fade_in * f.until;
@@ -208,7 +154,6 @@ pub const SMATK2: ChemicalParams = ChemicalParams { pairs: 4, ..SMATK1 };
 pub const SMATK3: ChemicalParams = ChemicalParams { pairs: 8, ..SMATK1 };
 pub const SMATK4: ChemicalParams = ChemicalParams { pairs: 8, ..SMATK1 };
 
-/// Textures referenced by this family (viewer pre-load / coverage).
 pub const TEXTURES: &[&str] = &["line3.tga", "line3y.tga", "slash01.tga", "shockwave_c.bmp"];
 
 struct Rng(u32);
@@ -220,7 +165,6 @@ impl Rng {
         self.0 = self.0.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
         self.0
     }
-    /// `random(n)` — uniform integer in `0..n`.
     fn random(&mut self, n: u32) -> f32 {
         (self.next_u32() % n) as f32
     }
@@ -228,28 +172,19 @@ impl Rng {
 
 struct Streak {
     process: f32,
-    /// Alpha, 0..255 scale (no cap; group≥10 peaks at 200).
     alpha: f32,
-    /// Lateral offset (± = group side). CHEMICAL2/3.
     lateral: f32,
-    /// Half-width across the heading.
     width: f32,
-    /// Scroll position 0..200. CHEMICAL3 only.
     scroll: f32,
-    /// Ribbon length along the heading. CHEMICAL3 only.
     length: f32,
-    /// Scroll speed. CHEMICAL3 only.
     speed: f32,
-    /// Resolved quad tint (0..1).
     color: [f32; 3],
-    /// Protection spoke screen angle (radians).
     screen_angle: f32,
 }
 
 pub struct ChemicalEffect {
     params: ChemicalParams,
     fade: FadeRule,
-    /// Groups ≥ 10 accelerate (scroll speed += 0.05/frame).
     accelerate: bool,
     center: [f32; 3],
     /// Caster→target heading basis on the ground plane.
@@ -266,17 +201,14 @@ pub struct ChemicalEffect {
 }
 
 impl ChemicalEffect {
-    /// Point-anchored entry (radial Protection has no direction).
     pub fn new(anchor: [f32; 3], params: ChemicalParams) -> Self {
         Self::new_dir(anchor, anchor, params)
     }
 
-    /// Trail entry — `from` is the caster, `to` the target the streaks aim at.
     pub fn new_dir(from: [f32; 3], to: [f32; 3], params: ChemicalParams) -> Self {
         let yaw = (to[0] - from[0]).atan2(to[2] - from[2]);
         let (s, c) = yaw.sin_cos();
         let forward = [s, 0.0, c];
-        // Perpendicular to the heading: (cos(yaw), 0, -sin(yaw)).
         let lateral_dir = [c, 0.0, -s];
         let rise = match params.kind {
             ChemKind::Protection | ChemKind::Chemical2 => CENTER_RISE,
@@ -302,8 +234,6 @@ impl ChemicalEffect {
         }
     }
 
-    /// Seed the one-shot burst of `pairs * 8` sub-emitters: four emitters
-    /// × two dispatch calls × `pairs`.
     fn spawn(&mut self) {
         for _ in 0..self.params.pairs {
             for call in 0..2 {
@@ -337,7 +267,6 @@ impl ChemicalEffect {
     }
 
     fn spawn_chemical2(&self, ec: u32, call: u32) -> Streak {
-        // Lateral offset `∓(15 + ec*2.5)` — opposite sides per call.
         let lateral = if call == 0 {
             -15.0 - ec as f32 * 2.5
         } else {
@@ -347,7 +276,7 @@ impl ChemicalEffect {
             process: 0.0,
             alpha: 0.0,
             lateral,
-            width: 1.0, // max_height
+            width: 1.0,
             scroll: 0.0,
             length: 0.0,
             speed: 0.0,
@@ -358,7 +287,6 @@ impl ChemicalEffect {
 
     fn spawn_chemical3(&mut self, call: u32) -> Streak {
         let g = self.params.group;
-        // Lateral offset `±(15 + random(11))` — dir 0 left, dir 1 right.
         let mag = 15.0 + self.rng.random(11);
         let lateral = if call == 0 { -mag } else { mag };
         let (max_height, length, speed) = if g < 10 {
@@ -380,7 +308,7 @@ impl ChemicalEffect {
                 1.5 + self.rng.random(21) * 0.1,
             )
         };
-        let flag = self.rng.random(3) as u8 + g; // 0..2 / 10..12 / 20..22
+        let flag = self.rng.random(3) as u8 + g;
         Streak {
             process: 0.0,
             alpha: 0.0,
@@ -430,10 +358,6 @@ impl ChemicalEffect {
         }
     }
 
-    /// Flat quad shared by CHEMICAL2/CHEMICAL3: a strip
-    /// from `near` to `far` along the heading, spanning `lateral ± width`
-    /// across it, at height `y`. Corner order matches the fixed
-    /// four-corner UV above.
     fn band_corners(&self, near: f32, far: f32, lateral: f32, width: f32, y: f32) -> [[f32; 3]; 4] {
         let f = self.forward;
         let l = self.lateral_dir;
@@ -449,9 +373,6 @@ impl ChemicalEffect {
         [pt(far, a), pt(near, a), pt(near, b), pt(far, b)]
     }
 
-    /// Camera-facing spoke for one CHEMICALPROTECTION wedge:
-    /// a thin triangle from the entity out to `length`
-    /// at `screen_angle ± half_deg`, in the camera's right/up basis.
     fn spoke_corners(
         &self,
         cam: &CameraView,
@@ -488,8 +409,6 @@ fn chemical3_color(flag: u8) -> [f32; 3] {
     [rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0]
 }
 
-/// Camera right/up unit vectors, for the screen-facing billboard geometry
-/// the Protection spokes are drawn with.
 fn camera_right_up(cam: &CameraView) -> ([f32; 3], [f32; 3]) {
     let sub = |a: [f32; 3], b: [f32; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
     let cross = |a: [f32; 3], b: [f32; 3]| {
@@ -516,7 +435,6 @@ impl Effect for ChemicalEffect {
             self.frame_accum -= 1.0;
             self.step_frame();
         }
-        // Alive until the burst has spawned and every streak has faded out.
         if !self.spawned {
             return EffectStatus::Running;
         }
@@ -538,24 +456,13 @@ impl Effect for ChemicalEffect {
                     if s.alpha <= 0.0 {
                         continue;
                     }
-                    // `shockwave_c` is a dark texture under additive blend, so
-                    // the faithful alpha (~0.7 peak) reads too faint — boost
-                    // it for visibility, clamped at 1.0.
                     let a = (s.alpha / 255.0 * PROTECTION_BOOST).min(1.0);
-                    // White core (±3°, half alpha) + light-blue edge (±5°),
-                    // both additive. The UV maps the apex
-                    // (entity end) to texture U=0 — `shockwave_c`'s dim
-                    // edge — so the spoke is faint at the entity and brightens
-                    // outward, rather than glowing where the 8 spokes meet.
                     out.push(EffectPrimitiveDraw::WorldQuad {
                         corners: self.spoke_corners(&ctx.camera, s.screen_angle, 3.0, s.length),
                         uv: TEI_UV,
                         texture: "shockwave_c.bmp",
                         color: [1.0, 1.0, 1.0, (a * 0.5).min(1.0)],
                         blend: BlendKind::Additive,
-                        // The spokes are drawn as a near-plane
-                        // 2D overlay — they radiate from the entity through the
-                        // ground, so ignore depth or the floor swallows them.
                         no_depth: true,
                     });
                     out.push(EffectPrimitiveDraw::WorldQuad {
@@ -568,8 +475,6 @@ impl Effect for ChemicalEffect {
                     });
                 }
             }
-            // CHEMICAL2: static band ±DISTANCE; CHEMICAL3: scrolling segment.
-            // Both alpha-blended.
             ChemKind::Chemical2 | ChemKind::Chemical3 => {
                 let lift = if self.params.kind == ChemKind::Chemical3 {
                     STREAK_LIFT
@@ -660,7 +565,6 @@ mod tests {
 
     #[test]
     fn chemical3_spawns_one_burst_of_four_per_call_in_two_groups() {
-        // 4 pairs × 2 calls × 4 emitters = 32 streaks, half on each side.
         let mut e = ChemicalEffect::new_dir([0.0; 3], [0.0, 0.0, 10.0], CHEMICAL3);
         step(&mut e, 6);
         assert_eq!(e.streaks.len(), 32);
@@ -694,7 +598,6 @@ mod tests {
             e.streaks[0].scroll != z0,
             "scroll advances (segment travels +aim)"
         );
-        // Green-ish palette for the 20-group.
         assert!(draws(&e).iter().any(|p| matches!(p,
             EffectPrimitiveDraw::WorldQuad { color, .. } if color[1] >= color[0] && color[1] >= color[2])));
     }
@@ -718,7 +621,7 @@ mod tests {
             Some(BodyTint { rgb: YELLOW_GLOW }),
             "tint window 20-120"
         );
-        step(&mut e, 20); // past 40 (spawn) and 44 (quake)
+        step(&mut e, 20);
         assert_eq!(e.streaks.len(), 8);
         assert!(e.take_camera_shake().is_some(), "quake fires once");
         assert!(e.take_camera_shake().is_none());
@@ -726,12 +629,11 @@ mod tests {
 
     #[test]
     fn density_scales_with_pairs_and_burst_dies_out() {
-        let mut small = ChemicalEffect::new_dir([0.0; 3], [0.0, 0.0, 10.0], SMATK1); // 1 pair → 8
-        let mut big = ChemicalEffect::new_dir([0.0; 3], [0.0, 0.0, 10.0], SMATK3); // 8 pairs → 64
+        let mut small = ChemicalEffect::new_dir([0.0; 3], [0.0, 0.0, 10.0], SMATK1);
+        let mut big = ChemicalEffect::new_dir([0.0; 3], [0.0, 0.0, 10.0], SMATK3);
         step(&mut small, 6);
         step(&mut big, 6);
         assert_eq!((small.streaks.len(), big.streaks.len()), (8, 64));
-        // The one-shot burst fades out and the effect ends.
         assert_eq!(step(&mut big, 400), EffectStatus::Dead);
         assert!(draws(&big).is_empty());
     }

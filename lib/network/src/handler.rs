@@ -101,7 +101,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
-    // Entity spawn packets
     if let Some(p) = any.downcast_ref::<PacketZcNotifyStandentry7>() {
         let (x, y, dir) = decode_pos(&p.pos_dir);
         return vec![GameEvent::EntitySpawned {
@@ -127,9 +126,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             posture: p.state,
         }];
     }
-    // spawn_unit (0x090f): an entity appearing in place (fresh spawn / mob
-    // respawn). Identical to standentry7 minus the `state` byte, so a spawned
-    // entity is always standing.
     if let Some(p) = any.downcast_ref::<PacketZcNotifyNewentry7>() {
         let (x, y, dir) = decode_pos(&p.pos_dir);
         return vec![GameEvent::EntitySpawned {
@@ -205,7 +201,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             posture: 0,
         }];
     }
-    // MoveEntry8: entity entering view while already moving - treat as spawn at pos_dir
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMoveentry8>() {
         let (x, y, dir) = decode_pos(&p.pos_dir);
         return vec![GameEvent::EntitySpawned {
@@ -231,7 +226,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             posture: 0,
         }];
     }
-    // MoveEntry9: entity entering view while already moving - spawn + start movement
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMoveentry9>() {
         let (x1, y1, x2, y2) = decode_pos2(&p.move_data);
         return vec![
@@ -268,7 +262,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         ];
     }
 
-    // Entity movement
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMove>() {
         let (x1, y1, x2, y2) = decode_pos2(&p.move_data);
         return vec![GameEvent::EntityMoved {
@@ -288,7 +281,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
-    // Entity action (sit, stand, attack, etc.)
     if let Some(p) = any.downcast_ref::<PacketZcNotifyAct>() {
         return vec![GameEvent::EntityAction {
             gid: p.gid,
@@ -329,7 +321,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
-    // Entity direction change (doridori)
     if let Some(p) = any.downcast_ref::<PacketZcChangeDirection>() {
         return vec![GameEvent::EntityDirectionChanged {
             gid: p.aid,
@@ -338,7 +329,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
-    // Chat messages
     if let Some(p) = any.downcast_ref::<PacketZcNotifyChat>() {
         let message: String = p.msg.chars().take_while(|c| *c != '\0').collect();
         return vec![GameEvent::ChatMessage {
@@ -351,13 +341,11 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::OwnChatMessage { message }];
     }
 
-    // Entity name
     if let Some(p) = any.downcast_ref::<PacketZcAckReqname>() {
         let name: String = p.cname.iter().take_while(|c| **c != '\0').collect();
         return vec![GameEvent::EntityNameReceived { gid: p.aid, name }];
     }
 
-    // Entity despawn
     if let Some(p) = any.downcast_ref::<PacketZcNotifyVanish>() {
         return vec![GameEvent::EntityVanished {
             gid: p.gid,
@@ -365,7 +353,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
-    // Generic server-driven effect channel: `effect_id` is a raw `EF_*` number.
     if let Some(p) = any.downcast_ref::<PacketZcNotifyEffect2>() {
         return vec![GameEvent::PlayEffectOnEntity {
             gid: p.aid,
@@ -380,7 +367,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             value: Some(p.numdata),
         }];
     }
-    // Misc effect channel: `effect_id` is an `e_notify_effect` code, not an `EF_*` id.
     if let Some(p) = any.downcast_ref::<PacketZcNotifyEffect>() {
         return vec![GameEvent::PlayMiscEffectOnEntity {
             gid: p.aid,
@@ -394,7 +380,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::MvpReward { gid: p.aid }];
     }
 
-    // Character stats & parameters
     if let Some(p) = any.downcast_ref::<PacketZcParChange>() {
         return vec![GameEvent::ParameterChanged {
             var_id: p.var_id,
@@ -414,9 +399,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             bonus: p.plus_status,
         }];
     }
-    // Initial status packet (0x00bd) - sent by rathena via clif_initialstatus()
-    // Contains status_point in the `point` field; base stats and combat stats
-    // are sent redundantly via separate packets so we only extract status_point here.
     if let Some(p) = any.downcast_ref::<PacketZcStatus>() {
         return vec![GameEvent::ParameterChanged {
             var_id: 9, // StatusTypes::Statuspoint
@@ -437,7 +419,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
-    // Skill casting & emotions
     if let Some(p) = any.downcast_ref::<PacketZcUseskillAck2>() {
         return vec![GameEvent::SkillCasting {
             gid: p.aid,
@@ -475,7 +456,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             delay_ms: p.delay_tm,
         }];
     }
-    // EFST_POSTDELAY (index 46) = global after-cast delay
     if let Some(p) = any.downcast_ref::<PacketZcMsgStateChange2>() {
         if p.index == 46 && p.state {
             return vec![GameEvent::AfterCastDelay {
@@ -490,12 +470,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             val1: p.val[0],
         }];
     }
-    // The no-tick variant (`0x196`). The server uses this whenever
-    // `flag && display_status_timers` is false — crucially it is ALWAYS the
-    // status-OFF packet (flag=0), so without this arm buffs never clear on
-    // early removal. It carries no duration; `remain_ms: 0` means
-    // until-cleared (the off-packet despawns it; an on-packet here persists
-    // until its own off arrives).
+    // 0x196: always the status-OFF packet (flag=0); without this arm buffs never clear on early removal.
     if let Some(p) = any.downcast_ref::<PacketZcMsgStateChange>() {
         return vec![GameEvent::StatusEffectChanged {
             gid: p.aid,
@@ -592,7 +567,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
-    // Party member HP notifications
     if let Some(p) = any.downcast_ref::<PacketZcNotifyHpToGroupm>() {
         return vec![GameEvent::EntityHpChanged {
             gid: p.aid,
@@ -608,7 +582,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
-    // NPC dialog
     if let Some(p) = any.downcast_ref::<PacketZcSayDialog>() {
         let text: String = p.msg.chars().take_while(|c| *c != '\0').collect();
         return vec![GameEvent::NpcDialogText {
@@ -657,21 +630,16 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcDestroyRoom>() {
-        return vec![GameEvent::ChatRoomDestroy {
-            room_id: p.room_id,
-        }];
+        return vec![GameEvent::ChatRoomDestroy { room_id: p.room_id }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcEnterRoom>() {
-        return vec![GameEvent::ChatRoomEntered {
-            room_id: p.room_id,
-        }];
+        return vec![GameEvent::ChatRoomEntered { room_id: p.room_id }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcRefuseEnterRoom>() {
         return vec![GameEvent::ChatRoomJoinRefused { result: p.result }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcWarplist>() {
-        // Fixed layout: id(2) + SKID(2) + 4 map names of 16 bytes each.
-        // Parse from raw to stay independent of the generated array field shape.
+        // Parse raw to stay independent of the generated array field shape: id(2)+SKID(2)+4×16 bytes.
         let raw = p.raw();
         let mut destinations = Vec::new();
         for i in 0..4 {
@@ -706,7 +674,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::NpcDealTypeSelect { npc_id: p.naid }];
     }
 
-    // NPC shop
     if let Some(p) = any.downcast_ref::<PacketZcPcPurchaseItemlist>() {
         let items = p
             .item_list
@@ -730,7 +697,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::NpcShopSellResult { result: p.result }];
     }
 
-    // Inventory
     if let Some(p) = any.downcast_ref::<PacketZcNormalItemlist>() {
         let items = p
             .item_info
@@ -806,7 +772,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             result: p.result,
         }];
     }
-    // Normal item list v2/v3
     if let Some(p) = any.downcast_ref::<PacketZcNormalItemlist2>() {
         let items = p
             .item_info
@@ -837,7 +802,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             .collect();
         return vec![GameEvent::InventoryNormalItems { items }];
     }
-    // Equipment item list v2/v3
     if let Some(p) = any.downcast_ref::<PacketZcEquipmentItemlist2>() {
         let items = p
             .item_info
@@ -874,7 +838,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             .collect();
         return vec![GameEvent::InventoryEquipmentItems { items }];
     }
-    // Use item ack v1/v2
     if let Some(p) = any.downcast_ref::<PacketZcUseItemAck>() {
         return vec![GameEvent::InventoryUseItemResult {
             index: p.index,
@@ -889,13 +852,11 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             success: p.result,
         }];
     }
-    // Arrow/ammo equip notification
     if let Some(p) = any.downcast_ref::<PacketZcEquipArrow>() {
         return vec![GameEvent::InventoryArrowEquipped {
             index: p.index as u16,
         }];
     }
-    // Equip/unequip ack v1/v2
     if let Some(p) = any.downcast_ref::<PacketZcReqWearEquipAck>() {
         return vec![GameEvent::InventoryEquipResult {
             index: p.index,
@@ -939,10 +900,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
-    // Cart inventory
-    // Cart inventory lists come in several packetver-dependent shapes (base / 2 /
-    // 3); the carried item fields are identical, so each maps the same way. The
-    // server picks the variant by packetver (e.g. 20120307 sends the `3` form).
     macro_rules! cart_normal_items {
         ($p:expr) => {{
             let items = $p
@@ -1010,8 +967,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             slot: [p.slot.card1, p.slot.card2, p.slot.card3, p.slot.card4],
         }];
     }
-    // v1 carries no item-type byte; the apply step resolves the tab from the
-    // moved source item by id.
     if let Some(p) = any.downcast_ref::<PacketZcAddItemToCart>() {
         return vec![GameEvent::CartItemAdded {
             index: p.index as u16,
@@ -1042,7 +997,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::CartOff];
     }
 
-    // Card composition
     if let Some(p) = any.downcast_ref::<PacketZcItemcompositionList>() {
         return vec![GameEvent::CardInsertItemList {
             card_index: 0,
@@ -1057,7 +1011,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
-    // Floor items
     if let Some(p) = any.downcast_ref::<PacketZcItemFallEntry>() {
         return vec![GameEvent::FloorItemAppeared {
             id: p.itaid,
@@ -1088,7 +1041,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::FloorItemDisappeared { id: p.itaid }];
     }
 
-    // Acknowledged but not yet used (no UI)
     if let Some(p) = any.downcast_ref::<PacketZcAid>() {
         debug!("zone server confirmed AID={}", p.aid);
         return vec![GameEvent::Acknowledged];
@@ -1179,7 +1131,9 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMapproperty>() {
         let kind = MapKind::from_property(p.atype);
-        return vec![GameEvent::MapPropertyChanged(MapProperties::from_kind(kind))];
+        return vec![GameEvent::MapPropertyChanged(MapProperties::from_kind(
+            kind,
+        ))];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMapproperty2>() {
         let kind = MapKind::from_property(p.atype);
@@ -1206,18 +1160,18 @@ mod tests {
         assert!(result.is_empty());
     }
 
-    // The packetver-3 cart list (0x2e9) is what the server sends at this
-    // packetver; it must map to a cart event, not fall through silently.
     #[test]
     fn dispatch_cart_normal_itemlist3_yields_cart_items() {
         let packetver = 20120307;
         let mut pkt = PacketZcCartNormalItemlist3::new(packetver);
         pkt.fill_raw();
         let result = dispatch_packet(&pkt, packetver);
-        assert!(matches!(result.as_slice(), [GameEvent::CartNormalItems { .. }]));
+        assert!(matches!(
+            result.as_slice(),
+            [GameEvent::CartNormalItems { .. }]
+        ));
     }
 
-    // Change-cart picks a model number; the request packet must carry it.
     #[test]
     fn change_cart_packet_carries_model_number() {
         let packetver = 20120307;
@@ -1232,20 +1186,26 @@ mod tests {
 
     #[test]
     fn dispatch_skill_unit_entry_and_disappear_round_trip() {
-        // Sociable test: a ground-skill unit packet decodes to SkillUnitEntered
-        // carrying the cell + e_skill_unit_id, and its disappear packet decodes
-        // to SkillUnitDisappeared keyed by the same aid (the despawn handle).
         let packetver = 20120307;
         let mut entry = PacketZcSkillEntry::new(packetver);
         entry.set_aid(7001);
         entry.set_creator_aid(42);
         entry.set_x_pos(150);
         entry.set_y_pos(200);
-        entry.set_job(0x83); // UNT_SANCTUARY
+        entry.set_job(0x83);
         entry.set_is_visible(true);
         entry.fill_raw();
         match &dispatch_packet(&entry, packetver)[..] {
-            [GameEvent::SkillUnitEntered { aid, x, y, unit_id, is_visible, .. }] => {
+            [
+                GameEvent::SkillUnitEntered {
+                    aid,
+                    x,
+                    y,
+                    unit_id,
+                    is_visible,
+                    ..
+                },
+            ] => {
                 assert_eq!(*aid, 7001);
                 assert_eq!((*x, *y), (150, 200));
                 assert_eq!(*unit_id, 0x83);
@@ -1320,7 +1280,6 @@ mod tests {
         let packetver = 20120307;
         let mut pkt = PacketZcNotifyPlayermove::new(packetver);
         pkt.set_move_start_time(5000);
-        // Encode (100, 200) -> (110, 210) into move_data
         let x1: u16 = 100;
         let y1: u16 = 200;
         let x2: u16 = 110;
@@ -1356,7 +1315,6 @@ mod tests {
         let packetver = 20120307;
         let mut pkt = PacketZcAcceptEnter::new(packetver);
         pkt.set_start_time(1000);
-        // Encode position (100, 200, 3) into pos_dir
         let encoded = crate::helpers::encode_pos(100, 200, 3);
         pkt.set_pos_dir(encoded);
         pkt.fill_raw();
@@ -1372,12 +1330,10 @@ mod tests {
 
     #[test]
     fn dispatch_spawn_unit_returns_standing_entity_spawn() {
-        // spawn_unit (0x090f) is the in-place spawn / mob respawn packet. Unlike
-        // standentry it carries no `state` byte, so the entity is always standing.
         let packetver = 20120307;
         let mut pkt = PacketZcNotifyNewentry7::new(packetver);
         pkt.set_gid(123456);
-        pkt.set_job(1002); // Poring
+        pkt.set_job(1002);
         pkt.set_pos_dir(crate::helpers::encode_pos(100, 200, 3));
         pkt.fill_raw();
         let result = dispatch_packet(&pkt, packetver);
@@ -1570,12 +1526,9 @@ mod tests {
     fn build_action_request_packet_has_correct_format() {
         let raw = crate::sender::build_action_request_packet(0, 2, 20120307);
         assert_eq!(raw.len(), 7);
-        // PacketCzRequestAct at packetver>=20120307 uses 0x0885
         assert_eq!(raw[0], 0x85);
         assert_eq!(raw[1], 0x08);
-        // target_gid = 0 at offset 2
         assert_eq!(&raw[2..6], &[0, 0, 0, 0]);
-        // action = 2 (sit) at offset 6
         assert_eq!(raw[6], 2);
     }
 
@@ -1583,7 +1536,6 @@ mod tests {
     fn build_chat_packet_has_correct_format() {
         let raw = crate::sender::build_chat_packet("Player : hello", 20120307);
         assert_eq!(raw.len(), 19);
-        // rAthena uses 0x00F3 for CZ_REQUEST_CHAT
         assert_eq!(raw[0], 0xF3);
         assert_eq!(raw[1], 0x00);
         let pkt_len = i16::from_le_bytes([raw[2], raw[3]]);
@@ -1641,7 +1593,7 @@ mod tests {
     fn dispatch_par_change_returns_parameter_changed() {
         let packetver = 20120307;
         let mut pkt = PacketZcParChange::new(packetver);
-        pkt.set_var_id(5); // HP
+        pkt.set_var_id(5);
         pkt.set_count(441);
         pkt.fill_raw();
         let result = dispatch_packet(&pkt, packetver);
@@ -1660,7 +1612,7 @@ mod tests {
         let packetver = 20120307;
         let mut pkt = PacketZcSpriteChange2::new(packetver);
         pkt.set_gid(150000);
-        pkt.set_atype(2); // weapon
+        pkt.set_atype(2);
         pkt.set_value(1);
         pkt.set_value2(0);
         pkt.fill_raw();
@@ -1687,7 +1639,7 @@ mod tests {
         let packetver = 20120307;
         let mut pkt = PacketZcNotifyEffect2::new(packetver);
         pkt.set_aid(150000);
-        pkt.set_effect_id(28); // arbitrary raw EF_* number
+        pkt.set_effect_id(28);
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
@@ -1878,9 +1830,9 @@ mod tests {
         let packetver = 20120307;
         let mut pkt = PacketZcStateChange3::new(packetver);
         pkt.set_aid(150000);
-        pkt.set_body_state(3); // OPT1_STUN
-        pkt.set_health_state(0x1); // OPT2_POISON
-        pkt.set_effect_state(0x20); // OPTION_RIDING
+        pkt.set_body_state(3);
+        pkt.set_health_state(0x1);
+        pkt.set_effect_state(0x20);
         pkt.set_is_pkmode_on(false);
         pkt.fill_raw();
         let result = dispatch_packet(&pkt, packetver);
@@ -1905,7 +1857,6 @@ mod tests {
     fn dispatch_msg_state_change_routes_buff_and_keeps_postdelay() {
         let packetver = 20120307;
 
-        // A buff EFST (Berserk = 192) becomes a StatusEffectChanged event.
         let mut pkt = PacketZcMsgStateChange2::new(packetver);
         pkt.set_index(192);
         pkt.set_aid(150000);
@@ -1915,7 +1866,13 @@ mod tests {
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            GameEvent::StatusEffectChanged { gid, efst, active, remain_ms, .. } => {
+            GameEvent::StatusEffectChanged {
+                gid,
+                efst,
+                active,
+                remain_ms,
+                ..
+            } => {
                 assert_eq!(*gid, 150000);
                 assert_eq!(*efst, 192);
                 assert!(*active);
@@ -1924,7 +1881,6 @@ mod tests {
             other => panic!("expected StatusEffectChanged, got {other:?}"),
         }
 
-        // Index 46 (EFST_POSTDELAY) still routes to the after-cast delay.
         let mut pkt = PacketZcMsgStateChange2::new(packetver);
         pkt.set_index(46);
         pkt.set_aid(150000);
@@ -1937,8 +1893,6 @@ mod tests {
             GameEvent::AfterCastDelay { delay_ms: 500 }
         ));
 
-        // The no-tick variant (0x196) is the status-OFF packet (flag=0) — it
-        // must also route to StatusEffectChanged so buffs clear on removal.
         let mut pkt = PacketZcMsgStateChange::new(packetver);
         pkt.set_index(192);
         pkt.set_aid(150000);
@@ -1947,7 +1901,13 @@ mod tests {
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            GameEvent::StatusEffectChanged { gid, efst, active, remain_ms, .. } => {
+            GameEvent::StatusEffectChanged {
+                gid,
+                efst,
+                active,
+                remain_ms,
+                ..
+            } => {
                 assert_eq!(*gid, 150000);
                 assert_eq!(*efst, 192);
                 assert!(!*active, "0x196 off-packet must deactivate");
@@ -1965,7 +1925,7 @@ mod tests {
         pkt.set_room_id(7);
         pkt.set_maxcount(20);
         pkt.set_curcount(3);
-        pkt.set_atype(2); // arena
+        pkt.set_atype(2);
         let title = "Arena Entrance\0";
         pkt.set_title(title.to_string());
         pkt.set_title_raw(title.as_bytes().to_vec());

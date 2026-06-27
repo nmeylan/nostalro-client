@@ -18,11 +18,9 @@ const BTN_MAP_ID: WidgetId = WidgetId(1414);
 const BTN_SKILL_ID: WidgetId = WidgetId(1415);
 const BTN_PARTY_ID: WidgetId = WidgetId(1416);
 
-// Background textures
 const BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/basewin_bg.bmp";
 const BG_MINI_TEX: &str = "data/texture/유저인터페이스/basic_interface/basewin_mini.bmp";
 
-// Bar textures (3-part: left cap, mid fill, right cap)
 const BAR_RED_LEFT: &str = "data/texture/유저인터페이스/basic_interface/gzered_left.bmp";
 const BAR_RED_MID: &str = "data/texture/유저인터페이스/basic_interface/gzered_mid.bmp";
 const BAR_RED_RIGHT: &str = "data/texture/유저인터페이스/basic_interface/gzered_right.bmp";
@@ -30,13 +28,11 @@ const BAR_BLUE_LEFT: &str = "data/texture/유저인터페이스/basic_interface/
 const BAR_BLUE_MID: &str = "data/texture/유저인터페이스/basic_interface/gzeblue_mid.bmp";
 const BAR_BLUE_RIGHT: &str = "data/texture/유저인터페이스/basic_interface/gzeblue_right.bmp";
 
-// Topbar button textures
 const SYS_BASE_OFF: &str = "data/texture/유저인터페이스/basic_interface/sys_base_off.bmp";
 const SYS_BASE_ON: &str = "data/texture/유저인터페이스/basic_interface/sys_base_on.bmp";
 const SYS_MINI_OFF: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_off.bmp";
 const SYS_MINI_ON: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_on.bmp";
 
-// Menu button textures
 const BTN_OPTION: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/basic_interface/btn_option_off.bmp",
     hover: "data/texture/유저인터페이스/basic_interface/btn_option_on.bmp",
@@ -86,15 +82,13 @@ const BAR_H: f32 = 8.0;
 const BAR_CAP_W: f32 = 4.0;
 const BAR_MID_MAX: f32 = 77.0; // 85 - 4 - 4
 
-// EXP bar layout
 const EXP_BAR_X: f32 = 84.0;
 const EXP_BAR_Y: f32 = 77.0;
 const JEXP_BAR_Y: f32 = 88.0;
 const EXP_BAR_W: f32 = 100.0;
 const EXP_BAR_H: f32 = 4.0;
 
-// Menu buttons area (right side)
-const BUTTONS_RIGHT: f32 = 8.0; // padding from right edge
+const BUTTONS_RIGHT: f32 = 8.0;
 const BUTTONS_TOP: f32 = 18.0;
 const MENU_BTN_W: f32 = 30.0;
 const MENU_BTN_H: f32 = 20.0;
@@ -171,7 +165,6 @@ impl BasicInfoWindow {
 
         let white = [1.0, 1.0, 1.0, 1.0];
 
-        // Left cap
         let (v, i) = draw::quad_vertices(x, y, cap_w, cap_h, white);
         ui.draw_calls.push(DrawCall {
             vertices: v.to_vec(),
@@ -179,7 +172,6 @@ impl BasicInfoWindow {
             texture: TextureRef::Named(left_tex.to_string()),
         });
 
-        // Mid fill (stretched)
         if mid_w > 0.0 {
             let (v, i) = draw::quad_vertices(x + cap_w, y, mid_w, cap_h, white);
             ui.draw_calls.push(DrawCall {
@@ -189,7 +181,6 @@ impl BasicInfoWindow {
             });
         }
 
-        // Right cap
         let (v, i) = draw::quad_vertices(x + cap_w + mid_w, y, cap_w, cap_h, white);
         ui.draw_calls.push(DrawCall {
             vertices: v.to_vec(),
@@ -209,7 +200,6 @@ impl BasicInfoWindow {
         fill_color: [f32; 4],
         shadow_color: [f32; 4],
     ) {
-        // Background track
         let bg_color = [0.15, 0.15, 0.15, 0.9];
         let (v, i) = draw::quad_vertices(x, y, w, h, bg_color);
         ui.draw_calls.push(DrawCall {
@@ -218,7 +208,6 @@ impl BasicInfoWindow {
             texture: TextureRef::White,
         });
 
-        // Shadow
         if shadow_pct > 0.0 {
             let sw = (w * shadow_pct.clamp(0.0, 1.0)).max(0.0);
             let (v, i) = draw::quad_vertices(x, y, sw, h, shadow_color);
@@ -229,7 +218,6 @@ impl BasicInfoWindow {
             });
         }
 
-        // Fill
         if fill_pct > 0.0 {
             let fw = (w * fill_pct.clamp(0.0, 1.0)).max(0.0);
             let (v, i) = draw::quad_vertices(x, y, fw, h, fill_color);
@@ -243,7 +231,6 @@ impl BasicInfoWindow {
 
     fn draw_exp_bar(ui: &mut UiFrame, x: f32, y: f32, fill_pct: f32, grf: bool) {
         if grf {
-            // Border
             let border_color = [0.69, 0.69, 0.69, 1.0];
             let (v, i) = draw::quad_vertices(x, y, EXP_BAR_W + 2.0, EXP_BAR_H + 2.0, border_color);
             ui.draw_calls.push(DrawCall {
@@ -251,7 +238,6 @@ impl BasicInfoWindow {
                 indices: i.to_vec(),
                 texture: TextureRef::White,
             });
-            // White bg
             let (v, i) = draw::quad_vertices(x + 1.0, y + 1.0, EXP_BAR_W, EXP_BAR_H, [1.0; 4]);
             ui.draw_calls.push(DrawCall {
                 vertices: v.to_vec(),
@@ -272,10 +258,9 @@ impl BasicInfoWindow {
                 texture: TextureRef::White,
             });
         }
-        // Fill
         if fill_pct > 0.0 {
             let fw = (EXP_BAR_W * fill_pct.clamp(0.0, 1.0)).floor();
-            let fill_color = [0.26, 0.38, 0.65, 1.0]; // #4262a5
+            let fill_color = [0.26, 0.38, 0.65, 1.0];
             let (v, i) = draw::quad_vertices(x + 1.0, y + 1.0, fw, EXP_BAR_H, fill_color);
             ui.draw_calls.push(DrawCall {
                 vertices: v.to_vec(),
@@ -298,7 +283,6 @@ impl BasicInfoWindow {
         let y = win.y;
         let delta = ui.elapsed_secs;
 
-        // Background
         if grf && self.bg_size.0 > 0.0 {
             let (v, i) = draw::quad_vertices(x, y, self.bg_size.0, self.bg_size.1, [1.0; 4]);
             ui.draw_calls.push(DrawCall {
@@ -329,7 +313,6 @@ impl BasicInfoWindow {
             }
         }
 
-        // Close button (top-left)
         let close_rect = Rect::new(x + 4.0, y + 3.0, self.sys_btn_size.0, self.sys_btn_size.1);
         let close_resp = ui.interact(CLOSE_BTN_ID, close_rect);
         if close_resp.hovered() {
@@ -348,10 +331,8 @@ impl BasicInfoWindow {
             [1.0; 4],
         );
 
-        // Title
         ui.text(x + 18.0, y + 13.0, "Basic Info", tc);
 
-        // Minimize button (top-right)
         let mini_rect = Rect::new(
             x + WIN_W - 2.0 - self.sys_btn_size.0,
             y + 3.0,
@@ -378,7 +359,6 @@ impl BasicInfoWindow {
             [0.5, 0.5, 0.6, 1.0],
         );
 
-        // Name (left side)
         let name = if character.name.is_empty() {
             "Unknown"
         } else {
@@ -386,11 +366,9 @@ impl BasicInfoWindow {
         };
         ui.text(x + 10.0, y + 30.0, name, tc);
 
-        // Job name (left side, below name)
         let job_name = character.job_class_name();
         ui.text(x + 10.0, y + 43.0, job_name, tc);
 
-        // HP bar
         let hp_pct = character.hp_percentage();
         Self::update_shadow(&mut self.hp_shadow, hp_pct, delta);
         let is_red = hp_pct < 0.25;
@@ -423,7 +401,6 @@ impl BasicInfoWindow {
                 [0.4, 0.4, 0.6, 0.7],
             );
         }
-        // HP text centered below bar
         let hp_text = format!("{} / {}", character.hp, character.max_hp);
         ui.text_centered(
             x + HP_BAR_X,
@@ -433,17 +410,15 @@ impl BasicInfoWindow {
             tc,
         );
 
-        // HP tooltip
         let hp_bar_rect = Rect::new(x + HP_BAR_X, y + HP_BAR_Y, BAR_W, BAR_H + 10.0);
         if hp_bar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
             ui.tooltip(
-                ui.ctx.mouse_x+ 10.0,
+                ui.ctx.mouse_x + 10.0,
                 ui.ctx.mouse_y,
                 &format!("{:.1}%", hp_pct * 100.0),
             );
         }
 
-        // SP bar
         let sp_pct = character.sp_percentage();
         Self::update_shadow(&mut self.sp_shadow, sp_pct, delta);
 
@@ -489,7 +464,6 @@ impl BasicInfoWindow {
             );
         }
 
-        // Base Level + EXP bar
         let blvl_text = format!("Base Lv. {}", character.base_level);
         ui.text(x + 15.0, y + 80.0, &blvl_text, tc);
         let base_exp_pct = character.base_exp_percentage();
@@ -503,14 +477,9 @@ impl BasicInfoWindow {
             EXP_BAR_H + 2.0,
         );
         if exp_bar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
-            ui.tooltip(
-                ui.ctx.mouse_x+ 10.0,
-                ui.ctx.mouse_y,
-               &exp_text,
-            );
+            ui.tooltip(ui.ctx.mouse_x + 10.0, ui.ctx.mouse_y, &exp_text);
         }
 
-        // Job Level + EXP bar
         let jlvl_text = format!("Job Lv. {}", character.job_level);
         ui.text(x + 15.0, y + 93.0, &jlvl_text, tc);
         let job_exp_pct = character.job_exp_percentage();
@@ -524,14 +493,9 @@ impl BasicInfoWindow {
             EXP_BAR_H + 2.0,
         );
         if jexp_bar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
-            ui.tooltip(
-                ui.ctx.mouse_x+ 10.0,
-                ui.ctx.mouse_y,
-                &jexp_text,
-            );
+            ui.tooltip(ui.ctx.mouse_x + 10.0, ui.ctx.mouse_y, &jexp_text);
         }
 
-        // Weight / Zeny line
         let weight = character.inventory.weight;
         let max_weight = character.inventory.max_weight;
         let weight_over = max_weight > 0 && weight as f32 / max_weight as f32 >= 0.5;
@@ -547,7 +511,6 @@ impl BasicInfoWindow {
         let zeny_text = format!("Zeny : {}", format_zeny(character.inventory.zeny));
         ui.text(x + 5.0 + weight_width + 8.0, y + 115.0, &zeny_text, tc);
 
-        // Menu buttons (right side, 2 columns)
         let btn_w = self.menu_btn_size.0;
         let btn_h = self.menu_btn_size.1;
         let col2_x = x + WIN_W - BUTTONS_RIGHT - btn_w;
@@ -609,7 +572,6 @@ impl BasicInfoWindow {
         let x = win.x;
         let y = win.y;
 
-        // Background
         if grf && self.bg_mini_size.0 > 0.0 {
             let (v, i) =
                 draw::quad_vertices(x, y, self.bg_mini_size.0, self.bg_mini_size.1, [1.0; 4]);
@@ -641,7 +603,6 @@ impl BasicInfoWindow {
             }
         }
 
-        // Name (top-left)
         let name = if character.name.is_empty() {
             "Unknown"
         } else {
@@ -649,7 +610,6 @@ impl BasicInfoWindow {
         };
         ui.text(x + 18.0, y + 12.0, name, tc);
 
-        // Expand button (top-right)
         let mini_rect = Rect::new(
             x + WIN_W - 2.0 - self.sys_btn_size.0,
             y + 3.0,
@@ -676,7 +636,6 @@ impl BasicInfoWindow {
             [0.5, 0.5, 0.6, 1.0],
         );
 
-        // Compact info line (top-right area)
         let job_name = character.job_class_name();
         let exp_pct = character.base_exp_percentage() * 100.0;
         let info_text = format!(
@@ -685,7 +644,6 @@ impl BasicInfoWindow {
         );
         ui.text_right(x + WIN_W - 18.0, y + 12.0, &info_text, tc);
 
-        // HP / SP line
         let hp_sp_text = format!(
             "HP. {} / {} | SP. {} / {}",
             character.hp, character.max_hp, character.sp, character.max_sp

@@ -1,5 +1,3 @@
-/// Built-in accessory table extracted from accessoryid.lua + accname.lua.
-/// Maps view_id to sprite name suffix. Used as fallback when GRF has no Lua files.
 pub const BUILTIN_ACCESSORY_TABLE: &[(u16, &str)] = &[
     (1, "_고글"),
     (2, "_고양이머리띠"),

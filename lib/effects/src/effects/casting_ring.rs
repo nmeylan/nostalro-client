@@ -1,88 +1,26 @@
-//! `EF_LEVEL99` (#200) / `EF_LEVEL995` (#397) — the spinning flared light ring
-//! of the level-99 / transcendant aura.
-//!
-//! Three flared rings stacked on the caster, each a closed strip walked
-//! around the ring at a per-ring radius, the top rim pushed outward + up by
-//! `(cos rise, sin rise) * height`. The three rings differ only in
-//! start angle (0°/90°/180°), radius, rise angle and height, and
-//! they spin at slightly different speeds (`+3/+4/+5°` per frame) so their
-//! ray patterns shimmer out of phase.
-//!
-//! This is the same flared-cone shape the cast circles use, so we
-//! map it the same way: a flared [`Frustum`] cone per ring with a uniform top
-//! rim, the *rays* coming from the `ring_blue` / `ring_white` texture wrapped
-//! once around the circumference (`uv_repeat = 1`) — exactly how
-//! [`super::cast_circle`] paints its petals. The reference gif confirms
-//! the same shape: a flared cone (narrow base, wide top) rendered with a
-//! single ring texture, an unbroken ring of rays rather than procedural
-//! peaks.
-//!
-//! Persistent effect: the aura lives until the server clears it
-//! (`table.rs` ships these ids with `u32::MAX`), so there is no fade-out — only
-//! a short alpha ramp-in (the original game ramps alpha over ~20 frames).
-//!
-//! [`Frustum`]: EffectPrimitiveDraw::Frustum
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// Three stacked rings (the original game uses three active ring slots; the
-/// 4th slot is dead).
 const NUM_RINGS: usize = 3;
-
-/// Segment count around each ring. The original game walks 20
-/// divisions around the ring; matching it lands the texture's ray stripes
-/// on the same per-segment cadence.
 const RING_SIDES: u32 = 20;
-
-/// Full closed ring. The original game's launcher leaves a 45° gap (a
-/// 315° arc), but the reference gif — which outranks that — shows an
-/// unbroken ring of rays all the way around, a full-circle cone. We draw
-/// the closed ring and let the three rings' 0°/90°/180° starts spread the
-/// texture's ray stripes evenly.
 const RING_ARC_DEG: f32 = 360.0;
-
-/// Texture wraps exactly once around the circumference, so the ray stripes in
-/// `ring_blue` paint as evenly-spaced light rays.
 const RING_UV_REPEAT: f32 = 1.0;
-
-/// Per-ring base spin in degrees/frame: ring 0 → 3, ring 1 → 4, ring 2 → 5
-/// (each ring spins `ec + 3` degrees per frame). Applied negative so the
-/// ring spins clockwise viewed from above, matching the original game.
 const RING_SPIN_BASE_DEG_PER_FRAME: f32 = 3.0;
-
-/// Alpha ramp-in window (frames). The original game ramps alpha by +10/frame
-/// to its peak over the first ~18-20 frames.
 const FADE_IN_FRAMES: f32 = 20.0;
 
 #[derive(Clone, Copy, Debug)]
 pub struct CastingRingParams {
     pub texture: &'static str,
-    /// RGB tint multiplied into every ring. `ring_blue`/`ring_white` already
-    /// carry most of the colour; this just nudges the hue.
     pub color_rgb: [f32; 3],
-    /// Bottom-rim radius of ring 0 (narrow base of the upward funnel).
     pub bottom_size: f32,
-    /// Top-rim radius of ring 0 (the cone flares outward as it rises).
     pub top_size: f32,
-    /// World-space height of ring 0's top rim above the caster's feet.
     pub height: f32,
-    /// Per-ring peak alpha. Level-99 rings stack to ~0.30; the map-zone aura
-    /// (`MAP_AURA`) is fainter (alpha 50/255 → ~0.20).
     pub alpha_max: f32,
-    /// Alpha multiplier at the cone base (lerps to full at the rim). The
-    /// level-99 ring fades its base so three closed, additively-overlapped
-    /// rings don't bloom into a solid disc at the feet that drowns the
-    /// pikapika/orbs layers; flat cast circles keep `1.0`.
     pub base_alpha: f32,
 }
 
-/// `EF_LEVEL99` — blue level-99 ring (`ring_blue.tga`, size 4). Geometry matches
-/// the original `Render3DCasting` cone: bottom rim = `distance` (3.9), top rim =
-/// `distance + cos(rise_angle)·max_height` ≈ 12.5, cone height =
-/// `sin(rise_angle)·max_height` ≈ 12.3 — a wide flared funnel, not a narrow tube.
 pub const LV99: CastingRingParams = CastingRingParams {
     texture: "ring_blue.tga",
     color_rgb: [0.55, 0.55, 1.00],
@@ -93,8 +31,6 @@ pub const LV99: CastingRingParams = CastingRingParams {
     base_alpha: 0.25,
 };
 
-/// `EF_LEVEL995` — white transcendant ring (`ring_white.tga`, F1=1,
-/// size 7 → wider base, white tint).
 pub const LV995: CastingRingParams = CastingRingParams {
     texture: "ring_white.tga",
     color_rgb: [1.00, 1.00, 1.00],
@@ -105,11 +41,6 @@ pub const LV995: CastingRingParams = CastingRingParams {
     base_alpha: 1.0,
 };
 
-/// `EF_GREEN99_5` (#679) — green level-99 ring. Same flared
-/// `ring_white.tga` cone as `LV995` (size 7); only the tint
-/// differs. The original launches the white texture with just a size bump, but
-/// in the original game this id reads green (like the #398/#680 floor aura), so
-/// we apply our level-99 green.
 pub const GREEN995: CastingRingParams = CastingRingParams {
     texture: "ring_white.tga",
     color_rgb: [0.14, 1.00, 0.14],
@@ -120,9 +51,6 @@ pub const GREEN995: CastingRingParams = CastingRingParams {
     base_alpha: 1.0,
 };
 
-/// The flared blue ring under
-/// `EF_MAP_MAGICZONE` (#650). Wide low funnel (radius ≈ 12.9, rise 55°,
-/// height 15) at alpha 50/255. Reused by [`super::mapzone`].
 pub const MAP_AURA: CastingRingParams = CastingRingParams {
     texture: "ring_blue.tga",
     color_rgb: [0.55, 0.55, 1.00],
@@ -133,10 +61,6 @@ pub const MAP_AURA: CastingRingParams = CastingRingParams {
     base_alpha: 1.0,
 };
 
-/// `EF_BEGINSPELL8` — green cast cylinder (`ring_green.tga`, F1=1).
-/// `ring_green.tga` is absent from the classic GRF, so we paint the shared
-/// `ring_white.tga` ray strip and tint it green (the documented texture
-/// substitution path). Same flared cone the cast circles use.
 pub const BEGINSPELL8: CastingRingParams = CastingRingParams {
     texture: "ring_white.tga",
     color_rgb: [0.45, 1.00, 0.55],
@@ -172,7 +96,6 @@ impl CastingRingEffect {
 impl Effect for CastingRingEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.age += ctx.delta;
-        // Persistent aura — the holder despawns it via the duration table.
         EffectStatus::Running
     }
 
@@ -190,8 +113,6 @@ impl Effect for CastingRingEffect {
 
         for i in 0..NUM_RINGS {
             let fi = i as f32;
-            // Outer rings: slightly shorter and flared a touch wider, matching
-            // the original game (each ring is a touch shorter and wider).
             let height = self.params.height - fi * 0.5;
             let bottom_size = self.params.bottom_size;
             let top_size = self.params.top_size + fi * 0.3;
@@ -294,7 +215,6 @@ mod tests {
                 _ => panic!(),
             })
             .collect();
-        // Different base spin + start angle ⇒ all three rotations differ.
         assert!((rotations[0] - rotations[1]).abs() > 1e-3);
         assert!((rotations[1] - rotations[2]).abs() > 1e-3);
     }

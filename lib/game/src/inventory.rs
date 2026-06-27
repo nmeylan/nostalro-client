@@ -1,9 +1,9 @@
+use crate::data_table::item_resource_table::ItemResourceTable;
 use crate::item::InventoryTab;
 use crate::item::Item;
 pub use models::enums::item::EquipmentLocation;
 use models::enums::item::ItemType;
 use models::enums::{EnumWithMaskValueU64, EnumWithNumberValue};
-use crate::data_table::item_resource_table::ItemResourceTable;
 
 #[derive(Debug)]
 pub struct InventoryData {
@@ -83,7 +83,6 @@ impl InventoryData {
     }
 
     pub fn update_wear_state(&mut self, index: u16, wear_location: u16) {
-        // Clear any existing item in the same slot (e.g. only one ammo can be equipped)
         for item in &mut self.items {
             if item.index != index && item.wear_state & wear_location != 0 {
                 item.wear_state &= !wear_location;
@@ -295,8 +294,12 @@ fn resolve_name_and_resource(
     (name, resource_name)
 }
 
-pub fn normal_item_to_item(info: &NormalItemData, data_table: &crate::data_table::DataTable) -> Item {
-    let (name, resource_name) = resolve_name_and_resource(info.item_id, info.is_identified, data_table);
+pub fn normal_item_to_item(
+    info: &NormalItemData,
+    data_table: &crate::data_table::DataTable,
+) -> Item {
+    let (name, resource_name) =
+        resolve_name_and_resource(info.item_id, info.is_identified, data_table);
     Item {
         index: info.index as u16,
         item_id: info.item_id,
@@ -317,7 +320,8 @@ pub fn equipment_item_to_item(
     info: &EquipmentItemData,
     data_table: &crate::data_table::DataTable,
 ) -> Item {
-    let (name, resource_name) = resolve_name_and_resource(info.item_id, info.is_identified, data_table);
+    let (name, resource_name) =
+        resolve_name_and_resource(info.item_id, info.is_identified, data_table);
     Item {
         index: info.index as u16,
         item_id: info.item_id,
@@ -334,10 +338,6 @@ pub fn equipment_item_to_item(
     }
 }
 
-/// The merchant pushcart inventory: a separate item store with its own
-/// weight/count limits. Items here are never "equipped", so unlike
-/// [`InventoryData`] the cart has no wear-state handling — only stacking,
-/// removal and tab filtering. `active_tab == None` shows every item ("All").
 #[derive(Debug)]
 pub struct CartData {
     items: Vec<Item>,
@@ -462,8 +462,13 @@ impl CartData {
         }
     }
 
-    /// Server-authoritative weight/count totals from `ZC_NOTIFY_CARTITEM_COUNTINFO`.
-    pub fn set_count_info(&mut self, cur_weight: i32, max_weight: i32, cur_count: i16, max_count: i16) {
+    pub fn set_count_info(
+        &mut self,
+        cur_weight: i32,
+        max_weight: i32,
+        cur_count: i16,
+        max_count: i16,
+    ) {
         self.weight = cur_weight;
         self.max_weight = max_weight;
         self.count = cur_count;
@@ -477,7 +482,6 @@ impl CartData {
     }
 }
 
-// Data carriers for GameEvent transport (before name/resource resolution)
 #[derive(Debug, Clone)]
 pub struct NormalItemData {
     pub index: i16,
@@ -551,14 +555,12 @@ mod tests {
         inv.toggle();
         assert!(!inv.is_open());
 
-        // Add mixed items: healing (type 0), weapon (type 4), card (type 6)
-        inv.add_item(make_normal_item(1, 501, 0, 10)); // Red Potion - usable
-        inv.add_item(make_normal_item(2, 502, 2, 5)); // Orange Potion - usable
-        inv.add_item(make_equip_item(3, 1201, 2)); // Knife - equip
-        inv.add_item(make_normal_item(4, 4001, 6, 1)); // Card - etc
-        inv.add_item(make_normal_item(5, 7001, 3, 50)); // Etc item
+        inv.add_item(make_normal_item(1, 501, 0, 10));
+        inv.add_item(make_normal_item(2, 502, 2, 5));
+        inv.add_item(make_equip_item(3, 1201, 2));
+        inv.add_item(make_normal_item(4, 4001, 6, 1));
+        inv.add_item(make_normal_item(5, 7001, 3, 50));
 
-        // Tab filtering
         inv.active_tab = InventoryTab::Usable;
         assert_eq!(inv.filtered_items().len(), 2);
 
@@ -569,7 +571,6 @@ mod tests {
         inv.active_tab = InventoryTab::Etc;
         assert_eq!(inv.filtered_items().len(), 2);
 
-        // Equipped items are filtered out
         inv.update_wear_state(3, 2);
         inv.active_tab = InventoryTab::Equip;
         assert_eq!(inv.filtered_items().len(), 0);
@@ -584,16 +585,13 @@ mod tests {
         inv.add_item(make_normal_item(1, 501, 0, 10));
         inv.add_item(make_equip_item(2, 1201, 2));
 
-        // Use item reduces count
         inv.update_item_count(1, 9);
         assert_eq!(inv.get_item(1).unwrap().count, 9);
 
-        // Use item until 0 removes it
         inv.update_item_count(1, 0);
         assert!(inv.get_item(1).is_none());
         assert_eq!(inv.all_items().len(), 1);
 
-        // Equip / unequip
         inv.update_wear_state(2, 2);
         assert!(inv.get_item(2).unwrap().is_equipped());
         assert_eq!(inv.get_item(2).unwrap().wear_state, 2);
@@ -601,7 +599,6 @@ mod tests {
         inv.clear_wear_state(2);
         assert!(!inv.get_item(2).unwrap().is_equipped());
 
-        // Remove item directly
         inv.remove_item(2);
         assert!(inv.all_items().is_empty());
     }
@@ -610,11 +607,10 @@ mod tests {
     fn pickup_and_tab_classification() {
         let mut inv = InventoryData::new();
 
-        // Pickup adds to correct tab
-        inv.add_item(make_normal_item(10, 501, 0, 1)); // healing -> Usable
-        inv.add_item(make_normal_item(11, 1101, 4, 1)); // weapon -> Equip
-        inv.add_item(make_normal_item(12, 7001, 3, 1)); // etc -> Etc
-        inv.add_item(make_normal_item(13, 1750, 10, 100)); // ammo -> Etc
+        inv.add_item(make_normal_item(10, 501, 0, 1));
+        inv.add_item(make_normal_item(11, 1101, 4, 1));
+        inv.add_item(make_normal_item(12, 7001, 3, 1));
+        inv.add_item(make_normal_item(13, 1750, 10, 100));
 
         assert_eq!(item_tab(ItemType::Healing), InventoryTab::Usable);
         assert_eq!(item_tab(ItemType::Usable), InventoryTab::Usable);
@@ -626,12 +622,10 @@ mod tests {
         assert_eq!(item_tab(ItemType::Card), InventoryTab::Etc);
         assert_eq!(item_tab(ItemType::Ammo), InventoryTab::Etc);
 
-        // add_item with same index updates existing
         inv.add_item(make_normal_item(10, 501, 0, 5));
         assert_eq!(inv.get_item(10).unwrap().count, 6);
         assert_eq!(inv.all_items().len(), 4);
 
-        // Remove and verify
         inv.remove_item(12);
         assert!(inv.get_item(12).is_none());
         assert_eq!(inv.all_items().len(), 3);
@@ -640,23 +634,19 @@ mod tests {
     #[test]
     fn equipped_in_slot_lookup() {
         let mut inv = InventoryData::new();
-        inv.add_item(make_equip_item(3, 1201, 2)); // Knife, location=HandRight
-        inv.add_item(make_equip_item(5, 2101, 16)); // Armor, location=Armor
+        inv.add_item(make_equip_item(3, 1201, 2));
+        inv.add_item(make_equip_item(5, 2101, 16));
 
-        // Nothing equipped yet
         assert!(inv.equipped_in_slot(EquipmentLocation::HandRight).is_none());
 
-        // Equip knife in right hand
         inv.update_wear_state(3, 2);
         let item = inv.equipped_in_slot(EquipmentLocation::HandRight).unwrap();
         assert_eq!(item.index, 3);
         assert!(inv.equipped_in_slot(EquipmentLocation::Armor).is_none());
 
-        // Equip armor
         inv.update_wear_state(5, 16);
         assert!(inv.equipped_in_slot(EquipmentLocation::Armor).is_some());
 
-        // Unequip knife
         inv.clear_wear_state(3);
         assert!(inv.equipped_in_slot(EquipmentLocation::HandRight).is_none());
         assert!(inv.equipped_in_slot(EquipmentLocation::Armor).is_some());
@@ -665,12 +655,10 @@ mod tests {
     #[test]
     fn headgear_equipped_in_slot() {
         let mut inv = InventoryData::new();
-        // HeadTop mask=256, HeadMid mask=512, HeadLow mask=1
-        inv.add_item(make_equip_item(10, 2220, 256)); // Hat → HeadTop
-        inv.add_item(make_equip_item(11, 5001, 512)); // Sunglasses → HeadMid
-        inv.add_item(make_equip_item(12, 5100, 1)); // Mouth mask → HeadLow
+        inv.add_item(make_equip_item(10, 2220, 256));
+        inv.add_item(make_equip_item(11, 5001, 512));
+        inv.add_item(make_equip_item(12, 5100, 1));
 
-        // Equip all three
         inv.update_wear_state(10, 256);
         inv.update_wear_state(11, 512);
         inv.update_wear_state(12, 1);
@@ -694,7 +682,6 @@ mod tests {
             12
         );
 
-        // Multi-slot headgear (HeadTop+HeadMid = 256|512 = 768)
         inv.clear_wear_state(10);
         inv.clear_wear_state(11);
         inv.add_item(make_equip_item(13, 2230, 768));
@@ -723,29 +710,25 @@ mod tests {
     #[test]
     fn ammunition_equip_stays_visible() {
         let mut inv = InventoryData::new();
-        inv.add_item(make_normal_item(20, 1750, 10, 100)); // arrows, type 10 = ammo
+        inv.add_item(make_normal_item(20, 1750, 10, 100));
 
         let ammo = inv.get_item(20).unwrap();
         assert_eq!(ammo.tab(), InventoryTab::Etc);
         assert!(ammo.is_ammunition());
         assert!(ammo.is_equipment());
 
-        // Ammo visible in Etc tab before equipping
         inv.active_tab = InventoryTab::Etc;
         assert_eq!(inv.filtered_items().len(), 1);
 
-        // Equip ammo - it should remain visible in Etc tab
         inv.update_wear_state(20, InventoryData::slot_mask(EquipmentLocation::Ammo));
         assert!(inv.get_item(20).unwrap().is_equipped());
         assert_eq!(inv.filtered_items().len(), 1);
 
-        // Also findable via equipped_in_slot
         assert_eq!(
             inv.equipped_in_slot(EquipmentLocation::Ammo).unwrap().index,
             20
         );
 
-        // Unequip - still visible
         inv.clear_wear_state(20);
         assert!(!inv.get_item(20).unwrap().is_equipped());
         assert_eq!(inv.filtered_items().len(), 1);
@@ -768,12 +751,10 @@ mod tests {
     fn wear_location_to_sprite_type_disambiguates_hand_left() {
         use crate::entity::Entity;
 
-        // HandLeft + Weapon item routes to weapon slot.
         assert_eq!(
             Entity::wear_location_to_sprite_type_for(32, Some(ItemType::Weapon)),
             Some(2),
         );
-        // HandLeft + Armor item routes to shield slot.
         assert_eq!(
             Entity::wear_location_to_sprite_type_for(32, Some(ItemType::Armor)),
             Some(8),
@@ -785,22 +766,19 @@ mod tests {
         let mut cart = CartData::new();
         assert!(!cart.is_open());
 
-        cart.add_item(make_normal_item(1, 501, 0, 10)); // Red Potion - usable
-        cart.add_item(make_equip_item(2, 1201, 2)); // Knife - equip
-        cart.add_item(make_normal_item(3, 7001, 3, 50)); // Etc item
+        cart.add_item(make_normal_item(1, 501, 0, 10));
+        cart.add_item(make_equip_item(2, 1201, 2));
+        cart.add_item(make_normal_item(3, 7001, 3, 50));
 
-        // active_tab None shows everything.
         assert_eq!(cart.filtered_items().len(), 3);
         cart.active_tab = Some(InventoryTab::Usable);
         assert_eq!(cart.filtered_items().len(), 1);
         cart.active_tab = Some(InventoryTab::Equip);
         assert_eq!(cart.filtered_items()[0].item_id, 1201);
 
-        // Same-index add stacks (cart items never equip).
         cart.add_item(make_normal_item(1, 501, 0, 5));
         assert_eq!(cart.get_item(1).unwrap().count, 15);
 
-        // Moving items out reduces the stack and removes at zero.
         cart.subtract_item_count(1, 15);
         assert!(cart.get_item(1).is_none());
 

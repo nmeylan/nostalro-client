@@ -1,16 +1,15 @@
+use crate::helper::window_chrome::{
+    SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container, draw_sys_button,
+    draw_titlebar, text_color,
+};
+use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-use crate::helper::window_chrome::{
-    SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container, draw_sys_button,
-    draw_titlebar, text_color,
-};
-use crate::{InGameWindow, Window};
 
-// -- Widget IDs (block 1850) --
 pub const CART_SELECT_WINDOW_ID: WidgetId = WidgetId(1850);
 const CART_SELECT_CLOSE_BTN_ID: WidgetId = WidgetId(1851);
 const CART_SELECT_ROW_BASE_ID: u32 = 1855;
@@ -23,22 +22,15 @@ const ROW_H: f32 = 44.0;
 const PAD: f32 = 6.0;
 const WIN_W: f32 = 170.0;
 const MINI_BTN_SIZE: f32 = 11.0;
-/// Width of the left cell in each row reserved for the cart sprite preview.
 const PREVIEW_W: f32 = 44.0;
-/// Render scale for the cart preview sprite inside a row.
 pub const PREVIEW_SCALE: f32 = 0.4;
 
-/// The selectable cart models and the base level each requires, matching the
-/// server's change-cart gating (model 1 is always available).
 const CART_MODELS: [(i16, u16); 5] = [(1, 0), (2, 40), (3, 65), (4, 80), (5, 90)];
 
 pub struct CartSelectWindow {
     pub has_grf_textures: bool,
     open: bool,
-    /// Per-row (design, screen-space centre) for the cart sprite previews the
-    /// scene layer renders; rebuilt each frame by build().
     model_previews: Vec<(u8, [f32; 2])>,
-    /// Draw-call index where the previews should be inserted (above row bgs).
     preview_insert_index: Option<usize>,
 }
 
@@ -99,7 +91,12 @@ impl Window for CartSelectWindow {
 }
 
 impl InGameWindow for CartSelectWindow {
-    fn build(&mut self, ui: &mut UiFrame, character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
+    fn build(
+        &mut self,
+        ui: &mut UiFrame,
+        character: &mut Character,
+        _data: &DataTable,
+    ) -> Vec<GameEvent> {
         self.model_previews.clear();
         self.preview_insert_index = None;
         if !self.open {
@@ -116,9 +113,13 @@ impl InGameWindow for CartSelectWindow {
         let win = ui.window_at(CART_SELECT_WINDOW_ID, WIN_W, win_h, TITLE_H, 200.0, 160.0);
         ui.interact(CART_SELECT_WINDOW_ID, Rect::new(win.x, win.y, WIN_W, win_h));
 
-        // -- Titlebar + close --
         draw_titlebar(ui, win.x, win.y, WIN_W, TITLE_H, grf);
-        ui.text(win.x + 17.0, win.y + TITLE_H - 3.0, "Change Cart", text_color);
+        ui.text(
+            win.x + 17.0,
+            win.y + TITLE_H - 3.0,
+            "Change Cart",
+            text_color,
+        );
 
         let close_rect = Rect::new(
             win.x + WIN_W - MINI_BTN_SIZE - 3.0,
@@ -148,7 +149,6 @@ impl InGameWindow for CartSelectWindow {
             return events;
         }
 
-        // -- Body --
         let body_y = win.y + TITLE_H;
         let body_h = PAD + CART_MODELS.len() as f32 * ROW_H + PAD;
         draw_container(ui, win.x, body_y, WIN_W, body_h, grf);
@@ -162,16 +162,14 @@ impl InGameWindow for CartSelectWindow {
                 ui.any_interactive_hovered = true;
             }
 
-            // Rows are transparent over the container; only an unlocked row that
-            // is hovered gets a translucent highlight, matching the other list
-            // windows.
             if unlocked && resp.hovered() {
                 let hover_bg = if grf {
                     [0.85, 0.85, 0.8, 0.5]
                 } else {
                     [0.3, 0.3, 0.4, 0.3]
                 };
-                let (v, idx) = draw::quad_vertices(row_rect.x, row_rect.y, row_rect.w, row_rect.h, hover_bg);
+                let (v, idx) =
+                    draw::quad_vertices(row_rect.x, row_rect.y, row_rect.w, row_rect.h, hover_bg);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: idx.to_vec(),
@@ -179,8 +177,6 @@ impl InGameWindow for CartSelectWindow {
                 });
             }
 
-            // The cart sprite preview is drawn by the scene layer at this anchor
-            // (feet near the row's bottom so the upward-drawn sprite stays inside).
             if unlocked {
                 let anchor_x = row_rect.x + PREVIEW_W / 2.0;
                 let anchor_y = row_rect.y + ROW_H - 8.0;
@@ -192,7 +188,11 @@ impl InGameWindow for CartSelectWindow {
             } else {
                 format!("Cart {num} (Lv {req_level})")
             };
-            let label_color = if unlocked { text_color } else { [0.5, 0.5, 0.5, 1.0] };
+            let label_color = if unlocked {
+                text_color
+            } else {
+                [0.5, 0.5, 0.5, 1.0]
+            };
             let text_x = row_rect.x + PREVIEW_W + 4.0;
             ui.text(text_x, row_rect.y + ROW_H / 2.0 + 1.0, &label, label_color);
 
@@ -202,7 +202,6 @@ impl InGameWindow for CartSelectWindow {
             }
         }
 
-        // Previews render above the row backgrounds already pushed this frame.
         self.preview_insert_index = Some(ui.draw_calls.len());
 
         ui.has_grf_textures = prev_grf;

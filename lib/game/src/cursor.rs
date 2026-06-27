@@ -2,7 +2,7 @@ use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
 
 use crate::entity_collection::EntityCollection;
-use crate::targeting::{hover_cursor, MapProperties, TargetClass};
+use crate::targeting::{MapProperties, TargetClass, hover_cursor};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CursorType {
@@ -57,11 +57,9 @@ pub struct RenderEntry {
     pub depth_gradient: [f32; 2],
     pub camera_dir: u8,
     pub sprite_scale: f32,
-    /// Pick bounds in screen pixels: [left, top, right, bottom].
+    /// [left, top, right, bottom] in screen pixels.
     pub pick_bounds: [f32; 4],
-    /// Distance in screen pixels from feet (screen_anchor[1]) up to the top of the
-    /// idle pose (action 0, motion 0). Used to anchor floating elements (damage
-    /// numbers, chat bubbles, cast bars) so they don't move with per-frame animation.
+    /// Screen pixels from feet to the top of action 0 motion 0; anchors floating elements.
     pub head_offset: f32,
 }
 
@@ -80,15 +78,12 @@ pub fn cursor_type_for_cell(gat: &GatFile, cell: Option<(i32, i32)>) -> CursorTy
 
 const MIN_PICK_SIZE: f32 = 100.0;
 
-/// Check which entity the mouse hovers and return the matching cursor type.
 /// `render_list` is sorted far-to-near (painter order): iterate in reverse for front-to-back.
 pub fn hovered_entity_cursor_type(
     mouse_pos: (f64, f64),
     entities: &EntityCollection,
     render_list: &[RenderEntry],
     map: &MapProperties,
-    // Class of the skill currently awaiting a target, if any. Drives whether
-    // players/self are pickable (support skills) and the cursor shape.
     active_skill: Option<TargetClass>,
 ) -> Option<(CursorType, u32)> {
     let (mx, my) = (mouse_pos.0 as f32, mouse_pos.1 as f32);
@@ -265,7 +260,6 @@ mod tests {
         assert_eq!(anim.motion_index(), 0);
         assert_eq!(anim.accumulated_ms, 0.0);
 
-        // Same type again does not reset
         anim.update(0.25, &act);
         let idx = anim.motion_index();
         anim.set_cursor_type(CursorType::Talk);
@@ -276,7 +270,6 @@ mod tests {
     fn update_advances_motion_frames() {
         let act = make_cursor_act(1, 3);
         let mut anim = CursorAnimationState::new();
-        // delay = 4.0 * 25 = 100ms, advance by 250ms => 2 frames
         anim.update(0.25, &act);
         assert_eq!(anim.motion_index(), 2);
     }
@@ -338,7 +331,13 @@ mod tests {
     fn entity_hover_returns_none_on_empty_list() {
         let entities = EntityCollection::new();
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 300.0), &entities, &[], &MapProperties::default(), None),
+            hovered_entity_cursor_type(
+                (400.0, 300.0),
+                &entities,
+                &[],
+                &MapProperties::default(),
+                None
+            ),
             None
         );
     }
@@ -349,7 +348,13 @@ mod tests {
         entities.insert(make_entity(10, EntityType::Monster, 1002));
         let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, &MapProperties::default(), None),
+            hovered_entity_cursor_type(
+                (400.0, 310.0),
+                &entities,
+                &list,
+                &MapProperties::default(),
+                None
+            ),
             Some((CursorType::Attack, 10)),
         );
     }
@@ -360,7 +365,13 @@ mod tests {
         entities.insert(make_entity(20, EntityType::Npc, 100));
         let list = vec![entry(20, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, &MapProperties::default(), None),
+            hovered_entity_cursor_type(
+                (400.0, 310.0),
+                &entities,
+                &list,
+                &MapProperties::default(),
+                None
+            ),
             Some((CursorType::Talk, 20)),
         );
     }
@@ -371,7 +382,13 @@ mod tests {
         entities.insert(make_entity(30, EntityType::Npc, 45));
         let list = vec![entry(30, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, &MapProperties::default(), None),
+            hovered_entity_cursor_type(
+                (400.0, 310.0),
+                &entities,
+                &list,
+                &MapProperties::default(),
+                None
+            ),
             Some((CursorType::Warp, 30)),
         );
     }
@@ -383,7 +400,13 @@ mod tests {
         entities.insert(make_entity(1, EntityType::Player, 0));
         let list = vec![entry(1, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, &MapProperties::default(), None),
+            hovered_entity_cursor_type(
+                (400.0, 310.0),
+                &entities,
+                &list,
+                &MapProperties::default(),
+                None
+            ),
             None
         );
     }
@@ -399,7 +422,13 @@ mod tests {
             entry(20, 400.0, 350.0, 0.3, 1.0),
         ];
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, &MapProperties::default(), None),
+            hovered_entity_cursor_type(
+                (400.0, 310.0),
+                &entities,
+                &list,
+                &MapProperties::default(),
+                None
+            ),
             Some((CursorType::Talk, 20)),
         );
     }
@@ -417,7 +446,13 @@ mod tests {
         ];
         // Mouse at (400, 300) - closer to interior mob anchor (330) than front mob (370)
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 300.0), &entities, &list, &MapProperties::default(), None),
+            hovered_entity_cursor_type(
+                (400.0, 300.0),
+                &entities,
+                &list,
+                &MapProperties::default(),
+                None
+            ),
             Some((CursorType::Attack, 10)),
         );
     }
@@ -429,7 +464,13 @@ mod tests {
         let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
         // Mouse far from entity center
         assert_eq!(
-            hovered_entity_cursor_type((100.0, 100.0), &entities, &list, &MapProperties::default(), None),
+            hovered_entity_cursor_type(
+                (100.0, 100.0),
+                &entities,
+                &list,
+                &MapProperties::default(),
+                None
+            ),
             None
         );
     }
@@ -442,7 +483,13 @@ mod tests {
         entities.insert(monster);
         let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, &MapProperties::default(), None),
+            hovered_entity_cursor_type(
+                (400.0, 310.0),
+                &entities,
+                &list,
+                &MapProperties::default(),
+                None
+            ),
             None
         );
     }
@@ -455,7 +502,13 @@ mod tests {
         entities.insert(monster);
         let list = vec![entry(10, 400.0, 350.0, 0.5, 1.0)];
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, &MapProperties::default(), None),
+            hovered_entity_cursor_type(
+                (400.0, 310.0),
+                &entities,
+                &list,
+                &MapProperties::default(),
+                None
+            ),
             None
         );
     }
@@ -476,9 +529,14 @@ mod tests {
             pick_bounds: [385.0, 335.0, 415.0, 365.0],
             head_offset: 30.0,
         }];
-        // Mouse at (400, 310) is outside stored 30x30 bounds but inside inflated 100x100
         assert_eq!(
-            hovered_entity_cursor_type((400.0, 310.0), &entities, &list, &MapProperties::default(), None),
+            hovered_entity_cursor_type(
+                (400.0, 310.0),
+                &entities,
+                &list,
+                &MapProperties::default(),
+                None
+            ),
             Some((CursorType::Attack, 10)),
         );
     }

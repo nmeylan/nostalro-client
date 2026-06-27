@@ -46,11 +46,6 @@ impl App {
                         self.game.sprites.get(&entry.id),
                         self.game.entities.get(entry.id),
                     ) {
-                        // Hiding / Cloaking / Chase Walk: cloak is a faint body
-                        // for everyone; hide / chase walk keep the body faintly
-                        // visible only for the local player and hide it entirely
-                        // from everyone else. A hidden state also drops the
-                        // shadow. Folds into the death / vanish fade alpha.
                         let is_self = Some(entry.id) == self.game.entities.player_id();
                         let render = hidden_render(entity.effect_state, is_self);
                         if render == HiddenRender::Skip {
@@ -64,15 +59,8 @@ impl App {
                             };
                         let is_fading = fade_alpha < 1.0;
 
-                        // All per-entity body modifiers (shake / tint / scale /
-                        // yaw / spin / lift / copies — the original game's body
-                        // light effects) resolved in one call; the shared composer
-                        // applies them so the scene and effect viewer never
-                        // drift. Fold the hidden / death fade into the alpha.
                         let mut body_channels =
                             self.effect_holder.body_channels_for_entity(entry.id);
-                        // A status ailment holds a fixed body ARGB that overrides
-                        // any buff tint (the original's `m_isSprArgbFixed`).
                         if let Some(rgb) =
                             ailment::ailment_visual(entity.body_state, entity.health_state).tint
                         {
@@ -103,15 +91,8 @@ impl App {
                             &body_channels,
                         );
 
-                        // Quicken afterimage: drop fading sprite copies behind
-                        // the actor while it moves, attacks, or casts a skill
-                        // (the speed-buff blur is iconic on the fast attacks, not
-                        // just walking). Drop one copy each time the displayed
-                        // animation frame changes, so the trail is a sequence of
-                        // distinct past poses rather than duplicates of the
-                        // current one. Copies draw *before* the sprite so the
-                        // live one stays on top.
-                        if let Some(ai) = self.effect_holder.afterimage_params_for_entity(entry.id) {
+                        if let Some(ai) = self.effect_holder.afterimage_params_for_entity(entry.id)
+                        {
                             let trailing = entity.state == EntityState::Moving;
                             let action = entity.animation.action();
                             let motion = entity.animation.motion_index();
@@ -120,14 +101,10 @@ impl App {
                                 .afterimages_for_entity(entry.id)
                                 .last()
                                 .map(|i| (i.anim.action(), i.anim.motion_index()));
-                            // Frames to drop this render. A fast (Quicken-boosted)
-                            // attack can advance several frames in one render, so
-                            // fill every frame the animation passed through — the
-                            // swing arc would otherwise have gaps. Same-frame ⇒
-                            // nothing; a new action / looped-back frame ⇒ just the
-                            // current one.
                             let frames: Vec<usize> = match last {
-                                Some((a, m)) if a == action && motion > m => (m + 1..=motion).collect(),
+                                Some((a, m)) if a == action && motion > m => {
+                                    (m + 1..=motion).collect()
+                                }
                                 Some((a, m)) if a == action && motion == m => Vec::new(),
                                 _ => vec![motion],
                             };
@@ -149,20 +126,14 @@ impl App {
                                 }
                             }
                             for img in self.effect_holder.afterimages_for_entity(entry.id) {
-                                // Re-project the frozen world position with the
-                                // live camera so the copy stays where the actor
-                                // was and trails behind it; a frozen screen
-                                // anchor would follow the camera and clump on the
-                                // actor instead.
                                 let (anchor, depth, scale, depth_gradient) = self
                                     .renderer
                                     .as_ref()
                                     .zip(self.game.map_coords.as_ref())
                                     .and_then(|(r, coords)| {
-                                        let sw = r.device.surface_config.width as f32
-                                            / r.dpi_scale;
-                                        let sh = r.device.surface_config.height as f32
-                                            / r.dpi_scale;
+                                        let sw = r.device.surface_config.width as f32 / r.dpi_scale;
+                                        let sh =
+                                            r.device.surface_config.height as f32 / r.dpi_scale;
                                         crate::input::entity_screen_params(
                                             img.world_pos,
                                             self.game.gat.as_ref(),
@@ -194,9 +165,6 @@ impl App {
                                     img.tint[2] as f32 / 255.0,
                                 );
                                 for batch in &mut copy {
-                                    // Blend additively so the tinted copies read
-                                    // as a glowing speed-trail (dark texels add
-                                    // nothing), not solid duplicate bodies.
                                     batch.additive = true;
                                     for vertex in &mut batch.vertices {
                                         vertex.color[0] *= tr;
@@ -255,10 +223,6 @@ impl App {
                             }
                         }
 
-                        // Status-ailment overlays (stun stars / sleep Z's / curse
-                        // mark / angelus halo): persistent head-anchored billboards
-                        // while the ailment holds. Derived from the entity's
-                        // body/health state, so no spawn/despawn bookkeeping.
                         for overlay in
                             ailment::ailment_overlays(entity.body_state, entity.health_state)
                         {
@@ -373,8 +337,6 @@ impl App {
                         self.game.carts.get(&entry.id),
                         self.game.entities.get(entry.id),
                     ) {
-                        // The cart inherits the owner's visibility: hidden /
-                        // cloaked owners hide (or fade) the cart too.
                         let is_self = Some(entry.id) == self.game.entities.player_id();
                         let render = hidden_render(entity.effect_state, is_self);
                         if render == HiddenRender::Skip {
@@ -407,8 +369,6 @@ impl App {
                         self.game.falcons.get(&entry.id),
                         self.game.entities.get(entry.id),
                     ) {
-                        // The falcon inherits the owner's visibility: hidden /
-                        // cloaked owners hide (or fade) the bird too.
                         let is_self = Some(entry.id) == self.game.entities.player_id();
                         let render = hidden_render(entity.effect_state, is_self);
                         if render == HiddenRender::Skip {
@@ -466,13 +426,14 @@ impl App {
             }
         }
 
-        // Cart preview in the equipment window's centre cart slot.
         if let Some(center) = self.game.equipment_window.cart_slot_center()
             && let Some(player_id) = self.game.entities.player_id()
             && let Some(cart) = self.game.carts.get(&player_id)
         {
             let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
-            let batches = cart.sprite.build_batches(&idle_anim, None, 0, center, 0.0, 0.5, [0.0, 0.0]);
+            let batches =
+                cart.sprite
+                    .build_batches(&idle_anim, None, 0, center, 0.0, 0.5, [0.0, 0.0]);
             for batch in batches {
                 let idx = inline_textures.len();
                 inline_textures.push(batch.texture);
@@ -492,7 +453,6 @@ impl App {
             }
         }
 
-        // Cart model previews in the change-cart picker rows.
         let mut cart_select_calls: Vec<UiDrawCall> = Vec::new();
         for &(design, center) in self.game.cart_select_window.model_previews() {
             let Some(sprite) = self.game.cart_preview_sprites.get(&design) else {
@@ -652,15 +612,7 @@ impl App {
                     no_depth: false,
                 })
                 .collect();
-            let zoom = self
-                .game
-                .map_coords
-                .as_ref()
-                .map_or(10.0, |c| c.zoom());
-            // Live entity→world resolver for entity-anchored STR/Spr effects
-            // (cast glyphs, buff overlays). Mirrors the holder's update-time
-            // resolver: interpolated cell → world at the ground. Without it
-            // these effects can't resolve their position and never draw.
+            let zoom = self.game.map_coords.as_ref().map_or(10.0, |c| c.zoom());
             let entities = &self.game.entities;
             let gat = self.game.gat.as_ref();
             let map_coords = self.game.map_coords.as_ref();
@@ -712,4 +664,3 @@ impl App {
         }
     }
 }
-

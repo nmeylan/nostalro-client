@@ -5,13 +5,13 @@ use ragnarok_formats::spr::SprFile;
 
 pub use ragnarok_formats::spr::SpriteData;
 
-use models::enums::weapon::WeaponType;
 use crate::data_table::accessory_table::AccessoryTable;
 use crate::data_table::name_table::NameTable;
 use crate::sprite_path::{
     body_palette_path, body_sprite_path, entity_sprite_base_path, head_palette_path,
     head_sprite_path, weapon_sprite_path,
 };
+use models::enums::weapon::WeaponType;
 
 pub fn load_sprite_data(grf: &GrfArchive, spr_path: &str, act_path: &str) -> Option<SpriteData> {
     let spr_data = match grf.read_file(spr_path) {
@@ -239,8 +239,6 @@ pub fn load_weapon_sprite(
     None
 }
 
-/// The weapon-swing trail (`검광`) sprite, with the same job-fallback chain as
-/// the weapon. Many weapons / classic GRFs lack one — `None` then (no trail).
 pub fn load_weapon_trail_sprite(
     grf: &GrfArchive,
     job: u16,
@@ -261,11 +259,8 @@ pub fn load_weapon_trail_sprite(
     }
     if let Some(base_job) = crate::sprite_path::transcendent_to_base_class(job) {
         use models::enums::EnumWithNumberValue;
-        let fallback_path = crate::sprite_path::weapon_trail_sprite_path(
-            base_job.value() as u16,
-            sex,
-            weapon_type,
-        );
+        let fallback_path =
+            crate::sprite_path::weapon_trail_sprite_path(base_job.value() as u16, sex, weapon_type);
         return load_sprite_data(
             grf,
             &format!("{fallback_path}.spr"),
@@ -358,8 +353,6 @@ pub fn load_player_sprite_data(
     let head = load_head_sprite(grf, head_id, sex, hair_color);
     let weapon_type = weapon;
     let weapon = weapon_type.and_then(|wt| load_weapon_sprite(grf, job, sex, wt));
-    // Only load the trail when the weapon itself loaded (a weaponless actor has
-    // no swing arc).
     let weapon_trail = weapon
         .as_ref()
         .and_then(|_| weapon_type)
@@ -402,8 +395,6 @@ pub fn load_emotion_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     )
 }
 
-/// Persistent head-anchored status overlay sprite (stun stars, sleep Z's,
-/// curse mark, angelus halo) — the original game billboards these on the actor.
 pub fn load_status_overlay_sprite(
     grf: &GrfArchive,
     overlay: crate::ailment::AilmentOverlay,

@@ -39,20 +39,10 @@ pub use status_buff::{BuffEffect, buff_effect};
 pub use str_aliases::str_aliases;
 pub use table::{effect_spec, spawn_camera_shake};
 
-/// `data/sprite/몬스터/skel_archer_arrow{.spr,.act}` — the bow arrow sprite.
-/// The flying arrow is a standalone world projectile (not a numbered effect),
-/// but its sprite rides the effect preload aggregator so it's cached before
-/// the first bow attack. The projectile logic itself lives in `ragnarok-game`.
 pub const ARROW_SPRITE: &str = "data/sprite/몬스터/skel_archer_arrow";
 
-/// Preloaded by [`custom_effect_sprite_paths`] so the sprite is in the
-/// `EffectSpriteCache` before the first bow attack arrives.
 pub const SPRITES: &[&str] = &[ARROW_SPRITE];
 
-/// Distinct GRF texture paths used by `Custom`-payload effects, for renderer
-/// preload at app boot. Walks each implemented effect module's `TEXTURES`
-/// constant; deprecated overlay textures from the family path aren't covered
-/// here and load on first spawn.
 pub fn effect_texture_paths() -> Vec<String> {
     let mut seen = std::collections::BTreeSet::new();
     let texture_lists: &[&[&str]] = &[
@@ -192,12 +182,6 @@ pub fn effect_texture_paths() -> Vec<String> {
     ];
     for list in texture_lists {
         for name in *list {
-            // A name may list `|`-separated alias candidates; preload every
-            // candidate so whichever the GRF actually has is in the cache.
-            // Bare names resolve under the effect texture dir; names that
-            // already carry a path (e.g. thrown item icons under
-            // `유저인터페이스/item/`) are relative to `data/texture/`. Must
-            // mirror the renderer's `texture_lookup`.
             for candidate in name.split('|') {
                 if candidate.contains('/') {
                     seen.insert(format!("data/texture/{candidate}"));
@@ -210,21 +194,12 @@ pub fn effect_texture_paths() -> Vec<String> {
     seen.into_iter().collect()
 }
 
-/// STR alias-slices for every effect that renders via `EffectSpec::Str`, for
-/// renderer preload at map load (mirrors [`effect_texture_paths`]). Without
-/// this the STR cache only holds the RSW ambient files, so a skill or
-/// ground-unit STR (Fire Wall, …) silently fails its `cache.get` and never
-/// draws. Each slice is `[primary, fallback…]` as `StrEffectCache::load`
-/// expects; only ids whose resolved spec is actually `Str` are included, so
-/// Custom effects' dead-code aliases aren't loaded.
 pub fn effect_str_names() -> Vec<&'static [&'static str]> {
     use models::enums::EnumWithNumberValue;
     use models::enums::effect_id::EffectId;
 
     let mut seen = std::collections::BTreeSet::new();
     let mut out = Vec::new();
-    // EffectId values run to ~2025; iterate a generous range (invalid values
-    // return `Err` and are skipped).
     for value in 0..3000usize {
         let Ok(id) = EffectId::try_from_value(value) else {
             continue;
@@ -240,13 +215,6 @@ pub fn effect_str_names() -> Vec<&'static [&'static str]> {
     out
 }
 
-/// GRF sprite paths used by Custom-effect modules that emit
-/// `EffectPrimitiveDraw::SpriteParticle` entries. Callers preload these
-/// into the renderer's `EffectSpriteCache` so debris and other
-/// per-particle SPR billboards render the first frame they're emitted
-/// instead of silently skipping. Each effect module that uses
-/// SpriteParticle declares a `SPRITES` constant; this aggregator walks
-/// them so the preload list stays in sync with the source files.
 pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
     let mut seen = std::collections::BTreeSet::new();
     let sprite_lists: &[&[&str]] = &[
@@ -304,8 +272,6 @@ mod tests {
             paths.iter().all(|p| p.starts_with("data/texture/")),
             "all entries are GRF texture paths",
         );
-        // Most are effect-dir textures; a few (thrown item icons) live
-        // elsewhere under data/texture/ via the path-bearing-name convention.
         assert!(
             paths
                 .iter()

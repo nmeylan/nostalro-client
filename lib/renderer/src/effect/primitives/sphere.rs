@@ -1,5 +1,3 @@
-//! Sphere primitive — closed UV sphere mesh (or a partial spherical band).
-
 use crate::camera::Camera;
 use crate::device::DEPTH_FORMAT;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};
@@ -169,8 +167,7 @@ pub fn prepare_sphere_records<'tex>(
         let lat_count = lat_segs + 1;
         let lon_count = lon_segs + 1;
 
-        let mut vertices: Vec<SpriteVertex> =
-            Vec::with_capacity((lat_count * lon_count) as usize);
+        let mut vertices: Vec<SpriteVertex> = Vec::with_capacity((lat_count * lon_count) as usize);
         let mut indices: Vec<u32> = Vec::with_capacity((lat_segs * lon_segs * 6) as usize);
 
         for lat in 0..lat_count {

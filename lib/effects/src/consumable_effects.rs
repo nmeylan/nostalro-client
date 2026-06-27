@@ -2,7 +2,6 @@ use models::enums::effect_id::EffectId;
 
 pub fn consumable_use_effect(item_id: u32) -> Option<EffectId> {
     let id = match item_id {
-        // Red potions, herbs, fruit, most foods and misc consumables.
         501 | 507 | 512 | 513 | 515 | 516 | 545 | 549 | 557 | 562 | 563 | 564 | 565 | 566 | 567
         | 568 | 569 | 570 | 571 | 572 | 574 | 575 | 576 | 577 | 578 | 579 | 580 | 581 | 583
         | 584 | 585 | 586 | 587 | 588 | 589 | 590 | 591 | 592 | 593 | 594 | 595 | 596 | 597
@@ -23,19 +22,13 @@ pub fn consumable_use_effect(item_id: u32) -> Option<EffectId> {
         | 14524 | 14551 | 14552 | 14553 | 14575 | 14576 | 14577 | 14578 | 14579 | 14580 | 14672
         | 14673 | 22567 | 22568 | 22624 | 22657 | 22658 | 22659 | 22686 | 22770 | 22771 | 22772
         | 22773 | 22774 | 22775 | 22776 | 22985 => EffectId::Potion1,
-        // Orange potion family.
         502 | 582 | 599 | 11506 | 11569 => EffectId::Potion2,
-        // Yellow potion / herb family.
         503 | 508 | 546 | 11500 | 11523 | 11566 | 11574 | 11594 => EffectId::Potion3,
-        // White potion family.
         504 | 509 | 547 | 11501 | 11503 | 11524 | 11548 | 11557 | 11558 | 11565 | 11573 | 12428 => {
             EffectId::Potion4
         }
-        // Blue potion / herb family.
         505 | 510 | 514 | 11502 | 11504 | 11518 | 11549 | 11572 | 11593 => EffectId::Potion5,
-        // Green potion / herb family.
         506 | 511 | 11571 | 11595 => EffectId::Potion6,
-        // Generic food / utility-potion sparkle.
         517 | 518 | 519 | 520 | 521 | 522 | 523 | 525 | 526 | 528 | 529 | 530 | 531 | 532 | 534
         | 535 | 536 | 537 | 538 | 539 | 540 | 541 | 542 | 543 | 544 | 548 | 550 | 551 | 552
         | 553 | 554 | 555 | 556 | 12017 | 12184 | 12185 | 12298 | 12404 | 12422 | 12423 | 12424
@@ -43,71 +36,45 @@ pub fn consumable_use_effect(item_id: u32) -> Option<EffectId> {
         | 12516 | 12517 | 12518 | 12519 | 12520 | 12521 | 12529 | 12531 | 12648 | 12676 | 12679
         | 12680 | 12683 | 12684 | 12774 | 12831 | 14534 | 14535 | 14537 | 14541 | 14542 | 14543
         | 14544 | 14600 | 14614 | 16254 | 16481 | 22546 => EffectId::Potion7,
-        // Grape juice.
         533 => EffectId::Potion8,
-        // Concentration potions.
         645 | 12241 | 17263 | 22542 => EffectId::PotionCon,
-        // Awakening potions.
         656 | 12242 | 17264 | 22544 => EffectId::Potion,
-        // Berserk potions.
         657 | 12243 | 17265 | 22543 => EffectId::PotionBerserk,
-        // Chocolate / valentine sweets.
         558 | 559 | 560 | 561 | 573 | 11535 | 11583 | 11584 | 11585 | 11586 | 11587 | 12062
         | 12322 | 22555 | 22556 | 22557 => EffectId::Vallentine,
-        // Elemental resist potions.
         12118 | 12119 | 12120 | 12121 | 12299 => EffectId::Mochi,
-        // Authoritative badge.
         662 | 12262 => EffectId::Mapae,
-        // Firecracker.
         12018 => EffectId::Itempokjuk,
-        // Speed potions.
         12016 | 22545 => EffectId::Itemfast,
-        // Box of Thunder.
         12028 => EffectId::ItemThunder,
-        // Box of Resentment.
         12030 => EffectId::ItemCloud,
-        // Box of Drowsiness.
         12031 => EffectId::ItemZzz,
-        // Box of Sunlight.
         12033 => EffectId::ItemRain,
-        // Cooking dish tier 1.
         12041 | 12042 | 12043 | 12044 | 12045 | 12071 | 12072 | 12073 | 12074 | 12075 => {
             EffectId::Food01
         }
-        // Cooking dish tier 2.
         12049 | 12050 | 12076 | 12077 | 12078 | 12079 | 12080 | 14554 | 14555 | 14556 => {
             EffectId::Food02
         }
-        // Cooking dish tier 3.
         12054 | 12055 | 12081 | 12082 | 12083 | 12084 | 12085 | 14557 | 14558 | 14559 => {
             EffectId::Food03
         }
-        // Cooking dish tier 4.
         12059 | 12060 | 12086 | 12087 | 12088 | 12089 | 12090 | 14560 | 14561 | 14562 => {
             EffectId::Food04
         }
-        // Cooking dish tier 5.
         12064 | 12065 | 12091 | 12092 | 12093 | 12094 | 12095 | 14563 | 14564 | 14565 => {
             EffectId::Food05
         }
-        // Cooking dish tier 6.
         12069 | 12070 | 12096 | 12097 | 12098 | 12099 | 12100 | 14566 | 14567 | 14568 => {
             EffectId::Food06
         }
-        // No100 Firecracker.
         12788 => EffectId::Hapgyeok,
-        // I Love You Firecracker.
         14546 => EffectId::PokLove,
-        // Whiteday Firecracker.
         14547 => EffectId::PokWhite,
-        // Valentine's Day Firecracker.
         14548 => EffectId::PokValen,
-        // Birthday Firecracker.
         14549 => EffectId::PokBirth,
-        // Xmas Firecracker.
         14550 => EffectId::PokChristmas,
-        // Large Firecracker (12326) uses effect 709, which has no EffectId variant
-        // in this enum version, so it is intentionally omitted.
+        // Large Firecracker (12326) uses effect 709, which has no EffectId variant.
         _ => return None,
     };
     Some(id)
@@ -119,8 +86,6 @@ mod tests {
 
     #[test]
     fn maps_representative_consumables_to_their_use_effect() {
-        // Sociable: one assert per effect group, covering the color/herb paths
-        // the previous table got wrong plus the boundary cases.
         assert_eq!(consumable_use_effect(501), Some(EffectId::Potion1));
         assert_eq!(consumable_use_effect(502), Some(EffectId::Potion2));
         assert_eq!(consumable_use_effect(508), Some(EffectId::Potion3));
@@ -131,9 +96,7 @@ mod tests {
         assert_eq!(consumable_use_effect(558), Some(EffectId::Vallentine));
         assert_eq!(consumable_use_effect(12041), Some(EffectId::Food01));
         assert_eq!(consumable_use_effect(12018), Some(EffectId::Itempokjuk));
-        // Large Firecracker (effect 709) has no EffectId variant.
         assert_eq!(consumable_use_effect(12326), None);
-        // Non-consumable / unlisted items have no use effect.
         assert_eq!(consumable_use_effect(1), None);
     }
 }

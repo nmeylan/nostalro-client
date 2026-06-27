@@ -1,8 +1,3 @@
-//! QuadHorn primitive — square-based pyramid spike (icicle, ice shard,
-//! stalagmite) — four triangular faces meeting at an apex, as the original game shows.
-//! Reuses `effect_frustum.wgsl` so the camera bind group layout matches the
-//! Frustum primitive exactly.
-
 use crate::camera::Camera;
 use crate::device::DEPTH_FORMAT;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};

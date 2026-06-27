@@ -1,47 +1,3 @@
-//! Bottom_Volcano family — ground-anchored "blooming flower" ring of
-//! tapered ribbon petals.
-//!
-//! Despite the `BottomVo` / `BottomDe` / `BottomVi` / `BottomSuiton`
-//! naming, all four ids resolve to the same volcano-ring effect, not the
-//! song-box one — the visible effect is a ring
-//! of upright "petals" pulsing outward from the caster's feet.
-//!
-//!
-//! One active emitter cell drives the whole ring, seeded with:
-//!   * full display angle = 360
-//!   * max_height         = 15
-//!   * distance           = 2.6
-//!   * rise_angle         = 80°
-//!   * rotation start     = random(360)
-//!   * alpha              = random(100)
-//!   * height[i]          = 0 for all i  (integrator fills them)
-//!
-//! Suiton carries a `PW = 14` tag, but that tag is never read by either
-//! the integrator or the renderer, so it visually equals BottomDe (both
-//! blue rings). The only per-variant difference is the ring texture.
-//!
-//! Per-frame integrator:
-//!   distance += 0.04                            // bloom outward
-//!   rise_angle -= 1 (floor 10)                  // tilt more outward
-//!   if distance >= 2.5:
-//!       alpha -= 2
-//!       if alpha <= 0:                          // RESTART cycle
-//!           distance   = 2.14                   // 2.5 - 0.36
-//!           rise_angle = 74
-//!   else:
-//!       alpha += 20                             // fade in fast
-//!   for i in 0..DIVISION:
-//!       SinLimit  = 90 + (i - middle) * m2      // middle=10, m2=9
-//!       height[i] = max_height * (1 + sin(SinLimit) * 0.3 * sin(pr))
-//!       where pr = (process + ec*90) % 360
-//!
-//! Render: 10 segments around the ring (a low-polygon count, fewer than
-//!   the 20 a full-resolution ring would use). Per segment, the bottom
-//!   vertex sits at `(cos*distance, 0, sin*distance)` on the ground plane,
-//!   the top vertex is offset radially-out by `cos(rise_angle)*height[order]`
-//!   and upward by `sin(rise_angle)*height[order]`. The closed-loop
-//!   wrap forces the last position back to position 0's angle.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::radial_emitter::{
@@ -53,21 +9,15 @@ pub struct BottomVolcanoParams {
     pub texture: &'static str,
 }
 
-/// `EF_BOTTOM_VO` — red volcano ring.
 pub const VOLCANO_RED: BottomVolcanoParams = BottomVolcanoParams {
     texture: "ring_red.tga",
 };
-/// `EF_BOTTOM_DE` — blue volcano ring.
 pub const VOLCANO_BLUE: BottomVolcanoParams = BottomVolcanoParams {
     texture: "ring_blue.tga",
 };
-/// `EF_BOTTOM_VI` — green volcano ring.
 pub const VOLCANO_GREEN: BottomVolcanoParams = BottomVolcanoParams {
     texture: "magic_green.tga",
 };
-/// `EF_BOTTOM_SUITON` — carries a `PW=14` tag that is never read by the
-/// bloom integrator or the renderer,
-/// so Suiton visually equals BottomDe (same blue ring).
 pub const SUITON: BottomVolcanoParams = BottomVolcanoParams {
     texture: "ring_blue.tga",
 };
@@ -78,14 +28,10 @@ const FRAMES_PER_SECOND: f32 = 60.0;
 const BASE_DISTANCE: f32 = 2.6;
 const BASE_RISE_ANGLE_DEG: f32 = 80.0;
 const MAX_HEIGHT: f32 = 15.0;
-/// The low-polygon render path slices the ring into 10 quads, not the
-/// 20 a full-resolution ring would use.
 const E_DIV: u32 = 10;
 const SEGMENTS: u32 = E_DIV;
 const HEIGHT_SCALE: f32 = 1.0;
 
-/// Bloom geometry constants — distance bounds and rise-angle reset values
-/// for the per-frame bloom integrator.
 const DISTANCE_GROWTH_PER_FRAME: f32 = 0.04;
 const DISTANCE_MAX: f32 = 2.5;
 const DISTANCE_RESET: f32 = DISTANCE_MAX - 0.36;
@@ -95,9 +41,6 @@ const RISE_ANGLE_RESET_DEG: f32 = 74.0;
 const ALPHA_FADE_IN_PER_FRAME: f32 = 20.0 / 255.0;
 const ALPHA_FADE_OUT_PER_FRAME: f32 = 2.0 / 255.0;
 
-/// Petal wobble shape constants. `MIDDLE` and `M2` are derived as
-/// `middle = (DIVISION-1)/2` and `m2 = 90/middle`. The wobble is
-/// recomputed every frame, scaled by `sin(pr)` where `pr = process % 360`.
 const MIDDLE: f32 = ((RADIAL_EMITTER_DIVISION - 1) / 2) as f32;
 const M2: f32 = 90.0 / MIDDLE;
 const WOBBLE_AMPLITUDE: f32 = 0.3;
@@ -113,10 +56,7 @@ pub struct BottomVolcanoEffect {
 impl BottomVolcanoEffect {
     pub fn new(world_pos: [f32; 3], params: BottomVolcanoParams) -> Self {
         let hash = position_hash(&world_pos);
-        // random(360) for the per-cast rotation seed.
         let rot_start_deg = (hash % 360) as f32;
-        // random(100) for the initial alpha. Raw byte 0..99
-        // maps to `0..0.39` in our 0..1 alpha range.
         let alpha_init = ((hash / 360) % 100) as f32 / 255.0;
 
         let mut slots = [RadialEmitterSlot::dormant(); RADIAL_EMITTER_SLOTS];
@@ -124,8 +64,6 @@ impl BottomVolcanoEffect {
         slot.rot_start_deg = rot_start_deg;
         slot.full_display_angle_deg = 360.0;
         slot.alpha_b = alpha_init;
-        // Heights are filled by the first integrator pass; they start at 0
-        // and the bloom integrator populates them on tick 1.
         slots[0] = slot;
 
         let mut effect = Self {
@@ -135,8 +73,6 @@ impl BottomVolcanoEffect {
             last_processed_frame: 0,
             emitter: RadialEmitter::from_slots(slots),
         };
-        // Seed heights for frame 0 so the very first draw isn't a flat
-        // zero-thickness ribbon.
         effect.update_petal_heights();
         effect
     }
@@ -174,8 +110,6 @@ impl BottomVolcanoEffect {
             if !slot.alive {
                 continue;
             }
-            // `pr` is `process + ec*90` mod 360 for ec<2 (the single
-            // active slot is ec=0 in this setup).
             let pr_deg = ((slot.process as f32) + (ec as f32) * 90.0).rem_euclid(360.0);
             let pr_sin = pr_deg.to_radians().sin();
             for i in 0..RADIAL_EMITTER_DIVISION {
@@ -201,14 +135,10 @@ impl Effect for BottomVolcanoEffect {
         self.age_frames += ctx.delta * FRAMES_PER_SECOND;
         let target = self.age_frames as u32;
         self.integrate_frames(target);
-        // Duration (299990 ms in table.rs) is enforced by the holder.
         EffectStatus::Running
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
-        // Ground anchor: the low-polygon path keeps the bottom vertex at
-        // y = 0 for the standard `max_height = 15` case, so the ribbon base
-        // sits at the caster's feet — NOT lifted by max_height.
         let center = self.world_pos;
         for (_ec, slot) in self.emitter.active() {
             if slot.alpha_b <= 0.0 {
@@ -270,12 +200,6 @@ mod tests {
 
     #[test]
     fn volcano_emits_one_ground_anchored_ribbon_with_petal_heights() {
-        // Sociable: a freshly spawned BottomVolcano emits a single
-        // RadialRing whose ring centre is at the caster's feet (NOT
-        // lifted to `-max_height` like Wind), with 10 segments matching
-        // the low-polygon E_DIV. Heights are populated by
-        // the wobble formula so the first frame is already visible
-        // (non-zero somewhere).
         let mut e = BottomVolcanoEffect::new([7.0, 3.5, -2.0], VOLCANO_RED);
         step(&mut e, 1.0);
         let prims = draws(&e);
@@ -299,12 +223,6 @@ mod tests {
 
     #[test]
     fn distance_pulses_via_bloom_then_reset_cycle() {
-        // Sociable: the bloom loop must reset the distance once
-        // the alpha fade-out completes. Starting at distance=2.6 we are
-        // already in the fade-out branch; after ~`alpha_init / 0.0078`
-        // frames the alpha hits 0 and distance snaps to ~2.14. Confirm
-        // that across a long-enough window the distance both grows and
-        // shrinks — i.e. it isn't monotonic.
         let mut e = BottomVolcanoEffect::new([0.0, 0.0, 0.0], VOLCANO_BLUE);
         let initial = e.distance();
         let mut saw_smaller = false;
@@ -328,11 +246,6 @@ mod tests {
 
     #[test]
     fn rise_angle_decreases_then_floors_or_resets() {
-        // Sociable: rise_angle starts at 80° and ticks -1°/frame in
-        // the integrator; it floors at 10° or resets to 74° at the alpha
-        // restart. Either way, after enough frames it must be strictly
-        // less than the starting 80°. Confirms the integrator is wired
-        // (without it the petals would never lay flat / open up).
         let mut e = BottomVolcanoEffect::new([0.0, 0.0, 0.0], VOLCANO_GREEN);
         let initial = e.rise_angle_deg();
         assert_eq!(initial, BASE_RISE_ANGLE_DEG);
@@ -346,8 +259,6 @@ mod tests {
 
     #[test]
     fn volcano_does_not_self_terminate() {
-        // Holder enforces the 299990 ms duration; the effect itself must
-        // keep returning Running even after many bloom cycles.
         let mut e = BottomVolcanoEffect::new([0.0, 0.0, 0.0], VOLCANO_GREEN);
         let mut status = EffectStatus::Running;
         for _ in 0..30 {

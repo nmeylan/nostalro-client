@@ -2,7 +2,6 @@ use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::UiFrame;
 use ragnarok_ui::rect::Rect;
 
-/// Draw a textured quad (GRF mode only - no fallback). Replaces inline draw_tex pattern.
 pub fn draw_textured_quad(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, path: &str) {
     let (v, i) = draw::quad_vertices(x, y, w, h, [1.0; 4]);
     ui.draw_calls.push(DrawCall {
@@ -12,9 +11,6 @@ pub fn draw_textured_quad(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, path
     });
 }
 
-/// Draw an interactive system button.
-/// GRF mode: renders on/off textures based on hover.
-/// Non-GRF mode: renders colored quad with optional fallback character text.
 pub fn draw_sys_button(
     ui: &mut UiFrame,
     rect: Rect,
@@ -58,7 +54,6 @@ pub fn text_color(has_grf: bool) -> [f32; 4] {
     }
 }
 
-/// Draw a window title bar.
 pub fn draw_titlebar(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bool) {
     if has_grf {
         let (v, i) = draw::quad_vertices(x, y, w, h, [1.0, 1.0, 1.0, 1.0]);

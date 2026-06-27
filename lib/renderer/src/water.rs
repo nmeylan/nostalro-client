@@ -72,7 +72,6 @@ impl WaterRenderer {
         let wave_pitch = water.wave_pitch.unwrap_or(50.0);
         let anim_speed = water.anim_speed.unwrap_or(3) as f32;
 
-        // Load water textures
         let texture_names: Vec<String> = (0..WATER_FRAMES)
             .map(|i| {
                 format!(
@@ -365,7 +364,6 @@ mod tests {
 
     #[test]
     fn water_mesh_generates_quads_for_cells_below_water() {
-        // In native RO coords, more negative = higher; cell at -5 is above water at -10
         let gnd = make_gnd(4, 4, -5.0);
         let water_y = -10.0;
         let (vertices, indices) = build_water_mesh(&gnd, water_y);
@@ -376,7 +374,6 @@ mod tests {
     #[test]
     fn water_mesh_skips_border_cells_without_surface() {
         let mut gnd = make_gnd(3, 3, -5.0);
-        // Mark edge cells as border (no surface)
         for y in 0..3i32 {
             for x in 0..3i32 {
                 if x == 0 || x == 2 || y == 0 || y == 2 {
@@ -385,7 +382,6 @@ mod tests {
             }
         }
         let (vertices, indices) = build_water_mesh(&gnd, -10.0);
-        // Only the center cell (1,1) should generate water
         assert_eq!(vertices.len(), 4);
         assert_eq!(indices.len(), 6);
     }
@@ -394,9 +390,7 @@ mod tests {
     fn water_mesh_uv_tiling_repeats_every_5_cells() {
         let gnd = make_gnd(6, 1, -5.0);
         let (vertices, _) = build_water_mesh(&gnd, -10.0);
-        // Cell 0: u0 = 0/5 = 0.0
         assert!((vertices[0].tex_coord[0] - 0.0).abs() < 0.01);
-        // Cell 5 should wrap: 5 % 5 = 0
         let cell5_base = 5 * 4;
         assert!((vertices[cell5_base].tex_coord[0] - 0.0).abs() < 0.01);
     }

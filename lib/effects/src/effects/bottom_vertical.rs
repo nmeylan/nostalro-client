@@ -1,75 +1,29 @@
-//! Bottom_Vertical family — vertical "curtain" strips anchored at two
-//! ground points and rising to an animated `max_height`.
-//!
-//! Each variant builds up to 4 cells. Each cell is rendered as
-//! one quad (a `WorldQuad` strip) whose corners are
-//! the two ground anchor points lifted to the strip's animated height:
-//!   * `(now, -max_height)` (top, "now" side)
-//!   * `(now, 0)`           (bottom, "now")
-//!   * `(pre, 0)`           (bottom, "pre" side)
-//!   * `(pre, -max_height)` (top, "pre")
-//!
-//! Native RO `-Y` = up so `-max_height` is the top. The two ground points
-//! define the strip's orientation in XZ; the phase is set to
-//! `random(360)` at spawn (a per-strip phase).
-//!
-//! **Animation.** Every frame the phase advances
-//! `+4` for the F1=1 variant (Assassincross) or `+2` otherwise, then
-//! `max_height = 20 + 10 * sin(phase)`. So every strip's height
-//! pulses between 10 and 30, each starting from its own random phase — the
-//! curtains breathe out of sync rather than standing static.
-//!
-//! **Blend + tint (by variant).** Some variants draw **additive** (the
-//! texture adds onto the scene), some draw **alpha** (composited over it):
-//!   * Dissonance/Uglydance → additive, white
-//!   * Assassincross        → alpha, pink (255,155,155)
-//!   * Dontforgetme         → alpha, green (155,255,155)
-//!   * Serviceforyou        → additive, pink (255,150,150)
-//!
-//! F1 → cell layout: F1=0 = 4 radial strips `(rand±20)→(0,0)`, base alpha 15;
-//! F1=1/2 = 4 crossed strips, base alpha 50; F1=4 = 2 perpendicular strips,
-//! base alpha 100.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 #[derive(Clone, Copy, Debug)]
 pub struct BottomVerticalParams {
     pub texture: &'static str,
-    /// Per-cell base alpha (out of 255).
     pub base_alpha: f32,
-    /// RGB tint selected per variant (0..1).
     pub tint_rgb: [f32; 3],
-    /// Blend mode: additive or alpha, per variant.
     pub blend: BlendKind,
-    /// Phase increment per frame: 4 for
-    /// the F1=1 variant (Assassincross), 2 otherwise.
     pub phase_speed_deg: f32,
-    /// Cell layout pattern (F1 → per-strip placement).
     pub layout: StripLayout,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum StripLayout {
-    /// F1=0: 4 strips, each from a per-strip random XZ offset (±20) to the
-    /// origin. Radial lines converging on the actor.
     RadialConverge,
-    /// F1=1/2: 4 strips arranged as two perpendicular pairs (a `#` cross).
     CrossedQuartet,
-    /// F1=4: 2 perpendicular strips through the origin (one X, one Z).
     PerpendicularPair,
 }
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const FADE_IN_FRAMES: f32 = 15.0;
 const FADE_IN_SECS: f32 = FADE_IN_FRAMES / FRAMES_PER_SECOND;
-/// `max_height = MAX_HEIGHT_BASE + MAX_HEIGHT_AMP * sin(phase)`
-/// → pulses between 10 and 30 world units (native RO `-Y` = up).
 const MAX_HEIGHT_BASE: f32 = 20.0;
 const MAX_HEIGHT_AMP: f32 = 10.0;
 
-/// `EF_BOTTOM_DISSONANCE` → `ring_blue.tga`, F1=0 →
-/// additive white; phase +2/frame.
 pub const DISSONANCE: BottomVerticalParams = BottomVerticalParams {
     texture: "ring_blue.tga",
     base_alpha: 15.0 / 255.0,
@@ -79,8 +33,6 @@ pub const DISSONANCE: BottomVerticalParams = BottomVerticalParams {
     layout: StripLayout::RadialConverge,
 };
 
-/// `EF_BOTTOM_UGLYDANCE` → `ring_red.tga`. Same F1=0 shape
-/// as Dissonance with a red texture.
 pub const UGLYDANCE: BottomVerticalParams = BottomVerticalParams {
     texture: "ring_red.tga",
     base_alpha: 15.0 / 255.0,
@@ -90,8 +42,6 @@ pub const UGLYDANCE: BottomVerticalParams = BottomVerticalParams {
     layout: StripLayout::RadialConverge,
 };
 
-/// `EF_BOTTOM_ASSASSINCROSS` → `ring_red.tga`, F1=1.
-/// Alpha pink (255,155,155); phase +4/frame.
 pub const ASSASSINCROSS: BottomVerticalParams = BottomVerticalParams {
     texture: "ring_red.tga",
     base_alpha: 50.0 / 255.0,
@@ -101,8 +51,6 @@ pub const ASSASSINCROSS: BottomVerticalParams = BottomVerticalParams {
     layout: StripLayout::CrossedQuartet,
 };
 
-/// `EF_BOTTOM_DONTFORGETME` → `magic_green.tga`, F1=2.
-/// Alpha green (155,255,155); phase +2/frame.
 pub const DONTFORGETME: BottomVerticalParams = BottomVerticalParams {
     texture: "magic_green.tga",
     base_alpha: 50.0 / 255.0,
@@ -112,8 +60,6 @@ pub const DONTFORGETME: BottomVerticalParams = BottomVerticalParams {
     layout: StripLayout::CrossedQuartet,
 };
 
-/// `EF_BOTTOM_SERVICEFORYOU` → `safeline.bmp`, F1=4.
-/// Additive pink (255,150,150); phase +2/frame.
 pub const SERVICEFORYOU: BottomVerticalParams = BottomVerticalParams {
     texture: "safeline.bmp",
     base_alpha: 100.0 / 255.0,
@@ -134,7 +80,6 @@ pub struct BottomVerticalEffect {
     world_pos: [f32; 3],
     params: BottomVerticalParams,
     age: f32,
-    /// Per-strip endpoint offsets + animation phase, frozen at spawn.
     strips: [Strip; 4],
     strip_count: usize,
 }
@@ -143,8 +88,6 @@ pub struct BottomVerticalEffect {
 struct Strip {
     pre: [f32; 2],
     now: [f32; 2],
-    /// Phase `= random(360)` at spawn (degrees) — the per-strip
-    /// height-pulse phase offset.
     phase0_deg: f32,
 }
 
@@ -172,7 +115,6 @@ impl Effect for BottomVerticalEffect {
         let alpha = self.params.base_alpha * fade;
         let [tr, tg, tb] = self.params.tint_rgb;
         let frames = self.age * FRAMES_PER_SECOND;
-        // Strip corners (CCW): bottom-now, bottom-pre, top-pre, top-now.
         let uv = [[1.0, 1.0], [0.0, 1.0], [0.0, 0.0], [1.0, 0.0]];
         let base_y = self.world_pos[1];
         for s in &self.strips[..self.strip_count] {
@@ -200,9 +142,6 @@ impl Effect for BottomVerticalEffect {
     }
 }
 
-/// Build the per-strip anchor + phase table for a given layout. The original
-/// game's random values are reproduced via position-hashed
-/// pseudo-random numbers so the same spawn looks identical across rerenders.
 fn build_strips(layout: StripLayout, world_pos: &[f32; 3]) -> ([Strip; 4], usize) {
     let seed = position_hash(world_pos);
     let mut strips = [Strip {
@@ -210,12 +149,10 @@ fn build_strips(layout: StripLayout, world_pos: &[f32; 3]) -> ([Strip; 4], usize
         now: [0.0; 2],
         phase0_deg: 0.0,
     }; 4];
-    // Every layout seeds each strip's height-pulse phase from a distinct salt.
     for (i, s) in strips.iter_mut().enumerate() {
         s.phase0_deg = rand_in_range(seed, i as u64 * 4 + 2, 0.0, 360.0);
     }
     let count = match layout {
-        // F1=0: `pre = (random(40)-20, random(40)-20)`, `now = (0,0)`.
         StripLayout::RadialConverge => {
             for (i, s) in strips.iter_mut().enumerate() {
                 let rx = rand_in_range(seed, i as u64 * 4, -20.0, 20.0);
@@ -225,7 +162,6 @@ fn build_strips(layout: StripLayout, world_pos: &[f32; 3]) -> ([Strip; 4], usize
             }
             4
         }
-        // F1=1/2: 4 strips making a `#` cross.
         StripLayout::CrossedQuartet => {
             for (i, s) in strips.iter_mut().enumerate() {
                 if i < 2 {
@@ -240,7 +176,6 @@ fn build_strips(layout: StripLayout, world_pos: &[f32; 3]) -> ([Strip; 4], usize
             }
             4
         }
-        // F1=4: 2 perpendicular strips through origin.
         StripLayout::PerpendicularPair => {
             strips[0].pre = [6.0, 0.0];
             strips[0].now = [-6.0, 0.0];
@@ -262,11 +197,6 @@ fn position_hash(pos: &[f32; 3]) -> u64 {
     h.finish()
 }
 
-/// Deterministic pseudo-random float in `[lo, hi)` from `(seed, salt)`.
-/// Uses a splitmix64-style finalizer so even small salt deltas
-/// (`0/4/8/12`) scramble the top bits — a plain `seed*K + salt` shift
-/// would collide because the salt sits in the low bits that get
-/// shifted out.
 fn rand_in_range(seed: u64, salt: u64, lo: f32, hi: f32) -> f32 {
     let mut x = seed.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(salt);
     x ^= x >> 30;
@@ -309,15 +239,11 @@ mod tests {
         let EffectPrimitiveDraw::WorldQuad { corners, .. } = p else {
             panic!("expected WorldQuad");
         };
-        // bottom-now y minus top-now y (native -Y up → positive height).
         corners[0][1] - corners[3][1]
     }
 
     #[test]
     fn dissonance_emits_four_additive_strips_converging_on_master() {
-        // Sociable test: F1=0 → RadialConverge → 4 additive strips, each
-        // ending at the actor XZ (`now`), starting at a randomised outer
-        // offset (`pre`). F1=0 → additive (was wrongly alpha).
         let mut e = BottomVerticalEffect::new([5.0, 0.0, 7.0], DISSONANCE);
         step(&mut e, FADE_IN_SECS);
         let prims = draws(&e);
@@ -336,7 +262,6 @@ mod tests {
 
     #[test]
     fn dontforgetme_emits_four_alpha_green_strips() {
-        // F1=2 → CrossedQuartet → 4 strips, green, alpha.
         let mut e = BottomVerticalEffect::new([0.0, 0.0, 0.0], DONTFORGETME);
         step(&mut e, FADE_IN_SECS);
         let prims = draws(&e);
@@ -359,13 +284,9 @@ mod tests {
 
     #[test]
     fn strip_height_pulses_between_10_and_30_over_time() {
-        // Regression: strips used a fixed height and read as static/too short.
-        // The animation drives `max_height = 20 + 10*sin(phase)`; sampling a
-        // strip across its phase sweep must reach near both bounds.
         let mut e = BottomVerticalEffect::new([0.0, 0.0, 0.0], DISSONANCE);
         let mut min_h = f32::INFINITY;
         let mut max_h = f32::NEG_INFINITY;
-        // +2°/frame → a full 360° sweep takes 180 frames.
         for _ in 0..180 {
             step(&mut e, 1.0 / 60.0);
             let h = strip_height(&draws(&e)[0]);
@@ -378,8 +299,6 @@ mod tests {
 
     #[test]
     fn crossed_quartet_strips_have_distinct_random_endpoints() {
-        // Regression for a hash-collision bug where the per-strip salt was
-        // shifted out of `rand_in_range`, making all 4 strips identical.
         let mut e = BottomVerticalEffect::new([12.0, 0.0, 34.0], ASSASSINCROSS);
         step(&mut e, FADE_IN_SECS);
         let s0 = e.strips[0];
@@ -398,8 +317,6 @@ mod tests {
 
     #[test]
     fn serviceforyou_emits_two_perpendicular_additive_strips() {
-        // F1=4 → PerpendicularPair → 2 strips (one X, one Z), additive pink
-        // (F1=4 → additive).
         let mut e = BottomVerticalEffect::new([0.0, 0.0, 0.0], SERVICEFORYOU);
         step(&mut e, FADE_IN_SECS);
         let prims = draws(&e);

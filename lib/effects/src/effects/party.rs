@@ -1,9 +1,4 @@
 //! `EF_PARTY` — persistent party-member marker (id 160).
-//!
-//! A single textured quad rolled 90° onto the horizontal ground plane.
-//! party.tga quad, half-extents 4×4,
-//! tint RGB `(50, 50, 253)` (blue), alpha 1.0, additive blend. Persists until
-//! manually killed.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};

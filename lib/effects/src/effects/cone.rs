@@ -1,22 +1,3 @@
-//! `EF_CONE` — id 71.
-//!
-//! Launches one `particle1.spr` sprite every 130 parent frames (the parent
-//! lives 200 frames, so two particles spawn over its life). Each particle
-//! lives 300 frames and spirals: the orbit radius grows, the rotation
-//! decelerates, and gravity pulls it down from a high spawn point — tracing
-//! the cone/funnel.
-//!
-//! No motion-blur trail: a single sprite is drawn per frame. Per-frame orbit
-//! integration is:
-//!   * `radius = 0.1 (+0.2/f)`, `longitude = 2° (+15°/f, accel −0.01)`,
-//!   * gravity `speed = 0.1 (+0.005/f)`, accumulated into `y`, with the
-//!     particle spawning at `y = −30` (native RO −Y = up).
-//!
-//! The orbit radius expands to ~60 units over the particle's life.
-//!
-//! Radius/height are scaled to our world units (`POS_SCALE`) and tuned against
-//! the reference gif.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -38,15 +19,12 @@ const GRAV_SPEED_INIT: f32 = 0.1;
 const GRAV_ACCEL: f32 = 0.005;
 const SIZE: f32 = 1.2;
 
-/// World-unit scale for the orbit radius and spawn height (the spiral
-/// expands to ~60 units over its life before scaling).
 const POS_SCALE: f32 = 0.3;
 
 const PARTICLE_ANIM_TICKS: f32 = 4.0;
 const PARTICLE_FRAME_MS: f32 = 1000.0 / FRAMES_PER_SECOND * PARTICLE_ANIM_TICKS;
 const FADEOUT_AT: f32 = PARTICLE_DURATION_FRAMES - PARTICLE_DURATION_FRAMES / 10.0;
 
-/// Last spawn (frame 130) + particle lifetime.
 const TOTAL_FRAMES: f32 = SPAWN_PERIOD_FRAMES + PARTICLE_DURATION_FRAMES;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
@@ -127,8 +105,6 @@ impl Effect for ConeEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         let dt_frames = ctx.delta * FRAMES_PER_SECOND;
 
-        // Spawn on every parent frame divisible by the period while the parent
-        // is alive (frames 0 and 130). Walk frame boundaries to catch up.
         let current_frame = self.age_frames.floor() as i32;
         let next = self.last_spawn_frame + 1;
         for f in next..=current_frame {
@@ -205,8 +181,6 @@ mod tests {
 
     #[test]
     fn spawns_particle_at_frame_zero_then_again_at_period() {
-        // Sociable: a particle1 sprite appears at frame 0 and a second at the
-        // 130-frame spawn boundary.
         let mut e = ConeEffect::new([0.0, 0.0, 0.0]);
         step(&mut e, 1);
         let mut list = EffectDrawList::new();
@@ -229,8 +203,6 @@ mod tests {
 
     #[test]
     fn particle_spirals_outward_and_dies() {
-        // Sociable: the orbit radius grows over the particle's life; the
-        // effect ends once the last particle expires.
         let mut e = ConeEffect::new([0.0, 0.0, 0.0]);
         step(&mut e, 5);
         let r0 = e.particles[0].radius;

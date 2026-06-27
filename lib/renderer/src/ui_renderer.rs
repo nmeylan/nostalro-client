@@ -54,7 +54,6 @@ impl UiRenderer {
     ) -> Self {
         use wgpu::util::DeviceExt;
 
-        // Uniform buffer for screen size (logical pixels)
         let uniform_data = UiUniforms {
             screen_size: [logical_width, logical_height],
             _pad: [0.0; 2],
@@ -89,7 +88,6 @@ impl UiRenderer {
             }],
         });
 
-        // Vertex + index buffers
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("ui_vertices"),
             size: (INITIAL_VERTEX_CAPACITY * std::mem::size_of::<UiVertex>()) as u64,
@@ -103,7 +101,6 @@ impl UiRenderer {
             mapped_at_creation: false,
         });
 
-        // Pipeline
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("ui-core"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/ui.wgsl").into()),
@@ -171,7 +168,6 @@ impl UiRenderer {
         queue: &wgpu::Queue,
         commands: &[UiDrawCommand],
     ) {
-        // Collect total vertices and indices
         let total_verts: usize = commands.iter().map(|c| c.vertices.len()).sum();
         let total_indices: usize = commands.iter().map(|c| c.indices.len()).sum();
 
@@ -179,7 +175,6 @@ impl UiRenderer {
             return;
         }
 
-        // Grow buffers if needed
         if total_verts > self.vertex_capacity {
             self.vertex_capacity = total_verts.next_power_of_two();
             self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -199,7 +194,6 @@ impl UiRenderer {
             });
         }
 
-        // Upload all vertices/indices into contiguous buffers, track batch offsets
         struct Batch<'a> {
             texture: &'a wgpu::BindGroup,
             index_start: u32,

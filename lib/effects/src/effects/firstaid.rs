@@ -1,30 +1,12 @@
-//! `EF_FIRSTAID` (id 309) — the First Aid heal sparkle.
-//!
-//! `EF_FIRSTAID` is a single camera-facing `pikapika2.bmp` star sparkle
-//! floating `12` above the caster, tinted light blue `(150,150,250)`. Its
-//! alpha ramps in over the first 20 frames
-//! (`+4`/frame), holds, then drains after frame 100, while a `+3`/frame
-//! size-pulse phase advances and pulses the quad size ±5%. (The Tier 4
-//! plan's air-texture / throw-arc / line-link parts belong to *other*
-//! handlers — `EF_FIRSTAID` itself is just the sparkle, so there is no
-//! Linelink dependency here.)
-//!
-//! Validated against the reference `309.gif` (a single pulsing star).
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// Alpha peaks at 80 (frame 20), holds to frame 100, then drains `-1/frame`
-/// → 0 at ~frame 180.
 const TOTAL_FRAMES: f32 = 180.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
 pub const TEXTURES: &[&str] = &["pikapika2.bmp"];
 
-/// Sparkle radius 10, `12` up. A medium literal — the star is the whole
-/// effect and reads ~2 characters wide in the reference, so keep it near 1:1
-/// rather than the large-literal 6× reduction.
 const WORLD_SCALE: f32 = 1.0;
 const SIZE: f32 = 10.0 * WORLD_SCALE * std::f32::consts::SQRT_2;
 const Y_OFFSET: f32 = -12.0 * WORLD_SCALE;
@@ -39,17 +21,14 @@ const COLOR: [f32; 3] = [150.0 / 255.0, 150.0 / 255.0, 250.0 / 255.0];
 
 pub struct FirstaidEffect {
     world_pos: [f32; 3],
-    /// Fixed sparkle orientation (`random(360)`).
     rotation_deg: f32,
     process: f32,
     alpha: f32,
-    /// Size-pulse phase.
     pulse: f32,
 }
 
 impl FirstaidEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        // Deterministic per-position rotation/pulse seed.
         let seed = (world_pos[0] * 53.0 + world_pos[2] * 29.0) as i64 as u32 ^ 0x0BAD_F00D;
         Self {
             world_pos,
@@ -111,7 +90,6 @@ mod tests {
     }
 
     fn run_to(e: &mut FirstaidEffect, frame: f32) {
-        // Step one frame at a time (the holder updates once per render frame).
         while e.process < frame {
             e.update(&EffectUpdateCtx {
                 delta: 1.0 / FRAMES_PER_SECOND,

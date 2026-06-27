@@ -1,18 +1,3 @@
-//! `EF_COLORPAPER` (id 347) — falling confetti, the original game's wedding
-//! effect.
-//!
-//! 50 bursts of 4 emitters → 200 confetti chips total. Per chip the
-//! behaviour is:
-//! it spawns high above the caster
-//! (`y = -(110..160)`, `x,z ∈ [-50,50]`), falls at 0.25–0.51/frame,
-//! tumbles (rotation +2°/frame), random RGB, fades in over 60 frames, fades
-//! out near the ground (`y > -10`), then respawns up to 3 times before dying.
-//!
-//! Each chip draws as **one** tumbling square quad (4 corners
-//! 90° apart at the chip radius, tilted around world-X by the tumble angle) —
-//! it flickers edge-on as it tumbles. Alpha blend; the per-chip
-//! RGB is randomised per chip.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -23,18 +8,12 @@ const TEXTURE: &str = "white02.bmp";
 
 const CHIP_COUNT: usize = 200;
 
-/// Horizontal spread (±50) and drop height (110–160) are independent dimensions
-/// for a confetti field — the cloud is far wider than it is tall. Scale them
-/// separately: a wide ±15-unit scatter dropping from ~14–21 units overhead.
 const HORIZ_SCALE: f32 = 0.45;
 const POS_SCALE: f32 = 0.13;
-/// Chip half-size is an independent dimension from the fall height — confetti
-/// chips stay small specks regardless of how high they fall from.
 const CHIP_SCALE: f32 = 1.5;
 
 const MAX_RESPAWNS: u8 = 3;
 const FADE_IN_FRAMES: i32 = 60;
-/// Chips fade once within 10 (scaled) units of the caster's ground plane.
 const GROUND_FADE_Y: f32 = -10.0 * POS_SCALE;
 
 const ALPHA_FADE_IN: f32 = 5.0 / 255.0;
@@ -70,7 +49,7 @@ impl Chip {
     fn spawn_pos(rng: &mut Rng, anchor: [f32; 3]) -> [f32; 3] {
         [
             anchor[0] + (rng.range(0.0, 101.0) - 50.0) * HORIZ_SCALE,
-            anchor[1] - (rng.range(0.0, 50.0) + 110.0) * POS_SCALE, // native −Y up
+            anchor[1] - (rng.range(0.0, 50.0) + 110.0) * POS_SCALE,
             anchor[2] + (rng.range(0.0, 101.0) - 50.0) * HORIZ_SCALE,
         ]
     }
@@ -81,7 +60,7 @@ impl Chip {
         }
         self.process += 1;
         self.tilt_deg = (self.tilt_deg + 2.0) % 360.0;
-        self.pos[1] += self.fall_speed; // falling toward the ground (+y)
+        self.pos[1] += self.fall_speed;
 
         if self.pos[1] > GROUND_FADE_Y + anchor[1] {
             self.alpha -= ALPHA_FADE_OUT;
@@ -122,7 +101,7 @@ impl ColorpaperEffect {
                     fall_speed,
                     radius,
                     rot_deg: rng.range(0.0, 360.0),
-                    tilt_deg: rng.range(0.0, 4.0) * 45.0, // ec*45
+                    tilt_deg: rng.range(0.0, 4.0) * 45.0,
                     color: [
                         rng.range(0.2, 1.0),
                         rng.range(0.2, 1.0),
@@ -163,7 +142,6 @@ impl Effect for ColorpaperEffect {
             let tilt = chip.tilt_deg.to_radians();
             let (tc, ts) = (tilt.cos(), tilt.sin());
             let r = chip.radius;
-            // 4 corners 90° apart, tilted around world-X as the chip tumbles.
             let corner = |deg_off: f32| {
                 let a = (chip.rot_deg + deg_off).to_radians();
                 let (ca, sa) = (a.cos(), a.sin());
@@ -185,8 +163,6 @@ impl Effect for ColorpaperEffect {
     }
 }
 
-/// Three fall cycles of ~300 frames each ≈ 15 s. Chips self-terminate; this is
-/// the holder's upper bound.
 pub const TOTAL_DURATION_MS: u32 = 15000;
 
 #[cfg(test)]
@@ -237,10 +213,8 @@ mod tests {
         tick(&mut e, 3.0 as u32);
         let q = quads(&e);
         assert!(q.len() > 100, "a cloud of chips ({})", q.len());
-        // Chips start above the caster (native −Y up → negative y).
         let mean_y: f32 = q.iter().map(|(c, _)| c[0][1]).sum::<f32>() / q.len() as f32;
         assert!(mean_y < 0.0, "cloud starts overhead: {mean_y}");
-        // Colors vary across chips.
         let c0 = q[0].1;
         assert!(
             q.iter().any(|(_, c)| (c[0] - c0[0]).abs() > 0.1),
@@ -260,7 +234,6 @@ mod tests {
             y_late > y_early,
             "chips fall (native +y down): {y_early} -> {y_late}"
         );
-        // Tumble changes the quad's z extent over time.
         let late_corner = quads(&e)[0].0;
         assert!(early_corner != late_corner, "chip tumbles");
     }
@@ -268,7 +241,6 @@ mod tests {
     #[test]
     fn effect_eventually_dies() {
         let mut e = ColorpaperEffect::new([0.0; 3]);
-        // Long enough for all chips to exhaust their 3 fall cycles.
         let st = tick(&mut e, 2000);
         assert_eq!(st, EffectStatus::Dead);
     }

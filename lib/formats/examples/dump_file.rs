@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use ragnarok_formats::grf::GrfArchive;
+use std::path::PathBuf;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     let grf = args.get(1).ok_or("usage: dump_file <grf> <name> <out>")?;

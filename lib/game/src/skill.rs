@@ -20,7 +20,6 @@ pub fn skill_failure_message(cause: u8) -> &'static str {
     }
 }
 
-/// A known skill with its current state (from server packets).
 pub struct SkillData {
     pub id: u16,
     pub name: String,
@@ -61,7 +60,6 @@ impl SkillData {
     }
 }
 
-/// Collection of known skills for a character.
 pub struct SkillList {
     skills: Vec<SkillData>,
     open: bool,

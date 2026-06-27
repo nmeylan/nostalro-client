@@ -53,13 +53,11 @@ impl GroundRenderer {
         texture_cache: &mut TextureCache,
         surface_format: wgpu::TextureFormat,
     ) -> Self {
-        // Preload all ground textures
         for tex_name in &gnd.textures {
             let path = format!("data/texture/{tex_name}");
             texture_cache.get_or_load(&path, grf, device, queue, false);
         }
 
-        // Build lightmap atlas
         let lightmap_bind_group = build_lightmap_atlas(
             &gnd.lightmaps,
             device,
@@ -67,7 +65,6 @@ impl GroundRenderer {
             &texture_cache.bind_group_layout,
         );
 
-        // Build mesh grouped by texture
         let atlas_dim = lightmap_atlas_dim(gnd.lightmaps.len());
         let (vertices, indices, batches) = build_mesh(gnd, atlas_dim);
 
@@ -126,7 +123,6 @@ impl GroundRenderer {
 }
 
 fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Vec<DrawBatch>) {
-    // Group quads by texture for batched rendering
     let mut texture_quads: std::collections::HashMap<String, (Vec<GroundVertex>, Vec<u32>)> =
         std::collections::HashMap::new();
 
@@ -200,7 +196,6 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                 ]);
             }
 
-            // Front wall
             if cell.surface_south >= 0 && y + 1 < gnd.height {
                 let next_cell = &gnd.cells[((y + 1) * gnd.width + x) as usize];
                 let surface = &gnd.surfaces[cell.surface_south as usize];
@@ -266,7 +261,6 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                 ]);
             }
 
-            // Right wall
             if cell.surface_east >= 0 && x + 1 < gnd.width {
                 let next_cell = &gnd.cells[(y * gnd.width + x + 1) as usize];
                 let surface = &gnd.surfaces[cell.surface_east as usize];
@@ -334,7 +328,6 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
         }
     }
 
-    // Flatten into single vertex/index buffers with draw batches
     let mut all_vertices = Vec::new();
     let mut all_indices = Vec::new();
     let mut batches = Vec::new();
@@ -343,7 +336,6 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
         let vertex_offset = all_vertices.len() as u32;
         let start_index = all_indices.len() as u32;
         all_vertices.extend_from_slice(&verts);
-        // Offset indices by the vertex_offset
         all_indices.extend(idxs.iter().map(|i| i + vertex_offset));
         batches.push(DrawBatch {
             texture_name: tex_name,
@@ -393,7 +385,6 @@ fn lightmap_atlas_dim(lightmap_count: usize) -> u32 {
     grid.max(1)
 }
 
-/// Returns UV coordinates for 4 corners of a lightmap cell within the atlas
 fn lightmap_uvs(lightmap_id: i16, atlas_grid: u32) -> [[f32; 2]; 4] {
     if lightmap_id < 0 || atlas_grid == 0 {
         return [[0.0; 2]; 4];
@@ -480,7 +471,6 @@ fn create_pipeline(
         source: wgpu::ShaderSource::Wgsl(include_str!("shaders/terrain.wgsl").into()),
     });
 
-    // group 0: global uniforms, group 1: ground texture, group 2: lightmap texture
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("terrain"),
         bind_group_layouts: &[
@@ -534,11 +524,10 @@ mod tests {
 
     #[test]
     fn bgra_to_rgba_converts_correctly() {
-        // BGRA: B=255, G=128, R=0, A=200
         let result = bgra_to_rgba_f32([255, 128, 0, 200]);
-        assert!((result[0] - 0.0).abs() < 0.01); // R from bgra[2]
+        assert!((result[0] - 0.0).abs() < 0.01);
         assert!((result[1] - 128.0 / 255.0).abs() < 0.01);
-        assert!((result[2] - 1.0).abs() < 0.01); // B from bgra[0]
+        assert!((result[2] - 1.0).abs() < 0.01);
         assert!((result[3] - 200.0 / 255.0).abs() < 0.01);
     }
 
@@ -559,7 +548,6 @@ mod tests {
             assert!(uv[0] >= 0.0 && uv[0] <= 1.0);
             assert!(uv[1] >= 0.0 && uv[1] <= 1.0);
         }
-        // ID 15 should be in the last cell of a 4x4 grid
         let uvs = lightmap_uvs(15, 4);
         assert!(uvs[3][0] > 0.7);
         assert!(uvs[3][1] > 0.7);

@@ -1,18 +1,3 @@
-//! `EF_EXIT` — character despawn / portal-out effect.
-//!
-//! Composite spawned at the master's foot:
-//!   * Frame 0 — a tall translucent cylinder (bottom radius = top radius =
-//!     4.5, height 35) using
-//!     `effect/alpha_down.tga`. Fades in over 30 frames, holds, then
-//!     fades out over the final 20 frames of its 100-frame lifetime.
-//!   * Every 9 frames — one orbiting sparkle sprite
-//!     (`particle1.spr`) at a random orbit longitude on a radius-3 circle.
-//!     Each particle has an initial upward velocity (1.2/frame)
-//!     and a small downward acceleration so it arcs upward, slows, falls.
-//!     50-frame particle lifetime, size 0.55.
-//!
-//! Despawn / portal-out sparkle, observed against the original game.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -39,11 +24,7 @@ const PARTICLE_FADEOUT_AT: f32 = PARTICLE_DURATION_FRAMES - PARTICLE_DURATION_FR
 const PARTICLE_ANIM_TICKS: f32 = 4.0;
 const PARTICLE_FRAME_MS: f32 = 1000.0 / FRAMES_PER_SECOND * PARTICLE_ANIM_TICKS;
 
-// Initial Y velocity, per-frame. In native RO coords -Y is up so a
-// particle with -1.2 / frame drifts up.
 const PARTICLE_INITIAL_Y_SPEED_PER_FRAME: f32 = -1.2;
-// Decel = -(initial_speed / duration) / 1.5 ≈ +0.016 per-frame
-// (positive = decel, eventually falls back down).
 const PARTICLE_Y_ACCEL_PER_FRAME: f32 =
     -(PARTICLE_INITIAL_Y_SPEED_PER_FRAME / PARTICLE_DURATION_FRAMES) / 1.5;
 
@@ -109,8 +90,6 @@ pub struct ExitEffect {
 
 impl ExitEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        // Stable per (world_pos) so the same spawn yields the same orbit
-        // angles in tests / replays.
         let rng_state =
             0x9E37_79B9 ^ world_pos[0].to_bits() ^ world_pos[2].to_bits().rotate_left(13);
         Self {
@@ -137,8 +116,6 @@ impl ExitEffect {
     fn spawn_particle(&mut self) {
         let longitude_deg = self.lcg_float() * 360.0;
         let (sn, cs) = longitude_deg.to_radians().sin_cos();
-        // Orbit offset = (0, 0, radius) rotated about Y by `long`,
-        // which expands to (radius*sin, 0, radius*cos).
         self.particles.push(Particle {
             anchor: self.world_pos,
             offset: [PARTICLE_ORBIT_RADIUS * sn, 0.0, PARTICLE_ORBIT_RADIUS * cs],
@@ -180,7 +157,6 @@ impl Effect for ExitEffect {
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
-        // Cylinder runs the first 100 frames.
         if self.age_frames < PARENT_DURATION_FRAMES {
             let alpha = cylinder_alpha(self.age_frames);
             if alpha > 0.0 {
@@ -252,11 +228,7 @@ mod tests {
 
     #[test]
     fn cylinder_renders_then_orbit_particles_spawn_every_nine_frames() {
-        // Sociable test: covers the cylinder-only frame, the cylinder
-        // fade-in alpha ramp, the particle spawn cadence (every 9
-        // frames → 0, 9, 18, …), and the particle orbit radius.
         let mut e = ExitEffect::new([10.0, 0.0, 20.0]);
-        // First tick lands on frame 1 — frame 0's spawn already fired.
         step_frames(&mut e, 1);
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
@@ -267,7 +239,6 @@ mod tests {
             .count();
         assert_eq!(cylinders, 1, "one Cylinder per frame while parent alive");
 
-        // Frame 1: particle from spawn at frame 0 lives.
         let p_count = list
             .primitives
             .iter()
@@ -275,7 +246,6 @@ mod tests {
             .count();
         assert_eq!(p_count, 1, "one particle after frame 0 spawn");
 
-        // Each spawned particle sits on a radius-3 circle in XZ.
         for prim in &list.primitives {
             if let EffectPrimitiveDraw::SpriteParticle { position, .. } = prim {
                 let dx = position[0] - 10.0;
@@ -288,7 +258,6 @@ mod tests {
             }
         }
 
-        // Step to frame 10 — frames 0 and 9 spawned, so 2 alive particles.
         step_frames(&mut e, 9);
         let mut list2 = EffectDrawList::new();
         e.collect_draws(&mut list2, &render_ctx());
@@ -302,8 +271,6 @@ mod tests {
 
     #[test]
     fn cylinder_alpha_fades_in_then_holds_then_fades_out() {
-        // Sociable check on the alpha envelope: at frame 0 alpha is 0,
-        // at frame 30 it's at max, mid-life it holds, late-life drops.
         let mut e = ExitEffect::new([0.0; 3]);
         e.update(&ctx(0.0));
         let a_start = cylinder_alpha(0.0);

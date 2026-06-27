@@ -1,37 +1,12 @@
-//! `EF_ICEARROW` (id 26, Cold Bolt) and `EF_FIREARROW` (id 31, Fire Bolt) — a
-//! rain of cross-texture bolts that fall near-vertically onto the target.
-//!
-//! Both share one primitive pattern in the original game, so they're one struct
-//! with two
-//! `const` parameter sets here.
-//!
-//!   * Anchored at the target. The count is the spell level; from frame 12 it is
-//!     scaled and one cross-texture bolt is launched every 10 frames while
-//!     the launched count is below it — so the bolt count equals the level (our
-//!     `hit_count`).
-//!   * Each bolt spawns at `target + (30±5, -60, 20±5)` (RO −Y is up, so ~60
-//!     units above and slightly to one corner) and travels at `2.75`/frame along
-//!     the fall direction onto the target — a steep, near-vertical streak. It
-//!     lives 70 frames and fades from frame 50. A cross texture is two
-//!     orthogonal planes sharing the fall axis; we emit two `WorldQuad`s.
-//!   * Ice: `11.5 × 3.8`, single `icearrow.tga`, blue `ring_blue.tga` impact ring.
-//!     Fire: `14 × 3.5`, six animated `불화살N.tga` frames, yellow `ring_yellow.tga`
-//!     ring, plus a `particle4.spr` spark spray (every 4 frames, along the fall
-//!     direction).
-//!   * Impact ring (flat): inner 10, grows `1.2`/frame, 30-frame
-//!     life, fades over its last 10 frames. One per bolt as it lands.
+//! `EF_ICEARROW` (id 26, Cold Bolt) and `EF_FIREARROW` (id 31, Fire Bolt).
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// Effect literals are 1:1 with our world units, so the bolt renders at
-/// the original game's size with `WORLD_SCALE = 1.0`. (Kept as a single knob;
-/// impact timing is invariant under it.)
 const WORLD_SCALE: f32 = 0.7;
 
-/// One bolt every 10 frames from frame 12; count = `hit_count`.
 const SPAWN_START_FRAME: f32 = 12.0;
 const SPAWN_PERIOD_FRAMES: f32 = 10.0;
 const MAX_BOLTS: usize = 10;
@@ -40,33 +15,21 @@ const BOLT_LIFE_FRAMES: f32 = 70.0;
 const BOLT_FADE_START: f32 = 50.0;
 const BOLT_SPEED_PER_FRAME: f32 = 2.75 * WORLD_SCALE;
 
-/// Spawn offset above the target (`-Y` up), shared corner with per-bolt jitter.
 const OFFSET_BASE: [f32; 3] = [30.0, -60.0, 20.0];
 const OFFSET_JITTER: f32 = 5.0;
 
-// Impact ring — a textured annulus whose `ring_*.tga` is a
-// repeating spike/corona gradient (tips at the outer edge, tiled 4× around), so
-// the band thickness is the spike length. The outer radius integrates a
-// decelerating speed; the band is capped at `RING_INNER_SIZE`. At 1:1 the
-// corona reaches ~20 units — too large for a bolt splash, so the whole ring is
-// downscaled (the bolt stays full-size).
 const RING_SCALE: f32 = 0.45;
 const RING_LIFE_FRAMES: f32 = 30.0;
-/// The band's max radial thickness (spike length).
 const RING_INNER_SIZE: f32 = 10.0 * RING_SCALE;
-/// Ring growth speed and its (negative) acceleration `-(speed/(dur+40))*2`.
 const RING_SPEED0: f32 = 1.2;
 const RING_ACCEL: f32 = -RING_SPEED0 / 35.0;
-/// The ring texture tiles four times around the circle.
 const RING_UV_REPEAT: f32 = 4.0;
 const RING_FADE_IN: f32 = 10.0;
 const RING_FADE_START: f32 = RING_LIFE_FRAMES - 10.0;
 const RING_MAX_ALPHA: f32 = 1.0;
-/// `-Y` is up: lift the flat ring a hair off the ground so the terrain doesn't
-/// depth-occlude ("swallow") it at grazing camera angles.
+/// −Y is up; lift prevents terrain depth-occlusion at grazing angles.
 const RING_GROUND_LIFT: f32 = -0.5;
 
-// Fire-only spark spray.
 const SPRAY_FIRST_FRAME: f32 = 4.0;
 const SPRAY_INTERVAL: f32 = 4.0;
 const SPRAY_MIN_DURATION: f32 = 6.0;
@@ -101,8 +64,6 @@ pub const FIRE_TEXTURES: &[&str] = &[
 ];
 pub const FIRE_SPRITES: &[&str] = &[PARTICLE4_SPRITE];
 
-/// Worst-case wall clock (max bolt count) so the holder never cuts a high-level
-/// cast short; a low-`hit_count` instance ends itself earlier via `update`.
 const MAX_TOTAL_FRAMES: f32 =
     SPAWN_START_FRAME + SPAWN_PERIOD_FRAMES * (MAX_BOLTS as f32 - 1.0) + BOLT_LIFE_FRAMES;
 pub const ICE_TOTAL_DURATION_MS: u32 = (MAX_TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
@@ -110,10 +71,7 @@ pub const FIRE_TOTAL_DURATION_MS: u32 = ICE_TOTAL_DURATION_MS;
 
 #[derive(Clone, Copy)]
 pub struct BoltParams {
-    /// One frame (ice) or the animation set (fire), cycled at 1 frame/tick.
     frames: &'static [&'static str],
-    /// Half-extents: `len` along the fall axis, `wid` perpendicular (raw source
-    /// literals, scaled by [`WORLD_SCALE`] at emit time).
     half_len: f32,
     half_wid: f32,
     bolt_color: [f32; 3],
@@ -161,13 +119,10 @@ fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
 
 struct Bolt {
     spawn_frame: f32,
-    /// Start position relative to the target.
     offset: [f32; 3],
     fall_dir: [f32; 3],
-    /// Cross-plane axes perpendicular to the fall direction.
     perp_a: [f32; 3],
     perp_b: [f32; 3],
-    /// Frame (relative to spawn) at which the bolt reaches the target.
     impact_life: f32,
 }
 
@@ -234,9 +189,7 @@ impl MagicBoltEffect {
             let global_fall = norm([-OFFSET_BASE[0], -OFFSET_BASE[1], -OFFSET_BASE[2]]);
             let mut v = Vec::new();
             let mut frame = SPRAY_FIRST_FRAME;
-            // Sparks accompany the falling bolts; stop once the last one has landed.
             while frame <= last_spawn + BOLT_LIFE_FRAMES * 0.5 {
-                // Jitter the fall direction by a small cone.
                 let jx = (lcg() * 2.0 - 1.0) * 0.35;
                 let jy = (lcg() * 2.0 - 1.0) * 0.2;
                 let jz = (lcg() * 2.0 - 1.0) * 0.35;
@@ -342,9 +295,6 @@ impl MagicBoltEffect {
         if alpha <= 0.0 {
             return;
         }
-        // Outer radius integrates a decelerating speed; the band thickness is
-        // `min(radius, innerSize)` so it fills as a disc
-        // until `innerSize`, then holds that width as the ring widens.
         let outer = (RING_SPEED0 * ring_age + 0.5 * RING_ACCEL * ring_age * ring_age) * RING_SCALE;
         if outer <= 0.0 {
             return;
@@ -403,12 +353,10 @@ impl Effect for MagicBoltEffect {
             };
             if alpha > 0.0 {
                 let frame = self.params.frames[(life as usize) % self.params.frames.len()];
-                // Two orthogonal planes sharing the fall axis = a cross texture.
                 self.push_plane(out, bolt, center, bolt.perp_a, alpha, frame);
                 self.push_plane(out, bolt, center, bolt.perp_b, alpha, frame);
             }
 
-            // Impact ring once the bolt reaches the target.
             let ring_age = life - bolt.impact_life;
             if ring_age >= 0.0 && ring_age <= RING_LIFE_FRAMES {
                 self.push_ring(out, ring_age);
@@ -491,13 +439,10 @@ mod tests {
     #[test]
     fn bolt_count_tracks_hit_count_with_two_planes_each() {
         for count in 1..=5u8 {
-            // Count distinct live bolts at the moment the last one has spawned.
             let mut e = MagicBoltEffect::new([0.0, 0.0, 0.0], count, ICE_ARROW);
             let last_spawn = SPAWN_START_FRAME + SPAWN_PERIOD_FRAMES * (count as f32 - 1.0);
             step(&mut e, last_spawn as u32 + 2);
             let q = quads(&e);
-            // Two planes per still-alive bolt; all bolts are within their 70-frame
-            // life this early, so every spawned bolt is present.
             assert_eq!(
                 q.len(),
                 count as usize * 2,
@@ -513,7 +458,6 @@ mod tests {
         let spawn = SPAWN_START_FRAME as u32 + 1;
         step(&mut e, spawn);
         let early = quad_center(&quads(&e)[0]);
-        // -Y is up: a fresh bolt starts above the target (negative y).
         assert!(
             early[1] < target[1],
             "bolt starts above the target: y={}",

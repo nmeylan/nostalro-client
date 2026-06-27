@@ -1,13 +1,10 @@
 use std::collections::HashMap;
 
-/// Decodes EUC-KR bytes to a UTF-8 string (lossy).
 pub fn decode_euc_kr(data: &[u8]) -> String {
     let (decoded, _, _) = encoding_rs::EUC_KR.decode(data);
     decoded.into_owned()
 }
 
-/// Parses `id#resource_name#` format from EUC-KR data.
-/// Returns id → `_resource_name` (with underscore prefix for accessory path convention).
 pub fn parse_item_res_table(data: &[u8]) -> HashMap<u16, String> {
     let content = decode_euc_kr(data);
     let mut map = HashMap::new();
@@ -29,8 +26,6 @@ pub fn parse_item_res_table(data: &[u8]) -> HashMap<u16, String> {
     map
 }
 
-/// Parses `id#display_name#` format from EUC-KR data.
-/// Returns id → display_name (no prefix, for UI display).
 pub fn parse_item_name_table(data: &[u8]) -> HashMap<u16, String> {
     let content = decode_euc_kr(data);
     let mut map = HashMap::new();
@@ -52,9 +47,6 @@ pub fn parse_item_name_table(data: &[u8]) -> HashMap<u16, String> {
     map
 }
 
-/// Parses item description tables (`idnum2itemdesctable.txt` / `num2itemdesctable.txt`).
-/// Format: `ID#\ndescription lines...\n#\n` repeating.
-/// Returns id → Vec of description lines (may contain `^RRGGBB` color codes).
 pub fn parse_item_description_table(data: &[u8]) -> HashMap<u16, Vec<String>> {
     let content = decode_euc_kr(data);
     let mut map: HashMap<u16, Vec<String>> = HashMap::new();
@@ -81,7 +73,6 @@ pub fn parse_item_description_table(data: &[u8]) -> HashMap<u16, Vec<String>> {
     map
 }
 
-/// Parses `id#` format (id-only lines). Returns a HashSet of ids.
 pub fn parse_id_set_table(data: &[u8]) -> std::collections::HashSet<u16> {
     let content = decode_euc_kr(data);
     let mut set = std::collections::HashSet::new();
@@ -100,8 +91,6 @@ pub fn parse_id_set_table(data: &[u8]) -> std::collections::HashSet<u16> {
     set
 }
 
-/// Parses `SKILL_NAME#Display Name#` format from EUC-KR data.
-/// Returns internal_name → display_name.
 pub fn parse_skill_name_table(data: &[u8]) -> HashMap<String, String> {
     let content = decode_euc_kr(data);
     let mut map = HashMap::new();
@@ -122,9 +111,6 @@ pub fn parse_skill_name_table(data: &[u8]) -> HashMap<String, String> {
     map
 }
 
-/// Parses skill description tables (`skilldesctable.txt`).
-/// Format: `SKILL_NAME#\ndescription lines...\n#\n` repeating.
-/// Returns internal_name → Vec of description lines.
 pub fn parse_skill_description_table(data: &[u8]) -> HashMap<String, Vec<String>> {
     let content = decode_euc_kr(data);
     let mut map: HashMap<String, Vec<String>> = HashMap::new();
@@ -135,7 +121,6 @@ pub fn parse_skill_description_table(data: &[u8]) -> HashMap<String, Vec<String>
         if trimmed.is_empty() {
             continue;
         }
-        // Skill names contain only alphanumeric and underscore, no spaces or digits-only
         if !trimmed.contains(' ') && !trimmed.contains('\n') && trimmed.contains('_') {
             current_name = Some(trimmed.to_string());
         } else if let Some(ref name) = current_name {
@@ -152,8 +137,6 @@ pub fn parse_skill_description_table(data: &[u8]) -> HashMap<String, Vec<String>
     map
 }
 
-/// Parses `leveluseskillspamount.txt`: blocks of `SKILL_NAME#\nSP1#\nSP2#\n...\n@` repeating.
-/// Returns skill_name → Vec of SP costs per level (index 0 = level 1).
 pub fn parse_level_use_skill_sp_table(data: &[u8]) -> HashMap<String, Vec<i16>> {
     let content = decode_euc_kr(data);
     let mut map = HashMap::new();
@@ -195,11 +178,6 @@ pub fn parse_level_use_skill_sp_table(data: &[u8]) -> HashMap<String, Vec<i16>> 
     map
 }
 
-/// Parses RO accessory data from `accessoryid.lua` and `accname.lua`.
-/// Returns a map from view_id to sprite name suffix.
-///
-/// accessoryid.lua format: `ACCESSORY_GOGGLES = 1,`
-/// accname.lua format: `[ACCESSORY_IDs.ACCESSORY_GOGGLES] = "_고글",`
 pub fn build_accessory_table(id_content: &str, name_content: &str) -> HashMap<u16, String> {
     let name_to_id = parse_assignments(id_content);
     let name_to_suffix = parse_table_entries(name_content, "ACCESSORY_IDs.ACCESSORY_");
@@ -213,7 +191,6 @@ pub fn build_accessory_table(id_content: &str, name_content: &str) -> HashMap<u1
     table
 }
 
-/// Parses `NAME = 123,` assignments. Returns name → number.
 fn parse_assignments(content: &str) -> HashMap<String, u32> {
     let mut map = HashMap::new();
     for line in content.lines() {
@@ -221,7 +198,6 @@ fn parse_assignments(content: &str) -> HashMap<String, u32> {
         if line.starts_with("--") || line.is_empty() {
             continue;
         }
-        // Match: ACCESSORY_NAME = 123
         if let Some((name_part, value_part)) = line.split_once('=') {
             let name = name_part.trim().trim_start_matches("ACCESSORY_");
             let value_str = value_part.trim().trim_end_matches(',').trim();
@@ -233,7 +209,6 @@ fn parse_assignments(content: &str) -> HashMap<String, u32> {
     map
 }
 
-/// Parses `[prefix.NAME] = "value",` table entries. Returns name → value.
 fn parse_table_entries(content: &str, prefix: &str) -> HashMap<String, String> {
     let mut map = HashMap::new();
     for line in content.lines() {
@@ -241,7 +216,6 @@ fn parse_table_entries(content: &str, prefix: &str) -> HashMap<String, String> {
         if line.starts_with("--") || line.is_empty() {
             continue;
         }
-        // Match: [ACCESSORY_IDs.ACCESSORY_NAME] = "value"
         let Some(rest) = line.strip_prefix('[') else {
             continue;
         };

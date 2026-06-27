@@ -1,5 +1,3 @@
-//! Dump an STR effect file's layers and per-frame animation keys.
-//! Usage: cargo run -p ragnarok-formats --example dump_str -- <grf> <path-in-grf>
 use std::path::PathBuf;
 
 use ragnarok_formats::grf::GrfArchive;
@@ -47,8 +45,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if f.frame_type == 0 {
                 println!(
                     "        pos=[{:.0},{:.0},{:.0},{:.0} | {:.0},{:.0},{:.0},{:.0}]",
-                    f.positions[0], f.positions[1], f.positions[2], f.positions[3],
-                    f.positions[4], f.positions[5], f.positions[6], f.positions[7],
+                    f.positions[0],
+                    f.positions[1],
+                    f.positions[2],
+                    f.positions[3],
+                    f.positions[4],
+                    f.positions[5],
+                    f.positions[6],
+                    f.positions[7],
                 );
             }
         }

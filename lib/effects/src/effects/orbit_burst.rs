@@ -1,22 +1,4 @@
-//! Sparkle bursts — shared `particle1.spr` orbiting / spiralling particle
-//! pattern used by `EF_SPHERE` (id 72) and
-//! `EF_REMOVETRAP` (id 100). Both spawn `particle1` sprites that orbit a
-//! vertical axis while their radius and height evolve; they differ only in
-//! the spawn schedule and per-particle constants.
-//!
-//! Observed behaviour:
-//! * Sphere — one orbit particle every
-//!   10 frames; radius `0.1 + 0.15·f` reversing to `−0.15` at frame 95;
-//!   longitude advances 8°/frame (accel `−0.01`); spawned high (30 units up) and
-//!   sinking (0.15/frame); size 1.2; 300-frame per-particle life.
-//! * RemoveTrap — 12 particles at
-//!   frame 0 and 12 at frame 7; radius grows 0.2/frame, random longitude (no
-//!   orbit); rises (2.0/frame) then falls (accel +0.08); size
-//!   0.8; 50-frame life, fade from frame 35.
-//!
-//! The orbit-particle integration mirrors `hasteup.rs`'s `OrbitParticle`;
-//! this module generalises it (radius growth + mid-life reversal + gravity)
-//! and drives two configs.
+//! `EF_SPHERE` (id 72) and `EF_REMOVETRAP` (id 100) — orbiting `particle1.spr` sparkles.
 
 use super::spike_burst::seed_from_world;
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
@@ -28,8 +10,6 @@ pub const SPRITES: &[&str] = &[PARTICLE_SPRITE];
 const FRAMES_PER_SECOND: f32 = 60.0;
 const ANIM_FRAMES_PER_MOTION: f32 = 4.0;
 
-/// Per-variant constants. Distances are in original-game units; `world_scale`
-/// ports them uniformly to our smaller world (a character is ~5–8 wu).
 #[derive(Clone, Copy, Debug)]
 pub struct OrbitBurstParams {
     pub world_scale: f32,
@@ -38,18 +18,14 @@ pub struct OrbitBurstParams {
     pub fade_out_at_frames: f32,
     pub radius_init: f32,
     pub radius_speed: f32,
-    /// Frame at which `radius_speed` flips sign (Sphere implodes at f95).
     pub radius_reverse_at: Option<f32>,
     pub long_speed_deg: f32,
     pub long_accel_deg: f32,
-    /// Initial vertical offset (native RO −Y = up).
     pub y_init: f32,
     pub y_speed: f32,
     pub y_accel: f32,
     pub blend: BlendKind,
 }
-
-// ---- EF_SPHERE (72) ---------------------------------------------------------
 
 pub const SPHERE: OrbitBurstParams = OrbitBurstParams {
     world_scale: 0.55,
@@ -66,15 +42,11 @@ pub const SPHERE: OrbitBurstParams = OrbitBurstParams {
     y_accel: 0.0,
     blend: BlendKind::Additive,
 };
-/// Longitude starts at 2° for every Sphere particle; the 10-frame spawn stagger
-/// (× `long_speed`) is what spreads them around the orbit.
 const SPHERE_SPAWN_INTERVAL_FRAMES: f32 = 10.0;
 const SPHERE_SPAWN_END_FRAME: f32 = 250.0;
 const SPHERE_LONGITUDE_INIT_DEG: f32 = 2.0;
 pub const SPHERE_TOTAL_DURATION_MS: u32 =
     ((SPHERE_SPAWN_END_FRAME + SPHERE.particle_life_frames) / FRAMES_PER_SECOND * 1000.0) as u32;
-
-// ---- EF_REMOVETRAP (100) ----------------------------------------------------
 
 pub const REMOVETRAP: OrbitBurstParams = OrbitBurstParams {
     world_scale: 0.55,
@@ -183,8 +155,6 @@ impl OrbitParticle {
     }
 }
 
-/// Cheap deterministic angle generator so a fixed spawn point is stable
-/// (LCG over the world-pos seed + particle index).
 fn random_longitude(seed: u32, index: usize) -> f32 {
     let mut x = seed.wrapping_add((index as u32).wrapping_mul(2654435761));
     x ^= x >> 13;
@@ -192,8 +162,6 @@ fn random_longitude(seed: u32, index: usize) -> f32 {
     x ^= x >> 16;
     (x % 360) as f32
 }
-
-// ---- EF_SPHERE effect -------------------------------------------------------
 
 pub struct SphereEffect {
     world_pos: [f32; 3],
@@ -241,8 +209,6 @@ impl Effect for SphereEffect {
         }
     }
 }
-
-// ---- EF_REMOVETRAP effect ---------------------------------------------------
 
 pub struct RemoveTrapEffect {
     world_pos: [f32; 3],
@@ -374,7 +340,6 @@ mod tests {
             REMOVETRAP_PER_BURST,
             "first burst"
         );
-        // Past frame 7 the second burst has fired.
         for _ in 0..8 {
             e.update(&ctx(1.0 / FRAMES_PER_SECOND));
         }

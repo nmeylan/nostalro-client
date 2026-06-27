@@ -117,9 +117,12 @@ impl GifSession {
         encoder
             .set_repeat(gif::Repeat::Infinite)
             .map_err(std::io::Error::other)?;
-        let duration_ms = duration_ms.unwrap_or(DEFAULT_DURATION_MS).min(MAX_DURATION_MS);
-        let frames_total =
-            ((duration_ms as f32 / 1000.0) * GIF_FPS as f32).round().max(1.0) as u32;
+        let duration_ms = duration_ms
+            .unwrap_or(DEFAULT_DURATION_MS)
+            .min(MAX_DURATION_MS);
+        let frames_total = ((duration_ms as f32 / 1000.0) * GIF_FPS as f32)
+            .round()
+            .max(1.0) as u32;
         let capture_every = (SIM_TICK_HZ as u32 / GIF_FPS).max(1);
         Ok(Self {
             effect_id,

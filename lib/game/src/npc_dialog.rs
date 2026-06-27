@@ -115,35 +115,28 @@ mod tests {
         let mut dialog = NpcDialogData::new();
         assert!(!dialog.is_open());
 
-        // NPC sends text
         dialog.open_text(100, "Hello adventurer!");
         assert!(dialog.is_open());
         assert_eq!(dialog.state, NpcDialogState::DisplayingText);
         assert_eq!(dialog.text, "Hello adventurer!");
 
-        // Server sends wait (Next button)
         dialog.wait_for_next(100);
         assert_eq!(dialog.state, NpcDialogState::WaitingForNext);
 
-        // Player clicks Next => text cleared
         dialog.advance_next();
         assert_eq!(dialog.state, NpcDialogState::DisplayingText);
         assert!(dialog.text.is_empty());
 
-        // More text arrives
         dialog.open_text(100, "Choose wisely.");
         assert_eq!(dialog.text, "Choose wisely.");
 
-        // Server sends menu
         dialog.show_menu(100, vec!["Buy".into(), "Sell".into(), "Cancel".into()]);
         assert_eq!(dialog.state, NpcDialogState::WaitingForMenu);
         assert_eq!(dialog.menu_items.len(), 3);
 
-        // Player selects, server sends close
         dialog.wait_for_close(100);
         assert_eq!(dialog.state, NpcDialogState::WaitingForClose);
 
-        // Player clicks close
         dialog.close();
         assert!(!dialog.is_open());
     }

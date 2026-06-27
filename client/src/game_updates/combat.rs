@@ -12,8 +12,6 @@ impl App {
     pub(crate) fn check_pending_attack(&mut self, delta: f32) {
         self.game.attack_request_cooldown = (self.game.attack_request_cooldown - delta).max(0.0);
 
-        // While a skill is queued, attack_target_id belongs to the skill chase -
-        // check_pending_skill owns the lifecycle, don't touch it here.
         if self.game.pending_skill_id.is_some() {
             return;
         }
@@ -85,7 +83,6 @@ impl App {
                 EntityState::Standing | EntityState::ReadyFight
             ) {
                 self.send_attack_packet(target_id);
-                // TODO Having a doubt on this number should investigate how to do it properly
                 self.game.attack_request_cooldown = 0.3;
             }
         } else if let Some(player) = self.game.entities.player()
@@ -97,7 +94,6 @@ impl App {
                     | EntityState::Sitting
             )
         {
-            // Call every frame to track a moving target (original game used to recalculates dest cell each tick)
             self.try_move_toward(target_pos.0 as i32, target_pos.1 as i32, px, py, range);
         }
     }
@@ -175,8 +171,6 @@ impl App {
             if let Some(player) = self.game.entities.player_mut() {
                 player.movement.stop();
             }
-            // In range but still on cooldown: hold the cast and retry next frame
-            // once the cooldown clears, rather than dropping the queued skill.
             if self.skill_on_cooldown(skill_id) {
                 return;
             }
@@ -308,10 +302,6 @@ impl App {
         }
     }
 
-    /// On-hit spark on the target, fired as the hit lands (one per scheduled
-    /// hit) so it stays in sync with the damage number and the projectile.
-    /// `skill_id == 0` is a normal attack; the §2d derivation picks the spark
-    /// from the skill/attack type. Misses show no spark.
     fn spawn_hit_effect(&mut self, entity_id: u32, hit: &ScheduledHit) {
         if hit.damage <= 0 {
             return;
@@ -324,11 +314,6 @@ impl App {
             .and_then(|e| JobName::try_from_value(e.job as usize).ok())
             .unwrap_or(JobName::Novice);
         let target_is_self = hit.attacker_gid == entity_id;
-        // Direction-oriented sparks (the Hit family, Pierce, SonicBlowHit…)
-        // centre on the struck entity and aim their ring toward the attacker.
-        // The trail convention is `from` = source (attacker), `to` = target
-        // (struck entity); every trail effect anchors on `to`. Snapshot both
-        // world positions; the rest stay attached to the target with no heading.
         let target_pos = self.entity_world_pos(entity_id);
         let attacker_pos = self.entity_world_pos(hit.attacker_gid);
         for effect in derive_hit_effect(skill, hit.is_critical, attacker_job, target_is_self) {
@@ -342,13 +327,11 @@ impl App {
     }
 
     pub(crate) fn emit_damage_number(&mut self, entity_id: u32, hit: &ScheduledHit) {
-        // Server sentinel values mean "do not display a number".
         const IGNORE_DAMAGE: i32 = -30000;
         const NEVERSEE_DAMAGE: i32 = -29999;
         if hit.damage == IGNORE_DAMAGE || hit.damage == NEVERSEE_DAMAGE {
             return;
         }
-        // "Show only my damage": skip hits that don't involve the local player.
         if !self.config.display.show_other_damage {
             let me = self.game.entities.player_id();
             if me != Some(entity_id) && me != Some(hit.attacker_gid) {

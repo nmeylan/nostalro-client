@@ -1,4 +1,10 @@
 use super::inventory_window::INV_WINDOW_ID;
+use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
+use crate::helper::window_chrome::{
+    FOOTER_TEX, ITEMWIN_MID_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container,
+    draw_footer, draw_sys_button, draw_titlebar, text_color,
+};
+use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
@@ -6,14 +12,7 @@ use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-use crate::helper::window_chrome::{
-    FOOTER_TEX, ITEMWIN_MID_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container,
-    draw_footer, draw_sys_button, draw_titlebar, text_color,
-};
-use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
-use crate::{InGameWindow, Window};
 
-// -- Widget IDs (block 1800) --
 pub const CART_WINDOW_ID: WidgetId = WidgetId(1800);
 const CART_CLOSE_BTN_ID: WidgetId = WidgetId(1801);
 const CART_MINI_BTN_ID: WidgetId = WidgetId(1802);
@@ -22,7 +21,6 @@ const CART_SCROLL_DOWN_ID: WidgetId = WidgetId(1804);
 const CART_SCROLL_THUMB_ID: WidgetId = WidgetId(1805);
 const CART_ITEM_BASE_ID: u32 = 1820;
 
-// -- Layout (fixed grid, matching the original game's 5x4 cart page) --
 const CELL_SIZE: f32 = 32.0;
 const ICON_SIZE: f32 = 24.0;
 const ICON_PAD: f32 = 4.0;
@@ -96,7 +94,12 @@ impl Window for CartWindow {
 }
 
 impl InGameWindow for CartWindow {
-    fn build(&mut self, ui: &mut UiFrame, character: &mut Character, data: &DataTable) -> Vec<GameEvent> {
+    fn build(
+        &mut self,
+        ui: &mut UiFrame,
+        character: &mut Character,
+        data: &DataTable,
+    ) -> Vec<GameEvent> {
         if !character.cart.is_open() {
             return Vec::new();
         }
@@ -115,11 +118,9 @@ impl InGameWindow for CartWindow {
         let win = ui.window_at(CART_WINDOW_ID, win_w, win_h, TITLE_H, 80.0, 120.0);
         ui.interact(CART_WINDOW_ID, Rect::new(win.x, win.y, win_w, win_h));
 
-        // -- Titlebar --
         draw_titlebar(ui, win.x, win.y, win_w, TITLE_H, grf);
         ui.text(win.x + 17.0, win.y + TITLE_H - 3.0, "Cart", text_color);
 
-        // Minimize + close buttons
         let mini_rect = Rect::new(
             win.x + win_w - MINI_BTN_SIZE * 2.0 - 6.0,
             win.y + (TITLE_H - MINI_BTN_SIZE) / 2.0,
@@ -179,7 +180,6 @@ impl InGameWindow for CartWindow {
             return events;
         }
 
-        // -- Grid container --
         let container_y = win.y + TITLE_H;
         let container_h = PAD_Y + GRID_ROWS as f32 * CELL_SIZE + PAD_Y;
         draw_container(ui, win.x, container_y, win_w, container_h, grf);
@@ -212,7 +212,6 @@ impl InGameWindow for CartWindow {
                 let cell_rect = Rect::new(cx, cy, cell, cell);
                 let response = ui.interact(WidgetId(CART_ITEM_BASE_ID + slot as u32), cell_rect);
 
-                // Cell background
                 if grf {
                     let (v, idx) =
                         draw::quad_vertices(cx + pad, cy + pad, icon, icon, [1.0, 1.0, 1.0, 1.0]);
@@ -222,8 +221,13 @@ impl InGameWindow for CartWindow {
                         texture: TextureRef::Named(ITEMWIN_MID_TEX.to_string()),
                     });
                 } else {
-                    let (v, idx) =
-                        draw::quad_vertices(cx + pad, cy + pad, icon, icon, [0.08, 0.08, 0.12, 0.8]);
+                    let (v, idx) = draw::quad_vertices(
+                        cx + pad,
+                        cy + pad,
+                        icon,
+                        icon,
+                        [0.08, 0.08, 0.12, 0.8],
+                    );
                     ui.draw_calls.push(DrawCall {
                         vertices: v.to_vec(),
                         indices: idx.to_vec(),
@@ -252,7 +256,12 @@ impl InGameWindow for CartWindow {
 
                 let count_str = item.count.to_string();
                 let count_w = ui.atlas.measure_text(&count_str);
-                ui.text(cx + icon - count_w + 2.0, cy + cell - 2.0, &count_str, [0.0, 0.0, 0.0, 1.0]);
+                ui.text(
+                    cx + icon - count_w + 2.0,
+                    cy + cell - 2.0,
+                    &count_str,
+                    [0.0, 0.0, 0.0, 1.0],
+                );
 
                 if response.hovered() {
                     let display_name =
@@ -265,7 +274,6 @@ impl InGameWindow for CartWindow {
                     ui.tooltip(cx, cy - icon, &tooltip);
                 }
 
-                // Drag a cart item out (drop onto inventory to retrieve it).
                 if response.clicked() {
                     ui.drag_source(
                         CART_WINDOW_ID,
@@ -277,7 +285,6 @@ impl InGameWindow for CartWindow {
                 if response.right_clicked() {
                     events.push(GameEvent::ShowItemInfo { index: item.index });
                 }
-                // Double-click pulls the whole stack back to the body inventory.
                 if response.double_clicked() {
                     events.push(GameEvent::RequestMoveItemCartToBody {
                         index: item.index,
@@ -287,7 +294,6 @@ impl InGameWindow for CartWindow {
             }
         }
 
-        // Drop zone: accept drags from the inventory window (body → cart).
         let grid_rect = Rect::new(
             grid_x,
             grid_y,
@@ -308,7 +314,6 @@ impl InGameWindow for CartWindow {
             });
         }
 
-        // -- Scrollbar --
         if total_rows > GRID_ROWS {
             let sb_x = win.x + win_w - SCROLLBAR_W - 1.0;
             let content_rect = Rect::new(win.x, container_y, win_w, container_h);
@@ -329,12 +334,16 @@ impl InGameWindow for CartWindow {
             );
         }
 
-        // -- Footer (weight only) --
         let footer_y = container_y + container_h;
         draw_footer(ui, win.x, footer_y, win_w, FOOTER_H, grf);
         let cart = &character.cart;
         let footer_label = format!("{}/{}", cart.weight / 10, cart.max_weight / 10);
-        ui.text(win.x + 4.0, footer_y + FOOTER_H - 5.0, &footer_label, text_color);
+        ui.text(
+            win.x + 4.0,
+            footer_y + FOOTER_H - 5.0,
+            &footer_label,
+            text_color,
+        );
 
         ui.has_grf_textures = prev_grf;
         events

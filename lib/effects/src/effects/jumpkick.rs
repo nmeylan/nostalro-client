@@ -1,26 +1,11 @@
-//! `EF_JUMPKICK` (457) — Taekwon flying-kick forced pose.
-//!
-//! Not a particle effect: in the original game it only forces
-//! the caster's animation at frame 5 (snaps to the skill pose —
-//! action group `96 / 8 = 12`, the Skill action,
-//! held on frame 5), plays `flyingkick.wav`, and reverts to the normal attack
-//! at frame 35. So this effect draws nothing; it arms a one-shot [`BodyAction`]
-//! that the game-update step plays on the attached actor (the effect viewer
-//! holds the actor static, so it snaps the pose in; validate the animated kick
-//! on a real actor).
-
 use crate::draw::{EffectDrawList, EffectStatus};
 use crate::effect_trait::{BodyAction, Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FPS: f32 = 60.0;
-/// Forced animation: action group `96 / 8 = 12` (the Skill pose).
 const KICK_ACTION: usize = 12;
-/// The held start frame.
 const KICK_START_FRAME: usize = 5;
-/// Frame 5 arms the pose; it reverts at frame 35.
 const ARM_FRAME: f32 = 5.0;
 const REVERT_FRAME: f32 = 35.0;
-/// The pose holds from frame 5 to 35 (~0.5 s at 60 fps).
 const KICK_DURATION_MS: f32 = (REVERT_FRAME - ARM_FRAME) / FPS * 1000.0;
 
 pub const TEXTURES: &[&str] = &[];
@@ -42,13 +27,10 @@ impl Effect for JumpkickEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         let before = self.age_frames;
         self.age_frames += ctx.delta * FPS;
-        // Cross frame 5 once → arm the forced pose + kick sound.
         if before < ARM_FRAME && self.age_frames >= ARM_FRAME {
             self.action_pending = true;
             self.sfx_pending = true;
         }
-        // The holder despawns it at the table duration; keep running so the
-        // pose is armed before then.
         EffectStatus::Running
     }
 

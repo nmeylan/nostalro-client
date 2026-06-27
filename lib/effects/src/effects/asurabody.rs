@@ -1,22 +1,11 @@
 //! `EF_ASURABODY` (424) — Asura Strike body bloom.
-//!
-//! 10 expanding **additive white** after-images blooming
-//! off the body, each copy `i` larger (grows by `i·3`, distance-scaled)
-//! and its alpha pumped by a body timer — building while the timer ≤ 130
-//! (`alpha = time − 50 − i·5`), then draining (`alpha = 145 − time +
-//! (10 − i)·10`), clamped 0..=200. A glowing halo, not a flat tint. No
-//! primitive — the copies are emitted via [`Effect::body_copies`] and drawn by
-//! the shared composer.
 
 use crate::draw::{EffectDrawList, EffectStatus};
 use crate::effect_trait::{BodyCopy, Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FPS: f32 = 60.0;
 const COPIES: usize = 10;
-/// Per-layer growth — the original `i·3` (source units) condensed to a
-/// fraction of body size per copy.
 const GROWTH_PER_LAYER: f32 = 0.05;
-/// The bloom has fully drained by body timer 145.
 const END_FRAME: f32 = 145.0;
 
 pub const TEXTURES: &[&str] = &[];
@@ -60,8 +49,6 @@ impl Effect for AsuraBodyEffect {
             }
             let scale = 1.0 + i_f * GROWTH_PER_LAYER;
             copies.push(BodyCopy {
-                // Composer scales copies about the body centre, so no manual
-                // recentre is needed — the bloom is concentric on all sides.
                 offset_px: [0.0, 0.0],
                 margin_px: 0.0,
                 scale: [scale, scale],

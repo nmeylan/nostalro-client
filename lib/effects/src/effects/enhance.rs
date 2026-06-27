@@ -1,27 +1,3 @@
-//! `EF_ENHANCE` — weapon enhancement / buff visual.
-//!
-//! Composite spawned at the master's feet, a buff ring with rising
-//! streaks:
-//!
-//!   * Frame 0 — a `Cylinder` (`alpha_down.tga`, both radii = 6,
-//!     height speed 2/frame, decel `-(speed/duration)/1.5`, height capped at
-//!     50). Alpha holds at `128/255` then fades out.
-//!   * Every 5 frames while alive — one vertical
-//!     streak at a random ring position (`radius ∈ [2, 7]`), 7 wu tall and
-//!     0.25 wu thick, rising at 2 wu/frame for a 50-frame
-//!     lifetime. The streak is two perpendicular textured quads;
-//!     a single `Billboard` reproduces the silhouette in the gif.
-//!
-//! The original game lays a yellow ground ring (alpha 128) too, but the
-//! reference gif shows no visible ring on the ground — additive 128/255
-//! against black reads as nothing, and at the in-game camera distance the
-//! segmented ring disappears behind the cylinder bottom. We skip emitting
-//! it.
-//!
-//! Parent lifetime is the bucket-0-50 default of 800 ms (48 frames at 60
-//! fps). Effective lifetime includes the last streak's 50-frame fade so
-//! `TOTAL_DURATION_MS` outlasts the parent by the particle envelope.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -31,8 +7,6 @@ pub const TEXTURES: &[&str] = &[ALPHA_TEXTURE];
 const FRAMES_PER_SECOND: f32 = 60.0;
 const PARENT_DURATION_FRAMES: f32 = 48.0;
 
-// Cylinder. bottom radius = top radius = 6, height speed 2/frame,
-// height accel = -(height_speed/duration)/1.5, max height 50, alpha 128.
 const CYLINDER_RADIUS: f32 = 6.0;
 const CYLINDER_HEIGHT_SPEED: f32 = 2.0;
 const CYLINDER_HEIGHT_ACCEL: f32 = -(CYLINDER_HEIGHT_SPEED / PARENT_DURATION_FRAMES) / 1.5;
@@ -41,13 +15,10 @@ const CYLINDER_MAX_ALPHA: f32 = 128.0 / 255.0;
 const CYLINDER_FADE_OUT_AT: f32 = PARENT_DURATION_FRAMES - PARENT_DURATION_FRAMES / 3.0;
 const CYLINDER_SIDES: u32 = 24;
 
-// Crossed-quad streaks, one spawned every 5 frames.
 const SPAWN_PERIOD_FRAMES: u32 = 5;
 const STREAK_DURATION_FRAMES: f32 = 50.0;
 const STREAK_LENGTH: f32 = 7.0;
 const STREAK_THICKNESS: f32 = 0.25;
-// 2 wu/frame upward; the streak is laid flat then tilted 90° so its
-// velocity points along native RO -Y (upward).
 const STREAK_SPEED_PER_FRAME: f32 = -2.0;
 const STREAK_RADIUS_MIN: f32 = 2.0;
 const STREAK_RADIUS_MAX: f32 = 7.0;
@@ -97,10 +68,6 @@ impl Streak {
     }
 
     fn position(&self) -> [f32; 3] {
-        // Billboard pos sits at the centre of the streak quad; the streak
-        // length extends `STREAK_LENGTH / 2` above and below this point.
-        // The streak spawns at ground (y=0); the centre is therefore
-        // half-length above ground at age 0.
         [
             self.anchor[0] + self.offset[0],
             self.anchor[1] + self.offset[1] - STREAK_LENGTH * 0.5,
@@ -197,7 +164,6 @@ impl Effect for EnhanceEffect {
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let parent_frame = self.age_frames.min(PARENT_DURATION_FRAMES);
 
-        // Cylinder.
         if self.age_frames <= PARENT_DURATION_FRAMES {
             let height = cylinder_height(parent_frame);
             let cyl_alpha = fade_out(
@@ -272,11 +238,7 @@ mod tests {
 
     #[test]
     fn cylinder_and_streaks_emit_on_schedule() {
-        // Sociable: cylinder is drawn while parent alive, streaks spawn
-        // every 5 frames. Reference gif shows no ground ring even though
-        // the original game lays one down — we skip it.
         let mut e = EnhanceEffect::new([5.0, 0.0, 7.0]);
-        // Step to frame 11 — frames 0, 5, 10 have spawned streaks.
         step_frames(&mut e, 11);
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
@@ -297,11 +259,10 @@ mod tests {
             .filter(|p| matches!(p, EffectPrimitiveDraw::GroundDisc { .. }))
             .count();
 
-        assert_eq!(rings, 0, "no ground disc — invisible in reference gif");
+        assert_eq!(rings, 0, "no ground disc");
         assert_eq!(cylinders, 1);
         assert!(streaks >= 3, "frames 0, 5, 10 each spawn a streak");
 
-        // Each streak sits on the radius 2..7 ring around the anchor.
         for prim in &list.primitives {
             if let EffectPrimitiveDraw::Billboard { pos, .. } = prim {
                 let dx = pos[0] - 5.0;
@@ -317,9 +278,6 @@ mod tests {
 
     #[test]
     fn cylinder_height_grows_then_caps() {
-        // Sociable: height speed=2, decel<0 → grows quickly early, caps at
-        // CYLINDER_MAX_HEIGHT. Pin both the early growth and the cap
-        // without binding the exact closed-form value.
         let h_early = cylinder_height(2.0);
         let h_mid = cylinder_height(20.0);
         let h_late = cylinder_height(45.0);
@@ -330,8 +288,6 @@ mod tests {
 
     #[test]
     fn streaks_rise_over_their_lifetime() {
-        // The streak's y position decreases (native RO: -Y is up) as it
-        // ages. Spawn one streak, step a few frames, observe.
         let mut e = EnhanceEffect::new([0.0; 3]);
         step_frames(&mut e, 1);
         let mut list = EffectDrawList::new();
@@ -356,7 +312,7 @@ mod tests {
                 _ => None,
             })
             .expect("streak still alive");
-        assert!(y1 < y0, "native RO -Y is up, so y decreases over time");
+        assert!(y1 < y0, "streaks rise (native RO: -Y is up)");
     }
 
     #[test]

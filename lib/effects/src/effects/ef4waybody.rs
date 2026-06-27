@@ -1,18 +1,8 @@
-//! `EF_EF4WAYBODY` (425) — four sliding body ghosts.
-//!
-//! The centre body stays put while 4 alpha-blended white
-//! copies slide out E / W / down / up by an offset that grows with body time
-//! and sprite height, fading as `alpha = 150 − bodytime·5`. Each ghost
-//! keeps the body's facing. No primitive — emitted via [`Effect::body_copies`].
-
 use crate::draw::{EffectDrawList, EffectStatus};
 use crate::effect_trait::{BodyCopy, Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FPS: f32 = 60.0;
-/// `alpha = 150 − bodytime·5` reaches 0 at body time 30.
 const END_FRAME: f32 = 90.0;
-/// Offset grows with body time and sprite height; condensed to
-/// screen pixels per frame (tune on a real actor).
 const SLIDE_PER_FRAME: f32 = 9.0;
 
 pub const TEXTURES: &[&str] = &[];
@@ -47,7 +37,6 @@ impl Effect for Ef4wayBodyEffect {
             return None;
         }
         let add = bt * SLIDE_PER_FRAME;
-        // E / W / down / up (screen +x = right, +y = down).
         let offsets = [[add, 0.0], [-add, 0.0], [0.0, add], [0.0, -add]];
         Some(
             offsets

@@ -196,7 +196,6 @@ pub fn attachment_offset(body_motion: &Motion, head_motion: &Motion) -> (i32, i3
     }
 }
 
-/// Each action has 8 direction variants in the ACT file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum SpriteActionType {
@@ -273,9 +272,7 @@ pub struct SpriteAnimationState {
     accumulated_ms: f32,
     motion_type: MotionType,
     finished: bool,
-    /// When set, overrides ACT file delay so the full animation plays in this many ms.
     motion_speed_override_ms: Option<f32>,
-    /// Number of remaining full-cycle repeats before the animation finishes (0 = play once).
     remaining_repeats: u16,
 }
 
@@ -305,8 +302,6 @@ impl SpriteAnimationState {
         self.motion_index
     }
 
-    /// Sets the base action with the given motion type.
-    /// Resets motion only when the action changes (or when OneShot has finished).
     pub fn set_action(&mut self, action: usize, motion_type: MotionType) {
         let changed = self.action != action;
         let restart = changed || (motion_type == MotionType::OneShot && self.finished);
@@ -325,8 +320,6 @@ impl SpriteAnimationState {
         self.motion_type = motion_type;
     }
 
-    /// Force-start a one-shot animation with a fixed total duration.
-    /// Always resets unconditionally. `start_frame` controls which frame to begin on.
     pub fn play(&mut self, action: usize, total_ms: f32, start_frame: usize) {
         self.action = action;
         self.motion_index = start_frame;
@@ -337,9 +330,6 @@ impl SpriteAnimationState {
         self.remaining_repeats = 0;
     }
 
-    /// Force-start an animation that repeats `repeat_count` times within `total_ms`.
-    /// Each cycle plays all frames, then restarts. After all repeats finish, the animation
-    /// marks itself as finished.
     pub fn play_repeated(&mut self, action: usize, total_ms: f32, repeat_count: u16) {
         self.action = action;
         self.motion_index = 0;
@@ -354,7 +344,6 @@ impl SpriteAnimationState {
         self.finished
     }
 
-    /// Sets the base action, clamping to the number of action types in the ACT file.
     pub fn set_action_clamped(&mut self, action: usize, motion_type: MotionType, act: &ActFile) {
         let max_action = act.actions.len() / 8;
         self.set_action(action % max_action.max(1), motion_type);
@@ -364,22 +353,15 @@ impl SpriteAnimationState {
         self.direction = direction as usize % 16;
     }
 
-    /// Computes the flat action index into the ACT file, applying camera direction offset.
     pub fn action_index(&self, act: &ActFile, camera_dir: u8) -> usize {
         let effective_dir = (camera_dir as usize + 12 - self.direction) % 8;
         (self.action * 8 + effective_dir) % act.actions.len()
     }
 
-    /// Computes the flat action index without camera offset. Direction maps directly to ACT slot.
     pub fn flat_action_index(&self, act: &ActFile) -> usize {
         (self.action * 8 + self.direction) % act.actions.len()
     }
 
-    /// Override the per-frame delay so a looping animation plays a full cycle in
-    /// `total_ms` regardless of the ACT's per-direction delays. Pass `None` to
-    /// restore the ACT's own timing. Useful for sprites whose authored delays
-    /// differ across directional slots (which otherwise makes playback speed vary
-    /// with the displayed direction / camera angle).
     pub fn set_motion_speed_override(&mut self, total_ms: Option<f32>) {
         self.motion_speed_override_ms = total_ms;
     }
@@ -389,8 +371,6 @@ impl SpriteAnimationState {
         self.accumulated_ms = 0.0;
     }
 
-    /// Pin the displayed frame. Used to rebuild a frozen snapshot of a specific
-    /// past frame (afterimage gap-fill when the live animation skipped frames).
     pub fn set_motion_index(&mut self, idx: usize) {
         self.motion_index = idx;
     }
@@ -431,7 +411,6 @@ impl SpriteAnimationState {
         }
 
         let delay_ms = if let Some(total_ms) = self.motion_speed_override_ms {
-            // Distribute total animation time evenly across all frames
             if motion_count > 0 {
                 total_ms / motion_count as f32
             } else {
@@ -470,40 +449,35 @@ mod tests {
     fn parse_minimal_v2_5_act() {
         let mut data = Vec::new();
         data.extend_from_slice(b"AC");
-        data.push(5); // minor = 5
-        data.push(2); // major = 2 → version 2.5
-        data.extend_from_slice(&1u16.to_le_bytes()); // 1 action
-        data.extend_from_slice(&[0u8; 10]); // reserved
+        data.push(5);
+        data.push(2);
+        data.extend_from_slice(&1u16.to_le_bytes());
+        data.extend_from_slice(&[0u8; 10]);
 
-        // Action with 1 motion
-        data.extend_from_slice(&1u32.to_le_bytes()); // motion_count
-        // Motion
-        data.extend_from_slice(&[0u8; 32]); // range1 + range2
-        data.extend_from_slice(&1u32.to_le_bytes()); // 1 clip
+        data.extend_from_slice(&1u32.to_le_bytes());
+        data.extend_from_slice(&[0u8; 32]);
+        data.extend_from_slice(&1u32.to_le_bytes());
 
-        // Clip
-        data.extend_from_slice(&10i32.to_le_bytes()); // x
-        data.extend_from_slice(&20i32.to_le_bytes()); // y
-        data.extend_from_slice(&0i32.to_le_bytes()); // sprite_index
-        data.extend_from_slice(&0u32.to_le_bytes()); // mirror
-        data.extend_from_slice(&0xFFFFFFFFu32.to_le_bytes()); // color
-        data.extend_from_slice(&1.0f32.to_le_bytes()); // zoom_x (v2.4+)
-        data.extend_from_slice(&2.0f32.to_le_bytes()); // zoom_y
-        data.extend_from_slice(&90i32.to_le_bytes()); // angle
-        data.extend_from_slice(&1u32.to_le_bytes()); // sprite_type
-        data.extend_from_slice(&32u32.to_le_bytes()); // width (v2.5+)
-        data.extend_from_slice(&64u32.to_le_bytes()); // height
+        data.extend_from_slice(&10i32.to_le_bytes());
+        data.extend_from_slice(&20i32.to_le_bytes());
+        data.extend_from_slice(&0i32.to_le_bytes());
+        data.extend_from_slice(&0u32.to_le_bytes());
+        data.extend_from_slice(&0xFFFFFFFFu32.to_le_bytes());
+        data.extend_from_slice(&1.0f32.to_le_bytes());
+        data.extend_from_slice(&2.0f32.to_le_bytes());
+        data.extend_from_slice(&90i32.to_le_bytes());
+        data.extend_from_slice(&1u32.to_le_bytes());
+        data.extend_from_slice(&32u32.to_le_bytes());
+        data.extend_from_slice(&64u32.to_le_bytes());
 
-        data.extend_from_slice(&(-1i32).to_le_bytes()); // event_id
-        data.extend_from_slice(&0u32.to_le_bytes()); // attach_point_count
+        data.extend_from_slice(&(-1i32).to_le_bytes());
+        data.extend_from_slice(&0u32.to_le_bytes());
 
-        // Events (v2.1+)
-        data.extend_from_slice(&1u32.to_le_bytes()); // 1 event
+        data.extend_from_slice(&1u32.to_le_bytes());
         let mut event_name = [0u8; 40];
         event_name[..4].copy_from_slice(b"atk1");
         data.extend_from_slice(&event_name);
 
-        // Delays (v2.2+)
         data.extend_from_slice(&4.0f32.to_le_bytes());
 
         let act = ActFile::parse(&data).unwrap();

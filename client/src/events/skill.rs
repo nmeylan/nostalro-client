@@ -9,8 +9,8 @@ use ragnarok_game::effect::{
     target_skill_effects, trail_arrival_secs,
 };
 use ragnarok_game::movement::direction_from_positions;
-use ragnarok_game::skill_action::{skill_motion_type, SkillMotionType};
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
+use ragnarok_game::skill_action::{SkillMotionType, skill_motion_type};
 
 impl App {
     pub(super) fn handle_skill_list_received(
@@ -42,7 +42,9 @@ impl App {
         start_time: u32,
     ) {
         let local_ms = self.start_time.elapsed().as_millis() as u32;
-        self.game.server_time.observe_server_tick(start_time, local_ms);
+        self.game
+            .server_time
+            .observe_server_tick(start_time, local_ms);
         // Server timeline anchor (in the past by ~half-RTT): all skill timings derive from
         // when the cast actually resolved on the server, not from the late arrival here.
         let now = self
@@ -206,7 +208,7 @@ impl App {
         // The hit spark is NOT spawned here: it must land with the damage, one
         // per hit, at each scheduled hit's fire time (a ranged skill's spark
         // would otherwise flash before the projectile reaches the target). The
-        // §2d derivation runs in `process_scheduled_hits` instead.
+        // derivation runs in `process_scheduled_hits` instead.
 
         let replays_caster = skill_id == SkillEnum::AsSonicblow.id() as u16
             || skill_id == SkillEnum::ChChaincrush.id() as u16
@@ -236,7 +238,7 @@ impl App {
     // partner_gid)` and the holder will track both actors live each frame.
 
     /// Damage-skill visuals fired at the `ZC_NOTIFY_SKILL` moment, read from the
-    /// per-skill table (§2c/§2d): the caster-released `cast` glyph, the spell
+    /// per-skill table: the caster-released `cast` glyph, the spell
     /// landing on the target (`on_target`), and the projectile (`before_hit`).
     /// The per-hit impact spark is the separate `hit` slot, fired on the
     /// scheduled-hit timeline (`process_scheduled_hits`), not here.
@@ -363,11 +365,7 @@ impl App {
     /// this far above the ground (−Y is up).
     const PROJECTILE_CHEST_LIFT: f32 = 10.0;
 
-    fn skill_trail_endpoints(
-        &self,
-        src_gid: u32,
-        target_gid: u32,
-    ) -> Option<([f32; 3], [f32; 3])> {
+    fn skill_trail_endpoints(&self, src_gid: u32, target_gid: u32) -> Option<([f32; 3], [f32; 3])> {
         let (gat, coords) = (self.game.gat.as_ref()?, self.game.map_coords.as_ref()?);
         let cell_world = |gid: u32| {
             let (cx, cy) = self.game.entities.get(gid)?.movement.cell_position();

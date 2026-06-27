@@ -55,8 +55,6 @@ impl NameTable {
     }
 }
 
-/// Parse `JT_XXX = number` or `XXX = number` assignments from Lua identity tables.
-/// Strips `JT_` prefix from key to get sprite name.
 fn parse_jt_assignments(content: &str) -> HashMap<u16, String> {
     let mut map = HashMap::new();
     for line in content.lines() {
@@ -108,7 +106,6 @@ mod tests {
         };
         assert_eq!(table.get_name(1002), Some("Poring"));
         assert_eq!(table.get_name(46), Some("1_ETC_01"));
-        // ids outside the old 46-1623 range now resolve (NPC + high monsters)
         assert_eq!(table.get_name(1885), Some("GOPINICH"));
         assert_eq!(table.get_name(566), Some("MYSTCASE"));
         assert!(table.get_name(60000).is_none());

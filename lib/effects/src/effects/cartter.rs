@@ -1,22 +1,3 @@
-//! `EF_CARTTER` (id 518) — a white-sparkle burst that erupts at frame 30
-//! and drifts outward in all directions.
-//!
-//! `EF_CARTTER` spreads `effect\\whitelight.tga`
-//! particles four times at frame 30, each
-//! launching four
-//! sub-emitters of three independent points — 48 sparkle points total.
-//!
-//! Per point: a fixed random
-//! direction (azimuth `rand(360)`, elevation `rand(180)`) and a constant
-//! per-frame step `max_height·sin(elev)` vertical / `max_height·cos(elev)`
-//! horizontal — straight-line drift, not an orbit (`max_height = 1`). After
-//! the point's frame 25 the speed decays (`max_height *= 0.9`) and the alpha
-//! ramps down (`230 → -6`/frame). Since elevation is in `[0,180]`, every
-//! point's `sin(elev) ≥ 0`, so all 48 rise (native `-Y` = up) and stay
-//! visible. The original game renders camera-oriented cross quads; at this size a
-//! plain billboard per point reads identically. Colour is a per-point
-//! whitish-red tint; additive.
-
 use std::f32::consts::{SQRT_2, TAU};
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
@@ -24,26 +5,18 @@ use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// Drift speed `1`/frame is a modest source literal; scale so the sparkle
-/// cloud spans about a character-and-a-half — matching the gif's spread.
 const WORLD_SCALE: f32 = 0.5;
-/// Per-sparkle quad scale (corner radius ≈ 2.5–3.1). Tuned
-/// so each glint reads as a small bright dot like the gif.
 const SPARKLE_SIZE_SCALE: f32 = 0.7;
 
 const SPARKLE_TEXTURE: &str = "whitelight.tga";
 pub const TEXTURES: &[&str] = &[SPARKLE_TEXTURE];
 
-/// The four particle-spread launches all fire at the parent's frame 30.
 const SPAWN_FRAME: f32 = 30.0;
-/// 4 launches × 4 sub-emitters × 3 points.
 const SPARKLE_COUNT: usize = 48;
 
-/// Initial alpha 230; `-6`/frame after a point's frame 25.
 const ALPHA_INIT_255: f32 = 230.0;
 const ALPHA_FALL_PER_FRAME: f32 = 6.0;
 const DECAY_START_FRAME: f32 = 25.0;
-/// Drift speed multiplies by 0.9 after frame 25.
 const SPEED_DECAY: f32 = 0.9;
 
 const LIFE_FRAMES: f32 = DECAY_START_FRAME + ALPHA_INIT_255 / ALPHA_FALL_PER_FRAME;
@@ -52,8 +25,6 @@ pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) a
 
 const UNIT_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 
-/// Tint roll `random(3)+1` → whitish-red tints (the all-blue case is
-/// unreachable since the roll never lands on 0).
 const TINTS: [[f32; 3]; 3] = [
     [1.0, 200.0 / 255.0, 200.0 / 255.0],
     [1.0, 160.0 / 255.0, 160.0 / 255.0],
@@ -62,9 +33,7 @@ const TINTS: [[f32; 3]; 3] = [
 
 #[derive(Clone, Copy)]
 struct Sparkle {
-    /// Unit drift direction: `(cos(elev)·sin(azim), -sin(elev), cos(elev)·cos(azim))`.
     dir: [f32; 3],
-    /// Camera-facing quad side (`distance · √2`, scaled).
     size: f32,
     tint: [f32; 3],
 }
@@ -73,12 +42,8 @@ pub struct CartterEffect {
     anchor: [f32; 3],
     sparkles: [Sparkle; SPARKLE_COUNT],
     age_frames: f32,
-    /// Σ of the per-frame drift step over the point's active frames — the
-    /// accumulated drift distance shared by every point (they share the
-    /// same decay schedule).
     cum_height: f32,
     max_height: f32,
-    /// Number of active frames already integrated into `cum_height`.
     stepped: i32,
 }
 
@@ -91,7 +56,6 @@ impl CartterEffect {
         };
         let sparkles = std::array::from_fn(|_| {
             let azim = lcg() * TAU;
-            // elevation in [0, π] so sin ≥ 0 (every point rises).
             let elev = lcg() * std::f32::consts::PI;
             let (se, ce) = elev.sin_cos();
             let (sa, ca) = azim.sin_cos();
@@ -130,8 +94,6 @@ impl CartterEffect {
 impl Effect for CartterEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.age_frames += ctx.delta * FRAMES_PER_SECOND;
-        // Integrate the shared drift distance one whole frame at a time so the
-        // 0.9 speed decay matches the source's per-frame stepping.
         let target = self.process().floor() as i32;
         while self.stepped < target {
             self.cum_height += self.max_height;
@@ -234,18 +196,15 @@ mod tests {
     #[test]
     fn sparkles_drift_outward_then_slow() {
         let mut e = CartterEffect::new([0.0; 3]);
-        // f30 + 5 active frames.
         step(&mut e, 35);
         let early = spread(&sparkles(&e));
-        // Up to the decay point: drift keeps growing.
         step(&mut e, 20);
         let mid = spread(&sparkles(&e));
         assert!(mid > early, "cloud expands: {early} -> {mid}");
-        // Per-frame growth shrinks once max_height decays (process > 25).
-        let g1 = mid - early; // 20 frames of growth straddling the decay
+        let g1 = mid - early;
         step(&mut e, 20);
         let late = spread(&sparkles(&e));
-        let g2 = late - mid; // 20 frames mostly past decay
+        let g2 = late - mid;
         assert!(
             g2 < g1,
             "displacement per frame shrinks after decay: {g1} -> {g2}"

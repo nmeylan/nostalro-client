@@ -1,19 +1,3 @@
-//! `EF_SIGHTRASHER` (#62) — Sightrasher's radial reveal burst.
-//!
-//! In the original game Sightrasher fires four staggered waves (at
-//! frames 0/5/10/15) of eight rays each, one ray every 45°.
-//! Each wave is two layers on the same eight directions:
-//!
-//! * **Sight layer** (the `sight` sprite) — the eye sprite, lifted to head
-//!   height, sliding outward along its ray and fading.
-//! * **Shadow layer** (the `shadow` sprite) — a flat ground underlayer on the same
-//!   directions, smaller.
-//!
-//! The wave's sprite size shrinks with the spawn frame
-//! (`2.5 - frame/10` → 2.5/2.0/1.5/1.0) and the initial radial
-//! offset grows (`5 + frame/5`). A single expanding `ring_yellow.tga`
-//! ground ring punches out at frame 10.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -24,19 +8,12 @@ pub const TEXTURES: &[&str] = &["ring_yellow.tga"];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// Uniform down-scale from the original world units. Maps the
-/// radial offset (`~5-8`) to ~2-3 wu and the `-20` lift to head height (~7 wu)
-/// in one factor, preserving the original ratio (skill: scale uniformly).
 const WORLD_SCALE: f32 = 0.55;
-/// The size literals map onto our larger sprite footprint.
 const SIZE_RENDER_SCALE: f32 = 0.5;
 
 const NUM_DIRS: usize = 8;
-/// Frames the four waves spawn on (`frame % 5 == 0 && < 20`).
 const WAVE_FRAMES: [f32; 4] = [0.0, 5.0, 10.0, 15.0];
-/// Particle life = `85 - spawn_frame`, so every wave dies by frame 85.
 const BASE_PARTICLE_LIFE: f32 = 85.0;
-/// Outward slide speed of a ray over its life (magnitude 1.0).
 const OUTWARD_SPEED: f32 = 1.0;
 
 // --- frame-10 ground ring ---
@@ -47,7 +24,6 @@ const RING_FADE_START: f32 = 20.0;
 const RING_MAX_ALPHA: f32 = 150.0 / 255.0;
 const RING_THICKNESS: f32 = 1.0;
 
-/// Self-terminate once both the rays (≤85f) and the ring (≤50f) are gone.
 const TOTAL_FRAMES: f32 = 90.0;
 
 pub struct SightrasherEffect {
@@ -67,7 +43,6 @@ impl SightrasherEffect {
         self.age * FRAMES_PER_SECOND
     }
 
-    /// Emit one wave's eight rays on `sprite`, lifted by `lift` world units.
     fn collect_wave(
         &self,
         out: &mut EffectDrawList,
@@ -86,8 +61,6 @@ impl SightrasherEffect {
         if size <= 0.0 {
             return;
         }
-        // Alpha fades linearly to 0 over the particle's life
-        // (`150 - frame*2`, gone near frame 75 → use the wave life).
         let alpha = (1.0 - local / life).clamp(0.0, 1.0);
         if alpha <= 0.0 {
             return;
@@ -160,7 +133,6 @@ impl Effect for SightrasherEffect {
         let frame = self.frame();
         for &wf in &WAVE_FRAMES {
             let size = 2.5 - wf / 10.0;
-            // Shadow underlayer on the ground, then the lifted eye sprite.
             self.collect_wave(out, frame, wf, SHADOW_SPRITE, 1.0 - wf / 30.0, 0.0);
             self.collect_wave(out, frame, wf, SIGHT_SPRITE, size, 20.0 * WORLD_SCALE);
         }
@@ -205,7 +177,6 @@ mod tests {
             .iter()
             .filter(|p| matches!(p, EffectPrimitiveDraw::SpriteParticle { .. }))
             .count();
-        // Wave 0 only, two layers × 8 directions.
         assert_eq!(sprites, 2 * NUM_DIRS);
     }
 

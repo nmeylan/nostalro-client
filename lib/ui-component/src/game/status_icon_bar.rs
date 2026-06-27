@@ -1,12 +1,8 @@
-//! Right-side status-icon bar: stacks the local player's active EFST statuses
-//! as icons with a depleting "clock" overlay and a hover tooltip, mirroring the
-//! original game's buff bar. Always visible; reads `Character::active_statuses`.
-
 use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
-use ragnarok_game::status_icon::{status_icon_info, StatusCategory};
+use ragnarok_game::status_icon::{StatusCategory, status_icon_info};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -16,10 +12,8 @@ pub const STATUS_ICON_BAR_WINDOW_ID: WidgetId = WidgetId(1900);
 const ICON: f32 = 24.0;
 const GAP: f32 = 4.0;
 const RIGHT_MARGIN: f32 = 20.0;
-/// First row sits below the top-right minimap (128px tall, 2px top margin).
 const TOP_Y: f32 = 2.0 + 128.0 + 14.0;
 const BOTTOM_MARGIN: f32 = 60.0;
-/// Final-minute warning, matching the original game's clock-color switch.
 const FINAL_WINDOW_MS: u64 = 60_000;
 
 const WEDGE_NORMAL: [f32; 4] = [1.0, 1.0, 1.0, 0.65];
@@ -32,7 +26,6 @@ pub struct StatusIconBarWindow {
 
 impl StatusIconBarWindow {
     pub fn new() -> Self {
-        // No static chrome textures; status icons are loaded on demand.
         Self {
             has_grf_textures: true,
         }
@@ -75,14 +68,12 @@ impl InGameWindow for StatusIconBarWindow {
                 continue;
             };
 
-            // Wrap to a new column to the left when the current one is full.
             if y + ICON > ui.ctx.screen_height - BOTTOM_MARGIN {
                 y = TOP_Y;
                 x -= ICON + GAP;
             }
             let rect = Rect::new(x, y, ICON, ICON);
 
-            // Icon (or category-colored placeholder when the texture is absent).
             if status.icon_loaded {
                 let path = format!("data/texture/effect/{}", info.icon);
                 let (v, idx) = draw::quad_vertices(x, y, ICON, ICON, [1.0, 1.0, 1.0, 1.0]);
@@ -102,13 +93,12 @@ impl InGameWindow for StatusIconBarWindow {
                 });
             }
 
-            // Depleting clock overlay: a translucent wedge that grows as the
-            // status ages and turns orange in the final minute (no overlay for
-            // permanent statuses).
             if let Some(end) = status.end_ms {
                 let remaining = end.saturating_sub(now);
                 let (color, perc) = if remaining > FINAL_WINDOW_MS {
-                    let span = (end - FINAL_WINDOW_MS).saturating_sub(status.start_ms).max(1);
+                    let span = (end - FINAL_WINDOW_MS)
+                        .saturating_sub(status.start_ms)
+                        .max(1);
                     (
                         WEDGE_NORMAL,
                         (now.saturating_sub(status.start_ms) as f32 / span as f32).clamp(0.0, 1.0),
@@ -172,7 +162,6 @@ impl StatusIconBarWindow {
         let box_w = max_w + pad * 2.0;
         let box_h = lines.len() as f32 * line_h + pad * 2.0;
 
-        // Anchor to the left of the icon so the tooltip stays on screen.
         let tx = (rect.x - box_w - 6.0).max(2.0);
         let ty = rect.y;
 

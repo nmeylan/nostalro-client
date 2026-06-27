@@ -1,24 +1,4 @@
-//! `EF_BOTTOM` (id 114) / `EF_BOTTOM2` (id 137) — Bard/Dancer ground song
-//! boxes built from upright textured walls.
-//!
-//!
-//! Both ids each launch four vertical textured quads forming
-//! a square "well" around the caster: for `i ∈ {+1,-1}`, one wall offset
-//! `±width` along the facing axis (longitude = facing) and one along the
-//! perpendicular axis (longitude = facing + 90). The walls rise from the
-//! ground plane and pulse up and down — observed in the original game as a
-//! slow oscillation rather than a per-vertex ripple: the height speed simply
-//! flips sign every 50 frames, so the walls
-//! pulse up and down. Reproduced here as a scalar height pulse, re-emitting a
-//! `Texture3D` quad each frame.
-//!
-//!   * Bottom : `magic_violet.tga`, width 5.0, height 15 (+0.25/f), fades in
-//!     0→180 over 6 frames.
-//!   * Bottom2: `magic_green.tga`,  width 2.5, height 13 (−0.25/f), starts opaque.
-//!
-//! The original duration is 9999 (the song loops while active); our one-shot
-//! lifecycle caps it at the table's default and fades out near the end
-//! (fade-out begins 35 frames before the end).
+//! `EF_BOTTOM` (id 114) / `EF_BOTTOM2` (id 137) — Bard/Dancer ground song boxes.
 
 use std::f32::consts::FRAC_PI_2;
 
@@ -33,7 +13,6 @@ const FRAMES_PER_SECOND: f32 = 60.0;
 const WALLS: usize = 4;
 const WAVER_PERIOD_FRAMES: f32 = 50.0;
 const MAX_ALPHA: f32 = 180.0 / 255.0;
-/// Alpha rises by `max_alpha / 6` per frame → fades in over 6 frames.
 const FADE_IN_FRAMES: f32 = 6.0;
 const FADE_OUT_BEFORE_END: f32 = 35.0;
 
@@ -110,7 +89,6 @@ impl BottomBoxEffect {
 impl Effect for BottomBoxEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         let dt_frames = ctx.delta * FRAMES_PER_SECOND;
-        // Oscillation: flip the height speed every 50 frames.
         let before = (self.age_frames / WAVER_PERIOD_FRAMES).floor();
         let after = ((self.age_frames + dt_frames) / WAVER_PERIOD_FRAMES).floor();
         if after > before {
@@ -132,7 +110,6 @@ impl Effect for BottomBoxEffect {
         }
         let color = [1.0, 1.0, 1.0, alpha];
         let half_h = self.height / 2.0;
-        // Native RO -Y = up: base sits on the ground (anchor.y), top extends up.
         let center_y = self.world_pos[1] - half_h;
         let w = self.variant.width;
         for k in 0..WALLS {
@@ -146,7 +123,6 @@ impl Effect for BottomBoxEffect {
             out.push(EffectPrimitiveDraw::Texture3D {
                 center,
                 size: [w, half_h],
-                // Wall width axis is perpendicular to its outward offset.
                 plane: QuadPlane::VerticalYaw(theta + FRAC_PI_2),
                 uv: [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
                 texture: self.variant.texture,
@@ -191,40 +167,37 @@ mod tests {
 
     #[test]
     fn bottom_emits_four_walls_and_grows_then_waveringly_reverses() {
-        // Sociable: Bottom builds a 4-wall box; height grows for the first 50
-        // frames then the oscillation flip reverses the trend.
         let mut e = BottomBoxEffect::bottom([0.0, 0.0, 0.0]);
-        step(&mut e, 6); // past fade-in so quads are visible
+        step(&mut e, 6);
         assert_eq!(quad_count(&e), 4);
 
         let h0 = e.height;
-        step(&mut e, 20); // age ~26, still growing
+        step(&mut e, 20);
         let h_before_peak = e.height;
         assert!(
             h_before_peak > h0,
             "height grows before the flip: {h0} -> {h_before_peak}"
         );
 
-        step(&mut e, 17); // age ~43, near the 50-frame peak
+        step(&mut e, 17);
         let h_peak = e.height;
-        step(&mut e, 15); // age ~58, past the oscillation flip
+        step(&mut e, 15);
         let h_after = e.height;
         assert!(
             h_after < h_peak,
-            "waveringly reversed the height trend: {h_peak} -> {h_after}"
+            "reversed the height trend: {h_peak} -> {h_after}"
         );
     }
 
     #[test]
     fn bottom2_shrinks_while_bottom_grows() {
-        // Sociable: same family, opposite initial height trend.
         let mut up = BottomBoxEffect::bottom([0.0, 0.0, 0.0]);
         let mut down = BottomBoxEffect::bottom2([0.0, 0.0, 0.0]);
         let up0 = up.height;
         let down0 = down.height;
         step(&mut up, 10);
         step(&mut down, 10);
-        assert!(up.height > up0, "Bottom grows");
-        assert!(down.height < down0, "Bottom2 shrinks");
+        assert!(up.height > up0);
+        assert!(down.height < down0);
     }
 }

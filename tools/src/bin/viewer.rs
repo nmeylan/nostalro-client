@@ -77,7 +77,9 @@ fn parse_cell(s: &str) -> Option<(i32, i32)> {
 fn print_help() {
     println!("Unified viewer - map + character + effect preview");
     println!();
-    println!("Usage: viewer [--grf <path>] [--map <name>] [--cell X,Y] [--direction N] [--effect <id>]");
+    println!(
+        "Usage: viewer [--grf <path>] [--map <name>] [--cell X,Y] [--direction N] [--effect <id>]"
+    );
     println!();
     println!("Options:");
     println!("  --grf <path>       Path to GRF (default: {DEFAULT_GRF_PATH})");

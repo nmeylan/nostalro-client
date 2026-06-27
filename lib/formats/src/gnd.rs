@@ -56,7 +56,6 @@ impl GndFile {
         let height = r.read_i32::<LE>()?;
         let zoom = r.read_f32::<LE>()?;
 
-        // Textures
         let texture_count = r.read_i32::<LE>()? as usize;
         let texture_name_len = r.read_i32::<LE>()? as usize;
         let mut textures = Vec::with_capacity(texture_count);
@@ -64,7 +63,6 @@ impl GndFile {
             textures.push(read_string(&mut r, texture_name_len)?);
         }
 
-        // Lightmaps
         let lightmap_count = r.read_i32::<LE>()? as usize;
         let lmap_width = r.read_i32::<LE>()?;
         let lmap_height = r.read_i32::<LE>()?;
@@ -74,7 +72,6 @@ impl GndFile {
         let lmap_pixel_count = (lmap_width * lmap_height) as usize;
         for _ in 0..lightmap_count {
             if version_at_least(version, 1, 7) {
-                // 64 bytes intensity + 192 bytes specular RGB
                 let mut intensity = [0u8; 64];
                 let mut specular = [0u8; 192];
                 let skip_count = lmap_pixel_count * 4 - 64 - 192;
@@ -89,7 +86,6 @@ impl GndFile {
                     specular,
                 });
             } else {
-                // v < 1.7: skip lightmap data
                 let skip_count = lmap_pixel_count * 4;
                 let mut skip = vec![0u8; skip_count];
                 r.read_exact(&mut skip)?;
@@ -100,7 +96,6 @@ impl GndFile {
             }
         }
 
-        // Surfaces
         let surface_count = r.read_i32::<LE>()? as usize;
         let mut surfaces = Vec::with_capacity(surface_count);
         for _ in 0..surface_count {
@@ -125,7 +120,6 @@ impl GndFile {
             });
         }
 
-        // Cells
         let cell_count = (width as usize) * (height as usize);
         let mut cells = Vec::with_capacity(cell_count);
         for _ in 0..cell_count {
@@ -183,16 +177,13 @@ mod tests {
         data.push(version.1);
         data.extend_from_slice(&width.to_le_bytes());
         data.extend_from_slice(&height.to_le_bytes());
-        data.extend_from_slice(&10.0f32.to_le_bytes()); // zoom
-        // 0 textures
-        data.extend_from_slice(&0i32.to_le_bytes()); // texture_count
-        data.extend_from_slice(&40i32.to_le_bytes()); // texture_name_len
-        // 0 lightmaps
-        data.extend_from_slice(&0i32.to_le_bytes()); // lightmap_count
-        data.extend_from_slice(&8i32.to_le_bytes()); // lmap_width
-        data.extend_from_slice(&8i32.to_le_bytes()); // lmap_height
-        data.extend_from_slice(&1i32.to_le_bytes()); // cells_per_grid
-        // 0 surfaces
+        data.extend_from_slice(&10.0f32.to_le_bytes());
+        data.extend_from_slice(&0i32.to_le_bytes());
+        data.extend_from_slice(&40i32.to_le_bytes());
+        data.extend_from_slice(&0i32.to_le_bytes());
+        data.extend_from_slice(&8i32.to_le_bytes());
+        data.extend_from_slice(&8i32.to_le_bytes());
+        data.extend_from_slice(&1i32.to_le_bytes());
         data.extend_from_slice(&0i32.to_le_bytes());
         data
     }
@@ -200,13 +191,12 @@ mod tests {
     #[test]
     fn parse_v1_6_uses_i16_surface_indices() {
         let mut data = build_gnd_header((1, 6), 1, 1);
-        // 1 cell with i16 surface indices
         for _ in 0..4 {
             data.extend_from_slice(&1.0f32.to_le_bytes());
         }
-        data.extend_from_slice(&0i16.to_le_bytes()); // top
-        data.extend_from_slice(&(-1i16).to_le_bytes()); // front
-        data.extend_from_slice(&(-1i16).to_le_bytes()); // right
+        data.extend_from_slice(&0i16.to_le_bytes());
+        data.extend_from_slice(&(-1i16).to_le_bytes());
+        data.extend_from_slice(&(-1i16).to_le_bytes());
 
         let gnd = GndFile::parse(&data).unwrap();
         assert_eq!(gnd.cells[0].surface_up, 0);
@@ -219,9 +209,9 @@ mod tests {
         for _ in 0..4 {
             data.extend_from_slice(&2.0f32.to_le_bytes());
         }
-        data.extend_from_slice(&5i32.to_le_bytes()); // top
-        data.extend_from_slice(&(-1i32).to_le_bytes()); // front
-        data.extend_from_slice(&3i32.to_le_bytes()); // right
+        data.extend_from_slice(&5i32.to_le_bytes());
+        data.extend_from_slice(&(-1i32).to_le_bytes());
+        data.extend_from_slice(&3i32.to_le_bytes());
 
         let gnd = GndFile::parse(&data).unwrap();
         assert_eq!(gnd.cells[0].surface_up, 5);

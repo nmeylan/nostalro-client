@@ -35,8 +35,6 @@ const CANCEL_BTN: ButtonTextures = ButtonTextures {
 
 const SELECTED_COLOR: [f32; 4] = [0.3, 0.3, 0.5, 0.5];
 
-/// A single warp destination: the raw map name echoed back to the server,
-/// plus a human-readable label.
 struct Destination {
     raw: String,
     display: String,
@@ -115,7 +113,6 @@ impl WarpListWindow {
         }
         let mut events = Vec::new();
 
-        // Keyboard navigation
         if ui.ctx.key_up && self.selected_index > 0 {
             self.selected_index -= 1;
         }
@@ -140,11 +137,9 @@ impl WarpListWindow {
         let dx = ((ui.ctx.screen_width - WIN_W) / 2.0).max(0.0).floor();
         let dy = ((ui.ctx.screen_height - win_h) / 2.0).max(0.0).floor();
 
-        // Full-screen overlay swallows clicks behind the modal
         let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
         ui.interact(OVERLAY_ID, screen);
 
-        // Background
         if self.has_grf_textures {
             let (v, i) = draw::quad_vertices(dx, dy, WIN_W, win_h, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(DrawCall {
@@ -275,7 +270,8 @@ mod tests {
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 

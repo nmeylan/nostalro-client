@@ -30,10 +30,9 @@ mod tests {
     #[test]
     fn parse_palette_roundtrip() {
         let mut data = [0u8; 1024];
-        // Set a few known colors
-        data[0..4].copy_from_slice(&[255, 0, 0, 0]); // index 0: red, reserved=0
-        data[4..8].copy_from_slice(&[0, 255, 0, 128]); // index 1: green
-        data[1020..1024].copy_from_slice(&[0, 0, 255, 255]); // index 255: blue
+        data[0..4].copy_from_slice(&[255, 0, 0, 0]);
+        data[4..8].copy_from_slice(&[0, 255, 0, 128]);
+        data[1020..1024].copy_from_slice(&[0, 0, 255, 255]);
 
         let pal = PalFile::parse(&data).unwrap();
         assert_eq!(pal.colors[0], [255, 0, 0, 0]);

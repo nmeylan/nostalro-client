@@ -1,24 +1,3 @@
-//! Cylinder primitive — lateral surface of a (possibly tapered) cylinder.
-//!
-//! Geometry is a closed triangle strip from a bottom polygon
-//! (`bottom_size` radius) up to a top polygon (`top_size` radius), tilted
-//! around the local X axis by `tilt_x_rad` and then yawed around world Y
-//! by `rotation_y_rad`. `bottom_size == top_size` is the cylinder shape
-//! used by PotionPillar / Revive; mismatched radii give a truncated cone
-//! laid on its side (Pierce, tilt = -π/2).
-//!
-//! UV mapping mirrors the original game: `u` advances by 0.25 per segment
-//! with wrap-to-0 at 1.0 (four texture tiles around the lateral surface,
-//! regardless of `sides`); `v = 1` at the bottom ring, `v = 0` at the top.
-//! `uv_scroll` adds a per-frame offset.
-//!
-//! Shape-wise this primitive is interchangeable with `FrustumRenderer` —
-//! the two are kept separate because their UV conventions differ (Frustum
-//! uses continuous `t * uv_repeat` mapping, suited to VOLCANO-style
-//! one-wrap-per-ring rendering; Cylinder uses the per-segment step the
-//! original game baked into ring/pillar textures like `ring_yellow.tga`
-//! and `alpha_down.tga`).
-
 use crate::camera::Camera;
 use crate::device::DEPTH_FORMAT;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};
@@ -153,8 +132,6 @@ impl CylinderRenderer {
     }
 }
 
-/// Build one [`DrawRecord`] per `EffectPrimitiveDraw::Cylinder` entry in
-/// `list`.
 pub fn prepare_cylinder_records<'tex>(
     list: &EffectDrawList,
     camera: &Camera,
@@ -218,18 +195,10 @@ pub fn prepare_cylinder_records<'tex>(
             let local_angle = t * full_span + *rotation;
             let (sin_a, cos_a) = local_angle.sin_cos();
 
-            // UV advances by 0.25 per segment, wrapping to 0 once it
-            // reaches 1.0 (four tiles around). Texture sampler wrap means
-            // this is equivalent to `u = (s * 0.25) mod 1`, which we let
-            // the sampler do for us via the unbounded value below.
             let u_raw = s as f32 * 0.25 + scroll_u;
 
             vertices.push(SpriteVertex {
-                position: transform_local(
-                    bottom_size * cos_a,
-                    bottom_local_y,
-                    bottom_size * sin_a,
-                ),
+                position: transform_local(bottom_size * cos_a, bottom_local_y, bottom_size * sin_a),
                 tex_coord: [u_raw, 1.0 + scroll_v],
                 color: [color[0], color[1], color[2], *alpha_bottom],
             });

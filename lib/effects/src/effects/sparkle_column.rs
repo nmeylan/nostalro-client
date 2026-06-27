@@ -1,48 +1,11 @@
-//! `EF_LEVEL993` (#202) / `EF_LEVEL994` (#362) / `EF_MAP_GHOST` (#692) — the
-//! rising sparkle-mote layer of the level-99 aura (and a map-ambient reuse).
-//!
-//! A set of camera-facing motes that rise out of the ground, drift sideways
-//! on a sine wobble, fade as they reach the top, then respawn at the bottom.
-//! A variant selector chooses the texture, mote count, rise speed and
-//! scatter:
-//!
-//! | id  | F1 | texture            | sprite radius | rise | scatter | tint        |
-//! |-----|----|--------------------|---------------|------|---------|-------------|
-//! | 202 | 0  | freezing_circle    | small         | slow | none    | white       |
-//! | 362 | 1  | whitelight         | medium        | slow | none    | blue        |
-//! | 692 | 3  | ghost              | large         | fast | yes     | grey        |
-//!
-//! Each mote seeds below the ground (in
-//! native RO coords where positive y is *below* ground), rises by
-//! a fixed step per frame (decreasing y), draws only once `y <= 0`, fades
-//! near the top, and respawns it past the top edge. We keep the same
-//! lifecycle with an explicit mote list (the [`super::stormgust`] pattern) and
-//! emit one additive [`Billboard`] per visible mote.
-//!
-//! Persistent: lives until the server clears it (table ships `u32::MAX`).
-//!
-//! [`Billboard`]: EffectPrimitiveDraw::Billboard
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
-/// World-space rise span: motes are visible from ground (offset 0) up to
-/// `-COLUMN_HEIGHT` (native RO: negative y = up), then respawn. ~2 character
-/// heights of streaming sparkles.
 const COLUMN_HEIGHT: f32 = 11.0;
-
-/// Motes spawn staggered below ground in `[0, SEED_DEPTH]` so they emerge over
-/// time instead of all at once.
 const SEED_DEPTH: f32 = 5.0;
-
-/// Sideways wobble: horizontal drift amplitude (world units/sec) and angular
-/// speed of the wobble phase.
 const DRIFT_AMP_PER_S: f32 = 1.2;
 const DRIFT_SPEED_RAD_PER_S: f32 = 2.4;
-
-/// Fraction of the rise over which a mote fades out as it nears the top.
 const FADE_TOP_FRACTION: f32 = 0.35;
-/// World-space distance over which a mote fades in as it clears the ground.
 const FADE_IN_DEPTH: f32 = 1.0;
 
 #[derive(Clone, Copy, Debug)]
@@ -50,22 +13,12 @@ pub struct SparkleColumnParams {
     pub texture: &'static str,
     pub color_rgb: [f32; 3],
     pub alpha_max: f32,
-    /// Half-extent of each mote billboard, in world units.
     pub sprite_radius: f32,
-    /// Rise speed, world units/sec (native RO up).
     pub rise_speed: f32,
-    /// Number of motes alive at once.
     pub count: usize,
-    /// Horizontal scatter radius around the caster (0 = column hugs the axis).
     pub scatter: f32,
 }
 
-/// `EF_LEVEL993` — freezing-circle motes hugging the caster. The original
-/// `Render3DAura_2` orbs are small (~0.8 half-size) and clustered tight on the
-/// body axis (horizontal jitter ≤0.15), but **bright white additive** (drawn
-/// twice at alpha ~250) — a vivid inner shimmer, not a faint one. The earlier
-/// "too visible" was the wide *scatter*, not the brightness: keep them tight but
-/// bright so they add to the flashy white core.
 pub const FREEZING: SparkleColumnParams = SparkleColumnParams {
     texture: "freezing_circle.bmp",
     color_rgb: [1.00, 1.00, 1.00],
@@ -76,7 +29,6 @@ pub const FREEZING: SparkleColumnParams = SparkleColumnParams {
     scatter: 0.5,
 };
 
-/// `EF_LEVEL994` — blue whitelight motes, wider spread.
 pub const WHITELIGHT: SparkleColumnParams = SparkleColumnParams {
     texture: "whitelight.tga",
     color_rgb: [0.31, 0.31, 1.00],
@@ -87,8 +39,6 @@ pub const WHITELIGHT: SparkleColumnParams = SparkleColumnParams {
     scatter: 2.0,
 };
 
-/// `EF_MAP_GHOST` — large grey ghost motes scattered across a
-/// wide footprint, rising faster. Map-ambient rather than caster-attached.
 pub const GHOST: SparkleColumnParams = SparkleColumnParams {
     texture: "ghost.bmp",
     color_rgb: [0.60, 0.60, 0.60],
@@ -103,17 +53,12 @@ pub const TEXTURES: &[&str] = &["freezing_circle.bmp", "whitelight.tga", "ghost.
 
 #[derive(Clone, Copy)]
 struct Mote {
-    /// Horizontal offset from the caster (world units).
     base_xz: [f32; 2],
-    /// Vertical offset in native RO coords: positive = below ground (hidden),
-    /// 0 = ground, negative = up.
     y_offset: f32,
-    /// Wobble phase (radians) and per-mote phase offset.
     wobble: f32,
     wobble_dir: f32,
 }
 
-/// Deterministic LCG (no `rand` dependency, reproducible viewer exports).
 fn lcg_next(state: &mut u32) -> u32 {
     *state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
     *state

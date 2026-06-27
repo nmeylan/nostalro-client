@@ -10,8 +10,6 @@ impl App {
             entity.speed = speed;
             entity.movement.set_speed(speed);
         }
-        // Dinging max level (or losing it) toggles the local player's aura — a
-        // derived trigger, not an effect packet.
         if let Ok(StatusTypes::Baselevel) = StatusTypes::try_from_value(var_id as usize)
             && let Some(gid) = self.game.entities.player_id()
         {

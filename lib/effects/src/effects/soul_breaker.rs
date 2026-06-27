@@ -1,25 +1,3 @@
-//! SoulBreaker family — `EF_SOULBREAKER` (361) and `EF_SOULBREAKER2` (409).
-//!
-//! The purple-slash crescent burst. Each launcher fires four short-lived
-//! `purpleslash.tga` slashes that fly straight along a heading from
-//! the caster, accelerating (speed grows 2%/frame while rising, 4%/frame
-//! while dying) while
-//! fading in then out.
-//!
-//! * **Soulbreaker** (361, Soul Breaker): the four slashes aim at the target
-//!   with a ±15° per-slash jitter, sweeping into the magenta crescent the gif
-//!   shows.
-//! * **Soulbreaker2** (409, Meteor Assault): eight directions (0°..315° step
-//!   45°), each firing four slashes radially outward — an expanding purple ring.
-//!
-//! The original draws each slash as a flat XZ square quad. As with the STIN
-//! family, a flat
-//! ground quad is nearly invisible at the grazing camera angle and the gif
-//! shows the slashes face-on, so (gif outranks the flat geometry) we render a
-//! camera-facing [`EffectPrimitiveDraw::Billboard`]. The slashes glow where they
-//! overlap, so they blend additively. Heading follows the shared convention
-//! `dz.atan2(dx)` (`cos→x`, `sin→z`).
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -28,31 +6,17 @@ const FRAMES_PER_SECOND: f32 = 60.0;
 const SLASH_TEXTURE: &str = "purpleslash.tga";
 pub const TEXTURES: &[&str] = &[SLASH_TEXTURE];
 
-/// UV in the renderer's billboard corner order — `TL, TR, BL, BR`.
 const CARD_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 
-/// Slash quad half-size (base 20) and per-frame travel (base 0.8). The gif's
-/// ring/arc radius far exceeds the individual slash,
-/// so size and travel are scaled separately: a small slash that flies far,
-/// rather than a chunky ratio (which, under additive blend, fills
-/// the centre into a blob instead of clearing into a ring).
 const BASE_DISTANCE: f32 = 20.0 * 0.35;
-/// Per-frame travel before the slash accelerates. The original's `0.8` reads as
-/// a crawl in our coordinate scale, so the slash flies ~2.5× faster to feel like
-/// the snappy dark slash it is.
 const BASE_STEP: f32 = 0.8 * 2.0;
 
-/// Invisible for ~28 frames, then the four slashes start
-/// one frame apart.
 const SPAWN_DELAY: i32 = 28;
 const STREAKS_PER_EMITTER: usize = 4;
-/// First 10 frames fade in (alpha +10/frame); after that alpha -5/frame.
 const FADE_AFTER: i32 = 10;
 const FADE_IN: f32 = 10.0;
 const FADE_OUT: f32 = 5.0;
 
-/// Backstop lifetime; the effect self-terminates when its last slash fades.
-/// Longest slash: ~33-frame delay (radial `shoot` stagger) + ~28 visible.
 pub const TOTAL_DURATION_MS: u32 = 1200;
 
 /// The dark slash charges up (`SPAWN_DELAY`) then flies at `BASE_STEP`
@@ -73,14 +37,12 @@ impl Rng {
         self.0 = self.0.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
         self.0
     }
-    /// Uniform integer in `0..n`.
     fn random(&mut self, n: u32) -> u32 {
         self.next_u32() % n.max(1)
     }
 }
 
 struct Streak {
-    /// Frame counter; starts negative so the slash is delayed before it appears.
     process: i32,
     heading: f32,
     pos: [f32; 3],
@@ -92,20 +54,16 @@ struct Streak {
 pub struct SoulBreakerEffect {
     streaks: Vec<Streak>,
     frame_accum: f32,
-    /// Whole-effect age in frames — drives the caster's brief magenta body
-    /// flash (the original recolors `m_master` over the first frames).
     age_frames: u32,
 }
 
 impl SoulBreakerEffect {
-    /// 361 — four slashes aimed at the target with ±15° per-slash jitter.
     pub fn new_directed(from: [f32; 3], to: [f32; 3]) -> Self {
         let seed = from[0].to_bits() ^ to[2].to_bits() ^ 0x50_1B_8E_43;
         let mut rng = Rng::from_seed(seed);
         let base = heading_of(from, to);
         let mut streaks = Vec::with_capacity(STREAKS_PER_EMITTER);
         for ec in 0..STREAKS_PER_EMITTER {
-            // Heading ±15° random spread per slash.
             let jitter = (rng.random(31) as f32 - 15.0).to_radians();
             streaks.push(new_streak(
                 from,
@@ -121,7 +79,6 @@ impl SoulBreakerEffect {
         }
     }
 
-    /// 409 — eight radial directions, each firing four slashes outward.
     pub fn new_radial(center: [f32; 3]) -> Self {
         let seed = center[0].to_bits() ^ center[2].to_bits() ^ 0x9A_55_C0_17;
         let mut rng = Rng::from_seed(seed);
@@ -129,7 +86,6 @@ impl SoulBreakerEffect {
         let mut dir_deg = 0;
         while dir_deg < 360 {
             let heading = (dir_deg as f32).to_radians();
-            // Random 0..6 frame stagger applied to all four slashes in this dir.
             let shoot = rng.random(6) as i32;
             for ec in 0..STREAKS_PER_EMITTER {
                 streaks.push(new_streak(
@@ -188,7 +144,6 @@ fn heading_of(from: [f32; 3], to: [f32; 3]) -> f32 {
 }
 
 fn new_streak(from: [f32; 3], heading: f32, delay: i32, rng: &mut Rng) -> Streak {
-    // Launches slightly above the caster (10 up, plus 0..5 jitter; native -Y up).
     let y = from[1] - 10.0 + rng.random(5) as f32;
     Streak {
         process: -delay,
@@ -216,9 +171,6 @@ impl Effect for SoulBreakerEffect {
     }
 
     fn body_tint(&self) -> Option<BodyTint> {
-        // The caster flashes magenta for the first ~10 frames (the original's
-        // `SetArgb(255,0,255)` on the slasher's body). Composes only when the
-        // effect is caster-anchored (`Attach::Link`, see the holder).
         (self.age_frames <= 10).then_some(BodyTint { rgb: [255, 0, 255] })
     }
 
@@ -232,10 +184,6 @@ impl Effect for SoulBreakerEffect {
                 pos: s.pos,
                 size: [side, side],
                 uv: CARD_UV,
-                // Align the slash with its travel direction (screen rotation);
-                // the texture supplies the magenta colour. World heading maps to
-                // screen angle as `π − heading` (the screen mirrors the world X
-                // axis under the camera).
                 rotation: std::f32::consts::PI - s.heading,
                 texture: SLASH_TEXTURE,
                 color: [1.0, 1.0, 1.0, (s.alpha / 255.0).clamp(0.0, 1.0)],

@@ -1,21 +1,3 @@
-//! `EF_HASTEUP` (id 98) — Adrenaline Rush self-buff cast effect.
-//!
-//! Three layers all launched at frame 0:
-//!
-//!
-//!   * 20 radial flash spikes (`alpha_center.tga`) — same shape
-//!     as `Bash`/`Flasher` but tuned slower and longer. Length starts at 0,
-//!     growing ≈ 3.85..5.31/frame for the first 40 frames, then the
-//!     speed swaps to ≈ 1.5..2.4/frame for the second 40.
-//!     80-frame lifetime.
-//!   * 4 orbiting sparkles (`particle1.spr`) at compass
-//!     headings (0°/90°/180°/270°) on a radius-7 orbit, accelerating
-//!     rotation (longitude speed = 0.3 + frame·0.2/frame²)
-//!     and drifting upward
-//!     (initial -0.1/frame, accel -0.002/frame). 100-frame lifetime.
-//!   * Parent emitter lives 300 frames for the audio cue (plays
-//!     at frame 30) but emits no further primitives.
-
 use super::spike_burst::{self, ChangeGrowth, SpikeBurst, SpikeBurstParams, seed_from_world};
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -40,11 +22,6 @@ pub const SPIKES: SpikeBurstParams = SpikeBurstParams {
         growth_range: (1.5 / 6.0, 2.4 / 6.0),
     }),
     thickness: 0.35,
-    // The reference gif's spike rays are clearly a subtle background layer
-    // — the orbit sparkles dominate, so the spike alpha stays low.
-    // (The original game leaves the burst near-opaque, but visually
-    // it reads as secondary.) Pin alpha low so the burst stays
-    // a secondary visual, with `particle1.spr` reading as the primary.
     max_alpha: 90.0 / 255.0,
     fade_in_frames: 10.0,
     fade_out_start_frame: SpikeBurstParams::default_fade_out_start(SPIKE_DURATION_FRAMES),
@@ -54,32 +31,13 @@ pub const SPIKES: SpikeBurstParams = SpikeBurstParams {
     blend: BlendKind::Alpha,
 };
 
-// Orbiting-sparkle per-particle constants for the
-// HasteUp recipe.
 const ORBIT_RADIUS: f32 = 7.0;
-// The gif shows the 4
-// orbit sparkles as the primary visual layer, each with a detailed ray
-// pattern baked into `particle1.spr`. A literal size renders
-// them as small dots in our viewer, drowned by the spike burst, so we
-// scale up so the sparkles read as the dominant burst element.
 const PARTICLE_SIZE: f32 = 1.2;
-// Spawn at the same chest-height offset the spike burst uses. The original
-// attaches sparkles to the character's
-// body centre, so spikes and orbit particles read at the same height
-// from frame 0; our `world_pos` is the raw spawn anchor (ground level),
-// so we apply the offset explicitly to keep both layers co-located.
 const PARTICLE_INITIAL_Y_OFFSET: f32 = -5.0;
-// Initial Y velocity (negative Y = up in native RO).
 const PARTICLE_Y_SPEED_PER_FRAME: f32 = -0.1;
-// Continues drifting up faster each frame.
 const PARTICLE_Y_ACCEL_PER_FRAME: f32 = -0.002;
-// Longitude is in degrees, integrated each frame as
-// `longitude += speed; speed
-// += accel`.
 const PARTICLE_LONG_SPEED_INIT_DEG: f32 = 0.3;
 const PARTICLE_LONG_ACCEL_DEG_PER_FRAME: f32 = 0.2;
-// Fade-out window — defaults to `duration -
-// duration/10` ≈ frame 90 of 100.
 const PARTICLE_FADEOUT_AT: f32 = PARTICLE_DURATION_FRAMES - PARTICLE_DURATION_FRAMES / 10.0;
 
 const PARTICLE_ANIM_TICKS: f32 = 4.0;
@@ -89,7 +47,6 @@ pub const TOTAL_DURATION_MS: u32 = ((PARENT_DURATION_FRAMES) / FRAMES_PER_SECOND
 
 #[derive(Clone, Copy, Debug)]
 struct OrbitParticle {
-    /// Initial compass heading in degrees (0/90/180/270).
     initial_longitude_deg: f32,
     age_frames: f32,
     y_offset: f32,
@@ -103,9 +60,6 @@ impl OrbitParticle {
         self.age_frames += dt_frames;
     }
 
-    /// Closed-form integration of `longitude(N) = N*v0 + accel*N*(N+1)/2`
-    /// matching the per-frame `longitude += speed;
-    /// speed += accel`.
     fn longitude_deg(&self) -> f32 {
         let n = self.age_frames;
         self.initial_longitude_deg
@@ -202,9 +156,6 @@ impl Effect for HasteUpEffect {
                 motion_index: motion,
                 size_scale: PARTICLE_SIZE,
                 color: [1.0, 1.0, 1.0, a],
-                // Additive so the particles pop on top of the
-                // alpha-blended spike rays rather than getting washed
-                // out by them during the burst's bright frames.
                 blend: BlendKind::Additive,
                 aim_target: None,
                 no_depth: false,
@@ -262,8 +213,6 @@ mod tests {
 
     #[test]
     fn orbit_particles_rotate_and_drift_upward() {
-        // Sociable: confirm the orbit advances over time and the upward
-        // drift (negative Y in native RO) accumulates.
         let mut e = HasteUpEffect::new([0.0; 3]);
         step_frames(&mut e, 10);
         let early_lon = e.particles[0].longitude_deg();

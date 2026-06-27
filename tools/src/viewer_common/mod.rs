@@ -24,7 +24,13 @@ pub fn build_fps(atlas: &FontAtlas, fps: f32, live_effects: usize) -> Vec<UiDraw
         indices: bi.to_vec(),
         texture: UiTextureRef::White,
     });
-    let (tv, ti) = text_vertices(&text, FPS_PADDING * 2.0, FPS_PADDING * 2.0, FPS_COLOR, atlas);
+    let (tv, ti) = text_vertices(
+        &text,
+        FPS_PADDING * 2.0,
+        FPS_PADDING * 2.0,
+        FPS_COLOR,
+        atlas,
+    );
     calls.push(UiDrawCall {
         vertices: tv,
         indices: ti,

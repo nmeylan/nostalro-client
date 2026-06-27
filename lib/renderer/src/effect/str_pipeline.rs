@@ -8,7 +8,6 @@ use crate::effect_sprite::project_billboard;
 use crate::sprite::{SpriteBatch, SpriteVertex};
 use crate::texture::{TextureCache, create_texture_bind_group};
 
-/// Cached STR effect file with resolved texture paths per layer.
 pub struct StrEffectEntry {
     pub str_file: StrEffectFile,
     /// `texture_paths[layer_idx][tex_idx]` = GRF path for that texture.
@@ -59,8 +58,6 @@ impl StrEffectCache {
         if self.missing.contains(name) {
             return false;
         }
-        // Try the primary first, then each alias. The cache keys by primary —
-        // so once any candidate resolves, future lookups by primary find it.
         let mut last_err: Option<String> = None;
         for candidate in std::iter::once(name).chain(aliases.iter().copied()) {
             match try_load(candidate, grf, texture_cache, device, queue) {
@@ -187,18 +184,12 @@ struct LayerAnim {
     color: [f32; 4],
     angle: f32,
     offset: [f32; 2],
-    /// D3DBLEND source factor for this frame. Unused today - the sprite
-    /// pipeline's two blend states only key off `blend_dst`. Wired when we
-    /// add a dedicated effect-primitive pipeline that honors both factors.
     #[allow(dead_code)]
     blend_src: i32,
-    /// D3DBLEND destination factor for this frame. `6` (D3DBLEND_INVSRCALPHA)
-    /// triggers alpha blending; anything else stays additive.
+    /// `6` (D3DBLEND_INVSRCALPHA) → alpha blend; anything else → additive.
     blend_dst: i32,
 }
 
-/// STR frame `angle` (`rz`) is a brand angle: 1024 units is one full turn, not
-/// a degree value. The original game converts it with `DegToRad(rz / (1024/360))`.
 fn str_angle_to_radians(raw: f32) -> f32 {
     raw * std::f32::consts::TAU / 1024.0
 }
@@ -313,21 +304,13 @@ fn calculate_layer_anim(layer: &EffectLayer, key_index: f32) -> LayerAnim {
     }
 }
 
-/// Description of one STR emitter to render.
 pub struct StrEmitterInput<'a> {
     pub str_name: &'a str,
     pub position: [f32; 3],
     pub anim_time: f32,
-    /// Loop the animation instead of stopping after the last frame
-    /// (persistent ground units such as Fire Wall).
     pub repeat: bool,
 }
 
-/// Build sprite batches for STR effects projected to screen space.
-///
-/// `zoom` is the map's world-units-per-cell (from `MapCoordinates::zoom`).
-/// Callers without a map (e.g. standalone effect previewers) can pass `10.0`,
-/// the conventional default.
 pub fn build_str_effect_batches<'a>(
     emitters: &[StrEmitterInput<'_>],
     cache: &'a StrEffectCache,
@@ -353,7 +336,6 @@ pub fn build_str_effect_batches<'a>(
         let mut key_index = input.anim_time * str_file.fps as f32;
         if str_file.max_key > 0 && key_index >= str_file.max_key as f32 {
             if input.repeat {
-                // Loop the animation for the effect's whole lifetime.
                 key_index %= str_file.max_key as f32;
             } else {
                 continue;
@@ -385,31 +367,14 @@ pub fn build_str_effect_batches<'a>(
                 continue;
             }
 
-            // Rotation is NOT negated: STR layer offsets are placed in a
-            // screen-down Y space (offset_y below is not negated either), the
-            // same convention the original game rotates in, so its formula maps
-            // directly. Negating spun multi-direction effects (e.g. the
-            // criticalwound claws) outward instead of crossing at centre.
             let angle_rad = str_angle_to_radians(anim.angle);
             let cos_a = angle_rad.cos();
             let sin_a = angle_rad.sin();
 
-            // Match `sprite_projection::project_entity_screen`'s `ppu * zoom / 75`
-            // so STR effects and entity sprites share a world-units-per-pixel ratio.
-            // The `/35` reference (one cell = 35 STR pixels) is encoded by the
-            // sprite pipeline's `/75` divisor + the sprite art's authored size.
             let scale = ppu * zoom / 75.0;
-            // Layer offset is a screen-space pixel position on the original
-            // game's 640x480 reference frame. X centres on 320; Y uses 320
-            // too, which folds the 240 frame centre together with the original
-            // dispatcher's default -80 vertical lift (it anchors the clip 80px
-            // above the actor's projected centre) that our emitter omits.
             let offset_x = (anim.offset[0] - 320.0) * scale;
             let offset_y = (anim.offset[1] - 320.0) * scale;
 
-            // xy layout: [x0,x1,x2,x3, y0,y1,y2,y3]
-            // vertex order: [0]=TL, [1]=TR, [2]=BR, [3]=BL
-            // triangle strip → two triangles
             let xy = &anim.positions;
             let corners = [
                 (xy[0], xy[4]), // TL
@@ -436,14 +401,6 @@ pub fn build_str_effect_batches<'a>(
                 });
             }
 
-            // Per-frame D3D blend factor → SpriteBatch's binary additive/alpha
-            // toggle. The sprite renderer today only exposes two pipelines:
-            //   * additive: (SrcAlpha, One)
-            //   * alpha:    (SrcAlpha, OneMinusSrcAlpha)
-            // D3DBLEND_INVSRCALPHA = 6, which is the giveaway for normal alpha
-            // blending. Anything else collapses to additive (glow). When we
-            // grow a dedicated effect-primitive pipeline (Phase C-2) we'll
-            // honor the full (src, dst) pair.
             let additive = anim.blend_dst != 6;
             batches.push(SpriteBatch {
                 vertices,
@@ -462,10 +419,8 @@ mod tests {
 
     #[test]
     fn str_angle_decodes_brand_units_not_degrees() {
-        // 1024 units == one full turn.
         assert!((str_angle_to_radians(1024.0) - std::f32::consts::TAU).abs() < 1e-4);
         assert!((str_angle_to_radians(256.0) - std::f32::consts::FRAC_PI_2).abs() < 1e-4);
-        // criticalwound's claw layers: 85.33 / -156.44 / -312.89 -> 30 / -55 / -110 deg.
         let deg = |r: f32| r.to_degrees();
         assert!((deg(str_angle_to_radians(85.333)) - 30.0).abs() < 0.5);
         assert!((deg(str_angle_to_radians(-156.444)) + 55.0).abs() < 0.5);

@@ -158,8 +158,7 @@ impl MinimapWindow {
 
     fn direction_angle(dir: u8) -> f32 {
         // RO directions go counter-clockwise (N=0,NW=1,W=2,...), reverse to match screen rotation
-        ((12u8.wrapping_sub(dir) % 8) as f32) * std::f32::consts::FRAC_PI_4
-            + std::f32::consts::PI
+        ((12u8.wrapping_sub(dir) % 8) as f32) * std::f32::consts::FRAC_PI_4 + std::f32::consts::PI
     }
 
     fn draw_dot(ui: &mut UiFrame, cx: f32, cy: f32, size: f32, color: [f32; 4]) {
@@ -183,7 +182,13 @@ impl Window for MinimapWindow {
     }
 
     fn grf_texture_paths() -> Vec<&'static str> {
-        vec![MAP_ARROW_TEX, MAP_PLUS_OFF, MAP_PLUS_ON, MAP_MINUS_OFF, MAP_MINUS_ON]
+        vec![
+            MAP_ARROW_TEX,
+            MAP_PLUS_OFF,
+            MAP_PLUS_ON,
+            MAP_MINUS_OFF,
+            MAP_MINUS_ON,
+        ]
     }
 }
 
@@ -214,7 +219,6 @@ impl InGameWindow for MinimapWindow {
             ui.any_interactive_hovered = true;
         }
 
-        // Map texture
         let (uv_min, uv_max) = self.compute_uv_region();
         if let Some(tex_path) = &self.minimap_texture_path {
             let tex_color = [1.0, 1.0, 1.0, alpha];
@@ -234,8 +238,7 @@ impl InGameWindow for MinimapWindow {
             });
         } else {
             let placeholder = [0.05, 0.05, 0.08, alpha];
-            let (v, i) =
-                draw::quad_vertices(x, y, MAP_AREA_SIZE, MAP_AREA_SIZE, placeholder);
+            let (v, i) = draw::quad_vertices(x, y, MAP_AREA_SIZE, MAP_AREA_SIZE, placeholder);
             ui.draw_calls.push(DrawCall {
                 vertices: v.to_vec(),
                 indices: i.to_vec(),
@@ -243,7 +246,6 @@ impl InGameWindow for MinimapWindow {
             });
         }
 
-        // Entity markers
         for marker in &self.entity_markers {
             let (color, size) = match marker.marker_type {
                 MarkerType::Npc => (
@@ -260,27 +262,24 @@ impl InGameWindow for MinimapWindow {
                     WARP_DOT_SIZE,
                 ),
             };
-            if let Some((sx, sy)) =
-                self.map_to_screen(marker.x, marker.y, uv_min, uv_max, x, y)
-            {
+            if let Some((sx, sy)) = self.map_to_screen(marker.x, marker.y, uv_min, uv_max, x, y) {
                 Self::draw_dot(ui, sx, sy, size, color);
             }
         }
 
-        // Player arrow
         if let Some((px, py)) = self.player_position
-            && let Some((sx, sy)) = self.map_to_screen(px, py, uv_min, uv_max, x, y) {
-                let angle = Self::direction_angle(self.player_direction);
-                let color = [1.0, 1.0, 1.0, alpha];
-                let (v, i) = draw::quad_vertices_rotated(sx, sy, ARROW_SIZE, angle, color);
-                ui.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(),
-                    indices: i.to_vec(),
-                    texture: TextureRef::Named(MAP_ARROW_TEX.to_string()),
-                });
-            }
+            && let Some((sx, sy)) = self.map_to_screen(px, py, uv_min, uv_max, x, y)
+        {
+            let angle = Self::direction_angle(self.player_direction);
+            let color = [1.0, 1.0, 1.0, alpha];
+            let (v, i) = draw::quad_vertices_rotated(sx, sy, ARROW_SIZE, angle, color);
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::Named(MAP_ARROW_TEX.to_string()),
+            });
+        }
 
-        // Zoom +/- buttons overlaid on top-right corner of map
         let zoom_x = x + MAP_AREA_SIZE - ZOOM_BTN_SIZE;
         let zoom_in_rect = Rect::new(zoom_x, y, ZOOM_BTN_SIZE, ZOOM_BTN_SIZE);
         let zoom_in_resp = ui.button(ZOOM_IN_BTN_ID, zoom_in_rect, &BTN_ZOOM_IN, "+");
@@ -288,10 +287,8 @@ impl InGameWindow for MinimapWindow {
             self.zoom_level += 1;
         }
 
-        let zoom_out_rect =
-            Rect::new(zoom_x, y + ZOOM_BTN_SIZE, ZOOM_BTN_SIZE, ZOOM_BTN_SIZE);
-        let zoom_out_resp =
-            ui.button(ZOOM_OUT_BTN_ID, zoom_out_rect, &BTN_ZOOM_OUT, "-");
+        let zoom_out_rect = Rect::new(zoom_x, y + ZOOM_BTN_SIZE, ZOOM_BTN_SIZE, ZOOM_BTN_SIZE);
+        let zoom_out_resp = ui.button(ZOOM_OUT_BTN_ID, zoom_out_rect, &BTN_ZOOM_OUT, "-");
         if zoom_out_resp.clicked() && self.zoom_level > 0 {
             self.zoom_level -= 1;
         }

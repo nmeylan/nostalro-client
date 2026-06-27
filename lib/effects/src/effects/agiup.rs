@@ -1,16 +1,4 @@
 //! `EF_AGIUP` — Increase Agility cast fountain (enum id 456).
-//!
-//! The original game launches one crossed-quad particle
-//! every 2 frames over its ~100-frame life: a 3D "+" of two perpendicular
-//! vertical `ac_center2.tga` streaks, spawned at a random yaw and radial
-//! offset around the caster, rising as it fades. The texture is a vertical
-//! bright stripe, so each cross reads as a pair of crossed light beams; the
-//! stream of them is the rising sparkle fountain in the reference.
-//!
-//! Modeled as a deterministic emitter: particle `i` launches at frame
-//! `i · 2` with parameters derived from a cheap per-index hash (no RNG, so
-//! the effect is reproducible frame-for-frame). Each live particle emits two
-//! `Texture3D` `VerticalYaw` quads (yaw and yaw + 90°).
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -22,18 +10,13 @@ const FPS: f32 = 60.0;
 const TOTAL_FRAMES: f32 = 100.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FPS * 1000.0) as u32;
 
-/// A fresh cross particle every other frame.
 const SPAWN_PERIOD_FRAMES: f32 = 2.0;
-/// Per-particle lifetime (50 frames).
 const PARTICLE_LIFE_FRAMES: f32 = 50.0;
-/// Fraction of life spent fading in (original ramps alpha over ~20 frames).
 const FADE_IN_FRAC: f32 = 0.2;
 const PEAK_ALPHA: f32 = 0.85;
 
 const UNIT_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
 
-/// Cheap deterministic hash → `[0, 1)`, varied by `salt` so each particle
-/// attribute is independent without an RNG (RNG would break reproducibility).
 fn hash01(i: u32, salt: u32) -> f32 {
     let x = i
         .wrapping_mul(2_654_435_761)
@@ -43,15 +26,12 @@ fn hash01(i: u32, salt: u32) -> f32 {
     (x % 100_000) as f32 / 100_000.0
 }
 
-/// The reference streaks alternate cool-blue and warm-yellow; pick per
-/// particle (the white `ac_center2` texture carries no colour of its own).
 const TINT_BLUE: [f32; 3] = [0.55, 0.7, 1.0];
 const TINT_YELLOW: [f32; 3] = [1.0, 0.95, 0.55];
 
 struct Particle {
     spawn_frame: f32,
     yaw: f32,
-    /// Horizontal offset direction (radians) + distance from the caster.
     offset_angle: f32,
     offset_dist: f32,
     rise_speed: f32,
@@ -126,10 +106,9 @@ impl Effect for AgiUpEffect {
             let (osin, ocos) = p.offset_angle.sin_cos();
             let center = [
                 self.base[0] + ocos * p.offset_dist,
-                self.base[1] - local_age * p.rise_speed, // native -Y up → rising
+                self.base[1] - local_age * p.rise_speed,
                 self.base[2] + osin * p.offset_dist,
             ];
-            // Two perpendicular vertical streaks form the 3D cross.
             for leg in 0..2 {
                 let yaw = p.yaw + leg as f32 * std::f32::consts::FRAC_PI_2;
                 out.push(EffectPrimitiveDraw::Texture3D {
@@ -175,8 +154,6 @@ mod tests {
 
     #[test]
     fn emits_paired_perpendicular_vertical_streaks() {
-        // After a few spawns there are cross particles, each contributing two
-        // VerticalYaw Texture3D quads 90° apart.
         let mut e = AgiUpEffect::new([0.0; 3]);
         step(&mut e, 12.0);
         let prims = draws(&e);
@@ -202,9 +179,7 @@ mod tests {
         step(&mut e, 20.0);
         assert!(e.particle_count() > early, "more particles spawn over time");
 
-        // A given particle's y decreases (native -Y up = rising) as it ages.
         let p = Particle::from_index(0);
-        // y at two ages:
         let y_at = |age: f32| -age * p.rise_speed;
         assert!(y_at(20.0) < y_at(2.0), "particle rises");
     }

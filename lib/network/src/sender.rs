@@ -52,7 +52,6 @@ pub fn build_map_loaded_packet(packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
-/// Build a chat packet. `msg` must be in "CharName : text" format.
 pub fn build_chat_packet(msg: &str, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzPlayerChat::new(packetver);
     let msg_null = format!("{msg}\0");
@@ -165,8 +164,6 @@ pub fn build_npc_deal_type_packet(npc_id: u32, deal_type: u8, packetver: u32) ->
     pkt.raw
 }
 
-/// Request to enter a chat room (CZ_REQ_ENTER_ROOM). Password is left blank for
-/// direct join of public / arena rooms.
 pub fn build_req_enter_room_packet(room_id: u32, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzReqEnterRoom::new(packetver);
     pkt.set_room_id(room_id);

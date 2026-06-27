@@ -1,12 +1,3 @@
-//! Runtime store of currently-active effects.
-//!
-//! Game-side triggers push [`ragnarok_game::effect::SpawnRequest`]s into a
-//! [`EffectQueue`]; the holder drains that queue each frame and constructs
-//! the runtime instances. `EffectSpec::Custom` dispatches through
-//! [`ragnarok_game::effect::make_effect`] to a `Box<dyn Effect>` living in
-//! the game crate; tooling can swap that for an [`ExternalCustomBackend`]
-//! to load effects from a hot-reload cdylib.
-
 use std::sync::Arc;
 
 use models::enums::EnumWithNumberValue;
@@ -22,13 +13,6 @@ use ragnarok_game::effect::{
 
 use crate::effect_sprite::Smoke3DParticle;
 
-/// Pluggable backend for custom-effect dispatch. The default path links the
-/// game crate's `make_effect` statically; tooling that needs hot reload
-/// (the effect viewer) supplies a wrapper around its cdylib so effect
-/// implementations live behind the dlsym boundary and can be swapped at
-/// runtime. Drop semantics: `drop_handle` must release the cdylib-owned
-/// `Box<dyn Effect>`; `drop_all` is called by [`EffectHolder::clear`] and
-/// by tooling just before a reload.
 pub trait ExternalCustomBackend: Send + Sync {
     fn spawn(
         &self,
@@ -38,17 +22,11 @@ pub trait ExternalCustomBackend: Send + Sync {
         hit_count: u8,
         target_size: Option<[f32; 2]>,
     ) -> u64;
-    /// Returns `true` while the effect is still running, `false` once it
-    /// has signalled death.
     fn update(&self, handle: u64, dt: f32, caster_yaw: Option<f32>) -> bool;
     fn collect(&self, handle: u64, ctx: &EffectRenderCtx, out: &mut EffectDrawList);
-    /// Optional STR overlay name for this effect instance. Default `None`;
-    /// hot-reload backends can probe their cdylib for the current overlay.
     fn str_overlay(&self, _handle: u64) -> Option<String> {
         None
     }
-    /// One-shot screen-shake request from this effect instance, if any.
-    /// Default `None`; hot-reload backends probe their cdylib.
     fn take_camera_shake(&self, _handle: u64) -> Option<CameraShake> {
         None
     }
@@ -56,9 +34,6 @@ pub trait ExternalCustomBackend: Send + Sync {
     fn drop_all(&self);
 }
 
-/// Decaying screen-shake state owned by the holder. Effects fire a one-shot
-/// [`CameraShake`]; this integrates the per-frame jittered offset that the
-/// camera applies, so the whole view trembles and settles.
 #[derive(Default)]
 struct ShakeController {
     amplitude: f32,
@@ -73,7 +48,6 @@ impl ShakeController {
         } else {
             0.0
         };
-        // A fresh shake dominates but never weakens an ongoing stronger one.
         self.amplitude = shake.amplitude.max(remaining);
         self.duration = (shake.duration_ms as f32 / 1000.0).max(1e-3);
         self.elapsed = 0.0;
@@ -90,7 +64,6 @@ impl ShakeController {
             return glam::Vec3::ZERO;
         }
         let amp = self.amplitude * (1.0 - self.elapsed / self.duration);
-        // Stepped on the 60 fps frame so the shudder is jittery, not smooth.
         let frame = (self.elapsed * 60.0) as u32;
         let j = |salt: u32| {
             let x = frame
@@ -100,23 +73,17 @@ impl ShakeController {
             let x = x ^ (x >> 15);
             ((x % 100_000) as f32 / 100_000.0) * 2.0 - 1.0
         };
-        // Vertical shudder is gentler than the horizontal sway.
         glam::Vec3::new(j(1) * amp, j(2) * amp * 0.5, j(3) * amp)
     }
 }
 
-/// Owned snapshot of a live STR effect - handed to `build_str_effect_batches`
-/// by callers that need a borrow-free view of the holder's STR effects.
 pub struct StrSnapshot {
     pub name: String,
     pub position: [f32; 3],
     pub anim_time: f32,
-    /// Loop the animation rather than stopping at the last frame.
     pub repeat: bool,
 }
 
-/// Owned snapshot of a live SPR-billboard effect. Callers convert this into
-/// `SpriteEffectEmitter::Spr` and feed it through `collect_sprite_effect_draws`.
 pub struct SprSnapshot {
     pub sprite: String,
     pub position: [f32; 3],
@@ -129,16 +96,12 @@ pub struct SprSnapshot {
     pub action_index: usize,
 }
 
-/// Owned snapshot of a live `EffectSpec::SprBurst` instance — params for the
-/// `SpriteEffectEmitter::Smoke3D` render path plus a per-particle list.
 pub struct SprBurstSnapshot {
     pub sprite: String,
     pub size_scale: f32,
     pub alpha_max: f32,
     pub anim_speed: f32,
-    /// Linearly shrink the per-particle sprite to 0 over its lifetime.
     pub size_shrink: bool,
-    /// Oscillate alpha around the linear fade envelope (twinkle).
     pub twinkle: bool,
     pub particles: Vec<Smoke3DParticle>,
 }
@@ -149,26 +112,11 @@ struct BurstParticle {
     velocity: [f32; 3],
     age: f32,
     lifetime: f32,
-    /// Frames elapsed since spawn (60 fps ticks), tracked separately
-    /// from `age` so curve periods and `alpha_keyframes` line up
-    /// with the original game's tick-driven scheduler. Carries a
-    /// fractional remainder across update calls.
     age_frames: f32,
-    /// Heading for curve re-randomization. Longitude is the Y-axis
-    /// rotation; latitude is the X-axis rotation applied after.
     lon_deg: f32,
     lat_deg: f32,
-    /// Curve countdown in frames. When it crosses 0,
-    /// re-randomize heading + speed and refill from the curve params.
     curve_timer_frames: f32,
-    /// Number of curve ticks consumed so far. After the first tick we
-    /// switch from `initial_period_frames` to `subsequent_period_frames`.
     curve_count: u32,
-    /// Twinkle alpha state. `alpha` is the current 0..1 value;
-    /// `alpha_speed` is the per-frame delta whose sign flips at the
-    /// min/max bounds. `alpha_max` is the active ceiling (keyframed).
-    /// `keyframe_idx` is the next entry to consume from
-    /// `SprBurstParams::alpha_keyframes`.
     alpha: f32,
     alpha_speed: f32,
     alpha_max: f32,
@@ -180,10 +128,7 @@ struct BurstState {
     params: SprBurstParams,
     particles: Vec<BurstParticle>,
     has_emitted: bool,
-    /// Time since the last burst was emitted; reset on respawn.
     cooldown_timer: f32,
-    /// Optional caster body flicker played alongside the burst (hybrid effects
-    /// like Enchant Deadly Poison). `None` for plain ambient bursts.
     body_recolor: Option<SprBodyRecolor>,
 }
 
@@ -198,8 +143,6 @@ pub enum SpawnOutcome {
     SprBurst,
     CustomNotImpl,
     NoSpec,
-    /// `EffectSpec::Noop` — original game has no visible behaviour for this
-    /// effect id. Holder treats the spawn as silently dropped.
     Noop,
 }
 
@@ -209,21 +152,18 @@ pub enum SpawnStatus {
     StrFileMissing,
     CustomNotImpl,
     NoSpec,
-    /// Spec was `EffectSpec::Noop` — original game renders nothing.
     Noop,
 }
 
 enum HeldPayload {
-    /// Factory-built effect (new path).
     Custom(Box<dyn GameEffect>),
-    /// Custom effect whose `Box<dyn Effect>` lives in an external (hot-
-    /// reloadable) backend. The holder only keeps the opaque handle.
-    CustomExternal { handle: u64 },
-    /// STR effect. Anim time accumulates in `age`; the render step projects
-    /// via the existing `build_str_effect_batches` path. `repeat` loops the
-    /// animation (persistent ground units) instead of playing once.
-    Str { name: String, repeat: bool },
-    /// Single SPR billboard (looping or one-shot, depending on `repeat`).
+    CustomExternal {
+        handle: u64,
+    },
+    Str {
+        name: String,
+        repeat: bool,
+    },
     Spr {
         sprite: String,
         size_scale: f32,
@@ -233,36 +173,24 @@ enum HeldPayload {
         pos_y: f32,
         action_index: usize,
     },
-    /// Multi-particle SPR burst (chimney smoke, firefly, snow, …).
     SprBurst(BurstState),
 }
 
 struct HeldEffect {
     handle: EffectHandle,
-    /// (debug) the id this effect was spawned from.
     effect_id: EffectId,
     payload: HeldPayload,
     attach: Attach,
     age: f32,
     duration: f32,
-    /// Caller-chosen owner key (ground-unit `aid`, buffed-entity `gid`).
-    /// `None` for fire-and-forget effects. Matched by [`EffectHolder::despawn_by_key`].
     key: Option<u32>,
 }
 
-/// One frozen copy of a moving actor's sprite — a motion-blur clone.
-/// Snapshots the animation frame and screen transform at spawn time so the
-/// actor walks away from it, leaving a trail; the holder decays `alpha`.
 pub struct AfterimageSnapshot {
     entity_id: u32,
     pub anim: SpriteAnimationState,
     pub camera_dir: Option<u8>,
     pub head_dir: u8,
-    /// World cell position where the copy was dropped. The game re-projects this
-    /// with the live camera each frame so the copy stays put in the world
-    /// (trailing behind the actor) instead of following the camera-tracked
-    /// screen anchor. The frozen `anchor`/`depth`/`scale` below are the fallback
-    /// used by tooling that previews a stationary actor (no world projection).
     pub world_pos: (f32, f32),
     pub anchor: [f32; 2],
     pub depth: f32,
@@ -306,13 +234,8 @@ pub struct EffectHolder {
     next_id: u64,
     effects: Vec<HeldEffect>,
     last_spawn: Option<SpawnOutcome>,
-    /// When set, `EffectSpec::Custom` spawns are routed through this backend
-    /// instead of the statically-linked `make_effect`. Tooling owns the
-    /// concrete implementation; production code leaves it `None`.
     external_backend: Option<Arc<dyn ExternalCustomBackend>>,
     shake: ShakeController,
-    /// Live afterimage snapshots (the original game's motion-blur clones),
-    /// decayed each frame by the holder.
     afterimages: Vec<AfterimageSnapshot>,
 }
 
@@ -321,17 +244,14 @@ impl EffectHolder {
         Self::default()
     }
 
-    /// (debug) Outcome of the most recent spawn attempt.
     pub fn last_spawn(&self) -> Option<&SpawnOutcome> {
         self.last_spawn.as_ref()
     }
 
-    /// (debug) Number of live held effects.
     pub fn effect_count(&self) -> usize {
         self.effects.len()
     }
 
-    /// (debug) Number of live Custom (factory-built) effects.
     pub fn custom_count(&self) -> usize {
         self.effects
             .iter()
@@ -339,7 +259,6 @@ impl EffectHolder {
             .count()
     }
 
-    /// (debug) `(effect_id, age, duration)` of every live Custom effect.
     pub fn debug_live(&self) -> Vec<(EffectId, f32, f32)> {
         self.effects
             .iter()
@@ -348,20 +267,15 @@ impl EffectHolder {
             .collect()
     }
 
-    /// Install (or remove) an external custom-effect backend. Drops every
-    /// live external effect first so the old backend's handles are released
-    /// before its function pointers are torn down. Internal `Custom` and
-    /// non-Custom effects are left untouched.
     pub fn set_external_backend(&mut self, backend: Option<Arc<dyn ExternalCustomBackend>>) {
         if let Some(old) = &self.external_backend {
-            self.effects.retain(|e| !matches!(e.payload, HeldPayload::CustomExternal { .. }));
+            self.effects
+                .retain(|e| !matches!(e.payload, HeldPayload::CustomExternal { .. }));
             old.drop_all();
         }
         self.external_backend = backend;
     }
 
-    /// Spawn directly by `EffectId`. Used by the effect viewer and any
-    /// caller that has resolved the id itself.
     pub fn spawn(
         &mut self,
         effect_id: EffectId,
@@ -400,10 +314,6 @@ impl EffectHolder {
             self.last_spawn = Some(SpawnOutcome::Noop);
             return None;
         }
-        // Effects whose original behaviour is a sustained screen quake fire a
-        // one-shot shake at spawn (alongside whatever STR/SPR they also play),
-        // independent of the per-frame `take_camera_shake` path used by Custom
-        // effects like Aciddemon.
         if let Some(shake) = spawn_camera_shake(effect_id) {
             self.shake.trigger(shake);
         }
@@ -438,7 +348,12 @@ impl EffectHolder {
                     action_index: *action_index,
                 }
             }
-            EffectSpec::SprBurst { sprite, burst, body_recolor, .. } => {
+            EffectSpec::SprBurst {
+                sprite,
+                burst,
+                body_recolor,
+                ..
+            } => {
                 self.last_spawn = Some(SpawnOutcome::SprBurst);
                 let mut params = *burst;
                 params.size *= size_scale_override.unwrap_or(1.0);
@@ -463,16 +378,8 @@ impl EffectHolder {
                             let p = resolve_entity(id).unwrap_or([0.0; 3]);
                             (p, p)
                         }
-                        // Link effects are driven on this backend as a static
-                        // `Trail` (caster origin → clicked fake-entity);
-                        // `Link` itself can't reach this path.
                         Attach::Projectile { .. } | Attach::Link { .. } => ([0.0; 3], [0.0; 3]),
                     };
-                    // The cdylib decodes this with `EffectId::try_from_value`,
-                    // so send the enum's *value* — not the Rust discriminant
-                    // (`as u16`), which diverges from the value past the first
-                    // gap in EF numbering (e.g. TextureFalling: discriminant
-                    // 734 vs value 1031).
                     let handle = backend.spawn(
                         effect_id.value() as u16,
                         from,
@@ -492,25 +399,21 @@ impl EffectHolder {
                         return None;
                     }
                 } else {
-                    // Spawn-time `Attach::Entity` resolution: the queue path
-                    // (`drain_queue`) threads the caller's entity table in so
-                    // entity-attached Custom effects anchor on the actor at
-                    // spawn; resolver-less callers (GIF exporter, tests) fall
-                    // back to the origin. Per-frame following (Link, body
-                    // channels) still goes through the `update`/collector
-                    // resolvers.
                     let anchor = attach_to_anchor(attach, resolve_entity);
-                    match make_effect(effect_id, anchor, hit_count, target_size, override_duration_ms) {
+                    match make_effect(
+                        effect_id,
+                        anchor,
+                        hit_count,
+                        target_size,
+                        override_duration_ms,
+                    ) {
                         Some(e) => {
                             self.last_spawn = Some(SpawnOutcome::Custom);
                             HeldPayload::Custom(e)
                         }
                         None => {
                             self.last_spawn = Some(SpawnOutcome::CustomNotImpl);
-                            tracing::debug!(
-                                "EffectHolder: no factory impl for {:?}",
-                                effect_id
-                            );
+                            tracing::debug!("EffectHolder: no factory impl for {:?}", effect_id);
                             return None;
                         }
                     }
@@ -545,15 +448,11 @@ impl EffectHolder {
         Some(handle)
     }
 
-    /// Drain a game-side queue and spawn each request. `resolve_entity`
-    /// supplies the caller's entity table so `Attach::Entity` spawns anchor
-    /// their world-space primitives on the actor.
     pub fn drain_queue(
         &mut self,
         queue: &mut EffectQueue,
         resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
     ) {
-        // Despawns first: a clear + re-spawn in the same frame keeps the new one.
         for key in queue.drain_despawns() {
             self.despawn_by_key(key);
         }
@@ -593,10 +492,6 @@ impl EffectHolder {
         });
     }
 
-    /// Drop every live effect spawned with the given owner `key` (a ground
-    /// unit's `aid` removed by `ZC_SKILL_DISAPPEAR`, or a buff cleared by a
-    /// status-off packet). One key may match several effects (a multi-layer
-    /// buff). No-op when nothing matches.
     pub fn despawn_by_key(&mut self, key: u32) {
         let backend = self.external_backend.as_ref().cloned();
         self.effects.retain(|e| {
@@ -610,9 +505,6 @@ impl EffectHolder {
         });
     }
 
-    /// Drop every live effect. Used by the effect viewer when the user
-    /// cycles to a new picker entry so old (persistent) effects don't
-    /// accumulate.
     pub fn clear(&mut self) {
         if let Some(b) = &self.external_backend {
             b.drop_all();
@@ -633,29 +525,18 @@ impl EffectHolder {
             e.age += dt;
             let expired = e.age >= e.duration;
             let attach = e.attach;
-            // Per-effect caster facing (the master actor's heading)
-            // for direction-oriented effects. Entity-attached effects resolve it
-            // live from their caster; others inherit the ctx default (the viewer
-            // sets it from the crosshair, the same way it aims projectiles).
             let caster_yaw = match attach {
                 Attach::Entity(id) => resolve_caster_yaw(id),
                 _ => ctx.caster_yaw,
             };
             let alive = match &mut e.payload {
                 HeldPayload::Custom(c) => {
-                    // Live second-actor tether (Linelink): resolve both endpoints
-                    // each frame and feed them in. If the linked actor is gone,
-                    // drop the effect (the original game ends it immediately).
                     if let Attach::Link { caster, target } = attach {
                         match (resolve_entity_pos(caster), resolve_entity_pos(target)) {
                             (Some(a), Some(b)) => c.set_link_endpoints(a, b),
                             _ => return false,
                         }
                     }
-                    // Entity-attached effects follow their master each frame
-                    // (the original game re-copies `m_pos = m_master->m_pos`).
-                    // `set_position` is a no-op for one-shot effects, so only
-                    // persistent caster-anchored effects actually move.
                     if let Attach::Entity(id) = attach
                         && let Some(p) = resolve_entity_pos(id)
                     {
@@ -694,9 +575,7 @@ impl EffectHolder {
                     HeldPayload::SprBurst(_) => "SprBurst",
                 };
 
-                if let (HeldPayload::CustomExternal { handle }, Some(b)) =
-                    (&e.payload, &backend)
-                {
+                if let (HeldPayload::CustomExternal { handle }, Some(b)) = (&e.payload, &backend) {
                     b.drop_handle(*handle);
                 }
                 return false;
@@ -710,9 +589,6 @@ impl EffectHolder {
         self.tick_afterimages(dt);
     }
 
-    /// Decay live afterimage snapshots, dropping any that have faded out. The
-    /// actor pass decides when to drop a new copy (one per displayed animation
-    /// frame, while the actor moves).
     fn tick_afterimages(&mut self, dt: f32) {
         for img in &mut self.afterimages {
             img.alpha -= img.fade_per_sec * dt;
@@ -720,8 +596,6 @@ impl EffectHolder {
         self.afterimages.retain(|i| i.alpha > 0.0);
     }
 
-    /// Afterimage parameters of the effect attached to `entity_id`, if any
-    /// (the actor pass reads `tint` / `start_alpha` to build a snapshot).
     pub fn afterimage_params_for_entity(&self, entity_id: u32) -> Option<Afterimage> {
         self.effects.iter().rev().find_map(|e| {
             if let (Attach::Entity(id), HeldPayload::Custom(c)) = (e.attach, &e.payload)
@@ -734,33 +608,23 @@ impl EffectHolder {
         })
     }
 
-    /// Store a snapshot of the moving actor; the holder decays it until gone.
     pub fn push_afterimage(&mut self, snapshot: AfterimageSnapshot) {
         self.afterimages.push(snapshot);
     }
 
-    /// Live afterimage snapshots for `entity_id`, oldest first. The actor pass
-    /// rebuilds each through `build_batches` (tinted, faded) behind the live
-    /// sprite.
     pub fn afterimages_for_entity(
         &self,
         entity_id: u32,
     ) -> impl Iterator<Item = &AfterimageSnapshot> {
-        self.afterimages.iter().filter(move |i| i.entity_id == entity_id)
+        self.afterimages
+            .iter()
+            .filter(move |i| i.entity_id == entity_id)
     }
 
-    /// Current screen-shake displacement to apply to the camera this frame
-    /// (zero when no shake is active). Set `Camera::shake_offset` from this.
     pub fn camera_shake_offset(&self) -> [f32; 3] {
         self.shake.offset().to_array()
     }
 
-    /// Move every live effect spawned under `key` to a new world point,
-    /// returning `true` when at least one was found. A ground-skill unit that
-    /// relocates (a song area sliding with its performer) arrives as a
-    /// re-sent `ZC_SKILL_ENTRY` carrying the *same* `aid` at a new cell — never
-    /// a disappear+respawn — so the original client reuses the existing unit
-    /// rather than stacking a duplicate at every step.
     pub fn reposition_by_key(&mut self, key: u32, world_pos: [f32; 3]) -> bool {
         let mut moved = false;
         for e in self.effects.iter_mut().filter(|e| e.key == Some(key)) {
@@ -773,18 +637,9 @@ impl EffectHolder {
         moved
     }
 
-    /// Every per-frame body modifier from effects attached to `entity_id`,
-    /// bundled for the actor pass (shake/tint/scale/yaw sum or last-writer as
-    /// the original game shows; plus the newer spin/lift/copy channels). The
-    /// caller folds its hidden/death fade into `alpha` and hands the result to
-    /// [`compose_actor_batches`]. Only in-process `Custom` effects participate
-    /// — the hot-reload backend has no attached actor.
     pub fn body_channels_for_entity(&self, entity_id: u32) -> crate::sprite::BodyChannels {
         let mut ch = crate::sprite::BodyChannels::default();
         for e in &self.effects {
-            // Hybrid SprBurst effects (e.g. Enchant Deadly Poison) recolor the
-            // caster body alongside their particle burst: flicker the multiply
-            // tint on even frames within the recolor window.
             if let (Attach::Entity(id), HeldPayload::SprBurst(b)) = (e.attach, &e.payload)
                 && id == entity_id
                 && let Some(r) = b.body_recolor
@@ -794,10 +649,6 @@ impl EffectHolder {
                     ch.tint = Some(r.rgb);
                 }
             }
-            // Body channels compose on the actor an effect is anchored to:
-            // `Attach::Entity` (most body flashes) or the *caster* of an
-            // `Attach::Link` effect (Soul Breaker recolors the caster while its
-            // crescent flies to the target).
             let (id, c) = match (e.attach, &e.payload) {
                 (Attach::Entity(id), HeldPayload::Custom(c)) => (id, c),
                 (Attach::Link { caster, .. }, HeldPayload::Custom(c)) => (caster, c),
@@ -840,10 +691,6 @@ impl EffectHolder {
         ch
     }
 
-    /// Drain the one-shot forced-animation request (`SetForceAnimation`,
-    /// Jumpkick) of the first effect attached to `entity_id` that has one
-    /// armed this frame. Mutating — each request fires once. Called from the
-    /// game-update step, not the draw pass.
     pub fn take_body_action_for_entity(&mut self, entity_id: u32) -> Option<BodyAction> {
         for e in &mut self.effects {
             if let (Attach::Entity(id), HeldPayload::Custom(c)) = (e.attach, &mut e.payload)
@@ -856,10 +703,6 @@ impl EffectHolder {
         None
     }
 
-    /// Drain one-shot floating-number requests from
-    /// every entity-attached custom effect, paired with the attached entity id.
-    /// Mutating — each request fires once. The client emits a recoloured
-    /// floating number on each entity.
     pub fn drain_number_requests(&mut self) -> Vec<(u32, NumberRequest)> {
         let mut out = Vec::new();
         for e in &mut self.effects {
@@ -872,13 +715,7 @@ impl EffectHolder {
         out
     }
 
-    /// Append primitive draws for live custom effects. STR/Spr collection
-    /// is wired in Phase D when the renderer's render-pass plumbing lands.
-    pub fn collect_custom_draws(
-        &self,
-        out: &mut EffectDrawList,
-        ctx: &EffectRenderCtx,
-    ) {
+    pub fn collect_custom_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx) {
         for e in &self.effects {
             match &e.payload {
                 HeldPayload::Custom(c) => c.collect_draws(out, ctx),
@@ -892,10 +729,6 @@ impl EffectHolder {
         }
     }
 
-    /// Snapshot of every live SPR-billboard effect. Caller converts each into
-    /// a `SpriteEffectEmitter::Spr` and pipes through
-    /// Snapshot of every live SprBurst effect. Particle positions are world-
-    /// space; callers feed each snapshot into `SpriteEffectEmitter::Smoke3D`.
     pub fn collect_spr_burst_emitters(
         &self,
         resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
@@ -906,10 +739,6 @@ impl EffectHolder {
                 let HeldPayload::SprBurst(b) = &e.payload else {
                     return None;
                 };
-                // Anchor isn't strictly needed once particles spawn — every
-                // particle already carries its absolute world pos — but we
-                // still skip emitters whose attach can't resolve, mirroring
-                // the STR/Spr collectors.
                 let _ = resolve_position(&e.attach, resolve_entity)?;
                 let has_keyframes = !b.params.alpha_keyframes.is_empty();
                 let particles = b
@@ -935,7 +764,6 @@ impl EffectHolder {
             .collect()
     }
 
-    /// `collect_sprite_effect_draws` + `build_emitter_batches`.
     pub fn collect_spr_emitters(
         &self,
         resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
@@ -977,12 +805,6 @@ impl EffectHolder {
             .collect()
     }
 
-    /// Distinct STR file names every live effect references this frame —
-    /// `EffectSpec::Str` effects plus the `str_overlay` of Custom effects
-    /// (including dynamic, per-instance overlay names that no static table can
-    /// enumerate). The client uses this to lazily load any STR not yet in the
-    /// cache before rendering, so an effect's STR is always present when it
-    /// draws (position is irrelevant here, so no resolver is needed).
     pub fn live_str_names(&self) -> Vec<String> {
         let mut names: Vec<String> = self
             .effects
@@ -1001,10 +823,6 @@ impl EffectHolder {
         names
     }
 
-    /// Snapshot of every live STR effect (name + resolved world position +
-    /// elapsed anim time). Renderer consumes this and feeds it into
-    /// `build_str_effect_batches`. Custom effects that return `Some` from
-    /// `Effect::str_overlay` also contribute a snapshot.
     pub fn collect_str_emitters(
         &self,
         resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
@@ -1043,13 +861,7 @@ impl EffectHolder {
         self.last_spawn.as_ref()
     }
 
-    /// Resolve the last spawn outcome into a `SpawnStatus`. Callers pass one
-    /// closure so the holder can poll the renderer's STR cache without
-    /// holding a borrow on it.
-    pub fn last_spawn_status(
-        &self,
-        str_in_cache: impl Fn(&str) -> bool,
-    ) -> Option<SpawnStatus> {
+    pub fn last_spawn_status(&self, str_in_cache: impl Fn(&str) -> bool) -> Option<SpawnStatus> {
         Some(match self.last_spawn.as_ref()? {
             SpawnOutcome::Spr => SpawnStatus::Rendering,
             SpawnOutcome::SprBurst => SpawnStatus::Rendering,
@@ -1076,45 +888,29 @@ fn resolve_position(
         Attach::WorldPos(p) => Some(*p),
         Attach::Entity(id) => resolve_entity(*id),
         Attach::Projectile { from, .. } => resolve_entity(*from),
-        // Trail effects (Frost Diver, projectile shards) snapshot both
-        // endpoints at spawn — anchor the holder on the caster-side
-        // (`from`) world position so the spawn marker lines up with the
-        // other variants.
         Attach::Trail { from, .. } => Some(*from),
-        // Link effects (Linelink) track both endpoints live; anchor on the
-        // caster for spawn-marker / STR-overlay purposes.
         Attach::Link { caster, .. } => resolve_entity(*caster),
     }
 }
 
-/// Resolve `Attach` to the [`EffectAnchor`] shape the factory expects.
-/// `WorldPos`, `Entity`, and `Projectile` collapse to `Point` (the
-/// effect doesn't need both endpoints), while `Trail` preserves both
-/// endpoints so projectile-shaped effects can lay out their geometry
-/// along the line. Callers that can't resolve entity → world (e.g. the
-/// direct `spawn` entry point used by the effect viewer) pass a
-/// resolver that always returns `None`; that path falls back to the
-/// origin, matching the pre-refactor behaviour.
 fn attach_to_anchor(
     attach: Attach,
     resolve_entity: &dyn Fn(u32) -> Option<[f32; 3]>,
 ) -> EffectAnchor {
     match attach {
         Attach::WorldPos(p) => EffectAnchor::Point(p),
-        Attach::Entity(id) => {
-            EffectAnchor::Point(resolve_entity(id).unwrap_or([0.0; 3]))
-        }
+        Attach::Entity(id) => EffectAnchor::Point(resolve_entity(id).unwrap_or([0.0; 3])),
         Attach::Projectile { from, to } => {
             let from_pos = resolve_entity(from).unwrap_or([0.0; 3]);
             match resolve_entity(to) {
-                Some(to_pos) => EffectAnchor::Trail { from: from_pos, to: to_pos },
+                Some(to_pos) => EffectAnchor::Trail {
+                    from: from_pos,
+                    to: to_pos,
+                },
                 None => EffectAnchor::Point(from_pos),
             }
         }
         Attach::Trail { from, to } => EffectAnchor::Trail { from, to },
-        // Initial endpoints for a live link. Frame-1 `update` overwrites these
-        // before the first `collect_draws` (drain → update run in one tick), so
-        // an unresolved origin here never renders.
         Attach::Link { caster, target } => EffectAnchor::Trail {
             from: resolve_entity(caster).unwrap_or([0.0; 3]),
             to: resolve_entity(target).unwrap_or([0.0; 3]),
@@ -1122,16 +918,7 @@ fn attach_to_anchor(
     }
 }
 
-/// Drive one SprBurst instance forward by `dt`. Spawns the initial burst on
-/// the first tick; re-spawns after every `period_frames` cooldown when set
-/// and the previous batch has fully died. Particles drift along +Y at their
-/// individual speeds and die when `age >= lifetime`.
-fn update_burst(
-    b: &mut BurstState,
-    attach: &Attach,
-    dt: f32,
-    camera_target: Option<[f32; 3]>,
-) {
+fn update_burst(b: &mut BurstState, attach: &Attach, dt: f32, camera_target: Option<[f32; 3]>) {
     let anchor = if b.params.follow_camera
         && let Some(p) = camera_target
     {
@@ -1139,9 +926,6 @@ fn update_burst(
     } else {
         match attach {
             Attach::WorldPos(p) => *p,
-            // Burst particles snapshot their position at spawn; if the entity
-            // resolver isn't available here we still want the burst to render
-            // around the origin, matching the viewer's spawn convention.
             Attach::Entity(_)
             | Attach::Projectile { .. }
             | Attach::Trail { .. }
@@ -1167,18 +951,13 @@ fn update_burst(
         }
         p.age_frames += dt_frames;
 
-        // Curve re-randomization: every `curve_timer_frames` ticks,
-        // perturb heading by ±`angle_jitter_deg`, optionally re-roll
-        // speed, and pick a fresh subsequent period.
         if let Some(cp) = curve {
             p.curve_timer_frames -= dt_frames;
             if p.curve_timer_frames <= 0.0 {
-                p.lon_deg = wrap_deg(
-                    p.lon_deg + rand_range(-cp.angle_jitter_deg, cp.angle_jitter_deg),
-                );
-                p.lat_deg = wrap_deg(
-                    p.lat_deg + rand_range(-cp.angle_jitter_deg, cp.angle_jitter_deg),
-                );
+                p.lon_deg =
+                    wrap_deg(p.lon_deg + rand_range(-cp.angle_jitter_deg, cp.angle_jitter_deg));
+                p.lat_deg =
+                    wrap_deg(p.lat_deg + rand_range(-cp.angle_jitter_deg, cp.angle_jitter_deg));
                 let speed = if cp.speed_resample {
                     rand_range(speed_lo, speed_hi)
                 } else {
@@ -1193,9 +972,6 @@ fn update_burst(
             }
         }
 
-        // Euler integration with optional gravity acceleration along Y.
-        // Positive `gravity` pulls toward +Y (down in native RO coords),
-        // matching the original game's gravity-particle fall.
         if gravity != 0.0 {
             p.velocity[1] += gravity * dt;
         }
@@ -1203,24 +979,15 @@ fn update_burst(
         p.pos[1] += p.velocity[1] * dt;
         p.pos[2] += p.velocity[2] * dt;
 
-        // Twinkle keyframe sawtooth. Consume any keyframes whose
-        // `at_frame` is now in the past, snapping alpha + ceiling.
-        // Then advance alpha by alpha_speed (per-frame delta scaled by
-        // dt_frames) and flip the sign at the [0, alpha_max] bounds.
         if !alpha_keyframes.is_empty() {
             while let Some(kf) = alpha_keyframes.get(p.keyframe_idx)
                 && p.age_frames >= kf.at_frame as f32
             {
                 p.alpha = kf.alpha_init;
                 p.alpha_max = kf.alpha_max;
-                // Alpha climbs by ceiling / 1.5 per
-                // frame (positive). At the ceiling it flips negative,
-                // at 0 flips positive — sawtooth.
                 p.alpha_speed = p.alpha_max / 1.5;
                 p.keyframe_idx += 1;
             }
-            // Sign flip at the bounds (before the advance so we don't
-            // overshoot on the first frame after a keyframe).
             if p.alpha_speed >= 0.0 && p.alpha >= p.alpha_max {
                 p.alpha_speed = -p.alpha_speed.abs();
             } else if p.alpha_speed < 0.0 && p.alpha <= 0.0 {
@@ -1232,10 +999,6 @@ fn update_burst(
         true
     });
 
-    // Periodic continuous emission: fire another burst every `period_frames`
-    // regardless of whether previous particles are still alive. The
-    // accumulator approach handles dt larger than the period (multiple
-    // spawns in one tick).
     if let Some(period_frames) = b.params.period_frames {
         b.cooldown_timer += dt;
         let period_secs = (period_frames as f32 / 60.0).max(1e-4);
@@ -1248,7 +1011,11 @@ fn update_burst(
 
 fn spawn_burst(b: &mut BurstState, anchor: [f32; 3]) {
     let (lo, hi) = b.params.burst_count_range;
-    let count = if hi <= lo { lo } else { lo + (rand_u32() % (hi - lo + 1)) };
+    let count = if hi <= lo {
+        lo
+    } else {
+        lo + (rand_u32() % (hi - lo + 1))
+    };
     let (slo, shi) = b.params.speed_range;
     let lifetime = (b.params.particle_lifetime_ms / 1000.0).max(1e-3);
     let radius = b.params.spawn_radius_xz;
@@ -1256,20 +1023,12 @@ fn spawn_burst(b: &mut BurstState, anchor: [f32; 3]) {
     for _ in 0..count {
         let speed = rand_range(slo, shi);
         let (ox, oz) = if radius > 0.0 {
-            // Uniform scatter on a disc: sqrt(r) for area weighting.
             let r_norm = ((rand_u32() % 1000) as f32 / 1000.0).sqrt();
-            let theta =
-                (rand_u32() % 360_000) as f32 / 1000.0 * std::f32::consts::PI / 180.0;
+            let theta = (rand_u32() % 360_000) as f32 / 1000.0 * std::f32::consts::PI / 180.0;
             (radius * r_norm * theta.cos(), radius * r_norm * theta.sin())
         } else {
             (0.0, 0.0)
         };
-        // Initial velocity. Vertical default matches the legacy
-        // chimney-smoke shape (negative Y = upward in native RO coords);
-        // when a cone is configured, the speed magnitude is mapped onto a
-        // 3D direction picked at spawn time: a longitude Y-rotation then a
-        // latitude X-rotation, matching the original game's gravity-particle
-        // emission spread.
         let (lon_deg, lat_deg, velocity) = match cone {
             None => (0.0, -90.0, [0.0, -speed * 60.0, 0.0]),
             Some((lat_min, lat_max)) => {
@@ -1277,7 +1036,11 @@ fn spawn_burst(b: &mut BurstState, anchor: [f32; 3]) {
                 let lat_deg = rand_range(lat_min, lat_max);
                 let (vx, vy, vz) = direction_from_lon_lat(lon_deg, lat_deg);
                 let speed_world = speed * 60.0;
-                (lon_deg, lat_deg, [vx * speed_world, vy * speed_world, vz * speed_world])
+                (
+                    lon_deg,
+                    lat_deg,
+                    [vx * speed_world, vy * speed_world, vz * speed_world],
+                )
             }
         };
         let curve_timer_frames = b
@@ -1312,10 +1075,6 @@ fn spawn_burst(b: &mut BurstState, anchor: [f32; 3]) {
     }
 }
 
-/// Map `(lon_deg, lat_deg)` to a unit direction in native RO coords.
-/// Equivalent to rotating +Z by longitude around Y then latitude around X.
-/// We use the same "elevation from horizontal = lat-90°" remap as the
-/// spawn-time cone math.
 fn direction_from_lon_lat(lon_deg: f32, lat_deg: f32) -> (f32, f32, f32) {
     let lon = lon_deg.to_radians();
     let elev = (lat_deg - 90.0).to_radians();
@@ -1351,11 +1110,6 @@ fn rand_period_frames(lo: u32, hi: u32) -> f32 {
     (lo + (rand_u32() % (hi - lo + 1))) as f32
 }
 
-/// Initial `(alpha, alpha_max, alpha_speed, keyframe_idx)` for a fresh
-/// particle. If the schedule begins with an `at_frame=0` keyframe we
-/// consume it immediately so the sawtooth starts from the right value;
-/// otherwise the particle is fully transparent until the renderer
-/// envelope takes over (alpha_keyframes empty case).
 fn init_alpha_state(keyframes: &[AlphaKeyframe]) -> (f32, f32, f32, usize) {
     if keyframes.is_empty() {
         return (0.0, 1.0, 0.0, 0);
@@ -1390,15 +1144,16 @@ mod tests {
     use ragnarok_game::effect::Attach;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
-        EffectUpdateCtx { delta: dt, camera_target: None, caster_yaw: None }
+        EffectUpdateCtx {
+            delta: dt,
+            camera_target: None,
+            caster_yaw: None,
+        }
     }
 
     #[test]
     fn spawning_an_str_effect_runs_until_duration_expires() {
         let mut h = EffectHolder::new();
-        // Override the data-driven duration so the test doesn't depend on
-        // whatever duration the original game happens to set Bubble
-        // to.
         let handle = h
             .spawn(
                 EffectId::Bubble,
@@ -1419,9 +1174,6 @@ mod tests {
 
     #[test]
     fn entity_attached_effect_follows_master_each_frame() {
-        // B1.1b: the holder re-resolves an `Attach::Entity` effect's master
-        // position every frame and pushes it through `set_position`, so a
-        // persistent caster-anchored effect tracks the actor as it walks.
         use std::sync::{Arc, Mutex};
         struct FollowFake {
             seen: Arc<Mutex<Vec<[f32; 3]>>>,
@@ -1446,26 +1198,29 @@ mod tests {
             duration: f32::INFINITY,
             key: None,
         });
-        // Master at one cell, then a step over; only entity 7 resolves.
-        h.update(&ctx(1.0 / 60.0), &|_| None, &|id| (id == 7).then_some([10.0, 0.0, 5.0]));
-        h.update(&ctx(1.0 / 60.0), &|_| None, &|id| (id == 7).then_some([11.0, 0.0, 5.0]));
+        h.update(&ctx(1.0 / 60.0), &|_| None, &|id| {
+            (id == 7).then_some([10.0, 0.0, 5.0])
+        });
+        h.update(&ctx(1.0 / 60.0), &|_| None, &|id| {
+            (id == 7).then_some([11.0, 0.0, 5.0])
+        });
         assert_eq!(
             *seen.lock().unwrap(),
             vec![[10.0, 0.0, 5.0], [11.0, 0.0, 5.0]],
-            "the effect was re-anchored to the master's live position each frame"
         );
     }
 
     #[test]
     fn despawn_by_key_drops_only_matching_effects() {
-        // B1.1c: a clear/disappear packet despawns every effect spawned with a
-        // matching owner key, leaving other-keyed and keyless effects alone.
         let mut h = EffectHolder::new();
         let mut push_keyed = |handle: u64, key: Option<u32>| {
             h.effects.push(HeldEffect {
                 handle: EffectHandle(handle),
                 effect_id: EffectId::Beginspell,
-                payload: HeldPayload::Str { name: "x".to_string(), repeat: false },
+                payload: HeldPayload::Str {
+                    name: "x".to_string(),
+                    repeat: false,
+                },
                 attach: Attach::WorldPos([0.0; 3]),
                 age: 0.0,
                 duration: f32::INFINITY,
@@ -1473,23 +1228,19 @@ mod tests {
             });
         };
         push_keyed(1, Some(7));
-        push_keyed(2, Some(7)); // a multi-layer buff: two effects, one key
+        push_keyed(2, Some(7));
         push_keyed(3, Some(9));
         push_keyed(4, None);
         assert_eq!(h.len(), 4);
 
         h.despawn_by_key(7);
-        assert_eq!(h.len(), 2, "both key=7 effects gone; key=9 and the keyless one remain");
-        h.despawn_by_key(123); // unknown key is a no-op
+        assert_eq!(h.len(), 2);
+        h.despawn_by_key(123);
         assert_eq!(h.len(), 2);
     }
 
     #[test]
     fn reposition_by_key_moves_existing_unit_without_duplicating() {
-        // A relocating ground unit (song area sliding with its performer)
-        // re-enters under the same aid at a new cell: the holder moves the live
-        // effect (Custom payloads get a fresh set_position) rather than stacking
-        // a new one, and an unknown key is a no-op the caller spawns fresh.
         use std::sync::{Arc, Mutex};
         struct MoveFake {
             seen: Arc<Mutex<Vec<[f32; 3]>>>,
@@ -1515,11 +1266,10 @@ mod tests {
             key: Some(1312),
         });
 
-        assert!(h.reposition_by_key(1312, [112.0, 0.0, 154.0]), "found the live unit");
-        assert_eq!(h.len(), 1, "moved in place — no duplicate at the old cell");
-        assert_eq!(*seen.lock().unwrap(), vec![[112.0, 0.0, 154.0]], "Custom got the new pos");
-
-        assert!(!h.reposition_by_key(9999, [0.0; 3]), "unknown aid → caller spawns fresh");
+        assert!(h.reposition_by_key(1312, [112.0, 0.0, 154.0]));
+        assert_eq!(h.len(), 1);
+        assert_eq!(*seen.lock().unwrap(), vec![[112.0, 0.0, 154.0]]);
+        assert!(!h.reposition_by_key(9999, [0.0; 3]));
         assert_eq!(h.len(), 1);
     }
 
@@ -1527,14 +1277,12 @@ mod tests {
     fn quakebody_attached_to_entity_shakes_and_tints_only_that_entity() {
         let mut h = EffectHolder::new();
         h.spawn(EffectId::Quakebody4, Attach::Entity(7), None)
-            .expect("Quakebody4 spawns as a Custom body effect");
-        // Advance into Quakebody4's 20..60-frame shake window.
+            .expect("spawn");
         h.update(&ctx(25.0 / 60.0), &|_| None, &|_| None);
 
         let ch = h.body_channels_for_entity(7);
-        assert_ne!(ch.shake, [0.0, 0.0], "the attached entity shakes");
-        assert!(ch.tint.is_some(), "Quakebody4 tints the attached entity");
-        // A different entity is untouched.
+        assert_ne!(ch.shake, [0.0, 0.0]);
+        assert!(ch.tint.is_some());
         let other = h.body_channels_for_entity(99);
         assert_eq!(other.shake, [0.0, 0.0]);
         assert!(other.tint.is_none());
@@ -1544,17 +1292,17 @@ mod tests {
     fn twohand_quicken_emits_and_decays_afterimage_for_attached_entity() {
         let mut h = EffectHolder::new();
         h.spawn(EffectId::Twohandquicken, Attach::Entity(7), None)
-            .expect("Two-Hand Quicken spawns as a Custom body effect");
+            .expect("spawn");
 
-        let ai = h.afterimage_params_for_entity(7).expect("Quicken leaves a trail");
+        let ai = h
+            .afterimage_params_for_entity(7)
+            .expect("Quicken leaves a trail");
         assert_eq!(ai.tint, [200, 200, 0]);
         assert!(
             h.afterimage_params_for_entity(99).is_none(),
             "only the attached entity trails"
         );
 
-        // The actor pass drops a copy per displayed frame while moving; store
-        // one here.
         h.push_afterimage(AfterimageSnapshot::new(
             7,
             SpriteAnimationState::new(0),
@@ -1569,45 +1317,32 @@ mod tests {
         assert_eq!(h.afterimages_for_entity(7).count(), 1);
         assert!(h.afterimages_for_entity(99).next().is_none());
 
-        // It fades out over its ~0.75 s lifetime.
         h.update(&ctx(1.0), &|_| None, &|_| None);
-        assert_eq!(h.afterimages_for_entity(7).count(), 0, "snapshot decays away");
+        assert_eq!(h.afterimages_for_entity(7).count(), 0);
     }
 
     #[test]
     fn screen_quake_spawn_triggers_and_settles_camera_shake() {
         let mut h = EffectHolder::new();
-        assert_eq!(h.camera_shake_offset(), [0.0, 0.0, 0.0], "idle before spawn");
+        assert_eq!(h.camera_shake_offset(), [0.0, 0.0, 0.0]);
         h.spawn(EffectId::ScreenQuake, Attach::WorldPos([0.0; 3]), None)
-            .expect("ScreenQuake spawns (no visual, shakes the camera)");
+            .expect("spawn");
         h.update(&ctx(0.05), &|_| None, &|_| None);
-        assert_ne!(
-            h.camera_shake_offset(),
-            [0.0, 0.0, 0.0],
-            "camera shakes while the quake is active"
-        );
-        // Past the shake window it settles back to rest.
+        assert_ne!(h.camera_shake_offset(), [0.0, 0.0, 0.0]);
         h.update(&ctx(3.0), &|_| None, &|_| None);
-        assert_eq!(h.camera_shake_offset(), [0.0, 0.0, 0.0], "settles to rest");
+        assert_eq!(h.camera_shake_offset(), [0.0, 0.0, 0.0]);
     }
 
     #[test]
     fn factory_dispatched_warp_spawns_and_reports_rendering() {
         let mut h = EffectHolder::new();
-        let handle = h.spawn(
-            EffectId::Warp,
-            Attach::WorldPos([0.0, 0.0, 0.0]),
-            Some(500),
-        );
+        let handle = h.spawn(EffectId::Warp, Attach::WorldPos([0.0, 0.0, 0.0]), Some(500));
         assert!(handle.is_some());
         assert_eq!(h.last_spawn_status(|_| false), Some(SpawnStatus::Rendering));
     }
 
     #[test]
     fn factory_unimplemented_custom_falls_back_to_placeholder() {
-        // Icewall has a Custom spec but no real impl yet — the factory's
-        // placeholder catchall takes over so the spawn still succeeds and
-        // reports `Rendering`.
         let mut h = EffectHolder::new();
         let handle = h.spawn(
             EffectId::Icewall,
@@ -1636,9 +1371,6 @@ mod tests {
 
     #[test]
     fn custom_effect_with_str_overlay_emits_snapshot() {
-        // Sociable test for the Slice G hybrid path: a Custom effect that
-        // declares an `str_overlay` must contribute a `StrSnapshot` alongside
-        // its primitive draws.
         struct HybridFake;
         impl GameEffect for HybridFake {
             fn update(&mut self, _: &EffectUpdateCtx) -> EffectStatus {
@@ -1668,8 +1400,6 @@ mod tests {
 
     #[test]
     fn custom_effect_without_overlay_emits_no_str_snapshot() {
-        // Warp is a Custom factory effect with no str_overlay — confirms the
-        // default `None` doesn't generate snapshots accidentally.
         let mut h = EffectHolder::new();
         h.spawn(EffectId::Warp, Attach::WorldPos([0.0, 0.0, 0.0]), Some(500))
             .expect("spawn");
@@ -1679,9 +1409,6 @@ mod tests {
 
     #[test]
     fn spr_spawn_emits_snapshot_with_sprite_and_anim_time() {
-        // Torch is the canonical Spr spec entry. After a spawn + tick the
-        // holder should yield exactly one SprSnapshot carrying the sprite
-        // path, the spawn position, and the accumulated anim time.
         let mut h = EffectHolder::new();
         h.spawn(
             EffectId::Torch,
@@ -1695,17 +1422,18 @@ mod tests {
         assert_eq!(snaps[0].sprite, "data/sprite/이팩트/torch_01");
         assert_eq!(snaps[0].position, [10.0, 20.0, 30.0]);
         assert!((snaps[0].anim_time - 0.25).abs() < 1e-6);
-        // Torch plays the default ACT action.
         assert_eq!(snaps[0].action_index, 0);
     }
 
     #[test]
     fn spr_snapshot_carries_non_zero_act_action() {
-        // Vallentine2 shares vallentine.spr but plays ACT action 1 — the
-        // snapshot must carry the action index through to the renderer.
         let mut h = EffectHolder::new();
-        h.spawn(EffectId::Vallentine2, Attach::WorldPos([0.0, 0.0, 0.0]), Some(1000))
-            .expect("spawn");
+        h.spawn(
+            EffectId::Vallentine2,
+            Attach::WorldPos([0.0, 0.0, 0.0]),
+            Some(1000),
+        )
+        .expect("spawn");
         h.update(&ctx(0.1), &|_| None, &|_| None);
         let snaps = h.collect_spr_emitters(&|_| None);
         assert_eq!(snaps.len(), 1);
@@ -1714,9 +1442,6 @@ mod tests {
 
     #[test]
     fn spr_burst_spawns_initial_particles_and_drifts_them() {
-        // Sociable test: spawn EffectId::Smoke (a SprBurst spec entry), tick
-        // it once, and verify the holder yields a snapshot with 1..=4
-        // particles whose Y coord has drifted upward (-Y in native RO).
         let mut h = EffectHolder::new();
         h.spawn(EffectId::Smoke, Attach::WorldPos([0.0, 0.0, 0.0]), None)
             .expect("spawn");
@@ -1742,11 +1467,6 @@ mod tests {
 
     #[test]
     fn steal_bursts_ten_gravity_arc_particles_that_scatter_in_xz() {
-        // Sociable test: Steal's recipe spawns 10 particles in a 3D cone.
-        // After one tick the snapshot should report ~10 particles with
-        // non-zero XZ spread (proof the cone direction is honored
-        // instead of the legacy pure-Y velocity). Size-shrink and
-        // gravity surface as flags / drift over a longer integration.
         let mut h = EffectHolder::new();
         h.spawn(EffectId::Steal, Attach::WorldPos([0.0, 0.0, 0.0]), None)
             .expect("spawn");
@@ -1757,7 +1477,11 @@ mod tests {
         assert_eq!(snap.sprite, "data/sprite/이팩트/particle7");
         assert!(snap.size_shrink, "Steal particles must shrink to 0");
         assert!(!snap.twinkle, "Steal does not twinkle");
-        assert_eq!(snap.particles.len(), 10, "Steal spawns exactly 10 particles");
+        assert_eq!(
+            snap.particles.len(),
+            10,
+            "Steal spawns exactly 10 particles"
+        );
         let any_xz_motion = snap
             .particles
             .iter()
@@ -1770,26 +1494,18 @@ mod tests {
 
     #[test]
     fn firefly_propagates_twinkle_and_cone_flags() {
-        // Sociable test: Firefly's spec turns the twinkle flag on.
-        // Verify the snapshot carries that flag through so the renderer's
-        // twinkle approximation kicks in.
         let mut h = EffectHolder::new();
         h.spawn(EffectId::Firefly, Attach::WorldPos([0.0, 0.0, 0.0]), None)
             .expect("spawn");
         h.update(&ctx(0.05), &|_| None, &|_| None);
         let snaps = h.collect_spr_burst_emitters(&|_| None);
         assert_eq!(snaps.len(), 1);
-        assert!(snaps[0].twinkle, "Firefly must surface PT_TWINKLE approximation");
-        assert!(!snaps[0].size_shrink, "Firefly does not shrink");
+        assert!(snaps[0].twinkle);
+        assert!(!snaps[0].size_shrink);
     }
 
     #[test]
     fn firefly_spawn_directions_span_full_sphere() {
-        // Regression: a cone range of `(-90, 90)` mapped to
-        // `vy = cos(lat°) ∈ [0, 1]` only, so every particle fired
-        // downward or horizontal — never up. Spawning many fireflies
-        // must produce velocities in both upper (vy<0) and lower
-        // (vy>0) hemispheres in native RO coords.
         let mut h = EffectHolder::new();
         for _ in 0..40 {
             h.spawn(EffectId::Firefly, Attach::WorldPos([0.0, 0.0, 0.0]), None)
@@ -1799,9 +1515,6 @@ mod tests {
         let snaps = h.collect_spr_burst_emitters(&|_| None);
         let mut saw_up = false;
         let mut saw_down = false;
-        // First-tick positions relative to the spawn anchor reveal
-        // the sign of the initial Y velocity (after applying
-        // pos_y_start = -10).
         for s in &snaps {
             for p in &s.particles {
                 let dy = p.pos[1] - (-10.0);
@@ -1819,15 +1532,9 @@ mod tests {
 
     #[test]
     fn firefly_pt_curve_perturbs_velocity_within_30_frames() {
-        // Sociable test for the curve path: a firefly particle's velocity must
-        // change at least once within the 5..30 initial period, proving the
-        // re-randomization branch in `update_burst` is wired up. We sample
-        // the velocity-magnitude proxy (XZ drift direction) before and
-        // after a 0.6 s window and require it to differ.
         let mut h = EffectHolder::new();
         h.spawn(EffectId::Firefly, Attach::WorldPos([0.0, 0.0, 0.0]), None)
             .expect("spawn");
-        // First tick: integrate a small step so the particle starts moving.
         h.update(&ctx(1.0 / 60.0), &|_| None, &|_| None);
         let snap0 = h
             .collect_spr_burst_emitters(&|_| None)
@@ -1835,8 +1542,6 @@ mod tests {
             .next()
             .expect("snapshot");
         let p0 = snap0.particles[0].pos;
-        // Wait 30 frames (0.5 s) — guarantees at least one curve tick
-        // since the initial period is capped at 30 frames.
         for _ in 0..30 {
             h.update(&ctx(1.0 / 60.0), &|_| None, &|_| None);
         }
@@ -1846,26 +1551,17 @@ mod tests {
             .next()
             .expect("snapshot still alive");
         let p1 = snap1.particles[0].pos;
-        // Particle should have moved meaningfully (curve doesn't kill
-        // motion). We don't assert direction change directly because the
-        // RNG is deterministic per-tick — but the post-curve trajectory
-        // must produce a position different from a pure straight-line
-        // integration of the spawn velocity. The cheap proxy: position
-        // delta vs. initial position is non-zero and finite.
-        let dist = ((p1[0] - p0[0]).powi(2)
-            + (p1[1] - p0[1]).powi(2)
-            + (p1[2] - p0[2]).powi(2))
-        .sqrt();
-        assert!(dist > 0.5, "particle should drift across 0.5s window: {dist}");
-        assert!(dist.is_finite(), "no NaN from curve math: {dist}");
+        let dist =
+            ((p1[0] - p0[0]).powi(2) + (p1[1] - p0[1]).powi(2) + (p1[2] - p0[2]).powi(2)).sqrt();
+        assert!(
+            dist > 0.5,
+            "particle should drift across 0.5s window: {dist}"
+        );
+        assert!(dist.is_finite());
     }
 
     #[test]
     fn firefly_alpha_keyframes_drive_per_particle_alpha_override() {
-        // Sociable test for twinkle keyframes: after the firefly is
-        // spawned, each particle snapshot must carry an `alpha_override`
-        // (not None) because the spec supplies a keyframe schedule. The
-        // first-frame value sits at frame-0's `alpha_init` (= 0).
         let mut h = EffectHolder::new();
         h.spawn(EffectId::Firefly, Attach::WorldPos([0.0, 0.0, 0.0]), None)
             .expect("spawn");
@@ -1883,12 +1579,6 @@ mod tests {
             "early alpha within ceiling: {a_early}",
         );
 
-        // Step into the bright phase (past frame 40). The keyframe at
-        // frame 40 raises the ceiling to 200/255 — the sawtooth bounces
-        // fast (~0.52/frame) so the snapshot at any single tick lands
-        // somewhere in [0, 200/255]. Sample 20 frames in that window
-        // and assert at least one reading exceeds the dim 80/255
-        // ceiling that bounded the early phase.
         for _ in 0..39 {
             h.update(&ctx(1.0 / 60.0), &|_| None, &|_| None);
         }

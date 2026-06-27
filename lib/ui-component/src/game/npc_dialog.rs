@@ -6,7 +6,7 @@ use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::npc_dialog::{NpcDialogData, NpcDialogState};
-use ragnarok_ui::draw::{self, strip_color_codes, word_wrap, DrawCall, TextureRef};
+use ragnarok_ui::draw::{self, DrawCall, TextureRef, strip_color_codes, word_wrap};
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
@@ -168,7 +168,6 @@ impl InGameWindow for NpcDialog {
         let mut events = Vec::new();
         let state = self.dialog.state;
 
-        // Keyboard shortcuts
         match state {
             NpcDialogState::WaitingForNext => {
                 if ui.ctx.key_enter {
@@ -226,9 +225,7 @@ impl InGameWindow for NpcDialog {
                     return events;
                 }
             }
-            NpcDialogState::WaitingForNumberInput => {
-                // Handled by NumberInputDialog popup below
-            }
+            NpcDialogState::WaitingForNumberInput => {}
             NpcDialogState::WaitingForStringInput => {
                 if ui.ctx.key_enter {
                     let text = self.string_input.text.clone();
@@ -255,16 +252,13 @@ impl InGameWindow for NpcDialog {
             _ => {}
         }
 
-        // Override frame's grf texture flag to match the dialog's own state
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
         self.container.has_grf_textures = self.has_grf_textures;
 
-        // Full-screen overlay
         let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
         ui.interact(OVERLAY_ID, screen);
 
-        // Deal type popup is a standalone popup, not part of the dialog box
         if state == NpcDialogState::WaitingForDealType {
             let result = self.build_deal_type_popup(ui);
             ui.has_grf_textures = prev_grf;
@@ -274,7 +268,6 @@ impl InGameWindow for NpcDialog {
         let dx = (ui.ctx.screen_width / 3.0).max(20.0).floor();
         let dy = (ui.ctx.screen_height / 2.0 - 200.0).max(100.0).floor();
 
-        // Skip dialog box when text is empty and only menu is showing
         let has_text = !self.dialog.text.is_empty();
         let menu_only = state == NpcDialogState::WaitingForMenu && !has_text;
 
@@ -282,7 +275,6 @@ impl InGameWindow for NpcDialog {
         let dialog_w = DIALOG_W;
 
         if !menu_only {
-            // Compute dialog height based on content
             let text_area_w = dialog_w - padding * 2.0;
             let wrapped_lines = word_wrap(
                 &self.dialog.text,
@@ -310,7 +302,6 @@ impl InGameWindow for NpcDialog {
 
             let dialog_h = (padding + text_h + input_h + btn_area_h + padding).max(DIALOG_H);
 
-            // Dialog background
             self.container.draw(
                 &mut ui.draw_calls,
                 dx,
@@ -320,7 +311,6 @@ impl InGameWindow for NpcDialog {
                 [1.0, 1.0, 1.0, 0.95],
             );
 
-            // Text content
             let text_color = self.container.text_color();
             let mut text_y = dy + padding + ui.atlas.line_height;
             for line in &wrapped_lines {
@@ -328,7 +318,6 @@ impl InGameWindow for NpcDialog {
                 text_y += text_line_h;
             }
 
-            // String input (inline in dialog)
             if state == NpcDialogState::WaitingForStringInput {
                 let input_y = text_y + padding;
                 let input_rect =
@@ -359,7 +348,6 @@ impl InGameWindow for NpcDialog {
                 }
             }
 
-            // Next/Close buttons (bottom-right)
             let dialog_rect = Rect::new(dx, dy, dialog_w, dialog_h);
             let btns = dialog_rect.buttons_bottom_right(
                 1,
@@ -390,13 +378,11 @@ impl InGameWindow for NpcDialog {
             }
         } // !menu_only
 
-        // Menu as a separate window below the dialog
         if state == NpcDialogState::WaitingForMenu {
             let menu_events = self.build_menu_window(ui, dx);
             events.extend(menu_events);
         }
 
-        // Number input as a separate popup (same dialog as drop quantity / npc shop)
         if state == NpcDialogState::WaitingForNumberInput {
             if self.number_input_dialog.is_none() {
                 let mut dialog = NumberInputDialog::new(
@@ -530,7 +516,6 @@ impl NpcDialog {
             );
         }
 
-        // OK + Cancel buttons at bottom-right of menu box
         let menu_rect = Rect::new(dx, menu_y, menu_w, menu_h);
         let menu_btns = menu_rect.buttons_bottom_right(
             2,
@@ -571,7 +556,6 @@ impl NpcDialog {
         let dx = ((ui.ctx.screen_width - dialog_w) / 2.0).floor();
         let dy = (ui.ctx.screen_height / 1.5).floor();
 
-        // Background
         if self.has_grf_textures {
             let (v, i) = draw::quad_vertices(dx, dy, dialog_w, dialog_h, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(DrawCall {
@@ -602,7 +586,6 @@ impl NpcDialog {
             }
         }
 
-        // Buttons right-aligned at bottom (cancel rightmost, then sell, then buy)
         let container = Rect::new(dx, dy, dialog_w, dialog_h);
         let btns = container.buttons_bottom_right(
             3,
@@ -613,7 +596,6 @@ impl NpcDialog {
             BTN_SPACING,
         );
 
-        // Text aligned to the left
         let message = "Please select a Deal type";
         let (text_y, text_x) =
             container.text_dialog_alignment(PADDING, btns[0].y, ui.atlas.line_height);
@@ -769,7 +751,6 @@ mod tests {
         assert_eq!(npc.dialog.menu_scroll_offset, 2);
     }
 
-
     #[test]
     fn menu_mouse_wheel_scrolls_and_persists() {
         let mut npc = NpcDialog::new();
@@ -780,15 +761,11 @@ mod tests {
         let data = DataTable::new();
         let mut state = StateCache::new();
 
-        // First frame: render to establish layout
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &mut state);
         npc.build(&mut ui, &mut character, &data);
         assert_eq!(npc.dialog.menu_scroll_offset, 0);
 
-        // Second frame: mouse wheel scroll down, mouse over menu area
-        // Menu is at dx=(800/3).floor()=266, menu_y=(600/2+76).max(376).floor()=376
-        // content_rect = Rect(266+8, 376+8, 260, 90) = Rect(274, 384, 260, 90)
         let mut ctx2 = UiContext::new(800.0, 600.0);
         ctx2.mouse_x = 300.0;
         ctx2.mouse_y = 400.0;
@@ -800,7 +777,6 @@ mod tests {
             "mouse wheel should scroll down"
         );
 
-        // Third frame: no input - offset must NOT reset to 0
         let ctx3 = UiContext::new(800.0, 600.0);
         let mut ui3 = make_frame(&ctx3, &mut state);
         npc.build(&mut ui3, &mut character, &data);

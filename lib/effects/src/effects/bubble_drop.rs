@@ -1,40 +1,12 @@
-//! `EF_BUBBLE_DROP` (id 665) — a single bubble that falls from above the
-//! target with a short motion-blur tail.
-//!
-//! One falling-bubble primitive
-//! drives a single main bubble plus three "echo" slots that each lag one
-//! frame behind the slot ahead of them, with a stepped alpha drop — a
-//! 3-deep motion-blur trail. The main bubble:
-//!   * spawns spawn-height (default 50) units above the anchor (`-Y` = up),
-//!   * falls `+1`/frame for that many frames,
-//!   * spins its texture `-15°`/frame and wobbles its radius slightly,
-//!   * ramps alpha `+20`/frame capped at 230 during the fall, then fades
-//!     `-10`/frame once the fall completes.
-//! Colour `(130,130,250)`, additive, drawn as a
-//! camera-facing billboard.
-//!
-//!
-//! The original texture `thunder_storm_particles.tga` is absent from the
-//! classic GRF, so we substitute `bubble_a.bmp` — a single round water
-//! droplet — and tint it the same blue. (`w_bubble01.tga` is a wide foam
-//! spray and `bubble_b`/`c`/`d` are pre-stacked multi-bubble sheets, so they
-//! read as a column rather than one falling drop.)
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// The spawn height and `+1`/frame fall are large-world literals;
-/// downscale so the bubble drops a couple of character-heights, as in the gif.
 const WORLD_SCALE: f32 = 0.35;
-
-/// `thunder_storm_particles.tga` is absent from the classic GRF; a single
-/// round water droplet stands in (tinted the same blue below).
 const BUBBLE_TEXTURE: &str = "bubble_a.bmp";
 pub const TEXTURES: &[&str] = &[BUBBLE_TEXTURE];
 
-/// Default spawn height: spawn 50 units up, fall for 50 frames.
 const SPAWN_HEIGHT: f32 = 50.0;
 const FALL_FRAMES: f32 = 50.0;
 const FALL_SPEED_PER_FRAME: f32 = 1.0;
@@ -44,17 +16,12 @@ const ALPHA_RISE_PER_FRAME: f32 = 20.0;
 const ALPHA_MAX_255: f32 = 230.0;
 const ALPHA_FALL_PER_FRAME: f32 = 10.0;
 
-/// Radius wobble: `radius = d + sin(phase) * d * 0.05`.
 const WOBBLE_FRACTION: f32 = 0.05;
 
 const BUBBLE_COLOR: [f32; 3] = [130.0 / 255.0, 130.0 / 255.0, 250.0 / 255.0];
 const BUBBLE_SIZE: f32 = 2.5;
 
-/// Three echo slots; cumulative alpha drop of `-100, -25, -25`.
 const ECHO_ALPHA_DROP_255: [f32; 3] = [100.0, 125.0, 150.0];
-/// Frames each successive echo lags behind. The source copies one frame
-/// per slot; a 2-frame lag keeps the trail to a short teardrop tail (the gif
-/// shows a small drop with a brief tail, not a long stacked column).
 const ECHO_LAG_FRAMES: usize = 2;
 
 const FADE_FRAMES: f32 = ALPHA_MAX_255 / ALPHA_FALL_PER_FRAME;
@@ -73,7 +40,6 @@ struct Snapshot {
 
 pub struct BubbleDropEffect {
     anchor: [f32; 3],
-    /// Per-frame history of the main bubble; echoes read prior entries.
     history: Vec<Snapshot>,
     age_frames: f32,
 }
@@ -87,9 +53,7 @@ impl BubbleDropEffect {
         }
     }
 
-    /// Main bubble state at integer frame `f`.
     fn main_state(&self, f: f32) -> Snapshot {
-        // Fall: starts SPAWN_HEIGHT above (native -Y), descends FALL_SPEED/frame.
         let fall = (FALL_SPEED_PER_FRAME * f).min(FALL_SPEED_PER_FRAME * FALL_FRAMES);
         let y = self.anchor[1] + (-SPAWN_HEIGHT + fall) * WORLD_SCALE;
         let phase = (SPIN_DEG_PER_FRAME * f).to_radians();
@@ -144,7 +108,6 @@ impl Effect for BubbleDropEffect {
         };
 
         let last = self.history.len() - 1;
-        // Echoes first (drawn behind), then the main bubble on top.
         for (i, drop) in ECHO_ALPHA_DROP_255.iter().enumerate() {
             let lag = (i + 1) * ECHO_LAG_FRAMES;
             if last >= lag {
@@ -201,15 +164,12 @@ mod tests {
         let early = bubbles(&e).last().unwrap().0[1];
         step(&mut e, 20);
         let later = bubbles(&e).last().unwrap().0[1];
-        // Native RO: falling means increasing Y.
         assert!(later > early, "bubble descends: {early} -> {later}");
     }
 
     #[test]
     fn echoes_trail_with_decreasing_alpha() {
         let mut e = BubbleDropEffect::new([0.0; 3]);
-        // Far enough into the fall that the main bubble and every echo's source
-        // frame are past the alpha cap, so all echoes clear their alpha drop.
         step(&mut e, 24);
         let draws = bubbles(&e);
         assert!(
@@ -217,7 +177,6 @@ mod tests {
             "main + 3 echoes visible, got {}",
             draws.len()
         );
-        // The last draw is the main bubble (brightest); echoes precede it with lower alpha.
         let main_alpha = draws.last().unwrap().1;
         assert!(
             draws[..draws.len() - 1]

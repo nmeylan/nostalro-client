@@ -1,3 +1,8 @@
+use super::inventory_window::INV_WINDOW_ID;
+use super::skill_tree_window::SKILL_WINDOW_ID;
+use crate::game::equipment_window::EQ_WINDOW_ID;
+use crate::helper::window_chrome::{draw_sys_button, text_color};
+use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
@@ -7,11 +12,6 @@ use ragnarok_game::item::InventoryTab;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-use crate::{InGameWindow, Window};
-use crate::game::equipment_window::EQ_WINDOW_ID;
-use crate::helper::window_chrome::{draw_sys_button, text_color};
-use super::inventory_window::INV_WINDOW_ID;
-use super::skill_tree_window::SKILL_WINDOW_ID;
 
 pub const HOTKEY_BAR_WINDOW_ID: WidgetId = WidgetId(1300);
 const SLOT_BASE_ID: u32 = 1310;
@@ -32,7 +32,7 @@ const ROW_H: f32 = 34.0;
 const LABEL_W: f32 = 4.0;
 const CLOSE_SIZE: f32 = 12.0;
 const RESIZE_SIZE: f32 = 13.0;
-const WIN_W: f32 = SLOT_MARGIN + (SLOT_W + SLOT_MARGIN ) * HOTKEY_COLS as f32;
+const WIN_W: f32 = SLOT_MARGIN + (SLOT_W + SLOT_MARGIN) * HOTKEY_COLS as f32;
 
 const ROW_KEYS: [[&str; 9]; 4] = [
     ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9"],
@@ -70,17 +70,29 @@ impl HotkeyBarWindow {
         }
     }
 
-    fn slot_icon_path(&self, content: HotkeySlotContent, character: &Character, data: &DataTable) -> Option<String> {
+    fn slot_icon_path(
+        &self,
+        content: HotkeySlotContent,
+        character: &Character,
+        data: &DataTable,
+    ) -> Option<String> {
         match content {
             HotkeySlotContent::Empty => None,
             HotkeySlotContent::Skill { skill_id, .. } => {
                 character.skills.get_skill(skill_id).map(|s| s.icon_path())
             }
-            HotkeySlotContent::Item { item_id, inventory_index } => {
-                character.inventory.get_item(inventory_index)
-                    .and_then(|item| item.icon_path())
-                    .or_else(|| data.item_resource.as_ref().and_then(|t| t.item_icon_path(item_id)))
-            }
+            HotkeySlotContent::Item {
+                item_id,
+                inventory_index,
+            } => character
+                .inventory
+                .get_item(inventory_index)
+                .and_then(|item| item.icon_path())
+                .or_else(|| {
+                    data.item_resource
+                        .as_ref()
+                        .and_then(|t| t.item_icon_path(item_id))
+                }),
         }
     }
 
@@ -88,14 +100,30 @@ impl HotkeyBarWindow {
         match content {
             HotkeySlotContent::Empty => None,
             HotkeySlotContent::Skill { level, .. } => {
-                if level > 0 { Some(format!("{level}")) } else { None }
+                if level > 0 {
+                    Some(format!("{level}"))
+                } else {
+                    None
+                }
             }
-            HotkeySlotContent::Item { item_id: _, inventory_index } => {
-                let count: i16 = character.inventory.all_items().iter()
+            HotkeySlotContent::Item {
+                item_id: _,
+                inventory_index,
+            } => {
+                let count: i16 = character
+                    .inventory
+                    .all_items()
+                    .iter()
                     .filter(|i| i.index == inventory_index)
                     .map(|i| i.count)
                     .sum();
-                if count > 0 { Some(format!("{count}")) } else if count == 0 { Some("0".to_string()) } else { None }
+                if count > 0 {
+                    Some(format!("{count}"))
+                } else if count == 0 {
+                    Some("0".to_string())
+                } else {
+                    None
+                }
             }
         }
     }
@@ -110,12 +138,19 @@ impl HotkeyBarWindow {
                 // itself is gated when the packet would be sent.
                 events.push(GameEvent::RequestUseSkill { skill_id, level });
             }
-            HotkeySlotContent::Item { inventory_index, .. } => {
+            HotkeySlotContent::Item {
+                inventory_index, ..
+            } => {
                 if let Some(item) = character.inventory.get_item(inventory_index) {
                     if item.is_equipment() {
-                        events.push(GameEvent::RequestEquipItem { index: inventory_index, location: item.equip_location() });
+                        events.push(GameEvent::RequestEquipItem {
+                            index: inventory_index,
+                            location: item.equip_location(),
+                        });
                     } else {
-                        events.push(GameEvent::RequestUseItem { index: inventory_index });
+                        events.push(GameEvent::RequestUseItem {
+                            index: inventory_index,
+                        });
                     }
                 }
             }
@@ -137,7 +172,10 @@ impl HotkeyBarWindow {
                 }
                 let item_id = item.item_id;
                 let inventory_index = item.index;
-                let content = HotkeySlotContent::Item { item_id, inventory_index };
+                let content = HotkeySlotContent::Item {
+                    item_id,
+                    inventory_index,
+                };
                 character.hotkeys.set_slot(slot_index, content);
                 events.push(GameEvent::RequestHotkeyChange {
                     index: slot_index as u16,
@@ -206,7 +244,12 @@ impl Window for HotkeyBarWindow {
 }
 
 impl InGameWindow for HotkeyBarWindow {
-    fn build(&mut self, ui: &mut UiFrame, character: &mut Character, data: &DataTable) -> Vec<GameEvent> {
+    fn build(
+        &mut self,
+        ui: &mut UiFrame,
+        character: &mut Character,
+        data: &DataTable,
+    ) -> Vec<GameEvent> {
         let mut events = Vec::new();
 
         if ui.ctx.key_f12 {
@@ -225,11 +268,17 @@ impl InGameWindow for HotkeyBarWindow {
         let win_h = visible_rows as f32 * ROW_H;
         let default_x = (ui.ctx.screen_width - WIN_W) / 2.0;
         let default_y = 0.0;
-        let win = ui.window_at(HOTKEY_BAR_WINDOW_ID, WIN_W, win_h, win_h, default_x, default_y);
+        let win = ui.window_at(
+            HOTKEY_BAR_WINDOW_ID,
+            WIN_W,
+            win_h,
+            win_h,
+            default_x,
+            default_y,
+        );
 
         let has_grf = self.has_grf_textures;
 
-        // Draw background
         if has_grf && self.bg_size.0 > 0.0 {
             for row in 0..visible_rows {
                 let row_y = win.y + row as f32 * ROW_H;
@@ -250,7 +299,6 @@ impl InGameWindow for HotkeyBarWindow {
             });
         }
 
-        // Draw border
         let border_color = [0.3, 0.25, 0.2, 1.0];
         for &(bx, by, bw, bh) in &[
             (win.x, win.y, WIN_W, 1.0),
@@ -266,8 +314,11 @@ impl InGameWindow for HotkeyBarWindow {
             });
         }
 
-        // Close button (top-right)
-        let close_size = if has_grf { self.close_size.1.max(CLOSE_SIZE) } else { CLOSE_SIZE };
+        let close_size = if has_grf {
+            self.close_size.1.max(CLOSE_SIZE)
+        } else {
+            CLOSE_SIZE
+        };
         let close_rect = Rect::new(
             win.x + WIN_W - close_size - 2.0,
             win.y + SLOT_MARGIN,
@@ -276,18 +327,22 @@ impl InGameWindow for HotkeyBarWindow {
         );
         let close_resp = ui.interact(CLOSE_BTN_ID, close_rect);
         draw_sys_button(
-            ui, close_rect,
+            ui,
+            close_rect,
             (close_size, close_size),
-            close_resp.hovered(), has_grf,
-            CLOSE_ON_TEX, CLOSE_OFF_TEX,
-            Some('x'), [1.0, 0.3, 0.3, 1.0], text_color(false),
+            close_resp.hovered(),
+            has_grf,
+            CLOSE_ON_TEX,
+            CLOSE_OFF_TEX,
+            Some('x'),
+            [1.0, 0.3, 0.3, 1.0],
+            text_color(false),
         );
         if close_resp.clicked() {
             character.hotkeys.set_visible_rows(0);
             return events;
         }
 
-        // Resize handle (bottom-right)
         let resize_rect = Rect::new(
             win.x + WIN_W - RESIZE_SIZE,
             win.y + win_h - RESIZE_SIZE,
@@ -300,20 +355,20 @@ impl InGameWindow for HotkeyBarWindow {
             ui.cancel_window_drag(HOTKEY_BAR_WINDOW_ID);
         }
         if resize.dragging
-            && let Some(start_rows) = self.resize_start {
-                let new_rows = (start_rows as f32 + resize.delta_y / ROW_H).round() as i32;
-                let new_rows = new_rows.clamp(1, HOTKEY_ROWS as i32) as u8;
-                if new_rows != visible_rows as u8 {
-                    character.hotkeys.set_visible_rows(new_rows);
-                }
+            && let Some(start_rows) = self.resize_start
+        {
+            let new_rows = (start_rows as f32 + resize.delta_y / ROW_H).round() as i32;
+            let new_rows = new_rows.clamp(1, HOTKEY_ROWS as i32) as u8;
+            if new_rows != visible_rows as u8 {
+                character.hotkeys.set_visible_rows(new_rows);
             }
+        }
 
         let tc = text_color(has_grf);
 
         for row in 0..visible_rows {
             let row_y = win.y + row as f32 * ROW_H;
 
-            // Row separator
             if row > 0 {
                 let sep_color = if has_grf {
                     [0.6, 0.55, 0.5, 0.5]
@@ -335,14 +390,24 @@ impl InGameWindow for HotkeyBarWindow {
 
                 let cell_x = win.x + SLOT_MARGIN + SLOT_MARGIN + col as f32 * (SLOT_W);
                 let cell_y = row_y + SLOT_PAD_Y;
-                let cell_rect = Rect::new(cell_x, cell_y, SLOT_W - 2.0 * SLOT_MARGIN, SLOT_W - SLOT_MARGIN * 2.0);
+                let cell_rect = Rect::new(
+                    cell_x,
+                    cell_y,
+                    SLOT_W - 2.0 * SLOT_MARGIN,
+                    SLOT_W - SLOT_MARGIN * 2.0,
+                );
 
                 let resp = ui.interact(slot_id, cell_rect);
 
-                // Hover highlight
                 if resp.hovered() {
                     let hover_color = [0.71, 1.0, 0.71, 1.0];
-                    let (v, idx) = draw::quad_vertices(cell_rect.x + 1.0, cell_rect.y, cell_rect.w - 1.0,  cell_rect.h - SLOT_MARGIN * 2.0, hover_color);
+                    let (v, idx) = draw::quad_vertices(
+                        cell_rect.x + 1.0,
+                        cell_rect.y,
+                        cell_rect.w - 1.0,
+                        cell_rect.h - SLOT_MARGIN * 2.0,
+                        hover_color,
+                    );
                     ui.draw_calls.push(DrawCall {
                         vertices: v.to_vec(),
                         indices: idx.to_vec(),
@@ -351,16 +416,20 @@ impl InGameWindow for HotkeyBarWindow {
                 }
 
                 let label_color = [tc[0] * 0.6, tc[1] * 0.6, tc[2] * 0.6, tc[3]];
-                // Slot icon
                 if let Some(icon_path) = self.slot_icon_path(content, character, data) {
-                    let (v, idx) = draw::quad_vertices(cell_rect.x + (SLOT_W - ICON_SIZE) / 2.0 - SLOT_MARGIN, cell_rect.y, ICON_SIZE, ICON_SIZE, [1.0; 4]);
+                    let (v, idx) = draw::quad_vertices(
+                        cell_rect.x + (SLOT_W - ICON_SIZE) / 2.0 - SLOT_MARGIN,
+                        cell_rect.y,
+                        ICON_SIZE,
+                        ICON_SIZE,
+                        [1.0; 4],
+                    );
                     ui.draw_calls.push(DrawCall {
                         vertices: v.to_vec(),
                         indices: idx.to_vec(),
                         texture: TextureRef::Named(icon_path.clone()),
                     });
 
-                    // Count/level text
                     if let Some(count_text) = self.slot_count_text(content, character) {
                         let text_w = ui.atlas.measure_text(&count_text);
                         let tx = cell_rect.x + ICON_SIZE - text_w;
@@ -368,39 +437,53 @@ impl InGameWindow for HotkeyBarWindow {
                         ui.text(tx, ty, &count_text, label_color);
                     }
 
-                    // Cooldown overlay for skill slots
                     if let HotkeySlotContent::Skill { skill_id, .. } = content
-                        && character.cooldowns.is_on_cooldown(skill_id, ui.elapsed_secs) {
-                            let icon_x = cell_rect.x + (SLOT_W - ICON_SIZE) / 2.0 - SLOT_MARGIN;
-                            // Darken icon
-                            let (v, idx) = draw::quad_vertices(icon_x, cell_rect.y, ICON_SIZE, ICON_SIZE, [0.0, 0.0, 0.0, 0.45]);
+                        && character
+                            .cooldowns
+                            .is_on_cooldown(skill_id, ui.elapsed_secs)
+                    {
+                        let icon_x = cell_rect.x + (SLOT_W - ICON_SIZE) / 2.0 - SLOT_MARGIN;
+                        let (v, idx) = draw::quad_vertices(
+                            icon_x,
+                            cell_rect.y,
+                            ICON_SIZE,
+                            ICON_SIZE,
+                            [0.0, 0.0, 0.0, 0.45],
+                        );
+                        ui.draw_calls.push(DrawCall {
+                            vertices: v.to_vec(),
+                            indices: idx.to_vec(),
+                            texture: TextureRef::White,
+                        });
+                        if has_grf {
+                            let (v, idx) = draw::quad_vertices(
+                                icon_x,
+                                cell_rect.y,
+                                ICON_SIZE,
+                                ICON_SIZE,
+                                [1.0; 4],
+                            );
                             ui.draw_calls.push(DrawCall {
                                 vertices: v.to_vec(),
                                 indices: idx.to_vec(),
-                                texture: TextureRef::White,
+                                texture: TextureRef::Named(CAT_PAW_TEX.to_string()),
                             });
-                            // Cat paw icon overlay
-                            if has_grf {
-                                let (v, idx) = draw::quad_vertices(icon_x, cell_rect.y, ICON_SIZE, ICON_SIZE, [1.0; 4]);
-                                ui.draw_calls.push(DrawCall {
-                                    vertices: v.to_vec(),
-                                    indices: idx.to_vec(),
-                                    texture: TextureRef::Named(CAT_PAW_TEX.to_string()),
-                                });
-                            }
-                            let remaining = character.cooldowns.remaining_secs(skill_id, ui.elapsed_secs);
-                            if remaining > 0.1 {
-                                let time_text = if remaining >= 1.0 {
-                                    format!("{:.0}", remaining)
-                                } else {
-                                    format!("{:.1}", remaining)
-                                };
-                                let text_w = ui.atlas.measure_text(&time_text);
-                                let tx = icon_x + (ICON_SIZE - text_w) / 2.0;
-                                let ty = cell_rect.y + ICON_SIZE / 2.0 + 4.0;
-                                ui.text(tx, ty, &time_text, [1.0, 1.0, 1.0, 1.0]);
-                            }
                         }
+                        let remaining = character
+                            .cooldowns
+                            .remaining_secs(skill_id, ui.elapsed_secs);
+                        if remaining > 0.1 {
+                            let time_text = if remaining >= 1.0 {
+                                format!("{:.0}", remaining)
+                            } else {
+                                format!("{:.1}", remaining)
+                            };
+                            let text_w = ui.atlas.measure_text(&time_text);
+                            let tx = icon_x + (ICON_SIZE - text_w) / 2.0;
+                            let ty = cell_rect.y + ICON_SIZE / 2.0 + 4.0;
+                            ui.text(tx, ty, &time_text, [1.0, 1.0, 1.0, 1.0]);
+                        }
+                    }
 
                     if resp.double_clicked() {
                         self.execute_slot(slot_index, character, &mut events);
@@ -415,30 +498,44 @@ impl InGameWindow for HotkeyBarWindow {
                     }
                 }
 
-                // TODO make Key label optional?
-                // let key_label = ROW_KEYS[row][col];
-                // ui.text(cell_x + 1.0, cell_y + 8.0, key_label, label_color);
-
-                // Drop zone
                 if let Some((source_id, source_item_index)) = ui.drop_zone(cell_rect) {
-                    self.handle_drop(source_id, source_item_index, slot_index, character, &mut events);
+                    self.handle_drop(
+                        source_id,
+                        source_item_index,
+                        slot_index,
+                        character,
+                        &mut events,
+                    );
                 }
 
-                // Tooltip on hover
                 if resp.hovered() {
                     let tooltip = match content {
-                        HotkeySlotContent::Skill { skill_id, level } => {
-                            character.skills.get_skill(skill_id)
-                                .map(|s| format!("{} Lv.{}", s.name, level))
-                        }
-                        HotkeySlotContent::Item { item_id, inventory_index } => {
+                        HotkeySlotContent::Skill { skill_id, level } => character
+                            .skills
+                            .get_skill(skill_id)
+                            .map(|s| format!("{} Lv.{}", s.name, level)),
+                        HotkeySlotContent::Item {
+                            item_id,
+                            inventory_index,
+                        } => {
                             let slot_count_table = data.item_slot_count.as_ref();
                             let card_name_table = data.card_name.as_ref();
-                            character.inventory.get_item(inventory_index)
-                                .map(|item| format_equipment_display_name(item, slot_count_table, card_name_table))
-                                .or_else(|| data.item_name.as_ref()
-                                    .and_then(|t| t.get_name(item_id))
-                                    .map(|name| name.to_string()))
+                            character
+                                .inventory
+                                .get_item(inventory_index)
+                                .map(|item| {
+                                    format_equipment_display_name(
+                                        item,
+                                        slot_count_table,
+                                        card_name_table,
+                                    )
+                                })
+                                .or_else(|| {
+                                    data.item_name
+                                        .as_ref()
+                                        .and_then(|t| t.get_name(item_id))
+                                        .map(|name| name.to_string())
+                                })
                         }
                         HotkeySlotContent::Empty => None,
                     };
@@ -449,11 +546,16 @@ impl InGameWindow for HotkeyBarWindow {
             }
         }
 
-        // Keyboard handling - Row 0: F1-F9 (always active)
         let f_keys = [
-            ui.ctx.key_f1, ui.ctx.key_f2, ui.ctx.key_f3,
-            ui.ctx.key_f4, ui.ctx.key_f5, ui.ctx.key_f6,
-            ui.ctx.key_f7, ui.ctx.key_f8, ui.ctx.key_f9,
+            ui.ctx.key_f1,
+            ui.ctx.key_f2,
+            ui.ctx.key_f3,
+            ui.ctx.key_f4,
+            ui.ctx.key_f5,
+            ui.ctx.key_f6,
+            ui.ctx.key_f7,
+            ui.ctx.key_f8,
+            ui.ctx.key_f9,
         ];
         for (i, &pressed) in f_keys.iter().enumerate() {
             if pressed {
@@ -461,7 +563,6 @@ impl InGameWindow for HotkeyBarWindow {
             }
         }
 
-        // Rows 1-3: only when battle mode is on and chat is not active
         if character.hotkeys.battle_mode() && !self.chat_is_active {
             for ch in &ui.ctx.typed_chars {
                 let lower = ch.to_ascii_lowercase();
@@ -474,9 +575,10 @@ impl InGameWindow for HotkeyBarWindow {
                         self.execute_slot(HOTKEY_COLS * 2 + col, character, &mut events);
                     }
                 } else if let Some(col) = ROW4_CHARS.iter().position(|&c| c == lower)
-                    && visible_rows > 3 {
-                        self.execute_slot(HOTKEY_COLS * 3 + col, character, &mut events);
-                    }
+                    && visible_rows > 3
+                {
+                    self.execute_slot(HOTKEY_COLS * 3 + col, character, &mut events);
+                }
             }
         }
 

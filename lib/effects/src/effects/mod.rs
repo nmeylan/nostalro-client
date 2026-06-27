@@ -1,9 +1,3 @@
-//! Per-effect implementations of [`super::effect_trait::Effect`].
-//!
-//! Each effect lives in its own module (or shares a module with sibling
-//! variants that reuse the same struct via parameter sets). The factory
-//! ([`super::factory::make_effect`]) is the single dispatch point.
-
 pub mod aciddemon;
 pub mod agiup;
 pub mod animated_texture_billboard;

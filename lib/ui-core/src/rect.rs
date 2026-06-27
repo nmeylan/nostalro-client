@@ -24,9 +24,6 @@ impl Rect {
         }
     }
 
-    /// Compute button rects right-aligned at the bottom of this rect.
-    /// Returns rects from right to left: index 0 is the rightmost button.
-    /// Matches the RO client layout: BTN_BOTTOM=4, first_right=5, spacing=3.
     pub fn buttons_bottom_right(
         &self,
         count: usize,
@@ -45,8 +42,6 @@ impl Rect {
             .collect()
     }
 
-    /// Y position for a single line of text vertically centered between
-    /// `self.y + top_pad` and `bottom_y` (typically the button row Y).
     pub fn text_dialog_alignment(
         &self,
         padding: f32,

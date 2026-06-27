@@ -21,8 +21,6 @@ struct ScrollThumbState {
     start_value: f32,
 }
 
-/// Draws a vertical scrollbar and handles all interaction (buttons, thumb drag, mouse wheel).
-/// Returns the updated scroll offset.
 pub fn scrollbar(
     ui: &mut UiFrame,
     ids: ScrollbarIds,
@@ -36,7 +34,6 @@ pub fn scrollbar(
 ) -> usize {
     let mut offset = offset.min(max_scroll);
 
-    // Mouse wheel
     if content_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) && ui.ctx.scroll_delta != 0.0 {
         let delta = if ui.ctx.scroll_delta > 0.0 { -1i32 } else { 1 };
         offset = (offset as i32 + delta).clamp(0, max_scroll as i32) as usize;
@@ -44,7 +41,6 @@ pub fn scrollbar(
 
     let has_grf = ui.has_grf_textures;
 
-    // Track background
     let (v, i) = draw::quad_vertices(x, y, SCROLLBAR_W, h, [0.0, 0.0, 0.0, 0.3]);
     ui.draw_calls.push(DrawCall {
         vertices: v.to_vec(),
@@ -52,7 +48,6 @@ pub fn scrollbar(
         texture: TextureRef::White,
     });
 
-    // Up button
     let up_rect = Rect::new(x, y, SCROLLBAR_W, SCROLL_BTN_H);
     let up_response = ui.interact(ids.up, up_rect);
     if up_response.hovered() {
@@ -82,7 +77,6 @@ pub fn scrollbar(
         offset -= 1;
     }
 
-    // Down button
     let down_y = y + h - SCROLL_BTN_H;
     let down_rect = Rect::new(x, down_y, SCROLLBAR_W, SCROLL_BTN_H);
     let down_response = ui.interact(ids.down, down_rect);
@@ -114,7 +108,6 @@ pub fn scrollbar(
         offset += 1;
     }
 
-    // Thumb
     if max_scroll > 0 {
         let track_y = y + SCROLL_BTN_H;
         let track_h = h - 2.0 * SCROLL_BTN_H;
@@ -248,7 +241,6 @@ mod tests {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
-        // Click on the up button area
         ctx.mouse_x = 195.0;
         ctx.mouse_y = 5.0;
         ctx.mouse_clicked = true;
@@ -264,7 +256,6 @@ mod tests {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
-        // Click on the down button area (y + h - SCROLL_BTN_H = 200 - 14 = 186)
         ctx.mouse_x = 195.0;
         ctx.mouse_y = 190.0;
         ctx.mouse_clicked = true;

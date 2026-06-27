@@ -1,70 +1,33 @@
-//! Multi-render body lights — extra concentric copies of the actor sprite.
-//!
-//!
-//! * **Reflectbody** (419) — four concentric white **alpha**
-//!   ghosts that ripple outward 0..20px and fade, staggered so a new ring is
-//!   always emerging (a repeated wave), drawn BEHIND a body dimmed to ~150 alpha.
-//! * **Assumptio** (375) — one additive white copy behind the body whose
-//!   margin pulses cyclically (a doubled defensive body that breathes).
-//! * **Lightblade** (382) — a light/spark weapon glow;
-//!   approximated as a couple of small additive pale-blue copies (the original's
-//!   spark-sword render is weapon-bone specific).
-//! * **Undeadbody** (655) — two concentric additive green
-//!   copies whose shared alpha rises with the body's clock then holds (a green
-//!   glow that fades in).
-//!
-//! No primitive — the copies are emitted via [`Effect::body_copies`] and drawn
-//! by the shared composer, which scales them concentrically about the body
-//! centre (matches `asurabody.rs`).
+//! Multi-render body lights — `Reflectbody` (419), `Assumptio` (375), `Lightblade` (382), `Undeadbody` (655).
 
 use crate::draw::{EffectDrawList, EffectStatus};
 use crate::effect_trait::{BodyCopy, BodyVertical, Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FPS: f32 = 60.0;
 
-/// Reflectbody animated ripple: `count` white ghosts whose outward margin
-/// `add = i·step + phase·speed` wraps in `[0, wrap)` px, with alpha
-/// `(alpha_base − add·alpha_falloff)/255` fading as it grows. The `i·step`
-/// stagger spreads the ghosts across one cycle so a fresh ring is always
-/// emerging (the repeated wave).
 #[derive(Clone, Copy)]
 struct Ripple {
     count: u8,
-    /// Per-ghost base margin (`i·step` px) — the stagger across the cycle.
     step: f32,
-    /// Margin wraps back to 0 at this many px (the ripple's reach).
     wrap: f32,
-    /// Margin growth per frame.
     speed: f32,
-    /// Alpha (0..255) at margin 0, falling by `alpha_falloff` per px.
     alpha_base: f32,
     alpha_falloff: f32,
 }
 
-/// Assumptio "double body": one additive copy behind the live sprite whose
-/// even pixel margin pulses cyclically — `base_px + amp_px·sin(phase°)` with
-/// `phase` sweeping `0..period_frames` and wrapping. Mirrors the original
-/// game's `m_BodySin` sweep (`sin·1.5 + 5`, 0..180 then reset), so the doubled
-/// silhouette gently swells and shrinks rather than holding a fixed size.
 #[derive(Clone, Copy)]
 struct DoublePulse {
     base_px: f32,
     amp_px: f32,
-    /// Frames for one full `0°..180°` sweep before the phase wraps.
     period_frames: f32,
     tint: [u8; 3],
 }
 
-/// Undeadbody aura: `count` concentric additive copies
-/// each grown by `i·margin_unit` px, all sharing an alpha that rises with the
-/// `min(age, ramp_frames)` clock and then holds at `max_alpha`.
 #[derive(Clone, Copy)]
 struct UndeadAura {
     count: u8,
-    /// Per-copy outward margin (`i·margin_unit` px).
     margin_unit: f32,
     tint: [u8; 3],
-    /// Frames over which the shared alpha ramps to `max_alpha`, then holds.
     ramp_frames: f32,
     max_alpha: f32,
 }
@@ -72,28 +35,18 @@ struct UndeadAura {
 #[derive(Clone, Copy)]
 pub struct Params {
     copies: u8,
-    /// Per-copy scale increment (`add = i·k` source units condensed to a scale).
     scale_step: f32,
-    /// Alpha (0..=1) of the innermost copy.
     base_alpha: f32,
-    /// Alpha lost per outer copy.
     alpha_step: f32,
     tint: [u8; 3],
-    /// Additive (glow) vs alpha (ghost) blend.
     additive: bool,
-    /// Draw the copies BEHIND the body (so an opaque body leaves its interior
-    /// untouched and only the margin shows) vs on top.
     behind: bool,
-    /// Live-body opacity (`<1.0` = translucent, as Reflectbody uses).
     body_alpha: f32,
-    /// Reflectbody animated ripple, or `None`. When set it ignores the
-    /// `copies`/`scale_step`/`base_alpha`/`alpha_step` fields above.
+    /// When set, overrides `copies`/`scale_step`/`base_alpha`/`alpha_step`.
     ripple: Option<Ripple>,
-    /// Undeadbody rising-alpha green aura, or `None`. Like `ripple`, overrides
-    /// the static copy fields when set.
+    /// When set, overrides the static copy fields.
     undead: Option<UndeadAura>,
-    /// Assumptio cyclic-pulse double body, or `None`. Like `ripple`, overrides
-    /// the static copy fields when set.
+    /// When set, overrides the static copy fields.
     pulse: Option<DoublePulse>,
     total_frames: f32,
 }
@@ -112,7 +65,6 @@ pub const REFLECTBODY: Params = Params {
     tint: [255, 255, 255],
     additive: false,
     behind: true,
-    // The original dims the live body to alpha 150 so the ghosts show through.
     body_alpha: 150.0 / 255.0,
     ripple: Some(Ripple {
         count: 4,
@@ -163,9 +115,6 @@ pub const LIGHTBLADE: Params = Params {
 };
 
 pub const UNDEADBODY: Params = Params {
-    // Undeadbody: two concentric additive green copies over the body whose
-    // alpha rises with the body's clock — a green glow that fades in
-    // and holds. A status-tied persistent buff in the original; finite here.
     copies: 0,
     scale_step: 0.0,
     base_alpha: 0.0,
@@ -191,9 +140,6 @@ pub const TEXTURES: &[&str] = &[];
 pub struct MultiBodyEffect {
     params: Params,
     age_frames: f32,
-    /// Status-tied lifetime in frames; the buff's `remain_ms` overrides the
-    /// authored `total_frames` so the glow holds while the EFST is active
-    /// (Assumptio / Undead property). `None` keeps the one-shot timing.
     life_frames: Option<f32>,
 }
 
@@ -251,7 +197,6 @@ impl Effect for MultiBodyEffect {
             }
             let scale = 1.0 + i_f * self.params.scale_step;
             copies.push(BodyCopy {
-                // Composer scales about the body centre → concentric on all sides.
                 offset_px: [0.0, 0.0],
                 margin_px: 0.0,
                 scale: [scale, scale],
@@ -266,7 +211,6 @@ impl Effect for MultiBodyEffect {
 }
 
 impl MultiBodyEffect {
-    /// Undeadbody aura: see [`UndeadAura`] for the model.
     fn undead_copies(&self, undead: UndeadAura) -> Vec<BodyCopy> {
         let alpha =
             (self.age_frames.min(undead.ramp_frames) / undead.ramp_frames) * undead.max_alpha;
@@ -283,13 +227,10 @@ impl MultiBodyEffect {
             .collect()
     }
 
-    /// Assumptio double body: see [`DoublePulse`] for the model. One additive
-    /// copy behind the body whose even margin breathes as the phase sweeps a
-    /// half-sine and wraps.
     fn pulse_copy(&self, pulse: DoublePulse) -> BodyCopy {
         let phase = self.age_frames % pulse.period_frames;
-        let margin =
-            pulse.base_px + pulse.amp_px * (phase / pulse.period_frames * std::f32::consts::PI).sin();
+        let margin = pulse.base_px
+            + pulse.amp_px * (phase / pulse.period_frames * std::f32::consts::PI).sin();
         BodyCopy {
             offset_px: [0.0, 0.0],
             margin_px: margin,
@@ -301,7 +242,6 @@ impl MultiBodyEffect {
         }
     }
 
-    /// Reflectbody ripple: see [`Ripple`] for the model.
     fn reflect_copies(&self, ripple: Ripple) -> Vec<BodyCopy> {
         let phase = self.age_frames % 200.0;
         (1..=ripple.count)
@@ -344,7 +284,6 @@ mod tests {
         let copies = e.body_copies().expect("ghosts");
         assert!(copies.len() >= 3, "several concentric ghosts");
         assert!(copies.iter().all(|c| !c.additive), "alpha-blended ghosts");
-        // Growth is a small pixel margin (a few up to <20px), not a big scale.
         assert!(
             copies
                 .iter()
@@ -367,22 +306,21 @@ mod tests {
         let mut assumptio = MultiBodyEffect::new(ASSUMPTIO);
         let a = assumptio.body_copies().expect("halo");
         assert_eq!(a.len(), 1);
-        // Additive glow BEHIND the body → white margin, main sprite untouched.
-        // The pulse drives an even pixel margin, not a proportional scale.
         assert!(
             a[0].additive && a[0].behind && a[0].scale == [1.0, 1.0] && a[0].margin_px >= 5.0,
             "additive margin glow behind"
         );
 
-        // The margin swells to its peak at the quarter-period (sin 90°) and
-        // returns to the base at the half-period (sin 180°): a cyclic breath.
         let base = a[0].margin_px;
         step(&mut assumptio, 90.0);
         let peak = assumptio.body_copies().unwrap()[0].margin_px;
         step(&mut assumptio, 90.0);
         let back = assumptio.body_copies().unwrap()[0].margin_px;
         assert!(peak > base, "margin grows toward the peak");
-        assert!((back - base).abs() < 0.1, "margin returns to base over a cycle");
+        assert!(
+            (back - base).abs() < 0.1,
+            "margin returns to base over a cycle"
+        );
 
         let lightblade = MultiBodyEffect::new(LIGHTBLADE);
         assert!(
@@ -414,7 +352,6 @@ mod tests {
                 .iter()
                 .all(|c| c.additive && !c.behind && c.tint == [5, 155, 5])
         );
-        // The outer copy has the larger margin.
         assert!(
             early[1].margin_px > early[0].margin_px,
             "concentric expansion"

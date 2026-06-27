@@ -54,10 +54,6 @@ impl Connection {
         self.writer.write_all(data).await
     }
 
-    /// Check if a packet is variable-length, supplementing the server's
-    /// `is_variable_length` with packets it doesn't list.
-    /// Packets whose `from()` reads msg/data using `buffer.len()` instead of
-    /// `packet_length` MUST be listed here so we slice the buffer first.
     fn is_variable_length_packet(packet_id: [u8; 2], packetver: u32) -> bool {
         if packets_parser::is_variable_length(packet_id, packetver) {
             return true;
@@ -97,9 +93,6 @@ impl Connection {
         )
     }
 
-    /// Fixed-size packets whose parser uses `buffer.len()` to count
-    /// repeating entries. We must slice the buffer to the correct size
-    /// before parsing, otherwise they consume trailing packets.
     fn fixed_packet_size(packet_id: [u8; 2], packetver: u32) -> Option<usize> {
         match packet_id {
             // ZC_SHORTCUT_KEY_LIST_V2 (0x07d9): 2 + 38*7 = 268
@@ -117,10 +110,6 @@ impl Connection {
         }
     }
 
-    /// Estimate the byte length of an unknown RO packet.
-    /// Variable-length packets store their total length at bytes 2-3.
-    /// Fixed-length packets need a lookup table we don't have, so we
-    /// fall back to the minimum packet size (4 bytes).
     fn estimate_packet_len(data: &[u8]) -> usize {
         if data.len() >= 4 {
             let len = u16::from_le_bytes([data[2], data[3]]) as usize;
@@ -131,9 +120,6 @@ impl Connection {
         4.min(data.len())
     }
 
-    /// If bytes 2-3 look like a valid variable-length packet header,
-    /// return a slice limited to that length. This prevents parsers that
-    /// use `buffer.len()` instead of `packet_length` from over-reading.
     fn slice_to_packet_len(data: &[u8]) -> &[u8] {
         if data.len() >= 4 {
             let len = u16::from_le_bytes([data[2], data[3]]) as usize;
@@ -155,7 +141,6 @@ impl Connection {
         }
         self.recv_buffer.extend_from_slice(&buf[..n]);
 
-        // Log every TCP read to diagnose missing packets
         tracing::info!(
             "TCP read: {n} bytes, buffer_total={}, first_16={:02x?}",
             self.recv_buffer.len(),
@@ -167,10 +152,6 @@ impl Connection {
 
         while offset < self.recv_buffer.len() {
             let remaining = self.recv_buffer[offset..].to_vec();
-            // Slice the buffer to the correct packet size before parsing:
-            // - Variable-length packets: use the length field at bytes [2:3]
-            // - Known fixed-size packets with arrays: use our lookup table
-            // - Other packets: pass the full remaining buffer
             let parse_buf = if remaining.len() >= 2 {
                 let pkt_id = [remaining[0], remaining[1]];
                 if Self::is_variable_length_packet(pkt_id, packetver) {
@@ -212,7 +193,6 @@ impl Connection {
                             packet.name(),
                             remaining.len()
                         );
-                        // tracing::debug!("packet dump {}: {:02x?}", packet.name(), packet.raw());
                     }
                     offset += consumed;
                     packets.push(packet);
@@ -224,7 +204,6 @@ impl Connection {
                         remaining.first().copied().unwrap_or(0),
                         remaining.get(1).copied().unwrap_or(0)
                     );
-                    // Skip past the bad data to avoid permanently blocking the buffer
                     let skip = Self::estimate_packet_len(&remaining);
                     offset += skip;
                     continue;

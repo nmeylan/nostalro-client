@@ -1,32 +1,3 @@
-//! EF_REVIVE — yellow rings expanding around a revived player.
-//!
-//! Reference: `ro-effects/effects/imgs/100-150/140.gif`.
-//!
-//! Spawns one `Cylinder` ring every 25 frames at the caster. The very first
-//! spawn is the "hero" ring that holds full size for its entire 60-frame
-//! lifetime; later spawns shrink inward as they age, so the burst reads as a
-//! steady leading ring trailed by contracting echoes.
-//!
-//! Hero ring (frame 0):
-//!   * outer 11.0, inner 7.5, height 7.5
-//!   * alpha 240/255
-//!   * spin 1.5°/frame (no acceleration)
-//!   * inner/outer speeds = 0 → ring keeps its shape
-//!   * lifetime is long in the source; we use 60 like every other ring
-//!     spawn, since the hero ring is visually identical except it doesn't
-//!     shrink
-//!   * fades only at the end (last tenth of its life)
-//!
-//! Follow-up rings (frame 25, 50, …):
-//!   * outer 10.5, inner 7.5, height 7.5
-//!   * alpha 240/255
-//!   * spin 1.5°/frame with +0.03 accel → spin accelerates
-//!   * inner/outer speed -0.12 with +0.003 accel → ring shrinks then
-//!     decelerates
-//!   * 60-frame lifetime, fades over the second half
-//!
-//! Both ring types use `ring_yellow.tga`.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -54,9 +25,7 @@ const FOLLOWUP_INNER_ACCEL: f32 = 0.003;
 const FOLLOWUP_OUTER_SPEED: f32 = -0.12;
 const FOLLOWUP_OUTER_ACCEL: f32 = 0.003;
 
-/// Parent emitter lifetime — Revive's table duration is 2500 ms (~150 frames).
 const PARENT_FRAMES: u32 = 150;
-/// Total visible time = last spawn (at frame 125) + ring lifetime (60).
 pub const TOTAL_DURATION_MS: u32 =
     ((PARENT_FRAMES as f32 + RING_LIFETIME_FRAMES) * 1000.0 / FRAMES_PER_SECOND) as u32;
 
@@ -117,9 +86,6 @@ impl Ring {
         }
     }
 
-    /// Discrete integration of `speed += accel; size += speed` for `frames`
-    /// steps starting from `size0` / `speed0`. Closed form:
-    /// `size = size0 + speed0 * f + accel * f * (f + 1) / 2`.
     fn integrate(size0: f32, speed: f32, accel: f32, frame: f32) -> f32 {
         size0 + speed * frame + accel * frame * (frame + 1.0) * 0.5
     }
@@ -175,7 +141,6 @@ impl Effect for ReviveEffect {
             self.rings.push(Ring::followup(self.next_spawn_frame));
             self.next_spawn_frame += SPAWN_INTERVAL_FRAMES;
         }
-        // Drop rings that have aged out so the Vec stays bounded.
         self.rings.retain(|r| r.alive_at(frame).is_some());
 
         if frame >= PARENT_FRAMES as f32 + RING_LIFETIME_FRAMES {
@@ -255,21 +220,16 @@ mod tests {
 
     #[test]
     fn spawns_hero_then_followups_at_25_frame_cadence() {
-        // Sociable test: covers update spawning logic + draw emission.
         let mut e = ReviveEffect::new([0.0; 3]);
-        // Frame 0: only the hero ring.
         step(&mut e, 0.0);
         let c0 = cylinders(&e);
         assert_eq!(c0.len(), 1);
-        // Hero ring uses HERO_OUTER (11.0); the inner is HERO_INNER (7.5).
         assert!((c0[0].1 - HERO_OUTER).abs() < 1e-3);
 
-        // Frame ~26 → second ring spawned, first still alive.
         step(&mut e, 26.0 / FRAMES_PER_SECOND);
         let c1 = cylinders(&e);
         assert_eq!(c1.len(), 2);
 
-        // Frame ~76 → fourth ring spawned, hero just expiring.
         step(&mut e, 50.0 / FRAMES_PER_SECOND);
         let rings_at_76 = cylinders(&e).len();
         assert!(
@@ -281,12 +241,10 @@ mod tests {
     #[test]
     fn followup_rings_shrink_over_time() {
         let mut e = ReviveEffect::new([0.0; 3]);
-        // Advance past the hero ring's slot so only followups remain.
         step(&mut e, (RING_LIFETIME_FRAMES + 5.0) / FRAMES_PER_SECOND);
         let outers_early: Vec<f32> = cylinders(&e).iter().map(|(_, o)| *o).collect();
         step(&mut e, 20.0 / FRAMES_PER_SECOND);
         let outers_late: Vec<f32> = cylinders(&e).iter().map(|(_, o)| *o).collect();
-        // The newest followup at frame ~85 is contracting.
         assert!(
             outers_late.iter().any(|&o| o < FOLLOWUP_OUTER),
             "followups should contract; saw outers {outers_late:?}"

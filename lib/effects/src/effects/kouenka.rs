@@ -1,31 +1,12 @@
-//! `EF_KOUENKA` (618) — Ninja fire-spell cherry-blossom scatter.
-//!
-//! Reference: `ro-effects/effects/imgs/600-650/618.gif`.
-//!
-//! Despite the "fire" name, this scatters `sakura01` blossom sprite particles
-//! — one per frame while the spawn frame is below 20 —
-//! on a radius-8 ring around the caster at a
-//! random angle. Each particle:
-//!   * size `(random(6) + 22) / 70` ≈ 0.31–0.46
-//!   * rise `(random(3) + 2) * 0.15` ≈ 0.30–0.60 (slow upward drift)
-//!   * alpha 250/255, one of three looping blossom animations
-//!     picked at random
-//! `firehit.str` plays alongside via [`Effect::str_overlay`].
-//!
-//! [`Effect::str_overlay`]: crate::effect_trait::Effect::str_overlay
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const SPRITE: &str = "data/sprite/이팩트/sakura01";
-/// Sprite assets aren't part of the renderer texture preload list, so this is
-/// left empty; the holder loads the SPR on first spawn.
 pub const TEXTURES: &[&str] = &[];
 
 pub const STR_OVERLAY: &str = "firehit";
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// Total lifetime in frames.
 const TOTAL_FRAMES: f32 = 180.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
@@ -38,7 +19,6 @@ const RISE_MAX: f32 = 5.0 * 0.15;
 const PEAK_ALPHA: f32 = 250.0 / 255.0;
 const FADE_OUT_FRAMES: f32 = 40.0;
 
-/// Deterministic PRNG, same construction as [`super::potion_berserk`]'s.
 #[derive(Clone, Copy)]
 struct Rng(u32);
 
@@ -121,7 +101,6 @@ impl Effect for KouenkaEffect {
             if local < 0.0 {
                 continue;
             }
-            // Slow upward drift over the lifetime (native RO -Y = up).
             let life_left = TOTAL_FRAMES - p.spawn_frame;
             let t = (local / life_left).clamp(0.0, 1.0);
             let y = p.origin[1] - p.rise_total * t;
@@ -181,8 +160,6 @@ mod tests {
 
     #[test]
     fn scatters_sakura_particles_on_a_ring_with_firehit_overlay() {
-        // Sociable: one petal spawned per frame for 20 frames, all sakura
-        // sprites at ~radius 8 from the caster, plus the firehit STR overlay.
         let mut e = KouenkaEffect::new([10.0, 0.0, 20.0]);
         assert_eq!(e.str_overlay(), Some(STR_OVERLAY));
         step(&mut e, 20.0);

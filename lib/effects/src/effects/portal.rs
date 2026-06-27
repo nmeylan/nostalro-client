@@ -1,17 +1,3 @@
-//! `EF_PORTAL` — warp portal visual: a sustained pair of rotating ring
-//! columns over a pulsing ground pad.
-//!
-//! Sustained composite (persistent until the portal NPC is removed):
-//!
-//!   * Frame 0 — two nested rotating cylinder columns sharing the
-//!     `ring_blue.tga` texture:
-//!     * inner: radius 3.5, height 40, spin 4°/frame, max alpha 128/255
-//!     * outer: radius 4.0, height 50, spin 5°/frame, max alpha 128/255
-//!     Both ramp alpha 0 → 128 over 6 frames and hold.
-//!   * Ground pad — reuses `EF_READYPORTAL`'s
-//!     ground-disc emission (every 14 frames, `ring_blue.tga`).
-//!     Shared via [`super::ready_portal::ReadyPortalDiscEmitter`].
-
 use super::ready_portal::ReadyPortalDiscEmitter;
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -21,7 +7,6 @@ pub const TEXTURES: &[&str] = &[RING_TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-// Two cylinder columns.
 const CYL_INNER_RADIUS: f32 = 3.5;
 const CYL_INNER_HEIGHT: f32 = 40.0;
 const CYL_INNER_SPIN_DEG_PER_FRAME: f32 = 4.0;
@@ -30,7 +15,7 @@ const CYL_OUTER_HEIGHT: f32 = 50.0;
 const CYL_OUTER_SPIN_DEG_PER_FRAME: f32 = 5.0;
 const CYL_MAX_ALPHA: f32 = 128.0 / 255.0;
 const CYL_FADE_IN_FRAMES: f32 = 6.0;
-const CYL_SIDES: u32 = 10; // arcAngle 36° → 360 / 36 = 10 segments.
+const CYL_SIDES: u32 = 10;
 
 pub const TOTAL_DURATION_MS: u32 = 99990;
 
@@ -58,8 +43,6 @@ impl Effect for PortalEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         let dt_frames = ctx.delta * FRAMES_PER_SECOND;
         self.age_frames += dt_frames;
-        // Portal's parent emitter is sustained — keep spawning ground
-        // discs for the whole lifetime.
         self.disc_emitter.step(dt_frames, f32::INFINITY);
         EffectStatus::Running
     }
@@ -131,9 +114,6 @@ mod tests {
 
     #[test]
     fn two_cylinders_plus_periodic_ground_rings() {
-        // Sociable: by frame 30 both cylinders are emitted and the
-        // shared ReadyPortal disc emitter has spawned at least two
-        // discs (frames 0 and 14).
         let mut e = PortalEffect::new([5.0, 0.0, 7.0]);
         step_frames(&mut e, 30);
         let mut list = EffectDrawList::new();

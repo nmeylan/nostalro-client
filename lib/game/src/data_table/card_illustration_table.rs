@@ -16,10 +16,10 @@ impl CardIllustrationTable {
     }
 
     pub fn load(grf: &GrfArchive) -> Self {
-        let data = grf.read_file(TABLE_PATH).ok().or_else(|| {
-            // File may be loose on the filesystem rather than packed in the GRF
-            std::fs::read(Path::new(TABLE_PATH)).ok()
-        });
+        let data = grf
+            .read_file(TABLE_PATH)
+            .ok()
+            .or_else(|| std::fs::read(Path::new(TABLE_PATH)).ok());
         let Some(data) = data else {
             tracing::warn!(
                 "Card illustration table not found in GRF or filesystem: {}",

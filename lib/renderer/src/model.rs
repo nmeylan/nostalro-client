@@ -175,10 +175,8 @@ fn build_mesh(
     let center_x = gnd.width as f32 * zoom / 2.0;
     let center_z = gnd.height as f32 * zoom / 2.0;
 
-    // Cache parsed RSM files: filename → RsmFile
     let mut rsm_cache: HashMap<String, Option<RsmFile>> = HashMap::new();
 
-    // Group RSW models by their RSM filename
     struct ModelInstance {
         instance_matrix: glam::Mat4,
         alpha: f32,
@@ -188,7 +186,6 @@ fn build_mesh(
     for rsw_model in rsw_models {
         let rsm_path = format!("data\\model\\{}", rsw_model.model_name);
 
-        // Parse RSM if not cached
         if !rsm_cache.contains_key(&rsm_path) {
             let rsm = match grf.read_file(&rsm_path) {
                 Ok(data) => match RsmFile::parse(&data) {
@@ -223,7 +220,6 @@ fn build_mesh(
             });
     }
 
-    // Compile all models into texture-grouped vertices
     let mut texture_quads: HashMap<String, (Vec<ModelVertex>, Vec<u32>)> = HashMap::new();
 
     for (rsm_path, instances) in &rsm_instances {
@@ -236,15 +232,12 @@ fn build_mesh(
             continue;
         }
 
-        // Preload textures for this RSM
         preload_rsm_textures(rsm, grf, texture_cache, device, queue);
 
         let is_only = rsm.nodes.len() == 1;
 
-        // Phase 1: compute bounding box and accumulate node matrices
         let (bbox, node_matrices) = calc_bounding_box(rsm);
 
-        // Phase 2: compile each instance
         for inst in instances {
             for (node_idx, node) in rsm.nodes.iter().enumerate() {
                 compile_node(
@@ -261,7 +254,6 @@ fn build_mesh(
         }
     }
 
-    // Flatten into single vertex/index buffers with draw batches
     let mut all_vertices = Vec::new();
     let mut all_indices = Vec::new();
     let mut batches = Vec::new();
@@ -311,8 +303,6 @@ fn build_instance_matrix(
 }
 
 fn mat3_to_mat4(m: &ragnarok_formats::Mat3) -> glam::Mat4 {
-    // RSM local_transform is read row-major, gl-matrix treats as column-major
-    // Our row 0 = their column 0, etc.
     glam::Mat4::from_cols(
         glam::Vec4::new(m[0][0], m[0][1], m[0][2], 0.0),
         glam::Vec4::new(m[1][0], m[1][1], m[1][2], 0.0),
@@ -330,7 +320,6 @@ fn calc_bounding_box(rsm: &RsmFile) -> (BoundingBox, Vec<glam::Mat4>) {
     let mut bbox = BoundingBox::new();
     let is_only = rsm.nodes.len() == 1;
 
-    // Build name → index map for hierarchy
     let name_to_idx: HashMap<&str, usize> = rsm
         .nodes
         .iter()
@@ -338,7 +327,6 @@ fn calc_bounding_box(rsm: &RsmFile) -> (BoundingBox, Vec<glam::Mat4>) {
         .map(|(i, n)| (n.name.as_str(), i))
         .collect();
 
-    // Find root node(s)
     let root_indices: Vec<usize> = if !rsm.root_node_names.is_empty() {
         rsm.root_node_names
             .iter()
@@ -348,7 +336,6 @@ fn calc_bounding_box(rsm: &RsmFile) -> (BoundingBox, Vec<glam::Mat4>) {
         vec![0]
     };
 
-    // Recursive traversal
     fn traverse(
         node_idx: usize,
         parent_matrix: glam::Mat4,
@@ -360,11 +347,9 @@ fn calc_bounding_box(rsm: &RsmFile) -> (BoundingBox, Vec<glam::Mat4>) {
     ) {
         let node = &nodes[node_idx];
 
-        // Accumulate: parent × translate(translation2) × rotation × scale
         let mut accumulated =
             parent_matrix * glam::Mat4::from_translation(vec3_from_arr(&node.translation2));
 
-        // Apply rotation: static axis-angle or first keyframe quaternion
         if node.rot_keyframes.is_empty() {
             if let (Some(angle), Some(axis)) = (node.rotation_angle, node.rotation_axis) {
                 let axis_vec = vec3_from_arr(&axis);
@@ -378,28 +363,24 @@ fn calc_bounding_box(rsm: &RsmFile) -> (BoundingBox, Vec<glam::Mat4>) {
             accumulated *= glam::Mat4::from_quat(quat);
         }
 
-        // Apply scale
         if let Some(scale) = node.scale {
             accumulated *= glam::Mat4::from_scale(vec3_from_arr(&scale));
         }
 
         node_matrices[node_idx] = accumulated;
 
-        // Local matrix for bounding box: accumulated × [offset] × mat3
         let mut local = accumulated;
         if !is_only && let Some(offset) = node.translation1 {
             local *= glam::Mat4::from_translation(vec3_from_arr(&offset));
         }
         local *= mat3_to_mat4(&node.local_transform);
 
-        // Transform all vertices to compute bounds
         for vert in &node.vertices {
             let v = vec3_from_arr(vert);
             let world = local.transform_point3(v);
             bbox.extend(world);
         }
 
-        // Recurse to children
         for (i, child) in nodes.iter().enumerate() {
             if i != node_idx && child.parent_name == node.name && node.name != node.parent_name {
                 traverse(
@@ -437,7 +418,6 @@ fn calc_bounding_box(rsm: &RsmFile) -> (BoundingBox, Vec<glam::Mat4>) {
     (bbox, node_matrices)
 }
 
-/// Phase 2: compile a single node's faces into world-space vertices.
 fn compile_node(
     node: &RsmNode,
     rsm: &RsmFile,
@@ -448,7 +428,6 @@ fn compile_node(
     alpha: f32,
     texture_quads: &mut HashMap<String, (Vec<ModelVertex>, Vec<u32>)>,
 ) {
-    // Build compile matrix: translate(-center) × node_matrix × [offset] × mat3
     let mut matrix =
         glam::Mat4::from_translation(glam::Vec3::new(-bbox.center.x, -bbox.max.y, -bbox.center.z))
             * *node_matrix;
@@ -459,7 +438,6 @@ fn compile_node(
 
     matrix *= mat3_to_mat4(&node.local_transform);
 
-    // Final model-view matrix
     let model_view = *instance_matrix * matrix;
     let normal_sign = if model_view.determinant() < 0.0 {
         -1.0
@@ -467,7 +445,6 @@ fn compile_node(
         1.0
     };
 
-    // Transform all vertices to world space
     let world_verts: Vec<glam::Vec3> = node
         .vertices
         .iter()
@@ -476,7 +453,6 @@ fn compile_node(
 
     let vert_count = world_verts.len();
 
-    // Emit faces grouped by texture
     for face in &node.faces {
         let v0_idx = face.vertex_ids[0] as usize;
         let v1_idx = face.vertex_ids[1] as usize;
@@ -492,8 +468,6 @@ fn compile_node(
         let v1 = world_verts[v1_idx];
         let v2 = world_verts[v2_idx];
 
-        // Flat shading: normal from world-space edges
-        // Flip if transform includes reflection (negative determinant)
         let edge1 = v1 - v0;
         let edge2 = v2 - v0;
         let normal = edge1.cross(edge2).normalize_or_zero() * normal_sign;
@@ -528,13 +502,11 @@ fn compile_node(
 
 fn resolve_texture_name(rsm: &RsmFile, node: &RsmNode, face_texture_index: u16) -> String {
     if !node.texture_names.is_empty() {
-        // v >= 2.3: per-node texture names
         node.texture_names
             .get(face_texture_index as usize)
             .cloned()
             .unwrap_or_default()
     } else {
-        // v < 2.3: global textures via indirection
         let tex_id = node
             .texture_ids
             .get(face_texture_index as usize)
@@ -551,11 +523,9 @@ fn preload_rsm_textures(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
 ) {
-    if !rsm.textures.is_empty() {
-        for tex_name in &rsm.textures {
-            let path = format!("data/texture/{tex_name}");
-            texture_cache.get_or_load(&path, grf, device, queue, false);
-        }
+    for tex_name in &rsm.textures {
+        let path = format!("data/texture/{tex_name}");
+        texture_cache.get_or_load(&path, grf, device, queue, false);
     }
     for node in &rsm.nodes {
         for tex_name in &node.texture_names {
@@ -656,7 +626,6 @@ mod tests {
         assert!(origin.y.abs() < 0.01, "y={}", origin.y);
         assert!((origin.z - 500.0).abs() < 0.01, "z={}", origin.z);
 
-        // Native RO coords: local Y=100 maps directly with scale=10 → world Y = 1000
         let point = mat.transform_point3(glam::Vec3::new(0.0, 100.0, 0.0));
         assert!((point.y - 1000.0).abs() < 0.01, "y={}", point.y);
     }

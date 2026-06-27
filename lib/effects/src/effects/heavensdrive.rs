@@ -1,25 +1,3 @@
-//! `EF_HEAVENSDRIVE` — Wizard Heaven's Drive (id 142).
-//!
-//! Launches a
-//! 5×5 grid of 25 `stone.bmp` blades at frame 0, one-shot, and
-//! triggers a screen quake. Each blade rises along its own apex axis,
-//! reverses, freezes, then sinks back into the ground at the end of its
-//! life. Per-blade params are randomised:
-//!   * grid cell offset `(-10 + j*5, _, -10 + i*5)` (orig units),
-//!   * size `(random(50)+300)/100` → 3.0..3.5,
-//!   * height `9 + (random(60)+1)/10` → 9.1..15.1,
-//!   * heading `random(360)`, tilt `80 + random(20)`.
-//!
-//! Per-blade motion:
-//!   * `speed = 1.0, accel = 0.01` (rise) from frame 0,
-//!   * frame 11: `speed = -1.2, accel = 0` (reverse),
-//!   * frame 14 (speed limit): `speed = accel = 0` (freeze),
-//!   * frame `duration-30` (return down): `speed = -1.0, accel = -0.01` (sink).
-//!
-//! Sizes/heights/distances are scaled to our world units (~0.4× like
-//! `earthspike`, the sibling stone-spike QuadHorn effect) and tuned against the
-//! reference gif. The screen quake is skipped (no effect-layer hook).
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::effects::frost_diver::STONE_TEXTURE;
@@ -29,17 +7,10 @@ pub const TEXTURES: &[&str] = &[STONE_TEXTURE];
 
 const GRID: i32 = 5;
 const SPIKE_COUNT: usize = (GRID * GRID) as usize;
-/// Orig grid step is 5 units; scaled to our world.
 const GRID_STEP: f32 = 2.0;
-
-/// Orig→ours scale factors (cf. `earthspike`: orig size 3..5 → 1.2..1.8,
-/// height 18/20 → 9/6.7).
 const SIZE_SCALE: f32 = 0.4;
 const HEIGHT_SCALE: f32 = 0.45;
-/// Apex travel is integrated in orig units (speed≈1/frame) then scaled.
 const DIST_SCALE: f32 = 0.4;
-
-// Per-blade motion constants.
 const SPEED_INIT: f32 = 1.0;
 const ACCEL_INIT: f32 = 0.01;
 const CHANGE_POINT_FRAME: f32 = 11.0;
@@ -49,8 +20,6 @@ const SPEEDLIMIT_FRAME: f32 = 14.0;
 const RETURNDOWN_SPEED: f32 = -1.0;
 const RETURNDOWN_ACCEL: f32 = -0.01;
 
-/// Effect duration is 250 + 50 ≈ 300 frames; the return-down sink
-/// starts 30 frames before the end.
 const DURATION_FRAMES: f32 = 300.0;
 const RETURNDOWN_BEFORE_END: f32 = 30.0;
 pub const TOTAL_DURATION_MS: u32 = (DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
@@ -62,15 +31,12 @@ struct Spike {
     heading_deg: f32,
     size: f32,
     height: f32,
-    /// Apex travel distance in original units (scaled by `DIST_SCALE` on draw).
     distance: f32,
     speed: f32,
     accel: f32,
 }
 
 impl Spike {
-    /// One frame of the 4-phase QuadHorn integrator. `frame` is the
-    /// blade's age in 60 fps frames at the *start* of the step.
     fn step(&mut self, frame: f32, dt_frames: f32) {
         if frame <= CHANGE_POINT_FRAME && frame + dt_frames > CHANGE_POINT_FRAME {
             self.speed = CHANGE_SPEED;
@@ -106,8 +72,6 @@ pub struct HeavensDriveEffect {
 
 impl HeavensDriveEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
-        // Deterministic LCG seeded from the spawn point (cf. spike_burst) so
-        // the grid keeps the original's varied look while tests stay stable.
         let mut rng_state = seed_from_world(world_pos) ^ 0x9E37_79B9;
         let mut lcg = || {
             rng_state = rng_state
@@ -168,9 +132,6 @@ impl Effect for HeavensDriveEffect {
                 tilt_x_deg: s.tilt_deg,
                 rotation_y_deg: s.heading_deg,
                 texture: STONE_TEXTURE,
-                // Opaque brown stone (cf. earthspike / grimtooth): the sinking
-                // blades skip alpha fading, so hold full
-                // alpha and let the geometry sink carry the exit.
                 color: [1.0, 1.0, 1.0, 1.0],
                 blend: BlendKind::Alpha,
             });
@@ -215,8 +176,6 @@ mod tests {
 
     #[test]
     fn emits_grid_of_twenty_five_stone_blades_then_dies() {
-        // Sociable: 5×5 grid of QuadHorn stone blades at frame 0, all on a
-        // square footprint around the anchor; the effect ends after its window.
         let mut e = HeavensDriveEffect::new([0.0, 0.0, 0.0]);
         e.update(&EffectUpdateCtx {
             delta: 0.0,
@@ -253,9 +212,6 @@ mod tests {
 
     #[test]
     fn blade_rises_then_sinks_back_down() {
-        // Sociable: a blade rises (Y more negative in native RO) through the
-        // speed window, holds, then sinks back below its risen height once
-        // the return-down phase kicks in near the end.
         let mut e = HeavensDriveEffect::new([0.0, 0.0, 0.0]);
         e.update(&EffectUpdateCtx {
             delta: 0.0,
@@ -264,7 +220,6 @@ mod tests {
         });
         let y_start = sample_y(&e);
 
-        // Step to just past the freeze frame (14).
         for _ in 0..16 {
             e.update(&EffectUpdateCtx {
                 delta: 1.0 / FRAMES_PER_SECOND,
@@ -286,7 +241,6 @@ mod tests {
             caster_yaw: None,
         }) != EffectStatus::Dead
         {}
-        // Re-create and sample just before death to read the sunk position.
         let mut e2 = HeavensDriveEffect::new([0.0, 0.0, 0.0]);
         let mut prev = sample_y(&e2);
         for _ in 0..(DURATION_FRAMES as i32 - 1) {

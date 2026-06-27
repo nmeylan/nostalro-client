@@ -1,25 +1,3 @@
-//! `EF_ENDURE` — Endure skill activation visual.
-//!
-//!
-//! A pure screen-space recipe in the original:
-//!
-//!   * Frame 0 — central `endure.tga` icon, starting at 150 px square and
-//!     shrinking at -5 px/frame with a decelerating +0.385 px/frame². Alpha
-//!     ramps in over
-//!     20 frames to 255, holds, then fades out the final third of the
-//!     48-frame parent lifetime.
-//!   * Every frame for the first 50 frames — one radial spike
-//!     (`alpha_down.tga`): a tall thin rectangle (width ∈ [0.6, 1.6]
-//!     px, height ∈ [30, 50] px) positioned at a distance ∈ [100, 140]
-//!     px from centre along a random angle, rolled so
-//!     its long axis points radially outward. 40-frame lifetime, same
-//!     alpha envelope as the icon.
-//!
-//! Our system has no 2D screen primitive, so we approximate with
-//! camera-facing world-space `Billboard`s anchored at the entity. The
-//! screen-space pixel values are translated to world units by the
-//! observed mapping `1 character ≈ 5 wu ≈ 50 px` (`px / 10` → wu).
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -28,15 +6,9 @@ pub const SPIKE_TEXTURE: &str = "alpha_down.tga";
 pub const TEXTURES: &[&str] = &[ICON_TEXTURE, SPIKE_TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// Duration 80 frames — the icon lives the full 80 frames so
-/// it stays on-screen while the inward-sliding spikes finish.
 const PARENT_DURATION_FRAMES: f32 = 80.0;
 const SPIKE_SPAWN_WINDOW_FRAMES: f32 = 55.0;
 
-// Icon — starts at 150 px square in screen-space; the natural
-// reading of the gif is that the icon takes up about a full character's
-// height when shrunk, so a start size of ~16 wu and the floor of ~9 wu
-// matches the silhouette.
 const ICON_INITIAL_SIZE: f32 = 16.0;
 const ICON_FINAL_SIZE: f32 = 9.0;
 const ICON_FADE_IN_FRAMES: f32 = 20.0;
@@ -44,28 +16,16 @@ const ICON_FADE_OUT_AT: f32 = PARENT_DURATION_FRAMES - PARENT_DURATION_FRAMES / 
 const ICON_HEIGHT_OFFSET: f32 = -5.0;
 const ICON_MAX_ALPHA: f32 = 1.0;
 
-// Radial spikes — width 0.6..1.6 px × height
-// 30..50 px → ~0.06..0.16 wu × 3..5 wu via the 10 px/wu mapping.
-// Thickness is nudged up slightly so each spike is visible at our
-// default camera distance without becoming a fat bar.
 const SPIKE_DURATION_FRAMES: f32 = 40.0;
 const SPIKE_FADE_IN_FRAMES: f32 = 20.0;
 const SPIKE_FADE_OUT_AT: f32 = SPIKE_DURATION_FRAMES - SPIKE_DURATION_FRAMES / 3.0;
 const SPIKE_THICKNESS: f32 = 0.25;
 const SPIKE_LENGTH_MIN: f32 = 3.0;
 const SPIKE_LENGTH_MAX: f32 = 5.0;
-// Initial radius from entity where the spike spawns. Spawn distance
-// random(40) + 100 px → 10..14 wu via the 10 px/wu mapping.
-// The spike then slides inward over its life (see SPIKE_INWARD_*).
 const SPIKE_RADIUS_MIN: f32 = 10.0;
 const SPIKE_RADIUS_MAX: f32 = 14.0;
-// Inward slide: speed -4 px/frame,
-// accel = -speed / duration = +0.1 px/frame² (decelerating inward
-// motion that stops near the centre). 10 px/wu → 0.4 / 0.01.
 const SPIKE_INWARD_SPEED_PER_FRAME: f32 = 0.4;
 const SPIKE_INWARD_ACCEL_PER_FRAME2: f32 = SPIKE_INWARD_SPEED_PER_FRAME / SPIKE_DURATION_FRAMES;
-// Spikes orbit the icon's anchor — lifted 20 px in screen space so
-// they sit at the icon's centre, not on the ground.
 const SPIKE_VERTICAL_OFFSET: f32 = -5.0;
 const SPIKE_MAX_ALPHA: f32 = 1.0;
 
@@ -84,9 +44,6 @@ fn fade_in_out(frame: f32, peak: f32, fade_in_frames: f32, fade_out_at: f32, tot
 }
 
 fn icon_size(frame: f32) -> f32 {
-    // Linear interp from ICON_INITIAL_SIZE → ICON_FINAL_SIZE across the
-    // shrink window (`duration - 35` ≈ 13
-    // frames; we stretch it across the same window).
     let shrink_window = (PARENT_DURATION_FRAMES - 35.0).max(1.0);
     let t = (frame / shrink_window).clamp(0.0, 1.0);
     ICON_INITIAL_SIZE + (ICON_FINAL_SIZE - ICON_INITIAL_SIZE) * t
@@ -95,14 +52,8 @@ fn icon_size(frame: f32) -> f32 {
 #[derive(Clone, Copy, Debug)]
 struct Spike {
     anchor: [f32; 3],
-    /// XZ direction (unit length) the spike points outward along.
     direction: [f32; 2],
-    /// Roll angle in radians, so the rotation aligns the spike's long
-    /// axis radially in screen
-    /// space.
     longitude_rad: f32,
-    /// Initial distance from the entity where the spike spawned; the
-    /// effective radius shrinks each frame via the inward slide formula.
     initial_radius: f32,
     length: f32,
     age_frames: f32,
@@ -127,12 +78,6 @@ impl Spike {
         )
     }
 
-    /// Current distance from the entity. Integrating
-    /// `speed += accel; pos += speed` per tick with `speed = -4`
-    /// and `accel = +0.1` gives the closed form
-    /// `r(n) = r0 - speed*n + accel * n(n+1)/2` (speed and accel are
-    /// magnitudes of the inward motion). Clamped at 0 so the spike
-    /// settles on the centre once the slide overshoots.
     fn radius(&self) -> f32 {
         let n = self.age_frames.clamp(0.0, SPIKE_DURATION_FRAMES);
         let displacement =
@@ -149,13 +94,6 @@ impl Spike {
         ]
     }
 
-    /// Screen-space rotation that aligns the spike's long axis radially
-    /// **with the bright tip pointing inward toward the entity**. The
-    /// texture's V=0 end (bright tip) sits at the top of the unrotated
-    /// quad, so a rotation that flips the quad about its width axis
-    /// points that tip back along the radial direction — matching the
-    /// original game's look, where spikes converge on the centre rather
-    /// than radiating outward.
     fn rotation(&self) -> f32 {
         self.longitude_rad + std::f32::consts::PI
     }
@@ -286,9 +224,6 @@ impl Effect for EndureEffect {
                 rotation: s.rotation(),
                 texture: SPIKE_TEXTURE,
                 color: [1.0, 1.0, 1.0, alpha],
-                // The Endure spike is alpha-blended, not additive — additive
-                // vanishes
-                // against a bright lightmap.
                 blend: BlendKind::Alpha,
             });
         }
@@ -324,10 +259,6 @@ mod tests {
 
     #[test]
     fn icon_plus_radial_spikes_emitted_on_correct_schedule() {
-        // Sociable: central icon billboard + radial spike billboards
-        // every frame for 50 frames; each spike is at most one initial
-        // outer-band away from the entity (it can be closer due to the
-        // inward slide).
         let mut e = EndureEffect::new([5.0, 0.0, 7.0]);
         step_frames(&mut e, 25);
         let mut list = EffectDrawList::new();
@@ -371,10 +302,6 @@ mod tests {
 
     #[test]
     fn spikes_slide_inward_over_their_lifetime() {
-        // Sociable: a spike's `radius()` strictly decreases from its
-        // initial value as `age_frames` advances — the
-        // `speed = -4 + accel*n` integration always points inward
-        // for n < duration.
         let spike = Spike {
             anchor: [0.0, 0.0, 0.0],
             direction: [1.0, 0.0],
@@ -398,9 +325,6 @@ mod tests {
 
     #[test]
     fn icon_shrinks_and_fades() {
-        // Sociable: at frame 0 the icon is at INITIAL size and zero
-        // alpha, mid-life it's at FINAL size and full alpha, late-life
-        // it's faded down again.
         let s0 = icon_size(0.0);
         let s_mid = icon_size(PARENT_DURATION_FRAMES / 2.0);
         assert!(s0 > s_mid, "shrinks from initial → final");

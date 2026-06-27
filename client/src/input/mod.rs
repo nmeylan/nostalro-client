@@ -63,7 +63,6 @@ pub fn hovered_cell(
         return None;
     }
 
-    // Iterative refinement: intersect with terrain height instead of y=0 plane
     let mut plane_y = 0.0f32;
     let mut cell = None;
 

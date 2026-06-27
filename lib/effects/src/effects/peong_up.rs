@@ -1,16 +1,4 @@
-//! `EF_STORMKICK4` / `EF_STORMKICK5` — rising-sparkle fountain ×30 of
-//! `whitelight.tga` (ids 462, 463), the original game's Kaupe / Utsusemi
-//! dodge effect.
-//!
-//! The fountain launches 4 active
-//! emitters per call, each a single screen-facing billboard given a random velocity:
-//! an outward XZ push (`(cos,sin)*3.5`) plus an upward drift (`y =
-//! -rand(0..8)`, native −Y = up). It is called 30× per cast, so the
-//! field is ~30 particles spawned at frame 0. Each particle
-//! ramps alpha +5/frame for 30 frames then −2/frame,
-//! adds a slow XZ wander (`+= 0.03`), and integrates the rise rate
-//! (≈ 0.08..0.135/frame). Blue-tint mode colours the sparkle
-//! (105,105,225).
+//! `EF_STORMKICK4` / `EF_STORMKICK5` — rising-sparkle fountain (ids 462, 463).
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -18,23 +6,16 @@ use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 pub const TEXTURES: &[&str] = &["whitelight.tga"];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// Parent duration is 200 frames (`EF_STORMKICK4`); the field has faded well
-/// before then, but pin to the parent so the holder keeps it alive long enough.
 pub const TOTAL_DURATION_MS: u32 = 2000;
 const PEONG_TEXTURE: &str = "whitelight.tga";
-
 const PARTICLE_COUNT: usize = 30;
-/// Blue-tint mode colour.
 const TINT_RGB: [u8; 3] = [105, 105, 225];
 
 #[derive(Clone, Copy)]
 pub struct PeongUpParams {
-    /// Base radius the billboard sits at (`2.0..2.55`).
     pub dist_base: f32,
     pub dist_rand: f32,
-    /// Outward XZ speed magnitude (`3.5`).
     pub xz_speed: f32,
-    /// Per-frame rise rate (`0.08..0.135`).
     pub rise_base: f32,
     pub rise_rand: f32,
 }
@@ -60,7 +41,6 @@ impl Rng {
 
 struct Particle {
     pos: [f32; 3],
-    /// Outward XZ velocity (world units/frame); wanders via the `0.03` drift.
     vel_xz: [f32; 2],
     rise: f32,
     size: f32,
@@ -81,7 +61,6 @@ impl PeongUpEffect {
         for _ in 0..PARTICLE_COUNT {
             let angle = rng.range(0.0, std::f32::consts::TAU);
             let dist = params.dist_base + rng.range(0.0, params.dist_rand);
-            // A negative random start staggers each particle's appearance.
             let process = -((rng.next_u32() % 26) as i32);
             particles.push(Particle {
                 pos: [
@@ -106,11 +85,9 @@ impl PeongUpEffect {
         for pt in &mut self.particles {
             pt.process += 1;
             if pt.process > 0 {
-                // Outward drift (scaled down — the original value is a per-frame
-                // velocity accumulated over a 60 fps tick) plus upward rise.
                 pt.pos[0] += pt.vel_xz[0] * 0.01;
                 pt.pos[2] += pt.vel_xz[1] * 0.01;
-                pt.pos[1] -= pt.rise; // native −Y = up
+                pt.pos[1] -= pt.rise; // −Y is up.
                 if pt.process < 30 {
                     pt.alpha = (pt.alpha + 5.0 / 255.0).min(1.0);
                 } else {
@@ -204,7 +181,6 @@ mod tests {
     #[test]
     fn spawns_blue_sparkle_field() {
         let mut e = PeongUpEffect::new([0.0; 3], PEONGUP);
-        // Past the −random(26) stagger and the fade-in.
         tick(&mut e, 40);
         let bb = billboards(&e);
         assert!(!bb.is_empty(), "sparkles visible");

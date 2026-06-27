@@ -12,15 +12,11 @@ use crate::sprite::{
     upload_sprite_textures,
 };
 
-/// Loaded effect sprite (SPR + ACT + GPU-uploaded textures), shared across
-/// all emitters that point at the same `sprite_path`.
 pub struct EffectSpriteEntry {
     pub textures: SpriteTextures,
     pub act: ActFile,
 }
 
-/// Caches effect sprites by GRF path key (without extension). Loaded lazily
-/// on first request and held for the life of the cache.
 pub struct EffectSpriteCache {
     entries: HashMap<String, EffectSpriteEntry>,
 }
@@ -38,8 +34,6 @@ impl EffectSpriteCache {
         }
     }
 
-    /// Load `<path>.spr` + `<path>.act` from the GRF and upload textures.
-    /// Returns `false` if either file is missing or fails to parse.
     pub fn load(
         &mut self,
         path: &str,
@@ -96,7 +90,6 @@ impl EffectSpriteCache {
     }
 }
 
-/// One emitter projected into screen space, ready to be drawn.
 pub struct EmitterDraw<'a> {
     pub sprite: &'a EffectSpriteEntry,
     pub screen_anchor: [f32; 2],
@@ -105,18 +98,9 @@ pub struct EmitterDraw<'a> {
     pub motion_index: usize,
     pub action_index: usize,
     pub color: [f32; 4],
-    /// `true` → additive blend (Hit debris, anything wanting overlap to
-    /// accumulate to brighter colors); `false` → standard alpha blend
-    /// (Smoke, Snow, Firefly — all the existing emitter callers).
-    /// particle1.spr is flagged additive in the original game, so its
-    /// emitters set this; the others use plain alpha. Verified against the
-    /// original game's on-screen blending.
     pub additive: bool,
 }
 
-/// Build sprite batches for a list of emitter draw entries. The caller is
-/// responsible for animation timing (selecting `motion_index`) and per-
-/// particle alpha (encoded in `color[3]`).
 pub fn build_emitter_batches<'a>(draws: &[EmitterDraw<'a>]) -> Vec<SpriteBatch<'a>> {
     let mut batches = Vec::new();
     for draw in draws {
@@ -141,7 +125,12 @@ pub fn build_emitter_batches<'a>(draws: &[EmitterDraw<'a>]) -> Vec<SpriteBatch<'
             if tex_idx >= draw.sprite.textures.bind_groups.len() {
                 continue;
             }
-            scale_clip_vertices(&mut vertices, draw.screen_anchor, draw.sprite_scale, [0.0, 0.0]);
+            scale_clip_vertices(
+                &mut vertices,
+                draw.screen_anchor,
+                draw.sprite_scale,
+                [0.0, 0.0],
+            );
             for v in &mut vertices {
                 v.color[0] *= draw.color[0];
                 v.color[1] *= draw.color[1];
@@ -159,12 +148,6 @@ pub fn build_emitter_batches<'a>(draws: &[EmitterDraw<'a>]) -> Vec<SpriteBatch<'
     batches
 }
 
-/// Walk an `EffectDrawList`, find every `EffectPrimitiveDraw::SpriteParticle`
-/// entry, and produce one [`DrawRecord`] per sprite clip ready for the
-/// unified effect dispatch. Records use screen-space vertices and dispatch
-/// through the [`PipelineKind::Sprite`] pipeline; depth is the world-space
-/// `view_z` of the particle anchor so the renderer can sort sprite
-/// particles against billboards and 3D primitives consistently.
 pub fn prepare_sprite_particle_records<'cache>(
     list: &EffectDrawList,
     cache: &'cache EffectSpriteCache,
@@ -191,8 +174,7 @@ pub fn prepare_sprite_particle_records<'cache>(
         let Some(sprite) = cache.get(sprite_path) else {
             continue;
         };
-        let Some((anchor, depth, ppu)) =
-            project_billboard(camera, *position, screen_w, screen_h)
+        let Some((anchor, depth, ppu)) = project_billboard(camera, *position, screen_w, screen_h)
         else {
             continue;
         };
@@ -223,7 +205,9 @@ pub fn prepare_sprite_particle_records<'cache>(
             }
             scale_clip_vertices(&mut vertices, anchor, sprite_scale, [0.0, 0.0]);
             if let Some(target) = aim_target {
-                if let Some((tx, ty)) = camera.world_to_screen(target[0], target[1], target[2], screen_w, screen_h) {
+                if let Some((tx, ty)) =
+                    camera.world_to_screen(target[0], target[1], target[2], screen_w, screen_h)
+                {
                     let dx = tx - anchor[0];
                     let dy = ty - anchor[1];
                     let angle = dy.atan2(dx) - std::f32::consts::FRAC_PI_2;
@@ -250,8 +234,6 @@ pub fn prepare_sprite_particle_records<'cache>(
     records
 }
 
-/// Helper: project a world-space anchor into a screen anchor / depth /
-/// per-pixel scale for a billboarded effect.
 pub fn project_billboard(
     camera: &Camera,
     world_pos: [f32; 3],
@@ -269,22 +251,11 @@ pub fn project_billboard(
     Some(([sx, sy], ndc_z, ppu))
 }
 
-/// Constant world-space distance a camera-facing effect quad is nudged toward
-/// the camera so it renders over coincident ground without the depth-precision
-/// flicker a zero offset would cause.
-///
-/// A *fixed* NDC offset can't do this: perspective depth is non-linear, so a
-/// constant NDC delta is a few units near the camera but tens of world units
-/// at map-scale distances — large enough to yank a quad in front of the caster
-/// and suppress all occlusion. Converting a fixed *world* distance to NDC
-/// (`ndc_bias = near * units / clip_w²`, with `clip_w` ≈ view-space distance)
-/// keeps the nudge a constant world distance at every zoom, so the caster
-/// still occludes the back half of a body-centred ring (Chookgi) while the
-/// quad reliably beats the ground it sits on.
+/// World-space distance nudged toward the camera to avoid depth-precision flicker
+/// against coincident ground. Converted to NDC as `near * units / clip_w²` so
+/// the nudge is zoom-independent.
 pub const BILLBOARD_DEPTH_BIAS_UNITS: f32 = 1.0;
 
-/// Project like [`project_billboard`] but pull the returned depth toward the
-/// camera by [`BILLBOARD_DEPTH_BIAS_UNITS`] world units (zoom-independent).
 pub fn project_billboard_biased(
     camera: &Camera,
     world_pos: [f32; 3],
@@ -303,18 +274,10 @@ pub fn project_billboard_biased(
     Some(([sx, sy], ndc_z, ppu))
 }
 
-/// World-space depth nudge applied to entity sprites (`project_entity_screen`).
-/// A camera-facing effect quad that wants to occlude *against the body* must
-/// use the same value so the comparison is purely front/back, not biased by a
-/// mismatched nudge.
+/// Depth bias for entity sprites. Effect quads that must occlude against the body
+/// use the same value so comparison is purely front/back.
 pub const ENTITY_DEPTH_BIAS_UNITS: f32 = 4.0;
 
-/// Project a [`BillboardDepthAnchored`] quad: screen anchor / scale come from
-/// `screen_pos`, but the returned depth is computed from `depth_pos` (the
-/// quad's ground anchor) biased by [`ENTITY_DEPTH_BIAS_UNITS`] to match the
-/// entity sprite. Returns `(screen_anchor, ndc_z, ppu, view_z)`.
-///
-/// [`BillboardDepthAnchored`]: ragnarok_game::effect::EffectPrimitiveDraw::BillboardDepthAnchored
 pub fn project_billboard_depth_anchored(
     camera: &Camera,
     screen_pos: [f32; 3],
@@ -322,19 +285,25 @@ pub fn project_billboard_depth_anchored(
     screen_w: f32,
     screen_h: f32,
 ) -> Option<([f32; 2], f32, f32, f32)> {
-    let (sx, sy, _ndc_z, _clip_w) =
-        camera.world_to_screen_with_depth(screen_pos[0], screen_pos[1], screen_pos[2], screen_w, screen_h)?;
+    let (sx, sy, _ndc_z, _clip_w) = camera.world_to_screen_with_depth(
+        screen_pos[0],
+        screen_pos[1],
+        screen_pos[2],
+        screen_w,
+        screen_h,
+    )?;
     let ppu = camera.perspective_scale(screen_pos[0], screen_pos[1], screen_pos[2], screen_h);
-    let (_, _, ndc_z, clip_w) =
-        camera.world_to_screen_with_depth(depth_pos[0], depth_pos[1], depth_pos[2], screen_w, screen_h)?;
+    let (_, _, ndc_z, clip_w) = camera.world_to_screen_with_depth(
+        depth_pos[0],
+        depth_pos[1],
+        depth_pos[2],
+        screen_w,
+        screen_h,
+    )?;
     let ndc_z = ndc_z - camera.near * ENTITY_DEPTH_BIAS_UNITS / (clip_w * clip_w);
     Some(([sx, sy], ndc_z, ppu, view_z(camera, depth_pos)))
 }
 
-/// Per-particle data for a `SpriteEffectEmitter::Smoke3D`. `alpha_override`
-/// is set when the holder has already computed the particle's
-/// instantaneous alpha (e.g. a twinkle keyframe sawtooth); the renderer
-/// uses it verbatim and skips the linear-fade-plus-sin² fallback.
 #[derive(Clone, Copy, Debug)]
 pub struct Smoke3DParticle {
     pub pos: [f32; 3],
@@ -343,7 +312,6 @@ pub struct Smoke3DParticle {
     pub alpha_override: Option<f32>,
 }
 
-/// Renderer-side description of a single SPR-based effect emitter.
 pub enum SpriteEffectEmitter<'a> {
     Spr {
         sprite_path: &'a str,
@@ -351,15 +319,9 @@ pub enum SpriteEffectEmitter<'a> {
         position: [f32; 3],
         color: [f32; 4],
         size_scale: f32,
-        /// Animation speed: motion advances every N ticks at
-        /// 60 fps, so higher values slow the animation down. 1.0 = one
-        /// motion per game frame (16.67 ms each).
         anim_speed: f32,
-        /// `true` loops the motion list; `false`
-        /// plays once and holds the final motion.
         repeat: bool,
         anim_time: f32,
-        /// ACT action index to play.
         action_index: usize,
     },
     Smoke3D {
@@ -368,20 +330,12 @@ pub enum SpriteEffectEmitter<'a> {
         color: [f32; 4],
         size_scale: f32,
         anim_speed: f32,
-        /// Linearly shrink each particle's rendered size to 0 over its
-        /// lifetime (Steal's gold-coin shrink).
         size_shrink: bool,
-        /// Oscillate per-particle alpha around the linear fade envelope
-        /// (Firefly's pulsing twinkle). Ignored
-        /// when a particle supplies `alpha_override`.
         twinkle: bool,
         particles: Vec<Smoke3DParticle>,
     },
 }
 
-/// Collect [`EmitterDraw`] entries from emitters. Shared between the game
-/// client and rsw-viewer so the projection / animation logic is not
-/// duplicated.
 pub fn collect_sprite_effect_draws<'cache>(
     emitters: &[SpriteEffectEmitter<'_>],
     cache: &'cache EffectSpriteCache,
@@ -420,9 +374,6 @@ pub fn collect_sprite_effect_draws<'cache>(
                 if motion_count == 0 {
                     continue;
                 }
-                // Effect sprites ignore the .act file's per-frame delay and
-                // instead advance motion every `anim_speed` ticks at 60 fps,
-                // matching the original game's animation cadence.
                 const FRAME_MS_60FPS: f32 = 1000.0 / 60.0;
                 let frame_delay_ms = FRAME_MS_60FPS * anim_speed.max(1.0);
                 let raw_motion = ((anim_time * 1000.0) / frame_delay_ms) as usize;
@@ -462,17 +413,18 @@ pub fn collect_sprite_effect_draws<'cache>(
                 }
                 let frames_per_sec = 60.0 / anim_speed.max(1.0);
                 for particle in particles {
-                    let Smoke3DParticle { pos, age, lifetime, alpha_override } = *particle;
+                    let Smoke3DParticle {
+                        pos,
+                        age,
+                        lifetime,
+                        alpha_override,
+                    } = *particle;
                     let t = (age / lifetime).clamp(0.0, 1.0);
                     let alpha = match alpha_override {
                         Some(a) => a,
                         None => {
                             let envelope = (1.0 - t) * alpha_max;
                             if *twinkle {
-                                // sin² pulse around the linear envelope —
-                                // legacy approximation for emitters with
-                                // no keyframe schedule (none currently
-                                // hit this branch with twinkle=true).
                                 let phase = age * 2.5 * std::f32::consts::TAU;
                                 let pulse = 0.4 + 0.6 * phase.sin().powi(2);
                                 envelope * pulse
@@ -490,7 +442,11 @@ pub fn collect_sprite_effect_draws<'cache>(
                         continue;
                     };
                     let sprite_scale = ppu / 7.5;
-                    let per_particle_size = if *size_shrink { (1.0 - t).max(0.0) } else { 1.0 };
+                    let per_particle_size = if *size_shrink {
+                        (1.0 - t).max(0.0)
+                    } else {
+                        1.0
+                    };
                     let motion_index = (age * frames_per_sec) as usize % motion_count;
                     draws.push(EmitterDraw {
                         sprite,

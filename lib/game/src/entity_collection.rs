@@ -154,7 +154,6 @@ impl EntityCollection {
         target_gid: u32,
         skill_name: Option<String>,
     ) {
-        // Show chat bubble on caster (e.g., "AL_ANGELUS !!")
         self.show_skill_chat_bubble(src_gid, skill_name);
         let target_pos = self
             .entities
@@ -171,12 +170,10 @@ impl EntityCollection {
         }
     }
 
-    /// Shows a "SkillName !!" chat bubble on the entity.
     fn show_skill_chat_bubble(&mut self, gid: u32, skill_name: Option<String>) {
         if let Some(name) = skill_name
             && let Some(entity) = self.entities.get_mut(&gid)
         {
-            // Only show for players/NPCs, not monsters
             if entity.entity_type != EntityType::Monster {
                 entity.chat_bubble =
                     Some(crate::entity::ChatBubbleState::new(format!("{} !!", name)));

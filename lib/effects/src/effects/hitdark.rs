@@ -1,21 +1,3 @@
-//! `EF_HITDARK` (id 180) and `EF_DARKATTACK` (id 184) — a dark impact: a brief
-//! blue rim ring plus a spray of dark-grey debris. Both ids share the
-//! same effect; id 184 only
-//! differs by a zero parent duration (its debris still outlives that).
-//!
-//! Reference gif `150-200/180.gif` (dark ring with a bright rim + dark spray).
-//! Layout:
-//!   * 1× cylinder (`ring_blue.tga`) laid on its side
-//!     and aimed along the attacker's facing — a short flared tube that reads
-//!     as a vertical rim ring. 10-frame life, fade from frame 5.
-//!   * 2× forward debris + 2× gravity-affected backward debris
-//!     (`particle1.spr`, RGB ≈ 20/255 dark): random speed `0.6..1.6`,
-//!     decelerating; the gravity pair also falls. 6..30-frame lives.
-//!
-//! The attacker's facing isn't plumbed to a point-anchored effect, so the
-//! ring/spray use a fixed heading (`+Z`); the gif frames the ring roughly
-//! face-on, so this matches the captured silhouette.
-
 use super::spike_burst::seed_from_world;
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -31,7 +13,6 @@ const HEADING_RAD: f32 = 0.0;
 const Y_OFFSET: f32 = -10.0 * WORLD_SCALE;
 const ANIM_FRAMES_PER_MOTION: f32 = 4.0;
 
-// Blue rim ring (cylinder laid on its side).
 const RING_DURATION_FRAMES: f32 = 10.0;
 const RING_FADE_OUT_AT: f32 = 5.0;
 const RING_OUTER: f32 = 10.0 * WORLD_SCALE;
@@ -39,7 +20,6 @@ const RING_INNER: f32 = 5.0 * WORLD_SCALE;
 const RING_HEIGHT: f32 = 3.5 * WORLD_SCALE;
 const RING_MAX_ALPHA: f32 = 1.0;
 
-// Dark debris.
 const DARK_RGB: f32 = 20.0 / 255.0;
 const PARTICLE_MAX_ALPHA: f32 = 0.8;
 const MAX_PARTICLE_LIFE_FRAMES: f32 = 30.0;
@@ -88,21 +68,16 @@ impl DarkParticle {
     }
 }
 
-/// Build one debris particle. `forward` selects the spray hemisphere;
-/// `gravity` adds a downward pull (the backward gravity pair).
 fn spawn_particle(rng: &mut Lcg, origin: [f32; 3], forward: bool, gravity: bool) -> DarkParticle {
-    // Azimuth: forward cone around the heading, backward cone opposite.
     let base = if forward {
         HEADING_RAD
     } else {
         HEADING_RAD + std::f32::consts::PI
     };
     let azimuth = base + rng.range(-40.0, 40.0).to_radians();
-    // Elevation biased upward (`−90+40+random(100)` → −10..+90°).
     let elevation = rng.range(-10.0, 50.0).to_radians();
     let (sa, ca) = azimuth.sin_cos();
     let (se, ce) = elevation.sin_cos();
-    // Native RO: −Y = up, so upward elevation is negative Y.
     let dir = [ce * sa, -se, ce * ca];
     let life = rng.range(6.0, MAX_PARTICLE_LIFE_FRAMES);
     let speed = rng.range(0.6, 1.6) * WORLD_SCALE;
@@ -260,7 +235,6 @@ mod tests {
     #[test]
     fn ring_fades_out_before_particles() {
         let mut e = HitDarkEffect::new([0.0; 3]);
-        // Past the ring's 10-frame life the ring is gone but debris remains.
         for _ in 0..12 {
             e.update(&ctx(1.0 / FRAMES_PER_SECOND));
         }

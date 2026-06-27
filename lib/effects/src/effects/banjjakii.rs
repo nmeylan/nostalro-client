@@ -1,26 +1,4 @@
-//! `EF_BANJJAKII` (id 165) — a single twinkling sparkle sprite
-//! (`misc\christmas.spr`, `data/sprite/이팩트/크리스마스`).
-//!
-//! One sprite particle launched at frame 0 and nothing else:
-//!
-//!
-//! ```text
-//! sprite-particle launch
-//! use-original-argb
-//! duration   = 125
-//! delta_y    = -10
-//! anim speed from param
-//! size       = (random(10) % 3 == 1) ? 0.01 : 1.0   // ~1/3 invisible
-//! action     = random(0..4) / 2                      // action 0..2
-//! sprite     = christmas.spr
-//! segments   = 3
-//! ```
-//!
-//! There is no reference gif for this id. The original game spawns many of
-//! these (server-driven) to make a sparkle field; each instance is one
-//! one-shot sprite that is randomly tiny ~1/3 of the time. We keep the
-//! single-sprite structure and seed the random action / scale from the world
-//! anchor so a given spawn point is deterministic.
+//! `EF_BANJJAKII` (id 165) — a single twinkling sparkle sprite.
 
 use super::spike_burst::seed_from_world;
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
@@ -31,12 +9,10 @@ pub const SPRITES: &[&str] = &[SPARKLE_SPRITE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const DURATION_FRAMES: f32 = 125.0;
-/// Lifted -10 on Y (native RO -Y = up).
 const Y_OFFSET: f32 = -10.0;
-/// Random size: `0.01` (effectively invisible) one time in three, else 1.0.
+/// `random(10) % 3 == 1` → invisible one time in three.
 const TINY_SCALE: f32 = 0.01;
 const NORMAL_SCALE: f32 = 1.0;
-/// Advance one ACT motion every other frame.
 const ANIM_FRAMES_PER_MOTION: f32 = 2.0;
 
 pub const TOTAL_DURATION_MS: u32 = (DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
@@ -51,9 +27,7 @@ pub struct BanjjakiiEffect {
 impl BanjjakiiEffect {
     pub fn new(world_pos: [f32; 3]) -> Self {
         let seed = seed_from_world(world_pos);
-        // Action `random(0..4) / 2` → action 0, 1 or 2.
         let action_index = ((seed % 5) / 2) as usize;
-        // `random(10) % 3 == 1` → tiny one time in three.
         let size_scale = if (seed / 5) % 3 == 1 {
             TINY_SCALE
         } else {

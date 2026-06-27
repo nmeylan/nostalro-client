@@ -104,12 +104,10 @@ iz_dun04.rsw#
         assert!((mist.near - 0.2).abs() < 1e-6);
         assert!((mist.far - 0.8).abs() < 1e-6);
         assert!((mist.factor - 0.5).abs() < 1e-6);
-        // 0xDEB4FE = (222, 180, 254)
         assert!((mist.color[0] - 222.0 / 255.0).abs() < 1e-6);
         assert!((mist.color[1] - 180.0 / 255.0).abs() < 1e-6);
         assert!((mist.color[2] - 254.0 / 255.0).abs() < 1e-6);
 
-        // alpha-prefixed color is stripped
         let iz = table.get("IZ_DUN04.RSW").unwrap();
         assert!((iz.color[0] - 0.0).abs() < 1e-6);
         assert!((iz.color[1] - 0x0C as f32 / 255.0).abs() < 1e-6);

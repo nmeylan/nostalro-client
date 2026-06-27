@@ -8,12 +8,12 @@ pub(crate) use falcon::FalconVisual;
 
 use crate::App;
 use models::enums::weapon::WeaponType;
+use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use ragnarok_game::entity::EntityType;
 use ragnarok_game::sprite_loader;
 use ragnarok_game::sprite_path::{entity_sprite_base_path, weapon_view_id_to_type};
 use ragnarok_renderer::build_entity_sprite;
 use std::rc::Rc;
-use ragnarok_game::data_table::accessory_table::AccessoryTable;
 
 impl App {
     pub(crate) fn reload_player_sprite(&mut self, gid: u32) {
@@ -89,7 +89,9 @@ impl App {
         ) {
             Some(d) => d,
             None => {
-                tracing::warn!("load_player_sprite: failed to load sprite data for gid={gid} job={job}");
+                tracing::warn!(
+                    "load_player_sprite: failed to load sprite data for gid={gid} job={job}"
+                );
                 return;
             }
         };

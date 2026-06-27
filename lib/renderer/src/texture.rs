@@ -73,11 +73,7 @@ impl TextureCache {
                 },
             };
 
-            // Extension casing varies in GRFs (e.g. yuno ground/model textures
-            // use `.BMP`); match case-insensitively so the color key applies.
             let is_bmp = name.to_ascii_lowercase().ends_with(".bmp");
-
-            // RO BMP convention: magenta (FF00FF) pixels become transparent
             if is_bmp {
                 apply_magenta_transparency(&mut img);
             }
@@ -85,7 +81,6 @@ impl TextureCache {
             let logical_w = img.width();
             let logical_h = img.height();
 
-            // CPU-upscale UI textures by dpi_scale for crisp rendering on high DPI
             let bind_group = if is_bmp {
                 if dpi_upscale && self.dpi_scale > 1.0 {
                     let phys_w = (logical_w as f32 * self.dpi_scale) as u32;
@@ -96,8 +91,6 @@ impl TextureCache {
                         phys_h,
                         image::imageops::FilterType::CatmullRom,
                     );
-                    // Linear sampling avoids triangle-diagonal UV precision artifacts
-                    // that cause shearing with Nearest at fractional DPI scales
                     create_texture_bind_group_filtered(
                         device,
                         queue,
@@ -149,14 +142,6 @@ impl TextureCache {
     }
 }
 
-/// Load `path` from `grf` and build a bind group, applying the two
-/// transparency conventions used by STR-style effect textures:
-///   * magenta (FF00FF) → transparent (RO BMP color key)
-///   * pure black → transparent (so additive layers don't add brightness)
-///
-/// If the exact `path` is missing, retries with `.bmp`/`.tga` swap — RO GRFs
-/// mix both conventions for the same logical asset name. Returns `None` if no
-/// variant resolves or decoding fails.
 pub fn load_keyed_texture(
     path: &str,
     grf: &GrfArchive,
@@ -184,17 +169,6 @@ pub fn load_keyed_texture(
 
     let w = rgba.width();
     let h = rgba.height();
-    // Sample the native-resolution texture with `Nearest` filtering — flame
-    // textures (ring_*.tga, magic_*.tga) are small pixel-art with sharp
-    // feathered tips. `Linear` interpolates the small native pattern as the
-    // cone geometry stretches it over a large surface, smearing the distinct
-    // flame tongues into a blurry smooth fan; `Nearest` keeps them crisp.
-    // The faint blocky tongue edges `Nearest` would otherwise leave are
-    // softened by the alpha gamma curve in `effect_frustum.wgsl`.
-    //
-    // Effect textures are already perceptual sRGB and must NOT be re-decoded:
-    // a second sRGB→linear decode on read darkens midtones and shifts tints
-    // when combined with the additive accumulation done by effect primitives.
     let bg = create_texture_bind_group_from_rgba(
         device,
         queue,

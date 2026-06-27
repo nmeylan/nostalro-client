@@ -1,21 +1,5 @@
-//! Ground-skill unit (`e_skill_unit_id`) → [`EffectId`] map.
-//!
-//! The server sends one `ZC_SKILL_ENTRY` packet per occupied cell, carrying a
-//! `job` byte that is the `e_skill_unit_id`; the client renders one effect at
-//! that cell per packet (no client-side area expansion — Firewall = N blades =
-//! N packets). On `ZC_SKILL_DISAPPEAR` the matching unit is removed by its
-//! `aid`.
-//!
-//! Unit ids are rathena's `e_skill_unit_id` (`src/map/skill.hpp`, contiguous
-//! from `0x7e`); rathena writes the raw enum value as the wire `job` byte
-//! (`clif_getareachar_skillunit`). Effect choices follow robrowser's
-//! `DB/Skills/SkillUnit.js`; the few `'NNN_ground'` composites there resolve to
-//! the same-numbered `EffectId` (our enum is in `EF_*` numeric order).
-//! Unrecognised / renewal / no-visual units return `None` (no spawn).
-
 use models::enums::effect_id::EffectId;
 
-// Classic-era `e_skill_unit_id` values (rathena `skill.hpp`).
 const UNT_SAFETYWALL: u8 = 0x7e;
 const UNT_FIREWALL: u8 = 0x7f;
 const UNT_WARP_WAITING: u8 = 0x80;
@@ -67,8 +51,6 @@ const UNT_SUITON: u8 = 0xbb;
 const UNT_TATAMIGAESHI: u8 = 0xbc;
 const UNT_KAEN: u8 = 0xbd;
 
-/// Effect to render at a ground-skill unit cell, or `None` for units with no
-/// client visual (hidden/`DUMMYSKILL`, unmapped traps, renewal-only units).
 pub fn skill_unit_effect(unit_id: u8) -> Option<EffectId> {
     use EffectId as E;
     Some(match unit_id {
@@ -98,7 +80,6 @@ pub fn skill_unit_effect(unit_id: u8) -> Option<EffectId> {
         UNT_TATAMIGAESHI => E::Tatami,
         UNT_KAEN => E::Kaen,
 
-        // Songs / dances — the ground "bottom" marker at the performer's cell.
         UNT_LULLABY => E::BottomLullaby,
         UNT_RICHMANKIM => E::BottomRichmankim,
         UNT_ETERNALCHAOS => E::BottomEternalchaos,
@@ -118,8 +99,6 @@ pub fn skill_unit_effect(unit_id: u8) -> Option<EffectId> {
         UNT_FORTUNEKISS => E::BottomFortunekiss,
         UNT_SERVICEFORYOU => E::BottomServiceforyou,
 
-        // Traps — only the types the original game draws client-side
-        // (`CSkill::AM_SKILLSTANDENTRY`); the rest show no client visual.
         UNT_BLASTMINE => E::Blastminebomb,
         UNT_SANDMAN => E::Sandman,
         UNT_FLASHER => E::Flasher,
@@ -137,8 +116,6 @@ mod tests {
 
     #[test]
     fn representative_units_map_and_unknowns_are_none() {
-        // Sociable spot-check across the families: a wall, a ground "bottom",
-        // a trap, a song, plus hidden/unknown bytes that must not spawn.
         assert_eq!(skill_unit_effect(UNT_FIREWALL), Some(EffectId::Firewall));
         assert_eq!(skill_unit_effect(UNT_ICEWALL), Some(EffectId::Icewall));
         assert_eq!(skill_unit_effect(UNT_SANCTUARY), Some(EffectId::BottomSanc));
@@ -154,7 +131,6 @@ mod tests {
             skill_unit_effect(UNT_POEMBRAGI),
             Some(EffectId::BottomPoembragi)
         );
-        // 0x86 = UNT_DUMMYSKILL (invisible), 0x00 unused → no visual.
         assert_eq!(skill_unit_effect(0x86), None);
         assert_eq!(skill_unit_effect(0x00), None);
     }

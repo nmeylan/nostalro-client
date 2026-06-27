@@ -1,20 +1,3 @@
-//! `EF_SIGHT` / `EF_RUWACH` — orbit-spawn SpriteParticle effects.
-//!
-//! Both effects share the same shape: every N parent frames, emit two
-//! particles on opposite sides of a radius-15 orbit around the master. The
-//! "upper" particle hovers around y = -20 (Sight) / y = -10 (Ruwach) and uses
-//! the skill's signature sprite; the "lower" particle sits on the ground
-//! (`y = 0`) and uses `Shadow.spr` as a ground tag.
-//!
-//! Per-particle state: an initial offset, an optional Y acceleration, a
-//! shrinking size via a per-frame size speed, and a linear alpha ramp via a
-//! per-frame alpha speed plus an optional late-life fade-out cliff. Each
-//! variant tunes these constants for its own look.
-//!
-//! Both ids are radius-15 orbits with a brief per-particle life; Sight orbits
-//! slightly faster and a touch higher than Ruwach, and uses a different sprite
-//! per the constants below.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -27,20 +10,13 @@ pub const SPRITES: &[&str] = &[SIGHT_SPRITE, SHADOW_SPRITE, PARTICLE2_SPRITE];
 const FRAMES_PER_SECOND: f32 = 60.0;
 const ORBIT_RADIUS: f32 = 15.0;
 
-/// Per-skill variant parameters. One `Params` constant per effect id.
 #[derive(Clone, Copy, Debug)]
 pub struct Params {
-    /// Parent emitter lifetime in frames (60 fps).
     pub parent_duration_frames: f32,
-    /// Frames between each two-particle spawn.
     pub spawn_period_frames: u32,
-    /// Compass-rotation rate of the orbit angle in degrees/frame.
-    /// Sight is plain `frame * -5°`; Ruwach scales the angle by `1/1.3`.
     pub angle_deg_per_frame: f32,
     pub angle_divisor: f32,
     pub upper: ParticleParams,
-    /// Ground-tag shadow particle. `None` for Sight2, which spawns a single
-    /// orbiting particle with no companion shadow.
     pub lower: Option<ParticleParams>,
 }
 
@@ -48,23 +24,15 @@ pub struct Params {
 pub struct ParticleParams {
     pub sprite: &'static str,
     pub duration_frames: f32,
-    /// Y offset above ground at spawn (negative = up; native RO uses
-    /// -Y = up).
+    /// Y offset above ground at spawn (negative = up; native RO uses -Y = up).
     pub y_offset: f32,
-    /// Per-frame Y acceleration on the offset — positive = drift down.
     pub y_accel_per_frame: f32,
     pub size: f32,
-    /// Size change per frame, negative = shrinks.
     pub size_speed_per_frame: f32,
-    /// Initial alpha (normalised to 0..1).
     pub alpha_init: f32,
-    /// Alpha change per frame (negative = fades).
     pub alpha_speed_per_frame: f32,
-    /// Frame at which the late-life fadeout kicks in.
-    /// `f32::MAX` disables.
+    /// `f32::MAX` disables the late-life fadeout.
     pub fadeout_start_frame: f32,
-    /// Ticks per ACT motion advance at 60 fps. Sight=4,
-    /// Sight2=3.
     pub anim_ticks: f32,
 }
 
@@ -76,12 +44,6 @@ pub const SIGHT: Params = Params {
     upper: ParticleParams {
         sprite: SIGHT_SPRITE,
         duration_frames: 20.0,
-        // The source spawns the particle at y = -20 (above the master)
-        // with a +0.1 Y accel pulling it back to ground over the
-        // 20-frame lifetime. The user wants the orbit to read like
-        // Ruwach (a constant-height arc rather than a settling drop),
-        // so we hold the particle at the spawn height and remove the
-        // downward drift (accel 0 below).
         y_offset: -20.0,
         y_accel_per_frame: 0.0,
         size: 2.5,
@@ -136,11 +98,6 @@ pub const RUWACH: Params = Params {
     }),
 };
 
-/// `EF_SIGHT2` ("Sight Blaster") — a persistent single-particle orbit. Unlike
-/// Sight/Ruwach it spawns one particle (no ground shadow) every other frame,
-/// drifting down (+0.1 Y accel) from `y = -20` on a radius-15 orbit. It stays
-/// alive until the server removes it; we mark it persistent and let the holder
-/// despawn via the table duration sentinel.
 pub const SIGHT2: Params = Params {
     parent_duration_frames: PERSISTENT_FRAMES,
     spawn_period_frames: 2,
@@ -161,14 +118,8 @@ pub const SIGHT2: Params = Params {
     lower: None,
 };
 
-/// Parent lifetime for persistent orbits — large enough that the effect keeps
-/// spawning for its whole on-screen life; the holder despawns it via the
-/// table's persistent-duration sentinel.
 const PERSISTENT_FRAMES: f32 = 9_000_000.0;
 
-/// Total visible duration: parent lifetime + the longer particle lifetime.
-/// The holder uses this for despawn; `update` keeps the effect alive while
-/// any particle is still rendering.
 pub const fn total_duration_ms(p: &Params) -> u32 {
     let upper = p.upper.duration_frames;
     let lower = match p.lower {
@@ -179,15 +130,11 @@ pub const fn total_duration_ms(p: &Params) -> u32 {
     ((p.parent_duration_frames + particle_max) / FRAMES_PER_SECOND * 1000.0) as u32
 }
 
-/// One live particle: integrates per-tick velocity, size, alpha.
 #[derive(Clone, Copy, Debug)]
 struct Particle {
     sprite: &'static str,
-    /// World-space anchor (master pos at spawn).
     anchor: [f32; 3],
-    /// Offset from anchor; Y integrates `y_accel`.
     offset: [f32; 3],
-    /// Current Y velocity in frame units (units per parent-frame).
     y_velocity_per_frame: f32,
     y_accel_per_frame: f32,
     size: f32,
@@ -205,7 +152,6 @@ impl Particle {
         self.age_frames < self.lifetime_frames && self.alpha > 0.0 && self.size > 0.0
     }
 
-    /// Step by `dt_frames` parent-frames (60 fps).
     fn step(&mut self, dt_frames: f32) {
         self.y_velocity_per_frame += self.y_accel_per_frame * dt_frames;
         self.offset[1] += self.y_velocity_per_frame * dt_frames;
@@ -249,7 +195,6 @@ impl OrbitEffect {
         }
     }
 
-    /// Compute orbit (sn, cs) at a given parent frame.
     fn orbit_at(&self, frame: f32) -> (f32, f32) {
         let degree = (frame / self.params.angle_divisor) * self.params.angle_deg_per_frame;
         let rad = degree.to_radians();
@@ -289,9 +234,6 @@ impl Effect for OrbitEffect {
         let dt_frames = ctx.delta * FRAMES_PER_SECOND;
         self.age_frames += dt_frames;
 
-        // Spawn at every parent frame divisible by the period, as long as
-        // the parent is still alive. Catch up across larger dt by walking
-        // each frame boundary between last_spawn_frame and current_frame.
         let current_frame = self.age_frames.floor() as i32;
         if self.age_frames <= self.params.parent_duration_frames {
             let next_frame = self.last_spawn_frame + 1;
@@ -367,12 +309,7 @@ mod tests {
 
     #[test]
     fn sight_emits_one_pair_per_period_frame_in_orbit() {
-        // Sociable test: after stepping the first spawn boundary the
-        // effect emits two SpriteParticles, one with the SIGHT sprite at
-        // y_offset=-20 (upper) and one with SHADOW at y=0 (lower).
-        // Their XZ offset is on a radius-15 circle around the anchor.
         let mut e = OrbitEffect::new([10.0, 5.0, 20.0], SIGHT);
-        // First tick lands on frame 0 → spawn fires immediately.
         step_one_frame(&mut e);
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
@@ -404,14 +341,10 @@ mod tests {
 
     #[test]
     fn ruwach_uses_particle2_sprite_and_period_3() {
-        // Ruwach should spawn on frames 0, 3, 6, … so after stepping 3
-        // frames we get two pairs (frame 0 and frame 3).
         let mut e = OrbitEffect::new([0.0; 3], RUWACH);
         for _ in 0..4 {
             step_one_frame(&mut e);
         }
-        // Frames 0 and 3 are spawn points → 2 pairs = 4 particles
-        // (we may have lost none yet at age=4 frames).
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         assert!(
@@ -419,7 +352,6 @@ mod tests {
             "two pairs spawned across frames 0 and 3, got {}",
             list.primitives.len(),
         );
-        // Ruwach upper uses particle2, not sight.
         let used: std::collections::HashSet<&str> = list
             .primitives
             .iter()
@@ -435,8 +367,6 @@ mod tests {
 
     #[test]
     fn particles_fade_and_die_then_effect_ends() {
-        // After parent_duration + particle_lifetime, all particles must
-        // be reaped and the effect reports Dead.
         let mut e = OrbitEffect::new([0.0; 3], SIGHT);
         let total_frames = SIGHT.parent_duration_frames + SIGHT.upper.duration_frames + 5.0;
         let mut status = EffectStatus::Running;
@@ -451,10 +381,8 @@ mod tests {
 
     #[test]
     fn sight2_spawns_single_particle_per_period_no_shadow() {
-        // Sight2 emits one orbiting Sight particle (no ground shadow) every
-        // 2 frames, on a radius-15 orbit, and stays alive (persistent).
         let mut e = OrbitEffect::new([10.0, 5.0, 20.0], SIGHT2);
-        let status = e.update(&ctx(1.0 / FRAMES_PER_SECOND)); // frame 0 spawn
+        let status = e.update(&ctx(1.0 / FRAMES_PER_SECOND));
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         assert_eq!(list.primitives.len(), 1, "single particle, no shadow pair");

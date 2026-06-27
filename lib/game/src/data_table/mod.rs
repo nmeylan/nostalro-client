@@ -18,11 +18,11 @@ pub mod item_description_table;
 pub mod item_name_table;
 pub mod item_resource_table;
 pub mod item_slot_count_table;
+pub mod name_table;
 pub mod skill_description_table;
 pub mod skill_name_table;
 pub mod skill_tree_table;
 pub mod skill_use_level_table;
-pub mod name_table;
 #[derive(Default)]
 pub struct DataTable {
     pub name: Option<NameTable>,

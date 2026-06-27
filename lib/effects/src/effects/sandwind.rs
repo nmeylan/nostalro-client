@@ -1,24 +1,3 @@
-//! `EF_SANDWIND` — Bard/Dancer Sandwind (id 46).
-//!
-//! A drifting screen-space blow of sand particles. Particles spawn scattered
-//! across the screen and drift diagonally in a fixed wind direction, then
-//! fade out near the end of their lives.
-//!
-//! Behaviour:
-//!   * Parent duration 180 frames; first 60 frames spawn one particle
-//!     every 2 frames (so up to 30 particles).
-//!   * Each particle: 30 px square (→ 3 wu via the `10 px / wu` mapping
-//!     shared with [`super::endure`]).
-//!   * Wind heading 130..145°, speed 2.6..5.6 px/frame → diagonal
-//!     down-right drift, ~0.26..0.56 wu/frame.
-//!   * Spawn scatter `x ∈ [-500, 140]` px → particles seeded across ~64 wu
-//!     of horizontal screen width; `y = -240..-190` px → spawn roughly one
-//!     character above the camera focus.
-//!   * Alpha 128/255, fade-out begins at `duration - duration/3` → ~50%
-//!     opacity then linear fade in the final third.
-//!   * Lifetime `duration - random(100)` → 80..180 frames per particle.
-//!   * Texture `sand1.bmp`.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -38,15 +17,9 @@ pub const TOTAL_DURATION_MS: u32 =
 const PARTICLE_SIZE: f32 = 3.0;
 const PARTICLE_ALPHA: f32 = 128.0 / 255.0;
 
-/// Random speed 2.6..5.6 px/frame, mapping to 0.26..0.56 wu/frame via the
-/// shared 10 px/wu screen-space scale.
 const WIND_SPEED_MIN_PER_FRAME: f32 = 0.26;
 const WIND_SPEED_MAX_PER_FRAME: f32 = 0.56;
 
-/// Spawn scatter — `x ∈ [-500, 140]` px and `y ∈ [-240, -190]` px in screen
-/// space. In our world-space approximation we spread across the XZ plane
-/// with a slight Y lift so the particles ride above the ground rather than
-/// sit on it.
 const SPAWN_X_HALF_RANGE: f32 = 32.0;
 const SPAWN_X_OFFSET: f32 = -18.0;
 const SPAWN_Z_HALF_RANGE: f32 = 6.0;
@@ -58,9 +31,7 @@ struct Particle {
     age_frames: f32,
     spawn_xz_offset: [f32; 2],
     y_offset: f32,
-    /// Per-particle wind direction × speed, XZ world units / frame.
     wind_per_frame: [f32; 2],
-    /// Per-particle lifetime (frames) — `duration - random(100)`.
     duration_frames: f32,
 }
 
@@ -78,8 +49,6 @@ impl Particle {
     }
 
     fn alpha(&self) -> f32 {
-        // Fade-out begins at `duration - duration/3` → hold for the first
-        // 2/3 of life, then fade linearly to 0.
         let fade_out_at = self.duration_frames * 2.0 / 3.0;
         if self.age_frames < fade_out_at {
             PARTICLE_ALPHA
@@ -131,10 +100,6 @@ impl Effect for SandwindEffect {
         for f in next_frame..=current_frame {
             if f >= 0 && (f as f32) < SPAWN_WINDOW_FRAMES && (f as u32) % SPAWN_INTERVAL_FRAMES == 0
             {
-                // Per-particle wind: heading 130..145° in the 2D screen
-                // convention `(sin(lon), -cos(lon))`. Map screen y to
-                // world +Z so the drift reads as a diagonal across the
-                // XZ plane.
                 let longitude_deg = 130.0 + self.lcg() * 15.0;
                 let (sn, cs) = longitude_deg.to_radians().sin_cos();
                 let speed = WIND_SPEED_MIN_PER_FRAME
@@ -209,10 +174,6 @@ mod tests {
 
     #[test]
     fn particles_spawn_and_drift_diagonally() {
-        // Sociable: by 20 frames the spawn schedule has fired several
-        // times, particles exist, and at least one is moving in both X
-        // and Z because `longitude ∈ [130°, 145°]` yields non-zero
-        // components on both axes.
         let mut e = SandwindEffect::new([0.0; 3]);
         for _ in 0..20 {
             e.update(&ctx(1.0 / FRAMES_PER_SECOND));

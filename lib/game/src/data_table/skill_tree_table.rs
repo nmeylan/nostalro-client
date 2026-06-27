@@ -10,7 +10,6 @@ pub struct SkillTreeEntry {
     pub skill_name: String,
     pub position: u8,
     pub max_level: u8,
-    /// Positions of prerequisite skills within the same job tree
     pub prerequisite_positions: Vec<u8>,
 }
 
@@ -35,20 +34,16 @@ impl SkillTreeTable {
         self.trees.get(&job_id).map(|v| v.as_slice())
     }
 
-    /// Returns the job tier chain for a given class.
     /// e.g. Knight(7) -> [(0, "Novice"), (1, "Swordsman"), (7, "Knight")]
     pub fn job_skill_tabs(class: u16) -> Vec<(u16, &'static str)> {
         match class {
-            // Novice
             0 => vec![(0, "Novice")],
-            // 1st classes
             1 => vec![(0, "Novice"), (1, "Swordsman")],
             2 => vec![(0, "Novice"), (2, "Mage")],
             3 => vec![(0, "Novice"), (3, "Archer")],
             4 => vec![(0, "Novice"), (4, "Acolyte")],
             5 => vec![(0, "Novice"), (5, "Merchant")],
             6 => vec![(0, "Novice"), (6, "Thief")],
-            // 2nd classes
             7 => vec![(0, "Novice"), (1, "Swordsman"), (7, "Knight")],
             8 => vec![(0, "Novice"), (2, "Mage"), (8, "Priest")],
             9 => vec![(0, "Novice"), (2, "Mage"), (9, "Wizard")],
@@ -62,7 +57,6 @@ impl SkillTreeTable {
             18 => vec![(0, "Novice"), (5, "Merchant"), (18, "Alchemist")],
             19 => vec![(0, "Novice"), (3, "Archer"), (19, "Bard")],
             20 => vec![(0, "Novice"), (3, "Archer"), (20, "Dancer")],
-            // Trans 2nd classes
             4008 => vec![(0, "Novice"), (1, "Swordsman"), (4008, "Lord Knight")],
             4009 => vec![(0, "Novice"), (4, "Acolyte"), (4009, "High Priest")],
             4010 => vec![(0, "Novice"), (2, "Mage"), (4010, "High Wizard")],
@@ -76,12 +70,9 @@ impl SkillTreeTable {
             4019 => vec![(0, "Novice"), (5, "Merchant"), (4019, "Creator")],
             4020 => vec![(0, "Novice"), (3, "Archer"), (4020, "Clown")],
             4021 => vec![(0, "Novice"), (3, "Archer"), (4021, "Gypsy")],
-            // Super Novice
             23 => vec![(23, "Super Novice")],
-            // Gunslinger / Ninja
             24 => vec![(24, "Gunslinger")],
             25 => vec![(25, "Ninja")],
-            // Taekwon / Star Gladiator / Soul Linker
             4046 => vec![(4046, "Taekwon")],
             4047 => vec![(4046, "Taekwon"), (4047, "Star Gladiator")],
             4049 => vec![(4046, "Taekwon"), (4049, "Soul Linker")],
@@ -122,7 +113,6 @@ fn parse_skill_tree_view(content: &str) -> HashMap<u16, Vec<SkillTreeEntry>> {
             let line = line.trim_end_matches('@');
             let parts: Vec<&str> = line.split('#').collect();
             // Format: SKILL_NAME#POSITION#[PREREQ_POS...]#MAX_LEVEL
-            // Last number is always max_level, middle numbers are prereq positions
             if parts.len() >= 3 {
                 let skill_name = parts[0].to_string();
                 let position = parts[1].parse::<u8>().unwrap_or(0);

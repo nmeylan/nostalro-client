@@ -116,13 +116,7 @@ pub fn build_status(atlas: &FontAtlas, screen_w: f32, status: &StatusLine<'_>) -
         indices: bi.to_vec(),
         texture: UiTextureRef::White,
     });
-    let (tv, ti) = text_vertices(
-        &text,
-        box_x + PADDING,
-        box_y + PADDING,
-        STATUS_COLOR,
-        atlas,
-    );
+    let (tv, ti) = text_vertices(&text, box_x + PADDING, box_y + PADDING, STATUS_COLOR, atlas);
     calls.push(UiDrawCall {
         vertices: tv,
         indices: ti,
@@ -141,7 +135,9 @@ pub fn build_target_crosshair(
     screen_w: f32,
     screen_h: f32,
 ) -> Vec<UiDrawCall> {
-    let Some((sx, sy)) = camera.world_to_screen(target[0], target[1], target[2], screen_w, screen_h) else {
+    let Some((sx, sy)) =
+        camera.world_to_screen(target[0], target[1], target[2], screen_w, screen_h)
+    else {
         return Vec::new();
     };
     let mut calls = Vec::new();

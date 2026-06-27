@@ -1,21 +1,3 @@
-//! EF_BOTTOM_SANC — sustained Sanctuary pillar at the caster's feet.
-//! Visible reference: `ro-effects/effects/imgs/300-350/317.gif`.
-//!
-//! A single rising 4-sided pillar:
-//!   * square base width 2.5
-//!   * vertical extent 16
-//!   * start alpha 120 with a long fade timing
-//!   * the parent's lifetime is the effect's lifetime (the table value
-//!     is `99990 ms`), so the pillar is effectively permanent until
-//!     the Sanctuary cell dies — it persists for the skill's whole
-//!     duration rather than playing a one-shot animation, matching the
-//!     sustained look in the reference gif.
-//!
-//! We render it as a 4-sided pillar that breathes exactly like Magnus
-//! Exorcismus (it is the same `Bottom_Magnus` family in the original game):
-//! it rises from the ground over ~90 frames and then pulses its height around
-//! ~65 % of its peak. The geometry does not rotate.
-
 use super::bottom_magnus::animated_height;
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -24,20 +6,13 @@ pub const TEXTURE: &str = "alpha_down.tga";
 pub const TEXTURES: &[&str] = &[TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// Lifetime kept in lockstep with the spec's `duration_ms`; the effect is a
-/// "permanent" sustained skill effect in the original game.
 pub const TOTAL_DURATION_MS: u32 = 99_990;
 
-/// Square pillar — `sides == 4`.
 const SIDES: u32 = 4;
-/// Pillar half-extent on the X / Z plane.
 const BASE_RADIUS: f32 = 2.5;
-/// Peak pillar height for F1 == 1. The rendered height breathes around ~65 %
-/// of this (see [`animated_height`]).
 const PILLAR_HEIGHT: f32 = 16.0;
-/// `120 / 255` baseline alpha — the pillar holds at this level.
+/// `120 / 255` baseline alpha.
 const BASE_ALPHA: f32 = 120.0 / 255.0;
-/// Frames to ramp from 0 to BASE_ALPHA at spawn — matches the gif fade-in.
 const FADE_IN_FRAMES: f32 = 15.0;
 
 pub struct BottomSanctuaryPillarEffect {
@@ -79,7 +54,6 @@ impl Effect for BottomSanctuaryPillarEffect {
             top_size: BASE_RADIUS,
             height,
             sides: SIDES,
-            // No geometry rotation — the original game keeps `RotStart = 0`.
             rotation: 0.0,
             tilt_x_rad: 0.0,
             rotation_y_rad: 0.0,
@@ -144,8 +118,6 @@ mod tests {
 
     #[test]
     fn never_rotates() {
-        // The geometry must hold a fixed orientation (no spin, no random
-        // initial angle) — matching the original game's `RotStart = 0`.
         let mut bs = BottomSanctuaryPillarEffect::new([12.0, 0.0, 34.0]);
         for _ in 0..3 {
             step(&mut bs, 0.5);
@@ -160,8 +132,6 @@ mod tests {
 
     #[test]
     fn pillar_rises_from_ground_then_breathes_below_peak() {
-        // Like Magnus: starts at the ground (height 0), then breathes within
-        // [0.30, 1.0]·PILLAR_HEIGHT once steady — never pinned at the peak.
         let mut bs = BottomSanctuaryPillarEffect::new([0.0; 3]);
         step(&mut bs, 0.0);
         let h0 = match &draws(&bs)[0] {
@@ -172,7 +142,7 @@ mod tests {
 
         let (mut lo, mut hi) = (f32::MAX, 0.0_f32);
         for f in 90..=450 {
-            step(&mut bs, 0.0); // no advance; sample via age
+            step(&mut bs, 0.0);
             let h = animated_height(PILLAR_HEIGHT, f as f32 / FRAMES_PER_SECOND, bs.phase_deg);
             lo = lo.min(h);
             hi = hi.max(h);

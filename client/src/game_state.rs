@@ -6,47 +6,47 @@ use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
 use ragnarok_game::ailment::AilmentOverlay;
 use ragnarok_game::app_state::AppState;
+use ragnarok_game::arrow::ArrowProjectile;
 use ragnarok_game::character::Character;
 use ragnarok_game::chat_room::ChatRoomRegistry;
 use ragnarok_game::cursor::{CursorAnimationState, PendingSkillTarget, RenderEntry};
 use ragnarok_game::damage_number::DamageNumberManager;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::effects::AmbientEffectScheduler;
-use ragnarok_game::arrow::ArrowProjectile;
+use ragnarok_game::entity::EntityType;
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::floor_item::FloorItem;
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::server_time::ServerTimeClock;
+use ragnarok_game::sprite_path::JT_WARPNPC;
 use ragnarok_game::targeting::MapProperties;
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::state::StateCache;
-use ragnarok_game::entity::EntityType;
-use ragnarok_game::sprite_path::JT_WARPNPC;
 use ragnarok_ui_component::game::basic_info_window::{BASIC_INFO_WINDOW_ID, BasicInfoWindow};
 use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
+use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
+use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
 use ragnarok_ui_component::game::chat_room_window::{ChatRoomPlacement, ChatRoomWindow};
 use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
+use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
 use ragnarok_ui_component::game::hotkey_bar::{HOTKEY_BAR_WINDOW_ID, HotkeyBarWindow};
-use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
-use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
 use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::game::minimap_window::{MarkerType, MinimapMarker, MinimapWindow};
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
-use ragnarok_ui_component::game::warp_list_window::WarpListWindow;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
 use ragnarok_ui_component::game::status_icon_bar::StatusIconBarWindow;
-use ragnarok_ui_component::game::status_window::{StatusWindow, STATUS_WINDOW_ID};
+use ragnarok_ui_component::game::status_window::{STATUS_WINDOW_ID, StatusWindow};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
+use ragnarok_ui_component::game::warp_list_window::WarpListWindow;
 use ragnarok_ui_component::{InGameWindow, Window};
-use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 
 pub struct GameState {
     pub app_state: AppState,
@@ -59,11 +59,8 @@ pub struct GameState {
     pub entities: EntityCollection,
     pub sprites: HashMap<u32, Rc<EntitySprite>>,
     pub sprite_cache: HashMap<String, Rc<EntitySprite>>,
-    /// Trailing pushcart visuals keyed by owner entity id.
     pub carts: HashMap<u32, crate::sprite::CartVisual>,
-    /// Hovering falcon companion visuals keyed by owner entity id.
     pub falcons: HashMap<u32, crate::sprite::FalconVisual>,
-    /// Cart sprites loaded per design for UI previews (change-cart picker), keyed by design index.
     pub cart_preview_sprites: HashMap<u8, Rc<EntitySprite>>,
     pub character: Character,
     pub data_table: DataTable,
@@ -73,8 +70,6 @@ pub struct GameState {
     pub lock_cursor_animation: CursorAnimationState,
     pub emotion_textures: Option<SpriteTextures>,
     pub emotion_act: Option<ActFile>,
-    /// Persistent status-ailment overlay sprites (stun/sleep/curse/angelus),
-    /// billboarded above an afflicted actor's head; loaded once at startup.
     pub status_overlay_sprites: HashMap<AilmentOverlay, (SpriteTextures, ActFile)>,
     pub chat_window: ChatWindow,
     pub equipment_window: EquipmentWindow,
@@ -125,30 +120,14 @@ pub struct GameState {
     pub damage_msg_textures: Option<SpriteTextures>,
     pub damage_msg_act: Option<ragnarok_formats::act::ActFile>,
     pub debug_show_pick_bounds: bool,
-    /// Toggles the network sync overlay (RTT/offset). Seeded from config, toggled with F10.
     pub debug_overlay: bool,
     pub ambient_effects: AmbientEffectScheduler,
-    /// Live EFST status-buff effects, keyed by `(gid, efst)` → the synthetic
-    /// owner key its effect was spawned with, so a status-off packet despawns
-    /// exactly that buff without touching the entity's other buffs.
     pub status_buff_keys: HashMap<(u32, i16), u32>,
-    /// Monotonic source for buff owner keys. The high bit is set so these never
-    /// collide with the real `gid`/`aid` values other keyed effects use (Blind,
-    /// ground units).
     pub next_status_buff_key: u32,
-    /// Live level-99 auras, keyed by the holder gid → the owner key its ring was
-    /// spawned with, so it can be despawned when the actor hides or leaves view.
     pub level_aura_keys: HashMap<u32, u32>,
-    /// Live boss auras (green level-99 reskin on MVP/boss monsters), keyed by the
-    /// holder gid → the owner key, so they despawn when the monster leaves view
-    /// or dies.
     pub boss_aura_keys: HashMap<u32, u32>,
-    /// Live warp-portal effects, keyed by the warp NPC's gid → the owner key, so
-    /// the portal despawns when the NPC leaves view.
     pub warp_portal_keys: HashMap<u32, u32>,
-    /// Set to true when disconnect dialog is shown.
     pub disconnect_dialog_shown: bool,
-    /// Set to true after disconnect dialog is confirmed/cancelled.
     pub pending_disconnect_exit: bool,
 }
 
@@ -173,30 +152,25 @@ impl GameState {
         let chat_was_active = self.chat_window.is_active();
         let mut events = Vec::new();
 
-        // Modal windows block interaction with z-ordered windows behind them
         self.npc_shop.setup_modal(ui);
 
-        // Build z-orderable windows in persisted order (back-to-front).
         let z_order = ui.get_z_order();
         ui.compute_hovered_window(&z_order);
         for &win_id in &z_order {
             self.build_window(win_id, ui, &mut events);
         }
-        // Build windows not yet in z-order (first appearance)
         for &win_id in Z_ORDERABLE_WINDOWS {
             if !z_order.contains(&win_id) {
                 self.build_window(win_id, ui, &mut events);
             }
         }
 
-        // Hotkey bar (always visible, not z-orderable)
         self.hotkey_bar.chat_is_active = self.chat_window.is_active();
         events.extend(
             self.hotkey_bar
                 .build(ui, &mut self.character, &self.data_table),
         );
 
-        // Minimap (always visible, not z-orderable)
         if let Some(player) = self.entities.player() {
             self.minimap_window.player_position = Some(player.movement.position());
             self.minimap_window.player_direction = player.direction;
@@ -218,9 +192,11 @@ impl GameState {
                 } else {
                     MarkerType::Npc
                 };
-                self.minimap_window
-                    .entity_markers
-                    .push(MinimapMarker { x: ex, y: ey, marker_type });
+                self.minimap_window.entity_markers.push(MinimapMarker {
+                    x: ex,
+                    y: ey,
+                    marker_type,
+                });
             }
         }
         events.extend(
@@ -228,15 +204,11 @@ impl GameState {
                 .build(ui, &mut self.character, &self.data_table),
         );
 
-        // Status-icon bar (always visible, right edge below the minimap)
         events.extend(
             self.status_icon_bar
                 .build(ui, &mut self.character, &self.data_table),
         );
 
-        // Chat-room boxes (world-anchored, non-draggable, one per active room).
-        // Position follows the owner entity, so placements are rebuilt each frame
-        // from the registry joined with the world render list.
         self.chat_room_window.placements = self
             .chat_rooms
             .iter()
@@ -293,19 +265,16 @@ impl GameState {
             &self.data_table,
         ));
 
-        // Always-on-top: confirm dialog (for disconnect notification)
-        let had_disconnect_dialog = self.disconnect_dialog_shown
-            && self.confirm_dialog.state.is_some();
+        let had_disconnect_dialog =
+            self.disconnect_dialog_shown && self.confirm_dialog.state.is_some();
         self.confirm_dialog.build(ui);
         if had_disconnect_dialog && self.confirm_dialog.state.is_none() {
-            // Disconnect dialog was just closed
             self.pending_disconnect_exit = true;
             self.disconnect_dialog_shown = false;
         }
 
         ui.flush_tooltips();
 
-        // Drag-cancel handling
         if let Some(cancelled) = ui.draw_drag_icon() {
             if cancelled.source_id == HOTKEY_BAR_WINDOW_ID {
                 if self.character.hotkeys.get_slot(cancelled.item_index)
@@ -321,7 +290,6 @@ impl GameState {
                 }
             } else if cancelled.source_id == INV_WINDOW_ID {
                 if self.waiting_item_throw_ack {
-                    // Already waiting for server ack, ignore
                 } else if self.equipment_window.is_visible() {
                     self.chat_window
                         .add_system("Please close the Equipment window.".to_string());
@@ -437,11 +405,10 @@ impl GameState {
                 ));
             }
             STATUS_WINDOW_ID => {
-                events.extend(self.status_window.build(
-                    ui,
-                    &mut self.character,
-                    &self.data_table,
-                ));
+                events.extend(
+                    self.status_window
+                        .build(ui, &mut self.character, &self.data_table),
+                );
             }
             _ => {}
         }

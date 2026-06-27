@@ -1,24 +1,3 @@
-//! `EF_GUMGANG2` — Fury Cast Animation. Petals of yellow flame open
-//! outward from a central ring, like a flower blooming.
-//!
-//! Reference: `ro-effects/effects/imgs/250-300/261.gif`.
-//!
-//! The yellow-flame cones bloom outward like petals. Each cone
-//! integrates a
-//! `rise_angle` down from 80° to 40°: as the angle falls, the cone's top
-//! rim flares outward (`cos(rise) * max_height`) while its vertical reach
-//! shrinks (`sin(rise) * max_height`). Concentric emitters at distances
-//! 1/2/3/4 wu (ec ∈ 0..3) each spin at +3°/frame on the slow branch.
-//! The `ring_yellow.tga` texture, mapped through the
-//! `Cylinder` primitive's 0.25-per-segment UV cadence, paints four
-//! vertical petal stripes per cone — matching the gif's streaked-petal
-//! silhouette without the per-segment wave that would reproduce the
-//! LandProtector/Gumgang3 wreath look.
-//!
-//! Recipe: 4 concentric flared cones (`bottom_size = distance`,
-//! `top_size = distance + cos(rise) * max_h`), `rise_angle` decaying over
-//! 90 frames, alpha fade-in (12 frames) → hold → fade-out (last 60 frames).
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::radial_emitter::{RADIAL_EMITTER_SLOTS, RadialEmitter, RadialEmitterSlot};
@@ -27,8 +6,6 @@ pub const TEXTURE: &str = "ring_yellow.tga";
 pub const TEXTURES: &[&str] = &[TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// 180 frames = 3000 ms — matches `effect/table.rs` `EffectId::Gumgang2`.
-/// The reference gif is shorter (~120 frames); the tail covers fade-out.
 const TOTAL_FRAMES: f32 = 180.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
@@ -36,15 +13,10 @@ const SIDES: u32 = 24;
 
 const DISTANCE_BASE: f32 = 1.0;
 const DISTANCE_STEP: f32 = 0.6;
-/// The slow branch grows `distance` at +0.1/frame; we
-/// halve that so the outermost ring doesn't sweep past the gif silhouette.
 const DISTANCE_GROWTH_PER_FRAME: f32 = 0.05;
 
 const MAX_HEIGHT: f32 = 7.0;
 
-/// `rise_angle` decays from `RISE_INITIAL_DEG` to `RISE_FINAL_DEG` over
-/// `RISE_DECAY_FRAMES`. As it falls, `top_size` flares outward and
-/// `height` shrinks — petals open.
 const RISE_INITIAL_DEG: f32 = 80.0;
 const RISE_FINAL_DEG: f32 = 30.0;
 const RISE_DECAY_FRAMES: f32 = 90.0;
@@ -192,9 +164,6 @@ mod tests {
 
     #[test]
     fn emits_concentric_flared_cones() {
-        // Sociable: at peak the effect emits RADIAL_EMITTER_SLOTS flared cones
-        // (top_size > bottom_size), at the expected base radii, all
-        // textured with ring_yellow.tga.
         let mut e = Gumgang2Effect::new([5.0, 0.0, -3.0]);
         step(&mut e, FADE_IN_FRAMES + 1.0);
         let prims = draws(&e);
@@ -219,8 +188,6 @@ mod tests {
 
     #[test]
     fn petals_open_over_time() {
-        // Early frame: cones near-vertical (small flare, tall).
-        // Late frame (post-decay): cones flared wide, shorter.
         let mut e = Gumgang2Effect::new([0.0; 3]);
         step(&mut e, 4.0);
         let (b_early, t_early, h_early, _) = cone(&draws(&e)[0]);

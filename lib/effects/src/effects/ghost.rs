@@ -1,31 +1,7 @@
-//! Ghost — a swarm of animated SPR sprites that orbit the
-//! caster while bobbing vertically. Ghost (358, `유령.spr`) and Bat / Bat2
-//! (359/360, `박쥐.spr`). A long-lived status-aura look (40 s).
-//!
-//! One orbiter is launched each frame for the first ten
-//! frames, so up to ten independent orbiters trail one frame apart — visually a
-//! single creature with a short motion-blur tail. Each orbiter circles at
-//! radius 16 (1°/frame for ghost/bat, 2°/frame for
-//! bat2), bobs amplitude 4 along Y (3°/frame), and is drawn
-//! at size 1.5, advancing its motion every 2 ticks. Bat2 sweeps its Z on
-//! `sin(2θ)` (a figure-eight) instead of a plain circle.
-//!
-//! Action selection: the ghost sprite has eight directional
-//! actions and we pick **0 or 6** (the two screen-facing poses) from
-//! the orbiter's angle plus the camera longitude, so the ghost always faces the
-//! camera as it circles. The bat sprite has only two actions (wing poses) and
-//! holds action 0 (a ~1/1000 random flap is negligible); its five
-//! motions animate the flap.
-//!
-//! Implemented as a `Custom` effect (not a `spr_def`) because the per-orbiter
-//! action depends on the live camera, which only `collect_draws` sees. Each
-//! frame it emits one `SpriteParticle` per visible orbiter.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{CameraView, Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// Motion advances every 2 ticks at 60 fps.
 const ANIM_SPEED: f32 = 2.0;
 
 pub const TOTAL_DURATION_MS: u32 = 40000;
@@ -35,31 +11,22 @@ const GHOST_SPRITE: &str = "data/sprite/이팩트/유령";
 const BAT_SPRITE: &str = "data/sprite/이팩트/박쥐";
 pub const SPRITES: &[&str] = &[GHOST_SPRITE, BAT_SPRITE];
 
-/// Source distances (`distance = 16`, `max_height = 4`) downscaled so the orbit
-/// sits about one character-radius from the caster.
 const WORLD_SCALE: f32 = 0.35;
 const RADIUS: f32 = 16.0 * WORLD_SCALE;
 const BOB_AMP: f32 = 4.0 * WORLD_SCALE;
 const SIZE_SCALE: f32 = 1.5;
 const RISE_DEG_PER_FRAME: f32 = 3.0;
 
-/// Ten orbiters spawned one frame apart (the original's first-10-frames launch),
-/// forming a short trailing arc.
 const TRAIL: usize = 10;
-/// Linear alpha fade-in window (frames) and final fade-out window (seconds).
 const FADE_IN_FRAMES: f32 = 30.0;
 const FADE_OUT_S: f32 = 1.0;
 
 #[derive(Clone, Copy)]
 pub struct GhostParams {
     pub sprite: &'static str,
-    /// Orbit angle advance per frame.
     pub orbit_speed_deg: f32,
-    /// Bat2 sweeps Z on `sin(2θ)` (figure-eight) instead of a circle.
     pub lissajous: bool,
-    /// Ghost picks a camera-facing action (0/6); bat holds action 0.
     pub ghost_actions: bool,
-    /// ACT motions per action, for looping the animation (8 ghost, 5 bat).
     pub motion_count: usize,
 }
 
@@ -91,16 +58,12 @@ pub struct GhostEffect {
     age: f32,
 }
 
-/// Camera azimuth in degrees `[0, 360)` — direction from the look target back to
-/// the eye around world Y. Shared convention with `wink.rs`.
 fn camera_longitude_deg(camera: &CameraView) -> f32 {
     let dx = camera.eye[0] - camera.target[0];
     let dz = camera.eye[2] - camera.target[2];
     dx.atan2(dz).to_degrees().rem_euclid(360.0)
 }
 
-/// Ghost-action switch: the two screen-facing poses (0 and 6) of
-/// the eight-direction sprite, chosen by the orbiter angle + camera longitude.
 fn ghost_action_for_angle(angle_deg: f32) -> usize {
     if (180.0..360.0).contains(&angle_deg.rem_euclid(360.0)) {
         6
@@ -163,15 +126,10 @@ impl Effect for GhostEffect {
             let bob = BOB_AMP * (local_frame * RISE_DEG_PER_FRAME).to_radians().sin();
             let y = self.anchor[1] + bob;
 
-            // Lead orbiter brightest; trailing copies dim toward the tail.
             let trail_fade = 1.0 - (i as f32 / TRAIL as f32) * 0.7;
             let alpha = env * trail_fade;
 
-            // Facing comes from the orbit angle plus the camera longitude.
-            // Our `camera_longitude_deg` measures target→eye; the facing wants
-            // the opposite sense, a constant 180° offset — without
-            // it the ghost flips its facing at the wrong orbit points and trails
-            // its body (appears to fly backward).
+            // 180° offset: camera_longitude_deg measures target→eye; the ghost facing needs the opposite sense.
             let action_index = if self.params.ghost_actions {
                 ghost_action_for_angle(rot_deg + cam_long + 180.0)
             } else {
@@ -253,7 +211,6 @@ mod tests {
                 "ghost orbits on a circle of RADIUS: {r}"
             );
         }
-        // Y oscillates: sample a later frame and confirm the lead Y moved.
         let y0 = pos[0][1];
         step(&mut e, 10);
         let y1 = sprite_positions(&draws(&e, 0.0))[0][1];
@@ -264,8 +221,6 @@ mod tests {
     fn ghost_action_faces_camera_bat_holds_zero() {
         let mut g = GhostEffect::new([0.0; 3], GHOST);
         step(&mut g, 5);
-        // Sweeping the camera around flips the ghost between its two facing
-        // actions (0 and 6).
         let actions: std::collections::BTreeSet<usize> = (0..360)
             .step_by(30)
             .flat_map(|d| {
@@ -295,7 +250,6 @@ mod tests {
     fn bat2_orbit_is_a_figure_eight_and_effect_self_terminates() {
         let mut e = GhostEffect::new([0.0; 3], BAT2);
         step(&mut e, 60);
-        // Lissajous: the XZ radius is not constant like the circular orbit.
         let radii: Vec<f32> = sprite_positions(&draws(&e, 0.0))
             .iter()
             .map(|p| (p[0] * p[0] + p[2] * p[2]).sqrt())
@@ -307,7 +261,6 @@ mod tests {
             "bat2 path is not a constant-radius circle"
         );
 
-        // Self-terminates at the 40 s lifetime.
         let mut status = EffectStatus::Running;
         for _ in 0..(TOTAL_DURATION_MS / 16 + 100) {
             status = e.update(&EffectUpdateCtx {

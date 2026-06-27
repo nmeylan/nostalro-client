@@ -1,26 +1,17 @@
-//! D3D blend factor table used by STR effect frames.
-//!
-//! STR files store source/destination blend factors as the integer D3DBLEND
-//! constants the original game uses. The renderer needs the equivalent
-//! `wgpu::BlendFactor` value for pipeline creation.
-
 /// Pre-classified blend mode for primitives that don't carry raw D3D factors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlendKind {
     /// `src.rgb * src.a + dst.rgb * (1 - src.a)`
     Alpha,
-    /// `src.rgb * src.a + dst.rgb` - used by most STR layers, auras, sparks.
+    /// `src.rgb * src.a + dst.rgb`
     Additive,
-    /// `src.rgb * dst.rgb` - darkening / shadow overlays.
+    /// `src.rgb * dst.rgb`
     Multiply,
     /// Raw D3D source/dest factor pair from an STR frame.
     Raw { src: i32, dst: i32 },
 }
 
-/// Map a D3DBLEND_* integer to its `wgpu::BlendFactor` equivalent.
-///
-/// Reference: D3D8 `D3DBLEND` enum.
-/// Unknown / unsupported values fall back to `One` (sane additive default).
+/// Unknown / unsupported values fall back to `One`.
 pub fn d3d_blend_to_wgpu(d3d_blend: i32) -> wgpu::BlendFactor {
     match d3d_blend {
         1 => wgpu::BlendFactor::Zero,

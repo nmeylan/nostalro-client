@@ -1,3 +1,10 @@
+use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
+use crate::helper::dialog_container::DialogContainer;
+use crate::helper::window_chrome::{
+    FOOTER_TEX, ITEMWIN_MID_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container,
+    draw_footer, draw_titlebar, text_color,
+};
+use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
@@ -5,15 +12,7 @@ use ragnarok_game::npc_shop::{NpcShopData, NpcShopMode};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, RESIZE_HANDLE_TEX, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
-use crate::{Window, InGameWindow};
-use crate::helper::dialog_container::DialogContainer;
-use super::number_input::{NumberInputDialog, NumberInputConfig, NumberInputResult};
-use crate::helper::window_chrome::{
-    ITEMWIN_MID_TEX, TITLEBAR_TEX, FOOTER_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX,
-    draw_titlebar, draw_container, draw_footer, text_color,
-};
 
-// -- Widget IDs --
 pub const OVERLAY_ID: WidgetId = WidgetId(700);
 pub const INPUT_WIN_ID: WidgetId = WidgetId(701);
 pub const OUTPUT_WIN_ID: WidgetId = WidgetId(702);
@@ -30,7 +29,6 @@ const INPUT_RESIZE_ID: WidgetId = WidgetId(714);
 const ITEM_BASE_ID: u32 = 720;
 const CART_BASE_ID: u32 = 780;
 
-// -- Layout (matches original game NpcStore) --
 const WIN_W: f32 = 280.0;
 const WIN_GAP: f32 = 10.0;
 const TITLE_H: f32 = 17.0;
@@ -50,7 +48,6 @@ const ICON_SIZE: f32 = 24.0;
 const ICON_OFFSET_X: f32 = 4.0;
 const ICON_OFFSET_Y: f32 = 2.0;
 
-// -- GRF button textures --
 const OK_BTN: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/btn_ok.bmp",
     hover: "data/texture/유저인터페이스/btn_ok_a.bmp",
@@ -96,12 +93,15 @@ impl NpcShop {
             container: DialogContainer::new(),
         }
     }
-
 }
 
 impl Window for NpcShop {
-    fn has_grf_textures(&self) -> bool { self.has_grf_textures }
-    fn set_has_grf_textures(&mut self, value: bool) { self.has_grf_textures = value; }
+    fn has_grf_textures(&self) -> bool {
+        self.has_grf_textures
+    }
+    fn set_has_grf_textures(&mut self, value: bool) {
+        self.has_grf_textures = value;
+    }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(OK_BTN.normal) {
@@ -144,7 +144,12 @@ impl InGameWindow for NpcShop {
         ui.set_modal(&modal_ids);
     }
 
-    fn build(&mut self, ui: &mut UiFrame, _character: &mut Character, _data: &DataTable) -> Vec<GameEvent> {
+    fn build(
+        &mut self,
+        ui: &mut UiFrame,
+        _character: &mut Character,
+        _data: &DataTable,
+    ) -> Vec<GameEvent> {
         if !self.shop.is_open() {
             return Vec::new();
         }
@@ -163,16 +168,13 @@ impl InGameWindow for NpcShop {
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
 
-        // Full-screen overlay to block world clicks
         let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
         ui.interact(OVERLAY_ID, screen);
 
-        // Compute default positions: InputWindow left, OutputWindow right
         let input_default_x = 100.0;
         let input_default_y = 100.0;
         let output_default_x = input_default_x + (WIN_W) + (WIN_GAP);
 
-        // Input window height for output vertical alignment
         let input_item_count = match self.shop.mode {
             Some(NpcShopMode::Sell) => self.shop.visible_sell_indices().len(),
             _ => self.shop.item_count(),
@@ -189,10 +191,8 @@ impl InGameWindow for NpcShop {
         let output_win_h =
             (TITLE_H) + (CONTAINER_PAD_Y) + output_content_h + (CONTAINER_PAD_Y) + (FOOTER_H);
 
-        // Output vertically aligned: bottom-aligned with input
         let output_default_y = input_default_y + input_win_h - output_win_h;
 
-        // Build both windows
         self.build_input_window(ui, input_default_x, input_default_y, input_win_h);
         let output_rect = self.build_output_window(
             ui,
@@ -202,17 +202,17 @@ impl InGameWindow for NpcShop {
             output_win_h,
         );
 
-        // Handle drag-drop: item dropped on output window opens qty popup
         if let Some((source_id, item_idx)) = ui.drop_zone(output_rect)
-            && source_id == INPUT_WIN_ID {
-                if self.shop.mode == Some(NpcShopMode::Sell)
-                    && self.shop.sell_item_remaining(item_idx) <= 1
-                {
-                    self.shop.add_to_cart(item_idx, 1);
-                } else {
-                    self.open_qty_popup(item_idx);
-                }
+            && source_id == INPUT_WIN_ID
+        {
+            if self.shop.mode == Some(NpcShopMode::Sell)
+                && self.shop.sell_item_remaining(item_idx) <= 1
+            {
+                self.shop.add_to_cart(item_idx, 1);
+            } else {
+                self.open_qty_popup(item_idx);
             }
+        }
 
         if self.qty_popup.is_some() {
             self.build_quantity_popup(ui);
@@ -252,7 +252,6 @@ impl NpcShop {
         let grf = self.has_grf_textures;
         let text_color = text_color(grf);
 
-        // Titlebar
         draw_titlebar(ui, win.x, win.y, win_w, title_h, grf);
         let title = match self.shop.mode {
             Some(NpcShopMode::Buy) => "Shop Items",
@@ -261,14 +260,12 @@ impl NpcShop {
         };
         ui.text(win.x + (17.0), win.y + title_h - (3.0), title, text_color);
 
-        // Container
         let container_y = win.y + title_h;
         let container_h = win_h - title_h - footer_h;
         draw_container(ui, win.x, container_y, win_w, container_h, grf);
 
         let max_scroll = item_count.saturating_sub(self.input_visible_rows);
 
-        // Item rows
         let list_y = container_y + pad_y;
         let icon_size = ICON_SIZE;
         let name_x = win.x + pad_left + (ICON_OFFSET_X) + icon_size + (4.0);
@@ -286,7 +283,6 @@ impl NpcShop {
             let widget_id = WidgetId(ITEM_BASE_ID + i as u32);
             let response = ui.interact(widget_id, row_rect);
 
-            // Item shadow (itemwin_mid per row)
             if grf {
                 let shadow_x = win.x + pad_left + (ICON_OFFSET_X);
                 let shadow_y = ry + (ICON_OFFSET_Y);
@@ -304,7 +300,6 @@ impl NpcShop {
                 });
             }
 
-            // Item icon
             if let Some(icon_path) = self.shop.item_icon_path(item_idx) {
                 let ix = win.x + pad_left + (ICON_OFFSET_X);
                 let iy = ry + (ICON_OFFSET_Y);
@@ -313,8 +308,7 @@ impl NpcShop {
                 } else {
                     [0.67, 0.67, 0.67, 1.0]
                 };
-                let (v, idx) =
-                    draw::quad_vertices(ix, iy, icon_size, icon_size, tint);
+                let (v, idx) = draw::quad_vertices(ix, iy, icon_size, icon_size, tint);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: idx.to_vec(),
@@ -322,7 +316,6 @@ impl NpcShop {
                 });
             }
 
-            // Selection highlight
             let is_selected = self.shop.selected_index == Some(item_idx);
             if is_selected {
                 let (v, idx) = draw::quad_vertices(
@@ -339,7 +332,6 @@ impl NpcShop {
                 });
             }
 
-            // Item count (sell mode - show remaining quantity)
             if self.shop.mode == Some(NpcShopMode::Sell) {
                 let remaining = self.shop.sell_item_remaining(item_idx);
                 let count_str = remaining.to_string();
@@ -348,12 +340,10 @@ impl NpcShop {
                 ui.text(count_x, ry + row_h - 2.0, &count_str, text_color);
             }
 
-            // Item name
             let name = self.shop.item_name(item_idx);
             let text_y = ry + row_h - (8.0);
             ui.text(name_x, text_y, name, text_color);
 
-            // Price + "Z"
             let price = self.shop.item_price(item_idx);
             let price_str = format_zeny(price);
             let z_x = win.x + win_w - pad_right - scrollbar_w - (10.0);
@@ -364,7 +354,6 @@ impl NpcShop {
 
             if response.clicked() {
                 self.shop.selected_index = Some(item_idx);
-                // Begin drag tracking for this item
                 let drag_icon = self.shop.item_icon_path(item_idx);
                 ui.drag_source(INPUT_WIN_ID, item_idx, drag_icon, (icon_size, icon_size));
             }
@@ -379,7 +368,6 @@ impl NpcShop {
             }
         }
 
-        // Scrollbar
         if item_count > self.input_visible_rows {
             let sb_x = win.x + win_w - scrollbar_w - (1.0);
             let content_rect = Rect::new(win.x, container_y, win_w, container_h);
@@ -400,11 +388,9 @@ impl NpcShop {
             );
         }
 
-        // Footer
         let footer_y = win.y + win_h - footer_h;
         draw_footer(ui, win.x, footer_y, win_w, footer_h, grf);
 
-        // Resize handle (bottom-right of footer)
         let resize_rect = Rect::new(
             win.x + win_w - RESIZE_SIZE,
             footer_y + footer_h - RESIZE_SIZE,
@@ -416,10 +402,12 @@ impl NpcShop {
             self.resize_start_rows = Some(self.input_visible_rows);
         }
         if resize.dragging
-            && let Some(start_rows) = self.resize_start_rows {
-                let new = (start_rows as f32 + resize.delta_y / row_h).round() as i32;
-                self.input_visible_rows = new.clamp(INPUT_MIN_ROWS as i32, INPUT_MAX_ROWS as i32) as usize;
-            }
+            && let Some(start_rows) = self.resize_start_rows
+        {
+            let new = (start_rows as f32 + resize.delta_y / row_h).round() as i32;
+            self.input_visible_rows =
+                new.clamp(INPUT_MIN_ROWS as i32, INPUT_MAX_ROWS as i32) as usize;
+        }
 
         win
     }
@@ -447,7 +435,6 @@ impl NpcShop {
         let grf = self.has_grf_textures;
         let text_color = text_color(grf);
 
-        // Titlebar
         draw_titlebar(ui, win.x, win.y, win_w, title_h, grf);
         let title = match self.shop.mode {
             Some(NpcShopMode::Buy) => "Buying Items",
@@ -456,12 +443,10 @@ impl NpcShop {
         };
         ui.text(win.x + (17.0), win.y + title_h - (3.0), title, text_color);
 
-        // Container
         let container_y = win.y + title_h;
         let container_h = win_h - title_h - footer_h;
         draw_container(ui, win.x, container_y, win_w, container_h, grf);
 
-        // Cart items
         let list_y = container_y + pad_y;
         let icon_size = ICON_SIZE;
         let name_x = win.x + pad_left + (ICON_OFFSET_X) + icon_size + (4.0);
@@ -487,7 +472,6 @@ impl NpcShop {
                 ui.any_interactive_hovered = true;
             }
 
-            // Item shadow (itemwin_mid per row)
             if grf {
                 let shadow_x = win.x + pad_left + (ICON_OFFSET_X);
                 let shadow_y = ry + (ICON_OFFSET_Y);
@@ -505,7 +489,6 @@ impl NpcShop {
                 });
             }
 
-            // Item icon
             if let Some(icon_path) = self.shop.item_icon_path(cart_item.source_index) {
                 let ix = win.x + pad_left + (ICON_OFFSET_X);
                 let iy = ry + (ICON_OFFSET_Y);
@@ -514,8 +497,7 @@ impl NpcShop {
                 } else {
                     [0.67, 0.67, 0.67, 1.0]
                 };
-                let (v, idx) =
-                    draw::quad_vertices(ix, iy, icon_size, icon_size, tint);
+                let (v, idx) = draw::quad_vertices(ix, iy, icon_size, icon_size, tint);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: idx.to_vec(),
@@ -540,17 +522,14 @@ impl NpcShop {
 
             let text_y = ry + row_h - (8.0);
 
-            // Quantity badge (overlaid on icon, bottom-right)
             let qty_str = cart_item.quantity.to_string();
             let qty_w = ui.atlas.measure_text(&qty_str);
             let qty_x = win.x + pad_left + (ICON_OFFSET_X) + icon_size - qty_w;
             ui.text(qty_x, ry + icon_size, &qty_str, text_color);
 
-            // Item name
             let name = self.shop.item_name(cart_item.source_index);
             ui.text(name_x, text_y, name, text_color);
 
-            // Subtotal + "Z"
             let price = self.shop.item_price(cart_item.source_index);
             let subtotal = price as i64 * cart_item.quantity as i64;
             let price_str = format_zeny(subtotal as i32);
@@ -561,14 +540,12 @@ impl NpcShop {
             ui.text(price_x, text_y, &price_str, text_color);
             ui.text(z_x, text_y, "Z", text_color);
 
-            // Click on cart item removes it
             if response.clicked() {
                 self.shop.remove_from_cart(ci);
                 return win;
             }
         }
 
-        // Scrollbar
         if has_scrollbar {
             let sb_x = win.x + win_w - scrollbar_w - (1.0);
             let content_rect = Rect::new(win.x, container_y, win_w, container_h);
@@ -589,11 +566,9 @@ impl NpcShop {
             );
         }
 
-        // Footer
         let footer_y = win.y + win_h - footer_h;
         draw_footer(ui, win.x, footer_y, win_w, footer_h, grf);
 
-        // Total display
         let total = self.shop.cart_total();
         let total_label = format!("Total : {} Zeny", format_zeny(total as i32));
         ui.text(
@@ -603,7 +578,6 @@ impl NpcShop {
             text_color,
         );
 
-        // Buy/Sell + Cancel buttons
         let btn_y = footer_y + (4.0);
         let cancel_x = win.x + win_w - (15.0) - btn_w;
         let action_x = cancel_x - (5.0) - btn_w;
@@ -711,7 +685,6 @@ impl NpcShop {
         self.input_visible_rows = INPUT_DEFAULT_ROWS;
         self.resize_start_rows = None;
     }
-
 }
 
 fn format_zeny(amount: i32) -> String {
@@ -733,9 +706,9 @@ fn format_zeny(amount: i32) -> String {
 mod tests {
     use super::*;
     use crate::InGameWindow;
+    use models::enums::item::ItemType;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
-    use models::enums::item::ItemType;
     use ragnarok_game::item::Item;
     use ragnarok_game::npc_shop::ShopBuyItem;
     use ragnarok_renderer::font_atlas::FontAtlas;
@@ -745,7 +718,8 @@ mod tests {
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
@@ -756,10 +730,18 @@ mod tests {
             100,
             vec![ShopBuyItem {
                 item: Item {
-                    index: 0, item_id: 501, item_type: ItemType::Healing, count: 1,
-                    is_identified: true, is_damaged: false, refining_level: 0,
-                    slot: [0; 4], location: 0, wear_state: 0,
-                    name: "Red Potion".into(), resource_name: None,
+                    index: 0,
+                    item_id: 501,
+                    item_type: ItemType::Healing,
+                    count: 1,
+                    is_identified: true,
+                    is_damaged: false,
+                    refining_level: 0,
+                    slot: [0; 4],
+                    location: 0,
+                    wear_state: 0,
+                    name: "Red Potion".into(),
+                    resource_name: None,
                 },
                 price: 50,
                 discount_price: 50,
@@ -776,7 +758,6 @@ mod tests {
         let events = shop_ui.build(&mut ui, &mut character, &data);
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], GameEvent::RequestNpcShopClose));
-        // Shop remains open - main.rs closes it after sending the network packet
         assert!(shop_ui.shop.is_open());
     }
 
@@ -787,10 +768,18 @@ mod tests {
             100,
             vec![ShopBuyItem {
                 item: Item {
-                    index: 0, item_id: 501, item_type: ItemType::Healing, count: 1,
-                    is_identified: true, is_damaged: false, refining_level: 0,
-                    slot: [0; 4], location: 0, wear_state: 0,
-                    name: "Red Potion".into(), resource_name: None,
+                    index: 0,
+                    item_id: 501,
+                    item_type: ItemType::Healing,
+                    count: 1,
+                    is_identified: true,
+                    is_damaged: false,
+                    refining_level: 0,
+                    slot: [0; 4],
+                    location: 0,
+                    wear_state: 0,
+                    name: "Red Potion".into(),
+                    resource_name: None,
                 },
                 price: 50,
                 discount_price: 50,

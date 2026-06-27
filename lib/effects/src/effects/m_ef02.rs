@@ -1,31 +1,14 @@
-//! `EF_M02` — a directional monster effect (`m_ef02.spr`,
-//! "Full Buster"). `m_ef02.act` holds four actions, one per screen quadrant; the
-//! original game picks the action from the caster→target angle plus the camera
-//! longitude so the sprite always faces the right way on screen, then plays that
-//! action's eight motions once (anim speed 4, no repeat).
-//!
-//! Like Wink it can't be a `spr_def` one-shot: the action is chosen from the
-//! live camera, which only `collect_draws` sees. Attached to its caster there is
-//! no separate target, so the angle reduces to the camera longitude (the
-//! caster→target angle degenerates to 0) — the sprite keeps a
-//! consistent screen direction as the camera orbits.
+//! `EF_M02` (id `m_ef02.spr`) — four-action directional sprite, action chosen from the live camera longitude.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{CameraView, Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const ANIM_SPEED: f32 = 4.0;
-/// `m_ef02.act` has eight motions per action; one-shot, so the index clamps to
-/// the last and holds it for the rest of the lifetime.
 const MOTION_COUNT: usize = 8;
-/// 100 frames at 60 fps. The eight-motion animation finishes
-/// before this; the held final motion lingers until it elapses.
 pub const TOTAL_DURATION_MS: u32 = 1667;
 
 pub const SPRITE: &str = "data/sprite/이팩트/m_ef02";
-
-/// Preload set for the SpriteParticle path (see
-/// [`crate::custom_effect_sprite_paths`]).
 pub const SPRITES: &[&str] = &[SPRITE];
 
 pub struct MEf02Effect {
@@ -44,16 +27,12 @@ impl MEf02Effect {
     }
 }
 
-/// Camera azimuth in degrees `[0, 360)` — the direction from the look target
-/// back to the eye around the world Y axis.
 fn camera_longitude_deg(camera: &CameraView) -> f32 {
     let dx = camera.eye[0] - camera.target[0];
     let dz = camera.eye[2] - camera.target[2];
     dx.atan2(dz).to_degrees().rem_euclid(360.0)
 }
 
-/// Pick the fly-off action from the camera-relative angle, matching the
-/// original game's quadrant switch (distinct from Wink's map).
 fn action_for_angle(angle_deg: f32) -> usize {
     let a = angle_deg.rem_euclid(360.0);
     if (180.0..270.0).contains(&a) {
@@ -107,8 +86,6 @@ mod tests {
 
     #[test]
     fn action_follows_camera_quadrant() {
-        // Each 90° camera quadrant selects a different action — the M02 map,
-        // not Wink's. Keeps a consistent screen direction as the camera orbits.
         assert_eq!(action_for_angle(45.0), 0);
         assert_eq!(action_for_angle(135.0), 3);
         assert_eq!(action_for_angle(225.0), 2);

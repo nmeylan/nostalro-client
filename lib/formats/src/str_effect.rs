@@ -45,7 +45,6 @@ impl StrEffectFile {
         let ver_major = r.read_u8()?;
         let ver_minor = r.read_u8()?;
 
-        // 2 skip bytes
         let mut skip = [0u8; 2];
         r.read_exact(&mut skip)?;
 
@@ -53,7 +52,6 @@ impl StrEffectFile {
         let max_key = r.read_u32::<LE>()?;
         let layer_count = r.read_u32::<LE>()? as usize;
 
-        // 16 reserved bytes
         let mut reserved = [0u8; 16];
         r.read_exact(&mut reserved)?;
 

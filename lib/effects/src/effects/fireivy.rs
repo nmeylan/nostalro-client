@@ -1,14 +1,3 @@
-//! `EF_FIREIVY` — fireball-style projectile (id 118).
-//!
-//! Reference: `../ro-effects/effects/imgs/100-150/118.gif` shows a
-//! camera-facing fireball. Rendered as a screen-space `Billboard` (like the
-//! sibling `yupitel.rs` thunder ball) so it stays face-forward from any
-//! angle.
-//!
-//! Trajectory: constant-Y horizontal flight from caster to target at
-//! `dist / duration` speed, lifted `Y_OFFSET` off the ground. No vertical
-//! arc. `from == to` → sits in place and animates.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -21,7 +10,6 @@ const SIZE: [f32; 2] = [3.5, 3.5];
 const Y_OFFSET: f32 = -5.0;
 const TARGET_KILL_DISTANCE: f32 = 3.0;
 pub const TOTAL_DURATION_MS: u32 = (DURATION_FRAMES / FPS * 1000.0) as u32;
-// Billboard vertex winding: TL, TR, BL, BR.
 const UNIT_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 
 pub struct FireivyEffect {

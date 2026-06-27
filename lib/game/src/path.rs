@@ -8,9 +8,6 @@ pub struct MoveAction {
     pub path: Vec<PathNode>,
 }
 
-/// Compute the destination cell within `range` of `(target_x, target_y)`,
-/// in the direction of `(px, py)`. Returns a cell at Chebyshev distance
-/// `range` from the target, or the target itself if the player is at the same position.
 pub fn compute_destination_within_range(
     px: i32,
     py: i32,
@@ -28,7 +25,6 @@ pub fn compute_destination_within_range(
         return (target_x, target_y);
     }
 
-    // Normalize direction vector and scale by range
     let max_dist = abs_dx.max(abs_dy);
     let dir_x = (dx as f64 / max_dist) * range as f64;
     let dir_y = (dy as f64 / max_dist) * range as f64;
@@ -39,8 +35,6 @@ pub fn compute_destination_within_range(
     )
 }
 
-/// Try to move to a cell within `range` of `(dest_x, dest_y)` in the direction
-/// of `(src_x, src_y)`. If the computed destination is blocked, tries all 8 neighbors.
 pub fn try_move_to_range(
     gat: &GatFile,
     src_x: u16,
@@ -52,12 +46,10 @@ pub fn try_move_to_range(
     let (dest_x, dest_y) =
         compute_destination_within_range(src_x as i32, src_y as i32, dest_x, dest_y, range);
 
-    // Try the computed destination first
     if let Some(action) = try_move_to(gat, src_x, src_y, dest_x, dest_y) {
         return Some(action);
     }
 
-    // Try all 8 neighbors (matching original game offset order)
     let offsets = [
         (1, 0),
         (1, 1),
@@ -156,20 +148,18 @@ mod tests {
     #[test]
     fn try_move_to_unwalkable_returns_none() {
         let mut walkable = vec![true; 4];
-        walkable[3] = false; // (1,1) unwalkable
+        walkable[3] = false;
         let data = build_gat_bytes(2, 2, &walkable);
         let gat = GatFile::parse(&data).unwrap();
-        // Unwalkable destination
         assert!(try_move_to(&gat, 0, 0, 1, 1).is_none());
-        // Out of bounds
         assert!(try_move_to(&gat, 0, 0, 5, 5).is_none());
     }
 
     #[test]
     fn path_search_navigates_around_blocked_cells() {
         let mut walkable = vec![true; 16];
-        walkable[1] = false; // (1,0)
-        walkable[5] = false; // (1,1)
+        walkable[1] = false;
+        walkable[5] = false;
         let data = build_gat_bytes(4, 4, &walkable);
         let gat = GatFile::parse(&data).unwrap();
 
@@ -184,16 +174,12 @@ mod tests {
 
     #[test]
     fn compute_destination_within_range_north_east() {
-        // Player at (10, 5), target at (0, 0), range=3
-        // Normalized: (1.0, 0.5) * 3 = (3.0, 1.5) → round to (3, 2)
         let (dx, dy) = compute_destination_within_range(10, 5, 0, 0, 3);
         assert_eq!((dx, dy), (3, 2));
     }
 
     #[test]
     fn compute_destination_within_range_south_west() {
-        // Player at (-5, -8), target at (0, 0), range=2
-        // Normalized: (-0.625, -1.0) * 2 = (-1.25, -2.0) → round to (-1, -2)
         let (dx, dy) = compute_destination_within_range(-5, -8, 0, 0, 2);
         assert_eq!((dx, dy), (-1, -2));
     }
@@ -206,15 +192,12 @@ mod tests {
 
     #[test]
     fn compute_destination_within_range_axis_aligned() {
-        // Player directly north of target
         let (dx, dy) = compute_destination_within_range(0, 10, 0, 0, 3);
         assert_eq!((dx, dy), (0, 3));
     }
 
     #[test]
     fn try_move_to_range_stops_within_range() {
-        // 5x5 map, all walkable. Player at (0,0), target at (4,4), range=2.
-        // compute_destination: (-4,-4) normalized * 2 = (-2,-2) → dest=(2,2)
         let walkable = vec![true; 25];
         let data = build_gat_bytes(5, 5, &walkable);
         let gat = GatFile::parse(&data).unwrap();
@@ -222,7 +205,6 @@ mod tests {
         let action = try_move_to_range(&gat, 0, 0, 4, 4, 2);
         assert!(action.is_some());
         let action = action.unwrap();
-        // Should be at (2,2), not at (4,4) (target cell)
         assert_eq!(action.dest_x, 2);
         assert_eq!(action.dest_y, 2);
     }

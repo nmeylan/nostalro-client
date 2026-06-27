@@ -2,14 +2,6 @@ use crate::Camera;
 use ragnarok_formats::gat::GatFile;
 use ragnarok_game::map_coordinates::MapCoordinates;
 
-/// Screen-space depth gradient `[∂z/∂sx, ∂z/∂sy]` for the camera-facing vertical
-/// plane through the anchor. NDC depth is affine in screen coordinates for any
-/// flat plane, so a billboard standing at the anchor gets exact per-pixel depth
-/// from `z0 + α·Δsx + β·Δsy`. Solving the 2×2 system from a vertical and a
-/// horizontal in-plane sample recovers `[α, β]` correctly at any camera yaw —
-/// a single vertical-axis slope would conflate the two whenever the camera is
-/// rotated, drifting the sprite's upper body behind geometry it stands in front
-/// of. Falls back to `[0.0, 0.0]` when a sample is off-screen or degenerate.
 fn depth_gradient(
     camera: &Camera,
     world: [f32; 3],
@@ -34,7 +26,6 @@ fn depth_gradient(
         return [0.0, 0.0];
     };
 
-    // [a b; c d] [α; β] = [e; f]
     let (a, b, e) = (sx_up - sx0, sy_up - sy0, z_up - z0);
     let (c, d, f) = (sx_r - sx0, sy_r - sy0, z_r - z0);
     let det = a * d - b * c;
@@ -44,11 +35,6 @@ fn depth_gradient(
     [(e * d - b * f) / det, (a * f - e * c) / det]
 }
 
-/// Project a world-space entity at cell `pos` to the parameters
-/// `EntitySprite::build_batches()` consumes: screen anchor, NDC depth,
-/// camera direction, sprite scale, per-pixel depth gradient.
-///
-/// Returns `None` when the world point is behind/off-screen the camera.
 pub fn project_entity_screen(
     pos: (f32, f32),
     gat: Option<&GatFile>,
@@ -63,8 +49,8 @@ pub fn project_entity_screen(
 
     let (sx, sy, ndc_z_raw, clip_w) =
         camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h)?;
-    let ndc_z = ndc_z_raw
-        - camera.near * crate::effect_sprite::ENTITY_DEPTH_BIAS_UNITS / (clip_w * clip_w);
+    let ndc_z =
+        ndc_z_raw - camera.near * crate::effect_sprite::ENTITY_DEPTH_BIAS_UNITS / (clip_w * clip_w);
 
     let grad = depth_gradient(camera, [wx, wy, wz], sx, sy, ndc_z_raw, screen_w, screen_h);
 
@@ -75,12 +61,6 @@ pub fn project_entity_screen(
     Some(([sx, sy], ndc_z, camera_dir, sprite_scale, grad))
 }
 
-/// Project an arbitrary world-space point (not snapped to ground height) to the
-/// same parameters [`project_entity_screen`] returns. Used by hovering sprites —
-/// the falcon companion flies above the terrain, so its height is intrinsic to
-/// its world position rather than derived from the GAT cell.
-///
-/// Returns `None` when the point is behind/off-screen the camera.
 pub fn project_world_screen(
     world: [f32; 3],
     coords: &MapCoordinates,
@@ -91,8 +71,8 @@ pub fn project_world_screen(
     let [wx, wy, wz] = world;
     let (sx, sy, ndc_z_raw, clip_w) =
         camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h)?;
-    let ndc_z = ndc_z_raw
-        - camera.near * crate::effect_sprite::ENTITY_DEPTH_BIAS_UNITS / (clip_w * clip_w);
+    let ndc_z =
+        ndc_z_raw - camera.near * crate::effect_sprite::ENTITY_DEPTH_BIAS_UNITS / (clip_w * clip_w);
 
     let grad = depth_gradient(camera, [wx, wy, wz], sx, sy, ndc_z_raw, screen_w, screen_h);
 
@@ -103,9 +83,6 @@ pub fn project_world_screen(
     Some(([sx, sy], ndc_z, camera_dir, sprite_scale, grad))
 }
 
-/// World position (with GAT height) of the center of `cell`. Mirrors the
-/// position `project_entity_screen` uses internally so effect anchors and
-/// sprite anchors stay in sync.
 pub fn cell_world_pos(
     cell: (f32, f32),
     gat: Option<&GatFile>,
@@ -146,12 +123,6 @@ mod tests {
         assert_eq!(pos[1], 0.0);
     }
 
-    /// The two-axis depth gradient must reproduce the exact NDC depth of the
-    /// billboard's vertical plane at any camera yaw. A point a few units up the
-    /// vertical line through the cell, reconstructed from the anchor depth plus
-    /// `grad·(Δscreen)`, must match its direct projection — a single screen-Y
-    /// slope (the previous approach) drifts here because the world-vertical line
-    /// projects diagonally under yaw.
     #[test]
     fn depth_gradient_matches_direct_projection_under_yaw() {
         let (screen_w, screen_h) = (800.0, 600.0);
@@ -164,13 +135,10 @@ mod tests {
         let ([sx0, sy0], _depth, _dir, _scale, grad) =
             project_entity_screen((50.0, 50.0), None, &coords, &camera, screen_w, screen_h)
                 .expect("anchor visible");
-        // The unbiased anchor depth is the gradient's reference (project returns
-        // the camera-biased depth, so recompute the raw value here).
         let (_, _, z0, _) = camera
             .world_to_screen_with_depth(wx, 0.0, wz, screen_w, screen_h)
             .unwrap();
 
-        // Probe a point 30 units up the vertical line through the cell.
         let (px, py, pz, _) = camera
             .world_to_screen_with_depth(wx, -30.0, wz, screen_w, screen_h)
             .unwrap();

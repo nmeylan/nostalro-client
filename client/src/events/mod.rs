@@ -38,7 +38,6 @@ impl App {
         let events = self.channel.drain_events();
         for event in events {
             match event {
-                // Login / account
                 GameEvent::LoginAccepted {
                     account_id,
                     login_id1,
@@ -66,7 +65,6 @@ impl App {
                     self.handle_restart_ack();
                 }
 
-                // Map / player
                 GameEvent::MapEntered { x, y, dir, .. } => {
                     self.handle_map_entered(x, y, dir);
                 }
@@ -86,7 +84,6 @@ impl App {
                     self.handle_player_moved(start_x, start_y, dest_x, dest_y, start_time);
                 }
 
-                // Entities
                 GameEvent::EntitySpawned {
                     gid,
                     job,
@@ -189,12 +186,7 @@ impl App {
                     health_state,
                     effect_state,
                 } => {
-                    self.handle_entity_option_changed(
-                        gid,
-                        body_state,
-                        health_state,
-                        effect_state,
-                    );
+                    self.handle_entity_option_changed(gid, body_state, health_state, effect_state);
                 }
                 GameEvent::PlayEffectOnEntity {
                     gid,
@@ -233,7 +225,6 @@ impl App {
                     self.game.entities.apply_entity_emotion(gid, emotion_type);
                 }
 
-                // NPC dialog
                 GameEvent::NpcDialogText { npc_id, text } => {
                     self.game.npc_dialog.dialog.open_text(npc_id, &text);
                 }
@@ -268,7 +259,6 @@ impl App {
                     self.game.npc_dialog.dialog.show_deal_type(npc_id);
                 }
 
-                // NPC shop
                 GameEvent::NpcShopBuyList { npc_id, items } => {
                     self.handle_npc_shop_buy_list(npc_id, items);
                 }
@@ -282,7 +272,6 @@ impl App {
                     self.handle_npc_shop_sell_result(result);
                 }
 
-                // Chat room / waitingroom
                 GameEvent::ChatRoomUpsert {
                     owner_aid,
                     room_id,
@@ -321,7 +310,6 @@ impl App {
                     self.game.chat_window.add_system(reason.to_string());
                 }
 
-                // Inventory
                 GameEvent::InventoryNormalItems { items } => {
                     self.handle_inventory_normal_items(items);
                 }
@@ -359,19 +347,13 @@ impl App {
                     success,
                 } => {
                     if success {
-                        // The use-ack carries no item id, but the inventory slot
-                        // still holds it — resolve the consumable's use effect and
-                        // play it on the player, matching the original game.
-                        let used_effect = self
-                            .game
-                            .character
-                            .inventory
-                            .get_item(index)
-                            .and_then(|item| {
+                        let used_effect = self.game.character.inventory.get_item(index).and_then(
+                            |item| {
                                 ragnarok_game::effect::consumable_effects::consumable_use_effect(
                                     item.item_id as u32,
                                 )
-                            });
+                            },
+                        );
                         if let (Some(effect), Some(player_gid)) =
                             (used_effect, self.game.entities.player_id())
                         {
@@ -413,7 +395,6 @@ impl App {
                         .subtract_item_count(index, count);
                     self.game.waiting_item_throw_ack = false;
                 }
-                // Cart
                 GameEvent::CartNormalItems { items } => {
                     self.handle_cart_normal_items(items);
                 }
@@ -467,7 +448,6 @@ impl App {
                     self.handle_card_insert_result(equip_index, card_index, result);
                 }
 
-                // Floor items
                 GameEvent::FloorItemAppeared {
                     id,
                     item_id,
@@ -496,7 +476,6 @@ impl App {
                     self.game.floor_item_sprites.remove(&id);
                 }
 
-                // Chat
                 GameEvent::ChatMessage { gid, message } => {
                     self.handle_chat_message(gid, message);
                 }
@@ -504,20 +483,22 @@ impl App {
                     self.handle_own_chat_message(message);
                 }
 
-                // Character stats
                 GameEvent::ParameterChanged { var_id, value } => {
                     self.handle_parameter_changed(var_id, value);
                 }
                 GameEvent::StatusChanged {
-                    status_type, base, bonus,
+                    status_type,
+                    base,
+                    bonus,
                 } => {
-                    self.game.character.apply_status_changed(status_type, base, bonus);
+                    self.game
+                        .character
+                        .apply_status_changed(status_type, base, bonus);
                 }
                 GameEvent::AttackRangeChanged { range } => {
                     self.game.attack_range = range;
                 }
 
-                // Skills
                 GameEvent::SkillCasting {
                     gid,
                     target_gid,
@@ -611,7 +592,6 @@ impl App {
                         .entities
                         .apply_ground_skill(skill_id, src_gid, x, y);
                     self.spawn_ground_skill_effects(skill_id, level, x, y);
-                    // Detecting / Sight send the falcon out to scout the cell.
                     let falcon_target = if self.game.falcons.contains_key(&src_gid)
                         && matches!(
                             SkillEnum::from_id(skill_id as u32),
@@ -667,7 +647,6 @@ impl App {
                         .set_global_cooldown(delay_ms as f32 / 1000.0, now);
                 }
 
-                // Misc
                 GameEvent::ServerTick {
                     server_tick,
                     local_send_time_ms,

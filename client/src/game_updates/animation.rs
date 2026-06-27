@@ -23,34 +23,30 @@ impl App {
                 if entity.state == EntityState::Dead && entity.animation.is_finished() {
                     continue;
                 }
-                // Freeze / fully-petrified: hold the current pose by skipping the
-                // frame advance (the original's motion freeze). Stun/Sleep/petrify-
-                // delay keep animating.
                 if ailment::ailment_visual(entity.body_state, entity.health_state).motion_locked {
                     continue;
                 }
                 let dir = camera_dir.unwrap_or(0);
 
-                // One-shot forced animation from a body effect (Jumpkick): arm
-                // it, then play and hold it until the OneShot finishes,
-                // suppressing the state-driven selection meanwhile — mirroring
-                // the original game's force-state, which reverts to the real
-                // state action when done.
                 if let Some(ba) = self.effect_holder.take_body_action_for_entity(entity.id) {
-                    entity.forced_animation =
-                        Some(ForcedAnimation::new(ba.action_index, ba.start_frame, ba.duration_ms));
+                    entity.forced_animation = Some(ForcedAnimation::new(
+                        ba.action_index,
+                        ba.start_frame,
+                        ba.duration_ms,
+                    ));
                 }
                 if let Some(mut forced) = entity.forced_animation {
                     if !forced.started() {
                         forced.mark_started();
-                        entity
-                            .animation
-                            .play(forced.action, forced.duration_ms, forced.start_frame);
+                        entity.animation.play(
+                            forced.action,
+                            forced.duration_ms,
+                            forced.start_frame,
+                        );
                     }
                     entity.animation.set_direction(entity.direction);
                     entity.animation.update(delta, &sprite.body_act, dir);
-                    entity.forced_animation =
-                        (!entity.animation.is_finished()).then_some(forced);
+                    entity.forced_animation = (!entity.animation.is_finished()).then_some(forced);
                     continue;
                 }
 

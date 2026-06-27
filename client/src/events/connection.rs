@@ -67,10 +67,6 @@ impl App {
         self.game.current_map = None;
         self.game.map_coords = None;
         self.game.gat = None;
-        // Drop live effects and the status-buff key registry with the entities
-        // they were attached to. Otherwise a persistent buff (e.g. Berserk's
-        // RedBody) keyed to the player gid is reused when the same character
-        // logs back in, so the tint lingers even though the server cleared it.
         self.effect_holder.clear();
         self.effect_queue = EffectQueue::new();
         self.game.status_buff_keys.clear();
@@ -107,7 +103,18 @@ impl App {
             .as_ref()
             .map(|s| s.account_id)
             .unwrap_or(0);
-        let (job, sex, head, hair_color, weapon, head_top, head_mid, head_bottom, shield_id, effect_state) = self
+        let (
+            job,
+            sex,
+            head,
+            hair_color,
+            weapon,
+            head_top,
+            head_mid,
+            head_bottom,
+            shield_id,
+            effect_state,
+        ) = self
             .game
             .selected_character
             .as_ref()
@@ -167,9 +174,6 @@ impl App {
             shield_id,
         );
 
-        // Spawn the falcon companion when joining with it already active. Unlike
-        // other entities (whose `EntitySpawned` carries this), the local player is
-        // created here, so its persistent option visuals must be seeded directly.
         if ragnarok_game::sprite_path::has_falcon(effect_state) {
             self.spawn_falcon_visual(account_id);
         }
@@ -201,12 +205,9 @@ impl App {
                 renderer.preload_textures(&CardInsertDialog::grf_texture_paths(), grf);
 
             if let Some(current_map) = &self.game.current_map {
-                let minimap_path =
-                    format!("data/texture/유저인터페이스/map/{}.bmp", current_map);
+                let minimap_path = format!("data/texture/유저인터페이스/map/{}.bmp", current_map);
                 if renderer.preload_textures(&[minimap_path.as_str()], grf) {
-                    self.game
-                        .minimap_window
-                        .set_map_texture(Some(minimap_path));
+                    self.game.minimap_window.set_map_texture(Some(minimap_path));
                 } else {
                     tracing::warn!("Minimap texture not found: {minimap_path}");
                     self.game.minimap_window.set_map_texture(None);
@@ -217,8 +218,6 @@ impl App {
         if let Some(info) = &self.game.selected_character {
             self.game.character.init_from_info(info);
         }
-        // The local player's level is known only after `init_from_info`; spawn
-        // its level aura here (the entity already exists from the spawn above).
         self.refresh_level_aura(account_id);
 
         self.game.app_state = AppState::InGame;
@@ -270,12 +269,9 @@ impl App {
             }
 
             if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-                let minimap_path =
-                    format!("data/texture/유저인터페이스/map/{}.bmp", map_name);
+                let minimap_path = format!("data/texture/유저인터페이스/map/{}.bmp", map_name);
                 if renderer.preload_textures(&[minimap_path.as_str()], grf) {
-                    self.game
-                        .minimap_window
-                        .set_map_texture(Some(minimap_path));
+                    self.game.minimap_window.set_map_texture(Some(minimap_path));
                 } else {
                     self.game.minimap_window.set_map_texture(None);
                 }
@@ -317,7 +313,9 @@ impl App {
             let path = ragnarok_game::path::path_search(gat, sx, sy, dest_x, dest_y);
             if !path.is_empty() {
                 let local_ms = self.start_time.elapsed().as_millis() as u32;
-                self.game.server_time.observe_server_tick(start_time, local_ms);
+                self.game
+                    .server_time
+                    .observe_server_tick(start_time, local_ms);
                 let move_start = self
                     .game
                     .server_time
@@ -346,11 +344,9 @@ impl App {
     }
 
     pub(super) fn handle_disconnected(&mut self, reason: String, event_loop: &ActiveEventLoop) {
-
         if reason == "User exit" {
             event_loop.exit();
         } else if self.game.app_state == AppState::InGame {
-            // Show disconnect notification dialog
             let reason_clone = reason.clone();
             self.game.disconnect_dialog_shown = true;
             self.game.confirm_dialog.show(

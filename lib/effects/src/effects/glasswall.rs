@@ -1,34 +1,3 @@
-//! `EF_GLASSWALL` — Safety Wall barrier visual: a box of glass walls plus
-//! a cascading particle overlay.
-//!
-//! Hybrid effect: a quartet of tall translucent blue walls forms a box
-//! around the target cell, plus `SafetyWall.str` plays the cascading
-//! particle/shimmer overlay on top.
-//!
-//! Wall layout (4 quads, all `ring_blue.tga`):
-//!
-//! | side  | offset in master frame | size (W × H) | rotation |
-//! |-------|------------------------|--------------|----------|
-//! | front | `(0, 0, +2.6)`         | `3.0 × 40`   | `angle + 90°` |
-//! | back  | `(0, 0, −2.6)`         | `3.0 × 40`   | `angle + 90°` |
-//! | right | `(+3.0, 0, 0)`         | `2.6 × 40`   | `angle`       |
-//! | left  | `(−3.0, 0, 0)`         | `2.6 × 40`   | `angle`       |
-//!
-//! Height starts at 40 wu. The original game raises it at
-//! 0.25 wu/frame but the visible silhouette in the gif
-//! is steady — we use a fixed height. Alpha ramps from 0 to `180/255`
-//! over 6 frames and stays through the persistent lifetime.
-//!
-//! The original game's box has gaps at the corners (each wall is shorter
-//! than the spacing between walls). To produce a closed barrier
-//! silhouette we widen each pair of walls to span between the
-//! perpendicular pair's anchors, so the four panels meet edge-to-edge.
-//!
-//! Safety Wall is a sustained skill (the table's "persistent"
-//! sentinel) — the effect's `Custom { duration_ms }` mirrors
-//! the table's persistent value and the server is responsible for
-//! despawning when the skill cell expires.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -39,24 +8,14 @@ pub const STR_OVERLAY: &str = "safetywall";
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-// Wall layout — the original game offsets are ±2.6 along Z and ±3.0 along X;
-// we widen each wall's half-extent to the perpendicular pair's offset
-// so the four panels close at the corners (otherwise the box has 1.5
-// wu gaps where the original visibly has none).
 const WALL_OFFSET_Z: f32 = 2.6;
 const WALL_OFFSET_X: f32 = 3.0;
 const WALL_FRONT_BACK_HALF_WIDTH: f32 = WALL_OFFSET_X;
 const WALL_LEFT_RIGHT_HALF_WIDTH: f32 = WALL_OFFSET_Z;
-// Fixed wall height. The original is 40 wu with a 0.25 wu/frame
-// drift; pinning it removes the slow "rising" creep the user flagged
-// without changing the visible silhouette in the gif.
 const WALL_HEIGHT: f32 = 20.0;
 
 const WALL_MAX_ALPHA: f32 = 180.0 / 255.0;
 const WALL_FADE_IN_FRAMES: f32 = 6.0;
-// Each wall's local UV wave cycles through the
-// texture u-coordinate over time. 1 cycle every 60 frames keeps the
-// shimmer slow enough to read as a wave, not a strobe.
 const WALL_UV_SCROLL_PER_FRAME: f32 = 1.0 / 60.0;
 
 pub const TOTAL_DURATION_MS: u32 = 99990;
@@ -79,12 +38,6 @@ impl GlasswallEffect {
     }
 }
 
-/// Build a vertical wall quad. `(half_along_x, half_along_z)` are the
-/// XZ-plane offsets of the wall's two ground corners from `centre`; the
-/// wall extends straight up to `-height` in native RO coords.
-///
-/// Corners are returned in perimeter order so the WorldQuad renderer's
-/// triangulation `(0,1,2) + (0,2,3)` covers the full quad: `TL → TR → BR → BL`.
 fn wall_quad(centre: [f32; 3], half_along_x: f32, half_along_z: f32, height: f32) -> [[f32; 3]; 4] {
     let bx0 = centre[0] - half_along_x;
     let bz0 = centre[2] - half_along_z;
@@ -111,10 +64,6 @@ impl Effect for GlasswallEffect {
         if alpha <= 0.0 {
             return;
         }
-        // U-scroll over time matches the original game's
-        // shimmer cycle on the wall's horizontal axis.
-        // Corners are TL → TR → BR → BL (perimeter order so the
-        // triangulation covers the whole quad).
         let scroll = WALL_UV_SCROLL_PER_FRAME * self.age_frames;
         let uv = [
             [0.0 + scroll, 0.0],
@@ -124,7 +73,6 @@ impl Effect for GlasswallEffect {
         ];
         let colour = [0.5, 0.7, 1.0, alpha];
 
-        // Front / back — long axis along X, positioned at ±Z.
         for side in [1.0, -1.0] {
             let centre = [
                 self.world_pos[0],
@@ -141,7 +89,6 @@ impl Effect for GlasswallEffect {
             });
         }
 
-        // Left / right — long axis along Z, positioned at ±X.
         for side in [1.0, -1.0] {
             let centre = [
                 self.world_pos[0] + WALL_OFFSET_X * side,
@@ -187,10 +134,7 @@ mod tests {
 
     #[test]
     fn emits_four_walls_forming_a_box() {
-        // Sociable: 4 WorldQuad walls each centred on one side of the
-        // box, all with the same height and the ring_blue texture.
         let mut e = GlasswallEffect::new([10.0, 0.0, 20.0]);
-        // Advance past the fade-in so the walls are fully visible.
         e.update(&ctx(10.0 / FRAMES_PER_SECOND));
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
@@ -210,10 +154,6 @@ mod tests {
             assert_eq!(*tex, WALL_TEXTURE);
         }
 
-        // The two ±Z-offset walls and the two ±X-offset walls together
-        // box the centre — confirm by collecting the centre points and
-        // checking they include ±2.6 along Z and ±3.0 along X relative
-        // to the anchor.
         let mut centres: Vec<[f32; 3]> = walls
             .iter()
             .map(|(c, _)| {
@@ -241,8 +181,6 @@ mod tests {
 
     #[test]
     fn alpha_fades_in_from_zero() {
-        // At frame 0 alpha is 0 (no draws); past the fade-in window
-        // it's at the peak.
         let mut e = GlasswallEffect::new([0.0; 3]);
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());

@@ -102,7 +102,6 @@ mod tests {
         assert_eq!(table.get_name_or_id_for(1201, true), "Knife");
         assert_eq!(table.get_name_or_id_for(1201, false), "Unknown Weapon");
         assert_eq!(table.get_name_or_id_for(501, true), "Red Potion");
-        // Falls back to identified when no unidentified entry
         assert_eq!(table.get_name_or_id_for(501, false), "Red Potion");
     }
 }

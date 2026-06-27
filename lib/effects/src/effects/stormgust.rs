@@ -16,7 +16,7 @@
 //!   * moves along its apex direction at `1.5` world units per frame;
 //!   * lives `215 − spawn_frame` frames, fading 10 frames before death.
 //!
-//! Native framerate is 60 fps (see plan doc lesson re: EF_WARP).
+//! Native framerate is 60 fps.
 //! Total visible duration: last spike spawns at frame 145, lives 70 frames,
 //! dies at frame 215 ≈ 3.58 s — matches the 51-frame gif at the gif's
 //! sampling rate.
@@ -51,8 +51,7 @@ pub const TOTAL_DURATION_MS: u32 = ((FINAL_FRAME / FRAMES_PER_SECOND) * 1000.0) 
 
 /// Spike length apex-to-base (base literal 20). The gif silhouette
 /// shows each shard taking maybe a quarter of the cloud's vertical extent
-/// — far smaller than that literal in our coord scale. The plan doc's
-/// general lesson applies (the source numbers run large vs the gif).
+/// — far smaller than that literal in our coord scale.
 const SPIKE_HEIGHT: f32 = 6.0;
 /// Base half-width `(random(100) + 400) / 100` → 4.0..5.0.
 /// Scaled down with the height to keep the spike's aspect ratio.

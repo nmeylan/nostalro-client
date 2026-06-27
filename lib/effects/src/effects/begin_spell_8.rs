@@ -1,40 +1,16 @@
-//! `EF_BEGINSPELL8` (id 1014) — green casting cylinder.
-//!
-//! The original game draws this as a single green casting aura
-//! (the plan's extra glyph/flame parts do not exist in the original
-//! effect). The cast aura
-//! launches four sub-emitters: three flared cone rings
-//! (`distance` 4.5/5.0/5.5, `rise` 70/57/45°, `max_height` 25/22/19) and a
-//! fourth, near-vertical (`rise = 89°`) tall central column at half the alpha
-//! (`max_height = 250`, alpha 70) — the casting light shaft.
-//!
-//! The cast aura uses the same primitive the level-99 ring uses, so the three
-//! flared rings reuse [`super::casting_ring`] (with a green tint, since
-//! `ring_green.tga` is absent from the classic GRF — `ring_white.tga` tinted
-//! green is the documented substitution). The central shaft is one extra
-//! narrow vertical [`Frustum`] this module adds on top.
-//!
-//! Finite effect (the cast aura clamps its lifetime to ≥70 frames). No
-//! reference gif exists; validated against the original game's behaviour.
-//!
-//! [`Frustum`]: EffectPrimitiveDraw::Frustum
+//! `EF_BEGINSPELL8` (id 1014) — green casting rings + central column shaft.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::effects::casting_ring::{BEGINSPELL8 as RING_PARAMS, CastingRingEffect};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// The cast aura runs for at least 70 frames; the visible cylinder runs that
-/// long then despawns.
 const TOTAL_FRAMES: f32 = 70.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
 const FADE_IN_FRAMES: f32 = 20.0;
 const FADE_OUT_FRAMES: f32 = 20.0;
 
-/// The fourth cast-aura emitter — a near-vertical (`rise = 89°`) shaft.
-/// Its `max_height = 250` is one of the original's large literals, so it is
-/// downscaled to a sprite-relative beam rather than ported 1:1.
 const COLUMN_BOTTOM: f32 = 0.8;
 const COLUMN_TOP: f32 = 1.6;
 const COLUMN_HEIGHT: f32 = 26.0;
@@ -63,7 +39,6 @@ impl BeginSpell8Effect {
         self.age * FRAMES_PER_SECOND
     }
 
-    /// Shared fade envelope — ramp in, hold, ramp out near the end.
     fn envelope(&self) -> f32 {
         let frame = self.frame();
         let fade_in = (frame / FADE_IN_FRAMES).clamp(0.0, 1.0);
@@ -157,7 +132,6 @@ mod tests {
         let mut c = BeginSpell8Effect::new([5.0, 0.0, 5.0]);
         run_to(&mut c, FADE_IN_FRAMES);
         let p = prims(&c);
-        // 3 flared rings (reused) + 1 tall narrow column.
         assert_eq!(p.len(), 4);
         let tallest = p
             .iter()
@@ -172,7 +146,6 @@ mod tests {
             })
             .max_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
             .unwrap();
-        // The column is the tallest and the narrowest (least flare).
         assert!(tallest.0 >= COLUMN_HEIGHT - 1e-3);
         assert!(tallest.1 < 1.0, "column barely flares");
     }
@@ -216,7 +189,6 @@ mod tests {
     }
 
     fn column_alpha(c: &BeginSpell8Effect) -> f32 {
-        // The column is the last primitive pushed.
         match prims(c).last().unwrap() {
             EffectPrimitiveDraw::Frustum { color, .. } => color[3],
             _ => panic!(),

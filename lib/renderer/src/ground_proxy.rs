@@ -1,16 +1,3 @@
-//! Debug/tooling ground proxy — a large flat checker quad at `y = 0`.
-//!
-//! The real map ground is drawn by [`crate::ground::GroundRenderer`] when a
-//! `.gnd` is loaded. Tools like the effect viewer never load a map yet still
-//! need *something* in the depth buffer for effect primitives to clip
-//! against (so a sphere's lower hemisphere is hidden the same way it would
-//! be in-game).
-//!
-//! Geometry is a single screen-spanning quad at the world XZ plane, with
-//! depth writes enabled. The fragment shader produces a simple checker so
-//! the impact point is visually readable. Native RO coords: `-Y = up`, so
-//! `y = 0` is the floor.
-
 use crate::camera::Camera;
 use crate::device::DEPTH_FORMAT;
 use crate::global_uniforms::GlobalUniforms;
@@ -33,8 +20,6 @@ impl ProxyVertex {
     };
 }
 
-/// Edge length of the proxy quad, in world units. Large enough that any
-/// reasonable camera placement keeps it filling the floor.
 const HALF_SIZE: f32 = 5000.0;
 
 pub struct GroundProxyRenderer {
@@ -51,9 +36,7 @@ impl GroundProxyRenderer {
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("ground_proxy"),
-            source: wgpu::ShaderSource::Wgsl(
-                include_str!("shaders/ground_proxy.wgsl").into(),
-            ),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/ground_proxy.wgsl").into()),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -100,12 +83,24 @@ impl GroundProxyRenderer {
 
         let s = HALF_SIZE;
         let verts: [ProxyVertex; 6] = [
-            ProxyVertex { position: [-s, 0.0, -s] },
-            ProxyVertex { position: [ s, 0.0, -s] },
-            ProxyVertex { position: [ s, 0.0,  s] },
-            ProxyVertex { position: [-s, 0.0, -s] },
-            ProxyVertex { position: [ s, 0.0,  s] },
-            ProxyVertex { position: [-s, 0.0,  s] },
+            ProxyVertex {
+                position: [-s, 0.0, -s],
+            },
+            ProxyVertex {
+                position: [s, 0.0, -s],
+            },
+            ProxyVertex {
+                position: [s, 0.0, s],
+            },
+            ProxyVertex {
+                position: [-s, 0.0, -s],
+            },
+            ProxyVertex {
+                position: [s, 0.0, s],
+            },
+            ProxyVertex {
+                position: [-s, 0.0, s],
+            },
         ];
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("ground_proxy_vertices"),
@@ -121,16 +116,27 @@ impl GroundProxyRenderer {
         }
     }
 
-    /// Upload the static quad once; safe to call on construction.
     pub fn initialise(&self, queue: &wgpu::Queue) {
         let s = HALF_SIZE;
         let verts: [ProxyVertex; 6] = [
-            ProxyVertex { position: [-s, 0.0, -s] },
-            ProxyVertex { position: [ s, 0.0, -s] },
-            ProxyVertex { position: [ s, 0.0,  s] },
-            ProxyVertex { position: [-s, 0.0, -s] },
-            ProxyVertex { position: [ s, 0.0,  s] },
-            ProxyVertex { position: [-s, 0.0,  s] },
+            ProxyVertex {
+                position: [-s, 0.0, -s],
+            },
+            ProxyVertex {
+                position: [s, 0.0, -s],
+            },
+            ProxyVertex {
+                position: [s, 0.0, s],
+            },
+            ProxyVertex {
+                position: [-s, 0.0, -s],
+            },
+            ProxyVertex {
+                position: [s, 0.0, s],
+            },
+            ProxyVertex {
+                position: [-s, 0.0, s],
+            },
         ];
         queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&verts));
     }

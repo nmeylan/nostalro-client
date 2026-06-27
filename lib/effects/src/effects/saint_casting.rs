@@ -1,32 +1,7 @@
-//! Shared casting cone aura — backs `BeginSpell` and `BeginSpell6` (and any
-//! future `BeginSpell*` colour variant) with a single integrator that seeds the
-//! emitters and steps them once per frame. One code path serves every colour
-//! variant in the family.
-//!
-//! Geometry: per pass (`time = 45` or `25`), 4 closed truncated cones are
-//! seeded at `distance = 4.1`, rise angle 80°, full 360° spread, sharing a
-//! common base point. The rise angle collapses from 80° to a floor of 10° at
-//! 1°/frame while `distance` slides outward by 0.07/frame — angle expands,
-//! height shrinks. A fixed-azimuth bell-shaped flame-tip envelope (handled by
-//! `FrustumWaveMode::SaintBell` in the renderer) pulses in amplitude over
-//! time; the bell does **not** rotate around the cone. Two passes overlay 8
-//! emitters total.
-//!
-//! Because every cast aura here runs the short 56-frame (≤ 60) path, the seed
-//! takes the branch that zeroes each emitter's alpha and offsets its `process`
-//! counter to `-ec·5`. An emitter only advances once `process > 0`, so the
-//! 4 cones of a pass rise in a staggered cascade (frames 1, 6, 11, 16) and
-//! fade *in* from zero rather than all popping on at full brightness — this
-//! is the "small delay" between the cones, not a hard pop. Aura Blade
-//! additionally refills alpha at
-//! `+5`/frame instead of `+10` and resets to a `64°` rise instead of `74°`.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-/// The parent duration is clamped to 56 if smaller; the parent then runs for
-/// that many ticks.
 const TOTAL_FRAMES: f32 = 56.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
@@ -35,19 +10,10 @@ const INIT_RISE_DEG: f32 = 80.0;
 const DISTANCE_GROW_PER_FRAME: f32 = 0.07;
 const RISE_SHRINK_PER_FRAME: f32 = 1.0;
 const RISE_FLOOR_DEG: f32 = 10.0;
-/// Reset point when an emitter's alpha drops to 0 before the effect ends —
-/// the cone collapses back to a closer/steeper position (`4.0 - 0.63`) and
-/// the alpha pulse refills again.
 const RESET_DISTANCE: f32 = 3.37;
 const ALPHA_DRAIN_PER_FRAME: f32 = 3.0;
 const ALPHA_REFILL_DISTANCE_GATE: f32 = 4.0;
-/// A drained emitter only resets while `process < duration - 30` so it doesn't
-/// spawn another pulse it can't fade out before the parent expires. With a
-/// 56-frame duration that floor is frame 26; longer casts push it out so the
-/// emitters keep re-pulsing for the whole cast (see [`SaintCastingEffect`]).
 const RESET_PROCESS_MARGIN: i32 = 30;
-/// Short-duration stagger: `process[ec] = -ec·5`. Each emitter idles until its
-/// `process` counter climbs above 0.
 const PROCESS_STAGGER: i32 = 5;
 
 pub const NUM_EMITTERS: usize = 4;
@@ -58,46 +24,19 @@ const ROT_START_DEG: [f32; NUM_EMITTERS] = [180.0, 270.0, 0.0, 90.0];
 /// values just count the passes and pick per-pass textures.
 pub const PASS_TIMES: [f32; 2] = [45.0, 25.0];
 
-/// Closed-cone segment count (20) so the per-segment flicker bell has a clean
-/// angular resolution.
 const CONE_SIDES: u32 = 20;
 const CONE_UV_REPEAT: f32 = 1.0;
-/// Cone height swings ±30% around its max each pulse.
 const WAVE_REL_AMPLITUDE: f32 = 0.3;
-/// Per-emitter bell phase advance (degrees/frame): emitters 0,1 advance at
-/// `process + ec*90` (= 1°/frame), emitters 2,3 advance at `process*2 + ec*90`
-/// (= 2°/frame).
 const WAVE_PHASE_PER_FRAME_DEG: [f32; NUM_EMITTERS] = [1.0, 1.0, 2.0, 2.0];
 
-/// Per-effect colour/size parameters. Everything else is shared across the
-/// `BeginSpell*` family.
 #[derive(Clone, Copy)]
 pub struct SaintCastingConfig {
     pub texture: &'static str,
-    /// Optional per-pass texture override. The two passes fire at spawn with
-    /// times `[45, 25]`; when `Some([t0, t1])` the `time=45` pass uses `t0`
-    /// and the `time=25` pass uses `t1`. Aura Blade stacks a white ring
-    /// (pass 0) over a yellow ring (pass 1). `None` uses [`Self::texture`]
-    /// for both passes (the `BeginSpell*` family).
     pub pass_textures: Option<[&'static str; 2]>,
-    /// Max height for each of the 4 emitters, driving the cone's initial
-    /// height. F1=1 → `[20,19,18,17]`, default-F1 → `[15,14,13,12]`. The
-    /// descending order matches the alpha staircase — brightest emitter is
-    /// also tallest.
     pub max_heights: [f32; NUM_EMITTERS],
-    /// Vertex tint chosen by the effect's size/flavour code, which picks both
-    /// the rgb and the blend. The flavour code maps a given variant to one of
-    /// these (e.g. F1=5 → (100,100,255) additive; F1=6 → (50,50,50) alpha),
-    /// so the same cone integrator serves every `BeginSpell*` colour.
     pub color_rgb: [f32; 3],
     pub blend: BlendKind,
-    /// Alpha refill rate per frame while the cone is still inside the
-    /// `distance < 4.0` window: `+5` for Aura Blade and `+10` for everything
-    /// else.
     pub refill_per_frame: f32,
-    /// Rise angle an emitter snaps back to when its alpha drains to 0 and it
-    /// resets: `55 + 9 = 64°` for Aura Blade, `65 + 9 = 74°` otherwise. Aura
-    /// Blade resets to a steeper cone than the other casting variants.
     pub reset_rise_deg: f32,
 }
 
@@ -108,13 +47,8 @@ struct Emitter {
     alpha: f32,
     rot_start_deg: f32,
     max_height: f32,
-    /// Process counter. Starts negative (`-ec·5`) so the cone idles before
-    /// rising; advances 1/frame and only animates once positive.
     process: i32,
-    /// Per-frame phase advance for the flame-tip bell (`1°` for emitters 0,1;
-    /// `2°` for 2,3).
     wave_rate_deg: f32,
-    /// `ec·90` constant offset in the bell phase term.
     wave_base_deg: f32,
     texture: &'static str,
 }
@@ -129,10 +63,6 @@ impl Emitter {
         let next_rise = self.rise_deg - RISE_SHRINK_PER_FRAME;
         if next_rise < RISE_FLOOR_DEG {
             self.rise_deg = RISE_FLOOR_DEG;
-            // Also drop alpha to 0 the frame the rise angle floors — the
-            // cone has finished its expansion arc, no more visible
-            // animation. Without this the cone parks at the floor showing
-            // a stale flat fan until the parent expires.
             self.alpha = 0.0;
         } else {
             self.rise_deg = next_rise;
@@ -152,8 +82,6 @@ impl Emitter {
         }
     }
 
-    /// Phase the flame-tip bell rides on. Frozen while the emitter idles
-    /// (`process <= 0`).
     fn wave_phase_rad(&self) -> f32 {
         (self.process.max(0) as f32 * self.wave_rate_deg + self.wave_base_deg).to_radians()
     }
@@ -186,10 +114,6 @@ pub struct SaintCastingEffect {
     age: f32,
     emitters: Vec<Emitter>,
     cfg: SaintCastingConfig,
-    /// Total visible lifetime in frames. Defaults to the authored
-    /// [`TOTAL_FRAMES`]; a cast aura overrides it to the skill's cast time
-    /// (via [`Self::with_life_ms`]) so the rings sustain and re-pulse for the
-    /// whole cast instead of dying after the fixed default.
     life_frames: f32,
 }
 
@@ -205,8 +129,6 @@ impl SaintCastingEffect {
                 emitters.push(Emitter {
                     distance: INIT_DISTANCE,
                     rise_deg: INIT_RISE_DEG,
-                    // Short-duration path: every emitter starts fully
-                    // transparent and fades in.
                     alpha: 0.0,
                     rot_start_deg: ROT_START_DEG[ec],
                     max_height: cfg.max_heights[ec],
@@ -226,9 +148,6 @@ impl SaintCastingEffect {
         }
     }
 
-    /// Stretch the aura to last `ms` (the skill's cast time). `None` keeps the
-    /// authored default lifetime. Used by the begin-spell cast circle so its
-    /// duration tracks the casting bar.
     pub fn with_life_ms(mut self, ms: Option<u32>) -> Self {
         if let Some(ms) = ms {
             self.life_frames = (ms as f32 / 1000.0 * FRAMES_PER_SECOND).max(1.0);
@@ -247,13 +166,6 @@ impl Effect for SaintCastingEffect {
         self.age += ctx.delta;
         let frame_after = self.frame();
         let steps = (frame_after.floor() - frame_before.floor()).max(0.0) as i32;
-        // Re-pulsing stops `RESET_PROCESS_MARGIN` frames before the end so the
-        // last pulse fades out. That margin is sized for the full animation; a
-        // short cast aura (cast time cut by stats) is briefer than the margin,
-        // which would drive the limit negative and stop emitters from ever
-        // refilling — the aura would render nothing. Scale the margin to the
-        // lifetime (capped at the authored value) so it stays positive and the
-        // aura is visible however short the cast.
         let margin = (RESET_PROCESS_MARGIN as f32 * (self.life_frames / TOTAL_FRAMES))
             .min(RESET_PROCESS_MARGIN as f32);
         let reset_limit = self.life_frames as i32 - margin as i32;
@@ -402,9 +314,6 @@ mod tests {
 
     #[test]
     fn short_cast_aura_still_emits_cones() {
-        // A cast time cut short by stats (~280 ms ≈ 17 frames) must still
-        // render. The fade-out margin scales to the lifetime so emitters keep
-        // refilling instead of the limit going negative and leaving them dark.
         let mut e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG).with_life_ms(Some(280));
         let mut emitted = false;
         for _ in 0..17 {

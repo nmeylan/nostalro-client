@@ -1,36 +1,14 @@
-//! Unified effect-primitive dispatch.
-//!
-//! Walks the deferred [`DrawRecord`] list — produced by the per-pipeline
-//! `prepare_*_records` helpers — and emits a single `wgpu::RenderPass`
-//! that draws every effect primitive in bucket-then-depth order. Every
-//! primitive lives in one of a small set of per-blend-flag deferred
-//! lists, sorted back-to-front, then flushed alpha-before-emissive — the
-//! same batched ordering the original game shows on screen.
-//!
-//! All effect primitives share [`crate::sprite::SpriteVertex`] as their
-//! vertex layout, so the dispatcher uses one GPU vertex / index buffer for
-//! every kind. Pipeline switching at draw time honours the per-record
-//! [`PipelineKind`]; group-0 binding switches between the camera uniform
-//! (3D pipelines) and the sprite uniform (camera-facing 2D pipelines).
-
-use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, partition_and_sort};
 use crate::effect::primitives::{
     CylinderRenderer, FrustumRenderer, FullscreenOverlayRenderer, GroundDiscRenderer,
     LineStripRenderer, QuadHornRenderer, RadialRingRenderer, SphereRenderer, Texture3DRenderer,
     WorldQuadRenderer,
 };
+use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, partition_and_sort};
 use crate::sprite::{SpriteRenderer, SpriteVertex};
 
 const INITIAL_VERTEX_CAPACITY: usize = 4096;
 const INITIAL_INDEX_CAPACITY: usize = 8192;
 
-/// Owns the unified vertex / index buffer that every effect primitive
-/// writes into each frame, plus the dispatch loop itself.
-///
-/// Pipelines live on the existing per-primitive renderer structs
-/// ([`FrustumRenderer`], [`GroundDiscRenderer`], …, [`SpriteRenderer`]);
-/// the dispatcher just picks the right one for each `(kind × bucket)`
-/// combination at draw time.
 pub struct EffectDispatcher {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
@@ -60,11 +38,6 @@ impl EffectDispatcher {
         }
     }
 
-    /// One bound view onto the per-primitive renderer pipelines.
-    ///
-    /// Borrows are split per-renderer rather than handing in `&Renderer`
-    /// so the caller (the top-level frame builder) can still keep its own
-    /// `&mut` borrows on the other parts of the renderer.
     #[allow(clippy::too_many_arguments)]
     pub fn dispatch<'tex>(
         &mut self,
@@ -92,16 +65,12 @@ impl EffectDispatcher {
             return;
         }
 
-        // Partition + sort: per-bucket index lists into `records`.
         let buckets = partition_and_sort(&records);
         let total_active: usize = buckets.iter().map(|b| b.len()).sum();
         if total_active == 0 {
             return;
         }
 
-        // Concatenate every record's vertex / index data into one upload,
-        // rebasing indices. Build a parallel `Span` list that knows which
-        // pipeline + texture to bind for each record's draw range.
         struct Span<'tex> {
             kind: PipelineKind,
             bucket: BlendBucket,
@@ -118,13 +87,8 @@ impl EffectDispatcher {
 
         let mut all_verts: Vec<SpriteVertex> = Vec::with_capacity(total_verts);
         let mut all_indices: Vec<u32> = Vec::with_capacity(total_indices);
-        // Spans are filled out in dispatch order so they can be iterated
-        // sequentially below — one entry per record in flush order.
         let mut spans: Vec<Span<'tex>> = Vec::with_capacity(total_active);
 
-        // First pass: walk all records in the *original* emission order
-        // to lay out vertex / index data. Spans get written later in
-        // sorted order via a per-record-index lookup table.
         struct VtxRange {
             vertex_offset: u32,
             index_start: u32,
@@ -143,14 +107,11 @@ impl EffectDispatcher {
             });
         }
 
-        // Second pass: iterate buckets in flush order and emit spans in
-        // sorted order.
         for bucket in BlendBucket::FLUSH_ORDER {
             let list = &buckets[bucket.flush_index()];
             for &record_idx in list {
                 let r = &records[record_idx];
                 let range = &ranges[record_idx];
-                let _ = range.vertex_offset; // already baked into all_indices
                 spans.push(Span {
                     kind: r.pipeline,
                     bucket,
@@ -161,10 +122,6 @@ impl EffectDispatcher {
             }
         }
 
-        // Grow buffers if needed, then reupload contents. The buffer is sized
-        // to the full `capacity` (not just the current contents) so a later
-        // frame whose count is larger but still under `capacity` can write into
-        // it without overrunning.
         if all_verts.len() > self.vertex_capacity {
             self.vertex_capacity = all_verts.len().next_power_of_two();
             self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -211,22 +168,13 @@ impl EffectDispatcher {
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-        // Track current state so we can skip redundant bind / set_pipeline
-        // calls when consecutive spans share state.
         let mut current_kind: Option<PipelineKind> = None;
         let mut current_bucket: Option<BlendBucket> = None;
         let mut current_group0_kind: Option<PipelineKind> = None;
 
         for span in spans {
-            // Bind group 0 swap when crossing the 3D vs Sprite boundary.
-            // 3D pipelines (Frustum, GroundDisc, QuadHorn, Sphere,
-            // WorldQuad) share the same camera bind group layout, so we
-            // only re-set when we move into or out of the Sprite kind.
             let group0_kind = match span.kind {
                 PipelineKind::Sprite => PipelineKind::Sprite,
-                // 3D pipelines (Frustum, Cylinder, GroundDisc, QuadHorn,
-                // Sphere, WorldQuad) all bind the camera UBO at group 0;
-                // pick any 3D variant as the representative.
                 _ => PipelineKind::Frustum,
             };
             if current_group0_kind != Some(group0_kind) {
@@ -241,7 +189,6 @@ impl EffectDispatcher {
                 current_group0_kind = Some(group0_kind);
             }
 
-            // Pipeline swap.
             if current_kind != Some(span.kind) || current_bucket != Some(span.bucket) {
                 let pipeline = pipeline_for(
                     span.kind,
@@ -288,10 +235,6 @@ fn pipeline_for<'a>(
     line_strip: &'a LineStripRenderer,
     fullscreen: &'a FullscreenOverlayRenderer,
 ) -> &'a wgpu::RenderPipeline {
-    // For the sprite path the no-depth buckets route to dedicated
-    // depth-disabled overlay pipelines (see the `PipelineKind::Sprite` arm).
-    // For every other primitive they still fold into their depth-read sibling
-    // (those primitives have no no-depth caller yet).
     let additive = matches!(bucket, BlendBucket::Additive | BlendBucket::AdditiveNoDepth)
         || matches!(bucket, BlendBucket::Multiply);
     match kind {

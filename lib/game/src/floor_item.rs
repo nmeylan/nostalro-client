@@ -45,7 +45,6 @@ mod tests {
             initial_y: 0.0,
         };
         let (wx, wy) = item.world_position();
-        // sub_x=6 → 6/16 = 0.375, sub_y=3 → 3/16 = 0.1875
         assert!((wx - 100.375).abs() < 0.001);
         assert!((wy - 200.1875).abs() < 0.001);
     }

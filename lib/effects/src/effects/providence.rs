@@ -1,30 +1,3 @@
-//! `EF_PROVIDENCE` (248) — the descending light funnel of Providence.
-//!
-//! Reference: `ro-effects/effects/imgs/200-250/248.gif`.
-//!
-//! Built from four upright-but-slightly-flared rings on `ring_yellow.tga` that
-//! form the tall warm light column; the central angel sprite, the ground glow
-//! and the rising sparkles all come from `providence.str`, played alongside via
-//! the [`Effect::str_overlay`] hook. Verification confirmed the STR renders
-//! everything *except* this central column, so it is built here as a
-//! primitive.
-//!
-//! Slot seed (`F1 == 0`):
-//!
-//! | slot | distance | rise_angle | rotation |
-//! |------|----------|-----------|----------|
-//! | 0    | 6.0      | 83°       | 0°       |
-//! | 1    | 6.5      | 82°       | 90°      |
-//! | 2    | 7.0      | 81°       | 180°     |
-//! | 3    | 7.5      | 80°       | 270°     |
-//!
-//! `max_height = 120`, peak alpha 40/255, full 360° ring. The rise angle just
-//! under 90° tilts each ring's top edge slightly outward, so the column flares
-//! wider toward the top — the funnel silhouette in the gif. The rings rotate
-//! slowly to give the whole column a turning look.
-//!
-//! [`Effect::str_overlay`]: crate::effect_trait::Effect::str_overlay
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::radial_emitter::RADIAL_EMITTER_DIVISION;
@@ -36,7 +9,6 @@ pub const STR_OVERLAY: &str = "providence";
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// 200-frame lifetime at 60 fps.
 const TOTAL_FRAMES: f32 = 200.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
@@ -45,13 +17,10 @@ const SLOT_RISE_ANGLE_DEG: [f32; 4] = [83.0, 82.0, 81.0, 80.0];
 const SLOT_ROT_START_DEG: [f32; 4] = [0.0, 90.0, 180.0, 270.0];
 
 const MAX_HEIGHT: f32 = 120.0;
-/// The gif funnel stands ~4 character-heights, so scale the 120 raw height
-/// into world units.
 const HEIGHT_SCALE: f32 = 0.16;
 const PEAK_ALPHA: f32 = 120.0 / 255.0;
 const FADE_IN_FRAMES: f32 = 14.0;
 const FADE_OUT_FRAMES: f32 = 30.0;
-/// Slow rotation of the whole column.
 const SPIN_DEG_PER_FRAME: f32 = 1.5;
 
 const SEGMENTS: u32 = (RADIAL_EMITTER_DIVISION - 1) as u32;
@@ -102,7 +71,6 @@ impl Effect for ProvidenceEffect {
             return;
         }
         let spin = (self.age_frames * SPIN_DEG_PER_FRAME).to_radians();
-        // Uniform full-height ring; the sub-90° rise angle does the flaring.
         let heights = [MAX_HEIGHT; RADIAL_EMITTER_DIVISION];
         for slot in 0..4 {
             out.push(EffectPrimitiveDraw::RadialRing {
@@ -152,8 +120,6 @@ mod tests {
 
     #[test]
     fn emits_four_flared_rings_and_carries_providence_str() {
-        // Sociable: four RadialRing slots, each flared (rise_angle < 90°) at
-        // an increasing radius, plus the providence STR overlay for the angel.
         let mut e = ProvidenceEffect::new([5.0, 0.0, -3.0]);
         assert_eq!(e.str_overlay(), Some(STR_OVERLAY));
         let prims = step_and_draw(&mut e, FADE_IN_FRAMES);
@@ -196,7 +162,6 @@ mod tests {
             _ => unreachable!(),
         };
         assert!(a_mid > a_early, "alpha climbs during fade-in");
-        // Walk deep into the fade-out tail.
         let late = step_and_draw(&mut e, TOTAL_FRAMES - FADE_IN_FRAMES - 4.0 - 2.0);
         let a_late = late
             .first()

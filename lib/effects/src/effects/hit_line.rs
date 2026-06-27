@@ -1,41 +1,3 @@
-//! `Hitline` (330) / `Hitline2` (376) / `Hitline3` (428) / `Hitline4` (429) /
-//! `Hitline5` (430) / `Hitline6` (431) / `Hitline7` (434) — two families of
-//! rising slash-streaks drawn with `effect\white02.bmp`.
-//!
-//! Both families render the streaks the same way under the hood.
-//! Each streak is a
-//! short filament built from the same phase-ramp path as the lightning arcs
-//! ([`super::electric`]): a per-segment ramp `height[j]` drives outward reach
-//! (`speed = height[j]/90 · distance`) and a sine vertical bow
-//! (`y = -distance · sin(height[j]) · width`). The streak distance is fixed at
-//! spawn and the ramp scrolls **up every frame** (`height[0] += 6`, shift), so
-//! the slash sweeps from the ground up to head height — the render adds a
-//! fixed `-5` lift (native −Y up) so the visible line reaches the target's
-//! head even though the anchor is at the feet. `alpha_b` holds, then drains
-//! −5/frame after frame 35.
-//!
-//! Faithful render details:
-//! * **per-segment alpha** `alpha_b - j·10` — brightest at the streak tip;
-//! * **per-segment tint**: Hitline7 grades deep blue
-//!   `(120-(5-j)·22, ·, 255)`; Hitline4/5/6 grade gray-white
-//!   `(255-(5-j)·30)`, with a second ×4-radius (0,0,255) halo pass at half
-//!   alpha;
-//! * the tube is 3 additive faces of radius `max_height` (0.05-0.10) — we
-//!   draw one ribbon and fold the overdraw into the alpha.
-//!
-//! Each launch seeds 4 streaks; the handlers launch one set per frame of
-//! their launch window (Hitline4: frames 6-9, Hitline5: 0-2, Hitline6:
-//! 0-4, Hitline7: 0-1), and each streak then sits out its own negative
-//! `process` before animating.
-//!
-//! The older `Hitline`/`Hitline2` use the separate bounce law
-//! ([`HitLineBounceEffect`]): the phase **wraps** at 180° instead of capping,
-//! each wrap counts a "turn" that adds a full hop of reach (`distance·2`) and
-//! shrinks the next arc to 70% — the streaks skip outward like thrown embers.
-//! 20 segments, alpha falloff `j·5`, no head lift, fixed 1.5 bow amplitude,
-//! warm `(255, 200, 150-(20-j)·7)` tint (`Hitline2`: red tail
-//! `(255, 200-(20-j)·7, ·)` plus an orange body flash on frames 10-20).
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{BodyCopy, BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -45,56 +7,34 @@ pub const TEXTURES: &[&str] = &[TEXTURE];
 
 const FADE_START_FRAME: i32 = 35;
 const FADE_RATE: f32 = 5.0;
-/// Lifts the streak to head height (native −Y up).
 const HEAD_LIFT: f32 = -5.0;
-/// Tube radius → ribbon half-width, 1:1 — the original's
-/// 0.05-0.10 tube is a hairline and the captures confirm hairline arcs.
 const WIDTH_SCALE: f32 = 1.0;
-/// One ribbon stands in for the original's tube faces; its rgb·alpha is
-/// baked into the rgb (alpha pinned at 1 — identical under additive blend).
 const FACE_OVERDRAW: f32 = 1.0;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Tint {
-    /// Warm yellow-orange gradient slash.
     Warm,
-    /// Deep-blue gradient slash.
     Blue,
-    /// Gray-white gradient slash with a wider blue glow pass.
     WhiteGlow,
 }
 
 #[derive(Clone, Copy)]
 pub struct HitLineParams {
-    /// Frame the first launch fires (launch window start).
     launch_start: i32,
-    /// Number of launches (window length); each seeds 4 streaks.
     launch_frames: usize,
-    /// Segments per streak.
     segments: usize,
-    /// Tube radius.
     radius: f32,
-    /// `process = -random(stagger) - stagger_base` at seed time.
     stagger: u32,
     stagger_base: i32,
-    /// `width_lo + random(7)·0.1` — sine bow amplitude.
     width_lo: f32,
     distance_lo: f32,
     distance_range: f32,
-    /// `alpha_b = 125 + random(alpha_range)`.
     alpha_range: u32,
-    /// Pre-step the ramp 10×6° at seed (Hitline7's instant-visibility
-    /// loop) so the first active frame already shows a slash.
     pre_ramp: bool,
     tint: Tint,
-    /// Aim the streaks away from the target (`Hitline5`) rather than at
-    /// random compass angles.
     directional: bool,
 }
 
-/// `Hitline3`: warm 5-segment slashes. The original leaves
-/// this variant's launch window uninitialised; mirror
-/// the sibling bounce family's 4-frame burst.
 pub const HITLINE3: HitLineParams = HitLineParams {
     launch_start: 0,
     launch_frames: 4,
@@ -111,7 +51,6 @@ pub const HITLINE3: HitLineParams = HitLineParams {
     directional: false,
 };
 
-/// `Hitline4`: 4 launches over frames 6-9, random angles.
 pub const HITLINE4: HitLineParams = HitLineParams {
     launch_start: 6,
     launch_frames: 4,
@@ -128,7 +67,6 @@ pub const HITLINE4: HitLineParams = HitLineParams {
     directional: false,
 };
 
-/// `Hitline5`: aimed away from the target, 3 launch frames.
 pub const HITLINE5: HitLineParams = HitLineParams {
     launch_start: 0,
     launch_frames: 3,
@@ -145,7 +83,6 @@ pub const HITLINE5: HitLineParams = HitLineParams {
     directional: true,
 };
 
-/// `Hitline6`: 5 launch frames, random angles, long stagger.
 pub const HITLINE6: HitLineParams = HitLineParams {
     launch_start: 0,
     launch_frames: 5,
@@ -162,8 +99,6 @@ pub const HITLINE6: HitLineParams = HitLineParams {
     directional: false,
 };
 
-/// `Hitline7`: a quick blue 2-frame burst, pre-ramped so it
-/// reads instantly (the basic-hit flourish).
 pub const HITLINE7: HitLineParams = HitLineParams {
     launch_start: 0,
     launch_frames: 2,
@@ -234,9 +169,6 @@ pub struct HitLineEffect {
 
 impl HitLineEffect {
     pub fn new(anchor: [f32; 3], params: HitLineParams, aim: [f32; 3]) -> Self {
-        // Direction the streaks favour: away from the target for the
-        // directional variant (anchor minus target), else
-        // unused.
         let base_angle = (anchor[2] - aim[2]).atan2(anchor[0] - aim[0]).to_degrees();
         let mut streaks = Vec::with_capacity(params.launch_frames * 4);
         for launch in 0..params.launch_frames {
@@ -282,7 +214,6 @@ impl HitLineEffect {
             .any(|s| s.process <= 0 || s.alpha_b > 0.0)
     }
 
-    /// Per-segment tint for segment `j`.
     fn segment_rgb(&self, j: usize) -> [f32; 3] {
         let fade = 5_usize.saturating_sub(j) as f32;
         match self.params.tint {
@@ -314,9 +245,6 @@ impl HitLineEffect {
             ]);
             let seg = j.min(self.params.segments - 1);
             let a_raw = (s.alpha_b - seg as f32 * 10.0).max(0.0) / 255.0;
-            // Additive contribution = rgb · alpha summed over the
-            // 3 tube faces; bake the whole product into rgb at alpha 1 so the
-            // overdraw boost survives even where alpha would clamp.
             let boost = a_raw * FACE_OVERDRAW;
             if halo {
                 colors.push([0.0, 0.0, (boost * 0.5).clamp(0.0, 1.0), 1.0]);
@@ -380,8 +308,6 @@ impl Effect for HitLineEffect {
             match self.params.tint {
                 Tint::Warm | Tint::Blue => self.push_ribbon(out, s, 1.0, false),
                 Tint::WhiteGlow => {
-                    // Wide blue halo behind, gray-white core on top (two
-                    // passes: 4× radius blue glow + the slash).
                     self.push_ribbon(out, s, 4.0, true);
                     self.push_ribbon(out, s, 1.0, false);
                 }
@@ -390,18 +316,14 @@ impl Effect for HitLineEffect {
     }
 }
 
-/// Tints for the 20-segment bounce law.
 #[derive(Clone, Copy, PartialEq)]
 pub enum BounceTint {
-    /// Warm `(255, 200, 150-(20-j)·7)`.
     Warm,
-    /// `Hitline2` — red tail `(255, 200-(20-j)·7, ·)`.
     RedTail,
 }
 
 const BOUNCE_SEGMENTS: usize = 20;
 const BOUNCE_RADIUS: f32 = 0.10;
-/// Each 180° wrap shrinks the next hop to 70%.
 const HOP_DECAY: f32 = 0.7;
 
 struct BounceStreak {
@@ -453,14 +375,9 @@ impl BounceStreak {
     }
 }
 
-/// `Hitline` (330, warm) / `Hitline2` (376, red tail + orange body flash) —
-/// the bounce-law slash family.
 pub struct HitLineBounceEffect {
     anchor: [f32; 3],
     tint: BounceTint,
-    /// `Hitline2` flashes the body orange `(255,120,50)` on frames
-    /// 10-20, alongside a second body copy: one pulsing
-    /// vertically-stretched ghost copy, emitted via [`Effect::body_copies`].
     body_flash: bool,
     streaks: Vec<BounceStreak>,
     age: f32,
@@ -576,9 +493,6 @@ impl Effect for HitLineBounceEffect {
     }
 
     fn body_copies(&self) -> Option<Vec<BodyCopy>> {
-        // One alpha-blended ghost behind the body, stretched
-        // vertically by a small pulse (`add = sin(phase)·1.5 + 5`), during
-        // the same orange-flash window.
         if !(self.body_flash && (10..=20).contains(&self.frame)) {
             return None;
         }
@@ -586,7 +500,6 @@ impl Effect for HitLineBounceEffect {
         Some(vec![BodyCopy {
             offset_px: [0.0, 0.0],
             margin_px: 0.0,
-            // Stretch relative to a rough half-sprite-height (~45 px).
             scale: [1.0, 1.0 + pulse / 45.0],
             tint: [255, 120, 50],
             alpha: 0.5,
@@ -641,10 +554,6 @@ mod tests {
 
     #[test]
     fn white_glow_burst_emits_blue_halo_and_white_core_reaching_head_height() {
-        // Sociable: Hitline4 = a flurry of gray-white slashes, each paired
-        // with a wider blue glow ribbon, anchored on the target and rising
-        // toward the head (well above the feet anchor at y=0; native −Y up →
-        // negative y).
         let mut e = HitLineEffect::new([0.0, 0.0, 0.0], HITLINE4, [0.0, 0.0, 0.0]);
         tick(&mut e, 45);
         let r = ribbons(&e);
@@ -659,7 +568,6 @@ mod tests {
             has_core && has_halo,
             "gray-white core + blue glow both present"
         );
-        // At least one streak rises above head height (y well negative).
         let highest = r
             .iter()
             .flat_map(|(pts, _)| pts.iter().map(|p| p[1]))
@@ -692,10 +600,6 @@ mod tests {
 
     #[test]
     fn bounce_streaks_hop_outward_with_warm_tint_and_die() {
-        // Sociable: Hitline = 16 ember streaks skipping outward. After the
-        // phase has wrapped a few times the streak tip must sit farther out
-        // than a single arc's reach (turns add `distance·2` hops), the tint
-        // is warm (red ≥ green > blue), and the burst eventually fades dead.
         let mut e = HitLineBounceEffect::new([0.0, 0.0, 0.0], BounceTint::Warm, false);
         for _ in 0..60 {
             e.update(&ctx());
@@ -716,8 +620,6 @@ mod tests {
                 assert!(head[0] > head[2], "head is visibly warm, got {head:?}");
             }
         }
-        // One arc reaches at most distance·2 (= 28 at max distance); hops
-        // accumulate past it.
         assert!(max_reach > 28.0, "turns extend the reach, got {max_reach}");
         let mut st = EffectStatus::Running;
         for _ in 0..600 {

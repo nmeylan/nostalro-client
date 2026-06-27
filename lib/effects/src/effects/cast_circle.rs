@@ -1,43 +1,3 @@
-//! `EF_BEGINSPELL*` — cast-circle aura under the caster.
-//!
-//! The casting aura walks a closed strip around the FULL 360° ring at
-//! a fixed radius (4.1) with `rise_angle = 80°` measured from
-//! horizontal (i.e. the petals lean almost straight up). Each
-//! segment's bottom vertex sits on the ring, the top
-//! vertex is offset radially outward by `cos(rise)·height` and up by
-//! `sin(rise)·height`. Four sub-emitters stack at the
-//! same ring with different rotation starts (180°, 270°, 0°, 90° — 90°
-//! apart), different max-height, and staggered `process = -ec * 5`
-//! fade-ins. The four visible petals in the reference gif come from
-//! that 90°-apart starts pattern.
-//!
-//! Mapping that onto the [`Frustum`] primitive (closed cone, centered on
-//! a vertical axis, supports a single sin-wave peak around its rim via
-//! `wave_amplitude` / `wave_frequency` / `wave_phase`):
-//!
-//! 1. **Central vertical column** — narrow constant-width pillar of
-//!    light. Single closed [`Frustum`] with `bottom_size == top_size`
-//!    (cylinder). Grows over the fade-in window.
-//!
-//! 2. **Ground base ring** — flat band around the caster's feet, the
-//!    "shadow" the column rises from. [`GroundDisc`] annulus.
-//!
-//! 3. **Petals** — four [`Frustum`]s, ALL centered on the column. Each
-//!    is a full closed ring at `bottom_size = petal_distance`, flared
-//!    radially out + up by `(cos rise, sin rise) * max_height` at the
-//!    top rim. The visible "petal" stripes come from
-//!    `ring_yellow.tga` (and siblings), which contain many narrow
-//!    flame stripes — wrapping the texture once around the ring
-//!    (`uv_repeat = 1`) paints those stripes as flames. Each Frustum
-//!    has a distinct `rotation` 90° apart so its stripe set lands
-//!    offset from the others (the per-emitter rotation start rotates
-//!    the strip, which carries the texture with it). The
-//!    whole rotation array advances over time so the flames orbit the
-//!    column center.
-//!
-//! Total visible duration ≈ 56 frames (933 ms) — matches the original
-//! game's on-screen casting-aura lifetime.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::spec::Attach;
@@ -46,101 +6,38 @@ const FRAMES_PER_SECOND: f32 = 60.0;
 const TOTAL_FRAMES: f32 = 56.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
-/// Sprite-matched down-scale for the cast-circle footprint (ground ring +
-/// petal flames). The raw size literals match the original game 1:1 in world
-/// units, but the aura reads oversized next to the character at our sprite
-/// scale — same role as the `WORLD_SCALE` consts in the other procedural
-/// effects. Eyeballed against the in-game sprite; tune as needed.
 const WORLD_SCALE: f32 = 0.75;
-/// The central light column is authored far taller than the footprint
-/// (`column_max_height = 250`), so it gets its own factor and can be tamed
-/// independently of the ground ring.
 const COLUMN_HEIGHT_SCALE: f32 = 0.5;
-
-/// Three flame-ring emitters at rotation starts 0°/90°/180° (the original
-/// casting aura uses three petal emitters plus a 4th vertical-column
-/// emitter; we render the column as a separate primitive). Each petal has
-/// its own `distance` / `rise_angle` / max-height — steeper near vertical
-/// for the inner ring, flatter outward for the outer rings.
 const NUM_PETALS: usize = 3;
-
-/// Peak alpha per primitive — matches the per-emitter alpha levels of the
-/// original casting aura. The column is much dimmer than the petals so
-/// the bright vertical shaft of light doesn't dominate the composition.
 const PETAL_ALPHA_MAX: f32 = 180.0 / 255.0;
 const COLUMN_ALPHA_MAX: f32 = 70.0 / 255.0;
 const RING_ALPHA_MAX: f32 = 120.0 / 255.0;
 
-/// Fade-in / fade-out duration for any one primitive emission.
 const FADE_FRAMES: f32 = 8.0;
 
-// ---------- Central column ----------
-
 const COLUMN_SIDES: u32 = 12;
-// Texture tiles 3× around the column (12 sides × 0.25 per segment), matching
-// the original game's per-segment U increment of 0.25 wrapping at 1.
 const COLUMN_UV_REPEAT: f32 = 3.0;
-/// Time over which the column grows from 0 to full height.
 const COLUMN_GROWTH_FRAMES: f32 = 12.0;
-/// Column rise angle — 89°, matching the original game's near-vertical
-/// shaft: the column is a near-vertical cone (not a pure cylinder), flaring
-/// slightly outward at the top.
 const COLUMN_RISE_ANGLE_DEG: f32 = 89.0;
 
-// ---------- Ground ring ----------
-
 const RING_UV_REPEAT: f32 = 1.0;
-/// Texture used for the flat ground band. `alpha_down.tga` is a radial
-/// gradient that fades to transparent at the outer edge — the original
-/// game uses it on the ground ring of the basic cast-circle.
 const RING_TEXTURE: &str = "alpha_down.tga";
 
-// ---------- Petals ----------
-
-/// Segment count around the ring. The original casting aura uses 20
-/// segments; we match it so the texture's flame stripes
-/// land on the same per-segment cadence.
 const PETAL_SIDES: u32 = 20;
 const PETAL_UV_REPEAT: f32 = 1.0;
-/// The three petal emitters each span 315° of arc, leaving a 45° gap in
-/// the ring. The three petals' rotation starts 0°/90°/180° interleave so
-/// the gaps don't stack and the ring still reads as a closed circle of
-/// flame.
 const PETAL_ARC_DEG: f32 = 315.0;
-/// Per-petal rise angle from horizontal — matches the original casting
-/// aura's three angles (70°, 57°, 45°): the innermost ring flares almost
-/// straight up, the outermost ring is closer to a flat splay.
 const PETAL_RISE_ANGLES_DEG: [f32; NUM_PETALS] = [70.0, 57.0, 45.0];
-/// How fast the 4-petal phase array rotates around the column
-/// (degrees/frame). Combined with the staggered fade-in, this gives
-/// the "rotating rune circle" sweep around the caster.
 const PETAL_ROT_SPEED_DEG_PER_FRAME: f32 = 4.0;
-
-// ---------- Per-variant ----------
 
 #[derive(Clone, Copy, Debug)]
 pub struct CastCircleParams {
-    /// Texture sampled on the column and on the petal cones.
     pub texture: &'static str,
-    /// RGB tint multiplied into every primitive's color.
     pub color_rgb: [f32; 3],
-    /// Column max-height in tilt-direction units — matches the original
-    /// game's column emitter. Actual world-space height at peak is
-    /// `sin(COLUMN_RISE_ANGLE_DEG) * column_max_height`.
     pub column_max_height: f32,
-    /// Column bottom-rim distance — matches the original game's
-    /// column emitter. Top rim flares outward by
-    /// `cos(COLUMN_RISE_ANGLE_DEG) * column_max_height`.
     pub column_radius: f32,
-    /// Ground band outer radius.
     pub ring_radius: f32,
-    /// Ground band thickness (`ring_radius` → solid disc).
     pub ring_thickness: f32,
-    /// Per-petal bottom-rim radius — 4.5, 5.0, 5.5: rings nest from inner
-    /// to outer.
     pub petal_distances: [f32; NUM_PETALS],
-    /// Per-petal max flame length, in tilt-direction units (hypotenuse of
-    /// the radial + vertical extension at the peak).
     pub petal_heights: [f32; NUM_PETALS],
 }
 
@@ -148,7 +45,6 @@ const fn spell_cast(texture: &'static str, r: f32, g: f32, b: f32) -> CastCircle
     CastCircleParams {
         texture,
         color_rgb: [r, g, b],
-        // Original casting aura's per-emitter sizing literals.
         column_max_height: 250.0,
         column_radius: 4.0,
         ring_radius: 4.0,
@@ -158,10 +54,6 @@ const fn spell_cast(texture: &'static str, r: f32, g: f32, b: f32) -> CastCircle
     }
 }
 
-// Tint kept at white (1, 1, 1) for every variant: the original casting aura
-// does not multiply an RGB tint into the
-// primitives — the per-spell color comes entirely from the chosen texture
-// (`ring_yellow`, `ring_blue`, `ring_red`, `ring_white`, `ring_purple`).
 pub const YELLOW: CastCircleParams = spell_cast("ring_yellow.tga", 1.00, 1.00, 1.00);
 pub const WATER: CastCircleParams = spell_cast("ring_blue.tga", 1.00, 1.00, 1.00);
 pub const FIRE: CastCircleParams = spell_cast("ring_red.tga", 1.00, 1.00, 1.00);
@@ -173,8 +65,6 @@ pub const RED: CastCircleParams = spell_cast("ring_red.tga", 1.00, 1.00, 1.00);
 pub const WHITE: CastCircleParams = spell_cast("ring_white.tga", 1.00, 1.00, 1.00);
 pub const N_BLUE: CastCircleParams = spell_cast("ring_blue.tga", 1.00, 1.00, 1.00);
 
-// Change-element casting rings (`EF_CHANGE*`). Each is the same cast
-// circle as above, differing only by ring texture.
 pub const DARK: CastCircleParams = spell_cast("ring_black.tga", 1.00, 1.00, 1.00);
 pub const FLAME: CastCircleParams = spell_cast("ring_jadu.tga", 1.00, 1.00, 1.00);
 pub const EARTH_BROWN: CastCircleParams = spell_cast("ring_brown.tga", 1.00, 1.00, 1.00);
@@ -195,9 +85,6 @@ pub struct CastCircleEffect {
     params: CastCircleParams,
     world_pos: [f32; 3],
     age: f32,
-    /// Total visible lifetime in frames. Defaults to the authored
-    /// [`TOTAL_FRAMES`]; a cast aura overrides it (via [`Self::with_life_ms`])
-    /// so the ring sustains and fades out over the skill's cast time.
     life_frames: f32,
 }
 
@@ -211,8 +98,6 @@ impl CastCircleEffect {
         }
     }
 
-    /// Stretch the ring to last `ms` (the skill's cast time). `None` keeps the
-    /// authored default lifetime.
     pub fn with_life_ms(mut self, ms: Option<u32>) -> Self {
         if let Some(ms) = ms {
             self.life_frames = (ms as f32 / 1000.0 * FRAMES_PER_SECOND).max(1.0);
@@ -252,7 +137,6 @@ impl Effect for CastCircleEffect {
         let [r, g, b] = self.params.color_rgb;
         let frame = self.frame();
 
-        // -------- Element 1: central vertical column --------
         let col_alpha = fade(frame, self.life_frames, COLUMN_ALPHA_MAX);
         if col_alpha > 0.0 {
             let growth = (frame / COLUMN_GROWTH_FRAMES).clamp(0.0, 1.0);
@@ -287,7 +171,6 @@ impl Effect for CastCircleEffect {
             }
         }
 
-        // -------- Element 2: ground ring --------
         let ring_alpha = fade(frame, self.life_frames, RING_ALPHA_MAX);
         if ring_alpha > 0.0 {
             out.push(EffectPrimitiveDraw::GroundDisc {
@@ -303,7 +186,6 @@ impl Effect for CastCircleEffect {
             });
         }
 
-        // -------- Element 3: three flame rings at rotation 0°/90°/180° --------
         let spin_rad = (frame * PETAL_ROT_SPEED_DEG_PER_FRAME).to_radians();
         let alpha = fade(frame, self.life_frames, PETAL_ALPHA_MAX);
         if alpha > 0.0 {
@@ -373,7 +255,6 @@ mod tests {
 
     #[test]
     fn emits_all_three_elements_at_peak() {
-        // Column + ground disc + 4 flame rings = 6 primitives at peak.
         let mut c = CastCircleEffect::new([0.0; 3], YELLOW);
         run_to(&mut c, 30.0);
         let prims = collect(&c);
@@ -398,8 +279,6 @@ mod tests {
 
     #[test]
     fn flame_ring_centered_on_column_with_rotating_texture() {
-        // The flame ring Frustums are centered on the caster and their
-        // `rotation` advances over time as the stripes orbit.
         let caster = [10.0, 5.0, 20.0];
         let mut c = CastCircleEffect::new(caster, YELLOW);
         run_to(&mut c, 30.0);
@@ -476,9 +355,7 @@ mod tests {
 
     #[test]
     fn with_life_ms_keeps_the_ring_visible_for_the_whole_cast() {
-        // Past the default 56-frame window the unstretched ring has faded to
-        // nothing; a 2s cast (120 frames) is still painting its petals.
-        let frame = TOTAL_FRAMES + 34.0; // frame 90
+        let frame = TOTAL_FRAMES + 34.0;
         let mut default = CastCircleEffect::new([0.0; 3], YELLOW);
         run_to(&mut default, frame);
         assert!(

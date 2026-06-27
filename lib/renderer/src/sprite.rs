@@ -84,16 +84,10 @@ pub struct SpriteUniforms {
 const INITIAL_VERTEX_CAPACITY: usize = 1024;
 const INITIAL_INDEX_CAPACITY: usize = 2048;
 
-/// Depth configuration for a sprite pipeline.
 #[derive(Clone, Copy)]
 enum SpriteDepth {
-    /// No depth-stencil attachment — for passes that bind none (UI/login).
     None,
-    /// Depth attachment with `LessEqual` test; writes when `write` is set.
     Test { write: bool },
-    /// Depth attachment bound but test/write disabled (`Always`, no write):
-    /// a no-depth-check sprite, so it draws over the
-    /// floor instead of being occluded by ground it sits at or below.
     Overlay,
 }
 
@@ -102,12 +96,6 @@ pub struct SpriteRenderer {
     pub pipeline_no_depth: wgpu::RenderPipeline,
     pub pipeline_additive: wgpu::RenderPipeline,
     pub pipeline_additive_no_depth: wgpu::RenderPipeline,
-    /// Sprite drawn with the depth attachment bound but the test/write
-    /// disabled (no depth check): renders over the
-    /// floor instead of being occluded by ground it sits at or below. Used by
-    /// the effect dispatch's `AlphaNoDepth` / `AdditiveNoDepth` buckets, which
-    /// run in a pass that HAS a depth attachment (so the attachment-less
-    /// `pipeline_no_depth` is format-incompatible there).
     pub pipeline_overlay: wgpu::RenderPipeline,
     pub pipeline_additive_overlay: wgpu::RenderPipeline,
     uniform_buffer: wgpu::Buffer,
@@ -117,12 +105,6 @@ pub struct SpriteRenderer {
     index_buffer: wgpu::Buffer,
     vertex_capacity: usize,
     index_capacity: usize,
-    /// Whether the depth-enabled pipelines write to the depth buffer.
-    /// Entity sprites do so the post-sprite effect pass depth-tests against
-    /// them (front of cylinder draws over sprite, back fails depth test —
-    /// matches the original game's on-screen occlusion, where the entity
-    /// sprite pass keeps depth-write on). Effect sprites (STR / ambient SPR) skip
-    /// the write so per-emitter particle layering isn't blocked.
     depth_write: bool,
 }
 
@@ -367,7 +349,9 @@ impl SpriteRenderer {
             texture_layout,
             shader_source,
             alpha,
-            SpriteDepth::Test { write: self.depth_write },
+            SpriteDepth::Test {
+                write: self.depth_write,
+            },
         );
         self.pipeline_no_depth = Self::create_pipeline(
             device,
@@ -385,7 +369,9 @@ impl SpriteRenderer {
             texture_layout,
             shader_source,
             additive,
-            SpriteDepth::Test { write: self.depth_write },
+            SpriteDepth::Test {
+                write: self.depth_write,
+            },
         );
         self.pipeline_additive_no_depth = Self::create_pipeline(
             device,
@@ -431,8 +417,6 @@ impl SpriteRenderer {
         self.update_uniforms(queue, &uniforms);
     }
 
-    /// Render sprite batches. If `clear_color` is Some, clears the target first;
-    /// if None, uses LoadOp::Load to overlay on existing content.
     pub fn render(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
@@ -618,7 +602,6 @@ pub fn build_clip_quad(
         clip.color[3] as f32 / 255.0,
     ];
 
-    // Corner offsets relative to center
     let corners = [
         [-half_w, -half_h],
         [half_w, -half_h],
@@ -803,7 +786,6 @@ pub fn build_composite_clips(
         }
     }
 
-    // Weapon trail (`검광`): attaches to the body exactly like the weapon.
     let mut weapon_trail = Vec::new();
     if let (Some(trail_act), Some(trail_tex)) =
         (&entity.weapon_trail_act, &entity.weapon_trail_textures)
@@ -865,28 +847,13 @@ pub fn scale_clip_vertices(
     for v in vertices {
         v.position[0] = center[0] + (v.position[0] - center[0]) * scale;
         v.position[1] = center[1] + (v.position[1] - center[1]) * scale;
-        // Depth across the billboard's vertical plane is affine in screen (x, y),
-        // so per-vertex assignment + linear interpolation reproduces it exactly —
-        // and overlapping layers (head over body, body over shadow) sharing a
-        // screen pixel get identical depth, a clean tie that draw order resolves.
-        // Keep this strictly affine: clamping here would break that agreement.
         v.position[2] += depth_gradient[0] * (v.position[0] - center[0])
             + depth_gradient[1] * (v.position[1] - center[1]);
     }
 }
 
-/// NDC-depth step between successive sprite layers. The entity's body, head,
-/// headgear, weapon and shadow are coplanar alpha quads at (mathematically)
-/// equal depth, so per-quad float interpolation makes them z-fight — speckled
-/// seams / see-through pixels where they overlap. Nudging each later-painted
-/// layer a hair toward the camera makes the depth test resolve cleanly in paint
-/// order. Far larger than interpolation noise, far smaller than the gap to any
-/// world geometry, so occlusion against buildings is unchanged.
 pub const LAYER_DEPTH_BIAS: f32 = 1.0e-4;
 
-/// Pull each batch toward the camera by its paint-order position so coplanar
-/// layers never tie on depth. `start_layer` offsets the whole run (the shadow
-/// sits one step *behind* the body, so the body is drawn at `start_layer = 0`).
 pub fn separate_layer_depths(batches: &mut [SpriteBatch<'_>], start_layer: usize) {
     for (i, batch) in batches.iter_mut().enumerate() {
         let dz = (start_layer + i) as f32 * LAYER_DEPTH_BIAS;
@@ -896,11 +863,7 @@ pub fn separate_layer_depths(batches: &mut [SpriteBatch<'_>], start_layer: usize
     }
 }
 
-pub fn rotate_sprite_vertices(
-    vertices: &mut [SpriteVertex],
-    center: [f32; 2],
-    angle: f32,
-) {
+pub fn rotate_sprite_vertices(vertices: &mut [SpriteVertex], center: [f32; 2], angle: f32) {
     let (sin, cos) = angle.sin_cos();
     for v in vertices {
         let dx = v.position[0] - center[0];
@@ -1003,9 +966,6 @@ const MAX_PICK_HEIGHT: f32 = 250.0;
 const PICK_BOTTOM_MARGIN: f32 = 10.0;
 
 impl EntitySprite {
-    /// Compute screen-space pick bounding box from the sprite's current animation frame.
-    /// Returns [left, top, right, bottom] capped to max 200x250, centered on anchor.
-    /// Minimum hit-test inflation is applied separately in the picking logic.
     pub fn compute_pick_bounds(
         &self,
         animation: &ragnarok_formats::act::SpriteAnimationState,
@@ -1080,10 +1040,6 @@ impl EntitySprite {
         ]
     }
 
-    /// Distance in screen pixels from the feet anchor up to the top of the idle pose
-    /// (action 0, motion 0) for the entity's current facing direction. Used to position
-    /// floating overlays (chat bubbles, damage numbers, cast bar) so they don't move
-    /// with per-frame animation changes.
     pub fn compute_head_offset(
         &self,
         animation: &ragnarok_formats::act::SpriteAnimationState,
@@ -1320,9 +1276,6 @@ impl EntitySprite {
                     && tex_idx < shadow_tex.bind_groups.len()
                 {
                     scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                    // Push the shadow one layer-step *behind* the body. It shares
-                    // the body's depth gradient, so this constant offset keeps the
-                    // body in front everywhere they overlap at the feet.
                     for v in &mut vertices {
                         v.position[2] += LAYER_DEPTH_BIAS;
                     }
@@ -1339,32 +1292,17 @@ impl EntitySprite {
     }
 }
 
-/// Every per-entity body modifier resolved for one frame, bundled so the
-/// actor pass fetches them in a single call and feeds them to
-/// [`compose_actor_batches`]. Covers the original game's body-modifier set
-/// (shake, tint, scale, yaw, roll angle, vertical lift, and the
-/// multi-render copies).
 #[derive(Clone, Debug)]
 pub struct BodyChannels {
     pub shake: [f32; 2],
     pub tint: Option<[u8; 3]>,
     pub scale: f32,
     pub yaw: f32,
-    /// Final opacity multiplier for the live body (effect fade folded with the
-    /// caller's hidden/death fade).
     pub alpha: f32,
-    /// Screen-space vertical lift in pixels (positive = up).
     pub lift_px: f32,
-    /// Sprite-quad rotation about the anchor, radians.
     pub angle: f32,
-    /// Vertical scale about the feet anchor (1.0 = none); `<1.0` presses the
-    /// top toward the bottom (Pressedbody squash).
     pub squeeze: f32,
-    /// Render the live body additively (light-body glow): a glowing, partly
-    /// see-through body (dark pixels vanish) instead of the opaque sprite.
     pub additive: bool,
-    /// Render the per-weapon swing trail (`검광`) on top of the body — the
-    /// Quicken family's attack arc.
     pub weapon_trail: bool,
     pub copies: Vec<ragnarok_game::effect::BodyCopy>,
 }
@@ -1387,8 +1325,6 @@ impl Default for BodyChannels {
     }
 }
 
-/// Rotate (radians) and stretch (`scale` x/y) a batch's vertices about
-/// `anchor` in screen space. No-op when there's nothing to do.
 pub fn transform_batch_vertices(
     batches: &mut [SpriteBatch],
     anchor: [f32; 2],
@@ -1410,7 +1346,13 @@ pub fn transform_batch_vertices(
 }
 
 fn apply_tint_alpha(batches: &mut [SpriteBatch], tint: Option<[u8; 3]>, alpha: f32) {
-    let tint = tint.map(|t| [t[0] as f32 / 255.0, t[1] as f32 / 255.0, t[2] as f32 / 255.0]);
+    let tint = tint.map(|t| {
+        [
+            t[0] as f32 / 255.0,
+            t[1] as f32 / 255.0,
+            t[2] as f32 / 255.0,
+        ]
+    });
     for batch in batches {
         for v in &mut batch.vertices {
             if let Some([tr, tg, tb]) = tint {
@@ -1425,12 +1367,6 @@ fn apply_tint_alpha(batches: &mut [SpriteBatch], tint: Option<[u8; 3]>, alpha: f
     }
 }
 
-/// Build the actor's sprite batches with every body channel applied in one
-/// place: yaw cycles the 8-way facing, shake + lift offset the anchor, scale
-/// multiplies the size, [`BodyCopy`] copies render behind the live body, and
-/// the live body takes the rotation, tint and alpha. Shared by the game scene
-/// and the effect viewer so the two never drift. Afterimage trails are drawn
-/// separately by the caller (they need holder mutation + the un-yawed facing).
 #[allow(clippy::too_many_arguments)]
 pub fn compose_actor_batches<'a>(
     sprite: &'a EntitySprite,
@@ -1443,8 +1379,6 @@ pub fn compose_actor_batches<'a>(
     depth_gradient: [f32; 2],
     channels: &BodyChannels,
 ) -> Vec<SpriteBatch<'a>> {
-    // Body yaw: convert the accumulated yaw to direction
-    // steps and rotate the camera-relative facing index.
     let dir = if channels.yaw != 0.0 {
         let steps = (channels.yaw / (std::f32::consts::TAU / 8.0)).round() as i32;
         (((camera_dir as i32 + steps) % 8 + 8) % 8) as u8
@@ -1457,11 +1391,15 @@ pub fn compose_actor_batches<'a>(
     ];
     let scale = base_scale * channels.scale;
 
-    let mut live =
-        sprite.build_batches(animation, Some(dir), head_dir, anchor, depth, scale, depth_gradient);
-    // Bounding box of the natural (untransformed) sprite — copies scale
-    // concentrically about its centre (russian-doll / halo), so they surround the
-    // body on all sides instead of growing off the feet.
+    let mut live = sprite.build_batches(
+        animation,
+        Some(dir),
+        head_dir,
+        anchor,
+        depth,
+        scale,
+        depth_gradient,
+    );
     let (body_center, body_w, body_h) = batches_bbox(&live)
         .map(|(min, max)| {
             (
@@ -1473,16 +1411,20 @@ pub fn compose_actor_batches<'a>(
         .unwrap_or((anchor, 1.0, 1.0));
 
     let build_copy = |copy: &ragnarok_game::effect::BodyCopy| {
-        let mut batches =
-            sprite.build_batches(animation, Some(dir), head_dir, anchor, depth, scale, depth_gradient);
-        // `margin_px` grows the copy by a fixed number of pixels on every edge
-        // (an even border inflation) — the right knob for a small concentric
-        // halo/ripple. Otherwise a uniform scale (`[s, s]`) adds a *proportional*
-        // margin (fatter top/bottom than sides on a tall sprite), so convert that
-        // to an even pixel margin too. Explicit non-uniform scales (hit-line
-        // stretch) pass through.
+        let mut batches = sprite.build_batches(
+            animation,
+            Some(dir),
+            head_dir,
+            anchor,
+            depth,
+            scale,
+            depth_gradient,
+        );
         let scale_xy = if copy.margin_px != 0.0 {
-            [(body_w + 2.0 * copy.margin_px) / body_w, (body_h + 2.0 * copy.margin_px) / body_h]
+            [
+                (body_w + 2.0 * copy.margin_px) / body_w,
+                (body_h + 2.0 * copy.margin_px) / body_h,
+            ]
         } else if (copy.scale[0] - copy.scale[1]).abs() < 1e-6 && copy.scale[1] != 1.0 {
             let margin = (copy.scale[1] - 1.0) * body_h * 0.5;
             [(body_w + 2.0 * margin) / body_w, copy.scale[1]]
@@ -1490,8 +1432,6 @@ pub fn compose_actor_batches<'a>(
             copy.scale
         };
         transform_batch_vertices(&mut batches, body_center, 0.0, scale_xy);
-        // `offset_px` then slides the whole (centre-scaled) copy — the
-        // ghosts that drift outward in four directions.
         if copy.offset_px != [0.0, 0.0] {
             for b in &mut batches {
                 for v in &mut b.vertices {
@@ -1508,34 +1448,24 @@ pub fn compose_actor_batches<'a>(
     };
 
     let mut out = Vec::new();
-    // Copies marked `behind` sit BEHIND the live sprite — larger and fainter, so
-    // the parts outside the body silhouette show as a russian-doll halo / glow,
-    // while the opaque body covers (and so leaves unchanged) the inner part.
     for copy in channels.copies.iter().filter(|c| c.behind) {
         out.append(&mut build_copy(copy));
     }
 
     if channels.squeeze != 1.0 {
-        // Compress the body vertically toward the feet anchor.
         transform_batch_vertices(&mut live, anchor, 0.0, [1.0, channels.squeeze]);
     }
     if channels.angle != 0.0 {
-        // A body roll pivots about the entity's centre, not its feet.
         transform_batch_vertices(&mut live, body_center, channels.angle, [1.0, 1.0]);
     }
     apply_tint_alpha(&mut live, channels.tint, channels.alpha);
     if channels.additive {
-        // Light-body glow: the body itself blends additively, so dark texels add
-        // nothing (see-through) and the tint reads as a glow over the scene.
         for b in &mut live {
             b.additive = true;
         }
     }
     out.append(&mut live);
 
-    // Quicken weapon-swing trail (`검광`): drawn on top of the body, additive,
-    // tinted by the buff (yellow). The trail sprite only carries frames in the
-    // attack motions, so it appears only during the swing — the iconic arc.
     if channels.weapon_trail {
         let mut trail = sprite.build_weapon_trail_batches(
             animation,
@@ -1550,15 +1480,12 @@ pub fn compose_actor_batches<'a>(
         out.append(&mut trail);
     }
 
-    // Copies marked on-top overlay the live sprite (glow rim,
-    // asura halo, hit flash).
     for copy in channels.copies.iter().filter(|c| !c.behind) {
         out.append(&mut build_copy(copy));
     }
     out
 }
 
-/// Bounding box `(min, max)` of a batch set's vertices in screen space.
 fn batches_bbox(batches: &[SpriteBatch]) -> Option<([f32; 2], [f32; 2])> {
     let (mut min_x, mut min_y) = (f32::MAX, f32::MAX);
     let (mut max_x, mut max_y) = (f32::MIN, f32::MIN);
@@ -1610,12 +1537,10 @@ mod tests {
         assert_eq!(tex_idx, 0);
         assert_eq!(verts.len(), 4);
         assert_eq!(indices, [0, 1, 2, 0, 2, 3]);
-        // 24x24 sprite centered at (100, 100)
         assert!((verts[0].position[0] - 88.0).abs() < 0.01);
         assert!((verts[0].position[1] - 88.0).abs() < 0.01);
         assert!((verts[2].position[0] - 112.0).abs() < 0.01);
         assert!((verts[2].position[1] - 112.0).abs() < 0.01);
-        // Depth should be passed through
         assert!((verts[0].position[2] - 0.5).abs() < 0.001);
     }
 
@@ -1637,7 +1562,6 @@ mod tests {
         let textures = dummy_textures();
         let (_, _, tex_idx) =
             build_clip_quad(&clip, &textures, [200.0, 200.0], 0.0, [0, 0]).unwrap();
-        // sprite_type 1 → indexed_count(2) + 0 = 2
         assert_eq!(tex_idx, 2);
     }
 
@@ -1658,7 +1582,6 @@ mod tests {
         };
         let textures = dummy_textures();
         let (verts, _, _) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0, [0, 0]).unwrap();
-        // Top-left UV should be (1,0) when mirrored
         assert!((verts[0].tex_coord[0] - 1.0).abs() < 0.01);
         assert!((verts[1].tex_coord[0] - 0.0).abs() < 0.01);
     }
@@ -1699,7 +1622,6 @@ mod tests {
         };
         let textures = dummy_textures();
         let (verts, _, _) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0, [0, 0]).unwrap();
-        // 24 * 2.0 = 48 wide, 24 * 0.5 = 12 tall
         let w = verts[1].position[0] - verts[0].position[0];
         let h = verts[3].position[1] - verts[0].position[1];
         assert!((w - 48.0).abs() < 0.01);

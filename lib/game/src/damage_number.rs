@@ -1,43 +1,24 @@
-/// Floating damage numbers using GRF sprite textures (숫자.spr / msg.spr).
-///
-/// Each type maps to a sprite action index, color tint, and animation curve
-/// matching the original game behavior.
 use crate::scheduled_hit::{DamageMessage, ScheduledHit};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DamageNumberType {
-    /// Basic attack → action 1, white
     Normal,
-    /// Ability damage → action 0, white
     Skill,
-    /// Critical hit → action 0 (with crit overlay), yellow
     Critical,
-    /// Player takes damage → action 2, red
     Enemy,
-    /// Multi-hit running total (non-final) → action 0, yellow, short-lived
     Combo,
-    /// Multi-hit final total → action 0, yellow, grow animation
     ComboFinal,
-    /// Non-combo multi-hit running total (non-final) → action 0, white, short-lived
     MultiHit,
-    /// Non-combo multi-hit total → action 0, white, grow animation
     MultiHitTotal,
-    /// HP recovery → action 3, green
     Heal,
-    /// Effect-spawned floating number (used by recovery-style effects):
-    /// shares the recovery rising
-    /// animation but takes its colour from `DamageNumber::color_override`.
+    /// Recovery rising animation recoloured by `DamageNumber::color_override`.
     EffectNumber,
-    /// Miss → msg.spr frame 0
     Miss,
-    /// Lucky dodge → msg.spr frames 4+5
     Lucky,
 }
 
 const DIGIT_SPACING: f32 = 8.0;
-
-/// One animation tick = 24ms in the original game
-const FRAME_MS: f32 = 24.0;
+const FRAME_MS: f32 = 24.0; // ms per animation tick
 
 impl DamageNumberType {
     pub fn color(&self) -> [f32; 3] {
@@ -64,8 +45,8 @@ impl DamageNumberType {
     pub fn duration(&self) -> f32 {
         match self {
             Self::Combo | Self::MultiHit => 0.45,
-            Self::Miss | Self::Lucky => 80.0 * FRAME_MS / 1000.0, // 1.92s (expires after 80 ticks)
-            _ => 120.0 * FRAME_MS / 1000.0,                       // 2.88s
+            Self::Miss | Self::Lucky => 80.0 * FRAME_MS / 1000.0,
+            _ => 120.0 * FRAME_MS / 1000.0,
         }
     }
 }
@@ -76,9 +57,8 @@ pub struct DamageNumber {
     pub number_type: DamageNumberType,
     pub elapsed: f32,
     pub direction: u8,
-    /// Cached screen position so numbers keep rendering after entity vanishes.
     pub last_screen_pos: Option<(f32, f32, f32)>,
-    /// RGB override (used by `EffectNumber`); falls back to `number_type.color()`.
+    /// RGB override for `EffectNumber`; falls back to `number_type.color()`.
     pub color_override: Option<[f32; 3]>,
 }
 
@@ -95,8 +75,6 @@ impl DamageNumber {
         }
     }
 
-    /// Effect-spawned floating number:
-    /// the recovery rising animation recoloured to `color` (RGB).
     pub fn effect_number(entity_id: u32, value: i32, color: [f32; 3], direction: u8) -> Self {
         Self {
             color_override: Some(color),
@@ -108,12 +86,10 @@ impl DamageNumber {
         self.elapsed >= self.number_type.duration()
     }
 
-    /// Animation tick count: elapsed_ms / 24
     fn frame(&self) -> f32 {
         self.elapsed * 1000.0 / FRAME_MS
     }
 
-    /// Y offset from origin (positive = upward in screen space)
     pub fn y_offset(&self) -> f32 {
         let f = self.frame();
         match self.number_type {
@@ -132,14 +108,10 @@ impl DamageNumber {
                     (perc - 0.4) * 300.0
                 }
             }
-            _ => {
-                // Parabolic: rises fast then slows, then eases back down
-                -8.0 + f * (2.0 - f / 30.0)
-            }
+            _ => -8.0 + f * (2.0 - f / 30.0),
         }
     }
 
-    /// X offset from origin (screen pixels, direction-based drift)
     pub fn x_offset(&self) -> f32 {
         let f = self.frame();
         let magnitude = match self.number_type {
@@ -147,22 +119,17 @@ impl DamageNumber {
             DamageNumberType::Normal | DamageNumberType::Skill | DamageNumberType::Enemy => 0.8,
             _ => return 0.0,
         };
-        // Map direction (0-7) to screen X factor
-        // Directions 0-3 drift left, 4-7 drift right
         let dir_x: f32 = if self.direction % 8 < 4 { -1.0 } else { 1.0 };
         dir_x * magnitude * (f / 3.0 + 3.0)
     }
 
-    /// Scale/zoom factor
     pub fn zoom(&self) -> f32 {
         let f = self.frame();
         match self.number_type {
             DamageNumberType::ComboFinal | DamageNumberType::MultiHitTotal => {
-                // Quadratic grow from 0.5, accelerating with each tick
                 (0.5 + 0.09 * f * f).min(3.0)
             }
             DamageNumberType::Combo | DamageNumberType::MultiHit => {
-                // quick grow to ~3.75 in first 150ms
                 let growth = (self.elapsed / 0.15).min(1.0);
                 0.1 + growth * 3.65
             }
@@ -177,7 +144,6 @@ impl DamageNumber {
         }
     }
 
-    /// Alpha 0.0–1.0
     pub fn alpha(&self) -> f32 {
         let f = self.frame();
         let alpha_255 = match self.number_type {
@@ -189,7 +155,6 @@ impl DamageNumber {
                 }
             }
             DamageNumberType::Combo | DamageNumberType::MultiHit => {
-                // alpha = 1.0 - (elapsed / 3.0)
                 (1.0 - self.elapsed / 3.0) * 255.0
             }
             DamageNumberType::Miss | DamageNumberType::Lucky => 250.0 - f * 3.0,
@@ -198,7 +163,6 @@ impl DamageNumber {
         (alpha_255 / 255.0).clamp(0.0, 1.0)
     }
 
-    /// Digits of the value, left-to-right
     pub fn digits(&self) -> Vec<u8> {
         if self.value == 0 {
             return vec![0];
@@ -208,7 +172,6 @@ impl DamageNumber {
         s.bytes().rev().map(|b| b - b'0').collect()
     }
 
-    /// X offset for digit at index i (0 = leftmost), centered around 0
     pub fn digit_x_offset(&self, i: usize, count: usize) -> f32 {
         let fi = i as f32;
         let fc = count as f32;
@@ -220,7 +183,9 @@ impl DamageNumber {
         if alpha <= 0.0 {
             return None;
         }
-        let [cr, cg, cb] = self.color_override.unwrap_or_else(|| self.number_type.color());
+        let [cr, cg, cb] = self
+            .color_override
+            .unwrap_or_else(|| self.number_type.color());
         let digits = self.digits();
         let count = digits.len();
         let digit_x_offsets = (0..count).map(|i| self.digit_x_offset(i, count)).collect();
@@ -326,7 +291,6 @@ pub fn build_damage_number_quads(
 
         let action = &num_act.actions[0];
 
-        // Critical: render critbg behind digits
         if dmg.is_critical
             && let Some(msg_sz) = msg_sizes
             && MSG_FRAME_CRITBG < msg_sz.len()
@@ -411,7 +375,6 @@ impl DamageNumberManager {
     }
 
     pub fn add(&mut self, number: DamageNumber) {
-        // Combo/total types replace previous non-final combo numbers on the same entity
         let removes_combo = number.number_type.is_total() || number.number_type.is_combo();
         if removes_combo {
             self.numbers
@@ -430,7 +393,6 @@ impl DamageNumberManager {
         let is_multi_hit = matches!(hit.message, DamageMessage::AttackedMultiHit { .. });
         let is_skill = hit.skill_id > 0;
 
-        // Server sends -30000 as a preamble dummy packet for splash skills
         if hit.damage < 0 {
             return;
         }
@@ -499,7 +461,6 @@ impl DamageNumberManager {
     }
 }
 
-/// msg.spr frame indices
 pub const MSG_FRAME_MISS: usize = 0;
 pub const MSG_FRAME_CRIT: usize = 2;
 pub const MSG_FRAME_CRITBG: usize = 3;
@@ -513,7 +474,6 @@ mod tests {
     #[test]
     fn digits_decomposition() {
         let d = DamageNumber::new(1, 12345, DamageNumberType::Normal, 0);
-        // Reversed order: rightmost digit first, matching digit_x_offset layout
         assert_eq!(d.digits(), vec![5, 4, 3, 2, 1]);
     }
 
@@ -533,7 +493,6 @@ mod tests {
     fn digit_x_offsets_symmetric_for_3_digits() {
         let d = DamageNumber::new(1, 123, DamageNumberType::Normal, 0);
         let offsets: Vec<f32> = (0..3).map(|i| d.digit_x_offset(i, 3)).collect();
-        // Should be symmetric: [+8, 0, -8]
         assert_eq!(offsets, vec![8.0, 0.0, -8.0]);
     }
 
@@ -543,8 +502,8 @@ mod tests {
         let z0 = d.zoom();
         d.elapsed = 0.5;
         let z1 = d.zoom();
-        assert!(z0 > z1, "zoom should decrease over time");
-        assert!(z1 >= 1.2, "zoom should not go below 1.2");
+        assert!(z0 > z1);
+        assert!(z1 >= 1.2);
     }
 
     #[test]
@@ -553,8 +512,8 @@ mod tests {
         let z0 = d.zoom();
         d.elapsed = 0.5;
         let z1 = d.zoom();
-        assert!(z0 < z1, "total zoom should increase over time");
-        assert!(z0 >= 0.5, "total starts at 0.5");
+        assert!(z0 < z1);
+        assert!(z0 >= 0.5);
     }
 
     #[test]
@@ -592,7 +551,6 @@ mod tests {
         assert_eq!(mgr.numbers.len(), 2);
 
         mgr.add(DamageNumber::new(1, 100, DamageNumberType::ComboFinal, 0));
-        // Removed combo for entity 1, kept combo for entity 2, added the total
         assert_eq!(mgr.numbers.len(), 2);
         assert!(mgr.numbers.iter().any(|n| n.entity_id == 2));
         assert!(
@@ -606,7 +564,7 @@ mod tests {
     fn expired_numbers_removed_on_update() {
         let mut mgr = DamageNumberManager::new();
         mgr.add(DamageNumber::new(1, 100, DamageNumberType::Normal, 0));
-        mgr.update(3.0); // well past 2.88s duration
+        mgr.update(3.0);
         assert!(mgr.numbers.is_empty());
     }
 
@@ -614,7 +572,6 @@ mod tests {
     fn x_offset_direction_based() {
         let d_left = DamageNumber::new(1, 100, DamageNumberType::Normal, 1);
         let d_right = DamageNumber::new(1, 100, DamageNumberType::Normal, 5);
-        // Direction 1 (dirs 0-3) drifts left, direction 5 (dirs 4-7) drifts right
         assert!(d_left.x_offset() < 0.0);
         assert!(d_right.x_offset() > 0.0);
     }

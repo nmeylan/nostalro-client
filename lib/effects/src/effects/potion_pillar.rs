@@ -1,21 +1,3 @@
-//! EF_POTIONPILLAR — single vertical cylinder column rising from the caster.
-//!
-//! Reference: `ro-effects/effects/imgs/200-250/219.gif`.
-//!
-//! Driven by a grow speed and a lifetime in frames.
-//!
-//! The single `Cylinder` is shaped by:
-//!   * outer = inner = 4.5 — pure cylinder, no taper
-//!   * height 10.0 start, grows by `speed`/frame with a 0.01/frame accel —
-//!     the pillar lengthens over time
-//!   * alpha ramps 0 → 90/255 over the first 20 frames
-//!   * last 10 frames fade out
-//!   * texture `alpha_down.tga`
-//!
-//! Default is `speed = 1.0, duration = 50`. The faster potion variant uses
-//! `speed = 2.0` (faster grow, same 50f dur), another `(1.9, 30)`, and the
-//! Berserk potion `(1.0, 50)`.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -33,19 +15,15 @@ const FADE_OUT_FRAMES: f32 = 10.0;
 
 #[derive(Clone, Copy, Debug)]
 pub struct PotionPillarParams {
-    /// Initial height growth per frame at 60 fps.
     pub height_speed: f32,
-    /// Total lifetime in frames at 60 fps.
     pub duration_frames: u32,
 }
 
-/// EF_POTIONPILLAR default parameters.
 pub const DEFAULT: PotionPillarParams = PotionPillarParams {
     height_speed: 1.0,
     duration_frames: 50,
 };
 
-/// Reused by the Berserk potion (1.0 grow, 50f lifetime).
 pub const BERSERK: PotionPillarParams = PotionPillarParams {
     height_speed: 1.0,
     duration_frames: 50,
@@ -160,11 +138,7 @@ mod tests {
 
     #[test]
     fn pillar_grows_and_ramps_in_then_fades() {
-        // Sociable test: covers update, current_height, current_alpha, and
-        // the cylinder draw emission in one pass.
         let mut e = PotionPillarEffect::new([1.0, 2.0, 3.0], DEFAULT);
-
-        // Frame ~5 → still in alpha ramp-up.
         let prims_early = step_and_collect(&mut e, 5.0 / FRAMES_PER_SECOND);
         let (h_early, a_early) = match &prims_early[0] {
             EffectPrimitiveDraw::Cylinder {
@@ -186,7 +160,6 @@ mod tests {
         assert!(h_early > INITIAL_HEIGHT, "pillar lengthens immediately");
         assert!(a_early < ALPHA_MAX, "still ramping in at frame ~5");
 
-        // Frame 25 → past the 20-frame ramp, holding at ALPHA_MAX.
         let prims_hold = step_and_collect(&mut e, 20.0 / FRAMES_PER_SECOND);
         let a_hold = match &prims_hold[0] {
             EffectPrimitiveDraw::Cylinder { color, .. } => color[3],

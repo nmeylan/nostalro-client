@@ -99,7 +99,6 @@ mod tests {
         let table = make_table();
         assert_eq!(table.get_resource_name_for(1201, true), Some("단검"));
         assert_eq!(table.get_resource_name_for(1201, false), Some("무기"));
-        // Falls back to identified when no unidentified entry
         assert_eq!(table.get_resource_name_for(501, true), Some("빨간포션"));
         assert_eq!(table.get_resource_name_for(501, false), Some("빨간포션"));
     }

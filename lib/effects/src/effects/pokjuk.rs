@@ -1,34 +1,16 @@
-//! `EF_POKJUK` (id 297) — a firecracker: colored sparks burst overhead and
-//! drift away, fading.
-//!
-//! The original game launches four particles,
-//! each staggered (`process = -300 - random(50)`). A particle
-//! is invisible while it rises (alpha 0), then **bursts** (alpha 250)
-//! and drifts along a random direction: `y += sin(elevation)·distance`
-//! plus a horizontal slide along the heading, `distance *= 0.98` and alpha
-//! drains ~1–2/frame while rotation `+= 5°` tumbles the quad. A palette index
-//! 0..4 tints the spark blue / red / green / yellow / magenta; the quad is a
-//! camera-facing `pok1/2/3.tga` billboard.
-//!
-//! Only the burst is ever drawn, so this models the four bursts directly
-//! (skipping the invisible rise) at a point above the caster, staggered. The
-//! long dormancy/loop (a persistent festival firecracker) is
-//! compressed to a single visible burst sequence. No reference gif — validated
-//! against observed original-game behaviour.
+//! `EF_POKJUK` (id 297) — firecracker burst: colored sparks above the caster that drift and fade.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const NUM_SPARKS: usize = 4;
-/// Staggered launch + the alpha drain (~250 → 0 at ~1.5/frame) ≈ 170 frames.
 const TOTAL_FRAMES: f32 = 180.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
 pub const TEXTURES: &[&str] = &["pok1.tga", "pok2.tga", "pok3.tga"];
 const SPARK_TEXTURES: [&str; 3] = ["pok1.tga", "pok2.tga", "pok3.tga"];
 
-/// Spark palette (blue / red / green / yellow / magenta).
 const COLORS: [[f32; 3]; 5] = [
     [70.0 / 255.0, 70.0 / 255.0, 1.0],
     [1.0, 70.0 / 255.0, 70.0 / 255.0],
@@ -37,8 +19,6 @@ const COLORS: [[f32; 3]; 5] = [
     [1.0, 70.0 / 255.0, 1.0],
 ];
 
-/// Burst origin above and to the side of the caster (the risen rocket point;
-/// ~15 to the side and ~38 units up). Native `-Y = up`.
 const ORIGIN_X: f32 = -7.0;
 const ORIGIN_UP: f32 = 14.0;
 const LAUNCH_STAGGER_FRAMES: f32 = 8.0;
@@ -53,9 +33,7 @@ struct Spark {
     color: [f32; 3],
     texture: &'static str,
     launch_delay: f32,
-    /// Vertical/horizontal split of the eject.
     elevation: f32,
-    /// Horizontal heading.
     heading: f32,
     distance: f32,
     pos: [f32; 3],
@@ -119,8 +97,7 @@ impl Effect for PokjukEffect {
             let elev = s.elevation.to_radians();
             let head = s.heading.to_radians();
             let radial = elev.cos() * s.distance;
-            // Vertical eject (native -Y up) + small upward drift.
-            s.pos[1] -= (elev.sin() * s.distance + DRIFT_UP_PER_FRAME) * frames;
+            s.pos[1] -= (elev.sin() * s.distance + DRIFT_UP_PER_FRAME) * frames; // −Y is up.
             s.pos[0] += head.cos() * radial * frames;
             s.pos[2] += head.sin() * radial * frames;
             s.distance *= SHRINK_PER_FRAME.powf(frames);
@@ -216,7 +193,6 @@ mod tests {
         let textures: std::collections::BTreeSet<&str> =
             e.sparks.iter().map(|s| s.texture).collect();
         assert!(textures.iter().all(|t| TEXTURES.contains(t)));
-        // Colours come from the 5-entry palette.
         assert!(e.sparks.iter().all(|s| COLORS.contains(&s.color)));
     }
 

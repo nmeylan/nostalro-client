@@ -10,20 +10,19 @@ pub use helpers::{encode_pos, ip_u32_to_string};
 use ragnarok_game::event::GameEvent;
 pub use sender::{
     build_action_request_packet, build_card_composition_list_packet, build_card_composition_packet,
-    build_char_enter_packet, build_chat_packet, build_contact_npc_packet, build_drop_item_packet,
-    build_equip_item_packet, build_login_packet, build_map_loaded_packet, build_npc_close_packet,
-    build_npc_deal_type_packet, build_npc_input_number_packet, build_npc_input_string_packet,
-    build_npc_menu_select_packet, build_npc_next_packet, build_pickup_item_packet,
-    build_purchase_item_list_packet, build_req_enter_room_packet, build_reqname_packet,
-    build_request_move_packet,
-    build_cartoff_packet, build_change_cart_packet, build_move_item_body_to_cart_packet,
-    build_move_item_cart_to_body_packet,
-    build_move_item_cart_to_store_packet, build_move_item_store_to_cart_packet,
-    build_restart_packet, build_select_char_packet, build_select_warppoint_packet,
-    build_sell_item_list_packet,
-    build_shortcut_key_change_packet, build_stat_change_packet, build_unequip_item_packet, build_upgrade_skill_packet,
-    build_remove_option_packet, build_use_item_packet, build_use_skill_packet,
-    build_use_skill_to_ground_packet, build_zone_enter_packet,
+    build_cartoff_packet, build_change_cart_packet, build_char_enter_packet, build_chat_packet,
+    build_contact_npc_packet, build_drop_item_packet, build_equip_item_packet, build_login_packet,
+    build_map_loaded_packet, build_move_item_body_to_cart_packet,
+    build_move_item_cart_to_body_packet, build_move_item_cart_to_store_packet,
+    build_move_item_store_to_cart_packet, build_npc_close_packet, build_npc_deal_type_packet,
+    build_npc_input_number_packet, build_npc_input_string_packet, build_npc_menu_select_packet,
+    build_npc_next_packet, build_pickup_item_packet, build_purchase_item_list_packet,
+    build_remove_option_packet, build_req_enter_room_packet, build_reqname_packet,
+    build_request_move_packet, build_restart_packet, build_select_char_packet,
+    build_select_warppoint_packet, build_sell_item_list_packet, build_shortcut_key_change_packet,
+    build_stat_change_packet, build_unequip_item_packet, build_upgrade_skill_packet,
+    build_use_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet,
+    build_zone_enter_packet,
 };
 use session::{Session, SessionState};
 use std::collections::VecDeque;
@@ -63,12 +62,9 @@ pub async fn network_loop(
     let mut keepalive_send_time_ms: u32 = 0;
     let delay_duration = Duration::from_millis(debug_delay_ms as u64);
     let mut delayed_events: VecDeque<(Instant, GameEvent)> = VecDeque::new();
-    // Outbound packets held to simulate send-side latency. Combined with the receive-side
-    // delay above this makes measured RTT reflect a full round trip (~2 * debug_delay_ms).
     let mut delayed_sends: VecDeque<(Instant, Vec<u8>)> = VecDeque::new();
 
     loop {
-        // Drain delayed events that are ready
         while delayed_events
             .front()
             .is_some_and(|(t, _)| *t <= Instant::now())
@@ -77,7 +73,6 @@ pub async fn network_loop(
             let _ = event_tx.send(event);
         }
 
-        // Flush outbound packets whose send-delay has elapsed.
         let mut ready_sends: Vec<Vec<u8>> = Vec::new();
         while delayed_sends
             .front()
@@ -104,8 +99,6 @@ pub async fn network_loop(
             }
         }
 
-        // Soonest pending delayed item, so the select below wakes in time to flush it even when
-        // no socket/command activity would otherwise rouse the loop.
         let next_release = delayed_events
             .front()
             .map(|(t, _)| *t)
@@ -228,7 +221,6 @@ pub async fn network_loop(
                 }
             }
         } else {
-            // No connection, only process commands
             match cmd_rx.recv().await {
                 Some(NetworkCommand::Connect(addr)) => {
                     match Connection::connect(&addr, trace_packets_send, trace_packets_recv).await {

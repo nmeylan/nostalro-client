@@ -1,18 +1,3 @@
-//! `EF_COUPLECASTING` (id 342) — red/pink couple-skill cast aura.
-//!
-//! Two staggered casting passes over the `ring_red.tga` texture, the first
-//! rising at 45° and the second at 25° a few frames later. Both reuse the
-//! same casting cascade as the yellow `BeginSpell`, recoloured to rose.
-//!
-//! The rose variant selects the (255, 89, 182) rose tint and the
-//! `max_height ∈ {20, 19, 18, 17}` size table — the same descending staircase
-//! as the yellow `BeginSpell`. All other geometry (4 emitters at 90°,
-//! `distance = 4.1`, `rise_angle = 80°`, bell-shaped flame envelope, two
-//! staggered passes) is shared with the `BeginSpell*` family and lives in
-//! [`super::saint_casting`].
-//!
-//! The two passes give the doubled, layered look the reference gif shows.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 use crate::effects::saint_casting::{
@@ -23,8 +8,6 @@ pub const TEXTURE: &str = "ring_red.tga";
 pub const TEXTURES: &[&str] = &[TEXTURE];
 pub const TOTAL_DURATION_MS: u32 = SAINT_TOTAL_DURATION_MS;
 
-/// Rose-tinted casting cascade: tint (255, 89, 182), additive,
-/// `max_height = 20 - ec`.
 const CONFIG: SaintCastingConfig = SaintCastingConfig {
     texture: TEXTURE,
     pass_textures: None,
@@ -90,7 +73,6 @@ mod tests {
         assert_eq!(cones.len(), 8, "two SAINTCASTING passes × 4 emitters");
         for (texture, color) in &cones {
             assert_eq!(*texture, TEXTURE);
-            // Rose tint: red dominant, blue above green.
             assert!(
                 color[0] > color[1] && color[2] > color[1],
                 "rose tint {color:?}"

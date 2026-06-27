@@ -1,26 +1,3 @@
-//! EF_ENTRY — actor materialization effect (portal-in).
-//!
-//! Two cylinders launched together at frame 0, both 55-frame lifetime,
-//! both `ring_blue.tga`. Each cylinder's local frame is: bottom ring at
-//! `y = 0` with the bottom radius, top ring at `y = -height` with the top
-//! radius — so when the top radius exceeds the bottom radius the cone
-//! **flares outward going up** (chalice shape), and the flare grows when
-//! the top radius is still widening.
-//!
-//! * Outer flared cone (bottom radius 5, top radius `6 + 0.08·frame`,
-//!   height `6.5 - 0.1·frame`) spins clockwise (-10°/frame,
-//!   i.e. negative angular speed). Its top lip widens from 6 → ~10.4 over
-//!   the lifetime while the base stays at 5 — that's the slanted silhouette
-//!   visible in the gif. Alpha fades in from 5 → 245 over the first ~24
-//!   frames, holds, then fades out the last fifth of the lifetime.
-//! * Inner 8-strip cylinder (bottom radius = top radius = 4.5,
-//!   45° arc per quad) — the 45° arc slices the ring into 8 vertical
-//!   strips, which read as the visible "light columns" on the gif. Height
-//!   grows from 0 at 2.5/frame with a quadratic deceleration
-//!   that returns it near zero by the end of the lifetime. Spins the
-//!   opposite direction (+10°/frame). Alpha is a flat 160 with a
-//!   fade-out from 2/3 of the lifetime onward.
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
@@ -33,9 +10,6 @@ const DURATION_S: f32 = DURATION_FRAMES / FRAMES_PER_SECOND;
 
 pub const TOTAL_DURATION_MS: u32 = (DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
-// Outer flared cone — bottom radius 5 (constant), top radius 6 (widens
-// over the lifetime) growing at 0.08/frame. Height shrinks at -0.1/frame
-// so the cone settles flatter as it spins out.
 const OUTER_BOTTOM_RADIUS: f32 = 5.0;
 const OUTER_TOP_RADIUS_INIT: f32 = 6.0;
 const OUTER_TOP_RADIUS_SPEED: f32 = 0.08;
@@ -47,18 +21,13 @@ const OUTER_ALPHA_MAX: f32 = 245.0 / 255.0;
 const OUTER_ALPHA_SPEED_PER_FRAME: f32 = 10.0 / 255.0;
 const OUTER_FADE_OUT_AT: f32 = DURATION_FRAMES - DURATION_FRAMES / 5.0;
 
-// Inner segmented cylinder — height swells then collapses; ring of 8 strips.
 const INNER_RADIUS: f32 = 4.5;
 const INNER_HEIGHT_SPEED: f32 = 2.5;
-// Height deceleration: -(height_speed / duration) * 2.
 const INNER_HEIGHT_ACCEL: f32 = -(INNER_HEIGHT_SPEED / DURATION_FRAMES) * 2.0;
 const INNER_SPIN_DEG_PER_FRAME: f32 = 10.0;
 const INNER_ALPHA: f32 = 160.0 / 255.0;
 const INNER_FADE_OUT_AT: f32 = DURATION_FRAMES - DURATION_FRAMES / 3.0;
-/// 45° arc per strip → 360 / 45 = 8 segments.
 const INNER_SIDES: u32 = 8;
-/// Outer ring is the smooth full cylinder — no arc subdivision, so it
-/// uses the default ~15° step, i.e. 24 segments.
 const OUTER_SIDES: u32 = 24;
 
 fn alpha_fade_out(frame: f32, peak: f32, fade_out_at: f32) -> f32 {
@@ -111,7 +80,6 @@ impl Effect for EntryEffect {
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let frame = self.frame();
 
-        // Outer flared cone — bottom narrow + top widening over time, spin CCW.
         let outer_height = (OUTER_HEIGHT_INIT + OUTER_HEIGHT_SPEED * frame).max(0.0);
         let outer_top = OUTER_TOP_RADIUS_INIT + OUTER_TOP_RADIUS_SPEED * frame;
         if outer_height > 0.0 {
@@ -133,7 +101,6 @@ impl Effect for EntryEffect {
             });
         }
 
-        // Inner 8-strip cylinder — height swells then collapses, spin CW.
         let inner_height_val = inner_height(frame).max(0.0);
         if inner_height_val > 0.0 {
             let inner_alpha = alpha_fade_out(frame, INNER_ALPHA, INNER_FADE_OUT_AT);
@@ -185,12 +152,6 @@ mod tests {
 
     #[test]
     fn emits_two_cylinders_with_opposing_spin_and_8strip_inner() {
-        // Sociable test: cover the two-cylinder layout, the segmented
-        // inner ring (sides=8 from the 45° arc per strip), the
-        // additive blend, the opposite rotation directions, and the
-        // outer cone's flare shape (bottom narrower than top — the
-        // chalice silhouette that produces the slanted sides visible in
-        // the reference gif).
         let mut e = EntryEffect::new([0.0; 3]);
         step(&mut e, 10.0 / FRAMES_PER_SECOND);
         let prims = draws(&e);
@@ -246,9 +207,6 @@ mod tests {
 
     #[test]
     fn outer_top_widens_over_lifetime() {
-        // Sociable test: the outer cone's top radius grows at 0.08/frame —
-        // it must grow monotonically from frame 0 → end,
-        // while the bottom stays pinned at 5.
         let mut e = EntryEffect::new([0.0; 3]);
         step(&mut e, 0.0);
         let (b0, t0) = match &draws(&e)[0] {
@@ -274,13 +232,7 @@ mod tests {
 
     #[test]
     fn inner_height_swells_then_returns_near_zero() {
-        // Sociable test: integrated height-speed + deceleration formula —
-        // mid-life height is positive (swell) and end-of-life returns
-        // back near zero (collapse). Locks the quadratic shape without
-        // pinning exact values that drift with framerate.
         let mut e = EntryEffect::new([0.0; 3]);
-        // One tick in (frame ≈ 1), inner height has barely grown but is
-        // emitted; capture as the "early" sample.
         step(&mut e, 1.0 / FRAMES_PER_SECOND);
         let h_early = match draws(&e).get(1) {
             Some(EffectPrimitiveDraw::Cylinder { height, .. }) => *height,
@@ -294,7 +246,6 @@ mod tests {
         };
         assert!(h_mid > h_early + 1.0, "height grows by mid-life");
 
-        // Walk to near the end of the lifetime; height returns toward 0.
         step(&mut e, DURATION_S * 0.49);
         let h_late = match draws(&e).get(1) {
             Some(EffectPrimitiveDraw::Cylinder { height, .. }) => *height,
@@ -313,14 +264,12 @@ mod tests {
             EffectPrimitiveDraw::Cylinder { color, .. } => color[3],
             _ => unreachable!(),
         };
-        // ~30 frames in — past the alpha fade-in but before the fade-out window.
         step(&mut e, 30.0 / FRAMES_PER_SECOND);
         let a_peak = match &draws(&e)[0] {
             EffectPrimitiveDraw::Cylinder { color, .. } => color[3],
             _ => unreachable!(),
         };
         assert!(a_peak > a0, "alpha rises during fade-in");
-        // Deep into the fade-out window.
         step(&mut e, (DURATION_FRAMES - 30.0 - 2.0) / FRAMES_PER_SECOND);
         let a_late = match draws(&e).first() {
             Some(EffectPrimitiveDraw::Cylinder { color, .. }) => color[3],

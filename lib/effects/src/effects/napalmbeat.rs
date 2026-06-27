@@ -1,9 +1,4 @@
-//! `EF_NAPALMBEAT` — Wizard Napalm Beat (id 32).
-//!
-//! Original game spawns 15 explosion sprites (one per frame,
-//! frames 0–14), each at a random screen-space offset from the target. Each
-//! particle cycles through 8 `폭발{1-8}.tga` frames with anim speed 2, fades
-//! in over 10 frames, fades out from frame 20, and dies at frame 30.
+//! `EF_NAPALMBEAT` (id 32).
 
 use super::spike_burst::seed_from_world;
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};

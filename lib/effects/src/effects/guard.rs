@@ -1,76 +1,34 @@
-//! `Guard(texture, F1)` / `Guard2(texture)` — aura shell.
-//!
-//! All three ids (Guard 336, Guard3 675, Guard2 496) build the same shell in
-//! the original game; they differ only in textures,
-//! shell radius, spin, tint and a body flash. It is a
-//! forward-facing hemispherical shell of panels: a grid of 5 longitude
-//! columns (`add = count*45 - 90`) × 3 latitude rows (`add2 = count2*45 - 45`)
-//! = 15 panels, each drawn as 3 stacked layers at increasing radius. The
-//! first two layers are additive on the primary texture; the third is
-//! alpha-blended on the secondary texture and drifts upward during fade-out.
-//!
-//! A single fade curve runs off a `process` counter: alpha ramps
-//! `0 → 100` over the first frames, holds, then ramps back to 0 while the
-//! outer layer rises. Guard2 (`flag1 == 1`) also spins the shell `+10°`/frame
-//! and pulses the caster sprite white; the static variants lock the shell to
-//! the caster's facing. Tint is green-white for Guard/Guard2 and gold for
-//! Guard3 (`flag1 == 2`).
-
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// Fade-out begins once `process` passes this (alpha holds at 100 until here).
 const FADE_OUT_START: u32 = 26;
-/// `process` at which the `-6`/frame fade-out has driven alpha to 0; the
-/// effect dies here. `100 / 6 ≈ 17` frames after [`FADE_OUT_START`] + 1.
 const DEATH_PROCESS: u32 = 43;
-/// Wall-clock lifetime — the visible animation ends when alpha hits 0, well
-/// before the original game's longer parent-emitter lifetime.
 pub const TOTAL_DURATION_MS: u32 = 720;
 
-/// Shell grid: 5 longitude columns, 3 latitude rows.
 const COLUMNS: u32 = 5;
 const ROWS: u32 = 3;
-
-/// Per-layer outward radius added to `max_height` (the third also rides the
-/// fade-out `height0` drift).
 const LAYER_RADIUS_ADD: [f32; 3] = [0.0, 0.2, 0.4];
-
-/// Shell facing offset (caster facing + 270°). The live caster
-/// yaw is added on top each frame; with no caster facing the shell falls back
-/// to a fixed front (yaw 0), tuned so the open dome faces the export/viewer
-/// camera.
 const ROT_OFFSET_DEG: f32 = 270.0;
-
-/// Green-white tint per layer (`205/155/225`,255,…), 0..1.
 const GREEN_LAYERS: [[f32; 3]; 3] = [
     [205.0 / 255.0, 1.0, 205.0 / 255.0],
     [155.0 / 255.0, 1.0, 155.0 / 255.0],
     [225.0 / 255.0, 1.0, 225.0 / 255.0],
 ];
-/// Gold tint `(255,155,0)` used for all three layers of Guard3.
 const GOLD: [f32; 3] = [1.0, 155.0 / 255.0, 0.0];
 const GOLD_LAYERS: [[f32; 3]; 3] = [GOLD, GOLD, GOLD];
 
 #[derive(Clone, Copy, Debug)]
 pub struct GuardParams {
-    /// Additive panel texture (layers 0 and 1).
     pub tex0: &'static str,
-    /// Alpha-blended outer panel texture (layer 2).
     pub tex1: &'static str,
-    /// Shell radius.
     pub max_height: f32,
-    /// `flag1 == 1`: spin the shell `+10°`/frame and pulse the caster body.
     pub spin: bool,
-    /// Per-layer RGB tint (0..1). Gold variant repeats one colour.
     pub layer_rgb: [[f32; 3]; 3],
-    /// Guard2 pulses the caster sprite white during the early frames.
     pub body_flash: bool,
 }
 
-/// `EF_GUARD` → `Guard("effect\\guardK.tga")`.
 pub const GUARD: GuardParams = GuardParams {
     tex0: "guardK.tga",
     tex1: "guardK2.tga",
@@ -80,14 +38,11 @@ pub const GUARD: GuardParams = GuardParams {
     body_flash: false,
 };
 
-/// `EF_GUARD3` → `Guard("effect\\guardK.tga", 2)`: gold tint.
 pub const GUARD3: GuardParams = GuardParams {
     layer_rgb: GOLD_LAYERS,
     ..GUARD
 };
 
-/// `EF_GUARD2` → `Guard2("effect\\a01.bmp")`: spinning sparkle shell + body
-/// flash, both panel textures are `a01.bmp`, larger radius.
 pub const GUARD2: GuardParams = GuardParams {
     tex0: "a01.bmp",
     tex1: "a01.bmp",
@@ -118,14 +73,10 @@ impl GuardEffect {
         }
     }
 
-    /// `process` counter (1-based on the first drawn frame).
     fn process(&self) -> u32 {
         self.frames + 1
     }
 
-    /// `(alpha out of 255-scale max 100, outer-layer drift)` for the current
-    /// `process`. Alpha ramps `+20`/frame to 100, holds, then `-6`/frame to 0;
-    /// the outer layer rises `+0.1`/frame once the fade-out starts.
     fn alpha_and_drift(&self) -> (f32, f32) {
         let p = self.process();
         if p <= FADE_OUT_START {
@@ -137,7 +88,6 @@ impl GuardEffect {
     }
 
     fn rot_start_deg(&self) -> f32 {
-        // Live caster facing + the 270° offset.
         let base = self.caster_yaw.map(f32::to_degrees).unwrap_or(0.0) + ROT_OFFSET_DEG;
         if self.params.spin {
             base + self.frames as f32 * 10.0
@@ -147,9 +97,6 @@ impl GuardEffect {
     }
 }
 
-/// Place a panel corner offset
-/// `(rx, ry)` in the panel's local frame, oriented by the latitude pair
-/// `(sn2, cs2)` and longitude pair `(sn1, cs1)`, then translate to `center`.
 fn guard_point(
     rx: f32,
     ry: f32,
@@ -189,23 +136,19 @@ impl Effect for GuardEffect {
         let mh = self.params.max_height;
 
         for row in 0..ROWS {
-            // Latitude band and per-row panel half-size (middle row is larger).
             let add2 = row as f32 * 45.0 - 45.0;
             let dist = 1.5 - (row as f32 - 1.0).abs() + 1.5;
             let (sn_lat, cs_lat) = add2.to_radians().sin_cos();
-            // Panel orientation latitude pair uses `90 + add2`.
             let (sn_o2, cs_o2) = (90.0 + add2).to_radians().sin_cos();
 
             for col in 0..COLUMNS {
                 let add = col as f32 * 45.0 - 90.0;
                 let (sn_lon, cs_lon) = (rot_start + add).to_radians().sin_cos();
-                // Panel orientation longitude pair uses `rot_start + add - 90`.
                 let (sn_o1, cs_o1) = (rot_start + add - 90.0).to_radians().sin_cos();
 
                 for layer in 0..3 {
                     let radius =
                         mh + LAYER_RADIUS_ADD[layer] + if layer == 2 { height0 } else { 0.0 };
-                    // Shell-relative panel centre. Layer 0 sits slightly lower.
                     let y_off = if layer == 0 { -(mh + 2.0) } else { -mh };
                     let center = [
                         radius * cs_lat * cs_lon,
@@ -283,9 +226,6 @@ mod tests {
 
     #[test]
     fn shell_shape_layers_and_textures() {
-        // Mid-hold: 15 panels × 3 layers = 45 quads. Layers 0/1 additive on
-        // tex0, layer 2 alpha on tex1; every corner sits within the shell
-        // radius of the caster.
         let prims = draws_after(GUARD, 15.0 / 60.0);
         assert_eq!(
             prims.len(),
@@ -315,9 +255,6 @@ mod tests {
                 other => panic!("unexpected blend {other:?}"),
             }
             for c in corners {
-                // Shell is lifted ~(mh+2) above the caster origin to wrap the
-                // body, so corners reach ~2·mh from it — a loose bound just
-                // confirms the shell is bounded, not flying off.
                 let d = ((c[0] - 10.0).powi(2) + c[1].powi(2) + (c[2] - 20.0).powi(2)).sqrt();
                 assert!(d < 3.0 * GUARD.max_height, "corner within shell radius");
             }
@@ -328,7 +265,6 @@ mod tests {
 
     #[test]
     fn alpha_rises_holds_then_dies_and_tint_per_variant() {
-        // Fade-in then hold: alpha is higher mid-hold than on the first frame.
         let early = draws_after(GUARD, 0.0);
         let hold = draws_after(GUARD, 15.0 / 60.0);
         let alpha_of = |p: &EffectPrimitiveDraw| {
@@ -343,7 +279,6 @@ mod tests {
             "holds at 100/255"
         );
 
-        // Gold variant is red-dominant; green variant is green-dominant.
         let EffectPrimitiveDraw::WorldQuad { color: gold, .. } =
             &draws_after(GUARD3, 15.0 / 60.0)[0]
         else {
@@ -355,7 +290,6 @@ mod tests {
         };
         assert!(green[1] >= green[0], "green: g >= r");
 
-        // Self-terminates once the fade-out completes.
         let mut e = GuardEffect::new([0.0; 3], GUARD);
         let mut status = EffectStatus::Running;
         for _ in 0..DEATH_PROCESS + 5 {
@@ -370,9 +304,6 @@ mod tests {
 
     #[test]
     fn guard2_spins_and_flashes_body() {
-        // The spinning variant advances panel azimuth between frames, so a
-        // given corner moves; the static variant does not. Body flash is on
-        // for an even frame in the window and off for Guard/Guard3.
         let f1 = draws_after(GUARD2, 5.0 / 60.0);
         let f2 = draws_after(GUARD2, 6.0 / 60.0);
         let EffectPrimitiveDraw::WorldQuad { corners: c1, .. } = &f1[0] else {

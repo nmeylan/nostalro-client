@@ -158,7 +158,6 @@ impl App {
                     self.game.status_window.toggle();
                 }
                 PhysicalKey::Code(KeyCode::KeyW) if self.input.alt_pressed => {
-                    // Cart window opens only while the player actually has a cart.
                     let has_cart = self
                         .game
                         .entities

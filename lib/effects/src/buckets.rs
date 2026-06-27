@@ -1,11 +1,8 @@
 use models::enums::effect_id::EffectId;
 
-/// `true` if the original game dispatches this id to PP_* primitives —
-/// includes pure custom (407) and StrHybrid (12). Total: 419.
 pub fn is_custom_bucket(id: EffectId) -> bool {
     matches!(
         id,
-        // Pure custom (407)
         EffectId::Ef05val
             | EffectId::Absorbspirits
             | EffectId::Aciddemon
@@ -495,9 +492,9 @@ pub fn is_custom_bucket(id: EffectId) -> bool {
     )
 }
 
-/// `true` if the original game emits **both** an STR file and PP_* primitives
-/// for this id (12 ids). Strict subset of [`is_custom_bucket`]; lets the
-/// factory pick the hybrid-placeholder variant so the STR plays alongside.
+/// Strict subset of [`is_custom_bucket`] — ids that emit both an STR file and
+/// PP_* primitives. The factory picks the hybrid-placeholder variant so the STR
+/// plays alongside.
 pub fn is_hybrid(id: EffectId) -> bool {
     matches!(
         id,
@@ -516,9 +513,6 @@ pub fn is_hybrid(id: EffectId) -> bool {
     )
 }
 
-/// `true` if the original game has neither sprintf-STR nor PP_* dispatch
-/// for this id (235 ids). Rendered as `EffectSpec::Noop` so viewers can
-/// exclude them and the holder skips the spawn.
 pub fn is_noop_bucket(id: EffectId) -> bool {
     matches!(
         id,
@@ -700,10 +694,6 @@ mod tests {
     #[test]
     fn buckets_are_disjoint() {
         use models::enums::EnumWithNumberValue;
-        // No effect may be in both Custom and Noop (Noop wins in
-        // `effect_spec`, so an overlap silently swallows a Custom handler);
-        // Hybrid is a strict subset of Custom. Sweep every variant — a
-        // straggler sharing a list line is easy to miss by eye.
         for value in 0..3000usize {
             let Ok(id) = EffectId::try_from_value(value) else {
                 continue;

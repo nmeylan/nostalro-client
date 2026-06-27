@@ -1,38 +1,19 @@
-//! RSW ambient map effects (torch / smoke / bubble / gaspush / springtrap).
-//!
-//! This is a thin **scheduler**: it owns the per-map list of ambient emitters
-//! parsed from the RSW and drives the shared `EffectQueue`/`EffectHolder`
-//! pipeline — it does no rendering and no particle simulation of its own. The
-//! RSW `effect_type` is the `EF_*` number, which is the `EffectId` value, so
-//! each emitter maps to an effect via `EffectId::try_from_value`.
-//!
-//! Only emitters near the camera are driven (matching the original game, which
-//! processes nearby map objects). Persistent effects (torch) are spawned when
-//! they enter view and despawned when they leave; re-emitting effects (smoke,
-//! bubble, …) re-spawn their short one-shot on the RSW `emit_speed` cadence.
-
+use models::enums::EnumWithNumberValue;
+use models::enums::effect_id::EffectId;
 use ragnarok_effects::effect_queue::EffectQueue;
 use ragnarok_effects::spec::EffectSpec;
 use ragnarok_effects::table::effect_spec;
 use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::rsw::{RswFile, RswObject};
-use models::enums::EnumWithNumberValue;
-use models::enums::effect_id::EffectId;
 
-/// Base for per-emitter despawn keys. High enough that it cannot collide with
-/// an account/unit id used by the other keyed spawners (those are real `aid`s).
 pub const AMBIENT_KEY_BASE: u32 = 0xFFF0_0000;
 
-/// Emitters farther than this (XZ distance, world units) from the camera target
-/// are not driven. Generous to avoid pop-in at the screen edge.
 pub const AMBIENT_VIEW_RADIUS: f32 = 200.0;
 
 struct AmbientEmitter {
     world_pos: [f32; 3],
     effect_id: EffectId,
     key: u32,
-    /// Infinite-duration effect (torch): spawned once while visible, despawned
-    /// when it leaves view. Otherwise re-emitted on `emit_cooldown_s`.
     persistent: bool,
     emit_cooldown_s: f32,
     size_scale: f32,
@@ -40,9 +21,6 @@ struct AmbientEmitter {
     spawned: bool,
 }
 
-/// Collect the SPR sprite paths and STR file names the map's ambient effects
-/// will draw, so the caller can preload them. Mirrors `from_rsw`'s id
-/// resolution (the holder draws nothing it can't find loaded).
 pub fn ambient_effect_assets(rsw: &RswFile) -> (Vec<&'static str>, Vec<String>) {
     let mut spr = Vec::new();
     let mut str_names = Vec::new();
@@ -74,10 +52,6 @@ impl AmbientEffectScheduler {
         Self::default()
     }
 
-    /// Build the emitter list from the map's RSW effects. RSW positions are
-    /// translated into renderer world coordinates the same way model instances
-    /// are. Effects whose type does not resolve to a known `EffectId` (or that
-    /// resolve to `Noop`) are skipped.
     pub fn from_rsw(rsw: &RswFile, gnd: &GndFile) -> Self {
         let scale_factor = gnd.zoom / 10.0;
         let center_x = gnd.width as f32 * gnd.zoom / 2.0;
@@ -97,10 +71,6 @@ impl AmbientEffectScheduler {
                 skipped += 1;
                 continue;
             };
-            // Spr ambients (torch) are lifted by `gnd.zoom`, matching the
-            // original; the holder's Spr path adds no extra offset. `param[0]`
-            // is a size percentage *only* for the burst ambients (smoke) — Spr
-            // and Str ignore it (torch's `param[0]` is an unrelated flag).
             let (duration_ms, is_spr, size_scale) = match &spec {
                 EffectSpec::Spr { duration_ms, .. } => (*duration_ms, true, 1.0),
                 EffectSpec::SprBurst { duration_ms, .. } => {
@@ -125,7 +95,6 @@ impl AmbientEffectScheduler {
                 eff.position[1] * scale_factor + y_offset,
                 eff.position[2] * scale_factor + center_z,
             ];
-            // `emit_speed` is in frames (60 fps) in the original.
             let emit_cooldown_s = (eff.emit_speed.max(0.1)) / 60.0;
             let key = AMBIENT_KEY_BASE + emitters.len() as u32;
             emitters.push(AmbientEmitter {
@@ -135,7 +104,6 @@ impl AmbientEffectScheduler {
                 persistent: duration_ms == u32::MAX,
                 emit_cooldown_s,
                 size_scale,
-                // Emit on the first visible frame rather than after a full cooldown.
                 timer_s: emit_cooldown_s,
                 spawned: false,
             });
@@ -147,8 +115,6 @@ impl AmbientEffectScheduler {
         Self { emitters }
     }
 
-    /// Drive emission for emitters near `camera_target`. Persistent emitters are
-    /// spawned/despawned as they enter/leave view; the rest re-emit on cadence.
     pub fn update(&mut self, dt: f32, camera_target: [f32; 3], queue: &mut EffectQueue) {
         let radius_sq = AMBIENT_VIEW_RADIUS * AMBIENT_VIEW_RADIUS;
         for e in &mut self.emitters {
@@ -174,8 +140,6 @@ impl AmbientEffectScheduler {
         }
     }
 
-    /// Despawn every live persistent emitter — call on map change before
-    /// rebuilding. Short re-emitted effects expire on their own duration.
     pub fn clear(&mut self, queue: &mut EffectQueue) {
         for e in &mut self.emitters {
             if e.spawned {
@@ -268,9 +232,6 @@ mod tests {
 
     #[test]
     fn schedules_known_rsw_effects_and_emits_near_camera() {
-        // torch(47) + smoke(44) + bubble(109) are known; 9999 is dropped.
-        // Torch carries `param[0]=1.0` (a flag, NOT a size) — it must still
-        // spawn at full size; only smoke reads `param[0]` as a size percentage.
         let rsw = make_rsw_with_params(vec![
             (47, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]),
             (44, [0.0, 0.0, 0.0], [35.0, 0.0, 0.0, 0.0]),
@@ -280,7 +241,6 @@ mod tests {
         let gnd = make_gnd();
         let mut sched = AmbientEffectScheduler::from_rsw(&rsw, &gnd);
 
-        // All effects sit at map center; place the camera there so they are visible.
         let center = [
             gnd.width as f32 * gnd.zoom / 2.0,
             0.0,
@@ -290,17 +250,29 @@ mod tests {
         sched.update(0.1, center, &mut queue);
 
         let reqs = queue.drain();
-        // 3 known effects each emit on the first visible frame (torch persistent,
-        // smoke/bubble re-emit with timer pre-armed); unknown 9999 is dropped.
         assert_eq!(reqs.len(), 3);
         for r in &reqs {
             assert!(matches!(r.attach, Attach::WorldPos(_)));
             assert!(r.key.is_some());
         }
-        let torch = reqs.iter().find(|r| r.effect_id == EffectId::Torch).unwrap();
-        assert_eq!(torch.size_scale, Some(1.0), "torch param[0] must not shrink it");
-        let smoke = reqs.iter().find(|r| r.effect_id == EffectId::Smoke).unwrap();
-        assert_eq!(smoke.size_scale, Some(0.35), "smoke reads param[0] as size %");
+        let torch = reqs
+            .iter()
+            .find(|r| r.effect_id == EffectId::Torch)
+            .unwrap();
+        assert_eq!(
+            torch.size_scale,
+            Some(1.0),
+            "torch param[0] must not shrink it"
+        );
+        let smoke = reqs
+            .iter()
+            .find(|r| r.effect_id == EffectId::Smoke)
+            .unwrap();
+        assert_eq!(
+            smoke.size_scale,
+            Some(0.35),
+            "smoke reads param[0] as size %"
+        );
         assert!(reqs.iter().any(|r| r.effect_id == EffectId::Bubble));
     }
 
@@ -311,7 +283,6 @@ mod tests {
         let mut sched = AmbientEffectScheduler::from_rsw(&rsw, &gnd);
 
         let mut queue = EffectQueue::new();
-        // Far away on XZ — beyond AMBIENT_VIEW_RADIUS.
         sched.update(0.1, [10_000.0, 0.0, 10_000.0], &mut queue);
         assert!(queue.drain().is_empty());
     }

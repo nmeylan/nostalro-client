@@ -1,24 +1,11 @@
-//! Rising-sparkle status effects — Hptime/Sptime,
-//! Hated/Hated2, SmaReady, Sprinklesand (ids 331, 332, 543, 572, 546, 310).
-//!
-//! HealTime / ParticleTime / Sprinklesand repeatedly launch bursts of 4
-//! sparkle billboards
-//! spawned every 4 frames over a window, scattered around the actor, drifting
-//! upward, spinning, fading in over 10 frames then
-//! out. A colour index selects the tint. The textures are hardcoded
-//! (`pok1.tga`; `thunder_center.bmp` for the
-//! Sprinklesand burst).
-//!
-//! Firstaid uses a different primitive and is deferred.
+//! Rising-sparkle status effects — Hptime/Sptime, Hated/Hated2, SmaReady, Sprinklesand (ids 331, 332, 543, 572, 546, 310).
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const SPAWN_PERIOD: u32 = 4;
-/// Particles spawn `y_offset` above the actor's feet (native RO `-Y = up`,
-/// 6 units up).
-const Y_OFFSET: f32 = -6.0;
+const Y_OFFSET: f32 = -6.0; // −Y is up.
 
 fn rgb(r: u8, g: u8, b: u8) -> [f32; 3] {
     [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0]
@@ -28,24 +15,17 @@ fn rgb(r: u8, g: u8, b: u8) -> [f32; 3] {
 pub struct ParticleUpParams {
     pub texture: &'static str,
     pub tint_rgb: (u8, u8, u8),
-    /// Frame window in which bursts spawn.
     pub spawn_start: u32,
     pub spawn_end: u32,
-    /// Sub-emitters per burst; each emits 4 particles (×4 below).
     pub prims_per_spawn: usize,
-    /// Horizontal scatter half-range around the actor.
     pub spread: f32,
     pub base_dist: f32,
     pub dist_rand: f32,
     pub rise_base: f32,
     pub rise_rand: f32,
-    /// Sprinklesand staggers starts with `process=-10+rand(10)`.
     pub stagger_start: bool,
-    /// When `> 0`, each mote also draws a larger, fainter additive halo at this
-    /// size multiple — a soft glow around the bright core (heal motes).
     pub glow_scale: f32,
-    /// `false` keeps motes axis-aligned (the original game builds the
-    /// quad at fixed 0/90/180/270° — no spin; spinning smears a star texture).
+    /// `false` keeps motes axis-aligned; spinning smears the star texture.
     pub spin: bool,
 }
 
@@ -67,14 +47,7 @@ const fn p(texture: &'static str, tint_rgb: (u8, u8, u8)) -> ParticleUpParams {
     }
 }
 
-// HealTime — short window (0-20), tighter scatter.
-pub const HPTIME: ParticleUpParams = p("pok1.tga", (220, 250, 220)); // pale green (HP)
-
-// Heal-skill recovery motes — the colour index 0 selects
-// `pok1.tga` (the bright additive
-// sparkle), tinted green (220,250,220). The quad is axis-aligned (no spin) so
-// the star reads as a glowing twinkle rather than a smeared "feather". Scattered
-// over `random(13) - 6` (±6), wider than the ring so motes rise outside it too.
+pub const HPTIME: ParticleUpParams = p("pok1.tga", (220, 250, 220));
 pub const HEAL_MOTE: ParticleUpParams = ParticleUpParams {
     base_dist: 0.9,
     dist_rand: 0.5,
@@ -85,9 +58,7 @@ pub const HEAL_MOTE: ParticleUpParams = ParticleUpParams {
     spin: false,
     ..p("pok1.tga", (220, 250, 220))
 };
-pub const SPTIME: ParticleUpParams = p("pok1.tga", (150, 150, 250)); // blue (SP)
-// Hated — a wide field of many small twinkling sparkles (firefly look),
-// spawned over a long window. Small `pok1.tga` stars, wide horizontal scatter.
+pub const SPTIME: ParticleUpParams = p("pok1.tga", (150, 150, 250));
 pub const HATED: ParticleUpParams = ParticleUpParams {
     spawn_end: 80,
     prims_per_spawn: 2, // denser field
@@ -101,13 +72,12 @@ pub const HATED: ParticleUpParams = ParticleUpParams {
 pub const HATED2: ParticleUpParams = ParticleUpParams {
     tint_rgb: (250, 100, 100),
     ..HATED
-}; // red
+};
 pub const SMAREADY: ParticleUpParams = ParticleUpParams {
     spawn_start: 40,
     spawn_end: 120,
     ..HATED
 };
-// Sprinklesand — one 20-prim burst, small sparkles, staggered.
 pub const SPRINKLESAND: ParticleUpParams = ParticleUpParams {
     spawn_end: 0,
     prims_per_spawn: 20,
@@ -117,11 +87,9 @@ pub const SPRINKLESAND: ParticleUpParams = ParticleUpParams {
     rise_base: 0.2,
     rise_rand: 0.4,
     stagger_start: true,
-    ..p("thunder_center.bmp", (250, 250, 150)) // yellow
+    ..p("thunder_center.bmp", (250, 250, 150))
 };
 
-// Sma3 (556) — one blue thunder-ball burst rising
-// from the actor (blue palette, `thunder_ball_0002.bmp`).
 pub const SMA3: ParticleUpParams = ParticleUpParams {
     spawn_end: 0,
     spread: 4.0,
@@ -131,7 +99,6 @@ pub const SMA3: ParticleUpParams = ParticleUpParams {
     rise_rand: 0.2,
     ..p("thunder_ball_0002.bmp", (120, 120, 255))
 };
-/// Single burst that fades in over 10 frames then out at `-3/255`/frame.
 pub const SMA3_TOTAL_DURATION_MS: u32 = 1100;
 
 pub const TEXTURES: &[&str] = &[
@@ -241,7 +208,6 @@ impl Effect for ParticleUpEffect {
             self.frame_accum -= 1.0;
             self.step_frame();
         }
-        // Done once spawning has ended and every particle has faded.
         if self.frame > self.params.spawn_end && self.particles.is_empty() {
             EffectStatus::Dead
         } else {
@@ -250,9 +216,6 @@ impl Effect for ParticleUpEffect {
     }
 
     fn set_position(&mut self, pos: [f32; 3]) {
-        // Motes carry absolute world positions, so translate the whole field
-        // by the same delta the anchor moved — they keep their spread and rise
-        // while following the entity.
         let delta = [
             pos[0] - self.center[0],
             pos[1] - self.center[1],
@@ -273,8 +236,6 @@ impl Effect for ParticleUpEffect {
             if pt.alpha <= 0.0 {
                 continue;
             }
-            // Soft glow halo behind the core (additive), so each mote reads as a
-            // glowing dot rather than a flat blob.
             if self.params.glow_scale > 0.0 {
                 let glow = pt.size * self.params.glow_scale;
                 out.push(EffectPrimitiveDraw::Billboard {
