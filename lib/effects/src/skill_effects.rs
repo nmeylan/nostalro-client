@@ -492,6 +492,7 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::PrMagnificat | S::MerMagnificat => C::cast(&[E::Magnificat]),
         S::PrGloria => C::cast(&[E::Gloria]),
         S::PrKyrie => C::cast(&[E::Kyrie]),
+        S::PrTurnundead => C::cast(&[E::Turnundead]),
         S::WzFirepillar => C::cast(&[E::Firepillar]),
         S::WzSightrasher => C::cast(&[E::Sightrasher]),
         S::WzStormgust => C::cast(&[E::Stormgust]),
@@ -717,7 +718,6 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
             ..Default::default()
         },
         S::PrTurnundead => T {
-            on_target: &[E::Turnundead],
             hit: &[E::Holyhit],
             hit_extra_delay_secs: 50.0 / 60.0,
             ..Default::default()
@@ -1393,7 +1393,6 @@ mod tests {
         // must sit in the target `on_target` slot — a point effect left in the
         // caster `cast` slot collapses onto the caster instead.
         for (skill, effect) in [
-            (SkillEnum::PrTurnundead, EffectId::Turnundead),
             (SkillEnum::GsFullbuster, EffectId::M02),
             (SkillEnum::GsSpreadattack, EffectId::Spreadattack),
             (SkillEnum::AsSonicblow, EffectId::Sonicblow),
@@ -1414,6 +1413,14 @@ mod tests {
                 .cast
                 .contains(&EffectId::Sonicblow2)
         );
+    }
+
+    #[test]
+    fn turn_undead_burst_anchors_on_the_caster() {
+        let tu = SkillEnum::PrTurnundead;
+        assert!(caster_skill_effects(tu).cast.contains(&EffectId::Turnundead));
+        assert!(!target_skill_effects(tu).on_target.contains(&EffectId::Turnundead));
+        assert_eq!(target_skill_effects(tu).hit, &[EffectId::Holyhit]);
     }
 
     #[test]

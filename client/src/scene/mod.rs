@@ -86,6 +86,7 @@ impl App {
                                 entry.screen_anchor,
                                 entry.depth,
                                 shadow_scale,
+                                entry.depth_gradient,
                             );
                             sprite_batches.append(&mut shadow);
                         }
@@ -98,6 +99,7 @@ impl App {
                             entry.screen_anchor,
                             entry.depth,
                             entry.sprite_scale,
+                            entry.depth_gradient,
                             &body_channels,
                         );
 
@@ -152,7 +154,7 @@ impl App {
                                 // was and trails behind it; a frozen screen
                                 // anchor would follow the camera and clump on the
                                 // actor instead.
-                                let (anchor, depth, scale) = self
+                                let (anchor, depth, scale, depth_gradient) = self
                                     .renderer
                                     .as_ref()
                                     .zip(self.game.map_coords.as_ref())
@@ -170,8 +172,13 @@ impl App {
                                             sh,
                                         )
                                     })
-                                    .map(|(a, d, _cd, s, _dg)| (a, d, s))
-                                    .unwrap_or((entry.screen_anchor, entry.depth, entry.sprite_scale));
+                                    .map(|(a, d, _cd, s, dg)| (a, d, s, dg))
+                                    .unwrap_or((
+                                        entry.screen_anchor,
+                                        entry.depth,
+                                        entry.sprite_scale,
+                                        entry.depth_gradient,
+                                    ));
                                 let mut copy = sprite.build_batches(
                                     &img.anim,
                                     img.camera_dir,
@@ -179,7 +186,7 @@ impl App {
                                     anchor,
                                     depth,
                                     scale,
-                                    0.0,
+                                    depth_gradient,
                                 );
                                 let (tr, tg, tb) = (
                                     img.tint[0] as f32 / 255.0,
@@ -340,7 +347,7 @@ impl App {
                                             &mut vertices,
                                             center,
                                             entry.sprite_scale,
-                                            0.0,
+                                            entry.depth_gradient,
                                         );
                                         if blink_active {
                                             for v in &mut vertices {
@@ -389,6 +396,7 @@ impl App {
                             entry.screen_anchor,
                             entry.depth,
                             entry.sprite_scale,
+                            entry.depth_gradient,
                             &body_channels,
                         );
                         sprite_batches.append(&mut batches);
@@ -422,6 +430,7 @@ impl App {
                             entry.screen_anchor,
                             entry.depth,
                             entry.sprite_scale,
+                            entry.depth_gradient,
                             &body_channels,
                         );
                         sprite_batches.append(&mut batches);
@@ -437,7 +446,7 @@ impl App {
             && let Some(sprite) = self.game.sprites.get(&player_id)
         {
             let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
-            let batches = sprite.build_batches(&idle_anim, None, 0, center, 0.0, 1.0, 0.0);
+            let batches = sprite.build_batches(&idle_anim, None, 0, center, 0.0, 1.0, [0.0, 0.0]);
             for batch in batches {
                 let idx = inline_textures.len();
                 inline_textures.push(batch.texture);
@@ -463,7 +472,7 @@ impl App {
             && let Some(cart) = self.game.carts.get(&player_id)
         {
             let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
-            let batches = cart.sprite.build_batches(&idle_anim, None, 0, center, 0.0, 0.5, 0.0);
+            let batches = cart.sprite.build_batches(&idle_anim, None, 0, center, 0.0, 0.5, [0.0, 0.0]);
             for batch in batches {
                 let idx = inline_textures.len();
                 inline_textures.push(batch.texture);
@@ -497,7 +506,7 @@ impl App {
                 center,
                 0.0,
                 ragnarok_ui_component::game::cart_select_window::PREVIEW_SCALE,
-                0.0,
+                [0.0, 0.0],
             );
             for batch in batches {
                 let idx = inline_textures.len();

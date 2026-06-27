@@ -713,7 +713,7 @@ impl App {
                     screen_anchor,
                     0.0,
                     self.zoom,
-                    0.0,
+                    [0.0, 0.0],
                 );
 
                 renderer.render(

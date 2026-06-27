@@ -860,12 +860,39 @@ pub fn scale_clip_vertices(
     vertices: &mut [SpriteVertex],
     center: [f32; 2],
     scale: f32,
-    depth_gradient: f32,
+    depth_gradient: [f32; 2],
 ) {
     for v in vertices {
         v.position[0] = center[0] + (v.position[0] - center[0]) * scale;
         v.position[1] = center[1] + (v.position[1] - center[1]) * scale;
-        v.position[2] += depth_gradient * (v.position[1] - center[1]);
+        // Depth across the billboard's vertical plane is affine in screen (x, y),
+        // so per-vertex assignment + linear interpolation reproduces it exactly —
+        // and overlapping layers (head over body, body over shadow) sharing a
+        // screen pixel get identical depth, a clean tie that draw order resolves.
+        // Keep this strictly affine: clamping here would break that agreement.
+        v.position[2] += depth_gradient[0] * (v.position[0] - center[0])
+            + depth_gradient[1] * (v.position[1] - center[1]);
+    }
+}
+
+/// NDC-depth step between successive sprite layers. The entity's body, head,
+/// headgear, weapon and shadow are coplanar alpha quads at (mathematically)
+/// equal depth, so per-quad float interpolation makes them z-fight — speckled
+/// seams / see-through pixels where they overlap. Nudging each later-painted
+/// layer a hair toward the camera makes the depth test resolve cleanly in paint
+/// order. Far larger than interpolation noise, far smaller than the gap to any
+/// world geometry, so occlusion against buildings is unchanged.
+pub const LAYER_DEPTH_BIAS: f32 = 1.0e-4;
+
+/// Pull each batch toward the camera by its paint-order position so coplanar
+/// layers never tie on depth. `start_layer` offsets the whole run (the shadow
+/// sits one step *behind* the body, so the body is drawn at `start_layer = 0`).
+pub fn separate_layer_depths(batches: &mut [SpriteBatch<'_>], start_layer: usize) {
+    for (i, batch) in batches.iter_mut().enumerate() {
+        let dz = (start_layer + i) as f32 * LAYER_DEPTH_BIAS;
+        for v in &mut batch.vertices {
+            v.position[2] -= dz;
+        }
     }
 }
 
@@ -1118,7 +1145,7 @@ impl EntitySprite {
         screen_anchor: [f32; 2],
         depth: f32,
         scale: f32,
-        depth_gradient: f32,
+        depth_gradient: [f32; 2],
     ) -> Vec<SpriteBatch<'_>> {
         let action_idx = match camera_dir {
             Some(dir) => animation.action_index(&self.body_act, dir),
@@ -1226,6 +1253,7 @@ impl EntitySprite {
             batches.extend(shield_batches);
         }
 
+        separate_layer_depths(&mut batches, 0);
         batches
     }
 
@@ -1241,6 +1269,7 @@ impl EntitySprite {
         screen_anchor: [f32; 2],
         depth: f32,
         scale: f32,
+        depth_gradient: [f32; 2],
     ) -> Vec<SpriteBatch<'_>> {
         let Some(trail_tex) = &self.weapon_trail_textures else {
             return Vec::new();
@@ -1261,7 +1290,7 @@ impl EntitySprite {
         };
         let mut batches = Vec::new();
         for (mut vertices, indices, tex_idx) in clips.weapon_trail {
-            scale_clip_vertices(&mut vertices, screen_anchor, scale, 0.0);
+            scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
             batches.push(SpriteBatch {
                 vertices,
                 indices,
@@ -1277,6 +1306,7 @@ impl EntitySprite {
         screen_anchor: [f32; 2],
         depth: f32,
         scale: f32,
+        depth_gradient: [f32; 2],
     ) -> Vec<SpriteBatch<'_>> {
         let mut batches = Vec::new();
         if let (Some(shadow_act), Some(shadow_tex)) = (&self.shadow_act, &self.shadow_textures)
@@ -1289,7 +1319,13 @@ impl EntitySprite {
                     build_clip_quad(clip, shadow_tex, screen_anchor, depth, [0, 0])
                     && tex_idx < shadow_tex.bind_groups.len()
                 {
-                    scale_clip_vertices(&mut vertices, screen_anchor, scale, 0.0);
+                    scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
+                    // Push the shadow one layer-step *behind* the body. It shares
+                    // the body's depth gradient, so this constant offset keeps the
+                    // body in front everywhere they overlap at the feet.
+                    for v in &mut vertices {
+                        v.position[2] += LAYER_DEPTH_BIAS;
+                    }
                     batches.push(SpriteBatch {
                         vertices,
                         indices,
@@ -1404,6 +1440,7 @@ pub fn compose_actor_batches<'a>(
     screen_anchor: [f32; 2],
     depth: f32,
     base_scale: f32,
+    depth_gradient: [f32; 2],
     channels: &BodyChannels,
 ) -> Vec<SpriteBatch<'a>> {
     // Body yaw: convert the accumulated yaw to direction
@@ -1420,7 +1457,8 @@ pub fn compose_actor_batches<'a>(
     ];
     let scale = base_scale * channels.scale;
 
-    let mut live = sprite.build_batches(animation, Some(dir), head_dir, anchor, depth, scale, 0.0);
+    let mut live =
+        sprite.build_batches(animation, Some(dir), head_dir, anchor, depth, scale, depth_gradient);
     // Bounding box of the natural (untransformed) sprite — copies scale
     // concentrically about its centre (russian-doll / halo), so they surround the
     // body on all sides instead of growing off the feet.
@@ -1436,7 +1474,7 @@ pub fn compose_actor_batches<'a>(
 
     let build_copy = |copy: &ragnarok_game::effect::BodyCopy| {
         let mut batches =
-            sprite.build_batches(animation, Some(dir), head_dir, anchor, depth, scale, 0.0);
+            sprite.build_batches(animation, Some(dir), head_dir, anchor, depth, scale, depth_gradient);
         // `margin_px` grows the copy by a fixed number of pixels on every edge
         // (an even border inflation) — the right knob for a small concentric
         // halo/ripple. Otherwise a uniform scale (`[s, s]`) adds a *proportional*
@@ -1499,8 +1537,15 @@ pub fn compose_actor_batches<'a>(
     // tinted by the buff (yellow). The trail sprite only carries frames in the
     // attack motions, so it appears only during the swing — the iconic arc.
     if channels.weapon_trail {
-        let mut trail =
-            sprite.build_weapon_trail_batches(animation, Some(dir), head_dir, anchor, depth, scale);
+        let mut trail = sprite.build_weapon_trail_batches(
+            animation,
+            Some(dir),
+            head_dir,
+            anchor,
+            depth,
+            scale,
+            depth_gradient,
+        );
         apply_tint_alpha(&mut trail, channels.tint, channels.alpha);
         out.append(&mut trail);
     }

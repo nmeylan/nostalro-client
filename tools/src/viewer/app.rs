@@ -1286,7 +1286,7 @@ fn build_character_batches<'a>(
                 img.anchor,
                 img.depth,
                 img.scale,
-                0.0,
+                [0.0, 0.0],
             );
             let (tr, tg, tb) = (
                 img.tint[0] as f32 / 255.0,
@@ -1313,6 +1313,7 @@ fn build_character_batches<'a>(
         screen_anchor,
         depth,
         sprite_scale,
+        [0.0, 0.0],
         body_channels,
     );
     batches.append(&mut live);

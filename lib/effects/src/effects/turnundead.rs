@@ -19,7 +19,7 @@
 //! effect runs to the phase-2 ring's death at frame 80.
 
 use super::spike_burst::{self, SpikeBurst, SpikeBurstParams, fade_in_out, seed_from_world};
-use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const HALO_TEXTURE: &str = "alpha_down.tga";
@@ -60,12 +60,12 @@ pub const SPIKES: SpikeBurstParams = SpikeBurstParams {
 // Phase 2 — expanding ground ring.
 const RING_SPAWN_FRAME: f32 = 50.0;
 const RING_DURATION_FRAMES: f32 = 30.0;
-const RING_MAX_ALPHA: f32 = 150.0 / 255.0;
-const RING_FADE_OUT_AT: f32 = 20.0;
+const RING_MAX_ALPHA: f32 = 1.0;
+const RING_FADE_OUT_AT: f32 = 24.0;
 const RING_HEIGHT_OFFSET: f32 = -2.0;
 // Growth 1.5/frame with accel 0.15, swapping to 0.5 / −0.033 at frame
-// 15 — ported uniformly so the ring half-extent peaks ~8 wu.
-const RING_SCALE: f32 = 0.5;
+// 15 — ported uniformly. The visible ring reads clearly on the ground.
+const RING_SCALE: f32 = 0.8;
 const RING_CHANGE_FRAME: f32 = 15.0;
 
 const TOTAL_FRAMES: f32 = RING_SPAWN_FRAME + RING_DURATION_FRAMES;
@@ -103,8 +103,17 @@ impl TurnUndeadEffect {
 
 impl Effect for TurnUndeadEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
+        let before = self.age_frames;
         self.age_frames += ctx.delta * FRAMES_PER_SECOND;
         self.spikes.tick(ctx.delta);
+        // TEMP DIAGNOSTIC: log once when the phase-2 ground ring begins, with
+        // its world anchor, to confirm in-game spawn/lifetime/position.
+        if before < RING_SPAWN_FRAME && self.age_frames >= RING_SPAWN_FRAME {
+            eprintln!(
+                "[turnundead] ground ring spawns at world_pos={:?} (age_frames={})",
+                self.world_pos, self.age_frames
+            );
+        }
         if self.age_frames >= TOTAL_FRAMES {
             EffectStatus::Dead
         } else {
@@ -155,22 +164,28 @@ impl Effect for TurnUndeadEffect {
                 RING_DURATION_FRAMES,
             );
             if half > 0.0 && a > 0.0 {
-                out.push(EffectPrimitiveDraw::Texture3D {
-                    center: [
-                        self.world_pos[0],
-                        self.world_pos[1] + RING_HEIGHT_OFFSET,
-                        self.world_pos[2],
+                // Flat ground ring laid on the XZ plane. Emitted as a
+                // `no_depth` WorldQuad rather than a depth-tested `Texture3D`:
+                // a quad sitting right at the floor is otherwise occluded by the
+                // terrain it rests on (the same reason ground-coplanar sprites
+                // use `no_depth`), which made the ring invisible in game.
+                let cx = self.world_pos[0];
+                let cy = self.world_pos[1] + RING_HEIGHT_OFFSET;
+                let cz = self.world_pos[2];
+                out.push(EffectPrimitiveDraw::WorldQuad {
+                    corners: [
+                        [cx - half, cy, cz - half],
+                        [cx + half, cy, cz - half],
+                        [cx + half, cy, cz + half],
+                        [cx - half, cy, cz + half],
                     ],
-                    size: [half, half],
-                    plane: QuadPlane::Horizontal,
                     uv: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
                     texture: RING_TEXTURE,
+                    // Alpha-blended (additive vanishes against a bright
+                    // lightmap); the phase-1 spike rays stay additive.
                     color: [1.0, 1.0, 1.0, a],
-                    // The ground ring is alpha-blended at the default
-                    // source/inverse-source alpha, not additive —
-                    // additive vanishes against a bright lightmap. (The phase-1
-                    // spike rays stay additive.)
                     blend: BlendKind::Alpha,
+                    no_depth: true,
                 });
             }
         }
@@ -236,12 +251,13 @@ mod tests {
         let late = ring_half_extent(20.0);
         assert!(late > early, "ring grows {early} → {late}");
         let prims = draw_at(&mut e, 55.0);
-        let rings = prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::Texture3D { texture, .. } if *texture == RING_TEXTURE)).count();
+        let rings = prims.iter().filter(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { texture, .. } if *texture == RING_TEXTURE)).count();
         assert_eq!(rings, 1, "ring visible at frame 55");
-        // The phase-2 ground ring is alpha-blended.
+        // The phase-2 ground ring is a flat, alpha-blended, depth-ignoring quad
+        // (so the terrain it rests on cannot occlude it).
         assert!(
-            prims.iter().any(|p| matches!(p, EffectPrimitiveDraw::Texture3D { texture, blend: BlendKind::Alpha, .. } if *texture == RING_TEXTURE)),
-            "ring is alpha-blended"
+            prims.iter().any(|p| matches!(p, EffectPrimitiveDraw::WorldQuad { texture, blend: BlendKind::Alpha, no_depth: true, .. } if *texture == RING_TEXTURE)),
+            "ring is an alpha-blended no_depth ground quad"
         );
     }
 

@@ -19,34 +19,10 @@
   "window_state": {
     "1200": {
       "position": [
-        400.0,
-        100.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "800": {
-      "position": [
-        0.0,
-        126.859375
+        36.710938,
+        507.1328
       ],
       "open": true,
-      "collapsed": false
-    },
-    "210": {
-      "position": [
-        342.0,
-        346.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "1400": {
-      "position": [
-        0.0,
-        0.0
-      ],
-      "open": false,
       "collapsed": false
     },
     "900": {
@@ -57,10 +33,18 @@
       "open": true,
       "collapsed": false
     },
-    "1300": {
+    "110": {
       "position": [
-        476.6667,
-        0.0
+        490.0,
+        568.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "210": {
+      "position": [
+        342.0,
+        346.0
       ],
       "open": false,
       "collapsed": false
@@ -73,12 +57,28 @@
       "open": false,
       "collapsed": false
     },
-    "110": {
+    "1300": {
       "position": [
-        490.0,
-        568.0
+        476.6667,
+        0.0
       ],
       "open": false,
+      "collapsed": false
+    },
+    "1400": {
+      "position": [
+        0.0,
+        0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "800": {
+      "position": [
+        0.0,
+        126.859375
+      ],
+      "open": true,
       "collapsed": false
     }
   },

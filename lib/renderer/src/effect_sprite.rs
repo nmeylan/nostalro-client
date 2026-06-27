@@ -141,7 +141,7 @@ pub fn build_emitter_batches<'a>(draws: &[EmitterDraw<'a>]) -> Vec<SpriteBatch<'
             if tex_idx >= draw.sprite.textures.bind_groups.len() {
                 continue;
             }
-            scale_clip_vertices(&mut vertices, draw.screen_anchor, draw.sprite_scale, 0.0);
+            scale_clip_vertices(&mut vertices, draw.screen_anchor, draw.sprite_scale, [0.0, 0.0]);
             for v in &mut vertices {
                 v.color[0] *= draw.color[0];
                 v.color[1] *= draw.color[1];
@@ -221,7 +221,7 @@ pub fn prepare_sprite_particle_records<'cache>(
             if tex_idx >= sprite.textures.bind_groups.len() {
                 continue;
             }
-            scale_clip_vertices(&mut vertices, anchor, sprite_scale, 0.0);
+            scale_clip_vertices(&mut vertices, anchor, sprite_scale, [0.0, 0.0]);
             if let Some(target) = aim_target {
                 if let Some((tx, ty)) = camera.world_to_screen(target[0], target[1], target[2], screen_w, screen_h) {
                     let dx = tx - anchor[0];

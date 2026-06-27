@@ -224,6 +224,11 @@ impl Renderer {
         // cylinder around the caster pass `LessEqual` and draw on top of
         // the sprite; back-facing fragments fail and the sprite remains
         // visible (sprite "in the middle" of the cylinder).
+        // Entity sprites depth-WRITE so later passes (skill effects, other
+        // entities) are correctly occluded by the character body. Coplanar
+        // z-fighting between the body's own overlapping alpha layers (head over
+        // body, body over shadow) is avoided by a small per-layer depth
+        // separation applied in paint order — see `build_batches`.
         let sprite_renderer = SpriteRenderer::new(
             &device.device,
             device.surface_format,

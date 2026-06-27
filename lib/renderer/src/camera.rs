@@ -59,6 +59,12 @@ impl Camera {
         self.projection_matrix() * self.view_matrix()
     }
 
+    /// World-space camera right axis. Row 0 of the view matrix is the right
+    /// basis vector expressed in world coordinates.
+    pub fn right_vector(&self) -> glam::Vec3 {
+        self.view_matrix().row(0).truncate()
+    }
+
     /// Project a world position to screen coordinates. Returns None if behind camera.
     pub fn world_to_screen(
         &self,
