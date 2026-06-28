@@ -387,3 +387,63 @@ pub fn build_remove_option_packet(packetver: u32) -> Vec<u8> {
     pkt.fill_raw();
     pkt.raw
 }
+
+fn name_to_char24(name: &str) -> [char; 24] {
+    let mut buf = [0 as char; 24];
+    for (i, c) in name.chars().take(23).enumerate() {
+        buf[i] = c;
+    }
+    buf
+}
+
+pub fn build_make_party_packet(name: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzMakeGroup::new(packetver);
+    pkt.set_group_name(name_to_char24(name));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_join_party_packet(target_aid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqJoinGroup::new(packetver);
+    pkt.set_aid(target_aid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_join_party_reply_packet(party_grid: u32, accept: bool, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzJoinGroup::new(packetver);
+    pkt.set_grid(party_grid);
+    pkt.set_answer(if accept { 1 } else { 0 });
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_leave_party_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqLeaveGroup::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_expel_party_member_packet(aid: u32, name: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqExpelGroupMember::new(packetver);
+    pkt.set_aid(aid);
+    pkt.set_character_name(name_to_char24(name));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_change_party_exp_option_packet(exp_option: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzChangeGroupexpoption::new(packetver);
+    pkt.set_exp_option(exp_option);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_party_chat_packet(msg: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzRequestChatParty::new(packetver);
+    let msg_null = format!("{msg}\0");
+    pkt.set_packet_length((4 + msg_null.len()) as i16);
+    pkt.set_msg(msg_null);
+    pkt.fill_raw();
+    pkt.raw
+}

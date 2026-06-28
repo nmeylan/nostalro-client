@@ -4,7 +4,7 @@ use models::enums::skill::SkillTargetType;
 use models::enums::skill_enums::SkillEnum;
 use models::enums::vanish::VanishType;
 use packets::packets::*;
-use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo, SkillInfo};
+use ragnarok_game::event::{CharacterInfo, GameEvent, PartyMemberData, ServerInfo, SkillInfo};
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
 use ragnarok_game::targeting::{MapKind, MapProperties};
 use tracing::debug;
@@ -228,6 +228,8 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMoveentry9>() {
         let (x1, y1, x2, y2) = decode_pos2(&p.move_data);
+        let direction =
+            ragnarok_game::movement::direction_from_positions(x1, y1, x2, y2).unwrap_or(0);
         return vec![
             GameEvent::EntitySpawned {
                 gid: p.gid,
@@ -243,7 +245,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
                 hair_color: p.headpalette as u16,
                 x: x1,
                 y: y1,
-                direction: 0,
+                direction,
                 body_state: p.body_state,
                 health_state: p.health_state,
                 effect_state: p.effect_state as i32,
@@ -568,17 +570,150 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
 
     if let Some(p) = any.downcast_ref::<PacketZcNotifyHpToGroupm>() {
-        return vec![GameEvent::EntityHpChanged {
-            gid: p.aid,
-            hp: p.hp as u32,
-            max_hp: p.maxhp as u32,
-        }];
+        return vec![
+            GameEvent::EntityHpChanged {
+                gid: p.aid,
+                hp: p.hp as u32,
+                max_hp: p.maxhp as u32,
+            },
+            GameEvent::PartyMemberHp {
+                aid: p.aid,
+                hp: p.hp as u32,
+                max_hp: p.maxhp as u32,
+            },
+        ];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyHpToGroupmR2>() {
-        return vec![GameEvent::EntityHpChanged {
-            gid: p.aid,
-            hp: p.hp as u32,
-            max_hp: p.maxhp as u32,
+        return vec![
+            GameEvent::EntityHpChanged {
+                gid: p.aid,
+                hp: p.hp as u32,
+                max_hp: p.maxhp as u32,
+            },
+            GameEvent::PartyMemberHp {
+                aid: p.aid,
+                hp: p.hp as u32,
+                max_hp: p.maxhp as u32,
+            },
+        ];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyPositionToGroupm>() {
+        return vec![GameEvent::PartyMemberPosition {
+            aid: p.aid,
+            x: p.x_pos as u16,
+            y: p.y_pos as u16,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckMakeGroup>() {
+        return vec![GameEvent::PartyCreateResult { result: p.result }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcGroupList>() {
+        let name: String = p.group_name.iter().take_while(|c| **c != '\0').collect();
+        let members = p
+            .group_info
+            .iter()
+            .map(|m| PartyMemberData {
+                aid: m.aid,
+                name: m.character_name.iter().take_while(|c| **c != '\0').collect(),
+                map: m.map_name.iter().take_while(|c| **c != '\0').collect(),
+                leader: m.role == 0,
+                online: m.state == 0,
+            })
+            .collect();
+        return vec![GameEvent::PartyMemberList { name, members }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAddMemberToGroup2>() {
+        let name: String = p
+            .character_name
+            .iter()
+            .take_while(|c| **c != '\0')
+            .collect();
+        let map: String = p.map_name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::PartyMemberAdded {
+            aid: p.aid,
+            name,
+            map,
+            leader: p.role == 0,
+            online: p.state == 0,
+            x: p.x_pos as u16,
+            y: p.y_pos as u16,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAddMemberToGroup>() {
+        let name: String = p
+            .character_name
+            .iter()
+            .take_while(|c| **c != '\0')
+            .collect();
+        let map: String = p.map_name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::PartyMemberAdded {
+            aid: p.aid,
+            name,
+            map,
+            leader: p.role == 0,
+            online: p.state == 0,
+            x: p.x_pos as u16,
+            y: p.y_pos as u16,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcDeleteMemberFromGroup>() {
+        let name: String = p
+            .character_name
+            .iter()
+            .take_while(|c| **c != '\0')
+            .collect();
+        return vec![GameEvent::PartyMemberRemoved {
+            aid: p.aid,
+            name,
+            result: p.result,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcPartyJoinReq>() {
+        let party_name: String = p.group_name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::PartyInviteReceived {
+            party_grid: p.grid,
+            party_name,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcReqJoinGroup>() {
+        let party_name: String = p.group_name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::PartyInviteReceived {
+            party_grid: p.grid,
+            party_name,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcPartyJoinReqAck>() {
+        let name: String = p
+            .character_name
+            .iter()
+            .take_while(|c| **c != '\0')
+            .collect();
+        return vec![GameEvent::PartyInviteResult {
+            name,
+            answer: p.answer as u8,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckReqJoinGroup>() {
+        let name: String = p
+            .character_name
+            .iter()
+            .take_while(|c| **c != '\0')
+            .collect();
+        return vec![GameEvent::PartyInviteResult {
+            name,
+            answer: p.answer,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcGroupinfoChange>() {
+        return vec![GameEvent::PartyExpOptionChanged {
+            exp_option: p.exp_option,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyChatParty>() {
+        let message: String = p.msg.chars().take_while(|c| *c != '\0').collect();
+        return vec![GameEvent::PartyChatMessage {
+            aid: p.aid,
+            message,
         }];
     }
 
@@ -1730,14 +1865,19 @@ mod tests {
         pkt.set_maxhp(500);
         pkt.fill_raw();
         let result = dispatch_packet(&pkt, packetver);
-        assert_eq!(result.len(), 1);
-        match &result[0] {
-            GameEvent::EntityHpChanged { gid, hp, max_hp } => {
-                assert_eq!(*gid, 42);
-                assert_eq!(*hp, 350);
-                assert_eq!(*max_hp, 500);
+        match result.as_slice() {
+            [
+                GameEvent::EntityHpChanged { gid, hp, max_hp },
+                GameEvent::PartyMemberHp {
+                    aid,
+                    hp: php,
+                    max_hp: pmax,
+                },
+            ] => {
+                assert_eq!((*gid, *hp, *max_hp), (42, 350, 500));
+                assert_eq!((*aid, *php, *pmax), (42, 350, 500));
             }
-            other => panic!("expected EntityHpChanged, got {other:?}"),
+            other => panic!("expected EntityHpChanged + PartyMemberHp, got {other:?}"),
         }
     }
 
@@ -1915,6 +2055,56 @@ mod tests {
             }
             other => panic!("expected StatusEffectChanged, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn party_group_list_decodes_members_and_invite_round_trips() {
+        let packetver = 20120307;
+
+        let mut name = [0u8; 24];
+        name[.."Adventurers".len()].copy_from_slice(b"Adventurers");
+        let member = |aid: u32, nick: &str, map: &str, role: u8, state: u8| {
+            let mut buf = Vec::with_capacity(46);
+            buf.extend_from_slice(&aid.to_le_bytes());
+            let mut nb = [0u8; 24];
+            nb[..nick.len()].copy_from_slice(nick.as_bytes());
+            buf.extend_from_slice(&nb);
+            let mut mb = [0u8; 16];
+            mb[..map.len()].copy_from_slice(map.as_bytes());
+            buf.extend_from_slice(&mb);
+            buf.push(role);
+            buf.push(state);
+            buf
+        };
+        let m0 = member(101, "Leader", "prontera.gat", 0, 0);
+        let m1 = member(102, "Buddy", "payon.gat", 1, 1);
+
+        let mut raw = Vec::new();
+        raw.extend_from_slice(&[0xFB, 0x00]);
+        let len = (4 + 24 + m0.len() + m1.len()) as i16;
+        raw.extend_from_slice(&len.to_le_bytes());
+        raw.extend_from_slice(&name);
+        raw.extend_from_slice(&m0);
+        raw.extend_from_slice(&m1);
+
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        match &dispatch_packet(parsed.as_ref(), packetver)[..] {
+            [GameEvent::PartyMemberList { name, members }] => {
+                assert_eq!(name, "Adventurers");
+                assert_eq!(members.len(), 2);
+                assert_eq!(members[0].aid, 101);
+                assert_eq!(members[0].name, "Leader");
+                assert!(members[0].leader && members[0].online);
+                assert_eq!(members[1].name, "Buddy");
+                assert!(!members[1].leader && !members[1].online);
+            }
+            other => panic!("expected PartyMemberList, got {other:?}"),
+        }
+
+        let invite = crate::sender::build_req_join_party_packet(101, packetver);
+        assert_eq!(invite[0], 0xFC);
+        let aid = u32::from_le_bytes([invite[2], invite[3], invite[4], invite[5]]);
+        assert_eq!(aid, 101);
     }
 
     #[test]

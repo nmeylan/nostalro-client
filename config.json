@@ -17,12 +17,12 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
-    "1200": {
+    "110": {
       "position": [
-        36.710938,
-        507.1328
+        490.0,
+        568.0
       ],
-      "open": true,
+      "open": false,
       "collapsed": false
     },
     "900": {
@@ -33,10 +33,18 @@
       "open": true,
       "collapsed": false
     },
-    "110": {
+    "1400": {
       "position": [
-        490.0,
-        568.0
+        0.0,
+        0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "1300": {
+      "position": [
+        476.6667,
+        0.0
       ],
       "open": false,
       "collapsed": false
@@ -57,26 +65,10 @@
       "open": false,
       "collapsed": false
     },
-    "1300": {
+    "1200": {
       "position": [
-        476.6667,
-        0.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "1400": {
-      "position": [
-        0.0,
-        0.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "800": {
-      "position": [
-        0.0,
-        126.859375
+        400.0,
+        100.0
       ],
       "open": true,
       "collapsed": false

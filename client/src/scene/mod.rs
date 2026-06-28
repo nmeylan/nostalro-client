@@ -26,6 +26,9 @@ impl App {
         ui_draw_calls: Vec<UiDrawCall>,
     ) {
         let mut sprite_batches: Vec<SpriteBatch> = Vec::new();
+        // Flat feet-depth body silhouettes, stamped into depth after the colour
+        // pass so effects occlude against the body (gradient `[0,0]` => uniform z).
+        let mut silhouette_batches: Vec<SpriteBatch> = Vec::new();
         let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
 
         let mut unified_list: Vec<&RenderEntry> = render_list
@@ -77,6 +80,19 @@ impl App {
                                 entry.depth_gradient,
                             );
                             sprite_batches.append(&mut shadow);
+
+                            // Flat-depth body silhouette (gradient [0,0]) so effects
+                            // occlude against the body at its feet depth.
+                            let mut sil = sprite.build_batches(
+                                &entity.animation,
+                                Some(entry.camera_dir),
+                                entity.head_dir,
+                                entry.screen_anchor,
+                                entry.depth,
+                                entry.sprite_scale,
+                                [0.0, 0.0],
+                            );
+                            silhouette_batches.append(&mut sil);
                         }
 
                         let mut batches = ragnarok_renderer::compose_actor_batches(
@@ -657,6 +673,7 @@ impl App {
                 &frame.effect_draws,
                 frame.sprite_particle_records,
                 &sprite_batches,
+                &silhouette_batches,
                 &cursor_batches,
                 &inline_textures,
                 elapsed,

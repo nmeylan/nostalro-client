@@ -244,6 +244,12 @@ impl Renderer {
         let logical_w = device.surface_config.width as f32 / dpi_scale;
         let logical_h = device.surface_config.height as f32 / dpi_scale;
 
+        // Entity sprites: the colour pass tests against world geometry per-pixel
+        // (gradient) but writes no depth, so coplanar body layers/copies blend by
+        // paint order (no seams). A flat feet-depth body silhouette is stamped
+        // afterward (render_silhouette) purely so effects occlude against the body
+        // the way the game did before per-pixel gradient depth — effects above the
+        // feet on top, ground effects at the feet occluded.
         let sprite_renderer = SpriteRenderer::new(
             &device.device,
             device.surface_format,
@@ -251,7 +257,7 @@ impl Renderer {
             logical_w,
             logical_h,
             include_str!("shaders/sprite.wgsl"),
-            true,
+            false,
         );
         let effect_sprite_renderer = SpriteRenderer::new(
             &device.device,
@@ -579,6 +585,7 @@ impl Renderer {
         effect_draws: &effect::EffectDrawList,
         sprite_particle_records: Vec<DrawRecord>,
         sprite_batches: &[SpriteBatch],
+        silhouette_batches: &[SpriteBatch],
         cursor_batches: &[SpriteBatch],
         inline_textures: &[&wgpu::BindGroup],
         elapsed: f32,
@@ -612,6 +619,7 @@ impl Renderer {
             effect_draws,
             sprite_particle_records,
             sprite_batches,
+            silhouette_batches,
             cursor_batches,
             inline_textures,
             elapsed,
@@ -631,6 +639,7 @@ impl Renderer {
         effect_draws: &effect::EffectDrawList,
         sprite_particle_records: Vec<DrawRecord>,
         sprite_batches: &[SpriteBatch],
+        silhouette_batches: &[SpriteBatch],
         cursor_batches: &[SpriteBatch],
         inline_textures: &[&wgpu::BindGroup],
         elapsed: f32,
@@ -757,6 +766,20 @@ impl Renderer {
                 &self.device.queue,
                 None,
                 sprite_batches,
+            );
+        }
+
+        // Stamp the flat-depth body silhouette after the colour pass so the
+        // effect passes below occlude against the body (effects above the feet
+        // draw on top; ground effects at the feet are hidden).
+        if !silhouette_batches.is_empty() {
+            self.sprite_renderer.render_silhouette(
+                &mut encoder,
+                &view,
+                depth_view,
+                &self.device.device,
+                &self.device.queue,
+                silhouette_batches,
             );
         }
 

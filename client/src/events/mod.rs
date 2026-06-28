@@ -5,6 +5,7 @@ mod entity;
 mod inventory;
 mod login;
 mod npc;
+mod party;
 mod skill;
 
 use crate::App;
@@ -665,6 +666,48 @@ impl App {
                 GameEvent::ActionFailure => {
                     self.game.attack_target_id = None;
                     self.game.entities.apply_action_failure();
+                }
+
+                GameEvent::PartyMemberList { name, members } => {
+                    self.handle_party_member_list(name, members);
+                }
+                GameEvent::PartyMemberAdded {
+                    aid,
+                    name,
+                    map,
+                    leader,
+                    online,
+                    x,
+                    y,
+                } => {
+                    self.handle_party_member_added(aid, name, map, leader, online, x, y);
+                }
+                GameEvent::PartyMemberRemoved { aid, name, result } => {
+                    self.handle_party_member_removed(aid, name, result);
+                }
+                GameEvent::PartyMemberHp { aid, hp, max_hp } => {
+                    self.handle_party_member_hp(aid, hp, max_hp);
+                }
+                GameEvent::PartyMemberPosition { aid, x, y } => {
+                    self.handle_party_member_position(aid, x, y);
+                }
+                GameEvent::PartyExpOptionChanged { exp_option } => {
+                    self.handle_party_exp_option_changed(exp_option);
+                }
+                GameEvent::PartyInviteReceived {
+                    party_grid,
+                    party_name,
+                } => {
+                    self.handle_party_invite_received(party_grid, party_name);
+                }
+                GameEvent::PartyInviteResult { name, answer } => {
+                    self.handle_party_invite_result(name, answer);
+                }
+                GameEvent::PartyCreateResult { result } => {
+                    self.handle_party_create_result(result);
+                }
+                GameEvent::PartyChatMessage { aid, message } => {
+                    self.handle_party_chat_message(aid, message);
                 }
 
                 _ => {}

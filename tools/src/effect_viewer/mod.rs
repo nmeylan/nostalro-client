@@ -1574,6 +1574,7 @@ impl App {
             &[],
             &[],
             &[],
+            &[],
             0.0,
         );
 
@@ -1623,6 +1624,7 @@ impl App {
                     &capture_batches,
                     &effect_draws,
                     sprite_particle_capture,
+                    &[],
                     &[],
                     &[],
                     &[],

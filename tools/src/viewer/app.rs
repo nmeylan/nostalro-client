@@ -1185,6 +1185,7 @@ impl App {
             sprite_particle_records,
             &sprite_batches,
             &[],
+            &[],
             &number_inline_textures,
             dt,
         );

@@ -6,6 +6,8 @@ use ragnarok_renderer::Camera;
 
 pub struct InputState {
     pub right_mouse_down: bool,
+    pub right_dragged: bool,
+    pub right_press_entity: Option<u32>,
     pub left_mouse_down: bool,
     pub last_mouse_pos: Option<(f64, f64)>,
     pub mouse_position: (f64, f64),
@@ -22,6 +24,8 @@ impl InputState {
     pub fn new() -> Self {
         Self {
             right_mouse_down: false,
+            right_dragged: false,
+            right_press_entity: None,
             left_mouse_down: false,
             last_mouse_pos: None,
             mouse_position: (0.0, 0.0),

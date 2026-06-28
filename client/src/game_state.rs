@@ -18,6 +18,7 @@ use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::floor_item::FloorItem;
 use ragnarok_game::map_coordinates::MapCoordinates;
+use ragnarok_game::party::Party;
 use ragnarok_game::server_time::ServerTimeClock;
 use ragnarok_game::sprite_path::JT_WARPNPC;
 use ragnarok_game::targeting::MapProperties;
@@ -31,7 +32,8 @@ use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, Car
 use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
 use ragnarok_ui_component::game::chat_room_window::{ChatRoomPlacement, ChatRoomWindow};
 use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
-use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
+use ragnarok_ui_component::game::confirm_dialog::{ConfirmDialog, ConfirmResult};
+use ragnarok_ui_component::game::context_menu::ContextMenu;
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
 use ragnarok_ui_component::game::hotkey_bar::{HOTKEY_BAR_WINDOW_ID, HotkeyBarWindow};
@@ -41,6 +43,7 @@ use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotificatio
 use ragnarok_ui_component::game::minimap_window::{MarkerType, MinimapMarker, MinimapWindow};
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
+use ragnarok_ui_component::game::party_window::{PARTY_WINDOW_ID, PartyWindow};
 use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
 use ragnarok_ui_component::game::status_icon_bar::StatusIconBarWindow;
 use ragnarok_ui_component::game::status_window::{STATUS_WINDOW_ID, StatusWindow};
@@ -84,6 +87,7 @@ pub struct GameState {
     pub chat_room_window: ChatRoomWindow,
     pub system_menu: SystemMenu,
     pub hovered_entity_id: Option<u32>,
+    pub hovered_player_id: Option<u32>,
     pub hovered_floor_item_id: Option<u32>,
     pub failed_sprite_loads: HashSet<u32>,
     pub server_time: ServerTimeClock,
@@ -114,6 +118,12 @@ pub struct GameState {
     pub hotkey_bar: HotkeyBarWindow,
     pub minimap_window: MinimapWindow,
     pub status_icon_bar: StatusIconBarWindow,
+    pub party: Option<Party>,
+    pub party_window: PartyWindow,
+    pub context_menu: ContextMenu,
+    pub pending_party_invite: Option<u32>,
+    pub party_invite_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub pending_invite_aid: Option<u32>,
     pub damage_numbers: DamageNumberManager,
     pub damage_number_textures: Option<SpriteTextures>,
     pub damage_number_act: Option<ragnarok_formats::act::ActFile>,
@@ -140,6 +150,7 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     EQ_WINDOW_ID,
     SKILL_WINDOW_ID,
     STATUS_WINDOW_ID,
+    PARTY_WINDOW_ID,
 ];
 
 impl GameState {
@@ -196,6 +207,24 @@ impl GameState {
                     x: ex,
                     y: ey,
                     marker_type,
+                });
+            }
+        }
+        if let Some(party) = &self.party {
+            let local_aid = self
+                .login_session
+                .as_ref()
+                .map(|s| s.account_id)
+                .unwrap_or(0);
+            let current_map = self.current_map.as_deref().unwrap_or("");
+            for member in &party.members {
+                if member.aid == local_aid || !member.online || member.map != current_map {
+                    continue;
+                }
+                self.minimap_window.entity_markers.push(MinimapMarker {
+                    x: member.x as f32,
+                    y: member.y as f32,
+                    marker_type: MarkerType::PartyMember,
                 });
             }
         }
@@ -272,6 +301,18 @@ impl GameState {
             self.pending_disconnect_exit = true;
             self.disconnect_dialog_shown = false;
         }
+
+        if let Some(grid) = self.pending_party_invite
+            && let Some(result) = self.party_invite_result.take()
+        {
+            events.push(GameEvent::RespondPartyInvite {
+                party_grid: grid,
+                accept: result == ConfirmResult::Ok,
+            });
+            self.pending_party_invite = None;
+        }
+
+        events.extend(self.context_menu.build(ui));
 
         ui.flush_tooltips();
 
@@ -410,6 +451,38 @@ impl GameState {
                         .build(ui, &mut self.character, &self.data_table),
                 );
             }
+            PARTY_WINDOW_ID => {
+                let local_aid = self
+                    .login_session
+                    .as_ref()
+                    .map(|s| s.account_id)
+                    .unwrap_or(0);
+                // The server never sends our own HP via party, and same-map members' HP only
+                // arrives on change — so refresh rows from live state each frame.
+                if let Some(party) = &mut self.party {
+                    for m in &mut party.members {
+                        if m.aid == local_aid {
+                            m.hp = Some(self.character.hp);
+                            m.max_hp = Some(self.character.max_hp);
+                            if let Some(p) = self.entities.player() {
+                                (m.x, m.y) = p.movement.cell_position();
+                            }
+                        } else if let Some(e) = self.entities.get(m.aid) {
+                            if let (Some(hp), Some(max_hp)) = (e.hp, e.max_hp) {
+                                m.hp = Some(hp);
+                                m.max_hp = Some(max_hp);
+                            }
+                            (m.x, m.y) = e.movement.cell_position();
+                        }
+                    }
+                }
+                self.party_window.sync_party(self.party.as_ref(), local_aid);
+                events.extend(self.party_window.build(
+                    ui,
+                    &mut self.character,
+                    &self.data_table,
+                ));
+            }
             _ => {}
         }
     }
@@ -451,6 +524,7 @@ impl GameState {
             chat_room_window: ChatRoomWindow::new(),
             system_menu: SystemMenu::new(),
             hovered_entity_id: None,
+            hovered_player_id: None,
             hovered_floor_item_id: None,
             failed_sprite_loads: HashSet::new(),
             server_time: ServerTimeClock::new(),
@@ -481,6 +555,12 @@ impl GameState {
             hotkey_bar: HotkeyBarWindow::new(),
             minimap_window: MinimapWindow::new(),
             status_icon_bar: StatusIconBarWindow::new(),
+            party: None,
+            party_window: PartyWindow::new(),
+            context_menu: ContextMenu::new(),
+            pending_party_invite: None,
+            party_invite_result: std::rc::Rc::new(std::cell::Cell::new(None)),
+            pending_invite_aid: None,
             disconnect_dialog_shown: false,
             pending_disconnect_exit: false,
             damage_numbers: DamageNumberManager::new(),

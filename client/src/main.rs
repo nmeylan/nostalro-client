@@ -45,7 +45,10 @@ use ragnarok_network::{
     build_move_item_store_to_cart_packet, build_npc_close_packet, build_npc_deal_type_packet,
     build_npc_input_number_packet, build_npc_input_string_packet, build_npc_menu_select_packet,
     build_npc_next_packet, build_pickup_item_packet, build_purchase_item_list_packet,
-    build_remove_option_packet, build_req_enter_room_packet, build_reqname_packet,
+    build_change_party_exp_option_packet, build_expel_party_member_packet,
+    build_join_party_reply_packet, build_leave_party_packet, build_make_party_packet,
+    build_party_chat_packet, build_remove_option_packet, build_req_enter_room_packet,
+    build_req_join_party_packet, build_reqname_packet,
     build_restart_packet, build_select_char_packet, build_select_warppoint_packet,
     build_sell_item_list_packet, build_shortcut_key_change_packet, build_stat_change_packet,
     build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet,
@@ -751,6 +754,17 @@ impl App {
                 GameEvent::RequestSendChat { message } => {
                     if message.starts_with('/') {
                         self.handle_slash_command(&message);
+                    } else if let Some(party_msg) = message.strip_prefix('%') {
+                        let char_name = self
+                            .game
+                            .selected_character
+                            .as_ref()
+                            .map(|c| c.name.as_str())
+                            .unwrap_or("Unknown");
+                        let full_msg =
+                            format!("{char_name} : {}", party_msg.trim_start());
+                        self.channel
+                            .send_packet(build_party_chat_packet(&full_msg, self.config.packetver));
                     } else {
                         let char_name = self
                             .game
@@ -781,6 +795,57 @@ impl App {
                 }
                 GameEvent::ToggleMinimap => {
                     self.game.minimap_window.cycle_visibility();
+                }
+                GameEvent::TogglePartyWindow => {
+                    self.game.party_window.toggle();
+                }
+                GameEvent::RequestPartyInvite { target_aid } => {
+                    let pv = self.config.packetver;
+                    if self.game.party.is_none() {
+                        // The party is created asynchronously server-side, so the invite must
+                        // wait for the create ack — sending it now would be dropped.
+                        let party_name = self
+                            .game
+                            .selected_character
+                            .as_ref()
+                            .map(|c| c.name.clone())
+                            .unwrap_or_else(|| "Party".to_string());
+                        self.channel
+                            .send_packet(build_make_party_packet(&party_name, pv));
+                        self.game.pending_invite_aid = Some(target_aid);
+                    } else {
+                        self.channel
+                            .send_packet(build_req_join_party_packet(target_aid, pv));
+                    }
+                }
+                GameEvent::RespondPartyInvite { party_grid, accept } => {
+                    self.channel.send_packet(build_join_party_reply_packet(
+                        party_grid,
+                        accept,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestLeaveParty => {
+                    self.channel
+                        .send_packet(build_leave_party_packet(self.config.packetver));
+                }
+                GameEvent::RequestExpelMember { aid, name } => {
+                    self.channel.send_packet(build_expel_party_member_packet(
+                        aid,
+                        &name,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestPartyExpOption { exp_share } => {
+                    self.channel
+                        .send_packet(build_change_party_exp_option_packet(
+                            exp_share as u32,
+                            self.config.packetver,
+                        ));
+                }
+                GameEvent::SendPartyChat { message } => {
+                    self.channel
+                        .send_packet(build_party_chat_packet(&message, self.config.packetver));
                 }
                 _ => {}
             }
@@ -856,6 +921,21 @@ impl App {
                         .add_system("You are not in a map yet.".to_string());
                 }
             },
+            "/organize" => {
+                let name = command["/organize".len()..].trim();
+                if name.is_empty() {
+                    self.game
+                        .chat_window
+                        .add_system("Usage: /organize <party name>".to_string());
+                } else if self.game.party.is_some() {
+                    self.game
+                        .chat_window
+                        .add_system("You are already in a party.".to_string());
+                } else {
+                    self.channel
+                        .send_packet(build_make_party_packet(name, self.config.packetver));
+                }
+            }
             _ => {
                 self.game
                     .chat_window
@@ -1381,6 +1461,11 @@ impl ApplicationHandler for App {
                     &render_list,
                 );
                 self.game.hovered_entity_id = hovered_entity_id;
+                self.game.hovered_player_id = ragnarok_game::cursor::hovered_player(
+                    self.input.mouse_position,
+                    &self.game.entities,
+                    &render_list,
+                );
                 if let Some(entity_id) = hovered_entity_id
                     && let Some(entity) = self.game.entities.get_mut(entity_id)
                     && !entity.name_requested

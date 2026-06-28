@@ -17,6 +17,7 @@ use ragnarok_game::data_table::skill_tree_table::{SkillTreeEntry, SkillTreeTable
 use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo};
 use ragnarok_game::item::Item;
 use ragnarok_game::npc_shop::{NpcShopMode, ShopBuyItem, ShopSellItem};
+use ragnarok_game::party::{Party, PartyMember};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
@@ -37,6 +38,7 @@ use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotificatio
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::number_input::{NumberInputConfig, NumberInputDialog};
+use ragnarok_ui_component::game::party_window::{PARTY_WINDOW_ID, PartyWindow};
 use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
 use ragnarok_ui_component::game::status_window::{STATUS_WINDOW_ID, StatusWindow};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
@@ -62,6 +64,7 @@ const GAME_COMPONENTS: &[&str] = &[
     "hotkey_bar",
     "basic_info",
     "status",
+    "party",
 ];
 const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
 
@@ -161,6 +164,13 @@ enum State {
     },
     StatusDemo {
         win: StatusWindow,
+        character: Character,
+        data: DataTable,
+    },
+    PartyDemo {
+        win: PartyWindow,
+        party: Party,
+        local_aid: u32,
         character: Character,
         data: DataTable,
     },
@@ -1037,6 +1047,37 @@ fn create_single(name: &str) -> State {
                 data: DataTable::new(),
             }
         }
+        "party" => {
+            let local_aid = 2000001;
+            let mut party = Party::new("Adventurers".to_string());
+            party.exp_share = true;
+            let member = |aid, name: &str, map: &str, leader, online, hp, max_hp| PartyMember {
+                aid,
+                name: name.to_string(),
+                map: map.to_string(),
+                leader,
+                online,
+                hp: Some(hp),
+                max_hp: Some(max_hp),
+                x: 0,
+                y: 0,
+            };
+            party.members = vec![
+                member(local_aid, "Walkiry", "prontera.gat", true, true, 3200, 3200),
+                member(2000002, "Lidia", "prontera.gat", false, true, 800, 2400),
+                member(2000003, "Garm", "payon_dun01.gat", false, true, 120, 1800),
+                member(2000004, "Sohee", "geffen.gat", false, false, 0, 1500),
+            ];
+            let mut win = PartyWindow::new();
+            win.open = true;
+            State::PartyDemo {
+                win,
+                party,
+                local_aid,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
         _ => panic!("Unknown example: {name}"),
     }
 }
@@ -1212,6 +1253,10 @@ fn grf_init_single(
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
+        State::PartyDemo { win, .. } => {
+            win.has_grf_textures = true;
+            win.set_texture_sizes(size_fn);
+        }
         State::Category { components } => {
             for component in components.iter_mut() {
                 grf_init_single(component, size_fn, table);
@@ -1246,6 +1291,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Equipment { .. } => Some(WidgetId(900)),
         State::SkillTree { .. } => Some(WidgetId(1000)),
         State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
+        State::PartyDemo { .. } => Some(PARTY_WINDOW_ID),
         _ => None,
     }
 }
@@ -1424,6 +1470,16 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             character,
             data,
         } => {
+            win.build(ui, character, data);
+        }
+        State::PartyDemo {
+            win,
+            party,
+            local_aid,
+            character,
+            data,
+        } => {
+            win.sync_party(Some(party), *local_aid);
             win.build(ui, character, data);
         }
         State::Category { components } => {

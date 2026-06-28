@@ -155,10 +155,7 @@ impl App {
                 self.game
                     .server_time
                     .observe_server_tick(start_time, local_ms);
-                let move_start = self
-                    .game
-                    .server_time
-                    .server_to_local_secs_clamped(start_time, local_ms);
+                let move_start = local_ms as f32 / 1000.0;
                 if let Some(entity) = self.game.entities.get_mut(gid) {
                     entity.movement.correct_to_cell(sx as f32, sy as f32);
                     entity.movement.start_move(path, move_start);

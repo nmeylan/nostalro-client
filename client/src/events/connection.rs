@@ -199,6 +199,8 @@ impl App {
             preload_window(&mut self.game.basic_info_window, renderer, grf);
             preload_window(&mut self.game.minimap_window, renderer, grf);
             preload_window(&mut self.game.status_window, renderer, grf);
+            preload_window(&mut self.game.party_window, renderer, grf);
+            preload_window(&mut self.game.confirm_dialog, renderer, grf);
             self.game.drop_dialog_has_grf_textures =
                 renderer.preload_textures(&DropQuantityDialog::grf_texture_paths(), grf);
             self.game.card_insert_dialog_has_grf_textures =

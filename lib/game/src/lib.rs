@@ -26,6 +26,7 @@ pub mod map_loader;
 pub mod movement;
 pub mod npc_dialog;
 pub mod npc_shop;
+pub mod party;
 pub mod path;
 pub mod scheduled_hit;
 pub mod server_time;

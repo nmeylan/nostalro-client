@@ -550,6 +550,7 @@ impl BasicInfoWindow {
                     BTN_MAP_ID => events.push(GameEvent::ToggleMinimap),
                     BTN_SKILL_ID => events.push(GameEvent::ToggleSkills),
                     BTN_STATUS_ID => events.push(GameEvent::ToggleStatusWindow),
+                    BTN_PARTY_ID => events.push(GameEvent::TogglePartyWindow),
                     _ => {}
                 }
             }

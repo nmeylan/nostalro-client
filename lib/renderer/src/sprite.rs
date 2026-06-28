@@ -84,11 +84,15 @@ pub struct SpriteUniforms {
 const INITIAL_VERTEX_CAPACITY: usize = 1024;
 const INITIAL_INDEX_CAPACITY: usize = 2048;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum SpriteDepth {
     None,
     Test { write: bool },
     Overlay,
+    /// Depth-write only, no colour. Stamps the opaque body silhouette so later
+    /// passes (effects) occlude against it, while the colour pass itself writes
+    /// no depth — coplanar body layers/copies can never reject each other.
+    DepthOnly,
 }
 
 pub struct SpriteRenderer {
@@ -98,6 +102,7 @@ pub struct SpriteRenderer {
     pub pipeline_additive_no_depth: wgpu::RenderPipeline,
     pub pipeline_overlay: wgpu::RenderPipeline,
     pub pipeline_additive_overlay: wgpu::RenderPipeline,
+    pub pipeline_depth_only: wgpu::RenderPipeline,
     uniform_buffer: wgpu::Buffer,
     pub uniform_bind_group: wgpu::BindGroup,
     uniform_bind_group_layout: wgpu::BindGroupLayout,
@@ -105,6 +110,10 @@ pub struct SpriteRenderer {
     index_buffer: wgpu::Buffer,
     vertex_capacity: usize,
     index_capacity: usize,
+    silhouette_vertex_buffer: wgpu::Buffer,
+    silhouette_index_buffer: wgpu::Buffer,
+    silhouette_vertex_capacity: usize,
+    silhouette_index_capacity: usize,
     depth_write: bool,
 }
 
@@ -165,6 +174,18 @@ impl SpriteRenderer {
         });
         let index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("sprite_indices"),
+            size: (INITIAL_INDEX_CAPACITY * std::mem::size_of::<u32>()) as u64,
+            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let silhouette_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("sprite_silhouette_vertices"),
+            size: (INITIAL_VERTEX_CAPACITY * std::mem::size_of::<SpriteVertex>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let silhouette_index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("sprite_silhouette_indices"),
             size: (INITIAL_INDEX_CAPACITY * std::mem::size_of::<u32>()) as u64,
             usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -237,6 +258,15 @@ impl SpriteRenderer {
             additive,
             SpriteDepth::Overlay,
         );
+        let pipeline_depth_only = Self::create_pipeline(
+            device,
+            surface_format,
+            &uniform_bind_group_layout,
+            texture_bind_group_layout,
+            shader_source,
+            alpha,
+            SpriteDepth::DepthOnly,
+        );
 
         Self {
             pipeline,
@@ -245,6 +275,7 @@ impl SpriteRenderer {
             pipeline_additive_no_depth,
             pipeline_overlay,
             pipeline_additive_overlay,
+            pipeline_depth_only,
             uniform_buffer,
             uniform_bind_group,
             uniform_bind_group_layout,
@@ -252,6 +283,10 @@ impl SpriteRenderer {
             index_buffer,
             vertex_capacity: INITIAL_VERTEX_CAPACITY,
             index_capacity: INITIAL_INDEX_CAPACITY,
+            silhouette_vertex_buffer,
+            silhouette_index_buffer,
+            silhouette_vertex_capacity: INITIAL_VERTEX_CAPACITY,
+            silhouette_index_capacity: INITIAL_INDEX_CAPACITY,
             depth_write,
         }
     }
@@ -291,7 +326,11 @@ impl SpriteRenderer {
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_format,
                     blend: Some(blend),
-                    write_mask: wgpu::ColorWrites::ALL,
+                    write_mask: if depth == SpriteDepth::DepthOnly {
+                        wgpu::ColorWrites::empty()
+                    } else {
+                        wgpu::ColorWrites::ALL
+                    },
                 })],
                 compilation_options: Default::default(),
             }),
@@ -312,6 +351,13 @@ impl SpriteRenderer {
                     format: DEPTH_FORMAT,
                     depth_write_enabled: false,
                     depth_compare: wgpu::CompareFunction::Always,
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
+                SpriteDepth::DepthOnly => Some(wgpu::DepthStencilState {
+                    format: DEPTH_FORMAT,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::LessEqual,
                     stencil: Default::default(),
                     bias: Default::default(),
                 }),
@@ -399,6 +445,15 @@ impl SpriteRenderer {
             shader_source,
             additive,
             SpriteDepth::Overlay,
+        );
+        self.pipeline_depth_only = Self::create_pipeline(
+            device,
+            surface_format,
+            &self.uniform_bind_group_layout,
+            texture_layout,
+            shader_source,
+            alpha,
+            SpriteDepth::DepthOnly,
         );
     }
 
@@ -541,6 +596,117 @@ impl SpriteRenderer {
                     0..1,
                 );
             }
+        }
+    }
+
+    /// Stamp a depth-only body silhouette (colour masked off) so effects drawn
+    /// afterward occlude against the body. Call this *after* the colour `render`,
+    /// with batches whose `z` is the flat feet/anchor depth (no gradient): that
+    /// far, uniform depth lets effects above the feet (buffs, casts, auras) pass
+    /// the later depth test and draw on top, while ground effects at the feet are
+    /// occluded — the ordering the game had before per-pixel gradient depth.
+    pub fn render_silhouette(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        target_view: &wgpu::TextureView,
+        depth_view: &wgpu::TextureView,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        batches: &[SpriteBatch],
+    ) {
+        let total_verts: usize = batches.iter().map(|b| b.vertices.len()).sum();
+        let total_indices: usize = batches.iter().map(|b| b.indices.len()).sum();
+        if total_verts == 0 {
+            return;
+        }
+
+        if total_verts > self.silhouette_vertex_capacity {
+            self.silhouette_vertex_capacity = total_verts.next_power_of_two();
+            self.silhouette_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("sprite_silhouette_vertices"),
+                size: (self.silhouette_vertex_capacity * std::mem::size_of::<SpriteVertex>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        if total_indices > self.silhouette_index_capacity {
+            self.silhouette_index_capacity = total_indices.next_power_of_two();
+            self.silhouette_index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("sprite_silhouette_indices"),
+                size: (self.silhouette_index_capacity * std::mem::size_of::<u32>()) as u64,
+                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+
+        struct DrawBatch<'a> {
+            texture: &'a wgpu::BindGroup,
+            index_start: u32,
+            index_count: u32,
+        }
+
+        let mut all_verts = Vec::with_capacity(total_verts);
+        let mut all_indices = Vec::with_capacity(total_indices);
+        let mut draw_batches = Vec::with_capacity(batches.len());
+        for batch in batches {
+            let vertex_offset = all_verts.len() as u32;
+            let index_start = all_indices.len() as u32;
+            all_verts.extend_from_slice(&batch.vertices);
+            all_indices.extend(batch.indices.iter().map(|i| i + vertex_offset));
+            draw_batches.push(DrawBatch {
+                texture: batch.texture,
+                index_start,
+                index_count: batch.indices.len() as u32,
+            });
+        }
+
+        queue.write_buffer(
+            &self.silhouette_vertex_buffer,
+            0,
+            bytemuck::cast_slice(&all_verts),
+        );
+        queue.write_buffer(
+            &self.silhouette_index_buffer,
+            0,
+            bytemuck::cast_slice(&all_indices),
+        );
+
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("sprite_silhouette"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target_view,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            ..Default::default()
+        });
+
+        pass.set_pipeline(&self.pipeline_depth_only);
+        pass.set_bind_group(0, &self.uniform_bind_group, &[]);
+        pass.set_vertex_buffer(0, self.silhouette_vertex_buffer.slice(..));
+        pass.set_index_buffer(
+            self.silhouette_index_buffer.slice(..),
+            wgpu::IndexFormat::Uint32,
+        );
+        for batch in &draw_batches {
+            pass.set_bind_group(1, batch.texture, &[]);
+            pass.draw_indexed(
+                batch.index_start..batch.index_start + batch.index_count,
+                0,
+                0..1,
+            );
         }
     }
 }
@@ -849,17 +1015,6 @@ pub fn scale_clip_vertices(
         v.position[1] = center[1] + (v.position[1] - center[1]) * scale;
         v.position[2] += depth_gradient[0] * (v.position[0] - center[0])
             + depth_gradient[1] * (v.position[1] - center[1]);
-    }
-}
-
-pub const LAYER_DEPTH_BIAS: f32 = 1.0e-4;
-
-pub fn separate_layer_depths(batches: &mut [SpriteBatch<'_>], start_layer: usize) {
-    for (i, batch) in batches.iter_mut().enumerate() {
-        let dz = (start_layer + i) as f32 * LAYER_DEPTH_BIAS;
-        for v in &mut batch.vertices {
-            v.position[2] -= dz;
-        }
     }
 }
 
@@ -1209,7 +1364,6 @@ impl EntitySprite {
             batches.extend(shield_batches);
         }
 
-        separate_layer_depths(&mut batches, 0);
         batches
     }
 
@@ -1276,9 +1430,6 @@ impl EntitySprite {
                     && tex_idx < shadow_tex.bind_groups.len()
                 {
                     scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                    for v in &mut vertices {
-                        v.position[2] += LAYER_DEPTH_BIAS;
-                    }
                     batches.push(SpriteBatch {
                         vertices,
                         indices,
@@ -1341,6 +1492,38 @@ pub fn transform_batch_vertices(
             let dy = (v.position[1] - anchor[1]) * scale[1];
             v.position[0] = anchor[0] + dx * cos - dy * sin;
             v.position[1] = anchor[1] + dx * sin + dy * cos;
+        }
+    }
+}
+
+/// Like `transform_batch_vertices`, but also re-evaluates each vertex's depth for
+/// the screen-space move it made. `build_batches` encodes z as an affine function
+/// of screen position (the depth gradient); scaling a body copy without updating z
+/// leaves it stale, so the copy's silhouette would write a wrong depth in the
+/// prepass (e.g. its enlarged bottom edge carrying the nearer z of its original
+/// position). Adding `grad · Δpos` keeps the copy on the same depth plane as the
+/// live body, so the prepass stamps one consistent silhouette.
+pub fn transform_batch_vertices_with_depth(
+    batches: &mut [SpriteBatch],
+    anchor: [f32; 2],
+    radians: f32,
+    scale: [f32; 2],
+    depth_gradient: [f32; 2],
+) {
+    if radians == 0.0 && scale == [1.0, 1.0] {
+        return;
+    }
+    let (sin, cos) = radians.sin_cos();
+    for batch in batches {
+        for v in &mut batch.vertices {
+            let (ox, oy) = (v.position[0], v.position[1]);
+            let dx = (ox - anchor[0]) * scale[0];
+            let dy = (oy - anchor[1]) * scale[1];
+            let nx = anchor[0] + dx * cos - dy * sin;
+            let ny = anchor[1] + dx * sin + dy * cos;
+            v.position[0] = nx;
+            v.position[1] = ny;
+            v.position[2] += depth_gradient[0] * (nx - ox) + depth_gradient[1] * (ny - oy);
         }
     }
 }
@@ -1431,12 +1614,15 @@ pub fn compose_actor_batches<'a>(
         } else {
             copy.scale
         };
-        transform_batch_vertices(&mut batches, body_center, 0.0, scale_xy);
+        transform_batch_vertices_with_depth(&mut batches, body_center, 0.0, scale_xy, depth_gradient);
         if copy.offset_px != [0.0, 0.0] {
+            let offset_dz =
+                depth_gradient[0] * copy.offset_px[0] + depth_gradient[1] * copy.offset_px[1];
             for b in &mut batches {
                 for v in &mut b.vertices {
                     v.position[0] += copy.offset_px[0];
                     v.position[1] += copy.offset_px[1];
+                    v.position[2] += offset_dz;
                 }
             }
         }
@@ -1453,10 +1639,22 @@ pub fn compose_actor_batches<'a>(
     }
 
     if channels.squeeze != 1.0 {
-        transform_batch_vertices(&mut live, anchor, 0.0, [1.0, channels.squeeze]);
+        transform_batch_vertices_with_depth(
+            &mut live,
+            anchor,
+            0.0,
+            [1.0, channels.squeeze],
+            depth_gradient,
+        );
     }
     if channels.angle != 0.0 {
-        transform_batch_vertices(&mut live, body_center, channels.angle, [1.0, 1.0]);
+        transform_batch_vertices_with_depth(
+            &mut live,
+            body_center,
+            channels.angle,
+            [1.0, 1.0],
+            depth_gradient,
+        );
     }
     apply_tint_alpha(&mut live, channels.tint, channels.alpha);
     if channels.additive {

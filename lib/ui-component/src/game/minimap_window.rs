@@ -50,6 +50,7 @@ pub enum MinimapVisibility {
 pub enum MarkerType {
     Npc,
     WarpPortal,
+    PartyMember,
 }
 
 pub struct MinimapMarker {
@@ -261,6 +262,7 @@ impl InGameWindow for MinimapWindow {
                     ],
                     WARP_DOT_SIZE,
                 ),
+                MarkerType::PartyMember => ([0.3, 0.9, 1.0, alpha], NPC_DOT_SIZE),
             };
             if let Some((sx, sy)) = self.map_to_screen(marker.x, marker.y, uv_min, uv_max, x, y) {
                 Self::draw_dot(ui, sx, sy, size, color);

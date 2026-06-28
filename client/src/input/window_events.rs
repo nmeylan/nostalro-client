@@ -1,8 +1,9 @@
 use crate::App;
 use crate::config::WindowStateEntry;
 use ragnarok_game::app_state::AppState;
-use ragnarok_game::entity::EntityState;
+use ragnarok_game::entity::{EntityState, EntityType};
 use ragnarok_network::build_action_request_packet;
+use ragnarok_ui_component::game::context_menu::{ContextMenuAction, ContextMenuItem};
 use std::collections::HashMap;
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, KeyEvent, Modifiers, MouseButton, MouseScrollDelta};
@@ -44,11 +45,19 @@ impl App {
                 MouseButton::Right => {
                     self.input.right_mouse_down = state == ElementState::Pressed;
                     if self.input.right_mouse_down {
+                        self.input.right_dragged = false;
+                        // Picking clears the hovered ids while the button is held (rotate cursor),
+                        // so capture the target now, before it's lost.
+                        self.input.right_press_entity = self.game.hovered_player_id;
                         self.game.pending_skill_target = None;
                         self.game.pending_skill_id = None;
                         self.game.pending_skill_level = None;
                     } else {
                         self.input.last_mouse_pos = None;
+                        if !self.input.right_dragged && !self.input.ui_hovered {
+                            self.open_entity_context_menu(self.input.right_press_entity);
+                        }
+                        self.input.right_press_entity = None;
                     }
                 }
                 MouseButton::Left => {
@@ -71,6 +80,32 @@ impl App {
         }
     }
 
+    fn open_entity_context_menu(&mut self, entity_id: Option<u32>) {
+        let Some(entity_id) = entity_id else {
+            return;
+        };
+        if Some(entity_id) == self.game.entities.player_id() {
+            return;
+        }
+        let Some(entity) = self.game.entities.get(entity_id) else {
+            return;
+        };
+        if entity.entity_type != EntityType::Player {
+            return;
+        }
+        let (mx, my) = self.input.mouse_position;
+        // For players the on-screen unit id equals the account id, which is the party invite key.
+        let items = vec![ContextMenuItem {
+            label: "Invite to Party".to_string(),
+            action: ContextMenuAction::InviteToParty {
+                target_aid: entity_id,
+            },
+        }];
+        self.game
+            .context_menu
+            .open_at(mx as f32, my as f32, items);
+    }
+
     pub(crate) fn handle_cursor_moved(&mut self, position: winit::dpi::PhysicalPosition<f64>) {
         let dpi = self.renderer.as_ref().map_or(1.0, |r| r.dpi_scale) as f64;
         let logical_pos = (position.x / dpi, position.y / dpi);
@@ -79,6 +114,9 @@ impl App {
             if let Some((lx, ly)) = self.input.last_mouse_pos {
                 let dx = (logical_pos.0 - lx) as f32;
                 let dy = (logical_pos.1 - ly) as f32;
+                if dx.abs() > 1.0 || dy.abs() > 1.0 {
+                    self.input.right_dragged = true;
+                }
                 if let Some(renderer) = &mut self.renderer {
                     super::handle_camera_drag(
                         &mut renderer.camera,

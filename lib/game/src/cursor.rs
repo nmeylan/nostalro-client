@@ -125,6 +125,56 @@ pub fn hovered_entity_cursor_type(
     best.map(|(cursor, id, _)| (cursor, id))
 }
 
+/// Topmost player under the cursor, excluding self, ignoring attackability.
+/// Used to target friendly players (party invite etc.) on non-PvP maps where
+/// `hovered_entity_cursor_type` returns nothing because they can't be attacked.
+pub fn hovered_player(
+    mouse_pos: (f64, f64),
+    entities: &EntityCollection,
+    render_list: &[RenderEntry],
+) -> Option<u32> {
+    use crate::entity::{EntityState, EntityType};
+    let (mx, my) = (mouse_pos.0 as f32, mouse_pos.1 as f32);
+    let player_id = entities.player_id();
+    let mut best: Option<(u32, f32)> = None;
+
+    for entry in render_list.iter().rev() {
+        if Some(entry.id) == player_id {
+            continue;
+        }
+        let [mut left, mut top, mut right, mut bottom] = entry.pick_bounds;
+        let dx = MIN_PICK_SIZE - (right - left);
+        if dx > 0.0 {
+            left -= dx / 2.0;
+            right += dx / 2.0;
+        }
+        let dy = MIN_PICK_SIZE - (bottom - top);
+        if dy > 0.0 {
+            top -= dy / 2.0;
+            bottom += dy / 2.0;
+        }
+        if mx < left || mx > right || my < top || my > bottom {
+            continue;
+        }
+        let Some(entity) = entities.get(entry.id) else {
+            continue;
+        };
+        if entity.entity_type != EntityType::Player
+            || entity.state == EntityState::Dead
+            || entity.is_fading()
+        {
+            continue;
+        }
+        let ddx = mx - entry.screen_anchor[0];
+        let ddy = my - entry.screen_anchor[1];
+        let dist_sq = ddx * ddx + ddy * ddy;
+        if best.as_ref().is_none_or(|b| dist_sq < b.1) {
+            best = Some((entry.id, dist_sq));
+        }
+    }
+    best.map(|(id, _)| id)
+}
+
 pub struct CursorAnimationState {
     cursor_type: CursorType,
     motion_index: usize,

@@ -541,7 +541,81 @@ pub enum GameEvent {
     ToggleEquipment,
     ToggleSkills,
     ToggleMinimap,
+    PartyCreateResult {
+        result: u8,
+    },
+    PartyMemberList {
+        name: String,
+        members: Vec<PartyMemberData>,
+    },
+    PartyMemberAdded {
+        aid: u32,
+        name: String,
+        map: String,
+        leader: bool,
+        online: bool,
+        x: u16,
+        y: u16,
+    },
+    PartyMemberRemoved {
+        aid: u32,
+        name: String,
+        result: u8,
+    },
+    PartyMemberHp {
+        aid: u32,
+        hp: u32,
+        max_hp: u32,
+    },
+    PartyMemberPosition {
+        aid: u32,
+        x: u16,
+        y: u16,
+    },
+    PartyInviteReceived {
+        party_grid: u32,
+        party_name: String,
+    },
+    PartyInviteResult {
+        name: String,
+        answer: u8,
+    },
+    PartyExpOptionChanged {
+        exp_option: u32,
+    },
+    PartyChatMessage {
+        aid: u32,
+        message: String,
+    },
+    TogglePartyWindow,
+    RequestPartyInvite {
+        target_aid: u32,
+    },
+    RespondPartyInvite {
+        party_grid: u32,
+        accept: bool,
+    },
+    RequestLeaveParty,
+    RequestExpelMember {
+        aid: u32,
+        name: String,
+    },
+    RequestPartyExpOption {
+        exp_share: bool,
+    },
+    SendPartyChat {
+        message: String,
+    },
     Acknowledged,
+}
+
+#[derive(Debug, Clone)]
+pub struct PartyMemberData {
+    pub aid: u32,
+    pub name: String,
+    pub map: String,
+    pub leader: bool,
+    pub online: bool,
 }
 
 #[derive(Debug, Clone)]
