@@ -158,6 +158,7 @@ pub struct Entity {
     pub is_boss: bool,
     pub forced_animation: Option<ForcedAnimation>,
     pub cart_type: Option<u8>,
+    pub anim_last_pos: (f32, f32),
 }
 
 impl Entity {
@@ -203,7 +204,7 @@ impl Entity {
             hp: None,
             max_hp: None,
             direction,
-            head_dir: direction,
+            head_dir: 0,
             speed,
             state: EntityState::Standing,
             state_timer: 0.0,
@@ -229,6 +230,7 @@ impl Entity {
             is_boss: false,
             forced_animation: None,
             cart_type: None,
+            anim_last_pos: (x as f32, y as f32),
         }
     }
 

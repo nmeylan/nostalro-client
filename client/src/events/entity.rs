@@ -143,13 +143,7 @@ impl App {
         start_time: u32,
     ) {
         if let Some(gat) = &self.game.gat {
-            let (sx, sy) = self
-                .game
-                .entities
-                .get(gid)
-                .map(|e| e.movement.cell_position())
-                .unwrap_or((start_x, start_y));
-            let path = ragnarok_game::path::path_search(gat, sx, sy, dest_x, dest_y);
+            let path = ragnarok_game::path::path_search(gat, start_x, start_y, dest_x, dest_y);
             if !path.is_empty() {
                 let local_ms = self.start_time.elapsed().as_millis() as u32;
                 self.game
@@ -157,8 +151,7 @@ impl App {
                     .observe_server_tick(start_time, local_ms);
                 let move_start = local_ms as f32 / 1000.0;
                 if let Some(entity) = self.game.entities.get_mut(gid) {
-                    entity.movement.correct_to_cell(sx as f32, sy as f32);
-                    entity.movement.start_move(path, move_start);
+                    entity.movement.start_server_move(path, move_start);
                     entity.state_timer = 0.0;
                 }
             }

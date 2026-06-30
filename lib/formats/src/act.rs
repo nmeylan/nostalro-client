@@ -274,6 +274,7 @@ pub struct SpriteAnimationState {
     finished: bool,
     motion_speed_override_ms: Option<f32>,
     remaining_repeats: u16,
+    walk_dist: f32,
 }
 
 impl SpriteAnimationState {
@@ -287,6 +288,7 @@ impl SpriteAnimationState {
             finished: false,
             motion_speed_override_ms: None,
             remaining_repeats: 0,
+            walk_dist: 0.0,
         }
     }
 
@@ -394,6 +396,25 @@ impl SpriteAnimationState {
     pub fn update(&mut self, dt_secs: f32, act: &ActFile, camera_dir: u8) {
         let action_idx = self.action_index(act, camera_dir);
         self.advance(action_idx, act, dt_secs);
+    }
+
+    pub fn update_by_distance(&mut self, dist_cells: f32, act: &ActFile, camera_dir: u8) {
+        if self.motion_type != MotionType::Loop {
+            return;
+        }
+        let action_idx = self.action_index(act, camera_dir);
+        let motion_count = act.actions[action_idx].motions.len();
+        if motion_count == 0 {
+            return;
+        }
+        let frame_dist = if action_idx < act.delays.len() && act.delays[action_idx] > 0.0 {
+            act.delays[action_idx] / 6.0
+        } else {
+            0.15
+        };
+        let cycle = frame_dist * motion_count as f32;
+        self.walk_dist = (self.walk_dist + dist_cells.max(0.0)) % cycle.max(1e-4);
+        self.motion_index = (self.walk_dist / frame_dist) as usize % motion_count;
     }
 
     pub fn update_flat(&mut self, dt_secs: f32, act: &ActFile) {
@@ -579,6 +600,38 @@ mod tests {
         let mut anim = SpriteAnimationState::new(0);
         anim.update(0.5, &act, 0);
         assert_eq!(anim.motion_index, 2);
+    }
+
+    #[test]
+    fn walk_frame_tracks_distance_and_holds_when_still() {
+        // delay 4.0 -> frame_dist 4/6 cells; 4 motions -> cycle 2.667 cells
+        let act = make_act(8, 4);
+        let mut anim = SpriteAnimationState::new(0);
+        anim.set_action(0, MotionType::Loop);
+
+        anim.update_by_distance(0.7, &act, 0);
+        assert_eq!(anim.motion_index(), 1);
+
+        anim.update_by_distance(0.0, &act, 0);
+        assert_eq!(anim.motion_index(), 1, "no ground travel must hold the frame");
+
+        anim.update_by_distance(0.7, &act, 0);
+        assert_eq!(anim.motion_index(), 2);
+    }
+
+    #[test]
+    fn walk_frame_independent_of_delivery_chunking() {
+        let act = make_act(8, 4);
+        let mut smooth = SpriteAnimationState::new(0);
+        let mut bursty = SpriteAnimationState::new(0);
+        smooth.set_action(0, MotionType::Loop);
+        bursty.set_action(0, MotionType::Loop);
+
+        smooth.update_by_distance(1.8, &act, 0);
+        for _ in 0..18 {
+            bursty.update_by_distance(0.1, &act, 0);
+        }
+        assert_eq!(smooth.motion_index(), bursty.motion_index());
     }
 
     #[test]

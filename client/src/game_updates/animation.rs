@@ -84,9 +84,17 @@ impl App {
                 let animated = !is_composite
                     || SpriteActionType::from_index(entity.animation.action())
                         .is_none_or(|a| a.is_animated());
+                let (cx, cy) = entity.movement.position();
                 if animated {
-                    entity.animation.update(delta, &sprite.body_act, dir);
+                    if entity.state == EntityState::Moving {
+                        let (lx, ly) = entity.anim_last_pos;
+                        let dist = ((cx - lx).powi(2) + (cy - ly).powi(2)).sqrt();
+                        entity.animation.update_by_distance(dist, &sprite.body_act, dir);
+                    } else {
+                        entity.animation.update(delta, &sprite.body_act, dir);
+                    }
                 }
+                entity.anim_last_pos = (cx, cy);
             }
         }
     }

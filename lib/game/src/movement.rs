@@ -37,6 +37,18 @@ impl MovementState {
         }
     }
 
+    pub fn start_server_move(&mut self, mut path: Vec<PathNode>, start_time: f32) {
+        let (cx, cy) = (self.current_x, self.current_y);
+        let dist_sq = |n: &PathNode| (n.x as f32 - cx).powi(2) + (n.y as f32 - cy).powi(2);
+        while path.len() >= 2 && dist_sq(&path[1]) <= dist_sq(&path[0]) {
+            path.remove(0);
+        }
+        if path.len() >= 2 && dist_sq(&path[0]) < 0.25 {
+            path.remove(0);
+        }
+        self.start_move(path, start_time);
+    }
+
     pub fn start_move(&mut self, path: Vec<PathNode>, start_time: f32) {
         if path.is_empty() {
             return;
@@ -99,7 +111,9 @@ impl MovementState {
 
     fn calc_step_duration(&self, is_diagonal: bool) -> f32 {
         if is_diagonal {
-            (self.speed as f32 / 0.7) / 1000.0
+            // diagonal traversal costs 1.4× a straight step on the server (14/10),
+            // not √2 — must match exactly or the body drifts and snaps on diagonals
+            self.speed as f32 * 1.4 / 1000.0
         } else {
             self.speed as f32 / 1000.0
         }
@@ -219,6 +233,27 @@ mod tests {
             is_open: false,
             is_diagonal,
         }
+    }
+
+    #[test]
+    fn start_server_move_drops_passed_waypoints_on_reversal() {
+        // Rendering lags at y=170; server re-issues a reversed move 172->167,
+        // whose path (171,170,169,168,167) starts behind us. Trimming must drop
+        // the leading nodes so we head straight to 169 instead of jogging to 171.
+        let mut movement = MovementState::new(153, 170);
+        let reversed = vec![
+            make_path_node(153, 171, false),
+            make_path_node(153, 170, false),
+            make_path_node(153, 169, false),
+            make_path_node(153, 168, false),
+            make_path_node(153, 167, false),
+        ];
+        movement.start_server_move(reversed, 0.0);
+
+        // first step advances toward 167 (decreasing y), never back to 171
+        let (_, y) = movement.update(0.075);
+        assert!(y < 170.0, "should move toward dest, not backtrack; got y={y}");
+        assert_eq!(movement.destination(), Some((153, 167)));
     }
 
     #[test]
