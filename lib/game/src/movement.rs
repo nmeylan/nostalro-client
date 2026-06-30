@@ -7,12 +7,12 @@ const CORRECTION_BLEND: f32 = 0.15;
 pub struct MovementState {
     current_x: f32,
     current_y: f32,
-    step_start_x: f32,
-    step_start_y: f32,
+    source_x: f32,
+    source_y: f32,
+    source_time: f32,
     path: Vec<PathNode>,
-    path_index: usize,
-    move_start_time: f32,
-    step_duration: f32,
+    node_times: Vec<f32>,
+    seg_index: usize,
     moving: bool,
     speed: u16,
     correction_offset: (f32, f32),
@@ -24,12 +24,12 @@ impl MovementState {
         Self {
             current_x: x as f32,
             current_y: y as f32,
-            step_start_x: x as f32,
-            step_start_y: y as f32,
+            source_x: x as f32,
+            source_y: y as f32,
+            source_time: 0.0,
             path: Vec::new(),
-            path_index: 0,
-            move_start_time: 0.0,
-            step_duration: 0.0,
+            node_times: Vec::new(),
+            seg_index: 0,
             moving: false,
             speed: DEFAULT_WALK_SPEED,
             correction_offset: (0.0, 0.0),
@@ -37,86 +37,109 @@ impl MovementState {
         }
     }
 
-    pub fn start_server_move(&mut self, mut path: Vec<PathNode>, start_time: f32) {
-        let (cx, cy) = (self.current_x, self.current_y);
-        let dist_sq = |n: &PathNode| (n.x as f32 - cx).powi(2) + (n.y as f32 - cy).powi(2);
-        while path.len() >= 2 && dist_sq(&path[1]) <= dist_sq(&path[0]) {
-            path.remove(0);
-        }
-        if path.len() >= 2 && dist_sq(&path[0]) < 0.25 {
-            path.remove(0);
-        }
-        self.start_move(path, start_time);
-    }
-
     pub fn start_move(&mut self, path: Vec<PathNode>, start_time: f32) {
         if path.is_empty() {
             return;
         }
-        self.step_start_x = self.current_x;
-        self.step_start_y = self.current_y;
+        self.source_x = self.current_x;
+        self.source_y = self.current_y;
+        self.source_time = start_time;
         self.path = path;
-        self.path_index = 0;
-        self.move_start_time = start_time;
+        self.seg_index = 0;
         self.moving = true;
-        let full_duration = self.calc_step_duration(self.path[0].is_diagonal);
-        let dx = self.path[0].x as f32 - self.step_start_x;
-        let dy = self.path[0].y as f32 - self.step_start_y;
-        let actual_dist = (dx * dx + dy * dy).sqrt();
-        let normal_dist = if self.path[0].is_diagonal {
-            std::f32::consts::SQRT_2
+        self.build_times();
+    }
+
+    pub fn start_server_move(
+        &mut self,
+        source_x: u16,
+        source_y: u16,
+        path: Vec<PathNode>,
+        start_time: f32,
+        now: f32,
+    ) {
+        if path.is_empty() {
+            return;
+        }
+        let (old_x, old_y) = self.position();
+        self.source_x = source_x as f32;
+        self.source_y = source_y as f32;
+        self.source_time = start_time;
+        self.path = path;
+        self.seg_index = 0;
+        self.moving = true;
+        self.build_times();
+
+        let (x, y, done, seg) = self.replay(now);
+        self.current_x = x;
+        self.current_y = y;
+        self.seg_index = seg;
+        if done {
+            self.moving = false;
+        }
+
+        let (dx, dy) = (old_x - x, old_y - y);
+        if dx.abs() > 0.001 || dy.abs() > 0.001 {
+            self.correction_offset = (dx, dy);
+            self.correction_remaining = CORRECTION_BLEND;
         } else {
-            1.0
-        };
-        self.step_duration = if actual_dist > 0.01 {
-            full_duration * (actual_dist / normal_dist)
-        } else {
-            full_duration
-        };
+            self.correction_offset = (0.0, 0.0);
+            self.correction_remaining = 0.0;
+        }
+    }
+
+    fn build_times(&mut self) {
+        self.node_times.clear();
+        let mut t = self.source_time;
+        let mut px = self.source_x;
+        let mut py = self.source_y;
+        for node in &self.path {
+            t += step_duration(self.speed, px, py, node);
+            self.node_times.push(t);
+            px = node.x as f32;
+            py = node.y as f32;
+        }
+    }
+
+    fn replay(&self, t: f32) -> (f32, f32, bool, usize) {
+        if self.path.is_empty() {
+            return (self.current_x, self.current_y, true, 0);
+        }
+        if t <= self.source_time {
+            return (self.source_x, self.source_y, false, 0);
+        }
+        let mut px = self.source_x;
+        let mut py = self.source_y;
+        let mut pt = self.source_time;
+        for (i, node) in self.path.iter().enumerate() {
+            let nt = self.node_times[i];
+            if t < nt {
+                let seg = nt - pt;
+                let frac = if seg > 1e-6 { (t - pt) / seg } else { 1.0 };
+                let x = px + (node.x as f32 - px) * frac;
+                let y = py + (node.y as f32 - py) * frac;
+                return (x, y, false, i);
+            }
+            px = node.x as f32;
+            py = node.y as f32;
+            pt = nt;
+        }
+        let last = self.path.last().unwrap();
+        (last.x as f32, last.y as f32, true, self.path.len() - 1)
     }
 
     pub fn update(&mut self, elapsed: f32) -> (f32, f32) {
         if !self.moving || self.path.is_empty() {
             return (self.current_x, self.current_y);
         }
-
-        loop {
-            let step_elapsed = elapsed - self.move_start_time;
-            if step_elapsed < self.step_duration {
-                let t = step_elapsed / self.step_duration;
-                let target = &self.path[self.path_index];
-                let dx = target.x as f32 - self.step_start_x;
-                let dy = target.y as f32 - self.step_start_y;
-                self.current_x = self.step_start_x + dx * t;
-                self.current_y = self.step_start_y + dy * t;
-                return (self.current_x, self.current_y);
-            }
-
-            let node = &self.path[self.path_index];
-            self.current_x = node.x as f32;
-            self.current_y = node.y as f32;
-            self.step_start_x = self.current_x;
-            self.step_start_y = self.current_y;
-            self.path_index += 1;
-
-            if self.path_index >= self.path.len() {
-                self.moving = false;
-                return (self.current_x, self.current_y);
-            }
-
-            self.move_start_time += self.step_duration;
-            self.step_duration = self.calc_step_duration(self.path[self.path_index].is_diagonal);
+        let (x, y, done, seg) = self.replay(elapsed);
+        self.current_x = x;
+        self.current_y = y;
+        self.seg_index = seg;
+        if done {
+            self.moving = false;
         }
-    }
-
-    fn calc_step_duration(&self, is_diagonal: bool) -> f32 {
-        if is_diagonal {
-            // diagonal traversal costs 1.4× a straight step on the server (14/10),
-            // not √2 — must match exactly or the body drifts and snaps on diagonals
-            self.speed as f32 * 1.4 / 1000.0
-        } else {
-            self.speed as f32 / 1000.0
-        }
+        (self.current_x, self.current_y)
     }
 
     pub fn is_moving(&self) -> bool {
@@ -130,17 +153,19 @@ impl MovementState {
     pub fn stop(&mut self) {
         self.moving = false;
         self.path.clear();
-        self.path_index = 0;
+        self.node_times.clear();
+        self.seg_index = 0;
     }
 
     pub fn set_position(&mut self, x: f32, y: f32) {
         self.moving = false;
         self.path.clear();
-        self.path_index = 0;
+        self.node_times.clear();
+        self.seg_index = 0;
         self.current_x = x;
         self.current_y = y;
-        self.step_start_x = x;
-        self.step_start_y = y;
+        self.source_x = x;
+        self.source_y = y;
         self.correction_offset = (0.0, 0.0);
         self.correction_remaining = 0.0;
     }
@@ -149,11 +174,12 @@ impl MovementState {
         let (rendered_x, rendered_y) = self.position();
         self.moving = false;
         self.path.clear();
-        self.path_index = 0;
+        self.node_times.clear();
+        self.seg_index = 0;
         self.current_x = x;
         self.current_y = y;
-        self.step_start_x = x;
-        self.step_start_y = y;
+        self.source_x = x;
+        self.source_y = y;
         let (dx, dy) = (rendered_x - x, rendered_y - y);
         if dx.abs() > 0.001 || dy.abs() > 0.001 {
             self.correction_offset = (dx, dy);
@@ -184,13 +210,36 @@ impl MovementState {
     }
 
     pub fn movement_direction(&self) -> Option<u8> {
-        if !self.moving || self.path_index >= self.path.len() {
+        if !self.moving || self.seg_index >= self.path.len() {
             return None;
         }
-        let target = &self.path[self.path_index];
+        let target = &self.path[self.seg_index];
         let dx = target.x as f32 - self.current_x;
         let dy = target.y as f32 - self.current_y;
         direction_from_delta(dx, dy)
+    }
+}
+
+fn step_duration(speed: u16, prev_x: f32, prev_y: f32, node: &PathNode) -> f32 {
+    let full = if node.is_diagonal {
+        // diagonal traversal costs 1.4x a straight step on the server (14/10),
+        // not √2 — must match exactly or the body drifts and snaps on diagonals
+        speed as f32 * 1.4 / 1000.0
+    } else {
+        speed as f32 / 1000.0
+    };
+    let dx = node.x as f32 - prev_x;
+    let dy = node.y as f32 - prev_y;
+    let actual = (dx * dx + dy * dy).sqrt();
+    let nominal = if node.is_diagonal {
+        std::f32::consts::SQRT_2
+    } else {
+        1.0
+    };
+    if actual > 0.01 {
+        full * (actual / nominal)
+    } else {
+        full
     }
 }
 
@@ -236,10 +285,11 @@ mod tests {
     }
 
     #[test]
-    fn start_server_move_drops_passed_waypoints_on_reversal() {
-        // Rendering lags at y=170; server re-issues a reversed move 172->167,
-        // whose path (171,170,169,168,167) starts behind us. Trimming must drop
-        // the leading nodes so we head straight to 169 instead of jogging to 171.
+    fn server_move_replays_to_time_correct_position_without_backtracking() {
+        // Move began at the server source (153,172) at t=0 and walks down to 167.
+        // By now=0.45s (3 straight cells) the entity belongs at 169, even though we
+        // were still rendering 170. Replay must place it at 169 and head onward to
+        // 167 — never back up to 171.
         let mut movement = MovementState::new(153, 170);
         let reversed = vec![
             make_path_node(153, 171, false),
@@ -248,12 +298,29 @@ mod tests {
             make_path_node(153, 168, false),
             make_path_node(153, 167, false),
         ];
-        movement.start_server_move(reversed, 0.0);
+        movement.start_server_move(153, 172, reversed, 0.0, 0.45);
 
-        // first step advances toward 167 (decreasing y), never back to 171
-        let (_, y) = movement.update(0.075);
-        assert!(y < 170.0, "should move toward dest, not backtrack; got y={y}");
+        assert!((movement.current_y - 169.0).abs() < 0.01, "y={}", movement.current_y);
+        let (_, y) = movement.update(0.525);
+        assert!(y < 169.0, "should head toward dest, not backtrack; got y={y}");
         assert_eq!(movement.destination(), Some((153, 167)));
+    }
+
+    #[test]
+    fn server_move_blends_the_reanchor_jump_smoothly() {
+        let mut movement = MovementState::new(153, 170);
+        let path = vec![
+            make_path_node(153, 171, false),
+            make_path_node(153, 172, false),
+        ];
+        movement.start_server_move(153, 169, path, 0.0, 0.45);
+
+        // visual position starts at the pre-jump spot and eases toward the replayed one
+        let (_, y0) = movement.position();
+        assert!((y0 - 170.0).abs() < 0.01, "visual should start at old pos, got {y0}");
+        movement.decay_correction(CORRECTION_BLEND);
+        let (_, y1) = movement.position();
+        assert!((y1 - movement.current_y).abs() < 0.01, "blend should resolve to replay pos");
     }
 
     #[test]
