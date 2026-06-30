@@ -142,22 +142,32 @@ impl App {
         dest_y: u16,
         start_time: u32,
     ) {
+        let local_ms = self.start_time.elapsed().as_millis() as u32;
+        self.game
+            .server_time
+            .observe_server_tick(start_time, local_ms);
+        let already_moving_to_dest = self
+            .game
+            .entities
+            .get(gid)
+            .filter(|e| e.movement.is_moving())
+            .and_then(|e| e.movement.destination())
+            .is_some_and(|(dx, dy)| dx == dest_x && dy == dest_y);
+        if already_moving_to_dest {
+            return;
+        }
         if let Some(gat) = &self.game.gat {
-            let path = ragnarok_game::path::path_search(gat, start_x, start_y, dest_x, dest_y);
+            let (sx, sy) = self
+                .game
+                .entities
+                .get(gid)
+                .map(|e| e.movement.cell_position())
+                .unwrap_or((start_x, start_y));
+            let path = ragnarok_game::path::path_search(gat, sx, sy, dest_x, dest_y);
             if !path.is_empty() {
-                let local_ms = self.start_time.elapsed().as_millis() as u32;
-                self.game
-                    .server_time
-                    .observe_server_tick(start_time, local_ms);
                 let now = local_ms as f32 / 1000.0;
-                let move_start = self
-                    .game
-                    .server_time
-                    .server_to_local_secs_clamped(start_time, local_ms);
                 if let Some(entity) = self.game.entities.get_mut(gid) {
-                    entity
-                        .movement
-                        .start_server_move(start_x, start_y, path, move_start, now);
+                    entity.movement.start_move(path, now);
                     entity.state_timer = 0.0;
                 }
             }

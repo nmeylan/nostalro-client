@@ -50,44 +50,6 @@ impl MovementState {
         self.build_times();
     }
 
-    pub fn start_server_move(
-        &mut self,
-        source_x: u16,
-        source_y: u16,
-        path: Vec<PathNode>,
-        start_time: f32,
-        now: f32,
-    ) {
-        if path.is_empty() {
-            return;
-        }
-        let (old_x, old_y) = self.position();
-        self.source_x = source_x as f32;
-        self.source_y = source_y as f32;
-        self.source_time = start_time;
-        self.path = path;
-        self.seg_index = 0;
-        self.moving = true;
-        self.build_times();
-
-        let (x, y, done, seg) = self.replay(now);
-        self.current_x = x;
-        self.current_y = y;
-        self.seg_index = seg;
-        if done {
-            self.moving = false;
-        }
-
-        let (dx, dy) = (old_x - x, old_y - y);
-        if dx.abs() > 0.001 || dy.abs() > 0.001 {
-            self.correction_offset = (dx, dy);
-            self.correction_remaining = CORRECTION_BLEND;
-        } else {
-            self.correction_offset = (0.0, 0.0);
-            self.correction_remaining = 0.0;
-        }
-    }
-
     fn build_times(&mut self) {
         self.node_times.clear();
         let mut t = self.source_time;
@@ -282,45 +244,6 @@ mod tests {
             is_open: false,
             is_diagonal,
         }
-    }
-
-    #[test]
-    fn server_move_replays_to_time_correct_position_without_backtracking() {
-        // Move began at the server source (153,172) at t=0 and walks down to 167.
-        // By now=0.45s (3 straight cells) the entity belongs at 169, even though we
-        // were still rendering 170. Replay must place it at 169 and head onward to
-        // 167 — never back up to 171.
-        let mut movement = MovementState::new(153, 170);
-        let reversed = vec![
-            make_path_node(153, 171, false),
-            make_path_node(153, 170, false),
-            make_path_node(153, 169, false),
-            make_path_node(153, 168, false),
-            make_path_node(153, 167, false),
-        ];
-        movement.start_server_move(153, 172, reversed, 0.0, 0.45);
-
-        assert!((movement.current_y - 169.0).abs() < 0.01, "y={}", movement.current_y);
-        let (_, y) = movement.update(0.525);
-        assert!(y < 169.0, "should head toward dest, not backtrack; got y={y}");
-        assert_eq!(movement.destination(), Some((153, 167)));
-    }
-
-    #[test]
-    fn server_move_blends_the_reanchor_jump_smoothly() {
-        let mut movement = MovementState::new(153, 170);
-        let path = vec![
-            make_path_node(153, 171, false),
-            make_path_node(153, 172, false),
-        ];
-        movement.start_server_move(153, 169, path, 0.0, 0.45);
-
-        // visual position starts at the pre-jump spot and eases toward the replayed one
-        let (_, y0) = movement.position();
-        assert!((y0 - 170.0).abs() < 0.01, "visual should start at old pos, got {y0}");
-        movement.decay_correction(CORRECTION_BLEND);
-        let (_, y1) = movement.position();
-        assert!((y1 - movement.current_y).abs() < 0.01, "blend should resolve to replay pos");
     }
 
     #[test]
