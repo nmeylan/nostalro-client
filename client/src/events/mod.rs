@@ -146,6 +146,12 @@ impl App {
                 GameEvent::EntityStopMove { gid, x, y } => {
                     self.game.entities.apply_entity_stop_move(gid, x, y);
                 }
+                GameEvent::EntityHighJumped { gid, x, y } => {
+                    // High Jump relocates the character to the landing cell
+                    // instantly, matching the original — no walk path. The jump
+                    // body effects ride the skill-use packet, not this one.
+                    self.game.entities.apply_entity_stop_move(gid, x, y);
+                }
                 GameEvent::EntityAction {
                     gid,
                     target_gid,

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::entity::{EmotionState, Entity, EntityState, EntityType};
 use crate::movement::direction_from_positions;
+use models::enums::skill_enums::SkillEnum;
 
 pub struct EntityCollection {
     entities: HashMap<u32, Entity>,
@@ -155,6 +156,11 @@ impl EntityCollection {
         skill_name: Option<String>,
     ) {
         self.show_skill_chat_bubble(src_gid, skill_name);
+        if skill_id == SkillEnum::TkRun.id() as u16
+            && !self.entities.get(&src_gid).is_some_and(|e| e.is_running)
+        {
+            return;
+        }
         let target_pos = self
             .entities
             .get(&target_gid)
@@ -396,5 +402,28 @@ mod tests {
         let e = col.get(1).unwrap();
         assert_eq!(e.direction, 6);
         assert_eq!(e.state, EntityState::SkillExec);
+    }
+
+    #[test]
+    fn run_toggle_plays_motion_on_start_but_not_when_stopping() {
+        let run_id = SkillEnum::TkRun.id() as u16;
+
+        // Start: the EFST_RUN change already flipped is_running on, so the skill
+        // packet plays the run motion.
+        let mut col = EntityCollection::new();
+        let mut starter = make_entity(1);
+        starter.is_running = true;
+        col.insert(starter);
+        col.apply_skill_no_damage(run_id, 1, 0, None);
+        assert_eq!(col.get(1).unwrap().state, EntityState::SkillExec);
+
+        // Stop: is_running already flipped off, so the skill packet is ignored
+        // and the character does not re-enter a walk motion in place.
+        let mut col = EntityCollection::new();
+        let mut runner = make_entity(1);
+        runner.state = EntityState::Standing;
+        col.insert(runner);
+        col.apply_skill_no_damage(run_id, 1, 0, None);
+        assert_eq!(col.get(1).unwrap().state, EntityState::Standing);
     }
 }

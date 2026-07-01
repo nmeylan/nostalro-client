@@ -100,6 +100,13 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             local_send_time_ms: 0,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcHighjump>() {
+        return vec![GameEvent::EntityHighJumped {
+            gid: p.aid,
+            x: p.x_pos as u16,
+            y: p.y_pos as u16,
+        }];
+    }
 
     if let Some(p) = any.downcast_ref::<PacketZcNotifyStandentry7>() {
         let (x, y, dir) = decode_pos(&p.pos_dir);

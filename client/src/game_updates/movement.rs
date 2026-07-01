@@ -1,7 +1,63 @@
 use crate::App;
+use models::enums::effect_id::EffectId;
 use ragnarok_game::app_state::AppState;
+use ragnarok_game::entity::EntityState;
 
 impl App {
+    /// Running characters stamp alternating left/right footprints on the ground,
+    /// oriented to their facing, at a fixed cadence while moving. The prints
+    /// linger and fade on their own; the stop puff is spawned separately when the
+    /// running status ends.
+    pub(crate) fn update_running_footprints(&mut self, delta: f32) {
+        const STEP_INTERVAL: f32 = 7.0 / 60.0;
+        // Cell-space offset for each of the 8 facings (matches direction_from_positions).
+        const DIR_OFFSET: [(f32, f32); 8] = [
+            (0.0, 1.0),
+            (-1.0, 1.0),
+            (-1.0, 0.0),
+            (-1.0, -1.0),
+            (0.0, -1.0),
+            (1.0, -1.0),
+            (1.0, 0.0),
+            (1.0, 1.0),
+        ];
+        let (Some(gat), Some(coords)) = (self.game.gat.as_ref(), self.game.map_coords.as_ref())
+        else {
+            return;
+        };
+        let mut prints: Vec<(EffectId, [f32; 3], [f32; 3])> = Vec::new();
+        for entity in self.game.entities.iter_mut() {
+            if !entity.is_running {
+                continue;
+            }
+            if entity.state != EntityState::Moving {
+                entity.footstep_timer = 0.0;
+                continue;
+            }
+            entity.footstep_timer -= delta;
+            if entity.footstep_timer > 0.0 {
+                continue;
+            }
+            entity.footstep_timer = STEP_INTERVAL;
+            entity.footstep_left = !entity.footstep_left;
+            let (cx, cy) = entity.movement.position();
+            let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
+            let from = [wx, gat.get_height(cx + 0.5, cy + 0.5), wz];
+            let (ox, oy) = DIR_OFFSET[(entity.direction & 7) as usize];
+            let (tx, _, tz) = coords.cell_to_world(cx + 0.5 + ox, cy + 0.5 + oy);
+            let to = [tx, from[1], tz];
+            let id = if entity.footstep_left {
+                EffectId::Foot3
+            } else {
+                EffectId::Foot4
+            };
+            prints.push((id, from, to));
+        }
+        for (id, from, to) in prints {
+            self.effect_queue.spawn_trail(id, from, to);
+        }
+    }
+
     pub(crate) fn process_continuous_walk(&mut self, delta: f32) {
         if !self.input.left_mouse_down || self.game.app_state != AppState::InGame {
             return;

@@ -1052,28 +1052,30 @@ impl App {
         let effect_draws = frame.effect_draws;
         let sprite_particle_records = frame.sprite_particle_records;
 
-        let sprite_batches: Vec<ragnarok_renderer::sprite::SpriteBatch<'_>> =
-            match (&self.entity_sprite, &self.map_data) {
-                (Some(entity), Some(map)) => {
-                    // Trail only while the walk action plays (the viewer's
-                    // stand-in for the in-game `Moving` state).
-                    let emitting = self.animation.action() == SpriteActionType::Walk as usize;
-                    build_character_batches(
-                        entity,
-                        map,
-                        self.character_cell,
-                        &self.animation,
-                        &renderer.camera,
-                        screen_w,
-                        screen_h,
-                        &body_channels,
-                        &mut self.effect_holder,
-                        VIEWER_ACTOR_ID,
-                        emitting,
-                    )
-                }
-                _ => Vec::new(),
-            };
+        let (sprite_batches, silhouette_batches): (
+            Vec<ragnarok_renderer::sprite::SpriteBatch<'_>>,
+            Vec<ragnarok_renderer::sprite::SpriteBatch<'_>>,
+        ) = match (&self.entity_sprite, &self.map_data) {
+            (Some(entity), Some(map)) => {
+                // Trail only while the walk action plays (the viewer's
+                // stand-in for the in-game `Moving` state).
+                let emitting = self.animation.action() == SpriteActionType::Walk as usize;
+                build_character_batches(
+                    entity,
+                    map,
+                    self.character_cell,
+                    &self.animation,
+                    &renderer.camera,
+                    screen_w,
+                    screen_h,
+                    &body_channels,
+                    &mut self.effect_holder,
+                    VIEWER_ACTOR_ID,
+                    emitting,
+                )
+            }
+            _ => (Vec::new(), Vec::new()),
+        };
 
         let mut ui_calls: Vec<UiDrawCall> = Vec::new();
         let status = StatusLine {
@@ -1184,7 +1186,7 @@ impl App {
             &effect_draws,
             sprite_particle_records,
             &sprite_batches,
-            &[],
+            &silhouette_batches,
             &[],
             &number_inline_textures,
             dt,
@@ -1209,16 +1211,31 @@ fn build_character_batches<'a>(
     effect_holder: &mut EffectHolder,
     entity_id: u32,
     emitting: bool,
-) -> Vec<ragnarok_renderer::sprite::SpriteBatch<'a>> {
+) -> (
+    Vec<ragnarok_renderer::sprite::SpriteBatch<'a>>,
+    Vec<ragnarok_renderer::sprite::SpriteBatch<'a>>,
+) {
     let coords: &MapCoordinates = match map.coordinates.as_ref() {
         Some(c) => c,
-        None => return Vec::new(),
+        None => return (Vec::new(), Vec::new()),
     };
     let Some((screen_anchor, depth, camera_dir, sprite_scale, _depth_gradient)) =
         project_entity_screen(cell, map.gat.as_ref(), coords, camera, screen_w, screen_h)
     else {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     };
+
+    // Flat feet-depth body silhouette (gradient [0,0]) stamped into depth after
+    // the colour pass so effects occlude against the body — same as the game.
+    let silhouette = entity.build_batches(
+        animation,
+        Some(camera_dir),
+        animation.direction() as u8,
+        screen_anchor,
+        depth,
+        sprite_scale,
+        [0.0, 0.0],
+    );
 
     // Movement afterimage (`CBlurPC`): snapshot the moving actor on the emit
     // interval and draw every fading copy *before* the live sprite. The trail
@@ -1296,7 +1313,7 @@ fn build_character_batches<'a>(
         body_channels,
     );
     batches.append(&mut live);
-    batches
+    (batches, silhouette)
 }
 
 fn format_effect_label(id: EffectId) -> String {

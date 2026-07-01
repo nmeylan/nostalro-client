@@ -108,6 +108,11 @@ pub enum GameEvent {
         x: u16,
         y: u16,
     },
+    EntityHighJumped {
+        gid: u32,
+        x: u16,
+        y: u16,
+    },
     EntityAction {
         gid: u32,
         target_gid: u32,

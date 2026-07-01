@@ -524,6 +524,31 @@ impl App {
             self.handle_push_cart_status(gid, active, val1);
             return;
         }
+        if icon == ClientEffectIcon::Run {
+            let stopped = self
+                .game
+                .entities
+                .get_mut(gid)
+                .map(|e| {
+                    let was_running = e.is_running;
+                    e.is_running = active;
+                    e.footstep_timer = 0.0;
+                    was_running && !active
+                })
+                .unwrap_or(false);
+            if stopped {
+                self.effect_queue.spawn_on(EffectId::Stopeffect, gid);
+            }
+            return;
+        }
+        if icon == ClientEffectIcon::Ting {
+            if active && let Some(e) = self.game.entities.get_mut(gid) {
+                e.is_running = false;
+                e.footstep_timer = 0.0;
+                self.effect_queue.spawn_on(EffectId::Quakebody, gid);
+            }
+            return;
+        }
         if self.game.entities.player_id() == Some(gid) {
             if let Some(info) = status_icon_info(efst) {
                 if !active {

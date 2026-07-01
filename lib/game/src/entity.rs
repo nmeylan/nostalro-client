@@ -159,6 +159,9 @@ pub struct Entity {
     pub forced_animation: Option<ForcedAnimation>,
     pub cart_type: Option<u8>,
     pub anim_last_pos: (f32, f32),
+    pub is_running: bool,
+    pub footstep_timer: f32,
+    pub footstep_left: bool,
 }
 
 impl Entity {
@@ -231,6 +234,9 @@ impl Entity {
             forced_animation: None,
             cart_type: None,
             anim_last_pos: (x as f32, y as f32),
+            is_running: false,
+            footstep_timer: 0.0,
+            footstep_left: false,
         }
     }
 
@@ -522,6 +528,7 @@ impl Entity {
             SkillMotionType::Pickup => 3,
             SkillMotionType::Sing | SkillMotionType::Dance | SkillMotionType::Skill => 12,
             SkillMotionType::Stand => 0,
+            SkillMotionType::Walk => 1,
         }
     }
 

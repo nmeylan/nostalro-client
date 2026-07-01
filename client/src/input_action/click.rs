@@ -169,6 +169,17 @@ impl App {
         }
         self.game.attack_target_id = None;
         self.game.pending_pickup_item_id = None;
+        // While running, the server auto-moves the character in a straight line and
+        // rejects any client-issued move, which snaps the character back. Suppress
+        // click-to-move (and the continuous-walk that routes through here) entirely.
+        if self
+            .game
+            .entities
+            .player()
+            .is_some_and(|e| e.is_running)
+        {
+            return;
+        }
         let (dest_x, dest_y) = match self.hovered_cell() {
             Some(c) => c,
             None => return,

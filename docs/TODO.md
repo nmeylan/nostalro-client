@@ -17,7 +17,7 @@ TODO:
 - ~~Shadow under entities~~ (done — shadow size table for 200+ jobs)
 
 # Rendering
-- ~~STR effects (skill/buff visuals, ~200 effect types)~~
+- ~~STR effects (skill/buff visuals, 200 effect types)~~
 - ~~Particle system (2D/3D particles for skills, weather, buffs)~~
 - ~~Fog~~
 - ~~Weather (rain, snow, sakura)~~

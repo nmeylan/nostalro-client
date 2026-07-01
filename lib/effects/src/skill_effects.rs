@@ -5,6 +5,14 @@ use models::enums::skill_enums::SkillEnum;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CasterSkillEffects {
     pub cast: &'static [EffectId],
+}
+
+/// Everything decided at or before cast start: the begin-cast visual and
+/// whether the cast bar / begin aura are suppressed. Distinct from
+/// [`CasterSkillEffects`], which is the execution-time (cast-END) visual.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CastingSkill {
+    pub begin: &'static [EffectId],
     pub hide_cast_bar: bool,
     pub hide_cast_aura: bool,
 }
@@ -115,6 +123,7 @@ pub fn ground_placed_effect(skill: SkillEnum, level: i16) -> &'static [EffectId]
         S::CrSlimpitcher if level < 6 => &[E::Slim],
         S::CrSlimpitcher if level < 10 => &[E::Slim2],
         S::CrSlimpitcher => &[E::Slim3],
+        S::CrCultivation => &[E::Beginspell6],
         _ => &[],
     }
 }
@@ -130,6 +139,7 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
         | S::HtBlitzbeat
         | S::SnFalconassault
         | S::AmSpheremine
+        | S::HwMagicpower
         | S::DcThrowarrow => &[E::Bash],
 
         S::MgNapalmbeat
@@ -263,6 +273,8 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
 
         S::LkSpiralpierce => &[E::Piercebody],
 
+        S::TkHighjump => &[E::Jumpbody],
+
         S::TkRun
         | S::SgFeel
         | S::SgHate
@@ -360,14 +372,12 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
 
     match skill {
         S::SmMagnum => C::cast(&[E::Magnumbreak]),
-        S::SmEndure => C::cast(&[E::Endure]),
         S::MgSight => C::cast(&[E::Sight]),
         S::AlRuwach => C::cast(&[E::Ruwach]),
         S::AlHolywater => C::cast(&[E::Aqua]),
         S::AlCrucis => C::cast(&[E::Signum]),
         S::AlAngelus => C::cast(&[E::Angelus]),
         S::McCartrevolution => C::cast(&[E::Cartrevolution]),
-        S::McLoud => C::cast(&[E::Loud]),
         S::AcConcentration => C::cast(&[E::Concentration]),
         S::NvFirstaid => C::cast(&[E::Firstaid]),
 
@@ -392,9 +402,6 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::WzFirepillar => C::cast(&[E::Firepillar]),
         S::WzSightrasher => C::cast(&[E::Sightrasher]),
         S::WzStormgust => C::cast(&[E::Stormgust]),
-        S::BsMaximize => C::cast(&[E::Maxpower]),
-        S::BsAdrenaline | S::BsAdrenaline2 => C::cast(&[E::Hasteup]),
-        S::BsOverthrust | S::WsOverthrustmax => C::cast(&[E::Overthrust]),
         S::HtSpringtrap => C::cast(&[E::Springtrap]),
         S::HtRemovetrap => C::cast(&[E::Removetrap]),
         S::AsSonicblow => C::cast(&[E::Sonicblow2]),
@@ -402,16 +409,14 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::MoAbsorbspirits => C::cast(&[E::Absorbspirits]),
         S::MoExplosionspirits => C::cast(&[E::Gumgang, E::Gumgang2]),
         S::MoSteelbody => C::cast(&[E::Gumgang2]),
+        S::MoChaincombo => C::cast(&[E::Gumgang3]),
+        S::MoCombofinish => C::cast(&[E::Gumgang3, E::Hitline]),
         S::ChTigerfist => C::cast(&[E::Bash3d2, E::Gumgang3]),
         S::ChChaincrush => C::cast(&[E::Gumgang3]),
 
         S::CrGrandcross => C::cast(&[E::Grandcross]),
-        S::CrShrink => C::cast(&[E::Shrink]),
         S::CrDevotion => C::cast(&[E::Devotion]),
         S::CrSpearquicken => C::cast(&[]),
-        S::CrReflectshield => C::cast(&[E::Reflectshield]),
-        S::CrDefender | S::MlDefender => C::cast(&[E::Defender]),
-        S::CrAutoguard | S::MlAutoguard => C::cast(&[E::Guard]),
         S::PaSacrifice => C::cast(&[E::Bash3d]),
         S::LkSpiralpierce => C {
             hide_cast_bar: true,
@@ -420,10 +425,6 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         },
         S::LkHeadcrush => C::cast(&[E::Bash3d3]),
         S::LkJointbeat => C::cast(&[E::Bash3d4]),
-        S::LkAurablade => C::cast(&[E::Aurablade, E::Aurablade2]),
-        S::LkParrying | S::MsParrying => C::cast(&[E::Guard]),
-        S::WsMeltdown => C::cast(&[E::Meltdown]),
-        S::WsCartboost => C::cast(&[E::Cartboost]),
 
         S::RgIntimidate => C::cast(&[E::Intimidate]),
         S::RgStealcoin => C::cast(&[E::Stealcoin]),
@@ -448,24 +449,20 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
 
         S::AscMeteorassault => C::cast(&[E::Soulbreaker2]),
         S::AscEdp => C::cast(&[E::Edp]),
-        S::AmAcidterror => C::cast(&[E::Throwitem]),
         S::AmPotionpitcher => C::cast(&[E::Throwitem2]),
         S::AmBerserkpitcher => C::cast(&[E::Throwitem5]),
         S::ItmTomahawk => C::cast(&[E::Shieldboomerang2]),
 
         S::TkCounter => C::cast(&[E::Hitline5]),
         S::TkJumpkick => C::cast(&[E::Jumpkick]),
+        S::TkHighjump => C {
+            cast: &[E::Landbody],
+            hide_cast_bar: true,
+            hide_cast_aura: true,
+            ..Default::default()
+        },
         S::TkRun => C::cast(&[E::Run]),
-        S::TkHighjump => C::cast(&[E::Landbody]),
-        S::TkStormkick => C::cast(&[E::Stormkick]),
-        S::TkSevenwind => C::cast(&[E::Stormkick3, E::Beginasura1]),
         S::SlSma => C::cast(&[E::Stin2]),
-        S::SgSunWarm | S::SgMoonWarm | S::SgStarWarm => {
-            C::cast(&[E::Doublegumgang, E::Redlightbody, E::Hated2])
-        }
-        S::SgSunComfort | S::SgMoonComfort | S::SgStarComfort => {
-            C::cast(&[E::Flowercast, E::Hated])
-        }
 
         S::GsMadnesscancel => C::cast(&[E::MadnessBlue]),
         S::GsAdjustment | S::GsGatlingfever => C::cast(&[E::MadnessRed]),
@@ -637,7 +634,11 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::AsVenomknife => T::on_target(&[E::Throwitem6]),
         S::AscBreaker => T::on_target(&[E::Soulbreaker]),
 
-        S::MoChaincombo => T::hit(&[E::Sonicblowhit]),
+        S::MoChaincombo => T {
+            on_target: &[E::Teihit1, E::Chaincombo],
+            hit: &[E::Sonicblowhit],
+            ..Default::default()
+        },
         S::MoBalkyoung => T::hit(&[E::Hit3]),
         S::MoExtremityfist => T::on_target(&[E::Teihit1x]),
         S::MoTripleattack => T::on_target(&[E::Tripleattack]),
@@ -648,7 +649,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
 
         S::CrHolycross => T::on_target(&[E::Holycross]),
         S::CrShieldboomerang => T::on_target(&[E::Shieldboomerang]),
-        S::CrAciddemonstration => T::on_target(&[E::Aciddemon]),
+        S::CrAciddemonstration => T::on_target(&[E::Throwitem, E::Aciddemon]),
         S::CrShieldcharge => T::on_target(&[E::Shieldcharge]),
         S::CrProvidence => T::on_target(&[E::Providence]),
         S::CrFullprotection => T::on_target(&[E::Chemicalprotection, E::Chemicalbody]),
@@ -688,11 +689,11 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::HwMagiccrasher => T::on_target(&[E::Magiccrasher]),
         S::HwNapalmvulcan => T::on_target(&[E::Napalmvalcan]),
         S::HwSouldrain => T::on_target(&[E::Transbluebody]),
-        S::HwMagicpower => T::on_target(&[E::Lightblade]),
         S::PfSoulchange => T::on_target(&[E::Linklight, E::Soulchange]),
         S::PfDoublecasting => T::on_target(&[E::Doublecastbody]),
         S::PfSoulburn => T::on_target(&[E::Soulburn, E::Magiccrasher]),
 
+        S::AmAcidterror => T::on_target(&[E::Throwitem]),
         S::AmBerserkpitcher => T::on_target(&[E::PotionBerserk]),
         S::AmCpWeapon | S::AmCpShield | S::AmCpArmor | S::AmCpHelm => {
             T::on_target(&[E::Chemicalprotection])
@@ -713,13 +714,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
             ..Default::default()
         },
         S::SlSma => T::on_target(&[E::Ef4waybody, E::Hitline6, E::Hittexture]),
-        S::SlSwoo => T::on_target(&[E::Babybody, E::M07]),
-        S::SlSke => T::on_target(&[E::AsurabodyMonster]),
-        S::SlSka => T::on_target(&[E::Gumgang2]),
-        S::SlKaizel => T::on_target(&[E::Hated, E::Kaizel]),
-        S::SlKaahi | S::SgHate => T::on_target(&[E::Hated]),
-        S::SlKaupe => T::on_target(&[E::Bluebody]),
-        S::SlKaite => T::on_target(&[E::Reflectbody, E::Bluebody]),
+        S::SgHate => T::on_target(&[E::Hated]),
 
         S::GsPiercingshot => T::on_target(&[E::Chemical4]),
         S::NjSyuriken => T::on_target(&[E::Throwitem7]),
@@ -827,10 +822,41 @@ mod tests {
     #[test]
     fn same_slot_stack_keeps_every_effect() {
         assert_eq!(
-            caster_skill_effects(SkillEnum::LkAurablade).cast,
-            &[EffectId::Aurablade, EffectId::Aurablade2]
+            caster_skill_effects(SkillEnum::MoExplosionspirits).cast,
+            &[EffectId::Gumgang, EffectId::Gumgang2]
         );
     }
+
+    #[test]
+    fn persistent_self_buffs_are_not_flashed_at_cast() {
+        use SkillEnum as S;
+        for skill in [
+            S::SmEndure,
+            S::LkAurablade,
+            S::LkParrying,
+            S::CrAutoguard,
+            S::CrReflectshield,
+            S::CrDefender,
+            S::CrShrink,
+            S::BsAdrenaline,
+            S::BsAdrenaline2,
+            S::BsOverthrust,
+            S::WsOverthrustmax,
+            S::BsMaximize,
+            S::McLoud,
+            S::WsMeltdown,
+            S::WsCartboost,
+        ] {
+            assert!(
+                caster_skill_effects(skill).cast.is_empty(),
+                "{skill:?} buff aura is status-driven, not a cast flash"
+            );
+        }
+        // Magic Power keeps only its cast glyph; its glow rides the status path.
+        assert_eq!(begin_cast_effect(S::HwMagicpower), &[EffectId::Bash]);
+        assert!(target_skill_effects(S::HwMagicpower).on_target.is_empty());
+    }
+
 
     #[test]
     fn physical_attack_skills_share_the_bash_begin_effect() {
@@ -998,7 +1024,6 @@ mod tests {
                 .contains(&E::Jumpkick)
         );
     }
-
     #[test]
     fn unmapped_skill_fires_nothing_on_either_actor() {
         assert_eq!(

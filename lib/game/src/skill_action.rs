@@ -9,6 +9,7 @@ pub enum SkillMotionType {
     Sing,
     Dance,
     Stand,
+    Walk,
     Skill,
 }
 
@@ -137,8 +138,18 @@ pub fn skill_motion_type(skill_id: u16) -> SkillMotionType {
         || id == SkillEnum::WsMeltdown.id() as u16
         || id == SkillEnum::WsCartboost.id() as u16
         || id == SkillEnum::ChSoulcollect.id() as u16
+        // Taekwon stances are instant toggles with no cast motion.
+        || id == SkillEnum::TkReadystorm.id() as u16
+        || id == SkillEnum::TkReadydown.id() as u16
+        || id == SkillEnum::TkReadyturn.id() as u16
+        || id == SkillEnum::TkReadycounter.id() as u16
+        || id == SkillEnum::TkDodge.id() as u16
     {
         return Stand;
+    }
+
+    if id == SkillEnum::TkRun.id() as u16 {
+        return Walk;
     }
 
     Skill
@@ -237,6 +248,28 @@ mod tests {
         assert_eq!(
             skill_motion_type(SkillEnum::LkParrying.id() as u16),
             SkillMotionType::Stand
+        );
+    }
+
+    #[test]
+    fn taekwon_stances_and_running_do_not_play_a_cast_motion() {
+        for s in [
+            SkillEnum::TkReadystorm,
+            SkillEnum::TkReadydown,
+            SkillEnum::TkReadyturn,
+            SkillEnum::TkReadycounter,
+            SkillEnum::TkDodge,
+        ] {
+            assert_eq!(
+                skill_motion_type(s.id() as u16),
+                SkillMotionType::Stand,
+                "{s:?} should not animate a skill cast"
+            );
+        }
+        // Running plays the walk motion, not an idle stand or a cast.
+        assert_eq!(
+            skill_motion_type(SkillEnum::TkRun.id() as u16),
+            SkillMotionType::Walk
         );
     }
 

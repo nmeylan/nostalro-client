@@ -305,6 +305,10 @@ impl App {
             .filter(|e| e.movement.is_moving())
             .and_then(|e| e.movement.destination())
             .is_some_and(|(dx, dy)| dx == dest_x && dy == dest_y);
+        let local_ms = self.start_time.elapsed().as_millis() as u32;
+        self.game
+            .server_time
+            .observe_server_tick(start_time, local_ms);
         if !already_moving_to_dest && let Some(gat) = &self.game.gat {
             let (sx, sy) = self
                 .game
@@ -314,17 +318,13 @@ impl App {
                 .unwrap_or((start_x, start_y));
             let path = ragnarok_game::path::path_search(gat, sx, sy, dest_x, dest_y);
             if !path.is_empty() {
-                let local_ms = self.start_time.elapsed().as_millis() as u32;
-                self.game
-                    .server_time
-                    .observe_server_tick(start_time, local_ms);
-                let move_start = self
-                    .game
-                    .server_time
-                    .server_to_local_secs_clamped(start_time, local_ms);
+                // Walk from the current cell starting now, matching remote moves.
+                // Fast-forwarding from the server tick jumps the player forward by
+                // one round-trip at each seam — very visible on server-driven runs,
+                // where every segment is a fresh (unpredicted) move packet.
+                let now = local_ms as f32 / 1000.0;
                 if let Some(entity) = self.game.entities.player_mut() {
-                    entity.movement.correct_to_cell(sx as f32, sy as f32);
-                    entity.movement.start_move(path, move_start);
+                    entity.movement.start_move(path, now);
                 }
             }
         }
