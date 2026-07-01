@@ -27,8 +27,8 @@ pub use effect_trait::{
 };
 pub use factory::{is_real_impl, make_effect};
 pub use skill_effects::{
-    CasterSkillEffects, TargetSkillEffects, begin_cast_effect, beginspell_for_element,
-    caster_skill_effects, derive_hit_effect, fire_glyph_effect, ground_placed_effect,
+    CasterSkillEffects, CastingSkill, TargetSkillEffects, begin_cast_effect, beginspell_for_element,
+    caster_skill_effects, casting_skill, derive_hit_effect, fire_glyph_effect, ground_placed_effect,
     is_cast_circle, is_ground_cast, target_skill_effects,
 };
 pub use skill_units::skill_unit_effect;

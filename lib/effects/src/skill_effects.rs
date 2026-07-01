@@ -27,11 +27,7 @@ pub struct TargetSkillEffects {
 
 impl CasterSkillEffects {
     const fn cast(cast: &'static [EffectId]) -> Self {
-        Self {
-            cast,
-            hide_cast_bar: false,
-            hide_cast_aura: false,
-        }
+        Self { cast }
     }
 }
 
@@ -332,6 +328,21 @@ pub fn fire_glyph_effect(skill: SkillEnum) -> &'static [EffectId] {
     }
 }
 
+pub fn casting_skill(skill: SkillEnum) -> CastingSkill {
+    use SkillEnum as S;
+    CastingSkill {
+        begin: begin_cast_effect(skill),
+        hide_cast_bar: matches!(
+            skill,
+            S::KnBowlingbash | S::KnBrandishspear | S::LkSpiralpierce | S::TkHighjump
+        ),
+        hide_cast_aura: matches!(
+            skill,
+            S::KnBowlingbash | S::KnBrandishspear | S::LkSpiralpierce
+        ),
+    }
+}
+
 pub fn is_cast_circle(id: EffectId) -> bool {
     use EffectId as E;
     matches!(
@@ -383,17 +394,8 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
 
         S::KnPierce => C::cast(&[E::Pierceself]),
         S::KnSpearboomerang => C::cast(&[E::Spearbmrself]),
-        S::KnBowlingbash => C {
-            cast: &[E::Bowlingself],
-            hide_cast_bar: true,
-            hide_cast_aura: true,
-            ..Default::default()
-        },
-        S::KnBrandishspear => C {
-            hide_cast_bar: true,
-            hide_cast_aura: true,
-            ..Default::default()
-        },
+        S::KnBowlingbash => C::cast(&[E::Bowlingself]),
+        S::KnBrandishspear => C::cast(&[]),
         S::KnTwohandquicken | S::KnOnehand => C::cast(&[]),
         S::PrMagnificat | S::MerMagnificat => C::cast(&[E::Magnificat]),
         S::PrGloria => C::cast(&[E::Gloria]),
@@ -418,11 +420,7 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::CrDevotion => C::cast(&[E::Devotion]),
         S::CrSpearquicken => C::cast(&[]),
         S::PaSacrifice => C::cast(&[E::Bash3d]),
-        S::LkSpiralpierce => C {
-            hide_cast_bar: true,
-            hide_cast_aura: true,
-            ..Default::default()
-        },
+        S::LkSpiralpierce => C::cast(&[]),
         S::LkHeadcrush => C::cast(&[E::Bash3d3]),
         S::LkJointbeat => C::cast(&[E::Bash3d4]),
 
@@ -455,12 +453,7 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
 
         S::TkCounter => C::cast(&[E::Hitline5]),
         S::TkJumpkick => C::cast(&[E::Jumpkick]),
-        S::TkHighjump => C {
-            cast: &[E::Landbody],
-            hide_cast_bar: true,
-            hide_cast_aura: true,
-            ..Default::default()
-        },
+        S::TkHighjump => C::cast(&[E::Landbody]),
         S::TkRun => C::cast(&[E::Run]),
         S::SlSma => C::cast(&[E::Stin2]),
 
@@ -812,7 +805,8 @@ mod tests {
     fn bowling_bash_splits_cast_onto_caster_and_hit_onto_target() {
         let caster = caster_skill_effects(SkillEnum::KnBowlingbash);
         assert_eq!(caster.cast, &[EffectId::Bowlingself]);
-        assert!(caster.hide_cast_bar && caster.hide_cast_aura);
+        let casting = casting_skill(SkillEnum::KnBowlingbash);
+        assert!(casting.hide_cast_bar && casting.hide_cast_aura);
         assert_eq!(
             target_skill_effects(SkillEnum::KnBowlingbash).hit,
             &[EffectId::Bowlingbash]
@@ -893,7 +887,7 @@ mod tests {
             &[EffectId::Beginasura]
         );
         assert!(begin_cast_effect(SkillEnum::MoBodyrelocation).is_empty());
-        assert!(caster_skill_effects(SkillEnum::KnBowlingbash).hide_cast_aura);
+        assert!(casting_skill(SkillEnum::KnBowlingbash).hide_cast_aura);
     }
 
     #[test]
@@ -902,7 +896,7 @@ mod tests {
             begin_cast_effect(SkillEnum::LkSpiralpierce),
             &[EffectId::Piercebody]
         );
-        assert!(caster_skill_effects(SkillEnum::LkSpiralpierce).hide_cast_aura);
+        assert!(casting_skill(SkillEnum::LkSpiralpierce).hide_cast_aura);
         assert!(
             !is_cast_circle(EffectId::Piercebody),
             "body flash is not a circle"
@@ -910,6 +904,17 @@ mod tests {
         assert!(is_cast_circle(EffectId::Beginspell));
         assert!(is_cast_circle(EffectId::Beginspell6));
         assert!(is_cast_circle(EffectId::Bluecasting));
+    }
+
+    #[test]
+    fn high_jump_leaps_at_cast_start_lands_at_cast_end_with_no_cast_bar() {
+        let casting = casting_skill(SkillEnum::TkHighjump);
+        assert_eq!(casting.begin, &[EffectId::Jumpbody]);
+        assert!(casting.hide_cast_bar);
+        assert_eq!(
+            caster_skill_effects(SkillEnum::TkHighjump).cast,
+            &[EffectId::Landbody]
+        );
     }
 
     #[test]
@@ -923,7 +928,7 @@ mod tests {
             &[EffectId::Bash]
         );
         assert!(begin_cast_effect(SkillEnum::KnBrandishspear).is_empty());
-        assert!(caster_skill_effects(SkillEnum::KnBrandishspear).hide_cast_aura);
+        assert!(casting_skill(SkillEnum::KnBrandishspear).hide_cast_aura);
         assert!(fire_glyph_effect(SkillEnum::McMammonite).is_empty());
     }
 

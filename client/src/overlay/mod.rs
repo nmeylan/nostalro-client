@@ -115,14 +115,14 @@ impl App {
 
     fn build_cast_bars(&self, render_list: &[RenderEntry], calls: &mut Vec<UiDrawCall>) {
         use models::enums::skill_enums::SkillEnum;
-        use ragnarok_game::effect::caster_skill_effects;
+        use ragnarok_game::effect::casting_skill;
         for entry in render_list {
             if (self.config.display.show_other_cast_bars || self.game.entities.is_player(entry.id))
                 && let Some(entity) = self.game.entities.get(entry.id)
                 && entity.state == EntityState::Casting
                 && entity.cast_total_duration > 0.0
                 && !entity.active_skill_id.is_some_and(|id| {
-                    caster_skill_effects(SkillEnum::from_id(id as u32)).hide_cast_bar
+                    casting_skill(SkillEnum::from_id(id as u32)).hide_cast_bar
                 })
             {
                 let progress = 1.0 - (entity.state_timer / entity.cast_total_duration);

@@ -1,10 +1,11 @@
 use crate::App;
 use models::enums::action::ActionType;
 use models::enums::effect_id::EffectId;
+use models::enums::EnumWithStringValue;
 use models::enums::skill_enums::SkillEnum;
 use models::enums::weapon::WeaponType;
 use ragnarok_game::effect::{
-    begin_cast_effect, beginspell_for_element, caster_skill_effects, fire_glyph_effect,
+    beginspell_for_element, caster_skill_effects, casting_skill, fire_glyph_effect,
     ground_placed_effect, is_cast_circle, is_caster_link_effect, is_ground_cast, is_trail_effect,
     target_skill_effects, trail_arrival_secs,
 };
@@ -409,8 +410,10 @@ impl App {
         cast_ms: u32,
     ) {
         let skill = SkillEnum::from_id(skill_id as u32);
-        let hide_aura = caster_skill_effects(skill).hide_cast_aura;
-        for e in begin_cast_effect(skill) {
+        let casting = casting_skill(skill);
+        let hide_aura = casting.hide_cast_aura;
+        for e in casting.begin {
+            tracing::debug!("skill {} trigger effect {}", skill.to_name(), e.as_str());
             if is_cast_circle(*e) {
                 // The cast circle's lifetime is the cast time; an instant cast
                 // or a skill that hides its aura shows no circle.
