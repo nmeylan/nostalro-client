@@ -6,7 +6,7 @@ use ragnarok_game::effect::{derive_hit_effect, is_trail_effect};
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
-use ragnarok_network::{build_pickup_item_packet, build_use_skill_packet};
+use ragnarok_network::{build_pickup_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet};
 
 impl App {
     pub(crate) fn check_pending_attack(&mut self, delta: f32) {
@@ -191,6 +191,67 @@ impl App {
                 py,
                 skill_range,
             );
+        }
+    }
+
+    pub(crate) fn check_pending_ground_skill(&mut self) {
+        let (skill_id, level, x, y) = match self.game.pending_ground_cast {
+            Some(v) => v,
+            None => return,
+        };
+
+        if let Some(player) = self.game.entities.player()
+            && matches!(
+                player.state,
+                EntityState::Casting
+                    | EntityState::SkillExec
+                    | EntityState::Dead
+                    | EntityState::Sitting
+            )
+        {
+            return;
+        }
+
+        let (px, py) = self
+            .game
+            .entities
+            .player()
+            .map(|e| e.movement.cell_position())
+            .unwrap_or((0, 0));
+
+        let skill_range = self
+            .game
+            .character
+            .skills
+            .get_skill(skill_id)
+            .map(|s| s.attack_range as i32)
+            .unwrap_or(1);
+
+        let dx = (px as i32 - x as i32).abs();
+        let dy = (py as i32 - y as i32).abs();
+        let path_completed = self
+            .game
+            .entities
+            .player()
+            .is_some_and(|p| !p.movement.is_moving());
+
+        if dx.max(dy) <= skill_range || path_completed {
+            if let Some(player) = self.game.entities.player_mut() {
+                player.movement.stop();
+            }
+            if self.skill_on_cooldown(skill_id) {
+                return;
+            }
+            self.channel.send_packet(build_use_skill_to_ground_packet(
+                skill_id,
+                level,
+                x,
+                y,
+                self.config.packetver,
+            ));
+            self.game.pending_ground_cast = None;
+        } else {
+            self.try_move_toward(x as i32, y as i32, px, py, skill_range);
         }
     }
 

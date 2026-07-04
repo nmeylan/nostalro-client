@@ -86,13 +86,34 @@ impl App {
                 }
                 PendingSkillTarget::Ground { skill_id, level } => {
                     if let Some((cx, cy)) = self.hovered_cell() {
-                        self.channel.send_packet(build_use_skill_to_ground_packet(
-                            skill_id,
-                            level,
-                            cx as i16,
-                            cy as i16,
-                            self.config.packetver,
-                        ));
+                        let (px, py) = self
+                            .game
+                            .entities
+                            .player()
+                            .map(|e| e.movement.cell_position())
+                            .unwrap_or((0, 0));
+                        let skill_range = self
+                            .game
+                            .character
+                            .skills
+                            .get_skill(skill_id)
+                            .map(|s| s.attack_range as i32)
+                            .unwrap_or(1);
+                        let dx = (px as i32 - cx as i32).abs();
+                        let dy = (py as i32 - cy as i32).abs();
+                        if dx.max(dy) <= skill_range {
+                            self.channel.send_packet(build_use_skill_to_ground_packet(
+                                skill_id,
+                                level,
+                                cx as i16,
+                                cy as i16,
+                                self.config.packetver,
+                            ));
+                        } else {
+                            self.game.pending_ground_cast =
+                                Some((skill_id, level, cx as i16, cy as i16));
+                            self.try_move_toward(cx as i32, cy as i32, px, py, skill_range);
+                        }
                     }
                     skill_cast = true;
                 }
@@ -169,6 +190,7 @@ impl App {
         }
         self.game.attack_target_id = None;
         self.game.pending_pickup_item_id = None;
+        self.game.pending_ground_cast = None;
         // While running, the server auto-moves the character in a straight line and
         // rejects any client-issued move, which snaps the character back. Suppress
         // click-to-move (and the continuous-walk that routes through here) entirely.

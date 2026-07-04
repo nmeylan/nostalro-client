@@ -187,7 +187,7 @@ impl EntityCollection {
         }
     }
 
-    pub fn apply_ground_skill(&mut self, skill_id: u16, src_gid: u32, x: i16, y: i16) {
+    pub fn apply_ground_skill(&mut self, skill_id: u16, src_gid: u32, x: i16, y: i16, skill_name: Option<String>) {
         if let Some(entity) = self.entities.get_mut(&src_gid) {
             let sp = entity.movement.cell_position();
             if let Some(dir) = direction_from_positions(sp.0, sp.1, x as u16, y as u16) {
@@ -195,6 +195,7 @@ impl EntityCollection {
             }
             entity.enter_skill_exec(0.6, skill_id, 1);
         }
+        self.show_skill_chat_bubble(src_gid, skill_name);
     }
 
     pub fn apply_skill_cast_cancel(&mut self, gid: u32) {

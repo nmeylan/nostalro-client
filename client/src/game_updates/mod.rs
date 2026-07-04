@@ -23,6 +23,7 @@ impl App {
         self.check_pending_pickup();
         self.check_pending_attack(delta);
         self.check_pending_skill();
+        self.check_pending_ground_skill();
         self.load_missing_entity_sprites();
         self.update_sprite_animation(delta);
         self.update_running_footprints(delta);

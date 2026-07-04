@@ -233,6 +233,7 @@ pub enum GameEvent {
         level: i16,
         x: i16,
         y: i16,
+        skill_name: Option<String>,
     },
     SkillUnitEntered {
         aid: u32,

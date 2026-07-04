@@ -548,12 +548,14 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::Acknowledged];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyGroundskill>() {
+        let name = SkillEnum::from_id(p.skid as u32).to_name().to_string();
         return vec![GameEvent::GroundSkill {
             skill_id: p.skid,
             src_gid: p.aid,
             level: p.level,
             x: p.x_pos,
             y: p.y_pos,
+            skill_name: Some(name),
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcSkillEntry>() {

@@ -594,10 +594,11 @@ impl App {
                     level,
                     x,
                     y,
+                    skill_name,
                 } => {
                     self.game
                         .entities
-                        .apply_ground_skill(skill_id, src_gid, x, y);
+                        .apply_ground_skill(skill_id, src_gid, x, y, skill_name);
                     self.spawn_ground_skill_effects(skill_id, level, x, y);
                     let falcon_target = if self.game.falcons.contains_key(&src_gid)
                         && matches!(
