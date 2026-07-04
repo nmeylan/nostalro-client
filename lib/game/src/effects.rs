@@ -8,8 +8,6 @@ use ragnarok_formats::rsw::{RswFile, RswObject};
 
 pub const AMBIENT_KEY_BASE: u32 = 0xFFF0_0000;
 
-pub const AMBIENT_VIEW_RADIUS: f32 = 200.0;
-
 struct AmbientEmitter {
     world_pos: [f32; 3],
     effect_id: EffectId,
@@ -115,12 +113,14 @@ impl AmbientEffectScheduler {
         Self { emitters }
     }
 
-    pub fn update(&mut self, dt: f32, camera_target: [f32; 3], queue: &mut EffectQueue) {
-        let radius_sq = AMBIENT_VIEW_RADIUS * AMBIENT_VIEW_RADIUS;
+    pub fn update(
+        &mut self,
+        dt: f32,
+        is_visible: &dyn Fn([f32; 3]) -> bool,
+        queue: &mut EffectQueue,
+    ) {
         for e in &mut self.emitters {
-            let dx = e.world_pos[0] - camera_target[0];
-            let dz = e.world_pos[2] - camera_target[2];
-            let visible = dx * dx + dz * dz <= radius_sq;
+            let visible = is_visible(e.world_pos);
 
             if e.persistent {
                 if visible && !e.spawned {
@@ -241,13 +241,8 @@ mod tests {
         let gnd = make_gnd();
         let mut sched = AmbientEffectScheduler::from_rsw(&rsw, &gnd);
 
-        let center = [
-            gnd.width as f32 * gnd.zoom / 2.0,
-            0.0,
-            gnd.height as f32 * gnd.zoom / 2.0,
-        ];
         let mut queue = EffectQueue::new();
-        sched.update(0.1, center, &mut queue);
+        sched.update(0.1, &|_p| true, &mut queue);
 
         let reqs = queue.drain();
         assert_eq!(reqs.len(), 3);
@@ -283,7 +278,7 @@ mod tests {
         let mut sched = AmbientEffectScheduler::from_rsw(&rsw, &gnd);
 
         let mut queue = EffectQueue::new();
-        sched.update(0.1, [10_000.0, 0.0, 10_000.0], &mut queue);
+        sched.update(0.1, &|_p| false, &mut queue);
         assert!(queue.drain().is_empty());
     }
 }

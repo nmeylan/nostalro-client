@@ -492,6 +492,23 @@ impl EffectHolder {
         });
     }
 
+    /// Remove every live instance of `effect_id` attached to `entity_id`. Used
+    /// to hand a caster off from one body effect to the next (High Jump's leap
+    /// is deleted as the landing spawns).
+    pub fn despawn_effect_on_entity(&mut self, effect_id: EffectId, entity_id: u32) {
+        let backend = self.external_backend.as_ref().cloned();
+        self.effects.retain(|e| {
+            if e.effect_id != effect_id || !matches!(e.attach, Attach::Entity(id) if id == entity_id)
+            {
+                return true;
+            }
+            if let (HeldPayload::CustomExternal { handle: h }, Some(b)) = (&e.payload, &backend) {
+                b.drop_handle(*h);
+            }
+            false
+        });
+    }
+
     pub fn despawn_by_key(&mut self, key: u32) {
         let backend = self.external_backend.as_ref().cloned();
         self.effects.retain(|e| {

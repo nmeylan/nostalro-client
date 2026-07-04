@@ -78,6 +78,16 @@ impl Camera {
         Some((sx, sy))
     }
 
+    pub fn is_world_pos_visible(&self, wx: f32, wy: f32, wz: f32, ndc_margin: f32) -> bool {
+        let clip = self.view_projection() * glam::Vec4::new(wx, wy, wz, 1.0);
+        if clip.w <= 0.0 {
+            return false;
+        }
+        let ndc = clip.truncate() / clip.w;
+        let m = 1.0 + ndc_margin;
+        ndc.x.abs() <= m && ndc.y.abs() <= m && ndc.z >= 0.0 && ndc.z <= 1.0
+    }
+
     pub fn world_to_screen_with_depth(
         &self,
         wx: f32,

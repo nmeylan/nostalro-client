@@ -18,7 +18,7 @@ pub const TEXTURES: &[&str] = &["peong1.tga", "peong2.tga", "peong3.tga"];
 pub const SPARKLE_SPRITE: &str = "data/sprite/이팩트/particle1";
 pub const SPRITES: &[&str] = &[SPARKLE_SPRITE];
 const SPARKLE_ANIM_TICKS: f32 = 3.0;
-pub const TOTAL_DURATION_MS: u32 = 2600;
+pub const TOTAL_DURATION_MS: u32 = 5000;
 
 struct Rng(u32);
 impl Rng {

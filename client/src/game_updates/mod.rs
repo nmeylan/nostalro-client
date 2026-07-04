@@ -4,6 +4,7 @@ mod items;
 mod movement;
 
 use crate::App;
+use models::enums::EnumWithStringValue;
 use ragnarok_game::damage_number::DamageNumber;
 use ragnarok_renderer::effect::EffectUpdateCtx;
 
@@ -28,14 +29,13 @@ impl App {
         self.update_cart_animations(delta);
         self.update_falcon_visuals(delta);
         self.update_fades(delta);
-        let camera_target = self
-            .renderer
-            .as_ref()
-            .map(|r| r.camera.target.to_array())
-            .unwrap_or([0.0; 3]);
+        let camera = self.renderer.as_ref().map(|r| &r.camera);
+        let is_visible = |pos: [f32; 3]| {
+            camera.is_some_and(|c| c.is_world_pos_visible(pos[0], pos[1], pos[2], 0.25))
+        };
         self.game
             .ambient_effects
-            .update(delta, camera_target, &mut self.effect_queue);
+            .update(delta, &is_visible, &mut self.effect_queue);
 
         let entities = &self.game.entities;
         let resolve_caster_yaw = |id: u32| {
@@ -51,6 +51,16 @@ impl App {
             let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
             Some([wx, gat.get_height(cx + 0.5, cy + 0.5), wz])
         };
+        if !self.effect_queue.pending.is_empty() {
+            let t = self.start_time.elapsed().as_millis();
+            for req in &self.effect_queue.pending {
+                tracing::info!(
+                    "[effect-timing t={t}ms] queue drain -> spawn {} (attach={:?})",
+                    req.effect_id.as_str(),
+                    req.attach,
+                );
+            }
+        }
         self.effect_holder
             .drain_queue(&mut self.effect_queue, &resolve_entity_pos);
         self.effect_holder.update(
@@ -87,4 +97,5 @@ impl App {
             ));
         }
     }
+
 }

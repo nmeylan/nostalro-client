@@ -813,8 +813,11 @@ impl App {
         // game): scheduler → queue → holder → compose.
         let camera_target = renderer.camera.target.to_array();
         if !paused {
+            let camera = &renderer.camera;
+            let is_visible =
+                |pos: [f32; 3]| camera.is_world_pos_visible(pos[0], pos[1], pos[2], 0.25);
             self.ambient_effects
-                .update(dt, camera_target, &mut self.effect_queue);
+                .update(dt, &is_visible, &mut self.effect_queue);
         }
         self.effect_holder
             .drain_queue(&mut self.effect_queue, &|_| None);

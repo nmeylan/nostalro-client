@@ -269,7 +269,7 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
 
         S::LkSpiralpierce => &[E::Piercebody],
 
-        S::TkHighjump => &[E::Jumpbody],
+        S::TkHighjump => &[E::Jumpbody, E::Peong],
 
         S::TkRun
         | S::SgFeel
@@ -907,9 +907,9 @@ mod tests {
     }
 
     #[test]
-    fn high_jump_leaps_at_cast_start_lands_at_cast_end_with_no_cast_bar() {
+    fn high_jump_leap_is_a_begin_effect_landing_is_a_cast_effect_with_no_cast_bar() {
         let casting = casting_skill(SkillEnum::TkHighjump);
-        assert_eq!(casting.begin, &[EffectId::Jumpbody]);
+        assert_eq!(casting.begin, &[EffectId::Jumpbody, EffectId::Peong]);
         assert!(casting.hide_cast_bar);
         assert_eq!(
             caster_skill_effects(SkillEnum::TkHighjump).cast,

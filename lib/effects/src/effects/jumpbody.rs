@@ -35,7 +35,7 @@ impl JumpBodyEffect {
         self.age_frames - 35.0
     }
 
-    fn land_body_time(&self) -> f32 {
+    fn land_spin_time(&self) -> f32 {
         self.age_frames + 11.0
     }
 }
@@ -44,8 +44,11 @@ impl Effect for JumpBodyEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.age_frames += ctx.delta * FPS;
         let done = match self.kind {
-            Kind::High => self.high_body_time() >= 13.0,
-            Kind::Land => self.land_body_time() >= 36.0,
+            // The leap rises and fades out, then keeps climbing off-screen until
+            // the caster's cast ends and the landing effect deletes it. The cap
+            // is only a safety net for an interrupted cast (max cast is ~5s).
+            Kind::High => self.age_frames >= 600.0,
+            Kind::Land => self.age_frames >= 35.0,
         };
         if done {
             EffectStatus::Dead
@@ -70,7 +73,7 @@ impl Effect for JumpBodyEffect {
                 })
             }
             Kind::Land => {
-                let t = self.land_body_time();
+                let t = self.age_frames;
                 Some(BodyVertical {
                     lift_px: ((25.0 - t) * 20.0).max(0.0) * LIFT_SCALE,
                     alpha: ((t - 10.0) * 17.0 / 255.0).clamp(0.0, 1.0),
@@ -84,7 +87,7 @@ impl Effect for JumpBodyEffect {
         if self.kind != Kind::Land {
             return None;
         }
-        let t = self.land_body_time();
+        let t = self.land_spin_time();
         let sin = ((t * 5.0 + 90.0).to_radians()).sin();
         let mut deg = 180.0 - sin * 180.0;
         if deg >= 360.0 {
@@ -107,7 +110,7 @@ mod tests {
     }
 
     #[test]
-    fn jumpbody_rises_and_fades_only_after_frame_35() {
+    fn jumpbody_rises_after_frame_35_then_climbs_offscreen_until_deleted() {
         let mut e = JumpBodyEffect::high();
         step(&mut e, 10.0);
         assert!(
@@ -118,15 +121,14 @@ mod tests {
         let v = e.body_vertical().expect("rising");
         assert!(v.lift_px > 0.0, "lifts off the ground");
         assert!(v.alpha < 1.0, "fading out");
-        step(&mut e, 20.0); // past the fade
+        let status = step(&mut e, 20.0); // ~frame 60, past the fade
         assert_eq!(
-            e.update(&EffectUpdateCtx {
-                delta: 0.0,
-                camera_target: None,
-                caster_yaw: None
-            }),
-            EffectStatus::Dead
+            status,
+            EffectStatus::Running,
+            "keeps climbing until the landing deletes it at cast end"
         );
+        let v = e.body_vertical().expect("still lifted");
+        assert_eq!(v.alpha, 0.0, "fully faded / invisible while airborne");
     }
 
     #[test]
@@ -135,12 +137,16 @@ mod tests {
         let v0 = e.body_vertical().expect("starts high");
         assert!(
             v0.lift_px > 0.0 && v0.alpha < 0.5,
-            "high and faint at first"
+            "high and invisible at first"
         );
         assert!(e.body_angle().is_some(), "Landbody spins");
-        step(&mut e, 15.0); // lands (~frame 15)
-        let v1 = e.body_vertical().expect("near ground");
+        step(&mut e, 15.0); // mid-drop (~frame 15)
+        let v1 = e.body_vertical().expect("descending");
         assert!(v1.lift_px < v0.lift_px, "descends");
         assert!(v1.alpha > v0.alpha, "fades in");
+        step(&mut e, 10.0); // lands at frame 25
+        let v2 = e.body_vertical().expect("on ground");
+        assert_eq!(v2.lift_px, 0.0, "on the ground");
+        assert_eq!(v2.alpha, 1.0, "fully visible");
     }
 }

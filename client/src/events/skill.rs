@@ -413,7 +413,12 @@ impl App {
         let casting = casting_skill(skill);
         let hide_aura = casting.hide_cast_aura;
         for e in casting.begin {
-            tracing::debug!("skill {} trigger effect {}", skill.to_name(), e.as_str());
+            tracing::info!(
+                "[effect-timing t={}ms] cast-start begin effect {} queued (skill={}, caster={caster_gid}, cast_ms={cast_ms})",
+                self.start_time.elapsed().as_millis(),
+                e.as_str(),
+                skill.to_name(),
+            );
             if is_cast_circle(*e) {
                 // The cast circle's lifetime is the cast time; an instant cast
                 // or a skill that hides its aura shows no circle.
@@ -447,6 +452,12 @@ impl App {
     ) {
         let skill = SkillEnum::from_id(skill_id as u32);
         for e in caster_skill_effects(skill).cast {
+            // High Jump's landing takes over from the leap: delete the airborne
+            // Jumpbody so the caster drops in from above at the landing cell.
+            if *e == EffectId::Landbody {
+                self.effect_holder
+                    .despawn_effect_on_entity(EffectId::Jumpbody, src_gid);
+            }
             self.effect_queue.spawn_on(*e, src_gid);
         }
         for e in target_skill_effects(skill).on_target {
