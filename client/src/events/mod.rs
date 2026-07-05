@@ -493,6 +493,14 @@ impl App {
                 GameEvent::ParameterChanged { var_id, value } => {
                     self.handle_parameter_changed(var_id, value);
                 }
+                GameEvent::ExpGained {
+                    aid,
+                    amount,
+                    is_base,
+                    is_quest,
+                } => {
+                    self.handle_exp_gained(aid, amount, is_base, is_quest);
+                }
                 GameEvent::StatusChanged {
                     status_type,
                     base,

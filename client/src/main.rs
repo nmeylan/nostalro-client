@@ -198,6 +198,7 @@ impl App {
             renderer.preload_effect_textures(&effect_textures, grf);
 
             spr_paths.extend(ragnarok_game::effect::custom_effect_sprite_paths());
+            spr_paths.extend(ragnarok_game::effect::skill_unit_sprite_paths());
             spr_paths.sort();
             spr_paths.dedup();
             for path in spr_paths {

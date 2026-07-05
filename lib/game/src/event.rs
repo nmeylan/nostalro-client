@@ -170,6 +170,12 @@ pub enum GameEvent {
         var_id: u16,
         value: i32,
     },
+    ExpGained {
+        aid: u32,
+        amount: i32,
+        is_base: bool,
+        is_quest: bool,
+    },
     StatusChanged {
         status_type: u32,
         base: i32,
@@ -685,6 +691,7 @@ pub struct CharacterInfo {
     pub dex: u8,
     pub luk: u8,
     pub effect_state: i32,
+    pub zeny: i32,
 }
 
 impl CharacterInfo {
@@ -743,6 +750,7 @@ impl CharacterInfo {
             dex: info.dex,
             luk: info.luk,
             effect_state: info.effectstate,
+            zeny: info.money as i32,
         }
     }
 }

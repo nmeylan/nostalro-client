@@ -233,6 +233,7 @@ impl App {
             .hotkeys
             .set_battle_mode(self.config.battle_mode);
 
+        self.game.character.inventory.clear();
         self.channel
             .send_packet(build_map_loaded_packet(self.config.packetver));
     }
@@ -285,6 +286,7 @@ impl App {
         }
         self.position_camera_at(x as f32, y as f32);
 
+        self.game.character.inventory.clear();
         self.channel
             .send_packet(build_map_loaded_packet(self.config.packetver));
     }

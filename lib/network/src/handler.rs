@@ -2,6 +2,7 @@ use models::enums::EnumWithNumberValue;
 use models::enums::action::ActionType;
 use models::enums::skill::SkillTargetType;
 use models::enums::skill_enums::SkillEnum;
+use models::enums::status::StatusTypes;
 use models::enums::vanish::VanishType;
 use packets::packets::*;
 use ragnarok_game::event::{CharacterInfo, GameEvent, PartyMemberData, ServerInfo, SkillInfo};
@@ -399,6 +400,14 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::ParameterChanged {
             var_id: p.var_id,
             value: p.amount,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyExp>() {
+        return vec![GameEvent::ExpGained {
+            aid: p.aid,
+            amount: p.amount,
+            is_base: p.var_id as usize == StatusTypes::Baseexp.value(),
+            is_quest: p.exp_type == 1,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcStatusValues>() {
@@ -1359,6 +1368,20 @@ mod tests {
             other => panic!("expected SkillUnitEntered, got {other:?}"),
         }
 
+        // 0x011f wire layout at this packetver is `job · isVisible` (16 bytes total).
+        let wire: Vec<u8> = vec![
+            0x1f, 0x01, // packet id
+            0x59, 0x1b, 0x00, 0x00, // aid
+            0x2a, 0x00, 0x00, 0x00, // creator aid
+            0x96, 0x00, // x
+            0xc8, 0x00, // y
+            0x90, // job (UNT_SKIDTRAP)
+            0x01, // isVisible
+        ];
+        let parsed = PacketZcSkillEntry::from(&wire, packetver);
+        assert_eq!(parsed.job, 0x90);
+        assert!(parsed.is_visible);
+
         let mut gone = PacketZcSkillDisappear::new(packetver);
         gone.set_aid(7001);
         gone.fill_raw();
@@ -1379,6 +1402,33 @@ mod tests {
         match &result[0] {
             GameEvent::ServerTick { server_tick, .. } => assert_eq!(*server_tick, 42000),
             other => panic!("expected ServerTick, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_notify_exp_returns_base_exp_gain() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcNotifyExp::new(packetver);
+        pkt.set_aid(2000000);
+        pkt.set_amount(1500);
+        pkt.set_var_id(StatusTypes::Baseexp.value() as u16);
+        pkt.set_exp_type(0);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::ExpGained {
+                aid,
+                amount,
+                is_base,
+                is_quest,
+            } => {
+                assert_eq!(*aid, 2000000);
+                assert_eq!(*amount, 1500);
+                assert!(*is_base);
+                assert!(!*is_quest);
+            }
+            other => panic!("expected ExpGained, got {other:?}"),
         }
     }
 

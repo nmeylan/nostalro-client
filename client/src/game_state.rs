@@ -64,6 +64,9 @@ pub struct GameState {
     pub sprite_cache: HashMap<String, Rc<EntitySprite>>,
     pub carts: HashMap<u32, crate::sprite::CartVisual>,
     pub falcons: HashMap<u32, crate::sprite::FalconVisual>,
+    /// Deployed traps keyed by unit AID → (trap unit id, world position), so the
+    /// trigger burst can be fired at the cell when the trap is sprung.
+    pub trap_units: HashMap<u32, (u8, [f32; 3])>,
     pub cart_preview_sprites: HashMap<u8, Rc<EntitySprite>>,
     pub character: Character,
     pub data_table: DataTable,
@@ -501,6 +504,7 @@ impl GameState {
             sprites: HashMap::new(),
             carts: HashMap::new(),
             falcons: HashMap::new(),
+            trap_units: HashMap::new(),
             cart_preview_sprites: HashMap::new(),
             sprite_cache: HashMap::new(),
             character: Character::new(),

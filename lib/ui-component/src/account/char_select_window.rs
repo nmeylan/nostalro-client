@@ -431,6 +431,7 @@ mod tests {
                 dex: 20,
                 luk: 10,
                 effect_state: 0,
+                zeny: 0,
             },
             CharacterInfo {
                 gid: 2,
@@ -459,6 +460,7 @@ mod tests {
                 dex: 40,
                 luk: 5,
                 effect_state: 0,
+                zeny: 0,
             },
             CharacterInfo {
                 gid: 3,
@@ -487,6 +489,7 @@ mod tests {
                 dex: 55,
                 luk: 30,
                 effect_state: 0,
+                zeny: 0,
             },
         ]
     }

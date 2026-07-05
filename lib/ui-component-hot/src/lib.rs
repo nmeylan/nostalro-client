@@ -488,6 +488,7 @@ fn create_single(name: &str) -> State {
                     dex: 20,
                     luk: 10,
                     effect_state: 0,
+                    zeny: 0,
                 },
                 CharacterInfo {
                     gid: 2,
@@ -516,6 +517,7 @@ fn create_single(name: &str) -> State {
                     dex: 40,
                     luk: 5,
                     effect_state: 0,
+                    zeny: 0,
                 },
                 CharacterInfo {
                     gid: 3,
@@ -544,6 +546,7 @@ fn create_single(name: &str) -> State {
                     dex: 55,
                     luk: 30,
                     effect_state: 0,
+                    zeny: 0,
                 },
             ];
             State::CharSelect {

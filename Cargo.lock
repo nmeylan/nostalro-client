@@ -111,7 +111,7 @@ dependencies = [
 [[package]]
 name = "accessor"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=b59ca2c4#b59ca2c402cff3ed3d98a0a8c45ec06cd23c3358"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=cfc7d3a7#cfc7d3a7307e0b757d214757b8cedd794acacc5a"
 dependencies = [
  "quote",
  "syn",
@@ -1031,7 +1031,7 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 [[package]]
 name = "enum_macro"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=b59ca2c4#b59ca2c402cff3ed3d98a0a8c45ec06cd23c3358"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=cfc7d3a7#cfc7d3a7307e0b757d214757b8cedd794acacc5a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2033,7 +2033,7 @@ dependencies = [
 [[package]]
 name = "models"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=b59ca2c4#b59ca2c402cff3ed3d98a0a8c45ec06cd23c3358"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=cfc7d3a7#cfc7d3a7307e0b757d214757b8cedd794acacc5a"
 dependencies = [
  "accessor",
  "enum_macro",
@@ -2044,7 +2044,7 @@ dependencies = [
 [[package]]
 name = "movement"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=b59ca2c4#b59ca2c402cff3ed3d98a0a8c45ec06cd23c3358"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=cfc7d3a7#cfc7d3a7307e0b757d214757b8cedd794acacc5a"
 dependencies = [
  "packets",
  "tracing",
@@ -2555,7 +2555,7 @@ dependencies = [
 [[package]]
 name = "packets"
 version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=b59ca2c4#b59ca2c402cff3ed3d98a0a8c45ec06cd23c3358"
+source = "git+https://github.com/nmeylan/rust-ro.git?rev=cfc7d3a7#cfc7d3a7307e0b757d214757b8cedd794acacc5a"
 dependencies = [
  "byteorder",
  "json-flat-parser",
@@ -2859,6 +2859,8 @@ dependencies = [
  "egui_ltreeview",
  "image",
  "ragnarok-formats",
+ "ragnarok-game",
+ "ragnarok-renderer",
  "rfd",
  "tracing",
  "tracing-subscriber",

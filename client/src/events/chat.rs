@@ -20,4 +20,20 @@ impl App {
         }
         self.game.chat_window.add_own_chat(message);
     }
+
+    pub(super) fn handle_exp_gained(
+        &mut self,
+        aid: u32,
+        amount: i32,
+        is_base: bool,
+        is_quest: bool,
+    ) {
+        tracing::debug!(aid, amount, is_base, is_quest, "exp gained");
+        let message = if is_base {
+            format!("Gained {amount} base experience")
+        } else {
+            format!("Gained {amount} job experience")
+        };
+        self.game.chat_window.add_system(message);
+    }
 }

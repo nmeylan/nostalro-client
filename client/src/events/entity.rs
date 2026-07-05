@@ -9,7 +9,7 @@ use ragnarok_game::ailment;
 use ragnarok_game::arrow::{ArrowProjectile, flight_secs_for_cell_distance};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::effect::buff_effect;
-use ragnarok_game::effect::skill_unit_effect;
+use ragnarok_game::effect::{UNT_USED_TRAPS, skill_unit_effect, trap_trigger_effect};
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::level_aura;
 use ragnarok_game::movement::direction_from_positions;
@@ -716,6 +716,19 @@ impl App {
         value: u16,
         value2: u16,
     ) {
+        // A trap springs when the server changes its base look to UNT_USED_TRAPS:
+        // fire the stored trigger burst at the trap cell (the trap sprite is
+        // removed shortly after by ZC_SKILL_DISAPPEAR).
+        if sprite_type == 0
+            && value == UNT_USED_TRAPS as u16
+            && let Some((unit_id, world)) = self.game.trap_units.remove(&gid)
+        {
+            if let Some(burst) = trap_trigger_effect(unit_id) {
+                self.effect_queue.spawn_at(burst, world);
+            }
+            return;
+        }
+
         let left_hand_is_weapon = self.game.entities.is_player(gid)
             && self
                 .game
@@ -871,9 +884,15 @@ impl App {
             return;
         }
         self.effect_queue.spawn_at_keyed(effect, world, aid);
+        // Remember explosive traps so their burst can fire at this cell when the
+        // trap is sprung (a `UNT_USED_TRAPS` look change), not at placement.
+        if trap_trigger_effect(unit_id).is_some() {
+            self.game.trap_units.insert(aid, (unit_id, world));
+        }
     }
 
     pub(super) fn handle_skill_unit_disappeared(&mut self, aid: u32) {
         self.effect_queue.despawn(aid);
+        self.game.trap_units.remove(&aid);
     }
 }

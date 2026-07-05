@@ -31,7 +31,9 @@ pub use skill_effects::{
     caster_skill_effects, casting_skill, derive_hit_effect, fire_glyph_effect, ground_placed_effect,
     is_cast_circle, is_ground_cast, target_skill_effects,
 };
-pub use skill_units::skill_unit_effect;
+pub use skill_units::{
+    UNT_USED_TRAPS, skill_unit_effect, skill_unit_sprite_paths, trap_trigger_effect,
+};
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBodyRecolor, SprBurstParams};
 pub use spr_aliases::{SprDef, spr_def};
 pub use spr_burst::spr_burst_params;

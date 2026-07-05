@@ -51,6 +51,8 @@ pub use ui_renderer::{UiDrawCommand, UiRenderer, UiVertex};
 pub use water::WaterRenderer;
 pub use wgpu;
 
+pub const SPRITE_SHADER_SRC: &str = include_str!("shaders/sprite.wgsl");
+
 use ragnarok_formats::fog_table::FogEntry;
 use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::grf::GrfArchive;

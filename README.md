@@ -12,7 +12,7 @@ I wanted to be able to run the game as it was in 2005~2008, but original client 
 Other implementations are not focusing on this version of the client or do not aim for an exact match
 
 # Will this project ever be complete?
-Unlike for [rust-ro](https://github.com/nmeylan/rust-ro), i think i will be able to complete it one day, i identified too big challenges:
+Unlike for [rust-ro](https://github.com/nmeylan/rust-ro), i think i will be able to complete it one day, i identified two big challenges:
 - effects implementation
 - AI support
 
@@ -79,7 +79,7 @@ tools/viewer-dev.sh
 # AI usage
 This project leverage AI to allow a faster development, as my time is very limited. AI is being used for:
 - Fix network packet handling: investigate raw packet trace
-- Helping to implement rendering (wgpu and wsgl api): when i started this project my knowledge on wgpu and wsgl was almost 0, although I have implemented few effects for robrowser 4 years ago.
+- Helping to implement rendering (wgpu and wsgl api): when i started this project my knowledge on wgpu and wsgl was almost 0
 - Game resource format handling
 - Refactoring tasks
 - Write tools

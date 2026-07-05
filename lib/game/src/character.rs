@@ -192,6 +192,7 @@ impl Character {
         self.dex = info.dex;
         self.luk = info.luk;
         self.effect_state = info.effect_state;
+        self.inventory.zeny = info.zeny;
     }
 
     pub fn hp_percentage(&self) -> f32 {
@@ -457,6 +458,43 @@ mod tests {
 
         char.apply_parameter_changed(12, 5);
         assert_eq!(char.skill_point, 5);
+    }
+
+    #[test]
+    fn init_from_info_populates_zeny_from_char_select() {
+        let info = CharacterInfo {
+            gid: 1,
+            name: "Knight".into(),
+            class: 7,
+            base_level: 50,
+            job_level: 42,
+            map: "prontera".into(),
+            slot: 0,
+            head: 1,
+            hair_color: 0,
+            weapon: 2,
+            head_top: 0,
+            head_mid: 0,
+            head_bottom: 0,
+            shield: 0,
+            sex: 1,
+            hp: 3000,
+            max_hp: 3500,
+            sp: 100,
+            max_sp: 150,
+            str: 50,
+            agi: 30,
+            vit: 40,
+            int: 10,
+            dex: 20,
+            luk: 10,
+            effect_state: 0,
+            zeny: 123_456,
+        };
+
+        let mut char = Character::new();
+        char.init_from_info(&info);
+        assert_eq!(char.inventory.zeny, 123_456);
     }
 
     #[test]
