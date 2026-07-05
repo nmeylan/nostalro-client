@@ -12,7 +12,7 @@ use super::effects::{
     frost_diver, fullscreen_overlay, glasswall, glasswall2, grandcross, gravitation, ground_sample,
     guard, gumgang, gumgang2, hasteup, heal, healsp, heartcasting, heavensdrive, hit, hit2, hit5_6,
     hitdark, kouenka, light_sphere, linelink, m_ef02, magic_bolt, magnum_break, mapzone, multibody,
-    napalmbeat, napalmvalcan, orbit_burst, overthrust, particle_up, peong, peong_up, pierce,
+    napalmbeat, napalmvalcan, orbit_burst, particle_up, peong, peong_up, pierce,
     pokjuk, portal, portal_wind, portal2, potion_berserk, potion_con, potion_pillar, pressure,
     providence, quakebody, rainbow, ready_portal, revive, rg_coin, saintwing, sakura, sandwind,
     sight, slash, sma, sonicblowhit, soul_breaker, soul_strike, soullink, spearbmr, spherewind,
@@ -845,7 +845,10 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             duration_ms: dragonsmoke::TOTAL_DURATION_MS,
         },
         EffectId::Overthrust => EffectSpec::Custom {
-            duration_ms: overthrust::TOTAL_DURATION_MS,
+            duration_ms: body_buff::TOTAL_DURATION_MS,
+        },
+        EffectId::Energycoat => EffectSpec::Custom {
+            duration_ms: body_buff::TOTAL_DURATION_MS,
         },
         EffectId::Callzone => EffectSpec::Custom {
             duration_ms: callzone::TOTAL_DURATION_MS,

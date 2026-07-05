@@ -542,6 +542,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
                 skill_id: p.skid,
                 src_gid: p.src_aid,
                 target_gid: p.target_aid,
+                level: p.level,
                 skill_name: Some(name),
             }];
         }

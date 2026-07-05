@@ -366,6 +366,22 @@ impl App {
                         let mut body_channels =
                             self.effect_holder.body_channels_for_entity(entry.id);
                         body_channels.alpha *= alpha;
+
+                        // Flat feet-depth silhouette so effects (e.g. the level
+                        // aura) occlude against the cart instead of bleeding
+                        // through it, matching the player body.
+                        if entity.alpha() >= 1.0 && render == HiddenRender::Visible {
+                            let mut sil = cart.sprite.build_batches(
+                                &cart.animation,
+                                Some(entry.camera_dir),
+                                entity.direction,
+                                entry.screen_anchor,
+                                entry.depth,
+                                entry.sprite_scale,
+                                [0.0, 0.0],
+                            );
+                            silhouette_batches.append(&mut sil);
+                        }
                         let mut batches = ragnarok_renderer::compose_actor_batches(
                             &cart.sprite,
                             &cart.animation,
@@ -398,6 +414,21 @@ impl App {
                         let mut body_channels =
                             self.effect_holder.body_channels_for_entity(entry.id);
                         body_channels.alpha *= alpha;
+
+                        // Flat feet-depth silhouette so effects occlude against the
+                        // falcon instead of bleeding through it (see the cart arm).
+                        if entity.alpha() >= 1.0 && render == HiddenRender::Visible {
+                            let mut sil = falcon.sprite.build_batches(
+                                &falcon.animation,
+                                Some(entry.camera_dir),
+                                falcon.motion.direction,
+                                entry.screen_anchor,
+                                entry.depth,
+                                entry.sprite_scale,
+                                [0.0, 0.0],
+                            );
+                            silhouette_batches.append(&mut sil);
+                        }
                         let mut batches = ragnarok_renderer::compose_actor_batches(
                             &falcon.sprite,
                             &falcon.animation,

@@ -1,4 +1,7 @@
-//! Body-tint buffs: Two-Hand Quicken / Spear Quicken / LK Concentration / Bunsinjyutsu.
+//! Body-tint buffs: Two-Hand Quicken / Spear Quicken / LK Concentration /
+//! Bunsinjyutsu / Energy Coat / Overthrust. These are the original game's
+//! `MakeBlur`-style buffs: they tint the caster's body and shed fading
+//! afterimage copies, rather than drawing a detached world effect.
 
 use crate::draw::{EffectDrawList, EffectStatus};
 use crate::effect_trait::{Afterimage, BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -55,6 +58,32 @@ pub const BUNSINJYUTSU: Params = Params {
     sfx: None,
     afterimage: Some(BUNSIN_BLUR),
     weapon_trail: false,
+};
+
+const ENERGY_COAT_BLUR: Afterimage = Afterimage {
+    tint: [150, 175, 255],
+    start_alpha: 150.0 / 255.0,
+    fade_per_frame: 4.0 / 255.0,
+};
+pub const ENERGY_COAT: Params = Params {
+    tint: [170, 190, 255],
+    str_name: Some("energycoat"),
+    sfx: None,
+    afterimage: Some(ENERGY_COAT_BLUR),
+    weapon_trail: false,
+};
+
+const OVERTHRUST_BLUR: Afterimage = Afterimage {
+    tint: [255, 120, 120],
+    start_alpha: 160.0 / 255.0,
+    fade_per_frame: 4.0 / 255.0,
+};
+pub const OVERTHRUST: Params = Params {
+    tint: [255, 150, 150],
+    str_name: None,
+    sfx: None,
+    afterimage: Some(OVERTHRUST_BLUR),
+    weapon_trail: true,
 };
 
 pub const TEXTURES: &[&str] = &[];
@@ -152,6 +181,18 @@ mod tests {
 
         let mut held = BodyBuffEffect::new(TWOHAND_QUICKEN).with_life_ms(Some(60_000));
         assert_eq!(step(&mut held, TOTAL_FRAMES + 1.0), EffectStatus::Running);
+    }
+
+    #[test]
+    fn energy_coat_and_overthrust_change_the_body_not_a_detached_effect() {
+        let ec = BodyBuffEffect::new(ENERGY_COAT);
+        assert!(ec.body_tint().is_some(), "energy coat tints the body");
+        assert!(ec.body_afterimage().is_some(), "energy coat sheds afterimages");
+        assert_eq!(ec.str_overlay(), Some("energycoat"));
+
+        let ot = BodyBuffEffect::new(OVERTHRUST);
+        assert!(ot.body_tint().is_some(), "overthrust tints the body");
+        assert!(ot.body_afterimage().is_some(), "overthrust sheds afterimages");
     }
 
     #[test]

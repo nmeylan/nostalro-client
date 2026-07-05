@@ -575,6 +575,7 @@ impl App {
                     skill_id,
                     src_gid,
                     target_gid,
+                    level,
                     skill_name,
                 } => {
                     let display_name = self.game.data_table.skill_name.as_ref().map(|table| {
@@ -586,7 +587,7 @@ impl App {
                         target_gid,
                         display_name,
                     );
-                    self.spawn_skill_no_damage_effects(skill_id, src_gid, target_gid);
+                    self.spawn_skill_no_damage_effects(skill_id, src_gid, target_gid, level);
                 }
                 GameEvent::GroundSkill {
                     skill_id,

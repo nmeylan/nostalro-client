@@ -225,6 +225,9 @@ pub enum GameEvent {
         skill_id: u16,
         src_gid: u32,
         target_gid: u32,
+        /// The packet's skill-level field. For AL_HEAL this carries the heal
+        /// amount, which selects the green-heal size.
+        level: i16,
         skill_name: Option<String>,
     },
     GroundSkill {

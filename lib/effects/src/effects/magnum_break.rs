@@ -1,7 +1,7 @@
 //! EF_MAGNUMBREAK — yellow ground shockwave + spherical explosion.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
+use crate::effect_trait::{CameraShake, Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const RING_TEXTURE: &str = "ring_yellow.tga";
 pub const EXPLOSION_TEXTURE: &str = "bigbang.tga";
@@ -59,6 +59,7 @@ fn radius_at(initial: f32, speed: f32, accel: f32, frame: f32) -> f32 {
 pub struct MagnumBreakEffect {
     world_pos: [f32; 3],
     age: f32,
+    shake_fired: bool,
 }
 
 impl MagnumBreakEffect {
@@ -66,6 +67,7 @@ impl MagnumBreakEffect {
         Self {
             world_pos,
             age: 0.0,
+            shake_fired: false,
         }
     }
 
@@ -180,6 +182,17 @@ impl Effect for MagnumBreakEffect {
                 });
             }
         }
+    }
+
+    fn take_camera_shake(&mut self) -> Option<CameraShake> {
+        if self.shake_fired {
+            return None;
+        }
+        self.shake_fired = true;
+        Some(CameraShake {
+            amplitude: 2.0,
+            duration_ms: 400,
+        })
     }
 }
 

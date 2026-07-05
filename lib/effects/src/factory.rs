@@ -284,6 +284,14 @@ pub fn make_effect(
             effects::body_buff::BodyBuffEffect::new(effects::body_buff::BUNSINJYUTSU)
                 .with_life_ms(duration_ms),
         ),
+        EffectId::Energycoat => Box::new(
+            effects::body_buff::BodyBuffEffect::new(effects::body_buff::ENERGY_COAT)
+                .with_life_ms(duration_ms),
+        ),
+        EffectId::Overthrust => Box::new(
+            effects::body_buff::BodyBuffEffect::new(effects::body_buff::OVERTHRUST)
+                .with_life_ms(duration_ms),
+        ),
 
         EffectId::Quakebody => Box::new(effects::quakebody::QuakeBodyEffect::new(
             effects::quakebody::QUAKEBODY,
@@ -1863,7 +1871,7 @@ pub fn make_effect(
             effects::magic_bolt::ICE_ARROW,
         )),
 
-        EffectId::Overthrust | EffectId::Sonicblow => {
+        EffectId::Sonicblow => {
             Box::new(effects::overthrust::OverthrustEffect::new(anchor.point()))
         }
         EffectId::Callzone => Box::new(effects::callzone::CallzoneEffect::new(anchor.point())),

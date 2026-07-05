@@ -13,6 +13,17 @@ use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::skill_action::{SkillMotionType, skill_motion_type};
 
+/// AL_HEAL's green heal sparkle size by healed amount, matching the original
+/// game's thresholds (the tiniest and largest heals share the biggest sparkle).
+fn heal_effect_for_amount(amount: i16) -> EffectId {
+    match amount {
+        a if a >= 4000 => EffectId::Heal4,
+        a if a >= 2000 => EffectId::Heal2,
+        a if a >= 200 => EffectId::Heal,
+        _ => EffectId::Heal4,
+    }
+}
+
 impl App {
     pub(super) fn handle_skill_list_received(
         &mut self,
@@ -256,10 +267,10 @@ impl App {
         // AL_HEAL is dual-natured: cast on the living it restores HP and plays the
         // green heal from the no-damage path; cast on undead/demon it deals damage
         // and arrives here on the damage packet, where the original game plays the
-        // white heal instead. It has no projectile or caster glyph, so this is its
-        // only damage-path visual.
+        // Heal3 variant on the target. It has no projectile or caster glyph, so this
+        // is its only damage-path visual.
         if skill == SkillEnum::AlHeal {
-            self.effect_queue.spawn_on(EffectId::Smdef, target_gid);
+            self.effect_queue.spawn_on(EffectId::Heal3, target_gid);
             return;
         }
 
@@ -449,6 +460,7 @@ impl App {
         skill_id: u16,
         src_gid: u32,
         target_gid: u32,
+        level: i16,
     ) {
         let skill = SkillEnum::from_id(skill_id as u32);
         for e in caster_skill_effects(skill).cast {
@@ -461,7 +473,14 @@ impl App {
             self.effect_queue.spawn_on(*e, src_gid);
         }
         for e in target_skill_effects(skill).on_target {
-            self.effect_queue.spawn_on(*e, target_gid);
+            // AL_HEAL's green heal scales with the healed amount (the packet's
+            // level field): a bigger heal plays a bigger sparkle.
+            let e = if skill == SkillEnum::AlHeal && *e == EffectId::Heal {
+                heal_effect_for_amount(level)
+            } else {
+                *e
+            };
+            self.effect_queue.spawn_on(e, target_gid);
         }
     }
 

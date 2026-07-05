@@ -396,7 +396,8 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::KnSpearboomerang => C::cast(&[E::Spearbmrself]),
         S::KnBowlingbash => C::cast(&[E::Bowlingself]),
         S::KnBrandishspear => C::cast(&[]),
-        S::KnTwohandquicken | S::KnOnehand => C::cast(&[]),
+        S::SmEndure => C::cast(&[E::Endure]),
+        S::KnTwohandquicken | S::KnOnehand => C::cast(&[E::Twohandquicken]),
         S::PrMagnificat | S::MerMagnificat => C::cast(&[E::Magnificat]),
         S::PrGloria => C::cast(&[E::Gloria]),
         S::PrKyrie => C::cast(&[E::Kyrie]),
@@ -521,7 +522,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         },
         S::MgThunderstorm => T::on_target(&[E::Thunderstorm]),
         S::AlDemonbane => T::on_target(&[E::Tanji2]),
-        S::AlHeal => T::on_target(&[E::Heal3]),
+        S::AlHeal => T::on_target(&[E::Heal]),
         S::AlHolylight => T::hit(&[E::Holyhit]),
         S::AlCure => T::on_target(&[E::Cure]),
         S::AlIncagi | S::CashIncagi => T::on_target(&[E::Incagility]),
@@ -745,11 +746,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::HfliSbr44 => T::on_target(&[E::Hflimoon3, E::Ef4waybody]),
         S::WeFemale => T::on_target(&[E::Absorbspirits]),
         S::WeBaby => T::on_target(&[E::Baby]),
-        S::AllResurrection => T {
-            on_target: &[E::Resurrection],
-            hit: &[E::Revive],
-            ..Default::default()
-        },
+        S::AllResurrection => T::on_target(&[E::Resurrection, E::Revive]),
         S::AllPartyflee => T::on_target(&[E::Flowerleaf]),
 
         _ => T::default(),
@@ -825,7 +822,6 @@ mod tests {
     fn persistent_self_buffs_are_not_flashed_at_cast() {
         use SkillEnum as S;
         for skill in [
-            S::SmEndure,
             S::LkAurablade,
             S::LkParrying,
             S::CrAutoguard,
@@ -849,6 +845,21 @@ mod tests {
         // Magic Power keeps only its cast glyph; its glow rides the status path.
         assert_eq!(begin_cast_effect(S::HwMagicpower), &[EffectId::Bash]);
         assert!(target_skill_effects(S::HwMagicpower).on_target.is_empty());
+    }
+
+    #[test]
+    fn one_shot_cast_buffs_flash_once_at_use() {
+        use EffectId as E;
+        use SkillEnum as S;
+        assert_eq!(caster_skill_effects(S::SmEndure).cast, &[E::Endure]);
+        assert_eq!(
+            caster_skill_effects(S::KnTwohandquicken).cast,
+            &[E::Twohandquicken]
+        );
+        assert_eq!(
+            caster_skill_effects(S::KnOnehand).cast,
+            &[E::Twohandquicken]
+        );
     }
 
 
@@ -1144,9 +1155,11 @@ mod tests {
 
     #[test]
     fn target_effect_ids_match_the_original() {
+        // Living target gets the green heal (the undead/demon damage path fires
+        // Heal3 separately, wired in the attack-effect handler).
         assert_eq!(
             target_skill_effects(SkillEnum::AlHeal).on_target,
-            &[EffectId::Heal3]
+            &[EffectId::Heal]
         );
 
         let frostdiver = target_skill_effects(SkillEnum::MgFrostdiver);

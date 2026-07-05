@@ -17,11 +17,10 @@ pub fn buff_effect(efst: ClientEffectIcon) -> Option<BuffEffect> {
         I::Propertyundead => &[EffectId::Undeadbody],
         I::Lkconcentration => &[EffectId::Lkconcentration],
         I::NjBunsinjyutsu => &[EffectId::Bunsinjyutsu],
-        I::Twohandquicken | I::Onehandquicken => &[EffectId::Twohandquicken],
+        I::Onehandquicken => &[EffectId::Twohandquicken],
         I::Spearquicken => &[EffectId::Spearquicken],
-        I::Endure => &[EffectId::Endure],
         I::Aurablade => &[EffectId::Aurablade, EffectId::Aurablade2],
-        I::Parrying | I::Autoguard => &[EffectId::Guard],
+        I::Autoguard => &[EffectId::Guard],
         I::Reflectshield => &[EffectId::Reflectshield],
         I::Defender => &[EffectId::Defender],
         I::CrShrink => &[EffectId::Shrink],
@@ -71,12 +70,9 @@ mod tests {
                 body: &[EffectId::Undeadbody]
             })
         );
-        assert_eq!(
-            buff_effect(ClientEffectIcon::Twohandquicken),
-            Some(BuffEffect {
-                body: &[EffectId::Twohandquicken]
-            })
-        );
+        // Two-Hand Quicken is one-shot at cast (its EFST has no persistent aura in
+        // the original); only One-Hand Quicken keeps a persistent aura.
+        assert_eq!(buff_effect(ClientEffectIcon::Twohandquicken), None);
         assert_eq!(
             buff_effect(ClientEffectIcon::Onehandquicken),
             Some(BuffEffect {
@@ -89,12 +85,8 @@ mod tests {
                 body: &[EffectId::Spearquicken]
             })
         );
-        assert_eq!(
-            buff_effect(ClientEffectIcon::Endure),
-            Some(BuffEffect {
-                body: &[EffectId::Endure]
-            })
-        );
+        // Endure flashes once at cast, not a full-duration aura.
+        assert_eq!(buff_effect(ClientEffectIcon::Endure), None);
         assert_eq!(
             buff_effect(ClientEffectIcon::Overthrust),
             Some(BuffEffect {
