@@ -411,7 +411,7 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
 
         S::MoAbsorbspirits => C::cast(&[E::Absorbspirits]),
         S::MoExplosionspirits => C::cast(&[E::Gumgang, E::Gumgang2]),
-        S::MoSteelbody => C::cast(&[E::Gumgang2]),
+        S::MoSteelbody => C::cast(&[E::Steelbody, E::Gumgang2]),
         S::MoChaincombo => C::cast(&[E::Gumgang3]),
         S::MoCombofinish => C::cast(&[E::Gumgang3, E::Hitline]),
         S::ChTigerfist => C::cast(&[E::Bash3d2, E::Gumgang3]),
@@ -419,11 +419,26 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
 
         S::CrGrandcross => C::cast(&[E::Grandcross]),
         S::CrDevotion => C::cast(&[E::Devotion]),
-        S::CrSpearquicken => C::cast(&[]),
+        S::CrSpearquicken => C::cast(&[E::Spearquicken]),
+        S::CrReflectshield => C::cast(&[E::Reflectshield]),
+        S::CrDefender => C::cast(&[E::Defender]),
+        S::CrShrink => C::cast(&[E::Shrink]),
         S::PaSacrifice => C::cast(&[E::Bash3d]),
         S::LkSpiralpierce => C::cast(&[]),
         S::LkHeadcrush => C::cast(&[E::Bash3d3]),
         S::LkJointbeat => C::cast(&[E::Bash3d4]),
+        S::LkAurablade => C::cast(&[E::Aurablade, E::Aurablade2]),
+
+        S::MgEnergycoat => C::cast(&[E::Energycoat]),
+        S::BsAdrenaline | S::BsAdrenaline2 => C::cast(&[E::Hasteup]),
+        S::BsMaximize => C::cast(&[E::Maxpower]),
+        S::BsOverthrust | S::WsOverthrustmax => C::cast(&[E::Overthrust]),
+        S::McLoud => C::cast(&[E::Loud]),
+        S::WsMeltdown => C::cast(&[E::Meltdown]),
+        S::WsCartboost => C::cast(&[E::Cartboost]),
+
+        S::SgSunComfort | S::SgMoonComfort | S::SgStarComfort => C::cast(&[E::Flowercast, E::Hated]),
+        S::TkSevenwind => C::cast(&[E::Stormkick3, E::Beginasura1]),
 
         S::RgIntimidate => C::cast(&[E::Intimidate]),
         S::RgStealcoin => C::cast(&[E::Stealcoin]),
@@ -435,6 +450,7 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::SnWindwalk => C::cast(&[E::Portal4]),
         S::CgLongingfreedom => C::cast(&[E::Chemicalbody]),
         S::CgMoonlit => C::cast(&[E::Spherewind2]),
+        S::CgMarionette => C::cast(&[E::Linelink3, E::Pinkbody]),
         S::BaFrostjoker => C::cast(&[E::TalkFrostjoke]),
         S::BaPangvoice => C::cast(&[E::Fvoice]),
         S::DcScream => C::cast(&[E::TalkScream]),
@@ -582,7 +598,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         },
         S::PrSlowpoison => T::on_target(&[E::Slowpoison]),
         S::PrStrecovery => T::on_target(&[E::Recovery]),
-        S::HpAssumptio | S::CashAssumptio => T::on_target(&[E::Assumptio2]),
+        S::HpAssumptio | S::CashAssumptio => T::on_target(&[E::Assumptio, E::Assumptio2]),
         S::WzFirepillar => T::hit(&[E::Firehit]),
         S::WzSightrasher => T::hit(&[E::Firehit]),
         S::WzJupitel => T {
@@ -624,7 +640,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::AsVenomdust => T::hit(&[E::Venomdust]),
         S::AsEnchantpoison => T::on_target(&[E::EnchantpoisonFlow]),
         S::AsPoisonreact => T::on_target(&[E::Poisonreact]),
-        S::AsSplasher => T::on_target(&[E::Splasher]),
+        S::AsSplasher => T::on_target(&[E::Enchantpoison, E::Splasher]),
         S::AsVenomknife => T::on_target(&[E::Throwitem6]),
         S::AscBreaker => T::on_target(&[E::Soulbreaker]),
 
@@ -681,6 +697,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::SaLightningloader | S::SaElementwind => T::on_target(&[E::Lightningloader]),
         S::SaSeismicweapon | S::SaElementground => T::on_target(&[E::Seismicweapon]),
         S::HwMagiccrasher => T::on_target(&[E::Magiccrasher]),
+        S::HwMagicpower => T::on_target(&[E::Lightblade]),
         S::HwNapalmvulcan => T::on_target(&[E::Napalmvalcan]),
         S::HwSouldrain => T::on_target(&[E::Transbluebody]),
         S::PfSoulchange => T::on_target(&[E::Linklight, E::Soulchange]),
@@ -709,6 +726,35 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         },
         S::SlSma => T::on_target(&[E::Ef4waybody, E::Hitline6, E::Hittexture]),
         S::SgHate => T::on_target(&[E::Hated]),
+
+        S::SlKaahi => T::on_target(&[E::Hated]),
+        S::SlKaupe => T::on_target(&[E::Bluebody]),
+        S::SlKaizel => T::on_target(&[E::Hated, E::Kaizel]),
+        S::SlKaite => T::on_target(&[E::Reflectbody, E::Bluebody]),
+        S::CgMarionette => T::on_target(&[E::Pinkbody]),
+        S::SlSwoo => T::on_target(&[E::Babybody, E::M07]),
+        S::SlSke => T::on_target(&[E::AsurabodyMonster]),
+        S::SlSka => T::on_target(&[E::Steelbody, E::Gumgang2]),
+        S::SlAlchemist
+        | S::SlMonk
+        | S::SlStar
+        | S::SlSage
+        | S::SlCrusader
+        | S::SlSupernovice
+        | S::SlKnight
+        | S::SlWizard
+        | S::SlPriest
+        | S::SlBarddancer
+        | S::SlRogue
+        | S::SlAssasin
+        | S::SlBlacksmith
+        | S::SlHunter
+        | S::SlSoullinker
+        | S::SlHigh
+        | S::SlDeathknight
+        | S::SlCollector
+        | S::SlNinja
+        | S::SlGunner => T::on_target(&[E::Soullink, E::Asurabody]),
 
         S::GsPiercingshot => T::on_target(&[E::Chemical4]),
         S::NjSyuriken => T::on_target(&[E::Throwitem7]),
@@ -818,47 +864,101 @@ mod tests {
         );
     }
 
-    #[test]
-    fn persistent_self_buffs_are_not_flashed_at_cast() {
-        use SkillEnum as S;
-        for skill in [
-            S::LkAurablade,
-            S::LkParrying,
-            S::CrAutoguard,
-            S::CrReflectshield,
-            S::CrDefender,
-            S::CrShrink,
-            S::BsAdrenaline,
-            S::BsAdrenaline2,
-            S::BsOverthrust,
-            S::WsOverthrustmax,
-            S::BsMaximize,
-            S::McLoud,
-            S::WsMeltdown,
-            S::WsCartboost,
-        ] {
-            assert!(
-                caster_skill_effects(skill).cast.is_empty(),
-                "{skill:?} buff aura is status-driven, not a cast flash"
-            );
+    /// A one-shot cast/grant effect must play once and stop — a finite,
+    /// non-repeating [`EffectSpec`] — so it flashes rather than lingering as an
+    /// aura (which is the persistent status path's job).
+    fn plays_once(id: EffectId) -> bool {
+        use crate::spec::EffectSpec::*;
+        match crate::table::effect_spec(id) {
+            Some(Str { duration_ms, repeat, .. } | Spr { duration_ms, repeat, .. }) => {
+                !repeat && duration_ms < u32::MAX
+            }
+            Some(Custom { duration_ms }) => duration_ms < u32::MAX,
+            Some(SprBurst { duration_ms, .. }) => duration_ms < u32::MAX,
+            Some(Noop) | None => true,
         }
-        // Magic Power keeps only its cast glyph; its glow rides the status path.
-        assert_eq!(begin_cast_effect(S::HwMagicpower), &[EffectId::Bash]);
-        assert!(target_skill_effects(S::HwMagicpower).on_target.is_empty());
+    }
+
+    #[test]
+    fn auto_guard_and_parrying_launch_no_world_effect() {
+        use SkillEnum as S;
+        // The original sends only the block stance for these — no cast/target aura.
+        for skill in [S::CrAutoguard, S::LkParrying, S::MsParrying] {
+            assert!(caster_skill_effects(skill).cast.is_empty(), "{skill:?}");
+            assert!(target_skill_effects(skill).on_target.is_empty(), "{skill:?}");
+        }
     }
 
     #[test]
     fn one_shot_cast_buffs_flash_once_at_use() {
         use EffectId as E;
         use SkillEnum as S;
-        assert_eq!(caster_skill_effects(S::SmEndure).cast, &[E::Endure]);
+        let cases: &[(S, &[EffectId])] = &[
+            (S::SmEndure, &[E::Endure]),
+            (S::KnTwohandquicken, &[E::Twohandquicken]),
+            (S::KnOnehand, &[E::Twohandquicken]),
+            // A. previously wrongly-persistent self buffs — flashed once at cast.
+            (S::CrReflectshield, &[E::Reflectshield]),
+            (S::CrDefender, &[E::Defender]),
+            (S::CrShrink, &[E::Shrink]),
+            (S::BsAdrenaline, &[E::Hasteup]),
+            (S::BsAdrenaline2, &[E::Hasteup]),
+            (S::BsMaximize, &[E::Maxpower]),
+            (S::McLoud, &[E::Loud]),
+            (S::WsMeltdown, &[E::Meltdown]),
+            (S::WsCartboost, &[E::Cartboost]),
+            // D. split — the burst rides the cast, the persistent half the status.
+            (S::LkAurablade, &[E::Aurablade, E::Aurablade2]),
+            // E. genuinely-persistent buffs also flash their body once at cast.
+            (S::MgEnergycoat, &[E::Energycoat]),
+            (S::BsOverthrust, &[E::Overthrust]),
+            (S::WsOverthrustmax, &[E::Overthrust]),
+            (S::CrSpearquicken, &[E::Spearquicken]),
+            (S::MoSteelbody, &[E::Steelbody, E::Gumgang2]),
+            // F. Star Gladiator comfort + Taekwon seven-wind.
+            (S::SgSunComfort, &[E::Flowercast, E::Hated]),
+            (S::TkSevenwind, &[E::Stormkick3, E::Beginasura1]),
+        ];
+        for &(skill, expected) in cases {
+            assert_eq!(caster_skill_effects(skill).cast, expected, "{skill:?}");
+            for &id in expected {
+                assert!(plays_once(id), "{skill:?}: {id:?} must play once, not loop");
+            }
+        }
+    }
+
+    #[test]
+    fn target_grant_buffs_flash_once_on_the_recipient() {
+        use EffectId as E;
+        use SkillEnum as S;
+        let cases: &[(S, &[EffectId])] = &[
+            // B. per-target status grants — flashed once on the recipient.
+            (S::SlKaahi, &[E::Hated]),
+            (S::SlKaupe, &[E::Bluebody]),
+            (S::SlKaizel, &[E::Hated, E::Kaizel]),
+            (S::CgMarionette, &[E::Pinkbody]),
+            // D. split — the burst on cast, the persistent half on the status.
+            (S::SlKaite, &[E::Reflectbody, E::Bluebody]),
+            // E. Magic Power / Assumptio also flash their body once at cast.
+            (S::HwMagicpower, &[E::Lightblade]),
+            (S::HpAssumptio, &[E::Assumptio, E::Assumptio2]),
+            // F. Soul Linker job links, transforms, and Splasher's poison.
+            (S::SlHigh, &[E::Soullink, E::Asurabody]),
+            (S::SlSwoo, &[E::Babybody, E::M07]),
+            (S::SlSke, &[E::AsurabodyMonster]),
+            (S::SlSka, &[E::Steelbody, E::Gumgang2]),
+            (S::AsSplasher, &[E::Enchantpoison, E::Splasher]),
+        ];
+        for &(skill, expected) in cases {
+            assert_eq!(target_skill_effects(skill).on_target, expected, "{skill:?}");
+            for &id in expected {
+                assert!(plays_once(id), "{skill:?}: {id:?} must play once, not loop");
+            }
+        }
+        // Marionette's caster line + pink body flash on the caster too.
         assert_eq!(
-            caster_skill_effects(S::KnTwohandquicken).cast,
-            &[E::Twohandquicken]
-        );
-        assert_eq!(
-            caster_skill_effects(S::KnOnehand).cast,
-            &[E::Twohandquicken]
+            caster_skill_effects(S::CgMarionette).cast,
+            &[E::Linelink3, E::Pinkbody]
         );
     }
 
@@ -1040,6 +1140,19 @@ mod tests {
                 .contains(&E::Jumpkick)
         );
     }
+    #[test]
+    fn assassin_cross_meteor_assault_and_steal() {
+        use EffectId as E;
+        use SkillEnum as S;
+
+        assert_eq!(begin_cast_effect(S::AscMeteorassault), &[E::Beginspell7]);
+        assert!(caster_skill_effects(S::AscMeteorassault).cast.contains(&E::Soulbreaker2));
+        assert!(target_skill_effects(S::AscMeteorassault).on_target.is_empty());
+
+        assert!(target_skill_effects(S::TfSteal).on_target.contains(&E::Steal));
+        assert!(caster_skill_effects(S::TfSteal).cast.is_empty());
+    }
+
     #[test]
     fn unmapped_skill_fires_nothing_on_either_actor() {
         assert_eq!(

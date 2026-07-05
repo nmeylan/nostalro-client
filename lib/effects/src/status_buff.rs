@@ -6,11 +6,15 @@ pub struct BuffEffect {
     pub body: &'static [EffectId],
 }
 
+/// The status effects that show a body aura for the whole duration the status is
+/// active. Every other buff is flashed once at cast (see
+/// [`crate::skill_effects::caster_skill_effects`] /
+/// [`crate::skill_effects::target_skill_effects`]) and only its status icon
+/// persists — not a world aura.
 pub fn buff_effect(efst: ClientEffectIcon) -> Option<BuffEffect> {
     use ClientEffectIcon as I;
     let body: &'static [EffectId] = match efst {
         I::Berserk => &[EffectId::Redbody],
-        I::Marionette | I::MarionetteMaster => &[EffectId::Pinkbody],
         I::Steelbody => &[EffectId::Steelbody],
         I::Energycoat => &[EffectId::Energycoat],
         I::Assumptio => &[EffectId::Assumptio],
@@ -19,22 +23,12 @@ pub fn buff_effect(efst: ClientEffectIcon) -> Option<BuffEffect> {
         I::NjBunsinjyutsu => &[EffectId::Bunsinjyutsu],
         I::Onehandquicken => &[EffectId::Twohandquicken],
         I::Spearquicken => &[EffectId::Spearquicken],
-        I::Aurablade => &[EffectId::Aurablade, EffectId::Aurablade2],
-        I::Autoguard => &[EffectId::Guard],
-        I::Reflectshield => &[EffectId::Reflectshield],
-        I::Defender => &[EffectId::Defender],
-        I::CrShrink => &[EffectId::Shrink],
-        I::Adrenaline | I::Adrenaline2 => &[EffectId::Hasteup],
         I::Overthrust | I::Overthrustmax => &[EffectId::Overthrust],
-        I::Maximize => &[EffectId::Maxpower],
-        I::Shout => &[EffectId::Loud],
-        I::Meltdown => &[EffectId::Meltdown],
-        I::Cartboost => &[EffectId::Cartboost],
         I::Magicpower => &[EffectId::Lightblade],
-        I::Kaupe => &[EffectId::Bluebody],
-        I::Kaite => &[EffectId::Reflectbody, EffectId::Bluebody],
-        I::Kaahi => &[EffectId::Hated],
-        I::Kaizel => &[EffectId::Kaizel],
+        I::Aurablade => &[EffectId::Aurablade2],
+        I::Kaite => &[EffectId::Reflectbody],
+        I::Soullink => &[EffectId::Asurabody],
+        I::SgSunWarm => &[EffectId::Doublegumgang, EffectId::Redlightbody],
         _ => return None,
     };
     Some(BuffEffect { body })
@@ -45,66 +39,65 @@ mod tests {
     use super::*;
 
     #[test]
-    fn maps_persistent_buffs_and_ignores_unmapped() {
+    fn only_full_duration_auras_map_others_are_one_shot() {
+        use ClientEffectIcon as I;
+
+        // Genuinely persistent auras the original re-launches for the whole status.
+        let persistent: &[(I, &[EffectId])] = &[
+            (I::Berserk, &[EffectId::Redbody]),
+            (I::Steelbody, &[EffectId::Steelbody]),
+            (I::Overthrust, &[EffectId::Overthrust]),
+            (I::Spearquicken, &[EffectId::Spearquicken]),
+            (I::Onehandquicken, &[EffectId::Twohandquicken]),
+            (I::Magicpower, &[EffectId::Lightblade]),
+            (I::Soullink, &[EffectId::Asurabody]),
+        ];
+        for &(efst, body) in persistent {
+            assert_eq!(buff_effect(efst), Some(BuffEffect { body }));
+        }
+
+        // Split buffs keep only the persistent half; the burst is a one-shot at cast.
         assert_eq!(
-            buff_effect(ClientEffectIcon::Berserk),
+            buff_effect(I::Aurablade),
             Some(BuffEffect {
-                body: &[EffectId::Redbody]
+                body: &[EffectId::Aurablade2]
             })
         );
         assert_eq!(
-            buff_effect(ClientEffectIcon::Marionette),
+            buff_effect(I::Kaite),
             Some(BuffEffect {
-                body: &[EffectId::Pinkbody]
+                body: &[EffectId::Reflectbody]
             })
         );
         assert_eq!(
-            buff_effect(ClientEffectIcon::MarionetteMaster),
+            buff_effect(I::SgSunWarm),
             Some(BuffEffect {
-                body: &[EffectId::Pinkbody]
+                body: &[EffectId::Doublegumgang, EffectId::Redlightbody]
             })
         );
-        assert_eq!(
-            buff_effect(ClientEffectIcon::Propertyundead),
-            Some(BuffEffect {
-                body: &[EffectId::Undeadbody]
-            })
-        );
-        // Two-Hand Quicken is one-shot at cast (its EFST has no persistent aura in
-        // the original); only One-Hand Quicken keeps a persistent aura.
-        assert_eq!(buff_effect(ClientEffectIcon::Twohandquicken), None);
-        assert_eq!(
-            buff_effect(ClientEffectIcon::Onehandquicken),
-            Some(BuffEffect {
-                body: &[EffectId::Twohandquicken]
-            })
-        );
-        assert_eq!(
-            buff_effect(ClientEffectIcon::Spearquicken),
-            Some(BuffEffect {
-                body: &[EffectId::Spearquicken]
-            })
-        );
-        // Endure flashes once at cast, not a full-duration aura.
-        assert_eq!(buff_effect(ClientEffectIcon::Endure), None);
-        assert_eq!(
-            buff_effect(ClientEffectIcon::Overthrust),
-            Some(BuffEffect {
-                body: &[EffectId::Overthrust]
-            })
-        );
-        assert_eq!(
-            buff_effect(ClientEffectIcon::Autoguard),
-            Some(BuffEffect {
-                body: &[EffectId::Guard]
-            })
-        );
-        assert_eq!(
-            buff_effect(ClientEffectIcon::Aurablade),
-            Some(BuffEffect {
-                body: &[EffectId::Aurablade, EffectId::Aurablade2]
-            })
-        );
-        assert_eq!(buff_effect(ClientEffectIcon::Provoke), None);
+
+        // One-shot-at-cast buffs (icon persists, no world aura): not mapped here.
+        for efst in [
+            I::Marionette,
+            I::MarionetteMaster,
+            I::Autoguard,
+            I::Reflectshield,
+            I::Defender,
+            I::CrShrink,
+            I::Adrenaline,
+            I::Adrenaline2,
+            I::Maximize,
+            I::Shout,
+            I::Meltdown,
+            I::Cartboost,
+            I::Kaupe,
+            I::Kaahi,
+            I::Kaizel,
+            I::Twohandquicken,
+            I::Endure,
+            I::Provoke,
+        ] {
+            assert_eq!(buff_effect(efst), None, "{efst:?} is one-shot, not an aura");
+        }
     }
 }
