@@ -138,6 +138,91 @@ impl ModelRenderer {
         })
     }
 
+    /// Build a renderer for a single standalone RSM (no RSW/GND world context),
+    /// centred at the origin via the same node compilation the map path uses.
+    /// Returns the renderer plus the centred model's bounding-box `center` and
+    /// `size` (world units) so a caller can frame a camera around it.
+    pub fn from_rsm(
+        rsm: &RsmFile,
+        grf: &GrfArchive,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        global_uniforms: &GlobalUniforms,
+        texture_cache: &mut TextureCache,
+        surface_format: wgpu::TextureFormat,
+    ) -> Option<(Self, [f32; 3], [f32; 3])> {
+        if rsm.nodes.is_empty() {
+            return None;
+        }
+
+        preload_rsm_textures(rsm, grf, texture_cache, device, queue);
+
+        let is_only = rsm.nodes.len() == 1;
+        let (bbox, node_matrices) = calc_bounding_box(rsm);
+        let alpha = rsm.alpha.map(|a| a as f32 / 255.0).unwrap_or(1.0);
+        let instance_matrix = glam::Mat4::IDENTITY;
+
+        let mut texture_quads: HashMap<String, (Vec<ModelVertex>, Vec<u32>)> = HashMap::new();
+        for (node_idx, node) in rsm.nodes.iter().enumerate() {
+            compile_node(
+                node,
+                rsm,
+                &node_matrices[node_idx],
+                &bbox,
+                &instance_matrix,
+                is_only,
+                alpha,
+                &mut texture_quads,
+            );
+        }
+
+        let mut all_vertices = Vec::new();
+        let mut all_indices = Vec::new();
+        let mut batches = Vec::new();
+        for (tex_name, (verts, idxs)) in texture_quads {
+            let vertex_offset = all_vertices.len() as u32;
+            let start_index = all_indices.len() as u32;
+            all_vertices.extend_from_slice(&verts);
+            all_indices.extend(idxs.iter().map(|i| i + vertex_offset));
+            batches.push(DrawBatch {
+                texture_name: tex_name,
+                start_index,
+                index_count: idxs.len() as u32,
+            });
+        }
+
+        if all_vertices.is_empty() {
+            return None;
+        }
+
+        let vertex_buffer =
+            create_buffer(device, "model_vertices", &all_vertices, wgpu::BufferUsages::VERTEX);
+        let index_buffer =
+            create_buffer(device, "model_indices", &all_indices, wgpu::BufferUsages::INDEX);
+        let pipeline = create_pipeline(
+            device,
+            surface_format,
+            &global_uniforms.bind_group_layout,
+            &texture_cache.bind_group_layout,
+        );
+
+        // `compile_node` centres x/z at 0 and puts the top face at y=0, so the
+        // model spans y ∈ [-size.y, 0].
+        let size = bbox.max - bbox.min;
+        let center = [0.0, -size.y * 0.5, 0.0];
+
+        Some((
+            Self {
+                pipeline,
+                vertex_buffer,
+                index_buffer,
+                batches,
+            },
+            center,
+            [size.x, size.y, size.z],
+        ))
+    }
+
     pub fn render<'a>(
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,

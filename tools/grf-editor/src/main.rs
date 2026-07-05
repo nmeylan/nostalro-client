@@ -1,5 +1,6 @@
 mod app;
 mod file_list;
+mod gallery;
 mod preview;
 mod sprite_preview;
 mod tree;

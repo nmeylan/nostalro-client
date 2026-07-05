@@ -112,7 +112,7 @@ impl BmpPreview {
     }
 }
 
-fn image_format(name: &str) -> Option<image::ImageFormat> {
+pub fn image_format(name: &str) -> Option<image::ImageFormat> {
     let ext = name.rsplit_once('.')?.1.to_ascii_lowercase();
     match ext.as_str() {
         "bmp" => Some(image::ImageFormat::Bmp),
@@ -138,9 +138,13 @@ pub fn is_str_previewable(name: &str) -> bool {
     name.to_lowercase().ends_with(".str")
 }
 
-/// True for any file the animated GPU preview can render (sprite or STR effect).
+pub fn is_model_previewable(name: &str) -> bool {
+    name.to_lowercase().ends_with(".rsm")
+}
+
+/// True for any file the GPU preview can render (sprite, STR effect, or model).
 pub fn is_animated_previewable(name: &str, archive: &GrfArchive) -> bool {
-    is_sprite_previewable(name, archive) || is_str_previewable(name)
+    is_sprite_previewable(name, archive) || is_str_previewable(name) || is_model_previewable(name)
 }
 
 #[cfg(test)]
@@ -205,8 +209,13 @@ mod tests {
         assert!(is_str_previewable("data/texture/effect/FIRE.STR"));
         assert!(!is_str_previewable("data/texture/foo.bmp"));
 
+        assert!(is_model_previewable("data/model/tree.rsm"));
+        assert!(is_model_previewable("data/model/TREE.RSM"));
+        assert!(!is_model_previewable("data/sprite/poring.spr"));
+
         assert!(is_animated_previewable("data/sprite/poring.spr", &archive));
         assert!(is_animated_previewable("data/texture/effect/fire.str", &archive));
+        assert!(is_animated_previewable("data/model/tree.rsm", &archive));
         assert!(!is_animated_previewable("data/sprite/lonely.spr", &archive));
         assert!(!is_animated_previewable("readme.txt", &archive));
 

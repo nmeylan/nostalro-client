@@ -1,11 +1,13 @@
 use eframe::egui;
 use ragnarok_formats::act::{MotionType, SpriteActionType, SpriteAnimationState};
 use ragnarok_formats::grf::GrfArchive;
+use ragnarok_formats::rsm::RsmFile;
 use ragnarok_game::sprite_loader;
 use ragnarok_renderer::wgpu;
 use ragnarok_renderer::{
-    Camera, EntitySprite, SpriteRenderer, SpriteUniforms, StrEffectCache, StrEmitterInput,
-    TextureCache, block_on, build_entity_sprite, build_str_effect_batches,
+    Camera, EntitySprite, GlobalUniforms, LightUniform, ModelRenderer, SpriteRenderer,
+    SpriteUniforms, StrEffectCache, StrEmitterInput, TextureCache, block_on, build_entity_sprite,
+    build_str_effect_batches,
 };
 
 const CANVAS: u32 = 384;
@@ -16,6 +18,7 @@ enum Content {
     None,
     Sprite,
     Str,
+    Model,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -78,6 +81,12 @@ pub struct SpritePreview {
     str_name: Option<String>,
     str_time: f32,
     camera: Camera,
+    global_uniforms: GlobalUniforms,
+    model: Option<ModelRenderer>,
+    model_center: [f32; 3],
+    model_size: [f32; 3],
+    model_yaw: f32,
+    model_pitch: f32,
     cached_file_idx: Option<usize>,
     error: Option<String>,
 
@@ -110,6 +119,7 @@ impl SpritePreview {
         .ok()?;
 
         let tex_cache = TextureCache::new(&device, 1.0);
+        let global_uniforms = GlobalUniforms::new(&device);
         let sprite_renderer = SpriteRenderer::new(
             &device,
             wgpu::TextureFormat::Rgba8UnormSrgb,
@@ -184,6 +194,12 @@ impl SpritePreview {
                 camera.set_target(0.0, 0.0, 0.0);
                 camera
             },
+            global_uniforms,
+            model: None,
+            model_center: [0.0; 3],
+            model_size: [1.0; 3],
+            model_yaw: 0.7,
+            model_pitch: 0.5,
             cached_file_idx: None,
             error: None,
             paused: false,
@@ -200,12 +216,71 @@ impl SpritePreview {
         self.content = Content::None;
         self.entity = None;
         self.str_name = None;
+        self.model = None;
 
-        if path.to_lowercase().ends_with(".str") {
+        let lower = path.to_lowercase();
+        if lower.ends_with(".str") {
             self.load_str(grf, path);
+        } else if lower.ends_with(".rsm") {
+            self.load_model(grf, path);
         } else {
             self.load_sprite(grf, path);
         }
+    }
+
+    fn load_model(&mut self, grf: &GrfArchive, rsm_path: &str) {
+        self.zoom = 1.0;
+        self.model_yaw = 0.7;
+        self.model_pitch = 0.5;
+
+        let data = match grf.read_file(rsm_path) {
+            Ok(d) => d,
+            Err(e) => {
+                self.error = Some(format!("Could not read {rsm_path}: {e}"));
+                return;
+            }
+        };
+        let rsm = match RsmFile::parse(&data) {
+            Ok(r) => r,
+            Err(e) => {
+                self.error = Some(format!("Could not parse {rsm_path}: {e}"));
+                return;
+            }
+        };
+        match ModelRenderer::from_rsm(
+            &rsm,
+            grf,
+            &self.device,
+            &self.queue,
+            &self.global_uniforms,
+            &mut self.tex_cache,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+        ) {
+            Some((model, center, size)) => {
+                self.model = Some(model);
+                self.model_center = center;
+                self.model_size = size;
+                self.content = Content::Model;
+            }
+            None => {
+                self.error = Some(format!("Model has no drawable geometry: {rsm_path}"));
+            }
+        }
+    }
+
+    fn frame_model_camera(&mut self) {
+        let [sx, sy, sz] = self.model_size;
+        let radius = 0.5 * (sx * sx + sy * sy + sz * sz).sqrt().max(1.0);
+        let fov_y = 40_f32.to_radians();
+        self.camera.fov_y = fov_y;
+        self.camera.aspect = 1.0;
+        self.camera
+            .set_target(self.model_center[0], self.model_center[1], self.model_center[2]);
+        self.camera.yaw = self.model_yaw;
+        self.camera.pitch = self.model_pitch;
+        self.camera.distance = radius / (fov_y * 0.5).tan() / self.zoom.max(0.05);
+        self.camera.near = (radius * 0.02).max(0.5);
+        self.camera.far = radius * 20.0 + 2000.0;
     }
 
     fn load_sprite(&mut self, grf: &GrfArchive, spr_path: &str) {
@@ -269,6 +344,12 @@ impl SpritePreview {
             },
         );
 
+        if matches!(self.content, Content::Model) {
+            self.frame_model_camera();
+            self.global_uniforms.update_camera(&self.queue, &self.camera);
+            self.global_uniforms.update_light(&self.queue, &model_light());
+        }
+
         let mut encoder = self.device.create_command_encoder(&Default::default());
         match self.content {
             Content::Sprite => {
@@ -321,9 +402,43 @@ impl SpritePreview {
                     );
                 }
             }
+            Content::Model => {
+                if let Some(model) = &self.model {
+                    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("model_preview"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &self.color_view,
+                            depth_slice: None,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(self.background.clear_color()),
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: Some(
+                            wgpu::RenderPassDepthStencilAttachment {
+                                view: &self.depth_view,
+                                depth_ops: Some(wgpu::Operations {
+                                    load: wgpu::LoadOp::Clear(1.0),
+                                    store: wgpu::StoreOp::Store,
+                                }),
+                                stencil_ops: None,
+                            },
+                        ),
+                        ..Default::default()
+                    });
+                    model.render(&mut pass, &self.global_uniforms, &self.tex_cache);
+                }
+            }
             Content::None => {}
         }
 
+        self.finish_read(encoder)
+    }
+
+    /// Copy the off-screen colour texture into the readback buffer, map it, and
+    /// return tightly-packed opaque RGBA (`CANVAS`×`CANVAS`).
+    fn finish_read(&self, mut encoder: wgpu::CommandEncoder) -> Vec<u8> {
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
                 texture: &self.color_texture,
@@ -368,6 +483,171 @@ impl SpritePreview {
         pixels
     }
 
+    /// Render a single still thumbnail (`size`×`size`) for a sprite or STR
+    /// effect without disturbing the live single-file preview state. Used by the
+    /// gallery grid. Returns `None` if the asset fails to load.
+    pub fn thumbnail(&mut self, grf: &GrfArchive, path: &str, size: u32) -> Option<egui::ColorImage> {
+        self.sprite_renderer.update_uniforms(
+            &self.queue,
+            &SpriteUniforms {
+                screen_size: [CANVAS as f32, CANVAS as f32],
+                zoom: 1.0,
+                _pad: 0.0,
+                pan: [0.0, 0.0],
+                _pad2: [0.0, 0.0],
+            },
+        );
+
+        let lower = path.to_lowercase();
+        let pixels = if lower.ends_with(".str") {
+            self.render_str_thumbnail(grf, path)?
+        } else if lower.ends_with(".rsm") {
+            self.render_model_thumbnail(grf, path)?
+        } else {
+            self.render_sprite_thumbnail(grf, path)?
+        };
+
+        let src = image::RgbaImage::from_raw(CANVAS, CANVAS, pixels)?;
+        let scaled =
+            image::imageops::resize(&src, size, size, image::imageops::FilterType::Triangle);
+        Some(egui::ColorImage::from_rgba_unmultiplied(
+            [size as usize, size as usize],
+            scaled.as_raw(),
+        ))
+    }
+
+    fn render_sprite_thumbnail(&mut self, grf: &GrfArchive, spr_path: &str) -> Option<Vec<u8>> {
+        let data = sprite_loader::load_sprite_data_from_spr(grf, spr_path)?;
+        let entity = build_entity_sprite(
+            &self.device,
+            &self.queue,
+            &self.tex_cache.bind_group_layout,
+            data,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        let anim = SpriteAnimationState::new(0);
+        let anchor = [CANVAS as f32 / 2.0, CANVAS as f32 * 0.62];
+        let batches = entity.build_batches(&anim, None, 0, anchor, 0.0, 2.0, [0.0, 0.0]);
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        self.sprite_renderer.render(
+            &mut encoder,
+            &self.color_view,
+            Some(&self.depth_view),
+            &self.device,
+            &self.queue,
+            Some(Background::Checkerboard.clear_color()),
+            &batches,
+        );
+        Some(self.finish_read(encoder))
+    }
+
+    fn render_str_thumbnail(&mut self, grf: &GrfArchive, str_path: &str) -> Option<Vec<u8>> {
+        let lower = str_path.to_lowercase();
+        let name = lower
+            .strip_prefix(STR_EFFECT_PREFIX)
+            .unwrap_or(&lower)
+            .strip_suffix(".str")
+            .unwrap_or(&lower)
+            .to_string();
+        if !self
+            .str_cache
+            .load(&name, &[], grf, &mut self.tex_cache, &self.device, &self.queue)
+        {
+            return None;
+        }
+        // Sample mid-animation — STR effects are usually empty at t=0.
+        let anim_time = self
+            .str_cache
+            .get(&name)
+            .filter(|e| e.str_file.fps > 0)
+            .map(|e| e.str_file.max_key as f32 / e.str_file.fps as f32 * 0.5)
+            .unwrap_or(0.5);
+        let inputs = [StrEmitterInput {
+            str_name: &name,
+            position: [0.0, 0.0, 0.0],
+            anim_time,
+            repeat: false,
+        }];
+        let batches = build_str_effect_batches(
+            &inputs,
+            &self.str_cache,
+            &self.camera,
+            CANVAS as f32,
+            CANVAS as f32,
+            5.0,
+        );
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        self.sprite_renderer.render(
+            &mut encoder,
+            &self.color_view,
+            None,
+            &self.device,
+            &self.queue,
+            Some(wgpu::Color::BLACK),
+            &batches,
+        );
+        Some(self.finish_read(encoder))
+    }
+
+    fn render_model_thumbnail(&mut self, grf: &GrfArchive, rsm_path: &str) -> Option<Vec<u8>> {
+        let data = grf.read_file(rsm_path).ok()?;
+        let rsm = RsmFile::parse(&data).ok()?;
+        let (model, center, size) = ModelRenderer::from_rsm(
+            &rsm,
+            grf,
+            &self.device,
+            &self.queue,
+            &self.global_uniforms,
+            &mut self.tex_cache,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+        )?;
+
+        self.model_center = center;
+        self.model_size = size;
+        self.model_yaw = 0.7;
+        self.model_pitch = 0.5;
+        let saved_zoom = self.zoom;
+        self.zoom = 1.0;
+        self.frame_model_camera();
+        self.zoom = saved_zoom;
+        self.global_uniforms.update_camera(&self.queue, &self.camera);
+        self.global_uniforms.update_light(&self.queue, &model_light());
+
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("model_thumb"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &self.color_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(Background::Checkerboard.clear_color()),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+            model.render(&mut pass, &self.global_uniforms, &self.tex_cache);
+        }
+        Some(self.finish_read(encoder))
+    }
+
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
@@ -385,43 +665,69 @@ impl SpritePreview {
         }
 
         let action_count = self.entity.as_ref().map_or(0, |e| e.body_act.actions.len());
-        let is_str = matches!(self.content, Content::Str);
 
         ui.horizontal(|ui| {
-            if ui
-                .button(if self.paused { "▶ Play" } else { "⏸ Pause" })
-                .clicked()
-            {
-                self.paused = !self.paused;
-            }
-            ui.separator();
-            if is_str {
-                if ui.button("⟲ Restart").clicked() {
-                    self.str_time = 0.0;
+            match self.content {
+                Content::Str => {
+                    if ui
+                        .button(if self.paused { "▶ Play" } else { "⏸ Pause" })
+                        .clicked()
+                    {
+                        self.paused = !self.paused;
+                    }
+                    ui.separator();
+                    if ui.button("⟲ Restart").clicked() {
+                        self.str_time = 0.0;
+                    }
                 }
-            } else {
-                ui.label("Dir");
-                if ui.button("◀").clicked() {
-                    let dir = if self.animation.direction() == 0 {
-                        7
-                    } else {
-                        (self.animation.direction() - 1) as u8
-                    };
-                    self.animation.set_direction(dir);
-                    self.animation.reset_motion();
+                Content::Model => {
+                    ui.label("Rotate");
+                    if ui.button("◀").clicked() {
+                        self.model_yaw -= std::f32::consts::FRAC_PI_8;
+                    }
+                    if ui.button("▶").clicked() {
+                        self.model_yaw += std::f32::consts::FRAC_PI_8;
+                    }
+                    ui.separator();
+                    ui.label("Tilt");
+                    if ui.button("▲").clicked() {
+                        self.model_pitch = (self.model_pitch + 0.15).min(1.5);
+                    }
+                    if ui.button("▼").clicked() {
+                        self.model_pitch = (self.model_pitch - 0.15).max(-1.5);
+                    }
                 }
-                if ui.button("▶").clicked() {
-                    let dir = ((self.animation.direction() + 1) % 8) as u8;
-                    self.animation.set_direction(dir);
-                    self.animation.reset_motion();
-                }
-                ui.separator();
-                ui.label("Action");
-                if ui.button("−").clicked() {
-                    self.step_action(-1, action_count);
-                }
-                if ui.button("+").clicked() {
-                    self.step_action(1, action_count);
+                _ => {
+                    if ui
+                        .button(if self.paused { "▶ Play" } else { "⏸ Pause" })
+                        .clicked()
+                    {
+                        self.paused = !self.paused;
+                    }
+                    ui.separator();
+                    ui.label("Dir");
+                    if ui.button("◀").clicked() {
+                        let dir = if self.animation.direction() == 0 {
+                            7
+                        } else {
+                            (self.animation.direction() - 1) as u8
+                        };
+                        self.animation.set_direction(dir);
+                        self.animation.reset_motion();
+                    }
+                    if ui.button("▶").clicked() {
+                        let dir = ((self.animation.direction() + 1) % 8) as u8;
+                        self.animation.set_direction(dir);
+                        self.animation.reset_motion();
+                    }
+                    ui.separator();
+                    ui.label("Action");
+                    if ui.button("−").clicked() {
+                        self.step_action(-1, action_count);
+                    }
+                    if ui.button("+").clicked() {
+                        self.step_action(1, action_count);
+                    }
                 }
             }
             ui.separator();
@@ -446,7 +752,7 @@ impl SpritePreview {
                     }
                 }
                 Content::Str => self.str_time += dt,
-                Content::None => {}
+                Content::Model | Content::None => {}
             }
         }
 
@@ -497,6 +803,10 @@ impl SpritePreview {
                     str_file.fps,
                 ))
             }),
+            Content::Model => {
+                let [sx, sy, sz] = self.model_size;
+                Some(format!("RSM  Size: {sx:.0} × {sy:.0} × {sz:.0}"))
+            }
             Content::None => None,
         };
 
@@ -575,5 +885,13 @@ impl SpritePreview {
         if minus {
             self.zoom = (self.zoom / 1.2).max(0.25);
         }
+    }
+}
+
+/// Angled directional light so standalone models read as 3D rather than flat.
+fn model_light() -> LightUniform {
+    LightUniform {
+        light_dir: [-0.5, -1.0, -0.4, 0.0],
+        ..LightUniform::default()
     }
 }

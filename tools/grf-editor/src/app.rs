@@ -5,6 +5,7 @@ use egui_ltreeview::{Action, TreeView, TreeViewState};
 use ragnarok_formats::grf::{GrfArchive, GrfFileInfo};
 
 use crate::file_list;
+use crate::gallery::Gallery;
 use crate::preview::{self, BmpPreview};
 use crate::sprite_preview::SpritePreview;
 use crate::tree::{self, TreeNode};
@@ -22,6 +23,7 @@ struct LoadedGrf {
     dirty: bool,
     preview: BmpPreview,
     sprite_preview: Option<SpritePreview>,
+    gallery: Gallery,
 }
 
 impl LoadedGrf {
@@ -53,6 +55,7 @@ impl LoadedGrf {
             dirty: false,
             preview: BmpPreview::default(),
             sprite_preview: None,
+            gallery: Gallery::default(),
         }
     }
 
@@ -66,6 +69,7 @@ impl LoadedGrf {
             .collect();
         self.tree = tree::build_tree(&indexed_names);
         self.selected_file = None;
+        self.gallery.clear();
         self.update_visible_files();
     }
 
@@ -465,6 +469,9 @@ impl GrfEditorApp {
             if changed {
                 grf.update_visible_files();
             }
+            ui.separator();
+            ui.selectable_value(&mut grf.gallery.enabled, false, "List");
+            ui.selectable_value(&mut grf.gallery.enabled, true, "Grid");
             if !grf.selected_dir.is_empty() {
                 ui.separator();
                 ui.label(format!("Dir: {}", grf.selected_dir));
@@ -479,12 +486,26 @@ impl GrfEditorApp {
         });
         ui.separator();
 
-        file_list::show_file_list(
-            ui,
-            &grf.file_list,
-            &grf.visible_files,
-            &mut grf.selected_file,
-        );
+        if grf.gallery.enabled {
+            if grf.sprite_preview.is_none() {
+                grf.sprite_preview = SpritePreview::new();
+            }
+            grf.gallery.show(
+                ui,
+                &grf.archive,
+                &grf.file_list,
+                &grf.visible_files,
+                &mut grf.selected_file,
+                &mut grf.sprite_preview,
+            );
+        } else {
+            file_list::show_file_list(
+                ui,
+                &grf.file_list,
+                &grf.visible_files,
+                &mut grf.selected_file,
+            );
+        }
     }
 
     fn show_status_bar(&self, ui: &mut egui::Ui) {
