@@ -125,6 +125,24 @@ pub fn is_previewable(name: &str) -> bool {
     image_format(name).is_some()
 }
 
+/// A `.spr` is animatable when its sibling `.act` also exists in the archive.
+pub fn is_sprite_previewable(name: &str, archive: &GrfArchive) -> bool {
+    let lower = name.to_lowercase();
+    let Some(base) = lower.strip_suffix(".spr") else {
+        return false;
+    };
+    archive.file_exists(&format!("{base}.act"))
+}
+
+pub fn is_str_previewable(name: &str) -> bool {
+    name.to_lowercase().ends_with(".str")
+}
+
+/// True for any file the animated GPU preview can render (sprite or STR effect).
+pub fn is_animated_previewable(name: &str, archive: &GrfArchive) -> bool {
+    is_sprite_previewable(name, archive) || is_str_previewable(name)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,5 +185,31 @@ mod tests {
         ));
         assert!(image_format("foo.rsm").is_none());
         assert!(image_format("foo").is_none());
+    }
+
+    #[test]
+    fn sprite_previewable_requires_sibling_act() {
+        let path = std::env::temp_dir().join("grf_editor_sprite_preview_test.grf");
+        let _ = std::fs::remove_file(&path);
+        let mut archive = GrfArchive::create(&path).unwrap();
+        archive.add_file("data/sprite/poring.spr", b"spr").unwrap();
+        archive.add_file("data/sprite/poring.act", b"act").unwrap();
+        archive.add_file("data/sprite/lonely.spr", b"spr").unwrap();
+
+        assert!(is_sprite_previewable("data/sprite/poring.spr", &archive));
+        assert!(is_sprite_previewable("DATA/SPRITE/PORING.SPR", &archive));
+        assert!(!is_sprite_previewable("data/sprite/lonely.spr", &archive));
+        assert!(!is_sprite_previewable("data/texture/foo.bmp", &archive));
+
+        assert!(is_str_previewable("data/texture/effect/fire.str"));
+        assert!(is_str_previewable("data/texture/effect/FIRE.STR"));
+        assert!(!is_str_previewable("data/texture/foo.bmp"));
+
+        assert!(is_animated_previewable("data/sprite/poring.spr", &archive));
+        assert!(is_animated_previewable("data/texture/effect/fire.str", &archive));
+        assert!(!is_animated_previewable("data/sprite/lonely.spr", &archive));
+        assert!(!is_animated_previewable("readme.txt", &archive));
+
+        let _ = std::fs::remove_file(&path);
     }
 }

@@ -5,7 +5,8 @@ use egui_ltreeview::{Action, TreeView, TreeViewState};
 use ragnarok_formats::grf::{GrfArchive, GrfFileInfo};
 
 use crate::file_list;
-use crate::preview::BmpPreview;
+use crate::preview::{self, BmpPreview};
+use crate::sprite_preview::SpritePreview;
 use crate::tree::{self, TreeNode};
 
 struct LoadedGrf {
@@ -20,6 +21,7 @@ struct LoadedGrf {
     search_filter: String,
     dirty: bool,
     preview: BmpPreview,
+    sprite_preview: Option<SpritePreview>,
 }
 
 impl LoadedGrf {
@@ -50,6 +52,7 @@ impl LoadedGrf {
             search_filter: String::new(),
             dirty: false,
             preview: BmpPreview::default(),
+            sprite_preview: None,
         }
     }
 
@@ -510,6 +513,36 @@ impl GrfEditorApp {
             None => return,
         };
         if grf.file_list.get(file_idx).is_none() {
+            return;
+        }
+
+        let is_animated =
+            preview::is_animated_previewable(&grf.file_list[file_idx].name, &grf.archive);
+
+        if is_animated {
+            if grf.sprite_preview.is_none() {
+                grf.sprite_preview = SpritePreview::new();
+            }
+            let spr_path = grf.file_list[file_idx].name.clone();
+            let file = &grf.file_list[file_idx];
+            egui::TopBottomPanel::bottom("file_info")
+                .resizable(true)
+                .default_height(460.0)
+                .show(ctx, |ui| {
+                    ui.heading("File Info");
+                    ui.separator();
+                    file_list::show_file_info(ui, file);
+                    ui.separator();
+                    match &mut grf.sprite_preview {
+                        Some(sp) => sp.show(ui, &grf.archive, &spr_path, file_idx),
+                        None => {
+                            ui.colored_label(
+                                egui::Color32::RED,
+                                "Sprite preview unavailable (no GPU adapter)",
+                            );
+                        }
+                    }
+                });
             return;
         }
 

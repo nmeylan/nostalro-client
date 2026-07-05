@@ -664,6 +664,22 @@ impl App {
                     self.reload_shield();
                 }
             }
+            ViewerAction::NextSprite => {
+                if let Some(browser) = &mut self.browser
+                    && browser.has_tabs()
+                {
+                    browser.handle_down();
+                    self.handle_browser_select();
+                }
+            }
+            ViewerAction::PrevSprite => {
+                if let Some(browser) = &mut self.browser
+                    && browser.has_tabs()
+                {
+                    browser.handle_up();
+                    self.handle_browser_select();
+                }
+            }
         }
     }
 

@@ -1,6 +1,7 @@
 mod app;
 mod file_list;
 mod preview;
+mod sprite_preview;
 mod tree;
 
 use eframe::egui;
