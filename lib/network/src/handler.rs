@@ -581,6 +581,9 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if let Some(p) = any.downcast_ref::<PacketZcSkillDisappear>() {
         return vec![GameEvent::SkillUnitDisappeared { aid: p.aid }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcSkillUpdate>() {
+        return vec![GameEvent::SkillUnitUpdated { aid: p.aid }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcEmotion>() {
         return vec![GameEvent::EntityEmotion {
             gid: p.gid,

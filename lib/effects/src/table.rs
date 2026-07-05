@@ -2299,10 +2299,5 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Decagilitybuf => 4294967295,
         EffectId::Energycoat => 3000,
         EffectId::Venomdust2 => 99990,
-        EffectId::TrapDefault => u32::MAX,
-        EffectId::TrapYellow => u32::MAX,
-        EffectId::TrapBlue => u32::MAX,
-        EffectId::TrapRed => u32::MAX,
-        EffectId::TrapGreen => u32::MAX,
     }
 }

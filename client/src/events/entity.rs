@@ -9,7 +9,9 @@ use ragnarok_game::ailment;
 use ragnarok_game::arrow::{ArrowProjectile, flight_secs_for_cell_distance};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::effect::buff_effect;
-use ragnarok_game::effect::{UNT_USED_TRAPS, skill_unit_effect, trap_trigger_effect};
+use ragnarok_game::effect::{
+    UNT_USED_TRAPS, skill_unit_effect, trap_model_name, trap_trigger_effect,
+};
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::level_aura;
 use ragnarok_game::movement::direction_from_positions;
@@ -717,7 +719,7 @@ impl App {
         value2: u16,
     ) {
         // A trap springs when the server changes its base look to UNT_USED_TRAPS:
-        // fire the stored trigger burst at the trap cell (the trap sprite is
+        // fire the stored trigger burst at the trap cell (the trap model is
         // removed shortly after by ZC_SKILL_DISAPPEAR).
         if sprite_type == 0
             && value == UNT_USED_TRAPS as u16
@@ -867,12 +869,6 @@ impl App {
         unit_id: u8,
         is_visible: bool,
     ) {
-        if !is_visible {
-            return;
-        }
-        let Some(effect) = skill_unit_effect(unit_id) else {
-            return;
-        };
         let (Some(gat), Some(coords)) = (self.game.gat.as_ref(), self.game.map_coords.as_ref())
         else {
             return;
@@ -880,19 +876,44 @@ impl App {
         let (cx, cy) = (x as f32 + 0.5, y as f32 + 0.5);
         let (wx, _, wz) = coords.cell_to_world(cx, cy);
         let world = [wx, gat.get_height(cx, cy), wz];
+
+        // Deployed traps render as a 3D model built in the update loop, and store
+        // a trigger burst that fires when a monster springs the trap (a
+        // `UNT_USED_TRAPS` look change) — not at placement. A trap hidden from us
+        // (cast by others) is held aside until a skill-unit update reveals it.
+        if trap_model_name(unit_id).is_some() {
+            if is_visible {
+                self.game.hidden_traps.remove(&aid);
+                self.game.trap_units.insert(aid, (unit_id, world));
+            } else {
+                self.game.hidden_traps.insert(aid, (unit_id, world));
+            }
+            return;
+        }
+
+        if !is_visible {
+            return;
+        }
+        let Some(effect) = skill_unit_effect(unit_id) else {
+            return;
+        };
         if self.effect_holder.reposition_by_key(aid, world) {
             return;
         }
         self.effect_queue.spawn_at_keyed(effect, world, aid);
-        // Remember explosive traps so their burst can fire at this cell when the
-        // trap is sprung (a `UNT_USED_TRAPS` look change), not at placement.
-        if trap_trigger_effect(unit_id).is_some() {
-            self.game.trap_units.insert(aid, (unit_id, world));
-        }
     }
 
     pub(super) fn handle_skill_unit_disappeared(&mut self, aid: u32) {
         self.effect_queue.despawn(aid);
         self.game.trap_units.remove(&aid);
+        self.game.hidden_traps.remove(&aid);
+    }
+
+    /// A skill-unit update reveals a trap that was hidden from us (e.g. an ankle
+    /// snare springs on a monster): promote it so its ground model is built.
+    pub(super) fn handle_skill_unit_updated(&mut self, gid: u32) {
+        if let Some(trap) = self.game.hidden_traps.remove(&gid) {
+            self.game.trap_units.insert(gid, trap);
+        }
     }
 }

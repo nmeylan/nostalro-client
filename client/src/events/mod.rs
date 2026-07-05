@@ -642,6 +642,9 @@ impl App {
                 GameEvent::SkillUnitDisappeared { aid } => {
                     self.handle_skill_unit_disappeared(aid);
                 }
+                GameEvent::SkillUnitUpdated { aid } => {
+                    self.handle_skill_unit_updated(aid);
+                }
                 GameEvent::SkillCastCancel { gid } => {
                     self.game.entities.apply_skill_cast_cancel(gid);
                 }

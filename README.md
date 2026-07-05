@@ -51,6 +51,13 @@ cargo run --bin sprite-viewer -- --grf data.grf
 
 ## Grf editor
 
+Features:
+
+- Render bmp,tga,spr(act),str,rsw
+- Grid mode (view all elements in grid to ease finding of resources)
+- Export element
+- Add element
+
 ```bash
 cargo run --bin ragnarok-grf-editor
 ```

@@ -255,6 +255,9 @@ pub enum GameEvent {
     SkillUnitDisappeared {
         aid: u32,
     },
+    SkillUnitUpdated {
+        aid: u32,
+    },
     EntityEmotion {
         gid: u32,
         emotion_type: u8,

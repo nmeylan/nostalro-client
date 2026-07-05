@@ -64,9 +64,12 @@ pub struct GameState {
     pub sprite_cache: HashMap<String, Rc<EntitySprite>>,
     pub carts: HashMap<u32, crate::sprite::CartVisual>,
     pub falcons: HashMap<u32, crate::sprite::FalconVisual>,
-    /// Deployed traps keyed by unit AID → (trap unit id, world position), so the
-    /// trigger burst can be fired at the cell when the trap is sprung.
+    /// Deployed, visible traps keyed by unit AID → (trap unit id, world
+    /// position): each shows a ground model and can fire its trigger burst.
     pub trap_units: HashMap<u32, (u8, [f32; 3])>,
+    /// Traps placed hidden to us (cast by others); revealed to `trap_units` when
+    /// the server sends a skill-unit update (e.g. an ankle snare springs).
+    pub hidden_traps: HashMap<u32, (u8, [f32; 3])>,
     pub cart_preview_sprites: HashMap<u8, Rc<EntitySprite>>,
     pub character: Character,
     pub data_table: DataTable,
@@ -505,6 +508,7 @@ impl GameState {
             carts: HashMap::new(),
             falcons: HashMap::new(),
             trap_units: HashMap::new(),
+            hidden_traps: HashMap::new(),
             cart_preview_sprites: HashMap::new(),
             sprite_cache: HashMap::new(),
             character: Character::new(),

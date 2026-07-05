@@ -223,6 +223,84 @@ impl ModelRenderer {
         ))
     }
 
+    /// Build a renderer for a single RSM placed at a world position, scaled by
+    /// the map's `scale_factor` (`zoom / 10`) so it matches props baked from the
+    /// RSW. Used for skill-unit models (traps) placed at runtime.
+    pub fn from_rsm_at(
+        rsm: &RsmFile,
+        grf: &GrfArchive,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        global_uniforms: &GlobalUniforms,
+        texture_cache: &mut TextureCache,
+        surface_format: wgpu::TextureFormat,
+        world_pos: [f32; 3],
+        scale_factor: f32,
+    ) -> Option<Self> {
+        if rsm.nodes.is_empty() {
+            return None;
+        }
+
+        preload_rsm_textures(rsm, grf, texture_cache, device, queue);
+
+        let is_only = rsm.nodes.len() == 1;
+        let (bbox, node_matrices) = calc_bounding_box(rsm);
+        let alpha = rsm.alpha.map(|a| a as f32 / 255.0).unwrap_or(1.0);
+        let instance_matrix = glam::Mat4::from_translation(glam::Vec3::from_array(world_pos))
+            * glam::Mat4::from_scale(glam::Vec3::splat(scale_factor));
+
+        let mut texture_quads: HashMap<String, (Vec<ModelVertex>, Vec<u32>)> = HashMap::new();
+        for (node_idx, node) in rsm.nodes.iter().enumerate() {
+            compile_node(
+                node,
+                rsm,
+                &node_matrices[node_idx],
+                &bbox,
+                &instance_matrix,
+                is_only,
+                alpha,
+                &mut texture_quads,
+            );
+        }
+
+        let mut all_vertices = Vec::new();
+        let mut all_indices = Vec::new();
+        let mut batches = Vec::new();
+        for (tex_name, (verts, idxs)) in texture_quads {
+            let vertex_offset = all_vertices.len() as u32;
+            let start_index = all_indices.len() as u32;
+            all_vertices.extend_from_slice(&verts);
+            all_indices.extend(idxs.iter().map(|i| i + vertex_offset));
+            batches.push(DrawBatch {
+                texture_name: tex_name,
+                start_index,
+                index_count: idxs.len() as u32,
+            });
+        }
+
+        if all_vertices.is_empty() {
+            return None;
+        }
+
+        let vertex_buffer =
+            create_buffer(device, "model_vertices", &all_vertices, wgpu::BufferUsages::VERTEX);
+        let index_buffer =
+            create_buffer(device, "model_indices", &all_indices, wgpu::BufferUsages::INDEX);
+        let pipeline = create_pipeline(
+            device,
+            surface_format,
+            &global_uniforms.bind_group_layout,
+            &texture_cache.bind_group_layout,
+        );
+
+        Some(Self {
+            pipeline,
+            vertex_buffer,
+            index_buffer,
+            batches,
+        })
+    }
+
     pub fn render<'a>(
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,

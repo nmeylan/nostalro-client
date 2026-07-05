@@ -1,8 +1,11 @@
 pub use models::enums::skill::SkillTargetType;
 
-pub fn skill_failure_message(cause: u8) -> &'static str {
-    match cause {
-        0 => "Skill level insufficient",
+/// Player-facing message for a skill-use failure `cause` (`USESKILL_FAIL_*`), or
+/// `None` when no message should be shown. Cause 0 (`USESKILL_FAIL_LEVEL`) is the
+/// server's catch-all default — sent for placement failures like "trap too near"
+/// — so the original game shows nothing for it, as we do for any unmapped cause.
+pub fn skill_failure_message(cause: u8) -> Option<&'static str> {
+    Some(match cause {
         1 => "Not enough SP",
         2 => "Not enough HP",
         3 => "Insufficient materials",
@@ -16,8 +19,8 @@ pub fn skill_failure_message(cause: u8) -> &'static str {
         13 => "Holy Water required",
         17 => "Need another skill first",
         18 => "Need a partner",
-        _ => "Skill failed",
-    }
+        _ => return None,
+    })
 }
 
 pub struct SkillData {
@@ -264,15 +267,16 @@ mod tests {
 
     #[test]
     fn skill_failure_message_returns_known_causes() {
-        assert_eq!(skill_failure_message(1), "Not enough SP");
-        assert_eq!(skill_failure_message(2), "Not enough HP");
-        assert_eq!(skill_failure_message(4), "Skill is on cooldown");
-        assert_eq!(skill_failure_message(7), "Red Gemstone required");
+        assert_eq!(skill_failure_message(1), Some("Not enough SP"));
+        assert_eq!(skill_failure_message(2), Some("Not enough HP"));
+        assert_eq!(skill_failure_message(4), Some("Skill is on cooldown"));
+        assert_eq!(skill_failure_message(7), Some("Red Gemstone required"));
     }
 
     #[test]
-    fn skill_failure_message_unknown_cause_returns_fallback() {
-        assert_eq!(skill_failure_message(200), "Skill failed");
+    fn skill_failure_message_catch_all_and_unknown_causes_show_nothing() {
+        assert_eq!(skill_failure_message(0), None);
+        assert_eq!(skill_failure_message(200), None);
     }
 
     #[test]

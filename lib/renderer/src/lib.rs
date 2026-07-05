@@ -56,6 +56,7 @@ pub const SPRITE_SHADER_SRC: &str = include_str!("shaders/sprite.wgsl");
 use ragnarok_formats::fog_table::FogEntry;
 use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::grf::GrfArchive;
+use ragnarok_formats::rsm::RsmFile;
 use ragnarok_formats::rsw::{RswFile, RswObject};
 use std::sync::Arc;
 
@@ -93,6 +94,7 @@ pub struct Renderer {
     pub ground_renderer: Option<GroundRenderer>,
     pub ground_proxy: Option<GroundProxyRenderer>,
     pub model_renderer: Option<ModelRenderer>,
+    pub skill_unit_models: std::collections::HashMap<u32, ModelRenderer>,
     pub water_renderer: Option<WaterRenderer>,
     pub grid_selector: Option<GridSelectorRenderer>,
     pub sprite_renderer: SpriteRenderer,
@@ -348,6 +350,7 @@ impl Renderer {
             ground_renderer: None,
             ground_proxy: None,
             model_renderer: None,
+            skill_unit_models: std::collections::HashMap::new(),
             water_renderer: None,
             grid_selector: None,
             sprite_renderer,
@@ -495,7 +498,39 @@ impl Renderer {
             self.device.surface_format,
         );
 
+        self.skill_unit_models.clear();
         self.background_mode = BackgroundMode::RswMap;
+    }
+
+    pub fn has_skill_unit_model(&self, key: u32) -> bool {
+        self.skill_unit_models.contains_key(&key)
+    }
+
+    pub fn add_skill_unit_model(
+        &mut self,
+        key: u32,
+        rsm: &RsmFile,
+        grf: &GrfArchive,
+        world_pos: [f32; 3],
+        scale_factor: f32,
+    ) {
+        if let Some(model) = ModelRenderer::from_rsm_at(
+            rsm,
+            grf,
+            &self.device.device,
+            &self.device.queue,
+            &self.global_uniforms,
+            &mut self.texture_cache,
+            self.device.surface_format,
+            world_pos,
+            scale_factor,
+        ) {
+            self.skill_unit_models.insert(key, model);
+        }
+    }
+
+    pub fn retain_skill_unit_models(&mut self, keep: &std::collections::HashSet<u32>) {
+        self.skill_unit_models.retain(|k, _| keep.contains(k));
     }
 
     pub fn preload_effect_textures(&mut self, paths: &[String], grf: &GrfArchive) {
@@ -701,6 +736,9 @@ impl Renderer {
                         ground.render(&mut pass, &self.global_uniforms, &self.texture_cache);
                     }
                     if let Some(model) = &self.model_renderer {
+                        model.render(&mut pass, &self.global_uniforms, &self.texture_cache);
+                    }
+                    for model in self.skill_unit_models.values() {
                         model.render(&mut pass, &self.global_uniforms, &self.texture_cache);
                     }
                     if let Some(grid) = &self.grid_selector {

@@ -106,14 +106,25 @@ pub fn skill_unit_effect(unit_id: u8) -> Option<EffectId> {
         UNT_FORTUNEKISS => E::BottomFortunekiss,
         UNT_SERVICEFORYOU => E::BottomServiceforyou,
 
-        // Deployed traps show a color-coded ground sprite at placement; their
-        // trigger burst (freeze, blast, …) fires later via `trap_trigger_effect`.
-        UNT_ANKLESNARE | UNT_TALKIEBOX => E::TrapDefault,
-        UNT_BLASTMINE | UNT_SKIDTRAP => E::TrapYellow,
-        UNT_SHOCKWAVE | UNT_FREEZINGTRAP => E::TrapBlue,
-        UNT_FLASHER | UNT_CLAYMORETRAP => E::TrapRed,
-        UNT_LANDMINE | UNT_SANDMAN => E::TrapGreen,
+        _ => return None,
+    })
+}
 
+/// The RSM model a deployed trap shows on the ground (path relative to
+/// `data\model\`), or `None` for a non-trap unit. The trigger burst (freeze,
+/// blast, …) fires separately via [`trap_trigger_effect`].
+pub fn trap_model_name(unit_id: u8) -> Option<&'static str> {
+    Some(match unit_id {
+        UNT_ANKLESNARE => "외부소품\\트랩01.rsm",
+        UNT_SKIDTRAP => "외부소품\\트랩02.rsm",
+        UNT_LANDMINE => "외부소품\\트랩03.rsm",
+        UNT_FREEZINGTRAP => "외부소품\\트랩03_2.rsm",
+        UNT_BLASTMINE => "외부소품\\트랩03_3.rsm",
+        UNT_SANDMAN => "외부소품\\트랩03_4.rsm",
+        UNT_FLASHER => "외부소품\\트랩03_5.rsm",
+        UNT_SHOCKWAVE => "외부소품\\트랩03_6.rsm",
+        UNT_CLAYMORETRAP => "외부소품\\트랩04.rsm",
+        UNT_TALKIEBOX => "외부소품\\트랩05.rsm",
         _ => return None,
     })
 }
@@ -181,11 +192,13 @@ mod tests {
     }
 
     #[test]
-    fn traps_show_a_color_sprite_at_placement_and_burst_only_when_sprung() {
-        // Placement: color-coded deployed sprite, never the trigger burst.
-        assert_eq!(skill_unit_effect(UNT_FREEZINGTRAP), Some(EffectId::TrapBlue));
-        assert_eq!(skill_unit_effect(UNT_ANKLESNARE), Some(EffectId::TrapDefault));
-        assert_eq!(skill_unit_effect(UNT_BLASTMINE), Some(EffectId::TrapYellow));
+    fn traps_show_a_model_at_placement_and_burst_only_when_sprung() {
+        // Placement: an RSM model, not a sprite effect.
+        assert_eq!(skill_unit_effect(UNT_FREEZINGTRAP), None);
+        assert_eq!(skill_unit_effect(UNT_ANKLESNARE), None);
+        assert_eq!(trap_model_name(UNT_ANKLESNARE), Some("외부소품\\트랩01.rsm"));
+        assert_eq!(trap_model_name(UNT_BLASTMINE), Some("외부소품\\트랩03_3.rsm"));
+        assert_eq!(trap_model_name(UNT_SAFETYWALL), None);
         // Trigger: the burst fires for explosive traps, not for holders.
         assert_eq!(trap_trigger_effect(UNT_FREEZINGTRAP), Some(EffectId::Freezing));
         assert_eq!(trap_trigger_effect(UNT_BLASTMINE), Some(EffectId::Blastminebomb));

@@ -32,7 +32,8 @@ pub use skill_effects::{
     is_cast_circle, is_ground_cast, target_skill_effects,
 };
 pub use skill_units::{
-    UNT_USED_TRAPS, skill_unit_effect, skill_unit_sprite_paths, trap_trigger_effect,
+    UNT_USED_TRAPS, skill_unit_effect, skill_unit_sprite_paths, trap_model_name,
+    trap_trigger_effect,
 };
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBodyRecolor, SprBurstParams};
 pub use spr_aliases::{SprDef, spr_def};

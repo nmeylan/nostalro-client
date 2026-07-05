@@ -97,6 +97,42 @@ impl App {
                 entity_id, req.value, req.color, 0,
             ));
         }
+
+        self.sync_trap_models();
+    }
+
+    /// Build/remove the deployed-trap RSM models to match `game.trap_units`.
+    fn sync_trap_models(&mut self) {
+        let (Some(renderer), Some(grf)) = (self.renderer.as_mut(), self.grf.as_ref()) else {
+            return;
+        };
+        let live: std::collections::HashSet<u32> = self.game.trap_units.keys().copied().collect();
+        renderer.retain_skill_unit_models(&live);
+        if self.game.trap_units.is_empty() {
+            return;
+        }
+        let scale_factor = self
+            .game
+            .map_coords
+            .as_ref()
+            .map(|c| c.zoom() / 10.0)
+            .unwrap_or(1.0);
+        for (&aid, &(unit_id, world)) in &self.game.trap_units {
+            if renderer.has_skill_unit_model(aid) {
+                continue;
+            }
+            let Some(name) = ragnarok_game::effect::trap_model_name(unit_id) else {
+                continue;
+            };
+            let path = format!("data\\model\\{name}");
+            match grf.read_file(&path) {
+                Ok(bytes) => match ragnarok_formats::rsm::RsmFile::parse(&bytes) {
+                    Ok(rsm) => renderer.add_skill_unit_model(aid, &rsm, grf, world, scale_factor),
+                    Err(e) => tracing::warn!("trap model parse failed {path}: {e}"),
+                },
+                Err(e) => tracing::warn!("trap model read failed {path}: {e}"),
+            }
+        }
     }
 
 }
