@@ -42,8 +42,6 @@ const MIN_RISE_ANGLE_DEG: f32 = 40.0;
 const RISE_DECAY_DEG_PER_FRAME: f32 = 1.0;
 const ROT_DEG_PER_FRAME: f32 = 3.0;
 const DISTANCE_GROWTH_PER_FRAME: f32 = 0.1;
-/// Peak alpha 200/255; common to every VOLCANO variant.
-const ALPHA_MAX: f32 = 200.0;
 /// 21 ring divisions; we go a bit higher for a smoother hump.
 const SIDES: u32 = 21;
 /// One texture wrap per ring. The four-blade
@@ -61,8 +59,11 @@ pub struct VolcanoParams {
     pub initial_rise_angle_deg: f32,
     /// Alpha gained per frame during ramp-up. Original default = 20.
     pub alpha_ramp_up_per_frame: f32,
-    /// Alpha lost per frame after hitting `ALPHA_MAX`. Original default = 2.
+    /// Alpha lost per frame after hitting the peak. Original default = 2.
     pub alpha_ramp_down_per_frame: f32,
+    /// Peak alpha (0..255). The ramp-up stops here (10 frames × ramp-up rate).
+    /// Gumgang3's variant peaks at 100, the rest at 200.
+    pub alpha_peak: f32,
     /// Slot-0 base distance. Default 1.5 matches the tight four-blade
     /// wreath; the concentric-rings variant (Gumgang2) uses 1.0 with a wider
     /// step for its silhouette.
@@ -86,10 +87,10 @@ pub struct VolcanoParams {
 
 impl VolcanoParams {
     const fn ramp_up_frames(&self) -> f32 {
-        ALPHA_MAX / self.alpha_ramp_up_per_frame
+        self.alpha_peak / self.alpha_ramp_up_per_frame
     }
     const fn ramp_down_frames(&self) -> f32 {
-        ALPHA_MAX / self.alpha_ramp_down_per_frame
+        self.alpha_peak / self.alpha_ramp_down_per_frame
     }
     const fn visible_frames(&self) -> f32 {
         self.ramp_up_frames() + self.ramp_down_frames()
@@ -108,6 +109,7 @@ pub const LANDPROTECTOR: VolcanoParams = VolcanoParams {
     initial_rise_angle_deg: 60.0,
     alpha_ramp_up_per_frame: 20.0,
     alpha_ramp_down_per_frame: 2.0,
+    alpha_peak: 200.0,
     distance_base: INITIAL_DISTANCE_BASE,
     distance_step: INITIAL_DISTANCE_STEP,
     wave_amplitude_factor: -1.0,
@@ -142,6 +144,7 @@ pub const GANBANTEIN: VolcanoParams = VolcanoParams {
     initial_rise_angle_deg: 52.0,
     alpha_ramp_up_per_frame: 20.0,
     alpha_ramp_down_per_frame: 4.0,
+    alpha_peak: 200.0,
     distance_base: INITIAL_DISTANCE_BASE,
     distance_step: INITIAL_DISTANCE_STEP,
     wave_amplitude_factor: -1.0,
@@ -153,6 +156,7 @@ pub const GANBANTEIN: VolcanoParams = VolcanoParams {
 pub const GUMGANG3: VolcanoParams = VolcanoParams {
     texture: "ring_yellow.tga",
     alpha_ramp_up_per_frame: 10.0,
+    alpha_peak: 100.0,
     ..LANDPROTECTOR
 };
 
@@ -184,9 +188,9 @@ impl VolcanoEffect {
         let alpha = if frame < ramp_up {
             frame * self.params.alpha_ramp_up_per_frame
         } else {
-            ALPHA_MAX - (frame - ramp_up) * self.params.alpha_ramp_down_per_frame
+            self.params.alpha_peak - (frame - ramp_up) * self.params.alpha_ramp_down_per_frame
         };
-        (alpha / 255.0).clamp(0.0, ALPHA_MAX / 255.0)
+        (alpha / 255.0).clamp(0.0, self.params.alpha_peak / 255.0)
     }
 }
 
@@ -367,7 +371,7 @@ mod tests {
         let a_late = frustum_fields(&draws(&e)[0]).2;
         assert!(a_peak > a_early, "ramping up: {a_early} → {a_peak}");
         assert!(a_late < a_peak, "fading down: {a_peak} → {a_late}");
-        assert!((a_peak - ALPHA_MAX / 255.0).abs() < 1e-4);
+        assert!((a_peak - LANDPROTECTOR.alpha_peak / 255.0).abs() < 1e-4);
     }
 
     #[test]

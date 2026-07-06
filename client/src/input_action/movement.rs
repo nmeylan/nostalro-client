@@ -8,7 +8,7 @@ impl App {
         self.game
             .entities
             .player()
-            .is_some_and(|p| ailment::movement_blocked(p.body_state))
+            .is_some_and(|p| ailment::movement_blocked(p.body_state, p.rooted))
     }
 
     pub(crate) fn initiate_attack(&mut self, target_id: u32) {

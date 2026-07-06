@@ -6,24 +6,27 @@ pub const TEXTURE: &str = "ring_yellow.tga";
 pub const TEXTURES: &[&str] = &[TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-const TOTAL_FRAMES: f32 = 180.0;
-pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
 const SIDES: u32 = 24;
 
 const DISTANCE_BASE: f32 = 1.0;
 const DISTANCE_STEP: f32 = 0.6;
-const DISTANCE_GROWTH_PER_FRAME: f32 = 0.05;
+const DISTANCE_GROWTH_PER_FRAME: f32 = 0.1;
 
 const MAX_HEIGHT: f32 = 7.0;
 
 const RISE_INITIAL_DEG: f32 = 80.0;
 const RISE_FINAL_DEG: f32 = 30.0;
-const RISE_DECAY_FRAMES: f32 = 90.0;
+const RISE_DECAY_PER_FRAME: f32 = 1.0;
 
-const ALPHA_PEAK: f32 = 0.8;
-const FADE_IN_FRAMES: f32 = 12.0;
-const FADE_OUT_FRAMES: f32 = 60.0;
+const ALPHA_RISE_FRAMES: f32 = 10.0;
+const ALPHA_B_PEAK: f32 = 200.0;
+const ALPHA_B_RISE_PER_FRAME: f32 = 20.0;
+const ALPHA_B_FALL_PER_FRAME: f32 = 2.0;
+const ALPHA_DIVISOR: f32 = 255.0;
+
+const TOTAL_FRAMES: f32 = ALPHA_RISE_FRAMES + ALPHA_B_PEAK / ALPHA_B_FALL_PER_FRAME;
+pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
 const ROT_DEG_PER_FRAME: f32 = 3.0;
 
@@ -52,22 +55,16 @@ impl Gumgang2Effect {
 }
 
 fn alpha_at(frame: f32) -> f32 {
-    if frame < 0.0 || frame >= TOTAL_FRAMES {
-        return 0.0;
-    }
-    let fade_out_start = TOTAL_FRAMES - FADE_OUT_FRAMES;
-    let fade_in = (frame / FADE_IN_FRAMES).clamp(0.0, 1.0);
-    let fade_out = if frame <= fade_out_start {
-        1.0
+    let alpha_b = if frame <= ALPHA_RISE_FRAMES {
+        (ALPHA_B_RISE_PER_FRAME * frame).min(ALPHA_B_PEAK)
     } else {
-        ((TOTAL_FRAMES - frame) / FADE_OUT_FRAMES).max(0.0)
+        (ALPHA_B_PEAK - ALPHA_B_FALL_PER_FRAME * (frame - ALPHA_RISE_FRAMES)).max(0.0)
     };
-    ALPHA_PEAK * fade_in * fade_out
+    alpha_b / ALPHA_DIVISOR
 }
 
 fn rise_angle_deg(frame: f32) -> f32 {
-    let t = (frame / RISE_DECAY_FRAMES).clamp(0.0, 1.0);
-    RISE_INITIAL_DEG + (RISE_FINAL_DEG - RISE_INITIAL_DEG) * t
+    (RISE_INITIAL_DEG - RISE_DECAY_PER_FRAME * frame).max(RISE_FINAL_DEG)
 }
 
 impl Effect for Gumgang2Effect {
@@ -165,14 +162,13 @@ mod tests {
     #[test]
     fn emits_concentric_flared_cones() {
         let mut e = Gumgang2Effect::new([5.0, 0.0, -3.0]);
-        step(&mut e, FADE_IN_FRAMES + 1.0);
+        step(&mut e, 5.0);
         let prims = draws(&e);
         assert_eq!(prims.len(), RADIAL_EMITTER_SLOTS);
         for (i, prim) in prims.iter().enumerate() {
             let (bottom, top, height, tex) = cone(prim);
-            let expected_base = DISTANCE_BASE
-                + i as f32 * DISTANCE_STEP
-                + DISTANCE_GROWTH_PER_FRAME * (FADE_IN_FRAMES + 1.0);
+            let expected_base =
+                DISTANCE_BASE + i as f32 * DISTANCE_STEP + DISTANCE_GROWTH_PER_FRAME * 5.0;
             assert!(
                 (bottom - expected_base).abs() < 1e-3,
                 "ring {i} bottom={bottom}, want {expected_base}"
@@ -193,7 +189,7 @@ mod tests {
         let (b_early, t_early, h_early, _) = cone(&draws(&e)[0]);
         let flare_early = t_early - b_early;
 
-        step(&mut e, RISE_DECAY_FRAMES);
+        step(&mut e, 36.0);
         let (b_late, t_late, h_late, _) = cone(&draws(&e)[0]);
         let flare_late = t_late - b_late;
 

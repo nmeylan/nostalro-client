@@ -925,6 +925,11 @@ pub fn spawn_camera_shake(id: EffectId) -> Option<CameraShake> {
         EffectId::ScreenQuake => (1.5, 1667),
         EffectId::NpcEarthquake => (2.2, 1300),
         EffectId::Dragonfear => (1.0, 650),
+        EffectId::Teihit1x => (1.0, 650),
+        EffectId::Gumgang2 => (1.0, 650),
+        EffectId::Hitline => (1.0, 650),
+        EffectId::Hitline2 => (1.0, 650),
+        EffectId::Bash3d2 => (1.0, 650),
         _ => return None,
     };
     Some(CameraShake {
@@ -1471,6 +1476,18 @@ mod tests {
         ));
         assert!(spawn_camera_shake(EffectId::Dragonfear).is_some());
         assert!(spawn_camera_shake(EffectId::Hit1).is_none());
+        // Champion impacts that quake the camera: Asura's target burst,
+        // Explosion Spirits / Steel Body activation ring, Combo Finish,
+        // Palm Strike, Tiger Fist.
+        for id in [
+            EffectId::Teihit1x,
+            EffectId::Gumgang2,
+            EffectId::Hitline,
+            EffectId::Hitline2,
+            EffectId::Bash3d2,
+        ] {
+            assert!(spawn_camera_shake(id).is_some(), "{id:?} must quake");
+        }
     }
 }
 

@@ -44,16 +44,16 @@ pub struct AilmentVisual {
     pub local_fullscreen_blind: bool,
 }
 
-pub fn ailment_visual(body_state: i16, health_state: i16) -> AilmentVisual {
+pub fn ailment_visual(body_state: i16, health_state: i16, rooted: bool) -> AilmentVisual {
     AilmentVisual {
-        tint: ailment_tint(body_state, health_state),
-        motion_locked: matches!(body_state, OPT1_FREEZE | OPT1_STONE),
+        tint: ailment_tint(body_state, health_state, rooted),
+        motion_locked: rooted || matches!(body_state, OPT1_FREEZE | OPT1_STONE),
         local_fullscreen_blind: health_state & OPT2_BLIND != 0,
     }
 }
 
-/// Health-state colors override body-state ones; order: Curse > Bleeding > Poison > Freeze > Stone > StoneWait.
-fn ailment_tint(body_state: i16, health_state: i16) -> Option<[u8; 3]> {
+/// Health-state colors override body-state ones; order: Curse > Bleeding > Poison > Freeze > Stone > StoneWait > Root.
+fn ailment_tint(body_state: i16, health_state: i16, rooted: bool) -> Option<[u8; 3]> {
     if health_state & OPT2_CURSE != 0 {
         return Some([200, 50, 50]);
     }
@@ -67,16 +67,15 @@ fn ailment_tint(body_state: i16, health_state: i16) -> Option<[u8; 3]> {
         OPT1_FREEZE => Some([0, 128, 255]),
         OPT1_STONE => Some([64, 64, 64]),
         OPT1_STONEWAIT => Some([128, 128, 128]),
+        _ if rooted => Some([64, 64, 64]),
         _ => None,
     }
 }
 
-/// STONEWAIT does not block movement; opt2 bits never do.
-pub fn movement_blocked(body_state: i16) -> bool {
-    matches!(
-        body_state,
-        OPT1_STONE | OPT1_FREEZE | OPT1_STUN | OPT1_SLEEP
-    )
+/// STONEWAIT does not block movement; opt2 bits never do. Root (Blade Stop)
+/// immobilizes both bound actors.
+pub fn movement_blocked(body_state: i16, rooted: bool) -> bool {
+    rooted || matches!(body_state, OPT1_STONE | OPT1_FREEZE | OPT1_STUN | OPT1_SLEEP)
 }
 
 pub fn ailment_overlays(body_state: i16, health_state: i16) -> Vec<AilmentOverlay> {
@@ -98,34 +97,47 @@ mod tests {
 
     #[test]
     fn ailment_visual_tint_precedence_and_motion_lock() {
-        let v = ailment_visual(OPT1_FREEZE, 0);
+        let v = ailment_visual(OPT1_FREEZE, 0, false);
         assert_eq!(v.tint, Some([0, 128, 255]));
         assert!(v.motion_locked);
 
-        let v = ailment_visual(0, OPT2_POISON);
+        let v = ailment_visual(0, OPT2_POISON, false);
         assert_eq!(v.tint, Some([0, 192, 64]));
         assert!(!v.motion_locked);
 
-        let v = ailment_visual(0, OPT2_POISON | OPT2_BLEEDING | OPT2_CURSE);
+        let v = ailment_visual(0, OPT2_POISON | OPT2_BLEEDING | OPT2_CURSE, false);
         assert_eq!(v.tint, Some([200, 50, 50]));
 
-        let v = ailment_visual(OPT1_FREEZE, OPT2_POISON);
+        let v = ailment_visual(OPT1_FREEZE, OPT2_POISON, false);
         assert_eq!(v.tint, Some([0, 192, 64]));
         assert!(v.motion_locked);
 
-        let v = ailment_visual(OPT1_STONEWAIT, 0);
+        let v = ailment_visual(OPT1_STONEWAIT, 0, false);
         assert_eq!(v.tint, Some([128, 128, 128]));
         assert!(!v.motion_locked);
     }
 
     #[test]
+    fn root_darkens_and_locks_but_yields_to_a_stronger_status() {
+        let v = ailment_visual(0, 0, true);
+        assert_eq!(v.tint, Some([64, 64, 64]));
+        assert!(v.motion_locked);
+
+        // A real status tint still wins over Root's dark grey.
+        let v = ailment_visual(0, OPT2_POISON, true);
+        assert_eq!(v.tint, Some([0, 192, 64]));
+        assert!(v.motion_locked, "still immobile while rooted");
+    }
+
+    #[test]
     fn movement_blocked_excludes_stonewait_and_opt2() {
-        assert!(movement_blocked(OPT1_STONE));
-        assert!(movement_blocked(OPT1_FREEZE));
-        assert!(movement_blocked(OPT1_STUN));
-        assert!(movement_blocked(OPT1_SLEEP));
-        assert!(!movement_blocked(OPT1_STONEWAIT));
-        assert!(!movement_blocked(0));
+        assert!(movement_blocked(OPT1_STONE, false));
+        assert!(movement_blocked(OPT1_FREEZE, false));
+        assert!(movement_blocked(OPT1_STUN, false));
+        assert!(movement_blocked(OPT1_SLEEP, false));
+        assert!(!movement_blocked(OPT1_STONEWAIT, false));
+        assert!(!movement_blocked(0, false));
+        assert!(movement_blocked(0, true), "root blocks movement");
     }
 
     #[test]

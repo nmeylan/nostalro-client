@@ -383,6 +383,25 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             code: p.effect_id as u8,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcSpirits>() {
+        return vec![GameEvent::SpiritsChanged {
+            gid: p.aid,
+            count: p.num.max(0) as u8,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcSpirits2>() {
+        return vec![GameEvent::SpiritsChanged {
+            gid: p.aid,
+            count: p.num.max(0) as u8,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcBladestop>() {
+        return vec![GameEvent::BladeStop {
+            src_gid: p.src_aid,
+            dest_gid: p.dest_aid,
+            active: p.flag != 0,
+        }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcResurrection>() {
         return vec![GameEvent::EntityResurrected { gid: p.aid }];
     }
@@ -1851,6 +1870,47 @@ mod tests {
                 assert_eq!(*value, None);
             }
             other => panic!("expected PlayEffectOnEntity, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_spirits_returns_spirits_changed() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcSpirits::new(packetver);
+        pkt.set_aid(150000);
+        pkt.set_num(5);
+        match &dispatch_packet(&pkt, packetver)[0] {
+            GameEvent::SpiritsChanged { gid, count } => {
+                assert_eq!(*gid, 150000);
+                assert_eq!(*count, 5);
+            }
+            other => panic!("expected SpiritsChanged, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_bladestop_toggles_root_by_flag() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcBladestop::new(packetver);
+        pkt.set_src_aid(150000);
+        pkt.set_dest_aid(160000);
+        pkt.set_flag(1);
+        match &dispatch_packet(&pkt, packetver)[0] {
+            GameEvent::BladeStop {
+                src_gid,
+                dest_gid,
+                active,
+            } => {
+                assert_eq!(*src_gid, 150000);
+                assert_eq!(*dest_gid, 160000);
+                assert!(*active);
+            }
+            other => panic!("expected BladeStop, got {other:?}"),
+        }
+        pkt.set_flag(0);
+        match &dispatch_packet(&pkt, packetver)[0] {
+            GameEvent::BladeStop { active, .. } => assert!(!*active),
+            other => panic!("expected BladeStop, got {other:?}"),
         }
     }
 

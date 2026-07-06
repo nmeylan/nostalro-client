@@ -1,6 +1,7 @@
 use crate::App;
 use models::enums::EnumWithNumberValue;
 use models::enums::action::ActionType;
+use models::enums::class::JobName;
 use models::enums::client_effect_icon::ClientEffectIcon;
 use models::enums::effect_id::EffectId;
 use models::enums::vanish::VanishType;
@@ -416,8 +417,8 @@ impl App {
             entity.health_state = health_state;
         }
         if is_player
-            && ailment::movement_blocked(body_state)
             && let Some(player) = self.game.entities.player_mut()
+            && ailment::movement_blocked(body_state, player.rooted)
         {
             player.movement.stop();
         }
@@ -699,10 +700,42 @@ impl App {
         }
     }
 
+    /// Spirit spheres (Call Spirits / Explosion Spirits etc.): `count` orbiting
+    /// balls, replaced whenever the server re-sends the count and cleared at 0.
+    /// Champions and Gunslingers get their own sphere variant.
+    pub(super) fn handle_spirits_changed(&mut self, gid: u32, count: u8) {
+        if let Some(old_key) = self.game.spirit_keys.remove(&gid) {
+            self.effect_queue.despawn(old_key);
+        }
+        if count == 0 {
+            return;
+        }
+        let Some(job) = self
+            .game
+            .entities
+            .get(gid)
+            .and_then(|e| JobName::try_from_value(e.job as usize).ok())
+        else {
+            return;
+        };
+        let effect = match job {
+            JobName::Champion => EffectId::Chookgi2,
+            JobName::Gunslinger => EffectId::Chookgi3,
+            _ => EffectId::Chookgi,
+        };
+        let key = self.next_entity_effect_key();
+        self.effect_queue
+            .spawn_on_keyed_with_count(effect, gid, key, count);
+        self.game.spirit_keys.insert(gid, key);
+    }
+
     pub(crate) fn despawn_entity_effects(&mut self, gid: u32) {
         self.despawn_level_aura(gid);
         self.despawn_boss_aura(gid);
         self.despawn_warp_portal(gid);
+        if let Some(key) = self.game.spirit_keys.remove(&gid) {
+            self.effect_queue.despawn(key);
+        }
     }
 
     fn next_entity_effect_key(&mut self) -> u32 {

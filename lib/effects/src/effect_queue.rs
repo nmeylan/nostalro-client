@@ -89,6 +89,20 @@ impl EffectQueue {
         });
     }
 
+    pub fn spawn_on_keyed_with_count(
+        &mut self,
+        effect_id: EffectId,
+        entity_id: u32,
+        key: u32,
+        hit_count: u8,
+    ) {
+        self.push(SpawnRequest {
+            key: Some(key),
+            hit_count: Some(hit_count),
+            ..SpawnRequest::new(effect_id, Attach::Entity(entity_id))
+        });
+    }
+
     pub fn spawn_on_keyed_for(
         &mut self,
         effect_id: EffectId,
@@ -154,6 +168,7 @@ impl EffectQueue {
     }
 
     pub fn despawn(&mut self, key: u32) {
+        self.pending.retain(|r| r.key != Some(key));
         self.despawns.push(key);
     }
 
@@ -184,6 +199,30 @@ mod tests {
         q.despawn(7);
         assert_eq!(q.drain_despawns(), vec![7]);
         assert!(q.drain_despawns().is_empty());
+    }
+
+    #[test]
+    fn despawn_cancels_a_same_frame_pending_spawn_of_that_key() {
+        // Spirit spheres ramping 1→2→3 in one frame: each step despawns the
+        // previous key then queues the next. Only the last spawn must survive,
+        // and the superseded keys must not leak into the holder.
+        let mut q = EffectQueue::new();
+        q.spawn_on_keyed_with_count(EffectId::Chookgi2, 42, 1, 1);
+        q.despawn(1);
+        q.spawn_on_keyed_with_count(EffectId::Chookgi2, 42, 2, 2);
+        q.despawn(2);
+        q.spawn_on_keyed_with_count(EffectId::Chookgi2, 42, 3, 3);
+
+        let pending = q.drain();
+        assert_eq!(pending.len(), 1, "only the final spawn survives");
+        assert_eq!(pending[0].key, Some(3));
+        assert_eq!(pending[0].hit_count, Some(3));
+
+        // Dropping to 0 spheres in one frame must cancel the pending spawn too.
+        let mut q = EffectQueue::new();
+        q.spawn_on_keyed_with_count(EffectId::Chookgi2, 42, 5, 5);
+        q.despawn(5);
+        assert!(q.drain().is_empty(), "count→0 leaves no pending spheres");
     }
 
     #[test]

@@ -64,8 +64,12 @@ impl App {
 
                         let mut body_channels =
                             self.effect_holder.body_channels_for_entity(entry.id);
-                        if let Some(rgb) =
-                            ailment::ailment_visual(entity.body_state, entity.health_state).tint
+                        if let Some(rgb) = ailment::ailment_visual(
+                            entity.body_state,
+                            entity.health_state,
+                            entity.rooted,
+                        )
+                        .tint
                         {
                             body_channels.tint = Some(rgb);
                         }

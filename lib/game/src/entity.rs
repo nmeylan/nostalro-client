@@ -154,6 +154,8 @@ pub struct Entity {
     pub effect_state: i32,
     pub body_state: i16,
     pub health_state: i16,
+    /// Blade Stop / Root: darkens the body and freezes motion until released.
+    pub rooted: bool,
     pub base_level: i16,
     pub is_boss: bool,
     pub forced_animation: Option<ForcedAnimation>,
@@ -229,6 +231,7 @@ impl Entity {
             effect_state: 0,
             body_state: 0,
             health_state: 0,
+            rooted: false,
             base_level: 0,
             is_boss: false,
             forced_animation: None,

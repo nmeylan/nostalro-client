@@ -153,6 +153,15 @@ pub enum GameEvent {
         gid: u32,
         code: u8,
     },
+    SpiritsChanged {
+        gid: u32,
+        count: u8,
+    },
+    BladeStop {
+        src_gid: u32,
+        dest_gid: u32,
+        active: bool,
+    },
     StatusEffectChanged {
         gid: u32,
         efst: i16,

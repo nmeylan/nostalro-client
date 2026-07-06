@@ -22,12 +22,6 @@ use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// The reference gif plays the burst over ~2.1 s; the raw
-/// per-frame curve completes in ~1 s at 60 fps. Advance the state machine at
-/// this fraction of real frames to stretch it to the gif's wall-clock pace
-/// while keeping the rise/fall/travel shape intact.
-const TIME_SCALE: f32 = 0.4;
-
 /// Unit → world-unit factor. Unlike some effects, the streak's raw
 /// distance (grows to ~140) is already near world scale: the burst fills
 /// almost the whole screen in the original, so the streaks travel out tens of
@@ -68,8 +62,8 @@ pub const TEIHIT1: TeihitParams = TeihitParams {
     distance_speed: 3.0,
     half_len: 0.7 * 24.0,
     width: 0.7,
-    delay_base: 4,
-    delay_rand: 12,
+    delay_base: 10,
+    delay_rand: 25,
 };
 pub const TEIHIT1X: TeihitParams = TeihitParams {
     texture: "lens1.tga",
@@ -78,8 +72,8 @@ pub const TEIHIT1X: TeihitParams = TeihitParams {
     distance_speed: 3.0,
     half_len: 0.7 * 24.0,
     width: 0.7,
-    delay_base: 4,
-    delay_rand: 12,
+    delay_base: 10,
+    delay_rand: 25,
 };
 pub const TEIHIT3: TeihitParams = TeihitParams {
     texture: "lens2.tga",
@@ -88,8 +82,8 @@ pub const TEIHIT3: TeihitParams = TeihitParams {
     distance_speed: 2.0,
     half_len: 1.0 * 16.0,
     width: 1.0,
-    delay_base: 6,
-    delay_rand: 8,
+    delay_base: 20,
+    delay_rand: 10,
 };
 
 /// The directional spray (`EF_TEIHIT2` / `EF_BACKSTAP`). Distinct from the
@@ -237,7 +231,7 @@ impl TeihitEffect {
 
 impl Effect for TeihitEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
-        self.frame_accum += ctx.delta * FRAMES_PER_SECOND * TIME_SCALE;
+        self.frame_accum += ctx.delta * FRAMES_PER_SECOND;
         while self.frame_accum >= 1.0 {
             self.frame_accum -= 1.0;
             self.step_frame();
@@ -387,12 +381,9 @@ impl Effect for TeiHit2Effect {
 mod tests {
     use super::*;
 
-    /// Advance the effect by `source_frames` of streak state, i.e.
-    /// `source_frames / TIME_SCALE` real ticks at 60 fps.
     fn tick(e: &mut TeihitEffect, source_frames: u32) -> EffectStatus {
         let mut st = EffectStatus::Running;
-        let real_ticks = (source_frames as f32 / TIME_SCALE).ceil() as u32;
-        for _ in 0..real_ticks {
+        for _ in 0..source_frames {
             st = e.update(&EffectUpdateCtx {
                 delta: 1.0 / FRAMES_PER_SECOND,
                 camera_target: None,

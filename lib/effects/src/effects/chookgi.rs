@@ -6,7 +6,7 @@ pub const TOTAL_DURATION_MS: u32 = 99990;
 
 pub const TEXTURES: &[&str] = &["thunder_center.bmp"];
 
-const WORLD_SCALE: f32 = 0.5;
+const WORLD_SCALE: f32 = 1.0;
 const SQRT2: f32 = std::f32::consts::SQRT_2;
 
 pub const MAX_ORBS: usize = 5;
@@ -30,7 +30,7 @@ pub const CHOOKGI: ChookgiParams = ChookgiParams {
     outer: [0.0, 0.0, 1.0],
     inner: [1.0, 1.0, 0.0],
     orbit_radius: 7.0 * WORLD_SCALE,
-    lift: 24.0 * WORLD_SCALE,
+    lift: 15.0 * WORLD_SCALE,
     quad_distance: 2.0 * WORLD_SCALE,
     jitter: 1.0 * WORLD_SCALE,
     half_speed: false,
@@ -41,7 +41,7 @@ pub const CHOOKGI2: ChookgiParams = ChookgiParams {
     outer: [0.0, 0.0, 1.0],
     inner: [1.0, 1.0, 0.0],
     orbit_radius: 5.5 * WORLD_SCALE,
-    lift: 30.0 * WORLD_SCALE,
+    lift: 14.0 * WORLD_SCALE,
     quad_distance: 1.3 * WORLD_SCALE,
     jitter: 0.7 * WORLD_SCALE,
     half_speed: false,
@@ -52,7 +52,7 @@ pub const CHOOKGI3: ChookgiParams = ChookgiParams {
     outer: [68.0 / 255.0, 42.0 / 255.0, 30.0 / 255.0],
     inner: [1.0, 1.0, 1.0],
     orbit_radius: 7.0 * WORLD_SCALE,
-    lift: 32.0 * WORLD_SCALE,
+    lift: 15.0 * WORLD_SCALE,
     quad_distance: 1.0 * WORLD_SCALE,
     jitter: 0.5 * WORLD_SCALE,
     half_speed: true,
@@ -125,6 +125,10 @@ impl Effect for ChookgiEffect {
             orb.pulse = (orb.pulse + 7.0 * frames) % 360.0;
         }
         EffectStatus::Running
+    }
+
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
@@ -270,6 +274,15 @@ mod tests {
         assert!((three.orbs[1].orbit_angle - 120.0).abs() < 1e-3);
         let three_fixed = ChookgiEffect::new([0.0; 3], CHOOKGI, 3);
         assert!((three_fixed.orbs[1].orbit_angle - 72.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn orbs_follow_entity_after_set_position() {
+        let mut e = ChookgiEffect::new([0.0; 3], CHOOKGI, MAX_ORBS);
+        tick(&mut e, 5);
+        e.set_position([40.0, 0.0, -12.0]);
+        let p = first_pos(&e);
+        assert!((p[0] - 40.0).abs() < 8.0 && (p[2] + 12.0).abs() < 8.0, "orbs recenter on moved entity");
     }
 
     fn first_pos(e: &ChookgiEffect) -> [f32; 3] {

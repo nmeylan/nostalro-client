@@ -106,6 +106,10 @@ impl Connection {
             [0x1c, 0x01] => Some(2 + 2 + 4 * 16),
             // ZC_SHORTCUT_KEY_LIST_V3 (0x0a00): 3 + 38*7 = 269
             [0x00, 0x0a] => Some(3 + 38 * 7),
+            // ZC_FASTMOVE (0x08d2): 2 + 4 + 2 + 2 = 10 (Snap). The parser has no
+            // struct for it, so without this the id byte 0xe4 is misread as a
+            // length and the stream desyncs.
+            [0xd2, 0x08] => Some(10),
             _ => None,
         }
     }
@@ -118,6 +122,16 @@ impl Connection {
             }
         }
         4.min(data.len())
+    }
+
+    /// Bytes to advance past a packet the typed parser can't decode. A known
+    /// fixed size wins over the length-guess (which reads bytes [2..4] and is
+    /// wrong for fixed packets whose id is followed by an id/coord field).
+    fn skip_len(packet_id: [u8; 2], data: &[u8], packetver: u32) -> usize {
+        if let Some(size) = Self::fixed_packet_size(packet_id, packetver) {
+            return size.min(data.len());
+        }
+        Self::estimate_packet_len(data)
     }
 
     fn slice_to_packet_len(data: &[u8]) -> &[u8] {
@@ -152,6 +166,21 @@ impl Connection {
 
         while offset < self.recv_buffer.len() {
             let remaining = self.recv_buffer[offset..].to_vec();
+            // ZC_FASTMOVE (Snap, 0x08d2): id.W aid.L x.W y.W — byte-identical to
+            // ZC_STOPMOVE, but the packet crate has no struct for it. Rebrand the
+            // header so it parses as a stopmove and relocates the caster.
+            if remaining.len() >= 10 && remaining[0] == 0xd2 && remaining[1] == 0x08 {
+                let mut buf = remaining[..10].to_vec();
+                buf[0] = 0x88;
+                buf[1] = 0x00;
+                if let Ok(pkt) = panic::catch_unwind(|| packets_parser::parse(&buf, packetver))
+                    && pkt.name() != "Unknown"
+                {
+                    packets.push(pkt);
+                }
+                offset += 10;
+                continue;
+            }
             let parse_buf = if remaining.len() >= 2 {
                 let pkt_id = [remaining[0], remaining[1]];
                 if Self::is_variable_length_packet(pkt_id, packetver) {
@@ -172,7 +201,8 @@ impl Connection {
             match result {
                 Ok(packet) => {
                     if packet.name() == "Unknown" {
-                        let skip = Self::estimate_packet_len(&remaining);
+                        let skip =
+                            Self::skip_len([remaining[0], remaining[1]], &remaining, packetver);
                         tracing::info!(
                             "skipping unknown packet 0x{:02x}{:02x} ({skip} bytes), buffer_remaining={}",
                             remaining[0],
@@ -204,7 +234,11 @@ impl Connection {
                         remaining.first().copied().unwrap_or(0),
                         remaining.get(1).copied().unwrap_or(0)
                     );
-                    let skip = Self::estimate_packet_len(&remaining);
+                    let pkt_id = [
+                        remaining.first().copied().unwrap_or(0),
+                        remaining.get(1).copied().unwrap_or(0),
+                    ];
+                    let skip = Self::skip_len(pkt_id, &remaining, packetver);
                     offset += skip;
                     continue;
                 }
@@ -213,5 +247,22 @@ impl Connection {
 
         self.recv_buffer.drain(..offset);
         Ok(packets)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fastmove_skips_its_full_length_not_a_guess_from_the_id_field() {
+        // ZC_FASTMOVE (Snap): id 0x08d2, then AID 0x001e84e4, then coords. The
+        // bytes after the id (0xe4, 0x84) must not be misread as a length.
+        let fastmove = [0xd2, 0x08, 0xe4, 0x84, 0x1e, 0x00, 0x36, 0x00, 0x86, 0x00];
+        assert_eq!(
+            Connection::skip_len([0xd2, 0x08], &fastmove, 20120307),
+            10,
+            "the whole 10-byte packet must be consumed to keep the stream aligned"
+        );
     }
 }

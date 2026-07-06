@@ -23,7 +23,9 @@ impl App {
                 if entity.state == EntityState::Dead && entity.animation.is_finished() {
                     continue;
                 }
-                if ailment::ailment_visual(entity.body_state, entity.health_state).motion_locked {
+                if ailment::ailment_visual(entity.body_state, entity.health_state, entity.rooted)
+                    .motion_locked
+                {
                     continue;
                 }
                 let dir = camera_dir.unwrap_or(0);

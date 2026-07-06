@@ -205,6 +205,23 @@ impl App {
                 GameEvent::PlayMiscEffectOnEntity { gid, code } => {
                     self.handle_play_misc_effect_on_entity(gid, code);
                 }
+                GameEvent::SpiritsChanged { gid, count } => {
+                    self.handle_spirits_changed(gid, count);
+                }
+                GameEvent::BladeStop {
+                    src_gid,
+                    dest_gid,
+                    active,
+                } => {
+                    for gid in [src_gid, dest_gid] {
+                        if let Some(entity) = self.game.entities.get_mut(gid) {
+                            entity.rooted = active;
+                            if active {
+                                entity.movement.stop();
+                            }
+                        }
+                    }
+                }
                 GameEvent::StatusEffectChanged {
                     gid,
                     efst,
