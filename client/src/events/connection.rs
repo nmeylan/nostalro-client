@@ -349,6 +349,17 @@ impl App {
         }
     }
 
+    pub(super) fn handle_disconnect_ack(&mut self, allowed: bool, event_loop: &ActiveEventLoop) {
+        if allowed {
+            self.channel.send_cmd(NetworkCommand::Disconnect);
+            event_loop.exit();
+        } else {
+            self.game
+                .chat_window
+                .add_system("You cannot exit now.".to_string());
+        }
+    }
+
     pub(super) fn handle_disconnected(&mut self, reason: String, event_loop: &ActiveEventLoop) {
         if reason == "User exit" {
             event_loop.exit();

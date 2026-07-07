@@ -69,6 +69,9 @@ pub enum GameEvent {
     BackToCharacterSelect,
     RestartAck,
     QuitGame,
+    DisconnectAck {
+        allowed: bool,
+    },
     EntitySpawned {
         gid: u32,
         job: u16,

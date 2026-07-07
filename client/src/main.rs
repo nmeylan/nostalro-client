@@ -48,7 +48,7 @@ use ragnarok_network::{
     build_change_party_exp_option_packet, build_expel_party_member_packet,
     build_join_party_reply_packet, build_leave_party_packet, build_make_party_packet,
     build_party_chat_packet, build_remove_option_packet, build_req_enter_room_packet,
-    build_req_join_party_packet, build_reqname_packet,
+    build_req_disconnect_packet, build_req_join_party_packet, build_reqname_packet,
     build_restart_packet, build_select_char_packet, build_select_warppoint_packet,
     build_sell_item_list_packet, build_shortcut_key_change_packet, build_stat_change_packet,
     build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet,
@@ -450,8 +450,9 @@ impl App {
                         .send_packet(build_restart_packet(self.config.packetver));
                 }
                 GameEvent::QuitGame => {
-                    self.channel.send_cmd(NetworkCommand::Disconnect);
-                    event_loop.exit();
+                    self.game.system_menu.open = false;
+                    self.channel
+                        .send_packet(build_req_disconnect_packet(self.config.packetver));
                 }
                 GameEvent::RequestNpcContact { npc_id } => {
                     self.channel

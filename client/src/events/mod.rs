@@ -69,6 +69,9 @@ impl App {
                 GameEvent::RestartAck => {
                     self.handle_restart_ack();
                 }
+                GameEvent::DisconnectAck { allowed } => {
+                    self.handle_disconnect_ack(allowed, event_loop);
+                }
 
                 GameEvent::MapEntered { x, y, dir, .. } => {
                     self.handle_map_entered(x, y, dir);

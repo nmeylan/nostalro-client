@@ -2,14 +2,18 @@ use crate::App;
 use models::enums::effect_id::EffectId;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::entity::EntityState;
+use ragnarok_game::sprite_path::OPTION_CHASEWALK;
 
 impl App {
-    /// Running characters stamp alternating left/right footprints on the ground,
-    /// oriented to their facing, at a fixed cadence while moving. The prints
-    /// linger and fade on their own; the stop puff is spawned separately when the
+    /// Running and Chase Walking characters stamp alternating left/right
+    /// footprints on the ground, oriented to their facing, at a fixed cadence
+    /// while moving. Running leaves the wide dust prints; Chase Walk leaves the
+    /// dark hidden-tread prints at a slower cadence. The prints linger and fade
+    /// on their own; the running stop puff is spawned separately when the
     /// running status ends.
     pub(crate) fn update_running_footprints(&mut self, delta: f32) {
-        const STEP_INTERVAL: f32 = 7.0 / 60.0;
+        const RUN_STEP_INTERVAL: f32 = 7.0 / 60.0;
+        const CHASEWALK_STEP_INTERVAL: f32 = 12.0 / 60.0;
         // Cell-space offset for each of the 8 facings (matches direction_from_positions).
         const DIR_OFFSET: [(f32, f32); 8] = [
             (0.0, 1.0),
@@ -27,18 +31,24 @@ impl App {
         };
         let mut prints: Vec<(EffectId, [f32; 3], [f32; 3])> = Vec::new();
         for entity in self.game.entities.iter_mut() {
-            if !entity.is_running {
+            let chasewalk = entity.effect_state & OPTION_CHASEWALK != 0;
+            if !entity.is_running && !chasewalk {
                 continue;
             }
             if entity.state != EntityState::Moving {
                 entity.footstep_timer = 0.0;
                 continue;
             }
+            let interval = if chasewalk {
+                CHASEWALK_STEP_INTERVAL
+            } else {
+                RUN_STEP_INTERVAL
+            };
             entity.footstep_timer -= delta;
             if entity.footstep_timer > 0.0 {
                 continue;
             }
-            entity.footstep_timer = STEP_INTERVAL;
+            entity.footstep_timer = interval;
             entity.footstep_left = !entity.footstep_left;
             let (cx, cy) = entity.movement.position();
             let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
@@ -46,10 +56,11 @@ impl App {
             let (ox, oy) = DIR_OFFSET[(entity.direction & 7) as usize];
             let (tx, _, tz) = coords.cell_to_world(cx + 0.5 + ox, cy + 0.5 + oy);
             let to = [tx, from[1], tz];
-            let id = if entity.footstep_left {
-                EffectId::Foot3
-            } else {
-                EffectId::Foot4
+            let id = match (chasewalk, entity.footstep_left) {
+                (true, true) => EffectId::Foot,
+                (true, false) => EffectId::Foot2,
+                (false, true) => EffectId::Foot3,
+                (false, false) => EffectId::Foot4,
             };
             prints.push((id, from, to));
         }

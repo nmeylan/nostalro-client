@@ -5,9 +5,9 @@ use models::enums::EnumWithStringValue;
 use models::enums::skill_enums::SkillEnum;
 use models::enums::weapon::WeaponType;
 use ragnarok_game::effect::{
-    beginspell_for_element, caster_skill_effects, casting_skill, fire_glyph_effect,
-    ground_placed_effect, is_cast_circle, is_caster_link_effect, is_ground_cast, is_trail_effect,
-    target_skill_effects, trail_arrival_secs,
+    beginspell_for_element, caster_cast_on_use, caster_skill_effects, casting_skill,
+    fire_glyph_effect, ground_placed_effect, is_cast_circle, is_caster_link_effect, is_ground_cast,
+    is_trail_effect, target_skill_effects, trail_arrival_secs,
 };
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
@@ -294,7 +294,15 @@ impl App {
             for e in fire_glyph_effect(skill) {
                 self.effect_queue.spawn_on(*e, src_gid);
             }
-            for e in caster_skill_effects(skill).cast {
+            // Self-centered AoE skills fire their caster signature from the
+            // no-damage (use) packet the server sends first; re-firing it here
+            // would duplicate it once per hit target and a full wind-up late.
+            let caster_cast = if caster_cast_on_use(skill) {
+                &[][..]
+            } else {
+                caster_skill_effects(skill).cast
+            };
+            for e in caster_cast {
                 match trail {
                     // Caster-anchored-with-target (Soul Breaker): spawn on the
                     // caster so it recolors the caster body, crescent still aimed

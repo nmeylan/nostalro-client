@@ -579,7 +579,7 @@ impl EffectHolder {
                 HeldPayload::Str { .. } => true,
                 HeldPayload::Spr { .. } => true,
                 HeldPayload::SprBurst(b) => {
-                    update_burst(b, &e.attach, dt, ctx.camera_target);
+                    update_burst(b, &e.attach, dt, ctx.camera_target, resolve_entity_pos);
                     true
                 }
             };
@@ -935,19 +935,19 @@ fn attach_to_anchor(
     }
 }
 
-fn update_burst(b: &mut BurstState, attach: &Attach, dt: f32, camera_target: Option<[f32; 3]>) {
+fn update_burst(
+    b: &mut BurstState,
+    attach: &Attach,
+    dt: f32,
+    camera_target: Option<[f32; 3]>,
+    resolve_entity_pos: &dyn Fn(u32) -> Option<[f32; 3]>,
+) {
     let anchor = if b.params.follow_camera
         && let Some(p) = camera_target
     {
         p
     } else {
-        match attach {
-            Attach::WorldPos(p) => *p,
-            Attach::Entity(_)
-            | Attach::Projectile { .. }
-            | Attach::Trail { .. }
-            | Attach::Link { .. } => [0.0; 3],
-        }
+        resolve_position(attach, resolve_entity_pos).unwrap_or([0.0; 3])
     };
 
     if !b.has_emitted {
@@ -1507,6 +1507,24 @@ mod tests {
             any_xz_motion,
             "cone scatter should give at least one particle non-zero XZ drift after one tick"
         );
+    }
+
+    #[test]
+    fn entity_anchored_burst_emits_at_resolved_entity_position() {
+        let mut h = EffectHolder::new();
+        h.spawn(EffectId::Steal, Attach::Entity(7), None)
+            .expect("spawn");
+        let resolve = |id: u32| (id == 7).then_some([100.0, 50.0, 200.0]);
+        h.update(&ctx(0.05), &|_| None, &resolve);
+        let snaps = h.collect_spr_burst_emitters(&resolve);
+        let snap = &snaps[0];
+        for sp in &snap.particles {
+            assert!(
+                (sp.pos[0] - 100.0).abs() < 5.0 && (sp.pos[2] - 200.0).abs() < 5.0,
+                "particle must spawn on the target entity, not the map origin: {:?}",
+                sp.pos
+            );
+        }
     }
 
     #[test]

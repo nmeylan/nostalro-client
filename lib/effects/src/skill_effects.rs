@@ -103,6 +103,14 @@ pub fn is_ground_cast(skill: SkillEnum) -> bool {
     )
 }
 
+pub fn caster_cast_on_use(skill: SkillEnum) -> bool {
+    use SkillEnum as S;
+    matches!(
+        skill,
+        S::AscMeteorassault | S::SmMagnum | S::WzSightrasher | S::RgRaid
+    )
+}
+
 pub fn ground_placed_effect(skill: SkillEnum, level: i16) -> &'static [EffectId] {
     use EffectId as E;
     use SkillEnum as S;
@@ -498,7 +506,22 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
     type T = TargetSkillEffects;
 
     match skill {
-        S::SmMagnum => T::hit(&[E::Firehit]),
+        // Self-AoE caster fx (fired at the use packet) charge up before impact;
+        // hold the hit so the damage lands when the effect hits, not on the
+        // backdated server tick that would otherwise precede the visual.
+        S::SmMagnum => T {
+            hit: &[E::Firehit],
+            hit_extra_delay_secs: 8.0 / 60.0,
+            ..Default::default()
+        },
+        S::AscMeteorassault => T {
+            hit_extra_delay_secs: 28.0 / 60.0,
+            ..Default::default()
+        },
+        S::RgRaid => T {
+            hit_extra_delay_secs: 20.0 / 60.0,
+            ..Default::default()
+        },
         S::SmProvoke => T::on_target(&[E::Provoke]),
         S::MgNapalmbeat => T::on_target(&[E::Hit2]),
         S::MgSoulstrike => T {
@@ -600,7 +623,11 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::PrStrecovery => T::on_target(&[E::Recovery]),
         S::HpAssumptio | S::CashAssumptio => T::on_target(&[E::Assumptio, E::Assumptio2]),
         S::WzFirepillar => T::hit(&[E::Firehit]),
-        S::WzSightrasher => T::hit(&[E::Firehit]),
+        S::WzSightrasher => T {
+            hit: &[E::Firehit],
+            hit_extra_delay_secs: 10.0 / 60.0,
+            ..Default::default()
+        },
         S::WzJupitel => T {
             on_target: &[E::Yufitel],
             hit: &[E::Yufitelhit],

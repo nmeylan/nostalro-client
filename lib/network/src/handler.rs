@@ -77,6 +77,11 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if any.downcast_ref::<PacketZcRestartAck>().is_some() {
         return vec![GameEvent::RestartAck];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcAckReqDisconnect>() {
+        return vec![GameEvent::DisconnectAck {
+            allowed: p.result == 0,
+        }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcNpcackMapmove>() {
         let map_name: String = p.map_name.iter().take_while(|c| **c != '\0').collect();
         return vec![GameEvent::MapChanged {
@@ -1342,6 +1347,35 @@ mod tests {
             result.as_slice(),
             [GameEvent::CartNormalItems { .. }]
         ));
+    }
+
+    #[test]
+    fn disconnect_ack_maps_result_and_request_carries_quit_type() {
+        let packetver = 20120307;
+
+        let mut allowed = PacketZcAckReqDisconnect::new(packetver);
+        allowed.set_result(0);
+        allowed.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&allowed, packetver).as_slice(),
+            [GameEvent::DisconnectAck { allowed: true }]
+        ));
+
+        let mut refused = PacketZcAckReqDisconnect::new(packetver);
+        refused.set_result(1);
+        refused.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&refused, packetver).as_slice(),
+            [GameEvent::DisconnectAck { allowed: false }]
+        ));
+
+        let raw = crate::sender::build_req_disconnect_packet(packetver);
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        let request = parsed
+            .as_any()
+            .downcast_ref::<PacketCzReqDisconnect>()
+            .expect("parsed as disconnect request");
+        assert_eq!(request.atype, 0);
     }
 
     #[test]
