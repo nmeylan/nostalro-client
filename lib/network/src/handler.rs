@@ -457,6 +457,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
 
     if let Some(p) = any.downcast_ref::<PacketZcUseskillAck2>() {
+        let name = SkillEnum::from_id(p.skid as u32).to_name().to_string();
         return vec![GameEvent::SkillCasting {
             gid: p.aid,
             target_gid: p.target_id,
@@ -465,9 +466,11 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             delay_ms: p.delay_time,
             x: p.x_pos,
             y: p.y_pos,
+            skill_name: Some(name),
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcUseskillAck>() {
+        let name = SkillEnum::from_id(p.skid as u32).to_name().to_string();
         return vec![GameEvent::SkillCasting {
             gid: p.aid,
             target_gid: p.target_id,
@@ -476,6 +479,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             delay_ms: p.delay_time,
             x: p.x_pos,
             y: p.y_pos,
+            skill_name: Some(name),
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcAckTouseskill>() {
@@ -526,7 +530,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifySkill>() {
-        let name = SkillEnum::from_id(p.skid as u32).to_name().to_string();
         return vec![GameEvent::SkillDamage {
             skill_id: p.skid,
             src_gid: p.aid,
@@ -537,12 +540,10 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             count: p.count,
             level: p.level,
             action: ActionType::from_value(p.action as usize),
-            skill_name: Some(name),
             start_time: p.start_time,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifySkill2>() {
-        let name = SkillEnum::from_id(p.skid as u32).to_name().to_string();
         return vec![GameEvent::SkillDamage {
             skill_id: p.skid,
             src_gid: p.aid,
@@ -553,7 +554,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             count: p.count,
             level: p.level,
             action: ActionType::from_value(p.action as usize),
-            skill_name: Some(name),
             start_time: p.start_time,
         }];
     }
@@ -565,26 +565,22 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcUseSkill>() {
         if p.result {
-            let name = SkillEnum::from_id(p.skid as u32).to_name().to_string();
             return vec![GameEvent::SkillNoDamage {
                 skill_id: p.skid,
                 src_gid: p.src_aid,
                 target_gid: p.target_aid,
                 level: p.level,
-                skill_name: Some(name),
             }];
         }
         return vec![GameEvent::Acknowledged];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyGroundskill>() {
-        let name = SkillEnum::from_id(p.skid as u32).to_name().to_string();
         return vec![GameEvent::GroundSkill {
             skill_id: p.skid,
             src_gid: p.aid,
             level: p.level,
             x: p.x_pos,
             y: p.y_pos,
-            skill_name: Some(name),
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcSkillEntry>() {
@@ -1966,6 +1962,7 @@ mod tests {
                 delay_ms,
                 x,
                 y,
+                skill_name,
             } => {
                 assert_eq!(*gid, 150000);
                 assert_eq!(*target_gid, 200000);
@@ -1974,6 +1971,7 @@ mod tests {
                 assert_eq!(*delay_ms, 2000);
                 assert_eq!(*x, 0);
                 assert_eq!(*y, 0);
+                assert_eq!(skill_name.as_deref(), Some("MG_SIGHT"));
             }
             other => panic!("expected SkillCasting, got {other:?}"),
         }

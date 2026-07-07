@@ -18,8 +18,8 @@ use ragnarok_game::level_aura;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::sprite_path::{
-    JT_WARPNPC, OPTION_RIDING, cart_design_from_option, entity_type_from_job, has_falcon,
-    is_hidden, visual_job,
+    JT_WARPNPC, OPTION_RIDING, OPTION_RUWACH, OPTION_SIGHT, cart_design_from_option,
+    entity_type_from_job, has_falcon, is_hidden, visual_job,
 };
 use ragnarok_game::status_icon::status_icon_info;
 
@@ -510,6 +510,45 @@ impl App {
         }
         self.refresh_level_aura(gid);
         self.refresh_boss_aura(gid);
+        self.refresh_detect_aura(gid);
+    }
+
+    /// Detect-hidden auras (Sight / Ruwach): the original shows no effect at
+    /// cast and instead re-launches the aura for as long as the OPTION bit is
+    /// set. Reconcile each against its option bit — spawn a persistent orbit
+    /// when the bit turns on, drop it when it clears.
+    pub(super) fn refresh_detect_aura(&mut self, gid: u32) {
+        let Some(effect_state) = self.game.entities.get(gid).map(|e| e.effect_state) else {
+            return;
+        };
+        let want_sight = effect_state & OPTION_SIGHT != 0;
+        match (want_sight, self.game.sight_aura_keys.contains_key(&gid)) {
+            (true, false) => {
+                let key = self.next_entity_effect_key();
+                self.effect_queue.spawn_on_keyed(EffectId::Sight2, gid, key);
+                self.game.sight_aura_keys.insert(gid, key);
+            }
+            (false, true) => {
+                if let Some(key) = self.game.sight_aura_keys.remove(&gid) {
+                    self.effect_queue.despawn(key);
+                }
+            }
+            _ => {}
+        }
+        let want_ruwach = effect_state & OPTION_RUWACH != 0;
+        match (want_ruwach, self.game.ruwach_aura_keys.contains_key(&gid)) {
+            (true, false) => {
+                let key = self.next_entity_effect_key();
+                self.effect_queue.spawn_on_keyed(EffectId::Ruwach, gid, key);
+                self.game.ruwach_aura_keys.insert(gid, key);
+            }
+            (false, true) => {
+                if let Some(key) = self.game.ruwach_aura_keys.remove(&gid) {
+                    self.effect_queue.despawn(key);
+                }
+            }
+            _ => {}
+        }
     }
 
     pub(super) fn handle_status_effect_changed(
@@ -551,6 +590,9 @@ impl App {
                 self.effect_queue.spawn_on(EffectId::Quakebody, gid);
             }
             return;
+        }
+        if icon == ClientEffectIcon::Mindbreaker && active {
+            self.effect_queue.spawn_on(EffectId::Magiccrasher2, gid);
         }
         if self.game.entities.player_id() == Some(gid) {
             if let Some(info) = status_icon_info(efst) {
@@ -734,6 +776,12 @@ impl App {
         self.despawn_boss_aura(gid);
         self.despawn_warp_portal(gid);
         if let Some(key) = self.game.spirit_keys.remove(&gid) {
+            self.effect_queue.despawn(key);
+        }
+        if let Some(key) = self.game.sight_aura_keys.remove(&gid) {
+            self.effect_queue.despawn(key);
+        }
+        if let Some(key) = self.game.ruwach_aura_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
     }

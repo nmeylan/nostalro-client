@@ -43,7 +43,7 @@ rfd = "0.15"
 tokio = { version = "1", features = ["net", "rt", "sync", "macros", "io-util", "time"] }
 
 # Server crate git dependencies
-models = { git = "https://github.com/nmeylan/rust-ro.git", rev = "6615ae95" }
+models = { git = "https://github.com/nmeylan/rust-ro.git", rev = "8c18abae" }
 movement = { git = "https://github.com/nmeylan/rust-ro.git", rev = "6615ae95" }
 packets = { git = "https://github.com/nmeylan/rust-ro.git", rev = "6615ae95" }
 

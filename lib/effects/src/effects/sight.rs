@@ -68,7 +68,7 @@ pub const SIGHT: Params = Params {
 };
 
 pub const RUWACH: Params = Params {
-    parent_duration_frames: 120.0,
+    parent_duration_frames: PERSISTENT_FRAMES,
     spawn_period_frames: 3,
     angle_deg_per_frame: -5.0,
     angle_divisor: 1.3,

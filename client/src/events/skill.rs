@@ -50,7 +50,6 @@ impl App {
         count: i16,
         level: i16,
         action: ActionType,
-        skill_name: Option<String>,
         start_time: u32,
     ) {
         let local_ms = self.start_time.elapsed().as_millis() as u32;
@@ -127,17 +126,6 @@ impl App {
                     self.spawn_arrow_projectile(shooter_cell, tp, attack_mt, effective_count);
                 }
             }
-        }
-
-        // Show chat bubble on caster (e.g., "SM_BASH !!")
-        if let Some(name) = skill_name
-            && let Some(entity) = self.game.entities.get_mut(src_gid)
-            && entity.entity_type != ragnarok_game::entity::EntityType::Monster
-        {
-            entity.chat_bubble = Some(ragnarok_game::entity::ChatBubbleState::new(format!(
-                "{} !!",
-                name
-            )));
         }
 
         let delay_time = (attack_mt as f32 / 2000.0).max(0.0);
@@ -463,6 +451,10 @@ impl App {
         level: i16,
     ) {
         let skill = SkillEnum::from_id(skill_id as u32);
+        // A thrown bottle (Potion Pitcher, Berserk Pitcher) travels the
+        // caster→target line rather than sitting on the caster, matching the
+        // original's launch-from-caster + reposition-to-target.
+        let trail = self.skill_trail_endpoints(src_gid, target_gid);
         for e in caster_skill_effects(skill).cast {
             // High Jump's landing takes over from the leap: delete the airborne
             // Jumpbody so the caster drops in from above at the landing cell.
@@ -470,7 +462,10 @@ impl App {
                 self.effect_holder
                     .despawn_effect_on_entity(EffectId::Jumpbody, src_gid);
             }
-            self.effect_queue.spawn_on(*e, src_gid);
+            match trail {
+                Some((from, to)) if is_trail_effect(*e) => self.effect_queue.spawn_trail(*e, from, to),
+                _ => self.effect_queue.spawn_on(*e, src_gid),
+            }
         }
         for e in target_skill_effects(skill).on_target {
             // AL_HEAL's green heal scales with the healed amount (the packet's
@@ -480,7 +475,10 @@ impl App {
             } else {
                 *e
             };
-            self.effect_queue.spawn_on(e, target_gid);
+            match trail {
+                Some((from, to)) if is_trail_effect(e) => self.effect_queue.spawn_trail(e, from, to),
+                _ => self.effect_queue.spawn_on(e, target_gid),
+            }
         }
     }
 

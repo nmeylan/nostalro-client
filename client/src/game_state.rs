@@ -145,6 +145,8 @@ pub struct GameState {
     pub boss_aura_keys: HashMap<u32, u32>,
     pub warp_portal_keys: HashMap<u32, u32>,
     pub spirit_keys: HashMap<u32, u32>,
+    pub sight_aura_keys: HashMap<u32, u32>,
+    pub ruwach_aura_keys: HashMap<u32, u32>,
     pub disconnect_dialog_shown: bool,
     pub pending_disconnect_exit: bool,
 }
@@ -588,6 +590,8 @@ impl GameState {
             boss_aura_keys: HashMap::new(),
             warp_portal_keys: HashMap::new(),
             spirit_keys: HashMap::new(),
+            sight_aura_keys: HashMap::new(),
+            ruwach_aura_keys: HashMap::new(),
         }
     }
 

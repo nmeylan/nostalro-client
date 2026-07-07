@@ -135,7 +135,10 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
         | S::HtBlitzbeat
         | S::SnFalconassault
         | S::AmSpheremine
+        | S::AmDemonstration
         | S::HwMagicpower
+        | S::WsMeltdown
+        | S::BaMusicalstrike
         | S::DcThrowarrow => &[E::Bash],
 
         S::MgNapalmbeat
@@ -231,7 +234,6 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
         | S::AmCpShield
         | S::AmCpArmor
         | S::AmCpHelm
-        | S::AmDemonstration
         | S::SaSpellbreaker
         | S::SaDispell => &[E::Beginspell],
 
@@ -383,8 +385,6 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
 
     match skill {
         S::SmMagnum => C::cast(&[E::Magnumbreak]),
-        S::MgSight => C::cast(&[E::Sight]),
-        S::AlRuwach => C::cast(&[E::Ruwach]),
         S::AlHolywater => C::cast(&[E::Aqua]),
         S::AlCrucis => C::cast(&[E::Signum]),
         S::AlAngelus => C::cast(&[E::Angelus]),
@@ -441,7 +441,6 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::TkSevenwind => C::cast(&[E::Stormkick3, E::Beginasura1]),
 
         S::RgIntimidate => C::cast(&[E::Intimidate]),
-        S::RgStealcoin => C::cast(&[E::Stealcoin]),
         S::RgRaid => C::cast(&[E::Teihit3]),
         S::StPreserve => C::cast(&[E::Guard2]),
         S::StRejectsword => C::cast(&[E::Rejectsword]),
@@ -468,11 +467,11 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::AmBerserkpitcher => C::cast(&[E::Throwitem5]),
         S::ItmTomahawk => C::cast(&[E::Shieldboomerang2]),
 
+        S::TkStormkick => C::cast(&[E::Stormkick]),
         S::TkCounter => C::cast(&[E::Hitline5]),
         S::TkJumpkick => C::cast(&[E::Jumpkick]),
         S::TkHighjump => C::cast(&[E::Landbody]),
         S::TkRun => C::cast(&[E::Run]),
-        S::SlSma => C::cast(&[E::Stin2]),
 
         S::GsMadnesscancel => C::cast(&[E::MadnessBlue]),
         S::GsAdjustment | S::GsGatlingfever => C::cast(&[E::MadnessRed]),
@@ -501,6 +500,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
     match skill {
         S::SmMagnum => T::hit(&[E::Firehit]),
         S::SmProvoke => T::on_target(&[E::Provoke]),
+        S::MgNapalmbeat => T::on_target(&[E::Hit2]),
         S::MgSoulstrike => T {
             before_hit: &[E::Soulstrike],
             ..Default::default()
@@ -659,7 +659,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
 
         S::CrHolycross => T::on_target(&[E::Holycross]),
         S::CrShieldboomerang => T::on_target(&[E::Shieldboomerang]),
-        S::CrAciddemonstration => T::on_target(&[E::Throwitem, E::Aciddemon]),
+        S::CrAciddemonstration => T::on_target(&[E::Throwitem4, E::Aciddemon]),
         S::CrShieldcharge => T::on_target(&[E::Shieldcharge]),
         S::CrProvidence => T::on_target(&[E::Providence]),
         S::CrFullprotection => T::on_target(&[E::Chemicalprotection, E::Chemicalbody]),
@@ -673,7 +673,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::WsCarttermination => T::on_target(&[E::Cartter]),
 
         S::RgBackstap => T::on_target(&[E::Backstap]),
-        S::RgStealcoin => T::on_target(&[E::RgCoin]),
+        S::RgStealcoin => T::on_target(&[E::RgCoin, E::Stealcoin]),
         S::RgStripweapon => T::on_target(&[E::Stripweapon]),
         S::RgStripshield => T::on_target(&[E::Stripshield]),
         S::RgStriparmor => T::on_target(&[E::Striparmor]),
@@ -724,7 +724,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
             hit: &[E::BlueHit],
             ..Default::default()
         },
-        S::SlSma => T::on_target(&[E::Ef4waybody, E::Hitline6, E::Hittexture]),
+        S::SlSma => T::on_target(&[E::Ef4waybody, E::Stin2, E::Hitline6, E::Hittexture]),
         S::SgHate => T::on_target(&[E::Hated]),
 
         S::SlKaahi => T::on_target(&[E::Hated]),
@@ -977,6 +977,16 @@ mod tests {
                 "{skill:?} has no cast-slot visual"
             );
         }
+        // Meltdown has a real cast time: the default Bash cast glyph shows while
+        // the bar fills, and the Meltdown body flashes once at use.
+        assert_eq!(
+            begin_cast_effect(SkillEnum::WsMeltdown),
+            &[EffectId::Bash]
+        );
+        assert_eq!(
+            caster_skill_effects(SkillEnum::WsMeltdown).cast,
+            &[EffectId::Meltdown]
+        );
     }
 
     #[test]
@@ -1044,6 +1054,25 @@ mod tests {
     }
 
     #[test]
+    fn sight_and_ruwach_show_no_cast_flash_only_the_option_driven_aura() {
+        // The original fires nothing at cast for these detect skills; the aura
+        // rides the OPTION_SIGHT / OPTION_RUWACH state instead.
+        assert!(caster_skill_effects(SkillEnum::MgSight).cast.is_empty());
+        assert!(caster_skill_effects(SkillEnum::AlRuwach).cast.is_empty());
+    }
+
+    #[test]
+    fn storm_kick_flashes_on_the_caster() {
+        // The original's no-damage handler fires EF_STORMKICK on the caster even
+        // though the skill is dispatched on the damage path (it also sends the
+        // no-damage packet).
+        assert_eq!(
+            caster_skill_effects(SkillEnum::TkStormkick).cast,
+            &[EffectId::Stormkick]
+        );
+    }
+
+    #[test]
     fn champion_combo_skills_route_their_body_recolors() {
         assert_eq!(
             caster_skill_effects(SkillEnum::ChTigerfist).cast,
@@ -1084,6 +1113,15 @@ mod tests {
         assert_eq!(begin_cast_effect(S::AlWarp), &[E::Beginspell]);
         assert_eq!(begin_cast_effect(S::KnChargeatk), &[E::Beginspell6]);
         assert_eq!(begin_cast_effect(S::HtBlitzbeat), &[E::Bash]);
+        // Both summon-mines default to the Bash cast glyph (absent from the
+        // original's begin switch); Cannibalize is the odd one out (Beginspell).
+        assert_eq!(begin_cast_effect(S::AmDemonstration), &[E::Bash]);
+        assert_eq!(begin_cast_effect(S::AmSpheremine), &[E::Bash]);
+        assert_eq!(begin_cast_effect(S::AmCannibalize), &[E::Beginspell]);
+        // Musical Strike shares Throw Arrow's Bash cast glyph (both absent from
+        // the begin switch, both 1.5s cast).
+        assert_eq!(begin_cast_effect(S::BaMusicalstrike), &[E::Bash]);
+        assert_eq!(begin_cast_effect(S::DcThrowarrow), &[E::Bash]);
         assert_eq!(begin_cast_effect(S::AmTwilight2), &[E::Twilight2]);
     }
 
@@ -1100,12 +1138,14 @@ mod tests {
             (S::CrShieldboomerang, E::Shieldboomerang),
             (S::MoFingeroffensive, E::Tanji),
             (S::RgBackstap, E::Backstap),
+            (S::RgStealcoin, E::Stealcoin),
             (S::GsPiercingshot, E::Chemical4),
             (S::NjSyuriken, E::Throwitem7),
             (S::NjHuuma, E::Throwitem9),
             (S::NjHuujin, E::Stin4),
             (S::SlStin, E::Stin),
             (S::SlStun, E::Stin3),
+            (S::SlSma, E::Stin2),
             (S::TkJumpkick, E::Chemical3),
         ] {
             assert!(
@@ -1255,6 +1295,11 @@ mod tests {
         assert_eq!(soulstrike.before_hit, &[EffectId::Soulstrike]);
         assert!(soulstrike.on_target.is_empty() && soulstrike.hit.is_empty());
 
+        assert_eq!(
+            target_skill_effects(SkillEnum::MgNapalmbeat).on_target,
+            &[EffectId::Hit2]
+        );
+
         let coldbolt = target_skill_effects(SkillEnum::MgColdbolt);
         assert_eq!(coldbolt.on_target, &[EffectId::Icearrow]);
         assert_eq!(coldbolt.hit, &[EffectId::Coldhit]);
@@ -1283,6 +1328,17 @@ mod tests {
         assert_eq!(
             target_skill_effects(SkillEnum::LkSpiralpierce).on_target,
             &[EffectId::Magnum2]
+        );
+
+        // Acid Demonstration lobs a molotov bottle (Throwitem4), distinct from
+        // Acid Terror's plain bottles (Throwitem), then bursts on the target.
+        assert_eq!(
+            target_skill_effects(SkillEnum::CrAciddemonstration).on_target,
+            &[EffectId::Throwitem4, EffectId::Aciddemon]
+        );
+        assert_eq!(
+            target_skill_effects(SkillEnum::AmAcidterror).on_target,
+            &[EffectId::Throwitem]
         );
     }
 

@@ -551,10 +551,14 @@ impl App {
                     delay_ms,
                     x,
                     y,
+                    skill_name,
                 } => {
-                    self.game
-                        .entities
-                        .apply_skill_casting(gid, target_gid, skill_id, delay_ms, x, y);
+                    let display_name = self.game.data_table.skill_name.as_ref().map(|table| {
+                        table.get_display_name_or_internal(&skill_name.unwrap_or_default())
+                    });
+                    self.game.entities.apply_skill_casting(
+                        gid, target_gid, skill_id, delay_ms, x, y, display_name,
+                    );
                     self.spawn_skill_begin_cast(skill_id, gid, property, delay_ms);
                 }
                 GameEvent::SkillListReceived { skills } => {
@@ -588,12 +592,8 @@ impl App {
                     count,
                     level,
                     action,
-                    skill_name,
                     start_time,
                 } => {
-                    let display_name = self.game.data_table.skill_name.as_ref().map(|table| {
-                        table.get_display_name_or_internal(&skill_name.clone().unwrap_or_default())
-                    });
                     self.handle_skill_damage(
                         skill_id,
                         src_gid,
@@ -604,7 +604,6 @@ impl App {
                         count,
                         level,
                         action,
-                        display_name,
                         start_time,
                     );
                 }
@@ -613,16 +612,11 @@ impl App {
                     src_gid,
                     target_gid,
                     level,
-                    skill_name,
                 } => {
-                    let display_name = self.game.data_table.skill_name.as_ref().map(|table| {
-                        table.get_display_name_or_internal(&skill_name.clone().unwrap_or_default())
-                    });
                     self.game.entities.apply_skill_no_damage(
                         skill_id,
                         src_gid,
                         target_gid,
-                        display_name,
                     );
                     self.spawn_skill_no_damage_effects(skill_id, src_gid, target_gid, level);
                 }
@@ -632,11 +626,10 @@ impl App {
                     level,
                     x,
                     y,
-                    skill_name,
                 } => {
                     self.game
                         .entities
-                        .apply_ground_skill(skill_id, src_gid, x, y, skill_name);
+                        .apply_ground_skill(skill_id, src_gid, x, y);
                     self.spawn_ground_skill_effects(skill_id, level, x, y);
                     let falcon_target = if self.game.falcons.contains_key(&src_gid)
                         && matches!(

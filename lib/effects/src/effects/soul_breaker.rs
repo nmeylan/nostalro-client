@@ -9,7 +9,7 @@ pub const TEXTURES: &[&str] = &[SLASH_TEXTURE];
 const CARD_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 
 const BASE_DISTANCE: f32 = 20.0 * 0.35;
-const BASE_STEP: f32 = 0.8 * 2.0;
+const BASE_STEP: f32 = 0.8 * 0.85;
 
 const SPAWN_DELAY: i32 = 28;
 const STREAKS_PER_EMITTER: usize = 4;

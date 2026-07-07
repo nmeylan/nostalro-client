@@ -74,6 +74,8 @@ impl App {
         self.game.level_aura_keys.clear();
         self.game.boss_aura_keys.clear();
         self.game.warp_portal_keys.clear();
+        self.game.sight_aura_keys.clear();
+        self.game.ruwach_aura_keys.clear();
         if let Some(renderer) = &mut self.renderer {
             renderer.ground_renderer = None;
             renderer.model_renderer = None;

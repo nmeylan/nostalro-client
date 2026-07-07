@@ -207,6 +207,7 @@ pub enum GameEvent {
         delay_ms: u32,
         x: i16,
         y: i16,
+        skill_name: Option<String>,
     },
     SkillCastCancel {
         gid: u32,
@@ -233,7 +234,6 @@ pub enum GameEvent {
         count: i16,
         level: i16,
         action: ActionType,
-        skill_name: Option<String>,
         start_time: u32,
     },
     SkillNoDamage {
@@ -243,7 +243,6 @@ pub enum GameEvent {
         /// The packet's skill-level field. For AL_HEAL this carries the heal
         /// amount, which selects the green-heal size.
         level: i16,
-        skill_name: Option<String>,
     },
     GroundSkill {
         skill_id: u16,
@@ -251,7 +250,6 @@ pub enum GameEvent {
         level: i16,
         x: i16,
         y: i16,
-        skill_name: Option<String>,
     },
     SkillUnitEntered {
         aid: u32,

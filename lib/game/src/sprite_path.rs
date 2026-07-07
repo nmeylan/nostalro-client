@@ -53,6 +53,8 @@ pub fn falcon_sprite_path(job: u16) -> &'static str {
 pub const OPTION_CART_MASK: i32 = 0x08 | 0x80 | 0x100 | 0x200 | 0x400;
 pub const OPTION_REMOVABLE_MASK: i32 = OPTION_FALCON | OPTION_RIDING | OPTION_CART_MASK;
 
+pub const OPTION_SIGHT: i32 = 0x01;
+pub const OPTION_RUWACH: i32 = 0x2000;
 pub const OPTION_HIDE: i32 = 0x02;
 pub const OPTION_CLOAK: i32 = 0x04;
 pub const OPTION_CHASEWALK: i32 = 0x4000;

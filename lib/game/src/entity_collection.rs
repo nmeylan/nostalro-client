@@ -122,7 +122,9 @@ impl EntityCollection {
         delay_ms: u32,
         x: i16,
         y: i16,
+        skill_name: Option<String>,
     ) {
+        self.show_skill_chat_bubble(gid, skill_name);
         let target_pos = if target_gid != 0 {
             self.entities
                 .get(&target_gid)
@@ -153,9 +155,7 @@ impl EntityCollection {
         skill_id: u16,
         src_gid: u32,
         target_gid: u32,
-        skill_name: Option<String>,
     ) {
-        self.show_skill_chat_bubble(src_gid, skill_name);
         if skill_id == SkillEnum::TkRun.id() as u16
             && !self.entities.get(&src_gid).is_some_and(|e| e.is_running)
         {
@@ -187,7 +187,7 @@ impl EntityCollection {
         }
     }
 
-    pub fn apply_ground_skill(&mut self, skill_id: u16, src_gid: u32, x: i16, y: i16, skill_name: Option<String>) {
+    pub fn apply_ground_skill(&mut self, skill_id: u16, src_gid: u32, x: i16, y: i16) {
         if let Some(entity) = self.entities.get_mut(&src_gid) {
             let sp = entity.movement.cell_position();
             if let Some(dir) = direction_from_positions(sp.0, sp.1, x as u16, y as u16) {
@@ -195,7 +195,6 @@ impl EntityCollection {
             }
             entity.enter_skill_exec(0.6, skill_id, 1);
         }
-        self.show_skill_chat_bubble(src_gid, skill_name);
     }
 
     pub fn apply_skill_cast_cancel(&mut self, gid: u32) {
@@ -399,7 +398,7 @@ mod tests {
             200,
         ));
 
-        col.apply_skill_no_damage(10, 1, 2, Some("TestSkill".to_string()));
+        col.apply_skill_no_damage(10, 1, 2);
         let e = col.get(1).unwrap();
         assert_eq!(e.direction, 6);
         assert_eq!(e.state, EntityState::SkillExec);
@@ -415,7 +414,7 @@ mod tests {
         let mut starter = make_entity(1);
         starter.is_running = true;
         col.insert(starter);
-        col.apply_skill_no_damage(run_id, 1, 0, None);
+        col.apply_skill_no_damage(run_id, 1, 0);
         assert_eq!(col.get(1).unwrap().state, EntityState::SkillExec);
 
         // Stop: is_running already flipped off, so the skill packet is ignored
@@ -424,7 +423,7 @@ mod tests {
         let mut runner = make_entity(1);
         runner.state = EntityState::Standing;
         col.insert(runner);
-        col.apply_skill_no_damage(run_id, 1, 0, None);
+        col.apply_skill_no_damage(run_id, 1, 0);
         assert_eq!(col.get(1).unwrap().state, EntityState::Standing);
     }
 }

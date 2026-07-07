@@ -1526,7 +1526,7 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Thunderstorm => 1040,
         EffectId::Firearrow => 1600,
         EffectId::Napalmbeat => 1000,
-        EffectId::Ruwach => 2000,
+        EffectId::Ruwach => 9999990,
         EffectId::Teleportation => 1000,
         EffectId::Readyportal => 1000,
         EffectId::Portal => 1000,
