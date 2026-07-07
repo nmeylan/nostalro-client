@@ -34,6 +34,9 @@ pub struct ForcedAnimation {
     pub action: usize,
     pub start_frame: usize,
     pub duration_ms: f32,
+    /// Hold a single static frame until cleared externally, instead of playing
+    /// the action once and auto-clearing (used by Blade Stop's grip pose).
+    pub hold: bool,
     started: bool,
 }
 
@@ -43,6 +46,17 @@ impl ForcedAnimation {
             action,
             start_frame,
             duration_ms,
+            hold: false,
+            started: false,
+        }
+    }
+
+    pub fn held(action: usize, frame: usize) -> Self {
+        Self {
+            action,
+            start_frame: frame,
+            duration_ms: 0.0,
+            hold: true,
             started: false,
         }
     }

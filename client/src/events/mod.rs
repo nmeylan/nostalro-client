@@ -10,6 +10,8 @@ mod skill;
 
 use crate::App;
 use models::enums::EnumWithMaskValueU64;
+use ragnarok_formats::act::SpriteActionType;
+use ragnarok_game::entity::ForcedAnimation;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::chat_room::ChatRoom;
@@ -18,6 +20,8 @@ use ragnarok_network::build_npc_close_packet;
 use ragnarok_renderer::Renderer;
 use ragnarok_ui_component::Window as UiWindow;
 use winit::event_loop::ActiveEventLoop;
+
+const BLADE_STOP_GRIP_FRAME: usize = 4;
 
 pub(crate) fn preload_window<W: UiWindow>(
     window: &mut W,
@@ -220,6 +224,14 @@ impl App {
                                 entity.movement.stop();
                             }
                         }
+                    }
+                    if let Some(caster) = self.game.entities.get_mut(src_gid) {
+                        caster.forced_animation = active.then(|| {
+                            ForcedAnimation::held(
+                                SpriteActionType::Skill as usize,
+                                BLADE_STOP_GRIP_FRAME,
+                            )
+                        });
                     }
                 }
                 GameEvent::StatusEffectChanged {

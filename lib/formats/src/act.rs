@@ -651,4 +651,18 @@ mod tests {
         anim.step_backward(4);
         assert_eq!(anim.motion_index(), 3);
     }
+
+    #[test]
+    fn static_frame_holds_and_never_finishes() {
+        let act = make_act(13, 6);
+        let mut anim = SpriteAnimationState::new(0);
+        anim.set_action(SpriteActionType::Skill as usize, MotionType::Static);
+        anim.set_motion_index(4);
+
+        for _ in 0..10 {
+            anim.update(0.5, &act, 0);
+        }
+        assert_eq!(anim.motion_index(), 4);
+        assert!(!anim.is_finished());
+    }
 }

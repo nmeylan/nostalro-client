@@ -23,8 +23,9 @@ impl App {
                 if entity.state == EntityState::Dead && entity.animation.is_finished() {
                     continue;
                 }
-                if ailment::ailment_visual(entity.body_state, entity.health_state, entity.rooted)
-                    .motion_locked
+                if entity.forced_animation.is_none()
+                    && ailment::ailment_visual(entity.body_state, entity.health_state, entity.rooted)
+                        .motion_locked
                 {
                     continue;
                 }
@@ -40,15 +41,24 @@ impl App {
                 if let Some(mut forced) = entity.forced_animation {
                     if !forced.started() {
                         forced.mark_started();
-                        entity.animation.play(
-                            forced.action,
-                            forced.duration_ms,
-                            forced.start_frame,
-                        );
+                        if forced.hold {
+                            entity.animation.set_action(forced.action, MotionType::Static);
+                            entity.animation.set_motion_index(forced.start_frame);
+                        } else {
+                            entity.animation.play(
+                                forced.action,
+                                forced.duration_ms,
+                                forced.start_frame,
+                            );
+                        }
                     }
                     entity.animation.set_direction(entity.direction);
-                    entity.animation.update(delta, &sprite.body_act, dir);
-                    entity.forced_animation = (!entity.animation.is_finished()).then_some(forced);
+                    entity.forced_animation = if forced.hold {
+                        Some(forced)
+                    } else {
+                        entity.animation.update(delta, &sprite.body_act, dir);
+                        (!entity.animation.is_finished()).then_some(forced)
+                    };
                     continue;
                 }
 
