@@ -540,6 +540,11 @@ impl App {
                         self.preload_item_icons(tex_paths);
                     }
                 }
+                GameEvent::ShowItemInfoDirect { item } => {
+                    self.game.item_info_window.show(&item, &self.game.data_table);
+                    let tex_paths = self.game.item_info_window.pending_texture_paths();
+                    self.preload_item_icons(tex_paths);
+                }
                 GameEvent::ShowCardInfo { item_id } => {
                     self.game
                         .item_info_window

@@ -18,13 +18,15 @@ pub enum AilmentOverlay {
     Stun,
     Sleep,
     Curse,
+    Freeze,
 }
 
 impl AilmentOverlay {
-    pub const ALL: [AilmentOverlay; 3] = [
+    pub const ALL: [AilmentOverlay; 4] = [
         AilmentOverlay::Stun,
         AilmentOverlay::Sleep,
         AilmentOverlay::Curse,
+        AilmentOverlay::Freeze,
     ];
 
     pub fn sprite(self) -> (&'static str, usize) {
@@ -32,7 +34,14 @@ impl AilmentOverlay {
             AilmentOverlay::Stun => ("data/sprite/이팩트/status-stun", 0),
             AilmentOverlay::Sleep => ("data/sprite/이팩트/status-sleep", 0),
             AilmentOverlay::Curse => ("data/sprite/이팩트/status-curse", 0),
+            AilmentOverlay::Freeze => ("data/sprite/이팩트/얼음땡", 0),
         }
+    }
+
+    /// True for overlays that encase the body at its ground origin; false for
+    /// the head-top billboards (stun/sleep/curse).
+    pub fn on_body(self) -> bool {
+        matches!(self, AilmentOverlay::Freeze)
     }
 }
 
@@ -83,6 +92,7 @@ pub fn ailment_overlays(body_state: i16, health_state: i16) -> Vec<AilmentOverla
     match body_state {
         OPT1_STUN => out.push(AilmentOverlay::Stun),
         OPT1_SLEEP => out.push(AilmentOverlay::Sleep),
+        OPT1_FREEZE => out.push(AilmentOverlay::Freeze),
         _ => {}
     }
     if health_state & OPT2_CURSE != 0 {
@@ -147,6 +157,12 @@ mod tests {
             ailment_overlays(OPT1_STUN, OPT2_CURSE),
             vec![AilmentOverlay::Stun, AilmentOverlay::Curse]
         );
+        assert_eq!(
+            ailment_overlays(OPT1_FREEZE, 0),
+            vec![AilmentOverlay::Freeze]
+        );
+        assert!(AilmentOverlay::Freeze.on_body());
+        assert!(!AilmentOverlay::Stun.on_body());
         assert!(ailment_overlays(0, OPT2_ANGELUS).is_empty());
         assert!(ailment_overlays(0, OPT2_BLIND).is_empty());
     }

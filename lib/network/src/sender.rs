@@ -454,3 +454,140 @@ pub fn build_party_chat_packet(msg: &str, packetver: u32) -> Vec<u8> {
     pkt.fill_raw();
     pkt.raw
 }
+
+// --- Skill-triggered production / selection windows ---
+
+pub fn build_req_itemidentify_packet(index: i16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqItemidentify::new(packetver);
+    pkt.set_index(index);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_makingarrow_packet(item_id: u16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqMakingarrow::new(packetver);
+    pkt.set_id(item_id);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_makingitem_packet(item_id: u16, materials: [u16; 3], packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqmakingitem::new(packetver);
+    let mut info = MakableitemInfo::new(packetver);
+    info.set_itid(item_id);
+    info.set_material_id(materials);
+    info.fill_raw();
+    pkt.set_info(info);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_weaponrefine_packet(index: i32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqWeaponrefine::new(packetver);
+    pkt.set_index(index);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_itemrepair_packet(
+    index: i16,
+    item_id: u16,
+    refine: u8,
+    cards: [u16; 4],
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzReqItemrepair::new(packetver);
+    let mut info = RepairitemInfo::new(packetver);
+    info.set_index(index);
+    info.set_itid(item_id);
+    info.set_refining_level(refine);
+    let mut slot = EQUIPSLOTINFO::new(packetver);
+    slot.set_card1(cards[0]);
+    slot.set_card2(cards[1]);
+    slot.set_card3(cards[2]);
+    slot.set_card4(cards[3]);
+    slot.fill_raw();
+    info.set_slot(slot);
+    info.fill_raw();
+    pkt.set_target_item_info(info);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_select_autospell_packet(skill_id: i32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzSelectautospell::new(packetver);
+    pkt.set_skid(skill_id);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+// --- Vending ---
+
+pub fn build_req_openstore2_packet(
+    shop_name: &str,
+    items: &[(i16, i16, i32)],
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzReqOpenstore2::new(packetver);
+    let mut name = ['\0'; 80];
+    for (i, c) in shop_name.chars().take(79).enumerate() {
+        name[i] = c;
+    }
+    pkt.set_store_name(name);
+    pkt.set_result(true);
+    let store_list: Vec<StoreItem> = items
+        .iter()
+        .map(|(index, count, price)| {
+            let mut s = StoreItem::new(packetver);
+            s.set_index(*index);
+            s.set_count(*count);
+            s.set_price(*price);
+            s.fill_raw();
+            s
+        })
+        .collect();
+    // header(2) + len(2) + name(80) + result(1) + N*8
+    pkt.set_packet_length((85 + items.len() * 8) as i16);
+    pkt.set_store_list(store_list);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_closestore_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqClosestore::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_buy_frommc_packet(aid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqBuyFrommc::new(packetver);
+    pkt.set_aid(aid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_purchase_frommc2_packet(
+    aid: u32,
+    unique_id: u32,
+    items: &[(i16, i16)],
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzPcPurchaseItemlistFrommc2::new(packetver);
+    pkt.set_aid(aid);
+    pkt.set_unique_id(unique_id);
+    let item_list: Vec<CzPurchaseItemFrommc> = items
+        .iter()
+        .map(|(count, index)| {
+            let mut item = CzPurchaseItemFrommc::new(packetver);
+            item.set_count(*count);
+            item.set_index(*index);
+            item.fill_raw();
+            item
+        })
+        .collect();
+    // header(2) + len(2) + aid(4) + uniqueId(4) + N*4
+    pkt.set_packet_length((12 + items.len() * 4) as i16);
+    pkt.set_item_list(item_list);
+    pkt.fill_raw();
+    pkt.raw
+}

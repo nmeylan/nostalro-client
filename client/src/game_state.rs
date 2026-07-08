@@ -51,6 +51,13 @@ use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::game::warp_list_window::WarpListWindow;
 use ragnarok_ui_component::{InGameWindow, Window};
 
+/// One-shot ice-shatter animation played when a freeze ends, following the
+/// entity by gid. `started_at` is lazily set to the render clock on first draw.
+pub struct FreezeShatter {
+    pub gid: u32,
+    pub started_at: Option<f32>,
+}
+
 pub struct GameState {
     pub app_state: AppState,
     pub login_session: Option<Session>,
@@ -80,6 +87,7 @@ pub struct GameState {
     pub emotion_textures: Option<SpriteTextures>,
     pub emotion_act: Option<ActFile>,
     pub status_overlay_sprites: HashMap<AilmentOverlay, (SpriteTextures, ActFile)>,
+    pub freeze_shatters: Vec<FreezeShatter>,
     pub chat_window: ChatWindow,
     pub equipment_window: EquipmentWindow,
     pub inventory_window: InventoryWindow,
@@ -523,6 +531,7 @@ impl GameState {
             emotion_textures: None,
             emotion_act: None,
             status_overlay_sprites: HashMap::new(),
+            freeze_shatters: Vec::new(),
             chat_window: ChatWindow::new(),
             equipment_window: EquipmentWindow::new(),
             inventory_window: InventoryWindow::new(),

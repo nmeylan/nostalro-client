@@ -1,4 +1,5 @@
 use crate::inventory::{EquipmentItemData, NormalItemData};
+use crate::item::Item;
 use crate::targeting::MapProperties;
 use models::enums::action::ActionType;
 use models::enums::skill::SkillTargetType;
@@ -557,6 +558,9 @@ pub enum GameEvent {
     ShowItemInfo {
         index: u16,
     },
+    ShowItemInfoDirect {
+        item: Box<Item>,
+    },
     ShowCardInfo {
         item_id: u16,
     },
@@ -634,7 +638,128 @@ pub enum GameEvent {
     SendPartyChat {
         message: String,
     },
+
+    // --- Skill-triggered production / selection windows ---
+    ItemIdentifyList {
+        indices: Vec<u16>,
+    },
+    ItemIdentifyResult {
+        index: i16,
+        ok: bool,
+    },
+    RequestIdentifyItem {
+        index: i16,
+    },
+    MakingArrowList {
+        item_ids: Vec<u16>,
+    },
+    RequestMakingArrow {
+        item_id: u16,
+    },
+    MakableItemList {
+        item_ids: Vec<u16>,
+    },
+    MakingItemResult {
+        result: i16,
+        item_id: u16,
+    },
+    RequestMakingItem {
+        item_id: u16,
+        materials: [u16; 3],
+    },
+    WeaponRefineList {
+        items: Vec<RefineItemRow>,
+    },
+    WeaponRefineResult {
+        result: i32,
+        item_id: u16,
+    },
+    RequestWeaponRefine {
+        index: i32,
+    },
+    RepairItemList {
+        items: Vec<RefineItemRow>,
+    },
+    RepairItemResult {
+        index: i16,
+        ok: bool,
+    },
+    RequestRepairItem {
+        index: i16,
+        item_id: u16,
+        refine: u8,
+        cards: [u16; 4],
+    },
+    AutoSpellList {
+        skill_ids: Vec<i32>,
+    },
+    RequestSelectAutoSpell {
+        skill_id: i32,
+    },
+
+    // --- Vending ---
+    OpenVendingSetup {
+        max_items: i16,
+    },
+    RequestOpenStore {
+        shop_name: String,
+        items: Vec<(i16, i16, i32)>,
+    },
+    RequestCloseStore,
+    VendingOwnStock {
+        items: Vec<VendorItem>,
+    },
+    VendingBoardShown {
+        aid: u32,
+        name: String,
+    },
+    VendingBoardHidden {
+        aid: u32,
+    },
+    RequestBuyFromVendor {
+        aid: u32,
+    },
+    VendingShopList {
+        aid: u32,
+        unique_id: u32,
+        items: Vec<VendorItem>,
+    },
+    RequestPurchaseFromVendor {
+        aid: u32,
+        unique_id: u32,
+        items: Vec<(i16, i16)>,
+    },
+    VendingPurchaseResult {
+        index: i16,
+        curcount: i16,
+        result: u8,
+    },
+    VendingStockDecrement {
+        index: i16,
+        count: i16,
+    },
+
     Acknowledged,
+}
+
+#[derive(Debug, Clone)]
+pub struct RefineItemRow {
+    pub index: i16,
+    pub item_id: u16,
+    pub refine: u8,
+    pub cards: [u16; 4],
+}
+
+#[derive(Debug, Clone)]
+pub struct VendorItem {
+    pub index: i16,
+    pub item_id: u16,
+    pub amount: i16,
+    pub price: i32,
+    pub refine: u8,
+    pub is_identified: bool,
+    pub is_damaged: bool,
+    pub item_type: u8,
 }
 
 #[derive(Debug, Clone)]

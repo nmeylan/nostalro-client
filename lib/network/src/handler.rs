@@ -1320,8 +1320,84 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         ))];
     }
 
+    if let Some(p) = any.downcast_ref::<PacketZcItemidentifyList>() {
+        return vec![GameEvent::ItemIdentifyList {
+            indices: p.itidlist.clone(),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckItemidentify>() {
+        return vec![GameEvent::ItemIdentifyResult {
+            index: p.index,
+            ok: p.result == 0,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMakingarrowList>() {
+        let item_ids = p.arrow_list.iter().map(|a| a.index as u16).collect();
+        return vec![GameEvent::MakingArrowList { item_ids }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMakableitemlist>() {
+        // Only the first entry is decoded into `info`; slice the rest out of raw.
+        // Layout: id(2) + len(2), then {itid.W, mat[3].W} = 8 B per entry.
+        let raw = p.raw();
+        let mut item_ids = Vec::new();
+        if raw.len() >= 4 {
+            let len = u16::from_le_bytes([raw[2], raw[3]]) as usize;
+            let end = len.min(raw.len());
+            let mut off = 4;
+            while off + 8 <= end {
+                item_ids.push(u16::from_le_bytes([raw[off], raw[off + 1]]));
+                off += 8;
+            }
+        }
+        return vec![GameEvent::MakableItemList { item_ids }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckReqmakingitem>() {
+        return vec![GameEvent::MakingItemResult {
+            result: p.result,
+            item_id: p.itid,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyWeaponitemlist>() {
+        let items = p.item_list.iter().map(refine_row_from).collect();
+        return vec![GameEvent::WeaponRefineList { items }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckWeaponrefine>() {
+        return vec![GameEvent::WeaponRefineResult {
+            result: p.msg,
+            item_id: p.itid,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcRepairitemlist>() {
+        let items = p.item_list.iter().map(refine_row_from).collect();
+        return vec![GameEvent::RepairItemList { items }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckItemrepair>() {
+        return vec![GameEvent::RepairItemResult {
+            index: p.index,
+            ok: p.result == 0,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAutospelllist>() {
+        let skill_ids = p.skid.iter().copied().filter(|&s| s != 0).collect();
+        return vec![GameEvent::AutoSpellList { skill_ids }];
+    }
+
     debug!("unhandled packet: {}", packet.name());
     vec![]
+}
+
+fn refine_row_from(info: &RepairitemInfo) -> ragnarok_game::event::RefineItemRow {
+    ragnarok_game::event::RefineItemRow {
+        index: info.index,
+        item_id: info.itid,
+        refine: info.refining_level,
+        cards: [
+            info.slot.card1,
+            info.slot.card2,
+            info.slot.card3,
+            info.slot.card4,
+        ],
+    }
 }
 
 #[cfg(test)]

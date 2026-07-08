@@ -412,9 +412,28 @@ impl App {
             .get(gid)
             .map(|e| e.health_state)
             .unwrap_or(0);
+        let prev_body = self
+            .game
+            .entities
+            .get(gid)
+            .map(|e| e.body_state)
+            .unwrap_or(0);
         if let Some(entity) = self.game.entities.get_mut(gid) {
             entity.body_state = body_state;
             entity.health_state = health_state;
+        }
+        {
+            let was_frozen = prev_body == ailment::OPT1_FREEZE;
+            let now_frozen = body_state == ailment::OPT1_FREEZE;
+            if now_frozen && !was_frozen {
+                // TODO(audio): play _stonecurse.wav (no audio subsystem yet)
+            } else if was_frozen && !now_frozen {
+                self.game.freeze_shatters.push(crate::game_state::FreezeShatter {
+                    gid,
+                    started_at: None,
+                });
+                // TODO(audio): play _frozen_explosion.wav (no audio subsystem yet)
+            }
         }
         if is_player
             && let Some(player) = self.game.entities.player_mut()

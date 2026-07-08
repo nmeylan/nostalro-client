@@ -12,6 +12,9 @@ use ragnarok_renderer::{
     SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad, scale_clip_vertices,
 };
 
+/// Action index of the ice-shatter in `얼음땡.act` (action 0 is the block).
+const FREEZE_SHATTER_ACTION: usize = 1;
+
 impl App {
     pub(crate) fn compose_and_render(
         &mut self,
@@ -30,6 +33,34 @@ impl App {
         // pass so effects occlude against the body (gradient `[0,0]` => uniform z).
         let mut silhouette_batches: Vec<SpriteBatch> = Vec::new();
         let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
+
+        if !self.game.freeze_shatters.is_empty() {
+            let anim = self
+                .game
+                .status_overlay_sprites
+                .get(&ailment::AilmentOverlay::Freeze)
+                .and_then(|(_, act)| {
+                    let motion_count = act.actions.get(FREEZE_SHATTER_ACTION)?.motions.len();
+                    let delay_ms = act
+                        .delays
+                        .get(FREEZE_SHATTER_ACTION)
+                        .copied()
+                        .map(|d| d * 25.0)
+                        .filter(|d| *d > 0.0)
+                        .unwrap_or(100.0);
+                    Some((delay_ms, motion_count))
+                });
+            match anim {
+                Some((delay_ms, motion_count)) if motion_count > 0 => {
+                    self.game.freeze_shatters.retain_mut(|s| {
+                        let start = *s.started_at.get_or_insert(elapsed);
+                        let frame = ((elapsed - start) * 1000.0 / delay_ms) as usize;
+                        frame < motion_count
+                    });
+                }
+                _ => self.game.freeze_shatters.clear(),
+            }
+        }
 
         let mut unified_list: Vec<&RenderEntry> = render_list
             .iter()
@@ -199,6 +230,7 @@ impl App {
 
                         sprite_batches.append(&mut batches);
 
+                        // TODO Move emotion in dedicated place
                         if let (Some(emo), Some(emo_act), Some(emo_tex)) = (
                             &entity.emotion,
                             &self.game.emotion_act,
@@ -243,6 +275,7 @@ impl App {
                             }
                         }
 
+                        // Move ailment in a dedicated place
                         for overlay in
                             ailment::ailment_overlays(entity.body_state, entity.health_state)
                         {
@@ -267,16 +300,70 @@ impl App {
                             let motion_idx =
                                 ((elapsed * 1000.0) / delay_ms) as usize % motion_count;
                             let motion = &act.actions[action_idx].motions[motion_idx];
-                            let center = [
-                                entry.screen_anchor[0],
-                                entry.screen_anchor[1]
-                                    - entry.head_offset
-                                    - 6.0 * entry.sprite_scale,
-                            ];
+                            let center = if overlay.on_body() {
+                                entry.screen_anchor
+                            } else {
+                                [
+                                    entry.screen_anchor[0],
+                                    entry.screen_anchor[1]
+                                        - entry.head_offset
+                                        - 6.0 * entry.sprite_scale,
+                                ]
+                            };
                             for clip in &motion.clips {
                                 if let Some((vertices, indices, tex_idx)) =
                                     build_clip_quad(clip, tex, center, entry.depth, [0, 0])
                                     && tex_idx < tex.bind_groups.len()
+                                {
+                                    sprite_batches.push(SpriteBatch {
+                                        vertices,
+                                        indices,
+                                        texture: &tex.bind_groups[tex_idx],
+                                        additive: false,
+                                    });
+                                }
+                            }
+                        }
+
+                        // TODO refactor and move this in another place
+                        for shatter in &self.game.freeze_shatters {
+                            if shatter.gid != entry.id {
+                                continue;
+                            }
+                            let Some((tex, act)) = self
+                                .game
+                                .status_overlay_sprites
+                                .get(&ailment::AilmentOverlay::Freeze)
+                            else {
+                                continue;
+                            };
+                            let Some(action) = act.actions.get(FREEZE_SHATTER_ACTION) else {
+                                continue;
+                            };
+                            let motion_count = action.motions.len();
+                            if motion_count == 0 {
+                                continue;
+                            }
+                            let delay_ms = act
+                                .delays
+                                .get(FREEZE_SHATTER_ACTION)
+                                .copied()
+                                .map(|d| d * 25.0)
+                                .filter(|d| *d > 0.0)
+                                .unwrap_or(100.0);
+                            let start = shatter.started_at.unwrap_or(elapsed);
+                            let frame = ((elapsed - start) * 1000.0 / delay_ms) as usize;
+                            if frame >= motion_count {
+                                continue;
+                            }
+                            for clip in &action.motions[frame].clips {
+                                if let Some((vertices, indices, tex_idx)) = build_clip_quad(
+                                    clip,
+                                    tex,
+                                    entry.screen_anchor,
+                                    entry.depth,
+                                    [0, 0],
+                                ) && tex_idx < tex.bind_groups.len()
                                 {
                                     sprite_batches.push(SpriteBatch {
                                         vertices,

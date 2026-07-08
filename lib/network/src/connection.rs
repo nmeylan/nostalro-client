@@ -80,6 +80,11 @@ impl Connection {
             [0x82, 0x01] | // ZC_MEMBER_ADD
             [0x8c, 0x01] | // ZC_MONSTER_INFO
             [0x8d, 0x01] | // ZC_MAKABLEITEMLIST
+            [0xad, 0x01] | // ZC_MAKINGARROW_LIST
+            [0xfc, 0x01] | // ZC_REPAIRITEMLIST
+            [0x21, 0x02] | // ZC_NOTIFY_WEAPONITEMLIST
+            [0x36, 0x01] | // ZC_PC_PURCHASE_MYITEMLIST
+            [0x00, 0x08] | // ZC_PC_PURCHASE_ITEMLIST_FROMMC (>=20100105)
             [0xc1, 0x02] | // ZC_NPC_CHAT
             [0xc3, 0x01] | // ZC_BROADCAST2
             [0x1f, 0x02] | // ZC_NOTIFY_PKINFO

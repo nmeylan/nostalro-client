@@ -146,6 +146,14 @@ impl NpcShopData {
         }
     }
 
+    pub fn item_at(&self, index: usize) -> Option<&Item> {
+        match self.mode {
+            Some(NpcShopMode::Buy) => self.buy_items.get(index).map(|i| &i.item),
+            Some(NpcShopMode::Sell) => self.sell_items.get(index).map(|i| &i.item),
+            None => None,
+        }
+    }
+
     pub fn item_icon_path(&self, index: usize) -> Option<String> {
         match self.mode {
             Some(NpcShopMode::Buy) => self.buy_items.get(index).and_then(|i| i.item.icon_path()),

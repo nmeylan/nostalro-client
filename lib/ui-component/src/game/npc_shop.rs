@@ -1,3 +1,4 @@
+use super::item_info_window::ITEM_INFO_WINDOW_ID;
 use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::{
@@ -137,7 +138,7 @@ impl InGameWindow for NpcShop {
         if !self.shop.is_open() {
             return;
         }
-        let mut modal_ids = vec![INPUT_WIN_ID, OUTPUT_WIN_ID];
+        let mut modal_ids = vec![INPUT_WIN_ID, OUTPUT_WIN_ID, ITEM_INFO_WINDOW_ID];
         if let Some((_, ref dialog)) = self.qty_popup {
             modal_ids.push(dialog.win_id());
         }
@@ -193,7 +194,7 @@ impl InGameWindow for NpcShop {
 
         let output_default_y = input_default_y + input_win_h - output_win_h;
 
-        self.build_input_window(ui, input_default_x, input_default_y, input_win_h);
+        self.build_input_window(ui, &mut events, input_default_x, input_default_y, input_win_h);
         let output_rect = self.build_output_window(
             ui,
             &mut events,
@@ -227,6 +228,7 @@ impl NpcShop {
     fn build_input_window(
         &mut self,
         ui: &mut UiFrame,
+        events: &mut Vec<GameEvent>,
         default_x: f32,
         default_y: f32,
         win_h: f32,
@@ -365,6 +367,13 @@ impl NpcShop {
                 } else {
                     self.open_qty_popup(item_idx);
                 }
+            }
+            if response.right_clicked()
+                && let Some(item) = self.shop.item_at(item_idx)
+            {
+                events.push(GameEvent::ShowItemInfoDirect {
+                    item: Box::new(item.clone()),
+                });
             }
         }
 
@@ -539,6 +548,14 @@ impl NpcShop {
             let price_x = z_x - (2.0) - price_w;
             ui.text(price_x, text_y, &price_str, text_color);
             ui.text(z_x, text_y, "Z", text_color);
+
+            if response.right_clicked()
+                && let Some(item) = self.shop.item_at(cart_item.source_index)
+            {
+                events.push(GameEvent::ShowItemInfoDirect {
+                    item: Box::new(item.clone()),
+                });
+            }
 
             if response.clicked() {
                 self.shop.remove_from_cart(ci);
@@ -811,6 +828,47 @@ mod tests {
 
         let events = shop_ui.build(&mut ui, &mut character, &data);
         assert!(events.is_empty());
+    }
+
+    #[test]
+    fn right_click_shop_item_shows_info() {
+        let mut shop_ui = NpcShop::new();
+        shop_ui.shop.open_buy(
+            100,
+            vec![ShopBuyItem {
+                item: Item {
+                    index: 0,
+                    item_id: 501,
+                    item_type: ItemType::Healing,
+                    count: 1,
+                    is_identified: true,
+                    is_damaged: false,
+                    refining_level: 0,
+                    slot: [0; 4],
+                    location: 0,
+                    wear_state: 0,
+                    name: "Red Potion".into(),
+                    resource_name: None,
+                },
+                price: 50,
+                discount_price: 50,
+            }],
+        );
+
+        let mut character = Character::new();
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 150.0;
+        ctx.mouse_y = 138.0;
+        ctx.mouse_right_clicked = true;
+        let mut ui = make_frame(&ctx, &mut state);
+
+        let events = shop_ui.build(&mut ui, &mut character, &data);
+        assert!(events.iter().any(|e| matches!(
+            e,
+            GameEvent::ShowItemInfoDirect { item } if item.item_id == 501
+        )));
     }
 
     #[test]

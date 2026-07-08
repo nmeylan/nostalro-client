@@ -9,6 +9,7 @@ use ragnarok_game::effect::{
     fire_glyph_effect, ground_placed_effect, is_cast_circle, is_caster_link_effect, is_ground_cast,
     is_trail_effect, target_skill_effects, trail_arrival_secs,
 };
+use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::skill_action::{SkillMotionType, skill_motion_type};
@@ -487,6 +488,14 @@ impl App {
                 Some((from, to)) if is_trail_effect(e) => self.effect_queue.spawn_trail(e, from, to),
                 _ => self.effect_queue.spawn_on(e, target_gid),
             }
+        }
+        if skill == SkillEnum::AlHeal && level > 0 {
+            self.game.damage_numbers.add(DamageNumber::new(
+                target_gid,
+                level as i32,
+                DamageNumberType::Heal,
+                0,
+            ));
         }
     }
 
