@@ -537,12 +537,8 @@ impl App {
         self.game.pending_skill_target = None;
         self.game.pending_skill_id = None;
         self.game.pending_skill_level = None;
-        match ragnarok_game::skill::skill_failure_message(cause) {
-            Some(msg) => {
-                tracing::info!("Skill {skill_id} failed (cause: {cause}): {msg}");
-                self.game.chat_window.add_system(msg.to_string());
-            }
-            None => tracing::debug!("Skill {skill_id} failed (cause: {cause}, no user message)"),
-        }
+        let msg = ragnarok_game::skill::skill_failure_message(cause).unwrap_or("Skill failed.");
+        tracing::info!("Skill {skill_id} failed (cause: {cause}): {msg}");
+        self.game.chat_window.add_error(msg.to_string());
     }
 }

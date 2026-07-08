@@ -64,6 +64,7 @@ const DEFAULT_SIZE_INDEX: usize = 5;
 const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
 const YELLOW: [f32; 4] = [1.0, 1.0, 0.4, 1.0];
+const RED: [f32; 4] = [1.0, 0.1, 0.1, 1.0];
 
 const DIALOG_BG: &str = "data/texture/유저인터페이스/basic_interface/dialog_bg.bmp";
 const SCROLL_UP: &str = "data/texture/유저인터페이스/basic_interface/dialscr_up.bmp";
@@ -253,6 +254,10 @@ impl ChatWindow {
 
     pub fn add_system(&mut self, message: String) {
         self.add_message(message, YELLOW, ChatChannel::System);
+    }
+
+    pub fn add_error(&mut self, message: String) {
+        self.add_message(message, RED, ChatChannel::System);
     }
 
     fn draw_visual_lines(
