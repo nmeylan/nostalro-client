@@ -653,20 +653,12 @@ impl App {
         let is_player = self.game.entities.player_id() == Some(gid);
         if active {
             let design = val1.clamp(0, u8::MAX as i32) as u8;
-            let had_cart = self
-                .game
-                .entities
-                .get(gid)
-                .is_some_and(|e| e.cart_type.is_some());
             if let Some(entity) = self.game.entities.get_mut(gid) {
                 entity.cart_type = Some(design);
             }
             self.spawn_cart_visual(gid, design);
             if is_player {
                 self.game.character.cart_design = Some(design);
-                if !had_cart {
-                    self.game.character.cart.open();
-                }
             }
         } else if is_player {
             self.handle_cart_off();
@@ -964,6 +956,7 @@ impl App {
     pub(super) fn handle_skill_unit_entered(
         &mut self,
         aid: u32,
+        creator_aid: u32,
         x: i16,
         y: i16,
         unit_id: u8,
@@ -998,12 +991,19 @@ impl App {
             return;
         };
         if self.effect_holder.reposition_by_key(aid, world) {
+            eprintln!(
+                "[song-unit] REPOSITION unit_id={unit_id:#x} aid={aid} creator={creator_aid} cell=({x},{y})"
+            );
             return;
         }
+        eprintln!(
+            "[song-unit] SPAWN      unit_id={unit_id:#x} aid={aid} creator={creator_aid} cell=({x},{y})"
+        );
         self.effect_queue.spawn_at_keyed(effect, world, aid);
     }
 
     pub(super) fn handle_skill_unit_disappeared(&mut self, aid: u32) {
+        eprintln!("[song-unit] DISAPPEAR aid={aid}");
         self.effect_queue.despawn(aid);
         self.game.trap_units.remove(&aid);
         self.game.hidden_traps.remove(&aid);

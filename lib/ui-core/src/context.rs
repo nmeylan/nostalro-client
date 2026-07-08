@@ -36,6 +36,8 @@ pub struct UiContext {
     pub key_f9: bool,
     pub key_f10: bool,
     pub key_f12: bool,
+    pub ctrl_pressed: bool,
+    pub shift_pressed: bool,
     pub scroll_delta: f32,
     pub dpi_scale: f32,
     pub now_ms: u64,
@@ -76,6 +78,8 @@ impl UiContext {
             key_f9: false,
             key_f10: false,
             key_f12: false,
+            ctrl_pressed: false,
+            shift_pressed: false,
             scroll_delta: 0.0,
             dpi_scale: 1.0,
         }
@@ -107,6 +111,30 @@ impl UiContext {
         self.key_f10 = false;
         self.key_f12 = false;
         self.scroll_delta = 0.0;
+    }
+
+    fn is_paste_chord(&self, event: &winit::event::KeyEvent) -> bool {
+        let ctrl_v = self.ctrl_pressed
+            && matches!(event.physical_key, PhysicalKey::Code(KeyCode::KeyV));
+        let shift_insert = self.shift_pressed
+            && matches!(event.physical_key, PhysicalKey::Code(KeyCode::Insert));
+        ctrl_v || shift_insert
+    }
+
+    fn paste_from_clipboard(&mut self) {
+        if let Ok(mut clipboard) = arboard::Clipboard::new()
+            && let Ok(text) = clipboard.get_text()
+        {
+            self.inject_pasted_text(&text);
+        }
+    }
+
+    pub fn inject_pasted_text(&mut self, text: &str) {
+        for ch in text.chars() {
+            if !ch.is_control() {
+                self.typed_chars.push(ch);
+            }
+        }
     }
 
     pub fn handle_event(&mut self, event: &WindowEvent) {
@@ -146,8 +174,16 @@ impl UiContext {
                     self.mouse_right_clicked = true;
                 }
             }
+            WindowEvent::ModifiersChanged(modifiers) => {
+                self.ctrl_pressed = modifiers.state().control_key();
+                self.shift_pressed = modifiers.state().shift_key();
+            }
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state == ElementState::Pressed {
+                    if self.is_paste_chord(event) {
+                        self.paste_from_clipboard();
+                        return;
+                    }
                     // Function keys are matched on the physical scancode, not the
                     // logical key: some keyboards/layouts deliver an Fn-remapped
                     // logical key for the upper F-row, which a NamedKey match
@@ -204,5 +240,23 @@ impl UiContext {
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::text_input::TextInput;
+
+    #[test]
+    fn pasted_text_fills_focused_input_and_drops_newlines() {
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.inject_pasted_text("hello\nworld");
+
+        let mut input = TextInput::new(100, false);
+        input.process_keys(&ctx);
+
+        assert_eq!(input.text, "helloworld");
+        assert_eq!(input.cursor_pos, 10);
     }
 }

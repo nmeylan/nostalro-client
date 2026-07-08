@@ -63,10 +63,7 @@ const CLOCK_INDEX: usize = 14;
 // until frame 200, then eases out at -5/frame (~44 frames). The
 // 64×128 card aspect (height = 2× width) is the tall-card flag; wobble
 // values are the `0.05` amplitude / `2°`-per-frame speed.
-//
-// The base size `8` reads ~4× a character at this viewer's scale; sized
-// to the sprite instead (height ≈ a character ~6 units), keeping the tall aspect.
-const CARD_WIDTH: f32 = 3.0;
+const CARD_WIDTH: f32 = 8.0;
 
 // Anchored above the head (native RO `-Y = up`). Matches the TempOk/TempFail
 // result-banner offset (`temp_result.rs`, also an EffectTexture quad above
@@ -147,6 +144,10 @@ impl TarotCardEffect {
 }
 
 impl Effect for TarotCardEffect {
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.center = pos;
+    }
+
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.process += ctx.delta * FRAMES_PER_SECOND;
         if self.process >= self.life_frames() {
@@ -260,6 +261,29 @@ mod tests {
             peak[0],
             late[0]
         );
+    }
+
+    #[test]
+    fn card_tracks_a_moving_target_via_set_position() {
+        let mut e = TarotCardEffect::new([0.0, 0.0, 0.0], tarot_params(0));
+        tick(&mut e, 12);
+        e.set_position([10.0, 0.0, 20.0]);
+        let mut l = EffectDrawList::new();
+        e.collect_draws(
+            &mut l,
+            &EffectRenderCtx {
+                camera: Default::default(),
+                screen_w: 256.0,
+                screen_h: 256.0,
+                elapsed: 0.0,
+            },
+        );
+        let EffectPrimitiveDraw::Billboard { pos, .. } = &l.primitives[0] else {
+            panic!("expected Billboard");
+        };
+        assert_eq!(pos[0], 10.0);
+        assert_eq!(pos[2], 20.0);
+        assert_eq!(pos[1], CARD_Y_OFFSET);
     }
 
     #[test]

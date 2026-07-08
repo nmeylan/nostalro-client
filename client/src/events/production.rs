@@ -263,9 +263,32 @@ impl App {
         self.game
             .chat_window
             .add_system(format!("Your shop is open ({} items).", items.len()));
+        if let (Some(name), Some(pid)) = (
+            self.game.pending_shop_name.take(),
+            self.game.entities.player_id(),
+        ) && let Some(entity) = self.game.entities.get_mut(pid)
+        {
+            entity.vending_board = Some(name);
+            entity.state = EntityState::Sitting;
+        }
     }
 
-    pub(crate) fn handle_vending_purchase_result(&mut self, result: u8) {
+    pub(crate) fn close_own_shop(&mut self) {
+        self.channel.send_packet(ragnarok_network::build_req_closestore_packet(
+            self.config.packetver,
+        ));
+        self.game.pending_shop_name = None;
+        if let Some(pid) = self.game.entities.player_id()
+            && let Some(entity) = self.game.entities.get_mut(pid)
+        {
+            entity.vending_board = None;
+            if entity.state == EntityState::Sitting {
+                entity.state = EntityState::Standing;
+            }
+        }
+    }
+
+    pub(crate) fn handle_vending_purchase_result(&mut self, index: i16, curcount: i16, result: u8) {
         let msg = match result {
             0 => "Purchase complete.",
             1 => "Not enough zeny.",
@@ -274,5 +297,14 @@ impl App {
             _ => "Purchase failed.",
         };
         self.game.chat_window.add_system(msg.to_string());
+        if result == 0 && self.game.vending_shop_window.is_open() {
+            self.game.vending_shop_window.update_stock(index, curcount);
+        }
+    }
+
+    pub(crate) fn handle_vending_stock_decrement(&mut self, _index: i16, _count: i16) {
+        self.game
+            .chat_window
+            .add_system("An item was sold from your shop.".to_string());
     }
 }

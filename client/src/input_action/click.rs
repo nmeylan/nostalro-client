@@ -165,6 +165,17 @@ impl App {
             return;
         }
         if let Some(entity_id) = self.game.hovered_entity_id
+            && Some(entity_id) == self.game.entities.player_id()
+            && self
+                .game
+                .entities
+                .get(entity_id)
+                .is_some_and(|e| e.vending_board.is_some())
+        {
+            self.close_own_shop();
+            return;
+        }
+        if let Some(entity_id) = self.game.hovered_entity_id
             && Some(entity_id) != self.game.entities.player_id()
             && self
                 .game

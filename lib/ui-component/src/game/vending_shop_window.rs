@@ -96,6 +96,22 @@ impl VendingShopWindow {
         self.rows.clear();
     }
 
+    pub fn update_stock(&mut self, index: i16, amount: i16) {
+        let Some(pos) = self.rows.iter().position(|r| r.item.index == index) else {
+            return;
+        };
+        if amount <= 0 {
+            self.rows.remove(pos);
+            self.selected = self.selected.min(self.rows.len().saturating_sub(1));
+            if self.rows.is_empty() {
+                self.open = false;
+            }
+        } else {
+            self.rows[pos].item.amount = amount;
+        }
+        self.quantity = self.quantity.min(self.selected_stock().max(1));
+    }
+
     fn selected_stock(&self) -> u16 {
         self.rows
             .get(self.selected)

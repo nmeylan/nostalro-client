@@ -144,6 +144,9 @@ impl InventoryData {
         items: Vec<NormalItemData>,
         data_table: &crate::data_table::DataTable,
     ) -> Vec<String> {
+        // Full snapshot of the stackable items; the server resends it (e.g. on
+        // refine), so replace rather than accumulate onto existing counts.
+        self.items.retain(|i| !i.item_type.is_stackable());
         for info in items {
             self.add_item(normal_item_to_item(&info, data_table));
         }
@@ -158,6 +161,7 @@ impl InventoryData {
         items: Vec<EquipmentItemData>,
         data_table: &crate::data_table::DataTable,
     ) -> Vec<String> {
+        self.items.retain(|i| i.item_type.is_stackable());
         for info in items {
             self.add_item(equipment_item_to_item(&info, data_table));
         }
@@ -446,6 +450,7 @@ impl CartData {
         items: Vec<NormalItemData>,
         data_table: &crate::data_table::DataTable,
     ) -> Vec<String> {
+        self.items.retain(|i| !i.item_type.is_stackable());
         for info in items {
             self.add_item(normal_item_to_item(&info, data_table));
         }
@@ -460,6 +465,7 @@ impl CartData {
         items: Vec<EquipmentItemData>,
         data_table: &crate::data_table::DataTable,
     ) -> Vec<String> {
+        self.items.retain(|i| i.item_type.is_stackable());
         for info in items {
             self.add_item(equipment_item_to_item(&info, data_table));
         }
@@ -492,6 +498,7 @@ impl CartData {
         self.items.clear();
         self.weight = 0;
         self.count = 0;
+        self.open = false;
     }
 }
 
@@ -642,6 +649,47 @@ mod tests {
         inv.remove_item(12);
         assert!(inv.get_item(12).is_none());
         assert_eq!(inv.all_items().len(), 3);
+    }
+
+    #[test]
+    fn full_itemlist_resend_replaces_instead_of_accumulating() {
+        let data = crate::data_table::DataTable::default();
+        let mut inv = InventoryData::new();
+
+        let potions = vec![NormalItemData {
+            index: 1,
+            item_id: 501,
+            item_type: 0,
+            is_identified: true,
+            count: 30,
+            wear_state: 0,
+        }];
+        let weapons = vec![EquipmentItemData {
+            index: 2,
+            item_id: 1101,
+            item_type: 5,
+            is_identified: true,
+            location: 2,
+            wear_state: 0,
+            is_damaged: false,
+            refining_level: 0,
+            slot: [0; 4],
+        }];
+
+        inv.apply_normal_items(potions.clone(), &data);
+        inv.apply_equipment_items(weapons.clone(), &data);
+        assert_eq!(inv.get_item(1).unwrap().count, 30);
+        assert_eq!(inv.all_items().len(), 2);
+
+        inv.apply_normal_items(potions, &data);
+        inv.apply_equipment_items(weapons, &data);
+
+        assert_eq!(
+            inv.get_item(1).unwrap().count,
+            30,
+            "stackable count must not double when the server resends the list"
+        );
+        assert_eq!(inv.all_items().len(), 2, "resend must not duplicate items");
     }
 
     #[test]
@@ -800,9 +848,11 @@ mod tests {
         assert_eq!(cart.max_weight, 8000);
         assert_eq!(cart.max_count, 100);
 
+        cart.open();
         cart.clear();
         assert!(cart.all_items().is_empty());
         assert_eq!(cart.weight, 0);
+        assert!(!cart.is_open());
     }
 
     #[test]

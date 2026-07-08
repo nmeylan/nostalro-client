@@ -83,8 +83,8 @@ TODO:
 - ~~Equipment slots + visual update on character~~
 - ~~Card slotting~~
 - ~~Item info window~~
-- Item crafting (arrows, cooking)
-- Item refining
+~~- Item crafting (arrows, cooking)~~
+~~- Item refining~~
 ~~- Cart system~~
 - Storage/warehouse
 

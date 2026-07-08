@@ -54,7 +54,7 @@ use ragnarok_network::{
     build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet,
     build_use_skill_packet, build_req_itemidentify_packet, build_req_makingarrow_packet,
     build_req_makingitem_packet, build_req_weaponrefine_packet, build_req_itemrepair_packet,
-    build_select_autospell_packet, build_req_openstore2_packet, build_req_closestore_packet,
+    build_select_autospell_packet, build_req_openstore2_packet,
     build_req_buy_frommc_packet, build_purchase_frommc2_packet, ip_u32_to_string, network_loop,
 };
 use ragnarok_renderer::effect::EffectHolder;
@@ -824,10 +824,10 @@ impl App {
                         &items,
                         self.config.packetver,
                     ));
+                    self.game.pending_shop_name = Some(shop_name);
                 }
                 GameEvent::RequestCloseStore => {
-                    self.channel
-                        .send_packet(build_req_closestore_packet(self.config.packetver));
+                    self.close_own_shop();
                 }
                 GameEvent::RequestBuyFromVendor { aid } => {
                     self.channel

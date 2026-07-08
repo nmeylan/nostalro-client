@@ -105,6 +105,10 @@ impl BottomVerticalEffect {
 }
 
 impl Effect for BottomVerticalEffect {
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+    }
+
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.age += ctx.delta;
         EffectStatus::Running
@@ -313,6 +317,21 @@ mod tests {
             (s2.pre[1] - s3.pre[1]).abs() > 0.05,
             "ec=2/3 rz must differ"
         );
+    }
+
+    #[test]
+    fn strips_follow_the_performer_via_set_position() {
+        let mut e = BottomVerticalEffect::new([5.0, 0.0, 7.0], ASSASSINCROSS);
+        step(&mut e, FADE_IN_SECS);
+        let EffectPrimitiveDraw::WorldQuad { corners: before, .. } = draws(&e)[0] else {
+            panic!("expected WorldQuad");
+        };
+        e.set_position([9.0, 0.0, 11.0]);
+        let EffectPrimitiveDraw::WorldQuad { corners: after, .. } = draws(&e)[0] else {
+            panic!("expected WorldQuad");
+        };
+        assert!((after[0][0] - before[0][0] - 4.0).abs() < 1e-3, "strip shifts +4 in X");
+        assert!((after[0][2] - before[0][2] - 4.0).abs() < 1e-3, "strip shifts +4 in Z");
     }
 
     #[test]

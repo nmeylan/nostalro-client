@@ -90,7 +90,11 @@ pub const RESIZE_HANDLE_TEX: &str = "data/texture/유저인터페이스/btn_resi
 const DRAG_STATE_ID: WidgetId = WidgetId(u32::MAX);
 pub const Z_ORDER_STATE_ID: WidgetId = WidgetId(u32::MAX - 1);
 const WINDOW_RECTS_STATE_ID: WidgetId = WidgetId(u32::MAX - 2);
+const FOCUS_STATE_ID: WidgetId = WidgetId(u32::MAX - 3);
 const DRAG_THRESHOLD: f32 = 5.0;
+
+#[derive(Default, Clone, Copy)]
+struct FocusState(Option<WidgetId>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DragCancelledInfo {
@@ -199,6 +203,11 @@ impl<'a> UiFrame<'a> {
         initial_focus: Option<WidgetId>,
         saved_positions: &'a HashMap<u32, [f32; 2]>,
     ) -> Self {
+        let focus = initial_focus.or_else(|| {
+            state
+                .get::<FocusState>(FOCUS_STATE_ID)
+                .and_then(|f| f.0)
+        });
         Self {
             ctx,
             atlas,
@@ -209,7 +218,7 @@ impl<'a> UiFrame<'a> {
             tooltip_draw_calls: Vec::new(),
             any_hovered: false,
             any_interactive_hovered: false,
-            focus: initial_focus,
+            focus,
             saved_positions,
             drag_started_this_frame: None,
             current_window: None,
@@ -428,7 +437,7 @@ impl<'a> UiFrame<'a> {
         let double_clicked = hovered && self.ctx.mouse_double_clicked;
         let right_clicked = hovered && self.ctx.mouse_right_clicked;
         if clicked {
-            self.focus = Some(id);
+            self.set_focus(id);
         }
         let has_focus = self.focus == Some(id);
         Response {
@@ -728,6 +737,7 @@ impl<'a> UiFrame<'a> {
 
     pub fn set_focus(&mut self, id: WidgetId) {
         self.focus = Some(id);
+        self.state.set::<FocusState>(FOCUS_STATE_ID, FocusState(Some(id)));
     }
 
     pub fn focused(&self) -> Option<WidgetId> {
@@ -1042,7 +1052,7 @@ mod tests {
         let ra = ui.interact(id_a, rect_a);
         let rb = ui.interact(id_b, rect_b);
         assert!(!ra.hovered());
-        assert!(!ra.has_focus()); // focus not carried across frames (no initial_focus)
+        assert!(ra.has_focus()); // focus persists across frames via the state cache
         assert!(rb.hovered());
         assert!(!rb.clicked());
 
@@ -1050,7 +1060,7 @@ mod tests {
         let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let ra = ui.interact(id_a, rect_a);
         let rb = ui.interact(id_b, rect_b);
-        assert!(!ra.has_focus());
+        assert!(ra.has_focus()); // still on id_a until the id_b click below moves it
         assert!(rb.has_focus());
         assert!(rb.clicked());
 
@@ -1065,6 +1075,34 @@ mod tests {
         assert!(!ra.clicked());
         assert!(!rb.hovered());
         assert!(!rb.clicked());
+    }
+
+    #[test]
+    fn text_input_click_focuses_then_receives_typing_next_frame() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let positions = HashMap::new();
+        let id = WidgetId(70);
+        let rect = Rect::new(10.0, 10.0, 100.0, 20.0);
+        let mut input = TextInput::new(24, false);
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 50.0;
+        ctx.mouse_y = 15.0;
+        ctx.mouse_clicked = true;
+        {
+            let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+            let r = ui.text_input(id, rect, &mut input, TextInputBg::Default);
+            assert!(r.has_focus());
+        }
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.typed_chars = vec!['h', 'i'];
+        {
+            let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+            ui.text_input(id, rect, &mut input, TextInputBg::Default);
+        }
+        assert_eq!(input.text, "hi");
     }
 
     #[test]

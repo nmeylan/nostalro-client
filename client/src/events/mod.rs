@@ -657,13 +657,13 @@ impl App {
                 }
                 GameEvent::SkillUnitEntered {
                     aid,
-                    creator_aid: _,
+                    creator_aid,
                     x,
                     y,
                     unit_id,
                     is_visible,
                 } => {
-                    self.handle_skill_unit_entered(aid, x, y, unit_id, is_visible);
+                    self.handle_skill_unit_entered(aid, creator_aid, x, y, unit_id, is_visible);
                 }
                 GameEvent::SkillUnitDisappeared { aid } => {
                     self.handle_skill_unit_disappeared(aid);
@@ -808,10 +808,16 @@ impl App {
                 } => {
                     self.handle_vending_shop_list(aid, unique_id, items);
                 }
-                GameEvent::VendingPurchaseResult { result, .. } => {
-                    self.handle_vending_purchase_result(result);
+                GameEvent::VendingPurchaseResult {
+                    index,
+                    curcount,
+                    result,
+                } => {
+                    self.handle_vending_purchase_result(index, curcount, result);
                 }
-                GameEvent::VendingStockDecrement { .. } => {}
+                GameEvent::VendingStockDecrement { index, count } => {
+                    self.handle_vending_stock_decrement(index, count);
+                }
 
                 _ => {}
             }

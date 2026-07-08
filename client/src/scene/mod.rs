@@ -258,8 +258,12 @@ impl App {
                                 };
                                 if motion_idx < motion_count {
                                     let motion = &emo_act.actions[action_idx].motions[motion_idx];
-                                    let emo_center =
-                                        [entry.screen_anchor[0], entry.screen_anchor[1] - 100.0];
+                                    let emo_center = [
+                                        entry.screen_anchor[0],
+                                        entry.screen_anchor[1]
+                                            - entry.head_offset
+                                            - 6.0 * entry.sprite_scale,
+                                    ];
                                     for clip in &motion.clips {
                                         if let Some((vertices, indices, tex_idx)) = build_clip_quad(
                                             clip,

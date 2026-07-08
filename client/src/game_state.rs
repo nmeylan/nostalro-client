@@ -138,6 +138,9 @@ pub struct GameState {
     /// server's broken-item list can be attributed back to that player.
     pub pending_repair_target: Option<u32>,
     pub pending_pickup_item_id: Option<u32>,
+    /// Shop title submitted with CZ_REQ_OPENSTORE2; applied to our own entity on
+    /// open since the server sends ZC_STORE_ENTRY to everyone but us.
+    pub pending_shop_name: Option<String>,
     pub attack_target_id: Option<u32>,
     pub attack_request_cooldown: f32,
     pub noshift_mode: bool,
@@ -619,6 +622,7 @@ impl GameState {
             pending_list_skill: None,
             pending_repair_target: None,
             pending_pickup_item_id: None,
+            pending_shop_name: None,
             attack_target_id: None,
             attack_request_cooldown: 0.0,
             noshift_mode: false,
