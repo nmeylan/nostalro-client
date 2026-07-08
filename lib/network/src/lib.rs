@@ -27,6 +27,10 @@ pub use sender::{
     build_stat_change_packet, build_unequip_item_packet, build_upgrade_skill_packet,
     build_use_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet,
     build_zone_enter_packet,
+    build_req_itemidentify_packet, build_req_makingarrow_packet, build_req_makingitem_packet,
+    build_req_weaponrefine_packet, build_req_itemrepair_packet, build_select_autospell_packet,
+    build_req_openstore2_packet, build_req_closestore_packet, build_req_buy_frommc_packet,
+    build_purchase_frommc2_packet,
 };
 use session::{Session, SessionState};
 use std::collections::VecDeque;

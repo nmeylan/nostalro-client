@@ -192,6 +192,10 @@ impl App {
             preload_window(&mut self.game.equipment_window, renderer, grf);
             preload_window(&mut self.game.npc_dialog, renderer, grf);
             preload_window(&mut self.game.warp_list_window, renderer, grf);
+            preload_window(&mut self.game.item_list_selection_window, renderer, grf);
+            preload_window(&mut self.game.make_item_window, renderer, grf);
+            preload_window(&mut self.game.vending_shop_window, renderer, grf);
+            preload_window(&mut self.game.vending_setup_window, renderer, grf);
             preload_window(&mut self.game.npc_shop, renderer, grf);
             preload_window(&mut self.game.chat_room_window, renderer, grf);
             preload_window(&mut self.game.item_info_window, renderer, grf);

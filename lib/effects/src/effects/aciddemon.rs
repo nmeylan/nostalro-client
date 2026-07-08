@@ -28,8 +28,15 @@ const WAVE_REL_AMPLITUDE: f32 = 0.55;
 const PHASE_DRIFT_PER_FRAME: f32 = 0.6;
 
 const QUAKE_AT_FRAME: f32 = 5.0;
-const QUAKE_AMPLITUDE: f32 = 1.6;
-const QUAKE_DURATION_MS: u32 = 600;
+const QUAKE_AMPLITUDE: f32 = 1.0;
+const QUAKE_DURATION_MS: u32 = 650;
+
+/// The aura and its shake are the bomb's impact, but this effect spawns
+/// alongside the thrown molotov (`Throwitem4`), which arcs to the target over
+/// 30 frames (`throw_item`: 5-frame launch + 25-frame flight, distance-
+/// independent). Hold the aura dormant for that long so it erupts as the bottle
+/// lands rather than at cast time.
+const SPAWN_DELAY_FRAMES: f32 = 30.0;
 
 const FADE_IN_FRAMES: f32 = 20.0;
 const FADE_OUT_FRAMES: f32 = 40.0;
@@ -62,7 +69,7 @@ struct Ring {
 pub struct AcidDemonEffect {
     world_pos: [f32; 3],
     rings: [Ring; NUM_RINGS],
-    process: f32,
+    age: f32,
     shake_fired: bool,
 }
 
@@ -81,24 +88,30 @@ impl AcidDemonEffect {
         Self {
             world_pos,
             rings,
-            process: 0.0,
+            age: 0.0,
             shake_fired: false,
         }
     }
 
+    /// Animation clock, zero until the thrown bottle lands.
+    fn process(&self) -> f32 {
+        (self.age - SPAWN_DELAY_FRAMES).max(0.0)
+    }
+
     fn grow(&self) -> f32 {
-        let ramp = self.process.min(GROW_FRAMES).to_radians().sin();
-        ramp * RADIUS_GROWTH_PER_FRAME.powf(self.process)
+        let process = self.process();
+        let ramp = process.min(GROW_FRAMES).to_radians().sin();
+        ramp * RADIUS_GROWTH_PER_FRAME.powf(process)
     }
 
     fn alpha(&self) -> f32 {
-        let a = if self.process < FADE_IN_FRAMES {
-            PEAK_ALPHA * (self.process / FADE_IN_FRAMES)
-        } else if self.process < FADE_OUT_START_FRAME {
+        let process = self.process();
+        let a = if process < FADE_IN_FRAMES {
+            PEAK_ALPHA * (process / FADE_IN_FRAMES)
+        } else if process < FADE_OUT_START_FRAME {
             PEAK_ALPHA
         } else {
-            PEAK_ALPHA
-                * (1.0 - (self.process - FADE_OUT_START_FRAME) / FADE_OUT_FRAMES).clamp(0.0, 1.0)
+            PEAK_ALPHA * (1.0 - (process - FADE_OUT_START_FRAME) / FADE_OUT_FRAMES).clamp(0.0, 1.0)
         };
         a / OVERDRAW_DIVISOR
     }
@@ -106,8 +119,8 @@ impl AcidDemonEffect {
 
 impl Effect for AcidDemonEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
-        self.process += ctx.delta * FRAMES_PER_SECOND;
-        if self.process >= TOTAL_FRAMES {
+        self.age += ctx.delta * FRAMES_PER_SECOND;
+        if self.process() >= TOTAL_FRAMES {
             EffectStatus::Dead
         } else {
             EffectStatus::Running
@@ -115,12 +128,13 @@ impl Effect for AcidDemonEffect {
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
+        let process = self.process();
         let grow = self.grow();
         let alpha = self.alpha();
         if alpha <= 0.0 {
             return;
         }
-        let frame = self.process.floor() as u32;
+        let frame = process.floor() as u32;
         let base = self.world_pos;
         for (idx, r) in self.rings.iter().enumerate() {
             let max_h = r.base_max_height * HEIGHT_SCALE * grow;
@@ -128,8 +142,8 @@ impl Effect for AcidDemonEffect {
             let height = sin_rise * max_h;
             let bottom = r.distance;
             let top = r.distance + cos_rise * max_h;
-            let rotation = (r.rot_start_deg + r.spin_per_frame * self.process).to_radians();
-            let wave_phase = self.process * PHASE_DRIFT_PER_FRAME
+            let rotation = (r.rot_start_deg + r.spin_per_frame * process).to_radians();
+            let wave_phase = process * PHASE_DRIFT_PER_FRAME
                 + frame_jitter(frame, idx as u32) * std::f32::consts::TAU;
             out.push(EffectPrimitiveDraw::Frustum {
                 base_alpha: 1.0,
@@ -157,7 +171,7 @@ impl Effect for AcidDemonEffect {
     }
 
     fn take_camera_shake(&mut self) -> Option<CameraShake> {
-        if !self.shake_fired && self.process >= QUAKE_AT_FRAME {
+        if !self.shake_fired && self.process() >= QUAKE_AT_FRAME {
             self.shake_fired = true;
             Some(CameraShake {
                 amplitude: QUAKE_AMPLITUDE,
@@ -181,6 +195,11 @@ mod tests {
         })
     }
 
+    /// Advance to the moment the thrown bottle lands and the aura wakes up.
+    fn wake(e: &mut AcidDemonEffect) {
+        step(e, SPAWN_DELAY_FRAMES);
+    }
+
     fn render_ctx() -> EffectRenderCtx {
         EffectRenderCtx {
             camera: Default::default(),
@@ -199,6 +218,7 @@ mod tests {
     #[test]
     fn emits_four_rotating_purple_cones() {
         let mut e = AcidDemonEffect::new([0.0; 3]);
+        wake(&mut e);
         step(&mut e, 25.0); // past fade-in so alpha is up
         let prims = frustums(&e);
         assert_eq!(prims.len(), NUM_RINGS);
@@ -217,6 +237,7 @@ mod tests {
     #[test]
     fn cones_grow_then_alpha_fades_out() {
         let mut e = AcidDemonEffect::new([0.0; 3]);
+        wake(&mut e);
         step(&mut e, 5.0);
         let early_h = match &frustums(&e)[0] {
             EffectPrimitiveDraw::Frustum { height, .. } => *height,
@@ -237,6 +258,7 @@ mod tests {
     #[test]
     fn first_ring_rotates_over_time() {
         let mut e = AcidDemonEffect::new([0.0; 3]);
+        wake(&mut e);
         step(&mut e, 20.0);
         let rot_a = match &frustums(&e)[0] {
             EffectPrimitiveDraw::Frustum { rotation, .. } => *rotation,
@@ -266,6 +288,7 @@ mod tests {
             _ => unreachable!(),
         };
         let mut e = AcidDemonEffect::new([0.0; 3]);
+        wake(&mut e);
         step(&mut e, 10.0);
         let p0 = wave_phase(&e);
         step(&mut e, 1.0);
@@ -279,8 +302,20 @@ mod tests {
     }
 
     #[test]
+    fn stays_dark_and_silent_until_the_bomb_lands() {
+        let mut e = AcidDemonEffect::new([0.0; 3]);
+        step(&mut e, SPAWN_DELAY_FRAMES - 1.0);
+        assert!(frustums(&e).is_empty(), "no aura before the bottle lands");
+        assert!(
+            e.take_camera_shake().is_none(),
+            "no shake before the bottle lands"
+        );
+    }
+
+    #[test]
     fn fires_one_shot_camera_shake_after_frame_5() {
         let mut e = AcidDemonEffect::new([0.0; 3]);
+        wake(&mut e);
         step(&mut e, 2.0);
         assert!(e.take_camera_shake().is_none(), "no shake before frame 5");
         step(&mut e, 5.0);
@@ -292,6 +327,7 @@ mod tests {
     #[test]
     fn dies_after_total_frames() {
         let mut e = AcidDemonEffect::new([0.0; 3]);
+        wake(&mut e);
         assert_eq!(step(&mut e, TOTAL_FRAMES + 1.0), EffectStatus::Dead);
     }
 }

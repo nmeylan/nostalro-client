@@ -52,7 +52,10 @@ use ragnarok_network::{
     build_restart_packet, build_select_char_packet, build_select_warppoint_packet,
     build_sell_item_list_packet, build_shortcut_key_change_packet, build_stat_change_packet,
     build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet,
-    build_use_skill_packet, ip_u32_to_string, network_loop,
+    build_use_skill_packet, build_req_itemidentify_packet, build_req_makingarrow_packet,
+    build_req_makingitem_packet, build_req_weaponrefine_packet, build_req_itemrepair_packet,
+    build_select_autospell_packet, build_req_openstore2_packet, build_req_closestore_packet,
+    build_req_buy_frommc_packet, build_purchase_frommc2_packet, ip_u32_to_string, network_loop,
 };
 use ragnarok_renderer::effect::EffectHolder;
 use ragnarok_renderer::{
@@ -696,6 +699,11 @@ impl App {
                         }
                         continue;
                     }
+                    if skill_id == SkillEnum::AcMakingarrow.id() as u16
+                        || skill_id == SkillEnum::SaCreatecon.id() as u16
+                    {
+                        self.game.pending_list_skill = Some(skill_id);
+                    }
                     let skill_target_type = self
                         .game
                         .character
@@ -757,6 +765,70 @@ impl App {
                         self.config.packetver,
                     ));
                     self.game.pending_card_composition_index = None;
+                }
+                GameEvent::RequestIdentifyItem { index } => {
+                    self.channel
+                        .send_packet(build_req_itemidentify_packet(index, self.config.packetver));
+                }
+                GameEvent::RequestMakingArrow { item_id } => {
+                    self.channel
+                        .send_packet(build_req_makingarrow_packet(item_id, self.config.packetver));
+                }
+                GameEvent::RequestMakingItem { item_id, materials } => {
+                    self.channel.send_packet(build_req_makingitem_packet(
+                        item_id,
+                        materials,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestWeaponRefine { index } => {
+                    self.channel
+                        .send_packet(build_req_weaponrefine_packet(index, self.config.packetver));
+                }
+                GameEvent::RequestRepairItem {
+                    index,
+                    item_id,
+                    refine,
+                    cards,
+                } => {
+                    self.channel.send_packet(build_req_itemrepair_packet(
+                        index,
+                        item_id,
+                        refine,
+                        cards,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestSelectAutoSpell { skill_id } => {
+                    self.channel
+                        .send_packet(build_select_autospell_packet(skill_id, self.config.packetver));
+                }
+                GameEvent::RequestOpenStore { shop_name, items } => {
+                    self.channel.send_packet(build_req_openstore2_packet(
+                        &shop_name,
+                        &items,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestCloseStore => {
+                    self.channel
+                        .send_packet(build_req_closestore_packet(self.config.packetver));
+                }
+                GameEvent::RequestBuyFromVendor { aid } => {
+                    self.channel
+                        .send_packet(build_req_buy_frommc_packet(aid, self.config.packetver));
+                }
+                GameEvent::RequestPurchaseFromVendor {
+                    aid,
+                    unique_id,
+                    items,
+                } => {
+                    self.channel.send_packet(build_purchase_frommc2_packet(
+                        aid,
+                        unique_id,
+                        &items,
+                        self.config.packetver,
+                    ));
                 }
                 GameEvent::RequestSendChat { message } => {
                     if message.starts_with('/') {

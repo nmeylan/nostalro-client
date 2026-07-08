@@ -1,7 +1,7 @@
 use std::io;
 use std::panic;
 
-use packets::packets::Packet;
+use packets::packets::{Packet, PacketZcMakableitemlist};
 use packets::packets_parser;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -184,6 +184,18 @@ impl Connection {
                     packets.push(pkt);
                 }
                 offset += 10;
+                continue;
+            }
+            // ZC_MAKABLEITEMLIST (0x018d): the generated MakableitemInfo parser
+            // has an inconsistent base_len and panics. Build the struct with its
+            // raw bytes set so the handler can slice the entries out itself.
+            if remaining.len() >= 4 && remaining[0] == 0x8d && remaining[1] == 0x01 {
+                let buf = Self::slice_to_packet_len(&remaining).to_vec();
+                let consumed = buf.len().max(1);
+                let mut pkt = PacketZcMakableitemlist::new(packetver);
+                pkt.raw = buf;
+                packets.push(Box::new(pkt));
+                offset += consumed;
                 continue;
             }
             let parse_buf = if remaining.len() >= 2 {

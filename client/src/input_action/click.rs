@@ -1,11 +1,12 @@
 use crate::App;
+use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::cursor::PendingSkillTarget;
 use ragnarok_game::entity::{EntityState, EntityType};
 use ragnarok_game::path::try_move_to;
 use ragnarok_game::targeting::{TargetClass, can_attack, skill_target_allowed, skill_target_class};
 use ragnarok_network::{
-    build_contact_npc_packet, build_pickup_item_packet, build_request_move_packet,
-    build_use_skill_packet, build_use_skill_to_ground_packet,
+    build_contact_npc_packet, build_pickup_item_packet, build_req_buy_frommc_packet,
+    build_request_move_packet, build_use_skill_packet, build_use_skill_to_ground_packet,
 };
 
 impl App {
@@ -72,6 +73,9 @@ impl App {
                                 entity_id,
                                 self.config.packetver,
                             ));
+                            if skill_id == SkillEnum::BsRepairweapon.id() as u16 {
+                                self.game.pending_repair_target = Some(entity_id);
+                            }
                             skill_cast = true;
                         } else {
                             let dest_x = target_pos.0 as i32;
@@ -158,6 +162,18 @@ impl App {
                     }
                 }
             }
+            return;
+        }
+        if let Some(entity_id) = self.game.hovered_entity_id
+            && Some(entity_id) != self.game.entities.player_id()
+            && self
+                .game
+                .entities
+                .get(entity_id)
+                .is_some_and(|e| e.vending_board.is_some())
+        {
+            self.channel
+                .send_packet(build_req_buy_frommc_packet(entity_id, self.config.packetver));
             return;
         }
         if let Some(entity_id) = self.game.hovered_entity_id

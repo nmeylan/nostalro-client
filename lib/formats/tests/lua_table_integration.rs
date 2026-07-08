@@ -33,5 +33,6 @@ fn parse_real_idnum2itemresnametable() {
         table.len()
     );
 
-    assert!(table.get(&501).is_some(), "expected item 501 to exist");
+    assert_eq!(table.get(&501).map(|s| s.as_str()), Some("빨간포션"));
+    assert_eq!(table.get(&664).map(|s| s.as_str()), Some("선물상자_1"));
 }

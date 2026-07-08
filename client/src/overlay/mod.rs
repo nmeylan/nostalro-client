@@ -22,6 +22,7 @@ impl App {
         self.build_player_bars(hovered_entity_id, render_list, &mut calls);
         self.build_cast_bars(render_list, &mut calls);
         self.build_chat_bubbles(render_list, &mut calls);
+        self.build_vending_boards(render_list, &mut calls);
         self.build_floor_item_tooltip(hovered_floor_item_id, floor_item_render_list, &mut calls);
         self.build_debug_pick_bounds(render_list, floor_item_render_list, &mut calls);
 
@@ -213,6 +214,46 @@ impl App {
                     });
                 }
             }
+        }
+    }
+
+    fn build_vending_boards(&self, render_list: &[RenderEntry], calls: &mut Vec<UiDrawCall>) {
+        let renderer = match &self.renderer {
+            Some(r) => r,
+            None => return,
+        };
+        for entry in render_list {
+            let entity = match self.game.entities.get(entry.id) {
+                Some(e) => e,
+                None => continue,
+            };
+            let board = match &entity.vending_board {
+                Some(b) => b,
+                None => continue,
+            };
+
+            let padding = 4.0;
+            let text_w = renderer.font_atlas.measure_text(board);
+            let box_w = text_w + padding * 2.0;
+            let box_h = renderer.font_atlas.line_height + padding * 2.0;
+            let box_x = entry.screen_anchor[0] - box_w / 2.0;
+            let box_y = entry.screen_anchor[1] - entry.head_offset - 5.0 - box_h;
+
+            let (bg_verts, bg_idx) =
+                ragnarok_ui::draw::quad_vertices(box_x, box_y, box_w, box_h, [0.35, 0.22, 0.08, 0.9]);
+            calls.push(UiDrawCall {
+                vertices: bg_verts.to_vec(),
+                indices: bg_idx.to_vec(),
+                texture: UiTextureRef::White,
+            });
+            build_outlined_text(
+                board,
+                box_x + padding,
+                box_y + padding + renderer.font_atlas.line_height / 2.0,
+                [1.0, 0.9, 0.5, 1.0],
+                &renderer.font_atlas,
+                calls,
+            );
         }
     }
 

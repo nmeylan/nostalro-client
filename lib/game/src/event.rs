@@ -555,6 +555,10 @@ pub enum GameEvent {
         skill_id: u16,
         level: i16,
     },
+    AutoCastSkill {
+        skill_id: u16,
+        level: i16,
+    },
     ShowItemInfo {
         index: u16,
     },

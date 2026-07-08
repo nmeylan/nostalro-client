@@ -475,7 +475,14 @@ pub fn build_req_makingitem_packet(item_id: u16, materials: [u16; 3], packetver:
     let mut pkt = PacketCzReqmakingitem::new(packetver);
     let mut info = MakableitemInfo::new(packetver);
     info.set_itid(item_id);
+    // The generated `fill_raw` serializes `material_id_raw` (not `material_id`),
+    // so pack the three material words into the raw bytes directly.
+    let mut mat_raw = [0u8; 6];
+    mat_raw[0..2].copy_from_slice(&materials[0].to_le_bytes());
+    mat_raw[2..4].copy_from_slice(&materials[1].to_le_bytes());
+    mat_raw[4..6].copy_from_slice(&materials[2].to_le_bytes());
     info.set_material_id(materials);
+    info.set_material_id_raw(mat_raw);
     info.fill_raw();
     pkt.set_info(info);
     pkt.fill_raw();

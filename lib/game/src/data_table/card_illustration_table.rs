@@ -30,7 +30,7 @@ impl CardIllustrationTable {
             };
         };
 
-        let entries = lua_table::parse_item_name_table(&data);
+        let entries = lua_table::parse_item_res_table(&data);
         tracing::info!("Loaded card illustration table: {} entries", entries.len());
 
         Self { entries }

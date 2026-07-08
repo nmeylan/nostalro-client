@@ -18,7 +18,7 @@ pub fn parse_item_res_table(data: &[u8]) -> HashMap<u16, String> {
             if let Ok(id) = parts[0].parse::<u16>() {
                 let name = parts[1];
                 if !name.is_empty() {
-                    map.insert(id, format!("_{name}"));
+                    map.insert(id, name.to_string());
                 }
             }
         }

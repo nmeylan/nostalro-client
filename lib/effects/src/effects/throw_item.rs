@@ -14,8 +14,8 @@
 //!   * F1 0/1/10/11 — default arc (peak 30, step `dist/25`, slow spin)
 //!   * F1 2 (stone) — low arc (peak 10, fixed step 2, slow spin)
 //!   * F1 3 (coin)  — flat hop (peak 1, fixed step 3, fast spin)
-//! `Throwitem4` is a composite: two staggered projectiles (molotov launches
-//! at frame 5, the second item at frame 10).
+//! `Throwitem4` (Acid Demonstration) throws a single molotov, launched at
+//! frame 5.
 //!
 //! Texture note: each effect throws the matching item icon. The classic GRF
 //! stores item icons under their Korean names in
@@ -156,13 +156,8 @@ pub const THROW_BOTTLES: ThrowItemParams = default_throw("유저인터페이스/
 pub const THROW_ITEM2: ThrowItemParams = default_throw("throwitem2.bmp", 0);
 // 308 Throw Stone (돌).
 pub const THROW_STONE: ThrowItemParams = stone_throw("유저인터페이스/item/돌.bmp");
-// 539 Throw Random Bottle — composite of two staggered bottle throws. The
-// original game throws a molotov (= 화염병, present) then a generic
-// bottle bitmap, which has no classic-GRF equivalent; substitute the
-// alcohol bottle (알코올, present) so the second toss is a real bottle icon
-// rather than the white fallback.
+// 539 Acid Demonstration — throws a molotov (화염병), launched at frame 5.
 pub const THROW_MOLOTOV: ThrowItemParams = default_throw("유저인터페이스/item/화염병.bmp", 5);
-pub const THROW_ITEM3: ThrowItemParams = default_throw("유저인터페이스/item/알코올.bmp", 10);
 // 541 — no classic icon (disabled).
 pub const THROW_ITEM4: ThrowItemParams = default_throw("throwitem4.bmp", 0);
 // 600 Throw Venom Knife (베넘나이프).
@@ -433,19 +428,16 @@ mod tests {
     }
 
     #[test]
-    fn composite_throwitem4_staggers_its_two_projectiles() {
-        let mut e = ThrowItemEffect::new(
-            [0.0, 0.0, 0.0],
-            [0.0, 0.0, 20.0],
-            &[THROW_MOLOTOV, THROW_ITEM3],
-        );
-        // Molotov launches at frame 5, the second item at frame 10. After 7
-        // frames only the molotov is in flight.
-        for _ in 0..7 {
+    fn molotov_holds_until_its_launch_delay() {
+        let mut e = ThrowItemEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 20.0], &[THROW_MOLOTOV]);
+        for _ in 0..4 {
             step(&mut e, FRAME_DT);
         }
-        let started: usize = e.projectiles.iter().filter(|p| p.started).count();
-        assert_eq!(started, 1, "only the molotov has launched at frame 7");
+        assert!(!e.projectiles[0].started, "molotov waits until frame 5");
+        for _ in 0..3 {
+            step(&mut e, FRAME_DT);
+        }
+        assert!(e.projectiles[0].started, "molotov is flying after frame 5");
     }
 
     #[test]

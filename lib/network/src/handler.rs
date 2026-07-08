@@ -1320,6 +1320,12 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         ))];
     }
 
+    if let Some(p) = any.downcast_ref::<PacketZcAutorunSkill>() {
+        return vec![GameEvent::AutoCastSkill {
+            skill_id: p.data.skid as u16,
+            level: p.data.level,
+        }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcItemidentifyList>() {
         return vec![GameEvent::ItemIdentifyList {
             indices: p.itidlist.clone(),
@@ -1380,6 +1386,73 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if let Some(p) = any.downcast_ref::<PacketZcAutospelllist>() {
         let skill_ids = p.skid.iter().copied().filter(|&s| s != 0).collect();
         return vec![GameEvent::AutoSpellList { skill_ids }];
+    }
+
+    if let Some(p) = any.downcast_ref::<PacketZcOpenstore>() {
+        return vec![GameEvent::OpenVendingSetup {
+            max_items: p.itemcount,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcStoreEntry>() {
+        let name: String = p.store_name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::VendingBoardShown {
+            aid: p.maker_aid,
+            name,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcDisappearEntry>() {
+        return vec![GameEvent::VendingBoardHidden { aid: p.maker_aid }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcPcPurchaseItemlistFrommc2>() {
+        let items = p
+            .item_list
+            .iter()
+            .map(|it| ragnarok_game::event::VendorItem {
+                index: it.index,
+                item_id: it.itid,
+                amount: it.count,
+                price: it.price,
+                refine: it.refining_level,
+                is_identified: it.is_identified != 0,
+                is_damaged: it.is_damaged != 0,
+                item_type: it.atype,
+            })
+            .collect();
+        return vec![GameEvent::VendingShopList {
+            aid: p.aid,
+            unique_id: p.unique_id,
+            items,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcPcPurchaseMyitemlist>() {
+        let items = p
+            .item_list
+            .iter()
+            .map(|it| ragnarok_game::event::VendorItem {
+                index: it.index,
+                item_id: it.itid,
+                amount: it.count,
+                price: it.price,
+                refine: it.refining_level,
+                is_identified: it.is_identified != 0,
+                is_damaged: it.is_damaged != 0,
+                item_type: it.atype,
+            })
+            .collect();
+        return vec![GameEvent::VendingOwnStock { items }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcPcPurchaseResultFrommc>() {
+        return vec![GameEvent::VendingPurchaseResult {
+            index: p.index,
+            curcount: p.curcount,
+            result: p.result,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcDeleteitemFromMcstore>() {
+        return vec![GameEvent::VendingStockDecrement {
+            index: p.index,
+            count: p.count,
+        }];
     }
 
     debug!("unhandled packet: {}", packet.name());
@@ -1517,6 +1590,110 @@ mod tests {
             [GameEvent::SkillUnitDisappeared { aid }] => assert_eq!(*aid, 7001),
             other => panic!("expected SkillUnitDisappeared, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn makable_item_list_slices_all_entries_from_raw() {
+        let packetver = 20120307;
+        // id(0x8d,0x01) + len(20) + two 8-byte entries {itid.W, mat[3].W}
+        let mut buf: Vec<u8> = vec![0x8d, 0x01, 20, 0x00];
+        buf.extend_from_slice(&501u16.to_le_bytes());
+        buf.extend_from_slice(&[0u8; 6]);
+        buf.extend_from_slice(&502u16.to_le_bytes());
+        buf.extend_from_slice(&[0u8; 6]);
+        // Mirror the recv workaround: set raw directly, skip the broken `from`.
+        let mut pkt = PacketZcMakableitemlist::new(packetver);
+        pkt.raw = buf;
+        match &dispatch_packet(&pkt, packetver)[..] {
+            [GameEvent::MakableItemList { item_ids }] => {
+                assert_eq!(item_ids, &vec![501u16, 502u16]);
+            }
+            other => panic!("expected MakableItemList, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn production_cz_builders_round_trip() {
+        let packetver = 20120307;
+
+        let raw = crate::sender::build_req_itemidentify_packet(7, packetver);
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        assert_eq!(
+            parsed
+                .as_any()
+                .downcast_ref::<PacketCzReqItemidentify>()
+                .unwrap()
+                .index,
+            7
+        );
+
+        let raw = crate::sender::build_req_makingarrow_packet(1750, packetver);
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        assert_eq!(
+            parsed
+                .as_any()
+                .downcast_ref::<PacketCzReqMakingarrow>()
+                .unwrap()
+                .id,
+            1750
+        );
+
+        let raw = crate::sender::build_req_weaponrefine_packet(42, packetver);
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        assert_eq!(
+            parsed
+                .as_any()
+                .downcast_ref::<PacketCzReqWeaponrefine>()
+                .unwrap()
+                .index,
+            42
+        );
+
+        let raw = crate::sender::build_req_itemrepair_packet(3, 1201, 4, [10, 20, 0, 0], packetver);
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        let p = parsed
+            .as_any()
+            .downcast_ref::<PacketCzReqItemrepair>()
+            .unwrap();
+        assert_eq!(p.target_item_info.index, 3);
+        assert_eq!(p.target_item_info.itid, 1201);
+        assert_eq!(p.target_item_info.refining_level, 4);
+        assert_eq!(p.target_item_info.slot.card1, 10);
+    }
+
+    // CZ_REQMAKINGITEM (0x018e): the generated `MakableitemInfo` parser is
+    // internally inconsistent (base_len 5 vs an 8-byte body), so re-parsing panics.
+    // Assert the outgoing wire bytes directly: id.W, itid.W, mat[3].W = 10 bytes.
+    #[test]
+    fn making_item_builder_wire_bytes() {
+        let packetver = 20120307;
+        let raw = crate::sender::build_req_makingitem_packet(501, [1000, 990, 5], packetver);
+        assert_eq!(raw.len(), 10);
+        assert_eq!(u16::from_le_bytes([raw[0], raw[1]]), 0x018e);
+        assert_eq!(u16::from_le_bytes([raw[2], raw[3]]), 501);
+        assert_eq!(u16::from_le_bytes([raw[4], raw[5]]), 1000);
+        assert_eq!(u16::from_le_bytes([raw[6], raw[7]]), 990);
+        assert_eq!(u16::from_le_bytes([raw[8], raw[9]]), 5);
+    }
+
+    #[test]
+    fn vending_open_store_builder_sets_packet_length() {
+        let packetver = 20120307;
+        let raw = crate::sender::build_req_openstore2_packet(
+            "Cheap Potions",
+            &[(5, 10, 1000), (6, 1, 5000)],
+            packetver,
+        );
+        // header(2) + len(2) + name(80) + result(1) + 2*8 = 101
+        let len = u16::from_le_bytes([raw[2], raw[3]]);
+        assert_eq!(len, 101);
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        let p = parsed
+            .as_any()
+            .downcast_ref::<PacketCzReqOpenstore2>()
+            .unwrap();
+        assert_eq!(p.store_list.len(), 2);
+        assert_eq!(p.store_list[0].price, 1000);
     }
 
     #[test]
@@ -2109,6 +2286,23 @@ mod tests {
                 assert_eq!((*aid, *php, *pmax), (42, 350, 500));
             }
             other => panic!("expected EntityHpChanged + PartyMemberHp, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_autorun_skill_returns_auto_cast() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcAutorunSkill::new(packetver);
+        pkt.data.skid = SkillEnum::McIdentify.id() as i16;
+        pkt.data.level = 1;
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::AutoCastSkill { skill_id, level } => {
+                assert_eq!(*skill_id, SkillEnum::McIdentify.id() as u16);
+                assert_eq!(*level, 1);
+            }
+            other => panic!("expected AutoCastSkill, got {other:?}"),
         }
     }
 

@@ -6,6 +6,7 @@ mod inventory;
 mod login;
 mod npc;
 mod party;
+mod production;
 mod skill;
 
 use crate::App;
@@ -753,6 +754,64 @@ impl App {
                 GameEvent::PartyChatMessage { aid, message } => {
                     self.handle_party_chat_message(aid, message);
                 }
+
+                GameEvent::AutoCastSkill { skill_id, level } => {
+                    self.handle_auto_cast_skill(skill_id, level);
+                }
+                GameEvent::ItemIdentifyList { indices } => {
+                    self.handle_item_identify_list(indices);
+                }
+                GameEvent::ItemIdentifyResult { index, ok } => {
+                    self.handle_item_identify_result(index, ok);
+                }
+                GameEvent::MakingArrowList { item_ids } => {
+                    self.handle_making_arrow_list(item_ids);
+                }
+                GameEvent::AutoSpellList { skill_ids } => {
+                    self.handle_auto_spell_list(skill_ids);
+                }
+                GameEvent::WeaponRefineList { items } => {
+                    self.handle_weapon_refine_list(items);
+                }
+                GameEvent::WeaponRefineResult { result, item_id } => {
+                    self.handle_weapon_refine_result(result, item_id);
+                }
+                GameEvent::RepairItemList { items } => {
+                    let target_aid = self.game.pending_repair_target.take().unwrap_or(0);
+                    self.handle_repair_item_list(target_aid, items);
+                }
+                GameEvent::RepairItemResult { index, ok } => {
+                    self.handle_repair_item_result(index, ok);
+                }
+                GameEvent::MakableItemList { item_ids } => {
+                    self.handle_makable_item_list(item_ids);
+                }
+                GameEvent::MakingItemResult { result, item_id } => {
+                    self.handle_making_item_result(result, item_id);
+                }
+                GameEvent::OpenVendingSetup { max_items } => {
+                    self.handle_open_vending_setup(max_items);
+                }
+                GameEvent::VendingOwnStock { items } => {
+                    self.handle_vending_own_stock(items);
+                }
+                GameEvent::VendingBoardShown { aid, name } => {
+                    self.handle_vending_board_shown(aid, name);
+                }
+                GameEvent::VendingBoardHidden { aid } => {
+                    self.handle_vending_board_hidden(aid);
+                }
+                GameEvent::VendingShopList {
+                    aid,
+                    unique_id,
+                    items,
+                } => {
+                    self.handle_vending_shop_list(aid, unique_id, items);
+                }
+                GameEvent::VendingPurchaseResult { result, .. } => {
+                    self.handle_vending_purchase_result(result);
+                }
+                GameEvent::VendingStockDecrement { .. } => {}
 
                 _ => {}
             }

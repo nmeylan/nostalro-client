@@ -174,6 +174,8 @@ pub struct Entity {
     pub is_boss: bool,
     pub forced_animation: Option<ForcedAnimation>,
     pub cart_type: Option<u8>,
+    /// Vendor shop-name board; `Some` marks this actor as an open vend shop.
+    pub vending_board: Option<String>,
     pub anim_last_pos: (f32, f32),
     pub is_running: bool,
     pub footstep_timer: f32,
@@ -250,6 +252,7 @@ impl Entity {
             is_boss: false,
             forced_animation: None,
             cart_type: None,
+            vending_board: None,
             anim_last_pos: (x as f32, y as f32),
             is_running: false,
             footstep_timer: 0.0,

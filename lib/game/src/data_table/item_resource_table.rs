@@ -25,11 +25,11 @@ impl ItemResourceTable {
     pub fn load(grf: &GrfArchive) -> Self {
         let identified_entries = grf
             .read_file(IDENTIFIED_PATH)
-            .map(|data| lua_table::parse_item_name_table(&data))
+            .map(|data| lua_table::parse_item_res_table(&data))
             .unwrap_or_default();
         let unidentified_entries = grf
             .read_file(UNIDENTIFIED_PATH)
-            .map(|data| lua_table::parse_item_name_table(&data))
+            .map(|data| lua_table::parse_item_res_table(&data))
             .unwrap_or_default();
 
         tracing::info!(

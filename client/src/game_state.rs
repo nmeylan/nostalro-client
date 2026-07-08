@@ -48,6 +48,12 @@ use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeW
 use ragnarok_ui_component::game::status_icon_bar::StatusIconBarWindow;
 use ragnarok_ui_component::game::status_window::{STATUS_WINDOW_ID, StatusWindow};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
+use ragnarok_ui_component::game::item_list_selection_window::ItemListSelectionWindow;
+use ragnarok_ui_component::game::make_item_window::{MAKE_ITEM_WINDOW_ID, MakeItemWindow};
+use ragnarok_ui_component::game::vending_setup_window::{
+    VENDING_SETUP_WINDOW_ID, VendingSetupWindow,
+};
+use ragnarok_ui_component::game::vending_shop_window::{VENDING_SHOP_WINDOW_ID, VendingShopWindow};
 use ragnarok_ui_component::game::warp_list_window::WarpListWindow;
 use ragnarok_ui_component::{InGameWindow, Window};
 
@@ -95,6 +101,10 @@ pub struct GameState {
     pub cart_select_window: CartSelectWindow,
     pub npc_dialog: NpcDialog,
     pub warp_list_window: WarpListWindow,
+    pub item_list_selection_window: ItemListSelectionWindow,
+    pub make_item_window: MakeItemWindow,
+    pub vending_shop_window: VendingShopWindow,
+    pub vending_setup_window: VendingSetupWindow,
     pub confirm_dialog: ConfirmDialog,
     pub npc_shop: NpcShop,
     pub chat_rooms: ChatRoomRegistry,
@@ -119,6 +129,13 @@ pub struct GameState {
     pub pending_skill_level: Option<i16>,
     pub pending_ground_cast: Option<(u16, i16, i16, i16)>,
     pub pending_card_composition_index: Option<u16>,
+    /// Skill that opened the shared 0x01ad arrow/converter list, so the reply
+    /// can be routed to the right context (the server disambiguates the same way
+    /// via menuskill_id).
+    pub pending_list_skill: Option<u16>,
+    /// AID of the Repair Weapon target, remembered from the cast so the
+    /// server's broken-item list can be attributed back to that player.
+    pub pending_repair_target: Option<u32>,
     pub pending_pickup_item_id: Option<u32>,
     pub attack_target_id: Option<u32>,
     pub attack_request_cooldown: f32,
@@ -165,6 +182,9 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     INV_WINDOW_ID,
     CART_WINDOW_ID,
     CART_SELECT_WINDOW_ID,
+    MAKE_ITEM_WINDOW_ID,
+    VENDING_SHOP_WINDOW_ID,
+    VENDING_SETUP_WINDOW_ID,
     EQ_WINDOW_ID,
     SKILL_WINDOW_ID,
     STATUS_WINDOW_ID,
@@ -290,8 +310,13 @@ impl GameState {
         );
         let warp_list_open = self.warp_list_window.is_open();
         events.extend(self.warp_list_window.build(ui));
-        let mut allow_escape =
-            !chat_was_active && !npc_dialog_open && !shop_open && !warp_list_open;
+        let item_list_open = self.item_list_selection_window.is_open();
+        events.extend(self.item_list_selection_window.build(ui));
+        let mut allow_escape = !chat_was_active
+            && !npc_dialog_open
+            && !shop_open
+            && !warp_list_open
+            && !item_list_open;
         if allow_escape && ui.ctx.key_escape && self.pending_skill_target.is_some() {
             self.pending_skill_target = None;
             allow_escape = false;
@@ -444,6 +469,21 @@ impl GameState {
                 &mut self.character,
                 &self.data_table,
             )),
+            MAKE_ITEM_WINDOW_ID => events.extend(self.make_item_window.build(
+                ui,
+                &mut self.character,
+                &self.data_table,
+            )),
+            VENDING_SHOP_WINDOW_ID => events.extend(self.vending_shop_window.build(
+                ui,
+                &mut self.character,
+                &self.data_table,
+            )),
+            VENDING_SETUP_WINDOW_ID => events.extend(self.vending_setup_window.build(
+                ui,
+                &mut self.character,
+                &self.data_table,
+            )),
             CART_SELECT_WINDOW_ID => events.extend(self.cart_select_window.build(
                 ui,
                 &mut self.character,
@@ -539,6 +579,10 @@ impl GameState {
             cart_select_window: CartSelectWindow::new(),
             npc_dialog: NpcDialog::new(),
             warp_list_window: WarpListWindow::new(),
+            item_list_selection_window: ItemListSelectionWindow::new(),
+            make_item_window: MakeItemWindow::new(),
+            vending_shop_window: VendingShopWindow::new(),
+            vending_setup_window: VendingSetupWindow::new(),
             confirm_dialog: ConfirmDialog::new(),
             npc_shop: NpcShop::new(),
             chat_rooms: ChatRoomRegistry::new(),
@@ -563,6 +607,8 @@ impl GameState {
             pending_skill_level: None,
             pending_ground_cast: None,
             pending_card_composition_index: None,
+            pending_list_skill: None,
+            pending_repair_target: None,
             pending_pickup_item_id: None,
             attack_target_id: None,
             attack_request_cooldown: 0.0,

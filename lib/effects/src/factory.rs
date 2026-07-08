@@ -944,7 +944,7 @@ pub fn make_effect(
                 EffectId::Throwitem => &[ti::THROW_BOTTLES],
                 EffectId::Throwitem2 => &[ti::THROW_ITEM2],
                 EffectId::Throwitem3 => &[ti::THROW_STONE],
-                EffectId::Throwitem4 => &[ti::THROW_MOLOTOV, ti::THROW_ITEM3],
+                EffectId::Throwitem4 => &[ti::THROW_MOLOTOV],
                 EffectId::Throwitem5 => &[ti::THROW_ITEM4],
                 EffectId::Throwitem6 => &[ti::THROW_ITEM6],
                 EffectId::Throwitem7 => &[ti::THROW_ITEM7],
