@@ -199,6 +199,7 @@ impl App {
             preload_window(&mut self.game.npc_shop, renderer, grf);
             preload_window(&mut self.game.chat_room_window, renderer, grf);
             preload_window(&mut self.game.item_info_window, renderer, grf);
+            preload_window(&mut self.game.book_window, renderer, grf);
             preload_window(&mut self.game.item_pickup_notification, renderer, grf);
             preload_window(&mut self.game.skill_tree_window, renderer, grf);
             preload_window(&mut self.game.hotkey_bar, renderer, grf);

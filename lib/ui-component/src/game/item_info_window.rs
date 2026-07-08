@@ -24,6 +24,7 @@ const CARD_INFO_SCROLL_DOWN_ID: WidgetId = WidgetId(1013);
 const CARD_INFO_SCROLL_THUMB_ID: WidgetId = WidgetId(1014);
 const VIEW_BTN_ID: WidgetId = WidgetId(1015);
 const CARD_INFO_VIEW_BTN_ID: WidgetId = WidgetId(1016);
+const READ_BTN_ID: WidgetId = WidgetId(1017);
 const CARD_ILLUST_WINDOW_ID: WidgetId = WidgetId(1020);
 const CARD_ILLUST_CLOSE_ID: WidgetId = WidgetId(1021);
 
@@ -73,6 +74,7 @@ struct ItemInfoData {
     is_damaged: bool,
     is_equipment: bool,
     is_card: bool,
+    is_book: bool,
     description_lines: Vec<String>,
     slot: [u16; 4],
     slot_count: u8,
@@ -120,7 +122,7 @@ impl ItemInfoWindow {
         }
     }
 
-    pub fn show(&mut self, item: &Item, data: &DataTable) {
+    pub fn show(&mut self, item: &Item, data: &DataTable, is_book: bool) {
         if let Some(current) = &self.item
             && current.item_id == item.item_id
         {
@@ -170,6 +172,7 @@ impl ItemInfoWindow {
             is_damaged: item.is_damaged,
             is_equipment: item.is_equipment(),
             is_card: item.is_card(),
+            is_book,
             description_lines,
             slot: item.slot,
             slot_count,
@@ -229,6 +232,7 @@ impl ItemInfoWindow {
             is_damaged: false,
             is_equipment: false,
             is_card: true,
+            is_book: false,
             description_lines,
             slot: [0; 4],
             slot_count: 0,
@@ -304,6 +308,19 @@ impl ItemInfoWindow {
             events.push(GameEvent::ShowCardIllustration {
                 item_id: card_data.item_id,
             });
+        }
+    }
+
+    fn read_book_button(
+        ui: &mut UiFrame,
+        events: &mut Vec<GameEvent>,
+        x: f32,
+        y: f32,
+        item_id: u16,
+    ) {
+        let rect = Rect::new(x, y, VIEW_BTN_W, VIEW_BTN_H);
+        if ui.button(READ_BTN_ID, rect, &VIEW_BTN, "Read").clicked() {
+            events.push(GameEvent::ReadBook { item_id });
         }
     }
 }
@@ -399,6 +416,16 @@ impl InGameWindow for ItemInfoWindow {
 
             if result.closed {
                 self.close();
+            } else if self.item.as_ref().unwrap().is_book {
+                let (_cw, ch) = if grf {
+                    bg_size
+                } else {
+                    (FALLBACK_WIN_W, FALLBACK_WIN_H)
+                };
+                let item_id = self.item.as_ref().unwrap().item_id;
+                let bx = result.win_x + COLLECTION_X;
+                let by = result.win_y + ch - VIEW_BTN_H - 6.0;
+                Self::read_book_button(ui, &mut events, bx, by, item_id);
             } else if self.item.as_ref().unwrap().is_card {
                 let card_data = self.item.as_ref().unwrap();
 
@@ -853,7 +880,7 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let item = make_item(501, 0, [0; 4]);
-        win.show(&item, &data);
+        win.show(&item, &data, false);
         assert!(win.is_open());
         win.close();
         assert!(!win.is_open());
@@ -864,9 +891,9 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let item = make_item(501, 0, [0; 4]);
-        win.show(&item, &data);
+        win.show(&item, &data, false);
         assert!(win.is_open());
-        win.show(&item, &data);
+        win.show(&item, &data, false);
         assert!(!win.is_open());
     }
 
@@ -876,7 +903,7 @@ mod tests {
         let data = make_data_table();
         let mut item = make_item(1201, 4, [0; 4]);
         item.is_damaged = true;
-        win.show(&item, &data);
+        win.show(&item, &data, false);
         assert!(win.item.as_ref().unwrap().is_damaged);
     }
 
@@ -885,7 +912,7 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let item = make_item(1201, 4, [4001, SLOT_EMPTY, 0, 0]);
-        win.show(&item, &data);
+        win.show(&item, &data, false);
         let info = win.item.as_ref().unwrap();
         assert!(info.is_equipment);
         assert_eq!(info.slot[0], 4001);
@@ -898,7 +925,7 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let item = make_item(501, 0, [0; 4]);
-        win.show(&item, &data);
+        win.show(&item, &data, false);
         assert_eq!(
             win.item.as_ref().unwrap().collection_path.as_deref(),
             Some("data/texture/유저인터페이스/collection/test_resource.bmp"),
@@ -910,7 +937,7 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let item = make_item(501, 0, [0; 4]);
-        win.show(&item, &data);
+        win.show(&item, &data, false);
         let paths = win.pending_texture_paths();
         assert_eq!(paths.len(), 1);
         assert!(paths[0].contains("collection/test_resource.bmp"));
@@ -921,7 +948,7 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let item = make_item(1201, 4, [0; 4]);
-        win.show(&item, &data);
+        win.show(&item, &data, false);
         let info = win.item.as_ref().unwrap();
         assert!(info.is_equipment);
         assert_eq!(info.slot_count, 0);
@@ -944,7 +971,7 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let item = make_item(1201, 4, [4025, 0, 0, 0]);
-        win.show(&item, &data);
+        win.show(&item, &data, false);
         win.show_card(4025, &data);
         assert!(win.is_open());
         assert!(win.card_info.is_some());
@@ -979,12 +1006,12 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let card = make_item(4001, 6, [0; 4]);
-        win.show(&card, &data);
+        win.show(&card, &data, false);
         assert!(win.item.as_ref().unwrap().is_card);
         assert!(!win.item.as_ref().unwrap().is_equipment);
 
         let weapon = make_item(1201, 4, [0; 4]);
-        win.show(&weapon, &data);
+        win.show(&weapon, &data, false);
         assert!(!win.item.as_ref().unwrap().is_card);
         assert!(win.item.as_ref().unwrap().is_equipment);
     }

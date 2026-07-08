@@ -538,13 +538,19 @@ impl App {
                 }
                 GameEvent::ShowItemInfo { index } => {
                     if let Some(item) = self.game.character.inventory.get_item(index) {
-                        self.game.item_info_window.show(item, &self.game.data_table);
+                        let is_book = self.item_is_book(item.item_id);
+                        self.game
+                            .item_info_window
+                            .show(item, &self.game.data_table, is_book);
                         let tex_paths = self.game.item_info_window.pending_texture_paths();
                         self.preload_item_icons(tex_paths);
                     }
                 }
                 GameEvent::ShowItemInfoDirect { item } => {
-                    self.game.item_info_window.show(&item, &self.game.data_table);
+                    let is_book = self.item_is_book(item.item_id);
+                    self.game
+                        .item_info_window
+                        .show(&item, &self.game.data_table, is_book);
                     let tex_paths = self.game.item_info_window.pending_texture_paths();
                     self.preload_item_icons(tex_paths);
                 }
@@ -578,6 +584,15 @@ impl App {
                             .item_info_window
                             .pending_illustration_texture_paths();
                         self.preload_item_icons(tex_paths);
+                    }
+                }
+                GameEvent::ReadBook { item_id } => {
+                    if let Some(grf) = self.grf.as_ref()
+                        && let Ok(data) = grf.read_file(&format!("data/book/{item_id}.txt"))
+                    {
+                        let content = ragnarok_game::book::BookContent::parse(&data);
+                        self.game.book_window.show(content);
+                        self.game.item_info_window.close();
                     }
                 }
                 GameEvent::RequestUseItem { index } => {

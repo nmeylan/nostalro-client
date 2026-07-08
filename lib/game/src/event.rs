@@ -571,6 +571,9 @@ pub enum GameEvent {
     ShowCardIllustration {
         item_id: u16,
     },
+    ReadBook {
+        item_id: u16,
+    },
     RequestRemoveOption,
     DialogClosed,
     ToggleInventory,

@@ -117,17 +117,23 @@ impl App {
                             sprite_batches.append(&mut shadow);
 
                             // Flat-depth body silhouette (gradient [0,0]) so effects
-                            // occlude against the body at its feet depth.
-                            let mut sil = sprite.build_batches(
-                                &entity.animation,
-                                Some(entry.camera_dir),
-                                entity.head_dir,
-                                entry.screen_anchor,
-                                entry.depth,
-                                entry.sprite_scale,
-                                [0.0, 0.0],
-                            );
-                            silhouette_batches.append(&mut sil);
+                            // occlude against the body at its feet depth. A dying
+                            // monster's death-pop frame is large and would stamp depth
+                            // over a ground effect it stands in (e.g. a fire pool),
+                            // erasing it; the dead body never needs to occlude an
+                            // effect, so skip its silhouette.
+                            if entity.state != EntityState::Dead {
+                                let mut sil = sprite.build_batches(
+                                    &entity.animation,
+                                    Some(entry.camera_dir),
+                                    entity.head_dir,
+                                    entry.screen_anchor,
+                                    entry.depth,
+                                    entry.sprite_scale,
+                                    [0.0, 0.0],
+                                );
+                                silhouette_batches.append(&mut sil);
+                            }
                         }
 
                         let mut batches = ragnarok_renderer::compose_actor_batches(

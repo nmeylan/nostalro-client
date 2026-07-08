@@ -254,6 +254,19 @@ impl InventoryData {
         crate::entity::Entity::wear_location_to_sprite_type(wear_location)
     }
 
+    pub fn apply_identify(
+        &mut self,
+        index: u16,
+        data_table: &crate::data_table::DataTable,
+    ) -> Option<String> {
+        let item = self.items.iter_mut().find(|i| i.index == index)?;
+        item.is_identified = true;
+        let (name, resource_name) = resolve_name_and_resource(item.item_id, true, data_table);
+        item.name = name;
+        item.resource_name = resource_name;
+        item.icon_path()
+    }
+
     pub fn apply_card_insert_result(
         &mut self,
         equip_index: u16,
@@ -804,5 +817,59 @@ mod tests {
 
         inv.insert_card(1, 4026);
         assert_eq!(inv.get_item(1).unwrap().slot, [4001, 4025, 4026, 0]);
+    }
+
+    #[test]
+    fn identify_refreshes_name_resource_and_display() {
+        use crate::data_table::item_name_table::ItemNameTable;
+        use crate::data_table::item_resource_table::ItemResourceTable;
+        use crate::data_table::item_slot_count_table::ItemSlotCountTable;
+        use std::collections::HashMap;
+
+        let mut data_table = crate::data_table::DataTable::new();
+        data_table.item_name = Some(ItemNameTable::from_entries(
+            HashMap::from([(1201, "Knife".to_string())]),
+            HashMap::from([(1201, "Knife".to_string())]),
+        ));
+        data_table.item_resource = Some(ItemResourceTable::from_entries(
+            HashMap::from([(1201, "단검".to_string())]),
+            HashMap::from([(1201, "무기".to_string())]),
+        ));
+        data_table.item_slot_count = Some(ItemSlotCountTable::from_entries(HashMap::from([(
+            1201u16, 4u8,
+        )])));
+
+        let mut inv = InventoryData::new();
+        let (name, resource_name) = resolve_name_and_resource(1201, false, &data_table);
+        inv.add_item(Item {
+            index: 3,
+            item_id: 1201,
+            item_type: ItemType::Weapon,
+            count: 1,
+            is_identified: false,
+            is_damaged: false,
+            refining_level: 0,
+            slot: [0; 4],
+            location: 0,
+            wear_state: 0,
+            name,
+            resource_name,
+        });
+
+        let icon_path = inv.apply_identify(3, &data_table);
+        let item = inv.get_item(3).unwrap();
+        assert!(item.is_identified);
+        assert_eq!(
+            icon_path.as_deref(),
+            Some("data/texture/유저인터페이스/item/단검.bmp")
+        );
+        assert_eq!(
+            crate::display_name::format_equipment_display_name(
+                item,
+                data_table.item_slot_count.as_ref(),
+                data_table.card_name.as_ref(),
+            ),
+            "Knife [4]"
+        );
     }
 }

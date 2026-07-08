@@ -921,24 +921,40 @@ impl Renderer {
     }
 
     pub fn try_load_grf_font(&mut self, grf: &GrfArchive) {
+        let extra_chars = font_atlas::euc_kr_charset();
         let font_paths = [
             "data/Font/NanumBarunGothicBold.ttf",
             "data/Font/NanumBarunGothic.ttf",
         ];
         for path in &font_paths {
             if let Ok(data) = grf.read_file(path) {
-                self.font_atlas = FontAtlas::build(&data, self.font_px_height, self.dpi_scale);
-                self.font_atlas_bind_group = texture::create_font_atlas_bind_group(
-                    &self.device.device,
-                    &self.device.queue,
-                    &self.font_atlas.image,
-                    &self.texture_cache.bind_group_layout,
-                    "font_atlas",
-                );
+                self.set_font_atlas(FontAtlas::build_with_extra_chars(
+                    &data,
+                    self.font_px_height,
+                    self.dpi_scale,
+                    &extra_chars,
+                ));
                 tracing::info!("Loaded GRF font: {path}");
                 return;
             }
         }
+        self.set_font_atlas(FontAtlas::from_system_cjk(
+            self.font_px_height,
+            self.dpi_scale,
+            &extra_chars,
+        ));
+        tracing::info!("No GRF font found, using system CJK font for Korean text");
+    }
+
+    fn set_font_atlas(&mut self, atlas: FontAtlas) {
+        self.font_atlas = atlas;
+        self.font_atlas_bind_group = texture::create_font_atlas_bind_group(
+            &self.device.device,
+            &self.device.queue,
+            &self.font_atlas.image,
+            &self.texture_cache.bind_group_layout,
+            "font_atlas",
+        );
     }
 }
 

@@ -38,6 +38,7 @@ use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
 use ragnarok_ui_component::game::hotkey_bar::{HOTKEY_BAR_WINDOW_ID, HotkeyBarWindow};
 use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
+use ragnarok_ui_component::game::book_window::{BOOK_WINDOW_ID, BookWindow};
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::game::minimap_window::{MarkerType, MinimapMarker, MinimapWindow};
@@ -143,6 +144,7 @@ pub struct GameState {
     pub noctrl_mode: bool,
     pub attack_is_locked: bool,
     pub item_info_window: ItemInfoWindow,
+    pub book_window: BookWindow,
     pub item_pickup_notification: ItemPickupNotification,
     pub skill_tree_window: SkillTreeWindow,
     pub basic_info_window: BasicInfoWindow,
@@ -189,6 +191,7 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     SKILL_WINDOW_ID,
     STATUS_WINDOW_ID,
     PARTY_WINDOW_ID,
+    BOOK_WINDOW_ID,
 ];
 
 impl GameState {
@@ -541,6 +544,12 @@ impl GameState {
                     &self.data_table,
                 ));
             }
+            BOOK_WINDOW_ID => {
+                events.extend(
+                    self.book_window
+                        .build(ui, &mut self.character, &self.data_table),
+                );
+            }
             _ => {}
         }
     }
@@ -618,6 +627,7 @@ impl GameState {
             basic_info_window: BasicInfoWindow::new(),
             status_window: StatusWindow::new(),
             item_info_window: ItemInfoWindow::new(),
+            book_window: BookWindow::new(),
             item_pickup_notification: ItemPickupNotification::new(),
             skill_tree_window: SkillTreeWindow::new(),
             hotkey_bar: HotkeyBarWindow::new(),

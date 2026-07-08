@@ -33,6 +33,7 @@ use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
 use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
 use ragnarok_ui_component::game::inventory_window::InventoryWindow;
+use ragnarok_ui_component::game::book_window::{BOOK_WINDOW_ID, BookWindow};
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
@@ -59,6 +60,7 @@ const GAME_COMPONENTS: &[&str] = &[
     "chat_room",
     "dialog_container",
     "item_info",
+    "book",
     "skill_tree",
     "card_insert",
     "hotkey_bar",
@@ -138,6 +140,11 @@ enum State {
         character: Character,
         data: DataTable,
         item: Item,
+    },
+    Book {
+        win: BookWindow,
+        character: Character,
+        data: DataTable,
     },
     SkillTree {
         win: SkillTreeWindow,
@@ -612,12 +619,29 @@ fn create_single(name: &str) -> State {
                 resource_name: None,
             };
             let mut win = ItemInfoWindow::new();
-            win.show(&bow, &data);
+            win.show(&bow, &data, false);
             State::ItemInfo {
                 win,
                 character: Character::new(),
                 data,
                 item: bow,
+            }
+        }
+        "book" => {
+            let mut win = BookWindow::new();
+            win.show(ragnarok_game::book::BookContent {
+                bg_color: [0.96, 0.96, 0.86],
+                lines: vec![
+                    "^000088The Book of Ymir^000000".to_string(),
+                    String::new(),
+                    "Long ago, the gods forged the world from the void.".to_string(),
+                    "This is a demo book used for hot-reload preview.".to_string(),
+                ],
+            });
+            State::Book {
+                win,
+                character: Character::new(),
+                data: DataTable::new(),
             }
         }
         "skill_tree" => {
@@ -1210,12 +1234,16 @@ fn grf_init_single(
                         Some(ItemResourceTable::from_entries(entries, HashMap::new()));
                 }
                 win.close();
-                win.show(item, data);
+                win.show(item, data, false);
             }
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
         State::SkillTree { win, .. } => {
+            win.has_grf_textures = true;
+            win.set_texture_sizes(size_fn);
+        }
+        State::Book { win, .. } => {
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
@@ -1293,6 +1321,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::CartSelect { .. } => Some(CART_SELECT_WINDOW_ID),
         State::Equipment { .. } => Some(WidgetId(900)),
         State::SkillTree { .. } => Some(WidgetId(1000)),
+        State::Book { .. } => Some(BOOK_WINDOW_ID),
         State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
         State::PartyDemo { .. } => Some(PARTY_WINDOW_ID),
         _ => None,
@@ -1437,6 +1466,13 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             }
         }
         State::SkillTree {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, character, data);
+        }
+        State::Book {
             win,
             character,
             data,

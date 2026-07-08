@@ -79,8 +79,16 @@ impl App {
             .open("Identify", ListContext::Identify, rows);
     }
 
-    pub(crate) fn handle_item_identify_result(&mut self, _index: i16, ok: bool) {
+    pub(crate) fn handle_item_identify_result(&mut self, index: i16, ok: bool) {
         let msg = if ok {
+            let icon_path = self
+                .game
+                .character
+                .inventory
+                .apply_identify(index as u16, &self.game.data_table);
+            if let Some(path) = icon_path {
+                self.preload_item_icons(vec![path]);
+            }
             "Item appraised.".to_string()
         } else {
             "Appraisal failed.".to_string()

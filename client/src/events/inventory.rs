@@ -10,6 +10,13 @@ use ragnarok_ui_component::Window as UiWindow;
 use ragnarok_ui_component::game::card_insert_dialog::{CardInsertDialog, EligibleItem};
 
 impl App {
+    pub(crate) fn item_is_book(&self, item_id: u16) -> bool {
+        self.grf
+            .as_ref()
+            .map(|g| g.file_exists(&format!("data/book/{item_id}.txt")))
+            .unwrap_or(false)
+    }
+
     pub(super) fn handle_inventory_normal_items(&mut self, items: Vec<NormalItemData>) {
         let icon_paths = self
             .game

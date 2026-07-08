@@ -13,6 +13,33 @@ pub struct GlyphInfo {
     pub advance: f32,
 }
 
+/// Every non-ASCII character the EUC-KR (UHC) decoder can produce, so any Korean
+/// text loaded from the GRF has a glyph instead of falling back to `?`.
+pub fn euc_kr_charset() -> Vec<char> {
+    let mut out = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    let mut buf = [0u8; 2];
+    for lead in 0x81u8..=0xFE {
+        for trail in 0x41u8..=0xFE {
+            buf[0] = lead;
+            buf[1] = trail;
+            let (decoded, _, had_errors) = encoding_rs::EUC_KR.decode(&buf);
+            if had_errors {
+                continue;
+            }
+            let mut it = decoded.chars();
+            if let (Some(ch), None) = (it.next(), it.next())
+                && !ch.is_ascii()
+                && !ch.is_control()
+                && seen.insert(ch)
+            {
+                out.push(ch);
+            }
+        }
+    }
+    out
+}
+
 pub struct FontAtlas {
     pub image: image::RgbaImage,
     pub glyphs: HashMap<char, GlyphInfo>,
@@ -56,8 +83,9 @@ impl FontAtlas {
         let ascent = scaled.ascent() / dpi_scale;
 
         let mut chars: Vec<char> = (32u8..127).map(|b| b as char).collect();
+        let mut seen: std::collections::HashSet<char> = chars.iter().copied().collect();
         for &ch in extra_chars {
-            if !chars.contains(&ch) && !ch.is_control() {
+            if !ch.is_control() && seen.insert(ch) {
                 chars.push(ch);
             }
         }
@@ -235,5 +263,14 @@ mod tests {
         let g = a.glyph('\u{4e00}');
         let q = a.glyph('?');
         assert_eq!(g.advance, q.advance);
+    }
+
+    #[test]
+    fn euc_kr_charset_hangul_is_mapped_not_question_mark() {
+        let chars = euc_kr_charset();
+        assert!(chars.contains(&'가'));
+        assert!(chars.len() > 2000);
+        let a = FontAtlas::build_with_extra_chars(FALLBACK_FONT, 14.0, 1.0, &chars);
+        assert!(a.glyphs.contains_key(&'가'));
     }
 }
