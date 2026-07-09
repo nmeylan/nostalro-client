@@ -16,6 +16,7 @@
 # Categories (show multiple windows at once):
 #   game     — inventory, npc_shop, npc_dialog, equipment, system_menu, confirm_dialog, chat
 #   account  — login, server_list, char_select
+#   shop     — cart, vending_setup (+ available items), my_shop, vending_buy
 #
 # This script runs two processes:
 #   1. The hot_reload host binary (keeps window open)

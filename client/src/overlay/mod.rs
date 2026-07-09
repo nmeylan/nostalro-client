@@ -3,6 +3,18 @@ use ragnarok_game::cursor::RenderEntry;
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::targeting::pk_name_color;
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
+use ragnarok_ui_component::game::vending_board;
+use ragnarok_ui_component::helper::dialog_container::DialogContainer;
+
+/// Screen-space `[x0, y0, x1, y1]` of a vendor's shop board, centered above its
+/// head. Shared by the overlay renderer and the hover hit-test so they agree.
+pub(crate) fn vending_board_rect(entry: &RenderEntry) -> [f32; 4] {
+    vending_board::board_rect(
+        entry.screen_anchor[0],
+        entry.screen_anchor[1],
+        entry.head_offset,
+    )
+}
 
 const HP_BAR_WIDTH: f32 = 60.0;
 pub(crate) const HP_BAR_HEIGHT: f32 = 5.0;
@@ -232,27 +244,22 @@ impl App {
                 None => continue,
             };
 
-            let padding = 4.0;
-            let text_w = renderer.font_atlas.measure_text(board);
-            let box_w = text_w + padding * 2.0;
-            let box_h = renderer.font_atlas.line_height + padding * 2.0;
-            let box_x = entry.screen_anchor[0] - box_w / 2.0;
-            let box_y = entry.screen_anchor[1] - entry.head_offset - 5.0 - box_h;
+            let has_grf = renderer
+                .texture_cache
+                .texture_size(vending_board::VENDING_ICON_TEX)
+                .is_some();
+            let mut container = DialogContainer::new();
+            container.has_grf_textures = has_grf;
+            container.set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
 
-            let (bg_verts, bg_idx) =
-                ragnarok_ui::draw::quad_vertices(box_x, box_y, box_w, box_h, [0.35, 0.22, 0.08, 0.9]);
-            calls.push(UiDrawCall {
-                vertices: bg_verts.to_vec(),
-                indices: bg_idx.to_vec(),
-                texture: UiTextureRef::White,
-            });
-            build_outlined_text(
-                board,
-                box_x + padding,
-                box_y + padding + renderer.font_atlas.line_height / 2.0,
-                [1.0, 0.9, 0.5, 1.0],
-                &renderer.font_atlas,
+            vending_board::draw_board(
                 calls,
+                &container,
+                &renderer.font_atlas,
+                entry.screen_anchor[0],
+                entry.screen_anchor[1],
+                entry.head_offset,
+                board,
             );
         }
     }

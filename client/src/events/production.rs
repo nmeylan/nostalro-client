@@ -226,21 +226,23 @@ impl App {
                 (it, name, icon)
             })
             .collect();
-        self.game.vending_shop_window.open(aid, unique_id, rows);
+        let icon_paths: Vec<String> = rows.iter().filter_map(|(_, _, icon)| icon.clone()).collect();
+        self.preload_item_icons(icon_paths);
+        let title = self
+            .game
+            .entities
+            .get(aid)
+            .and_then(|e| e.vending_board.clone())
+            .unwrap_or_default();
+        self.game
+            .vending_shop_window
+            .open(aid, unique_id, title, rows);
     }
 
     pub(crate) fn handle_open_vending_setup(&mut self, max_items: i16) {
-        let cart: Vec<(u16, i16, String, Option<String>)> = self
-            .game
-            .character
-            .cart
-            .all_items()
-            .iter()
-            .map(|it| (it.index, it.count, it.name.clone(), it.icon_path()))
-            .collect();
         self.game
             .vending_setup_window
-            .open(max_items.max(0) as usize, cart);
+            .open(max_items.max(0) as usize);
     }
 
     pub(crate) fn handle_vending_board_shown(&mut self, aid: u32, name: String) {
@@ -263,12 +265,23 @@ impl App {
         self.game
             .chat_window
             .add_system(format!("Your shop is open ({} items).", items.len()));
-        if let (Some(name), Some(pid)) = (
-            self.game.pending_shop_name.take(),
-            self.game.entities.player_id(),
-        ) && let Some(entity) = self.game.entities.get_mut(pid)
+        let shop_name = self.game.pending_shop_name.take().unwrap_or_default();
+
+        let rows: Vec<(VendorItem, String, Option<String>)> = items
+            .into_iter()
+            .map(|it| {
+                let (name, icon) = self.resolve_name_icon(it.item_id, it.is_identified);
+                (it, name, icon)
+            })
+            .collect();
+        self.game.my_shop_window.open(shop_name.clone(), rows);
+
+        self.game.vending_setup_window.close();
+
+        if let Some(pid) = self.game.entities.player_id()
+            && let Some(entity) = self.game.entities.get_mut(pid)
         {
-            entity.vending_board = Some(name);
+            entity.vending_board = Some(shop_name);
             entity.state = EntityState::Sitting;
         }
     }
@@ -278,6 +291,7 @@ impl App {
             self.config.packetver,
         ));
         self.game.pending_shop_name = None;
+        self.game.my_shop_window.close();
         if let Some(pid) = self.game.entities.player_id()
             && let Some(entity) = self.game.entities.get_mut(pid)
         {
@@ -298,13 +312,23 @@ impl App {
         };
         self.game.chat_window.add_system(msg.to_string());
         if result == 0 && self.game.vending_shop_window.is_open() {
-            self.game.vending_shop_window.update_stock(index, curcount);
+            self.game.vending_shop_window.record_sale(index, curcount);
         }
     }
 
-    pub(crate) fn handle_vending_stock_decrement(&mut self, _index: i16, _count: i16) {
+    pub(crate) fn handle_vending_stock_decrement(&mut self, index: i16, count: i16) {
+        self.game.my_shop_window.record_sale(index, count);
         self.game
             .chat_window
             .add_system("An item was sold from your shop.".to_string());
+    }
+
+    pub(crate) fn handle_vending_open_result(&mut self, result: u8) {
+        if result != 0 {
+            self.game.pending_shop_name = None;
+            self.game
+                .chat_window
+                .add_system("Failed to open your shop.".to_string());
+        }
     }
 }

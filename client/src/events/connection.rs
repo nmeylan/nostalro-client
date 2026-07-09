@@ -13,6 +13,7 @@ use ragnarok_ui_component::Window as UiWindow;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
+use ragnarok_ui_component::game::vending_board;
 use winit::event_loop::ActiveEventLoop;
 
 impl App {
@@ -196,6 +197,7 @@ impl App {
             preload_window(&mut self.game.make_item_window, renderer, grf);
             preload_window(&mut self.game.vending_shop_window, renderer, grf);
             preload_window(&mut self.game.vending_setup_window, renderer, grf);
+            preload_window(&mut self.game.my_shop_window, renderer, grf);
             preload_window(&mut self.game.npc_shop, renderer, grf);
             preload_window(&mut self.game.chat_room_window, renderer, grf);
             preload_window(&mut self.game.item_info_window, renderer, grf);
@@ -212,6 +214,8 @@ impl App {
                 renderer.preload_textures(&DropQuantityDialog::grf_texture_paths(), grf);
             self.game.card_insert_dialog_has_grf_textures =
                 renderer.preload_textures(&CardInsertDialog::grf_texture_paths(), grf);
+
+            renderer.preload_textures(&vending_board::grf_texture_paths(), grf);
 
             if let Some(current_map) = &self.game.current_map {
                 let minimap_path = format!("data/texture/유저인터페이스/map/{}.bmp", current_map);

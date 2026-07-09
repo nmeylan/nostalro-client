@@ -52,9 +52,10 @@ use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::game::item_list_selection_window::ItemListSelectionWindow;
 use ragnarok_ui_component::game::make_item_window::{MAKE_ITEM_WINDOW_ID, MakeItemWindow};
 use ragnarok_ui_component::game::vending_setup_window::{
-    VENDING_SETUP_WINDOW_ID, VendingSetupWindow,
+    VENDING_AVAILABLE_WINDOW_ID, VENDING_SETUP_WINDOW_ID, VendingSetupWindow,
 };
 use ragnarok_ui_component::game::vending_shop_window::{VENDING_SHOP_WINDOW_ID, VendingShopWindow};
+use ragnarok_ui_component::game::my_shop_window::{MY_SHOP_WINDOW_ID, MyShopWindow};
 use ragnarok_ui_component::game::warp_list_window::WarpListWindow;
 use ragnarok_ui_component::{InGameWindow, Window};
 
@@ -106,6 +107,7 @@ pub struct GameState {
     pub make_item_window: MakeItemWindow,
     pub vending_shop_window: VendingShopWindow,
     pub vending_setup_window: VendingSetupWindow,
+    pub my_shop_window: MyShopWindow,
     pub confirm_dialog: ConfirmDialog,
     pub npc_shop: NpcShop,
     pub chat_rooms: ChatRoomRegistry,
@@ -190,6 +192,8 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     MAKE_ITEM_WINDOW_ID,
     VENDING_SHOP_WINDOW_ID,
     VENDING_SETUP_WINDOW_ID,
+    VENDING_AVAILABLE_WINDOW_ID,
+    MY_SHOP_WINDOW_ID,
     EQ_WINDOW_ID,
     SKILL_WINDOW_ID,
     STATUS_WINDOW_ID,
@@ -490,6 +494,16 @@ impl GameState {
                 &mut self.character,
                 &self.data_table,
             )),
+            VENDING_AVAILABLE_WINDOW_ID => events.extend(self.vending_setup_window.build_available(
+                ui,
+                &mut self.character,
+                &self.data_table,
+            )),
+            MY_SHOP_WINDOW_ID => events.extend(self.my_shop_window.build(
+                ui,
+                &mut self.character,
+                &self.data_table,
+            )),
             CART_SELECT_WINDOW_ID => events.extend(self.cart_select_window.build(
                 ui,
                 &mut self.character,
@@ -595,6 +609,7 @@ impl GameState {
             make_item_window: MakeItemWindow::new(),
             vending_shop_window: VendingShopWindow::new(),
             vending_setup_window: VendingSetupWindow::new(),
+            my_shop_window: MyShopWindow::new(),
             confirm_dialog: ConfirmDialog::new(),
             npc_shop: NpcShop::new(),
             chat_rooms: ChatRoomRegistry::new(),

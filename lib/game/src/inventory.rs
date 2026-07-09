@@ -51,7 +51,7 @@ impl InventoryData {
 
     pub fn add_item(&mut self, item: Item) {
         if let Some(existing) = self.items.iter_mut().find(|i| i.index == item.index) {
-            if item.is_equipment() {
+            if item.is_equipment() && !item.is_ammunition() {
                 existing.wear_state = item.wear_state;
             } else {
                 existing.count += item.count;
@@ -644,6 +644,10 @@ mod tests {
 
         inv.add_item(make_normal_item(10, 501, 0, 5));
         assert_eq!(inv.get_item(10).unwrap().count, 6);
+        assert_eq!(inv.all_items().len(), 4);
+
+        inv.add_item(make_normal_item(13, 1750, 10, 50));
+        assert_eq!(inv.get_item(13).unwrap().count, 150);
         assert_eq!(inv.all_items().len(), 4);
 
         inv.remove_item(12);

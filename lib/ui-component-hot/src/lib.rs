@@ -14,7 +14,7 @@ use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
 use ragnarok_game::data_table::item_slot_count_table::ItemSlotCountTable;
 use ragnarok_game::data_table::skill_name_table::SkillNameTable;
 use ragnarok_game::data_table::skill_tree_table::{SkillTreeEntry, SkillTreeTable};
-use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo};
+use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo, VendorItem};
 use ragnarok_game::item::Item;
 use ragnarok_game::npc_shop::{NpcShopMode, ShopBuyItem, ShopSellItem};
 use ragnarok_game::party::{Party, PartyMember};
@@ -35,6 +35,13 @@ use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
 use ragnarok_ui_component::game::inventory_window::InventoryWindow;
 use ragnarok_ui_component::game::book_window::{BOOK_WINDOW_ID, BookWindow};
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
+use ragnarok_ui_component::game::my_shop_window::{MY_SHOP_WINDOW_ID, MyShopWindow};
+use ragnarok_ui_component::game::vending_board;
+use ragnarok_ui_component::helper::dialog_container::DialogContainer;
+use ragnarok_ui_component::game::vending_setup_window::{
+    VENDING_SETUP_WINDOW_ID, VendingSetupWindow,
+};
+use ragnarok_ui_component::game::vending_shop_window::{VENDING_SHOP_WINDOW_ID, VendingShopWindow};
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
@@ -48,7 +55,6 @@ use std::collections::HashMap;
 
 const GAME_COMPONENTS: &[&str] = &[
     "inventory",
-    "cart",
     "cart_select",
     "npc_shop",
     "npc_dialog",
@@ -69,6 +75,8 @@ const GAME_COMPONENTS: &[&str] = &[
     "party",
 ];
 const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
+const SHOP_COMPONENTS: &[&str] =
+    &["cart", "vending_setup", "my_shop", "vending_buy", "vending_board"];
 
 enum State {
     Inventory {
@@ -181,6 +189,28 @@ enum State {
         character: Character,
         data: DataTable,
     },
+    VendingSetup {
+        win: VendingSetupWindow,
+        character: Character,
+        data: DataTable,
+    },
+    MyShop {
+        win: MyShopWindow,
+        src: Vec<(VendorItem, String)>,
+        shop_name: String,
+        character: Character,
+        data: DataTable,
+    },
+    VendingBuy {
+        win: VendingShopWindow,
+        src: Vec<(VendorItem, String)>,
+        character: Character,
+        data: DataTable,
+    },
+    VendingBoard {
+        container: DialogContainer,
+        name: String,
+    },
     Category {
         components: Vec<State>,
     },
@@ -228,6 +258,57 @@ fn create_single(name: &str) -> State {
                 data: DataTable::new(),
             }
         }
+        "vending_setup" => {
+            let mut character = Character::new();
+            character.cart.open();
+            character.cart.set_count_info(2850, 8000, 6, 100);
+            for item in inventory_test_items() {
+                character.cart.add_item(item);
+            }
+            let mut win = VendingSetupWindow::new();
+            win.open(12);
+            State::VendingSetup {
+                win,
+                character,
+                data: DataTable::new(),
+            }
+        }
+        "my_shop" => {
+            let src = vending_test_stock();
+            let shop_name = "Cheap Potions!".to_string();
+            let mut win = MyShopWindow::new();
+            win.open(
+                shop_name.clone(),
+                src.iter().map(|(it, n)| (it.clone(), n.clone(), None)).collect(),
+            );
+            State::MyShop {
+                win,
+                src,
+                shop_name,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
+        "vending_buy" => {
+            let src = vending_test_stock();
+            let mut win = VendingShopWindow::new();
+            win.open(
+                2000101,
+                1,
+                "store02".to_string(),
+                src.iter().map(|(it, n)| (it.clone(), n.clone(), None)).collect(),
+            );
+            State::VendingBuy {
+                win,
+                src,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
+        "vending_board" => State::VendingBoard {
+            container: DialogContainer::new(),
+            name: "+7 Gears".to_string(),
+        },
         "cart_select" => {
             let mut character = Character::new();
             character.base_level = 99;
@@ -1123,6 +1204,9 @@ pub unsafe extern "C" fn hot_create(name_ptr: *const u8, name_len: usize) -> *mu
                 .map(|n| create_single(n))
                 .collect(),
         },
+        "shop" => State::Category {
+            components: SHOP_COMPONENTS.iter().map(|n| create_single(n)).collect(),
+        },
         _ => create_single(name),
     };
     Box::into_raw(Box::new(state)) as *mut ()
@@ -1151,6 +1235,36 @@ fn grf_init_single(
         State::CartSelect { win, .. } => {
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
+        }
+        State::VendingSetup { win, character, .. } => {
+            if let Some(table) = table {
+                character.cart.resolve_resource_names(table);
+            }
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
+        State::MyShop {
+            win,
+            src,
+            shop_name,
+            ..
+        } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+            if let Some(table) = table {
+                win.open(shop_name.clone(), resolve_stock_icons(src, table));
+            }
+        }
+        State::VendingBuy { win, src, .. } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+            if let Some(table) = table {
+                win.open(2000101, 1, "store02".to_string(), resolve_stock_icons(src, table));
+            }
+        }
+        State::VendingBoard { container, .. } => {
+            container.has_grf_textures = true;
+            container.set_texture_sizes(size_fn);
         }
         State::NpcShop {
             shop,
@@ -1319,6 +1433,10 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Inventory { .. } => Some(WidgetId(800)),
         State::Cart { .. } => Some(CART_WINDOW_ID),
         State::CartSelect { .. } => Some(CART_SELECT_WINDOW_ID),
+        State::VendingSetup { .. } => Some(VENDING_SETUP_WINDOW_ID),
+        State::MyShop { .. } => Some(MY_SHOP_WINDOW_ID),
+        State::VendingBuy { .. } => Some(VENDING_SHOP_WINDOW_ID),
+        State::VendingBoard { .. } => None,
         State::Equipment { .. } => Some(WidgetId(900)),
         State::SkillTree { .. } => Some(WidgetId(1000)),
         State::Book { .. } => Some(BOOK_WINDOW_ID),
@@ -1350,6 +1468,33 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             data,
         } => {
             win.build(ui, character, data);
+        }
+        State::VendingSetup {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, character, data);
+            win.build_available(ui, character, data);
+        }
+        State::MyShop {
+            win,
+            character,
+            data,
+            ..
+        } => {
+            win.build(ui, character, data);
+        }
+        State::VendingBuy {
+            win,
+            character,
+            data,
+            ..
+        } => {
+            win.build(ui, character, data);
+        }
+        State::VendingBoard { container, name } => {
+            vending_board::draw_board(&mut ui.draw_calls, container, ui.atlas, 300.0, 260.0, 40.0, name);
         }
         State::NpcShop {
             shop,
@@ -1617,6 +1762,43 @@ fn make_test_item(index: u16, item_id: u16, item_type: u8, count: i16, name: &st
         name: name.into(),
         resource_name: None,
     }
+}
+
+fn vendor_item(index: i16, item_id: u16, amount: i16, price: i32) -> VendorItem {
+    VendorItem {
+        index,
+        item_id,
+        amount,
+        price,
+        refine: 0,
+        is_identified: true,
+        is_damaged: false,
+        item_type: 0,
+    }
+}
+
+fn vending_test_stock() -> Vec<(VendorItem, String)> {
+    vec![
+        (vendor_item(0, 501, 20, 120), "Red Potion".into()),
+        (vendor_item(1, 502, 8, 350), "Orange Potion".into()),
+        (vendor_item(2, 610, 5, 4500), "Yggdrasil Leaf".into()),
+        (vendor_item(3, 1101, 1, 25000), "+7 Sword".into()),
+        (vendor_item(4, 1201, 1, 8000), "Stiletto".into()),
+    ]
+}
+
+fn resolve_stock_icons(
+    src: &[(VendorItem, String)],
+    table: &ItemResourceTable,
+) -> Vec<(VendorItem, String, Option<String>)> {
+    src.iter()
+        .map(|(item, name)| {
+            let icon = table
+                .get_resource_name_for(item.item_id, item.is_identified)
+                .map(|res| format!("data/texture/유저인터페이스/item/{res}.bmp"));
+            (item.clone(), name.clone(), icon)
+        })
+        .collect()
 }
 
 fn inventory_test_items() -> Vec<Item> {

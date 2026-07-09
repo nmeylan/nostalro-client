@@ -13,12 +13,16 @@ use ragnarok_ui_component::game::chat_window::ChatWindow;
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
 use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
+use ragnarok_ui_component::game::cart_window::CartWindow;
 use ragnarok_ui_component::game::inventory_window::InventoryWindow;
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
+use ragnarok_ui_component::game::my_shop_window::MyShopWindow;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
 use ragnarok_ui_component::game::system_menu::SystemMenu;
+use ragnarok_ui_component::game::vending_setup_window::VendingSetupWindow;
+use ragnarok_ui_component::game::vending_shop_window::VendingShopWindow;
 use ragnarok_ui_component::helper::dialog_container::DialogContainer;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -119,10 +123,17 @@ const GAME_COMPONENTS: &[&str] = &[
     "basic_info",
 ];
 const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
+const SHOP_COMPONENTS: &[&str] =
+    &["cart", "vending_setup", "my_shop", "vending_buy", "vending_board"];
 
 fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
     match name {
         "inventory" => InventoryWindow::grf_texture_paths(),
+        "cart" => CartWindow::grf_texture_paths(),
+        "vending_setup" => VendingSetupWindow::grf_texture_paths(),
+        "my_shop" => MyShopWindow::grf_texture_paths(),
+        "vending_buy" => VendingShopWindow::grf_texture_paths(),
+        "vending_board" => ragnarok_ui_component::game::vending_board::grf_texture_paths(),
         "npc_shop_buy" => NpcShop::grf_texture_paths(),
         "npc_shop_sell" => NpcShop::grf_texture_paths(),
         "login" => LoginWindow::grf_texture_paths(),
@@ -157,6 +168,7 @@ fn grf_texture_paths(example_name: &str) -> Vec<&'static str> {
     let names: &[&str] = match example_name {
         "game" => GAME_COMPONENTS,
         "account" => ACCOUNT_COMPONENTS,
+        "shop" => SHOP_COMPONENTS,
         _ => return grf_texture_paths_single(example_name),
     };
     let mut paths: Vec<&'static str> = names

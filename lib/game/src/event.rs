@@ -745,6 +745,9 @@ pub enum GameEvent {
         index: i16,
         count: i16,
     },
+    VendingOpenResult {
+        result: u8,
+    },
 
     Acknowledged,
 }

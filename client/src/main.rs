@@ -1190,6 +1190,26 @@ impl App {
         hovered
     }
 
+    fn hovered_vending_board(&self, render_list: &[RenderEntry]) -> Option<u32> {
+        let (mx, my) = self.input.mouse_position;
+        let (mx, my) = (mx as f32, my as f32);
+        for entry in render_list {
+            let is_vendor = self
+                .game
+                .entities
+                .get(entry.id)
+                .is_some_and(|e| e.vending_board.is_some());
+            if !is_vendor {
+                continue;
+            }
+            let r = crate::overlay::vending_board_rect(entry);
+            if mx >= r[0] && mx <= r[2] && my >= r[1] && my <= r[3] {
+                return Some(entry.id);
+            }
+        }
+        None
+    }
+
     fn compute_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
         if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
@@ -1413,6 +1433,8 @@ impl App {
                     }
                     PendingSkillTarget::Ground { .. } => (CursorType::Lock, None),
                 }
+            } else if let Some(vendor_id) = self.hovered_vending_board(render_list) {
+                (CursorType::Click, Some(vendor_id))
             } else if let Some((entity_cursor, entity_id)) = hovered_entity_cursor_type(
                 self.input.mouse_position,
                 &self.game.entities,

@@ -818,6 +818,9 @@ impl App {
                 GameEvent::VendingStockDecrement { index, count } => {
                     self.handle_vending_stock_decrement(index, count);
                 }
+                GameEvent::VendingOpenResult { result } => {
+                    self.handle_vending_open_result(result);
+                }
 
                 _ => {}
             }

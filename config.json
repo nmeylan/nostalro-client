@@ -17,6 +17,30 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
+    "800": {
+      "position": [
+        0.0,
+        121.91406
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "1300": {
+      "position": [
+        319.3333,
+        0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "2300": {
+      "position": [
+        145.375,
+        245.5625
+      ],
+      "open": false,
+      "collapsed": false
+    },
     "10": {
       "position": [
         344.0,
@@ -25,10 +49,42 @@
       "open": false,
       "collapsed": false
     },
+    "900": {
+      "position": [
+        0.0,
+        210.0
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "2600": {
+      "position": [
+        300.0,
+        100.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "110": {
+      "position": [
+        490.0,
+        568.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "2700": {
+      "position": [
+        560.0,
+        70.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
     "1200": {
       "position": [
-        216.41797,
-        267.46484
+        357.3333,
+        54.695312
       ],
       "open": true,
       "collapsed": false
@@ -41,50 +97,10 @@
       "open": false,
       "collapsed": false
     },
-    "800": {
-      "position": [
-        0.0,
-        121.91406
-      ],
-      "open": true,
-      "collapsed": false
-    },
-    "2300": {
-      "position": [
-        280.0,
-        100.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "1800": {
-      "position": [
-        0.0,
-        327.57812
-      ],
-      "open": false,
-      "collapsed": false
-    },
     "210": {
       "position": [
         342.0,
         346.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "1300": {
-      "position": [
-        319.3333,
-        0.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "110": {
-      "position": [
-        490.0,
-        568.0
       ],
       "open": false,
       "collapsed": false

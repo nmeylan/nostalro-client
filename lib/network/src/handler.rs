@@ -295,6 +295,13 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             y: p.y_pos as u16,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcFastmove>() {
+        return vec![GameEvent::EntityStopMove {
+            gid: p.aid,
+            x: p.x_pos as u16,
+            y: p.y_pos as u16,
+        }];
+    }
 
     if let Some(p) = any.downcast_ref::<PacketZcNotifyAct>() {
         return vec![GameEvent::EntityAction {
@@ -1342,19 +1349,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::MakingArrowList { item_ids }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcMakableitemlist>() {
-        // Only the first entry is decoded into `info`; slice the rest out of raw.
-        // Layout: id(2) + len(2), then {itid.W, mat[3].W} = 8 B per entry.
-        let raw = p.raw();
-        let mut item_ids = Vec::new();
-        if raw.len() >= 4 {
-            let len = u16::from_le_bytes([raw[2], raw[3]]) as usize;
-            let end = len.min(raw.len());
-            let mut off = 4;
-            while off + 8 <= end {
-                item_ids.push(u16::from_le_bytes([raw[off], raw[off + 1]]));
-                off += 8;
-            }
-        }
+        let item_ids = p.info.iter().map(|e| e.itid).collect();
         return vec![GameEvent::MakableItemList { item_ids }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcAckReqmakingitem>() {
@@ -1392,6 +1387,9 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::OpenVendingSetup {
             max_items: p.itemcount,
         }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckOpenstore2>() {
+        return vec![GameEvent::VendingOpenResult { result: p.result }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcStoreEntry>() {
         let name: String = p.store_name.iter().take_while(|c| **c != '\0').collect();
@@ -1593,7 +1591,7 @@ mod tests {
     }
 
     #[test]
-    fn makable_item_list_slices_all_entries_from_raw() {
+    fn makable_item_list_decodes_all_entries() {
         let packetver = 20120307;
         // id(0x8d,0x01) + len(20) + two 8-byte entries {itid.W, mat[3].W}
         let mut buf: Vec<u8> = vec![0x8d, 0x01, 20, 0x00];
@@ -1601,10 +1599,8 @@ mod tests {
         buf.extend_from_slice(&[0u8; 6]);
         buf.extend_from_slice(&502u16.to_le_bytes());
         buf.extend_from_slice(&[0u8; 6]);
-        // Mirror the recv workaround: set raw directly, skip the broken `from`.
-        let mut pkt = PacketZcMakableitemlist::new(packetver);
-        pkt.raw = buf;
-        match &dispatch_packet(&pkt, packetver)[..] {
+        let pkt = packets::packets_parser::parse(&buf, packetver);
+        match &dispatch_packet(pkt.as_ref(), packetver)[..] {
             [GameEvent::MakableItemList { item_ids }] => {
                 assert_eq!(item_ids, &vec![501u16, 502u16]);
             }

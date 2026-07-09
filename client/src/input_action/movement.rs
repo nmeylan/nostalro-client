@@ -5,10 +5,9 @@ use ragnarok_network::{build_action_request_packet, build_request_move_packet};
 
 impl App {
     pub(crate) fn is_local_player_incapacitated(&self) -> bool {
-        self.game
-            .entities
-            .player()
-            .is_some_and(|p| ailment::movement_blocked(p.body_state, p.rooted))
+        self.game.entities.player().is_some_and(|p| {
+            ailment::movement_blocked(p.body_state, p.rooted) || p.vending_board.is_some()
+        })
     }
 
     pub(crate) fn initiate_attack(&mut self, target_id: u32) {
