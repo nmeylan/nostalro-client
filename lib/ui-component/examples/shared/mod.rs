@@ -8,7 +8,8 @@ use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::UiFrame;
 use ragnarok_ui::state::StateCache;
 use ragnarok_ui_component::game::{
-    equipment_window, inventory_window, npc_shop, skill_tree_window,
+    cart_window, equipment_window, inventory_window, my_shop_window, npc_shop, skill_tree_window,
+    vending_setup_window, vending_shop_window,
 };
 use std::collections::HashMap;
 use std::path::Path;
@@ -132,6 +133,14 @@ impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
         positions.insert(npc_shop::OUTPUT_WIN_ID.0, [740.0, 270.0]);
         positions.insert(equipment_window::EQ_WINDOW_ID.0, [0.0, 400.0]);
         positions.insert(skill_tree_window::SKILL_WINDOW_ID.0, [0.0, 800.0]);
+        // Shop category renders all shop windows at once; lay them out so none
+        // overlaps (in game these never appear together).
+        positions.insert(vending_setup_window::VENDING_SETUP_WINDOW_ID.0, [10.0, 60.0]);
+        positions.insert(vending_setup_window::VENDING_AVAILABLE_WINDOW_ID.0, [470.0, 60.0]);
+        positions.insert(my_shop_window::MY_SHOP_WINDOW_ID.0, [800.0, 60.0]);
+        positions.insert(vending_shop_window::VENDING_SHOP_WINDOW_ID.0, [10.0, 470.0]);
+        positions.insert(vending_shop_window::VENDING_BUY_WINDOW_ID.0, [300.0, 470.0]);
+        positions.insert(cart_window::CART_WINDOW_ID.0, [620.0, 470.0]);
         let ui = UiFrame::new(
             &self.ui_ctx,
             &gpu.font_atlas,

@@ -1784,6 +1784,7 @@ fn vending_test_stock() -> Vec<(VendorItem, String)> {
         (vendor_item(2, 610, 5, 4500), "Yggdrasil Leaf".into()),
         (vendor_item(3, 1101, 1, 25000), "+7 Sword".into()),
         (vendor_item(4, 1201, 1, 8000), "Stiletto".into()),
+        (vendor_item(5, 4058, 1, 8000000), "Stiletto".into()),
     ]
 }
 

@@ -1,3 +1,4 @@
+use crate::helper::format::format_thousands;
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 use crate::helper::window_chrome::{
     SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_titlebar,
@@ -203,7 +204,7 @@ impl InGameWindow for MyShopWindow {
             }
             ui.text(text_x, row_y + ROW_H - 6.0, &row.name, tc);
 
-            let price_label = format!("{}z", row.item.price);
+            let price_label = format!("{}z", format_thousands(row.item.price as i64));
             ui.text(
                 list_x + list_w - PRICE_W - STOCK_W,
                 row_y + ROW_H - 6.0,

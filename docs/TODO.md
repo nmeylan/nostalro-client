@@ -26,6 +26,7 @@ TODO:
 - Skybox
 - ~~ALL 1050 effects https://casual-ragnarok.github.io/ro-effects/~~
 # UI
+- Character selection
 - ~~Chat box (normal, whisper, party, guild channels)~~
 - ~~Status window (stats, stat allocation)~~
 - ~~Inventory window~~
@@ -37,7 +38,7 @@ TODO:
 - ~~NPC dialog box (text, menu choices, number input)~~
 - ~~NPC shop (buy/sell)~~
 - Auto Trade window (player-to-player)
-- Vending (player shop setup + buying)
+~~- Vending (player shop setup + buying)~~
 - Party window
 - Guild window (members, positions, skills, emblem, notices)
 - Friend/messenger list
@@ -50,19 +51,19 @@ TODO:
 - Context menu (right-click on player/NPC)[ui-component](../lib/ui-component)
 - ~~Escape/system menu~~
 - ~~Card illustration display~~
-- Refining UI
+~~- Refining UI~~
 - Mail/Rodex
 
 # Entities
 - ~~Multiple entity management (spawn, despawn, update)~~ (done — entity_collection.rs)
-- Other players (full sprite layers)
+- ~~ Other players (full sprite layers)~~
 - ~~cart~~
 - ~~Trap~~
 - ~~Falcon~~
 - ~~NPCs~~
 - ~~Monsters~~
 - ~~Ground items (dropped items with pickup)~~
-- ~~ Skill ground units (AoE, bottom song)~~
+- ~~Skill ground units (AoE, bottom song)~~
 - Pet companion rendering
 - Homunculus rendering
 - Mercenary rendering
@@ -70,9 +71,9 @@ TODO:
 # Combat
 - ~~Attack action + animation~~
 - ~~Skill casting (cast bar, cast animation)~~
-- Skill execution + effects
+~~- Skill execution + effects~~
 - ~~Damage/heal numbers~~
-~~- Status effects (buff/debuff icons + visuals: poison, freeze, stun, etc.)~~
+- ~~ Status effects (buff/debuff icons + visuals: poison, freeze, stun, etc.)~~
 - ~~HP/SP bars~~
 - ~~Death~~ + respawn
 - ~~Sit/stand actions~~ 
@@ -94,7 +95,7 @@ TODO:
 - Friend list + whisper
 - Chat rooms
 - Trade
-- Vending/merchant shop
+~~- Vending/merchant shop~~
 - Marriage/couples
 
 # Network
@@ -106,11 +107,11 @@ TODO:
 - ~~Entity spawn/despawn/update packets~~ (done — full spawn/move/vanish/act handling)
 - ~~Status change packets~~
 - Party/guild packets
-- Trade/vending packets
+~~- Trade/vending packets~~
 - Quest packets
 - Pet/homunculus/mercenary packets
 - Mail packets
-- Effect wiring
+~~- Effect wiring~~
 
 # Audio
 - BGM playback (map-specific music)

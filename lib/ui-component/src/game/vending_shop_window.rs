@@ -1,5 +1,6 @@
 use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
 use crate::helper::dialog_container::DialogContainer;
+use crate::helper::format::format_thousands;
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 use crate::helper::window_chrome::{
     ITEMWIN_MID_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_textured_quad, draw_titlebar,
@@ -21,7 +22,7 @@ const SCROLL_THUMB_ID: WidgetId = WidgetId(2407);
 const ROW_BASE_ID: u32 = 2410;
 
 const LEFT_RESIZE_ID: WidgetId = WidgetId(2408);
-const VENDING_BUY_WINDOW_ID: WidgetId = WidgetId(2420);
+pub const VENDING_BUY_WINDOW_ID: WidgetId = WidgetId(2420);
 const BUY_ID: WidgetId = WidgetId(2421);
 const CANCEL_ID: WidgetId = WidgetId(2422);
 const RIGHT_RESIZE_ID: WidgetId = WidgetId(2423);
@@ -278,7 +279,7 @@ impl VendingShopWindow {
 
             let price_str = format!("{} Z", format_thousands(row.item.price as i64));
             let py = row_y + (ROW_H + ui.atlas.line_height) / 2.0 - 2.0;
-            ui.text_right(price_right, py, &price_str, price_color(row.item.price));
+            draw_price_right(ui, price_right, py, &price_str, row.item.price as i64);
         }
 
         resize_grip(
@@ -354,11 +355,12 @@ impl VendingShopWindow {
             let label = truncate_to_width(&item.name, name_max_w, ui.atlas);
             ui.text(tx, y, &label, tc);
             let line_price = item.unit_price as i64 * item.count as i64;
-            ui.text_right(
+            draw_price_right(
+                ui,
                 price_right,
                 y,
                 &format!("{} Z", format_thousands(line_price)),
-                price_color(line_price.min(i32::MAX as i64) as i32),
+                line_price,
             );
         }
         if let Some(slot) = to_remove {
@@ -570,39 +572,42 @@ fn resize_grip(
     }
 }
 
-fn price_color(price: i32) -> [f32; 4] {
+fn rgb(hex: u32) -> [f32; 4] {
+    [
+        ((hex >> 16) & 0xff) as f32 / 255.0,
+        ((hex >> 8) & 0xff) as f32 / 255.0,
+        (hex & 0xff) as f32 / 255.0,
+        1.0,
+    ]
+}
+
+/// Per-digit-count `(text_color, shadow_color)`. The shadow is drawn 1px offset so
+/// e.g. the 7-digit price reads as black with a green edge rather than solid green.
+fn price_style(price: i64) -> ([f32; 4], Option<[f32; 4]>) {
     let digits = price.max(0).to_string().len();
     match digits {
-        1 => [0.0, 1.0, 1.0, 1.0],
-        2 => [0.8, 0.0, 0.8, 1.0],
-        3 => [0.0, 0.0, 1.0, 1.0],
-        4 => [1.0, 0.5, 0.0, 1.0],
-        5 => [1.0, 0.1, 1.0, 1.0],
-        6 => [0.0, 0.0, 1.0, 1.0],
-        7 => [0.0, 0.7, 0.0, 1.0],
-        8 => [1.0, 0.0, 0.0, 1.0],
-        9 => [0.5, 0.5, 0.2, 1.0],
-        _ => [1.0, 0.0, 0.0, 1.0],
+        1 => (rgb(0x000000), Some(rgb(0x00ffff))),
+        2 => (rgb(0x0000ff), Some(rgb(0xce00ce))),
+        3 => (rgb(0x0000ff), Some(rgb(0x00ffff))),
+        4 => (rgb(0xff0000), Some(rgb(0xffff00))),
+        5 => (rgb(0xff18ff), None),
+        6 => (rgb(0x0000ff), None),
+        7 => (rgb(0x000000), Some(rgb(0x00ff00))),
+        8 => (rgb(0xff0000), None),
+        9 => (rgb(0x000000), Some(rgb(0xcece63))),
+        _ => (rgb(0xff0000), Some(rgb(0xff007b))),
     }
 }
 
-fn format_thousands(n: i64) -> String {
-    let neg = n < 0;
-    let digits = n.unsigned_abs().to_string();
-    let mut out = String::new();
-    let len = digits.len();
-    for (i, ch) in digits.chars().enumerate() {
-        if i > 0 && (len - i) % 3 == 0 {
-            out.push(',');
-        }
-        out.push(ch);
+fn draw_price_right(ui: &mut UiFrame, right_x: f32, y: f32, text: &str, price: i64) {
+    let (color, shadow) = price_style(price);
+    let x = right_x - ui.atlas.measure_text(text);
+    if let Some(sh) = shadow {
+        ui.text(x + 1.0, y, text, sh);
     }
-    if neg {
-        format!("-{out}")
-    } else {
-        out
-    }
+    ui.text(x, y, text, color);
 }
+
 
 fn wrap_name(name: &str, max_w: f32, atlas: &FontAtlas) -> Vec<String> {
     if atlas.measure_text(name) <= max_w {
@@ -678,10 +683,16 @@ mod tests {
     }
 
     #[test]
-    fn price_color_matches_digit_buckets() {
-        assert_eq!(price_color(800_000), [0.0, 0.0, 1.0, 1.0]); // 6 digits -> blue
-        assert_eq!(price_color(2_000_000), [0.0, 0.7, 0.0, 1.0]); // 7 digits -> green
-        assert_eq!(price_color(28_000_000), [1.0, 0.0, 0.0, 1.0]); // 8 digits -> red
+    fn price_style_matches_digit_buckets() {
+        // 6 digits -> blue, no shadow
+        assert_eq!(price_style(800_000), ([0.0, 0.0, 1.0, 1.0], None));
+        // 7 digits -> black text with a green shadow (reads as green-around-black)
+        assert_eq!(
+            price_style(2_000_000),
+            ([0.0, 0.0, 0.0, 1.0], Some([0.0, 1.0, 0.0, 1.0]))
+        );
+        // 8 digits -> red, no shadow
+        assert_eq!(price_style(28_000_000), ([1.0, 0.0, 0.0, 1.0], None));
         assert_eq!(format_thousands(28_000_000), "28,000,000");
     }
 

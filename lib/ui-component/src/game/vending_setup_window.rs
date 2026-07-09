@@ -1,3 +1,4 @@
+use crate::helper::format::format_thousands;
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 use crate::helper::window_chrome::{
     ITEMWIN_MID_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container, draw_footer,
@@ -120,7 +121,7 @@ impl VendingSetupWindow {
         self.slots = (0..self.max_items)
             .map(|_| SetupSlot {
                 item: None,
-                price: TextInput::new(9, false),
+                price: TextInput::new(13, false),
             })
             .collect();
         self.title.text.clear();
@@ -172,7 +173,7 @@ impl VendingSetupWindow {
             .iter()
             .filter_map(|s| {
                 let item = s.item.as_ref()?;
-                let price: i32 = s.price.text.trim().parse().ok()?;
+                let price: i32 = s.price.text.replace(',', "").trim().parse().ok()?;
                 (price > 0).then_some((item.index as i16, item.amount, price))
             })
             .collect()
@@ -511,6 +512,7 @@ impl InGameWindow for VendingSetupWindow {
                 &mut self.slots[slot].price,
                 bg,
             );
+            reformat_price(&mut self.slots[slot].price);
             if self.slots[slot].price.text.is_empty() {
                 ui.text(
                     price_rect.x + 4.0,
@@ -566,6 +568,25 @@ impl InGameWindow for VendingSetupWindow {
 
         ui.has_grf_textures = prev_grf;
         events
+    }
+}
+
+/// Rewrite a price field to comma-grouped digits (max 9 digits), keeping the cursor
+/// at the end. Commas are stripped again when the price is parsed.
+fn reformat_price(input: &mut TextInput) {
+    let digits: String = input
+        .text
+        .chars()
+        .filter(|c| c.is_ascii_digit())
+        .take(9)
+        .collect();
+    let formatted = match digits.parse::<i64>() {
+        Ok(n) => format_thousands(n),
+        Err(_) => String::new(),
+    };
+    if input.text != formatted {
+        input.cursor_pos = formatted.chars().count();
+        input.text = formatted;
     }
 }
 
