@@ -819,7 +819,21 @@ impl App {
             }
         }
 
-        all_ui_calls.extend(account_calls);
+        let account_insert_idx = match self.game.app_state {
+            AppState::CharacterSelect => self
+                .char_select_window
+                .as_ref()
+                .and_then(|w| w.sprite_insert_index()),
+            _ => None,
+        }
+        .map(|idx| (overlay_len + idx).min(all_ui_calls.len()));
+        if let Some(abs_idx) = account_insert_idx {
+            for (i, dc) in account_calls.into_iter().enumerate() {
+                all_ui_calls.insert(abs_idx + i, dc);
+            }
+        } else {
+            all_ui_calls.extend(account_calls);
+        }
         all_ui_calls.extend(skill_level_calls);
 
         if let Some(renderer) = &mut self.renderer {

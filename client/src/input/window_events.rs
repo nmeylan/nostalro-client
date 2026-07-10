@@ -49,15 +49,21 @@ impl App {
                         // Picking clears the hovered ids while the button is held (rotate cursor),
                         // so capture the target now, before it's lost.
                         self.input.right_press_entity = self.game.hovered_player_id;
+                        self.input.right_press_target = self.game.hovered_entity_id;
                         self.game.pending_skill_target = None;
                         self.game.pending_skill_id = None;
                         self.game.pending_skill_level = None;
                     } else {
                         self.input.last_mouse_pos = None;
                         if !self.input.right_dragged && !self.input.ui_hovered {
-                            self.open_entity_context_menu(self.input.right_press_entity);
+                            if self.input.alt_pressed && self.has_companion() {
+                                self.issue_owner_command();
+                            } else {
+                                self.open_entity_context_menu(self.input.right_press_entity);
+                            }
                         }
                         self.input.right_press_entity = None;
+                        self.input.right_press_target = None;
                     }
                 }
                 MouseButton::Left => {
@@ -203,6 +209,16 @@ impl App {
                         .is_some_and(|p| p.cart_type.is_some());
                     if has_cart {
                         self.game.character.cart.toggle();
+                    }
+                }
+                PhysicalKey::Code(KeyCode::KeyH) if self.input.alt_pressed => {
+                    if self.game.homunculus.is_some() {
+                        self.game.homunculus_window.toggle();
+                    }
+                }
+                PhysicalKey::Code(KeyCode::KeyR) if self.input.alt_pressed => {
+                    if self.game.mercenary.is_some() {
+                        self.game.mercenary_window.toggle();
                     }
                 }
                 _ => {}

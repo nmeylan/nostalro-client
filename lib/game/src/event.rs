@@ -109,6 +109,7 @@ pub enum GameEvent {
     BackToLogin,
     BackToServerSelect,
     BackToCharacterSelect,
+    RequestMapRecoveryWarp,
     RestartAck,
     QuitGame,
     DisconnectAck {
@@ -804,7 +805,127 @@ pub enum GameEvent {
         result: u8,
     },
 
+    // --- Homunculus / Mercenary ---
+    HomunPropertyReceived {
+        property: HomunculusProperty,
+    },
+    /// 0x0230: state 0 = pre-init (carries the companion GID), 1 = intimacy, 2 = hunger.
+    CompanionStateChanged {
+        state: i8,
+        gid: u32,
+        data: i32,
+    },
+    HomunFeedResult {
+        success: bool,
+        item_id: u16,
+    },
+    MercenaryInfoReceived {
+        info: MercenaryInfo,
+        is_init: bool,
+    },
+    MercenaryParamChanged {
+        var: u16,
+        value: i32,
+    },
+    HomunSkillList {
+        skills: Vec<SkillInfo>,
+    },
+    HomunSkillUpdate {
+        id: u16,
+        level: i16,
+        sp_cost: i16,
+        attack_range: i16,
+        upgradable: bool,
+    },
+    MercenarySkillList {
+        skills: Vec<SkillInfo>,
+    },
+    MercenarySkillUpdate {
+        id: u16,
+        level: i16,
+        sp_cost: i16,
+        attack_range: i16,
+        upgradable: bool,
+    },
+    RequestCompanionMove {
+        gid: u32,
+        x: i32,
+        y: i32,
+    },
+    RequestCompanionAttack {
+        gid: u32,
+        target_gid: u32,
+    },
+    RequestCompanionMoveToOwner {
+        gid: u32,
+    },
+    /// 0 = info, 1 = feed, 2 = rest.
+    RequestHomunMenu {
+        command: u8,
+    },
+    /// 1 = info, 2 = dismiss.
+    RequestMercenaryCommand {
+        command: i8,
+    },
+    RequestRenameHomun {
+        name: String,
+    },
+    ToggleHomunculusWindow,
+    ToggleMercenaryWindow,
+    /// Standby button: toggle the companion between follow and hold.
+    ToggleCompanionStandby,
+
     Acknowledged,
+}
+
+#[derive(Debug, Clone)]
+pub struct HomunculusProperty {
+    pub name: String,
+    pub renamed: bool,
+    pub level: i16,
+    pub hunger: i16,
+    pub intimacy: i16,
+    pub accessory: u16,
+    pub atk: i16,
+    pub matk: i16,
+    pub hit: i16,
+    pub critical: i16,
+    pub def: i16,
+    pub mdef: i16,
+    pub flee: i16,
+    pub aspd: i16,
+    pub hp: u32,
+    pub max_hp: u32,
+    pub sp: u32,
+    pub max_sp: u32,
+    pub exp: i32,
+    pub max_exp: i32,
+    pub skill_points: i16,
+    pub atk_range: i16,
+}
+
+#[derive(Debug, Clone)]
+pub struct MercenaryInfo {
+    pub gid: u32,
+    pub name: String,
+    pub level: i16,
+    pub atk: i16,
+    pub matk: i16,
+    pub hit: i16,
+    pub critical: i16,
+    pub def: i16,
+    pub mdef: i16,
+    pub flee: i16,
+    pub aspd: i16,
+    pub atk_range: i16,
+    pub hp: u32,
+    pub max_hp: u32,
+    pub sp: u32,
+    pub max_sp: u32,
+    pub expire_date: i32,
+    pub faith: i16,
+    pub calls: i32,
+    pub kills: i32,
 }
 
 #[derive(Debug, Clone)]

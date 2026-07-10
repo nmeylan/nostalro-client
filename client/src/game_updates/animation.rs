@@ -152,7 +152,10 @@ impl App {
                     entity.animation.set_action(action, MotionType::Loop);
                 }
                 entity.animation.set_direction(entity.direction);
-                let is_composite = entity.entity_type == EntityType::Player;
+                let is_composite = matches!(
+                    entity.entity_type,
+                    EntityType::Player | EntityType::Mercenary
+                );
                 let animated = !is_composite
                     || SpriteActionType::from_index(entity.animation.action())
                         .is_none_or(|a| a.is_animated());

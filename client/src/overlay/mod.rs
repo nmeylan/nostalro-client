@@ -158,6 +158,7 @@ impl App {
             EntityType::Player => display.hide_name_player,
             EntityType::Monster => display.hide_name_monster,
             EntityType::Npc => display.hide_name_npc,
+            EntityType::Homunculus | EntityType::Mercenary => false,
         }
     }
 
@@ -449,7 +450,9 @@ fn entity_name_color(entity: &Entity) -> [f32; 4] {
         return color;
     }
     match entity.entity_type {
-        EntityType::Player => [1.0, 1.0, 1.0, 1.0],
+        EntityType::Player | EntityType::Homunculus | EntityType::Mercenary => {
+            [1.0, 1.0, 1.0, 1.0]
+        }
         EntityType::Monster => [1.0, 0.776, 0.776, 1.0],
         EntityType::Npc => [0.39, 0.54, 0.76, 1.0],
     }

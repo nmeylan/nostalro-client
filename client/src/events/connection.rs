@@ -44,9 +44,10 @@ impl App {
 
     pub(crate) fn handle_character_created(
         &mut self,
-        character: ragnarok_game::event::CharacterInfo,
+        mut character: ragnarok_game::event::CharacterInfo,
     ) {
         tracing::info!("Character '{}' created in slot {}", character.name, character.slot);
+        character.sex = self.game.login_session.as_ref().map(|s| s.sex).unwrap_or(0);
         self.load_char_select_sprite(&character);
         if let Some(win) = &mut self.char_select_window {
             win.characters.push(character);
@@ -109,6 +110,10 @@ impl App {
         self.game.pending_card_composition_index = None;
         self.game.pending_pickup_item_id = None;
         self.game.attack_target_id = None;
+        self.game.homunculus = None;
+        self.game.mercenary = None;
+        self.game.homunculus_window.set_visible(false);
+        self.game.mercenary_window.set_visible(false);
         self.game.current_map = None;
         self.game.map_coords = None;
         self.game.gat = None;

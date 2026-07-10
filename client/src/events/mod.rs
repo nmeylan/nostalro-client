@@ -1,5 +1,6 @@
 mod character;
 mod chat;
+mod companion;
 mod connection;
 mod entity;
 mod inventory;
@@ -858,6 +859,91 @@ impl App {
                 }
                 GameEvent::VendingOpenResult { result } => {
                     self.handle_vending_open_result(result);
+                }
+
+                GameEvent::CharacterCreated { character } => {
+                    self.handle_character_created(character);
+                }
+                GameEvent::CharacterCreateFailed { error_code } => {
+                    if let Some(win) = &mut self.char_create_window {
+                        win.error_message =
+                            Some(char_create_error_message(error_code).to_string());
+                    }
+                }
+                GameEvent::CharacterDeleteReserved {
+                    gid,
+                    result,
+                    delete_reserved_date,
+                } => {
+                    if let Some(win) = &mut self.char_select_window {
+                        if result == 0 || result == 1 {
+                            win.open_delete_dialog(gid, delete_reserved_date);
+                        } else {
+                            win.set_delete_status(char_delete_reserve_error(result).to_string());
+                        }
+                    }
+                }
+                GameEvent::CharacterDeleted { gid, result } => {
+                    if let Some(win) = &mut self.char_select_window {
+                        if result == 1 {
+                            win.remove_character(gid);
+                            win.close_delete_dialog();
+                            self.account_anims.remove(&gid);
+                        } else {
+                            win.set_delete_dialog_error(
+                                char_delete_confirm_error(result).to_string(),
+                            );
+                        }
+                    }
+                }
+                GameEvent::CharacterDeleteCancelled { gid: _, result } => {
+                    if let Some(win) = &mut self.char_select_window {
+                        if result == 1 {
+                            win.close_delete_dialog();
+                        } else {
+                            win.set_delete_dialog_error("Failed to cancel deletion.".to_string());
+                        }
+                    }
+                }
+
+                GameEvent::HomunPropertyReceived { property } => {
+                    self.handle_homun_property(property);
+                }
+                GameEvent::CompanionStateChanged { state, gid, data } => {
+                    self.handle_companion_state_changed(state, gid, data);
+                }
+                GameEvent::HomunFeedResult { success, item_id } => {
+                    self.handle_homun_feed_result(success, item_id);
+                }
+                GameEvent::MercenaryInfoReceived { info, is_init } => {
+                    self.handle_mercenary_info(info, is_init);
+                }
+                GameEvent::MercenaryParamChanged { var, value } => {
+                    self.handle_mercenary_param_changed(var, value);
+                }
+                GameEvent::HomunSkillList { skills } => {
+                    self.handle_homun_skill_list(skills);
+                }
+                GameEvent::HomunSkillUpdate {
+                    id,
+                    level,
+                    sp_cost,
+                    attack_range,
+                    upgradable,
+                } => {
+                    self.handle_homun_skill_update(id, level, sp_cost, attack_range, upgradable);
+                }
+                GameEvent::MercenarySkillList { skills } => {
+                    self.handle_mercenary_skill_list(skills);
+                }
+                GameEvent::MercenarySkillUpdate {
+                    id,
+                    level,
+                    sp_cost,
+                    attack_range,
+                    upgradable,
+                } => {
+                    self.handle_mercenary_skill_update(id, level, sp_cost, attack_range, upgradable);
                 }
 
                 _ => {}

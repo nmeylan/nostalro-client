@@ -5,6 +5,7 @@ pub mod arrow;
 pub mod book;
 pub mod character;
 pub mod chat_room;
+pub mod companion;
 pub mod cooldown;
 pub mod cursor;
 pub mod damage_number;

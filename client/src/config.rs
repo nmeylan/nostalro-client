@@ -77,6 +77,13 @@ pub struct Config {
     /// on the next character-select screen. Client-side only; the server sends no
     /// "last used" marker.
     pub last_char_slot: Option<u8>,
+    /// Command sent (as chat) by the map-recovery window's warp button when a map
+    /// cannot be loaded because its data is missing from the GRF.
+    pub map_recovery_command: String,
+}
+
+fn default_map_recovery_command() -> String {
+    "@go prontera".to_string()
 }
 
 impl Default for Config {
@@ -106,6 +113,7 @@ impl Default for Config {
             fog: false,
             display: DisplayOptions::default(),
             last_char_slot: None,
+            map_recovery_command: default_map_recovery_command(),
         }
     }
 }

@@ -5,7 +5,10 @@ use models::enums::skill_enums::SkillEnum;
 use models::enums::status::StatusTypes;
 use models::enums::vanish::VanishType;
 use packets::packets::*;
-use ragnarok_game::event::{CharacterInfo, GameEvent, PartyMemberData, ServerInfo, SkillInfo};
+use ragnarok_game::event::{
+    CharacterInfo, GameEvent, HomunculusProperty, MercenaryInfo, PartyMemberData, ServerInfo,
+    SkillInfo,
+};
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
 use ragnarok_game::targeting::{MapKind, MapProperties};
 use tracing::debug;
@@ -1490,8 +1493,158 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
+    if let Some(p) = any.downcast_ref::<PacketZcPropertyHomun>() {
+        let name: String = p.sz_name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::HomunPropertyReceived {
+            property: HomunculusProperty {
+                name,
+                renamed: p.b_modified != 0,
+                level: p.n_level,
+                hunger: p.n_fullness,
+                intimacy: p.n_relationship,
+                accessory: p.itid,
+                atk: p.atk,
+                matk: p.matk,
+                hit: p.hit,
+                critical: p.critical,
+                def: p.def,
+                mdef: p.mdef,
+                flee: p.flee,
+                aspd: p.aspd,
+                hp: p.hp as u32,
+                max_hp: p.max_hp as u32,
+                sp: p.sp as u32,
+                max_sp: p.max_sp as u32,
+                exp: p.exp,
+                max_exp: p.max_exp,
+                skill_points: p.skpoint,
+                atk_range: p.atkrange,
+            },
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcChangestateMer>() {
+        return vec![GameEvent::CompanionStateChanged {
+            state: p.state,
+            gid: p.gid as u32,
+            data: p.data,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcFeedMer>() {
+        return vec![GameEvent::HomunFeedResult {
+            success: p.c_ret != 0,
+            item_id: p.itid,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMerInit>() {
+        let name: String = p.name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::MercenaryInfoReceived {
+            is_init: true,
+            info: MercenaryInfo {
+                gid: p.aid as u32,
+                name,
+                level: p.level,
+                atk: p.atk,
+                matk: p.matk,
+                hit: p.hit,
+                critical: p.critical,
+                def: p.def,
+                mdef: p.mdef,
+                flee: p.flee,
+                aspd: p.aspd,
+                atk_range: p.atkrange,
+                hp: p.hp as u32,
+                max_hp: p.max_hp as u32,
+                sp: p.sp as u32,
+                max_sp: p.max_sp as u32,
+                expire_date: p.expire_date,
+                faith: p.faith,
+                calls: p.toal_call_num,
+                kills: p.approval_monster_kill_counter,
+            },
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMerProperty>() {
+        let name: String = p.name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::MercenaryInfoReceived {
+            is_init: false,
+            info: MercenaryInfo {
+                gid: 0,
+                name,
+                level: p.level,
+                atk: p.atk,
+                matk: p.matk,
+                hit: p.hit,
+                critical: p.critical,
+                def: p.def,
+                mdef: p.mdef,
+                flee: p.flee,
+                aspd: p.aspd,
+                atk_range: 0,
+                hp: p.hp as u32,
+                max_hp: p.max_hp as u32,
+                sp: p.sp as u32,
+                max_sp: p.max_sp as u32,
+                expire_date: p.expire_date,
+                faith: p.faith,
+                calls: p.toal_call_num,
+                kills: p.approval_monster_kill_counter,
+            },
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMerParChange>() {
+        return vec![GameEvent::MercenaryParamChanged {
+            var: p.var,
+            value: p.value,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcHoskillinfoList>() {
+        return vec![GameEvent::HomunSkillList {
+            skills: parse_skill_info_list(&p.skill_list),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcHoskillinfoUpdate>() {
+        return vec![GameEvent::HomunSkillUpdate {
+            id: p.skid,
+            level: p.level,
+            sp_cost: p.spcost,
+            attack_range: p.attack_range,
+            upgradable: p.upgradable,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMerSkillinfoList>() {
+        return vec![GameEvent::MercenarySkillList {
+            skills: parse_skill_info_list(&p.skill_list),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMerSkillinfoUpdate>() {
+        return vec![GameEvent::MercenarySkillUpdate {
+            id: p.skid,
+            level: p.level,
+            sp_cost: p.spcost,
+            attack_range: p.attack_range,
+            upgradable: p.upgradable,
+        }];
+    }
+
     debug!("unhandled packet: {}", packet.name());
     vec![]
+}
+
+fn parse_skill_info_list(list: &[packets::packets::SKILLINFO]) -> Vec<SkillInfo> {
+    list.iter()
+        .map(|s| {
+            let name: String = s.skill_name.iter().take_while(|c| **c != '\0').collect();
+            SkillInfo {
+                id: s.skid as u16,
+                name,
+                level: s.level,
+                sp_cost: s.spcost,
+                attack_range: s.attack_range,
+                upgradable: s.upgradable != 0,
+                skill_target_type: SkillTargetType::from_value(s.atype as usize),
+            }
+        })
+        .collect()
 }
 
 fn refine_row_from(info: &RepairitemInfo) -> ragnarok_game::event::RefineItemRow {

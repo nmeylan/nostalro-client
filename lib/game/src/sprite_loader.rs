@@ -9,7 +9,7 @@ use crate::data_table::accessory_table::AccessoryTable;
 use crate::data_table::name_table::NameTable;
 use crate::sprite_path::{
     body_palette_path, body_sprite_path, entity_sprite_base_path, head_palette_path,
-    head_sprite_path, weapon_sprite_path,
+    head_sprite_path, mercenary_sprite_path, weapon_sprite_path,
 };
 use models::enums::weapon::WeaponType;
 
@@ -381,6 +381,34 @@ pub fn load_player_sprite_data(
 
 pub fn load_cursor_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     load_sprite_data(grf, "data/sprite/cursors.spr", "data/sprite/cursors.act")
+}
+
+/// Mercenaries are player-style composites: a mercenary body plus a regular
+/// character head. The name table entry carries the sex/type sub-path (e.g.
+/// `여\활용병`); the head index follows the original client's `(job % 23) + 1`.
+pub fn load_mercenary_sprite_data(
+    grf: &GrfArchive,
+    name_table: &NameTable,
+    job: u16,
+) -> Option<PlayerSpriteData> {
+    let name = name_table.get_name(job)?;
+    let sex = if name.starts_with('여') { 0 } else { 1 };
+    let base = mercenary_sprite_path(name);
+    let body = load_sprite_data(grf, &format!("{base}.spr"), &format!("{base}.act"))?;
+    let head_id = (job % 23) + 1;
+    let head = load_head_sprite(grf, head_id, sex, 0);
+    let shadow = load_shadow_sprite(grf);
+    Some(PlayerSpriteData {
+        body,
+        head,
+        weapon: None,
+        weapon_trail: None,
+        headgear_top: None,
+        headgear_mid: None,
+        headgear_bottom: None,
+        shield: None,
+        shadow,
+    })
 }
 
 pub fn load_shadow_sprite(grf: &GrfArchive) -> Option<SpriteData> {

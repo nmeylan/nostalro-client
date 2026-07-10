@@ -62,6 +62,9 @@ use ragnarok_network::{
     build_req_makingitem_packet, build_req_weaponrefine_packet, build_req_itemrepair_packet,
     build_select_autospell_packet, build_req_openstore2_packet,
     build_req_buy_frommc_packet, build_purchase_frommc2_packet, ip_u32_to_string, network_loop,
+    build_companion_move_packet, build_companion_attack_packet,
+    build_companion_move_to_owner_packet, build_homun_menu_packet,
+    build_mercenary_command_packet, build_rename_homun_packet,
 };
 use ragnarok_audio::SoundManager;
 use ragnarok_renderer::effect::EffectHolder;
@@ -212,9 +215,13 @@ impl App {
 
         let map_data = match map_loader::load_map_data(grf, map_name) {
             Some(d) => d,
-            None => return,
+            None => {
+                self.game.map_missing_window.show(map_name.to_string());
+                return;
+            }
         };
 
+        self.game.map_missing_window.hide();
         self.game.map_coords = map_data.coordinates;
         self.game.gat = map_data.gat;
 
@@ -536,15 +543,6 @@ impl App {
                     };
                     self.channel.send_packet(packet);
                 }
-                GameEvent::CharacterCreated { character } => {
-                    self.handle_character_created(character);
-                }
-                GameEvent::CharacterCreateFailed { error_code } => {
-                    if let Some(win) = &mut self.char_create_window {
-                        win.error_message =
-                            Some(crate::events::char_create_error_message(error_code).to_string());
-                    }
-                }
                 GameEvent::CancelCreateCharacter => {
                     self.char_create_window = None;
                     self.game.app_state = AppState::CharacterSelect;
@@ -567,47 +565,6 @@ impl App {
                     self.channel
                         .send_packet(build_delete_char_cancel_packet(gid, self.config.packetver));
                 }
-                GameEvent::CharacterDeleteReserved {
-                    gid,
-                    result,
-                    delete_reserved_date,
-                } => {
-                    if let Some(win) = &mut self.char_select_window {
-                        // result 1 = newly queued, 0 = already queued: both mean the
-                        // character is awaiting the birthdate confirmation.
-                        if result == 0 || result == 1 {
-                            win.open_delete_dialog(gid, delete_reserved_date);
-                        } else {
-                            win.set_delete_status(
-                                crate::events::char_delete_reserve_error(result).to_string(),
-                            );
-                        }
-                    }
-                }
-                GameEvent::CharacterDeleted { gid, result } => {
-                    if let Some(win) = &mut self.char_select_window {
-                        if result == 1 {
-                            win.remove_character(gid);
-                            win.close_delete_dialog();
-                            self.account_anims.remove(&gid);
-                        } else {
-                            win.set_delete_dialog_error(
-                                crate::events::char_delete_confirm_error(result).to_string(),
-                            );
-                        }
-                    }
-                }
-                GameEvent::CharacterDeleteCancelled { gid: _, result } => {
-                    if let Some(win) = &mut self.char_select_window {
-                        if result == 1 {
-                            win.close_delete_dialog();
-                        } else {
-                            win.set_delete_dialog_error(
-                                "Failed to cancel deletion.".to_string(),
-                            );
-                        }
-                    }
-                }
                 GameEvent::BackToServerSelect => {
                     self.game.app_state = AppState::ServerSelect;
                     self.char_select_window = None;
@@ -628,8 +585,20 @@ impl App {
                 }
                 GameEvent::BackToCharacterSelect => {
                     self.game.system_menu.open = false;
+                    self.game.map_missing_window.hide();
                     self.channel
                         .send_packet(build_restart_packet(self.config.packetver));
+                }
+                GameEvent::RequestMapRecoveryWarp => {
+                    let char_name = self
+                        .game
+                        .selected_character
+                        .as_ref()
+                        .map(|c| c.name.as_str())
+                        .unwrap_or("Unknown");
+                    let full_msg = format!("{char_name} : {}", self.config.map_recovery_command);
+                    self.channel
+                        .send_packet(build_chat_packet(&full_msg, self.config.packetver));
                 }
                 GameEvent::QuitGame => {
                     self.game.system_menu.open = false;
@@ -863,6 +832,53 @@ impl App {
                         amount,
                         self.config.packetver,
                     ));
+                }
+                GameEvent::RequestCompanionMove { gid, x, y } => {
+                    self.channel.send_packet(build_companion_move_packet(
+                        gid,
+                        x as u16,
+                        y as u16,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestCompanionAttack { gid, target_gid } => {
+                    self.channel.send_packet(build_companion_attack_packet(
+                        gid,
+                        target_gid,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestCompanionMoveToOwner { gid } => {
+                    self.channel.send_packet(build_companion_move_to_owner_packet(
+                        gid,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestHomunMenu { command } => {
+                    self.channel
+                        .send_packet(build_homun_menu_packet(command as i8, self.config.packetver));
+                }
+                GameEvent::RequestMercenaryCommand { command } => {
+                    self.channel.send_packet(build_mercenary_command_packet(
+                        command,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestRenameHomun { name } => {
+                    self.channel
+                        .send_packet(build_rename_homun_packet(&name, self.config.packetver));
+                }
+                GameEvent::ToggleHomunculusWindow => {
+                    self.game.homunculus_window.toggle();
+                }
+                GameEvent::ToggleMercenaryWindow => {
+                    self.game.mercenary_window.toggle();
+                }
+                GameEvent::ToggleCompanionStandby => {
+                    self.push_owner_command(
+                        ragnarok_game::companion::OwnerCommand::follow(),
+                        false,
+                    );
                 }
                 GameEvent::HotkeyListReceived { slots } => {
                     self.game

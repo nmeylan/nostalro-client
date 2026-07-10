@@ -7,12 +7,19 @@ use models::enums::class::JobName;
 
 pub const JT_WARPNPC: u16 = 45;
 
+pub const HOMUNCULUS_JOB_MIN: u16 = 6001;
+pub const HOMUNCULUS_JOB_MAX: u16 = 6016;
+pub const MERCENARY_JOB_MIN: u16 = 6017;
+pub const MERCENARY_JOB_MAX: u16 = 6046;
+
 pub fn entity_type_from_job(job: u16) -> EntityType {
     match job {
         0..=44 | 4001..=5999 => EntityType::Player,
         JT_WARPNPC => EntityType::Npc,
         46..=999 => EntityType::Npc,
         1000..=3999 => EntityType::Monster,
+        HOMUNCULUS_JOB_MIN..=HOMUNCULUS_JOB_MAX => EntityType::Homunculus,
+        MERCENARY_JOB_MIN..=MERCENARY_JOB_MAX => EntityType::Mercenary,
         _ => EntityType::Monster,
     }
 }
@@ -25,6 +32,16 @@ pub fn monster_sprite_path(name: &str) -> String {
     format!("data/sprite/몬스터/{name}")
 }
 
+pub fn homunculus_sprite_path(name: &str) -> String {
+    format!("data/sprite/homun/{name}")
+}
+
+/// Mercenary bodies live with the human sprites; the name table already carries
+/// the sex/type sub-path (backslashes are normalized to `/` by the GRF reader).
+pub fn mercenary_sprite_path(name: &str) -> String {
+    format!("data/sprite/인간족/몸통/{name}")
+}
+
 pub fn entity_sprite_base_path(name_table: &NameTable, job: u16) -> Option<String> {
     let name = name_table.get_name(job)?;
     if job == JT_WARPNPC {
@@ -33,8 +50,20 @@ pub fn entity_sprite_base_path(name_table: &NameTable, job: u16) -> Option<Strin
     match entity_type_from_job(job) {
         EntityType::Npc => Some(npc_sprite_path(name)),
         EntityType::Monster => Some(monster_sprite_path(name)),
+        EntityType::Homunculus => Some(homunculus_sprite_path(name)),
+        EntityType::Mercenary => Some(mercenary_sprite_path(name)),
         EntityType::Player => None,
     }
+}
+
+/// Homunculus type index used by the AI (1..16), from the job id.
+pub fn homunculus_type_index(job: u16) -> u16 {
+    job.saturating_sub(HOMUNCULUS_JOB_MIN) + 1
+}
+
+/// Mercenary type index used by the AI (1..30), from the job id.
+pub fn mercenary_type_index(job: u16) -> u16 {
+    job.saturating_sub(MERCENARY_JOB_MIN) + 1
 }
 
 pub const OPTION_FALCON: i32 = 0x10;

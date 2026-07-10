@@ -1,5 +1,6 @@
 mod animation;
 mod combat;
+mod companion;
 mod items;
 mod movement;
 
@@ -58,6 +59,7 @@ impl App {
         self.update_movement(delta, elapsed);
         self.process_continuous_walk(delta);
         self.update_entity_state(delta);
+        self.update_companion_ai(delta);
         self.game.damage_numbers.update(delta);
         self.process_scheduled_hits();
         self.process_caster_replays();

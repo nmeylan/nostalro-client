@@ -112,6 +112,39 @@ impl App {
         self.game.sprites.insert(gid, sprite);
     }
 
+    pub(crate) fn load_mercenary_sprite(&mut self, gid: u32, job: u16) {
+        let (grf, renderer) = match (&self.grf, &self.renderer) {
+            (Some(g), Some(r)) => (g, r),
+            _ => return,
+        };
+        let name_table = match &self.game.data_table.name {
+            Some(t) => t,
+            None => return,
+        };
+        let data = match sprite_loader::load_mercenary_sprite_data(grf, name_table, job) {
+            Some(d) => d,
+            None => {
+                tracing::warn!("load_mercenary_sprite: no sprite data for gid={gid} job={job}");
+                return;
+            }
+        };
+        let sprite = Rc::new(build_entity_sprite(
+            &renderer.device.device,
+            &renderer.device.queue,
+            &renderer.texture_cache.bind_group_layout,
+            data.body,
+            data.head,
+            data.weapon,
+            data.weapon_trail,
+            data.headgear_top,
+            data.headgear_mid,
+            data.headgear_bottom,
+            data.shield,
+            data.shadow,
+        ));
+        self.game.sprites.insert(gid, sprite);
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn load_entity_sprite(
         &mut self,
@@ -150,7 +183,10 @@ impl App {
                     shield,
                 );
             }
-            EntityType::Npc | EntityType::Monster => {
+            EntityType::Mercenary => {
+                self.load_mercenary_sprite(gid, job);
+            }
+            EntityType::Npc | EntityType::Monster | EntityType::Homunculus => {
                 let name_table = match &self.game.data_table.name {
                     Some(t) => t,
                     None => {

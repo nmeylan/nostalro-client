@@ -17,6 +17,7 @@ use ragnarok_game::entity::EntityType;
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::floor_item::FloorItem;
+use ragnarok_game::companion::{HomunculusState, MercenaryState};
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::party::Party;
 use ragnarok_game::server_time::ServerTimeClock;
@@ -36,6 +37,8 @@ use ragnarok_ui_component::game::confirm_dialog::{ConfirmDialog, ConfirmResult};
 use ragnarok_ui_component::game::context_menu::ContextMenu;
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
+use ragnarok_ui_component::game::homun_window::{HOMUN_WINDOW_ID, HomunWindow};
+use ragnarok_ui_component::game::mercenary_window::{MERCENARY_WINDOW_ID, MercenaryWindow};
 use ragnarok_ui_component::game::hotkey_bar::{HOTKEY_BAR_WINDOW_ID, HotkeyBarWindow};
 use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
 use ragnarok_ui_component::game::book_window::{BOOK_WINDOW_ID, BookWindow};
@@ -50,6 +53,7 @@ use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeW
 use ragnarok_ui_component::game::status_icon_bar::StatusIconBarWindow;
 use ragnarok_ui_component::game::status_window::{STATUS_WINDOW_ID, StatusWindow};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
+use ragnarok_ui_component::game::map_missing_window::MapMissingWindow;
 use ragnarok_ui_component::game::item_list_selection_window::ItemListSelectionWindow;
 use ragnarok_ui_component::game::make_item_window::{MAKE_ITEM_WINDOW_ID, MakeItemWindow};
 use ragnarok_ui_component::game::vending_setup_window::{
@@ -114,6 +118,7 @@ pub struct GameState {
     pub chat_rooms: ChatRoomRegistry,
     pub chat_room_window: ChatRoomWindow,
     pub system_menu: SystemMenu,
+    pub map_missing_window: MapMissingWindow,
     pub hovered_entity_id: Option<u32>,
     pub hovered_player_id: Option<u32>,
     pub hovered_floor_item_id: Option<u32>,
@@ -161,6 +166,10 @@ pub struct GameState {
     pub status_icon_bar: StatusIconBarWindow,
     pub party: Option<Party>,
     pub party_window: PartyWindow,
+    pub homunculus: Option<HomunculusState>,
+    pub mercenary: Option<MercenaryState>,
+    pub homunculus_window: HomunWindow,
+    pub mercenary_window: MercenaryWindow,
     pub context_menu: ContextMenu,
     pub pending_party_invite: Option<u32>,
     pub party_invite_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
@@ -202,6 +211,8 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     SKILL_WINDOW_ID,
     STATUS_WINDOW_ID,
     PARTY_WINDOW_ID,
+    HOMUN_WINDOW_ID,
+    MERCENARY_WINDOW_ID,
     BOOK_WINDOW_ID,
     SOUND_OPTIONS_WINDOW_ID,
 ];
@@ -371,6 +382,8 @@ impl GameState {
         }
 
         events.extend(self.context_menu.build(ui));
+
+        events.extend(self.map_missing_window.build(ui));
 
         ui.flush_tooltips();
 
@@ -566,6 +579,12 @@ impl GameState {
                     &self.data_table,
                 ));
             }
+            HOMUN_WINDOW_ID => {
+                events.extend(self.homunculus_window.build(ui, self.homunculus.as_ref()));
+            }
+            MERCENARY_WINDOW_ID => {
+                events.extend(self.mercenary_window.build(ui, self.mercenary.as_ref()));
+            }
             BOOK_WINDOW_ID => {
                 events.extend(
                     self.book_window
@@ -626,6 +645,7 @@ impl GameState {
             chat_rooms: ChatRoomRegistry::new(),
             chat_room_window: ChatRoomWindow::new(),
             system_menu: SystemMenu::new(),
+            map_missing_window: MapMissingWindow::new(),
             hovered_entity_id: None,
             hovered_player_id: None,
             hovered_floor_item_id: None,
@@ -666,6 +686,10 @@ impl GameState {
             status_icon_bar: StatusIconBarWindow::new(),
             party: None,
             party_window: PartyWindow::new(),
+            homunculus: None,
+            mercenary: None,
+            homunculus_window: HomunWindow::new(),
+            mercenary_window: MercenaryWindow::new(),
             context_menu: ContextMenu::new(),
             pending_party_invite: None,
             party_invite_result: std::rc::Rc::new(std::cell::Cell::new(None)),

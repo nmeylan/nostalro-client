@@ -129,7 +129,7 @@ pub fn can_attack(target: &Entity, map: &MapProperties, player_id: Option<u32>) 
         EntityType::Player => {
             map.enable_pk() && relationship(target.id, player_id) == Relationship::Other
         }
-        EntityType::Npc => false,
+        EntityType::Npc | EntityType::Homunculus | EntityType::Mercenary => false,
     }
 }
 

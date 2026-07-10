@@ -184,6 +184,18 @@ impl App {
         if self.game.attack_target_id == Some(gid) {
             self.game.attack_target_id = None;
         }
+        if let Some(h) = self.game.homunculus.as_mut().filter(|h| h.gid == gid) {
+            match vanish_type {
+                VanishType::Die => h.hp = 0,
+                // Rest (vaporize) removes the sprite but the companion still exists.
+                _ => h.vaporized = true,
+            }
+        }
+        if let Some(m) = self.game.mercenary.as_mut().filter(|m| m.gid == gid) {
+            if matches!(vanish_type, VanishType::Die) {
+                m.hp = 0;
+            }
+        }
         match vanish_type {
             VanishType::Die => {
                 if let Some(entity) = self.game.entities.get_mut(gid) {
@@ -279,6 +291,7 @@ impl App {
                     }
                     let duration = ((attack_mt as f32 / 1000.0) - age).max(0.5);
                     entity.enter_attack(duration);
+                    entity.target_gid = Some(target_gid);
                     if entity.weapon == Some(WeaponType::Bow) {
                         shooter_cell = Some(entity.movement.cell_position());
                     }

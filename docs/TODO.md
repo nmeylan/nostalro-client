@@ -29,7 +29,7 @@ TODO:
 - Skybox
 - ~~ALL 1050 effects https://casual-ragnarok.github.io/ro-effects/~~
 # UI
-- Character selection
+- ~~Character selection~~
 - ~~Chat box (normal, whisper, party, guild channels)~~
 - ~~Status window (stats, stat allocation)~~
 - ~~Inventory window~~
@@ -47,6 +47,7 @@ TODO:
 - Friend/messenger list
 - Game menu: graphic/audio options
 - Emotion selector
+- Char delete
 - Quest window
 ~~- Cart window~~
 - Storage/warehouse window

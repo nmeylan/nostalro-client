@@ -13,6 +13,8 @@ pub enum EntityType {
     Player,
     Npc,
     Monster,
+    Homunculus,
+    Mercenary,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,6 +69,16 @@ impl ForcedAnimation {
 
     pub fn mark_started(&mut self) {
         self.started = true;
+    }
+}
+
+/// Attack action-group for a mercenary body (human 13-group layout), by merc
+/// class: archers/swordsmen use ATTACK2 (10), lancers use ATTACK3 (11), matching
+/// the player attack action for a bow / sword vs. spear.
+fn mercenary_attack_action(job: u16) -> usize {
+    match job {
+        6027..=6036 => 11, // lancer (spear)
+        _ => 10,           // archer (bow) / sword
     }
 }
 
@@ -180,6 +192,9 @@ pub struct Entity {
     pub is_running: bool,
     pub footstep_timer: f32,
     pub footstep_left: bool,
+    /// Who this actor is currently attacking, inferred from attack events. Backs
+    /// the companion AI's "who is targeting my owner / me" scans. Cleared on stop/death.
+    pub target_gid: Option<u32>,
 }
 
 impl Entity {
@@ -257,6 +272,7 @@ impl Entity {
             is_running: false,
             footstep_timer: 0.0,
             footstep_left: false,
+            target_gid: None,
         }
     }
 
@@ -407,6 +423,7 @@ impl Entity {
         self.state_timer = 0.0;
         self.movement.stop();
         self.pending_death = false;
+        self.target_gid = None;
     }
 
     pub fn revive(&mut self) {
@@ -512,7 +529,20 @@ impl Entity {
                 EntityState::Casting => 12,
                 EntityState::SkillExec => self.skill_exec_action_index(),
             },
-            EntityType::Monster | EntityType::Npc => match self.state {
+            // Mercenaries use human bodies (the full player action layout), not
+            // the 5-group monster layout.
+            EntityType::Mercenary => match self.state {
+                EntityState::Standing => 0,
+                EntityState::Moving => 1,
+                EntityState::Sitting => 2,
+                EntityState::Pickup => 3,
+                EntityState::ReadyFight => 4,
+                EntityState::Attacking | EntityState::SkillExec => mercenary_attack_action(self.job),
+                EntityState::Hurt => 6,
+                EntityState::Dead => 8,
+                EntityState::Casting => 12,
+            },
+            EntityType::Monster | EntityType::Npc | EntityType::Homunculus => match self.state {
                 EntityState::Standing
                 | EntityState::Sitting
                 | EntityState::Pickup

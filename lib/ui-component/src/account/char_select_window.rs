@@ -1,4 +1,8 @@
 use crate::Window;
+use crate::helper::window_chrome::{
+    FOOTER_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container, draw_footer,
+    draw_titlebar, text_color,
+};
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::job_class::job_class_name;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
@@ -55,6 +59,8 @@ const DEL_INPUT_ID: WidgetId = WidgetId(208);
 
 const DIALOG_W: f32 = 300.0;
 const DIALOG_H: f32 = 140.0;
+const DIALOG_TITLE_H: f32 = 17.0;
+const DIALOG_FOOTER_H: f32 = 30.0;
 const BIRTHDATE_MAX_LEN: usize = 8;
 
 const WIN_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/win_select.bmp";
@@ -120,6 +126,7 @@ pub struct CharSelectWindow {
     win_origin: (f32, f32),
     delete_dialog: Option<DeleteDialog>,
     delete_status: Option<String>,
+    sprite_insert_index: Option<usize>,
 }
 
 impl CharSelectWindow {
@@ -138,7 +145,12 @@ impl CharSelectWindow {
             win_origin: (0.0, 0.0),
             delete_dialog: None,
             delete_status: None,
+            sprite_insert_index: None,
         }
+    }
+
+    pub fn sprite_insert_index(&self) -> Option<usize> {
+        self.sprite_insert_index
     }
 
     /// Restore the previously selected slot (from persisted config), placing the
@@ -233,6 +245,7 @@ impl CharSelectWindow {
 
     pub fn build(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
         let mut events = Vec::new();
+        self.sprite_insert_index = None;
         let modal = self.delete_dialog.is_some();
 
         if !modal {
@@ -252,6 +265,8 @@ impl CharSelectWindow {
             self.build_fallback(ui, &mut events);
         }
         ui.has_grf_textures = prev_grf;
+
+        self.sprite_insert_index = Some(ui.draw_calls.len());
 
         if modal {
             self.build_delete_dialog(ui, &mut events);
@@ -423,10 +438,17 @@ impl CharSelectWindow {
         let (ox, oy) = self.win_origin;
         let dx = ox + (WIN_W - DIALOG_W) / 2.0;
         let dy = oy + (WIN_H - DIALOG_H) / 2.0;
+        let grf = self.has_grf_textures;
+        let fg = text_color(grf);
 
         push_color_quad(ui, ox, oy, WIN_W, WIN_H, [0.0, 0.0, 0.0, 0.55]);
-        push_color_quad(ui, dx, dy, DIALOG_W, DIALOG_H, [0.11, 0.12, 0.18, 1.0]);
-        push_border(ui, Rect::new(dx, dy, DIALOG_W, DIALOG_H), [0.5, 0.62, 0.9, 1.0]);
+
+        draw_titlebar(ui, dx, dy, DIALOG_W, DIALOG_TITLE_H, grf);
+        let body_y = dy + DIALOG_TITLE_H;
+        let body_h = DIALOG_H - DIALOG_TITLE_H - DIALOG_FOOTER_H;
+        draw_container(ui, dx, body_y, DIALOG_W, body_h, grf);
+        let footer_y = dy + DIALOG_H - DIALOG_FOOTER_H;
+        draw_footer(ui, dx, footer_y, DIALOG_W, DIALOG_FOOTER_H, grf);
 
         let lh = ui.atlas.line_height;
         let name = self
@@ -435,25 +457,25 @@ impl CharSelectWindow {
             .and_then(|d| self.characters.iter().find(|c| c.gid == d.gid))
             .map(|c| c.name.clone())
             .unwrap_or_default();
-        ui.text(dx + 12.0, dy + 8.0 + lh, &format!("Delete {name}?"), [1.0; 4]);
+        ui.text(dx + 20.0, dy + DIALOG_TITLE_H - 4.0, &format!("Delete {name}?"), fg);
         ui.text(
             dx + 12.0,
-            dy + 8.0 + lh * 2.5,
+            body_y + lh,
             "Enter birthdate (YYMMDD) to confirm:",
-            [0.85, 0.86, 0.92, 1.0],
+            fg,
         );
 
         let dialog = self.delete_dialog.as_mut().unwrap();
-        let input_rect = Rect::new(dx + 12.0, dy + 8.0 + lh * 3.5, DIALOG_W - 24.0, 18.0);
+        let input_rect = Rect::new(dx + 12.0, body_y + lh * 1.6, DIALOG_W - 24.0, 18.0);
         ui.text_input(DEL_INPUT_ID, input_rect, &mut dialog.birthdate, TextInputBg::Default);
 
         if let Some(err) = &dialog.error {
-            ui.text(dx + 12.0, dy + 8.0 + lh * 5.0, err, [0.85, 0.3, 0.3, 1.0]);
+            ui.text(dx + 12.0, body_y + lh * 3.0, err, [0.85, 0.3, 0.3, 1.0]);
         }
 
         let gid = dialog.gid;
         let birthdate = dialog.birthdate.text.clone();
-        let btn_y = dy + DIALOG_H - BTN_BOTTOM - BTN_H;
+        let btn_y = footer_y + (DIALOG_FOOTER_H - BTN_H) / 2.0;
         let confirm = Rect::new(dx + DIALOG_W - OK_RIGHT - BTN_W, btn_y, BTN_W, BTN_H);
         let cancel = Rect::new(dx + DIALOG_W - CANCEL_RIGHT - BTN_W, btn_y, BTN_W, BTN_H);
 
@@ -463,6 +485,7 @@ impl CharSelectWindow {
         }
         if ui.button(DEL_CANCEL_ID, cancel, &CANCEL_BTN, "Cancel").clicked() || ui.ctx.key_escape {
             events.push(GameEvent::RequestDeleteCharacterCancel { gid });
+            self.close_delete_dialog();
         }
     }
 }
@@ -523,6 +546,10 @@ impl Window for CharSelectWindow {
             DEL_BTN.normal,
             DEL_BTN.hover,
             DEL_BTN.pressed,
+            TITLEBAR_TEX,
+            FOOTER_TEX,
+            SYS_BASE_OFF_TEX,
+            SYS_BASE_ON_TEX,
         ]
     }
 }
@@ -667,6 +694,21 @@ mod tests {
         )));
         // While the dialog is open, Enter must not also fire a character selection.
         assert!(!events.iter().any(|e| matches!(e, GameEvent::RequestSelectCharacter { .. })));
+    }
+
+    #[test]
+    fn delete_dialog_sprites_insert_before_dialog_draw_calls() {
+        let mut win = CharSelectWindow::new(vec![character(0, "Knight")]);
+        let gid = win.characters[0].gid;
+        win.open_delete_dialog(gid, 0);
+        let mut state = StateCache::new();
+
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &mut state);
+        win.build(&mut ui);
+
+        let insert = win.sprite_insert_index().expect("index recorded");
+        assert!(insert < ui.draw_calls.len());
     }
 
     #[test]

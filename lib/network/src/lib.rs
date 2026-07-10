@@ -35,6 +35,9 @@ pub use sender::{
     build_req_weaponrefine_packet, build_req_itemrepair_packet, build_select_autospell_packet,
     build_req_openstore2_packet, build_req_closestore_packet, build_req_buy_frommc_packet,
     build_purchase_frommc2_packet,
+    build_companion_move_packet, build_companion_attack_packet,
+    build_companion_move_to_owner_packet, build_homun_menu_packet,
+    build_mercenary_command_packet, build_rename_homun_packet,
 };
 use session::{Session, SessionState};
 use std::collections::VecDeque;

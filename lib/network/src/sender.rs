@@ -699,3 +699,51 @@ pub fn build_purchase_frommc2_packet(
     pkt.fill_raw();
     pkt.raw
 }
+
+// --- Homunculus / Mercenary ---
+
+pub fn build_companion_move_packet(gid: u32, x: u16, y: u16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzRequestMovenpc::new(packetver);
+    pkt.set_gid(gid);
+    pkt.set_dest(crate::helpers::encode_pos(x, y, 0));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_companion_attack_packet(gid: u32, target_gid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzRequestActnpc::new(packetver);
+    pkt.set_gid(gid);
+    pkt.set_target_gid(target_gid);
+    pkt.set_action(0);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_companion_move_to_owner_packet(gid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzRequestMovetoowner::new(packetver);
+    pkt.set_gid(gid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_homun_menu_packet(command: i8, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzCommandMer::new(packetver);
+    pkt.set_atype(0);
+    pkt.set_command(command);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_mercenary_command_packet(command: i8, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzMerCommand::new(packetver);
+    pkt.set_command(command);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_rename_homun_packet(name: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzRenameMer::new(packetver);
+    pkt.set_name(name_to_char24(name));
+    pkt.fill_raw();
+    pkt.raw
+}
