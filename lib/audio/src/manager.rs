@@ -138,6 +138,12 @@ impl SoundManager {
         self.current_bgm = None;
     }
 
+    pub fn stop_all_sfx(&mut self) {
+        if let Some(core) = &self.core {
+            core.lock().unwrap().stop_all_sfx();
+        }
+    }
+
     pub fn set_volumes(&mut self, bgm: f32, sfx: f32) {
         if let Some(core) = &self.core {
             core.lock().unwrap().set_masters(bgm, sfx);

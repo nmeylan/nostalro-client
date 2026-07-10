@@ -1319,6 +1319,44 @@ mod tests {
     }
 
     #[test]
+    fn custom_effect_self_emitted_sfx_reaches_drain() {
+        struct SfxFake {
+            pending: Option<&'static str>,
+        }
+        impl GameEffect for SfxFake {
+            fn update(&mut self, _: &EffectUpdateCtx) -> EffectStatus {
+                EffectStatus::Running
+            }
+            fn collect_draws(&self, _: &mut EffectDrawList, _: &EffectRenderCtx) {}
+            fn take_sfx_request(&mut self) -> Option<&'static str> {
+                self.pending.take()
+            }
+        }
+        let mut h = EffectHolder::new();
+        h.effects.push(HeldEffect {
+            handle: EffectHandle(1),
+            effect_id: EffectId::Portal4,
+            payload: HeldPayload::Custom(Box::new(SfxFake {
+                pending: Some("effect\\windwalk.wav"),
+            })),
+            attach: Attach::Entity(7),
+            age: 0.0,
+            duration: f32::INFINITY,
+            key: None,
+            sfx_schedule: None,
+            sfx_last_frame: -1,
+            sfx_rng: 1,
+        });
+        h.update(&ctx(1.0 / 60.0), &|_| None, &|id| {
+            (id == 7).then_some([10.0, 0.0, 5.0])
+        });
+        assert_eq!(
+            h.drain_sfx(),
+            vec![("effect\\windwalk.wav".to_string(), [10.0, 0.0, 5.0])],
+        );
+    }
+
+    #[test]
     fn despawn_by_key_drops_only_matching_effects() {
         let mut h = EffectHolder::new();
         let mut push_keyed = |handle: u64, key: Option<u32>| {

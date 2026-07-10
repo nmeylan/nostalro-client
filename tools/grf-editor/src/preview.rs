@@ -142,6 +142,11 @@ pub fn is_model_previewable(name: &str) -> bool {
     name.to_lowercase().ends_with(".rsm")
 }
 
+pub fn is_audio_previewable(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    lower.ends_with(".wav") || lower.ends_with(".mp3")
+}
+
 /// True for any file the GPU preview can render (sprite, STR effect, or model).
 pub fn is_animated_previewable(name: &str, archive: &GrfArchive) -> bool {
     is_sprite_previewable(name, archive) || is_str_previewable(name) || is_model_previewable(name)
@@ -167,6 +172,13 @@ mod tests {
         assert!(is_previewable("effect/ICE.TGA"));
         assert!(is_previewable("sprite.Tga"));
         assert!(!is_previewable("tga"));
+    }
+
+    #[test]
+    fn is_audio_previewable_extensions() {
+        assert!(is_audio_previewable("data/wav/effect/beep.wav"));
+        assert!(is_audio_previewable("BGM\\01.MP3"));
+        assert!(!is_audio_previewable("texture.bmp"));
     }
 
     #[test]

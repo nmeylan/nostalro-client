@@ -80,9 +80,6 @@ impl App {
         if let Some(wav) = skill_projectile_sound(SkillEnum::from_id(skill_id as u32)) {
             self.sound_queue.ui(wav);
         }
-        if damage != 0 {
-            self.queue_hit_sound(target_gid, src_gid, true);
-        }
 
         // A hunter/sniper's falcon darts at the struck target on Blitz Beat and
         // Falcon Assault. Auto Blitz Beat arrives through this same packet, so it

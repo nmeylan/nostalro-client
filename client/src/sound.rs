@@ -12,10 +12,13 @@ impl App {
         self.sfx_rng
     }
 
-    /// Handle a server `ZC_SOUND`: one-shot play, repeat (`term_ms > 0`), or
-    /// stop (`act == 2`), positional at the actor `gid` when resolvable.
+    /// Handle a server `ZC_SOUND`, dispatched on the `act` field: `Play` plays
+    /// once, `Repeat` plays once and re-fires every `term_ms`, `Stop` cancels a
+    /// repeat by name. Positional at the actor `gid` when resolvable.
     pub(crate) fn handle_sound_effect(&mut self, name: String, act: u8, term_ms: u32, gid: u32) {
-        if act == 2 {
+        const SOUND_ACT_REPEAT: u8 = 1;
+        const SOUND_ACT_STOP: u8 = 2;
+        if act == SOUND_ACT_STOP {
             self.game.repeat_sounds.stop(&name);
             return;
         }
@@ -23,7 +26,7 @@ impl App {
             Some(pos) => self.sound_queue.world(name.clone(), pos),
             None => self.sound_queue.ui(name.clone()),
         }
-        if term_ms > 0 {
+        if act == SOUND_ACT_REPEAT && term_ms > 0 {
             self.game.repeat_sounds.start(name, gid, term_ms);
         }
     }
@@ -88,8 +91,13 @@ impl App {
                     }
                 };
                 let path = format!("data/wav/{}", req.name);
-                self.sound
-                    .play_sfx(&path, gain, || grf.read_file(&path).ok());
+                let disk_rel = req.name.replace('\\', "/");
+                self.sound.play_sfx(&path, gain, || {
+                    grf.read_file(&path)
+                        .ok()
+                        .or_else(|| std::fs::read(format!("wav/{disk_rel}")).ok())
+                        .or_else(|| std::fs::read(format!("data/wav/{disk_rel}")).ok())
+                });
             }
         }
         self.sound.tick();

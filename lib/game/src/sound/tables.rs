@@ -57,10 +57,6 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
         E::Pressure => &[at!(Fixed("effect\\pressure.wav"), &[3])],
         E::Bash3d => &[at!(Fixed("effect\\bash3d.wav"), &[22])],
         E::Chemicalprotection => &[fixed_at0!("apocalips_attack.wav")],
-        E::Mgdef1 => &[fixed_at0!("effect\\windwalk.wav")],
-        E::Mgdef2 => &[fixed_at0!("effect\\windwalk.wav")],
-        E::Mgdef3 => &[fixed_at0!("effect\\windwalk.wav")],
-        E::Mgdef4 => &[fixed_at0!("effect\\windwalk.wav")],
         E::Levelup => &[fixed_at0!("levelup.wav")],
         E::Joblevelup => &[fixed_at0!("joblevelup.wav")],
         E::Criticalwound => &[at!(Fixed("effect\\wideb.wav"), &[1])],
@@ -584,5 +580,6 @@ mod tests {
     fn effect_sound_lookup() {
         assert!(effect_sound(EffectId::Stormgust).is_some());
         assert!(effect_sound(EffectId::Firewall).is_none()); // handled elsewhere
+        assert!(effect_sound(EffectId::Mgdef1).is_none()); // PortalWindEffect self-emits windwalk
     }
 }

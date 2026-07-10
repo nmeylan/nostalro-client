@@ -2,6 +2,7 @@ use std::path::Path;
 
 use eframe::egui;
 use egui_ltreeview::{Action, TreeView, TreeViewState};
+use ragnarok_audio::SoundManager;
 use ragnarok_formats::grf::{GrfArchive, GrfFileInfo};
 
 use crate::file_list;
@@ -82,11 +83,15 @@ impl LoadedGrf {
     }
 }
 
+const DEFAULT_VOLUME: f32 = 0.8;
+
 pub struct GrfEditorApp {
     archives: Vec<LoadedGrf>,
     active_tab: usize,
     error_msg: Option<String>,
     confirm_delete: Option<usize>,
+    sound: SoundManager,
+    volume: f32,
 }
 
 impl Default for GrfEditorApp {
@@ -96,6 +101,8 @@ impl Default for GrfEditorApp {
             active_tab: 0,
             error_msg: None,
             confirm_delete: None,
+            sound: SoundManager::new(0.0, DEFAULT_VOLUME),
+            volume: DEFAULT_VOLUME,
         }
     }
 }
@@ -537,8 +544,44 @@ impl GrfEditorApp {
             return;
         }
 
-        let is_animated =
-            preview::is_animated_previewable(&grf.file_list[file_idx].name, &grf.archive);
+        let name = grf.file_list[file_idx].name.clone();
+
+        if preview::is_audio_previewable(&name) {
+            let file = &grf.file_list[file_idx];
+            let mut play = false;
+            let mut stop = false;
+            let mut volume_changed = false;
+            egui::TopBottomPanel::bottom("file_info")
+                .resizable(true)
+                .default_height(120.0)
+                .show(ctx, |ui| {
+                    ui.heading("File Info");
+                    ui.separator();
+                    file_list::show_file_info(ui, file);
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        play = ui.button("▶ Play").clicked();
+                        stop = ui.button("⏹ Stop").clicked();
+                        volume_changed = ui
+                            .add(egui::Slider::new(&mut self.volume, 0.0..=1.0).text("Volume"))
+                            .changed();
+                    });
+                });
+            if volume_changed {
+                self.sound.set_volumes(0.0, self.volume);
+            }
+            if play {
+                let archive = &grf.archive;
+                self.sound
+                    .play_sfx(&name, 1.0, || archive.read_file(&name).ok());
+            }
+            if stop {
+                self.sound.stop_all_sfx();
+            }
+            return;
+        }
+
+        let is_animated = preview::is_animated_previewable(&name, &grf.archive);
 
         if is_animated {
             if grf.sprite_preview.is_none() {
@@ -591,6 +634,7 @@ impl GrfEditorApp {
 
 impl eframe::App for GrfEditorApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.sound.tick();
         self.show_delete_confirmation(ctx);
 
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {

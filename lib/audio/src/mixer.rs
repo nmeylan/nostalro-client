@@ -79,6 +79,12 @@ impl MixerCore {
         }
     }
 
+    pub fn stop_all_sfx(&mut self) {
+        for v in &mut self.voices {
+            *v = Voice::default();
+        }
+    }
+
     pub fn set_masters(&mut self, bgm: f32, sfx: f32) {
         self.bgm_master = bgm;
         self.sfx_master = sfx;
@@ -164,6 +170,17 @@ mod tests {
         }
         assert!(!m.play(pcm(100), 1.0));
         assert_eq!(m.active_sfx_voices(), NUM_SFX_VOICES);
+    }
+
+    #[test]
+    fn stop_all_sfx_clears_voices() {
+        let mut m = MixerCore::new(1000, 1.0, 1.0);
+        for _ in 0..NUM_SFX_VOICES {
+            assert!(m.play(pcm(1000), 1.0));
+        }
+        assert_eq!(m.active_sfx_voices(), NUM_SFX_VOICES);
+        m.stop_all_sfx();
+        assert_eq!(m.active_sfx_voices(), 0);
     }
 
     #[test]

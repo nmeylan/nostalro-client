@@ -2990,6 +2990,7 @@ dependencies = [
  "eframe",
  "egui_ltreeview",
  "image",
+ "ragnarok-audio",
  "ragnarok-formats",
  "ragnarok-game",
  "ragnarok-renderer",

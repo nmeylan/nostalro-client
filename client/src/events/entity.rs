@@ -330,9 +330,6 @@ impl App {
                         });
                     }
                 }
-                if total_damage > 0 {
-                    self.queue_hit_sound(target_gid, gid, false);
-                }
             }
             ActionType::AttackLucky => {
                 let dir = self
