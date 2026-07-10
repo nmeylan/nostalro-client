@@ -1,5 +1,8 @@
 TODO:
 
+# AI
+- homonculus ai
+- 
 # Sprite rendering
 - ~~Weapon sprite~~ (done — full rendering with ACT animation in sprite.rs)
 - ~~Shield sprite~~ (done — render order fix for direction-based layering)

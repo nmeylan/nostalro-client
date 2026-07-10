@@ -17,6 +17,9 @@ use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::level_aura;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
+use ragnarok_game::sound::tables::{
+    StatusSoundKind, job_hit_sound, skill_hit_sound, status_sound, weapon_hit_sound,
+};
 use ragnarok_game::sprite_path::{
     JT_WARPNPC, OPTION_RIDING, OPTION_RUWACH, OPTION_SIGHT, cart_design_from_option,
     entity_type_from_job, has_falcon, is_hidden, visual_job,
@@ -327,6 +330,9 @@ impl App {
                         });
                     }
                 }
+                if total_damage > 0 {
+                    self.queue_hit_sound(target_gid, gid, false);
+                }
             }
             ActionType::AttackLucky => {
                 let dir = self
@@ -426,13 +432,32 @@ impl App {
             let was_frozen = prev_body == ailment::OPT1_FREEZE;
             let now_frozen = body_state == ailment::OPT1_FREEZE;
             if now_frozen && !was_frozen {
-                // TODO(audio): play _stonecurse.wav (no audio subsystem yet)
+                self.queue_status_sound(gid, StatusSoundKind::FreezeEnter);
             } else if was_frozen && !now_frozen {
                 self.game.freeze_shatters.push(crate::game_state::FreezeShatter {
                     gid,
                     started_at: None,
                 });
-                // TODO(audio): play _frozen_explosion.wav (no audio subsystem yet)
+                self.queue_status_sound(gid, StatusSoundKind::FreezeExit);
+            }
+            if prev_body == ailment::OPT1_STONE && body_state != ailment::OPT1_STONE {
+                self.queue_status_sound(gid, StatusSoundKind::StoneCurseExit);
+            }
+            if body_state == ailment::OPT1_STUN && prev_body != ailment::OPT1_STUN {
+                self.queue_status_sound(gid, StatusSoundKind::StunEnter);
+            }
+            let gained = |bit: i16| health_state & bit != 0 && prev_health & bit == 0;
+            if gained(ailment::OPT2_POISON)
+                || gained(ailment::OPT2_DEADLYPOISON)
+                || gained(ailment::OPT2_BLEEDING)
+            {
+                self.queue_status_sound(gid, StatusSoundKind::PoisonSet);
+            }
+            if gained(ailment::OPT2_CURSE) {
+                self.queue_status_sound(gid, StatusSoundKind::CurseSet);
+            }
+            if gained(ailment::OPT2_BLIND) {
+                self.queue_status_sound(gid, StatusSoundKind::BlindSet);
             }
         }
         if is_player
@@ -933,6 +958,11 @@ impl App {
             9 => EffectId::Angel3,
             _ => return,
         };
+        match code {
+            0 | 7 | 9 => self.sound_queue.ui("levelup.wav"),
+            1 | 8 => self.sound_queue.ui("joblevelup.wav"),
+            _ => {}
+        }
         self.effect_queue.spawn_on(id, gid);
     }
 
@@ -941,6 +971,51 @@ impl App {
         let (cx, cy) = self.game.entities.get(gid)?.movement.position();
         let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
         Some([wx, gat.get_height(cx + 0.5, cy + 0.5), wz])
+    }
+
+    /// Damage-taken hit sound at the victim's position. Skill damage uses the
+    /// generic enemy-hit wave; melee uses the victim's body material (PC) or the
+    /// attacker's weapon class (monster/NPC victim).
+    pub(crate) fn queue_hit_sound(&mut self, victim_gid: u32, attacker_gid: u32, is_skill: bool) {
+        let roll = self.next_sfx_rand();
+        let wav = if is_skill {
+            skill_hit_sound(roll)
+        } else {
+            let victim_pc = self
+                .game
+                .entities
+                .get(victim_gid)
+                .is_some_and(|e| e.entity_type == EntityType::Player);
+            if victim_pc {
+                self.game
+                    .entities
+                    .get(victim_gid)
+                    .and_then(|e| JobName::try_from_value(e.job as usize).ok())
+                    .map(|j| job_hit_sound(j).to_string())
+                    .unwrap_or_else(|| skill_hit_sound(roll))
+            } else {
+                let weapon = self.game.entities.get(attacker_gid).and_then(|e| e.weapon);
+                let is_taekwon = self.game.entities.player_id() == Some(attacker_gid)
+                    && self
+                        .game
+                        .entities
+                        .get(attacker_gid)
+                        .and_then(|e| JobName::try_from_value(e.job as usize).ok())
+                        == Some(JobName::Taekwon);
+                weapon_hit_sound(weapon, roll, is_taekwon)
+            }
+        };
+        if let Some(pos) = self.entity_world_pos(victim_gid) {
+            self.sound_queue.world(wav, pos);
+        }
+    }
+
+    fn queue_status_sound(&mut self, gid: u32, kind: StatusSoundKind) {
+        if let Some(wav) = status_sound(kind)
+            && let Some(pos) = self.entity_world_pos(gid)
+        {
+            self.sound_queue.world(wav.to_string(), pos);
+        }
     }
 
     pub(super) fn handle_entity_resurrected(&mut self, gid: u32) {

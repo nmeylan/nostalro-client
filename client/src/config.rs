@@ -57,6 +57,9 @@ pub struct Config {
     pub screen_height: u32,
     pub bgm_volume: f32,
     pub sfx_volume: f32,
+    pub bgm_enabled: bool,
+    pub sfx_enabled: bool,
+    pub bgm_path: String,
     pub free_camera: bool,
     pub dpi_scale: f32,
     pub grf_paths: Vec<String>,
@@ -82,6 +85,9 @@ impl Default for Config {
             screen_height: 768,
             bgm_volume: 0.8,
             sfx_volume: 0.8,
+            bgm_enabled: true,
+            sfx_enabled: true,
+            bgm_path: "BGM".to_string(),
             free_camera: false,
             dpi_scale: 120.0,
             grf_paths: vec!["data/data.grf".to_string()],
@@ -100,6 +106,14 @@ impl Default for Config {
 }
 
 impl Config {
+    pub fn effective_bgm_volume(&self) -> f32 {
+        if self.bgm_enabled { self.bgm_volume } else { 0.0 }
+    }
+
+    pub fn effective_sfx_volume(&self) -> f32 {
+        if self.sfx_enabled { self.sfx_volume } else { 0.0 }
+    }
+
     pub fn font_px_height(&self) -> f32 {
         BASE_FONT_PX_HEIGHT
     }

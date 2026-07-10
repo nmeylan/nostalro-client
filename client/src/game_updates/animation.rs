@@ -1,9 +1,46 @@
 use crate::App;
-use ragnarok_formats::act::{MotionType, SpriteActionType};
+use models::enums::weapon::WeaponType;
+use ragnarok_formats::act::{ActFile, MotionType, SpriteActionType};
 use ragnarok_game::ailment;
 use ragnarok_game::entity::{
     DEATH_FADE_DURATION, EntityFade, EntityState, EntityType, ForcedAnimation,
 };
+use ragnarok_game::sound::SoundQueue;
+use ragnarok_game::sound::tables::swing_sound;
+
+/// Resolve ACT frame sound-events to queued sounds. The `"atk"` marker resolves
+/// to the attacker's per-weapon swing wave. `.wav` events on the walk loop
+/// (`gate_random`) pass the 5% random gate so they don't fire every cycle;
+/// one-shot cries (attack/hurt/die) play on every crossing. Positional at the actor.
+fn emit_act_events(
+    event_ids: &[i32],
+    body_act: &ActFile,
+    weapon: Option<WeaponType>,
+    world_pos: Option<[f32; 3]>,
+    gate_random: bool,
+    rng: &mut u32,
+    queue: &mut SoundQueue,
+) {
+    let Some(pos) = world_pos else { return };
+    for &id in event_ids {
+        let Some(name) = body_act.events.get(id as usize) else {
+            continue;
+        };
+        if name.eq_ignore_ascii_case("atk") {
+            queue.world(swing_sound(weapon).to_string(), pos);
+        } else if name.to_ascii_lowercase().ends_with(".wav") {
+            if gate_random {
+                *rng ^= *rng << 13;
+                *rng ^= *rng >> 17;
+                *rng ^= *rng << 5;
+                if *rng % 100 % 22 != 0 {
+                    continue;
+                }
+            }
+            queue.world(name.clone(), pos);
+        }
+    }
+}
 
 impl App {
     pub(crate) fn update_entity_state(&mut self, delta: f32) {
@@ -18,6 +55,17 @@ impl App {
     pub(crate) fn update_sprite_animation(&mut self, delta: f32) {
         let camera_dir = self.renderer.as_ref().map(|r| r.camera.direction_index());
         let sprites = &self.game.sprites;
+        let gat = self.game.gat.as_ref();
+        let map_coords = self.game.map_coords.as_ref();
+        let sfx_rng = &mut self.sfx_rng;
+        let sound_queue = &mut self.sound_queue;
+        let world_of = |cx: f32, cy: f32| match (gat, map_coords) {
+            (Some(g), Some(c)) => {
+                let (wx, _, wz) = c.cell_to_world(cx + 0.5, cy + 0.5);
+                Some([wx, g.get_height(cx + 0.5, cy + 0.5), wz])
+            }
+            _ => None,
+        };
         for entity in self.game.entities.iter_mut() {
             if let Some(sprite) = sprites.get(&entity.id) {
                 if entity.state == EntityState::Dead && entity.animation.is_finished() {
@@ -57,6 +105,18 @@ impl App {
                         Some(forced)
                     } else {
                         entity.animation.update(delta, &sprite.body_act, dir);
+                        let action_idx = entity.animation.action_index(&sprite.body_act, dir);
+                        let events = entity.animation.crossed_event_ids(&sprite.body_act, action_idx);
+                        let (cx, cy) = entity.movement.position();
+                        emit_act_events(
+                            &events,
+                            &sprite.body_act,
+                            entity.weapon,
+                            world_of(cx, cy),
+                            entity.state == EntityState::Moving,
+                            sfx_rng,
+                            sound_queue,
+                        );
                         (!entity.animation.is_finished()).then_some(forced)
                     };
                     continue;
@@ -105,6 +165,17 @@ impl App {
                     } else {
                         entity.animation.update(delta, &sprite.body_act, dir);
                     }
+                    let action_idx = entity.animation.action_index(&sprite.body_act, dir);
+                    let events = entity.animation.crossed_event_ids(&sprite.body_act, action_idx);
+                    emit_act_events(
+                        &events,
+                        &sprite.body_act,
+                        entity.weapon,
+                        world_of(cx, cy),
+                        entity.state == EntityState::Moving,
+                        sfx_rng,
+                        sound_queue,
+                    );
                 }
                 entity.anim_last_pos = (cx, cy);
             }

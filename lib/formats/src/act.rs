@@ -275,6 +275,8 @@ pub struct SpriteAnimationState {
     motion_speed_override_ms: Option<f32>,
     remaining_repeats: u16,
     walk_dist: f32,
+    prev_motion: usize,
+    prev_action: usize,
 }
 
 impl SpriteAnimationState {
@@ -289,7 +291,52 @@ impl SpriteAnimationState {
             motion_speed_override_ms: None,
             remaining_repeats: 0,
             walk_dist: 0.0,
+            prev_motion: 0,
+            prev_action: 0,
         }
+    }
+
+    /// Frame sound-event ids crossed since the last call, scanning every frame
+    /// stepped through (forward, or wrapping when the animation looped). Frames
+    /// with no event (`event_id == -1`) are skipped. On an action change the
+    /// scan restarts from frame 0. `action_idx` is the direction-resolved slot.
+    pub fn crossed_event_ids(&mut self, act: &ActFile, action_idx: usize) -> Vec<i32> {
+        let mut out = Vec::new();
+        if action_idx >= act.actions.len() {
+            return out;
+        }
+        let motions = &act.actions[action_idx].motions;
+        let motion_count = motions.len();
+        if motion_count == 0 {
+            return out;
+        }
+        let cur = self.motion_index.min(motion_count - 1);
+        let old = if self.action != self.prev_action {
+            0
+        } else {
+            self.prev_motion.min(motion_count - 1)
+        };
+        if cur >= old {
+            for m in (old + 1)..=cur {
+                if motions[m].event_id != -1 {
+                    out.push(motions[m].event_id);
+                }
+            }
+        } else {
+            for m in (old + 1)..motion_count {
+                if motions[m].event_id != -1 {
+                    out.push(motions[m].event_id);
+                }
+            }
+            for m in 0..=cur {
+                if motions[m].event_id != -1 {
+                    out.push(motions[m].event_id);
+                }
+            }
+        }
+        self.prev_motion = cur;
+        self.prev_action = self.action;
+        out
     }
 
     pub fn action(&self) -> usize {
@@ -575,6 +622,35 @@ mod tests {
             events: Vec::new(),
             delays: vec![4.0; action_count],
         }
+    }
+
+    #[test]
+    fn crossed_event_ids_forward_and_wrap() {
+        let mut act = make_act(1, 4);
+        for (i, m) in act.actions[0].motions.iter_mut().enumerate() {
+            m.event_id = i as i32; // frames 0..4 carry events 0..4
+        }
+        let mut anim = SpriteAnimationState::new(0);
+        anim.set_motion_index(0);
+        // first call establishes baseline at frame 0
+        assert_eq!(anim.crossed_event_ids(&act, 0), Vec::<i32>::new());
+        // step to frame 3: crosses frames 1,2,3
+        anim.set_motion_index(3);
+        assert_eq!(anim.crossed_event_ids(&act, 0), vec![1, 2, 3]);
+        // wrap to frame 1: crosses frame 0 (wrap) then 1
+        anim.set_motion_index(1);
+        assert_eq!(anim.crossed_event_ids(&act, 0), vec![0, 1]);
+    }
+
+    #[test]
+    fn crossed_event_ids_skips_none_events() {
+        let mut act = make_act(1, 3);
+        act.actions[0].motions[1].event_id = -1;
+        act.actions[0].motions[2].event_id = 7;
+        let mut anim = SpriteAnimationState::new(0);
+        anim.crossed_event_ids(&act, 0);
+        anim.set_motion_index(2);
+        assert_eq!(anim.crossed_event_ids(&act, 0), vec![7]);
     }
 
     #[test]

@@ -247,6 +247,14 @@ impl App {
                 } => {
                     self.handle_status_effect_changed(gid, efst, active, remain_ms, val1);
                 }
+                GameEvent::SoundEffect {
+                    name,
+                    act,
+                    term_ms,
+                    gid,
+                } => {
+                    self.handle_sound_effect(name, act, term_ms, gid);
+                }
                 GameEvent::EntityResurrected { gid } => {
                     self.handle_entity_resurrected(gid);
                 }
@@ -781,6 +789,7 @@ impl App {
                     self.handle_repair_item_list(target_aid, items);
                 }
                 GameEvent::RepairItemResult { index, ok } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::REPAIR);
                     self.handle_repair_item_result(index, ok);
                 }
                 GameEvent::MakableItemList { item_ids } => {

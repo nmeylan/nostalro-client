@@ -39,6 +39,7 @@ use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindo
 use ragnarok_ui_component::game::hotkey_bar::{HOTKEY_BAR_WINDOW_ID, HotkeyBarWindow};
 use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
 use ragnarok_ui_component::game::book_window::{BOOK_WINDOW_ID, BookWindow};
+use ragnarok_ui_component::game::sound_options::{SOUND_OPTIONS_WINDOW_ID, SoundOptionsWindow};
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
 use ragnarok_ui_component::game::minimap_window::{MarkerType, MinimapMarker, MinimapWindow};
@@ -150,6 +151,7 @@ pub struct GameState {
     pub attack_is_locked: bool,
     pub item_info_window: ItemInfoWindow,
     pub book_window: BookWindow,
+    pub sound_options: SoundOptionsWindow,
     pub item_pickup_notification: ItemPickupNotification,
     pub skill_tree_window: SkillTreeWindow,
     pub basic_info_window: BasicInfoWindow,
@@ -171,6 +173,8 @@ pub struct GameState {
     pub debug_show_pick_bounds: bool,
     pub debug_overlay: bool,
     pub ambient_effects: AmbientEffectScheduler,
+    pub ambient_sounds: ragnarok_game::sound::ambient::AmbientSoundScheduler,
+    pub repeat_sounds: ragnarok_game::sound::repeat::RepeatSoundScheduler,
     pub status_buff_keys: HashMap<(u32, i16), u32>,
     pub next_status_buff_key: u32,
     pub level_aura_keys: HashMap<u32, u32>,
@@ -199,6 +203,7 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     STATUS_WINDOW_ID,
     PARTY_WINDOW_ID,
     BOOK_WINDOW_ID,
+    SOUND_OPTIONS_WINDOW_ID,
 ];
 
 impl GameState {
@@ -567,6 +572,12 @@ impl GameState {
                         .build(ui, &mut self.character, &self.data_table),
                 );
             }
+            SOUND_OPTIONS_WINDOW_ID => {
+                events.extend(
+                    self.sound_options
+                        .build(ui, &mut self.character, &self.data_table),
+                );
+            }
             _ => {}
         }
     }
@@ -647,6 +658,7 @@ impl GameState {
             status_window: StatusWindow::new(),
             item_info_window: ItemInfoWindow::new(),
             book_window: BookWindow::new(),
+            sound_options: SoundOptionsWindow::new(),
             item_pickup_notification: ItemPickupNotification::new(),
             skill_tree_window: SkillTreeWindow::new(),
             hotkey_bar: HotkeyBarWindow::new(),
@@ -668,6 +680,8 @@ impl GameState {
             debug_show_pick_bounds: false,
             debug_overlay: false,
             ambient_effects: AmbientEffectScheduler::empty(),
+            ambient_sounds: ragnarok_game::sound::ambient::AmbientSoundScheduler::empty(),
+            repeat_sounds: ragnarok_game::sound::repeat::RepeatSoundScheduler::new(),
             status_buff_keys: HashMap::new(),
             next_status_buff_key: 0,
             level_aura_keys: HashMap::new(),

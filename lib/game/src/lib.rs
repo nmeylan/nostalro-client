@@ -34,6 +34,7 @@ pub mod server_time;
 pub mod shadow;
 pub mod skill;
 pub mod skill_action;
+pub mod sound;
 pub mod sprite_loader;
 pub mod sprite_path;
 pub mod status_icon;

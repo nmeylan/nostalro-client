@@ -6,6 +6,7 @@ mod input;
 mod input_action;
 mod overlay;
 mod scene;
+mod sound;
 mod sprite;
 
 use config::Config;
@@ -34,6 +35,7 @@ use ragnarok_game::effect::EffectQueue;
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::skill::SkillTargetType;
+use ragnarok_game::sound::SoundQueue;
 use ragnarok_game::targeting::{TargetClass, skill_target_class};
 use ragnarok_game::{map_loader, sprite_loader};
 use ragnarok_network::{
@@ -57,6 +59,7 @@ use ragnarok_network::{
     build_select_autospell_packet, build_req_openstore2_packet,
     build_req_buy_frommc_packet, build_purchase_frommc2_packet, ip_u32_to_string, network_loop,
 };
+use ragnarok_audio::SoundManager;
 use ragnarok_renderer::effect::EffectHolder;
 use ragnarok_renderer::{
     EffectSpriteCache, GridSelectorRenderer, Renderer, SpriteVertex, StrEffectCache, UiDrawCall,
@@ -134,6 +137,10 @@ struct App {
     char_select_window: Option<CharSelectWindow>,
     channel: GameChannel,
     game: GameState,
+    sound: SoundManager,
+    sound_queue: SoundQueue,
+    bgm_table: HashMap<String, String>,
+    sfx_rng: u32,
     start_time: Instant,
     last_frame_instant: Instant,
     next_frame: Instant,
@@ -148,6 +155,14 @@ impl App {
             .collect();
         let mut game = GameState::new();
         game.debug_overlay = config.debug_overlay;
+        game.sound_options.set_values(
+            config.bgm_volume,
+            config.sfx_volume,
+            config.bgm_enabled,
+            config.sfx_enabled,
+        );
+        let sound =
+            SoundManager::new(config.effective_bgm_volume(), config.effective_sfx_volume());
         Self {
             config,
             saved_window_positions,
@@ -166,6 +181,10 @@ impl App {
             char_select_window: None,
             channel: GameChannel::new(),
             game,
+            sound,
+            sound_queue: SoundQueue::new(),
+            bgm_table: HashMap::new(),
+            sfx_rng: 0x1234_5678,
             start_time: Instant::now(),
             last_frame_instant: Instant::now(),
             next_frame: Instant::now(),
@@ -189,6 +208,19 @@ impl App {
         self.game.ambient_effects.clear(&mut self.effect_queue);
         self.game.ambient_effects =
             ragnarok_game::effects::AmbientEffectScheduler::from_rsw(&map_data.rsw, &map_data.gnd);
+        self.game.ambient_sounds =
+            ragnarok_game::sound::ambient::AmbientSoundScheduler::from_rsw(&map_data.rsw, &map_data.gnd);
+        self.game.repeat_sounds.clear();
+
+        let rsw_key = map_name
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or(map_name)
+            .rsplit_once('.')
+            .map(|(stem, _)| stem)
+            .unwrap_or(map_name)
+            .to_ascii_lowercase();
+        let bgm_track = self.bgm_table.get(&format!("{rsw_key}.rsw")).cloned();
 
         let (mut spr_paths, mut str_names) =
             ragnarok_game::effects::ambient_effect_assets(&map_data.rsw);
@@ -258,6 +290,10 @@ impl App {
                 map_data.gnd.zoom,
             );
             renderer.grid_selector = Some(grid);
+        }
+
+        if let Some(track) = bgm_track {
+            self.play_bgm_track(&track);
         }
     }
 
@@ -396,8 +432,10 @@ impl App {
         for event in events {
             match event {
                 GameEvent::RequestLogin { username, password } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::LOGIN);
                     let addr = format!("{}:{}", self.config.login_ip, self.config.login_port);
                     self.channel.send_cmd(NetworkCommand::Connect(addr));
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
                     self.channel.send_packet(build_login_packet(
                         &username,
                         &password,
@@ -405,6 +443,7 @@ impl App {
                     ));
                 }
                 GameEvent::RequestSelectServer { index } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
                     if let Some(server_win) = &self.server_list_window
                         && let Some(server) = server_win.servers.get(index)
                     {
@@ -423,6 +462,7 @@ impl App {
                     }
                 }
                 GameEvent::RequestSelectCharacter { slot } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
                     if let Some(char_win) = &self.char_select_window {
                         self.game.selected_character = char_win
                             .characters
@@ -889,6 +929,34 @@ impl App {
                 }
                 GameEvent::ToggleMinimap => {
                     self.game.minimap_window.cycle_visibility();
+                }
+                GameEvent::ToggleSoundOptions => {
+                    self.game.sound_options.set_values(
+                        self.config.bgm_volume,
+                        self.config.sfx_volume,
+                        self.config.bgm_enabled,
+                        self.config.sfx_enabled,
+                    );
+                    self.game.sound_options.toggle();
+                }
+                GameEvent::SoundSettingsChanged {
+                    bgm_volume,
+                    sfx_volume,
+                    bgm_enabled,
+                    sfx_enabled,
+                    persist,
+                } => {
+                    self.config.bgm_volume = bgm_volume;
+                    self.config.sfx_volume = sfx_volume;
+                    self.config.bgm_enabled = bgm_enabled;
+                    self.config.sfx_enabled = sfx_enabled;
+                    self.sound.set_volumes(
+                        self.config.effective_bgm_volume(),
+                        self.config.effective_sfx_volume(),
+                    );
+                    if persist {
+                        self.config.save("config.json");
+                    }
                 }
                 GameEvent::TogglePartyWindow => {
                     self.game.party_window.toggle();
@@ -1522,6 +1590,11 @@ impl ApplicationHandler for App {
                         Some(SkillDescriptionTable::load(&grf));
                     self.game.data_table.skill_tree = Some(SkillTreeTable::load(&grf));
                     self.game.data_table.skill_use_level = Some(SkillUseLevelTable::load(&grf));
+                    if let Ok(bytes) = grf.read_file("data/mp3nametable.txt") {
+                        let text = String::from_utf8_lossy(&bytes);
+                        self.bgm_table =
+                            ragnarok_game::sound::bgm_table::parse_mp3_name_table(&text);
+                    }
                     self.grf = Some(grf);
                 }
                 Err(e) => {
@@ -1531,6 +1604,7 @@ impl ApplicationHandler for App {
         }
 
         self.spawn_network();
+        self.play_bgm_track("01.mp3");
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -1564,6 +1638,7 @@ impl ApplicationHandler for App {
                 self.last_frame_instant = now;
                 let delta = raw_delta.min(0.1);
                 self.run_game_updates(delta, elapsed);
+                self.drain_sound_queue(delta);
 
                 let hovered = self.update_grid_hover();
                 let render_list = self.compute_render_list();

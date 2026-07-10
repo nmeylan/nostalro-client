@@ -580,6 +580,20 @@ pub enum GameEvent {
     ToggleEquipment,
     ToggleSkills,
     ToggleMinimap,
+    ToggleSoundOptions,
+    SoundSettingsChanged {
+        bgm_volume: f32,
+        sfx_volume: f32,
+        bgm_enabled: bool,
+        sfx_enabled: bool,
+        persist: bool,
+    },
+    SoundEffect {
+        name: String,
+        act: u8,
+        term_ms: u32,
+        gid: u32,
+    },
     PartyCreateResult {
         result: u8,
     },

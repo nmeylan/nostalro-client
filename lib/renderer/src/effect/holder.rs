@@ -11,6 +11,8 @@ use ragnarok_game::effect::{
     spawn_camera_shake,
 };
 
+use ragnarok_game::sound::tables::{SfxSchedule, SfxTiming, WaveChoice, effect_sound};
+
 use crate::effect_sprite::Smoke3DParticle;
 
 pub trait ExternalCustomBackend: Send + Sync {
@@ -28,6 +30,9 @@ pub trait ExternalCustomBackend: Send + Sync {
         None
     }
     fn take_camera_shake(&self, _handle: u64) -> Option<CameraShake> {
+        None
+    }
+    fn take_sfx(&self, _handle: u64) -> Option<String> {
         None
     }
     fn drop_handle(&self, handle: u64);
@@ -184,6 +189,17 @@ struct HeldEffect {
     age: f32,
     duration: f32,
     key: Option<u32>,
+    sfx_schedule: Option<SfxSchedule>,
+    sfx_last_frame: i32,
+    sfx_rng: u32,
+}
+
+fn next_rand(state: &mut u32) -> u32 {
+    // xorshift; seed is never zero at call time.
+    *state ^= *state << 13;
+    *state ^= *state >> 17;
+    *state ^= *state << 5;
+    *state
 }
 
 pub struct AfterimageSnapshot {
@@ -237,6 +253,53 @@ pub struct EffectHolder {
     external_backend: Option<Arc<dyn ExternalCustomBackend>>,
     shake: ShakeController,
     afterimages: Vec<AfterimageSnapshot>,
+    pending_sfx: Vec<(String, [f32; 3])>,
+}
+
+fn pick_wave(w: &WaveChoice, rng: &mut u32) -> String {
+    match w {
+        WaveChoice::Fixed(s) => (*s).to_string(),
+        WaveChoice::Randomized { pattern, count } => {
+            let n = 1 + (next_rand(rng) % (*count as u32).max(1));
+            pattern.replace("{}", &n.to_string())
+        }
+    }
+}
+
+fn emit_cue(
+    cue: &ragnarok_game::sound::tables::SfxCue,
+    prev: i32,
+    cur: i32,
+    rng: &mut u32,
+    pos: [f32; 3],
+    out: &mut Vec<(String, [f32; 3])>,
+) {
+    match cue.timing {
+        SfxTiming::AtFrames(frames) => {
+            for &f in frames {
+                let f = f as i32;
+                if f > prev && f <= cur {
+                    out.push((pick_wave(&cue.wave, rng), pos));
+                }
+            }
+        }
+        SfxTiming::EveryFrames(n) => {
+            let n = n as i32;
+            if n > 0 {
+                for f in (prev + 1)..=cur {
+                    if f > 0 && f % n == 0 {
+                        out.push((pick_wave(&cue.wave, rng), pos));
+                    }
+                }
+            }
+        }
+        SfxTiming::AtFrameChance { frame, one_in } => {
+            let f = frame as i32;
+            if f > prev && f <= cur && one_in > 0 && next_rand(rng) % one_in as u32 == 0 {
+                out.push((pick_wave(&cue.wave, rng), pos));
+            }
+        }
+    }
 }
 
 impl EffectHolder {
@@ -444,6 +507,11 @@ impl EffectHolder {
             age: 0.0,
             duration,
             key,
+            sfx_schedule: effect_sound(effect_id),
+            sfx_last_frame: -1,
+            sfx_rng: (self.next_id as u32).wrapping_mul(2654435761)
+                ^ (effect_id.value() as u32)
+                | 1,
         });
         Some(handle)
     }
@@ -538,6 +606,7 @@ impl EffectHolder {
         let dt = ctx.delta;
         let backend = self.external_backend.clone();
         let mut shake_requests: Vec<CameraShake> = Vec::new();
+        let mut sfx_out: Vec<(String, [f32; 3])> = Vec::new();
         self.effects.retain_mut(|e| {
             e.age += dt;
             let expired = e.age >= e.duration;
@@ -564,6 +633,11 @@ impl EffectHolder {
                     if let Some(s) = c.take_camera_shake() {
                         shake_requests.push(s);
                     }
+                    if let Some(w) = c.take_sfx_request()
+                        && let Some(pos) = resolve_position(&attach, resolve_entity_pos)
+                    {
+                        sfx_out.push((w.to_string(), pos));
+                    }
                     running
                 }
                 HeldPayload::CustomExternal { handle } => backend
@@ -572,6 +646,11 @@ impl EffectHolder {
                         let running = b.update(*handle, dt, caster_yaw);
                         if let Some(s) = b.take_camera_shake(*handle) {
                             shake_requests.push(s);
+                        }
+                        if let Some(w) = b.take_sfx(*handle)
+                            && let Some(pos) = resolve_position(&attach, resolve_entity_pos)
+                        {
+                            sfx_out.push((w, pos));
                         }
                         running
                     })
@@ -583,15 +662,18 @@ impl EffectHolder {
                     true
                 }
             };
+            if let Some(sched) = e.sfx_schedule {
+                let cur_frame = (e.age * 60.0) as i32;
+                if cur_frame > e.sfx_last_frame {
+                    if let Some(pos) = resolve_position(&attach, resolve_entity_pos) {
+                        for cue in sched {
+                            emit_cue(cue, e.sfx_last_frame, cur_frame, &mut e.sfx_rng, pos, &mut sfx_out);
+                        }
+                    }
+                    e.sfx_last_frame = cur_frame;
+                }
+            }
             if !alive || expired {
-                let kind = match &e.payload {
-                    HeldPayload::Custom(_) => "Custom",
-                    HeldPayload::CustomExternal { .. } => "CustomExternal",
-                    HeldPayload::Str { .. } => "Str",
-                    HeldPayload::Spr { .. } => "Spr",
-                    HeldPayload::SprBurst(_) => "SprBurst",
-                };
-
                 if let (HeldPayload::CustomExternal { handle }, Some(b)) = (&e.payload, &backend) {
                     b.drop_handle(*handle);
                 }
@@ -599,6 +681,7 @@ impl EffectHolder {
             }
             true
         });
+        self.pending_sfx.append(&mut sfx_out);
         for s in shake_requests {
             self.shake.trigger(s);
         }
@@ -730,6 +813,11 @@ impl EffectHolder {
             }
         }
         out
+    }
+
+    /// Sound requests emitted by effects this frame: `(wave path, world pos)`.
+    pub fn drain_sfx(&mut self) -> Vec<(String, [f32; 3])> {
+        std::mem::take(&mut self.pending_sfx)
     }
 
     pub fn collect_custom_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx) {
@@ -1214,6 +1302,9 @@ mod tests {
             age: 0.0,
             duration: f32::INFINITY,
             key: None,
+            sfx_schedule: None,
+            sfx_last_frame: -1,
+            sfx_rng: 1,
         });
         h.update(&ctx(1.0 / 60.0), &|_| None, &|id| {
             (id == 7).then_some([10.0, 0.0, 5.0])
@@ -1242,6 +1333,9 @@ mod tests {
                 age: 0.0,
                 duration: f32::INFINITY,
                 key,
+                sfx_schedule: None,
+                sfx_last_frame: -1,
+                sfx_rng: 1,
             });
         };
         push_keyed(1, Some(7));
@@ -1281,6 +1375,9 @@ mod tests {
             age: 0.0,
             duration: f32::INFINITY,
             key: Some(1312),
+            sfx_schedule: None,
+            sfx_last_frame: -1,
+            sfx_rng: 1,
         });
 
         assert!(h.reposition_by_key(1312, [112.0, 0.0, 154.0]));
@@ -1407,6 +1504,9 @@ mod tests {
             age: 0.5,
             duration: 10.0,
             key: None,
+            sfx_schedule: None,
+            sfx_last_frame: -1,
+            sfx_rng: 1,
         });
         let snaps = h.collect_str_emitters(&|_| None);
         assert_eq!(snaps.len(), 1);

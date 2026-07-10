@@ -62,6 +62,9 @@ impl App {
                 );
             }
         }
+        self.game
+            .repeat_sounds
+            .update(delta, &resolve_entity_pos, &mut self.sound_queue);
         self.effect_holder
             .drain_queue(&mut self.effect_queue, &resolve_entity_pos);
         self.effect_holder.update(

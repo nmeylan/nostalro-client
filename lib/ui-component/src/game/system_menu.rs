@@ -192,14 +192,14 @@ impl InGameWindow for SystemMenu {
 }
 
 impl SystemMenu {
-    fn build_grf(&mut self, ui: &mut UiFrame, _events: &mut Vec<GameEvent>) {
+    fn build_grf(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
         let (btn_w, btn_h) = self.btn_size;
         let (titlebar_w, titlebar_h) = self.win_size;
         let grf_btn_spacing = 3.0;
         let body_padding_top = 6.0;
         let body_padding_bottom = 6.0;
         let menu_w = btn_w + 60.0;
-        let body_h = body_padding_top + 3.0 * btn_h + 2.0 * grf_btn_spacing + body_padding_bottom;
+        let body_h = body_padding_top + 4.0 * btn_h + 3.0 * grf_btn_spacing + body_padding_bottom;
         let menu_h = titlebar_h + body_h;
 
         let mx = ((ui.ctx.screen_width - menu_w) / 2.0).floor();
@@ -231,20 +231,34 @@ impl SystemMenu {
             &CHARSELECT_BTN,
             "Character Select",
         );
+        // No dedicated GRF art ships for a Sound button; render it fallback-styled.
+        let prev_grf = ui.has_grf_textures;
+        ui.has_grf_textures = false;
+        let sound = ui.button(
+            OPTION_ID,
+            Rect::new(btn_x, btn_y(1), btn_w, btn_h),
+            &DUMMY_BTN,
+            "Sound",
+        );
+        ui.has_grf_textures = prev_grf;
         let quit = ui.button(
             QUIT_ID,
-            Rect::new(btn_x, btn_y(1), btn_w, btn_h),
+            Rect::new(btn_x, btn_y(2), btn_w, btn_h),
             &QUIT_BTN,
             "Quit Game",
         );
         let resume = ui.button(
             RESUME_ID,
-            Rect::new(btn_x, btn_y(2), btn_w, btn_h),
+            Rect::new(btn_x, btn_y(3), btn_w, btn_h),
             &RESUME_BTN,
             "Resume",
         );
 
         if resume.clicked() {
+            self.open = false;
+        }
+        if sound.clicked() {
+            events.push(GameEvent::ToggleSoundOptions);
             self.open = false;
         }
         if charselect.clicked() {
@@ -255,7 +269,7 @@ impl SystemMenu {
         }
     }
 
-    fn build_fallback(&mut self, ui: &mut UiFrame, _events: &mut Vec<GameEvent>) {
+    fn build_fallback(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
         let mx = ((ui.ctx.screen_width - MENU_W) / 2.0).floor();
         let my = ((ui.ctx.screen_height - MENU_H) / 2.0).floor();
 
@@ -311,7 +325,10 @@ impl SystemMenu {
         if resume.clicked() {
             self.open = false;
         }
-        let _ = option;
+        if option.clicked() {
+            events.push(GameEvent::ToggleSoundOptions);
+            self.open = false;
+        }
         if charselect.clicked() {
             self.pending_confirm = PendingConfirm::CharacterSelect;
         }

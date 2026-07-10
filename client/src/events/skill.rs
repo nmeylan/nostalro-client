@@ -12,6 +12,9 @@ use ragnarok_game::effect::{
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
+use ragnarok_game::sound::tables::{
+    SkillSoundPos, skill_cast_begin_sound, skill_projectile_sound, skill_use_sound,
+};
 use ragnarok_game::skill_action::{SkillMotionType, skill_motion_type};
 
 /// AL_HEAL's green heal sparkle size by healed amount, matching the original
@@ -73,6 +76,13 @@ impl App {
         tracing::info!(
             "SkillDamage: skill_id={skill_id}, src_gid={src_gid}, count={count}, action={action:?}, effective_count={effective_count}"
         );
+
+        if let Some(wav) = skill_projectile_sound(SkillEnum::from_id(skill_id as u32)) {
+            self.sound_queue.ui(wav);
+        }
+        if damage != 0 {
+            self.queue_hit_sound(target_gid, src_gid, true);
+        }
 
         // A hunter/sniper's falcon darts at the struck target on Blitz Beat and
         // Falcon Assault. Auto Blitz Beat arrives through this same packet, so it
@@ -446,6 +456,7 @@ impl App {
                 self.effect_queue.spawn_on(*e, caster_gid);
             }
         }
+        self.queue_skill_sound(skill_cast_begin_sound(skill), caster_gid);
     }
 
     /// Cast effect on the caster + landing effect on the recipient for
@@ -497,16 +508,25 @@ impl App {
                 0,
             ));
         }
+        self.queue_skill_sound(skill_use_sound(skill), target_gid);
     }
 
-    /// Position-cast skill effects (`ZC_NOTIFY_GROUNDSKILL`): place the skill's
-    /// AoE visual **at the targeted cell**, matching the original game's
-    /// `Am_Groundskill` per-skill cell placement (Storm Gust's storm, Meteor's
-    /// strike, Lord of Vermilion's field, Thunderstorm's bolts — all on the
-    /// ground, not the caster). Unit skills (Volcano, traps, Ice Wall, …) render
-    /// from their unit packets instead, so `ground_placed_effect` omits them.
-    /// The damage path skips these skills' `cast`/`on_target` slots
-    /// ([`is_ground_cast`]); per-target hit sparks still come from the damage packet.
+    fn queue_skill_sound(
+        &mut self,
+        sound: Option<(&'static str, SkillSoundPos)>,
+        target_gid: u32,
+    ) {
+        let Some((wav, pos)) = sound else { return };
+        match pos {
+            SkillSoundPos::NonPositional => self.sound_queue.ui(wav),
+            SkillSoundPos::Depth(d) => self.sound_queue.ui_at_depth(wav, d),
+            SkillSoundPos::TargetPositional => match self.entity_world_pos(target_gid) {
+                Some(p) => self.sound_queue.world(wav, p),
+                None => self.sound_queue.ui(wav),
+            },
+        }
+    }
+
     pub(super) fn spawn_ground_skill_effects(&mut self, skill_id: u16, level: i16, x: i16, y: i16) {
         let skill = SkillEnum::from_id(skill_id as u32);
         let effects = ground_placed_effect(skill, level);

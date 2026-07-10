@@ -193,6 +193,16 @@ pub struct DragResponse {
     pub hovered: bool,
 }
 
+#[derive(Default)]
+struct SliderState {
+    was_dragging: bool,
+}
+
+pub struct SliderResponse {
+    pub changed: bool,
+    pub released: bool,
+}
+
 impl<'a> UiFrame<'a> {
     pub fn new(
         ctx: &'a UiContext,
@@ -784,6 +794,61 @@ impl<'a> UiFrame<'a> {
         }
     }
 
+    /// Horizontal slider. Dragging (or clicking) the track sets `*value` in
+    /// `[min, max]`. `changed` is true on any frame the value moved; `released`
+    /// is true on the frame the drag ended (use it to persist).
+    pub fn slider(
+        &mut self,
+        id: WidgetId,
+        rect: Rect,
+        value: &mut f32,
+        min: f32,
+        max: f32,
+    ) -> SliderResponse {
+        let resp = self.drag_handle(id, rect, true);
+        let mut changed = false;
+        if resp.dragging && rect.w > 0.0 {
+            let t = ((self.ctx.mouse_x - rect.x) / rect.w).clamp(0.0, 1.0);
+            let new_val = min + t * (max - min);
+            if (new_val - *value).abs() > f32::EPSILON {
+                *value = new_val;
+                changed = true;
+            }
+        }
+        let released = {
+            let st = self.state.get_or_default::<SliderState>(id);
+            let released = st.was_dragging && !resp.dragging;
+            st.was_dragging = resp.dragging;
+            released
+        };
+
+        let span = (max - min).abs().max(f32::EPSILON);
+        let t = ((*value - min) / span).clamp(0.0, 1.0);
+        let track_h = 4.0;
+        let track_y = rect.y + (rect.h - track_h) * 0.5;
+        let knob_w = 8.0;
+        let knob_x = rect.x + t * (rect.w - knob_w);
+
+        let push_rect = |ui: &mut Self, x: f32, y: f32, w: f32, h: f32, c: [f32; 4]| {
+            let (v, i) = draw::quad_vertices(x, y, w, h, c);
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
+        };
+        push_rect(self, rect.x, track_y, rect.w, track_h, [0.2, 0.2, 0.28, 1.0]);
+        push_rect(self, rect.x, track_y, knob_x - rect.x, track_h, [0.45, 0.55, 0.8, 1.0]);
+        let knob_c = if resp.hovered || resp.dragging {
+            [0.85, 0.9, 1.0, 1.0]
+        } else {
+            [0.65, 0.7, 0.85, 1.0]
+        };
+        push_rect(self, knob_x, rect.y, knob_w, rect.h, knob_c);
+
+        SliderResponse { changed, released }
+    }
+
     pub fn resize_handle(&mut self, id: WidgetId, rect: Rect) -> DragResponse {
         let resp = self.drag_handle(id, rect, true);
 
@@ -971,6 +1036,34 @@ mod tests {
         let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (350.0, 270.0));
+    }
+
+    #[test]
+    fn slider_click_sets_value_and_release_flags() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let id = WidgetId(42);
+        let positions = HashMap::new();
+        let rect = Rect::new(100.0, 100.0, 200.0, 20.0);
+        let mut value = 0.0f32;
+
+        // Click at 75% across the track (x = 100 + 150 = 250).
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 250.0;
+        ctx.mouse_y = 108.0;
+        ctx.mouse_clicked = true;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let resp = ui.slider(id, rect, &mut value, 0.0, 1.0);
+        assert!(resp.changed);
+        assert!(!resp.released);
+        assert!((value - 0.75).abs() < 0.01);
+
+        // Release: not down this frame → released flag set once.
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let resp = ui.slider(id, rect, &mut value, 0.0, 1.0);
+        assert!(resp.released);
     }
 
     #[test]

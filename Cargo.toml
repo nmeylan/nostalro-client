@@ -41,6 +41,8 @@ ab_glyph = "0.2"
 eframe = "0.33.3"
 rfd = "0.15"
 tokio = { version = "1", features = ["net", "rt", "sync", "macros", "io-util", "time"] }
+cpal = "0.16"
+symphonia = { version = "0.5", default-features = false, features = ["wav", "pcm", "adpcm", "mp3"] }
 
 # Server crate git dependencies
 models = { git = "https://github.com/nmeylan/rust-ro.git", rev = "dfb86712" }
