@@ -4,11 +4,11 @@
   "login_port": 6900,
   "screen_width": 1024,
   "screen_height": 768,
-  "bgm_volume": 0.38888875,
-  "sfx_volume": 0.20839396,
-  "bgm_enabled": false,
+  "bgm_volume": 0.8,
+  "sfx_volume": 0.8,
+  "bgm_enabled": true,
   "sfx_enabled": true,
-  "bgm_path": "data/BGM",
+  "bgm_path": "BGM",
   "free_camera": false,
   "dpi_scale": 150.0,
   "grf_paths": [
@@ -20,26 +20,26 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
-    "10": {
-      "position": [
-        344.0,
-        344.66666
-      ],
-      "open": false,
-      "collapsed": false
-    },
     "1300": {
       "position": [
-        476.6667,
+        319.3333,
         0.0
       ],
       "open": false,
       "collapsed": false
     },
-    "210": {
+    "900": {
       "position": [
-        342.0,
-        346.0
+        0.0,
+        210.0
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "1400": {
+      "position": [
+        0.0,
+        0.0
       ],
       "open": false,
       "collapsed": false
@@ -52,10 +52,26 @@
       "open": false,
       "collapsed": false
     },
-    "1400": {
+    "10": {
+      "position": [
+        344.0,
+        344.66666
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "800": {
       "position": [
         0.0,
-        0.0
+        121.91406
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "210": {
+      "position": [
+        342.0,
+        346.0
       ],
       "open": false,
       "collapsed": false

@@ -845,7 +845,7 @@ pub fn build_composite_clips(
     }
 
     let base_action = action_idx / 8;
-    let is_idle_or_sit = base_action == 0 || base_action == 2;
+    let is_idle_or_sit = (base_action == 0 || base_action == 2) && entity.head_act.is_some();
 
     let part_motion_idx = |len: usize| part_motion_index(is_idle_or_sit, head_dir, motion_idx, len);
     let body_motion = &body_action.motions[part_motion_idx(body_action.motions.len())];
