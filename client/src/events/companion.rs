@@ -1,0 +1,197 @@
+use crate::App;
+use ragnarok_game::companion::{HomunculusState, MercenaryState};
+use ragnarok_game::event::{HomunculusProperty, MercenaryInfo, SkillInfo};
+
+/// e_hom_state2: SP_ACK carries the companion GID, SP_INTIMATE / SP_HUNGRY update those meters.
+const HOM_STATE_ACK: i8 = 0;
+const HOM_STATE_INTIMACY: i8 = 1;
+const HOM_STATE_HUNGRY: i8 = 2;
+
+impl App {
+    pub(super) fn handle_companion_state_changed(&mut self, state: i8, gid: u32, data: i32) {
+        match state {
+            HOM_STATE_ACK => {
+                match &mut self.game.homunculus {
+                    Some(h) => {
+                        h.gid = gid;
+                        h.vaporized = false;
+                    }
+                    None => self.game.homunculus = Some(HomunculusState::new(gid)),
+                }
+                self.game.homunculus_window.set_visible(true);
+            }
+            HOM_STATE_INTIMACY => {
+                if let Some(h) = &mut self.game.homunculus {
+                    h.intimacy = data as i16;
+                }
+            }
+            HOM_STATE_HUNGRY => {
+                if let Some(h) = &mut self.game.homunculus {
+                    h.hunger = data as i16;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub(super) fn handle_homun_property(&mut self, p: HomunculusProperty) {
+        let h = self
+            .game
+            .homunculus
+            .get_or_insert_with(|| HomunculusState::new(0));
+        h.name = p.name;
+        h.renamed = p.renamed;
+        h.level = p.level;
+        h.hunger = p.hunger;
+        h.intimacy = p.intimacy;
+        h.accessory = p.accessory;
+        h.atk = p.atk;
+        h.matk = p.matk;
+        h.hit = p.hit;
+        h.critical = p.critical;
+        h.def = p.def;
+        h.mdef = p.mdef;
+        h.flee = p.flee;
+        h.aspd = p.aspd;
+        h.hp = p.hp;
+        h.max_hp = p.max_hp;
+        h.sp = p.sp;
+        h.max_sp = p.max_sp;
+        h.exp = p.exp;
+        h.max_exp = p.max_exp;
+        h.skill_points = p.skill_points;
+        h.atk_range = p.atk_range;
+        h.vaporized = false;
+    }
+
+    pub(super) fn handle_homun_feed_result(&mut self, success: bool, item_id: u16) {
+        let msg = if success {
+            "You fed your homunculus.".to_string()
+        } else {
+            format!("Failed to feed homunculus (item {item_id}).")
+        };
+        self.game.chat_window.add_system(msg);
+    }
+
+    pub(super) fn handle_mercenary_info(&mut self, info: MercenaryInfo, is_init: bool) {
+        if is_init {
+            let m = self
+                .game
+                .mercenary
+                .get_or_insert_with(|| MercenaryState::new(info.gid));
+            m.gid = info.gid;
+            m.name = info.name;
+            m.level = info.level;
+            m.atk = info.atk;
+            m.matk = info.matk;
+            m.hit = info.hit;
+            m.critical = info.critical;
+            m.def = info.def;
+            m.mdef = info.mdef;
+            m.flee = info.flee;
+            m.aspd = info.aspd;
+            m.atk_range = info.atk_range;
+            m.hp = info.hp;
+            m.max_hp = info.max_hp;
+            m.sp = info.sp;
+            m.max_sp = info.max_sp;
+            m.expire_date = info.expire_date;
+            m.faith = info.faith;
+            m.calls = info.calls;
+            m.kills = info.kills;
+            self.game.mercenary_window.set_visible(true);
+        } else if let Some(m) = &mut self.game.mercenary {
+            // Property update (no GID / attack range): stats only.
+            m.name = info.name;
+            m.level = info.level;
+            m.atk = info.atk;
+            m.matk = info.matk;
+            m.hit = info.hit;
+            m.critical = info.critical;
+            m.def = info.def;
+            m.mdef = info.mdef;
+            m.flee = info.flee;
+            m.aspd = info.aspd;
+            m.hp = info.hp;
+            m.max_hp = info.max_hp;
+            m.sp = info.sp;
+            m.max_sp = info.max_sp;
+            m.expire_date = info.expire_date;
+            m.faith = info.faith;
+            m.calls = info.calls;
+            m.kills = info.kills;
+        }
+    }
+
+    pub(super) fn handle_mercenary_param_changed(&mut self, var: u16, value: i32) {
+        use models::enums::status::StatusTypes;
+        use models::enums::EnumWithNumberValue;
+        let Some(m) = &mut self.game.mercenary else {
+            return;
+        };
+        let Ok(status) = StatusTypes::try_from_value(var as usize) else {
+            return;
+        };
+        match status {
+            StatusTypes::Hp => m.hp = value as u32,
+            StatusTypes::Maxhp => m.max_hp = value as u32,
+            StatusTypes::Sp => m.sp = value as u32,
+            StatusTypes::Maxsp => m.max_sp = value as u32,
+            _ => {}
+        }
+    }
+
+    pub(super) fn handle_homun_skill_list(&mut self, skills: Vec<SkillInfo>) {
+        if let Some(h) = &mut self.game.homunculus {
+            h.skills = skills;
+        }
+    }
+
+    pub(super) fn handle_homun_skill_update(
+        &mut self,
+        id: u16,
+        level: i16,
+        sp_cost: i16,
+        attack_range: i16,
+        upgradable: bool,
+    ) {
+        if let Some(h) = &mut self.game.homunculus {
+            update_skill(&mut h.skills, id, level, sp_cost, attack_range, upgradable);
+        }
+    }
+
+    pub(super) fn handle_mercenary_skill_list(&mut self, skills: Vec<SkillInfo>) {
+        if let Some(m) = &mut self.game.mercenary {
+            m.skills = skills;
+        }
+    }
+
+    pub(super) fn handle_mercenary_skill_update(
+        &mut self,
+        id: u16,
+        level: i16,
+        sp_cost: i16,
+        attack_range: i16,
+        upgradable: bool,
+    ) {
+        if let Some(m) = &mut self.game.mercenary {
+            update_skill(&mut m.skills, id, level, sp_cost, attack_range, upgradable);
+        }
+    }
+}
+
+fn update_skill(
+    skills: &mut Vec<SkillInfo>,
+    id: u16,
+    level: i16,
+    sp_cost: i16,
+    attack_range: i16,
+    upgradable: bool,
+) {
+    if let Some(s) = skills.iter_mut().find(|s| s.id == id) {
+        s.level = level;
+        s.sp_cost = sp_cost;
+        s.attack_range = attack_range;
+        s.upgradable = upgradable;
+    }
+}
