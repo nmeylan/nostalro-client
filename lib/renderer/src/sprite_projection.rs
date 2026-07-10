@@ -35,6 +35,40 @@ fn depth_gradient(
     [(e * d - b * f) / det, (a * f - e * c) / det]
 }
 
+fn ground_depth_gradient(
+    camera: &Camera,
+    world: [f32; 3],
+    sx0: f32,
+    sy0: f32,
+    z0: f32,
+    screen_w: f32,
+    screen_h: f32,
+) -> [f32; 2] {
+    let [wx, wy, wz] = world;
+    let right = camera.right_vector();
+    let fwd = glam::Vec3::new(right.z, 0.0, -right.x);
+    let (Some((sx_f, sy_f, z_f, _)), Some((sx_r, sy_r, z_r, _))) = (
+        camera.world_to_screen_with_depth(wx + fwd.x, wy, wz + fwd.z, screen_w, screen_h),
+        camera.world_to_screen_with_depth(
+            wx + right.x,
+            wy + right.y,
+            wz + right.z,
+            screen_w,
+            screen_h,
+        ),
+    ) else {
+        return [0.0, 0.0];
+    };
+
+    let (a, b, e) = (sx_f - sx0, sy_f - sy0, z_f - z0);
+    let (c, d, f) = (sx_r - sx0, sy_r - sy0, z_r - z0);
+    let det = a * d - b * c;
+    if det.abs() < 1e-9 {
+        return [0.0, 0.0];
+    }
+    [(e * d - b * f) / det, (a * f - e * c) / det]
+}
+
 pub fn project_entity_screen(
     pos: (f32, f32),
     gat: Option<&GatFile>,
@@ -81,6 +115,24 @@ pub fn project_world_screen(
     let sprite_scale = ppu * coords.zoom() / 75.0;
 
     Some(([sx, sy], ndc_z, camera_dir, sprite_scale, grad))
+}
+
+pub fn entity_ground_gradient(
+    pos: (f32, f32),
+    gat: Option<&GatFile>,
+    coords: &MapCoordinates,
+    camera: &Camera,
+    screen_w: f32,
+    screen_h: f32,
+) -> [f32; 2] {
+    let world = cell_world_pos(pos, gat, coords);
+    let [wx, wy, wz] = world;
+    let Some((sx, sy, ndc_z_raw, _)) =
+        camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h)
+    else {
+        return [0.0, 0.0];
+    };
+    ground_depth_gradient(camera, world, sx, sy, ndc_z_raw, screen_w, screen_h)
 }
 
 pub fn cell_world_pos(
@@ -141,6 +193,32 @@ mod tests {
 
         let (px, py, pz, _) = camera
             .world_to_screen_with_depth(wx, -30.0, wz, screen_w, screen_h)
+            .unwrap();
+        let reconstructed = z0 + grad[0] * (px - sx0) + grad[1] * (py - sy0);
+        assert!(
+            (reconstructed - pz).abs() < 1e-4,
+            "reconstructed {reconstructed} vs direct {pz}"
+        );
+    }
+
+    #[test]
+    fn ground_gradient_matches_projection_of_point_along_the_ground() {
+        let (screen_w, screen_h) = (800.0, 600.0);
+        let coords = fixture_coords();
+        let mut camera = Camera::default();
+        let (wx, _, wz) = coords.cell_to_world(50.5, 50.5);
+        camera.target = glam::Vec3::new(wx, 0.0, wz);
+        camera.yaw = 0.6;
+
+        let grad = entity_ground_gradient((50.0, 50.0), None, &coords, &camera, screen_w, screen_h);
+        let (sx0, sy0, z0, _) = camera
+            .world_to_screen_with_depth(wx, 0.0, wz, screen_w, screen_h)
+            .unwrap();
+
+        let right = camera.right_vector();
+        let fwd = glam::Vec3::new(right.z, 0.0, -right.x);
+        let (px, py, pz, _) = camera
+            .world_to_screen_with_depth(wx + fwd.x * 5.0, 0.0, wz + fwd.z * 5.0, screen_w, screen_h)
             .unwrap();
         let reconstructed = z0 + grad[0] * (px - sx0) + grad[1] * (py - sy0);
         assert!(

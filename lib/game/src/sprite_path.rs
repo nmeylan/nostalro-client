@@ -244,7 +244,6 @@ fn weapon_suffix(weapon_type: WeaponType) -> &'static str {
 }
 
 pub fn weapon_view_id_to_type(id: u16) -> Option<WeaponType> {
-    dbg!("weapon view", id);
     match id {
         0 => None,
         1 => Some(WeaponType::Dagger),

@@ -284,6 +284,10 @@ impl GrfArchive {
         self.entries.len()
     }
 
+    pub fn entry_names(&self) -> impl Iterator<Item = &str> {
+        self.entries.keys().map(String::as_str)
+    }
+
     pub fn find_first_with_extension(&self, extension: &str) -> Option<&str> {
         let ext = extension.to_lowercase();
         self.entries

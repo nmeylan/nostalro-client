@@ -813,6 +813,24 @@ pub struct CompositeClips {
     pub shield: Vec<ClipQuad>,
 }
 
+/// Which motion of a body-part action to render. For idle/sit the whole actor is
+/// posed by the head-turn (doridori) frame, so every part uses `head_dir`; other
+/// actions play their normal animation via `motion_idx`.
+pub(crate) fn part_motion_index(
+    is_idle_or_sit: bool,
+    head_dir: u8,
+    motion_idx: usize,
+    len: usize,
+) -> usize {
+    if len == 0 {
+        0
+    } else if is_idle_or_sit {
+        head_dir as usize % len
+    } else {
+        motion_idx % len
+    }
+}
+
 pub fn build_composite_clips(
     entity: &EntitySprite,
     action_idx: usize,
@@ -825,10 +843,12 @@ pub fn build_composite_clips(
     if body_action.motions.is_empty() {
         return None;
     }
-    let body_motion = &body_action.motions[motion_idx % body_action.motions.len()];
 
     let base_action = action_idx / 8;
     let is_idle_or_sit = base_action == 0 || base_action == 2;
+
+    let part_motion_idx = |len: usize| part_motion_index(is_idle_or_sit, head_dir, motion_idx, len);
+    let body_motion = &body_action.motions[part_motion_idx(body_action.motions.len())];
 
     let mut body = Vec::new();
     for clip in &body_motion.clips {
@@ -845,12 +865,7 @@ pub fn build_composite_clips(
         let head_action_idx = action_idx % head_act.actions.len();
         let head_action = &head_act.actions[head_action_idx];
         if !head_action.motions.is_empty() {
-            let head_motion_idx = if is_idle_or_sit {
-                head_dir as usize % head_action.motions.len()
-            } else {
-                motion_idx % head_action.motions.len()
-            };
-            let head_motion = &head_action.motions[head_motion_idx];
+            let head_motion = &head_action.motions[part_motion_idx(head_action.motions.len())];
             let (off_x, off_y) = attachment_offset(body_motion, head_motion);
             for clip in &head_motion.clips {
                 if let Some((vertices, indices, tex_idx)) =
@@ -938,7 +953,7 @@ pub fn build_composite_clips(
         let weapon_action_idx = action_idx % weapon_act.actions.len();
         let weapon_action = &weapon_act.actions[weapon_action_idx];
         if !weapon_action.motions.is_empty() {
-            let weapon_motion_idx = motion_idx % weapon_action.motions.len();
+            let weapon_motion_idx = part_motion_idx(weapon_action.motions.len());
             let weapon_motion = &weapon_action.motions[weapon_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, weapon_motion);
             for clip in &weapon_motion.clips {
@@ -959,7 +974,7 @@ pub fn build_composite_clips(
         let trail_action_idx = action_idx % trail_act.actions.len();
         let trail_action = &trail_act.actions[trail_action_idx];
         if !trail_action.motions.is_empty() {
-            let trail_motion_idx = motion_idx % trail_action.motions.len();
+            let trail_motion_idx = part_motion_idx(trail_action.motions.len());
             let trail_motion = &trail_action.motions[trail_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, trail_motion);
             for clip in &trail_motion.clips {
@@ -978,7 +993,7 @@ pub fn build_composite_clips(
         let shield_action_idx = action_idx % shield_act.actions.len();
         let shield_action = &shield_act.actions[shield_action_idx];
         if !shield_action.motions.is_empty() {
-            let shield_motion_idx = motion_idx % shield_action.motions.len();
+            let shield_motion_idx = part_motion_idx(shield_action.motions.len());
             let shield_motion = &shield_action.motions[shield_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, shield_motion);
             for clip in &shield_motion.clips {
@@ -1711,6 +1726,46 @@ mod tests {
             sizes: vec![(24, 24), (32, 32), (48, 48)],
             indexed_count: 2,
         }
+    }
+
+    fn idle_motion(attach: (i32, i32)) -> Motion {
+        Motion {
+            range1: [0; 4],
+            range2: [0; 4],
+            clips: Vec::new(),
+            event_id: -1,
+            attach_points: vec![ragnarok_formats::act::AnchorPoint {
+                ignored: 0,
+                x: attach.0,
+                y: attach.1,
+                attribute: 0,
+            }],
+        }
+    }
+
+    // Real dir=2 idle attach points from data.grf (초보자_남 / 1_남): each idle
+    // action has 3 doridori-pose motions whose neck anchor differs by ~17px.
+    #[test]
+    fn doridori_keeps_head_attached_to_body() {
+        let body = [idle_motion((-4, -57)), idle_motion((11, -74)), idle_motion((-3, -57))];
+        let head = [idle_motion((-6, -57)), idle_motion((10, -73)), idle_motion((-5, -56))];
+
+        // Idle: every part follows head_dir, not the (0) animation frame.
+        assert_eq!(part_motion_index(true, 1, 0, 3), 1);
+        // A moving action ignores head_dir and plays its own frame.
+        assert_eq!(part_motion_index(false, 1, 5, 3), 5 % 3);
+
+        // With both parts on the head_dir pose the neck anchors line up.
+        for head_dir in 0u8..3 {
+            let bi = part_motion_index(true, head_dir, 0, 3);
+            let hi = part_motion_index(true, head_dir, 0, 3);
+            let (ox, oy) = attachment_offset(&body[bi], &head[hi]);
+            assert!(ox.abs() <= 2 && oy.abs() <= 2, "head_dir {head_dir}: ({ox},{oy})");
+        }
+
+        // The old bug: body stuck on frame 0 while the head turned -> big gap.
+        let (ox, oy) = attachment_offset(&body[0], &head[1]);
+        assert!(ox.abs() > 10 || oy.abs() > 10);
     }
 
     #[test]

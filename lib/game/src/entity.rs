@@ -337,6 +337,7 @@ impl Entity {
             return;
         }
         self.state = if self.movement.is_moving() {
+            self.head_dir = 0;
             EntityState::Moving
         } else {
             EntityState::Standing
@@ -844,6 +845,22 @@ mod tests {
         e.state = EntityState::Sitting;
         e.update_state(0.016);
         assert_eq!(e.state, EntityState::Sitting);
+    }
+
+    #[test]
+    fn walking_resets_turned_head_to_default() {
+        let mut e = make_entity();
+        e.head_dir = 2;
+        let path = vec![
+            make_path_node(101, 100, false),
+            make_path_node(102, 100, false),
+        ];
+        e.movement.start_move(path, 0.0);
+
+        e.update_state(0.016);
+
+        assert_eq!(e.state, EntityState::Moving);
+        assert_eq!(e.head_dir, 0);
     }
 
     #[test]

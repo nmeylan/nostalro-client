@@ -73,6 +73,10 @@ pub struct Config {
     pub battle_mode: bool,
     pub fog: bool,
     pub display: DisplayOptions,
+    /// Slot of the character selected last, restored to preselect it (and its page)
+    /// on the next character-select screen. Client-side only; the server sends no
+    /// "last used" marker.
+    pub last_char_slot: Option<u8>,
 }
 
 impl Default for Config {
@@ -101,6 +105,7 @@ impl Default for Config {
             battle_mode: false,
             fog: false,
             display: DisplayOptions::default(),
+            last_char_slot: None,
         }
     }
 }

@@ -56,6 +56,34 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             port: p.addr.port,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketHcAcceptMakecharNeoUnion>() {
+        let character = CharacterInfo::from_neo_union(&p.charinfo, packetver);
+        return vec![GameEvent::CharacterCreated { character }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketHcRefuseMakechar>() {
+        return vec![GameEvent::CharacterCreateFailed {
+            error_code: p.error_code,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketHcDeleteChar3Reserved>() {
+        return vec![GameEvent::CharacterDeleteReserved {
+            gid: p.gid,
+            result: p.result as u32,
+            delete_reserved_date: p.delete_reserved_date,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketHcDeleteChar3>() {
+        return vec![GameEvent::CharacterDeleted {
+            gid: p.gid,
+            result: p.result as u32,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketHcDeleteChar3Cancel>() {
+        return vec![GameEvent::CharacterDeleteCancelled {
+            gid: p.gid,
+            result: p.result as u32,
+        }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcAcceptEnter>() {
         let (x, y, dir) = decode_pos(&p.pos_dir);
         return vec![GameEvent::MapEntered {

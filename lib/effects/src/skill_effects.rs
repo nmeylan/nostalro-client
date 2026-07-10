@@ -653,7 +653,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::BsRepairweapon => T::on_target(&[E::Repairweapon]),
         S::BsWeaponperfect => T::on_target(&[E::Perfection]),
         S::HtSkidtrap => T::hit(&[E::Bowlingbash]),
-        S::HtBlitzbeat => T::hit(&[E::Blitzbeat]),
+        S::HtBlitzbeat => T::on_target(&[E::Blitzbeat]),
         S::AsSonicblow => T {
             on_target: &[E::Sonicblow],
             hit: &[E::Sonicblowhit],
@@ -709,8 +709,8 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::StFullstrip => T::on_target(&[E::RgCoin2]),
 
         S::SnFalconassault => T {
-            on_target: &[E::Falconassault],
-            hit: &[E::Hit1, E::Blitzbeat],
+            on_target: &[E::Falconassault, E::Blitzbeat],
+            hit: &[E::Hit1],
             ..Default::default()
         },
         S::CgTarotcard => T::on_target(&[E::Chemicalbody]),

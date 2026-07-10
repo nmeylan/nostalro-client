@@ -11,6 +11,19 @@ fn main() {
     let list = std::env::args().nth(1).expect("usage: check_wavs <name-list>");
     let names = std::fs::read_to_string(&list).expect("read name list");
     let grf = GrfArchive::open(Path::new("data/data.grf")).expect("open data/data.grf");
+    // Second arg = a prefix to list every GRF entry under it (e.g. "data/wav/")
+    // — prints the archive's real (Korean) filenames. Otherwise, check-missing mode.
+    if let Some(prefix) = std::env::args().nth(2) {
+        let mut hits: Vec<&str> = grf
+            .entry_names()
+            .filter(|n| n.starts_with(&prefix))
+            .collect();
+        hits.sort_unstable();
+        for n in hits {
+            println!("{n}");
+        }
+        return;
+    }
     for name in names.lines().map(str::trim).filter(|l| !l.is_empty()) {
         let full = format!("data/wav/{name}");
         if !grf.file_exists(&full) {

@@ -5,6 +5,7 @@ use libloading::{Library, Symbol};
 use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
 use ragnarok_ui::frame::UiFrame;
 use ragnarok_ui_component::Window;
+use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::LoginWindow;
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
@@ -122,7 +123,8 @@ const GAME_COMPONENTS: &[&str] = &[
     "hotkey_bar",
     "basic_info",
 ];
-const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
+const ACCOUNT_COMPONENTS: &[&str] =
+    &["login", "server_list", "char_select", "char_create"];
 const SHOP_COMPONENTS: &[&str] =
     &["cart", "vending_setup", "my_shop", "vending_buy", "vending_board"];
 
@@ -144,6 +146,7 @@ fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
         "equipment" => EquipmentWindow::grf_texture_paths(),
         "system_menu" => SystemMenu::grf_texture_paths(),
         "char_select" => CharSelectWindow::grf_texture_paths(),
+        "char_create" => CharCreateWindow::grf_texture_paths(),
         "dialog_container" => DialogContainer::grf_texture_paths(),
         "item_info" => ItemInfoWindow::grf_texture_paths(),
         "skill_tree" => SkillTreeWindow::grf_texture_paths(),

@@ -9,7 +9,8 @@ pub const TEXTURES: &[&str] = &[BLITZBEAT_TEXTURE];
 const FRAMES_PER_SECOND: f32 = 60.0;
 const NEEDLE_COUNT: u32 = 10;
 const DURATION_FRAMES: f32 = 20.0;
-pub const TOTAL_DURATION_MS: u32 = (DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
+const LIFETIME_FRAMES: f32 = 32.0;
+pub const TOTAL_DURATION_MS: u32 = (LIFETIME_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
 const SCATTER_RADIUS: f32 = 3.5;
 const Y_OFFSET: f32 = -7.0;
@@ -98,7 +99,7 @@ impl BlitzbeatEffect {
 impl Effect for BlitzbeatEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.age += ctx.delta;
-        if self.age * FRAMES_PER_SECOND >= DURATION_FRAMES {
+        if self.age * FRAMES_PER_SECOND >= LIFETIME_FRAMES {
             EffectStatus::Dead
         } else {
             EffectStatus::Running
@@ -231,10 +232,10 @@ mod tests {
     }
 
     #[test]
-    fn dies_after_20_frames() {
+    fn outlives_needles_so_frame_30_wave_can_fire() {
         let mut e = BlitzbeatEffect::new([0.0, 0.0, 0.0]);
-        let status = step_n(&mut e, 25);
-        assert_eq!(status, EffectStatus::Dead);
+        assert_eq!(step_n(&mut e, 25), EffectStatus::Running);
+        assert_eq!(step_n(&mut e, 10), EffectStatus::Dead);
     }
 
     #[test]

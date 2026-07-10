@@ -39,6 +39,67 @@ pub fn build_select_char_packet(slot: u8, packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_make_char_packet(
+    name: &str,
+    slot: u8,
+    hair_style: u16,
+    hair_color: u16,
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketChMakeChar2::new(packetver);
+    pkt.set_name(name_to_char24(name));
+    pkt.set_char_num(slot);
+    pkt.set_head_pal(hair_color as i16);
+    pkt.set_head(hair_style as i16);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_make_char_with_stats_packet(
+    name: &str,
+    stats: [u8; 6],
+    slot: u8,
+    hair_style: u16,
+    hair_color: u16,
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketChMakeChar::new(packetver);
+    pkt.set_name(name_to_char24(name));
+    pkt.set_str(stats[0]);
+    pkt.set_agi(stats[1]);
+    pkt.set_vit(stats[2]);
+    pkt.set_int(stats[3]);
+    pkt.set_dex(stats[4]);
+    pkt.set_luk(stats[5]);
+    pkt.set_char_num(slot);
+    pkt.set_head_pal(hair_color as i16);
+    pkt.set_head(hair_style as i16);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_delete_char_reserve_packet(gid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketChDeleteChar3Reserved::new(packetver);
+    pkt.set_gid(gid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_delete_char_confirm_packet(gid: u32, birthdate: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketChDeleteChar3::new(packetver);
+    pkt.set_gid(gid);
+    pkt.set_birth(birthdate_to_char6(birthdate));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_delete_char_cancel_packet(gid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketChDeleteChar3Cancel::new(packetver);
+    pkt.set_gid(gid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_request_move_packet(dest_x: u16, dest_y: u16, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzRequestMove::new(packetver);
     pkt.set_dest(crate::helpers::encode_pos(dest_x, dest_y, 0));
@@ -67,6 +128,33 @@ pub fn build_action_request_packet(target_gid: u32, action: u8, packetver: u32) 
     pkt.set_action(action);
     pkt.fill_raw();
     pkt.raw
+}
+
+pub fn build_change_direction_packet(head_dir: u8, dir: u8, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzChangeDirection::new(packetver);
+    if packetver >= 20120307 {
+        // Generated new() emits header 0x9008; rathena expects 0x0890 at this packetver.
+        pkt.set_packet_id(0x0890);
+    }
+    pkt.set_head_dir(head_dir as i16);
+    pkt.set_dir(dir);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // rathena @20120307: parseable_packet(0x0890, 5, clif_parse_ChangeDir, 2, 4)
+    #[test]
+    fn change_direction_wire_layout() {
+        let raw = build_change_direction_packet(2, 5, 20120307);
+        assert_eq!(raw.len(), 5);
+        assert_eq!(u16::from_le_bytes([raw[0], raw[1]]), 0x0890);
+        assert_eq!(i16::from_le_bytes([raw[2], raw[3]]), 2);
+        assert_eq!(raw[4], 5);
+    }
 }
 
 pub fn build_zone_enter_packet(session: &Session) -> Vec<u8> {
@@ -399,6 +487,19 @@ fn name_to_char24(name: &str) -> [char; 24] {
     let mut buf = [0 as char; 24];
     for (i, c) in name.chars().take(23).enumerate() {
         buf[i] = c;
+    }
+    buf
+}
+
+/// Birthdate as the 6 raw digits (YYMMDD) the server compares against; non-digits
+/// are dropped and the century is trimmed, so "2001-05-14", "20010514" and
+/// "010514" all send "010514".
+fn birthdate_to_char6(birthdate: &str) -> [char; 6] {
+    let digits: Vec<char> = birthdate.chars().filter(|c| c.is_ascii_digit()).collect();
+    let start = digits.len().saturating_sub(6);
+    let mut buf = [0 as char; 6];
+    for (i, c) in digits[start..].iter().enumerate() {
+        buf[i] = *c;
     }
     buf
 }

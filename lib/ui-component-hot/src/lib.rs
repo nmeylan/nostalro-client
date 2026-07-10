@@ -20,6 +20,7 @@ use ragnarok_game::npc_shop::{NpcShopMode, ShopBuyItem, ShopSellItem};
 use ragnarok_game::party::{Party, PartyMember};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
+use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::LoginWindow;
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
@@ -74,7 +75,8 @@ const GAME_COMPONENTS: &[&str] = &[
     "status",
     "party",
 ];
-const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select"];
+const ACCOUNT_COMPONENTS: &[&str] =
+    &["login", "server_list", "char_select", "char_create"];
 const SHOP_COMPONENTS: &[&str] =
     &["cart", "vending_setup", "my_shop", "vending_buy", "vending_board"];
 
@@ -142,6 +144,9 @@ enum State {
     },
     CharSelect {
         win: CharSelectWindow,
+    },
+    CharCreate {
+        win: CharCreateWindow,
     },
     ItemInfo {
         win: ItemInfoWindow,
@@ -554,6 +559,7 @@ fn create_single(name: &str) -> State {
                     name: "Knight".into(),
                     class: 7,
                     base_level: 50,
+                    base_exp: 1145316,
                     job_level: 42,
                     map: "prontera".into(),
                     slot: 0,
@@ -583,6 +589,7 @@ fn create_single(name: &str) -> State {
                     name: "Wizard".into(),
                     class: 9,
                     base_level: 45,
+                    base_exp: 823400,
                     job_level: 38,
                     map: "geffen".into(),
                     slot: 1,
@@ -612,6 +619,7 @@ fn create_single(name: &str) -> State {
                     name: "Hunter".into(),
                     class: 11,
                     base_level: 60,
+                    base_exp: 1502990,
                     job_level: 50,
                     map: "payon".into(),
                     slot: 2,
@@ -640,6 +648,11 @@ fn create_single(name: &str) -> State {
             State::CharSelect {
                 win: CharSelectWindow::new(characters),
             }
+        }
+        "char_create" => {
+            let mut win = CharCreateWindow::new(0, true);
+            win.show_skin_toggle = true;
+            State::CharCreate { win }
         }
         "item_info" => {
             let mut slot_entries = HashMap::new();
@@ -1328,6 +1341,10 @@ fn grf_init_single(
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
+        State::CharCreate { win } => {
+            win.has_grf_textures = true;
+            win.set_texture_sizes(size_fn);
+        }
         State::ItemInfo {
             win, data, item, ..
         } => {
@@ -1578,6 +1595,25 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             menu.build(ui, character, data);
         }
         State::CharSelect { win } => {
+            // No char-server here, so stand in for the reserve/confirm acks to make
+            // the delete dialog exercisable in the viewer.
+            for event in win.build(ui) {
+                match event {
+                    GameEvent::RequestDeleteCharacterReserve { gid } => {
+                        win.open_delete_dialog(gid, 0);
+                    }
+                    GameEvent::RequestDeleteCharacterConfirm { gid, .. } => {
+                        win.remove_character(gid);
+                        win.close_delete_dialog();
+                    }
+                    GameEvent::RequestDeleteCharacterCancel { .. } => {
+                        win.close_delete_dialog();
+                    }
+                    _ => {}
+                }
+            }
+        }
+        State::CharCreate { win } => {
             win.build(ui);
         }
         State::ItemInfo {

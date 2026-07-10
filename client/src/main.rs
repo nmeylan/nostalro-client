@@ -41,7 +41,11 @@ use ragnarok_game::{map_loader, sprite_loader};
 use ragnarok_network::{
     KeepaliveMode, NetworkCommand, build_action_request_packet, build_card_composition_list_packet,
     build_card_composition_packet, build_cartoff_packet, build_change_cart_packet,
+    build_change_direction_packet,
     build_char_enter_packet, build_chat_packet, build_contact_npc_packet, build_drop_item_packet,
+    build_delete_char_cancel_packet, build_delete_char_confirm_packet,
+    build_delete_char_reserve_packet,
+    build_make_char_packet, build_make_char_with_stats_packet,
     build_equip_item_packet, build_login_packet, build_move_item_body_to_cart_packet,
     build_move_item_cart_to_body_packet, build_move_item_cart_to_store_packet,
     build_move_item_store_to_cart_packet, build_npc_close_packet, build_npc_deal_type_packet,
@@ -68,6 +72,9 @@ use ragnarok_renderer::{
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::state::StateCache;
+use ragnarok_formats::act::SpriteAnimationState;
+use ragnarok_ui_component::Window as _;
+use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::{LoginFocus, LoginWindow};
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
@@ -135,6 +142,9 @@ struct App {
     login_window: LoginWindow,
     server_list_window: Option<ServerListWindow>,
     char_select_window: Option<CharSelectWindow>,
+    char_create_window: Option<CharCreateWindow>,
+    account_anims: HashMap<u32, SpriteAnimationState>,
+    char_create_built_appearance: Option<(u16, u16)>,
     channel: GameChannel,
     game: GameState,
     sound: SoundManager,
@@ -179,6 +189,9 @@ impl App {
             login_window: LoginWindow::new(),
             server_list_window: None,
             char_select_window: None,
+            char_create_window: None,
+            account_anims: HashMap::new(),
+            char_create_built_appearance: None,
             channel: GameChannel::new(),
             game,
             sound,
@@ -470,12 +483,136 @@ impl App {
                             .find(|c| c.slot == slot as i8)
                             .cloned();
                     }
+                    if self.config.last_char_slot != Some(slot) {
+                        self.config.last_char_slot = Some(slot);
+                        self.config.save("config.json");
+                    }
                     self.channel
                         .send_packet(build_select_char_packet(slot, self.config.packetver));
+                }
+                GameEvent::RequestCreateCharacter { slot } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    let with_stats = self.config.packetver < 20120307;
+                    let mut win = CharCreateWindow::new(slot, with_stats);
+                    if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
+                        let loaded = renderer.preload_textures(&win.layout_texture_paths(), grf);
+                        win.set_has_grf_textures(loaded);
+                        if with_stats {
+                            let _ = renderer.preload_textures(
+                                &CharCreateWindow::stat_arrow_texture_paths(),
+                                grf,
+                            );
+                        }
+                    }
+                    self.char_create_window = Some(win);
+                    self.char_create_built_appearance = None;
+                    self.game.app_state = AppState::CharacterCreate;
+                }
+                GameEvent::RequestMakeCharacter {
+                    name,
+                    slot,
+                    hair_style,
+                    hair_color,
+                    stats,
+                } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    let packet = if self.config.packetver >= 20120307 {
+                        build_make_char_packet(
+                            &name,
+                            slot,
+                            hair_style,
+                            hair_color,
+                            self.config.packetver,
+                        )
+                    } else {
+                        build_make_char_with_stats_packet(
+                            &name,
+                            stats,
+                            slot,
+                            hair_style,
+                            hair_color,
+                            self.config.packetver,
+                        )
+                    };
+                    self.channel.send_packet(packet);
+                }
+                GameEvent::CharacterCreated { character } => {
+                    self.handle_character_created(character);
+                }
+                GameEvent::CharacterCreateFailed { error_code } => {
+                    if let Some(win) = &mut self.char_create_window {
+                        win.error_message =
+                            Some(crate::events::char_create_error_message(error_code).to_string());
+                    }
+                }
+                GameEvent::CancelCreateCharacter => {
+                    self.char_create_window = None;
+                    self.game.app_state = AppState::CharacterSelect;
+                }
+                GameEvent::RequestDeleteCharacterReserve { gid } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.channel
+                        .send_packet(build_delete_char_reserve_packet(gid, self.config.packetver));
+                }
+                GameEvent::RequestDeleteCharacterConfirm { gid, birthdate } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.channel.send_packet(build_delete_char_confirm_packet(
+                        gid,
+                        &birthdate,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestDeleteCharacterCancel { gid } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.channel
+                        .send_packet(build_delete_char_cancel_packet(gid, self.config.packetver));
+                }
+                GameEvent::CharacterDeleteReserved {
+                    gid,
+                    result,
+                    delete_reserved_date,
+                } => {
+                    if let Some(win) = &mut self.char_select_window {
+                        // result 1 = newly queued, 0 = already queued: both mean the
+                        // character is awaiting the birthdate confirmation.
+                        if result == 0 || result == 1 {
+                            win.open_delete_dialog(gid, delete_reserved_date);
+                        } else {
+                            win.set_delete_status(
+                                crate::events::char_delete_reserve_error(result).to_string(),
+                            );
+                        }
+                    }
+                }
+                GameEvent::CharacterDeleted { gid, result } => {
+                    if let Some(win) = &mut self.char_select_window {
+                        if result == 1 {
+                            win.remove_character(gid);
+                            win.close_delete_dialog();
+                            self.account_anims.remove(&gid);
+                        } else {
+                            win.set_delete_dialog_error(
+                                crate::events::char_delete_confirm_error(result).to_string(),
+                            );
+                        }
+                    }
+                }
+                GameEvent::CharacterDeleteCancelled { gid: _, result } => {
+                    if let Some(win) = &mut self.char_select_window {
+                        if result == 1 {
+                            win.close_delete_dialog();
+                        } else {
+                            win.set_delete_dialog_error(
+                                "Failed to cancel deletion.".to_string(),
+                            );
+                        }
+                    }
                 }
                 GameEvent::BackToServerSelect => {
                     self.game.app_state = AppState::ServerSelect;
                     self.char_select_window = None;
+                    self.char_create_window = None;
+                    self.account_anims.clear();
                     self.game.system_menu.open = false;
                     self.channel.send_cmd(NetworkCommand::Disconnect);
                 }
@@ -483,6 +620,8 @@ impl App {
                     self.game.app_state = AppState::Login;
                     self.server_list_window = None;
                     self.char_select_window = None;
+                    self.char_create_window = None;
+                    self.account_anims.clear();
                     self.game.login_session = None;
                     self.game.system_menu.open = false;
                     self.channel.send_cmd(NetworkCommand::Disconnect);
@@ -1054,7 +1193,26 @@ impl App {
             }
             "/doridori" => {
                 if let Some(entity) = self.game.entities.player_mut() {
-                    entity.head_dir = if entity.head_dir == 0 { 1 } else { 0 };
+                    entity.head_dir = if entity.head_dir == 1 { 2 } else { 1 };
+                    let (head_dir, dir) = (entity.head_dir, entity.direction);
+                    self.channel.send_packet(build_change_direction_packet(
+                        head_dir,
+                        dir,
+                        self.config.packetver,
+                    ));
+                }
+            }
+            "/bingbing" | "/bangbang" => {
+                if let Some(entity) = self.game.entities.player_mut() {
+                    let step = if cmd == "/bingbing" { 1 } else { 7 };
+                    entity.direction = (entity.direction + step) % 8;
+                    entity.head_dir = 0;
+                    let (head_dir, dir) = (entity.head_dir, entity.direction);
+                    self.channel.send_packet(build_change_direction_packet(
+                        head_dir,
+                        dir,
+                        self.config.packetver,
+                    ));
                 }
             }
             "/noshift" | "/ns" => {
@@ -1174,6 +1332,29 @@ impl App {
                         &self.saved_window_positions,
                     );
                     let events = char_win.build(&mut ui);
+                    let any_hovered = ui.any_hovered;
+                    let any_interactive = ui.any_interactive_hovered;
+                    (ui.draw_calls, events, any_hovered, any_interactive)
+                } else {
+                    (Vec::new(), Vec::new(), false, false)
+                }
+            }
+            AppState::CharacterCreate => {
+                if let (Some(ui_ctx), Some(renderer), Some(create_win)) = (
+                    &self.ui_context,
+                    &self.renderer,
+                    &mut self.char_create_window,
+                ) {
+                    let mut ui = UiFrame::new(
+                        ui_ctx,
+                        &renderer.font_atlas,
+                        &mut self.ui_state_cache,
+                        elapsed,
+                        create_win.has_grf_textures,
+                        None,
+                        &self.saved_window_positions,
+                    );
+                    let events = create_win.build(&mut ui);
                     let any_hovered = ui.any_hovered;
                     let any_interactive = ui.any_interactive_hovered;
                     (ui.draw_calls, events, any_hovered, any_interactive)
@@ -1324,12 +1505,21 @@ impl App {
                             )
                         }
                     };
+                    let flat_depth_gradient = input::entity_ground_gradient(
+                        entity.movement.position(),
+                        self.game.gat.as_ref(),
+                        coords,
+                        &renderer.camera,
+                        renderer.device.surface_config.width as f32 / renderer.dpi_scale,
+                        renderer.device.surface_config.height as f32 / renderer.dpi_scale,
+                    );
                     render_list.push(RenderEntry {
                         kind: RenderEntryKind::Entity,
                         id: entity.id,
                         screen_anchor,
                         depth,
                         depth_gradient,
+                        flat_depth_gradient,
                         camera_dir,
                         sprite_scale,
                         pick_bounds,
@@ -1377,6 +1567,7 @@ impl App {
                         screen_anchor,
                         depth,
                         depth_gradient,
+                        flat_depth_gradient: depth_gradient,
                         camera_dir,
                         sprite_scale,
                         pick_bounds: [0.0; 4],
@@ -1409,6 +1600,7 @@ impl App {
                         screen_anchor,
                         depth,
                         depth_gradient,
+                        flat_depth_gradient: depth_gradient,
                         camera_dir,
                         sprite_scale,
                         pick_bounds: [0.0; 4],
@@ -1450,6 +1642,7 @@ impl App {
                         screen_anchor,
                         depth,
                         depth_gradient,
+                        flat_depth_gradient: depth_gradient,
                         camera_dir: 0,
                         sprite_scale,
                         pick_bounds,

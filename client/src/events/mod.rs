@@ -24,6 +24,35 @@ use winit::event_loop::ActiveEventLoop;
 
 const BLADE_STOP_GRIP_FRAME: usize = 4;
 
+pub(crate) fn char_create_error_message(error_code: u8) -> &'static str {
+    match error_code {
+        0x00 => "That name already exists.",
+        0x01 => "You are not eligible to create a character.",
+        0x02 => "Character creation denied.",
+        0x03 => "Character creation is currently disabled.",
+        _ => "Character creation failed.",
+    }
+}
+
+pub(crate) fn char_delete_reserve_error(result: u32) -> &'static str {
+    match result {
+        3 => "A database error occurred.",
+        4 => "Leave your guild to delete this character.",
+        5 => "Leave your party to delete this character.",
+        _ => "Unable to schedule deletion.",
+    }
+}
+
+pub(crate) fn char_delete_confirm_error(result: u32) -> &'static str {
+    match result {
+        2 => "This character cannot be deleted.",
+        3 => "A database error occurred.",
+        4 => "The deletion delay has not elapsed yet.",
+        5 => "The birthdate does not match.",
+        _ => "Character deletion failed.",
+    }
+}
+
 pub(crate) fn preload_window<W: UiWindow>(
     window: &mut W,
     renderer: &mut Renderer,

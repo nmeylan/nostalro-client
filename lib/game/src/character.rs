@@ -467,6 +467,7 @@ mod tests {
             name: "Knight".into(),
             class: 7,
             base_level: 50,
+            base_exp: 0,
             job_level: 42,
             map: "prontera".into(),
             slot: 0,

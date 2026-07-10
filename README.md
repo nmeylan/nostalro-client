@@ -95,7 +95,14 @@ This project leverage AI to allow a faster development, as my time is very limit
 # Progress
 see [todo](docs/TODO.md)
 
-# Effect
+# Resources
+Without below resources, my memories alone where not enough to implement visual parity with original game
+
 ALL effects have been implemented this would not have been possible without following resources:
 - **Waken** youtube channel https://www.youtube.com/@wakenragnadev6265
 - https://casual-ragnarok.github.io/ro-effects/
+
+Various gameplay/effect/ui rendering
+- https://www.youtube.com/@lordknightnecri1603 <- effects
+- https://www.youtube.com/watch?v=-XCxB3hem-A&list=PLbEyWK1BqG7oYWWnTg9ENpIB_XESvml8P&index=28 <- effects
+- https://www.youtube.com/watch?v=P__GwtWu6pQ <- marionette dolls

@@ -1,5 +1,7 @@
 use crate::{App, ClipData};
+use crate::game_updates::CREATE_PREVIEW_GID;
 use ragnarok_game::ailment;
+use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
 use ragnarok_game::effect::{BlendKind, EffectPrimitiveDraw};
 use ragnarok_game::entity::EntityState;
@@ -34,6 +36,7 @@ impl App {
         let mut silhouette_batches: Vec<SpriteBatch> = Vec::new();
         let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
 
+        // TODO refactor
         if !self.game.freeze_shatters.is_empty() {
             let anim = self
                 .game
@@ -116,12 +119,10 @@ impl App {
                             );
                             sprite_batches.append(&mut shadow);
 
-                            // Flat-depth body silhouette (gradient [0,0]) so effects
-                            // occlude against the body at its feet depth. A dying
-                            // monster's death-pop frame is large and would stamp depth
-                            // over a ground effect it stands in (e.g. a fire pool),
-                            // erasing it; the dead body never needs to occlude an
-                            // effect, so skip its silhouette.
+                            // Gradient [0,0] gives the whole sprite one depth: its
+                            // feet. So effects occlude against the body at foot level.
+                            // Skip for the dead: their big death-pop frame would stamp
+                            // that depth over a ground effect they lie in and erase it.
                             if entity.state != EntityState::Dead {
                                 let mut sil = sprite.build_batches(
                                     &entity.animation,
@@ -136,6 +137,13 @@ impl App {
                             }
                         }
 
+                        // A living sprite stands upright (depth varies head-to-feet).
+                        // A corpse lies flat, so its depth follows the ground plane.
+                        let body_gradient = if entity.state == EntityState::Dead {
+                            entry.flat_depth_gradient
+                        } else {
+                            entry.depth_gradient
+                        };
                         let mut batches = ragnarok_renderer::compose_actor_batches(
                             sprite,
                             &entity.animation,
@@ -144,7 +152,7 @@ impl App {
                             entry.screen_anchor,
                             entry.depth,
                             entry.sprite_scale,
-                            entry.depth_gradient,
+                            body_gradient,
                             &body_channels,
                         );
 
@@ -468,7 +476,7 @@ impl App {
                             self.effect_holder.body_channels_for_entity(entry.id);
                         body_channels.alpha *= alpha;
 
-                        // Flat feet-depth silhouette so effects (e.g. the level
+                        // Flat feet-depth silhouette so effects (e.g. the level 99
                         // aura) occlude against the cart instead of bleeding
                         // through it, matching the player body.
                         if entity.alpha() >= 1.0 && render == HiddenRender::Visible {
@@ -635,6 +643,79 @@ impl App {
             }
         }
 
+        let mut account_calls: Vec<UiDrawCall> = Vec::new();
+        match self.game.app_state {
+            AppState::CharacterSelect => {
+                if let Some(win) = &self.char_select_window {
+                    for view in win.visible_slot_views() {
+                        let Some(ch) = win.characters.get(view.char_index) else {
+                            continue;
+                        };
+                        let Some(sprite) = self.game.sprites.get(&ch.gid) else {
+                            continue;
+                        };
+                        let Some(anim) = self.account_anims.get(&ch.gid) else {
+                            continue;
+                        };
+                        let batches =
+                            sprite.build_batches(anim, None, 0, view.anchor, 0.0, 1.0, [0.0, 0.0]);
+                        for batch in batches {
+                            let idx = inline_textures.len();
+                            inline_textures.push(batch.texture);
+                            account_calls.push(UiDrawCall {
+                                vertices: batch
+                                    .vertices
+                                    .iter()
+                                    .map(|sv| UiVertex {
+                                        position: [sv.position[0], sv.position[1]],
+                                        tex_coord: sv.tex_coord,
+                                        color: sv.color,
+                                    })
+                                    .collect(),
+                                indices: batch.indices,
+                                texture: UiTextureRef::Inline(idx),
+                            });
+                        }
+                    }
+                }
+            }
+            AppState::CharacterCreate => {
+                if let (Some(win), Some(sprite), Some(anim)) = (
+                    &self.char_create_window,
+                    self.game.sprites.get(&CREATE_PREVIEW_GID),
+                    self.account_anims.get(&CREATE_PREVIEW_GID),
+                ) {
+                    let batches = sprite.build_batches(
+                        anim,
+                        None,
+                        0,
+                        win.preview_anchor(),
+                        0.0,
+                        1.0,
+                        [0.0, 0.0],
+                    );
+                    for batch in batches {
+                        let idx = inline_textures.len();
+                        inline_textures.push(batch.texture);
+                        account_calls.push(UiDrawCall {
+                            vertices: batch
+                                .vertices
+                                .iter()
+                                .map(|sv| UiVertex {
+                                    position: [sv.position[0], sv.position[1]],
+                                    tex_coord: sv.tex_coord,
+                                    color: sv.color,
+                                })
+                                .collect(),
+                            indices: batch.indices,
+                            texture: UiTextureRef::Inline(idx),
+                        });
+                    }
+                }
+            }
+            _ => {}
+        }
+
         {
             use ragnarok_game::damage_number::{
                 DamageNumberRenderEntry, build_damage_number_quads,
@@ -738,6 +819,7 @@ impl App {
             }
         }
 
+        all_ui_calls.extend(account_calls);
         all_ui_calls.extend(skill_level_calls);
 
         if let Some(renderer) = &mut self.renderer {

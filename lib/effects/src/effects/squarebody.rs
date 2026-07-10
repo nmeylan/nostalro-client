@@ -5,7 +5,7 @@
 //!   Active frame 17..=50 (`BodyTime = frame − 17`): `size` eases
 //!   `1.0 → 0.4` over `BodyTime` 0..=3 then holds `≈0.4`; the top is pushed
 //!   down by `(btm−top)·(1−size)`, i.e. a vertical scale of `size` about the
-//!   feet — our [`BodyVertical::squeeze`]. `takingoff.wav` at frame 5.
+//!   feet — our [`BodyVertical::squeeze`]. `t_벽튕김.wav` at frame 5.
 //! * **Kickedbody** — the body is punted up then settles. Active
 //!   `frame ≥ 30` (`BodyTime = frame − 30`): `size = sin(BodyTime·5°)·0.3`
 //!   (peaks `BodyTime 18`), holds to 20, falls to 0 by 23; both top
@@ -43,7 +43,7 @@ const PRESSED: Config = Config {
     kind: Kind::Pressed,
     start_frame: 17.0,
     total_frames: 50.0,
-    sfx: &[(5.0, "effect\\takingoff.wav")],
+    sfx: &[(5.0, "effect\\t_벽튕김.wav")],
 };
 
 const KICKED: Config = Config {

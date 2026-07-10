@@ -19,15 +19,59 @@ use winit::event_loop::ActiveEventLoop;
 impl App {
     pub(super) fn handle_character_list_received(
         &mut self,
-        characters: Vec<ragnarok_game::event::CharacterInfo>,
+        mut characters: Vec<ragnarok_game::event::CharacterInfo>,
     ) {
         tracing::info!("Received {} character(s)", characters.len());
+        // Per-character sex is only sent from packetver 20141016; before that every
+        // character on the account shares the account sex.
+        let account_sex = self.game.login_session.as_ref().map(|s| s.sex).unwrap_or(0);
+        for ch in &mut characters {
+            ch.sex = account_sex;
+        }
+        self.game.sprites.clear();
+        self.account_anims.clear();
+        for ch in &characters {
+            self.load_char_select_sprite(ch);
+        }
         let mut char_win = CharSelectWindow::new(characters);
+        char_win.preselect_slot(self.config.last_char_slot);
         if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
             preload_window(&mut char_win, renderer, grf);
         }
         self.char_select_window = Some(char_win);
         self.game.app_state = AppState::CharacterSelect;
+    }
+
+    pub(crate) fn handle_character_created(
+        &mut self,
+        character: ragnarok_game::event::CharacterInfo,
+    ) {
+        tracing::info!("Character '{}' created in slot {}", character.name, character.slot);
+        self.load_char_select_sprite(&character);
+        if let Some(win) = &mut self.char_select_window {
+            win.characters.push(character);
+        }
+        self.char_create_window = None;
+        self.game.app_state = AppState::CharacterSelect;
+    }
+
+    fn load_char_select_sprite(&mut self, ch: &ragnarok_game::event::CharacterInfo) {
+        let weapon = weapon_view_id_to_type(ch.weapon);
+        self.load_player_sprite(
+            ch.gid,
+            ch.class,
+            ch.sex,
+            ch.head,
+            ch.hair_color,
+            0,
+            weapon,
+            ch.head_top,
+            ch.head_mid,
+            ch.head_bottom,
+            ch.shield,
+        );
+        self.account_anims
+            .insert(ch.gid, ragnarok_formats::act::SpriteAnimationState::new(0));
     }
 
     pub(super) fn handle_zone_server_connect_info(

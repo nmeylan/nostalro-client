@@ -54,6 +54,47 @@ pub enum GameEvent {
     RequestSelectCharacter {
         slot: u8,
     },
+    RequestCreateCharacter {
+        slot: u8,
+    },
+    RequestMakeCharacter {
+        name: String,
+        slot: u8,
+        hair_style: u16,
+        hair_color: u16,
+        /// STR, AGI, VIT, INT, DEX, LUK. Only sent for packetver < 20120307.
+        stats: [u8; 6],
+    },
+    CharacterCreated {
+        character: CharacterInfo,
+    },
+    CharacterCreateFailed {
+        error_code: u8,
+    },
+    CancelCreateCharacter,
+    RequestDeleteCharacterReserve {
+        gid: u32,
+    },
+    RequestDeleteCharacterConfirm {
+        gid: u32,
+        birthdate: String,
+    },
+    RequestDeleteCharacterCancel {
+        gid: u32,
+    },
+    CharacterDeleteReserved {
+        gid: u32,
+        result: u32,
+        delete_reserved_date: i32,
+    },
+    CharacterDeleted {
+        gid: u32,
+        result: u32,
+    },
+    CharacterDeleteCancelled {
+        gid: u32,
+        result: u32,
+    },
     RequestMove {
         x: u16,
         y: u16,
@@ -831,6 +872,7 @@ pub struct CharacterInfo {
     pub name: String,
     pub class: u16,
     pub base_level: u16,
+    pub base_exp: u32,
     pub job_level: u32,
     pub map: String,
     pub slot: i8,
@@ -890,6 +932,7 @@ impl CharacterInfo {
             name,
             class: info.class,
             base_level: info.level,
+            base_exp: info.exp,
             job_level: info.joblevel,
             map,
             slot: info.char_num,

@@ -133,7 +133,7 @@ pub const MAGICCRASHER: Params = Params {
     light_body: false,
     double_body: None,
     quake_at: Some(30.0),
-    sfx: Some((25.0, "effect\\magiccrash.wav")),
+    sfx: Some((25.0, "effect\\매직 크래쉬.wav")),
     yaw_per_frame: None,
 };
 
@@ -561,7 +561,7 @@ mod tests {
     fn flicker_glows_during_window_with_one_shot_quake_and_sfx() {
         let mut e = BodyTintEffect::new(MAGICCRASHER);
         step(&mut e, 26.0);
-        assert_eq!(e.take_sfx_request(), Some("effect\\magiccrash.wav"));
+        assert_eq!(e.take_sfx_request(), Some("effect\\매직 크래쉬.wav"));
         assert_eq!(e.take_sfx_request(), None);
         step(&mut e, 9.0);
         assert!(e.body_copies().is_some());

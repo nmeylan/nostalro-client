@@ -5,11 +5,54 @@ mod movement;
 
 use crate::App;
 use models::enums::EnumWithStringValue;
+use ragnarok_formats::act::SpriteAnimationState;
+use ragnarok_game::app_state::AppState;
 use ragnarok_game::damage_number::DamageNumber;
 use ragnarok_renderer::effect::EffectUpdateCtx;
 
+/// Reserved sprite key for the (single) character-creation preview.
+pub(crate) const CREATE_PREVIEW_GID: u32 = u32::MAX;
+
 impl App {
+    fn update_account_sprites(&mut self, _delta: f32, elapsed: f32) {
+        // Player idle is a static pose (`SpriteActionType::Idle` is not animated),
+        // so char-select slots are never ticked — advancing the idle makes the head
+        // bob against the body's per-frame anchor. Only the creation preview moves,
+        // and only by turning: its idle frame stays frozen while the direction spins.
+        if self.game.app_state != AppState::CharacterCreate {
+            return;
+        }
+        let appearance = match &self.char_create_window {
+            Some(w) => (w.hair_style, w.hair_color),
+            None => return,
+        };
+        if self.char_create_built_appearance != Some(appearance) {
+            let sex = self.game.login_session.as_ref().map(|s| s.sex).unwrap_or(0);
+            self.load_player_sprite(
+                CREATE_PREVIEW_GID,
+                0,
+                sex,
+                appearance.0,
+                appearance.1,
+                0,
+                None,
+                0,
+                0,
+                0,
+                0,
+            );
+            self.char_create_built_appearance = Some(appearance);
+            self.account_anims
+                .insert(CREATE_PREVIEW_GID, SpriteAnimationState::new(0));
+        }
+        let dir = ((elapsed / 0.5) as u32 % 8) as u8;
+        if let Some(anim) = self.account_anims.get_mut(&CREATE_PREVIEW_GID) {
+            anim.set_direction(dir);
+        }
+    }
+
     pub(crate) fn run_game_updates(&mut self, delta: f32, elapsed: f32) {
+        self.update_account_sprites(delta, elapsed);
         let now_ms = self.start_time.elapsed().as_millis() as u64;
         self.game.character.prune_expired(now_ms);
         self.update_movement(delta, elapsed);

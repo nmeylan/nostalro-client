@@ -101,5 +101,6 @@ pub fn handle_camera_zoom(camera: &mut Camera, scroll: f32) {
     camera.distance = (camera.distance - scroll * 20.0).clamp(50.0, 1500.0);
 }
 
+pub use ragnarok_renderer::sprite_projection::entity_ground_gradient;
 pub use ragnarok_renderer::sprite_projection::project_entity_screen as entity_screen_params;
 pub use ragnarok_renderer::sprite_projection::project_world_screen;

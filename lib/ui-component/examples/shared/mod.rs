@@ -352,9 +352,6 @@ impl<F: FnMut(&mut ExampleCtx)> ApplicationHandler for UiExampleApp<F> {
             WindowEvent::RedrawRequested => {
                 self.render_frame();
                 self.ui_ctx.begin_frame();
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
             }
             _ => {}
         }

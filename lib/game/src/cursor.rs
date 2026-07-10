@@ -55,6 +55,9 @@ pub struct RenderEntry {
     pub screen_anchor: [f32; 2],
     pub depth: f32,
     pub depth_gradient: [f32; 2],
+    /// Ground-lying depth gradient (sprite laid flat on the terrain) used for
+    /// dead bodies so the death frame isn't clipped by the floor.
+    pub flat_depth_gradient: [f32; 2],
     pub camera_dir: u8,
     pub sprite_scale: f32,
     /// [left, top, right, bottom] in screen pixels.
@@ -370,6 +373,7 @@ mod tests {
             screen_anchor: [cx, cy],
             depth,
             depth_gradient: [0.0, 0.0],
+            flat_depth_gradient: [0.0, 0.0],
             camera_dir: 0,
             sprite_scale: scale,
             pick_bounds: bounds,
@@ -574,6 +578,7 @@ mod tests {
             screen_anchor: [400.0, 350.0],
             depth: 0.5,
             depth_gradient: [0.0, 0.0],
+            flat_depth_gradient: [0.0, 0.0],
             camera_dir: 0,
             sprite_scale: 1.0,
             pick_bounds: [385.0, 335.0, 415.0, 365.0],

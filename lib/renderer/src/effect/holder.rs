@@ -1337,7 +1337,7 @@ mod tests {
             handle: EffectHandle(1),
             effect_id: EffectId::Portal4,
             payload: HeldPayload::Custom(Box::new(SfxFake {
-                pending: Some("effect\\windwalk.wav"),
+                pending: Some("effect\\윈드워크.wav"),
             })),
             attach: Attach::Entity(7),
             age: 0.0,
@@ -1352,7 +1352,7 @@ mod tests {
         });
         assert_eq!(
             h.drain_sfx(),
-            vec![("effect\\windwalk.wav".to_string(), [10.0, 0.0, 5.0])],
+            vec![("effect\\윈드워크.wav".to_string(), [10.0, 0.0, 5.0])],
         );
     }
 
