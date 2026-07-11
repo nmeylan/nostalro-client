@@ -1,6 +1,8 @@
 use super::item_info_window::ITEM_INFO_WINDOW_ID;
 use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
+use crate::helper::colors::draw_price_right;
 use crate::helper::dialog_container::DialogContainer;
+use crate::helper::format::format_thousands;
 use crate::helper::window_chrome::{
     FOOTER_TEX, ITEMWIN_MID_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container,
     draw_footer, draw_titlebar, text_color,
@@ -346,13 +348,15 @@ impl NpcShop {
             let text_y = ry + row_h - (8.0);
             ui.text(name_x, text_y, name, text_color);
 
-            let price = self.shop.item_price(item_idx);
-            let price_str = format_zeny(price);
-            let z_x = win.x + win_w - pad_right - scrollbar_w - (10.0);
-            let price_w = ui.atlas.measure_text(&price_str);
-            let price_x = z_x - (2.0) - price_w;
-            ui.text(price_x, text_y, &price_str, text_color);
-            ui.text(z_x, text_y, "Z", text_color);
+            let price_right = win.x + win_w - pad_right - scrollbar_w - (8.0);
+            draw_shop_price(
+                ui,
+                price_right,
+                text_y,
+                self.shop.item_base_price(item_idx),
+                self.shop.item_price(item_idx),
+                text_color,
+            );
 
             if response.clicked() {
                 self.shop.selected_index = Some(item_idx);
@@ -587,7 +591,7 @@ impl NpcShop {
         draw_footer(ui, win.x, footer_y, win_w, footer_h, grf);
 
         let total = self.shop.cart_total();
-        let total_label = format!("Total : {} Zeny", format_zeny(total as i32));
+        let total_label = format!("Total : {} Zeny", format_thousands(total));
         ui.text(
             win.x + (10.0),
             footer_y + footer_h - (10.0),
@@ -659,7 +663,7 @@ impl NpcShop {
     fn open_qty_popup(&mut self, item_idx: usize) {
         let name = self.shop.item_name(item_idx);
         let price = self.shop.item_price(item_idx);
-        let label = format!("{} ({}z)", name, format_zeny(price));
+        let label = format!("{} ({}z)", name, format_thousands(price as i64));
         let mut dialog = NumberInputDialog::new(
             NumberInputConfig {
                 label: Some(label),
@@ -701,6 +705,28 @@ impl NpcShop {
         self.output_scroll_offset = 0;
         self.input_visible_rows = INPUT_DEFAULT_ROWS;
         self.resize_start_rows = None;
+    }
+}
+
+/// Right-aligned shop price. When `base` differs from `final_` (Discount/Overcharge
+/// skill in play) it renders `base -> final_`, the base in `muted` and the final in the
+/// digit-bucket price color.
+fn draw_shop_price(
+    ui: &mut UiFrame,
+    right_x: f32,
+    y: f32,
+    base: i32,
+    final_: i32,
+    muted: [f32; 4],
+) {
+    let final_str = format!("{} Z", format_thousands(final_ as i64));
+    if base != final_ {
+        let base_str = format!("{} -> {}", format_thousands(base as i64), final_str);
+        let base_w = ui.atlas.measure_text(&base_str);
+        ui.text(right_x - base_w, y, &base_str, muted);
+    } else {
+        let x = right_x - ui.atlas.measure_text(&final_str);
+        ui.text(x, y, &final_str, muted);
     }
 }
 
@@ -871,12 +897,4 @@ mod tests {
         )));
     }
 
-    #[test]
-    fn format_zeny_with_commas() {
-        assert_eq!(format_zeny(0), "0");
-        assert_eq!(format_zeny(999), "999");
-        assert_eq!(format_zeny(1000), "1,000");
-        assert_eq!(format_zeny(1234567), "1,234,567");
-        assert_eq!(format_zeny(-500), "-500");
-    }
 }

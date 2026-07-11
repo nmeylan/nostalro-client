@@ -174,6 +174,16 @@ impl NpcShopData {
         }
     }
 
+    /// Undiscounted/base price. `item_price` returns the discount/overcharge-adjusted
+    /// value; the two differ only when the merchant has the relevant skill.
+    pub fn item_base_price(&self, index: usize) -> i32 {
+        match self.mode {
+            Some(NpcShopMode::Buy) => self.buy_items.get(index).map(|i| i.price).unwrap_or(0),
+            Some(NpcShopMode::Sell) => self.sell_items.get(index).map(|i| i.price).unwrap_or(0),
+            None => 0,
+        }
+    }
+
     pub fn item_price(&self, index: usize) -> i32 {
         match self.mode {
             Some(NpcShopMode::Buy) => self
@@ -437,6 +447,25 @@ mod tests {
         shop.close();
         assert!(!shop.is_open());
         assert!(shop.cart.is_empty());
+    }
+
+    #[test]
+    fn base_price_differs_from_adjusted_when_skill_applies() {
+        let mut shop = NpcShopData::new();
+        shop.open_buy(
+            100,
+            vec![ShopBuyItem {
+                item: make_item(501, "Red Potion"),
+                price: 50,
+                discount_price: 43,
+            }],
+        );
+        assert_eq!(shop.item_base_price(0), 50);
+        assert_eq!(shop.item_price(0), 43);
+
+        shop.open_sell(200, sample_sell_items());
+        assert_eq!(shop.item_base_price(1), 5000);
+        assert_eq!(shop.item_price(1), 5500);
     }
 
     #[test]

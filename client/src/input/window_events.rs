@@ -56,8 +56,13 @@ impl App {
                     } else {
                         self.input.last_mouse_pos = None;
                         if !self.input.right_dragged && !self.input.ui_hovered {
-                            if self.input.alt_pressed && self.has_homunculus() {
-                                self.issue_owner_command(false, self.input.right_press_target);
+                            if self.input.alt_pressed
+                                && (self.has_homunculus() || self.has_mercenary())
+                            {
+                                self.issue_owner_command(
+                                    self.has_mercenary(),
+                                    self.input.right_press_target,
+                                );
                             } else if !self.open_companion_context_menu(self.input.right_press_target)
                             {
                                 self.open_entity_context_menu(self.input.right_press_entity);
@@ -73,8 +78,6 @@ impl App {
                     if pressed {
                         if self.input.ui_hovered {
                             self.input.ui_dragging = true;
-                        } else if self.input.alt_pressed && self.has_mercenary() {
-                            self.issue_owner_command(true, self.game.hovered_entity_id);
                         } else {
                             self.handle_left_click();
                             self.input.walk_packet_cooldown = 0.5;

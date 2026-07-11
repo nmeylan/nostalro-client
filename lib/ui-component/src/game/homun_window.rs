@@ -48,7 +48,7 @@ const CELL_H: f32 = 21.0;
 const BAR_H: f32 = 11.0;
 const BASELINE: f32 = 10.0;
 
-const NOTE_COLOR: [f32; 4] = [0.85, 0.25, 0.25, 1.0];
+const NOTE_COLOR: [f32; 4] = crate::helper::colors::RED;
 
 pub struct HomunWindow {
     pub has_grf_textures: bool,
@@ -115,7 +115,7 @@ impl HomunWindow {
         ui.interact(HOMUN_WINDOW_ID, Rect::new(x, y, WIN_W, WIN_H));
 
         draw_titlebar(ui, x, y, WIN_W, TITLE_H, grf);
-        ui.text(x + 8.0, y + 13.0, "Homunculus Info", tc);
+        ui.text(x + 16.0, y + 13.0, "Homunculus Info", tc);
 
         let sys_w = 11.0;
         let close_rect = Rect::new(x + WIN_W - 3.0 - sys_w, y + 3.0, sys_w, sys_w);
@@ -212,7 +212,9 @@ impl HomunWindow {
         if ui.button(DEL_BTN_ID, del_rect, &DEL_BTN, "del").clicked() {
             events.push(GameEvent::RequestHomunMenu { command: 2 });
         }
-        ui.button(SKILL_BTN_ID, skill_rect, &SKILL_BTN, "Skill");
+        if ui.button(SKILL_BTN_ID, skill_rect, &SKILL_BTN, "Skill").clicked() {
+            events.push(GameEvent::ToggleHomunSkillWindow);
+        }
         ry += 24.0;
 
         ry = bar(
@@ -259,7 +261,7 @@ impl HomunWindow {
             texture: TextureRef::White,
         });
         if self.self_feeding {
-            let (v, i) = draw::quad_vertices(cb_x + 3.0, ry + 3.0, cb_size - 6.0, cb_size - 6.0, [0.1, 0.5, 0.1, 1.0]);
+            let (v, i) = draw::quad_vertices(cb_x + 3.0, ry + 3.0, cb_size - 6.0, cb_size - 6.0, crate::helper::colors::GREEN);
             ui.draw_calls.push(DrawCall {
                 vertices: v.to_vec(),
                 indices: i.to_vec(),
@@ -275,7 +277,7 @@ impl HomunWindow {
         ui.text(rx, ry + BASELINE, &format!("Intimacy {}", intimacy_label(homun.intimacy)), tc);
 
         // Red note, placed below the left stat column.
-        let note_y = (y + TITLE_H + 2.0 + 8.0 * CELL_H + 4.0).max(y + ry + 4.0);
+        let note_y = (y + TITLE_H + 2.0 + 8.0 * CELL_H + 4.0);
         ui.text(x + PAD, note_y + BASELINE, "Homunculus get", NOTE_COLOR);
         ui.text(x + PAD, note_y + BASELINE + 13.0, "10% of EXP from player.", NOTE_COLOR);
 

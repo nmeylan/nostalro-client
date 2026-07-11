@@ -16,6 +16,7 @@ use ragnarok_game::effects::AmbientEffectScheduler;
 use ragnarok_game::entity::EntityType;
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
+use ragnarok_game::skill::SkillTargetType;
 use ragnarok_game::floor_item::FloorItem;
 use ragnarok_game::companion::{HomunculusState, MercenaryState};
 use ragnarok_game::map_coordinates::MapCoordinates;
@@ -37,6 +38,7 @@ use ragnarok_ui_component::game::confirm_dialog::{ConfirmDialog, ConfirmResult};
 use ragnarok_ui_component::game::context_menu::ContextMenu;
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
+use ragnarok_ui_component::game::homun_skill_window::{HOMUN_SKILL_WINDOW_ID, HomunSkillWindow};
 use ragnarok_ui_component::game::homun_window::{HOMUN_WINDOW_ID, HomunWindow};
 use ragnarok_ui_component::game::mercenary_skill_window::{
     MERCENARY_SKILL_WINDOW_ID, MercenarySkillWindow,
@@ -181,6 +183,7 @@ pub struct GameState {
     pub homunculus_window: HomunWindow,
     pub mercenary_window: MercenaryWindow,
     pub mercenary_skill_window: MercenarySkillWindow,
+    pub homun_skill_window: HomunSkillWindow,
     pub context_menu: ContextMenu,
     pub pending_party_invite: Option<u32>,
     pub party_invite_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
@@ -225,6 +228,7 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     HOMUN_WINDOW_ID,
     MERCENARY_WINDOW_ID,
     MERCENARY_SKILL_WINDOW_ID,
+    HOMUN_SKILL_WINDOW_ID,
     BOOK_WINDOW_ID,
     SOUND_OPTIONS_WINDOW_ID,
 ];
@@ -253,6 +257,13 @@ impl GameState {
         }
 
         self.hotkey_bar.chat_is_active = self.chat_window.is_active();
+        self.hotkey_bar.companion_skills.clear();
+        if let Some(m) = &self.mercenary {
+            self.hotkey_bar.companion_skills.extend(m.skills.iter().cloned());
+        }
+        if let Some(h) = &self.homunculus {
+            self.hotkey_bar.companion_skills.extend(h.skills.iter().cloned());
+        }
         events.extend(
             self.hotkey_bar
                 .build(ui, &mut self.character, &self.data_table),
@@ -606,6 +617,9 @@ impl GameState {
             MERCENARY_SKILL_WINDOW_ID => {
                 events.extend(self.mercenary_skill_window.build(ui, self.mercenary.as_ref()));
             }
+            HOMUN_SKILL_WINDOW_ID => {
+                events.extend(self.homun_skill_window.build(ui, self.homunculus.as_ref()));
+            }
             BOOK_WINDOW_ID => {
                 events.extend(
                     self.book_window
@@ -620,6 +634,28 @@ impl GameState {
             }
             _ => {}
         }
+    }
+
+    /// Resolves a skill's cast metadata `(target type, attack range)` from the
+    /// player's skills first, then the mercenary's, then the homunculus'.
+    /// Companion skill IDs live in their own ranges, so the lookup order is
+    /// unambiguous. The cast packet is identical for all three; the server
+    /// attributes companion-range IDs to the companion.
+    pub fn resolve_cast_skill(&self, skill_id: u16) -> Option<(SkillTargetType, i16)> {
+        if let Some(s) = self.character.skills.get_skill(skill_id) {
+            return Some((s.skill_target_type, s.attack_range));
+        }
+        if let Some(m) = &self.mercenary
+            && let Some(s) = m.skills.iter().find(|s| s.id == skill_id)
+        {
+            return Some((s.skill_target_type, s.attack_range));
+        }
+        if let Some(h) = &self.homunculus
+            && let Some(s) = h.skills.iter().find(|s| s.id == skill_id)
+        {
+            return Some((s.skill_target_type, s.attack_range));
+        }
+        None
     }
 
     pub fn new() -> Self {
@@ -714,6 +750,7 @@ impl GameState {
             homunculus_window: HomunWindow::new(),
             mercenary_window: MercenaryWindow::new(),
             mercenary_skill_window: MercenarySkillWindow::new(),
+            homun_skill_window: HomunSkillWindow::new(),
             context_menu: ContextMenu::new(),
             pending_party_invite: None,
             party_invite_result: std::rc::Rc::new(std::cell::Cell::new(None)),
@@ -792,5 +829,34 @@ impl GameState {
             (size_index > 0, size_index == 1),
         );
         result
+    }
+}
+
+#[cfg(test)]
+mod skill_resolve_tests {
+    use super::*;
+    use ragnarok_game::companion::MercenaryState;
+    use ragnarok_game::event::SkillInfo;
+
+    #[test]
+    fn resolves_mercenary_skill_metadata_for_cast() {
+        let mut game = GameState::new();
+        let mut merc = MercenaryState::new(2000);
+        merc.skills = vec![SkillInfo {
+            id: 8201,
+            name: "MS_BASH".to_string(),
+            level: 3,
+            sp_cost: 15,
+            attack_range: 9,
+            upgradable: false,
+            skill_target_type: SkillTargetType::Target,
+        }];
+        game.mercenary = Some(merc);
+
+        assert_eq!(
+            game.resolve_cast_skill(8201),
+            Some((SkillTargetType::Target, 9))
+        );
+        assert_eq!(game.resolve_cast_skill(9999), None);
     }
 }

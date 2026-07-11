@@ -152,10 +152,8 @@ impl App {
 
         let skill_range = self
             .game
-            .character
-            .skills
-            .get_skill(skill_id)
-            .map(|s| s.attack_range as i32)
+            .resolve_cast_skill(skill_id)
+            .map(|(_, range)| range as i32)
             .unwrap_or(1);
         let dx = (px as i32 - target_pos.0 as i32).abs();
         let dy = (py as i32 - target_pos.1 as i32).abs();
@@ -221,10 +219,8 @@ impl App {
 
         let skill_range = self
             .game
-            .character
-            .skills
-            .get_skill(skill_id)
-            .map(|s| s.attack_range as i32)
+            .resolve_cast_skill(skill_id)
+            .map(|(_, range)| range as i32)
             .unwrap_or(1);
 
         let dx = (px as i32 - x as i32).abs();

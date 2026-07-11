@@ -873,6 +873,7 @@ pub enum GameEvent {
     ToggleHomunculusWindow,
     ToggleMercenaryWindow,
     ToggleMercenarySkillWindow,
+    ToggleHomunSkillWindow,
     /// Standby button: toggle the companion between follow and hold.
     ToggleCompanionStandby {
         is_mercenary: bool,
@@ -969,6 +970,15 @@ pub struct SkillInfo {
     pub attack_range: i16,
     pub upgradable: bool,
     pub skill_target_type: SkillTargetType,
+}
+
+impl SkillInfo {
+    pub fn icon_path(&self) -> String {
+        format!(
+            "data/texture/유저인터페이스/item/{}.bmp",
+            self.name.to_lowercase()
+        )
+    }
 }
 
 #[derive(Debug, Clone)]

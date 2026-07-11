@@ -32,6 +32,7 @@ impl App {
 
         self.build_hovered_entity_overlay(hovered_entity_id, render_list, &mut calls);
         self.build_player_bars(hovered_entity_id, render_list, &mut calls);
+        self.build_persistent_bars(hovered_entity_id, render_list, &mut calls);
         self.build_cast_bars(render_list, &mut calls);
         self.build_chat_bubbles(render_list, &mut calls);
         self.build_vending_boards(render_list, &mut calls);
@@ -61,11 +62,7 @@ impl App {
         };
 
         let mut bar_y = entry.pick_bounds[3] + 5.0;
-        let hp_ratio = if self.game.entities.is_player(entity_id) {
-            Some(self.game.character.hp_percentage())
-        } else {
-            entity.hp_percentage()
-        };
+        let hp_ratio = self.entity_hp_ratio(entity_id);
         if let Some(ratio) = hp_ratio {
             let (_x, y) = render_hp_bar(entry, ratio, entity.entity_type, calls);
             bar_y = y;
@@ -123,6 +120,62 @@ impl App {
                 SP_BAR_COLOR,
                 calls,
             );
+        }
+    }
+
+    /// HP ratio for an entity, sourcing companion HP from companion state (which is not
+    /// mirrored onto `Entity.hp`) and party-member HP from `Entity.hp`.
+    fn entity_hp_ratio(&self, entity_id: u32) -> Option<f32> {
+        if self.game.entities.is_player(entity_id) {
+            return Some(self.game.character.hp_percentage());
+        }
+        if let Some(h) = self.game.homunculus.as_ref().filter(|h| h.gid == entity_id) {
+            return Some(h.hp_percentage());
+        }
+        if let Some(m) = self.game.mercenary.as_ref().filter(|m| m.gid == entity_id) {
+            return Some(m.hp_percentage());
+        }
+        self.game.entities.get(entity_id).and_then(|e| e.hp_percentage())
+    }
+
+    /// Always-on HP bars below party members and the player's mercenary/homunculus.
+    /// The player is handled by `build_player_bars`; the hovered entity by the hover
+    /// overlay — both are skipped here to avoid drawing twice.
+    fn build_persistent_bars(
+        &self,
+        hovered_entity_id: Option<u32>,
+        render_list: &[RenderEntry],
+        calls: &mut Vec<UiDrawCall>,
+    ) {
+        if self.renderer.is_none() {
+            return;
+        }
+        let player_id = self.game.entities.player_id();
+        for entry in render_list {
+            if Some(entry.id) == player_id || Some(entry.id) == hovered_entity_id {
+                continue;
+            }
+            let is_companion = self
+                .game
+                .homunculus
+                .as_ref()
+                .is_some_and(|h| h.gid == entry.id)
+                || self.game.mercenary.as_ref().is_some_and(|m| m.gid == entry.id);
+            let is_party_member = self
+                .game
+                .party
+                .as_ref()
+                .is_some_and(|p| p.members.iter().any(|m| m.aid == entry.id));
+            if !is_companion && !is_party_member {
+                continue;
+            }
+            let Some(entity) = self.game.entities.get(entry.id) else {
+                continue;
+            };
+            let Some(ratio) = self.entity_hp_ratio(entry.id) else {
+                continue;
+            };
+            render_hp_bar(entry, ratio, entity.entity_type, calls);
         }
     }
 

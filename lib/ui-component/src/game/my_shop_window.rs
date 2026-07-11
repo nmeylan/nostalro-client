@@ -205,12 +205,13 @@ impl InGameWindow for MyShopWindow {
             ui.text(text_x, row_y + ROW_H - 6.0, &row.name, tc);
 
             let price_label = format!("{}z", format_thousands(row.item.price as i64));
-            ui.text(
-                list_x + list_w - PRICE_W - STOCK_W,
-                row_y + ROW_H - 6.0,
-                &price_label,
-                tc,
-            );
+            let price_x = list_x + list_w - PRICE_W - STOCK_W;
+            let price_y = row_y + ROW_H - 6.0;
+            let (price_color, price_shadow) = crate::helper::colors::price_style(row.item.price as i64);
+            if let Some(shadow) = price_shadow {
+                ui.text(price_x + 1.0, price_y, &price_label, shadow);
+            }
+            ui.text(price_x, price_y, &price_label, price_color);
             let stock_label = format!("x{}", row.item.amount);
             ui.text(
                 list_x + list_w - STOCK_W,

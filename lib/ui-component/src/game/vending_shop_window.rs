@@ -1,4 +1,5 @@
 use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
+use crate::helper::colors::draw_price_right;
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::format::format_thousands;
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
@@ -572,43 +573,6 @@ fn resize_grip(
     }
 }
 
-fn rgb(hex: u32) -> [f32; 4] {
-    [
-        ((hex >> 16) & 0xff) as f32 / 255.0,
-        ((hex >> 8) & 0xff) as f32 / 255.0,
-        (hex & 0xff) as f32 / 255.0,
-        1.0,
-    ]
-}
-
-/// Per-digit-count `(text_color, shadow_color)`. The shadow is drawn 1px offset so
-/// e.g. the 7-digit price reads as black with a green edge rather than solid green.
-fn price_style(price: i64) -> ([f32; 4], Option<[f32; 4]>) {
-    let digits = price.max(0).to_string().len();
-    match digits {
-        1 => (rgb(0x000000), Some(rgb(0x00ffff))),
-        2 => (rgb(0x0000ff), Some(rgb(0xce00ce))),
-        3 => (rgb(0x0000ff), Some(rgb(0x00ffff))),
-        4 => (rgb(0xff0000), Some(rgb(0xffff00))),
-        5 => (rgb(0xff18ff), None),
-        6 => (rgb(0x0000ff), None),
-        7 => (rgb(0x000000), Some(rgb(0x00ff00))),
-        8 => (rgb(0xff0000), None),
-        9 => (rgb(0x000000), Some(rgb(0xcece63))),
-        _ => (rgb(0xff0000), Some(rgb(0xff007b))),
-    }
-}
-
-fn draw_price_right(ui: &mut UiFrame, right_x: f32, y: f32, text: &str, price: i64) {
-    let (color, shadow) = price_style(price);
-    let x = right_x - ui.atlas.measure_text(text);
-    if let Some(sh) = shadow {
-        ui.text(x + 1.0, y, text, sh);
-    }
-    ui.text(x, y, text, color);
-}
-
-
 fn wrap_name(name: &str, max_w: f32, atlas: &FontAtlas) -> Vec<String> {
     if atlas.measure_text(name) <= max_w {
         return vec![name.to_string()];
@@ -680,20 +644,6 @@ mod tests {
             is_damaged: false,
             item_type: 0,
         }
-    }
-
-    #[test]
-    fn price_style_matches_digit_buckets() {
-        // 6 digits -> blue, no shadow
-        assert_eq!(price_style(800_000), ([0.0, 0.0, 1.0, 1.0], None));
-        // 7 digits -> black text with a green shadow (reads as green-around-black)
-        assert_eq!(
-            price_style(2_000_000),
-            ([0.0, 0.0, 0.0, 1.0], Some([0.0, 1.0, 0.0, 1.0]))
-        );
-        // 8 digits -> red, no shadow
-        assert_eq!(price_style(28_000_000), ([1.0, 0.0, 0.0, 1.0], None));
-        assert_eq!(format_thousands(28_000_000), "28,000,000");
     }
 
     #[test]

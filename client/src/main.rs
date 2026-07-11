@@ -877,6 +877,9 @@ impl App {
                 GameEvent::ToggleMercenarySkillWindow => {
                     self.game.mercenary_skill_window.toggle();
                 }
+                GameEvent::ToggleHomunSkillWindow => {
+                    self.game.homun_skill_window.toggle();
+                }
                 GameEvent::ToggleCompanionStandby { is_mercenary } => {
                     self.push_owner_command_to(
                         is_mercenary,
@@ -920,10 +923,8 @@ impl App {
                     }
                     let skill_target_type = self
                         .game
-                        .character
-                        .skills
-                        .get_skill(skill_id)
-                        .map(|s| s.skill_target_type)
+                        .resolve_cast_skill(skill_id)
+                        .map(|(target_type, _)| target_type)
                         .unwrap_or(SkillTargetType::Target);
                     match skill_target_type {
                         SkillTargetType::MySelf => {

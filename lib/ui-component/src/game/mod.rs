@@ -9,6 +9,7 @@ pub mod confirm_dialog;
 pub mod context_menu;
 pub mod drop_quantity_dialog;
 pub mod equipment_window;
+pub mod homun_skill_window;
 pub mod homun_window;
 pub mod hotkey_bar;
 pub mod mercenary_skill_window;

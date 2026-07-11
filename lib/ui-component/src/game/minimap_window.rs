@@ -36,8 +36,8 @@ const ZOOM_LEVELS: [f32; 5] = [1.0, 1.5, 2.0, 3.0, 5.0];
 const NPC_DOT_SIZE: f32 = 3.0;
 const WARP_DOT_SIZE: f32 = 4.0;
 
-const NPC_DOT_COLOR: [f32; 4] = [0.2, 0.8, 0.2, 1.0];
-const WARP_DOT_COLOR: [f32; 4] = [0.3, 0.8, 1.0, 1.0];
+const NPC_DOT_COLOR: [f32; 4] = crate::helper::colors::GREEN;
+const WARP_DOT_COLOR: [f32; 4] = crate::helper::colors::BLUE;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MinimapVisibility {

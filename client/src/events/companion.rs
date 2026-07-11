@@ -137,14 +137,18 @@ impl App {
             StatusTypes::Maxhp => m.max_hp = value as u32,
             StatusTypes::Sp => m.sp = value as u32,
             StatusTypes::Maxsp => m.max_sp = value as u32,
+            StatusTypes::Merckills => m.kills = value,
+            StatusTypes::Mercfaith => m.faith = value as i16,
             _ => {}
         }
     }
 
     pub(super) fn handle_homun_skill_list(&mut self, skills: Vec<SkillInfo>) {
+        let icon_paths: Vec<String> = skills.iter().map(|s| s.icon_path()).collect();
         if let Some(h) = &mut self.game.homunculus {
             h.skills = skills;
         }
+        self.preload_item_icons(icon_paths);
     }
 
     pub(super) fn handle_homun_skill_update(
@@ -161,9 +165,11 @@ impl App {
     }
 
     pub(super) fn handle_mercenary_skill_list(&mut self, skills: Vec<SkillInfo>) {
+        let icon_paths: Vec<String> = skills.iter().map(|s| s.icon_path()).collect();
         if let Some(m) = &mut self.game.mercenary {
             m.skills = skills;
         }
+        self.preload_item_icons(icon_paths);
     }
 
     pub(super) fn handle_mercenary_skill_update(

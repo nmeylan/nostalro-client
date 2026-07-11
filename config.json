@@ -20,10 +20,18 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
-    "3100": {
+    "10": {
       "position": [
-        300.13672,
-        245.07031
+        344.0,
+        344.66666
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "210": {
+      "position": [
+        342.0,
+        346.0
       ],
       "open": false,
       "collapsed": false
@@ -44,34 +52,10 @@
       "open": true,
       "collapsed": false
     },
-    "1400": {
+    "3100": {
       "position": [
-        0.0,
-        0.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "3000": {
-      "position": [
-        322.59766,
-        211.14844
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "10": {
-      "position": [
-        344.0,
-        344.66666
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "210": {
-      "position": [
-        342.0,
-        346.0
+        216.25,
+        364.64453
       ],
       "open": false,
       "collapsed": false
@@ -84,10 +68,26 @@
       "open": true,
       "collapsed": false
     },
+    "3000": {
+      "position": [
+        616.59375,
+        385.51562
+      ],
+      "open": false,
+      "collapsed": false
+    },
     "110": {
       "position": [
         490.0,
         568.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "1400": {
+      "position": [
+        0.0,
+        0.0
       ],
       "open": false,
       "collapsed": false
@@ -104,6 +104,6 @@
     "hide_name_npc": false,
     "show_level_aura": true
   },
-  "last_char_slot": 5,
+  "last_char_slot": 0,
   "map_recovery_command": "@go prontera"
 }

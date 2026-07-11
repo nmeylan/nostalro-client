@@ -1,4 +1,6 @@
+use super::homun_skill_window::HOMUN_SKILL_WINDOW_ID;
 use super::inventory_window::INV_WINDOW_ID;
+use super::mercenary_skill_window::MERCENARY_SKILL_WINDOW_ID;
 use super::skill_tree_window::SKILL_WINDOW_ID;
 use crate::game::equipment_window::EQ_WINDOW_ID;
 use crate::helper::window_chrome::{draw_sys_button, text_color};
@@ -6,7 +8,7 @@ use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
-use ragnarok_game::event::GameEvent;
+use ragnarok_game::event::{GameEvent, SkillInfo};
 use ragnarok_game::hotkey::{HOTKEY_COLS, HOTKEY_ROWS, HotkeySlotContent};
 use ragnarok_game::item::InventoryTab;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
@@ -48,6 +50,10 @@ const ROW4_CHARS: [char; 9] = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'];
 pub struct HotkeyBarWindow {
     pub has_grf_textures: bool,
     pub chat_is_active: bool,
+    /// Mercenary + homunculus skills, refreshed each frame, so companion skills
+    /// dragged into a slot can resolve their icon and drop level. IDs are
+    /// range-disjoint from player skills, so a flat list needs no source tag.
+    pub companion_skills: Vec<SkillInfo>,
     bg_size: (f32, f32),
     close_size: (f32, f32),
     resize_start: Option<u8>,
@@ -64,6 +70,7 @@ impl HotkeyBarWindow {
         Self {
             has_grf_textures: false,
             chat_is_active: false,
+            companion_skills: Vec::new(),
             bg_size: (0.0, 0.0),
             close_size: (0.0, 0.0),
             resize_start: None,
@@ -78,9 +85,16 @@ impl HotkeyBarWindow {
     ) -> Option<String> {
         match content {
             HotkeySlotContent::Empty => None,
-            HotkeySlotContent::Skill { skill_id, .. } => {
-                character.skills.get_skill(skill_id).map(|s| s.icon_path())
-            }
+            HotkeySlotContent::Skill { skill_id, .. } => character
+                .skills
+                .get_skill(skill_id)
+                .map(|s| s.icon_path())
+                .or_else(|| {
+                    self.companion_skills
+                        .iter()
+                        .find(|s| s.id == skill_id)
+                        .map(companion_skill_icon_path)
+                }),
             HotkeySlotContent::Item {
                 item_id,
                 inventory_index,
@@ -188,6 +202,19 @@ impl HotkeyBarWindow {
             let skill_id = item_index as u16;
             if let Some(skill) = character.skills.get_skill(skill_id) {
                 let level = skill.use_level();
+                let content = HotkeySlotContent::Skill { skill_id, level };
+                character.hotkeys.set_slot(slot_index, content);
+                events.push(GameEvent::RequestHotkeyChange {
+                    index: slot_index as u16,
+                    is_skill: true,
+                    id: skill_id as u32,
+                    count: level,
+                });
+            }
+        } else if source_id == MERCENARY_SKILL_WINDOW_ID || source_id == HOMUN_SKILL_WINDOW_ID {
+            let skill_id = item_index as u16;
+            if let Some(skill) = self.companion_skills.iter().find(|s| s.id == skill_id) {
+                let level = skill.level;
                 let content = HotkeySlotContent::Skill { skill_id, level };
                 character.hotkeys.set_slot(slot_index, content);
                 events.push(GameEvent::RequestHotkeyChange {
@@ -583,5 +610,63 @@ impl InGameWindow for HotkeyBarWindow {
         }
 
         events
+    }
+}
+
+fn companion_skill_icon_path(skill: &SkillInfo) -> String {
+    format!(
+        "data/texture/유저인터페이스/item/{}.bmp",
+        skill.name.to_lowercase()
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ragnarok_game::skill::SkillTargetType;
+
+    fn merc_skill(id: u16, name: &str, level: i16) -> SkillInfo {
+        SkillInfo {
+            id,
+            name: name.to_string(),
+            level,
+            sp_cost: 12,
+            attack_range: 9,
+            upgradable: false,
+            skill_target_type: SkillTargetType::Target,
+        }
+    }
+
+    #[test]
+    fn dropping_mercenary_skill_assigns_and_persists_slot() {
+        let mut bar = HotkeyBarWindow::new();
+        bar.companion_skills = vec![merc_skill(8201, "MS_BASH", 5)];
+        let mut character = Character::new();
+        let mut events = Vec::new();
+
+        bar.handle_drop(
+            MERCENARY_SKILL_WINDOW_ID,
+            8201,
+            3,
+            &mut character,
+            &mut events,
+        );
+
+        assert_eq!(
+            character.hotkeys.get_slot(3),
+            HotkeySlotContent::Skill {
+                skill_id: 8201,
+                level: 5,
+            }
+        );
+        assert!(matches!(
+            events.as_slice(),
+            [GameEvent::RequestHotkeyChange {
+                index: 3,
+                is_skill: true,
+                id: 8201,
+                count: 5,
+            }]
+        ));
     }
 }

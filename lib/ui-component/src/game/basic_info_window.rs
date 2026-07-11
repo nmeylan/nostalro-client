@@ -500,7 +500,7 @@ impl BasicInfoWindow {
         let max_weight = character.inventory.max_weight;
         let weight_over = max_weight > 0 && weight as f32 / max_weight as f32 >= 0.5;
         let weight_color = if weight_over {
-            [1.0, 0.0, 0.0, 1.0]
+            crate::helper::colors::RED
         } else {
             tc
         };

@@ -1,3 +1,4 @@
+pub mod colors;
 pub mod dialog_container;
 pub mod format;
 pub mod scrollbar;

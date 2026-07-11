@@ -38,7 +38,7 @@ const PAD: f32 = 6.0;
 const CELL_H: f32 = 21.0;
 const BASELINE: f32 = 10.0;
 
-const EXPIRE_COLOR: [f32; 4] = [0.85, 0.25, 0.25, 1.0];
+const EXPIRE_COLOR: [f32; 4] = crate::helper::colors::RED;
 
 pub struct MercenaryWindow {
     pub has_grf_textures: bool,
@@ -94,7 +94,7 @@ impl MercenaryWindow {
         ui.interact(MERCENARY_WINDOW_ID, Rect::new(x, y, WIN_W, WIN_H));
 
         draw_titlebar(ui, x, y, WIN_W, TITLE_H, grf);
-        ui.text(x + 8.0, y + 13.0, "Mercenary Info", tc);
+        ui.text(x + 16.0, y + 13.0, "Mercenary Info", tc);
 
         let sys_w = 11.0;
         let close_rect = Rect::new(x + WIN_W - 3.0 - sys_w, y + 3.0, sys_w, sys_w);

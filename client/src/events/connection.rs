@@ -264,6 +264,7 @@ impl App {
             preload_window(&mut self.game.homunculus_window, renderer, grf);
             preload_window(&mut self.game.mercenary_window, renderer, grf);
             preload_window(&mut self.game.mercenary_skill_window, renderer, grf);
+            preload_window(&mut self.game.homun_skill_window, renderer, grf);
             preload_window(&mut self.game.confirm_dialog, renderer, grf);
             self.game.drop_dialog_has_grf_textures =
                 renderer.preload_textures(&DropQuantityDialog::grf_texture_paths(), grf);

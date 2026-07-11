@@ -3,16 +3,16 @@ use crate::helper::window_chrome::{
     FOOTER_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_sys_button, draw_titlebar,
     text_color,
 };
-use ragnarok_game::companion::MercenaryState;
+use ragnarok_game::companion::HomunculusState;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
-pub const MERCENARY_SKILL_WINDOW_ID: WidgetId = WidgetId(3100);
-const CLOSE_BTN_ID: WidgetId = WidgetId(3101);
-const USE_BTN_ID: WidgetId = WidgetId(3102);
-const FOOTER_CLOSE_BTN_ID: WidgetId = WidgetId(3103);
+pub const HOMUN_SKILL_WINDOW_ID: WidgetId = WidgetId(2910);
+const CLOSE_BTN_ID: WidgetId = WidgetId(2911);
+const USE_BTN_ID: WidgetId = WidgetId(2912);
+const FOOTER_CLOSE_BTN_ID: WidgetId = WidgetId(2913);
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
 
@@ -26,7 +26,7 @@ const CLOSE_BTN: ButtonTextures = ButtonTextures {
     hover: "data/texture/유저인터페이스/basic_interface/btn_close_a.bmp",
     pressed: "data/texture/유저인터페이스/basic_interface/btn_close_b.bmp",
 };
-const SKILL_ROW_BASE_ID: u32 = 3110;
+const SKILL_ROW_BASE_ID: u32 = 2920;
 
 const WIN_W: f32 = 232.0;
 const TITLE_H: f32 = 17.0;
@@ -37,7 +37,7 @@ const FOOTER_H: f32 = 24.0;
 const PAD: f32 = 8.0;
 const WIN_H: f32 = TITLE_H + ROW_H * VISIBLE_ROWS as f32 + FOOTER_H;
 
-pub struct MercenarySkillWindow {
+pub struct HomunSkillWindow {
     pub has_grf_textures: bool,
     visible: bool,
     selected: usize,
@@ -45,13 +45,13 @@ pub struct MercenarySkillWindow {
     close_size: (f32, f32),
 }
 
-impl Default for MercenarySkillWindow {
+impl Default for HomunSkillWindow {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl MercenarySkillWindow {
+impl HomunSkillWindow {
     pub fn new() -> Self {
         Self {
             has_grf_textures: false,
@@ -72,11 +72,11 @@ impl MercenarySkillWindow {
         self.visible = value;
     }
 
-    pub fn build(&mut self, ui: &mut UiFrame, merc: Option<&MercenaryState>) -> Vec<GameEvent> {
+    pub fn build(&mut self, ui: &mut UiFrame, homun: Option<&HomunculusState>) -> Vec<GameEvent> {
         if !self.visible {
             return Vec::new();
         }
-        let Some(merc) = merc else {
+        let Some(homun) = homun else {
             return Vec::new();
         };
         let prev_grf = ui.has_grf_textures;
@@ -85,13 +85,13 @@ impl MercenarySkillWindow {
         let mut events = Vec::new();
         let tc = text_color(grf);
 
-        let win = ui.window_at(MERCENARY_SKILL_WINDOW_ID, WIN_W, WIN_H, TITLE_H, 240.0, 340.0);
+        let win = ui.window_at(HOMUN_SKILL_WINDOW_ID, WIN_W, WIN_H, TITLE_H, 240.0, 340.0);
         let x = win.x;
         let y = win.y;
-        ui.interact(MERCENARY_SKILL_WINDOW_ID, Rect::new(x, y, WIN_W, WIN_H));
+        ui.interact(HOMUN_SKILL_WINDOW_ID, Rect::new(x, y, WIN_W, WIN_H));
 
         draw_titlebar(ui, x, y, WIN_W, TITLE_H, grf);
-        ui.text(x + 16.0, y + 13.0, "Mercenary Soldier Skill List", tc);
+        ui.text(x + 16.0, y + 13.0, "Homunculus Skill List", tc);
 
         let sys_w = 11.0;
         let close_rect = Rect::new(x + WIN_W - 3.0 - sys_w, y + 3.0, sys_w, sys_w);
@@ -119,7 +119,7 @@ impl MercenarySkillWindow {
         draw_container(ui, x, y + TITLE_H, WIN_W, list_h, grf);
 
         let list_top = y + TITLE_H;
-        for (idx, skill) in merc.skills.iter().take(VISIBLE_ROWS).enumerate() {
+        for (idx, skill) in homun.skills.iter().take(VISIBLE_ROWS).enumerate() {
             let row_y = list_top + idx as f32 * ROW_H;
             let row_rect = Rect::new(x, row_y, WIN_W, ROW_H);
             let row_resp = ui.interact(WidgetId(SKILL_ROW_BASE_ID + idx as u32), row_rect);
@@ -169,7 +169,7 @@ impl MercenarySkillWindow {
                 });
             } else if row_resp.clicked() {
                 ui.drag_source(
-                    MERCENARY_SKILL_WINDOW_ID,
+                    HOMUN_SKILL_WINDOW_ID,
                     skill.id as usize,
                     Some(skill.icon_path()),
                     (ICON_SIZE, ICON_SIZE),
@@ -188,7 +188,7 @@ impl MercenarySkillWindow {
         let close_footer = Rect::new(x + WIN_W - PAD - cw, btn_y, cw, ch);
         let use_rect = Rect::new(x + WIN_W - PAD - cw - 4.0 - uw, btn_y, uw, uh);
         if ui.button(USE_BTN_ID, use_rect, &USE_BTN, "use").clicked()
-            && let Some(skill) = merc.skills.get(self.selected)
+            && let Some(skill) = homun.skills.get(self.selected)
         {
             events.push(GameEvent::RequestUseSkill {
                 skill_id: skill.id,
@@ -204,7 +204,7 @@ impl MercenarySkillWindow {
     }
 }
 
-impl Window for MercenarySkillWindow {
+impl Window for HomunSkillWindow {
     fn has_grf_textures(&self) -> bool {
         self.has_grf_textures
     }

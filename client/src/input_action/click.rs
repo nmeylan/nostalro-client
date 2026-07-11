@@ -43,10 +43,8 @@ impl App {
                 PendingSkillTarget::Entity { skill_id, level } => {
                     let class = self
                         .game
-                        .character
-                        .skills
-                        .get_skill(skill_id)
-                        .map(|s| skill_target_class(s.skill_target_type))
+                        .resolve_cast_skill(skill_id)
+                        .map(|(target_type, _)| skill_target_class(target_type))
                         .unwrap_or(TargetClass::Offensive);
                     let player_id = self.game.entities.player_id();
                     let valid_target = self.game.hovered_entity_id.filter(|&id| {
@@ -69,10 +67,8 @@ impl App {
                             .unwrap_or((0, 0));
                         let skill_range = self
                             .game
-                            .character
-                            .skills
-                            .get_skill(skill_id)
-                            .map(|s| s.attack_range as i32)
+                            .resolve_cast_skill(skill_id)
+                            .map(|(_, range)| range as i32)
                             .unwrap_or(1);
                         let dx = (px as i32 - target_pos.0 as i32).abs();
                         let dy = (py as i32 - target_pos.1 as i32).abs();
@@ -109,10 +105,8 @@ impl App {
                             .unwrap_or((0, 0));
                         let skill_range = self
                             .game
-                            .character
-                            .skills
-                            .get_skill(skill_id)
-                            .map(|s| s.attack_range as i32)
+                            .resolve_cast_skill(skill_id)
+                            .map(|(_, range)| range as i32)
                             .unwrap_or(1);
                         let dx = (px as i32 - cx as i32).abs();
                         let dy = (py as i32 - cy as i32).abs();
