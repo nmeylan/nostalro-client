@@ -48,6 +48,14 @@ use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::number_input::{NumberInputConfig, NumberInputDialog};
 use ragnarok_ui_component::game::party_window::{PARTY_WINDOW_ID, PartyWindow};
+use ragnarok_ui_component::game::homun_window::{HOMUN_WINDOW_ID, HomunWindow};
+use ragnarok_ui_component::game::mercenary_window::{MERCENARY_WINDOW_ID, MercenaryWindow};
+use ragnarok_ui_component::game::mercenary_skill_window::{
+    MERCENARY_SKILL_WINDOW_ID, MercenarySkillWindow,
+};
+use ragnarok_game::companion::{HomunculusState, MercenaryState};
+use ragnarok_game::event::SkillInfo;
+use ragnarok_game::skill::SkillTargetType;
 use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
 use ragnarok_ui_component::game::status_window::{STATUS_WINDOW_ID, StatusWindow};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
@@ -79,6 +87,7 @@ const ACCOUNT_COMPONENTS: &[&str] =
     &["login", "server_list", "char_select", "char_create"];
 const SHOP_COMPONENTS: &[&str] =
     &["cart", "vending_setup", "my_shop", "vending_buy", "vending_board"];
+const COMPANION_COMPONENTS: &[&str] = &["mercenary", "mercenary_skill", "homun"];
 
 enum State {
     Inventory {
@@ -216,9 +225,90 @@ enum State {
         container: DialogContainer,
         name: String,
     },
+    Mercenary {
+        win: MercenaryWindow,
+        merc: MercenaryState,
+    },
+    MercenarySkill {
+        win: MercenarySkillWindow,
+        merc: MercenaryState,
+    },
+    Homun {
+        win: HomunWindow,
+        homun: HomunculusState,
+    },
     Category {
         components: Vec<State>,
     },
+}
+
+fn demo_mercenary_skills() -> Vec<SkillInfo> {
+    let skill = |id, name: &str, level, sp_cost| SkillInfo {
+        id,
+        name: name.to_string(),
+        level,
+        sp_cost,
+        attack_range: 1,
+        upgradable: false,
+        skill_target_type: SkillTargetType::Target,
+    };
+    vec![
+        skill(7, "MG_MAGNUMBREAK", 5, 30),
+        skill(56, "KN_BRANDISHSPEAR", 5, 12),
+        skill(410, "MER_REGAIN", 1, 10),
+        skill(6, "SM_PROVOKE", 5, 8),
+    ]
+}
+
+fn demo_mercenary() -> MercenaryState {
+    let mut merc = MercenaryState::new(150001);
+    merc.name = "Alice".into();
+    merc.level = 62;
+    merc.hp = 10000;
+    merc.max_hp = 10000;
+    merc.sp = 221;
+    merc.max_sp = 221;
+    merc.atk = 801;
+    merc.matk = 374;
+    merc.hit = 312;
+    merc.critical = 44;
+    merc.def = 56;
+    merc.mdef = 23;
+    merc.flee = 126;
+    merc.aspd = 0;
+    merc.atk_range = 1;
+    merc.faith = 0;
+    merc.expire_date = 1_255_130_880;
+    merc.calls = 0;
+    merc.kills = 442;
+    merc.skills = demo_mercenary_skills();
+    merc
+}
+
+fn demo_homunculus() -> HomunculusState {
+    let mut homun = HomunculusState::new(160001);
+    homun.name = "Big Chungus".into();
+    homun.renamed = true;
+    homun.level = 168;
+    homun.hp = 409973;
+    homun.max_hp = 409973;
+    homun.sp = 7366;
+    homun.max_sp = 7366;
+    homun.exp = 18087058;
+    homun.max_exp = 30000000;
+    homun.hunger = 28;
+    homun.intimacy = 50;
+    homun.atk = 300;
+    homun.matk = 1452;
+    homun.hit = 518;
+    homun.critical = 51;
+    homun.def = 644;
+    homun.mdef = 420;
+    homun.flee = 384;
+    homun.aspd = 190;
+    homun.atk_range = 1;
+    homun.skill_points = 2;
+    homun
 }
 
 type TextureSizeFn = unsafe extern "C" fn(*const u8, usize, *mut u32, *mut u32) -> bool;
@@ -1199,6 +1289,30 @@ fn create_single(name: &str) -> State {
                 data: DataTable::new(),
             }
         }
+        "mercenary" => {
+            let mut win = MercenaryWindow::new();
+            win.set_visible(true);
+            State::Mercenary {
+                win,
+                merc: demo_mercenary(),
+            }
+        }
+        "mercenary_skill" => {
+            let mut win = MercenarySkillWindow::new();
+            win.set_visible(true);
+            State::MercenarySkill {
+                win,
+                merc: demo_mercenary(),
+            }
+        }
+        "homun" => {
+            let mut win = HomunWindow::new();
+            win.set_visible(true);
+            State::Homun {
+                win,
+                homun: demo_homunculus(),
+            }
+        }
         _ => panic!("Unknown example: {name}"),
     }
 }
@@ -1219,6 +1333,12 @@ pub unsafe extern "C" fn hot_create(name_ptr: *const u8, name_len: usize) -> *mu
         },
         "shop" => State::Category {
             components: SHOP_COMPONENTS.iter().map(|n| create_single(n)).collect(),
+        },
+        "companion" => State::Category {
+            components: COMPANION_COMPONENTS
+                .iter()
+                .map(|n| create_single(n))
+                .collect(),
         },
         _ => create_single(name),
     };
@@ -1419,6 +1539,18 @@ fn grf_init_single(
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
+        State::Mercenary { win, .. } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
+        State::MercenarySkill { win, .. } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
+        State::Homun { win, .. } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
         State::Category { components } => {
             for component in components.iter_mut() {
                 grf_init_single(component, size_fn, table);
@@ -1459,6 +1591,9 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Book { .. } => Some(BOOK_WINDOW_ID),
         State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
         State::PartyDemo { .. } => Some(PARTY_WINDOW_ID),
+        State::Mercenary { .. } => Some(MERCENARY_WINDOW_ID),
+        State::MercenarySkill { .. } => Some(MERCENARY_SKILL_WINDOW_ID),
+        State::Homun { .. } => Some(HOMUN_WINDOW_ID),
         _ => None,
     }
 }
@@ -1701,6 +1836,15 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
         } => {
             win.sync_party(Some(party), *local_aid);
             win.build(ui, character, data);
+        }
+        State::Mercenary { win, merc } => {
+            win.build(ui, Some(merc));
+        }
+        State::MercenarySkill { win, merc } => {
+            win.build(ui, Some(merc));
+        }
+        State::Homun { win, homun } => {
+            win.build(ui, Some(homun));
         }
         State::Category { components } => {
             // Build z-orderable windows in persisted order (back-to-front)

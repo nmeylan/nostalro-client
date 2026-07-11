@@ -974,6 +974,14 @@ impl App {
             _ => {}
         }
         self.effect_queue.spawn_on(id, gid);
+
+        if self.game.entities.player_id() == Some(gid) {
+            match code {
+                0 | 7 | 9 => self.game.levelup_notification.notify_base_level_up(),
+                1 | 8 => self.game.levelup_notification.notify_job_level_up(),
+                _ => {}
+            }
+        }
     }
 
     pub(crate) fn entity_world_pos(&self, gid: u32) -> Option<[f32; 3]> {

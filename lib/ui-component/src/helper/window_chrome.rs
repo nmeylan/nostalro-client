@@ -46,6 +46,95 @@ pub const FOOTER_TEX: &str = "data/texture/유저인터페이스/basic_interface
 pub const SYS_BASE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_off.bmp";
 pub const SYS_BASE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_on.bmp";
 
+pub const GZE_RED_LEFT: &str = "data/texture/유저인터페이스/basic_interface/gzered_left.bmp";
+pub const GZE_RED_MID: &str = "data/texture/유저인터페이스/basic_interface/gzered_mid.bmp";
+pub const GZE_RED_RIGHT: &str = "data/texture/유저인터페이스/basic_interface/gzered_right.bmp";
+pub const GZE_BLUE_LEFT: &str = "data/texture/유저인터페이스/basic_interface/gzeblue_left.bmp";
+pub const GZE_BLUE_MID: &str = "data/texture/유저인터페이스/basic_interface/gzeblue_mid.bmp";
+pub const GZE_BLUE_RIGHT: &str = "data/texture/유저인터페이스/basic_interface/gzeblue_right.bmp";
+
+pub fn gauge_texture_paths() -> Vec<&'static str> {
+    vec![
+        GZE_RED_LEFT,
+        GZE_RED_MID,
+        GZE_RED_RIGHT,
+        GZE_BLUE_LEFT,
+        GZE_BLUE_MID,
+        GZE_BLUE_RIGHT,
+    ]
+}
+
+/// Draws a 3-slice HP/SP gauge (red or blue) with fixed-width caps and a
+/// stretched middle. Falls back to a flat fill bar when GRF textures are absent.
+#[allow(clippy::too_many_arguments)]
+pub fn draw_gauge(
+    ui: &mut UiFrame,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    cap_w: f32,
+    fill_pct: f32,
+    is_red: bool,
+    has_grf: bool,
+) {
+    let pct = fill_pct.clamp(0.0, 1.0);
+    if has_grf {
+        let (left, mid, right) = if is_red {
+            (GZE_RED_LEFT, GZE_RED_MID, GZE_RED_RIGHT)
+        } else {
+            (GZE_BLUE_LEFT, GZE_BLUE_MID, GZE_BLUE_RIGHT)
+        };
+        let white = [1.0; 4];
+        let mid_max = (w - cap_w * 2.0).max(0.0);
+        let filled = (pct * w).max(0.0);
+        if pct <= 0.0 {
+            return;
+        }
+        let (v, i) = draw::quad_vertices(x, y, cap_w, h, white);
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::Named(left.to_string()),
+        });
+        let mid_w = (filled - cap_w * 2.0).clamp(0.0, mid_max);
+        if mid_w > 0.0 {
+            let (v, i) = draw::quad_vertices(x + cap_w, y, mid_w, h, white);
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::Named(mid.to_string()),
+            });
+        }
+        let (v, i) = draw::quad_vertices(x + cap_w + mid_w, y, cap_w, h, white);
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::Named(right.to_string()),
+        });
+    } else {
+        let (v, i) = draw::quad_vertices(x, y, w, h, [0.05, 0.05, 0.07, 1.0]);
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
+        if pct > 0.0 {
+            let fill = if is_red {
+                [0.85, 0.2, 0.2, 1.0]
+            } else {
+                [0.25, 0.45, 0.9, 1.0]
+            };
+            let (v, i) = draw::quad_vertices(x, y, w * pct, h, fill);
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
+        }
+    }
+}
+
 pub fn text_color(has_grf: bool) -> [f32; 4] {
     if has_grf {
         [0.0, 0.0, 0.0, 1.0]

@@ -149,6 +149,15 @@ pub fn hover_cursor(
             CursorType::Talk
         });
     }
+    // Companions are interactable (right-click menu / owner commands) but not
+    // attackable — make them pickable with the click cursor when no skill is armed.
+    if matches!(
+        target.entity_type,
+        EntityType::Homunculus | EntityType::Mercenary
+    ) && active_skill.is_none()
+    {
+        return Some(CursorType::Click);
+    }
     match active_skill {
         Some(TargetClass::Supportive | TargetClass::SelfOnly) => Some(CursorType::Lock),
         Some(TargetClass::Offensive) => {

@@ -94,6 +94,9 @@ impl StatusWindow {
     pub fn toggle(&mut self) {
         self.visible = !self.visible;
     }
+    pub fn open(&mut self) {
+        self.visible = true;
+    }
     pub fn is_visible(&self) -> bool {
         self.visible
     }

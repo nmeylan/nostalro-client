@@ -1,34 +1,64 @@
 use crate::Window;
-use crate::helper::window_chrome::{draw_sys_button, draw_titlebar, text_color};
+use crate::helper::window_chrome::{
+    GZE_BLUE_LEFT, TITLEBAR_TEX, draw_container, draw_gauge, draw_sys_button, draw_titlebar,
+    gauge_texture_paths, text_color,
+};
 use ragnarok_game::companion::HomunculusState;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{TextInputBg, UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
 
 pub const HOMUN_WINDOW_ID: WidgetId = WidgetId(2900);
 const CLOSE_BTN_ID: WidgetId = WidgetId(2901);
 const FEED_BTN_ID: WidgetId = WidgetId(2902);
-const REST_BTN_ID: WidgetId = WidgetId(2903);
-const STANDBY_BTN_ID: WidgetId = WidgetId(2904);
+const DEL_BTN_ID: WidgetId = WidgetId(2903);
+const SELFFEED_BTN_ID: WidgetId = WidgetId(2904);
 const RENAME_INPUT_ID: WidgetId = WidgetId(2905);
 const RENAME_BTN_ID: WidgetId = WidgetId(2906);
+const SKILL_BTN_ID: WidgetId = WidgetId(2907);
 
-const WIN_W: f32 = 210.0;
+const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
+const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+
+const DEL_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/btn_del.bmp",
+    hover: "data/texture/유저인터페이스/btn_del_a.bmp",
+    pressed: "data/texture/유저인터페이스/btn_del_b.bmp",
+};
+const SKILL_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/btn_skill.bmp",
+    hover: "data/texture/유저인터페이스/btn_skill_a.bmp",
+    pressed: "data/texture/유저인터페이스/btn_skill_b.bmp",
+};
+const FEED_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/btn_feed.bmp",
+    hover: "data/texture/유저인터페이스/btn_feed_a.bmp",
+    pressed: "data/texture/유저인터페이스/btn_feed_b.bmp",
+};
+
+const WIN_W: f32 = 248.0;
 const TITLE_H: f32 = 17.0;
-const WIN_H: f32 = 344.0;
+const WIN_H: f32 = 224.0;
 const PANEL_H: f32 = WIN_H - TITLE_H;
-const PAD: f32 = 8.0;
-const ROW_H: f32 = 14.0;
+const LEFT_W: f32 = 88.0;
+const PAD: f32 = 6.0;
+const CELL_H: f32 = 21.0;
 const BAR_H: f32 = 11.0;
 const BASELINE: f32 = 10.0;
-const MAX_SKILL_ROWS: usize = 6;
+
+const NOTE_COLOR: [f32; 4] = [0.85, 0.25, 0.25, 1.0];
 
 pub struct HomunWindow {
     pub has_grf_textures: bool,
     visible: bool,
     rename_input: TextInput,
+    self_feeding: bool,
+    bar_cap_w: f32,
+    del_size: (f32, f32),
+    skill_size: (f32, f32),
+    feed_size: (f32, f32),
 }
 
 impl Default for HomunWindow {
@@ -43,6 +73,11 @@ impl HomunWindow {
             has_grf_textures: false,
             visible: false,
             rename_input: TextInput::new(23, false),
+            self_feeding: false,
+            bar_cap_w: 4.0,
+            del_size: (42.0, 20.0),
+            skill_size: (42.0, 20.0),
+            feed_size: (64.0, 20.0),
         }
     }
 
@@ -68,6 +103,11 @@ impl HomunWindow {
         let grf = self.has_grf_textures;
         let mut events = Vec::new();
         let tc = text_color(grf);
+        let name_color = if grf {
+            [0.12, 0.28, 0.78, 1.0]
+        } else {
+            [0.45, 0.65, 1.0, 1.0]
+        };
 
         let win = ui.window_at(HOMUN_WINDOW_ID, WIN_W, WIN_H, TITLE_H, 200.0, 120.0);
         let x = win.x;
@@ -75,7 +115,7 @@ impl HomunWindow {
         ui.interact(HOMUN_WINDOW_ID, Rect::new(x, y, WIN_W, WIN_H));
 
         draw_titlebar(ui, x, y, WIN_W, TITLE_H, grf);
-        ui.text(x + 8.0, y + 13.0, "Homunculus", tc);
+        ui.text(x + 8.0, y + 13.0, "Homunculus Info", tc);
 
         let sys_w = 11.0;
         let close_rect = Rect::new(x + WIN_W - 3.0 - sys_w, y + 3.0, sys_w, sys_w);
@@ -92,162 +132,152 @@ impl HomunWindow {
             (sys_w, sys_w),
             close_resp.hovered(),
             grf,
-            "",
-            "",
+            CLOSE_ON_TEX,
+            CLOSE_OFF_TEX,
             Some('x'),
             [0.9, 0.4, 0.4, 1.0],
             [0.6, 0.3, 0.3, 1.0],
         );
 
-        // Panel background (fallback).
-        let (v, i) = draw::quad_vertices(x, y + TITLE_H, WIN_W, PANEL_H, [0.10, 0.10, 0.14, 0.95]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
+        draw_container(ui, x, y + TITLE_H, WIN_W, PANEL_H, grf);
 
-        let cx = x + PAD;
-        let mut cy = y + TITLE_H + 6.0;
+        // Left boxed stat column.
+        let stats = [
+            ("Atk", homun.atk),
+            ("Matk", homun.matk),
+            ("Hit", homun.hit),
+            ("Critical", homun.critical),
+            ("Def", homun.def),
+            ("Mdef", homun.mdef),
+            ("Flee", homun.flee),
+            ("Aspd", homun.aspd),
+        ];
+        let cell_x = x + PAD;
+        let cell_w = LEFT_W - PAD;
+        let mut ly = y + TITLE_H + 2.0;
+        let cell_bg = if grf {
+            [0.83, 0.83, 0.86, 1.0]
+        } else {
+            [0.16, 0.16, 0.22, 1.0]
+        };
+        for (label, value) in stats {
+            let (v, i) = draw::quad_vertices(cell_x, ly, cell_w, CELL_H - 2.0, cell_bg);
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
+            let by = ly + BASELINE + 2.0;
+            ui.text(cell_x + 4.0, by, label, tc);
+            ui.text_right(cell_x + cell_w - 4.0, by, &value.to_string(), tc);
+            ly += CELL_H;
+        }
 
-        // Name + level.
-        ui.text(cx, cy + BASELINE, &homun.name, tc);
-        ui.text_right(
-            x + WIN_W - PAD,
-            cy + BASELINE,
-            &format!("Lv {}", homun.level),
-            tc,
-        );
-        cy += ROW_H + 2.0;
+        // Right panel.
+        let rx = x + LEFT_W + PAD;
+        let right_edge = x + WIN_W - PAD;
+        let bar_w = right_edge - rx;
+        let mut ry = y + TITLE_H + 4.0;
 
-        // Rename row (only before the homunculus has been named).
-        if !homun.renamed {
-            let input_w = WIN_W - PAD * 2.0 - 46.0;
-            let input_rect = Rect::new(cx, cy, input_w, 14.0);
+        if homun.renamed {
+            ui.text(rx, ry + BASELINE, "Name", tc);
+            ui.text(rx + 34.0, ry + BASELINE, &homun.name, name_color);
+            ry += 20.0;
+        } else {
+            let input_w = bar_w - 44.0;
+            let input_rect = Rect::new(rx, ry, input_w, 14.0);
             let bg = if grf {
                 TextInputBg::Gray
             } else {
                 TextInputBg::Default
             };
             ui.text_input(RENAME_INPUT_ID, input_rect, &mut self.rename_input, bg);
-            let btn_rect = Rect::new(cx + input_w + 4.0, cy, 40.0, 14.0);
-            if button(ui, RENAME_BTN_ID, btn_rect, "Name", grf) {
+            let btn_rect = Rect::new(rx + input_w + 4.0, ry, 40.0, 14.0);
+            if ui.button(RENAME_BTN_ID, btn_rect, &DEL_BTN, "Name").clicked() {
                 let name = self.rename_input.text.trim().to_string();
                 if !name.is_empty() {
                     events.push(GameEvent::RequestRenameHomun { name });
                     self.rename_input.text.clear();
                 }
             }
-            cy += ROW_H + 4.0;
+            ry += 20.0;
         }
 
-        // HP / SP / EXP bars.
-        cy = bar(
-            ui,
-            cx,
-            cy,
-            WIN_W - PAD * 2.0,
-            "HP",
-            homun.hp,
-            homun.max_hp,
-            [0.2, 0.75, 0.2, 1.0],
-            tc,
-        );
-        cy = bar(
-            ui,
-            cx,
-            cy,
-            WIN_W - PAD * 2.0,
-            "SP",
-            homun.sp,
-            homun.max_sp,
-            [0.25, 0.45, 0.9, 1.0],
-            tc,
-        );
-        cy = bar(
-            ui,
-            cx,
-            cy,
-            WIN_W - PAD * 2.0,
-            "EXP",
-            homun.exp.max(0) as u32,
-            homun.max_exp.max(0) as u32,
-            [0.85, 0.7, 0.2, 1.0],
-            tc,
-        );
-
-        cy += 2.0;
-        ui.text(cx, cy + BASELINE, &format!("Hunger: {}", homun.hunger), tc);
-        ui.text_right(
-            x + WIN_W - PAD,
-            cy + BASELINE,
-            intimacy_label(homun.intimacy),
-            tc,
-        );
-        cy += ROW_H + 2.0;
-
-        // Stat block, two columns.
-        let col2 = x + WIN_W * 0.5;
-        let left = [
-            ("ATK", homun.atk as i32),
-            ("MATK", homun.matk as i32),
-            ("HIT", homun.hit as i32),
-            ("CRI", homun.critical as i32),
-            ("Range", homun.atk_range as i32),
-        ];
-        let right = [
-            ("DEF", homun.def as i32),
-            ("MDEF", homun.mdef as i32),
-            ("FLEE", homun.flee as i32),
-            ("ASPD", homun.aspd as i32),
-            ("SkP", homun.skill_points as i32),
-        ];
-        for (i, (label, value)) in left.iter().enumerate() {
-            let by = cy + i as f32 * ROW_H + BASELINE;
-            ui.text(cx, by, label, tc);
-            ui.text_right(col2 - 6.0, by, &value.to_string(), tc);
-        }
-        for (i, (label, value)) in right.iter().enumerate() {
-            let by = cy + i as f32 * ROW_H + BASELINE;
-            ui.text(col2 + 4.0, by, label, tc);
-            ui.text_right(x + WIN_W - PAD, by, &value.to_string(), tc);
-        }
-        cy += 5.0 * ROW_H + 4.0;
-
-        // Skill list (info; homunculus skills are used by its AI / owner skill commands).
-        ui.text(cx, cy + BASELINE, "Skills", tc);
-        cy += ROW_H;
-        if homun.skills.is_empty() {
-            ui.text(cx + 4.0, cy + BASELINE, "(none)", tc);
-            cy += ROW_H;
-        } else {
-            for skill in homun.skills.iter().take(MAX_SKILL_ROWS) {
-                ui.text(cx + 4.0, cy + BASELINE, &skill.name, tc);
-                ui.text_right(
-                    x + WIN_W - PAD,
-                    cy + BASELINE,
-                    &format!("Lv {}", skill.level),
-                    tc,
-                );
-                cy += ROW_H;
-            }
-        }
-        cy += 4.0;
-
-        // Action buttons.
-        let btn_w = (WIN_W - PAD * 2.0 - 8.0) / 3.0;
-        let feed_rect = Rect::new(cx, cy, btn_w, 16.0);
-        let rest_rect = Rect::new(cx + btn_w + 4.0, cy, btn_w, 16.0);
-        let standby_rect = Rect::new(cx + (btn_w + 4.0) * 2.0, cy, btn_w, 16.0);
-        if button(ui, FEED_BTN_ID, feed_rect, "Feed", grf) {
-            events.push(GameEvent::RequestHomunMenu { command: 1 });
-        }
-        if button(ui, REST_BTN_ID, rest_rect, "Rest", grf) {
+        // Level + del / Skill buttons.
+        ui.text(rx, ry + BASELINE, &format!("lvl {}", homun.level), tc);
+        let (sw, sh) = self.skill_size;
+        let (dw, dh) = self.del_size;
+        let skill_rect = Rect::new(right_edge - sw, ry, sw, sh);
+        let del_rect = Rect::new(right_edge - sw - 4.0 - dw, ry, dw, dh);
+        if ui.button(DEL_BTN_ID, del_rect, &DEL_BTN, "del").clicked() {
             events.push(GameEvent::RequestHomunMenu { command: 2 });
         }
-        if button(ui, STANDBY_BTN_ID, standby_rect, "Standby", grf) {
-            events.push(GameEvent::ToggleCompanionStandby);
+        ui.button(SKILL_BTN_ID, skill_rect, &SKILL_BTN, "Skill");
+        ry += 24.0;
+
+        ry = bar(
+            ui, rx, ry, bar_w, "HP", homun.hp, homun.max_hp, GaugeKind::Hp, self.bar_cap_w, tc, grf,
+        );
+        ry = bar(
+            ui, rx, ry, bar_w, "SP", homun.sp, homun.max_sp, GaugeKind::Sp, self.bar_cap_w, tc, grf,
+        );
+        ry += 3.0;
+
+        // EXP row: label + value, Feed button on the right, gauge below.
+        let (fw, fh) = self.feed_size;
+        ui.text(rx, ry + BASELINE, "EXP", tc);
+        ui.text(rx + 30.0, ry + BASELINE, &homun.exp.max(0).to_string(), tc);
+        let feed_rect = Rect::new(right_edge - fw, ry, fw, fh);
+        if ui.button(FEED_BTN_ID, feed_rect, &FEED_BTN, "Feed").clicked() {
+            events.push(GameEvent::RequestHomunMenu { command: 1 });
         }
+        let exp_ratio = if homun.max_exp > 0 {
+            (homun.exp.max(0) as f32 / homun.max_exp as f32).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        draw_gauge(ui, rx, ry + 14.0, bar_w - fw - 6.0, BAR_H, self.bar_cap_w, exp_ratio, false, grf);
+        ry += fh.max(BAR_H + 14.0) + 3.0;
+
+        // Hunger row + Self Feeding checkbox.
+        ui.text(rx, ry + BASELINE, "Hunger", tc);
+        ui.text(rx + 46.0, ry + BASELINE, &format!("{} / 100", homun.hunger), tc);
+        let cb_size = 12.0;
+        let cb_x = right_edge - 56.0;
+        let cb_rect = Rect::new(cb_x, ry, cb_size, cb_size);
+        let cb_resp = ui.interact(SELFFEED_BTN_ID, cb_rect);
+        if cb_resp.hovered() {
+            ui.any_interactive_hovered = true;
+        }
+        if cb_resp.clicked() {
+            self.self_feeding = !self.self_feeding;
+        }
+        let (v, i) = draw::quad_vertices(cb_x, ry, cb_size, cb_size, [0.9, 0.9, 0.9, 1.0]);
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
+        if self.self_feeding {
+            let (v, i) = draw::quad_vertices(cb_x + 3.0, ry + 3.0, cb_size - 6.0, cb_size - 6.0, [0.1, 0.5, 0.1, 1.0]);
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
+        }
+        ui.text(cb_x + cb_size + 4.0, ry + BASELINE, "Self", tc);
+        ui.text(cb_x + cb_size + 4.0, ry + BASELINE + 11.0, "Feeding", tc);
+        let hunger_ratio = (homun.hunger.max(0) as f32 / 100.0).clamp(0.0, 1.0);
+        draw_gauge(ui, rx, ry + 14.0, cb_x - rx - 6.0, BAR_H, self.bar_cap_w, hunger_ratio, false, grf);
+        ry += BAR_H + 16.0;
+
+        ui.text(rx, ry + BASELINE, &format!("Intimacy {}", intimacy_label(homun.intimacy)), tc);
+
+        // Red note, placed below the left stat column.
+        let note_y = (y + TITLE_H + 2.0 + 8.0 * CELL_H + 4.0).max(y + ry + 4.0);
+        ui.text(x + PAD, note_y + BASELINE, "Homunculus get", NOTE_COLOR);
+        ui.text(x + PAD, note_y + BASELINE + 13.0, "10% of EXP from player.", NOTE_COLOR);
 
         ui.has_grf_textures = prev_grf;
         events
@@ -261,22 +291,61 @@ impl Window for HomunWindow {
     fn set_has_grf_textures(&mut self, value: bool) {
         self.has_grf_textures = value;
     }
+    fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
+        if let Some((w, _)) = size_fn(GZE_BLUE_LEFT) {
+            self.bar_cap_w = w as f32;
+        }
+        if let Some((w, h)) = size_fn(DEL_BTN.normal) {
+            self.del_size = (w as f32, h as f32);
+        }
+        if let Some((w, h)) = size_fn(SKILL_BTN.normal) {
+            self.skill_size = (w as f32, h as f32);
+        }
+        if let Some((w, h)) = size_fn(FEED_BTN.normal) {
+            self.feed_size = (w as f32, h as f32);
+        }
+    }
     fn grf_texture_paths() -> Vec<&'static str> {
-        vec![]
+        let mut paths = vec![
+            TITLEBAR_TEX,
+            CLOSE_OFF_TEX,
+            CLOSE_ON_TEX,
+            DEL_BTN.normal,
+            DEL_BTN.hover,
+            DEL_BTN.pressed,
+            SKILL_BTN.normal,
+            SKILL_BTN.hover,
+            SKILL_BTN.pressed,
+            FEED_BTN.normal,
+            FEED_BTN.hover,
+            FEED_BTN.pressed,
+        ];
+        paths.extend(gauge_texture_paths());
+        paths
     }
 }
 
+/// Homunculus intimacy grade from the client-scale relationship value (0..1000).
 fn intimacy_label(intimacy: i16) -> &'static str {
     match intimacy {
-        i if i < 100 => "Hate",
-        i if i < 500 => "Shy",
-        i if i < 750 => "Neutral",
-        i if i < 900 => "Cordial",
-        _ => "Loyal",
+        i if i >= 911 => "Loyal",
+        i if i >= 751 => "Cordial",
+        i if i >= 251 => "Neutral",
+        i if i >= 101 => "Shy",
+        i if i >= 11 => "Awkward",
+        i if i >= 4 => "Hate",
+        _ => "Hate with passion",
     }
 }
 
-/// Draws a labeled value bar and returns the next y cursor.
+#[derive(Clone, Copy)]
+pub(crate) enum GaugeKind {
+    Hp,
+    Sp,
+}
+
+/// Draws a labeled HP/SP/EXP gauge and returns the next y cursor.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn bar(
     ui: &mut UiFrame,
     x: f32,
@@ -285,56 +354,19 @@ pub(crate) fn bar(
     label: &str,
     cur: u32,
     max: u32,
-    fill: [f32; 4],
+    kind: GaugeKind,
+    cap_w: f32,
     tc: [f32; 4],
+    has_grf: bool,
 ) -> f32 {
     let ratio = if max > 0 {
         (cur as f32 / max as f32).clamp(0.0, 1.0)
     } else {
         0.0
     };
-    let (v, i) = draw::quad_vertices(x, y, w, BAR_H, [0.05, 0.05, 0.07, 1.0]);
-    ui.draw_calls.push(DrawCall {
-        vertices: v.to_vec(),
-        indices: i.to_vec(),
-        texture: TextureRef::White,
-    });
-    if ratio > 0.0 {
-        let (v, i) = draw::quad_vertices(x, y, w * ratio, BAR_H, fill);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
-    }
+    let is_red = matches!(kind, GaugeKind::Hp) && ratio < 0.25;
+    draw_gauge(ui, x, y, w, BAR_H, cap_w, ratio, is_red, has_grf);
     ui.text(x + 3.0, y + BAR_H - 2.0, label, tc);
     ui.text_right(x + w - 3.0, y + BAR_H - 2.0, &format!("{cur}/{max}"), tc);
     y + BAR_H + 3.0
-}
-
-/// A simple fallback button; returns whether it was clicked this frame.
-pub(crate) fn button(ui: &mut UiFrame, id: WidgetId, rect: Rect, label: &str, _grf: bool) -> bool {
-    let resp = ui.interact(id, rect);
-    if resp.hovered() {
-        ui.any_interactive_hovered = true;
-    }
-    let color = if resp.hovered() {
-        [0.30, 0.30, 0.38, 1.0]
-    } else {
-        [0.20, 0.20, 0.26, 1.0]
-    };
-    let (v, i) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, color);
-    ui.draw_calls.push(DrawCall {
-        vertices: v.to_vec(),
-        indices: i.to_vec(),
-        texture: TextureRef::White,
-    });
-    ui.text_centered(
-        rect.x,
-        rect.y + rect.h * 0.5 + 4.0,
-        rect.w,
-        label,
-        [0.9, 0.9, 0.9, 1.0],
-    );
-    resp.clicked()
 }

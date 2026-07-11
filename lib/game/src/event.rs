@@ -872,8 +872,11 @@ pub enum GameEvent {
     },
     ToggleHomunculusWindow,
     ToggleMercenaryWindow,
+    ToggleMercenarySkillWindow,
     /// Standby button: toggle the companion between follow and hold.
-    ToggleCompanionStandby,
+    ToggleCompanionStandby {
+        is_mercenary: bool,
+    },
 
     Acknowledged,
 }

@@ -56,9 +56,10 @@ impl App {
                     } else {
                         self.input.last_mouse_pos = None;
                         if !self.input.right_dragged && !self.input.ui_hovered {
-                            if self.input.alt_pressed && self.has_companion() {
-                                self.issue_owner_command();
-                            } else {
+                            if self.input.alt_pressed && self.has_homunculus() {
+                                self.issue_owner_command(false, self.input.right_press_target);
+                            } else if !self.open_companion_context_menu(self.input.right_press_target)
+                            {
                                 self.open_entity_context_menu(self.input.right_press_entity);
                             }
                         }
@@ -72,6 +73,8 @@ impl App {
                     if pressed {
                         if self.input.ui_hovered {
                             self.input.ui_dragging = true;
+                        } else if self.input.alt_pressed && self.has_mercenary() {
+                            self.issue_owner_command(true, self.game.hovered_entity_id);
                         } else {
                             self.handle_left_click();
                             self.input.walk_packet_cooldown = 0.5;
@@ -84,6 +87,55 @@ impl App {
                 _ => {}
             }
         }
+    }
+
+    fn open_companion_context_menu(&mut self, entity_id: Option<u32>) -> bool {
+        let Some(entity_id) = entity_id else {
+            return false;
+        };
+        let is_homun = self
+            .game
+            .homunculus
+            .as_ref()
+            .is_some_and(|h| !h.vaporized && h.gid == entity_id);
+        let is_merc = self
+            .game
+            .mercenary
+            .as_ref()
+            .is_some_and(|m| m.gid == entity_id);
+        if !is_homun && !is_merc {
+            return false;
+        }
+        let (mx, my) = self.input.mouse_position;
+        let items = if is_homun {
+            vec![
+                ContextMenuItem {
+                    label: "Homunculus Info".to_string(),
+                    action: ContextMenuAction::CompanionShowInfo { is_mercenary: false },
+                },
+                ContextMenuItem {
+                    label: "Feed".to_string(),
+                    action: ContextMenuAction::CompanionFeed,
+                },
+                ContextMenuItem {
+                    label: "Standby".to_string(),
+                    action: ContextMenuAction::CompanionStandby { is_mercenary: false },
+                },
+            ]
+        } else {
+            vec![
+                ContextMenuItem {
+                    label: "Mercenary Info".to_string(),
+                    action: ContextMenuAction::CompanionShowInfo { is_mercenary: true },
+                },
+                ContextMenuItem {
+                    label: "Standby".to_string(),
+                    action: ContextMenuAction::CompanionStandby { is_mercenary: true },
+                },
+            ]
+        };
+        self.game.context_menu.open_at(mx as f32, my as f32, items);
+        true
     }
 
     fn open_entity_context_menu(&mut self, entity_id: Option<u32>) {
@@ -216,9 +268,20 @@ impl App {
                         self.game.homunculus_window.toggle();
                     }
                 }
-                PhysicalKey::Code(KeyCode::KeyR) if self.input.alt_pressed => {
+                PhysicalKey::Code(KeyCode::KeyR)
+                    if self.input.alt_pressed || self.input.ctrl_pressed =>
+                {
                     if self.game.mercenary.is_some() {
                         self.game.mercenary_window.toggle();
+                    }
+                }
+                PhysicalKey::Code(KeyCode::KeyT) if self.input.ctrl_pressed => {
+                    if self.has_mercenary() {
+                        self.push_owner_command_to(
+                            true,
+                            ragnarok_game::companion::OwnerCommand::follow(),
+                            false,
+                        );
                     }
                 }
                 _ => {}

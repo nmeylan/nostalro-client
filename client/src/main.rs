@@ -874,8 +874,12 @@ impl App {
                 GameEvent::ToggleMercenaryWindow => {
                     self.game.mercenary_window.toggle();
                 }
-                GameEvent::ToggleCompanionStandby => {
-                    self.push_owner_command(
+                GameEvent::ToggleMercenarySkillWindow => {
+                    self.game.mercenary_skill_window.toggle();
+                }
+                GameEvent::ToggleCompanionStandby { is_mercenary } => {
+                    self.push_owner_command_to(
+                        is_mercenary,
                         ragnarok_game::companion::OwnerCommand::follow(),
                         false,
                     );
@@ -1682,6 +1686,18 @@ impl App {
         ui_any_interactive_hovered: bool,
         render_list: &[RenderEntry],
     ) -> Option<u32> {
+        for (idx, present) in [self.has_homunculus(), self.has_mercenary()]
+            .into_iter()
+            .enumerate()
+        {
+            if let Some(t) = self.game.companion_attack_target[idx] {
+                if !present || self.game.entities.get(t).is_none() {
+                    self.game.companion_attack_target[idx] = None;
+                }
+            }
+        }
+        let companion_target_armed =
+            self.game.companion_attack_target.iter().any(Option::is_some);
         let (cursor, hovered_entity_id) = if self.game.app_state == AppState::InGame {
             if self.input.right_mouse_down {
                 (CursorType::Rotate, None)
@@ -1689,6 +1705,8 @@ impl App {
                 (CursorType::Click, None)
             } else if ui_any_hovered {
                 (CursorType::Default, None)
+            } else if companion_target_armed {
+                (CursorType::Lock, None)
             } else if let Some(pending) = &self.game.pending_skill_target {
                 match pending {
                     PendingSkillTarget::Entity { skill_id, .. } => {

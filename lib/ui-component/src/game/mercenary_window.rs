@@ -1,28 +1,51 @@
 use crate::Window;
-use crate::game::homun_window::{bar, button};
-use crate::helper::window_chrome::{draw_sys_button, draw_titlebar, text_color};
+use crate::game::homun_window::{GaugeKind, bar};
+use crate::helper::window_chrome::{
+    GZE_BLUE_LEFT, TITLEBAR_TEX, draw_container, draw_sys_button, draw_titlebar,
+    gauge_texture_paths, text_color,
+};
 use ragnarok_game::companion::MercenaryState;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
 pub const MERCENARY_WINDOW_ID: WidgetId = WidgetId(3000);
 const CLOSE_BTN_ID: WidgetId = WidgetId(3001);
 const DISMISS_BTN_ID: WidgetId = WidgetId(3002);
+const SKILL_BTN_ID: WidgetId = WidgetId(3003);
 
-const WIN_W: f32 = 210.0;
+const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
+const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+
+const FIRED_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/btn_fired.bmp",
+    hover: "data/texture/유저인터페이스/btn_fired_a.bmp",
+    pressed: "data/texture/유저인터페이스/btn_fired_b.bmp",
+};
+const SKILL_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/btn_skill.bmp",
+    hover: "data/texture/유저인터페이스/btn_skill_a.bmp",
+    pressed: "data/texture/유저인터페이스/btn_skill_b.bmp",
+};
+
+const WIN_W: f32 = 236.0;
 const TITLE_H: f32 = 17.0;
-const WIN_H: f32 = 316.0;
+const WIN_H: f32 = 190.0;
 const PANEL_H: f32 = WIN_H - TITLE_H;
-const PAD: f32 = 8.0;
-const ROW_H: f32 = 14.0;
+const LEFT_W: f32 = 88.0;
+const PAD: f32 = 6.0;
+const CELL_H: f32 = 21.0;
 const BASELINE: f32 = 10.0;
-const MAX_SKILL_ROWS: usize = 6;
+
+const EXPIRE_COLOR: [f32; 4] = [0.85, 0.25, 0.25, 1.0];
 
 pub struct MercenaryWindow {
     pub has_grf_textures: bool,
     visible: bool,
+    bar_cap_w: f32,
+    fired_size: (f32, f32),
+    skill_size: (f32, f32),
 }
 
 impl Default for MercenaryWindow {
@@ -36,6 +59,9 @@ impl MercenaryWindow {
         Self {
             has_grf_textures: false,
             visible: false,
+            bar_cap_w: 4.0,
+            fired_size: (42.0, 20.0),
+            skill_size: (42.0, 20.0),
         }
     }
 
@@ -68,7 +94,7 @@ impl MercenaryWindow {
         ui.interact(MERCENARY_WINDOW_ID, Rect::new(x, y, WIN_W, WIN_H));
 
         draw_titlebar(ui, x, y, WIN_W, TITLE_H, grf);
-        ui.text(x + 8.0, y + 13.0, "Mercenary", tc);
+        ui.text(x + 8.0, y + 13.0, "Mercenary Info", tc);
 
         let sys_w = 11.0;
         let close_rect = Rect::new(x + WIN_W - 3.0 - sys_w, y + 3.0, sys_w, sys_w);
@@ -85,127 +111,110 @@ impl MercenaryWindow {
             (sys_w, sys_w),
             close_resp.hovered(),
             grf,
-            "",
-            "",
+            CLOSE_ON_TEX,
+            CLOSE_OFF_TEX,
             Some('x'),
             [0.9, 0.4, 0.4, 1.0],
             [0.6, 0.3, 0.3, 1.0],
         );
 
-        let (v, i) = draw::quad_vertices(x, y + TITLE_H, WIN_W, PANEL_H, [0.10, 0.10, 0.14, 0.95]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
+        draw_container(ui, x, y + TITLE_H, WIN_W, PANEL_H, grf);
 
-        let cx = x + PAD;
-        let mut cy = y + TITLE_H + 6.0;
+        // Left stat column (boxed cells).
+        let stats = [
+            ("Atk", merc.atk),
+            ("Matk", merc.matk),
+            ("Hit", merc.hit),
+            ("Critical", merc.critical),
+            ("Def", merc.def),
+            ("Mdef", merc.mdef),
+            ("Flee", merc.flee),
+            ("Aspd", merc.aspd),
+        ];
+        let cell_x = x + PAD;
+        let cell_w = LEFT_W - PAD;
+        let mut ly = y + TITLE_H + 2.0;
+        let cell_bg = if grf {
+            [0.83, 0.83, 0.86, 1.0]
+        } else {
+            [0.16, 0.16, 0.22, 1.0]
+        };
+        for (label, value) in stats {
+            let (v, i) = draw::quad_vertices(cell_x, ly, cell_w, CELL_H - 2.0, cell_bg);
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
+            let by = ly + BASELINE + 2.0;
+            ui.text(cell_x + 4.0, by, label, tc);
+            ui.text_right(cell_x + cell_w - 4.0, by, &value.to_string(), tc);
+            ly += CELL_H;
+        }
 
-        ui.text(cx, cy + BASELINE, &merc.name, tc);
-        ui.text_right(
-            x + WIN_W - PAD,
-            cy + BASELINE,
-            &format!("Lv {}", merc.level),
-            tc,
-        );
-        cy += ROW_H + 2.0;
+        // Right info panel.
+        let rx = x + LEFT_W + PAD;
+        let right_edge = x + WIN_W - PAD;
+        let mut ry = y + TITLE_H + 4.0;
 
-        cy = bar(
+        ui.text(rx, ry + BASELINE, "Name", tc);
+        ui.text(rx + 34.0, ry + BASELINE, &merc.name, tc);
+        ry += 20.0;
+
+        ui.text(rx, ry + BASELINE, &format!("lvl {}", merc.level), tc);
+        let (sw, sh) = self.skill_size;
+        let (fw, fh) = self.fired_size;
+        let skill_rect = Rect::new(right_edge - sw, ry, sw, sh);
+        let dismiss_rect = Rect::new(right_edge - sw - 4.0 - fw, ry, fw, fh);
+        if ui.button(DISMISS_BTN_ID, dismiss_rect, &FIRED_BTN, "Dismiss").clicked() {
+            events.push(GameEvent::RequestMercenaryCommand { command: 2 });
+        }
+        if ui.button(SKILL_BTN_ID, skill_rect, &SKILL_BTN, "Skill").clicked() {
+            events.push(GameEvent::ToggleMercenarySkillWindow);
+        }
+        ry += 24.0;
+
+        let bar_w = right_edge - rx;
+        ry = bar(
             ui,
-            cx,
-            cy,
-            WIN_W - PAD * 2.0,
+            rx,
+            ry,
+            bar_w,
             "HP",
             merc.hp,
             merc.max_hp,
-            [0.2, 0.75, 0.2, 1.0],
+            GaugeKind::Hp,
+            self.bar_cap_w,
             tc,
+            grf,
         );
-        cy = bar(
+        ry = bar(
             ui,
-            cx,
-            cy,
-            WIN_W - PAD * 2.0,
+            rx,
+            ry,
+            bar_w,
             "SP",
             merc.sp,
             merc.max_sp,
-            [0.25, 0.45, 0.9, 1.0],
+            GaugeKind::Sp,
+            self.bar_cap_w,
             tc,
+            grf,
         );
+        ry += 6.0;
 
-        cy += 2.0;
-        ui.text(cx, cy + BASELINE, &format!("Faith: {}", merc.faith), tc);
-        ui.text_right(
-            x + WIN_W - PAD,
-            cy + BASELINE,
-            expire_label(merc.expire_date),
-            tc,
-        );
-        cy += ROW_H;
-        ui.text(cx, cy + BASELINE, &format!("Summons: {}", merc.calls), tc);
-        ui.text_right(
-            x + WIN_W - PAD,
-            cy + BASELINE,
-            &format!("Kills: {}", merc.kills),
-            tc,
-        );
-        cy += ROW_H + 4.0;
+        ui.text(rx, ry + BASELINE, "Expiration", tc);
+        ui.text(rx + 60.0, ry + BASELINE, &format_expire(merc.expire_date), EXPIRE_COLOR);
+        ry += 22.0;
 
-        let col2 = x + WIN_W * 0.5;
-        let left = [
-            ("ATK", merc.atk as i32),
-            ("MATK", merc.matk as i32),
-            ("HIT", merc.hit as i32),
-            ("CRI", merc.critical as i32),
-            ("Range", merc.atk_range as i32),
-        ];
-        let right = [
-            ("DEF", merc.def as i32),
-            ("MDEF", merc.mdef as i32),
-            ("FLEE", merc.flee as i32),
-            ("ASPD", merc.aspd as i32),
-            ("", 0),
-        ];
-        for (i, (label, value)) in left.iter().enumerate() {
-            let by = cy + i as f32 * ROW_H + BASELINE;
-            ui.text(cx, by, label, tc);
-            ui.text_right(col2 - 6.0, by, &value.to_string(), tc);
-        }
-        for (i, (label, value)) in right.iter().enumerate() {
-            if label.is_empty() {
-                continue;
-            }
-            let by = cy + i as f32 * ROW_H + BASELINE;
-            ui.text(col2 + 4.0, by, label, tc);
-            ui.text_right(x + WIN_W - PAD, by, &value.to_string(), tc);
-        }
-        cy += 5.0 * ROW_H + 4.0;
-
-        // Skill list (info only — mercenary skills are used autonomously by its AI).
-        ui.text(cx, cy + BASELINE, "Skills", tc);
-        cy += ROW_H;
-        if merc.skills.is_empty() {
-            ui.text(cx + 4.0, cy + BASELINE, "(none)", tc);
-            cy += ROW_H;
-        } else {
-            for skill in merc.skills.iter().take(MAX_SKILL_ROWS) {
-                ui.text(cx + 4.0, cy + BASELINE, &skill.name, tc);
-                ui.text_right(
-                    x + WIN_W - PAD,
-                    cy + BASELINE,
-                    &format!("Lv {}", skill.level),
-                    tc,
-                );
-                cy += ROW_H;
-            }
-        }
-        cy += 4.0;
-
-        let dismiss_rect = Rect::new(cx, cy, WIN_W - PAD * 2.0, 16.0);
-        if button(ui, DISMISS_BTN_ID, dismiss_rect, "Dismiss", grf) {
-            events.push(GameEvent::RequestMercenaryCommand { command: 2 });
-        }
+        let mid = rx + (right_edge - rx) * 0.5;
+        ui.text(rx, ry + BASELINE, "Loyalty", tc);
+        ui.text(rx + 52.0, ry + BASELINE, &merc.faith.to_string(), tc);
+        ui.text(mid + 8.0, ry + BASELINE, "Kill", tc);
+        ry += 16.0;
+        ui.text(rx, ry + BASELINE, "Summons", tc);
+        ui.text(rx + 52.0, ry + BASELINE, &merc.calls.to_string(), tc);
+        ui.text_right(right_edge, ry + BASELINE, &merc.kills.to_string(), tc);
 
         ui.has_grf_textures = prev_grf;
         events
@@ -219,13 +228,66 @@ impl Window for MercenaryWindow {
     fn set_has_grf_textures(&mut self, value: bool) {
         self.has_grf_textures = value;
     }
+    fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
+        if let Some((w, _)) = size_fn(GZE_BLUE_LEFT) {
+            self.bar_cap_w = w as f32;
+        }
+        if let Some((w, h)) = size_fn(FIRED_BTN.normal) {
+            self.fired_size = (w as f32, h as f32);
+        }
+        if let Some((w, h)) = size_fn(SKILL_BTN.normal) {
+            self.skill_size = (w as f32, h as f32);
+        }
+    }
     fn grf_texture_paths() -> Vec<&'static str> {
-        vec![]
+        let mut paths = vec![
+            TITLEBAR_TEX,
+            CLOSE_OFF_TEX,
+            CLOSE_ON_TEX,
+            FIRED_BTN.normal,
+            FIRED_BTN.hover,
+            FIRED_BTN.pressed,
+            SKILL_BTN.normal,
+            SKILL_BTN.hover,
+            SKILL_BTN.pressed,
+        ];
+        paths.extend(gauge_texture_paths());
+        paths
     }
 }
 
-/// Mercenary contracts carry an absolute expiry timestamp; without a synced
-/// server clock we can't compute a live countdown, so just mark the contract active.
-fn expire_label(expire_date: i32) -> &'static str {
-    if expire_date <= 0 { "Expired" } else { "Active" }
+/// Formats a mercenary contract expiry (unix seconds, UTC) as `MM/DD HH:MM`.
+fn format_expire(expire_date: i32) -> String {
+    if expire_date <= 0 {
+        return "-".to_string();
+    }
+    let secs = expire_date as i64;
+    let days = secs.div_euclid(86_400);
+    let rem = secs.rem_euclid(86_400);
+    let hour = rem / 3600;
+    let minute = (rem % 3600) / 60;
+
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+
+    format!("{month:02}/{day:02} {hour:02}:{minute:02}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_expire;
+
+    #[test]
+    fn expire_date_formats_as_month_day_time() {
+        // 2009-10-09 23:28:00 UTC
+        assert_eq!(format_expire(1_255_130_880), "10/09 23:28");
+        assert_eq!(format_expire(0), "-");
+        assert_eq!(format_expire(-5), "-");
+    }
 }

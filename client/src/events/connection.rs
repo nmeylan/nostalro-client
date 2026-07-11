@@ -112,6 +112,7 @@ impl App {
         self.game.attack_target_id = None;
         self.game.homunculus = None;
         self.game.mercenary = None;
+        self.game.companion_attack_target = [None; 2];
         self.game.homunculus_window.set_visible(false);
         self.game.mercenary_window.set_visible(false);
         self.game.current_map = None;
@@ -258,7 +259,11 @@ impl App {
             preload_window(&mut self.game.basic_info_window, renderer, grf);
             preload_window(&mut self.game.minimap_window, renderer, grf);
             preload_window(&mut self.game.status_window, renderer, grf);
+            preload_window(&mut self.game.levelup_notification, renderer, grf);
             preload_window(&mut self.game.party_window, renderer, grf);
+            preload_window(&mut self.game.homunculus_window, renderer, grf);
+            preload_window(&mut self.game.mercenary_window, renderer, grf);
+            preload_window(&mut self.game.mercenary_skill_window, renderer, grf);
             preload_window(&mut self.game.confirm_dialog, renderer, grf);
             self.game.drop_dialog_has_grf_textures =
                 renderer.preload_textures(&DropQuantityDialog::grf_texture_paths(), grf);

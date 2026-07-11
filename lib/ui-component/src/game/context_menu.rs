@@ -11,6 +11,9 @@ const ITEM_H: f32 = 18.0;
 #[derive(Clone, Copy)]
 pub enum ContextMenuAction {
     InviteToParty { target_aid: u32 },
+    CompanionShowInfo { is_mercenary: bool },
+    CompanionFeed,
+    CompanionStandby { is_mercenary: bool },
 }
 
 pub struct ContextMenuItem {
@@ -107,6 +110,19 @@ impl ContextMenu {
             match action {
                 ContextMenuAction::InviteToParty { target_aid } => {
                     events.push(GameEvent::RequestPartyInvite { target_aid });
+                }
+                ContextMenuAction::CompanionShowInfo { is_mercenary } => {
+                    events.push(if is_mercenary {
+                        GameEvent::ToggleMercenaryWindow
+                    } else {
+                        GameEvent::ToggleHomunculusWindow
+                    });
+                }
+                ContextMenuAction::CompanionFeed => {
+                    events.push(GameEvent::RequestHomunMenu { command: 1 });
+                }
+                ContextMenuAction::CompanionStandby { is_mercenary } => {
+                    events.push(GameEvent::ToggleCompanionStandby { is_mercenary });
                 }
             }
             self.close();

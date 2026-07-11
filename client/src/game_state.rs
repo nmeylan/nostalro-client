@@ -38,6 +38,9 @@ use ragnarok_ui_component::game::context_menu::ContextMenu;
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
 use ragnarok_ui_component::game::homun_window::{HOMUN_WINDOW_ID, HomunWindow};
+use ragnarok_ui_component::game::mercenary_skill_window::{
+    MERCENARY_SKILL_WINDOW_ID, MercenarySkillWindow,
+};
 use ragnarok_ui_component::game::mercenary_window::{MERCENARY_WINDOW_ID, MercenaryWindow};
 use ragnarok_ui_component::game::hotkey_bar::{HOTKEY_BAR_WINDOW_ID, HotkeyBarWindow};
 use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
@@ -50,6 +53,9 @@ use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::party_window::{PARTY_WINDOW_ID, PartyWindow};
 use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
+use ragnarok_ui_component::game::levelup_notification_window::{
+    LevelUpClick, LevelUpNotificationWindow,
+};
 use ragnarok_ui_component::game::status_icon_bar::StatusIconBarWindow;
 use ragnarok_ui_component::game::status_window::{STATUS_WINDOW_ID, StatusWindow};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
@@ -164,12 +170,17 @@ pub struct GameState {
     pub hotkey_bar: HotkeyBarWindow,
     pub minimap_window: MinimapWindow,
     pub status_icon_bar: StatusIconBarWindow,
+    pub levelup_notification: LevelUpNotificationWindow,
     pub party: Option<Party>,
     pub party_window: PartyWindow,
     pub homunculus: Option<HomunculusState>,
     pub mercenary: Option<MercenaryState>,
+    /// Target armed by the first click of the two-click owner attack, confirmed by
+    /// the second. Index 0 = homunculus (Alt+right-click), 1 = mercenary (Alt+left-click).
+    pub companion_attack_target: [Option<u32>; 2],
     pub homunculus_window: HomunWindow,
     pub mercenary_window: MercenaryWindow,
+    pub mercenary_skill_window: MercenarySkillWindow,
     pub context_menu: ContextMenu,
     pub pending_party_invite: Option<u32>,
     pub party_invite_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
@@ -213,6 +224,7 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     PARTY_WINDOW_ID,
     HOMUN_WINDOW_ID,
     MERCENARY_WINDOW_ID,
+    MERCENARY_SKILL_WINDOW_ID,
     BOOK_WINDOW_ID,
     SOUND_OPTIONS_WINDOW_ID,
 ];
@@ -301,6 +313,12 @@ impl GameState {
             self.status_icon_bar
                 .build(ui, &mut self.character, &self.data_table),
         );
+
+        match self.levelup_notification.build(ui) {
+            LevelUpClick::Base => self.status_window.open(),
+            LevelUpClick::Job => self.character.skills.open(),
+            LevelUpClick::None => {}
+        }
 
         self.chat_room_window.placements = self
             .chat_rooms
@@ -585,6 +603,9 @@ impl GameState {
             MERCENARY_WINDOW_ID => {
                 events.extend(self.mercenary_window.build(ui, self.mercenary.as_ref()));
             }
+            MERCENARY_SKILL_WINDOW_ID => {
+                events.extend(self.mercenary_skill_window.build(ui, self.mercenary.as_ref()));
+            }
             BOOK_WINDOW_ID => {
                 events.extend(
                     self.book_window
@@ -684,12 +705,15 @@ impl GameState {
             hotkey_bar: HotkeyBarWindow::new(),
             minimap_window: MinimapWindow::new(),
             status_icon_bar: StatusIconBarWindow::new(),
+            levelup_notification: LevelUpNotificationWindow::new(),
             party: None,
             party_window: PartyWindow::new(),
             homunculus: None,
             mercenary: None,
+            companion_attack_target: [None; 2],
             homunculus_window: HomunWindow::new(),
             mercenary_window: MercenaryWindow::new(),
+            mercenary_skill_window: MercenarySkillWindow::new(),
             context_menu: ContextMenu::new(),
             pending_party_invite: None,
             party_invite_result: std::rc::Rc::new(std::cell::Cell::new(None)),

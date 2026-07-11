@@ -13,23 +13,24 @@ impl App {
         })
     }
 
-    /// True when there is a companion whose AI can accept owner commands.
-    pub(crate) fn has_companion(&self) -> bool {
+    pub(crate) fn has_homunculus(&self) -> bool {
         self.game
             .homunculus
             .as_ref()
             .is_some_and(|h| !h.vaporized && h.gid != 0)
-            || self.game.mercenary.as_ref().is_some_and(|m| m.gid != 0)
     }
 
-    /// Alt+right-click: order the companion to attack the hovered target, or move
-    /// to the clicked cell. Shift+Alt queues the command as reserved.
-    pub(crate) fn issue_owner_command(&mut self) {
+    pub(crate) fn has_mercenary(&self) -> bool {
+        self.game.mercenary.as_ref().is_some_and(|m| m.gid != 0)
+    }
+
+    pub(crate) fn issue_owner_command(&mut self, is_mercenary: bool, hovered_target: Option<u32>) {
         let reserved = self.input.shift_pressed;
         let player_id = self.game.entities.player_id();
+        let idx = is_mercenary as usize;
 
         // An attackable target under the cursor becomes an attack order.
-        let attack_target = self.input.right_press_target.and_then(|gid| {
+        let attack_target = hovered_target.and_then(|gid| {
             let entity = self.game.entities.get(gid)?;
             let attackable = match entity.entity_type {
                 EntityType::Monster => true,
@@ -39,31 +40,46 @@ impl App {
             attackable.then_some(gid)
         });
 
-        let cmd = if let Some(target) = attack_target {
-            OwnerCommand::attack(target)
+        if let Some(target) = attack_target {
+            if reserved {
+                self.push_owner_command_to(is_mercenary, OwnerCommand::attack(target), true);
+                self.game.companion_attack_target[idx] = None;
+            } else if self.game.companion_attack_target[idx] == Some(target) {
+                self.push_owner_command_to(is_mercenary, OwnerCommand::attack(target), false);
+                self.game.companion_attack_target[idx] = None;
+            } else {
+                self.game.companion_attack_target[idx] = Some(target);
+            }
         } else if let Some((x, y)) = self.hovered_cell() {
-            OwnerCommand::move_to(x, y)
-        } else {
-            return;
-        };
-
-        self.push_owner_command(cmd, reserved);
+            if self.game.companion_attack_target[idx].is_some() {
+                self.game.companion_attack_target[idx] = None;
+            } else {
+                self.push_owner_command_to(is_mercenary, OwnerCommand::move_to(x, y), reserved);
+            }
+        }
     }
 
-    pub(crate) fn push_owner_command(&mut self, cmd: OwnerCommand, reserved: bool) {
-        // Homunculus takes precedence when both companions exist.
-        let ai = if let Some(h) = self
-            .game
-            .homunculus
-            .as_mut()
-            .filter(|h| !h.vaporized && h.gid != 0)
-        {
-            &mut h.ai
-        } else if let Some(m) = self.game.mercenary.as_mut().filter(|m| m.gid != 0) {
-            &mut m.ai
+    /// Send a command to one companion (homunculus when `is_mercenary` is false).
+    pub(crate) fn push_owner_command_to(
+        &mut self,
+        is_mercenary: bool,
+        cmd: OwnerCommand,
+        reserved: bool,
+    ) {
+        let ai = if is_mercenary {
+            self.game
+                .mercenary
+                .as_mut()
+                .filter(|m| m.gid != 0)
+                .map(|m| &mut m.ai)
         } else {
-            return;
+            self.game
+                .homunculus
+                .as_mut()
+                .filter(|h| !h.vaporized && h.gid != 0)
+                .map(|h| &mut h.ai)
         };
+        let Some(ai) = ai else { return };
         if reserved {
             ai.push_reserved(cmd);
         } else {

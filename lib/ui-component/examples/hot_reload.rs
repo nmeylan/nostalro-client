@@ -15,7 +15,10 @@ use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
 use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
 use ragnarok_ui_component::game::cart_window::CartWindow;
+use ragnarok_ui_component::game::homun_window::HomunWindow;
 use ragnarok_ui_component::game::inventory_window::InventoryWindow;
+use ragnarok_ui_component::game::mercenary_skill_window::MercenarySkillWindow;
+use ragnarok_ui_component::game::mercenary_window::MercenaryWindow;
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::my_shop_window::MyShopWindow;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
@@ -127,6 +130,7 @@ const ACCOUNT_COMPONENTS: &[&str] =
     &["login", "server_list", "char_select", "char_create"];
 const SHOP_COMPONENTS: &[&str] =
     &["cart", "vending_setup", "my_shop", "vending_buy", "vending_board"];
+const COMPANION_COMPONENTS: &[&str] = &["mercenary", "mercenary_skill", "homun"];
 
 fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
     match name {
@@ -151,6 +155,9 @@ fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
         "item_info" => ItemInfoWindow::grf_texture_paths(),
         "skill_tree" => SkillTreeWindow::grf_texture_paths(),
         "card_insert" => vec![],
+        "mercenary" => MercenaryWindow::grf_texture_paths(),
+        "mercenary_skill" => MercenarySkillWindow::grf_texture_paths(),
+        "homun" => HomunWindow::grf_texture_paths(),
         "basic_info" => BasicInfoWindow::grf_texture_paths(),
         "hotkey_bar" => {
             let mut paths = HotkeyBarWindow::grf_texture_paths();
@@ -172,6 +179,7 @@ fn grf_texture_paths(example_name: &str) -> Vec<&'static str> {
         "game" => GAME_COMPONENTS,
         "account" => ACCOUNT_COMPONENTS,
         "shop" => SHOP_COMPONENTS,
+        "companion" => COMPANION_COMPONENTS,
         _ => return grf_texture_paths_single(example_name),
     };
     let mut paths: Vec<&'static str> = names
@@ -240,7 +248,7 @@ fn main() {
 
     let texture_paths = grf_texture_paths(&example_name);
     let example_name_for_closure = example_name.clone();
-    let is_category = matches!(example_name.as_str(), "game" | "account");
+    let is_category = matches!(example_name.as_str(), "game" | "account" | "companion");
     let (win_w, win_h) = if is_category { (1280, 900) } else { (800, 600) };
 
     shared::UiExampleApp::new("Hot Reload", win_w, win_h, move |ctx| {
