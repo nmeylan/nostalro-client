@@ -4,6 +4,7 @@ TODO:
 - homonculus
 - mercenary
 - pet
+
 # Sprite rendering
 - ~~Weapon sprite~~ (done — full rendering with ACT animation in sprite.rs)
 - ~~Shield sprite~~ (done — render order fix for direction-based layering)
@@ -12,7 +13,7 @@ TODO:
 ~~- cart~~
 - ~~Other players / NPCs / monsters entity sprites~~ (done — entity collection manages Player/NPC/Monster types)
 - ~~Doridori head animation~~ (done — head_dir from server selects head/headgear motion)
-- Divide attachment offset by clip zoom for weapons/accessories (original compensates when sprClip zoom != 1.0)
+- ~~Divide attachment offset by clip zoom for weapons/accessories (original compensates when sprClip zoom != 1.0)~~
 - ~~Damage numbers display~~
 - ~~Emotion/emote bubbles~~ (done — EmotionState with 2.5s display)
 - ~~Chat bubbles above entities~~ (done — text bubble with background above entity, 5s duration)
@@ -48,7 +49,7 @@ TODO:
 - Friend/messenger list
 - Game menu: graphic/audio options
 - Emotion selector
-- Char delete
+- ~~Char delete~~
 - Quest window
 ~~- Cart window~~
 - Storage/warehouse window
@@ -61,7 +62,7 @@ TODO:
 
 # Entities
 - ~~Multiple entity management (spawn, despawn, update)~~ (done — entity_collection.rs)
-- ~~ Other players (full sprite layers)~~
+- ~~Other players (full sprite layers)~~
 - ~~cart~~
 - ~~Trap~~
 - ~~Falcon~~

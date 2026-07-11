@@ -1,5 +1,6 @@
 use crate::App;
 use models::enums::skill_enums::SkillEnum;
+use ragnarok_game::companion::OwnerCommand;
 use ragnarok_game::cursor::PendingSkillTarget;
 use ragnarok_game::entity::{EntityState, EntityType};
 use ragnarok_game::path::try_move_to;
@@ -11,6 +12,11 @@ use ragnarok_network::{
 
 impl App {
     pub(crate) fn handle_left_click(&mut self) {
+        tracing::info!(
+            "handle_left_click: pending_companion={:?} hovered_entity={:?}",
+            self.game.pending_companion_skill.is_some(),
+            self.game.hovered_entity_id
+        );
         if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
             return;
         }
@@ -28,6 +34,25 @@ impl App {
                 .is_some_and(|e| e.vending_board.is_some())
         {
             self.close_own_shop();
+            return;
+        }
+        if let Some(pending) = self.game.pending_companion_skill.take() {
+            let reserved = self.input.shift_pressed;
+            if pending.is_ground {
+                if let Some((cx, cy)) = self.hovered_cell() {
+                    self.push_owner_command_to(
+                        pending.is_mercenary,
+                        OwnerCommand::skill_area(pending.skill_id, pending.level as u8, cx, cy),
+                        reserved,
+                    );
+                }
+            } else if let Some(target) = self.game.hovered_entity_id {
+                self.push_owner_command_to(
+                    pending.is_mercenary,
+                    OwnerCommand::skill_object(pending.skill_id, pending.level as u8, target),
+                    reserved,
+                );
+            }
             return;
         }
         if self.is_local_player_incapacitated() {

@@ -194,6 +194,10 @@ impl CompanionAi {
         self.state
     }
 
+    pub fn has_pending_command(&self) -> bool {
+        self.msg.is_some()
+    }
+
     /// Direct command (Alt+click): clears any queued reserved commands.
     pub fn push_command(&mut self, cmd: OwnerCommand) {
         self.msg = Some(cmd);

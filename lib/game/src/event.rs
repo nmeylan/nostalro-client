@@ -597,6 +597,11 @@ pub enum GameEvent {
         skill_id: u16,
         level: i16,
     },
+    RequestCompanionUseSkill {
+        is_mercenary: bool,
+        skill_id: u16,
+        level: i16,
+    },
     AutoCastSkill {
         skill_id: u16,
         level: i16,

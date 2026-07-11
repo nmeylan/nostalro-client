@@ -98,7 +98,13 @@ impl App {
             return None;
         }
         let gid = merc.gid;
-        let entity = self.game.entities.get(gid)?;
+        let has_cmd = merc.ai.has_pending_command();
+        let Some(entity) = self.game.entities.get(gid) else {
+            if has_cmd {
+                tracing::info!("tick_mercenary: merc gid={gid} has a command but no entity in map");
+            }
+            return None;
+        };
         let (mx, my) = entity.movement.cell_position();
         let motion = Motion::from_state(entity.state);
         let job = entity.job;
@@ -144,6 +150,9 @@ impl App {
                     level,
                     target_gid,
                 } => {
+                    tracing::info!(
+                        "companion {gid} skill_object intent: skill={skill_id} lvl={level} target={target_gid}"
+                    );
                     self.channel.send_packet(build_use_skill_packet(
                         skill_id,
                         level as i16,

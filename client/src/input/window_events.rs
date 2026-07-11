@@ -78,6 +78,13 @@ impl App {
                     if pressed {
                         if self.input.ui_hovered {
                             self.input.ui_dragging = true;
+                        } else if self.input.alt_pressed
+                            && (self.has_homunculus() || self.has_mercenary())
+                        {
+                            self.issue_owner_command(
+                                self.has_mercenary(),
+                                self.game.hovered_entity_id,
+                            );
                         } else {
                             self.handle_left_click();
                             self.input.walk_packet_cooldown = 0.5;

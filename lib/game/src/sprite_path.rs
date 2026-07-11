@@ -42,6 +42,15 @@ pub fn mercenary_sprite_path(name: &str) -> String {
     format!("data/sprite/인간족/몸통/{name}")
 }
 
+/// The mercenary weapon sprite sits under `용병`, named `<body>_<weapon>` where
+/// the weapon character is the body name's first character (활 bow / 창 spear /
+/// 검 sword). The sex sub-path present on the body name is dropped here.
+pub fn mercenary_weapon_sprite_path(name: &str) -> Option<String> {
+    let base = name.rsplit(['/', '\\']).next()?;
+    let weapon_char = base.chars().next()?;
+    Some(format!("data/sprite/인간족/용병/{base}_{weapon_char}"))
+}
+
 pub fn entity_sprite_base_path(name_table: &NameTable, job: u16) -> Option<String> {
     let name = name_table.get_name(job)?;
     if job == JT_WARPNPC {

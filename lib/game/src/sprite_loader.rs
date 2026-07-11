@@ -9,7 +9,7 @@ use crate::data_table::accessory_table::AccessoryTable;
 use crate::data_table::name_table::NameTable;
 use crate::sprite_path::{
     body_palette_path, body_sprite_path, entity_sprite_base_path, head_palette_path,
-    head_sprite_path, mercenary_sprite_path, weapon_sprite_path,
+    head_sprite_path, mercenary_sprite_path, mercenary_weapon_sprite_path, weapon_sprite_path,
 };
 use models::enums::weapon::WeaponType;
 
@@ -398,11 +398,20 @@ pub fn load_mercenary_sprite_data(
     let head_id = (job % 23) + 1;
     let head = load_head_sprite(grf, head_id, sex, 0);
     let shadow = load_shadow_sprite(grf);
+    let weapon_base = mercenary_weapon_sprite_path(name);
+    let weapon = weapon_base
+        .as_deref()
+        .and_then(|w| load_sprite_data(grf, &format!("{w}.spr"), &format!("{w}.act")));
+    // Bow mercenaries have no weapon-trail sprite; the load simply returns None.
+    let weapon_trail = weapon
+        .as_ref()
+        .and(weapon_base.as_deref())
+        .and_then(|w| load_sprite_data(grf, &format!("{w}_검광.spr"), &format!("{w}_검광.act")));
     Some(PlayerSpriteData {
         body,
         head,
-        weapon: None,
-        weapon_trail: None,
+        weapon,
+        weapon_trail,
         headgear_top: None,
         headgear_mid: None,
         headgear_bottom: None,

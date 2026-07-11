@@ -9,30 +9,41 @@ pub fn rgb(hex: u32) -> [f32; 4] {
     ]
 }
 
+pub const BLACK: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 pub const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
 pub const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
 pub const BLUE: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
 pub const CYAN: [f32; 4] = [0.0, 1.0, 1.0, 1.0];
-pub const MAGENTA: [f32; 4] = [0.807_843_1, 0.0, 0.807_843_1, 1.0];
+pub const MAGENTA1: [f32; 4] = [0.807_843_1, 0.0, 0.807_843_1, 1.0];
 pub const YELLOW: [f32; 4] = [1.0, 1.0, 0.0, 1.0];
+pub const MAGENTA: [f32; 4] =[1.0, 0.09411765, 1.0, 1.0];
+
+pub const PINK: [f32; 4] = [1.0, 0.0, 0.48235294, 1.0];
 
 /// Per-digit-count `(text_color, shadow_color)`. The shadow is drawn 1px offset so
 /// e.g. the 7-digit price reads as black with a green edge rather than solid green.
 pub fn price_style(price: i64) -> ([f32; 4], Option<[f32; 4]>) {
     let digits = price.max(0).to_string().len();
     match digits {
-        1 => (rgb(0x000000), Some(CYAN)),
-        2 => (BLUE, Some(MAGENTA)),
-        3 => (BLUE, Some(CYAN)),
-        4 => (RED, Some(YELLOW)),
-        5 => (rgb(0xff18ff), None),
+        1 => CYAN_WITH_SHADOW,
+        2 => MAGENTA_WITH_SHADOW,
+        3 => CYAN_LIGHT_WITH_SHADOW,
+        4 => ORANGE_WITH_SHADOW,
+        5 => (MAGENTA1, None),
         6 => (BLUE, None),
-        7 => (rgb(0x000000), Some(GREEN)),
+        7 => GREEN_WITH_SHADOW,
         8 => (RED, None),
-        9 => (rgb(0x000000), Some(rgb(0xcece63))),
+        9 => PINK_WITH_SHADOW,
         _ => (RED, Some(rgb(0xff007b))),
     }
 }
+
+pub const CYAN_WITH_SHADOW: ([f32; 4], Option<[f32; 4]>) = (BLACK, Some(CYAN));
+pub const CYAN_LIGHT_WITH_SHADOW: ([f32; 4], Option<[f32; 4]>) = (BLUE, Some(CYAN));
+pub const GREEN_WITH_SHADOW: ([f32; 4], Option<[f32; 4]>) = (BLACK, Some(GREEN));
+pub const PINK_WITH_SHADOW: ([f32; 4], Option<[f32; 4]>) = (BLACK, Some(PINK));
+pub const MAGENTA_WITH_SHADOW: ([f32; 4], Option<[f32; 4]>) = (BLUE, Some(MAGENTA1));
+pub const ORANGE_WITH_SHADOW: ([f32; 4], Option<[f32; 4]>) = (RED, Some(YELLOW));
 
 pub fn draw_price_right(ui: &mut UiFrame, right_x: f32, y: f32, text: &str, price: i64) {
     let (color, shadow) = price_style(price);

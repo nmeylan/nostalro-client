@@ -163,7 +163,8 @@ impl MercenarySkillWindow {
             );
 
             if row_resp.double_clicked() {
-                events.push(GameEvent::RequestUseSkill {
+                events.push(GameEvent::RequestCompanionUseSkill {
+                    is_mercenary: true,
                     skill_id: skill.id,
                     level: skill.level,
                 });
@@ -190,7 +191,8 @@ impl MercenarySkillWindow {
         if ui.button(USE_BTN_ID, use_rect, &USE_BTN, "use").clicked()
             && let Some(skill) = merc.skills.get(self.selected)
         {
-            events.push(GameEvent::RequestUseSkill {
+            events.push(GameEvent::RequestCompanionUseSkill {
+                is_mercenary: true,
                 skill_id: skill.id,
                 level: skill.level,
             });

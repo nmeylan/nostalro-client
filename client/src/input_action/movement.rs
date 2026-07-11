@@ -27,9 +27,10 @@ impl App {
     pub(crate) fn issue_owner_command(&mut self, is_mercenary: bool, hovered_target: Option<u32>) {
         let reserved = self.input.shift_pressed;
         let player_id = self.game.entities.player_id();
-        let idx = is_mercenary as usize;
 
-        // An attackable target under the cursor becomes an attack order.
+        // An attackable target under the cursor becomes an attack order; anything
+        // else is a move order to the hovered cell. Shift queues the command
+        // behind the current action instead of replacing it.
         let attack_target = hovered_target.and_then(|gid| {
             let entity = self.game.entities.get(gid)?;
             let attackable = match entity.entity_type {
@@ -41,21 +42,9 @@ impl App {
         });
 
         if let Some(target) = attack_target {
-            if reserved {
-                self.push_owner_command_to(is_mercenary, OwnerCommand::attack(target), true);
-                self.game.companion_attack_target[idx] = None;
-            } else if self.game.companion_attack_target[idx] == Some(target) {
-                self.push_owner_command_to(is_mercenary, OwnerCommand::attack(target), false);
-                self.game.companion_attack_target[idx] = None;
-            } else {
-                self.game.companion_attack_target[idx] = Some(target);
-            }
+            self.push_owner_command_to(is_mercenary, OwnerCommand::attack(target), reserved);
         } else if let Some((x, y)) = self.hovered_cell() {
-            if self.game.companion_attack_target[idx].is_some() {
-                self.game.companion_attack_target[idx] = None;
-            } else {
-                self.push_owner_command_to(is_mercenary, OwnerCommand::move_to(x, y), reserved);
-            }
+            self.push_owner_command_to(is_mercenary, OwnerCommand::move_to(x, y), reserved);
         }
     }
 
@@ -79,7 +68,13 @@ impl App {
                 .filter(|h| !h.vaporized && h.gid != 0)
                 .map(|h| &mut h.ai)
         };
-        let Some(ai) = ai else { return };
+        let Some(ai) = ai else {
+            tracing::info!(
+                "push_owner_command_to: no companion AI (is_mercenary={is_mercenary}) — dropped"
+            );
+            return;
+        };
+        tracing::info!("push_owner_command_to: is_mercenary={is_mercenary} reserved={reserved}");
         if reserved {
             ai.push_reserved(cmd);
         } else {

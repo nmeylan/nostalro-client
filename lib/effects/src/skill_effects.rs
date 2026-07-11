@@ -50,7 +50,61 @@ impl TargetSkillEffects {
     }
 }
 
+/// Mercenary skills reuse the visuals and sounds of the base class skill they
+/// mirror. Callers of the effect/sound tables resolve a merc skill to its base
+/// first; skills with no mapping (including support buffs that have no dedicated
+/// effect in the original game) pass through unchanged.
+pub fn merc_skill_base(skill: SkillEnum) -> SkillEnum {
+    use SkillEnum as S;
+    match skill {
+        S::MsBash => S::SmBash,
+        S::MsMagnum => S::SmMagnum,
+        S::MsBowlingbash => S::KnBowlingbash,
+        S::MsParrying => S::LkParrying,
+        S::MsReflectshield => S::CrReflectshield,
+        S::MsBerserk => S::LkBerserk,
+        S::MaDouble => S::AcDouble,
+        S::MaShower => S::AcShower,
+        S::MaSharpshooting => S::SnSharpshooting,
+        S::MaChargearrow => S::AcChargearrow,
+        S::MaSkidtrap => S::HtSkidtrap,
+        S::MaLandmine => S::HtLandmine,
+        S::MaSandman => S::HtSandman,
+        S::MaFreezingtrap => S::HtFreezingtrap,
+        S::MaRemovetrap => S::HtRemovetrap,
+        S::MlPierce => S::KnPierce,
+        S::MlBrandish => S::KnBrandishspear,
+        S::MlSpiralpierce => S::LkSpiralpierce,
+        S::MlDefender => S::CrDefender,
+        S::MlAutoguard => S::CrAutoguard,
+        S::MlDevotion => S::CrDevotion,
+        S::MerMagnificat => S::PrMagnificat,
+        S::MerProvoke => S::SmProvoke,
+        S::MerSight => S::MgSight,
+        S::MerDecagi => S::AlDecagi,
+        S::MerIncagi => S::AlIncagi,
+        S::MerBlessing => S::AlBlessing,
+        S::MerKyrie => S::PrKyrie,
+        S::MerLexdivina => S::PrLexdivina,
+        other => other,
+    }
+}
+
+/// Id-based [`merc_skill_base`] for callers that hold a raw skill id. Only the
+/// contiguous mercenary id block is resolved (every id in it is defined);
+/// everything else passes through untouched, so unknown ids never reach the
+/// panicking `SkillEnum::from_id`.
+pub fn merc_skill_base_id(skill_id: u16) -> u16 {
+    let merc_range = SkillEnum::MsBash.id()..=SkillEnum::MerInvincibleoff2.id();
+    if merc_range.contains(&(skill_id as u32)) {
+        merc_skill_base(SkillEnum::from_id(skill_id as u32)).id() as u16
+    } else {
+        skill_id
+    }
+}
+
 pub fn is_ground_cast(skill: SkillEnum) -> bool {
+    let skill = merc_skill_base(skill);
     use SkillEnum as S;
     matches!(
         skill,
@@ -104,6 +158,7 @@ pub fn is_ground_cast(skill: SkillEnum) -> bool {
 }
 
 pub fn caster_cast_on_use(skill: SkillEnum) -> bool {
+    let skill = merc_skill_base(skill);
     use SkillEnum as S;
     matches!(
         skill,
@@ -112,6 +167,7 @@ pub fn caster_cast_on_use(skill: SkillEnum) -> bool {
 }
 
 pub fn ground_placed_effect(skill: SkillEnum, level: i16) -> &'static [EffectId] {
+    let skill = merc_skill_base(skill);
     use EffectId as E;
     use SkillEnum as S;
     match skill {
@@ -133,6 +189,7 @@ pub fn ground_placed_effect(skill: SkillEnum, level: i16) -> &'static [EffectId]
 }
 
 pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
+    let skill = merc_skill_base(skill);
     use EffectId as E;
     use SkillEnum as S;
     match skill {
@@ -329,6 +386,7 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
 }
 
 pub fn fire_glyph_effect(skill: SkillEnum) -> &'static [EffectId] {
+    let skill = merc_skill_base(skill);
     use EffectId as E;
     use SkillEnum as S;
     match skill {
@@ -339,6 +397,7 @@ pub fn fire_glyph_effect(skill: SkillEnum) -> &'static [EffectId] {
 }
 
 pub fn casting_skill(skill: SkillEnum) -> CastingSkill {
+    let skill = merc_skill_base(skill);
     use SkillEnum as S;
     CastingSkill {
         begin: begin_cast_effect(skill),
@@ -387,6 +446,7 @@ pub fn beginspell_for_element(property: u32) -> EffectId {
 }
 
 pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
+    let skill = merc_skill_base(skill);
     use EffectId as E;
     use SkillEnum as S;
     type C = CasterSkillEffects;
@@ -501,6 +561,7 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
 }
 
 pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
+    let skill = merc_skill_base(skill);
     use EffectId as E;
     use SkillEnum as S;
     type T = TargetSkillEffects;
@@ -827,6 +888,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
 }
 
 fn suppresses_generic_hit(skill: SkillEnum) -> bool {
+    let skill = merc_skill_base(skill);
     use SkillEnum as S;
     matches!(
         skill,
@@ -889,6 +951,30 @@ mod tests {
             caster_skill_effects(SkillEnum::MoExplosionspirits).cast,
             &[EffectId::Gumgang, EffectId::Gumgang2]
         );
+    }
+
+    #[test]
+    fn mercenary_skills_inherit_base_skill_visuals() {
+        use SkillEnum as S;
+        for (merc, base) in [
+            (S::MsMagnum, S::SmMagnum),
+            (S::MaDouble, S::AcDouble),
+            (S::MlSpiralpierce, S::LkSpiralpierce),
+            (S::MerMagnificat, S::PrMagnificat),
+        ] {
+            assert_eq!(merc_skill_base(merc), base);
+            assert_eq!(caster_skill_effects(merc), caster_skill_effects(base));
+            assert_eq!(target_skill_effects(merc), target_skill_effects(base));
+        }
+        assert_eq!(
+            caster_skill_effects(S::MsMagnum).cast,
+            &[EffectId::Magnumbreak]
+        );
+        // Support buffs have no dedicated effect in the original game.
+        assert_eq!(merc_skill_base(S::MerQuicken), S::MerQuicken);
+        assert!(caster_skill_effects(S::MerQuicken).cast.is_empty());
+        assert_eq!(merc_skill_base_id(S::MaDouble.id() as u16), S::AcDouble.id() as u16);
+        assert_eq!(merc_skill_base_id(S::SmBash.id() as u16), S::SmBash.id() as u16);
     }
 
     /// A one-shot cast/grant effect must play once and stop — a finite,

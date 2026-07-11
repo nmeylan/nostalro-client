@@ -175,8 +175,27 @@ impl App {
             let Some(ratio) = self.entity_hp_ratio(entry.id) else {
                 continue;
             };
-            render_hp_bar(entry, ratio, entity.entity_type, calls);
+            let (_x, y) = render_hp_bar(entry, ratio, entity.entity_type, calls);
+            if let Some(sp_ratio) = self.companion_sp_ratio(entry.id) {
+                render_bar(
+                    entry.screen_anchor[0],
+                    y + HP_BAR_HEIGHT,
+                    sp_ratio,
+                    SP_BAR_COLOR,
+                    calls,
+                );
+            }
         }
+    }
+
+    fn companion_sp_ratio(&self, entity_id: u32) -> Option<f32> {
+        if let Some(h) = self.game.homunculus.as_ref().filter(|h| h.gid == entity_id) {
+            return Some(h.sp_percentage());
+        }
+        if let Some(m) = self.game.mercenary.as_ref().filter(|m| m.gid == entity_id) {
+            return Some(m.sp_percentage());
+        }
+        None
     }
 
     fn build_cast_bars(&self, render_list: &[RenderEntry], calls: &mut Vec<UiDrawCall>) {

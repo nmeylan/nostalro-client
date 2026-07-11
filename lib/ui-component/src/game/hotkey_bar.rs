@@ -11,6 +11,7 @@ use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::{GameEvent, SkillInfo};
 use ragnarok_game::hotkey::{HOTKEY_COLS, HOTKEY_ROWS, HotkeySlotContent};
 use ragnarok_game::item::InventoryTab;
+use ragnarok_game::skill_action::{SkillCaster, skill_caster};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -149,8 +150,24 @@ impl HotkeyBarWindow {
             HotkeySlotContent::Skill { skill_id, level } => {
                 // Always request the skill, even on cooldown: targeting skills
                 // still enter cursor mode (the skill-level ring), and the cast
-                // itself is gated when the packet would be sent.
-                events.push(GameEvent::RequestUseSkill { skill_id, level });
+                // itself is gated when the packet would be sent. The caster is
+                // decided from the skill id alone, so a hotkey restored at login
+                // resolves correctly before any companion exists.
+                match skill_caster(skill_id) {
+                    SkillCaster::Mercenary => events.push(GameEvent::RequestCompanionUseSkill {
+                        is_mercenary: true,
+                        skill_id,
+                        level,
+                    }),
+                    SkillCaster::Homunculus => events.push(GameEvent::RequestCompanionUseSkill {
+                        is_mercenary: false,
+                        skill_id,
+                        level,
+                    }),
+                    SkillCaster::Player => {
+                        events.push(GameEvent::RequestUseSkill { skill_id, level })
+                    }
+                }
             }
             HotkeySlotContent::Item {
                 inventory_index, ..
@@ -667,6 +684,47 @@ mod tests {
                 id: 8201,
                 count: 5,
             }]
+        ));
+    }
+
+    #[test]
+    fn executing_a_companion_skill_hotkey_commands_the_companion() {
+        // Empty companion list: the caster is resolved from the skill id alone,
+        // as it must be for a hotkey restored at login before a companion exists.
+        let bar = HotkeyBarWindow::new();
+        let mut character = Character::new();
+        character.hotkeys.set_slot(
+            0,
+            HotkeySlotContent::Skill {
+                skill_id: 8201,
+                level: 5,
+            },
+        );
+        character.hotkeys.set_slot(
+            1,
+            HotkeySlotContent::Skill {
+                skill_id: 5,
+                level: 1,
+            },
+        );
+
+        let mut events = Vec::new();
+        bar.execute_slot(0, &character, &mut events);
+        assert!(matches!(
+            events.as_slice(),
+            [GameEvent::RequestCompanionUseSkill {
+                is_mercenary: true,
+                skill_id: 8201,
+                ..
+            }]
+        ));
+
+        // A player skill on a hotkey still casts from the main character.
+        let mut events = Vec::new();
+        bar.execute_slot(1, &character, &mut events);
+        assert!(matches!(
+            events.as_slice(),
+            [GameEvent::RequestUseSkill { skill_id: 5, .. }]
         ));
     }
 }

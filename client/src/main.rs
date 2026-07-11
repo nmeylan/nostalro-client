@@ -16,8 +16,8 @@ use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::{
-    CursorType, PendingSkillTarget, RenderEntry, RenderEntryKind, cursor_type_for_cell,
-    hovered_entity_cursor_type,
+    CursorType, PendingCompanionSkill, PendingSkillTarget, RenderEntry, RenderEntryKind,
+    cursor_type_for_cell, hovered_entity_cursor_type,
 };
 use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use ragnarok_game::data_table::card_illustration_table::CardIllustrationTable;
@@ -956,6 +956,59 @@ impl App {
                         }
                     }
                 }
+                GameEvent::RequestCompanionUseSkill {
+                    is_mercenary,
+                    skill_id,
+                    level,
+                } => {
+                    // The companion must exist to cast its own skill, so its skill
+                    // list (with the target type) is available here even though the
+                    // hotkey that triggered this carried only the id.
+                    let companion = if is_mercenary {
+                        self.game.mercenary.as_ref().map(|m| (m.gid, &m.skills))
+                    } else {
+                        self.game.homunculus.as_ref().map(|h| (h.gid, &h.skills))
+                    };
+                    let Some((gid, skills)) = companion else {
+                        tracing::info!("RequestCompanionUseSkill: no companion present — dropped");
+                        continue;
+                    };
+                    let target_type = skills
+                        .iter()
+                        .find(|s| s.id == skill_id)
+                        .map(|s| s.skill_target_type)
+                        .unwrap_or(SkillTargetType::Target);
+                    tracing::info!(
+                        "RequestCompanionUseSkill: merc={is_mercenary} skill={skill_id} gid={gid} target_type={target_type:?}"
+                    );
+                    match target_type {
+                        SkillTargetType::Target | SkillTargetType::Friend => {
+                            self.game.pending_companion_skill = Some(PendingCompanionSkill {
+                                is_mercenary,
+                                skill_id,
+                                level,
+                                is_ground: false,
+                            });
+                        }
+                        SkillTargetType::Ground | SkillTargetType::Trap => {
+                            self.game.pending_companion_skill = Some(PendingCompanionSkill {
+                                is_mercenary,
+                                skill_id,
+                                level,
+                                is_ground: true,
+                            });
+                        }
+                        _ => {
+                            self.push_owner_command_to(
+                                is_mercenary,
+                                ragnarok_game::companion::OwnerCommand::skill_object(
+                                    skill_id, level as u8, gid,
+                                ),
+                                self.input.shift_pressed,
+                            );
+                        }
+                    }
+                }
                 GameEvent::RequestPickupItem { id } => {
                     self.channel
                         .send_packet(build_pickup_item_packet(id, self.config.packetver));
@@ -1708,6 +1761,22 @@ impl App {
                 (CursorType::Default, None)
             } else if companion_target_armed {
                 (CursorType::Lock, None)
+            } else if let Some(pending) = &self.game.pending_companion_skill {
+                if pending.is_ground {
+                    (CursorType::Lock, None)
+                } else {
+                    // Resolve the entity under the cursor so the target click can
+                    // find it; no class filter, since a companion skill may target
+                    // either an enemy or an ally.
+                    let hovered = hovered_entity_cursor_type(
+                        self.input.mouse_position,
+                        &self.game.entities,
+                        render_list,
+                        &self.game.map_properties,
+                        None,
+                    );
+                    (CursorType::Lock, hovered.map(|(_, id)| id))
+                }
             } else if let Some(pending) = &self.game.pending_skill_target {
                 match pending {
                     PendingSkillTarget::Entity { skill_id, .. } => {

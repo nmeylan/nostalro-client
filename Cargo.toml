@@ -45,9 +45,9 @@ cpal = "0.16"
 symphonia = { version = "0.5", default-features = false, features = ["wav", "pcm", "adpcm", "mp3"] }
 
 # Server crate git dependencies
-models = { git = "https://github.com/nmeylan/rust-ro.git", rev = "dfb86712" }
-movement = { git = "https://github.com/nmeylan/rust-ro.git", rev = "dfb86712" }
-packets = { git = "https://github.com/nmeylan/rust-ro.git", rev = "dfb86712" }
+models = { git = "https://github.com/nmeylan/rust-ro.git", rev = "31090bf0" }
+movement = { git = "https://github.com/nmeylan/rust-ro.git", rev = "31090bf0" }
+packets = { git = "https://github.com/nmeylan/rust-ro.git", rev = "31090bf0" }
 
 # Internal crates
 ragnarok-formats = { path = "lib/formats" }
@@ -60,10 +60,8 @@ ragnarok-ui-component = { path = "lib/ui-component" }
 ragnarok-audio = { path = "lib/audio" }
 libloading = "0.8"
 
-# Redirect the pinned server crates to the local checkout (currently at the same
-# rev) so client builds pick up regenerated packet code for the homunculus /
-# mercenary packets (ZC_FEED_MER, ZC_HOSKILLINFO_LIST/UPDATE).
-[patch."https://github.com/nmeylan/rust-ro.git"]
-packets = { path = "../rust-ragnarok-server/lib/packets" }
-models = { path = "../rust-ragnarok-server/lib/models" }
-movement = { path = "../rust-ragnarok-server/lib/movement" }
+
+#[patch."https://github.com/nmeylan/rust-ro.git"]
+#packets = { path = "../rust-ragnarok-server/lib/packets" }
+#models = { path = "../rust-ragnarok-server/lib/models" }
+#movement = { path = "../rust-ragnarok-server/lib/movement" }

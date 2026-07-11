@@ -356,6 +356,7 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
 
 
 use models::enums::skill_enums::SkillEnum;
+use ragnarok_effects::merc_skill_base;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SkillSoundPos {
@@ -368,6 +369,7 @@ pub enum SkillSoundPos {
 }
 
 pub fn skill_use_sound(skill: SkillEnum) -> Option<(&'static str, SkillSoundPos)> {
+    let skill = merc_skill_base(skill);
     use SkillEnum as S;
     use SkillSoundPos::*;
     Some(match skill {
@@ -426,6 +428,7 @@ pub fn skill_use_sound(skill: SkillEnum) -> Option<(&'static str, SkillSoundPos)
 }
 
 pub fn skill_cast_begin_sound(skill: SkillEnum) -> Option<(&'static str, SkillSoundPos)> {
+    let skill = merc_skill_base(skill);
     use SkillEnum as S;
     use SkillSoundPos::*;
     Some(match skill {
@@ -441,6 +444,7 @@ pub fn skill_cast_begin_sound(skill: SkillEnum) -> Option<(&'static str, SkillSo
 }
 
 pub fn skill_projectile_sound(skill: SkillEnum) -> Option<&'static str> {
+    let skill = merc_skill_base(skill);
     use SkillEnum as S;
     Some(match skill {
         S::NjSyuriken | S::NjKunai | S::NjHuuma | S::NjZenynage => "effect\\닌자_던지기.wav",

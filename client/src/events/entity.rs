@@ -999,12 +999,10 @@ impl App {
         let wav = if is_skill {
             skill_hit_sound(roll)
         } else {
-            let victim_pc = self
-                .game
-                .entities
-                .get(victim_gid)
-                .is_some_and(|e| e.entity_type == EntityType::Player);
-            if victim_pc {
+            let victim_humanoid = self.game.entities.get(victim_gid).is_some_and(|e| {
+                matches!(e.entity_type, EntityType::Player | EntityType::Mercenary)
+            });
+            if victim_humanoid {
                 self.game
                     .entities
                     .get(victim_gid)

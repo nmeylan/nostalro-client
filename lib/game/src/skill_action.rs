@@ -1,4 +1,27 @@
 use models::enums::skill_enums::SkillEnum;
+use ragnarok_effects::merc_skill_base_id;
+
+/// Who owns a skill, derived purely from its id. Mercenary and homunculus skills
+/// occupy fixed, disjoint id ranges, so the caster is known without any runtime
+/// companion state — this must hold even for hotkeys restored at login before a
+/// companion exists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkillCaster {
+    Player,
+    Mercenary,
+    Homunculus,
+}
+
+pub fn skill_caster(skill_id: u16) -> SkillCaster {
+    let id = skill_id as u32;
+    if (SkillEnum::HlifHeal.id()..=SkillEnum::MhVolcanicAsh.id()).contains(&id) {
+        SkillCaster::Homunculus
+    } else if (SkillEnum::MsBash.id()..=SkillEnum::MerInvincibleoff2.id()).contains(&id) {
+        SkillCaster::Mercenary
+    } else {
+        SkillCaster::Player
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SkillMotionType {
@@ -16,7 +39,7 @@ pub enum SkillMotionType {
 pub fn skill_motion_type(skill_id: u16) -> SkillMotionType {
     use SkillMotionType::*;
 
-    let id = skill_id;
+    let id = merc_skill_base_id(skill_id);
     if id == SkillEnum::SmBash.id() as u16
         || id == SkillEnum::SmMagnum.id() as u16
         || id == SkillEnum::McMammonite.id() as u16
@@ -276,6 +299,25 @@ mod tests {
     #[test]
     fn unknown_skill_defaults_to_skill() {
         assert_eq!(skill_motion_type(9999), SkillMotionType::Skill);
+    }
+
+    #[test]
+    fn mercenary_bow_skills_animate_as_ranged_attack() {
+        for s in [
+            SkillEnum::MaDouble,
+            SkillEnum::MaShower,
+            SkillEnum::MaChargearrow,
+        ] {
+            assert_eq!(
+                skill_motion_type(s.id() as u16),
+                SkillMotionType::Attack,
+                "{s:?} should animate as a ranged attack"
+            );
+        }
+        assert_eq!(
+            skill_motion_type(SkillEnum::MerQuicken.id() as u16),
+            SkillMotionType::Skill
+        );
     }
 
     #[test]

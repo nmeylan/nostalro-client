@@ -82,6 +82,17 @@ fn mercenary_attack_action(job: u16) -> usize {
     }
 }
 
+/// Mercenary bodies carry no weapon view id, so the weapon type is inferred from
+/// the merc class range. This drives swing/hit sounds and the ranged-arrow gate.
+pub fn mercenary_weapon(job: u16) -> Option<WeaponType> {
+    match job {
+        6017..=6026 => Some(WeaponType::Bow),
+        6027..=6036 => Some(WeaponType::Spear1H),
+        6037..=6046 => Some(WeaponType::Sword1H),
+        _ => None,
+    }
+}
+
 pub const DEATH_FADE_DURATION: f32 = 6.12; // 255 × 24 ms
 pub const VANISH_FADE_DURATION: f32 = 0.51; // 510 ms
 
@@ -215,10 +226,10 @@ impl Entity {
         direction: u8,
         speed: u16,
     ) -> Self {
-        let weapon_type = if entity_type == EntityType::Player {
-            weapon_view_id_to_type(weapon)
-        } else {
-            None
+        let weapon_type = match entity_type {
+            EntityType::Player => weapon_view_id_to_type(weapon),
+            EntityType::Mercenary => mercenary_weapon(job),
+            _ => None,
         };
         let mut movement = MovementState::new(x, y);
         movement.set_speed(speed);
@@ -337,7 +348,12 @@ impl Entity {
             if self.state_timer <= 0.0 {
                 self.state_timer = 0.0;
                 match self.state {
-                    EntityState::Attacking if self.entity_type == EntityType::Player => {
+                    EntityState::Attacking
+                        if matches!(
+                            self.entity_type,
+                            EntityType::Player | EntityType::Mercenary
+                        ) =>
+                    {
                         self.state = EntityState::ReadyFight;
                         self.state_timer = self.attack_motion_duration;
                     }
@@ -758,6 +774,17 @@ mod tests {
             is_open: false,
             is_diagonal,
         }
+    }
+
+    #[test]
+    fn mercenary_entity_infers_weapon_from_class() {
+        let merc = |job| {
+            Entity::new(1, EntityType::Mercenary, job, 0, 0, 0, 0, 0, 0, 0, 0, 100, 100, 0, 150)
+                .weapon
+        };
+        assert_eq!(merc(6017), Some(WeaponType::Bow)); // archer
+        assert_eq!(merc(6027), Some(WeaponType::Spear1H)); // lancer
+        assert_eq!(merc(6037), Some(WeaponType::Sword1H)); // swordman
     }
 
     #[test]

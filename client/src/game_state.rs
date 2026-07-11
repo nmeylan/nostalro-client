@@ -9,7 +9,9 @@ use ragnarok_game::app_state::AppState;
 use ragnarok_game::arrow::ArrowProjectile;
 use ragnarok_game::character::Character;
 use ragnarok_game::chat_room::ChatRoomRegistry;
-use ragnarok_game::cursor::{CursorAnimationState, PendingSkillTarget, RenderEntry};
+use ragnarok_game::cursor::{
+    CursorAnimationState, PendingCompanionSkill, PendingSkillTarget, RenderEntry,
+};
 use ragnarok_game::damage_number::DamageNumberManager;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::effects::AmbientEffectScheduler;
@@ -142,6 +144,7 @@ pub struct GameState {
     pub card_insert_dialog: Option<CardInsertDialog>,
     pub card_insert_dialog_has_grf_textures: bool,
     pub pending_skill_target: Option<PendingSkillTarget>,
+    pub pending_companion_skill: Option<PendingCompanionSkill>,
     pub pending_skill_id: Option<u16>,
     pub pending_skill_level: Option<i16>,
     pub pending_ground_cast: Option<(u16, i16, i16, i16)>,
@@ -718,6 +721,7 @@ impl GameState {
             card_insert_dialog: None,
             card_insert_dialog_has_grf_textures: false,
             pending_skill_target: None,
+            pending_companion_skill: None,
             pending_skill_id: None,
             pending_skill_level: None,
             pending_ground_cast: None,

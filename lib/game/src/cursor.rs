@@ -38,6 +38,17 @@ impl PendingSkillTarget {
     }
 }
 
+/// A companion skill awaiting its target click. Unlike [`PendingSkillTarget`],
+/// resolving this issues an AI order to the companion (which moves itself into
+/// range and casts) rather than casting from the player.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PendingCompanionSkill {
+    pub is_mercenary: bool,
+    pub skill_id: u16,
+    pub level: i16,
+    pub is_ground: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RenderEntryKind {
     Entity,
