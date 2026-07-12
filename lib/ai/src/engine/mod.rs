@@ -512,15 +512,16 @@ impl CompanionAi {
         if self.skill == 0 {
             self.emit_attack(ctx, out);
         } else {
+            let target = self.enemy;
             out.push(AiIntent::SkillObject {
                 skill_id: self.skill,
                 level: self.skill_level,
-                target_gid: self.enemy,
+                target_gid: target,
             });
-            if self.is_mercenary {
-                self.enemy = 0;
-            }
             self.skill = 0;
+            if self.is_mercenary || target == ctx.my_gid {
+                self.drop_enemy_to_idle();
+            }
         }
     }
 
@@ -635,6 +636,10 @@ impl CompanionAi {
     }
 
     fn emit_attack(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) {
+        if self.enemy == 0 || self.enemy == ctx.my_gid {
+            self.drop_enemy_to_idle();
+            return;
+        }
         if self.clock_ms < self.next_attack_ms {
             return;
         }
@@ -880,6 +885,45 @@ mod tests {
         let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
         one_step(&mut ai, &c);
         assert_ne!(ai.state(), AiState::Chase);
+    }
+
+    #[test]
+    fn self_cast_skill_fires_once_then_returns_to_idle() {
+        let selfbuff_range = |_: u16| 9;
+        let fx = Fixture::new();
+        let mut ai = CompanionAi::new(false);
+
+        // Self-buff: target gid is the caster's own gid.
+        ai.push_command(OwnerCommand::skill_object(8010, 5, ME));
+        let me_actor = ActorView {
+            gid: ME,
+            x: 100,
+            y: 100,
+            is_monster: false,
+            is_player: false,
+            class_id: 0,
+            motion: Motion::Stand,
+            target_gid: None,
+        };
+        let actors = [me_actor];
+        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &selfbuff_range);
+
+        let mut fired = 0;
+        for _ in 0..6 {
+            let out = one_step(&mut ai, &c);
+            for it in &out {
+                if let AiIntent::SkillObject { target_gid, .. } = it {
+                    if *target_gid == ME {
+                        fired += 1;
+                    }
+                }
+                // Must never melee itself.
+                assert!(!matches!(it, AiIntent::Attack { target_gid } if *target_gid == ME));
+            }
+        }
+        assert_eq!(fired, 1);
+        assert_eq!(ai.state(), AiState::Idle);
+        assert_eq!(ai.enemy, 0);
     }
 
     #[test]
