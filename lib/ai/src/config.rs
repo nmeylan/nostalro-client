@@ -4,7 +4,9 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::consts::FriendClass;
-use crate::tactics::{PvpTactic, Tactic, default_pvp_tactics, default_tactics};
+use crate::tactics::{
+    PvpTactic, Tactic, default_merc_tactics, default_pvp_tactics, default_tactics,
+};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -520,7 +522,7 @@ pub struct CompanionAiConfig {
     pub mercenary: MercConfig,
     #[serde(default = "default_tactics")]
     pub homunculus_tactics: Vec<Tactic>,
-    #[serde(default = "default_tactics")]
+    #[serde(default = "default_merc_tactics")]
     pub mercenary_tactics: Vec<Tactic>,
     #[serde(default = "default_pvp_tactics")]
     pub homunculus_pvp_tactics: Vec<PvpTactic>,
@@ -536,7 +538,7 @@ impl Default for CompanionAiConfig {
             homunculus: HomunConfig::default(),
             mercenary: MercConfig::default(),
             homunculus_tactics: default_tactics(),
-            mercenary_tactics: default_tactics(),
+            mercenary_tactics: default_merc_tactics(),
             homunculus_pvp_tactics: default_pvp_tactics(),
             mercenary_pvp_tactics: default_pvp_tactics(),
             friends: HashMap::new(),

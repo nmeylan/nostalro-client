@@ -155,20 +155,118 @@ fn is_treasure_class(class_id: u32) -> bool {
     (1324..=1363).contains(&class_id) || (1938..=1946).contains(&class_id)
 }
 
-pub fn default_tactics() -> Vec<Tactic> {
-    vec![Tactic::default_row(), Tactic::treasure_row()]
-}
-
-pub fn default_pvp_tactics() -> Vec<PvpTactic> {
-    vec![PvpTactic {
-        key: 0,
-        basic: BasicTactic::ReactLow,
-        skill: SkillUse::Always,
-        kite: KiteTactic::Never,
+/// Builds a per-mob row. Every ported row shares the same cast/pushback/debuff/
+/// rescue/sp/snipe/ks columns, so only the varying ones are passed.
+fn tac(
+    id: u32,
+    name: &str,
+    basic: i32,
+    skill: i32,
+    kite: i32,
+    class: i32,
+    weight: f32,
+    chase: i32,
+) -> Tactic {
+    Tactic {
+        id,
+        name: name.to_string(),
+        basic: basic.into(),
+        skill: skill.into(),
+        kite: kite.into(),
         cast: CastTactic::React,
         pushback: PushbackTactic::Never,
         debuff: 0,
+        skill_class: class.into(),
+        rescue: RescueTactic::Never,
+        sp: -1,
+        snipe: SnipeTactic::Ok,
+        ks: KsTactic::Never,
+        weight,
+        chase: chase.into(),
+    }
+}
+
+/// Homunculus per-mob default tactics, ported from the reference tactic table.
+pub fn default_tactics() -> Vec<Tactic> {
+    vec![
+        tac(0, "Default", 3, 100, 1, -1, 1.0, -1),
+        tac(13, "Treasure Box", 5, 0, 0, -1, 0.0, -1),
+        tac(1005, "Familiar", 2, 0, 0, -1, 0.5, -1),
+        tac(1042, "Steel Chonchon", 2, -1, 1, 0, 1.0, -1),
+        tac(1078, "Red Plant", 5, 0, 0, -1, 0.0, -1),
+        tac(1079, "Blue Plant", 5, 0, 0, -1, 0.0, -1),
+        tac(1080, "Green Plant", 5, 0, 0, -1, 0.0, -1),
+        tac(1081, "Yellow Plant", 5, 0, 0, -1, 0.0, -1),
+        tac(1082, "White Plant", 5, 0, 0, -1, 0.0, -1),
+        tac(1083, "Shining Plant", 5, 0, 0, -1, 0.0, -1),
+        tac(1084, "Red Mushroom", 5, 0, 0, -1, 0.0, -1),
+        tac(1085, "Black Mushroom", 5, 0, 0, -1, 0.0, -1),
+        tac(1095, "Deniro", 5, 0, 0, -1, 1.0, -1),
+        tac(1105, "Pierre", 5, 0, 0, -1, 1.0, -1),
+        tac(1111, "Drainliar", 11, 0, 2, 0, 1.0, -1),
+        tac(1121, "Giearth", 5, 0, 0, -1, 1.0, -1),
+        tac(1152, "Orc Skeleton", 11, -3, 2, -1, 1.0, -1),
+        tac(1153, "Orc Zombie", 4, -3, 2, -1, 1.0, -1),
+        tac(1160, "Andre", 5, 0, 0, -1, 1.0, -1),
+        tac(1176, "Vitata", 5, 0, 0, -1, 1.0, -1),
+        tac(1177, "Zenorc", 12, -4, 0, -1, 1.0, -1),
+        tac(1189, "Orc Archer", 8, 100, 0, -1, 2.0, 0),
+        tac(1555, "Parasite Summon", 5, 0, 0, -1, 1.0, -1),
+        tac(1575, "Flora Summon", 5, 0, 0, -1, 0.6, -1),
+        tac(1579, "Hydra Summon", 5, 0, 0, -1, 0.3, -1),
+        tac(1589, "Mandragora Summon", 5, 0, 0, -1, 0.1, -1),
+        tac(1590, "Geographer Summon", 5, 0, 0, -1, 1.0, -1),
+        tac(2158, "Sera Legion (Hornet)", 5, 0, 0, -1, 0.5, -1),
+        tac(2159, "Sera Legion (Giant)", 5, 0, 0, -1, 1.0, -1),
+        tac(2160, "Sera Legion (Vespa)", 5, 0, 0, -1, 2.0, -1),
+        tac(2379, "Event Monster", 5, 0, 0, -1, 0.0, -1),
+        tac(2380, "Event Monster", 5, 0, 0, -1, 0.0, -1),
+    ]
+}
+
+/// Mercenary per-mob default tactics, ported from the reference merc table.
+pub fn default_merc_tactics() -> Vec<Tactic> {
+    vec![
+        // Default: pushback self, rescue retainer.
+        Tactic {
+            pushback: PushbackTactic::SelfOnly,
+            rescue: RescueTactic::Retainer,
+            ..tac(0, "Default", 3, 100, 0, -1, 1.0, -1)
+        },
+        Tactic {
+            pushback: PushbackTactic::SelfOnly,
+            ..tac(10, "Default Summon", 7, 100, 1, -1, 1.0, -1)
+        },
+        Tactic {
+            cast: CastTactic::Passive,
+            ..tac(11, "Autodetect Plant", 7, 0, 0, -1, 1.0, -1)
+        },
+    ]
+}
+
+fn pvp(key: i32, basic: i32, skill: i32, kite: i32, cast: i32, push: i32) -> PvpTactic {
+    PvpTactic {
+        key,
+        basic: basic.into(),
+        skill: skill.into(),
+        kite: kite.into(),
+        cast: cast.into(),
+        pushback: push.into(),
+        debuff: 0,
         skill_class: SkillClass::Both,
         rescue: RescueTactic::Never,
-    }]
+    }
+}
+
+/// PVP tactics keyed by friend class, ported from the reference PVP table.
+pub fn default_pvp_tactics() -> Vec<PvpTactic> {
+    vec![
+        pvp(0, 5, 100, 0, 1, 0),
+        pvp(12, 4, 100, 2, 1, 1), // KoS
+        pvp(11, 8, 100, 2, 1, 1), // Enemy
+        pvp(10, 7, 100, 0, 0, 0), // Neutral
+        pvp(1, 0, 100, 0, 0, 0),  // Friend
+        pvp(13, 0, 0, 0, 0, 0),   // Ally
+        pvp(2, 0, 0, 0, 0, 0),    // Retainer
+    ]
 }

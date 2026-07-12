@@ -32,7 +32,9 @@ mod config_tests {
         // Untouched fields fall back to the reference defaults.
         assert_eq!(cfg.homunculus.AggroSP, 0);
         assert_eq!(cfg.mercenary.AggroHP, 60);
-        assert_eq!(cfg.homunculus_tactics.len(), 2);
+        // Absent tactics arrays self-heal to the full default table.
+        assert_eq!(cfg.homunculus_tactics, crate::tactics::default_tactics());
+        assert!(cfg.homunculus_tactics.len() > 2);
     }
 
     #[test]
