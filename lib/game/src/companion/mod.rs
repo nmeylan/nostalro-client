@@ -1,6 +1,5 @@
-pub mod ai;
-
-pub use ai::{
+pub use ragnarok_ai as ai;
+pub use ragnarok_ai::{
     ActorView, AiContext, AiIntent, AiMode, AiState, CommandKind, CompanionAi, Motion,
     OwnerCommand,
 };

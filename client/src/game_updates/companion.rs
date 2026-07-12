@@ -1,6 +1,6 @@
 use crate::App;
 use ragnarok_game::companion::ai::{ActorView, AiContext, AiIntent, Motion};
-use ragnarok_game::entity::EntityType;
+use ragnarok_game::entity::{EntityState, EntityType};
 use ragnarok_game::event::SkillInfo;
 use ragnarok_game::sprite_path::{homunculus_type_index, mercenary_type_index};
 use ragnarok_network::{
@@ -22,6 +22,12 @@ impl App {
             let (x, y) = p.movement.cell_position();
             (x as i32, y as i32)
         });
+        let owner_motion = self
+            .game
+            .entities
+            .player()
+            .map(|p| motion_from_state(p.state))
+            .unwrap_or(Motion::Stand);
 
         // One actor snapshot shared by both companions (owned, so it doesn't hold
         // a borrow of `entities` across the mutable AI tick).
@@ -36,16 +42,22 @@ impl App {
                     x: x as i32,
                     y: y as i32,
                     is_monster: e.entity_type == EntityType::Monster,
-                    motion: Motion::from_state(e.state),
+                    is_player: e.entity_type == EntityType::Player,
+                    class_id: e.job,
+                    motion: motion_from_state(e.state),
                     target_gid: e.target_gid,
                 }
             })
             .collect();
 
-        if let Some((gid, intents)) = self.tick_homunculus(owner_gid, owner_pos, &actors, delta) {
+        if let Some((gid, intents)) =
+            self.tick_homunculus(owner_gid, owner_pos, owner_motion, &actors, delta)
+        {
             self.dispatch_companion_intents(gid, &intents);
         }
-        if let Some((gid, intents)) = self.tick_mercenary(owner_gid, owner_pos, &actors, delta) {
+        if let Some((gid, intents)) =
+            self.tick_mercenary(owner_gid, owner_pos, owner_motion, &actors, delta)
+        {
             self.dispatch_companion_intents(gid, &intents);
         }
     }
@@ -107,6 +119,7 @@ impl App {
         &mut self,
         owner_gid: u32,
         owner_pos: Option<(i32, i32)>,
+        owner_motion: Motion,
         actors: &[ActorView],
         delta: f32,
     ) -> Option<(u32, Vec<AiIntent>)> {
@@ -117,24 +130,32 @@ impl App {
         let gid = homun.gid;
         let entity = self.game.entities.get(gid)?;
         let (mx, my) = entity.movement.cell_position();
-        let motion = Motion::from_state(entity.state);
+        let motion = motion_from_state(entity.state);
         let job = entity.job;
         // (re-borrow homun mutably after the immutable entity read)
         let homun = self.game.homunculus.as_mut()?;
         homun.job = job;
         let attack_range = homun.atk_range.max(1) as i32;
         let aspd_ms = homun.aspd.max(0) as u32;
+        let (hp, max_hp, sp, max_sp) = (homun.hp, homun.max_hp, homun.sp, homun.max_sp);
         let skills = homun.skills.clone();
         let ctx = AiContext {
             my_gid: gid,
             my_x: mx as i32,
             my_y: my as i32,
             my_motion: motion,
+            my_hp: hp,
+            my_max_hp: max_hp,
+            my_sp: sp,
+            my_max_sp: max_sp,
             attack_range,
             aspd_ms,
             companion_type: homunculus_type_index(job),
             owner_gid,
             owner_pos,
+            owner_motion,
+            spheres: 0,
+            now_ms: 0,
             actors,
             skill_range: &|id| skill_range(&skills, id),
         };
@@ -145,6 +166,7 @@ impl App {
         &mut self,
         owner_gid: u32,
         owner_pos: Option<(i32, i32)>,
+        owner_motion: Motion,
         actors: &[ActorView],
         delta: f32,
     ) -> Option<(u32, Vec<AiIntent>)> {
@@ -161,23 +183,31 @@ impl App {
             return None;
         };
         let (mx, my) = entity.movement.cell_position();
-        let motion = Motion::from_state(entity.state);
+        let motion = motion_from_state(entity.state);
         let job = entity.job;
         let merc = self.game.mercenary.as_mut()?;
         merc.job = job;
         let attack_range = merc.atk_range.max(1) as i32;
         let aspd_ms = merc.aspd.max(0) as u32;
+        let (hp, max_hp, sp, max_sp) = (merc.hp, merc.max_hp, merc.sp, merc.max_sp);
         let skills = merc.skills.clone();
         let ctx = AiContext {
             my_gid: gid,
             my_x: mx as i32,
             my_y: my as i32,
             my_motion: motion,
+            my_hp: hp,
+            my_max_hp: max_hp,
+            my_sp: sp,
+            my_max_sp: max_sp,
             attack_range,
             aspd_ms,
             companion_type: mercenary_type_index(job),
             owner_gid,
             owner_pos,
+            owner_motion,
+            spheres: 0,
+            now_ms: 0,
             actors,
             skill_range: &|id| skill_range(&skills, id),
         };
@@ -229,8 +259,24 @@ impl App {
                         pv,
                     ));
                 }
+                AiIntent::EmergencyDisconnect => {
+                    tracing::warn!("companion {gid} requested emergency disconnect");
+                }
             }
         }
+    }
+}
+
+fn motion_from_state(state: EntityState) -> Motion {
+    match state {
+        EntityState::Standing | EntityState::ReadyFight | EntityState::Pickup => Motion::Stand,
+        EntityState::Moving => Motion::Move,
+        EntityState::Sitting => Motion::Sit,
+        EntityState::Attacking => Motion::Attack,
+        EntityState::SkillExec => Motion::Skill,
+        EntityState::Casting => Motion::Cast,
+        EntityState::Hurt => Motion::Hurt,
+        EntityState::Dead => Motion::Dead,
     }
 }
 

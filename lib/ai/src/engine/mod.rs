@@ -1,11 +1,6 @@
-//! Native Rust port of the client-side companion AI (homunculus `AI.lua`,
-//! mercenary `AI_M.lua`). Pure and testable: reads a borrowed snapshot of the
-//! world (`AiContext`) and emits `AiIntent`s; the client translates those to
-//! packets. Runs on the original 140 ms cadence.
-
 use std::collections::VecDeque;
 
-use crate::entity::EntityState;
+use crate::context::{ActorView, AiContext, AiIntent, Motion};
 
 const TICK_INTERVAL_MS: u32 = 140;
 const OUT_OF_SIGHT_DISTANCE: i32 = 20;
@@ -15,25 +10,6 @@ const MOVE_ABORT_DISTANCE: i32 = 24;
 const RESERVED_QUEUE_CAP: usize = 10;
 const NEAREST_SCAN_CAP: i32 = 100;
 const DEFAULT_ATTACK_DELAY_MS: u32 = 1000;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Motion {
-    Stand,
-    Move,
-    Attack,
-    Dead,
-}
-
-impl Motion {
-    pub fn from_state(state: EntityState) -> Self {
-        match state {
-            EntityState::Moving => Motion::Move,
-            EntityState::Attacking | EntityState::SkillExec => Motion::Attack,
-            EntityState::Dead => Motion::Dead,
-            _ => Motion::Stand,
-        }
-    }
-}
 
 /// Player-selectable target disposition, overriding the per-family default.
 /// Mirrors the four companion attack modes of the original game.
@@ -145,44 +121,6 @@ impl OwnerCommand {
             target_gid,
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AiIntent {
-    MoveTo { x: i32, y: i32 },
-    MoveToOwner,
-    Attack { target_gid: u32 },
-    SkillObject { skill_id: u16, level: u8, target_gid: u32 },
-    SkillGround { skill_id: u16, level: u8, x: i32, y: i32 },
-}
-
-/// One actor visible to the AI's world scans.
-#[derive(Debug, Clone, Copy)]
-pub struct ActorView {
-    pub gid: u32,
-    pub x: i32,
-    pub y: i32,
-    pub is_monster: bool,
-    pub motion: Motion,
-    /// Who this actor is attacking (`None` when idle).
-    pub target_gid: Option<u32>,
-}
-
-/// Borrowed world snapshot the caller assembles each tick.
-pub struct AiContext<'a> {
-    pub my_gid: u32,
-    pub my_x: i32,
-    pub my_y: i32,
-    pub my_motion: Motion,
-    pub attack_range: i32,
-    pub aspd_ms: u32,
-    /// Homunculus type (1..16) or mercenary type (1..30).
-    pub companion_type: u16,
-    pub owner_gid: u32,
-    /// Owner cell, or `None` when the owner is unknown / off-screen.
-    pub owner_pos: Option<(i32, i32)>,
-    pub actors: &'a [ActorView],
-    pub skill_range: &'a dyn Fn(u16) -> i32,
 }
 
 pub struct CompanionAi {
@@ -679,8 +617,6 @@ impl CompanionAi {
     // ---- helpers --------------------------------------------------------
 
     fn emit_move(&self, x: i32, y: i32, ctx: &AiContext, out: &mut Vec<AiIntent>) {
-        // Original aborts server-side moves whose path is longer than 24; we
-        // approximate with straight-line distance since companions don't pathfind.
         if get_distance(ctx.my_x, ctx.my_y, x, y) > MOVE_ABORT_DISTANCE {
             return;
         }
@@ -781,11 +717,18 @@ mod tests {
             my_x: my.0,
             my_y: my.1,
             my_motion: motion,
+            my_hp: 100,
+            my_max_hp: 100,
+            my_sp: 100,
+            my_max_sp: 100,
             attack_range: 1,
             aspd_ms: 500,
             companion_type: 1, // Lif (melee)
             owner_gid: 1,
             owner_pos: owner,
+            owner_motion: Motion::Stand,
+            spheres: 0,
+            now_ms: 0,
             actors,
             skill_range,
         }
@@ -797,12 +740,13 @@ mod tests {
             x,
             y,
             is_monster: true,
+            is_player: false,
+            class_id: 1002,
             motion: Motion::Stand,
             target_gid: target,
         }
     }
 
-    // Advance the AI far enough to guarantee at least one 140 ms step ran.
     fn one_step(ai: &mut CompanionAi, c: &AiContext) -> Vec<AiIntent> {
         ai.tick(0.15, c)
     }
@@ -812,21 +756,17 @@ mod tests {
         let noskill = |_: u16| 1;
         let mut ai = CompanionAi::new(false);
 
-        // Owner 10 tiles away → Idle transitions to Follow (one handler per tick).
         let c = ctx((100, 100), Motion::Stand, Some((110, 100)), &[], &noskill);
         one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::Follow);
 
-        // Next tick in Follow while standing → MoveToOwner.
         let out = one_step(&mut ai, &c);
         assert!(out.contains(&AiIntent::MoveToOwner));
 
-        // Still far, but already moving → no duplicate intent.
         let c = ctx((100, 100), Motion::Move, Some((110, 100)), &[], &noskill);
         let out = one_step(&mut ai, &c);
         assert!(!out.contains(&AiIntent::MoveToOwner));
 
-        // Back in range → Idle.
         let c = ctx((108, 100), Motion::Stand, Some((110, 100)), &[], &noskill);
         one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::Idle);
@@ -837,32 +777,25 @@ mod tests {
         let noskill = |_: u16| 1;
         let mut ai = CompanionAi::new(false);
 
-        // A monster attacks the owner, far from the companion → Idle picks it as
-        // enemy and enters Chase.
         let actors = [monster(500, 105, 100, Some(1))];
         let c = ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
         one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::Chase);
 
-        // Next Chase tick moves toward the still-distant enemy.
         let out = one_step(&mut ai, &c);
         assert!(matches!(out.first(), Some(AiIntent::MoveTo { .. })));
 
-        // Enemy now adjacent (within attack range 1) → Chase enters Attack.
         let actors = [monster(500, 101, 100, Some(1))];
         let c = ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
         one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::Attack);
 
-        // First Attack tick emits an attack.
         let out = one_step(&mut ai, &c);
         assert!(out.contains(&AiIntent::Attack { target_gid: 500 }));
 
-        // Immediately again: ASPD gate suppresses a second attack this soon.
         let out = one_step(&mut ai, &c);
         assert!(!out.contains(&AiIntent::Attack { target_gid: 500 }));
 
-        // Enemy dies → back to Idle.
         let mut dead = monster(500, 101, 100, Some(1));
         dead.motion = Motion::Dead;
         let actors = [dead];
@@ -876,23 +809,19 @@ mod tests {
         let noskill = |_: u16| 1;
         let mut ai = CompanionAi::new(false);
 
-        // Direct move command → MoveCmd, emits MoveTo.
         ai.push_command(OwnerCommand::move_to(105, 105));
         let c = ctx((100, 100), Motion::Stand, Some((100, 100)), &[], &noskill);
         let out = one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::MoveCmd);
         assert!(out.contains(&AiIntent::MoveTo { x: 105, y: 105 }));
 
-        // Reserved commands queue up (they don't preempt the current action).
         ai.push_reserved(OwnerCommand::move_to(106, 106));
         let c = ctx((105, 105), Motion::Stand, Some((100, 100)), &[], &noskill);
-        one_step(&mut ai, &c); // arrived → Idle, but reserved enqueued this same tick
-        // Next idle tick drains the reserved command.
+        one_step(&mut ai, &c);
         let c = ctx((105, 105), Motion::Stand, Some((100, 100)), &[], &noskill);
         let out = one_step(&mut ai, &c);
         assert!(out.contains(&AiIntent::MoveTo { x: 106, y: 106 }));
 
-        // The reserved queue is capped at 10.
         let mut ai = CompanionAi::new(false);
         for i in 0..15 {
             ai.push_reserved(OwnerCommand::move_to(i, i));
@@ -906,7 +835,6 @@ mod tests {
     fn ai_mode_overrides_family_targeting() {
         let noskill = |_: u16| 1;
 
-        // Aggressive seizes a free monster the melee-family default would ignore.
         let mut ai = CompanionAi::new(false);
         ai.set_mode(AiMode::Aggressive);
         let actors = [monster(500, 103, 100, None)];
@@ -914,7 +842,6 @@ mod tests {
         one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::Chase);
 
-        // FollowOnly ignores a monster actively attacking the companion.
         let mut ai = CompanionAi::new(false);
         ai.set_mode(AiMode::FollowOnly);
         let actors = [monster(500, 101, 100, Some(100))];
