@@ -66,7 +66,8 @@ impl App {
             .game
             .server_time
             .server_to_local_secs_clamped(start_time, local_ms);
-        let age = (local_ms as f32 / 1000.0 - now).max(0.0);
+        let local_now = local_ms as f32 / 1000.0;
+        let age = (local_now - now).max(0.0);
 
         let effective_count = match action {
             ActionType::AttackMultiple | ActionType::AttackMultipleNomotion => count.max(1) as u16,
@@ -104,6 +105,7 @@ impl App {
             .entities
             .get(target_gid)
             .map(|e| e.movement.cell_position());
+        let mut caster_anim = None;
         if let Some(entity) = self.game.entities.get_mut(src_gid) {
             if let Some(dst) = target_pos {
                 let src = entity.movement.cell_position();
@@ -113,7 +115,17 @@ impl App {
             }
             let duration = ((attack_mt as f32 / 1000.0) - age).max(0.3);
             entity.enter_skill_exec(duration, skill_id, effective_count);
+            caster_anim = Some((duration, entity.action_index(), entity.direction));
         }
+
+        // The swing connects when the caster's animation reaches its "atk"
+        // keyframe; the hit, the flinch and the flying arrow all land there, on
+        // the same local clock as the animation.
+        let anim_hit = caster_anim
+            .map(|(duration, base_action, dir)| {
+                duration * self.atk_keyframe_fraction(src_gid, base_action, dir)
+            })
+            .unwrap_or(0.0);
 
         // Arrow-consuming skills fire the same flying arrow as a normal ranged
         // attack: bow skills use the Attack motion, whip/instrument skills the
@@ -131,12 +143,16 @@ impl App {
             if fires_arrow {
                 let shooter_cell = caster.movement.cell_position();
                 if let Some(tp) = target_pos {
-                    self.spawn_arrow_projectile(shooter_cell, tp, attack_mt, effective_count);
+                    self.spawn_arrow_projectile(
+                        shooter_cell,
+                        tp,
+                        (anim_hit * 1000.0) as i32,
+                        effective_count,
+                    );
                 }
             }
         }
 
-        let delay_time = (attack_mt as f32 / 2000.0).max(0.0);
         let per_hit_damage = if effective_count > 1 && damage > 0 {
             damage / effective_count as i32
         } else {
@@ -155,11 +171,8 @@ impl App {
 
         // A trailing projectile (Fireball, Soul Strike, …) takes time to reach
         // the target. Hold the hit — spark, damage number and flinch — until it
-        // arrives, mirroring how the flying arrow lands on the scheduled hit.
-        // The projectile plays from real time, so its arrival sits `age` (the
-        // server-anchor backdate) ahead of `now`. Fixed-speed projectiles take
-        // longer for farther targets, so the flight is measured at the actual
-        // caster→target distance.
+        // arrives. Fixed-speed projectiles take longer for farther targets, so
+        // the flight is measured at the actual caster→target distance.
         let projectile_distance = self
             .skill_trail_endpoints(src_gid, target_gid)
             .map(|(from, to)| {
@@ -183,16 +196,12 @@ impl App {
             Self::skill_projectile_flight_secs(skill_id, projectile_distance).max(falcon_flight);
         let hit_extra_delay =
             target_skill_effects(SkillEnum::from_id(skill_id as u32)).hit_extra_delay_secs;
-        let hit_delay = (if flight > 0.0 {
-            delay_time.max(age + flight)
-        } else {
-            delay_time
-        }) + hit_extra_delay;
+        let hit_delay = anim_hit.max(flight) + hit_extra_delay;
 
         let double_attack_term = 0.2;
         if let Some(target) = self.game.entities.get_mut(target_gid) {
             for i in 0..effective_count {
-                let hit_time = now + hit_delay + (i as f32 * double_attack_term);
+                let hit_time = local_now + hit_delay + (i as f32 * double_attack_term);
                 target.scheduled_hits.push(ScheduledHit {
                     message,
                     damage: per_hit_damage,
@@ -227,7 +236,7 @@ impl App {
         if replays_caster && effective_count > 1 {
             if let Some(caster) = self.game.entities.get_mut(src_gid) {
                 for i in 1..effective_count {
-                    let hit_time = now + delay_time + (i as f32 * double_attack_term);
+                    let hit_time = local_now + anim_hit + (i as f32 * double_attack_term);
                     caster.pending_attack_replays.push((hit_time, skill_id));
                 }
                 tracing::info!(
@@ -356,6 +365,26 @@ impl App {
                 self.effect_queue.spawn_trail_with_count(*e, from, to, hits);
             }
         }
+    }
+
+    /// Fraction `[0, 1)` through the caster's attack/skill animation at which
+    /// its swing connects — the `atk` keyframe. Defaults to mid-animation when
+    /// the caster sprite or action is unavailable.
+    fn atk_keyframe_fraction(&self, caster_gid: u32, base_action: usize, direction: u8) -> f32 {
+        let Some(sprite) = self.game.sprites.get(&caster_gid) else {
+            return 0.5;
+        };
+        let act = &sprite.body_act;
+        let action_count = act.actions.len();
+        if action_count == 0 {
+            return 0.5;
+        }
+        let action_idx = (base_action * 8 + direction as usize) % action_count;
+        let motion_count = act.actions[action_idx].motions.len();
+        if motion_count == 0 {
+            return 0.5;
+        }
+        ragnarok_formats::act::atk_keyframe_index(act, action_idx) as f32 / motion_count as f32
     }
 
     /// Seconds the skill's trailing projectile takes to reach a target

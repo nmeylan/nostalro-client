@@ -186,6 +186,30 @@ impl ActFile {
     }
 }
 
+/// Frame index within `action_idx` at which the swing connects — the first
+/// motion carrying the `"atk"` event. Falls back to the second-to-last frame
+/// when the action has no atk event, mirroring the original game's lookup.
+pub fn atk_keyframe_index(act: &ActFile, action_idx: usize) -> usize {
+    let Some(action) = act.actions.get(action_idx) else {
+        return 0;
+    };
+    let motion_count = action.motions.len();
+    if motion_count == 0 {
+        return 0;
+    }
+    for (i, motion) in action.motions.iter().enumerate() {
+        if motion.event_id >= 0
+            && act
+                .events
+                .get(motion.event_id as usize)
+                .is_some_and(|name| name.eq_ignore_ascii_case("atk"))
+        {
+            return i;
+        }
+    }
+    motion_count.saturating_sub(2)
+}
+
 pub fn attachment_offset(body_motion: &Motion, head_motion: &Motion) -> (i32, i32) {
     match (
         body_motion.attach_points.first(),
@@ -651,6 +675,18 @@ mod tests {
         anim.crossed_event_ids(&act, 0);
         anim.set_motion_index(2);
         assert_eq!(anim.crossed_event_ids(&act, 0), vec![7]);
+    }
+
+    #[test]
+    fn atk_keyframe_prefers_atk_event_then_falls_back() {
+        let mut act = make_act(1, 5);
+        act.events = vec!["footstep.wav".into(), "atk".into()];
+        act.actions[0].motions[3].event_id = 1; // frame 3 carries the "atk" event
+        assert_eq!(atk_keyframe_index(&act, 0), 3);
+
+        // No atk event -> second-to-last frame.
+        let plain = make_act(1, 5);
+        assert_eq!(atk_keyframe_index(&plain, 0), 3);
     }
 
     #[test]

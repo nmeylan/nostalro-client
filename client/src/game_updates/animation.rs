@@ -1,44 +1,24 @@
 use crate::App;
-use models::enums::weapon::WeaponType;
 use ragnarok_formats::act::{ActFile, MotionType, SpriteActionType};
 use ragnarok_game::ailment;
 use ragnarok_game::entity::{
     DEATH_FADE_DURATION, EntityFade, EntityState, EntityType, ForcedAnimation,
 };
 use ragnarok_game::sound::SoundQueue;
-use ragnarok_game::sound::tables::swing_sound;
 
-/// Resolve ACT frame sound-events to queued sounds. The `"atk"` marker resolves
-/// to the attacker's per-weapon swing wave. `.wav` events on the walk loop
-/// (`gate_random`) pass the 5% random gate so they don't fire every cycle;
-/// one-shot cries (attack/hurt/die) play on every crossing. Positional at the actor.
-fn emit_act_events(
-    event_ids: &[i32],
-    body_act: &ActFile,
-    weapon: Option<WeaponType>,
-    world_pos: Option<[f32; 3]>,
-    gate_random: bool,
-    rng: &mut u32,
-    queue: &mut SoundQueue,
-) {
+/// Resolve ACT frame sound-events to queued sounds, positional at the actor.
+/// Each `.wav`-named frame event (weapon swing, hurt cry, footstep) plays on
+/// every crossing.
+fn emit_act_events(event_ids: &[i32], body_act: &ActFile, world_pos: Option<[f32; 3]>, queue: &mut SoundQueue) {
     let Some(pos) = world_pos else { return };
     for &id in event_ids {
         let Some(name) = body_act.events.get(id as usize) else {
             continue;
         };
-        if name.eq_ignore_ascii_case("atk") {
-            queue.world(swing_sound(weapon).to_string(), pos);
-        } else if name.to_ascii_lowercase().ends_with(".wav") {
-            if gate_random {
-                *rng ^= *rng << 13;
-                *rng ^= *rng >> 17;
-                *rng ^= *rng << 5;
-                if *rng % 100 % 22 != 0 {
-                    continue;
-                }
-            }
-            queue.world(name.clone(), pos);
+        if !name.to_ascii_lowercase().ends_with(".wav") {
+            continue;
         }
+        queue.world(name.clone(), pos);
     }
 }
 
@@ -57,7 +37,6 @@ impl App {
         let sprites = &self.game.sprites;
         let gat = self.game.gat.as_ref();
         let map_coords = self.game.map_coords.as_ref();
-        let sfx_rng = &mut self.sfx_rng;
         let sound_queue = &mut self.sound_queue;
         let world_of = |cx: f32, cy: f32| match (gat, map_coords) {
             (Some(g), Some(c)) => {
@@ -108,15 +87,7 @@ impl App {
                         let action_idx = entity.animation.action_index(&sprite.body_act, dir);
                         let events = entity.animation.crossed_event_ids(&sprite.body_act, action_idx);
                         let (cx, cy) = entity.movement.position();
-                        emit_act_events(
-                            &events,
-                            &sprite.body_act,
-                            entity.weapon,
-                            world_of(cx, cy),
-                            entity.state == EntityState::Moving,
-                            sfx_rng,
-                            sound_queue,
-                        );
+                        emit_act_events(&events, &sprite.body_act, world_of(cx, cy), sound_queue);
                         (!entity.animation.is_finished()).then_some(forced)
                     };
                     continue;
@@ -170,15 +141,7 @@ impl App {
                     }
                     let action_idx = entity.animation.action_index(&sprite.body_act, dir);
                     let events = entity.animation.crossed_event_ids(&sprite.body_act, action_idx);
-                    emit_act_events(
-                        &events,
-                        &sprite.body_act,
-                        entity.weapon,
-                        world_of(cx, cy),
-                        entity.state == EntityState::Moving,
-                        sfx_rng,
-                        sound_queue,
-                    );
+                    emit_act_events(&events, &sprite.body_act, world_of(cx, cy), sound_queue);
                 }
                 entity.anim_last_pos = (cx, cy);
             }
@@ -216,5 +179,28 @@ impl App {
             self.game.entities.remove(gid);
             self.game.sprites.remove(&gid);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn act_with_events(events: &[&str]) -> ActFile {
+        ActFile {
+            version: (2, 4),
+            actions: Vec::new(),
+            events: events.iter().map(|s| s.to_string()).collect(),
+            delays: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn wav_named_frame_events_play_and_non_wav_are_ignored() {
+        let act = act_with_events(&["attack_sword.wav", "atk", "player_clothes.wav"]);
+        let mut queue = SoundQueue::new();
+        emit_act_events(&[0, 1, 2], &act, Some([0.0, 0.0, 0.0]), &mut queue);
+        let played: Vec<&str> = queue.pending.iter().map(|r| r.name.as_ref()).collect();
+        assert_eq!(played, vec!["attack_sword.wav", "player_clothes.wav"]);
     }
 }
