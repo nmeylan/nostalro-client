@@ -897,6 +897,10 @@ pub enum GameEvent {
         is_mercenary: bool,
         mode: AiMode,
     },
+    ToggleCompanionAiConfig,
+    SaveCompanionAiConfig,
+    RevertCompanionAiConfig,
+    ResetCompanionAiConfig,
 
     Acknowledged,
 }

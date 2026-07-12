@@ -926,6 +926,26 @@ impl App {
                 GameEvent::ToggleHomunSkillWindow => {
                     self.game.homun_skill_window.toggle();
                 }
+                GameEvent::ToggleCompanionAiConfig => {
+                    self.game.companion_ai_config_window.toggle();
+                }
+                GameEvent::SaveCompanionAiConfig => {
+                    if let Err(e) = self
+                        .game
+                        .companion_ai
+                        .save(crate::game_state::COMPANION_AI_CONFIG_PATH)
+                    {
+                        tracing::warn!("failed to save companion AI config: {e}");
+                    }
+                }
+                GameEvent::RevertCompanionAiConfig => {
+                    self.game.companion_ai = ragnarok_ai::config::CompanionAiConfig::load_or_default(
+                        crate::game_state::COMPANION_AI_CONFIG_PATH,
+                    );
+                }
+                GameEvent::ResetCompanionAiConfig => {
+                    self.game.companion_ai = ragnarok_ai::config::CompanionAiConfig::default();
+                }
                 GameEvent::ToggleCompanionStandby { is_mercenary } => {
                     self.push_owner_command_to(
                         is_mercenary,

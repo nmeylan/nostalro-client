@@ -41,6 +41,9 @@ use ragnarok_ui_component::game::context_menu::ContextMenu;
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
 use ragnarok_ui_component::game::homun_skill_window::{HOMUN_SKILL_WINDOW_ID, HomunSkillWindow};
+use ragnarok_ui_component::game::companion_ai_config_window::{
+    COMPANION_AI_CONFIG_WINDOW_ID, CompanionAiConfigWindow,
+};
 use ragnarok_ui_component::game::homun_window::{HOMUN_WINDOW_ID, HomunWindow};
 use ragnarok_ui_component::game::mercenary_skill_window::{
     MERCENARY_SKILL_WINDOW_ID, MercenarySkillWindow,
@@ -180,6 +183,8 @@ pub struct GameState {
     pub party_window: PartyWindow,
     pub homunculus: Option<HomunculusState>,
     pub mercenary: Option<MercenaryState>,
+    pub companion_ai: ragnarok_ai::config::CompanionAiConfig,
+    pub companion_ai_config_window: CompanionAiConfigWindow,
     /// Target armed by the first click of the two-click owner attack, confirmed by
     /// the second. Index 0 = homunculus (Alt+right-click), 1 = mercenary (Alt+left-click).
     pub companion_attack_target: [Option<u32>; 2],
@@ -215,6 +220,8 @@ pub struct GameState {
     pub pending_disconnect_exit: bool,
 }
 
+pub const COMPANION_AI_CONFIG_PATH: &str = "companion_ai.json";
+
 const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     BASIC_INFO_WINDOW_ID,
     chat_window::CHAT_WINDOW_ID,
@@ -236,6 +243,7 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     HOMUN_SKILL_WINDOW_ID,
     BOOK_WINDOW_ID,
     SOUND_OPTIONS_WINDOW_ID,
+    COMPANION_AI_CONFIG_WINDOW_ID,
 ];
 
 impl GameState {
@@ -622,6 +630,12 @@ impl GameState {
                     &self.data_table,
                 ));
             }
+            COMPANION_AI_CONFIG_WINDOW_ID => {
+                events.extend(
+                    self.companion_ai_config_window
+                        .build(ui, &mut self.companion_ai),
+                );
+            }
             HOMUN_WINDOW_ID => {
                 events.extend(self.homunculus_window.build(ui, self.homunculus.as_ref()));
             }
@@ -772,6 +786,10 @@ impl GameState {
             companion_attack_target: [None; 2],
             homunculus_window: HomunWindow::new(),
             mercenary_window: MercenaryWindow::new(),
+            companion_ai: ragnarok_ai::config::CompanionAiConfig::load_or_default(
+                COMPANION_AI_CONFIG_PATH,
+            ),
+            companion_ai_config_window: CompanionAiConfigWindow::new(),
             mercenary_skill_window: MercenarySkillWindow::new(),
             homun_skill_window: HomunSkillWindow::new(),
             context_menu: ContextMenu::new(),

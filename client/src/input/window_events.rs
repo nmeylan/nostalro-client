@@ -131,6 +131,10 @@ impl App {
                     label: "Standby".to_string(),
                     action: ContextMenuAction::CompanionStandby { is_mercenary: false },
                 },
+                ContextMenuItem {
+                    label: "AI Settings".to_string(),
+                    action: ContextMenuAction::CompanionAiConfig,
+                },
             ]
         } else {
             vec![
@@ -141,6 +145,10 @@ impl App {
                 ContextMenuItem {
                     label: "Standby".to_string(),
                     action: ContextMenuAction::CompanionStandby { is_mercenary: true },
+                },
+                ContextMenuItem {
+                    label: "AI Settings".to_string(),
+                    action: ContextMenuAction::CompanionAiConfig,
                 },
             ]
         };

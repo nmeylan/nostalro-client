@@ -14,6 +14,7 @@ pub enum ContextMenuAction {
     CompanionShowInfo { is_mercenary: bool },
     CompanionFeed,
     CompanionStandby { is_mercenary: bool },
+    CompanionAiConfig,
 }
 
 pub struct ContextMenuItem {
@@ -123,6 +124,9 @@ impl ContextMenu {
                 }
                 ContextMenuAction::CompanionStandby { is_mercenary } => {
                     events.push(GameEvent::ToggleCompanionStandby { is_mercenary });
+                }
+                ContextMenuAction::CompanionAiConfig => {
+                    events.push(GameEvent::ToggleCompanionAiConfig);
                 }
             }
             self.close();

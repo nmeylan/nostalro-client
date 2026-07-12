@@ -2947,6 +2947,7 @@ name = "ragnarok-client"
 version = "0.1.0"
 dependencies = [
  "models",
+ "ragnarok-ai",
  "ragnarok-audio",
  "ragnarok-formats",
  "ragnarok-game",
@@ -3076,6 +3077,7 @@ dependencies = [
  "image",
  "libloading",
  "models",
+ "ragnarok-ai",
  "ragnarok-formats",
  "ragnarok-game",
  "ragnarok-renderer",

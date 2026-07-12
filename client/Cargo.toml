@@ -7,6 +7,7 @@ edition = "2024"
 ragnarok-formats = { workspace = true }
 ragnarok-renderer = { workspace = true }
 ragnarok-game = { workspace = true }
+ragnarok-ai = { workspace = true }
 ragnarok-network = { workspace = true }
 ragnarok-ui = { workspace = true }
 ragnarok-ui-component = { workspace = true }

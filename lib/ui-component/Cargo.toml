@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 ragnarok-ui = { workspace = true }
 ragnarok-game = { workspace = true }
+ragnarok-ai = { workspace = true }
 ragnarok-renderer = { workspace = true }
 
 [dev-dependencies]
