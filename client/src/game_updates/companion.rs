@@ -364,6 +364,10 @@ fn homun_params(c: &HomunConfig) -> AiParams {
         heal_owner_hp: c.HealOwnerHP,
         heal_self_hp: c.HealSelfHP,
         do_not_use_rest: c.DoNotUseRest != 0,
+        use_dance_attack: c.UseDanceAttack == 1,
+        dance_min_sp: c.DanceMinSP,
+        use_idle_walk: c.UseIdleWalk,
+        idle_walk_sp: c.IdleWalkSP,
     }
 }
 
@@ -395,6 +399,10 @@ fn merc_params(c: &MercConfig) -> AiParams {
         heal_owner_hp: 100,
         heal_self_hp: 100,
         do_not_use_rest: c.DoNotUseRest != 0,
+        use_dance_attack: c.UseDanceAttack == 1,
+        dance_min_sp: 0,
+        use_idle_walk: c.UseIdleWalk,
+        idle_walk_sp: c.IdleWalkSP,
     }
 }
 

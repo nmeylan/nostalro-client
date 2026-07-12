@@ -13,6 +13,8 @@ const RESERVED_QUEUE_CAP: usize = 10;
 const DEFAULT_ATTACK_DELAY_MS: u32 = 1000;
 const CHASE_GIVEUP_LIMIT: u32 = 8;
 const TANK_HIT_INTERVAL_MS: u32 = 1500;
+const IDLE_WALK_INTERVAL_MS: u32 = 2000;
+const IDLE_WALK_RADIUS: i32 = 3;
 
 const HLIF_HEAL: u16 = 8001;
 const HLIF_AVOID: u16 = 8002;
@@ -218,6 +220,9 @@ pub struct CompanionAi {
     skill_retries: u8,
     offensive_buff_ms: u32,
     defensive_buff_ms: u32,
+    attack_stance: Option<(i32, i32)>,
+    dance_toggle: bool,
+    idle_walk_ms: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -256,6 +261,9 @@ impl CompanionAi {
             skill_retries: 0,
             offensive_buff_ms: 0,
             defensive_buff_ms: 0,
+            attack_stance: None,
+            dance_toggle: false,
+            idle_walk_ms: 0,
         }
     }
 
@@ -492,6 +500,33 @@ impl CompanionAi {
         let distance = self.distance_from_owner(ctx);
         if distance > FOLLOW_DISTANCE || distance == -1 {
             self.state = AiState::Follow;
+            return;
+        }
+        self.idle_walk(ctx, out);
+    }
+
+    /// Wanders one point around the owner when idle and healthy (reference
+    /// `UseIdleWalk`; the reference declared the modes but never wired the
+    /// state, so this implements a single circle wander for all non-zero modes).
+    fn idle_walk(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) {
+        if ctx.params.use_idle_walk == 0
+            || ctx.hp_pct() <= ctx.params.aggro_hp
+            || ctx.sp_pct() <= ctx.params.aggro_sp.max(ctx.params.idle_walk_sp)
+            || ctx.my_motion != Motion::Stand
+            || self.clock_ms < self.idle_walk_ms.wrapping_add(IDLE_WALK_INTERVAL_MS)
+        {
+            return;
+        }
+        let Some((ox, oy)) = ctx.owner_pos else {
+            return;
+        };
+        self.idle_walk_ms = self.clock_ms;
+        const OFF: [(i32, i32); 8] =
+            [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)];
+        let (dx, dy) = OFF[((self.clock_ms / IDLE_WALK_INTERVAL_MS) % 8) as usize];
+        let (nx, ny) = (ox + dx * IDLE_WALK_RADIUS, oy + dy * IDLE_WALK_RADIUS);
+        if get_distance(ox, oy, nx, ny) < ctx.move_bounds() {
+            self.emit_move(nx, ny, ctx, out);
         }
     }
 
@@ -627,12 +662,16 @@ impl CompanionAi {
         }
         if !self.is_in_attack_sight(ctx, self.enemy) {
             self.state = AiState::Chase;
+            self.attack_stance = None;
             if let Some((ex, ey)) = self.actor_pos(ctx, self.enemy) {
                 self.dest_x = ex;
                 self.dest_y = ey;
                 self.emit_move(ex, ey, ctx, out);
             }
             return;
+        }
+        if self.attack_stance.is_none() {
+            self.attack_stance = Some((ctx.my_x, ctx.my_y));
         }
         if self.enemy != self.skill_count_enemy {
             self.my_skill_used_count = 0;
@@ -668,6 +707,36 @@ impl CompanionAi {
             });
         } else {
             self.emit_attack(ctx, out);
+            self.dance_step(ctx, out);
+        }
+    }
+
+    /// Circle-strafes one cell around the enemy after a melee, staying in range
+    /// and inside the owner's move bounds (reference dance-attack + `KiteOK`).
+    fn dance_step(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) {
+        if !ctx.params.use_dance_attack
+            || (ctx.my_sp as i32) < ctx.params.dance_min_sp
+            || !kite_ok(ctx.companion_type, ctx.params.do_not_chase)
+        {
+            return;
+        }
+        let Some((ex, ey)) = self.actor_pos(ctx, self.enemy) else {
+            return;
+        };
+        if let Some((ox, oy)) = ctx.owner_pos {
+            if cheb_distance(ex, ey, ox, oy) >= 13 {
+                return;
+            }
+            self.dance_toggle = !self.dance_toggle;
+            let (nx, ny) = if self.dance_toggle {
+                adjust_cw(ctx.my_x, ctx.my_y, ex, ey)
+            } else {
+                adjust_ccw(ctx.my_x, ctx.my_y, ex, ey)
+            };
+            if get_distance(ox, oy, nx, ny) >= ctx.move_bounds() {
+                return;
+            }
+            out.push(AiIntent::MoveTo { x: nx, y: ny });
         }
     }
 
@@ -1013,6 +1082,51 @@ impl CompanionAi {
     }
 }
 
+/// One cell clockwise around `(ox, oy)` from `(x, y)`, staying on the same
+/// ring (reference `AdjustCW`). Used for the dance-attack circle-strafe.
+fn adjust_cw(x: i32, y: i32, ox: i32, oy: i32) -> (i32, i32) {
+    if x == ox {
+        if y == oy {
+            (ox + 1, oy)
+        } else {
+            (x + (y - oy).signum(), y)
+        }
+    } else if y == oy {
+        (x, y - (x - ox).signum())
+    } else if y > oy {
+        if x > ox { (x, y - 1) } else { (x + 1, y) }
+    } else if x > ox {
+        (x - 1, y)
+    } else {
+        (x, y + 1)
+    }
+}
+
+/// One cell counter-clockwise around `(ox, oy)` (reference `AdjustCCW`).
+fn adjust_ccw(x: i32, y: i32, ox: i32, oy: i32) -> (i32, i32) {
+    if x == ox {
+        if y == oy {
+            (ox - 1, oy)
+        } else {
+            (x - (y - oy).signum(), y)
+        }
+    } else if y == oy {
+        (x, y + (x - ox).signum())
+    } else if y > oy {
+        if x > ox { (x - 1, y) } else { (x, y - 1) }
+    } else if x > ox {
+        (x, y + 1)
+    } else {
+        (x + 1, y)
+    }
+}
+
+/// Dance-attack is only allowed for Vanilmirth/Filir with DoNotChase set
+/// (reference `KiteOK`).
+fn kite_ok(companion_type: u16, do_not_chase: bool) -> bool {
+    matches!(homun_type(companion_type), Some(0) | Some(3)) && do_not_chase
+}
+
 fn get_distance(x1: i32, y1: i32, x2: i32, y2: i32) -> i32 {
     let dx = (x1 - x2) as f64;
     let dy = (y1 - y2) as f64;
@@ -1321,6 +1435,55 @@ mod tests {
         }
         assert!(off, "offensive self-buff (Flitting) not cast");
         assert!(def, "defensive self-buff (Accel Flight) not cast");
+    }
+
+    #[test]
+    fn dance_attack_circles_the_enemy_while_meleeing() {
+        let noskill = |_: u16| 0;
+        let mut fx = Fixture::new();
+        fx.params.use_dance_attack = true;
+        fx.params.do_not_chase = true; // KiteOK requires it
+        let mut ai = CompanionAi::new(false);
+
+        // Vanilmirth (type 4 → %4==0) meleeing a monster adjacent to the owner.
+        let actors = [monster(500, 1002, 101, 100, None)];
+        let mut c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        c.companion_type = 4;
+
+        one_step(&mut ai, &c); // idle → chase
+        one_step(&mut ai, &c); // chase → attack
+        assert_eq!(ai.state(), AiState::Attack);
+
+        let mut danced = false;
+        for _ in 0..6 {
+            let out = one_step(&mut ai, &c);
+            if out.iter().any(|i| matches!(i, AiIntent::MoveTo { .. }))
+                && out.contains(&AiIntent::Attack { target_gid: 500 })
+            {
+                danced = true;
+            }
+        }
+        assert!(danced, "dance-attack did not circle-strafe while meleeing");
+    }
+
+    #[test]
+    fn idle_walk_wanders_near_owner() {
+        let noskill = |_: u16| 0;
+        let mut fx = Fixture::new();
+        fx.params.use_idle_walk = 1;
+        let mut ai = CompanionAi::new(false);
+
+        // Idle beside the owner, healthy, no monsters.
+        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &[], &noskill);
+
+        let mut walked = false;
+        for _ in 0..30 {
+            let out = one_step(&mut ai, &c);
+            if out.iter().any(|i| matches!(i, AiIntent::MoveTo { .. })) {
+                walked = true;
+            }
+        }
+        assert!(walked, "idle-walk never wandered");
     }
 
     #[test]

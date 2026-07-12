@@ -66,6 +66,10 @@ pub struct AiParams {
     pub heal_owner_hp: i32,
     pub heal_self_hp: i32,
     pub do_not_use_rest: bool,
+    pub use_dance_attack: bool,
+    pub dance_min_sp: i32,
+    pub use_idle_walk: i32,
+    pub idle_walk_sp: i32,
 }
 
 impl Default for AiParams {
@@ -97,6 +101,10 @@ impl Default for AiParams {
             heal_owner_hp: 50,
             heal_self_hp: 50,
             do_not_use_rest: false,
+            use_dance_attack: false,
+            dance_min_sp: 0,
+            use_idle_walk: 0,
+            idle_walk_sp: 0,
         }
     }
 }
