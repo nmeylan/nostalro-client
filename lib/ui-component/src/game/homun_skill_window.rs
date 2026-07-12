@@ -24,12 +24,18 @@ const USE_BTN: ButtonTextures = ButtonTextures {
     hover: "data/texture/유저인터페이스/btn_use_a.bmp",
     pressed: "data/texture/유저인터페이스/btn_use_b.bmp",
 };
+const LEVELUP_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/basic_interface/skill_up_a.bmp",
+    hover: "data/texture/유저인터페이스/basic_interface/skill_up_b.bmp",
+    pressed: "data/texture/유저인터페이스/basic_interface/skill_up_c.bmp",
+};
 const CLOSE_BTN: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/basic_interface/btn_close.bmp",
     hover: "data/texture/유저인터페이스/basic_interface/btn_close_a.bmp",
     pressed: "data/texture/유저인터페이스/basic_interface/btn_close_b.bmp",
 };
 const SKILL_ROW_BASE_ID: u32 = 2920;
+const SKILL_LEVELUP_BASE_ID: u32 = 2930;
 
 const WIN_W: f32 = 232.0;
 const TITLE_H: f32 = 17.0;
@@ -46,6 +52,7 @@ pub struct HomunSkillWindow {
     selected: usize,
     use_size: (f32, f32),
     close_size: (f32, f32),
+    levelup_btn_size: (f32, f32),
     tooltip_container: DialogContainer,
 }
 
@@ -63,6 +70,7 @@ impl HomunSkillWindow {
             selected: 0,
             use_size: (42.0, 20.0),
             close_size: (42.0, 20.0),
+            levelup_btn_size: (16.0, 16.0),
             tooltip_container: DialogContainer::new(),
         }
     }
@@ -165,12 +173,20 @@ impl HomunSkillWindow {
             let name_x = icon_x + ICON_SIZE + 8.0;
             ui.text(name_x, row_y + 14.0, &skill.name, tc);
             ui.text(name_x, row_y + 28.0, &format!("Lv : {}", skill.level), tc);
-            ui.text_right(
-                x + WIN_W - PAD,
-                row_y + 24.0,
-                &format!("Sp : {}", skill.sp_cost),
-                tc,
-            );
+
+            let mut sp_right = x + WIN_W - PAD;
+            if skill.upgradable && homun.skill_points > 0 {
+                let (lup_w, lup_h) = self.levelup_btn_size;
+                let btn_x = x + WIN_W - PAD - lup_w;
+                let btn_y = row_y + (ROW_H - lup_h) * 0.5;
+                let btn_id = WidgetId(SKILL_LEVELUP_BASE_ID + idx as u32);
+                let btn_rect = Rect::new(btn_x, btn_y, lup_w, lup_h);
+                if ui.button(btn_id, btn_rect, &LEVELUP_BTN, "+").clicked() {
+                    events.push(GameEvent::RequestSkillLevelUp { skill_id: skill.id });
+                }
+                sp_right = btn_x - 4.0;
+            }
+            ui.text_right(sp_right, row_y + 24.0, &format!("Sp : {}", skill.sp_cost), tc);
 
             if row_resp.double_clicked() {
                 events.push(GameEvent::RequestCompanionUseSkill {
@@ -202,7 +218,7 @@ impl HomunSkillWindow {
         // Footer.
         let footer_y = y + TITLE_H + list_h;
         draw_footer(ui, x, footer_y, WIN_W, FOOTER_H, grf);
-        ui.text(x + PAD, footer_y + 15.0, "Skill Point: 0", tc);
+        ui.text(x + PAD, footer_y + 15.0, &format!("Skill Point: {}", homun.skill_points), tc);
 
         let (cw, ch) = self.close_size;
         let (uw, uh) = self.use_size;
@@ -242,6 +258,9 @@ impl Window for HomunSkillWindow {
         if let Some((w, h)) = size_fn(CLOSE_BTN.normal) {
             self.close_size = (w as f32, h as f32);
         }
+        if let Some((w, h)) = size_fn(LEVELUP_BTN.normal) {
+            self.levelup_btn_size = (w as f32, h as f32);
+        }
         self.tooltip_container.set_texture_sizes(size_fn);
     }
     fn grf_texture_paths() -> Vec<&'static str> {
@@ -256,6 +275,9 @@ impl Window for HomunSkillWindow {
             CLOSE_BTN.normal,
             CLOSE_BTN.hover,
             CLOSE_BTN.pressed,
+            LEVELUP_BTN.normal,
+            LEVELUP_BTN.hover,
+            LEVELUP_BTN.pressed,
         ];
         paths.extend(DialogContainer::grf_texture_paths());
         paths
