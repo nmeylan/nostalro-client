@@ -70,6 +70,12 @@ pub struct AiParams {
     pub dance_min_sp: i32,
     pub use_idle_walk: i32,
     pub idle_walk_sp: i32,
+    pub use_berserk_mobbed: i32,
+    pub use_avoid: bool,
+    pub use_castle_route: bool,
+    pub use_castle_defend: bool,
+    pub castle_defend_threshold: i32,
+    pub pvp_mode: bool,
 }
 
 impl Default for AiParams {
@@ -105,6 +111,12 @@ impl Default for AiParams {
             dance_min_sp: 0,
             use_idle_walk: 0,
             idle_walk_sp: 0,
+            use_berserk_mobbed: 0,
+            use_avoid: false,
+            use_castle_route: false,
+            use_castle_defend: false,
+            castle_defend_threshold: 4,
+            pvp_mode: false,
         }
     }
 }

@@ -368,6 +368,12 @@ fn homun_params(c: &HomunConfig) -> AiParams {
         dance_min_sp: c.DanceMinSP,
         use_idle_walk: c.UseIdleWalk,
         idle_walk_sp: c.IdleWalkSP,
+        use_berserk_mobbed: c.UseBerserkMobbed,
+        use_avoid: c.UseAvoid != 0,
+        use_castle_route: c.UseCastleRoute != 0,
+        use_castle_defend: c.UseCastleDefend != 0,
+        castle_defend_threshold: c.CastleDefendThreshold,
+        pvp_mode: c.PVPmode != 0,
     }
 }
 
@@ -403,6 +409,12 @@ fn merc_params(c: &MercConfig) -> AiParams {
         dance_min_sp: 0,
         use_idle_walk: c.UseIdleWalk,
         idle_walk_sp: c.IdleWalkSP,
+        use_berserk_mobbed: c.UseBerserkMobbed,
+        use_avoid: false,
+        use_castle_route: false,
+        use_castle_defend: false,
+        castle_defend_threshold: 4,
+        pvp_mode: c.PVPmode != 0,
     }
 }
 

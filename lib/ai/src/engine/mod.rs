@@ -17,6 +17,7 @@ const IDLE_WALK_INTERVAL_MS: u32 = 2000;
 const IDLE_WALK_RADIUS: i32 = 3;
 
 const HLIF_HEAL: u16 = 8001;
+const HAMI_CASTLE: u16 = 8005;
 const HLIF_AVOID: u16 = 8002;
 const HLIF_CHANGE: u16 = 8004;
 const HAMI_DEFENCE: u16 = 8006;
@@ -223,6 +224,8 @@ pub struct CompanionAi {
     attack_stance: Option<(i32, i32)>,
     dance_toggle: bool,
     idle_walk_ms: u32,
+    berserk_mode: bool,
+    castle_ms: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -264,6 +267,8 @@ impl CompanionAi {
             attack_stance: None,
             dance_toggle: false,
             idle_walk_ms: 0,
+            berserk_mode: false,
+            castle_ms: 0,
         }
     }
 
@@ -469,6 +474,10 @@ impl CompanionAi {
         }
         self.enemy = 0;
         self.skill = 0;
+        self.berserk_mode = false;
+        if ctx.params.use_avoid && self.flee_from_avoid(ctx, out) {
+            return;
+        }
         if self.do_idle_upkeep(ctx, out) {
             return;
         }
@@ -673,6 +682,13 @@ impl CompanionAi {
         if self.attack_stance.is_none() {
             self.attack_stance = Some((ctx.my_x, ctx.my_y));
         }
+        let mobbed = self.aggro_count(ctx);
+        if ctx.params.use_berserk_mobbed > 0 && mobbed > ctx.params.use_berserk_mobbed as f32 {
+            self.berserk_mode = true;
+        }
+        if self.berserk_mode && self.do_auto_buffs(ctx, 2, out) {
+            return;
+        }
         if self.enemy != self.skill_count_enemy {
             self.my_skill_used_count = 0;
             self.skill_retries = 0;
@@ -823,7 +839,64 @@ impl CompanionAi {
         if ctx.params.use_auto_heal > 0 && self.do_healing(ctx, out) {
             return true;
         }
+        if self.do_castle(ctx, out) {
+            return true;
+        }
         self.do_auto_buffs(ctx, 1, out)
+    }
+
+    /// Amistr Castling: swap places with the owner to tank when the owner is
+    /// mobbed past the threshold (reference `UseCastleDefend`).
+    fn do_castle(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) -> bool {
+        if !ctx.params.use_castle_defend || homun_type(ctx.companion_type) != Some(2) {
+            return false;
+        }
+        let Some(known) = ctx.skills.iter().find(|s| s.id == HAMI_CASTLE && s.level > 0) else {
+            return false;
+        };
+        if (ctx.my_sp as i32) < known.sp_cost as i32 || self.clock_ms < self.castle_ms {
+            return false;
+        }
+        let owner_mobbed = ctx
+            .actors
+            .iter()
+            .filter(|a| a.is_monster && a.target_gid == Some(ctx.owner_gid))
+            .count() as i32;
+        if owner_mobbed < ctx.params.castle_defend_threshold {
+            return false;
+        }
+        out.push(AiIntent::SkillObject {
+            skill_id: HAMI_CASTLE,
+            level: known.level,
+            target_gid: ctx.owner_gid,
+        });
+        self.castle_ms = self.clock_ms.wrapping_add(3000);
+        true
+    }
+
+    /// Retreats toward the owner when a dangerous (avoid-list) monster is near.
+    /// The reference declares this list but never wires it; this implements the
+    /// evident intent.
+    fn flee_from_avoid(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) -> bool {
+        let near = ctx.actors.iter().find(|a| {
+            a.is_monster
+                && is_avoid_class(a.class_id)
+                && get_distance(ctx.my_x, ctx.my_y, a.x, a.y) <= ctx.aggro_dist()
+        });
+        let Some(mob) = near else {
+            return false;
+        };
+        let Some((ox, oy)) = ctx.owner_pos else {
+            return false;
+        };
+        // Step away from the monster, biased toward the owner.
+        let ax = (ctx.my_x - mob.x).signum() + (ox - ctx.my_x).signum();
+        let ay = (ctx.my_y - mob.y).signum() + (oy - ctx.my_y).signum();
+        let (nx, ny) = (ctx.my_x + ax.signum() * 2, ctx.my_y + ay.signum() * 2);
+        self.state = AiState::Idle;
+        self.enemy = 0;
+        self.emit_move(nx, ny, ctx, out);
+        true
     }
 
     fn do_healing(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) -> bool {
@@ -1119,6 +1192,18 @@ fn adjust_ccw(x: i32, y: i32, ox: i32, oy: i32) -> (i32, i32) {
     } else {
         (x + 1, y)
     }
+}
+
+/// MVP and other dangerous classes to flee from (reference avoid list).
+const AVOID_CLASSES: &[u16] = &[
+    1511, 1785, 1039, 1272, 1719, 1046, 1389, 1112, 1115, 1658, 1418, 1768, 1086, 1252, 1832,
+    1734, 1779, 1688, 1373, 1147, 1708, 1059, 1150, 1087, 1190, 1038, 1157, 1159, 1623, 1492,
+    1251, 1583, 1312, 1751, 1685, 1630, 1873, 1874, 1871, 1765, 1829, 1831, 1704, 1706, 1705,
+    1707, 1720, 1754, 1755, 1830, 1839, 1700, 1833, 1837, 1635, 1636, 1634, 1637, 1639, 1638,
+];
+
+fn is_avoid_class(class_id: u16) -> bool {
+    AVOID_CLASSES.contains(&class_id)
 }
 
 /// Dance-attack is only allowed for Vanilmirth/Filir with DoNotChase set
@@ -1484,6 +1569,44 @@ mod tests {
             }
         }
         assert!(walked, "idle-walk never wandered");
+    }
+
+    #[test]
+    fn flees_from_avoid_class_monster_instead_of_engaging() {
+        let noskill = |_: u16| 0;
+        let mut fx = Fixture::new();
+        fx.params.use_avoid = true;
+        let mut ai = CompanionAi::new(false);
+
+        // Baphomet (class 1039, on the avoid list) right next to us.
+        let actors = [monster(500, 1039, 103, 100, None)];
+        let c = fx.ctx((100, 100), Motion::Stand, Some((95, 100)), &actors, &noskill);
+
+        let out = one_step(&mut ai, &c);
+        assert_ne!(ai.state(), AiState::Chase);
+        assert!(out.iter().any(|i| matches!(i, AiIntent::MoveTo { .. })));
+    }
+
+    #[test]
+    fn amistr_castles_when_owner_is_mobbed() {
+        let noskill = |_: u16| 0;
+        let mut fx = Fixture::new().with_skill(HAMI_CASTLE, 5, 10, 0);
+        fx.params.use_castle_defend = true;
+        fx.params.castle_defend_threshold = 1;
+        let mut ai = CompanionAi::new(false);
+
+        // A monster attacking the owner (gid OWNER).
+        let mob = monster(500, 1002, 96, 100, Some(OWNER));
+        let actors = [mob];
+        let mut c = fx.ctx((100, 100), Motion::Stand, Some((95, 100)), &actors, &noskill);
+        c.companion_type = 2; // Amistr
+
+        let out = one_step(&mut ai, &c);
+        assert!(out.contains(&AiIntent::SkillObject {
+            skill_id: HAMI_CASTLE,
+            level: 5,
+            target_gid: OWNER,
+        }));
     }
 
     #[test]
