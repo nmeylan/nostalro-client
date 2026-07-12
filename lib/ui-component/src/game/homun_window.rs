@@ -18,6 +18,8 @@ const SELFFEED_BTN_ID: WidgetId = WidgetId(2904);
 const RENAME_INPUT_ID: WidgetId = WidgetId(2905);
 const RENAME_BTN_ID: WidgetId = WidgetId(2906);
 const SKILL_BTN_ID: WidgetId = WidgetId(2907);
+const REST_BTN_ID: WidgetId = WidgetId(2908);
+const MODE_BTN_ID: WidgetId = WidgetId(2909);
 
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
@@ -209,8 +211,8 @@ impl HomunWindow {
         let (dw, dh) = self.del_size;
         let skill_rect = Rect::new(right_edge - sw, ry, sw, sh);
         let del_rect = Rect::new(right_edge - sw - 4.0 - dw, ry, dw, dh);
-        if ui.button(DEL_BTN_ID, del_rect, &DEL_BTN, "del").clicked() {
-            events.push(GameEvent::RequestHomunMenu { command: 2 });
+        if ui.button(DEL_BTN_ID, del_rect, &DEL_BTN, "Delete").clicked() {
+            events.push(GameEvent::RequestHomunDelete);
         }
         if ui.button(SKILL_BTN_ID, skill_rect, &SKILL_BTN, "Skill").clicked() {
             events.push(GameEvent::ToggleHomunSkillWindow);
@@ -275,6 +277,25 @@ impl HomunWindow {
         ry += BAR_H + 16.0;
 
         ui.text(rx, ry + BASELINE, &format!("Intimacy {}", intimacy_label(homun.intimacy)), tc);
+        ry += 16.0;
+
+        let btn_h = 18.0;
+        let rest_w = 46.0;
+        let rest_rect = Rect::new(rx, ry, rest_w, btn_h);
+        if ui.button(REST_BTN_ID, rest_rect, &FEED_BTN, "Rest").clicked() {
+            events.push(GameEvent::RequestHomunRest);
+        }
+        let mode = homun.ai.mode();
+        let mode_rect = Rect::new(rx + rest_w + 6.0, ry, bar_w - rest_w - 6.0, btn_h);
+        if ui
+            .button(MODE_BTN_ID, mode_rect, &SKILL_BTN, &format!("Mode: {}", mode.label()))
+            .clicked()
+        {
+            events.push(GameEvent::SetCompanionAiMode {
+                is_mercenary: false,
+                mode: mode.next(),
+            });
+        }
 
         // Red note, placed below the left stat column.
         let note_y = (y + TITLE_H + 2.0 + 8.0 * CELL_H + 4.0);

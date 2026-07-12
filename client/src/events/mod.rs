@@ -921,6 +921,9 @@ impl App {
                 GameEvent::MercenaryParamChanged { var, value } => {
                     self.handle_mercenary_param_changed(var, value);
                 }
+                GameEvent::HomunParamChanged { var, value } => {
+                    self.handle_homun_param_changed(var, value);
+                }
                 GameEvent::HomunSkillList { skills } => {
                     self.handle_homun_skill_list(skills);
                 }

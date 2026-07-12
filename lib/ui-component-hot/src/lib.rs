@@ -1841,7 +1841,7 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             win.build(ui, Some(merc));
         }
         State::MercenarySkill { win, merc } => {
-            win.build(ui, Some(merc));
+            win.build(ui, Some(merc), &DataTable::new());
         }
         State::Homun { win, homun } => {
             win.build(ui, Some(homun));

@@ -72,9 +72,15 @@ impl App {
                         .map(|(target_type, _)| skill_target_class(target_type))
                         .unwrap_or(TargetClass::Offensive);
                     let player_id = self.game.entities.player_id();
+                    let potion_pitcher = skill_id == SkillEnum::AmPotionpitcher.id() as u16;
                     let valid_target = self.game.hovered_entity_id.filter(|&id| {
                         self.game.entities.get(id).is_some_and(|e| {
                             skill_target_allowed(class, e, &self.game.map_properties, player_id)
+                                || (potion_pitcher
+                                    && matches!(
+                                        e.entity_type,
+                                        EntityType::Homunculus | EntityType::Mercenary
+                                    ))
                         })
                     });
                     if let Some(entity_id) = valid_target {

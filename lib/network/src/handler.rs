@@ -1597,6 +1597,12 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             value: p.value,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcHoParChange>() {
+        return vec![GameEvent::HomunParamChanged {
+            var: p.var,
+            value: p.value,
+        }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcHoskillinfoList>() {
         return vec![GameEvent::HomunSkillList {
             skills: parse_skill_info_list(&p.skill_list),

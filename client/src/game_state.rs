@@ -190,6 +190,8 @@ pub struct GameState {
     pub context_menu: ContextMenu,
     pub pending_party_invite: Option<u32>,
     pub party_invite_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub homun_delete_pending: bool,
+    pub homun_delete_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
     pub pending_invite_aid: Option<u32>,
     pub damage_numbers: DamageNumberManager,
     pub damage_number_textures: Option<SpriteTextures>,
@@ -413,6 +415,15 @@ impl GameState {
             self.pending_party_invite = None;
         }
 
+        if self.homun_delete_pending
+            && let Some(result) = self.homun_delete_result.take()
+        {
+            self.homun_delete_pending = false;
+            if result == ConfirmResult::Ok {
+                events.push(GameEvent::RequestHomunMenu { command: 2 });
+            }
+        }
+
         events.extend(self.context_menu.build(ui));
 
         events.extend(self.map_missing_window.build(ui));
@@ -618,10 +629,18 @@ impl GameState {
                 events.extend(self.mercenary_window.build(ui, self.mercenary.as_ref()));
             }
             MERCENARY_SKILL_WINDOW_ID => {
-                events.extend(self.mercenary_skill_window.build(ui, self.mercenary.as_ref()));
+                events.extend(self.mercenary_skill_window.build(
+                    ui,
+                    self.mercenary.as_ref(),
+                    &self.data_table,
+                ));
             }
             HOMUN_SKILL_WINDOW_ID => {
-                events.extend(self.homun_skill_window.build(ui, self.homunculus.as_ref()));
+                events.extend(self.homun_skill_window.build(
+                    ui,
+                    self.homunculus.as_ref(),
+                    &self.data_table,
+                ));
             }
             BOOK_WINDOW_ID => {
                 events.extend(
@@ -758,6 +777,8 @@ impl GameState {
             context_menu: ContextMenu::new(),
             pending_party_invite: None,
             party_invite_result: std::rc::Rc::new(std::cell::Cell::new(None)),
+            homun_delete_pending: false,
+            homun_delete_result: std::rc::Rc::new(std::cell::Cell::new(None)),
             pending_invite_aid: None,
             disconnect_dialog_shown: false,
             pending_disconnect_exit: false,

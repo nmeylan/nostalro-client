@@ -586,6 +586,7 @@ impl App {
                 GameEvent::BackToCharacterSelect => {
                     self.game.system_menu.open = false;
                     self.game.map_missing_window.hide();
+                    self.clear_companions();
                     self.channel
                         .send_packet(build_restart_packet(self.config.packetver));
                 }
@@ -857,12 +858,57 @@ impl App {
                 GameEvent::RequestHomunMenu { command } => {
                     self.channel
                         .send_packet(build_homun_menu_packet(command as i8, self.config.packetver));
+                    if command == 2 {
+                        self.clear_homunculus();
+                    }
+                }
+                GameEvent::RequestHomunRest => {
+                    let skill_id = SkillEnum::AmRest.id() as u16;
+                    if !self.skill_on_cooldown(skill_id) {
+                        let target_id = self.game.entities.player_id().unwrap_or(0);
+                        self.channel.send_packet(build_use_skill_packet(
+                            skill_id,
+                            1,
+                            target_id,
+                            self.config.packetver,
+                        ));
+                    }
+                }
+                GameEvent::RequestHomunDelete => {
+                    let name = self
+                        .game
+                        .homunculus
+                        .as_ref()
+                        .map(|h| h.name.clone())
+                        .filter(|n| !n.is_empty())
+                        .unwrap_or_else(|| "your homunculus".to_string());
+                    self.game.homun_delete_result.set(None);
+                    self.game.homun_delete_pending = true;
+                    self.game.confirm_dialog.show_with_out(
+                        &format!("Delete {name} permanently?"),
+                        true,
+                        self.game.homun_delete_result.clone(),
+                        |_| {},
+                    );
                 }
                 GameEvent::RequestMercenaryCommand { command } => {
                     self.channel.send_packet(build_mercenary_command_packet(
                         command,
                         self.config.packetver,
                     ));
+                    if command == 2 {
+                        self.clear_mercenary();
+                    }
+                }
+                GameEvent::SetCompanionAiMode { is_mercenary, mode } => {
+                    let ai = if is_mercenary {
+                        self.game.mercenary.as_mut().map(|m| &mut m.ai)
+                    } else {
+                        self.game.homunculus.as_mut().map(|h| &mut h.ai)
+                    };
+                    if let Some(ai) = ai {
+                        ai.set_mode(mode);
+                    }
                 }
                 GameEvent::RequestRenameHomun { name } => {
                     self.channel

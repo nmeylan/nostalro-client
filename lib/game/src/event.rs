@@ -1,3 +1,4 @@
+use crate::companion::AiMode;
 use crate::inventory::{EquipmentItemData, NormalItemData};
 use crate::item::Item;
 use crate::targeting::MapProperties;
@@ -832,6 +833,10 @@ pub enum GameEvent {
         var: u16,
         value: i32,
     },
+    HomunParamChanged {
+        var: u16,
+        value: i32,
+    },
     HomunSkillList {
         skills: Vec<SkillInfo>,
     },
@@ -864,10 +869,15 @@ pub enum GameEvent {
     RequestCompanionMoveToOwner {
         gid: u32,
     },
-    /// 0 = info, 1 = feed, 2 = rest.
+    /// 0 = info, 1 = feed, 2 = delete (permanent).
     RequestHomunMenu {
         command: u8,
     },
+    /// User asked to delete the homunculus; needs confirmation before it fires
+    /// `RequestHomunMenu { command: 2 }`.
+    RequestHomunDelete,
+    /// Rest button: self-cast the Rest skill to vaporize the homunculus.
+    RequestHomunRest,
     /// 1 = info, 2 = dismiss.
     RequestMercenaryCommand {
         command: i8,
@@ -882,6 +892,10 @@ pub enum GameEvent {
     /// Standby button: toggle the companion between follow and hold.
     ToggleCompanionStandby {
         is_mercenary: bool,
+    },
+    SetCompanionAiMode {
+        is_mercenary: bool,
+        mode: AiMode,
     },
 
     Acknowledged,

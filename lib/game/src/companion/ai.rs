@@ -35,6 +35,40 @@ impl Motion {
     }
 }
 
+/// Player-selectable target disposition, overriding the per-family default.
+/// Mirrors the four companion attack modes of the original game.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AiMode {
+    /// Aggress the nearest monster on sight.
+    Aggressive,
+    /// Attack the owner's attacker and retaliate, but don't seek monsters out.
+    Assist,
+    /// Only retaliate against monsters attacking the companion.
+    Passive,
+    /// Never attack; follow only.
+    FollowOnly,
+}
+
+impl AiMode {
+    pub fn label(self) -> &'static str {
+        match self {
+            AiMode::Aggressive => "Aggressive",
+            AiMode::Assist => "Assist",
+            AiMode::Passive => "Passive",
+            AiMode::FollowOnly => "Follow",
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            AiMode::Aggressive => AiMode::Assist,
+            AiMode::Assist => AiMode::Passive,
+            AiMode::Passive => AiMode::FollowOnly,
+            AiMode::FollowOnly => AiMode::Aggressive,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AiState {
     Idle,
@@ -167,6 +201,7 @@ pub struct CompanionAi {
     tick_accum_ms: u32,
     clock_ms: u32,
     next_attack_ms: u32,
+    mode: Option<AiMode>,
 }
 
 impl CompanionAi {
@@ -187,11 +222,22 @@ impl CompanionAi {
             tick_accum_ms: 0,
             clock_ms: 0,
             next_attack_ms: 0,
+            mode: None,
         }
     }
 
     pub fn state(&self) -> AiState {
         self.state
+    }
+
+    /// The active attack mode, defaulting to Assist when unset (the per-family
+    /// default still applies while `None`; this is only the label shown in UI).
+    pub fn mode(&self) -> AiMode {
+        self.mode.unwrap_or(AiMode::Assist)
+    }
+
+    pub fn set_mode(&mut self, mode: AiMode) {
+        self.mode = Some(mode);
     }
 
     pub fn has_pending_command(&self) -> bool {
@@ -364,11 +410,14 @@ impl CompanionAi {
             self.process_command(cmd, ctx, out);
             return;
         }
-        let object = self.get_owner_enemy(ctx);
-        if object != 0 {
-            self.state = AiState::Chase;
-            self.enemy = object;
-            return;
+        let assist_owner = !matches!(self.mode, Some(AiMode::Passive) | Some(AiMode::FollowOnly));
+        if assist_owner {
+            let object = self.get_owner_enemy(ctx);
+            if object != 0 {
+                self.state = AiState::Chase;
+                self.enemy = object;
+                return;
+            }
         }
         let object = self.get_my_enemy(ctx);
         if object != 0 {
@@ -569,6 +618,12 @@ impl CompanionAi {
     }
 
     fn get_my_enemy(&self, ctx: &AiContext) -> u32 {
+        match self.mode {
+            Some(AiMode::Aggressive) => return self.get_my_enemy_b(ctx),
+            Some(AiMode::Assist) | Some(AiMode::Passive) => return self.get_my_enemy_a(ctx),
+            Some(AiMode::FollowOnly) => return 0,
+            None => {}
+        }
         if self.is_mercenary {
             return self.get_my_enemy_a(ctx);
         }
@@ -845,5 +900,26 @@ mod tests {
             one_step(&mut ai, &c);
         }
         assert!(ai.res_cmd_list.len() <= RESERVED_QUEUE_CAP);
+    }
+
+    #[test]
+    fn ai_mode_overrides_family_targeting() {
+        let noskill = |_: u16| 1;
+
+        // Aggressive seizes a free monster the melee-family default would ignore.
+        let mut ai = CompanionAi::new(false);
+        ai.set_mode(AiMode::Aggressive);
+        let actors = [monster(500, 103, 100, None)];
+        let c = ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        one_step(&mut ai, &c);
+        assert_eq!(ai.state(), AiState::Chase);
+
+        // FollowOnly ignores a monster actively attacking the companion.
+        let mut ai = CompanionAi::new(false);
+        ai.set_mode(AiMode::FollowOnly);
+        let actors = [monster(500, 101, 100, Some(100))];
+        let c = ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        one_step(&mut ai, &c);
+        assert_eq!(ai.state(), AiState::Idle);
     }
 }

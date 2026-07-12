@@ -143,6 +143,25 @@ impl App {
         }
     }
 
+    pub(super) fn handle_homun_param_changed(&mut self, var: u16, value: i32) {
+        use models::enums::EnumWithNumberValue;
+        use models::enums::status::StatusTypes;
+        let Some(h) = &mut self.game.homunculus else {
+            return;
+        };
+        let Ok(status) = StatusTypes::try_from_value(var as usize) else {
+            return;
+        };
+        match status {
+            StatusTypes::Hp => h.hp = value.max(0) as u32,
+            StatusTypes::Maxhp => h.max_hp = value.max(0) as u32,
+            StatusTypes::Sp => h.sp = value.max(0) as u32,
+            StatusTypes::Maxsp => h.max_sp = value.max(0) as u32,
+            StatusTypes::Baseexp => h.exp = value,
+            _ => {}
+        }
+    }
+
     pub(super) fn handle_homun_skill_list(&mut self, skills: Vec<SkillInfo>) {
         let icon_paths: Vec<String> = skills.iter().map(|s| s.icon_path()).collect();
         if let Some(h) = &mut self.game.homunculus {

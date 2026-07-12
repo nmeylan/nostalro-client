@@ -1,9 +1,12 @@
 use crate::Window;
+use crate::game::homun_skill_window::draw_companion_skill_tooltip;
+use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::{
     FOOTER_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_sys_button, draw_titlebar,
     text_color,
 };
 use ragnarok_game::companion::MercenaryState;
+use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
@@ -43,6 +46,7 @@ pub struct MercenarySkillWindow {
     selected: usize,
     use_size: (f32, f32),
     close_size: (f32, f32),
+    tooltip_container: DialogContainer,
 }
 
 impl Default for MercenarySkillWindow {
@@ -59,6 +63,7 @@ impl MercenarySkillWindow {
             selected: 0,
             use_size: (42.0, 20.0),
             close_size: (42.0, 20.0),
+            tooltip_container: DialogContainer::new(),
         }
     }
 
@@ -72,7 +77,12 @@ impl MercenarySkillWindow {
         self.visible = value;
     }
 
-    pub fn build(&mut self, ui: &mut UiFrame, merc: Option<&MercenaryState>) -> Vec<GameEvent> {
+    pub fn build(
+        &mut self,
+        ui: &mut UiFrame,
+        merc: Option<&MercenaryState>,
+        data: &DataTable,
+    ) -> Vec<GameEvent> {
         if !self.visible {
             return Vec::new();
         }
@@ -176,6 +186,17 @@ impl MercenarySkillWindow {
                     (ICON_SIZE, ICON_SIZE),
                 );
             }
+
+            if row_resp.hovered() {
+                draw_companion_skill_tooltip(
+                    ui,
+                    &self.tooltip_container,
+                    data,
+                    skill,
+                    row_rect.x + row_rect.w + 4.0,
+                    row_y,
+                );
+            }
         }
 
         // Footer.
@@ -212,6 +233,7 @@ impl Window for MercenarySkillWindow {
     }
     fn set_has_grf_textures(&mut self, value: bool) {
         self.has_grf_textures = value;
+        self.tooltip_container.has_grf_textures = value;
     }
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(USE_BTN.normal) {
@@ -220,9 +242,10 @@ impl Window for MercenarySkillWindow {
         if let Some((w, h)) = size_fn(CLOSE_BTN.normal) {
             self.close_size = (w as f32, h as f32);
         }
+        self.tooltip_container.set_texture_sizes(size_fn);
     }
     fn grf_texture_paths() -> Vec<&'static str> {
-        vec![
+        let mut paths = vec![
             TITLEBAR_TEX,
             FOOTER_TEX,
             CLOSE_OFF_TEX,
@@ -233,6 +256,8 @@ impl Window for MercenarySkillWindow {
             CLOSE_BTN.normal,
             CLOSE_BTN.hover,
             CLOSE_BTN.pressed,
-        ]
+        ];
+        paths.extend(DialogContainer::grf_texture_paths());
+        paths
     }
 }

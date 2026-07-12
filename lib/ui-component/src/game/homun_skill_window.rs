@@ -1,10 +1,13 @@
 use crate::Window;
+use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::{
     FOOTER_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_sys_button, draw_titlebar,
     text_color,
 };
 use ragnarok_game::companion::HomunculusState;
-use ragnarok_game::event::GameEvent;
+use ragnarok_game::data_table::DataTable;
+use ragnarok_game::event::{GameEvent, SkillInfo};
+use ragnarok_game::skill::SkillTargetType;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -43,6 +46,7 @@ pub struct HomunSkillWindow {
     selected: usize,
     use_size: (f32, f32),
     close_size: (f32, f32),
+    tooltip_container: DialogContainer,
 }
 
 impl Default for HomunSkillWindow {
@@ -59,6 +63,7 @@ impl HomunSkillWindow {
             selected: 0,
             use_size: (42.0, 20.0),
             close_size: (42.0, 20.0),
+            tooltip_container: DialogContainer::new(),
         }
     }
 
@@ -72,7 +77,12 @@ impl HomunSkillWindow {
         self.visible = value;
     }
 
-    pub fn build(&mut self, ui: &mut UiFrame, homun: Option<&HomunculusState>) -> Vec<GameEvent> {
+    pub fn build(
+        &mut self,
+        ui: &mut UiFrame,
+        homun: Option<&HomunculusState>,
+        data: &DataTable,
+    ) -> Vec<GameEvent> {
         if !self.visible {
             return Vec::new();
         }
@@ -176,6 +186,17 @@ impl HomunSkillWindow {
                     (ICON_SIZE, ICON_SIZE),
                 );
             }
+
+            if row_resp.hovered() {
+                draw_companion_skill_tooltip(
+                    ui,
+                    &self.tooltip_container,
+                    data,
+                    skill,
+                    row_rect.x + row_rect.w + 4.0,
+                    row_y,
+                );
+            }
         }
 
         // Footer.
@@ -212,6 +233,7 @@ impl Window for HomunSkillWindow {
     }
     fn set_has_grf_textures(&mut self, value: bool) {
         self.has_grf_textures = value;
+        self.tooltip_container.has_grf_textures = value;
     }
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(USE_BTN.normal) {
@@ -220,9 +242,10 @@ impl Window for HomunSkillWindow {
         if let Some((w, h)) = size_fn(CLOSE_BTN.normal) {
             self.close_size = (w as f32, h as f32);
         }
+        self.tooltip_container.set_texture_sizes(size_fn);
     }
     fn grf_texture_paths() -> Vec<&'static str> {
-        vec![
+        let mut paths = vec![
             TITLEBAR_TEX,
             FOOTER_TEX,
             CLOSE_OFF_TEX,
@@ -233,6 +256,84 @@ impl Window for HomunSkillWindow {
             CLOSE_BTN.normal,
             CLOSE_BTN.hover,
             CLOSE_BTN.pressed,
-        ]
+        ];
+        paths.extend(DialogContainer::grf_texture_paths());
+        paths
+    }
+}
+
+/// Renders a companion skill's tooltip (name, type, level, SP cost, description)
+/// anchored at `(anchor_x, anchor_y)` into the frame's tooltip layer. Shared by
+/// the homunculus and mercenary skill windows.
+pub(crate) fn draw_companion_skill_tooltip(
+    ui: &mut UiFrame,
+    container: &DialogContainer,
+    data: &DataTable,
+    skill: &SkillInfo,
+    anchor_x: f32,
+    anchor_y: f32,
+) {
+    let display_name = data
+        .skill_name
+        .as_ref()
+        .map(|t| t.get_display_name_or_internal(&skill.name))
+        .unwrap_or_else(|| skill.name.clone());
+    let mut lines = vec![display_name];
+
+    let type_str = match skill.skill_target_type {
+        SkillTargetType::Passive => "Passive",
+        SkillTargetType::Target => "Target",
+        SkillTargetType::Ground => "Ground",
+        SkillTargetType::MySelf => "Self",
+        SkillTargetType::Trap => "Trap",
+        _ => "Support",
+    };
+    lines.push(format!("Type: {type_str}"));
+    lines.push(format!("Lv: {}", skill.level));
+    if skill.sp_cost > 0 {
+        lines.push(format!("SP Cost: {}", skill.sp_cost));
+    }
+    if let Some(desc_lines) = data
+        .skill_description
+        .as_ref()
+        .and_then(|t| t.get_description(&skill.name))
+    {
+        for line in desc_lines {
+            lines.push(line.clone());
+        }
+    }
+
+    let tooltip_text = lines.join("\n");
+    let wrapped = draw::word_wrap(
+        &tooltip_text,
+        220.0,
+        |t| ui.atlas.measure_text(&draw::strip_color_codes(t)),
+        false,
+    );
+
+    let line_h = ui.atlas.line_height;
+    let pad = 8.0;
+    let text_h = wrapped.len() as f32 * line_h;
+    let max_line_w = wrapped
+        .iter()
+        .map(|l| ui.atlas.measure_text(&draw::strip_color_codes(l)))
+        .fold(0.0f32, f32::max);
+    let box_w = max_line_w + pad * 2.0;
+    let box_h = text_h + pad * 2.0;
+
+    container.draw(&mut ui.tooltip_draw_calls, anchor_x, anchor_y, box_w, box_h, [1.0; 4]);
+
+    let text_color = container.text_color();
+    let mut text_y = anchor_y + pad + line_h;
+    for line in &wrapped {
+        let (v, i) = draw::colored_text_vertices(line, anchor_x + pad, text_y, text_color, ui.atlas);
+        if !v.is_empty() {
+            ui.tooltip_draw_calls.push(DrawCall {
+                vertices: v,
+                indices: i,
+                texture: TextureRef::FontAtlas,
+            });
+        }
+        text_y += line_h;
     }
 }

@@ -13,6 +13,8 @@ impl App {
         if self.game.homunculus.is_none() && self.game.mercenary.is_none() {
             return;
         }
+        self.adopt_companion_gid(EntityType::Homunculus);
+        self.adopt_companion_gid(EntityType::Mercenary);
         let Some(owner_gid) = self.game.entities.player_id() else {
             return;
         };
@@ -46,6 +48,59 @@ impl App {
         if let Some((gid, intents)) = self.tick_mercenary(owner_gid, owner_pos, &actors, delta) {
             self.dispatch_companion_intents(gid, &intents);
         }
+    }
+
+    /// Seeds a companion's gid from its spawned world entity when the id-carrying
+    /// ack has not landed yet, so the AI doesn't silently no-op waiting for it.
+    fn adopt_companion_gid(&mut self, entity_type: EntityType) {
+        let missing = match entity_type {
+            EntityType::Homunculus => self.game.homunculus.as_ref().is_some_and(|h| h.gid == 0),
+            EntityType::Mercenary => self.game.mercenary.as_ref().is_some_and(|m| m.gid == 0),
+            _ => return,
+        };
+        if !missing {
+            return;
+        }
+        let Some(id) = self
+            .game
+            .entities
+            .iter()
+            .find(|e| e.entity_type == entity_type)
+            .map(|e| e.id)
+        else {
+            return;
+        };
+        match entity_type {
+            EntityType::Homunculus => {
+                if let Some(h) = self.game.homunculus.as_mut() {
+                    h.gid = id;
+                }
+            }
+            EntityType::Mercenary => {
+                if let Some(m) = self.game.mercenary.as_mut() {
+                    m.gid = id;
+                }
+            }
+            _ => {}
+        }
+        tracing::debug!("companion gid adopted from spawned {entity_type:?} entity: {id}");
+    }
+
+    pub(crate) fn clear_homunculus(&mut self) {
+        self.game.homunculus = None;
+        self.game.homunculus_window.set_visible(false);
+        self.game.homun_skill_window.set_visible(false);
+    }
+
+    pub(crate) fn clear_mercenary(&mut self) {
+        self.game.mercenary = None;
+        self.game.mercenary_window.set_visible(false);
+        self.game.mercenary_skill_window.set_visible(false);
+    }
+
+    pub(crate) fn clear_companions(&mut self) {
+        self.clear_homunculus();
+        self.clear_mercenary();
     }
 
     fn tick_homunculus(

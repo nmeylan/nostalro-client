@@ -1,7 +1,8 @@
 pub mod ai;
 
 pub use ai::{
-    ActorView, AiContext, AiIntent, AiState, CommandKind, CompanionAi, Motion, OwnerCommand,
+    ActorView, AiContext, AiIntent, AiMode, AiState, CommandKind, CompanionAi, Motion,
+    OwnerCommand,
 };
 
 use crate::event::SkillInfo;
