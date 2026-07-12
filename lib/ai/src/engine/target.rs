@@ -36,6 +36,17 @@ impl CompanionAi {
         ctx.tactics.resolve(class_id as u32).weight
     }
 
+    /// Basic/cast tactic for an actor. In PVP mode a player resolves against the
+    /// PVP tactic table by friend class; otherwise the per-mob table is used.
+    fn actor_tact(&self, ctx: &AiContext, a: &crate::context::ActorView) -> (i32, i32) {
+        if ctx.params.pvp_mode && a.is_player {
+            if let Some(t) = ctx.pvp_tactic((ctx.friend_class)(a.gid)) {
+                return (i32::from(t.basic), i32::from(t.cast));
+            }
+        }
+        (self.tact_basic(ctx, a.class_id), self.tact_cast(ctx, a.class_id))
+    }
+
     fn is_friend(&self, ctx: &AiContext, id: u32) -> bool {
         id == ctx.owner_gid
             || matches!(
@@ -166,15 +177,16 @@ impl CompanionAi {
         let sp_pct = ctx.sp_pct();
         let mut out = Vec::new();
         for a in ctx.actors {
-            if !a.is_monster || a.gid == ctx.my_gid {
+            let pvp_target =
+                ctx.params.pvp_mode && a.is_player && !self.is_friend_or_self(ctx, a.gid);
+            if (!a.is_monster && !pvp_target) || a.gid == ctx.my_gid {
                 continue;
             }
             let mc = motion_class(a.motion);
             if mc == -1 {
                 continue;
             }
-            let mut tact = self.tact_basic(ctx, a.class_id);
-            let casttact = self.tact_cast(ctx, a.class_id);
+            let (mut tact, casttact) = self.actor_tact(ctx, a);
             if tact == TACT_TANKMOB {
                 tact = if self.aggro_count(ctx) > ctx.params.auto_mob_count as f32 {
                     3

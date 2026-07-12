@@ -1242,6 +1242,7 @@ mod tests {
         params: AiParams,
         owner_motion: Motion,
         owner_hp_pct: i32,
+        pvp_tactics: Vec<crate::tactics::PvpTactic>,
     }
 
     impl Fixture {
@@ -1252,6 +1253,7 @@ mod tests {
                 params: AiParams::default(),
                 owner_motion: Motion::Stand,
                 owner_hp_pct: 100,
+                pvp_tactics: crate::tactics::default_pvp_tactics(),
             }
         }
 
@@ -1299,6 +1301,7 @@ mod tests {
                 skill_range,
                 params: self.params,
                 tactics: &self.tactics,
+                pvp_tactics: &self.pvp_tactics,
                 friend_class: &neutral,
             }
         }
@@ -1569,6 +1572,30 @@ mod tests {
             }
         }
         assert!(walked, "idle-walk never wandered");
+    }
+
+    #[test]
+    fn pvp_mode_engages_attacking_player_but_normal_mode_ignores() {
+        let noskill = |_: u16| 0;
+        let mut attacker = player(9, 103, 100, Some(ME));
+        attacker.motion = Motion::Attack;
+        let actors = [attacker];
+
+        // Normal mode: players are never enemies.
+        let fx = Fixture::new();
+        let mut ai = CompanionAi::new(false);
+        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        one_step(&mut ai, &c);
+        assert_ne!(ai.state(), AiState::Chase);
+
+        // PVP mode: a player attacking us (neutral → react) is engaged.
+        let mut fx = Fixture::new();
+        fx.params.pvp_mode = true;
+        let mut ai = CompanionAi::new(false);
+        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        one_step(&mut ai, &c);
+        assert_eq!(ai.state(), AiState::Chase);
+        assert_eq!(ai.enemy, 9);
     }
 
     #[test]

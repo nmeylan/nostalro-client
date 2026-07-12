@@ -157,6 +157,7 @@ pub struct AiContext<'a> {
     pub skill_range: &'a dyn Fn(u16) -> i32,
     pub params: AiParams,
     pub tactics: &'a crate::tactics::TacticTable,
+    pub pvp_tactics: &'a [crate::tactics::PvpTactic],
     pub friend_class: &'a dyn Fn(u32) -> crate::consts::FriendClass,
 }
 
@@ -183,6 +184,18 @@ impl AiContext<'_> {
         } else {
             self.params.stationary_move_bounds
         }
+    }
+
+    /// The PVP tactic row for a friend class, falling back to the key-0 row.
+    pub fn pvp_tactic(
+        &self,
+        class: crate::consts::FriendClass,
+    ) -> Option<&crate::tactics::PvpTactic> {
+        let key = i32::from(class);
+        self.pvp_tactics
+            .iter()
+            .find(|t| t.key == key)
+            .or_else(|| self.pvp_tactics.iter().find(|t| t.key == 0))
     }
 }
 

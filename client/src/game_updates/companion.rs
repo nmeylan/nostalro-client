@@ -178,6 +178,7 @@ impl App {
             skill_range: &|id| skill_range(&skills, id),
             params,
             tactics: &tactics,
+            pvp_tactics: &self.game.companion_ai.homunculus_pvp_tactics,
             friend_class: &friend_fn,
         };
         Some((gid, homun.ai.tick(delta, &ctx)))
@@ -243,6 +244,7 @@ impl App {
             skill_range: &|id| skill_range(&skills, id),
             params,
             tactics: &tactics,
+            pvp_tactics: &self.game.companion_ai.mercenary_pvp_tactics,
             friend_class: &friend_fn,
         };
         Some((gid, merc.ai.tick(delta, &ctx)))
