@@ -1,6 +1,10 @@
 use crate::App;
+use ragnarok_ai::config::{HomunConfig, MercConfig};
+use ragnarok_ai::consts::FriendClass;
+use ragnarok_ai::{AiParams, TacticTable};
 use ragnarok_game::companion::ai::{ActorView, AiContext, AiIntent, Motion};
 use ragnarok_game::entity::{EntityState, EntityType};
+use std::collections::HashMap;
 use ragnarok_game::event::SkillInfo;
 use ragnarok_game::sprite_path::{homunculus_type_index, mercenary_type_index};
 use ragnarok_network::{
@@ -139,6 +143,12 @@ impl App {
         let aspd_ms = homun.aspd.max(0) as u32;
         let (hp, max_hp, sp, max_sp) = (homun.hp, homun.max_hp, homun.sp, homun.max_sp);
         let skills = homun.skills.clone();
+        let params = homun_params(&self.game.companion_ai.homunculus);
+        let tactics = TacticTable::from_rows(&self.game.companion_ai.homunculus_tactics);
+        let friends = &self.game.companion_ai.friends;
+        let party_ids = self.party_member_ids();
+        let friend_fn = |id: u32| friend_class_of(id, owner_gid, &party_ids, friends);
+        let homun = self.game.homunculus.as_mut()?;
         let ctx = AiContext {
             my_gid: gid,
             my_x: mx as i32,
@@ -158,6 +168,9 @@ impl App {
             now_ms: 0,
             actors,
             skill_range: &|id| skill_range(&skills, id),
+            params,
+            tactics: &tactics,
+            friend_class: &friend_fn,
         };
         Some((gid, homun.ai.tick(delta, &ctx)))
     }
@@ -191,6 +204,12 @@ impl App {
         let aspd_ms = merc.aspd.max(0) as u32;
         let (hp, max_hp, sp, max_sp) = (merc.hp, merc.max_hp, merc.sp, merc.max_sp);
         let skills = merc.skills.clone();
+        let params = merc_params(&self.game.companion_ai.mercenary);
+        let tactics = TacticTable::from_rows(&self.game.companion_ai.mercenary_tactics);
+        let friends = &self.game.companion_ai.friends;
+        let party_ids = self.party_member_ids();
+        let friend_fn = |id: u32| friend_class_of(id, owner_gid, &party_ids, friends);
+        let merc = self.game.mercenary.as_mut()?;
         let ctx = AiContext {
             my_gid: gid,
             my_x: mx as i32,
@@ -210,6 +229,9 @@ impl App {
             now_ms: 0,
             actors,
             skill_range: &|id| skill_range(&skills, id),
+            params,
+            tactics: &tactics,
+            friend_class: &friend_fn,
         };
         Some((gid, merc.ai.tick(delta, &ctx)))
     }
@@ -277,6 +299,74 @@ fn motion_from_state(state: EntityState) -> Motion {
         EntityState::Casting => Motion::Cast,
         EntityState::Hurt => Motion::Hurt,
         EntityState::Dead => Motion::Dead,
+    }
+}
+
+impl App {
+    fn party_member_ids(&self) -> Vec<u32> {
+        self.game
+            .party
+            .as_ref()
+            .map(|p| p.members.iter().map(|m| m.aid).collect())
+            .unwrap_or_default()
+    }
+}
+
+fn friend_class_of(
+    id: u32,
+    owner_gid: u32,
+    party_ids: &[u32],
+    friends: &HashMap<u32, FriendClass>,
+) -> FriendClass {
+    if id == owner_gid || party_ids.contains(&id) {
+        return FriendClass::Friend;
+    }
+    friends.get(&id).copied().unwrap_or(FriendClass::Neutral)
+}
+
+fn homun_params(c: &HomunConfig) -> AiParams {
+    AiParams {
+        aggro_hp: c.AggroHP,
+        aggro_sp: c.AggroSP,
+        super_passive: c.SuperPassive != 0,
+        opportunistic: c.OpportunisticTargeting != 0,
+        do_not_attack_moving: c.DoNotAttackMoving != 0,
+        attack_last_full_sp: c.AttackLastFullSP != 0,
+        tank_monster_limit: c.TankMonsterLimit,
+        auto_mob_count: c.AutoMobCount,
+        stationary_aggro_dist: c.StationaryAggroDist,
+        mobile_aggro_dist: c.MobileAggroDist,
+        stationary_move_bounds: c.StationaryMoveBounds,
+        mobile_move_bounds: c.MobileMoveBounds,
+        do_not_chase: c.DoNotChase != 0,
+        chase_sp_pause: c.ChaseSPPause != 0,
+        chase_sp_pause_sp: c.ChaseSPPauseSP,
+        chase_sp_pause_time: c.ChaseSPPauseTime,
+        attack_skill_reserve_sp: c.AttackSkillReserveSP,
+        rescue_owner_low_hp: c.RescueOwnerLowHP,
+    }
+}
+
+fn merc_params(c: &MercConfig) -> AiParams {
+    AiParams {
+        aggro_hp: c.AggroHP,
+        aggro_sp: c.AggroSP,
+        super_passive: c.SuperPassive != 0,
+        opportunistic: c.OpportunisticTargeting != 0,
+        do_not_attack_moving: false,
+        attack_last_full_sp: c.AttackLastFullSP != 0,
+        tank_monster_limit: c.TankMonsterLimit,
+        auto_mob_count: c.AutoMobCount,
+        stationary_aggro_dist: c.StationaryAggroDist,
+        mobile_aggro_dist: c.MobileAggroDist,
+        stationary_move_bounds: c.StationaryMoveBounds,
+        mobile_move_bounds: c.MobileMoveBounds,
+        do_not_chase: c.DoNotChase != 0,
+        chase_sp_pause: c.ChaseSPPause != 0,
+        chase_sp_pause_sp: c.ChaseSPPauseSP,
+        chase_sp_pause_time: c.ChaseSPPauseTime,
+        attack_skill_reserve_sp: c.AttackSkillReserveSP,
+        rescue_owner_low_hp: c.RescueOwnerLowHP,
     }
 }
 

@@ -6,9 +6,9 @@ pub mod tactics;
 
 pub use config::{CompanionAiConfig, HomunConfig, MercConfig};
 pub use consts::*;
-pub use context::{ActorView, AiContext, AiIntent, Motion};
-pub use engine::{AiMode, AiState, CommandKind, CompanionAi, OwnerCommand};
-pub use tactics::{PvpTactic, SkillUse, Tactic};
+pub use context::{ActorView, AiContext, AiIntent, AiParams, Motion};
+pub use engine::{AiState, CommandKind, CompanionAi, OwnerCommand};
+pub use tactics::{PvpTactic, SkillUse, Tactic, TacticTable};
 
 #[cfg(test)]
 mod config_tests {

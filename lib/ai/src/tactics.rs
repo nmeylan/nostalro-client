@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::consts::{
@@ -114,6 +116,43 @@ pub struct PvpTactic {
     pub debuff: i32,
     pub skill_class: SkillClass,
     pub rescue: RescueTactic,
+}
+
+/// Per-class tactic lookup with the reference fallback chain
+/// (per-mob → treasure-chest → default).
+pub struct TacticTable {
+    rows: HashMap<u32, Tactic>,
+    default: Tactic,
+    treasure: Tactic,
+}
+
+impl TacticTable {
+    pub fn from_rows(rows: &[Tactic]) -> Self {
+        let map: HashMap<u32, Tactic> = rows.iter().map(|t| (t.id, t.clone())).collect();
+        let default = map.get(&0).cloned().unwrap_or_else(Tactic::default_row);
+        let treasure = map.get(&13).cloned().unwrap_or_else(Tactic::treasure_row);
+        TacticTable { rows: map, default, treasure }
+    }
+
+    pub fn resolve(&self, class_id: u32) -> &Tactic {
+        if let Some(t) = self.rows.get(&class_id) {
+            return t;
+        }
+        if is_treasure_class(class_id) {
+            return &self.treasure;
+        }
+        &self.default
+    }
+}
+
+impl Default for TacticTable {
+    fn default() -> Self {
+        TacticTable::from_rows(&default_tactics())
+    }
+}
+
+fn is_treasure_class(class_id: u32) -> bool {
+    (1324..=1363).contains(&class_id) || (1938..=1946).contains(&class_id)
 }
 
 pub fn default_tactics() -> Vec<Tactic> {

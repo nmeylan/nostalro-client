@@ -5,6 +5,11 @@ use crate::helper::window_chrome::{
     TITLEBAR_TEX, draw_container, draw_sys_button, draw_titlebar, text_color,
 };
 use ragnarok_ai::config::{CompanionAiConfig, HomunConfig, MercConfig};
+use ragnarok_ai::consts::{
+    BasicTactic, CastTactic, ChaseTactic, KiteTactic, KsTactic, PushbackTactic, RescueTactic,
+    SkillClass, SnipeTactic,
+};
+use ragnarok_ai::tactics::{SkillUse, Tactic};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
@@ -19,7 +24,83 @@ const RESET_BTN_ID: WidgetId = WidgetId(3222);
 const SCROLL_UP_ID: WidgetId = WidgetId(3223);
 const SCROLL_DOWN_ID: WidgetId = WidgetId(3224);
 const SCROLL_THUMB_ID: WidgetId = WidgetId(3225);
+const TACT_PREV_ID: WidgetId = WidgetId(3226);
+const TACT_NEXT_ID: WidgetId = WidgetId(3227);
+const TACT_ADD_ID: WidgetId = WidgetId(3228);
+const TACT_DEL_ID: WidgetId = WidgetId(3229);
 const ROW_WIDGET_BASE: u32 = 3230;
+
+const BASIC_OPTS: &[(i32, &str)] = &[
+    (-2, "Tank Mob"),
+    (-1, "Tank"),
+    (0, "Ignore"),
+    (2, "Attack Low"),
+    (3, "Attack Med"),
+    (4, "Attack High"),
+    (5, "React Low"),
+    (7, "React Med"),
+    (8, "React High"),
+    (9, "React Self"),
+    (10, "Snipe Low"),
+    (11, "Snipe Med"),
+    (12, "Snipe High"),
+];
+const KITE_OPTS: &[(i32, &str)] = &[(0, "Never"), (1, "React"), (2, "Always")];
+const CAST_OPTS: &[(i32, &str)] = &[(0, "Passive"), (1, "React")];
+const PUSH_OPTS: &[(i32, &str)] = &[(0, "Never"), (1, "Self"), (2, "Friend")];
+const CLASS_OPTS: &[(i32, &str)] = &[
+    (-1, "Both"),
+    (0, "Old"),
+    (1, "S"),
+    (2, "Mob"),
+    (3, "Combo 1"),
+    (4, "Combo 2"),
+    (5, "Minion"),
+    (6, "Grapple"),
+];
+const RESCUE_OPTS: &[(i32, &str)] = &[
+    (0, "Never"),
+    (1, "Friend"),
+    (2, "Retainer"),
+    (3, "Self"),
+    (4, "Owner"),
+    (5, "All"),
+];
+const SNIPE_OPTS: &[(i32, &str)] = &[(0, "Disable"), (1, "OK")];
+const KS_OPTS: &[(i32, &str)] = &[(-1, "Polite"), (0, "Never"), (1, "Always")];
+const CHASE_OPTS: &[(i32, &str)] = &[(-1, "Normal"), (0, "Always"), (1, "Never"), (2, "Clever")];
+
+fn tactic_cols() -> Vec<FieldSpec<Tactic>> {
+    use Widget::*;
+    vec![
+        FieldSpec { label: "Basic", category: "", widget: Enum(BASIC_OPTS), tip: "",
+            get: |t| i32::from(t.basic), set: |t, v| t.basic = BasicTactic::from(v) },
+        FieldSpec { label: "Skill Use", category: "", widget: Int { min: -20, max: 100, step: 1 }, tip: "0 never, 100 always, N up to N casts, -N once at level N",
+            get: |t| i32::from(t.skill), set: |t, v| t.skill = SkillUse::from(v) },
+        FieldSpec { label: "Kite", category: "", widget: Enum(KITE_OPTS), tip: "",
+            get: |t| i32::from(t.kite), set: |t, v| t.kite = KiteTactic::from(v) },
+        FieldSpec { label: "Cast React", category: "", widget: Enum(CAST_OPTS), tip: "",
+            get: |t| i32::from(t.cast), set: |t, v| t.cast = CastTactic::from(v) },
+        FieldSpec { label: "Pushback", category: "", widget: Enum(PUSH_OPTS), tip: "",
+            get: |t| i32::from(t.pushback), set: |t, v| t.pushback = PushbackTactic::from(v) },
+        FieldSpec { label: "Debuff Skill", category: "", widget: Int { min: -9000, max: 9000, step: 1 }, tip: "Debuff skill id, or a negative status code",
+            get: |t| t.debuff, set: |t, v| t.debuff = v },
+        FieldSpec { label: "Skill Class", category: "", widget: Enum(CLASS_OPTS), tip: "",
+            get: |t| i32::from(t.skill_class), set: |t, v| t.skill_class = SkillClass::from(v) },
+        FieldSpec { label: "Rescue", category: "", widget: Enum(RESCUE_OPTS), tip: "",
+            get: |t| i32::from(t.rescue), set: |t, v| t.rescue = RescueTactic::from(v) },
+        FieldSpec { label: "SP Reserve", category: "", widget: Int { min: -1, max: 100, step: 1 }, tip: "-1 uses Attack Skill Reserve SP",
+            get: |t| t.sp, set: |t, v| t.sp = v },
+        FieldSpec { label: "Snipe", category: "", widget: Enum(SNIPE_OPTS), tip: "",
+            get: |t| i32::from(t.snipe), set: |t, v| t.snipe = SnipeTactic::from(v) },
+        FieldSpec { label: "KS", category: "", widget: Enum(KS_OPTS), tip: "",
+            get: |t| i32::from(t.ks), set: |t, v| t.ks = KsTactic::from(v) },
+        FieldSpec { label: "Weight x10", category: "", widget: Int { min: 0, max: 30, step: 1 }, tip: "Aggro/mob-count weight, in tenths",
+            get: |t| (t.weight * 10.0).round() as i32, set: |t, v| t.weight = v as f32 / 10.0 },
+        FieldSpec { label: "Chase", category: "", widget: Enum(CHASE_OPTS), tip: "",
+            get: |t| i32::from(t.chase), set: |t, v| t.chase = ChaseTactic::from(v) },
+    ]
+}
 
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
@@ -257,6 +338,7 @@ pub struct CompanionAiConfigWindow {
     visible: bool,
     tab: usize,
     scroll_offset: usize,
+    tactic_sel: usize,
 }
 
 impl Default for CompanionAiConfigWindow {
@@ -272,6 +354,7 @@ impl CompanionAiConfigWindow {
             visible: false,
             tab: 0,
             scroll_offset: 0,
+            tactic_sel: 0,
         }
     }
 
@@ -357,8 +440,14 @@ impl CompanionAiConfigWindow {
                 let specs = merc_specs();
                 self.render_fields(ui, &mut config.mercenary, &specs, x, content_y, content_h, tc, grf);
             }
+            2 => {
+                self.render_tactics(ui, &mut config.homunculus_tactics, x, content_y, tc, grf);
+            }
+            3 => {
+                self.render_tactics(ui, &mut config.mercenary_tactics, x, content_y, tc, grf);
+            }
             _ => {
-                ui.text(x + PAD, content_y + 24.0, "This tab arrives with the tactics tier.", colors::YELLOW);
+                ui.text(x + PAD, content_y + 24.0, "This tab arrives with a later tier.", colors::YELLOW);
             }
         }
 
@@ -437,6 +526,71 @@ impl CompanionAiConfigWindow {
         }
     }
 
+    fn render_tactics(
+        &mut self,
+        ui: &mut UiFrame,
+        rows: &mut Vec<Tactic>,
+        x: f32,
+        y: f32,
+        tc: [f32; 4],
+        grf: bool,
+    ) {
+        if rows.is_empty() {
+            rows.push(Tactic::default_row());
+        }
+        self.tactic_sel = self.tactic_sel.min(rows.len() - 1);
+
+        // Selector row: ◀ id:name ▶  Add  Del
+        let bw = 22.0;
+        let mut cx = x + PAD;
+        if ui.button(TACT_PREV_ID, Rect::new(cx, y, bw, 16.0), &BTN, "<").clicked() && self.tactic_sel > 0 {
+            self.tactic_sel -= 1;
+        }
+        cx += bw + 2.0;
+        let sel = &rows[self.tactic_sel];
+        let label = format!("#{}  {}", sel.id, if sel.name.is_empty() { "(unnamed)" } else { &sel.name });
+        let name_w = WIN_W - PAD * 2.0 - bw * 2.0 - 4.0 - 120.0;
+        push_quad(ui, cx, y, name_w, 16.0, [0.14, 0.16, 0.22, 1.0]);
+        ui.text(cx + 4.0, y + BASELINE, &label, tc);
+        cx += name_w + 2.0;
+        if ui.button(TACT_NEXT_ID, Rect::new(cx, y, bw, 16.0), &BTN, ">").clicked()
+            && self.tactic_sel + 1 < rows.len()
+        {
+            self.tactic_sel += 1;
+        }
+        cx += bw + 4.0;
+        if ui.button(TACT_ADD_ID, Rect::new(cx, y, 56.0, 16.0), &BTN, "Add").clicked() {
+            let mut t = Tactic::default_row();
+            t.id = next_free_class_id(rows);
+            t.name = "New".to_string();
+            rows.push(t);
+            self.tactic_sel = rows.len() - 1;
+        }
+        cx += 58.0;
+        if ui.button(TACT_DEL_ID, Rect::new(cx, y, 56.0, 16.0), &BTN, "Del").clicked()
+            && rows[self.tactic_sel].id != 0
+            && rows[self.tactic_sel].id != 13
+        {
+            rows.remove(self.tactic_sel);
+            self.tactic_sel = self.tactic_sel.saturating_sub(1);
+        }
+
+        let cols = tactic_cols();
+        let sel = &mut rows[self.tactic_sel];
+        let mut ry = y + 22.0;
+        for (slot, spec) in cols.iter().enumerate() {
+            ui.text(x + PAD + 8.0, ry + BASELINE, spec.label, tc);
+            let widget_x = x + WIN_W - SCROLLBAR_W - 6.0 - 130.0;
+            let wrect = Rect::new(widget_x, ry + 1.0, 130.0, ROW_H - 3.0);
+            let cur = (spec.get)(sel);
+            let new = self.render_widget(ui, slot, spec, cur, wrect, tc, grf);
+            if new != cur {
+                (spec.set)(sel, new);
+            }
+            ry += ROW_H;
+        }
+    }
+
     fn render_widget<C>(
         &self,
         ui: &mut UiFrame,
@@ -506,6 +660,14 @@ impl CompanionAiConfigWindow {
             }
         }
     }
+}
+
+fn next_free_class_id(rows: &[Tactic]) -> u32 {
+    let mut id = 1001;
+    while rows.iter().any(|t| t.id == id) {
+        id += 1;
+    }
+    id
 }
 
 fn push_quad(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) {

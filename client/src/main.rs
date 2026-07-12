@@ -900,16 +900,6 @@ impl App {
                         self.clear_mercenary();
                     }
                 }
-                GameEvent::SetCompanionAiMode { is_mercenary, mode } => {
-                    let ai = if is_mercenary {
-                        self.game.mercenary.as_mut().map(|m| &mut m.ai)
-                    } else {
-                        self.game.homunculus.as_mut().map(|h| &mut h.ai)
-                    };
-                    if let Some(ai) = ai {
-                        ai.set_mode(mode);
-                    }
-                }
                 GameEvent::RequestRenameHomun { name } => {
                     self.channel
                         .send_packet(build_rename_homun_packet(&name, self.config.packetver));

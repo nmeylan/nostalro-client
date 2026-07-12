@@ -1,4 +1,3 @@
-use crate::companion::AiMode;
 use crate::inventory::{EquipmentItemData, NormalItemData};
 use crate::item::Item;
 use crate::targeting::MapProperties;
@@ -892,10 +891,6 @@ pub enum GameEvent {
     /// Standby button: toggle the companion between follow and hold.
     ToggleCompanionStandby {
         is_mercenary: bool,
-    },
-    SetCompanionAiMode {
-        is_mercenary: bool,
-        mode: AiMode,
     },
     ToggleCompanionAiConfig,
     SaveCompanionAiConfig,

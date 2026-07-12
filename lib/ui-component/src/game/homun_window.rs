@@ -19,7 +19,7 @@ const RENAME_INPUT_ID: WidgetId = WidgetId(2905);
 const RENAME_BTN_ID: WidgetId = WidgetId(2906);
 const SKILL_BTN_ID: WidgetId = WidgetId(2907);
 const REST_BTN_ID: WidgetId = WidgetId(2908);
-const MODE_BTN_ID: WidgetId = WidgetId(2909);
+const AI_BTN_ID: WidgetId = WidgetId(2909);
 
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
@@ -285,16 +285,9 @@ impl HomunWindow {
         if ui.button(REST_BTN_ID, rest_rect, &FEED_BTN, "Rest").clicked() {
             events.push(GameEvent::RequestHomunRest);
         }
-        let mode = homun.ai.mode();
-        let mode_rect = Rect::new(rx + rest_w + 6.0, ry, bar_w - rest_w - 6.0, btn_h);
-        if ui
-            .button(MODE_BTN_ID, mode_rect, &SKILL_BTN, &format!("Mode: {}", mode.label()))
-            .clicked()
-        {
-            events.push(GameEvent::SetCompanionAiMode {
-                is_mercenary: false,
-                mode: mode.next(),
-            });
+        let ai_rect = Rect::new(rx + rest_w + 6.0, ry, bar_w - rest_w - 6.0, btn_h);
+        if ui.button(AI_BTN_ID, ai_rect, &SKILL_BTN, "AI...").clicked() {
+            events.push(GameEvent::ToggleCompanionAiConfig);
         }
 
         // Red note, placed below the left stat column.

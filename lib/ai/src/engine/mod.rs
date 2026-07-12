@@ -1,6 +1,8 @@
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
 use crate::context::{ActorView, AiContext, AiIntent, Motion};
+
+mod target;
 
 const TICK_INTERVAL_MS: u32 = 140;
 const OUT_OF_SIGHT_DISTANCE: i32 = 20;
@@ -8,42 +10,9 @@ const FOLLOW_DISTANCE: i32 = 3;
 const MOVE_SPLIT_DISTANCE: i32 = 15;
 const MOVE_ABORT_DISTANCE: i32 = 24;
 const RESERVED_QUEUE_CAP: usize = 10;
-const NEAREST_SCAN_CAP: i32 = 100;
 const DEFAULT_ATTACK_DELAY_MS: u32 = 1000;
-
-/// Player-selectable target disposition, overriding the per-family default.
-/// Mirrors the four companion attack modes of the original game.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AiMode {
-    /// Aggress the nearest monster on sight.
-    Aggressive,
-    /// Attack the owner's attacker and retaliate, but don't seek monsters out.
-    Assist,
-    /// Only retaliate against monsters attacking the companion.
-    Passive,
-    /// Never attack; follow only.
-    FollowOnly,
-}
-
-impl AiMode {
-    pub fn label(self) -> &'static str {
-        match self {
-            AiMode::Aggressive => "Aggressive",
-            AiMode::Assist => "Assist",
-            AiMode::Passive => "Passive",
-            AiMode::FollowOnly => "Follow",
-        }
-    }
-
-    pub fn next(self) -> Self {
-        match self {
-            AiMode::Aggressive => AiMode::Assist,
-            AiMode::Assist => AiMode::Passive,
-            AiMode::Passive => AiMode::FollowOnly,
-            AiMode::FollowOnly => AiMode::Aggressive,
-        }
-    }
-}
+const CHASE_GIVEUP_LIMIT: u32 = 8;
+const TANK_HIT_INTERVAL_MS: u32 = 1500;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AiState {
@@ -51,6 +20,8 @@ pub enum AiState {
     Follow,
     Chase,
     Attack,
+    TankChase,
+    Tank,
     MoveCmd,
     StopCmd,
     AttackObjectCmd,
@@ -139,7 +110,10 @@ pub struct CompanionAi {
     tick_accum_ms: u32,
     clock_ms: u32,
     next_attack_ms: u32,
-    mode: Option<AiMode>,
+    standby: bool,
+    chase_giveup: u32,
+    tank_hit_ms: u32,
+    unreachable: HashSet<u32>,
 }
 
 impl CompanionAi {
@@ -160,7 +134,10 @@ impl CompanionAi {
             tick_accum_ms: 0,
             clock_ms: 0,
             next_attack_ms: 0,
-            mode: None,
+            standby: false,
+            chase_giveup: 0,
+            tank_hit_ms: 0,
+            unreachable: HashSet::new(),
         }
     }
 
@@ -168,14 +145,23 @@ impl CompanionAi {
         self.state
     }
 
-    /// The active attack mode, defaulting to Assist when unset (the per-family
-    /// default still applies while `None`; this is only the label shown in UI).
-    pub fn mode(&self) -> AiMode {
-        self.mode.unwrap_or(AiMode::Assist)
+    pub fn set_standby(&mut self, standby: bool) {
+        self.standby = standby;
     }
 
-    pub fn set_mode(&mut self, mode: AiMode) {
-        self.mode = Some(mode);
+    pub(crate) fn is_unreachable(&self, gid: u32) -> bool {
+        self.unreachable.contains(&gid)
+    }
+
+    fn aggro_flag(&self, ctx: &AiContext) -> i32 {
+        if ctx.hp_pct() > ctx.params.aggro_hp
+            && ctx.sp_pct() > ctx.params.aggro_sp
+            && !self.standby
+        {
+            1
+        } else {
+            0
+        }
     }
 
     pub fn has_pending_command(&self) -> bool {
@@ -230,6 +216,8 @@ impl CompanionAi {
             AiState::Idle => self.on_idle(ctx, out),
             AiState::Chase => self.on_chase(ctx, out),
             AiState::Attack => self.on_attack(ctx, out),
+            AiState::TankChase => self.on_tank_chase(ctx, out),
+            AiState::Tank => self.on_tank(ctx, out),
             AiState::Follow => self.on_follow(ctx, out),
             AiState::MoveCmd => self.on_move_cmd(ctx),
             AiState::AttackAreaCmd => self.on_attack_area_cmd(ctx, out),
@@ -244,6 +232,7 @@ impl CompanionAi {
     // ---- command processing --------------------------------------------
 
     fn process_command(&mut self, cmd: OwnerCommand, ctx: &AiContext, out: &mut Vec<AiIntent>) {
+        self.standby = false;
         match cmd.kind {
             CommandKind::Move => self.on_move_command(cmd.x, cmd.y, ctx, out),
             CommandKind::Stop => self.on_stop_command(ctx, out),
@@ -328,6 +317,7 @@ impl CompanionAi {
         if self.state != AiState::FollowCmd {
             out.push(AiIntent::MoveToOwner);
             self.state = AiState::FollowCmd;
+            self.standby = true;
             if let Some((ox, oy)) = ctx.owner_pos {
                 self.dest_x = ox;
                 self.dest_y = oy;
@@ -336,6 +326,7 @@ impl CompanionAi {
             self.skill = 0;
         } else {
             self.state = AiState::Idle;
+            self.standby = false;
             self.enemy = 0;
             self.skill = 0;
         }
@@ -348,20 +339,30 @@ impl CompanionAi {
             self.process_command(cmd, ctx, out);
             return;
         }
-        let assist_owner = !matches!(self.mode, Some(AiMode::Passive) | Some(AiMode::FollowOnly));
-        if assist_owner {
-            let object = self.get_owner_enemy(ctx);
+        self.enemy = 0;
+        self.skill = 0;
+        if !ctx.params.super_passive {
+            let object = self.select_enemy(ctx, &self.friend_targets(ctx), None);
             if object != 0 {
                 self.state = AiState::Chase;
                 self.enemy = object;
                 return;
             }
-        }
-        let object = self.get_my_enemy(ctx);
-        if object != 0 {
-            self.state = AiState::Chase;
-            self.enemy = object;
-            return;
+            let aggro = self.aggro_flag(ctx);
+            let object = self.select_enemy(ctx, &self.enemy_list(ctx, aggro), None);
+            if object != 0 {
+                self.state = AiState::Chase;
+                self.enemy = object;
+                return;
+            }
+            if aggro == 1 && self.tank_count(ctx) < ctx.params.tank_monster_limit {
+                let object = self.select_enemy(ctx, &self.enemy_list(ctx, -1), None);
+                if object != 0 {
+                    self.state = AiState::TankChase;
+                    self.enemy = object;
+                    return;
+                }
+            }
         }
         let distance = self.distance_from_owner(ctx);
         if distance > FOLLOW_DISTANCE || distance == -1 {
@@ -379,15 +380,33 @@ impl CompanionAi {
     }
 
     fn on_chase(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) {
-        if self.is_out_of_sight(ctx, self.enemy) {
-            self.state = AiState::Idle;
-            self.enemy = 0;
-            self.dest_x = 0;
-            self.dest_y = 0;
+        if self.is_out_of_sight(ctx, self.enemy) || !self.is_not_ks(ctx, self.enemy) {
+            self.drop_enemy_to_idle();
             return;
+        }
+        if ctx.my_motion != Motion::Move {
+            if self.chase_giveup > CHASE_GIVEUP_LIMIT {
+                self.unreachable.insert(self.enemy);
+                self.chase_giveup = 0;
+                self.drop_enemy_to_idle();
+                return;
+            }
+            self.chase_giveup += 1;
+        }
+        if ctx.params.opportunistic && self.skill == 0 && !ctx.params.super_passive {
+            let aggro = self.aggro_flag(ctx);
+            let object =
+                self.select_enemy(ctx, &self.enemy_list(ctx, aggro), Some(self.enemy));
+            if object != 0 {
+                self.enemy = object;
+            }
         }
         if self.is_in_attack_sight(ctx, self.enemy) {
             self.state = AiState::Attack;
+            self.chase_giveup = 0;
+            return;
+        }
+        if self.chase_blocked(ctx, self.enemy) {
             return;
         }
         if let Some((ex, ey)) = self.actor_pos(ctx, self.enemy) {
@@ -396,6 +415,79 @@ impl CompanionAi {
                 self.dest_y = ey;
                 self.emit_move(ex, ey, ctx, out);
             }
+        }
+    }
+
+    fn on_tank_chase(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) {
+        if self.is_out_of_sight(ctx, self.enemy)
+            || (self.chase_giveup > CHASE_GIVEUP_LIMIT && ctx.my_motion != Motion::Move)
+        {
+            if self.chase_giveup > CHASE_GIVEUP_LIMIT {
+                self.unreachable.insert(self.enemy);
+            }
+            self.chase_giveup = 0;
+            self.drop_enemy_to_idle();
+            return;
+        }
+        if self.is_in_attack_sight(ctx, self.enemy) {
+            self.chase_giveup = 0;
+            if self.is_not_ks(ctx, self.enemy) {
+                self.state = AiState::Tank;
+                self.on_tank(ctx, out);
+            } else {
+                self.drop_enemy_to_idle();
+            }
+            return;
+        }
+        self.chase_giveup += 1;
+        if !self.chase_blocked(ctx, self.enemy) {
+            if let Some((ex, ey)) = self.actor_pos(ctx, self.enemy) {
+                self.dest_x = ex;
+                self.dest_y = ey;
+                self.emit_move(ex, ey, ctx, out);
+            }
+        }
+    }
+
+    fn on_tank(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) {
+        if self.actor_motion(ctx, self.enemy) == Some(Motion::Dead)
+            || self.is_out_of_sight(ctx, self.enemy)
+        {
+            self.drop_enemy_to_idle();
+            return;
+        }
+        let targets_me = self.actor(ctx, self.enemy).and_then(|a| a.target_gid) == Some(ctx.my_gid);
+        if !targets_me {
+            if self.clock_ms >= self.tank_hit_ms.wrapping_add(TANK_HIT_INTERVAL_MS) {
+                self.tank_hit_ms = self.clock_ms;
+                if self.is_in_attack_sight(ctx, self.enemy) {
+                    self.emit_attack(ctx, out);
+                } else {
+                    self.state = AiState::TankChase;
+                }
+            }
+            return;
+        }
+        self.state = AiState::Idle;
+    }
+
+    fn drop_enemy_to_idle(&mut self) {
+        self.state = AiState::Idle;
+        self.enemy = 0;
+        self.dest_x = 0;
+        self.dest_y = 0;
+    }
+
+    /// Resolves the chase tactic column: `true` = do not close on this target.
+    fn chase_blocked(&self, ctx: &AiContext, gid: u32) -> bool {
+        use crate::consts::ChaseTactic;
+        let Some(a) = self.actor(ctx, gid) else {
+            return false;
+        };
+        match ctx.tactics.resolve(a.class_id as u32).chase {
+            ChaseTactic::Always => false,
+            ChaseTactic::Never => true,
+            _ => ctx.params.do_not_chase,
         }
     }
 
@@ -439,10 +531,7 @@ impl CompanionAi {
     }
 
     fn on_attack_area_cmd(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) {
-        let mut object = self.get_owner_enemy(ctx);
-        if object == 0 {
-            object = self.get_my_enemy(ctx);
-        }
+        let object = self.command_target(ctx);
         if object != 0 {
             self.state = AiState::Chase;
             self.enemy = object;
@@ -455,10 +544,7 @@ impl CompanionAi {
     }
 
     fn on_patrol_cmd(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) {
-        let mut object = self.get_owner_enemy(ctx);
-        if object == 0 {
-            object = self.get_my_enemy(ctx);
-        }
+        let object = self.command_target(ctx);
         if object != 0 {
             self.state = AiState::Chase;
             self.enemy = object;
@@ -484,12 +570,9 @@ impl CompanionAi {
             }
             return;
         }
-        let mut object = self.get_owner_enemy(ctx);
+        let object = self.command_target(ctx);
         if object == 0 {
-            object = self.get_my_enemy(ctx);
-            if object == 0 {
-                return;
-            }
+            return;
         }
         self.enemy = object;
     }
@@ -532,86 +615,14 @@ impl CompanionAi {
 
     // ---- target selection ----------------------------------------------
 
-    fn get_owner_enemy(&self, ctx: &AiContext) -> u32 {
-        let mut result = 0;
-        let mut min_dis = NEAREST_SCAN_CAP;
-        for actor in ctx.actors {
-            if actor.gid == ctx.owner_gid || actor.gid == ctx.my_gid {
-                continue;
-            }
-            if actor.target_gid != Some(ctx.owner_gid) {
-                continue;
-            }
-            let is_enemy = actor.is_monster || actor.motion == Motion::Attack;
-            if !is_enemy {
-                continue;
-            }
-            let dis = get_distance(ctx.my_x, ctx.my_y, actor.x, actor.y);
-            if dis < min_dis {
-                result = actor.gid;
-                min_dis = dis;
-            }
+    /// Command states pick a target with the full tactics pipeline: a friend's
+    /// attacker first, then the aggro/react enemy list.
+    fn command_target(&self, ctx: &AiContext) -> u32 {
+        let object = self.select_enemy(ctx, &self.friend_targets(ctx), None);
+        if object != 0 {
+            return object;
         }
-        result
-    }
-
-    fn get_my_enemy(&self, ctx: &AiContext) -> u32 {
-        match self.mode {
-            Some(AiMode::Aggressive) => return self.get_my_enemy_b(ctx),
-            Some(AiMode::Assist) | Some(AiMode::Passive) => return self.get_my_enemy_a(ctx),
-            Some(AiMode::FollowOnly) => return 0,
-            None => {}
-        }
-        if self.is_mercenary {
-            return self.get_my_enemy_a(ctx);
-        }
-        if is_melee_homunculus(ctx.companion_type) {
-            self.get_my_enemy_a(ctx)
-        } else if is_ranged_homunculus(ctx.companion_type) {
-            self.get_my_enemy_b(ctx)
-        } else {
-            0
-        }
-    }
-
-    /// Non-aggressive: only actors already targeting me.
-    fn get_my_enemy_a(&self, ctx: &AiContext) -> u32 {
-        let mut result = 0;
-        let mut min_dis = NEAREST_SCAN_CAP;
-        for actor in ctx.actors {
-            if actor.gid == ctx.owner_gid || actor.gid == ctx.my_gid {
-                continue;
-            }
-            if actor.target_gid != Some(ctx.my_gid) {
-                continue;
-            }
-            let dis = get_distance(ctx.my_x, ctx.my_y, actor.x, actor.y);
-            if dis < min_dis {
-                result = actor.gid;
-                min_dis = dis;
-            }
-        }
-        result
-    }
-
-    /// Aggressive: nearest monster.
-    fn get_my_enemy_b(&self, ctx: &AiContext) -> u32 {
-        let mut result = 0;
-        let mut min_dis = NEAREST_SCAN_CAP;
-        for actor in ctx.actors {
-            if actor.gid == ctx.owner_gid || actor.gid == ctx.my_gid {
-                continue;
-            }
-            if !actor.is_monster {
-                continue;
-            }
-            let dis = get_distance(ctx.my_x, ctx.my_y, actor.x, actor.y);
-            if dis < min_dis {
-                result = actor.gid;
-                min_dis = dis;
-            }
-        }
-        result
+        self.select_enemy(ctx, &self.enemy_list(ctx, self.aggro_flag(ctx)), None)
     }
 
     // ---- helpers --------------------------------------------------------
@@ -691,58 +702,99 @@ fn get_distance(x1: i32, y1: i32, x2: i32, y2: i32) -> i32 {
     (dx * dx + dy * dy).sqrt().floor() as i32
 }
 
-/// LIF / AMISTR families (incl. `_H` and `2` variants) — counterattack only.
-fn is_melee_homunculus(t: u16) -> bool {
-    matches!(t, 1 | 2 | 5 | 6 | 9 | 10 | 13 | 14)
-}
-
-/// FILIR / VANILMIRTH families — aggress nearby monsters.
-fn is_ranged_homunculus(t: u16) -> bool {
-    matches!(t, 3 | 4 | 7 | 8 | 11 | 12 | 15 | 16)
+fn cheb_distance(x1: i32, y1: i32, x2: i32, y2: i32) -> i32 {
+    (x1 - x2).abs().max((y1 - y2).abs())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::consts::{BasicTactic, FriendClass};
+    use crate::context::AiParams;
+    use crate::tactics::{Tactic, TacticTable};
 
-    fn ctx<'a>(
-        my: (i32, i32),
-        motion: Motion,
-        owner: Option<(i32, i32)>,
-        actors: &'a [ActorView],
-        skill_range: &'a dyn Fn(u16) -> i32,
-    ) -> AiContext<'a> {
-        AiContext {
-            my_gid: 100,
-            my_x: my.0,
-            my_y: my.1,
-            my_motion: motion,
-            my_hp: 100,
-            my_max_hp: 100,
-            my_sp: 100,
-            my_max_sp: 100,
-            attack_range: 1,
-            aspd_ms: 500,
-            companion_type: 1, // Lif (melee)
-            owner_gid: 1,
-            owner_pos: owner,
-            owner_motion: Motion::Stand,
-            spheres: 0,
-            now_ms: 0,
-            actors,
-            skill_range,
+    const OWNER: u32 = 1;
+    const ME: u32 = 100;
+
+    fn neutral(_: u32) -> FriendClass {
+        FriendClass::Neutral
+    }
+
+    struct Fixture {
+        tactics: TacticTable,
+    }
+
+    impl Fixture {
+        fn new() -> Self {
+            Fixture {
+                tactics: TacticTable::default(),
+            }
+        }
+
+        fn with_tactic(mut self, class_id: u32, basic: BasicTactic) -> Self {
+            let mut t = Tactic::default_row();
+            t.id = class_id;
+            t.basic = basic;
+            self.tactics = TacticTable::from_rows(&[Tactic::default_row(), Tactic::treasure_row(), t]);
+            self
+        }
+
+        fn ctx<'a>(
+            &'a self,
+            my: (i32, i32),
+            motion: Motion,
+            owner: Option<(i32, i32)>,
+            actors: &'a [ActorView],
+            skill_range: &'a dyn Fn(u16) -> i32,
+        ) -> AiContext<'a> {
+            AiContext {
+                my_gid: ME,
+                my_x: my.0,
+                my_y: my.1,
+                my_motion: motion,
+                my_hp: 100,
+                my_max_hp: 100,
+                my_sp: 100,
+                my_max_sp: 100,
+                attack_range: 1,
+                aspd_ms: 500,
+                companion_type: 1,
+                owner_gid: OWNER,
+                owner_pos: owner,
+                owner_motion: Motion::Stand,
+                spheres: 0,
+                now_ms: 0,
+                actors,
+                skill_range,
+                params: AiParams::default(),
+                tactics: &self.tactics,
+                friend_class: &neutral,
+            }
         }
     }
 
-    fn monster(gid: u32, x: i32, y: i32, target: Option<u32>) -> ActorView {
+    fn monster(gid: u32, class_id: u16, x: i32, y: i32, target: Option<u32>) -> ActorView {
         ActorView {
             gid,
             x,
             y,
             is_monster: true,
             is_player: false,
-            class_id: 1002,
+            class_id,
             motion: Motion::Stand,
+            target_gid: target,
+        }
+    }
+
+    fn player(gid: u32, x: i32, y: i32, target: Option<u32>) -> ActorView {
+        ActorView {
+            gid,
+            x,
+            y,
+            is_monster: false,
+            is_player: true,
+            class_id: 0,
+            motion: Motion::Attack,
             target_gid: target,
         }
     }
@@ -754,99 +806,107 @@ mod tests {
     #[test]
     fn idle_follows_owner_then_settles_when_close() {
         let noskill = |_: u16| 1;
+        let fx = Fixture::new();
         let mut ai = CompanionAi::new(false);
 
-        let c = ctx((100, 100), Motion::Stand, Some((110, 100)), &[], &noskill);
+        let c = fx.ctx((100, 100), Motion::Stand, Some((110, 100)), &[], &noskill);
         one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::Follow);
 
         let out = one_step(&mut ai, &c);
         assert!(out.contains(&AiIntent::MoveToOwner));
 
-        let c = ctx((100, 100), Motion::Move, Some((110, 100)), &[], &noskill);
-        let out = one_step(&mut ai, &c);
-        assert!(!out.contains(&AiIntent::MoveToOwner));
-
-        let c = ctx((108, 100), Motion::Stand, Some((110, 100)), &[], &noskill);
+        let c = fx.ctx((108, 100), Motion::Stand, Some((110, 100)), &[], &noskill);
         one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::Idle);
     }
 
     #[test]
-    fn chases_attacker_of_owner_then_attacks_gated_by_aspd() {
+    fn aggresses_default_tactic_monster_then_attacks_gated_by_aspd() {
         let noskill = |_: u16| 1;
+        let fx = Fixture::new();
         let mut ai = CompanionAi::new(false);
 
-        let actors = [monster(500, 105, 100, Some(1))];
-        let c = ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        // Default tactic (Attack) → a free monster in aggro range is chased.
+        let actors = [monster(500, 1002, 105, 100, None)];
+        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
         one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::Chase);
+        assert_eq!(ai.enemy, 500);
 
-        let out = one_step(&mut ai, &c);
-        assert!(matches!(out.first(), Some(AiIntent::MoveTo { .. })));
-
-        let actors = [monster(500, 101, 100, Some(1))];
-        let c = ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        let actors = [monster(500, 1002, 101, 100, None)];
+        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
         one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::Attack);
 
         let out = one_step(&mut ai, &c);
         assert!(out.contains(&AiIntent::Attack { target_gid: 500 }));
-
         let out = one_step(&mut ai, &c);
         assert!(!out.contains(&AiIntent::Attack { target_gid: 500 }));
+    }
 
-        let mut dead = monster(500, 101, 100, Some(1));
-        dead.motion = Motion::Dead;
-        let actors = [dead];
-        let c = ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+    #[test]
+    fn react_only_tactic_ignores_free_monster_but_defends_when_attacked() {
+        let noskill = |_: u16| 1;
+        let fx = Fixture::new().with_tactic(2000, BasicTactic::ReactLow);
+        let mut ai = CompanionAi::new(false);
+
+        // Free React-Low monster is left alone → falls through to following.
+        let actors = [monster(500, 2000, 103, 100, None)];
+        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
         one_step(&mut ai, &c);
-        assert_eq!(ai.state(), AiState::Idle);
+        assert_ne!(ai.state(), AiState::Chase);
+
+        // The same monster attacking us is defended against.
+        let mut atk = monster(500, 2000, 103, 100, Some(ME));
+        atk.motion = Motion::Attack;
+        let actors = [atk];
+        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        one_step(&mut ai, &c);
+        assert_eq!(ai.state(), AiState::Chase);
+        assert_eq!(ai.enemy, 500);
+    }
+
+    #[test]
+    fn ks_protection_skips_monster_fighting_another_player() {
+        let noskill = |_: u16| 1;
+        let fx = Fixture::new();
+        let mut ai = CompanionAi::new(false);
+
+        // A monster already engaged with a non-friend player is not stolen.
+        let mut mob = monster(500, 1002, 103, 100, Some(9)); // targeting player 9
+        mob.motion = Motion::Attack;
+        let actors = [mob, player(9, 104, 100, Some(500))];
+        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        one_step(&mut ai, &c);
+        assert_ne!(ai.state(), AiState::Chase);
     }
 
     #[test]
     fn move_command_interrupts_and_reserved_queue_drains_in_idle() {
         let noskill = |_: u16| 1;
+        let fx = Fixture::new();
         let mut ai = CompanionAi::new(false);
 
         ai.push_command(OwnerCommand::move_to(105, 105));
-        let c = ctx((100, 100), Motion::Stand, Some((100, 100)), &[], &noskill);
+        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &[], &noskill);
         let out = one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::MoveCmd);
         assert!(out.contains(&AiIntent::MoveTo { x: 105, y: 105 }));
 
         ai.push_reserved(OwnerCommand::move_to(106, 106));
-        let c = ctx((105, 105), Motion::Stand, Some((100, 100)), &[], &noskill);
+        let c = fx.ctx((105, 105), Motion::Stand, Some((100, 100)), &[], &noskill);
         one_step(&mut ai, &c);
-        let c = ctx((105, 105), Motion::Stand, Some((100, 100)), &[], &noskill);
+        let c = fx.ctx((105, 105), Motion::Stand, Some((100, 100)), &[], &noskill);
         let out = one_step(&mut ai, &c);
         assert!(out.contains(&AiIntent::MoveTo { x: 106, y: 106 }));
 
         let mut ai = CompanionAi::new(false);
         for i in 0..15 {
             ai.push_reserved(OwnerCommand::move_to(i, i));
-            let c = ctx((0, 0), Motion::Stand, Some((0, 0)), &[], &noskill);
+            let c = fx.ctx((0, 0), Motion::Stand, Some((0, 0)), &[], &noskill);
             one_step(&mut ai, &c);
         }
         assert!(ai.res_cmd_list.len() <= RESERVED_QUEUE_CAP);
-    }
-
-    #[test]
-    fn ai_mode_overrides_family_targeting() {
-        let noskill = |_: u16| 1;
-
-        let mut ai = CompanionAi::new(false);
-        ai.set_mode(AiMode::Aggressive);
-        let actors = [monster(500, 103, 100, None)];
-        let c = ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
-        one_step(&mut ai, &c);
-        assert_eq!(ai.state(), AiState::Chase);
-
-        let mut ai = CompanionAi::new(false);
-        ai.set_mode(AiMode::FollowOnly);
-        let actors = [monster(500, 101, 100, Some(100))];
-        let c = ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
-        one_step(&mut ai, &c);
-        assert_eq!(ai.state(), AiState::Idle);
     }
 }

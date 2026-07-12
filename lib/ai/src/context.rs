@@ -35,6 +35,56 @@ pub struct ActorView {
     pub target_gid: Option<u32>,
 }
 
+/// The subset of config fields the engine reads each tick, extracted from the
+/// active companion's `HomunConfig`/`MercConfig` so the crate stays decoupled
+/// from the full config layout.
+#[derive(Debug, Clone, Copy)]
+pub struct AiParams {
+    pub aggro_hp: i32,
+    pub aggro_sp: i32,
+    pub super_passive: bool,
+    pub opportunistic: bool,
+    pub do_not_attack_moving: bool,
+    pub attack_last_full_sp: bool,
+    pub tank_monster_limit: i32,
+    pub auto_mob_count: i32,
+    pub stationary_aggro_dist: i32,
+    pub mobile_aggro_dist: i32,
+    pub stationary_move_bounds: i32,
+    pub mobile_move_bounds: i32,
+    pub do_not_chase: bool,
+    pub chase_sp_pause: bool,
+    pub chase_sp_pause_sp: i32,
+    pub chase_sp_pause_time: i32,
+    pub attack_skill_reserve_sp: i32,
+    pub rescue_owner_low_hp: i32,
+}
+
+impl Default for AiParams {
+    fn default() -> Self {
+        AiParams {
+            aggro_hp: 60,
+            aggro_sp: 0,
+            super_passive: false,
+            opportunistic: false,
+            do_not_attack_moving: false,
+            attack_last_full_sp: false,
+            tank_monster_limit: 4,
+            auto_mob_count: 2,
+            stationary_aggro_dist: 12,
+            mobile_aggro_dist: 7,
+            stationary_move_bounds: 14,
+            mobile_move_bounds: 9,
+            do_not_chase: false,
+            chase_sp_pause: false,
+            chase_sp_pause_sp: 0,
+            chase_sp_pause_time: 0,
+            attack_skill_reserve_sp: 0,
+            rescue_owner_low_hp: 0,
+        }
+    }
+}
+
 /// Borrowed world snapshot the caller assembles each tick.
 pub struct AiContext<'a> {
     pub my_gid: u32,
@@ -57,4 +107,41 @@ pub struct AiContext<'a> {
     pub now_ms: u32,
     pub actors: &'a [ActorView],
     pub skill_range: &'a dyn Fn(u16) -> i32,
+    pub params: AiParams,
+    pub tactics: &'a crate::tactics::TacticTable,
+    pub friend_class: &'a dyn Fn(u32) -> crate::consts::FriendClass,
+}
+
+impl AiContext<'_> {
+    pub fn hp_pct(&self) -> i32 {
+        pct(self.my_hp, self.my_max_hp)
+    }
+    pub fn sp_pct(&self) -> i32 {
+        pct(self.my_sp, self.my_max_sp)
+    }
+    pub fn owner_moving(&self) -> bool {
+        self.owner_motion == Motion::Move
+    }
+    pub fn aggro_dist(&self) -> i32 {
+        if self.owner_moving() {
+            self.params.mobile_aggro_dist
+        } else {
+            self.params.stationary_aggro_dist
+        }
+    }
+    pub fn move_bounds(&self) -> i32 {
+        if self.owner_moving() {
+            self.params.mobile_move_bounds
+        } else {
+            self.params.stationary_move_bounds
+        }
+    }
+}
+
+fn pct(cur: u32, max: u32) -> i32 {
+    if max == 0 {
+        0
+    } else {
+        ((cur as f32 / max as f32) * 100.0).round() as i32
+    }
 }
