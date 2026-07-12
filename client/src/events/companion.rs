@@ -61,7 +61,7 @@ impl App {
         h.max_exp = p.max_exp;
         h.skill_points = p.skill_points;
         h.atk_range = p.atk_range;
-        h.vaporized = false;
+        h.vaporized = p.vaporized;
     }
 
     pub(super) fn handle_homun_feed_result(&mut self, success: bool, item_id: u16) {

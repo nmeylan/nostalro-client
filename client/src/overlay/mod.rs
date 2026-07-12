@@ -66,15 +66,9 @@ impl App {
         if let Some(ratio) = hp_ratio {
             let (_x, y) = render_hp_bar(entry, ratio, entity.entity_type, calls);
             bar_y = y;
-            if self.game.entities.is_player(entity_id) {
+            if let Some(sp_ratio) = self.entity_sp_ratio(entity_id) {
                 let sp_y = y + HP_BAR_HEIGHT;
-                render_bar(
-                    entry.screen_anchor[0],
-                    sp_y,
-                    self.game.character.sp_percentage(),
-                    SP_BAR_COLOR,
-                    calls,
-                );
+                render_bar(entry.screen_anchor[0], sp_y, sp_ratio, SP_BAR_COLOR, calls);
                 bar_y = sp_y;
             }
         }
@@ -138,6 +132,21 @@ impl App {
         self.game.entities.get(entity_id).and_then(|e| e.hp_percentage())
     }
 
+    /// SP ratio for an entity that shows an SP bar below it: the player and the
+    /// player's companions. Other entities (party members, monsters) return None.
+    fn entity_sp_ratio(&self, entity_id: u32) -> Option<f32> {
+        if self.game.entities.is_player(entity_id) {
+            return Some(self.game.character.sp_percentage());
+        }
+        if let Some(h) = self.game.homunculus.as_ref().filter(|h| h.gid == entity_id) {
+            return Some(h.sp_percentage());
+        }
+        if let Some(m) = self.game.mercenary.as_ref().filter(|m| m.gid == entity_id) {
+            return Some(m.sp_percentage());
+        }
+        None
+    }
+
     /// Always-on HP bars below party members and the player's mercenary/homunculus.
     /// The player is handled by `build_player_bars`; the hovered entity by the hover
     /// overlay — both are skipped here to avoid drawing twice.
@@ -175,7 +184,10 @@ impl App {
             let Some(ratio) = self.entity_hp_ratio(entry.id) else {
                 continue;
             };
-            render_hp_bar(entry, ratio, entity.entity_type, calls);
+            let (_x, y) = render_hp_bar(entry, ratio, entity.entity_type, calls);
+            if let Some(sp_ratio) = self.entity_sp_ratio(entry.id) {
+                render_bar(entry.screen_anchor[0], y + HP_BAR_HEIGHT, sp_ratio, SP_BAR_COLOR, calls);
+            }
         }
     }
 

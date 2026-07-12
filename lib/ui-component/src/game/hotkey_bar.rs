@@ -551,7 +551,14 @@ impl InGameWindow for HotkeyBarWindow {
                         HotkeySlotContent::Skill { skill_id, level } => character
                             .skills
                             .get_skill(skill_id)
-                            .map(|s| format!("{} Lv.{}", s.name, level)),
+                            .map(|s| s.name.clone())
+                            .or_else(|| {
+                                self.companion_skills
+                                    .iter()
+                                    .find(|s| s.id == skill_id)
+                                    .map(|s| s.name.clone())
+                            })
+                            .map(|name| format!("{name} Lv.{level}")),
                         HotkeySlotContent::Item {
                             item_id,
                             inventory_index,

@@ -904,6 +904,7 @@ pub enum GameEvent {
 pub struct HomunculusProperty {
     pub name: String,
     pub renamed: bool,
+    pub vaporized: bool,
     pub level: i16,
     pub hunger: i16,
     pub intimacy: i16,

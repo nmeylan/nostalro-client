@@ -1498,7 +1498,8 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::HomunPropertyReceived {
             property: HomunculusProperty {
                 name,
-                renamed: p.b_modified != 0,
+                renamed: p.b_modified & 0x1 != 0,
+                vaporized: p.b_modified & 0x2 != 0,
                 level: p.n_level,
                 hunger: p.n_fullness,
                 intimacy: p.n_relationship,

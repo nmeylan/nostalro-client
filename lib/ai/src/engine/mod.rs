@@ -15,6 +15,7 @@ const CHASE_GIVEUP_LIMIT: u32 = 8;
 const TANK_HIT_INTERVAL_MS: u32 = 1500;
 const IDLE_WALK_INTERVAL_MS: u32 = 2000;
 const IDLE_WALK_RADIUS: i32 = 3;
+const MOVE_TO_OWNER_RETRY_MS: u32 = 500;
 
 const HLIF_HEAL: u16 = 8001;
 const HAMI_CASTLE: u16 = 8005;
@@ -251,6 +252,7 @@ pub struct CompanionAi {
     idle_walk_ms: u32,
     berserk_mode: bool,
     castle_ms: u32,
+    move_to_owner_ms: Option<u32>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -294,6 +296,7 @@ impl CompanionAi {
             idle_walk_ms: 0,
             berserk_mode: false,
             castle_ms: 0,
+            move_to_owner_ms: None,
         }
     }
 
@@ -479,7 +482,7 @@ impl CompanionAi {
 
     fn on_follow_command(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) {
         if self.state != AiState::FollowCmd {
-            out.push(AiIntent::MoveToOwner);
+            self.emit_move_to_owner(ctx, out);
             self.state = AiState::FollowCmd;
             self.standby = true;
             if let Some((ox, oy)) = ctx.owner_pos {
@@ -575,7 +578,7 @@ impl CompanionAi {
         if d != -1 && d <= FOLLOW_DISTANCE {
             self.state = AiState::Idle;
         } else if ctx.my_motion == Motion::Stand {
-            out.push(AiIntent::MoveToOwner);
+            self.emit_move_to_owner(ctx, out);
         }
     }
 
@@ -1121,12 +1124,12 @@ impl CompanionAi {
         if ctx.my_motion == Motion::Move {
             let d = get_distance(ox, oy, self.dest_x, self.dest_y);
             if d > FOLLOW_DISTANCE {
-                out.push(AiIntent::MoveToOwner);
+                self.emit_move_to_owner(ctx, out);
                 self.dest_x = ox;
                 self.dest_y = oy;
             }
         } else {
-            out.push(AiIntent::MoveToOwner);
+            self.emit_move_to_owner(ctx, out);
             self.dest_x = ox;
             self.dest_y = oy;
         }
@@ -1196,6 +1199,24 @@ impl CompanionAi {
             Some((ox, oy)) => get_distance(ctx.my_x, ctx.my_y, ox, oy),
             None => -1,
         }
+    }
+
+    /// Owner out of sight (e.g. a teleport) is skipped: the server can't path
+    /// across the gap and warps the companion back on its own timer, so asking
+    /// would only flood the link. Within range it is rate-limited to one request
+    /// per `MOVE_TO_OWNER_RETRY_MS` rather than one per tick.
+    fn emit_move_to_owner(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) {
+        let d = self.distance_from_owner(ctx);
+        if d == -1 || d > OUT_OF_SIGHT_DISTANCE {
+            return;
+        }
+        if let Some(last) = self.move_to_owner_ms
+            && self.clock_ms.wrapping_sub(last) < MOVE_TO_OWNER_RETRY_MS
+        {
+            return;
+        }
+        self.move_to_owner_ms = Some(self.clock_ms);
+        out.push(AiIntent::MoveToOwner);
     }
 
     fn is_out_of_sight(&self, ctx: &AiContext, gid: u32) -> bool {
@@ -1417,6 +1438,36 @@ mod tests {
         let c = fx.ctx((108, 100), Motion::Stand, Some((110, 100)), &[], &noskill);
         one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::Idle);
+    }
+
+    #[test]
+    fn teleported_owner_out_of_sight_does_not_spam_move_to_owner() {
+        let noskill = |_: u16| 1;
+        let fx = Fixture::new();
+        let mut ai = CompanionAi::new(false);
+
+        // Owner far across the map (a teleport): the server warps the companion
+        // back on its own timer, so the AI must stay quiet rather than flood.
+        let c = fx.ctx((100, 100), Motion::Stand, Some((300, 300)), &[], &noskill);
+        for _ in 0..20 {
+            let out = one_step(&mut ai, &c);
+            assert!(!out.contains(&AiIntent::MoveToOwner));
+        }
+    }
+
+    #[test]
+    fn following_within_sight_is_rate_limited() {
+        let noskill = |_: u16| 1;
+        let fx = Fixture::new();
+        let mut ai = CompanionAi::new(false);
+
+        // Standing far-but-in-sight and unable to move: one request, then a pause
+        // rather than one per tick (4 ticks = 560ms < 2 * retry window).
+        let c = fx.ctx((100, 100), Motion::Stand, Some((115, 100)), &[], &noskill);
+        let emitted: usize = (0..4)
+            .map(|_| one_step(&mut ai, &c).iter().filter(|i| matches!(i, AiIntent::MoveToOwner)).count())
+            .sum();
+        assert_eq!(emitted, 1);
     }
 
     #[test]

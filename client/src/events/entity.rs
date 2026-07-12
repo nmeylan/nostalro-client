@@ -71,7 +71,17 @@ impl App {
             self.game.sprites.remove(&gid);
         } else if let Some(existing) = self.game.entities.get_mut(gid) {
             existing.movement.set_speed(speed);
-            if existing.effect_state != effect_state {
+            // A fresh spawn for an already-visible entity re-declares its cell: on
+            // a same-map teleport the master's companion is re-sent here rather
+            // than vanished, so honour the new position instead of stranding it.
+            let (cx, cy) = existing.movement.cell_position();
+            if cx != x || cy != y {
+                existing.movement.set_position(x as f32, y as f32);
+                existing.state = EntityState::Standing;
+                existing.state_timer = 0.0;
+            }
+            let effect_changed = existing.effect_state != effect_state;
+            if effect_changed {
                 self.handle_entity_option_changed(gid, body_state, health_state, effect_state);
             }
             return;
@@ -185,10 +195,8 @@ impl App {
             self.game.attack_target_id = None;
         }
         if let Some(h) = self.game.homunculus.as_mut().filter(|h| h.gid == gid) {
-            match vanish_type {
-                VanishType::Die => h.hp = 0,
-                // Rest (vaporize) removes the sprite but the companion still exists.
-                _ => h.vaporized = true,
+            if matches!(vanish_type, VanishType::Die) {
+                h.hp = 0;
             }
         }
         if let Some(m) = self.game.mercenary.as_mut().filter(|m| m.gid == gid) {
