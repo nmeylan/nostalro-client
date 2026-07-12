@@ -345,6 +345,12 @@ impl CompanionAi {
 
         self.watch_pending_cast(ctx);
 
+        // ASAP buff layer: re-apply buffs configured for the emergency mode in
+        // any state, before the normal state handler runs.
+        if self.do_auto_buffs(ctx, 3, out) {
+            return;
+        }
+
         match self.state {
             AiState::Idle => self.on_idle(ctx, out),
             AiState::Chase => self.on_chase(ctx, out),
