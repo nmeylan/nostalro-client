@@ -222,10 +222,14 @@ as a failure, which clears the cooldown so the cast is retried, capped at two
 retries per engagement and reset when the target changes. The wider timeout and
 the hard cap exist because SP and motion updates arrive over the network with lag.
 
-Buffs, cast while idle by default. Each is re-cast when its duration lapses:
+Buffs, cast on self while idle by default. Each is re-cast when its duration
+lapses:
 
-- Offensive: Lif Mental Charge, Amistr Bloodlust, Filir Flitting
-- Defensive: Lif Urgent Escape, Amistr Bulwark, Filir Accelerated Flight
+- Homunculus offensive: Lif Mental Charge, Amistr Bloodlust, Filir Flitting
+- Homunculus defensive: Lif Urgent Escape, Amistr Bulwark, Filir Accelerated
+  Flight
+- Mercenary offensive: Quicken
+- Mercenary defensive: the first learned of Auto Guard, Parrying, Reflect Shield
 
 Healing:
 
@@ -445,8 +449,9 @@ The mercenary section shares the same field names and defaults for the options
 above, except that it omits the homunculus-only fields: the heal thresholds and
 UseAutoHeal, the Castling fields, the per-buff level overrides, the Homunculus S
 skill fields, and DanceMinSP. For the mercenary the engine treats healing as off
-and Castling as off. The mercenary auto-casts an attack skill but does not
-self-buff or heal.
+and Castling as off. The mercenary auto-casts an attack skill and self-buffs
+(Quicken as the offensive buff, a guard skill as the defensive buff) but does not
+heal.
 
 ## Tactics
 
@@ -534,8 +539,9 @@ players are never targeted and monster targeting is unchanged.
 ## What is not implemented
 
 - Homunculus S behavior, including combo, grapple, minion, and mob skills.
-- Mercenary buff, heal, pushback, and trap skills. A mercenary auto-casts its
-  learned attack skill but does not yet self-buff, heal, or lay traps.
+- Mercenary heal, pushback, and trap skills. A mercenary auto-casts its learned
+  attack skill and self-buffs (Quicken and a guard skill), but does not heal,
+  knock back, or lay traps. The reference has no mercenary heal skill either.
 - The provoke and targeted-buff-into-range substate. For the four base homunculus
   classes there is no skill that needs it, since the only targeted cast is the Lif
   heal on the owner, and the server walks the caster into range for that.
