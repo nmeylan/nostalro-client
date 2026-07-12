@@ -20,36 +20,12 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
-    "1200": {
-      "position": [
-        443.41406,
-        103.23047
-      ],
-      "open": true,
-      "collapsed": false
-    },
-    "800": {
-      "position": [
-        0.0,
-        152.72656
-      ],
-      "open": true,
-      "collapsed": false
-    },
     "10": {
       "position": [
         344.0,
         344.66666
       ],
       "open": false,
-      "collapsed": false
-    },
-    "900": {
-      "position": [
-        15.785156,
-        278.55078
-      ],
-      "open": true,
       "collapsed": false
     },
     "1300": {
@@ -60,10 +36,10 @@
       "open": false,
       "collapsed": false
     },
-    "110": {
+    "1400": {
       "position": [
-        490.0,
-        568.0
+        0.0,
+        0.0
       ],
       "open": false,
       "collapsed": false
@@ -76,10 +52,42 @@
       "open": false,
       "collapsed": false
     },
-    "1400": {
+    "110": {
+      "position": [
+        490.0,
+        568.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "900": {
+      "position": [
+        15.785156,
+        278.55078
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "1200": {
+      "position": [
+        70.09375,
+        406.97266
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "800": {
       "position": [
         0.0,
-        0.0
+        152.72656
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "3000": {
+      "position": [
+        272.875,
+        136.92578
       ],
       "open": false,
       "collapsed": false
@@ -96,6 +104,6 @@
     "hide_name_npc": false,
     "show_level_aura": true
   },
-  "last_char_slot": 4,
+  "last_char_slot": 5,
   "map_recovery_command": "@go prontera"
 }

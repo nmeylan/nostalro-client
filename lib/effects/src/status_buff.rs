@@ -21,7 +21,7 @@ pub fn buff_effect(efst: ClientEffectIcon) -> Option<BuffEffect> {
         I::Propertyundead => &[EffectId::Undeadbody],
         I::Lkconcentration => &[EffectId::Lkconcentration],
         I::NjBunsinjyutsu => &[EffectId::Bunsinjyutsu],
-        I::Onehandquicken => &[EffectId::Twohandquicken],
+        I::Twohandquicken | I::Onehandquicken => &[EffectId::Twohandquicken],
         I::Spearquicken => &[EffectId::Spearquicken],
         I::Overthrust | I::Overthrustmax => &[EffectId::Overthrust],
         I::Magicpower => &[EffectId::Lightblade],
@@ -49,6 +49,7 @@ mod tests {
             (I::Overthrust, &[EffectId::Overthrust]),
             (I::Spearquicken, &[EffectId::Spearquicken]),
             (I::Onehandquicken, &[EffectId::Twohandquicken]),
+            (I::Twohandquicken, &[EffectId::Twohandquicken]),
             (I::Magicpower, &[EffectId::Lightblade]),
             (I::Soullink, &[EffectId::Asurabody]),
         ];
@@ -93,7 +94,6 @@ mod tests {
             I::Kaupe,
             I::Kaahi,
             I::Kaizel,
-            I::Twohandquicken,
             I::Endure,
             I::Provoke,
         ] {

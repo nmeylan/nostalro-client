@@ -46,9 +46,9 @@ cpal = "0.16"
 symphonia = { version = "0.5", default-features = false, features = ["wav", "pcm", "adpcm", "mp3"] }
 
 # Server crate git dependencies
-models = { git = "https://github.com/nmeylan/rust-ro.git", rev = "31090bf0" }
-movement = { git = "https://github.com/nmeylan/rust-ro.git", rev = "31090bf0" }
-packets = { git = "https://github.com/nmeylan/rust-ro.git", rev = "31090bf0" }
+models = { git = "https://github.com/nmeylan/rust-ro.git", rev = "8d05a415" }
+movement = { git = "https://github.com/nmeylan/rust-ro.git", rev = "8d05a415" }
+packets = { git = "https://github.com/nmeylan/rust-ro.git", rev = "8d05a415" }
 
 # Internal crates
 ragnarok-formats = { path = "lib/formats" }

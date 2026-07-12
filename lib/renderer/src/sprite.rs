@@ -1469,7 +1469,6 @@ pub struct BodyChannels {
     pub angle: f32,
     pub squeeze: f32,
     pub additive: bool,
-    pub weapon_trail: bool,
     pub copies: Vec<ragnarok_game::effect::BodyCopy>,
 }
 
@@ -1485,7 +1484,6 @@ impl Default for BodyChannels {
             angle: 0.0,
             squeeze: 1.0,
             additive: false,
-            weapon_trail: false,
             copies: Vec::new(),
         }
     }
@@ -1679,7 +1677,10 @@ pub fn compose_actor_batches<'a>(
     }
     out.append(&mut live);
 
-    if channels.weapon_trail {
+    // The 검광 weapon trail is a normal weapon layer: drawn whenever a weapon is
+    // equipped, it only shows during the swing because the trail ACT carries clips
+    // on attack frames alone. A quicken/overthrust buff tints it via `channels`.
+    {
         let mut trail = sprite.build_weapon_trail_batches(
             animation,
             Some(dir),

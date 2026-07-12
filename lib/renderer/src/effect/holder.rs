@@ -767,9 +767,6 @@ impl EffectHolder {
             if c.body_additive() {
                 ch.additive = true;
             }
-            if c.weapon_trail() {
-                ch.weapon_trail = true;
-            }
             if let Some(s) = c.body_scale() {
                 ch.scale *= s;
             }
