@@ -89,9 +89,9 @@ const ATTACK_SKILL_RETRY_LIMIT: u8 = 2;
 /// The offensive auto-attack skill for a 1st-gen homunculus type, matching the
 /// reference `GetAtkSkill`: Vanilmirth casts Caprice, Filir casts Moonlight;
 /// Lif and Amistr have none (they melee). Homunculus-S are excluded (their
-/// combo/minion skills are not modelled) and mercenaries return none here.
-fn main_attack_skill(companion_type: u16, is_mercenary: bool) -> Option<u16> {
-    if is_mercenary || companion_type == 0 || companion_type >= 17 {
+/// combo/minion skills are not modelled).
+fn main_attack_skill(companion_type: u16) -> Option<u16> {
+    if companion_type == 0 || companion_type >= 17 {
         return None;
     }
     match companion_type % 4 {
@@ -100,6 +100,11 @@ fn main_attack_skill(companion_type: u16, is_mercenary: bool) -> Option<u16> {
         _ => None,
     }
 }
+
+/// Mercenary offensive attack skills in the reference priority order
+/// (`AtkSkillList`): Double Strafe, Sharp Shooting, Pierce, Spiral Pierce, Bash.
+/// The first one the mercenary has actually learned is used.
+const MERC_ATTACK_SKILLS: &[u16] = &[8207, 8215, 8216, 8218, 8201];
 
 /// Per-skill reuse cooldown (ms) from the reference skill table; server enforces
 /// the same, so tracking it avoids spamming casts the server would bounce.
@@ -792,7 +797,14 @@ impl CompanionAi {
         if !ctx.params.use_attack_skill || self.clock_ms < self.auto_skill_ready_ms {
             return None;
         }
-        let skill_id = main_attack_skill(ctx.companion_type, self.is_mercenary)?;
+        let skill_id = if self.is_mercenary {
+            MERC_ATTACK_SKILLS
+                .iter()
+                .copied()
+                .find(|id| ctx.skills.iter().any(|s| s.id == *id && s.level > 0))?
+        } else {
+            main_attack_skill(ctx.companion_type)?
+        };
         let known = ctx.skills.iter().find(|s| s.id == skill_id && s.level > 0)?;
 
         let tactic = self
@@ -1478,6 +1490,24 @@ mod tests {
         // per-engagement retry cap keeps it far below one-per-tick spam.
         assert!(casts >= 2, "expected a retry, got {casts}");
         assert!(casts <= 5, "retries not bounded, got {casts}");
+    }
+
+    #[test]
+    fn mercenary_auto_casts_a_learned_attack_skill() {
+        let noskill = |_: u16| 1;
+        // Swordman mercenary that has learned Bash (8201).
+        let fx = Fixture::new().with_skill(8201, 5, 15, 1);
+        let mut ai = CompanionAi::new(true);
+
+        let actors = [monster(500, 1002, 101, 100, None)];
+        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        one_step(&mut ai, &c); // idle -> chase
+        one_step(&mut ai, &c); // chase -> attack
+        let out = one_step(&mut ai, &c);
+        assert!(out.iter().any(|i| matches!(
+            i,
+            AiIntent::SkillObject { skill_id: 8201, .. }
+        )));
     }
 
     #[test]
