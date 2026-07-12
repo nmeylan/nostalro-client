@@ -58,6 +58,8 @@ pub struct AiParams {
     pub chase_sp_pause_time: i32,
     pub attack_skill_reserve_sp: i32,
     pub rescue_owner_low_hp: i32,
+    pub use_attack_skill: bool,
+    pub auto_skill_delay: i32,
 }
 
 impl Default for AiParams {
@@ -81,8 +83,19 @@ impl Default for AiParams {
             chase_sp_pause_time: 0,
             attack_skill_reserve_sp: 0,
             rescue_owner_low_hp: 0,
+            use_attack_skill: true,
+            auto_skill_delay: 400,
         }
     }
+}
+
+/// A companion skill known to the engine, from the live server skill list.
+#[derive(Debug, Clone, Copy)]
+pub struct CompanionSkill {
+    pub id: u16,
+    pub level: u8,
+    pub sp_cost: u16,
+    pub range: i32,
 }
 
 /// Borrowed world snapshot the caller assembles each tick.
@@ -106,6 +119,7 @@ pub struct AiContext<'a> {
     pub spheres: u16,
     pub now_ms: u32,
     pub actors: &'a [ActorView],
+    pub skills: &'a [CompanionSkill],
     pub skill_range: &'a dyn Fn(u16) -> i32,
     pub params: AiParams,
     pub tactics: &'a crate::tactics::TacticTable,

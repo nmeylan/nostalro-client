@@ -6,7 +6,7 @@ pub mod tactics;
 
 pub use config::{CompanionAiConfig, HomunConfig, MercConfig};
 pub use consts::*;
-pub use context::{ActorView, AiContext, AiIntent, AiParams, Motion};
+pub use context::{ActorView, AiContext, AiIntent, AiParams, CompanionSkill, Motion};
 pub use engine::{AiState, CommandKind, CompanionAi, OwnerCommand};
 pub use tactics::{PvpTactic, SkillUse, Tactic, TacticTable};
 

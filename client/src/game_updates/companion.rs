@@ -143,6 +143,7 @@ impl App {
         let aspd_ms = homun.aspd.max(0) as u32;
         let (hp, max_hp, sp, max_sp) = (homun.hp, homun.max_hp, homun.sp, homun.max_sp);
         let skills = homun.skills.clone();
+        let ai_skills = companion_skills(&skills);
         let params = homun_params(&self.game.companion_ai.homunculus);
         let tactics = TacticTable::from_rows(&self.game.companion_ai.homunculus_tactics);
         let friends = &self.game.companion_ai.friends;
@@ -167,6 +168,7 @@ impl App {
             spheres: 0,
             now_ms: 0,
             actors,
+            skills: &ai_skills,
             skill_range: &|id| skill_range(&skills, id),
             params,
             tactics: &tactics,
@@ -204,6 +206,7 @@ impl App {
         let aspd_ms = merc.aspd.max(0) as u32;
         let (hp, max_hp, sp, max_sp) = (merc.hp, merc.max_hp, merc.sp, merc.max_sp);
         let skills = merc.skills.clone();
+        let ai_skills = companion_skills(&skills);
         let params = merc_params(&self.game.companion_ai.mercenary);
         let tactics = TacticTable::from_rows(&self.game.companion_ai.mercenary_tactics);
         let friends = &self.game.companion_ai.friends;
@@ -228,6 +231,7 @@ impl App {
             spheres: 0,
             now_ms: 0,
             actors,
+            skills: &ai_skills,
             skill_range: &|id| skill_range(&skills, id),
             params,
             tactics: &tactics,
@@ -344,6 +348,8 @@ fn homun_params(c: &HomunConfig) -> AiParams {
         chase_sp_pause_time: c.ChaseSPPauseTime,
         attack_skill_reserve_sp: c.AttackSkillReserveSP,
         rescue_owner_low_hp: c.RescueOwnerLowHP,
+        use_attack_skill: c.UseAttackSkill == 1,
+        auto_skill_delay: c.AutoSkillDelay,
     }
 }
 
@@ -367,7 +373,21 @@ fn merc_params(c: &MercConfig) -> AiParams {
         chase_sp_pause_time: c.ChaseSPPauseTime,
         attack_skill_reserve_sp: c.AttackSkillReserveSP,
         rescue_owner_low_hp: c.RescueOwnerLowHP,
+        use_attack_skill: c.UseAttackSkill == 1,
+        auto_skill_delay: c.AutoSkillDelay,
     }
+}
+
+fn companion_skills(skills: &[SkillInfo]) -> Vec<ragnarok_ai::CompanionSkill> {
+    skills
+        .iter()
+        .map(|s| ragnarok_ai::CompanionSkill {
+            id: s.id,
+            level: s.level.max(0) as u8,
+            sp_cost: s.sp_cost.max(0) as u16,
+            range: s.attack_range as i32,
+        })
+        .collect()
 }
 
 fn skill_range(skills: &[SkillInfo], id: u16) -> i32 {

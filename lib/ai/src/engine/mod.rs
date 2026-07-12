@@ -14,6 +14,34 @@ const DEFAULT_ATTACK_DELAY_MS: u32 = 1000;
 const CHASE_GIVEUP_LIMIT: u32 = 8;
 const TANK_HIT_INTERVAL_MS: u32 = 1500;
 
+const HFLI_MOON: u16 = 8009;
+const HVAN_CAPRICE: u16 = 8013;
+
+/// The offensive auto-attack skill for a 1st-gen homunculus type, matching the
+/// reference `GetAtkSkill`: Vanilmirth casts Caprice, Filir casts Moonlight;
+/// Lif and Amistr have none (they melee). Homunculus-S are excluded (their
+/// combo/minion skills are not modelled) and mercenaries return none here.
+fn main_attack_skill(companion_type: u16, is_mercenary: bool) -> Option<u16> {
+    if is_mercenary || companion_type == 0 || companion_type >= 17 {
+        return None;
+    }
+    match companion_type % 4 {
+        0 => Some(HVAN_CAPRICE),
+        3 => Some(HFLI_MOON),
+        _ => None,
+    }
+}
+
+/// Per-skill reuse cooldown (ms) from the reference skill table; server enforces
+/// the same, so tracking it avoids spamming casts the server would bounce.
+fn reuse_delay_ms(skill_id: u16, level: u8) -> u32 {
+    match skill_id {
+        HFLI_MOON => 2000,
+        HVAN_CAPRICE => 2000 + level as u32 * 200,
+        _ => 0,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AiState {
     Idle,
@@ -114,6 +142,10 @@ pub struct CompanionAi {
     chase_giveup: u32,
     tank_hit_ms: u32,
     unreachable: HashSet<u32>,
+    my_skill_used_count: u32,
+    skill_count_enemy: u32,
+    auto_skill_ready_ms: u32,
+    skill_cooldown: Option<(u16, u32)>,
 }
 
 impl CompanionAi {
@@ -138,6 +170,10 @@ impl CompanionAi {
             chase_giveup: 0,
             tank_hit_ms: 0,
             unreachable: HashSet::new(),
+            my_skill_used_count: 0,
+            skill_count_enemy: 0,
+            auto_skill_ready_ms: 0,
+            skill_cooldown: None,
         }
     }
 
@@ -509,9 +545,11 @@ impl CompanionAi {
             }
             return;
         }
-        if self.skill == 0 {
-            self.emit_attack(ctx, out);
-        } else {
+        if self.enemy != self.skill_count_enemy {
+            self.my_skill_used_count = 0;
+            self.skill_count_enemy = self.enemy;
+        }
+        if self.skill != 0 {
             let target = self.enemy;
             out.push(AiIntent::SkillObject {
                 skill_id: self.skill,
@@ -522,7 +560,73 @@ impl CompanionAi {
             if self.is_mercenary || target == ctx.my_gid {
                 self.drop_enemy_to_idle();
             }
+        } else if let Some((skill_id, level)) = self.select_attack_skill(ctx) {
+            out.push(AiIntent::SkillObject {
+                skill_id,
+                level,
+                target_gid: self.enemy,
+            });
+            self.my_skill_used_count += 1;
+            self.auto_skill_ready_ms = self
+                .clock_ms
+                .wrapping_add(ctx.params.auto_skill_delay.max(0) as u32);
+            self.skill_cooldown =
+                Some((skill_id, self.clock_ms.wrapping_add(reuse_delay_ms(skill_id, level))));
+        } else {
+            self.emit_attack(ctx, out);
         }
+    }
+
+    /// Picks the offensive attack skill to cast this tick, or `None` to melee,
+    /// applying the reference gates: global skill delay, per-enemy cast count
+    /// (tactic `skill` column), per-skill reuse cooldown, SP reserve and range.
+    fn select_attack_skill(&self, ctx: &AiContext) -> Option<(u16, u8)> {
+        use crate::tactics::SkillUse;
+        if !ctx.params.use_attack_skill || self.clock_ms < self.auto_skill_ready_ms {
+            return None;
+        }
+        let skill_id = main_attack_skill(ctx.companion_type, self.is_mercenary)?;
+        let known = ctx.skills.iter().find(|s| s.id == skill_id && s.level > 0)?;
+
+        let tactic = self
+            .actor(ctx, self.enemy)
+            .map(|a| ctx.tactics.resolve(a.class_id as u32))
+            .unwrap_or_else(|| ctx.tactics.resolve(0));
+
+        let level = match tactic.skill {
+            SkillUse::Never => return None,
+            SkillUse::Always => known.level,
+            SkillUse::Times(n) => {
+                if self.my_skill_used_count >= n as u32 {
+                    return None;
+                }
+                known.level
+            }
+            SkillUse::OnceAtLevel(l) => {
+                if self.my_skill_used_count >= 1 {
+                    return None;
+                }
+                l.min(known.level)
+            }
+        };
+
+        if let Some((cd_id, until)) = self.skill_cooldown {
+            if cd_id == skill_id && self.clock_ms < until {
+                return None;
+            }
+        }
+        if known.range < self.distance_to(ctx, self.enemy) {
+            return None;
+        }
+        let reserve = if tactic.sp == -1 {
+            ctx.params.attack_skill_reserve_sp
+        } else {
+            tactic.sp
+        };
+        if (ctx.my_sp as i32) - reserve < known.sp_cost as i32 {
+            return None;
+        }
+        Some((skill_id, level))
     }
 
     fn on_move_cmd(&mut self, ctx: &AiContext) {
@@ -727,12 +831,16 @@ mod tests {
 
     struct Fixture {
         tactics: TacticTable,
+        skills: Vec<crate::context::CompanionSkill>,
+        params: AiParams,
     }
 
     impl Fixture {
         fn new() -> Self {
             Fixture {
                 tactics: TacticTable::default(),
+                skills: Vec::new(),
+                params: AiParams::default(),
             }
         }
 
@@ -741,6 +849,11 @@ mod tests {
             t.id = class_id;
             t.basic = basic;
             self.tactics = TacticTable::from_rows(&[Tactic::default_row(), Tactic::treasure_row(), t]);
+            self
+        }
+
+        fn with_skill(mut self, id: u16, level: u8, sp_cost: u16, range: i32) -> Self {
+            self.skills.push(crate::context::CompanionSkill { id, level, sp_cost, range });
             self
         }
 
@@ -770,8 +883,9 @@ mod tests {
                 spheres: 0,
                 now_ms: 0,
                 actors,
+                skills: &self.skills,
                 skill_range,
-                params: AiParams::default(),
+                params: self.params,
                 tactics: &self.tactics,
                 friend_class: &neutral,
             }
@@ -885,6 +999,58 @@ mod tests {
         let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
         one_step(&mut ai, &c);
         assert_ne!(ai.state(), AiState::Chase);
+    }
+
+    #[test]
+    fn filir_auto_casts_moonlight_then_melees_during_cooldown() {
+        let noskill = |_: u16| 1;
+        // Filir (type 3) knows Moonlight (8009) lvl 5, sp 20, range 1.
+        let fx = Fixture::new().with_skill(HFLI_MOON, 5, 20, 1);
+        let mut ai = CompanionAi::new(false);
+
+        let actors = [monster(500, 1002, 101, 100, None)];
+        let mut c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        c.companion_type = 3;
+
+        // Chase → Attack (in melee range).
+        one_step(&mut ai, &c);
+        one_step(&mut ai, &c);
+        assert_eq!(ai.state(), AiState::Attack);
+
+        // First attack tick casts Moonlight, not a melee.
+        let out = one_step(&mut ai, &c);
+        assert!(out.contains(&AiIntent::SkillObject { skill_id: HFLI_MOON, level: 5, target_gid: 500 }));
+        assert!(!out.contains(&AiIntent::Attack { target_gid: 500 }));
+
+        // Immediately after, the reuse cooldown gates the skill → it melees.
+        let mut melee_seen = false;
+        for _ in 0..4 {
+            let out = one_step(&mut ai, &c);
+            assert!(!out.iter().any(|i| matches!(i, AiIntent::SkillObject { .. })));
+            if out.contains(&AiIntent::Attack { target_gid: 500 }) {
+                melee_seen = true;
+            }
+        }
+        assert!(melee_seen);
+    }
+
+    #[test]
+    fn lif_has_no_attack_skill_and_only_melees() {
+        let noskill = |_: u16| 1;
+        // Lif (type 1) knows Healing (8001) — a support skill, never auto-cast.
+        let fx = Fixture::new().with_skill(8001, 5, 25, 0);
+        let mut ai = CompanionAi::new(false);
+
+        let actors = [monster(500, 1002, 101, 100, None)];
+        let mut c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        c.companion_type = 1;
+
+        one_step(&mut ai, &c);
+        one_step(&mut ai, &c);
+        assert_eq!(ai.state(), AiState::Attack);
+        let out = one_step(&mut ai, &c);
+        assert!(out.contains(&AiIntent::Attack { target_gid: 500 }));
+        assert!(!out.iter().any(|i| matches!(i, AiIntent::SkillObject { .. })));
     }
 
     #[test]
