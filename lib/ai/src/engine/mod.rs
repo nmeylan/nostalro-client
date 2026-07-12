@@ -14,8 +14,68 @@ const DEFAULT_ATTACK_DELAY_MS: u32 = 1000;
 const CHASE_GIVEUP_LIMIT: u32 = 8;
 const TANK_HIT_INTERVAL_MS: u32 = 1500;
 
+const HLIF_HEAL: u16 = 8001;
+const HLIF_AVOID: u16 = 8002;
+const HLIF_CHANGE: u16 = 8004;
+const HAMI_DEFENCE: u16 = 8006;
+const HAMI_BLOODLUST: u16 = 8008;
 const HFLI_MOON: u16 = 8009;
+const HFLI_FLEET: u16 = 8010;
+const HFLI_SPEED: u16 = 8011;
 const HVAN_CAPRICE: u16 = 8013;
+const HVAN_CHAOTIC: u16 = 8014;
+
+/// Homunculus type (`companion_type % 4`): 1=Lif, 2=Amistr, 3=Filir, 0=Vanilmirth.
+fn homun_type(companion_type: u16) -> Option<u16> {
+    if companion_type == 0 || companion_type >= 17 {
+        return None;
+    }
+    Some(companion_type % 4)
+}
+
+/// Offensive self-buff for a 1st-gen homunculus type (reference `GetQuickenSkill`).
+fn offensive_buff_skill(companion_type: u16) -> Option<u16> {
+    match homun_type(companion_type)? {
+        1 => Some(HLIF_CHANGE),
+        2 => Some(HAMI_BLOODLUST),
+        3 => Some(HFLI_FLEET),
+        _ => None,
+    }
+}
+
+/// Defensive self-buff for a 1st-gen homunculus type (reference `GetGuardSkill`).
+fn defensive_buff_skill(companion_type: u16) -> Option<u16> {
+    match homun_type(companion_type)? {
+        1 => Some(HLIF_AVOID),
+        2 => Some(HAMI_DEFENCE),
+        3 => Some(HFLI_SPEED),
+        _ => None,
+    }
+}
+
+/// Healing skill for a 1st-gen homunculus type (reference `GetHealingSkill`):
+/// Lif heals the owner, Vanilmirth heals itself.
+fn healing_skill(companion_type: u16) -> Option<u16> {
+    match homun_type(companion_type)? {
+        1 => Some(HLIF_HEAL),
+        0 => Some(HVAN_CHAOTIC),
+        _ => None,
+    }
+}
+
+/// Buff duration (ms) by level from the reference skill table; re-cast is due
+/// when it elapses.
+fn buff_duration_ms(skill_id: u16, level: u8) -> u32 {
+    let table: &[u32] = match skill_id {
+        HLIF_CHANGE | HAMI_BLOODLUST => &[360_000, 780_000, 1_200_000],
+        HFLI_FLEET | HFLI_SPEED => &[60_000, 70_000, 80_000, 90_000, 120_000],
+        HLIF_AVOID => &[40_000, 35_000, 35_000, 35_000, 35_000],
+        HAMI_DEFENCE => &[40_000, 35_000, 30_000, 30_000, 30_000],
+        _ => return 0,
+    };
+    let idx = (level.max(1) as usize - 1).min(table.len() - 1);
+    table[idx]
+}
 
 /// A cast we emitted and are watching for success (SP consumed / visible cast
 /// motion) or failure (no sign after the timeout).
@@ -44,6 +104,8 @@ fn reuse_delay_ms(skill_id: u16, level: u8) -> u32 {
     match skill_id {
         HFLI_MOON => 2000,
         HVAN_CAPRICE => 2000 + level as u32 * 200,
+        HLIF_HEAL => 5000,
+        HVAN_CHAOTIC => 3500,
         _ => 0,
     }
 }
@@ -154,6 +216,8 @@ pub struct CompanionAi {
     skill_cooldown: Option<(u16, u32)>,
     pending_cast: Option<PendingCast>,
     skill_retries: u8,
+    offensive_buff_ms: u32,
+    defensive_buff_ms: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -190,6 +254,8 @@ impl CompanionAi {
             skill_cooldown: None,
             pending_cast: None,
             skill_retries: 0,
+            offensive_buff_ms: 0,
+            defensive_buff_ms: 0,
         }
     }
 
@@ -395,7 +461,12 @@ impl CompanionAi {
         }
         self.enemy = 0;
         self.skill = 0;
-        if !ctx.params.super_passive {
+        if self.do_idle_upkeep(ctx, out) {
+            return;
+        }
+        let resting =
+            ctx.owner_motion == Motion::Sit && !ctx.params.do_not_use_rest;
+        if !ctx.params.super_passive && !resting {
             let object = self.select_enemy(ctx, &self.friend_targets(ctx), None);
             if object != 0 {
                 self.state = AiState::Chase;
@@ -674,6 +745,98 @@ impl CompanionAi {
         Some((skill_id, level))
     }
 
+    /// Idle upkeep, in reference priority: heal, then one self-buff. Returns
+    /// true if it emitted a skill (the caller then yields the tick).
+    fn do_idle_upkeep(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) -> bool {
+        if self.clock_ms < self.auto_skill_ready_ms {
+            return false;
+        }
+        if ctx.params.use_auto_heal > 0 && self.do_healing(ctx, out) {
+            return true;
+        }
+        self.do_auto_buffs(ctx, 1, out)
+    }
+
+    fn do_healing(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) -> bool {
+        let Some(skill_id) = healing_skill(ctx.companion_type) else {
+            return false;
+        };
+        let Some(known) = ctx.skills.iter().find(|s| s.id == skill_id && s.level > 0) else {
+            return false;
+        };
+        if let Some((cd_id, until)) = self.skill_cooldown {
+            if cd_id == skill_id && self.clock_ms < until {
+                return false;
+            }
+        }
+        if (ctx.my_sp as i32) < known.sp_cost as i32 {
+            return false;
+        }
+        // Vanilmirth heals itself; Lif heals the owner.
+        let target = if skill_id == HVAN_CHAOTIC {
+            if ctx.hp_pct() >= ctx.params.heal_self_hp {
+                return false;
+            }
+            ctx.my_gid
+        } else {
+            if ctx.owner_hp_pct.unwrap_or(100) >= ctx.params.heal_owner_hp {
+                return false;
+            }
+            ctx.owner_gid
+        };
+        out.push(AiIntent::SkillObject { skill_id, level: known.level, target_gid: target });
+        self.arm_skill_cooldown(skill_id, known.level, ctx);
+        true
+    }
+
+    /// Casts one self-buff whose configured "when" matches `mode`, re-cast when
+    /// its duration lapses (reference `DoAutoBuffs`).
+    fn do_auto_buffs(&mut self, ctx: &AiContext, mode: i32, out: &mut Vec<AiIntent>) -> bool {
+        if ctx.params.use_offensive_buff == mode
+            && self.clock_ms >= self.offensive_buff_ms
+            && let Some((id, lvl)) = self.buff_ready(ctx, offensive_buff_skill(ctx.companion_type))
+        {
+            out.push(AiIntent::SkillObject { skill_id: id, level: lvl, target_gid: ctx.my_gid });
+            self.offensive_buff_ms = self.next_buff_ms(id, lvl, ctx);
+            self.arm_skill_cooldown(id, lvl, ctx);
+            return true;
+        }
+        if ctx.params.use_defensive_buff == mode
+            && self.clock_ms >= self.defensive_buff_ms
+            && let Some((id, lvl)) = self.buff_ready(ctx, defensive_buff_skill(ctx.companion_type))
+        {
+            out.push(AiIntent::SkillObject { skill_id: id, level: lvl, target_gid: ctx.my_gid });
+            self.defensive_buff_ms = self.next_buff_ms(id, lvl, ctx);
+            self.arm_skill_cooldown(id, lvl, ctx);
+            return true;
+        }
+        false
+    }
+
+    /// A buff skill the homunculus has learned and can currently afford.
+    fn buff_ready(&self, ctx: &AiContext, skill: Option<u16>) -> Option<(u16, u8)> {
+        let skill_id = skill?;
+        let known = ctx.skills.iter().find(|s| s.id == skill_id && s.level > 0)?;
+        if (ctx.my_sp as i32) < known.sp_cost as i32 {
+            return None;
+        }
+        Some((skill_id, known.level))
+    }
+
+    fn next_buff_ms(&self, skill_id: u16, level: u8, ctx: &AiContext) -> u32 {
+        self.clock_ms
+            .wrapping_add(buff_duration_ms(skill_id, level))
+            .wrapping_add(ctx.params.auto_skill_delay.max(0) as u32)
+    }
+
+    fn arm_skill_cooldown(&mut self, skill_id: u16, level: u8, ctx: &AiContext) {
+        self.auto_skill_ready_ms = self
+            .clock_ms
+            .wrapping_add(ctx.params.auto_skill_delay.max(0) as u32);
+        self.skill_cooldown =
+            Some((skill_id, self.clock_ms.wrapping_add(reuse_delay_ms(skill_id, level))));
+    }
+
     fn on_move_cmd(&mut self, ctx: &AiContext) {
         if ctx.my_x == self.dest_x && ctx.my_y == self.dest_y {
             self.state = AiState::Idle;
@@ -878,6 +1041,8 @@ mod tests {
         tactics: TacticTable,
         skills: Vec<crate::context::CompanionSkill>,
         params: AiParams,
+        owner_motion: Motion,
+        owner_hp_pct: i32,
     }
 
     impl Fixture {
@@ -886,6 +1051,8 @@ mod tests {
                 tactics: TacticTable::default(),
                 skills: Vec::new(),
                 params: AiParams::default(),
+                owner_motion: Motion::Stand,
+                owner_hp_pct: 100,
             }
         }
 
@@ -924,7 +1091,8 @@ mod tests {
                 companion_type: 1,
                 owner_gid: OWNER,
                 owner_pos: owner,
-                owner_motion: Motion::Stand,
+                owner_motion: self.owner_motion,
+                owner_hp_pct: Some(self.owner_hp_pct),
                 spheres: 0,
                 now_ms: 0,
                 actors,
@@ -1121,6 +1289,57 @@ mod tests {
         let out = one_step(&mut ai, &c);
         assert!(out.contains(&AiIntent::Attack { target_gid: 500 }));
         assert!(!out.iter().any(|i| matches!(i, AiIntent::SkillObject { .. })));
+    }
+
+    #[test]
+    fn filir_buffs_itself_when_idle() {
+        let noskill = |_: u16| 0;
+        let fx = Fixture::new()
+            .with_skill(HFLI_FLEET, 5, 70, 0)
+            .with_skill(HFLI_SPEED, 5, 70, 0);
+        let mut ai = CompanionAi::new(false);
+
+        // Idle beside the owner, no monsters.
+        let mut c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &[], &noskill);
+        c.companion_type = 3;
+
+        let mut off = false;
+        let mut def = false;
+        for _ in 0..12 {
+            let out = one_step(&mut ai, &c);
+            for it in &out {
+                if let AiIntent::SkillObject { skill_id, target_gid, .. } = it {
+                    assert_eq!(*target_gid, ME);
+                    if *skill_id == HFLI_FLEET {
+                        off = true;
+                    }
+                    if *skill_id == HFLI_SPEED {
+                        def = true;
+                    }
+                }
+            }
+        }
+        assert!(off, "offensive self-buff (Flitting) not cast");
+        assert!(def, "defensive self-buff (Accel Flight) not cast");
+    }
+
+    #[test]
+    fn lif_heals_owner_below_threshold() {
+        let noskill = |_: u16| 0;
+        let mut fx = Fixture::new().with_skill(HLIF_HEAL, 5, 25, 0);
+        fx.params.use_auto_heal = 2;
+        fx.owner_hp_pct = 40; // below default HealOwnerHP of 50
+        let mut ai = CompanionAi::new(false);
+
+        let mut c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &[], &noskill);
+        c.companion_type = 1;
+
+        let out = one_step(&mut ai, &c);
+        assert!(out.contains(&AiIntent::SkillObject {
+            skill_id: HLIF_HEAL,
+            level: 5,
+            target_gid: OWNER,
+        }));
     }
 
     #[test]

@@ -60,6 +60,12 @@ pub struct AiParams {
     pub rescue_owner_low_hp: i32,
     pub use_attack_skill: bool,
     pub auto_skill_delay: i32,
+    pub use_offensive_buff: i32,
+    pub use_defensive_buff: i32,
+    pub use_auto_heal: i32,
+    pub heal_owner_hp: i32,
+    pub heal_self_hp: i32,
+    pub do_not_use_rest: bool,
 }
 
 impl Default for AiParams {
@@ -85,6 +91,12 @@ impl Default for AiParams {
             rescue_owner_low_hp: 0,
             use_attack_skill: true,
             auto_skill_delay: 400,
+            use_offensive_buff: 1,
+            use_defensive_buff: 1,
+            use_auto_heal: 0,
+            heal_owner_hp: 50,
+            heal_self_hp: 50,
+            do_not_use_rest: false,
         }
     }
 }
@@ -116,6 +128,8 @@ pub struct AiContext<'a> {
     /// Owner cell, or `None` when the owner is unknown / off-screen.
     pub owner_pos: Option<(i32, i32)>,
     pub owner_motion: Motion,
+    /// Owner HP percent (0..100), or `None` when unknown.
+    pub owner_hp_pct: Option<i32>,
     pub spheres: u16,
     pub now_ms: u32,
     pub actors: &'a [ActorView],

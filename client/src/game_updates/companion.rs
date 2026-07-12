@@ -32,6 +32,10 @@ impl App {
             .player()
             .map(|p| motion_from_state(p.state))
             .unwrap_or(Motion::Stand);
+        let owner_hp_pct = {
+            let c = &self.game.character;
+            (c.max_hp > 0).then(|| ((c.hp as f32 / c.max_hp as f32) * 100.0).round() as i32)
+        };
 
         // One actor snapshot shared by both companions (owned, so it doesn't hold
         // a borrow of `entities` across the mutable AI tick).
@@ -55,12 +59,12 @@ impl App {
             .collect();
 
         if let Some((gid, intents)) =
-            self.tick_homunculus(owner_gid, owner_pos, owner_motion, &actors, delta)
+            self.tick_homunculus(owner_gid, owner_pos, owner_motion, owner_hp_pct, &actors, delta)
         {
             self.dispatch_companion_intents(gid, &intents);
         }
         if let Some((gid, intents)) =
-            self.tick_mercenary(owner_gid, owner_pos, owner_motion, &actors, delta)
+            self.tick_mercenary(owner_gid, owner_pos, owner_motion, owner_hp_pct, &actors, delta)
         {
             self.dispatch_companion_intents(gid, &intents);
         }
@@ -124,6 +128,7 @@ impl App {
         owner_gid: u32,
         owner_pos: Option<(i32, i32)>,
         owner_motion: Motion,
+        owner_hp_pct: Option<i32>,
         actors: &[ActorView],
         delta: f32,
     ) -> Option<(u32, Vec<AiIntent>)> {
@@ -165,6 +170,7 @@ impl App {
             owner_gid,
             owner_pos,
             owner_motion,
+            owner_hp_pct,
             spheres: 0,
             now_ms: 0,
             actors,
@@ -182,6 +188,7 @@ impl App {
         owner_gid: u32,
         owner_pos: Option<(i32, i32)>,
         owner_motion: Motion,
+        owner_hp_pct: Option<i32>,
         actors: &[ActorView],
         delta: f32,
     ) -> Option<(u32, Vec<AiIntent>)> {
@@ -228,6 +235,7 @@ impl App {
             owner_gid,
             owner_pos,
             owner_motion,
+            owner_hp_pct,
             spheres: 0,
             now_ms: 0,
             actors,
@@ -350,6 +358,12 @@ fn homun_params(c: &HomunConfig) -> AiParams {
         rescue_owner_low_hp: c.RescueOwnerLowHP,
         use_attack_skill: c.UseAttackSkill == 1,
         auto_skill_delay: c.AutoSkillDelay,
+        use_offensive_buff: c.UseOffensiveBuff,
+        use_defensive_buff: c.UseDefensiveBuff,
+        use_auto_heal: c.UseAutoHeal,
+        heal_owner_hp: c.HealOwnerHP,
+        heal_self_hp: c.HealSelfHP,
+        do_not_use_rest: c.DoNotUseRest != 0,
     }
 }
 
@@ -375,6 +389,12 @@ fn merc_params(c: &MercConfig) -> AiParams {
         rescue_owner_low_hp: c.RescueOwnerLowHP,
         use_attack_skill: c.UseAttackSkill == 1,
         auto_skill_delay: c.AutoSkillDelay,
+        use_offensive_buff: c.UseOffensiveBuff,
+        use_defensive_buff: c.UseDefensiveBuff,
+        use_auto_heal: 0,
+        heal_owner_hp: 100,
+        heal_self_hp: 100,
+        do_not_use_rest: c.DoNotUseRest != 0,
     }
 }
 
