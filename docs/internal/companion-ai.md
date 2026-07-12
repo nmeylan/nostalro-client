@@ -200,6 +200,9 @@ Offensive attack skills, cast automatically while attacking:
 - Filir casts Moonlight
 - Vanilmirth casts Caprice
 - Lif and Amistr have no offensive attack skill and only melee
+- A mercenary casts the first attack skill it has learned from this priority
+  order: Double Strafe, Sharp Shooting, Pierce, Spiral Pierce, Bash. A mercenary
+  that has learned none of these only melees.
 
 Selection gates, all of which must pass:
 
@@ -308,6 +311,192 @@ learned skill rather than from the per-buff level fields.
 Do not rely on these fields having an effect. They are retained for compatibility
 with the tactics and configuration layout and as room for future behavior.
 
+## Full configuration reference
+
+Every field in the `homunculus` and `mercenary` sections, with its default value
+and purpose. Fields marked active are read by the engine. Fields marked reserved
+are stored and editable but currently have no effect. Defaults shown are the
+homunculus defaults; where the mercenary section lacks a field, the difference is
+noted at the end.
+
+### Basic
+
+- AggroHP (60) active. Only pick aggressive targets while the companion HP percent
+  is above this.
+- AggroSP (0) active. Only pick aggressive targets while the companion SP percent
+  is above this.
+- OldHomunType (3) reserved. Pre-mutation type for a Homunculus S, used to pick
+  its old-style skills. Not used since Homunculus S is unsupported.
+- UseSkillOnly (-1) reserved. Reference mode to cast only, never melee. The engine
+  always allows melee.
+- UseAttackSkill (1) active. Enable offensive attack-skill casting. 1 on, 0 off.
+- OpportunisticTargeting (0) active. While chasing, switch to a closer or higher
+  priority target if one appears. 1 on.
+- DoNotChase (0) active. Do not close on targets whose chase tactic defers to this
+  option, and required for the dance attack. 1 on.
+- UseDanceAttack (0) active. Circle-strafe the target between melee hits. Only
+  Vanilmirth and Filir with DoNotChase set. 1 on.
+- SuperPassive (0) active. The companion never seeks targets on its own. 1 on.
+- RescueOwnerLowHP (0) reserved. Intended to drop the current target to rescue the
+  owner below this HP.
+- AssumeHomun (1) reserved. Startup hint used by the reference before the companion
+  type is known.
+- AttackLastFullSP (0) active. For the attack-last basic tactic, only engage at
+  full SP. 1 on.
+- DanceMinSP (0) active. Only dance while SP is at least this.
+- TankMonsterLimit (4) active. The most tank-tactic monsters the companion will
+  pick up at once.
+- StationaryAggroDist (12) active. Aggro search radius from the owner while the
+  owner is not moving.
+- MobileAggroDist (7) active. Aggro search radius from the owner while the owner
+  is moving.
+- UseAvoid (0) active. Retreat from monsters on the dangerous-mob list. 1 on.
+- DoNotAttackMoving (0) active. Do not aggro or chase moving monsters. 1 on.
+- LagReduction (0) reserved. Reference option to reduce action frequency on laggy
+  connections.
+- LiveMobID (0) reserved. Reference toggle for reading mob ids from a live source.
+- PainkillerFriends (0) reserved. Cast Painkiller on friends. Homunculus S only.
+- PainkillerFriendsSave (0) reserved. Companion of the Painkiller-on-friends
+  option.
+
+### Attack skills
+
+- AttackSkillReserveSP (0) active. SP kept in reserve when a tactic SP column is
+  set to -1.
+- AutoMobMode (2) reserved. Reference anti-mob AoE targeting mode.
+- AutoMobCount (2) active. Aggro count at which the tank-when-mobbed basic tactic
+  switches to attacking.
+- AutoComboMode (1) reserved. Homunculus S combo skill mode.
+- AutoComboSkill (0) reserved. Homunculus S combo skill selection.
+- AutoComboSpheres (10) reserved. Spirit sphere threshold for combos.
+- UseHomunSSkillChase (1) reserved. Use Homunculus S skills while chasing.
+- UseHomunSSkillAttack (1) reserved. Use Homunculus S skills while attacking.
+- AutoSkillDelay (400) active. Minimum milliseconds between auto skill casts.
+- AutoSkillLimit (100) reserved. Reference cap on skill casts.
+- AoEMaximizeTargets (0) reserved. Aim AoE skills to hit the most targets.
+- AoEReserveSP (1) reserved. SP reserve for AoE skills.
+- AoEFixedLevel (0) reserved. Cast AoE skills at a fixed level.
+- CastTimeRatio (0.80) reserved. Multiplier applied to variable cast time when
+  estimating cast duration.
+- UseAutoPushback (0) reserved. Use a pushback skill to knock enemies away.
+- AutoPushbackThreshold (2) reserved. Aggro count that triggers pushback.
+- AttackTimeLimit (10000) reserved. Milliseconds after which a stuck attack is
+  abandoned.
+
+### Homunculus S skills
+
+All fields in this group are reserved. Homunculus S is unsupported, so none take
+effect. They cover the Eira, Bayeri, Sera, Eleanor, and Dieter skill selections
+and levels: UseEiraSilentBreeze (0), EiraSilentBreezeLevel (5),
+UseEiraXenoSlasher (0), EiraXenoSlasherLevel (0), UseEiraEraseCutter (0),
+EiraEraseCutterLevel (0), UseEiraOveredBoost (0), UseBayeriStahlHorn (1),
+BayeriStahlHornLevel (5), UseBayeriHailegeStar (1), BayeriHailegeStarLevel (5),
+UseBayeriAngriffModus (0), UseBayeriGoldenPherze (0), UseBayeriSteinWand (0),
+BayeriSteinWandLevel (5), UseSteinWandSelfMob (2), UseSteinWandOwnerMob (2),
+UseSteinWandTele (0), StienWandTelePause (3000), UseSeraParalyze (0),
+SeraParalyzeLevel (5), UseSeraPoisonMist (0), SeraPoisonMistLevel (5),
+UseSeraCallLegion (1), SeraCallLegionLevel (5), UseSeraPainkiller (0),
+UseEleanorSonicClaw (1), EleanorSonicClawLevel (5), EleanorSilverveinLevel (5),
+EleanorMidnightLevel (5), EleanorDoNotSwitchMode (0), UseDieterLavaSlide (1),
+DieterLavaSlideLevel (5), UseDieterMagmaFlow (0), UseDieterGraniticArmor (0),
+UseDieterPyroclastic (0).
+
+### Movement, follow, and rest
+
+- FollowStayBack (2) reserved. Preferred trailing distance while following.
+- RestXOff (2) reserved. X offset from the owner used when resting.
+- RestYOff (0) reserved. Y offset from the owner used when resting.
+- DoNotUseRest (0) active. Do not stop and rest when the owner sits. 1 on.
+- SpawnDelay (1000) reserved. Delay before acting after the companion spawns.
+- MoveSticky (0) reserved. Reference sticky-position behavior.
+- MoveStickyFight (0) reserved. Sticky position while fighting.
+- UseIdleWalk (0) active. Wander near the owner when idle. 0 off, any other value
+  on.
+- IdleWalkSP (80) active. Only idle-walk while SP percent is above this.
+- IdleWalkDistance (4) reserved. Intended idle-walk radius. The engine uses a
+  fixed radius.
+- UseCastleRoute (0) reserved. Use Amistr Castling to keep up with the owner.
+- RelativeRoute (1) reserved. Reference route-following behavior.
+- ChaseSPPause (0) reserved. Pause chasing when SP is low.
+- ChaseSPPauseSP (-60) reserved. SP level for the chase pause.
+- ChaseSPPauseTime (3000) reserved. Duration of the chase pause.
+- StationaryMoveBounds (14) active. How far from the owner the companion roams
+  while the owner is not moving.
+- MobileMoveBounds (9) active. How far from the owner the companion roams while
+  the owner is moving.
+
+### Buffs and heal
+
+- UseOffensiveBuff (1) active. When to cast the offensive self-buff. 0 never, 1
+  idle, 2 berserk, 3 ASAP.
+- UseDefensiveBuff (1) active. When to cast the defensive self-buff. Same values
+  as above.
+- DefensiveBuffOwnerHP (0) reserved. Cast a defensive buff when the owner is below
+  this HP.
+- DefensiveBuffOwnerMobbed (0) reserved. Cast a defensive buff when the owner is
+  mobbed.
+- UseProvokeOwner (0) reserved. Cast Provoke on the owner. Not applicable to base
+  homunculi.
+- ProvokeOwnerMobbed (3) reserved. Owner mob count that triggers Provoke.
+- LifEscapeLevel (5) reserved. Level for the Lif defensive buff. The engine uses
+  the learned level.
+- FilirFlitLevel (1) reserved. Level for the Filir offensive buff. The engine uses
+  the learned level.
+- FilirAccelLevel (1) reserved. Level for the Filir defensive buff. The engine
+  uses the learned level.
+- AmiBulwarkLevel (5) reserved. Level for the Amistr defensive buff. The engine
+  uses the learned level.
+- HealOwnerHP (50) active. Heal the owner below this HP percent.
+- HealSelfHP (50) active. Self-heal below this HP percent.
+- HealOwnerBreeze (0) reserved. Use a Homunculus S heal on the owner.
+- UseAutoHeal (0) active. Enable healing. 0 off, any other value on.
+- LavaSlideMode (0) reserved. Dieter Lava Slide placement mode.
+- PoisonMistMode (0) reserved. Sera Poison Mist placement mode.
+- UseCastleDefend (0) active. Amistr swaps with the owner to tank when the owner
+  is mobbed. 1 on.
+- CastleDefendThreshold (4) active. Owner mob count that triggers Castling.
+- UseSmartBulwark (0) reserved. Reserve extra SP before casting Bulwark so a
+  following buff still fits.
+
+### Kiting
+
+All fields in this group are reserved. The reference declares a fine-grained kite
+system that it never wired. The circle-strafe dance is driven by UseDanceAttack
+instead. Fields: KiteMonsters (0), KiteStep (5), KiteParanoidStep (2),
+KiteThreshold (3), KiteParanoidThreshold (2), KiteBounds (10), KiteParanoid (0),
+ForceKite (0), FleeHP (0).
+
+### Friending and standby
+
+- StandbyFriending (1) reserved. Auto-friend behavior while on standby.
+- MirAIFriending (1) reserved. Cross and circle friending gesture.
+- DefendStandby (0) reserved. Defend while on standby.
+- StickyStandby (1) reserved. Keep standby across relogs.
+
+### Berserk
+
+- UseBerserkMobbed (0) active. Enter berserk mode when the weighted aggro count
+  exceeds this, enabling berserk-timed buffs in combat. 0 disables.
+- UseBerserkSkill (0) reserved. Force skills while berserk.
+- UseBerserkAttack (0) reserved. Force attacks while berserk.
+- Berserk_SkillAlways (0) reserved. Always cast skills while berserk.
+- Berserk_Dance (0) reserved. Dance while berserk.
+- Berserk_IgnoreMinSP (0) reserved. Ignore SP reserves while berserk.
+- Berserk_ComboAlways (0) reserved. Always combo while berserk. Homunculus S only.
+
+### Other
+
+- PVPmode (0) active. Consult the PVP tactics against players. 1 on.
+
+### Mercenary section differences
+
+The mercenary section shares the same field names and defaults for the options
+above, except that it omits the homunculus-only fields: the heal thresholds and
+UseAutoHeal, the Castling fields, the per-buff level overrides, the Homunculus S
+skill fields, and DanceMinSP. For the mercenary the engine treats healing as off
+and Castling as off. The mercenary auto-casts an attack skill but does not
+self-buff or heal.
+
 ## Tactics
 
 A tactic row describes how to treat one monster class. Rows are keyed by the
@@ -378,7 +567,8 @@ players are never targeted and monster targeting is unchanged.
 ## What is not implemented
 
 - Homunculus S behavior, including combo, grapple, minion, and mob skills.
-- Mercenary attack skills. Mercenaries currently melee and do not auto-cast.
+- Mercenary buff, heal, pushback, and trap skills. A mercenary auto-casts its
+  learned attack skill but does not yet self-buff, heal, or lay traps.
 - The provoke and targeted-buff-into-range substate. For the four base homunculus
   classes there is no skill that needs it, since the only targeted cast is the Lif
   heal on the owner, and the server walks the caster into range for that.
