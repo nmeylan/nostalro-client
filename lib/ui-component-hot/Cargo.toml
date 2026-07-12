@@ -8,6 +8,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 models = { workspace = true }
+ragnarok-ai = { workspace = true }
 ragnarok-ui-component = { workspace = true }
 ragnarok-ui = { workspace = true }
 ragnarok-game = { workspace = true }

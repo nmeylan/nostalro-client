@@ -291,26 +291,7 @@ impl BasicInfoWindow {
                 texture: TextureRef::Named(BG_TEX.to_string()),
             });
         } else {
-            let (v, i) = draw::quad_vertices(x, y, WIN_W, WIN_H_LARGE, [0.12, 0.12, 0.18, 0.92]);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-            let bc = [0.4, 0.4, 0.5, 1.0];
-            for (bx, by, bw, bh) in [
-                (x, y, WIN_W, 1.0),
-                (x, y, 1.0, WIN_H_LARGE),
-                (x + WIN_W - 1.0, y, 1.0, WIN_H_LARGE),
-                (x, y + WIN_H_LARGE - 1.0, WIN_W, 1.0),
-            ] {
-                let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-                ui.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(),
-                    indices: i.to_vec(),
-                    texture: TextureRef::White,
-                });
-            }
+            crate::helper::fallback::panel(ui, x, y, WIN_W, WIN_H_LARGE);
         }
 
         let close_rect = Rect::new(x + 4.0, y + 3.0, self.sys_btn_size.0, self.sys_btn_size.1);
@@ -327,8 +308,6 @@ impl BasicInfoWindow {
             SYS_BASE_ON,
             SYS_BASE_OFF,
             None,
-            [1.0; 4],
-            [1.0; 4],
         );
 
         ui.text(x + 18.0, y + 13.0, "Basic Info", tc);
@@ -355,8 +334,6 @@ impl BasicInfoWindow {
             SYS_MINI_ON,
             SYS_MINI_OFF,
             Some('_'),
-            [0.8, 0.8, 0.9, 1.0],
-            [0.5, 0.5, 0.6, 1.0],
         );
 
         let name = if character.name.is_empty() {
@@ -582,26 +559,7 @@ impl BasicInfoWindow {
                 texture: TextureRef::Named(BG_MINI_TEX.to_string()),
             });
         } else {
-            let (v, i) = draw::quad_vertices(x, y, WIN_W, WIN_H_SMALL, [0.12, 0.12, 0.18, 0.92]);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-            let bc = [0.4, 0.4, 0.5, 1.0];
-            for (bx, by, bw, bh) in [
-                (x, y, WIN_W, 1.0),
-                (x, y, 1.0, WIN_H_SMALL),
-                (x + WIN_W - 1.0, y, 1.0, WIN_H_SMALL),
-                (x, y + WIN_H_SMALL - 1.0, WIN_W, 1.0),
-            ] {
-                let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-                ui.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(),
-                    indices: i.to_vec(),
-                    texture: TextureRef::White,
-                });
-            }
+            crate::helper::fallback::panel(ui, x, y, WIN_W, WIN_H_SMALL);
         }
 
         let name = if character.name.is_empty() {
@@ -633,8 +591,6 @@ impl BasicInfoWindow {
             SYS_MINI_ON,
             SYS_MINI_OFF,
             Some('+'),
-            [0.8, 0.8, 0.9, 1.0],
-            [0.5, 0.5, 0.6, 1.0],
         );
 
         let job_name = character.job_class_name();

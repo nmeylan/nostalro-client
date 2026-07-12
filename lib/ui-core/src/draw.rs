@@ -126,6 +126,146 @@ pub fn quad_vertices_rotated(
     (verts, indices)
 }
 
+pub fn quad_vertices_vgrad(
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    top: [f32; 4],
+    bot: [f32; 4],
+) -> ([UiVertex; 4], [u32; 6]) {
+    let verts = [
+        UiVertex {
+            position: [x, y],
+            tex_coord: [0.0, 0.0],
+            color: top,
+        },
+        UiVertex {
+            position: [x + w, y],
+            tex_coord: [1.0, 0.0],
+            color: top,
+        },
+        UiVertex {
+            position: [x, y + h],
+            tex_coord: [0.0, 1.0],
+            color: bot,
+        },
+        UiVertex {
+            position: [x + w, y + h],
+            tex_coord: [1.0, 1.0],
+            color: bot,
+        },
+    ];
+    (verts, [0, 1, 2, 2, 1, 3])
+}
+
+pub fn rounded_rect(
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    radius: f32,
+    color: [f32; 4],
+) -> (Vec<UiVertex>, Vec<u32>) {
+    rounded_rect_vgrad(x, y, w, h, radius, color, color)
+}
+
+/// Rounded rectangle as a center-fan triangle mesh, vertex color lerped from
+/// `top` to `bot` by vertical position. Corners are absent geometry (background
+/// shows through), matching the color-keyed rounding of the real interface art.
+pub fn rounded_rect_vgrad(
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    radius: f32,
+    top: [f32; 4],
+    bot: [f32; 4],
+) -> (Vec<UiVertex>, Vec<u32>) {
+    rounded_rect_corners_vgrad(x, y, w, h, [radius; 4], top, bot)
+}
+
+/// Like `rounded_rect_vgrad` but with independent corner radii, ordered
+/// `[top-left, top-right, bottom-right, bottom-left]`. Lets stacked window
+/// chrome round only its outward corners (title = top pair, footer = bottom pair).
+pub fn rounded_rect_corners_vgrad(
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    radii: [f32; 4],
+    top: [f32; 4],
+    bot: [f32; 4],
+) -> (Vec<UiVertex>, Vec<u32>) {
+    use std::f32::consts::{FRAC_PI_2, PI};
+    const SEG: usize = 3;
+    let cap = w.min(h) * 0.5;
+    let r = radii.map(|v| v.max(0.0).min(cap));
+
+    let corners = [
+        (x + r[0], y + r[0], PI, r[0]),
+        (x + w - r[1], y + r[1], PI + FRAC_PI_2, r[1]),
+        (x + w - r[2], y + h - r[2], 2.0 * PI, r[2]),
+        (x + r[3], y + h - r[3], 2.0 * PI + FRAC_PI_2, r[3]),
+    ];
+    let mut perim: Vec<[f32; 2]> = Vec::with_capacity(4 * (SEG + 1));
+    for (ccx, ccy, start, r) in corners {
+        for s in 0..=SEG {
+            let a = start + FRAC_PI_2 * (s as f32 / SEG as f32);
+            let p = [ccx + r * a.cos(), ccy + r * a.sin()];
+            let dup = perim
+                .last()
+                .is_some_and(|l| (l[0] - p[0]).abs() <= 1e-4 && (l[1] - p[1]).abs() <= 1e-4);
+            if !dup {
+                perim.push(p);
+            }
+        }
+    }
+    if perim.len() > 1 {
+        let (f, l) = (perim[0], *perim.last().unwrap());
+        if (f[0] - l[0]).abs() <= 1e-4 && (f[1] - l[1]).abs() <= 1e-4 {
+            perim.pop();
+        }
+    }
+
+    let col_at = |py: f32| {
+        let t = if h > 0.0 {
+            ((py - y) / h).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        [
+            top[0] + (bot[0] - top[0]) * t,
+            top[1] + (bot[1] - top[1]) * t,
+            top[2] + (bot[2] - top[2]) * t,
+            top[3] + (bot[3] - top[3]) * t,
+        ]
+    };
+
+    let (cx, cy) = (x + w * 0.5, y + h * 0.5);
+    let mut verts = Vec::with_capacity(perim.len() + 1);
+    verts.push(UiVertex {
+        position: [cx, cy],
+        tex_coord: [0.5, 0.5],
+        color: col_at(cy),
+    });
+    for p in &perim {
+        verts.push(UiVertex {
+            position: *p,
+            tex_coord: [0.0, 0.0],
+            color: col_at(p[1]),
+        });
+    }
+    let n = perim.len() as u32;
+    let mut indices = Vec::with_capacity(perim.len() * 3);
+    for i in 0..n {
+        indices.push(0);
+        indices.push(1 + i);
+        indices.push(1 + (i + 1) % n);
+    }
+    (verts, indices)
+}
+
 pub fn square_wedge_vertices(
     cx: f32,
     cy: f32,
@@ -490,6 +630,38 @@ mod tests {
         assert_eq!(strip_color_codes("^FF0000Red ^000000Black"), "Red Black");
         assert_eq!(strip_color_codes("No codes"), "No codes");
         assert_eq!(strip_color_codes("^FF00short"), "^FF00short");
+    }
+
+    #[test]
+    fn quad_vgrad_carries_top_and_bottom_colors() {
+        let top = [1.0, 0.0, 0.0, 1.0];
+        let bot = [0.0, 0.0, 1.0, 1.0];
+        let (v, _) = quad_vertices_vgrad(0.0, 0.0, 10.0, 10.0, top, bot);
+        assert_eq!([v[0].color, v[1].color], [top, top]);
+        assert_eq!([v[2].color, v[3].color], [bot, bot]);
+    }
+
+    #[test]
+    fn rounded_rect_is_valid_triangle_fan_with_clamped_radius() {
+        let (v, i) = rounded_rect(0.0, 0.0, 20.0, 10.0, 100.0, WHITE);
+        assert!(!i.is_empty() && i.len() % 3 == 0);
+        assert!(i.iter().all(|&idx| (idx as usize) < v.len()));
+        for vert in &v {
+            assert!((-0.01..=20.01).contains(&vert.position[0]));
+            assert!((-0.01..=10.01).contains(&vert.position[1]));
+        }
+    }
+
+    #[test]
+    fn per_corner_radii_keep_sharp_corners_and_round_others() {
+        // footer style: sharp top (TL,TR = 0), rounded bottom (BR,BL = 4)
+        let (v, _) = rounded_rect_corners_vgrad(0.0, 0.0, 20.0, 10.0, [0.0, 0.0, 4.0, 4.0], WHITE, WHITE);
+        let has = |x: f32, y: f32| {
+            v.iter()
+                .any(|vt| (vt.position[0] - x).abs() < 1e-3 && (vt.position[1] - y).abs() < 1e-3)
+        };
+        assert!(has(0.0, 0.0) && has(20.0, 0.0), "top corners stay sharp");
+        assert!(!has(0.0, 10.0) && !has(20.0, 10.0), "bottom corners are rounded away");
     }
 
     fn char_count_measure(s: &str) -> f32 {

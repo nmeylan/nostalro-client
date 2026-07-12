@@ -193,8 +193,6 @@ impl InGameWindow for BookWindow {
             CLOSE_ON_TEX,
             CLOSE_OFF_TEX,
             Some('x'),
-            [1.0, 0.3, 0.3, 1.0],
-            [1.0, 1.0, 1.0, 1.0],
         );
         if close_resp.clicked() || ui.ctx.key_escape {
             self.close();

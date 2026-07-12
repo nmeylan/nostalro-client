@@ -508,12 +508,7 @@ fn draw_item_slot(ui: &mut UiFrame, x: f32, y: f32, grf: bool) {
     if grf {
         draw_textured_quad(ui, x, y, ICON_SIZE, ICON_SIZE, ITEMWIN_MID_TEX);
     } else {
-        let (v, i) = draw::quad_vertices(x, y, ICON_SIZE, ICON_SIZE, [0.08, 0.08, 0.12, 0.8]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
+        crate::helper::fallback::slot_cell(ui, x, y, ICON_SIZE, ICON_SIZE);
     }
 }
 

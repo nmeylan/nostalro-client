@@ -53,7 +53,7 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
         E::PharmacyFail => &[fixed_at0!("effect\\p_failed.wav")],
         E::Loud => &[fixed_at0!("effect\\고성방가.wav")],
         E::Heartcasting => &[fixed_at0!("effect\\EF_BeginSpell.wav")],
-        E::Soulbreaker => &[at!(Fixed("effect\\soulBreaker.wav"), &[20])],
+        E::Soulbreaker => &[at!(Fixed("effect\\기공포.wav"), &[20])],
         E::Pressure => &[at!(Fixed("effect\\프레셔.wav"), &[3])],
         E::Bash3d => &[at!(Fixed("effect\\bash3d.wav"), &[22])],
         E::Chemicalprotection => &[fixed_at0!("apocalips_attack.wav")],
@@ -484,8 +484,11 @@ pub fn weapon_hit_sound(weapon: Option<WeaponType>, roll: u32, is_taekwon: bool)
         Some(W::Mace | W::Mace2H) => "_hit_mace.wav".to_string(),
         Some(W::Staff | W::Staff2H) => "_hit_rod.wav".to_string(),
         Some(W::Book) => "_hit_mace.wav".to_string(),
-        Some(W::Revolver | W::Gatling | W::Shotgun | W::Grenade) => "_hit_gun.wav".to_string(),
-        Some(W::Rifle) => "_hit_rifle.wav".to_string(),
+        Some(W::Revolver) => "_hit_권총.wav".to_string(),
+        Some(W::Gatling) => "_hit_개틀링한발.wav".to_string(),
+        Some(W::Shotgun) => "_hit_샷건.wav".to_string(),
+        Some(W::Grenade) => "_hit_그레네이드런쳐.wav".to_string(),
+        Some(W::Rifle) => "_hit_라이플.wav".to_string(),
         _ => "_hit_mace.wav".to_string(),
     }
 }

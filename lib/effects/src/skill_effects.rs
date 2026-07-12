@@ -923,7 +923,7 @@ pub fn derive_hit_effect(
             } else if suppresses_generic_hit(s) {
                 &[]
             } else {
-                &[EffectId::Hit1, EffectId::Hit2]
+                &[EffectId::Hit1]
             }
         }
     }
@@ -1394,7 +1394,7 @@ mod tests {
         );
         assert_eq!(
             derive_hit_effect(Some(SkillEnum::MoBodyrelocation), false, Novice, false),
-            &[EffectId::Hit1, EffectId::Hit2]
+            &[EffectId::Hit1]
         );
         assert_eq!(
             derive_hit_effect(Some(SkillEnum::TkStormkick), false, Novice, false),

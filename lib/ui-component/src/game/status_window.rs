@@ -207,8 +207,6 @@ impl InGameWindow for StatusWindow {
             SYS_CLOSE_ON,
             SYS_CLOSE_OFF,
             Some('x'),
-            [0.9, 0.4, 0.4, 1.0],
-            [0.6, 0.3, 0.3, 1.0],
         );
 
         let mini_rect = Rect::new(mini_x, y + 3.0, sys_w, sys_h);
@@ -228,8 +226,6 @@ impl InGameWindow for StatusWindow {
             SYS_MINI_ON,
             SYS_MINI_OFF,
             Some('_'),
-            [0.8, 0.8, 0.9, 1.0],
-            [0.5, 0.5, 0.6, 1.0],
         );
         if self.minimized {
             ui.has_grf_textures = prev_grf;
@@ -239,13 +235,7 @@ impl InGameWindow for StatusWindow {
         if grf {
             draw_textured_quad(ui, x, y + TITLE_H, WIN_W, PANEL_H, BG_TEX);
         } else {
-            let (v, i) =
-                draw::quad_vertices(x, y + TITLE_H, WIN_W, PANEL_H, [0.10, 0.10, 0.14, 0.95]);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
+            crate::helper::fallback::window_body(ui, x, y + TITLE_H, WIN_W, PANEL_H);
             for (i, label) in ["STR", "AGI", "VIT", "INT", "DEX", "LUK"]
                 .iter()
                 .enumerate()

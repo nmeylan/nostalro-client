@@ -135,7 +135,7 @@ pub const CHEMICAL3: ChemicalParams = ChemicalParams {
 };
 pub const CHEMICAL4: ChemicalParams = ChemicalParams {
     group: 20,
-    sfx: Some(("effect\\chemical4.wav", 28.0)),
+    sfx: Some(("effect\\피어싱샷.wav", 28.0)),
     ..CHEMICAL3
 };
 pub const CHEMICAL2DASH: ChemicalParams = ChemicalParams {

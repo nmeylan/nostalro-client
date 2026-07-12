@@ -5,7 +5,6 @@ use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
-use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
@@ -112,13 +111,7 @@ impl InGameWindow for SoundOptionsWindow {
         let win = ui.window_at(SOUND_OPTIONS_WINDOW_ID, WIN_W, WIN_H, TITLE_H, default_x, default_y);
         ui.interact(SOUND_OPTIONS_WINDOW_ID, Rect::new(win.x, win.y, WIN_W, WIN_H));
 
-        let (v, i) =
-            draw::quad_vertices(win.x, win.y + TITLE_H, WIN_W, WIN_H - TITLE_H, [0.12, 0.12, 0.16, 1.0]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
+        crate::helper::fallback::window_body(ui, win.x, win.y + TITLE_H, WIN_W, WIN_H - TITLE_H);
 
         draw_titlebar(ui, win.x, win.y, WIN_W, TITLE_H, grf);
         ui.text(win.x + 20.0, win.y + TITLE_H - 5.0, "Sound", text_color(grf));
@@ -137,8 +130,6 @@ impl InGameWindow for SoundOptionsWindow {
             CLOSE_ON_TEX,
             CLOSE_OFF_TEX,
             Some('x'),
-            [1.0, 0.3, 0.3, 1.0],
-            [1.0, 1.0, 1.0, 1.0],
         );
         if close_resp.clicked() || ui.ctx.key_escape {
             self.open = false;

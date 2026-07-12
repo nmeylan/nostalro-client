@@ -175,8 +175,6 @@ impl InGameWindow for SkillTreeWindow {
             CLOSE_ON_TEX,
             CLOSE_OFF_TEX,
             Some('x'),
-            [0.8, 0.2, 0.2, 1.0],
-            [0.5, 0.5, 0.6, 1.0],
         );
         if close_resp.clicked() {
             character.skills.close();

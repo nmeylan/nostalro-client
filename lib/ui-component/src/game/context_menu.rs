@@ -64,26 +64,7 @@ impl ContextMenu {
         let menu_h = self.items.len() as f32 * ITEM_H;
         let panel = Rect::new(self.x, self.y, ITEM_W, menu_h);
 
-        let (v, i) = draw::quad_vertices(panel.x, panel.y, panel.w, panel.h, [0.1, 0.1, 0.15, 0.96]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
-        let bc = [0.45, 0.45, 0.55, 1.0];
-        for (bx, by, bw, bh) in [
-            (panel.x, panel.y, panel.w, 1.0),
-            (panel.x, panel.y, 1.0, panel.h),
-            (panel.x + panel.w - 1.0, panel.y, 1.0, panel.h),
-            (panel.x, panel.y + panel.h - 1.0, panel.w, 1.0),
-        ] {
-            let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-        }
+        crate::helper::fallback::panel(ui, panel.x, panel.y, panel.w, panel.h);
 
         let mut clicked_item = None;
         let mut any_hovered = false;
@@ -94,7 +75,7 @@ impl ContextMenu {
             if resp.hovered() {
                 any_hovered = true;
                 ui.any_interactive_hovered = true;
-                let (v, i) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, [0.3, 0.3, 0.45, 1.0]);
+                let (v, i) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, [0.72, 0.79, 0.93, 1.0]);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: i.to_vec(),

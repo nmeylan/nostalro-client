@@ -488,50 +488,21 @@ impl<'a> UiFrame<'a> {
                 texture: TextureRef::Named(tex.to_string()),
             });
         } else {
-            let bg_color = if pressed {
-                [0.15, 0.15, 0.25, 1.0]
-            } else if response.hovered {
-                [0.35, 0.35, 0.5, 1.0]
-            } else {
-                [0.25, 0.25, 0.35, 1.0]
-            };
-            let (v, i) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, bg_color);
-            self.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-
-            let b = 1.0;
-            let bc = [0.5, 0.5, 0.6, 1.0];
-            for (bx, by, bw, bh) in [
-                (rect.x, rect.y, rect.w, b),
-                (rect.x, rect.y + rect.h - b, rect.w, b),
-                (rect.x, rect.y, b, rect.h),
-                (rect.x + rect.w - b, rect.y, b, rect.h),
-            ] {
-                let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-                self.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(),
-                    indices: i.to_vec(),
-                    texture: TextureRef::White,
-                });
-            }
-
-            let tw = self.atlas.measure_text(fallback_label);
-            let tx = rect.x + (rect.w - tw) / 2.0;
-            let ty = rect.y + rect.h - (self.atlas.line_height / 2.0);
-            let (v, i) =
-                draw::text_vertices(fallback_label, tx, ty, [1.0, 1.0, 1.0, 1.0], self.atlas);
-            if !v.is_empty() {
-                self.draw_calls.push(DrawCall {
-                    vertices: v,
-                    indices: i,
-                    texture: TextureRef::FontAtlas,
-                });
-            }
+            crate::theme::fallback_button(self, rect, response.hovered, pressed, fallback_label);
         }
 
+        response
+    }
+
+    /// A labeled button drawn procedurally regardless of GRF textures — for
+    /// buttons whose label has no dedicated texture (e.g. Apply/Revert/Add).
+    pub fn text_button(&mut self, id: WidgetId, rect: Rect, label: &str) -> Response {
+        let response = self.interact(id, rect);
+        if response.hovered {
+            self.any_interactive_hovered = true;
+        }
+        let pressed = response.hovered && (self.ctx.mouse_clicked || self.ctx.mouse_down);
+        crate::theme::fallback_button(self, rect, response.hovered, pressed, label);
         response
     }
 
@@ -571,7 +542,6 @@ impl<'a> UiFrame<'a> {
             state.cursor_pos = best_pos;
         }
 
-        let dark_text = !matches!(bg, TextInputBg::Default);
         match bg {
             TextInputBg::Texture(tex_name) => {
                 let (verts, indices) =
@@ -583,38 +553,7 @@ impl<'a> UiFrame<'a> {
                 });
             }
             TextInputBg::Default => {
-                let bg_color = if response.has_focus {
-                    [0.15, 0.15, 0.2, 1.0]
-                } else {
-                    [0.1, 0.1, 0.15, 1.0]
-                };
-                let (verts, indices) =
-                    draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, bg_color);
-                self.draw_calls.push(DrawCall {
-                    vertices: verts.to_vec(),
-                    indices: indices.to_vec(),
-                    texture: TextureRef::White,
-                });
-
-                let border_color = if response.has_focus {
-                    [0.5, 0.5, 0.7, 1.0]
-                } else {
-                    [0.3, 0.3, 0.4, 1.0]
-                };
-                let border = 1.0;
-                for (bx, by, bw, bh) in [
-                    (rect.x, rect.y, rect.w, border),
-                    (rect.x, rect.y + rect.h - border, rect.w, border),
-                    (rect.x, rect.y, border, rect.h),
-                    (rect.x + rect.w - border, rect.y, border, rect.h),
-                ] {
-                    let (v, i) = draw::quad_vertices(bx, by, bw, bh, border_color);
-                    self.draw_calls.push(DrawCall {
-                        vertices: v.to_vec(),
-                        indices: i.to_vec(),
-                        texture: TextureRef::White,
-                    });
-                }
+                crate::theme::fallback_text_input(self, rect, response.has_focus);
             }
             TextInputBg::Gray => {
                 let bg_color = [0.15, 0.15, 0.2, 0.3];
@@ -643,11 +582,7 @@ impl<'a> UiFrame<'a> {
         let clip_right = rect.x + rect.w - padding;
 
         if !text.is_empty() {
-            let text_color = if dark_text {
-                [0.0, 0.0, 0.0, 1.0]
-            } else {
-                [1.0, 1.0, 1.0, 1.0]
-            };
+            let text_color = [0.0, 0.0, 0.0, 1.0];
             let (verts, indices) = draw::text_vertices_clipped(
                 &text, text_x, text_y, text_color, self.atlas, clip_left, clip_right,
             );
@@ -663,11 +598,7 @@ impl<'a> UiFrame<'a> {
         if response.has_focus && (self.elapsed_secs % 1.0) < 0.5 {
             let cursor_x = (text_x + cursor_px).clamp(clip_left, clip_right);
             let caret_y = rect.y + (rect.h - self.atlas.ascent) / 2.0;
-            let caret_color = if dark_text {
-                [0.0, 0.0, 0.0, 1.0]
-            } else {
-                [1.0, 1.0, 1.0, 1.0]
-            };
+            let caret_color = [0.0, 0.0, 0.0, 1.0];
             let (v, i) =
                 draw::quad_vertices(cursor_x, caret_y, 1.0, self.atlas.ascent, caret_color);
             self.draw_calls.push(DrawCall {
@@ -1260,6 +1191,36 @@ mod tests {
         ui.interact(WidgetId(1), rect);
         assert!(ui.any_hovered);
         assert!(!ui.any_interactive_hovered);
+    }
+
+    #[test]
+    fn button_fallback_draws_procedural_geometry_not_named_texture() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let positions = HashMap::new();
+        let textures = ButtonTextures {
+            normal: "n",
+            hover: "h",
+            pressed: "p",
+        };
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+
+        ui.button(WidgetId(1), Rect::new(10.0, 10.0, 60.0, 20.0), &textures, "OK");
+
+        assert!(!ui.draw_calls.is_empty());
+        assert!(
+            !ui.draw_calls
+                .iter()
+                .any(|c| matches!(c.texture, TextureRef::Named(_))),
+            "fallback button must not reference GRF textures"
+        );
+        assert!(
+            ui.draw_calls
+                .iter()
+                .any(|c| matches!(c.texture, TextureRef::White)),
+            "fallback button must draw a procedural rounded face"
+        );
     }
 
     #[test]

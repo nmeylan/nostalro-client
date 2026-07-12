@@ -12,7 +12,7 @@ use ragnarok_ai::consts::{
 use ragnarok_ai::tactics::{SkillUse, Tactic};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
+use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
 pub const COMPANION_AI_CONFIG_WINDOW_ID: WidgetId = WidgetId(3200);
@@ -104,11 +104,6 @@ fn tactic_cols() -> Vec<FieldSpec<Tactic>> {
 
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
-const BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_skill.bmp",
-    hover: "data/texture/유저인터페이스/btn_skill_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_skill_b.bmp",
-};
 
 const WIN_W: f32 = 384.0;
 const WIN_H: f32 = 340.0;
@@ -398,8 +393,16 @@ impl CompanionAiConfigWindow {
         if close_resp.clicked() {
             self.visible = false;
         }
-        draw_sys_button(ui, close_rect, (sys_w, sys_w), close_resp.hovered(), grf, CLOSE_ON_TEX,
-            CLOSE_OFF_TEX, Some('x'), [0.9, 0.4, 0.4, 1.0], [0.6, 0.3, 0.3, 1.0]);
+        draw_sys_button(
+            ui,
+            close_rect,
+            (sys_w, sys_w),
+            close_resp.hovered(),
+            grf,
+            CLOSE_ON_TEX,
+            CLOSE_OFF_TEX,
+            Some('x'),
+        );
 
         draw_container(ui, x, y + TITLE_H, WIN_W, WIN_H - TITLE_H, grf);
 
@@ -417,11 +420,11 @@ impl CompanionAiConfigWindow {
                 self.scroll_offset = 0;
             }
             let bg = if i == self.tab {
-                [0.30, 0.42, 0.66, 1.0]
+                [0.72, 0.79, 0.93, 1.0]
             } else if grf {
                 [0.70, 0.70, 0.74, 1.0]
             } else {
-                [0.14, 0.14, 0.20, 1.0]
+                [0.95, 0.95, 0.96, 1.0]
             };
             push_quad(ui, tab_rect.x, tab_rect.y, tab_w - 1.0, TAB_H - 1.0, bg);
             ui.text_centered(tab_rect.x, tab_rect.y + BASELINE, tab_w, name, tc);
@@ -454,13 +457,13 @@ impl CompanionAiConfigWindow {
         // Footer buttons.
         let bw = 84.0;
         let by = footer_y + 3.0;
-        if ui.button(APPLY_BTN_ID, Rect::new(x + PAD, by, bw, 18.0), &BTN, "Apply").clicked() {
+        if ui.text_button(APPLY_BTN_ID, Rect::new(x + PAD, by, bw, 18.0), "Apply").clicked() {
             events.push(GameEvent::SaveCompanionAiConfig);
         }
-        if ui.button(REVERT_BTN_ID, Rect::new(x + PAD + bw + 6.0, by, bw, 18.0), &BTN, "Revert").clicked() {
+        if ui.text_button(REVERT_BTN_ID, Rect::new(x + PAD + bw + 6.0, by, bw, 18.0), "Revert").clicked() {
             events.push(GameEvent::RevertCompanionAiConfig);
         }
-        if ui.button(RESET_BTN_ID, Rect::new(x + PAD + (bw + 6.0) * 2.0, by, bw, 18.0), &BTN, "Defaults").clicked() {
+        if ui.text_button(RESET_BTN_ID, Rect::new(x + PAD + (bw + 6.0) * 2.0, by, bw, 18.0), "Defaults").clicked() {
             events.push(GameEvent::ResetCompanionAiConfig);
         }
 
@@ -504,8 +507,8 @@ impl CompanionAiConfigWindow {
             match row {
                 Row::Header(name) => {
                     push_quad(ui, x + 2.0, ry, WIN_W - SCROLLBAR_W - 4.0, ROW_H - 1.0,
-                        if grf { [0.55, 0.60, 0.70, 1.0] } else { [0.10, 0.12, 0.18, 1.0] });
-                    ui.text(x + PAD, ry + BASELINE, name, colors::CYAN);
+                        [0.51, 0.58, 0.78, 1.0]);
+                    ui.text(x + PAD, ry + BASELINE, name, [1.0, 1.0, 1.0, 1.0]);
                 }
                 Row::Field(i) => {
                     let s = &specs[*i];
@@ -543,23 +546,23 @@ impl CompanionAiConfigWindow {
         // Selector row: ◀ id:name ▶  Add  Del
         let bw = 22.0;
         let mut cx = x + PAD;
-        if ui.button(TACT_PREV_ID, Rect::new(cx, y, bw, 16.0), &BTN, "<").clicked() && self.tactic_sel > 0 {
+        if ui.text_button(TACT_PREV_ID, Rect::new(cx, y, bw, 16.0), "<").clicked() && self.tactic_sel > 0 {
             self.tactic_sel -= 1;
         }
         cx += bw + 2.0;
         let sel = &rows[self.tactic_sel];
         let label = format!("#{}  {}", sel.id, if sel.name.is_empty() { "(unnamed)" } else { &sel.name });
         let name_w = WIN_W - PAD * 2.0 - bw * 2.0 - 4.0 - 120.0;
-        push_quad(ui, cx, y, name_w, 16.0, [0.14, 0.16, 0.22, 1.0]);
+        push_quad(ui, cx, y, name_w, 16.0, [0.95, 0.95, 0.96, 1.0]);
         ui.text(cx + 4.0, y + BASELINE, &label, tc);
         cx += name_w + 2.0;
-        if ui.button(TACT_NEXT_ID, Rect::new(cx, y, bw, 16.0), &BTN, ">").clicked()
+        if ui.text_button(TACT_NEXT_ID, Rect::new(cx, y, bw, 16.0), ">").clicked()
             && self.tactic_sel + 1 < rows.len()
         {
             self.tactic_sel += 1;
         }
         cx += bw + 4.0;
-        if ui.button(TACT_ADD_ID, Rect::new(cx, y, 56.0, 16.0), &BTN, "Add").clicked() {
+        if ui.text_button(TACT_ADD_ID, Rect::new(cx, y, 56.0, 16.0), "Add").clicked() {
             let mut t = Tactic::default_row();
             t.id = next_free_class_id(rows);
             t.name = "New".to_string();
@@ -567,7 +570,7 @@ impl CompanionAiConfigWindow {
             self.tactic_sel = rows.len() - 1;
         }
         cx += 58.0;
-        if ui.button(TACT_DEL_ID, Rect::new(cx, y, 56.0, 16.0), &BTN, "Del").clicked()
+        if ui.text_button(TACT_DEL_ID, Rect::new(cx, y, 56.0, 16.0), "Del").clicked()
             && rows[self.tactic_sel].id != 0
             && rows[self.tactic_sel].id != 13
         {
@@ -687,14 +690,7 @@ impl Window for CompanionAiConfigWindow {
         self.has_grf_textures = value;
     }
     fn grf_texture_paths() -> Vec<&'static str> {
-        let mut paths = vec![
-            TITLEBAR_TEX,
-            CLOSE_OFF_TEX,
-            CLOSE_ON_TEX,
-            BTN.normal,
-            BTN.hover,
-            BTN.pressed,
-        ];
+        let mut paths = vec![TITLEBAR_TEX, CLOSE_OFF_TEX, CLOSE_ON_TEX];
         paths.extend(scrollbar::grf_texture_paths());
         paths
     }

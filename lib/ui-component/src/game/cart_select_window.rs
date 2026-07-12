@@ -140,8 +140,6 @@ impl InGameWindow for CartSelectWindow {
             CLOSE_ON_TEX,
             CLOSE_OFF_TEX,
             Some('x'),
-            [1.0, 0.3, 0.3, 1.0],
-            text_color,
         );
         if close_resp.clicked() {
             self.open = false;

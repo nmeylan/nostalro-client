@@ -198,8 +198,6 @@ impl InGameWindow for InventoryWindow {
             MINI_ON_TEX,
             MINI_OFF_TEX,
             Some('_'),
-            [0.8, 0.8, 0.2, 1.0],
-            text_color,
         );
         if mini_resp.clicked() {
             self.minimized = !self.minimized;
@@ -225,8 +223,6 @@ impl InGameWindow for InventoryWindow {
             CLOSE_ON_TEX,
             CLOSE_OFF_TEX,
             Some('x'),
-            [1.0, 0.3, 0.3, 1.0],
-            text_color,
         );
         if close_resp.clicked() {
             character.inventory.close();
@@ -281,18 +277,7 @@ impl InGameWindow for InventoryWindow {
                         texture: TextureRef::Named(ITEMWIN_MID_TEX.to_string()),
                     });
                 } else {
-                    let (v, idx) = draw::quad_vertices(
-                        cx + pad,
-                        cy + pad,
-                        icon,
-                        icon,
-                        [0.08, 0.08, 0.12, 0.8],
-                    );
-                    ui.draw_calls.push(DrawCall {
-                        vertices: v.to_vec(),
-                        indices: idx.to_vec(),
-                        texture: TextureRef::White,
-                    });
+                    crate::helper::fallback::slot_cell(ui, cx + pad, cy + pad, icon, icon);
                 }
 
                 if item_idx >= filtered.len() {
@@ -477,19 +462,7 @@ impl InGameWindow for InventoryWindow {
 
             if !grf {
                 let active = character.inventory.active_tab == *tab;
-                let bg = if active {
-                    [0.25, 0.25, 0.38, 1.0]
-                } else if resp.hovered() {
-                    [0.20, 0.20, 0.30, 1.0]
-                } else {
-                    [0.15, 0.15, 0.22, 1.0]
-                };
-                let (v, idx) = draw::quad_vertices(tab_x, ty, tab_img_w, tab_btn_h, bg);
-                ui.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(),
-                    indices: idx.to_vec(),
-                    texture: TextureRef::White,
-                });
+                crate::helper::fallback::cell(ui, tab_x, ty, tab_img_w, tab_btn_h, active || resp.hovered());
                 let tw = ui.atlas.measure_text(label);
                 ui.text(
                     tab_x + (tab_img_w - tw) / 2.0,

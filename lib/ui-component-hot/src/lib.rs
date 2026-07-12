@@ -18,8 +18,9 @@ use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo, VendorItem};
 use ragnarok_game::item::Item;
 use ragnarok_game::npc_shop::{NpcShopMode, ShopBuyItem, ShopSellItem};
 use ragnarok_game::party::{Party, PartyMember};
-use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
+use ragnarok_ui::text_input::TextInput;
 use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::LoginWindow;
@@ -48,6 +49,9 @@ use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::number_input::{NumberInputConfig, NumberInputDialog};
 use ragnarok_ui_component::game::party_window::{PARTY_WINDOW_ID, PartyWindow};
+use ragnarok_ui_component::game::companion_ai_config_window::{
+    COMPANION_AI_CONFIG_WINDOW_ID, CompanionAiConfigWindow,
+};
 use ragnarok_ui_component::game::homun_window::{HOMUN_WINDOW_ID, HomunWindow};
 use ragnarok_ui_component::game::mercenary_window::{MERCENARY_WINDOW_ID, MercenaryWindow};
 use ragnarok_ui_component::game::mercenary_skill_window::{
@@ -87,7 +91,8 @@ const ACCOUNT_COMPONENTS: &[&str] =
     &["login", "server_list", "char_select", "char_create"];
 const SHOP_COMPONENTS: &[&str] =
     &["cart", "vending_setup", "my_shop", "vending_buy", "vending_board"];
-const COMPANION_COMPONENTS: &[&str] = &["mercenary", "mercenary_skill", "homun"];
+const COMPANION_COMPONENTS: &[&str] =
+    &["mercenary", "mercenary_skill", "homun", "companion_ai_config"];
 
 enum State {
     Inventory {
@@ -236,6 +241,13 @@ enum State {
     Homun {
         win: HomunWindow,
         homun: HomunculusState,
+    },
+    CompanionAiConfig {
+        win: CompanionAiConfigWindow,
+        config: ragnarok_ai::config::CompanionAiConfig,
+    },
+    FallbackGallery {
+        name_field: TextInput,
     },
     Category {
         components: Vec<State>,
@@ -1313,6 +1325,17 @@ fn create_single(name: &str) -> State {
                 homun: demo_homunculus(),
             }
         }
+        "companion_ai_config" => {
+            let mut win = CompanionAiConfigWindow::new();
+            win.set_visible(true);
+            State::CompanionAiConfig {
+                win,
+                config: ragnarok_ai::config::CompanionAiConfig::default(),
+            }
+        }
+        "fallback" => State::FallbackGallery {
+            name_field: TextInput::new(23, false),
+        },
         _ => panic!("Unknown example: {name}"),
     }
 }
@@ -1551,6 +1574,10 @@ fn grf_init_single(
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
         }
+        State::CompanionAiConfig { win, .. } => {
+            win.has_grf_textures = true;
+        }
+        State::FallbackGallery { .. } => {}
         State::Category { components } => {
             for component in components.iter_mut() {
                 grf_init_single(component, size_fn, table);
@@ -1594,6 +1621,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Mercenary { .. } => Some(MERCENARY_WINDOW_ID),
         State::MercenarySkill { .. } => Some(MERCENARY_SKILL_WINDOW_ID),
         State::Homun { .. } => Some(HOMUN_WINDOW_ID),
+        State::CompanionAiConfig { .. } => Some(COMPANION_AI_CONFIG_WINDOW_ID),
         _ => None,
     }
 }
@@ -1846,6 +1874,12 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
         State::Homun { win, homun } => {
             win.build(ui, Some(homun));
         }
+        State::CompanionAiConfig { win, config } => {
+            win.build(ui, config);
+        }
+        State::FallbackGallery { name_field } => {
+            build_fallback_gallery(ui, name_field);
+        }
         State::Category { components } => {
             // Build z-orderable windows in persisted order (back-to-front)
             let z_order = ui.get_z_order();
@@ -1874,6 +1908,63 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             }
         }
     }
+}
+
+fn build_fallback_gallery(ui: &mut UiFrame, name_field: &mut TextInput) {
+    use ragnarok_ui::theme::{self, FallbackPalette as P};
+    use ragnarok_ui_component::helper::fallback;
+
+    // The gallery exists to iterate the no-GRF look, so force the fallback path.
+    ui.has_grf_textures = false;
+
+    let heading = [0.72, 0.78, 0.92, 1.0];
+    ui.text(24.0, 22.0, "Fallback components — edit lib/ui-core/src/theme.rs & lib/ui-component/src/helper/fallback.rs", heading);
+
+    // Window chrome
+    let (wx, wy, ww) = (24.0, 56.0, 210.0);
+    ui.text(wx, wy - 8.0, "WINDOW CHROME", heading);
+    fallback::titlebar(ui, wx, wy, ww, 18.0);
+    ui.text(wx + 20.0, wy + 13.0, "Inventory", P::TEXT_ON_LIGHT);
+    fallback::container(ui, wx, wy + 18.0, ww, 56.0);
+    ui.text(wx + 10.0, wy + 40.0, "10,240 z", P::TEXT_ON_LIGHT);
+    fallback::footer(ui, wx, wy + 74.0, ww, 22.0);
+    theme::fallback_button(ui, Rect::new(wx + ww - 54.0, wy + 78.0, 46.0, 16.0), false, false, "Close");
+
+    // Buttons
+    let bx = 280.0;
+    ui.text(bx, 48.0, "BUTTONS  normal / hover / pressed", heading);
+    theme::fallback_button(ui, Rect::new(bx, 56.0, 60.0, 21.0), false, false, "OK");
+    theme::fallback_button(ui, Rect::new(bx + 70.0, 56.0, 60.0, 21.0), true, false, "OK");
+    theme::fallback_button(ui, Rect::new(bx + 140.0, 56.0, 60.0, 21.0), false, true, "OK");
+    ui.text(bx, 96.0, "live:", heading);
+    let btn = ButtonTextures { normal: "", hover: "", pressed: "" };
+    ui.button(WidgetId(60001), Rect::new(bx + 34.0, 88.0, 90.0, 21.0), &btn, "Hover / click");
+
+    // Text field
+    ui.text(bx, 132.0, "TEXT FIELD  (click to focus)", heading);
+    ui.text_input(WidgetId(60002), Rect::new(bx, 140.0, 150.0, 20.0), name_field, TextInputBg::Default);
+
+    // Slot cells + system buttons
+    ui.text(wx, 176.0, "SLOT CELLS / SYS BUTTONS", heading);
+    for i in 0..4 {
+        fallback::slot_cell(ui, wx + i as f32 * 34.0, 188.0, 30.0, 30.0);
+    }
+    fallback::sys_button(ui, wx + 150.0, 188.0, 11.0, false, Some('_'));
+    fallback::sys_button(ui, wx + 166.0, 188.0, 11.0, true, Some('x'));
+
+    // Gauges
+    ui.text(bx, 176.0, "GAUGES  (HP / SP)", heading);
+    fallback::gauge(ui, bx, 190.0, 150.0, 9.0, 0.72, true);
+    fallback::gauge(ui, bx, 204.0, 150.0, 9.0, 0.54, false);
+
+    // Standalone panel + cells (context menu / stat cells / tabs)
+    ui.text(wx, 240.0, "PANEL / CELLS  (active | inactive)", heading);
+    fallback::panel(ui, wx, 252.0, 120.0, 46.0);
+    ui.text(wx + 8.0, 272.0, "context menu", P::TEXT_ON_LIGHT);
+    fallback::cell(ui, wx + 132.0, 252.0, 70.0, 20.0, true);
+    ui.text(wx + 140.0, 266.0, "Use", P::TEXT_ON_LIGHT);
+    fallback::cell(ui, wx + 132.0, 276.0, 70.0, 20.0, false);
+    ui.text(wx + 140.0, 290.0, "Etc", P::TEXT_ON_LIGHT);
 }
 
 fn add_button<F>(

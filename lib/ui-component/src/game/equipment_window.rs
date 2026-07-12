@@ -282,8 +282,6 @@ impl InGameWindow for EquipmentWindow {
             MINI_ON_TEX,
             MINI_OFF_TEX,
             Some('_'),
-            [0.8, 0.8, 0.2, 1.0],
-            text_color,
         );
         if mini_resp.clicked() {
             self.minimized = !self.minimized;
@@ -308,8 +306,6 @@ impl InGameWindow for EquipmentWindow {
             CLOSE_ON_TEX,
             CLOSE_OFF_TEX,
             Some('x'),
-            [1.0, 0.3, 0.3, 1.0],
-            text_color,
         );
         if close_resp.clicked() {
             self.open = false;
@@ -332,26 +328,7 @@ impl InGameWindow for EquipmentWindow {
                 texture: TextureRef::Named(EQUIP_BG_TEX.to_string()),
             });
         } else {
-            let (v, idx) =
-                draw::quad_vertices(win.x, content_y, win_w, content_h, [0.12, 0.12, 0.18, 0.95]);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: idx.to_vec(),
-                texture: TextureRef::White,
-            });
-            let bc = [0.4, 0.4, 0.5, 1.0];
-            for (bx, by, bw, bh) in [
-                (win.x, content_y, 1.0, content_h),
-                (win.x + win_w - 1.0, content_y, 1.0, content_h),
-                (win.x, content_y + content_h - 1.0, win_w, 1.0),
-            ] {
-                let (v, idx) = draw::quad_vertices(bx, by, bw, bh, bc);
-                ui.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(),
-                    indices: idx.to_vec(),
-                    texture: TextureRef::White,
-                });
-            }
+            crate::helper::fallback::window_body(ui, win.x, content_y, win_w, content_h);
         }
 
         let slot_h = content_h / SLOT_ROWS as f32;

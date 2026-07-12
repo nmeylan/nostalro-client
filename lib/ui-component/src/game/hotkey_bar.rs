@@ -334,28 +334,24 @@ impl InGameWindow for HotkeyBarWindow {
                 });
             }
         } else {
-            let bg_color = [0.15, 0.12, 0.10, 0.9];
-            let (v, idx) = draw::quad_vertices(win.x, win.y, WIN_W, win_h, bg_color);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: idx.to_vec(),
-                texture: TextureRef::White,
-            });
+            crate::helper::fallback::panel(ui, win.x, win.y, WIN_W, win_h);
         }
 
-        let border_color = [0.3, 0.25, 0.2, 1.0];
-        for &(bx, by, bw, bh) in &[
-            (win.x, win.y, WIN_W, 1.0),
-            (win.x, win.y + win_h - 1.0, WIN_W, 1.0),
-            (win.x, win.y, 1.0, win_h),
-            (win.x + WIN_W - 1.0, win.y, 1.0, win_h),
-        ] {
-            let (v, idx) = draw::quad_vertices(bx, by, bw, bh, border_color);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: idx.to_vec(),
-                texture: TextureRef::White,
-            });
+        if has_grf {
+            let border_color = [0.3, 0.25, 0.2, 1.0];
+            for &(bx, by, bw, bh) in &[
+                (win.x, win.y, WIN_W, 1.0),
+                (win.x, win.y + win_h - 1.0, WIN_W, 1.0),
+                (win.x, win.y, 1.0, win_h),
+                (win.x + WIN_W - 1.0, win.y, 1.0, win_h),
+            ] {
+                let (v, idx) = draw::quad_vertices(bx, by, bw, bh, border_color);
+                ui.draw_calls.push(DrawCall {
+                    vertices: v.to_vec(),
+                    indices: idx.to_vec(),
+                    texture: TextureRef::White,
+                });
+            }
         }
 
         let close_size = if has_grf {
@@ -379,8 +375,6 @@ impl InGameWindow for HotkeyBarWindow {
             CLOSE_ON_TEX,
             CLOSE_OFF_TEX,
             Some('x'),
-            [1.0, 0.3, 0.3, 1.0],
-            text_color(false),
         );
         if close_resp.clicked() {
             character.hotkeys.set_visible_rows(0);

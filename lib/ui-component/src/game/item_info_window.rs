@@ -596,27 +596,7 @@ impl InGameWindow for ItemInfoWindow {
                 let (_v, _i) =
                     draw::quad_vertices(win.x, win.y, illust_w, total_h, [1.0, 1.0, 1.0, 1.0]);
             } else {
-                let (v, i) =
-                    draw::quad_vertices(win.x, win.y, illust_w, total_h, [0.15, 0.15, 0.20, 0.95]);
-                ui.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(),
-                    indices: i.to_vec(),
-                    texture: TextureRef::White,
-                });
-                let bc = [0.5, 0.5, 0.6, 1.0];
-                for (bx, by, bw, bh) in [
-                    (win.x, win.y, illust_w, 1.0),
-                    (win.x, win.y + total_h - 1.0, illust_w, 1.0),
-                    (win.x, win.y, 1.0, total_h),
-                    (win.x + illust_w - 1.0, win.y, 1.0, total_h),
-                ] {
-                    let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-                    ui.draw_calls.push(DrawCall {
-                        vertices: v.to_vec(),
-                        indices: i.to_vec(),
-                        texture: TextureRef::White,
-                    });
-                }
+                crate::helper::fallback::window_body(ui, win.x, win.y + TITLE_H_ILLUS, illust_w, illust_h);
             }
 
             let close_rect = Rect::new(
@@ -638,8 +618,6 @@ impl InGameWindow for ItemInfoWindow {
                 CLOSE_ON_TEX,
                 CLOSE_OFF_TEX,
                 Some('x'),
-                [1.0, 0.3, 0.3, 1.0],
-                [1.0, 1.0, 1.0, 1.0],
             );
 
             if close_resp.clicked() {
@@ -774,8 +752,6 @@ fn build_info_window(
         CLOSE_ON_TEX,
         CLOSE_OFF_TEX,
         Some('x'),
-        [1.0, 0.3, 0.3, 1.0],
-        [1.0, 1.0, 1.0, 1.0],
     );
     let closed = close_resp.clicked() || (escape_closes && ui.ctx.key_escape);
     if closed {

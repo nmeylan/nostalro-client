@@ -11,12 +11,6 @@ I wanted to be able to run the game as it was in 2005~2008, but original client 
 
 Other implementations are not focusing on this version of the client or do not aim for an exact match
 
-# Will this project ever be complete?
-Unlike for [rust-ro](https://github.com/nmeylan/rust-ro), i think i will be able to complete it one day, i identified two big challenges:
-- effects implementation
-- AI support
-
-effects implementation was (very) painful and took months to complete, but is now done
 
 # Principles
 - Support any game resources until EP 12 (included)
@@ -25,6 +19,15 @@ effects implementation was (very) painful and took months to complete, but is no
 - Do not alter original game resources: render actual resources with high dpi support
 - Runnable on windows and linux
 - We use a "mini framework" for the UI, in immediate mode, inspired by `egui`
+
+# Divergence from original client
+
+## AI
+Instead of using lua file from player directory to implement AI, I made the decision to implement and highly configured AI in the client directly, inspired by the famous: https://github.com/SpenceKonde/AzzyAI
+
+Reason are:
+- I don't want to add LUA support, as sources are available there is no need to allow an external system in order to customize the client: change can happen directly in the rust code, a plugin system will be added later
+- Based on my experience many lua script for homunculus where buggy and suboptimal, newbie player had to use the default AI scripts which where bad, while experienced player had advanced script for their homunculus
 
 # Run
 Place a single game resource file at `data/data.grf`

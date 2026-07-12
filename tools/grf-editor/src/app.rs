@@ -92,6 +92,7 @@ pub struct GrfEditorApp {
     confirm_delete: Option<usize>,
     sound: SoundManager,
     volume: f32,
+    autoplayed: Option<String>,
 }
 
 impl Default for GrfEditorApp {
@@ -103,6 +104,7 @@ impl Default for GrfEditorApp {
             confirm_delete: None,
             sound: SoundManager::new(0.0, DEFAULT_VOLUME),
             volume: DEFAULT_VOLUME,
+            autoplayed: None,
         }
     }
 }
@@ -545,6 +547,16 @@ impl GrfEditorApp {
         }
 
         let name = grf.file_list[file_idx].name.clone();
+
+        if self.autoplayed.as_deref() != Some(name.as_str()) {
+            self.autoplayed = Some(name.clone());
+            if preview::is_audio_previewable(&name) {
+                self.sound.stop_all_sfx();
+                let archive = &grf.archive;
+                self.sound
+                    .play_sfx(&name, 1.0, || archive.read_file(&name).ok());
+            }
+        }
 
         if preview::is_audio_previewable(&name) {
             let file = &grf.file_list[file_idx];

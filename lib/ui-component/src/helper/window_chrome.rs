@@ -20,23 +20,12 @@ pub fn draw_sys_button(
     on_tex: &str,
     off_tex: &str,
     fallback_char: Option<char>,
-    hover_color: [f32; 4],
-    normal_color: [f32; 4],
 ) {
     if has_grf {
         let tex = if hovered { on_tex } else { off_tex };
         draw_textured_quad(ui, rect.x, rect.y, size.0, size.1, tex);
     } else {
-        let c = if hovered { hover_color } else { normal_color };
-        let (v, i) = draw::quad_vertices(rect.x, rect.y, size.0, size.1, c);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
-        if let Some(ch) = fallback_char {
-            ui.text(rect.x + 2.0, rect.y + size.1 - 1.0, &ch.to_string(), c);
-        }
+        crate::helper::fallback::sys_button(ui, rect.x, rect.y, size.0, hovered, fallback_char);
     }
 }
 
@@ -113,34 +102,12 @@ pub fn draw_gauge(
             texture: TextureRef::Named(right.to_string()),
         });
     } else {
-        let (v, i) = draw::quad_vertices(x, y, w, h, [0.05, 0.05, 0.07, 1.0]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
-        if pct > 0.0 {
-            let fill = if is_red {
-                [0.85, 0.2, 0.2, 1.0]
-            } else {
-                [0.25, 0.45, 0.9, 1.0]
-            };
-            let (v, i) = draw::quad_vertices(x, y, w * pct, h, fill);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-        }
+        crate::helper::fallback::gauge(ui, x, y, w, h, pct, is_red);
     }
 }
 
-pub fn text_color(has_grf: bool) -> [f32; 4] {
-    if has_grf {
-        [0.0, 0.0, 0.0, 1.0]
-    } else {
-        [1.0, 1.0, 1.0, 1.0]
-    }
+pub fn text_color(_has_grf: bool) -> [f32; 4] {
+    ragnarok_ui::theme::FallbackPalette::TEXT_ON_LIGHT
 }
 
 pub fn draw_titlebar(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bool) {
@@ -168,21 +135,7 @@ pub fn draw_titlebar(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: 
             texture: TextureRef::Named(tex.to_string()),
         });
     } else {
-        let (v, i) = draw::quad_vertices(x, y, w, h, [0.20, 0.20, 0.30, 0.95]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
-        let bc = [0.5, 0.5, 0.6, 1.0];
-        for (bx, by, bw, bh) in [(x, y, w, 1.0), (x, y, 1.0, h), (x + w - 1.0, y, 1.0, h)] {
-            let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-        }
+        crate::helper::fallback::titlebar(ui, x, y, w, h);
     }
 }
 
@@ -201,21 +154,7 @@ pub fn draw_container(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf:
             texture: TextureRef::White,
         });
     } else {
-        let (v, i) = draw::quad_vertices(x, y, w, h, [0.12, 0.12, 0.18, 0.95]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
-        let bc = [0.4, 0.4, 0.5, 1.0];
-        for (bx, by, bw, bh) in [(x, y, 1.0, h), (x + w - 1.0, y, 1.0, h)] {
-            let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-        }
+        crate::helper::fallback::container(ui, x, y, w, h);
     }
 }
 
@@ -228,24 +167,6 @@ pub fn draw_footer(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bo
             texture: TextureRef::Named(FOOTER_TEX.to_string()),
         });
     } else {
-        let (v, i) = draw::quad_vertices(x, y, w, h, [0.18, 0.18, 0.25, 0.95]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
-        let bc = [0.5, 0.5, 0.6, 1.0];
-        for (bx, by, bw, bh) in [
-            (x, y + h - 1.0, w, 1.0),
-            (x, y, 1.0, h),
-            (x + w - 1.0, y, 1.0, h),
-        ] {
-            let (v, i) = draw::quad_vertices(bx, by, bw, bh, bc);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-        }
+        crate::helper::fallback::footer(ui, x, y, w, h);
     }
 }

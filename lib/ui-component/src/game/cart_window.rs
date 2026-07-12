@@ -140,8 +140,6 @@ impl InGameWindow for CartWindow {
             MINI_ON_TEX,
             MINI_OFF_TEX,
             Some('_'),
-            [0.8, 0.8, 0.2, 1.0],
-            text_color,
         );
         if mini_resp.clicked() {
             self.minimized = !self.minimized;
@@ -166,8 +164,6 @@ impl InGameWindow for CartWindow {
             CLOSE_ON_TEX,
             CLOSE_OFF_TEX,
             Some('x'),
-            [1.0, 0.3, 0.3, 1.0],
-            text_color,
         );
         if close_resp.clicked() {
             character.cart.close();
@@ -221,18 +217,7 @@ impl InGameWindow for CartWindow {
                         texture: TextureRef::Named(ITEMWIN_MID_TEX.to_string()),
                     });
                 } else {
-                    let (v, idx) = draw::quad_vertices(
-                        cx + pad,
-                        cy + pad,
-                        icon,
-                        icon,
-                        [0.08, 0.08, 0.12, 0.8],
-                    );
-                    ui.draw_calls.push(DrawCall {
-                        vertices: v.to_vec(),
-                        indices: idx.to_vec(),
-                        texture: TextureRef::White,
-                    });
+                    crate::helper::fallback::slot_cell(ui, cx + pad, cy + pad, icon, icon);
                 }
 
                 if item_idx >= items.len() {

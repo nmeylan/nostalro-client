@@ -114,8 +114,6 @@ impl MercenaryWindow {
             CLOSE_ON_TEX,
             CLOSE_OFF_TEX,
             Some('x'),
-            [0.9, 0.4, 0.4, 1.0],
-            [0.6, 0.3, 0.3, 1.0],
         );
 
         draw_container(ui, x, y + TITLE_H, WIN_W, PANEL_H, grf);
@@ -137,7 +135,7 @@ impl MercenaryWindow {
         let cell_bg = if grf {
             [0.83, 0.83, 0.86, 1.0]
         } else {
-            [0.16, 0.16, 0.22, 1.0]
+            [0.95, 0.95, 0.96, 1.0]
         };
         for (label, value) in stats {
             let (v, i) = draw::quad_vertices(cell_x, ly, cell_w, CELL_H - 2.0, cell_bg);

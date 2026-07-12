@@ -246,18 +246,7 @@ impl VendingSetupWindow {
                     texture: TextureRef::Named(ITEMWIN_MID_TEX.to_string()),
                 });
             } else {
-                let (v, i) = draw::quad_vertices(
-                    cx + CELL_PAD,
-                    cy + CELL_PAD,
-                    CELL_ICON,
-                    CELL_ICON,
-                    [0.08, 0.08, 0.12, 0.8],
-                );
-                ui.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(),
-                    indices: i.to_vec(),
-                    texture: TextureRef::White,
-                });
+                crate::helper::fallback::slot_cell(ui, cx + CELL_PAD, cy + CELL_PAD, CELL_ICON, CELL_ICON);
             }
 
             let item_idx = start + slot;
@@ -456,18 +445,7 @@ impl InGameWindow for VendingSetupWindow {
                     texture: TextureRef::Named(ITEMWIN_MID_TEX.to_string()),
                 });
             } else {
-                let (v, i) = draw::quad_vertices(
-                    cell_rect.x,
-                    cell_rect.y,
-                    ICON_SIZE,
-                    ICON_SIZE,
-                    [0.08, 0.08, 0.12, 0.8],
-                );
-                ui.draw_calls.push(DrawCall {
-                    vertices: v.to_vec(),
-                    indices: i.to_vec(),
-                    texture: TextureRef::White,
-                });
+                crate::helper::fallback::slot_cell(ui, cell_rect.x, cell_rect.y, ICON_SIZE, ICON_SIZE);
             }
 
             let handle = ui.interact(WidgetId(ROW_DRAG_BASE_ID + vis as u32), cell_rect);

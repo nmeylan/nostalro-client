@@ -3093,6 +3093,7 @@ name = "ragnarok-ui-component-hot"
 version = "0.1.0"
 dependencies = [
  "models",
+ "ragnarok-ai",
  "ragnarok-game",
  "ragnarok-ui",
  "ragnarok-ui-component",

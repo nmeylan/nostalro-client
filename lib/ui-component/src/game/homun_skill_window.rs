@@ -129,8 +129,6 @@ impl HomunSkillWindow {
             CLOSE_ON_TEX,
             CLOSE_OFF_TEX,
             Some('x'),
-            [0.9, 0.4, 0.4, 1.0],
-            [0.6, 0.3, 0.3, 1.0],
         );
 
         let list_h = ROW_H * VISIBLE_ROWS as f32;
