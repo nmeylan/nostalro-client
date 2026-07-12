@@ -17,6 +17,12 @@ const TANK_HIT_INTERVAL_MS: u32 = 1500;
 const HFLI_MOON: u16 = 8009;
 const HVAN_CAPRICE: u16 = 8013;
 
+/// A cast we emitted and are watching for success (SP consumed / visible cast
+/// motion) or failure (no sign after the timeout).
+const SKILL_FAIL_TIMEOUT_MS: u32 = 1500;
+/// Reference `SkillRetryLimit[-1]` for attack skills, per engagement.
+const ATTACK_SKILL_RETRY_LIMIT: u8 = 2;
+
 /// The offensive auto-attack skill for a 1st-gen homunculus type, matching the
 /// reference `GetAtkSkill`: Vanilmirth casts Caprice, Filir casts Moonlight;
 /// Lif and Amistr have none (they melee). Homunculus-S are excluded (their
@@ -146,6 +152,14 @@ pub struct CompanionAi {
     skill_count_enemy: u32,
     auto_skill_ready_ms: u32,
     skill_cooldown: Option<(u16, u32)>,
+    pending_cast: Option<PendingCast>,
+    skill_retries: u8,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PendingCast {
+    sp_before: u32,
+    at_ms: u32,
 }
 
 impl CompanionAi {
@@ -174,6 +188,8 @@ impl CompanionAi {
             skill_count_enemy: 0,
             auto_skill_ready_ms: 0,
             skill_cooldown: None,
+            pending_cast: None,
+            skill_retries: 0,
         }
     }
 
@@ -247,6 +263,8 @@ impl CompanionAi {
                 self.process_command(cmd, ctx, out);
             }
         }
+
+        self.watch_pending_cast(ctx);
 
         match self.state {
             AiState::Idle => self.on_idle(ctx, out),
@@ -547,6 +565,7 @@ impl CompanionAi {
         }
         if self.enemy != self.skill_count_enemy {
             self.my_skill_used_count = 0;
+            self.skill_retries = 0;
             self.skill_count_enemy = self.enemy;
         }
         if self.skill != 0 {
@@ -572,8 +591,34 @@ impl CompanionAi {
                 .wrapping_add(ctx.params.auto_skill_delay.max(0) as u32);
             self.skill_cooldown =
                 Some((skill_id, self.clock_ms.wrapping_add(reuse_delay_ms(skill_id, level))));
+            self.pending_cast = Some(PendingCast {
+                sp_before: ctx.my_sp,
+                at_ms: self.clock_ms,
+            });
         } else {
             self.emit_attack(ctx, out);
+        }
+    }
+
+    /// Watches an emitted auto-cast: SP consumed (or visible cast motion) means
+    /// success; no sign within the timeout means the cast was bounced (busy /
+    /// interrupted), so re-arm to retry — bounded by the per-engagement limit.
+    fn watch_pending_cast(&mut self, ctx: &AiContext) {
+        let Some(p) = self.pending_cast else {
+            return;
+        };
+        if ctx.my_sp < p.sp_before || matches!(ctx.my_motion, Motion::Cast | Motion::Skill) {
+            self.pending_cast = None;
+            self.skill_retries = 0;
+            return;
+        }
+        if self.clock_ms.wrapping_sub(p.at_ms) > SKILL_FAIL_TIMEOUT_MS {
+            self.pending_cast = None;
+            if self.skill_retries < ATTACK_SKILL_RETRY_LIMIT {
+                self.skill_retries += 1;
+                self.skill_cooldown = None;
+                self.auto_skill_ready_ms = self.clock_ms;
+            }
         }
     }
 
@@ -1032,6 +1077,31 @@ mod tests {
             }
         }
         assert!(melee_seen);
+    }
+
+    #[test]
+    fn failed_cast_retries_before_cooldown_but_stays_bounded() {
+        let noskill = |_: u16| 1;
+        let fx = Fixture::new().with_skill(HFLI_MOON, 5, 20, 1);
+        let mut ai = CompanionAi::new(false);
+
+        let actors = [monster(500, 1002, 101, 100, None)];
+        let mut c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        c.companion_type = 3;
+        c.my_sp = 100; // never drops → every cast looks failed
+
+        let mut casts = 0;
+        for _ in 0..30 {
+            let out = one_step(&mut ai, &c);
+            casts += out
+                .iter()
+                .filter(|i| matches!(i, AiIntent::SkillObject { .. }))
+                .count();
+        }
+        // A failed cast is retried (more than the single initial cast) but the
+        // per-engagement retry cap keeps it far below one-per-tick spam.
+        assert!(casts >= 2, "expected a retry, got {casts}");
+        assert!(casts <= 5, "retries not bounded, got {casts}");
     }
 
     #[test]
