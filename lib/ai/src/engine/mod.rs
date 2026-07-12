@@ -27,6 +27,10 @@ const HFLI_FLEET: u16 = 8010;
 const HFLI_SPEED: u16 = 8011;
 const HVAN_CAPRICE: u16 = 8013;
 const HVAN_CHAOTIC: u16 = 8014;
+const MS_PARRYING: u16 = 8204;
+const MS_REFLECTSHIELD: u16 = 8205;
+const ML_AUTOGUARD: u16 = 8220;
+const MER_QUICKEN: u16 = 8223;
 
 /// Homunculus type (`companion_type % 4`): 1=Lif, 2=Amistr, 3=Filir, 0=Vanilmirth.
 fn homun_type(companion_type: u16) -> Option<u16> {
@@ -69,6 +73,14 @@ fn healing_skill(companion_type: u16) -> Option<u16> {
 /// Buff duration (ms) by level from the reference skill table; re-cast is due
 /// when it elapses.
 fn buff_duration_ms(skill_id: u16, level: u8) -> u32 {
+    let lvl = level.max(1) as u32;
+    match skill_id {
+        // Mercenary buffs scale with level (rathena skill DB).
+        MER_QUICKEN => return lvl * 30_000,
+        MS_PARRYING => return 10_000 + lvl * 5_000,
+        ML_AUTOGUARD | MS_REFLECTSHIELD => return 300_000,
+        _ => {}
+    }
     let table: &[u32] = match skill_id {
         HLIF_CHANGE | HAMI_BLOODLUST => &[360_000, 780_000, 1_200_000],
         HFLI_FLEET | HFLI_SPEED => &[60_000, 70_000, 80_000, 90_000, 120_000],
@@ -105,6 +117,14 @@ fn main_attack_skill(companion_type: u16) -> Option<u16> {
 /// (`AtkSkillList`): Double Strafe, Sharp Shooting, Pierce, Spiral Pierce, Bash.
 /// The first one the mercenary has actually learned is used.
 const MERC_ATTACK_SKILLS: &[u16] = &[8207, 8215, 8216, 8218, 8201];
+
+/// Mercenary offensive self-buff (reference `GetQuickenSkill` merc branch):
+/// Mercenary Quicken.
+const MERC_OFFENSIVE_BUFFS: &[u16] = &[8223];
+
+/// Mercenary defensive self-buffs in the reference `GuardSkillList` priority:
+/// Auto Guard, Parrying, Reflect Shield. First learned is used.
+const MERC_DEFENSIVE_BUFFS: &[u16] = &[8220, 8204, 8205];
 
 /// Per-skill reuse cooldown (ms) from the reference skill table; server enforces
 /// the same, so tracking it avoids spamming casts the server would bounce.
@@ -954,7 +974,7 @@ impl CompanionAi {
     fn do_auto_buffs(&mut self, ctx: &AiContext, mode: i32, out: &mut Vec<AiIntent>) -> bool {
         if ctx.params.use_offensive_buff == mode
             && self.clock_ms >= self.offensive_buff_ms
-            && let Some((id, lvl)) = self.buff_ready(ctx, offensive_buff_skill(ctx.companion_type))
+            && let Some((id, lvl)) = self.buff_ready(ctx, self.offensive_buff_id(ctx))
         {
             out.push(AiIntent::SkillObject { skill_id: id, level: lvl, target_gid: ctx.my_gid });
             self.offensive_buff_ms = self.next_buff_ms(id, lvl, ctx);
@@ -963,7 +983,7 @@ impl CompanionAi {
         }
         if ctx.params.use_defensive_buff == mode
             && self.clock_ms >= self.defensive_buff_ms
-            && let Some((id, lvl)) = self.buff_ready(ctx, defensive_buff_skill(ctx.companion_type))
+            && let Some((id, lvl)) = self.buff_ready(ctx, self.defensive_buff_id(ctx))
         {
             out.push(AiIntent::SkillObject { skill_id: id, level: lvl, target_gid: ctx.my_gid });
             self.defensive_buff_ms = self.next_buff_ms(id, lvl, ctx);
@@ -973,7 +993,33 @@ impl CompanionAi {
         false
     }
 
-    /// A buff skill the homunculus has learned and can currently afford.
+    /// The offensive self-buff skill for this companion: a fixed skill per
+    /// homunculus type, or the first learned mercenary Quicken.
+    fn offensive_buff_id(&self, ctx: &AiContext) -> Option<u16> {
+        if self.is_mercenary {
+            self.first_learned(ctx, MERC_OFFENSIVE_BUFFS)
+        } else {
+            offensive_buff_skill(ctx.companion_type)
+        }
+    }
+
+    /// The defensive self-buff skill: a fixed skill per homunculus type, or the
+    /// first learned mercenary guard skill in priority order.
+    fn defensive_buff_id(&self, ctx: &AiContext) -> Option<u16> {
+        if self.is_mercenary {
+            self.first_learned(ctx, MERC_DEFENSIVE_BUFFS)
+        } else {
+            defensive_buff_skill(ctx.companion_type)
+        }
+    }
+
+    fn first_learned(&self, ctx: &AiContext, ids: &[u16]) -> Option<u16> {
+        ids.iter()
+            .copied()
+            .find(|id| ctx.skills.iter().any(|s| s.id == *id && s.level > 0))
+    }
+
+    /// A buff skill the companion has learned and can currently afford.
     fn buff_ready(&self, ctx: &AiContext, skill: Option<u16>) -> Option<(u16, u8)> {
         let skill_id = skill?;
         let known = ctx.skills.iter().find(|s| s.id == skill_id && s.level > 0)?;
@@ -1490,6 +1536,27 @@ mod tests {
         // per-engagement retry cap keeps it far below one-per-tick spam.
         assert!(casts >= 2, "expected a retry, got {casts}");
         assert!(casts <= 5, "retries not bounded, got {casts}");
+    }
+
+    #[test]
+    fn mercenary_self_buffs_when_idle() {
+        let noskill = |_: u16| 0;
+        // Mercenary that has learned Quicken (8223).
+        let fx = Fixture::new().with_skill(8223, 5, 20, 0);
+        let mut ai = CompanionAi::new(true);
+        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &[], &noskill);
+
+        let mut buffed = false;
+        for _ in 0..12 {
+            let out = one_step(&mut ai, &c);
+            for it in &out {
+                if let AiIntent::SkillObject { skill_id: 8223, target_gid, .. } = it {
+                    assert_eq!(*target_gid, ME);
+                    buffed = true;
+                }
+            }
+        }
+        assert!(buffed, "mercenary did not cast its self-buff");
     }
 
     #[test]
