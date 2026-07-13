@@ -116,8 +116,9 @@ pub fn draw_gauge(
 }
 
 pub fn text_color(_has_grf: bool) -> [f32; 4] {
-    ragnarok_ui::theme::FallbackPalette::TEXT_ON_LIGHT
+    [0.0, 0.0, 0.0, 1.0]
 }
+
 
 /// Dark navy blue used for field labels (Name/HP/SP/stat names) in info windows.
 pub fn label_color(has_grf: bool) -> [f32; 4] {

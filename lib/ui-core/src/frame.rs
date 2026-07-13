@@ -437,6 +437,18 @@ impl<'a> UiFrame<'a> {
         self.state.get_or_default::<WindowState>(id).dragging = false;
     }
 
+    /// Place a window at (x, y) the first time it is seen. Once the window has
+    /// been positioned (here, from a saved layout, or dragged by the user) this
+    /// is a no-op, so it never fights a drag.
+    pub fn seed_window_position(&mut self, id: WidgetId, x: f32, y: f32) {
+        let state = self.state.get_or_default::<WindowState>(id);
+        if !state.initialized {
+            state.x = x;
+            state.y = y;
+            state.initialized = true;
+        }
+    }
+
     pub fn interact(&mut self, id: WidgetId, rect: Rect) -> Response {
         let in_rect = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y);
         let hovered = in_rect && !self.is_current_window_occluded();
@@ -628,6 +640,13 @@ impl<'a> UiFrame<'a> {
             .map(ragnarok_renderer::font_atlas::bold_char)
             .collect();
         self.text(x, y, &bold, color);
+    }
+
+    pub fn text_with_shadow(&mut self, x: f32, y: f32, content: &str, color: [f32; 4], shadow: Option<[f32; 4]>) {
+        if let Some(shadow) = shadow {
+            self.text(x + 1.0, y, content, shadow);
+        }
+        self.text(x, y, &content, color);
     }
 
     pub fn text_centered(&mut self, x: f32, y: f32, width: f32, content: &str, color: [f32; 4]) {
@@ -975,6 +994,44 @@ mod tests {
         let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (350.0, 270.0));
+    }
+
+    #[test]
+    fn seed_window_position_places_once_and_survives_drag() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let id = WidgetId(999);
+        let positions = HashMap::new();
+
+        // Seeded position overrides the window's own default.
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.seed_window_position(id, 40.0, 60.0);
+        let rect = ui.window_at(id, 200.0, 100.0, 25.0, 0.0, 0.0);
+        assert_eq!((rect.x, rect.y), (40.0, 60.0));
+
+        // Drag it elsewhere.
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 50.0;
+        ctx.mouse_y = 70.0;
+        ctx.mouse_clicked = true;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.window_at(id, 200.0, 100.0, 25.0, 0.0, 0.0);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 120.0;
+        ctx.mouse_y = 140.0;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let rect = ui.window_at(id, 200.0, 100.0, 25.0, 0.0, 0.0);
+        assert_eq!((rect.x, rect.y), (110.0, 130.0));
+
+        // A later seed must not yank it back.
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.seed_window_position(id, 40.0, 60.0);
+        let rect = ui.window_at(id, 200.0, 100.0, 25.0, 0.0, 0.0);
+        assert_eq!((rect.x, rect.y), (110.0, 130.0));
     }
 
     #[test]

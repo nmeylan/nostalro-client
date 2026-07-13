@@ -377,6 +377,10 @@ impl Entity {
         };
     }
 
+    pub fn is_move_locked(&self) -> bool {
+        self.state == EntityState::Hurt
+    }
+
     pub fn enter_hurt(&mut self, duration_secs: f32) {
         if matches!(
             self.state,
@@ -957,15 +961,20 @@ mod tests {
         e.movement.start_move(path, 0.0);
         assert!(e.movement.is_moving());
 
+        assert!(!e.is_move_locked());
+
         e.enter_hurt(0.5);
         assert_eq!(e.state, EntityState::Hurt);
         assert!(!e.movement.is_moving());
+        assert!(e.is_move_locked());
 
         e.update_state(0.3);
         assert_eq!(e.state, EntityState::Hurt);
+        assert!(e.is_move_locked());
 
         e.update_state(0.3);
         assert_eq!(e.state, EntityState::Standing);
+        assert!(!e.is_move_locked());
     }
 
     #[test]

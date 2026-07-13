@@ -9,6 +9,7 @@ use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
+use crate::helper::colors;
 
 pub const HOMUN_WINDOW_ID: WidgetId = WidgetId(2900);
 const CLOSE_BTN_ID: WidgetId = WidgetId(2901);
@@ -40,7 +41,7 @@ const FEED_BTN: ButtonTextures = ButtonTextures {
     pressed: "data/texture/유저인터페이스/btn_feed_b.bmp",
 };
 
-const WIN_W: f32 = 248.0;
+const WIN_W: f32 = 288.0;
 const TITLE_H: f32 = 17.0;
 const WIN_H: f32 = 224.0;
 const PANEL_H: f32 = WIN_H - TITLE_H;
@@ -156,19 +157,20 @@ impl HomunWindow {
             let by = ly + BASELINE + 2.0;
             ui.text_bold(cell_x + 4.0, by, label, lc);
             ui.text_right(cell_x + cell_w - 4.0, by, &value.to_string(), tc);
-            draw_hline(ui, cell_x, ly + CELL_H - 2.0, cell_w);
+            draw_hline(ui, cell_x, ly + CELL_H - 6.0, cell_w);
             ly += CELL_H;
         }
 
         // Right panel.
-        let rx = x + LEFT_W + PAD;
+        let rx = x + LEFT_W + PAD + 10.0;
         let right_edge = x + WIN_W - PAD;
         let bar_w = right_edge - rx;
         let mut ry = y + TITLE_H + 4.0;
 
         if homun.renamed {
-            ui.text_bold(rx, ry + BASELINE, "Name", lc);
-            ui.text_bold(rx + 34.0, ry + BASELINE, &homun.name, lc);
+            ui.text(rx, ry + BASELINE, "Name", tc);
+            let (color, shadow) = colors::GREEN_WITH_SHADOW;
+            ui.text_with_shadow(rx + 34.0, ry + BASELINE, &homun.name, color, shadow);
             ry += 20.0;
         } else {
             let input_w = bar_w - 44.0;
@@ -216,7 +218,7 @@ impl HomunWindow {
 
         // EXP row: label + value, Feed button on the right, gauge below.
         let (fw, fh) = self.feed_size;
-        ui.text(rx, ry + BASELINE, "EXP", lc);
+        ui.text(rx, ry + BASELINE, "EXP", tc);
         ui.text(rx + 30.0, ry + BASELINE, &homun.exp.max(0).to_string(), tc);
         let feed_rect = Rect::new(right_edge - fw, ry, fw, fh);
         if ui.button(FEED_BTN_ID, feed_rect, &FEED_BTN, "Feed").clicked() {
@@ -231,7 +233,7 @@ impl HomunWindow {
         ry += fh.max(BAR_H + 14.0) + 3.0;
 
         // Hunger row + Self Feeding checkbox.
-        ui.text_bold(rx, ry + BASELINE, "Hunger", lc);
+        ui.text(rx, ry + BASELINE, "Hunger", tc);
         ui.text(rx + 46.0, ry + BASELINE, &format!("{} / 100", homun.hunger), tc);
         let cb_size = 12.0;
         let cb_x = right_edge - 56.0;
@@ -263,7 +265,7 @@ impl HomunWindow {
         draw_exp_bar(ui, rx, ry + 14.0, cb_x - rx - 6.0, EXP_BAR_H, hunger_ratio, grf);
         ry += BAR_H + 16.0;
 
-        ui.text_bold(rx, ry + BASELINE, "Intimacy", lc);
+        ui.text(rx, ry + BASELINE, "Intimacy", tc);
         ui.text(rx + 52.0, ry + BASELINE, intimacy_label(homun.intimacy), tc);
         ry += 16.0;
 
@@ -373,7 +375,7 @@ pub(crate) fn bar(
         0.0
     };
     let is_red = matches!(kind, GaugeKind::Hp) && ratio < 0.25;
-    ui.text_bold(x, y + BAR_H - 2.0, label, label_c);
+    ui.text(x, y + BAR_H - 2.0, label, tc);
     let bx = x + HPSP_LABEL_W;
     let bw = w - HPSP_LABEL_W;
     draw_gauge(ui, bx, y, bw, BAR_H, cap_w, ratio, is_red, has_grf);

@@ -128,7 +128,9 @@ impl App {
         py: u16,
         range: i32,
     ) -> bool {
-        if self.is_local_player_incapacitated() {
+        if self.is_local_player_incapacitated()
+            || self.game.entities.player().is_some_and(|p| p.is_move_locked())
+        {
             return false;
         }
         let gat = match &self.game.gat {

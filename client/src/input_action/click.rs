@@ -254,6 +254,9 @@ impl App {
         {
             return;
         }
+        if self.game.entities.player().is_some_and(|e| e.is_move_locked()) {
+            return;
+        }
         let (dest_x, dest_y) = match self.hovered_cell() {
             Some(c) => c,
             None => return,

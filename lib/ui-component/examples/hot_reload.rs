@@ -248,7 +248,10 @@ fn main() {
 
     let texture_paths = grf_texture_paths(&example_name);
     let example_name_for_closure = example_name.clone();
-    let is_category = matches!(example_name.as_str(), "game" | "account" | "companion");
+    let is_category = matches!(
+        example_name.as_str(),
+        "game" | "account" | "shop" | "companion"
+    );
     let (win_w, win_h) = if is_category { (1280, 900) } else { (800, 600) };
 
     shared::UiExampleApp::new("Hot Reload", win_w, win_h, move |ctx| {

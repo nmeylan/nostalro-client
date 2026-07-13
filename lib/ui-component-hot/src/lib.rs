@@ -25,18 +25,18 @@ use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::LoginWindow;
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
-use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
+use ragnarok_ui_component::game::basic_info_window::{BASIC_INFO_WINDOW_ID, BasicInfoWindow};
 use ragnarok_ui_component::game::card_insert_dialog::{CardInsertDialog, EligibleItem};
 use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
 use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
 use ragnarok_ui_component::game::chat_room_window::{ChatRoomPlacement, ChatRoomWindow};
-use ragnarok_ui_component::game::chat_window::ChatWindow;
+use ragnarok_ui_component::game::chat_window::{CHAT_WINDOW_ID, ChatWindow};
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
-use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
+use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
 use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
-use ragnarok_ui_component::game::inventory_window::InventoryWindow;
+use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
 use ragnarok_ui_component::game::book_window::{BOOK_WINDOW_ID, BookWindow};
-use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
+use ragnarok_ui_component::game::item_info_window::{ITEM_INFO_WINDOW_ID, ItemInfoWindow};
 use ragnarok_ui_component::game::my_shop_window::{MY_SHOP_WINDOW_ID, MyShopWindow};
 use ragnarok_ui_component::game::vending_board;
 use ragnarok_ui_component::helper::dialog_container::DialogContainer;
@@ -60,7 +60,7 @@ use ragnarok_ui_component::game::mercenary_skill_window::{
 use ragnarok_game::companion::{HomunculusState, MercenaryState};
 use ragnarok_game::event::SkillInfo;
 use ragnarok_game::skill::SkillTargetType;
-use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
+use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
 use ragnarok_ui_component::game::status_window::{STATUS_WINDOW_ID, StatusWindow};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::{InGameWindow, Window};
@@ -1605,16 +1605,16 @@ pub unsafe extern "C" fn hot_grf_init(
 
 fn z_order_id(state: &State) -> Option<WidgetId> {
     match state {
-        State::Chat { .. } => Some(WidgetId(300)),
-        State::Inventory { .. } => Some(WidgetId(800)),
+        State::Chat { .. } => Some(CHAT_WINDOW_ID),
+        State::Inventory { .. } => Some(INV_WINDOW_ID),
         State::Cart { .. } => Some(CART_WINDOW_ID),
         State::CartSelect { .. } => Some(CART_SELECT_WINDOW_ID),
         State::VendingSetup { .. } => Some(VENDING_SETUP_WINDOW_ID),
         State::MyShop { .. } => Some(MY_SHOP_WINDOW_ID),
         State::VendingBuy { .. } => Some(VENDING_SHOP_WINDOW_ID),
         State::VendingBoard { .. } => None,
-        State::Equipment { .. } => Some(WidgetId(900)),
-        State::SkillTree { .. } => Some(WidgetId(1000)),
+        State::Equipment { .. } => Some(EQ_WINDOW_ID),
+        State::SkillTree { .. } => Some(SKILL_WINDOW_ID),
         State::Book { .. } => Some(BOOK_WINDOW_ID),
         State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
         State::PartyDemo { .. } => Some(PARTY_WINDOW_ID),
@@ -1623,6 +1623,48 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Homun { .. } => Some(HOMUN_WINDOW_ID),
         State::CompanionAiConfig { .. } => Some(COMPANION_AI_CONFIG_WINDOW_ID),
         _ => None,
+    }
+}
+
+/// Window id for a draggable, `window_at`-based component so the gallery can
+/// spread them into a grid. Returns `None` for fixed bars, full-screen account
+/// screens, and centered modal dialogs, which position themselves.
+fn gallery_window_id(state: &State) -> Option<WidgetId> {
+    match state {
+        State::Inventory { .. } => Some(INV_WINDOW_ID),
+        State::Equipment { .. } => Some(EQ_WINDOW_ID),
+        State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
+        State::BasicInfoDemo { .. } => Some(BASIC_INFO_WINDOW_ID),
+        State::SkillTree { .. } => Some(SKILL_WINDOW_ID),
+        State::PartyDemo { .. } => Some(PARTY_WINDOW_ID),
+        State::ItemInfo { .. } => Some(ITEM_INFO_WINDOW_ID),
+        State::Book { .. } => Some(BOOK_WINDOW_ID),
+        State::Cart { .. } => Some(CART_WINDOW_ID),
+        State::CartSelect { .. } => Some(CART_SELECT_WINDOW_ID),
+        State::VendingSetup { .. } => Some(VENDING_SETUP_WINDOW_ID),
+        State::MyShop { .. } => Some(MY_SHOP_WINDOW_ID),
+        State::VendingBuy { .. } => Some(VENDING_SHOP_WINDOW_ID),
+        State::Mercenary { .. } => Some(MERCENARY_WINDOW_ID),
+        State::MercenarySkill { .. } => Some(MERCENARY_SKILL_WINDOW_ID),
+        State::Homun { .. } => Some(HOMUN_WINDOW_ID),
+        State::CompanionAiConfig { .. } => Some(COMPANION_AI_CONFIG_WINDOW_ID),
+        _ => None,
+    }
+}
+
+fn seed_gallery_layout(components: &[State], ui: &mut UiFrame) {
+    const COLS: usize = 3;
+    const STEP_X: f32 = 420.0;
+    const STEP_Y: f32 = 290.0;
+    const MARGIN: f32 = 8.0;
+    let mut slot = 0;
+    for comp in components {
+        if let Some(id) = gallery_window_id(comp) {
+            let x = (slot % COLS) as f32 * STEP_X + MARGIN;
+            let y = (slot / COLS) as f32 * STEP_Y + MARGIN;
+            ui.seed_window_position(id, x, y);
+            slot += 1;
+        }
     }
 }
 
@@ -1881,6 +1923,7 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             build_fallback_gallery(ui, name_field);
         }
         State::Category { components } => {
+            seed_gallery_layout(components, ui);
             // Build z-orderable windows in persisted order (back-to-front)
             let z_order = ui.get_z_order();
             ui.compute_hovered_window(&z_order);

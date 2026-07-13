@@ -136,7 +136,7 @@ impl MercenaryWindow {
             let by = ly + BASELINE + 2.0;
             ui.text_bold(cell_x + 4.0, by, label, lc);
             ui.text_right(cell_x + cell_w - 4.0, by, &value.to_string(), tc);
-            draw_hline(ui, cell_x, ly + CELL_H - 2.0, cell_w);
+            draw_hline(ui, cell_x, ly + CELL_H - 6.0, cell_w);
             ly += CELL_H;
         }
 
@@ -145,7 +145,7 @@ impl MercenaryWindow {
         let right_edge = x + WIN_W - PAD;
         let mut ry = y + TITLE_H + 4.0;
 
-        ui.text_bold(rx, ry + BASELINE, "Name", lc);
+        ui.text(rx, ry + BASELINE, "Name", tc);
         ui.text_bold(rx + 34.0, ry + BASELINE, &merc.name, lc);
         ry += 20.0;
 
