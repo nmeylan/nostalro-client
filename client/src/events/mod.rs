@@ -564,6 +564,9 @@ impl App {
                 GameEvent::ParameterChanged { var_id, value } => {
                     self.handle_parameter_changed(var_id, value);
                 }
+                GameEvent::Recovery { var_id, amount } => {
+                    self.handle_recovery(var_id, amount);
+                }
                 GameEvent::ExpGained {
                     aid,
                     amount,
@@ -595,13 +598,20 @@ impl App {
                     y,
                     skill_name,
                 } => {
-                    let display_name = self.game.data_table.skill_name.as_ref().map(|table| {
-                        table.get_display_name_or_internal(&skill_name.unwrap_or_default())
-                    });
-                    self.game.entities.apply_skill_casting(
-                        gid, target_gid, skill_id, delay_ms, x, y, display_name,
-                    );
-                    self.spawn_skill_begin_cast(skill_id, gid, property, delay_ms);
+                    if Self::is_kn_autocounter(skill_id)
+                        && self.game.entities.player_id() == Some(gid)
+                    {
+                        self.start_autocounter_channel(gid);
+                    } else {
+                        let display_name =
+                            self.game.data_table.skill_name.as_ref().map(|table| {
+                                table.get_display_name_or_internal(&skill_name.unwrap_or_default())
+                            });
+                        self.game.entities.apply_skill_casting(
+                            gid, target_gid, skill_id, delay_ms, x, y, display_name,
+                        );
+                        self.spawn_skill_begin_cast(skill_id, gid, property, delay_ms);
+                    }
                 }
                 GameEvent::SkillListReceived { skills } => {
                     self.handle_skill_list_received(skills);
@@ -655,12 +665,18 @@ impl App {
                     target_gid,
                     level,
                 } => {
-                    self.game.entities.apply_skill_no_damage(
-                        skill_id,
-                        src_gid,
-                        target_gid,
-                    );
-                    self.spawn_skill_no_damage_effects(skill_id, src_gid, target_gid, level);
+                    if Self::is_kn_autocounter(skill_id)
+                        && self.game.entities.player_id() == Some(src_gid)
+                    {
+                        self.start_autocounter_channel(src_gid);
+                    } else {
+                        self.game.entities.apply_skill_no_damage(
+                            skill_id,
+                            src_gid,
+                            target_gid,
+                        );
+                        self.spawn_skill_no_damage_effects(skill_id, src_gid, target_gid, level);
+                    }
                 }
                 GameEvent::GroundSkill {
                     skill_id,
@@ -710,6 +726,7 @@ impl App {
                     self.handle_skill_unit_updated(aid);
                 }
                 GameEvent::SkillCastCancel { gid } => {
+                    self.fire_autocounter_on_cancel(gid);
                     self.game.entities.apply_skill_cast_cancel(gid);
                 }
                 GameEvent::SkillFailed { skill_id, cause } => {

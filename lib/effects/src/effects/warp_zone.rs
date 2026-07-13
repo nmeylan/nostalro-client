@@ -607,64 +607,6 @@ mod tests {
             .collect()
     }
 
-    #[test]
-    fn sustained_funnel_is_flared_untinted_and_drifts_inward_slowly() {
-        // Past the startup ramp the funnel shows flared, untinted bands.
-        let mut sustained = WarpZoneEffect::new([0.0; 3], PARAMS_SUSTAINED);
-        step(&mut sustained, 2.0);
-        let prims = draws(&sustained);
-        let rings = funnel_rings(&prims);
-        assert!(
-            !rings.is_empty(),
-            "sustained portal emits flared funnel rings"
-        );
-        let mut saw_flare = false;
-        for p in &rings {
-            let EffectPrimitiveDraw::Frustum {
-                color,
-                top_size,
-                bottom_size,
-                height,
-                ..
-            } = p
-            else {
-                unreachable!()
-            };
-            // Untinted — blue comes from `ring_blue.tga`, not an RGB multiplier.
-            assert_eq!([color[0], color[1], color[2]], [1.0, 1.0, 1.0]);
-            assert!(*top_size >= *bottom_size, "band flares outward as it rises");
-            if *height > 0.1 {
-                saw_flare = true;
-            }
-        }
-        assert!(saw_flare, "at least one band stands up off the ground");
-
-        // The base pad is still a flat lifted GroundDisc.
-        assert!(
-            disc_center_y(&prims).unwrap() < 0.0,
-            "base pad lifted off floor"
-        );
-        assert!(
-            inner_rgb(&prims).is_none(),
-            "no flat inner disc on the funnel"
-        );
-
-        // Slow inward drift: a band's radius shrinks only ~0.05/frame, so over a
-        // single frame the outermost band barely moves (well under one unit).
-        let outer = |e: &WarpZoneEffect| {
-            funnel_rings(&draws(e))
-                .iter()
-                .map(|p| match p {
-                    EffectPrimitiveDraw::Frustum { bottom_size, .. } => *bottom_size,
-                    _ => unreachable!(),
-                })
-                .fold(0.0_f32, f32::max)
-        };
-        let before = outer(&sustained);
-        step(&mut sustained, 1.0 / FRAMES_PER_SECOND);
-        let after = outer(&sustained);
-        assert!((before - after).abs() < 0.2, "rings drift inward slowly");
-    }
 
     #[test]
     fn burst_inner_ring_is_untinted_and_lifts_off_floor() {

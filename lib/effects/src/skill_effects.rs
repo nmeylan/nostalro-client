@@ -491,8 +491,10 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::CrReflectshield => C::cast(&[E::Reflectshield]),
         S::CrDefender => C::cast(&[E::Defender]),
         S::CrShrink => C::cast(&[E::Shrink]),
+        S::CrAutoguard => C::cast(&[E::Guard]),
         S::PaSacrifice => C::cast(&[E::Bash3d]),
         S::LkSpiralpierce => C::cast(&[]),
+        S::LkParrying => C::cast(&[E::Guard]),
         S::LkHeadcrush => C::cast(&[E::Bash3d3]),
         S::LkJointbeat => C::cast(&[E::Bash3d4]),
         S::LkAurablade => C::cast(&[E::Aurablade, E::Aurablade2]),
@@ -993,11 +995,10 @@ mod tests {
     }
 
     #[test]
-    fn auto_guard_and_parrying_launch_no_world_effect() {
+    fn auto_guard_and_parrying_launch_guard_effect() {
         use SkillEnum as S;
-        // The original sends only the block stance for these — no cast/target aura.
-        for skill in [S::CrAutoguard, S::LkParrying, S::MsParrying] {
-            assert!(caster_skill_effects(skill).cast.is_empty(), "{skill:?}");
+        for skill in [S::CrAutoguard, S::MlAutoguard, S::LkParrying, S::MsParrying] {
+            assert_eq!(caster_skill_effects(skill).cast, &[EffectId::Guard], "{skill:?}");
             assert!(target_skill_effects(skill).on_target.is_empty(), "{skill:?}");
         }
     }

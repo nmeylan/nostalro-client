@@ -10,12 +10,16 @@ use ragnarok_game::effect::{
     is_trail_effect, target_skill_effects, trail_arrival_secs,
 };
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
+use ragnarok_game::entity::EntityState;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::sound::tables::{
     SkillSoundPos, skill_cast_begin_sound, skill_projectile_sound, skill_use_sound,
 };
 use ragnarok_game::skill_action::{SkillMotionType, skill_motion_type};
+use ragnarok_network::build_change_direction_packet;
+
+const AUTOCOUNTER_SECS_PER_LEVEL: f32 = 0.4;
 
 /// AL_HEAL's green heal sparkle size by healed amount, matching the original
 /// game's thresholds (the tiniest and largest heals share the biggest sparkle).
@@ -551,6 +555,63 @@ impl App {
                 None => self.sound_queue.ui(wav),
             },
         }
+    }
+
+    pub(crate) fn is_kn_autocounter(skill_id: u16) -> bool {
+        skill_id == SkillEnum::KnAutocounter.id() as u16
+    }
+
+    pub(crate) fn player_in_autocounter(&self) -> bool {
+        self.game.entities.player().is_some_and(|e| {
+            e.state == EntityState::Casting
+                && e.active_skill_id.is_some_and(Self::is_kn_autocounter)
+        })
+    }
+
+    pub(crate) fn start_autocounter_channel(&mut self, gid: u32) {
+        let skill_id = SkillEnum::KnAutocounter.id() as u16;
+        let level = self
+            .game
+            .character
+            .skills
+            .get_skill(skill_id)
+            .map(|s| s.level.max(1))
+            .unwrap_or(1);
+        let duration = level as f32 * AUTOCOUNTER_SECS_PER_LEVEL;
+        let is_player = self.game.entities.player_id() == Some(gid);
+        let face = if is_player {
+            self.game.last_attacked_enemy.or(self.game.attack_target_id.take())
+        } else {
+            None
+        };
+        self.game
+            .entities
+            .apply_autocounter_channel(gid, face, skill_id, duration);
+        if is_player
+            && face.is_some()
+            && let Some(dir) = self.game.entities.player().map(|e| e.direction)
+        {
+            self.channel
+                .send_packet(build_change_direction_packet(0, dir, self.config.packetver));
+        }
+    }
+
+    pub(crate) fn dispel_autocounter(&mut self) {
+        if self.player_in_autocounter()
+            && let Some(gid) = self.game.entities.player_id()
+        {
+            self.game.entities.apply_skill_cast_cancel(gid);
+        }
+    }
+
+    pub(crate) fn fire_autocounter_on_cancel(&mut self, cancel_gid: u32) {
+        let Some(player_gid) = self.game.entities.player_id() else {
+            return;
+        };
+        if !self.player_in_autocounter() || (cancel_gid != 0 && cancel_gid != player_gid) {
+            return;
+        }
+        self.effect_queue.spawn_on(EffectId::Autocounter, player_gid);
     }
 
     pub(super) fn spawn_ground_skill_effects(&mut self, skill_id: u16, level: i16, x: i16, y: i16) {

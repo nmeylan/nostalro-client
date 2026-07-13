@@ -448,6 +448,12 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if let Some(p) = any.downcast_ref::<PacketZcResurrection>() {
         return vec![GameEvent::EntityResurrected { gid: p.aid }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcRecovery>() {
+        return vec![GameEvent::Recovery {
+            var_id: p.var_id as u16,
+            amount: p.amount as i32,
+        }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcSound>() {
         let name: String = p.file_name.iter().take_while(|c| **c != '\0').collect();
         return vec![GameEvent::SoundEffect {
@@ -2454,6 +2460,21 @@ mod tests {
         match &dispatch_packet(&mvp, packetver)[0] {
             GameEvent::MvpReward { gid } => assert_eq!(*gid, 150001),
             other => panic!("expected MvpReward, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_recovery_returns_recovery_event() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcRecovery::new(packetver);
+        pkt.set_var_id(5);
+        pkt.set_amount(42);
+        match &dispatch_packet(&pkt, packetver)[0] {
+            GameEvent::Recovery { var_id, amount } => {
+                assert_eq!(*var_id, 5);
+                assert_eq!(*amount, 42);
+            }
+            other => panic!("expected Recovery, got {other:?}"),
         }
     }
 

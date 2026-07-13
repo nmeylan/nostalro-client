@@ -150,6 +150,26 @@ impl EntityCollection {
         }
     }
 
+    pub fn apply_autocounter_channel(
+        &mut self,
+        gid: u32,
+        face_gid: Option<u32>,
+        skill_id: u16,
+        duration_secs: f32,
+    ) {
+        let face_pos =
+            face_gid.and_then(|g| self.entities.get(&g).map(|e| e.movement.cell_position()));
+        if let Some(entity) = self.entities.get_mut(&gid) {
+            if let Some((tx, ty)) = face_pos {
+                let (sx, sy) = entity.movement.cell_position();
+                if let Some(dir) = direction_from_positions(sx, sy, tx, ty) {
+                    entity.direction = dir;
+                }
+            }
+            entity.enter_casting(duration_secs, skill_id);
+        }
+    }
+
     pub fn apply_skill_no_damage(
         &mut self,
         skill_id: u16,
@@ -316,6 +336,46 @@ mod tests {
 
         col.apply_skill_cast_cancel(0);
         assert_eq!(col.player().unwrap().state, EntityState::Standing);
+    }
+
+    fn make_entity_at(id: u32, x: u16, y: u16) -> Entity {
+        Entity::new(
+            id,
+            EntityType::Player,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            x,
+            y,
+            0,
+            150,
+        )
+    }
+
+    #[test]
+    fn autocounter_channel_freezes_caster_facing_the_enemy() {
+        let mut col = EntityCollection::new();
+        col.set_player_id(100);
+        col.insert(make_entity_at(100, 10, 10));
+        col.insert(make_entity_at(200, 10, 15));
+
+        col.apply_autocounter_channel(100, Some(200), 61, 1.5);
+
+        let e = col.get(100).unwrap();
+        assert_eq!(e.state, EntityState::Casting);
+        assert_eq!(e.state_timer, 1.5);
+        assert_eq!(e.cast_total_duration, 1.5);
+        assert_eq!(e.active_skill_id, Some(61));
+        assert_eq!(
+            e.direction,
+            direction_from_positions(10, 10, 10, 15).unwrap()
+        );
     }
 
     #[test]

@@ -55,7 +55,7 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
         E::Heartcasting => &[fixed_at0!("effect\\EF_BeginSpell.wav")],
         E::Soulbreaker => &[at!(Fixed("effect\\기공포.wav"), &[20])],
         E::Pressure => &[at!(Fixed("effect\\프레셔.wav"), &[3])],
-        E::Bash3d => &[at!(Fixed("effect\\bash3d.wav"), &[22])],
+        E::Bash3d => &[at!(Fixed("effect\\세크리파이스.wav"), &[22])],
         E::Chemicalprotection => &[fixed_at0!("apocalips_attack.wav")],
         E::Levelup => &[fixed_at0!("levelup.wav")],
         E::Joblevelup => &[fixed_at0!("joblevelup.wav")],
@@ -331,6 +331,8 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
         E::Grandcross => &[fixed_at0!("effect\\cru_grand cross.wav")],
         E::Heal => &[fixed_at0!("_heal_effect.wav")],
         E::Heal2 => &[fixed_at0!("_heal_effect.wav")],
+        E::Heal3 => &[fixed_at0!("_heal_effect.wav")],
+        E::Heal4 => &[fixed_at0!("_heal_effect.wav")],
         E::Guard => &[fixed_at0!("effect\\kyrie_guard.wav")],
         E::Guard2 => &[fixed_at0!("effect\\black_maximize_power_sword_bic.wav")],
         E::Halfsphere => &[fixed_at0!("effect\\kyrie_guard.wav")],
@@ -423,6 +425,7 @@ pub fn skill_use_sound(skill: SkillEnum) -> Option<(&'static str, SkillSoundPos)
         S::GsGlittering => ("effect\\플립.wav", NonPositional),
         S::PaGospel => ("effect\\가스펠.wav", NonPositional),
         S::HpBasilica => ("effect\\바실리카.wav", NonPositional),
+        S::CrAutoguard | S::MlAutoguard | S::LkParrying | S::MsParrying =>  ("effect\\kyrie_guard.wav", NonPositional),
         _ => return None,
     })
 }
@@ -586,6 +589,14 @@ mod tests {
     #[test]
     fn effect_sound_lookup() {
         assert!(effect_sound(EffectId::Stormgust).is_some());
+        for heal in [
+            EffectId::Heal,
+            EffectId::Heal2,
+            EffectId::Heal3,
+            EffectId::Heal4,
+        ] {
+            assert!(effect_sound(heal).is_some());
+        }
         assert!(effect_sound(EffectId::Firewall).is_none()); // handled elsewhere
         assert!(effect_sound(EffectId::Mgdef1).is_none()); // PortalWindEffect self-emits windwalk
     }

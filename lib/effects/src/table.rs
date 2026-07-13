@@ -1624,7 +1624,7 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Overthrust => 2500,
         EffectId::Splasher => 99990,
         EffectId::Twohandquicken => 99990,
-        EffectId::Autocounter => 99990,
+        EffectId::Autocounter => 1000,
         EffectId::Grimtoothatk => 2500,
         EffectId::Freeze => 99990,
         EffectId::Freezed => 99990,

@@ -82,6 +82,7 @@ impl DamageNumber {
         }
     }
 
+
     pub fn is_expired(&self) -> bool {
         self.elapsed >= self.number_type.duration()
     }

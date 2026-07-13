@@ -225,6 +225,10 @@ pub enum GameEvent {
         var_id: u16,
         value: i32,
     },
+    Recovery {
+        var_id: u16,
+        amount: i32,
+    },
     ExpGained {
         aid: u32,
         amount: i32,

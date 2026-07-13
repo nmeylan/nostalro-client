@@ -112,7 +112,8 @@ impl App {
         }
     }
 
-    pub(crate) fn send_attack_packet(&self, target_id: u32) {
+    pub(crate) fn send_attack_packet(&mut self, target_id: u32) {
+        self.game.last_attacked_enemy = Some(target_id);
         self.channel.send_packet(build_action_request_packet(
             target_id,
             7,
@@ -128,6 +129,10 @@ impl App {
         py: u16,
         range: i32,
     ) -> bool {
+        if self.player_in_autocounter() {
+            self.dispel_autocounter();
+            return false;
+        }
         if self.is_local_player_incapacitated()
             || self.game.entities.player().is_some_and(|p| p.is_move_locked())
         {

@@ -164,6 +164,7 @@ pub struct GameState {
     /// open since the server sends ZC_STORE_ENTRY to everyone but us.
     pub pending_shop_name: Option<String>,
     pub attack_target_id: Option<u32>,
+    pub last_attacked_enemy: Option<u32>,
     pub attack_request_cooldown: f32,
     pub noshift_mode: bool,
     pub noctrl_mode: bool,
@@ -764,6 +765,7 @@ impl GameState {
             pending_pickup_item_id: None,
             pending_shop_name: None,
             attack_target_id: None,
+            last_attacked_enemy: None,
             attack_request_cooldown: 0.0,
             noshift_mode: false,
             noctrl_mode: true,

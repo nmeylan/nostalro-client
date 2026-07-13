@@ -20,6 +20,10 @@ impl App {
         if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
             return;
         }
+        if self.player_in_autocounter() {
+            self.dispel_autocounter();
+            return;
+        }
         if let Some(entity) = self.game.entities.player()
             && matches!(entity.state, EntityState::Casting | EntityState::SkillExec)
         {
