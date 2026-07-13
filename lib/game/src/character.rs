@@ -137,7 +137,12 @@ impl Character {
         }
     }
 
-    /// `life_ms == 0` means permanent (no expiry). Re-applying an existing status updates timing in place.
+    /// Sentinel the server sends for infinite-duration statuses: any tick `<= 0` is
+    /// rewritten to this before transmission, so the icon must show no countdown.
+    pub const PERMANENT_STATUS_TICK: u64 = 9999;
+
+    /// `life_ms == 0` or [`PERMANENT_STATUS_TICK`] means permanent (no expiry).
+    /// Re-applying an existing status updates timing in place.
     pub fn apply_status(
         &mut self,
         efst: i16,
@@ -146,7 +151,7 @@ impl Character {
         life_ms: u64,
         icon_loaded: bool,
     ) {
-        let end_ms = if life_ms == 0 {
+        let end_ms = if life_ms == 0 || life_ms == Self::PERMANENT_STATUS_TICK {
             None
         } else {
             Some(now_ms + life_ms)
@@ -530,5 +535,14 @@ mod tests {
         assert_eq!(char.active_statuses.len(), 1);
         char.prune_expired(65_000);
         assert!(char.active_statuses.is_empty());
+    }
+
+    #[test]
+    fn permanent_tick_sentinel_never_expires() {
+        let mut char = Character::new();
+        char.apply_status(35, 0, 1_000, Character::PERMANENT_STATUS_TICK, true);
+        assert_eq!(char.active_statuses[0].end_ms, None);
+        char.prune_expired(u64::MAX);
+        assert_eq!(char.active_statuses.len(), 1);
     }
 }

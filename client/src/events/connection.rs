@@ -211,6 +211,12 @@ impl App {
         self.game.entities.set_player_id(account_id);
         self.game.entities.insert(entity);
 
+        for &(bit, efst) in ragnarok_game::sprite_path::OPTION_STATUS_ICONS {
+            if effect_state & bit != 0 {
+                self.set_status_icon(efst, true, 0, 0);
+            }
+        }
+
         let sprite_job = ragnarok_game::sprite_path::visual_job(job, effect_state);
         let weapon_type = weapon_view_id_to_type(weapon);
         self.load_player_sprite(

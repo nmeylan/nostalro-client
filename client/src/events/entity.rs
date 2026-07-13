@@ -9,9 +9,9 @@ use models::enums::weapon::WeaponType;
 use ragnarok_game::ailment;
 use ragnarok_game::arrow::{ArrowProjectile, flight_secs_for_cell_distance};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
-use ragnarok_game::effect::buff_effect;
 use ragnarok_game::effect::{
-    UNT_USED_TRAPS, skill_unit_effect, trap_model_name, trap_trigger_effect,
+    StatusKind, UNT_USED_TRAPS, skill_unit_effect, status_reaction, trap_model_name,
+    trap_trigger_effect,
 };
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::level_aura;
@@ -21,8 +21,8 @@ use ragnarok_game::sound::tables::{
     StatusSoundKind, job_hit_sound, skill_hit_sound, status_sound, weapon_hit_sound,
 };
 use ragnarok_game::sprite_path::{
-    JT_WARPNPC, OPTION_RIDING, OPTION_RUWACH, OPTION_SIGHT, cart_design_from_option,
-    entity_type_from_job, has_falcon, is_hidden, visual_job,
+    JT_WARPNPC, OPTION_RIDING, OPTION_RUWACH, OPTION_SIGHT, OPTION_STATUS_ICONS,
+    cart_design_from_option, entity_type_from_job, has_falcon, is_hidden, visual_job,
 };
 use ragnarok_game::status_icon::status_icon_info;
 
@@ -442,6 +442,12 @@ impl App {
             .get(gid)
             .map(|e| e.body_state)
             .unwrap_or(0);
+        let old_effect_state = self
+            .game
+            .entities
+            .get(gid)
+            .map(|e| e.effect_state)
+            .unwrap_or(0);
         if let Some(entity) = self.game.entities.get_mut(gid) {
             entity.body_state = body_state;
             entity.health_state = health_state;
@@ -570,6 +576,15 @@ impl App {
                 self.despawn_falcon_visual(gid);
             }
         }
+        if is_player {
+            for &(bit, efst) in OPTION_STATUS_ICONS {
+                let was = old_effect_state & bit != 0;
+                let now = effect_state & bit != 0;
+                if was != now {
+                    self.set_status_icon(efst, now, 0, 0);
+                }
+            }
+        }
         self.refresh_level_aura(gid);
         self.refresh_boss_aura(gid);
         self.refresh_detect_aura(gid);
@@ -624,72 +639,65 @@ impl App {
         let Ok(icon) = ClientEffectIcon::try_from_value(efst as usize) else {
             return;
         };
-        if icon == ClientEffectIcon::OnPushCart {
+
+        if let Some(entity) = self.game.entities.get_mut(gid) {
+            entity.react_to_status(icon, active);
+        }
+
+        if self.game.entities.player_id() == Some(gid) {
+            self.set_status_icon(efst, active, val1, remain_ms as u64);
+        }
+
+        let Some(reaction) = status_reaction(icon) else {
+            return;
+        };
+
+        if reaction.kind == StatusKind::PushCart {
             self.handle_push_cart_status(gid, active, val1);
             return;
         }
-        if icon == ClientEffectIcon::Run {
-            let stopped = self
-                .game
-                .entities
-                .get_mut(gid)
-                .map(|e| {
-                    let was_running = e.is_running;
-                    e.is_running = active;
-                    e.footstep_timer = 0.0;
-                    was_running && !active
-                })
-                .unwrap_or(false);
-            if stopped {
-                self.effect_queue.spawn_on(EffectId::Stopeffect, gid);
-            }
-            return;
-        }
-        if icon == ClientEffectIcon::Ting {
-            if active && let Some(e) = self.game.entities.get_mut(gid) {
-                e.is_running = false;
-                e.footstep_timer = 0.0;
-                self.effect_queue.spawn_on(EffectId::Quakebody, gid);
-            }
-            return;
-        }
-        if icon == ClientEffectIcon::Mindbreaker && active {
-            self.effect_queue.spawn_on(EffectId::Magiccrasher2, gid);
-        }
-        if self.game.entities.player_id() == Some(gid) {
-            if let Some(info) = status_icon_info(efst) {
-                if !active {
-                    self.game.character.clear_status(efst);
-                } else {
-                    let path = format!("data/texture/effect/{}", info.icon);
-                    let loaded = match (self.renderer.as_mut(), self.grf.as_ref()) {
-                        (Some(r), Some(g)) => r.preload_textures(&[path.as_str()], g),
-                        _ => false,
-                    };
-                    let now_ms = self.start_time.elapsed().as_millis() as u64;
-                    self.game
-                        .character
-                        .apply_status(efst, val1, now_ms, remain_ms as u64, loaded);
-                }
-            }
-        }
-        let Some(buff) = buff_effect(icon) else {
-            return;
-        };
+
         let map_key = (gid, efst);
         if let Some(old_key) = self.game.status_buff_keys.remove(&map_key) {
             self.effect_queue.despawn(old_key);
         }
+        if active && !reaction.aura.is_empty() {
+            let key = self.next_entity_effect_key();
+            for &id in reaction.aura {
+                self.effect_queue.spawn_on_keyed_for(id, gid, key, remain_ms);
+            }
+            self.game.status_buff_keys.insert(map_key, key);
+        }
+
+        let bursts = if active {
+            reaction.on_activate
+        } else {
+            reaction.on_deactivate
+        };
+        for &id in bursts {
+            self.effect_queue.spawn_on(id, gid);
+        }
+    }
+
+    /// Load a status-bar icon's texture and add (or clear) it on the local player's HUD.
+    /// `life_ms` of 0 renders no countdown wedge.
+    pub(super) fn set_status_icon(&mut self, efst: i16, active: bool, val1: i32, life_ms: u64) {
+        let Some(info) = status_icon_info(efst) else {
+            return;
+        };
         if !active {
+            self.game.character.clear_status(efst);
             return;
         }
-        let key = 0x8000_0000 | self.game.next_status_buff_key;
-        self.game.next_status_buff_key = (self.game.next_status_buff_key + 1) & 0x7fff_ffff;
-        for &id in buff.body {
-            self.effect_queue
-                .spawn_on_keyed_for(id, gid, key, remain_ms);
-        }
-        self.game.status_buff_keys.insert(map_key, key);
+        let path = format!("data/texture/effect/{}", info.icon);
+        let loaded = match (self.renderer.as_mut(), self.grf.as_ref()) {
+            (Some(r), Some(g)) => r.preload_textures(&[path.as_str()], g),
+            _ => false,
+        };
+        let now_ms = self.start_time.elapsed().as_millis() as u64;
+        self.game
+            .character
+            .apply_status(efst, val1, now_ms, life_ms, loaded);
     }
 
     fn handle_push_cart_status(&mut self, gid: u32, active: bool, val1: i32) {

@@ -39,7 +39,7 @@ pub use skill_units::{
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBodyRecolor, SprBurstParams};
 pub use spr_aliases::{SprDef, spr_def};
 pub use spr_burst::spr_burst_params;
-pub use status_buff::{BuffEffect, buff_effect};
+pub use status_buff::{StatusKind, StatusReaction, status_reaction};
 pub use str_aliases::str_aliases;
 pub use table::{effect_spec, spawn_camera_shake};
 

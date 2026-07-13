@@ -1,12 +1,11 @@
 use crate::Window;
 use crate::game::homun_window::{GaugeKind, bar};
 use crate::helper::window_chrome::{
-    GZE_BLUE_LEFT, TITLEBAR_TEX, draw_container, draw_sys_button, draw_titlebar,
-    gauge_texture_paths, text_color,
+    GZE_BLUE_LEFT, TITLEBAR_TEX, draw_container, draw_hline, draw_sys_button, draw_titlebar,
+    gauge_texture_paths, label_color, text_color,
 };
 use ragnarok_game::companion::MercenaryState;
 use ragnarok_game::event::GameEvent;
-use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
@@ -87,6 +86,7 @@ impl MercenaryWindow {
         let grf = self.has_grf_textures;
         let mut events = Vec::new();
         let tc = text_color(grf);
+        let lc = label_color(grf);
 
         let win = ui.window_at(MERCENARY_WINDOW_ID, WIN_W, WIN_H, TITLE_H, 240.0, 140.0);
         let x = win.x;
@@ -132,21 +132,11 @@ impl MercenaryWindow {
         let cell_x = x + PAD;
         let cell_w = LEFT_W - PAD;
         let mut ly = y + TITLE_H + 2.0;
-        let cell_bg = if grf {
-            [0.83, 0.83, 0.86, 1.0]
-        } else {
-            [0.95, 0.95, 0.96, 1.0]
-        };
         for (label, value) in stats {
-            let (v, i) = draw::quad_vertices(cell_x, ly, cell_w, CELL_H - 2.0, cell_bg);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
             let by = ly + BASELINE + 2.0;
-            ui.text(cell_x + 4.0, by, label, tc);
+            ui.text_bold(cell_x + 4.0, by, label, lc);
             ui.text_right(cell_x + cell_w - 4.0, by, &value.to_string(), tc);
+            draw_hline(ui, cell_x, ly + CELL_H - 2.0, cell_w);
             ly += CELL_H;
         }
 
@@ -155,8 +145,8 @@ impl MercenaryWindow {
         let right_edge = x + WIN_W - PAD;
         let mut ry = y + TITLE_H + 4.0;
 
-        ui.text(rx, ry + BASELINE, "Name", tc);
-        ui.text(rx + 34.0, ry + BASELINE, &merc.name, tc);
+        ui.text_bold(rx, ry + BASELINE, "Name", lc);
+        ui.text_bold(rx + 34.0, ry + BASELINE, &merc.name, lc);
         ry += 20.0;
 
         ui.text(rx, ry + BASELINE, &format!("lvl {}", merc.level), tc);
@@ -184,6 +174,7 @@ impl MercenaryWindow {
             GaugeKind::Hp,
             self.bar_cap_w,
             tc,
+            lc,
             grf,
         );
         ry = bar(
@@ -197,6 +188,7 @@ impl MercenaryWindow {
             GaugeKind::Sp,
             self.bar_cap_w,
             tc,
+            lc,
             grf,
         );
         ry += 6.0;

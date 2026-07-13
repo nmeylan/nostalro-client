@@ -2,6 +2,15 @@ use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::UiFrame;
 use ragnarok_ui::rect::Rect;
 
+fn push_quad(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) {
+    let (v, i) = draw::quad_vertices(x, y, w, h, color);
+    ui.draw_calls.push(DrawCall {
+        vertices: v.to_vec(),
+        indices: i.to_vec(),
+        texture: TextureRef::White,
+    });
+}
+
 pub fn draw_textured_quad(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, path: &str) {
     let (v, i) = draw::quad_vertices(x, y, w, h, [1.0; 4]);
     ui.draw_calls.push(DrawCall {
@@ -108,6 +117,34 @@ pub fn draw_gauge(
 
 pub fn text_color(_has_grf: bool) -> [f32; 4] {
     ragnarok_ui::theme::FallbackPalette::TEXT_ON_LIGHT
+}
+
+/// Dark navy blue used for field labels (Name/HP/SP/stat names) in info windows.
+pub fn label_color(has_grf: bool) -> [f32; 4] {
+    if has_grf {
+        [0.14, 0.20, 0.38, 1.0]
+    } else {
+        [0.45, 0.65, 1.0, 1.0]
+    }
+}
+
+pub fn draw_hline(ui: &mut UiFrame, x: f32, y: f32, w: f32) {
+    push_quad(ui, x, y, w, 1.0, [0.7, 0.7, 0.72, 1.0]);
+}
+
+/// Thin flat EXP-style bar (gray border, white fill area, blue fill) matching the
+/// character info window's exp gauge.
+pub fn draw_exp_bar(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, fill_pct: f32, has_grf: bool) {
+    if has_grf {
+        push_quad(ui, x, y, w + 2.0, h + 2.0, [0.69, 0.69, 0.69, 1.0]);
+        push_quad(ui, x + 1.0, y + 1.0, w, h, [1.0; 4]);
+    } else {
+        push_quad(ui, x, y, w + 2.0, h + 2.0, [0.3, 0.3, 0.35, 0.9]);
+    }
+    if fill_pct > 0.0 {
+        let fw = (w * fill_pct.clamp(0.0, 1.0)).floor();
+        push_quad(ui, x + 1.0, y + 1.0, fw, h, [0.26, 0.38, 0.65, 1.0]);
+    }
 }
 
 pub fn draw_titlebar(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, has_grf: bool) {

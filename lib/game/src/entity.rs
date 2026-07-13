@@ -1,5 +1,6 @@
 use models::enums::EnumWithNumberValue;
 use models::enums::class::JobName;
+use models::enums::client_effect_icon::ClientEffectIcon;
 use models::enums::item::ItemType;
 use models::enums::weapon::WeaponType;
 use ragnarok_formats::act::SpriteAnimationState;
@@ -497,6 +498,20 @@ impl Entity {
         }
     }
 
+    pub fn react_to_status(&mut self, icon: ClientEffectIcon, active: bool) {
+        match icon {
+            ClientEffectIcon::Run => {
+                self.is_running = active;
+                self.footstep_timer = 0.0;
+            }
+            ClientEffectIcon::Ting if active => {
+                self.is_running = false;
+                self.footstep_timer = 0.0;
+            }
+            _ => {}
+        }
+    }
+
     pub fn wear_location_to_sprite_type(wear_location: u16) -> Option<u8> {
         Self::wear_location_to_sprite_type_for(wear_location, None)
     }
@@ -792,6 +807,18 @@ mod tests {
         let e = make_entity();
         assert!(e.name.is_none());
         assert!(!e.name_requested);
+    }
+
+    #[test]
+    fn running_status_mirrors_active_and_ting_force_stops() {
+        let mut e = make_entity();
+        e.react_to_status(ClientEffectIcon::Run, true);
+        assert!(e.is_running);
+        e.react_to_status(ClientEffectIcon::Ting, true);
+        assert!(!e.is_running);
+        e.is_running = true;
+        e.react_to_status(ClientEffectIcon::Run, false);
+        assert!(!e.is_running);
     }
 
     #[test]

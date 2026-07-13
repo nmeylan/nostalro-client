@@ -622,6 +622,14 @@ impl<'a> UiFrame<'a> {
         }
     }
 
+    pub fn text_bold(&mut self, x: f32, y: f32, content: &str, color: [f32; 4]) {
+        let bold: String = content
+            .chars()
+            .map(ragnarok_renderer::font_atlas::bold_char)
+            .collect();
+        self.text(x, y, &bold, color);
+    }
+
     pub fn text_centered(&mut self, x: f32, y: f32, width: f32, content: &str, color: [f32; 4]) {
         let tw = self.atlas.measure_text(content);
         let cx = x + (width - tw) * 0.5;

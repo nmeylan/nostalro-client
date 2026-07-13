@@ -938,12 +938,12 @@ impl Renderer {
                 return;
             }
         }
-        self.set_font_atlas(FontAtlas::from_system_cjk(
+        self.set_font_atlas(FontAtlas::from_embedded_cjk(
             self.font_px_height,
             self.dpi_scale,
             &extra_chars,
         ));
-        tracing::info!("No GRF font found, using system CJK font for Korean text");
+        tracing::info!("No GRF font found, using embedded CJK font for Korean text");
     }
 
     fn set_font_atlas(&mut self, atlas: FontAtlas) {

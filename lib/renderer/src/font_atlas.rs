@@ -2,7 +2,23 @@ use ab_glyph::{Font, FontRef, ScaleFont};
 use std::collections::HashMap;
 
 const FALLBACK_FONT: &[u8] = include_bytes!("fonts/NotoSans-Regular.ttf");
-const CJK_FONT_PATH: &str = "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc";
+const BOLD_FONT: &[u8] = include_bytes!("fonts/NotoSans-Bold.ttf");
+const CJK_FONT: &[u8] = include_bytes!("fonts/NotoSansKR-Regular.otf");
+
+/// ASCII bold glyphs are packed into the same atlas at this Private-Use offset,
+/// so a single texture holds both weights. Map with [`bold_char`].
+const BOLD_PUA_BASE: u32 = 0xF000;
+
+/// Private-Use codepoint carrying the bold rendering of an ASCII char, or the
+/// char unchanged when it has no bold variant (e.g. Korean).
+pub fn bold_char(c: char) -> char {
+    let u = c as u32;
+    if (0x20..0x7f).contains(&u) {
+        char::from_u32(BOLD_PUA_BASE + u).unwrap()
+    } else {
+        c
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct GlyphInfo {
@@ -53,16 +69,8 @@ impl FontAtlas {
         Self::build(FALLBACK_FONT, px_height, dpi_scale)
     }
 
-    pub fn from_system_cjk(px_height: f32, dpi_scale: f32, extra_chars: &[char]) -> Self {
-        match std::fs::read(CJK_FONT_PATH) {
-            Ok(data) => Self::build_with_extra_chars(&data, px_height, dpi_scale, extra_chars),
-            Err(_) => {
-                tracing::warn!(
-                    "CJK font not found at {CJK_FONT_PATH}, Korean text will not render"
-                );
-                Self::build(FALLBACK_FONT, px_height, dpi_scale)
-            }
-        }
+    pub fn from_embedded_cjk(px_height: f32, dpi_scale: f32, extra_chars: &[char]) -> Self {
+        Self::build_with_extra_chars(CJK_FONT, px_height, dpi_scale, extra_chars)
     }
 
     pub fn build(font_data: &[u8], px_height: f32, dpi_scale: f32) -> Self {
@@ -103,6 +111,18 @@ impl FontAtlas {
             let outlined = font.outline_glyph(glyph);
             let advance = scaled.h_advance(glyph_id);
             glyph_renders.push((ch, glyph_id, outlined, advance));
+        }
+
+        let bold_font = FontRef::try_from_slice(BOLD_FONT).expect("invalid bold font data");
+        let bold_scaled = bold_font.as_scaled(physical_height);
+        for b in 32u8..127 {
+            let glyph_id = bold_font.glyph_id(b as char);
+            let glyph =
+                glyph_id.with_scale_and_position(physical_height, ab_glyph::point(0.0, 0.0));
+            let outlined = bold_font.outline_glyph(glyph);
+            let advance = bold_scaled.h_advance(glyph_id);
+            let pua = char::from_u32(BOLD_PUA_BASE + b as u32).unwrap();
+            glyph_renders.push((pua, glyph_id, outlined, advance));
         }
 
         let padding = 1;
@@ -272,5 +292,21 @@ mod tests {
         assert!(chars.len() > 2000);
         let a = FontAtlas::build_with_extra_chars(FALLBACK_FONT, 14.0, 1.0, &chars);
         assert!(a.glyphs.contains_key(&'가'));
+    }
+
+    #[test]
+    fn embedded_cjk_rasterizes_hangul() {
+        let a = FontAtlas::from_embedded_cjk(16.0, 1.0, &euc_kr_charset());
+        let g = a.glyph('가');
+        assert!(g.size[0] > 0.0 && g.size[1] > 0.0, "hangul glyph not rendered");
+    }
+
+    #[test]
+    fn bold_ascii_is_packed_and_heavier() {
+        let a = atlas();
+        let g = a.glyph(bold_char('A'));
+        assert!(g.advance > 0.0);
+        assert_ne!(bold_char('A'), 'A');
+        assert_eq!(bold_char('가'), '가');
     }
 }

@@ -1,7 +1,7 @@
 use crate::Window;
 use crate::helper::window_chrome::{
-    GZE_BLUE_LEFT, TITLEBAR_TEX, draw_container, draw_gauge, draw_sys_button, draw_titlebar,
-    gauge_texture_paths, text_color,
+    GZE_BLUE_LEFT, TITLEBAR_TEX, draw_container, draw_exp_bar, draw_gauge, draw_hline,
+    draw_sys_button, draw_titlebar, gauge_texture_paths, label_color, text_color,
 };
 use ragnarok_game::companion::HomunculusState;
 use ragnarok_game::event::GameEvent;
@@ -48,6 +48,7 @@ const LEFT_W: f32 = 88.0;
 const PAD: f32 = 6.0;
 const CELL_H: f32 = 21.0;
 const BAR_H: f32 = 11.0;
+const EXP_BAR_H: f32 = 4.0;
 const BASELINE: f32 = 10.0;
 
 const NOTE_COLOR: [f32; 4] = crate::helper::colors::RED;
@@ -105,11 +106,7 @@ impl HomunWindow {
         let grf = self.has_grf_textures;
         let mut events = Vec::new();
         let tc = text_color(grf);
-        let name_color = if grf {
-            [0.12, 0.28, 0.78, 1.0]
-        } else {
-            [0.45, 0.65, 1.0, 1.0]
-        };
+        let lc = label_color(grf);
 
         let win = ui.window_at(HOMUN_WINDOW_ID, WIN_W, WIN_H, TITLE_H, 200.0, 120.0);
         let x = win.x;
@@ -155,21 +152,11 @@ impl HomunWindow {
         let cell_x = x + PAD;
         let cell_w = LEFT_W - PAD;
         let mut ly = y + TITLE_H + 2.0;
-        let cell_bg = if grf {
-            [0.83, 0.83, 0.86, 1.0]
-        } else {
-            [0.95, 0.95, 0.96, 1.0]
-        };
         for (label, value) in stats {
-            let (v, i) = draw::quad_vertices(cell_x, ly, cell_w, CELL_H - 2.0, cell_bg);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
             let by = ly + BASELINE + 2.0;
-            ui.text(cell_x + 4.0, by, label, tc);
+            ui.text_bold(cell_x + 4.0, by, label, lc);
             ui.text_right(cell_x + cell_w - 4.0, by, &value.to_string(), tc);
+            draw_hline(ui, cell_x, ly + CELL_H - 2.0, cell_w);
             ly += CELL_H;
         }
 
@@ -180,8 +167,8 @@ impl HomunWindow {
         let mut ry = y + TITLE_H + 4.0;
 
         if homun.renamed {
-            ui.text(rx, ry + BASELINE, "Name", tc);
-            ui.text(rx + 34.0, ry + BASELINE, &homun.name, name_color);
+            ui.text_bold(rx, ry + BASELINE, "Name", lc);
+            ui.text_bold(rx + 34.0, ry + BASELINE, &homun.name, lc);
             ry += 20.0;
         } else {
             let input_w = bar_w - 44.0;
@@ -218,16 +205,18 @@ impl HomunWindow {
         ry += 24.0;
 
         ry = bar(
-            ui, rx, ry, bar_w, "HP", homun.hp, homun.max_hp, GaugeKind::Hp, self.bar_cap_w, tc, grf,
+            ui, rx, ry, bar_w, "HP", homun.hp, homun.max_hp, GaugeKind::Hp, self.bar_cap_w, tc, lc,
+            grf,
         );
         ry = bar(
-            ui, rx, ry, bar_w, "SP", homun.sp, homun.max_sp, GaugeKind::Sp, self.bar_cap_w, tc, grf,
+            ui, rx, ry, bar_w, "SP", homun.sp, homun.max_sp, GaugeKind::Sp, self.bar_cap_w, tc, lc,
+            grf,
         );
         ry += 3.0;
 
         // EXP row: label + value, Feed button on the right, gauge below.
         let (fw, fh) = self.feed_size;
-        ui.text(rx, ry + BASELINE, "EXP", tc);
+        ui.text(rx, ry + BASELINE, "EXP", lc);
         ui.text(rx + 30.0, ry + BASELINE, &homun.exp.max(0).to_string(), tc);
         let feed_rect = Rect::new(right_edge - fw, ry, fw, fh);
         if ui.button(FEED_BTN_ID, feed_rect, &FEED_BTN, "Feed").clicked() {
@@ -238,11 +227,11 @@ impl HomunWindow {
         } else {
             0.0
         };
-        draw_gauge(ui, rx, ry + 14.0, bar_w - fw - 6.0, BAR_H, self.bar_cap_w, exp_ratio, false, grf);
+        draw_exp_bar(ui, rx, ry + 14.0, bar_w - fw - 6.0, EXP_BAR_H, exp_ratio, grf);
         ry += fh.max(BAR_H + 14.0) + 3.0;
 
         // Hunger row + Self Feeding checkbox.
-        ui.text(rx, ry + BASELINE, "Hunger", tc);
+        ui.text_bold(rx, ry + BASELINE, "Hunger", lc);
         ui.text(rx + 46.0, ry + BASELINE, &format!("{} / 100", homun.hunger), tc);
         let cb_size = 12.0;
         let cb_x = right_edge - 56.0;
@@ -271,10 +260,11 @@ impl HomunWindow {
         ui.text(cb_x + cb_size + 4.0, ry + BASELINE, "Self", tc);
         ui.text(cb_x + cb_size + 4.0, ry + BASELINE + 11.0, "Feeding", tc);
         let hunger_ratio = (homun.hunger.max(0) as f32 / 100.0).clamp(0.0, 1.0);
-        draw_gauge(ui, rx, ry + 14.0, cb_x - rx - 6.0, BAR_H, self.bar_cap_w, hunger_ratio, false, grf);
+        draw_exp_bar(ui, rx, ry + 14.0, cb_x - rx - 6.0, EXP_BAR_H, hunger_ratio, grf);
         ry += BAR_H + 16.0;
 
-        ui.text(rx, ry + BASELINE, &format!("Intimacy {}", intimacy_label(homun.intimacy)), tc);
+        ui.text_bold(rx, ry + BASELINE, "Intimacy", lc);
+        ui.text(rx + 52.0, ry + BASELINE, intimacy_label(homun.intimacy), tc);
         ry += 16.0;
 
         let btn_h = 18.0;
@@ -289,7 +279,7 @@ impl HomunWindow {
         }
 
         // Red note, placed below the left stat column.
-        let note_y = (y + TITLE_H + 2.0 + 8.0 * CELL_H + 4.0);
+        let note_y = y + TITLE_H + 2.0 + 8.0 * CELL_H + 4.0;
         ui.text(x + PAD, note_y + BASELINE, "Homunculus get", NOTE_COLOR);
         ui.text(x + PAD, note_y + BASELINE + 13.0, "10% of EXP from player.", NOTE_COLOR);
 
@@ -358,7 +348,10 @@ pub(crate) enum GaugeKind {
     Sp,
 }
 
-/// Draws a labeled HP/SP/EXP gauge and returns the next y cursor.
+const HPSP_LABEL_W: f32 = 22.0;
+
+/// Draws a HP/SP gauge with the label to the left of the bar and the value
+/// centered over it, returning the next y cursor.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn bar(
     ui: &mut UiFrame,
@@ -371,6 +364,7 @@ pub(crate) fn bar(
     kind: GaugeKind,
     cap_w: f32,
     tc: [f32; 4],
+    label_c: [f32; 4],
     has_grf: bool,
 ) -> f32 {
     let ratio = if max > 0 {
@@ -379,8 +373,10 @@ pub(crate) fn bar(
         0.0
     };
     let is_red = matches!(kind, GaugeKind::Hp) && ratio < 0.25;
-    draw_gauge(ui, x, y, w, BAR_H, cap_w, ratio, is_red, has_grf);
-    ui.text(x + 3.0, y + BAR_H - 2.0, label, tc);
-    ui.text_right(x + w - 3.0, y + BAR_H - 2.0, &format!("{cur}/{max}"), tc);
+    ui.text_bold(x, y + BAR_H - 2.0, label, label_c);
+    let bx = x + HPSP_LABEL_W;
+    let bw = w - HPSP_LABEL_W;
+    draw_gauge(ui, bx, y, bw, BAR_H, cap_w, ratio, is_red, has_grf);
+    ui.text_centered(bx, y + BAR_H - 2.0, bw, &format!("{cur} / {max}"), tc);
     y + BAR_H + 3.0
 }

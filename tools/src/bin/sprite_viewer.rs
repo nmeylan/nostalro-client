@@ -176,7 +176,7 @@ impl App {
         let (Some(device), Some(tex_cache)) = (&self.device, &self.texture_cache) else {
             return;
         };
-        let font_atlas = FontAtlas::from_system_cjk(16.0, 1.0, extra_chars);
+        let font_atlas = FontAtlas::from_embedded_cjk(16.0, 1.0, extra_chars);
         let font_atlas_bind_group = texture::create_font_atlas_bind_group(
             &device.device,
             &device.queue,

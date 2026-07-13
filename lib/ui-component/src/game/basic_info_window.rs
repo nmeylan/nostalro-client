@@ -230,44 +230,7 @@ impl BasicInfoWindow {
     }
 
     fn draw_exp_bar(ui: &mut UiFrame, x: f32, y: f32, fill_pct: f32, grf: bool) {
-        if grf {
-            let border_color = [0.69, 0.69, 0.69, 1.0];
-            let (v, i) = draw::quad_vertices(x, y, EXP_BAR_W + 2.0, EXP_BAR_H + 2.0, border_color);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-            let (v, i) = draw::quad_vertices(x + 1.0, y + 1.0, EXP_BAR_W, EXP_BAR_H, [1.0; 4]);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-        } else {
-            let (v, i) = draw::quad_vertices(
-                x,
-                y,
-                EXP_BAR_W + 2.0,
-                EXP_BAR_H + 2.0,
-                [0.3, 0.3, 0.35, 0.9],
-            );
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-        }
-        if fill_pct > 0.0 {
-            let fw = (EXP_BAR_W * fill_pct.clamp(0.0, 1.0)).floor();
-            let fill_color = [0.26, 0.38, 0.65, 1.0];
-            let (v, i) = draw::quad_vertices(x + 1.0, y + 1.0, fw, EXP_BAR_H, fill_color);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
-            });
-        }
+        crate::helper::window_chrome::draw_exp_bar(ui, x, y, EXP_BAR_W, EXP_BAR_H, fill_pct, grf);
     }
 
     fn build_large(

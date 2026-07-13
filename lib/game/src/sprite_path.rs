@@ -78,6 +78,16 @@ pub fn mercenary_type_index(job: u16) -> u16 {
 pub const OPTION_FALCON: i32 = 0x10;
 pub const OPTION_RIDING: i32 = 0x20;
 
+pub const EFST_RIDING: i16 = 27;
+pub const EFST_FALCON: i16 = 28;
+
+/// OPTION bits the server delivers only as a bitmask (no status packet), paired with the
+/// status-bar icon the client synthesizes for the local player when the bit toggles.
+pub const OPTION_STATUS_ICONS: &[(i32, i16)] = &[
+    (OPTION_FALCON, EFST_FALCON),
+    (OPTION_RIDING, EFST_RIDING),
+];
+
 pub fn has_falcon(effect_state: i32) -> bool {
     (effect_state & OPTION_FALCON) != 0
 }
