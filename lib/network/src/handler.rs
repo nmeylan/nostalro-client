@@ -507,6 +507,14 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             value2: p.value2,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcNpcspriteChange>() {
+        return vec![GameEvent::EntitySpriteChanged {
+            gid: p.gid,
+            sprite_type: 0,
+            value: p.value as u16,
+            value2: 0,
+        }];
+    }
 
     if let Some(p) = any.downcast_ref::<PacketZcUseskillAck2>() {
         let name = SkillEnum::from_id(p.skid as u32).to_name().to_string();
@@ -2321,6 +2329,32 @@ mod tests {
                 assert_eq!(*gid, 150000);
                 assert_eq!(*sprite_type, 2);
                 assert_eq!(*value, 1);
+                assert_eq!(*value2, 0);
+            }
+            other => panic!("expected EntitySpriteChanged, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_npcsprite_change_returns_class_sprite_change() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcNpcspriteChange::new(packetver);
+        pkt.set_gid(150000);
+        pkt.set_atype(0);
+        pkt.set_value(1160);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::EntitySpriteChanged {
+                gid,
+                sprite_type,
+                value,
+                value2,
+            } => {
+                assert_eq!(*gid, 150000);
+                assert_eq!(*sprite_type, 0);
+                assert_eq!(*value, 1160);
                 assert_eq!(*value2, 0);
             }
             other => panic!("expected EntitySpriteChanged, got {other:?}"),
