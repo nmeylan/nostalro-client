@@ -47,7 +47,10 @@ impl App {
         };
         for entity in self.game.entities.iter_mut() {
             if let Some(sprite) = sprites.get(&entity.id) {
-                if entity.state == EntityState::Dead && entity.animation.is_finished() {
+                if entity.state == EntityState::Dead
+                    && entity.animation.action() == entity.action_index()
+                    && entity.animation.is_finished()
+                {
                     continue;
                 }
                 if entity.forced_animation.is_none()
