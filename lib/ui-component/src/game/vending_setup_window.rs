@@ -539,6 +539,7 @@ impl InGameWindow for VendingSetupWindow {
                 self.close();
             }
         } else if cancel {
+            events.push(GameEvent::RequestCancelVendingSetup);
             self.close();
         } else if reset {
             self.open(self.max_items);

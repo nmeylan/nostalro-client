@@ -164,10 +164,6 @@ impl App {
                 move_action.dest_y,
                 self.config.packetver,
             ));
-            let elapsed = self.start_time.elapsed().as_secs_f32();
-            if let Some(entity) = self.game.entities.player_mut() {
-                entity.movement.start_move(move_action.path, elapsed);
-            }
             true
         } else {
             false

@@ -773,6 +773,7 @@ pub enum GameEvent {
         shop_name: String,
         items: Vec<(i16, i16, i32)>,
     },
+    RequestCancelVendingSetup,
     RequestCloseStore,
     VendingOwnStock {
         items: Vec<VendorItem>,

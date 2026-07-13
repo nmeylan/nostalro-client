@@ -661,6 +661,16 @@ pub fn build_req_openstore2_packet(
     pkt.raw
 }
 
+pub fn build_req_cancel_openstore_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqOpenstore2::new(packetver);
+    pkt.set_store_name(['\0'; 80]);
+    pkt.set_result(false);
+    pkt.set_packet_length(85);
+    pkt.set_store_list(Vec::new());
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_req_closestore_packet(packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzReqClosestore::new(packetver);
     pkt.fill_raw();

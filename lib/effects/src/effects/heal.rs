@@ -323,7 +323,7 @@ pub const ABSORBSPIRITS: HealParams = HealParams {
 const EXIT2_SLOTS: &[SlotSeed] = &[
     SlotSeed {
         ec: 0,
-        distance: 1.8,
+        distance: 2.5,
         max_height: 180.0,
         rise_angle_deg: 90.0,
         rot_start_deg: 270.0,
@@ -333,7 +333,7 @@ const EXIT2_SLOTS: &[SlotSeed] = &[
     },
     SlotSeed {
         ec: 1,
-        distance: 2.0,
+        distance: 3.5,
         max_height: 70.0,
         rise_angle_deg: 88.0,
         rot_start_deg: 180.0,
@@ -343,7 +343,7 @@ const EXIT2_SLOTS: &[SlotSeed] = &[
     },
     SlotSeed {
         ec: 2,
-        distance: 2.2,
+        distance: 4.5,
         max_height: 45.0,
         rise_angle_deg: 86.0,
         rot_start_deg: 90.0,
@@ -353,7 +353,7 @@ const EXIT2_SLOTS: &[SlotSeed] = &[
     },
     SlotSeed {
         ec: 3,
-        distance: 2.4,
+        distance: 5.0,
         max_height: 20.0,
         rise_angle_deg: 84.0,
         rot_start_deg: 0.0,
@@ -462,8 +462,8 @@ pub const SMDEF: HealParams = HealParams {
 const TELEPORTATION2_SLOTS: &[SlotSeed] = &[
     SlotSeed {
         ec: 0,
-        distance: 1.5,
-        max_height: 100.0,
+        distance: 2.5,
+        max_height: 250.0,
         rise_angle_deg: 90.0,
         rot_start_deg: 0.0,
         alpha_t: 0.0,
@@ -472,8 +472,8 @@ const TELEPORTATION2_SLOTS: &[SlotSeed] = &[
     },
     SlotSeed {
         ec: 1,
-        distance: 3.0,
-        max_height: 70.0,
+        distance: 3.5,
+        max_height: 150.0,
         rise_angle_deg: 89.0,
         rot_start_deg: 90.0,
         alpha_t: 0.0,
@@ -482,8 +482,8 @@ const TELEPORTATION2_SLOTS: &[SlotSeed] = &[
     },
     SlotSeed {
         ec: 2,
-        distance: 4.0,
-        max_height: 40.0,
+        distance: 4.5,
+        max_height: 70.0,
         rise_angle_deg: 88.0,
         rot_start_deg: 180.0,
         alpha_t: 0.0,
@@ -493,7 +493,7 @@ const TELEPORTATION2_SLOTS: &[SlotSeed] = &[
     SlotSeed {
         ec: 3,
         distance: 5.0,
-        max_height: 15.0,
+        max_height: 45.0,
         rise_angle_deg: 87.0,
         rot_start_deg: 270.0,
         alpha_t: 0.0,

@@ -9,6 +9,8 @@ use crate::movement::MovementState;
 use crate::scheduled_hit::ScheduledHitQueue;
 use crate::sprite_path::weapon_view_id_to_type;
 
+pub const AVG_ATTACKED_SPEED_SECS: f32 = 0.288;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntityType {
     Player,
@@ -381,7 +383,7 @@ impl Entity {
         self.state == EntityState::Hurt
     }
 
-    pub fn enter_hurt(&mut self, duration_secs: f32) {
+    pub fn enter_hurt(&mut self, damage_motion_secs: f32) {
         if matches!(
             self.state,
             EntityState::Dead
@@ -391,9 +393,13 @@ impl Entity {
         ) {
             return;
         }
+        if damage_motion_secs <= AVG_ATTACKED_SPEED_SECS {
+            return;
+        }
         self.movement.stop();
         self.state = EntityState::Hurt;
-        self.state_timer = duration_secs;
+        self.state_timer = damage_motion_secs;
+        self.animation_duration = Some(damage_motion_secs);
     }
 
     pub fn enter_attack(&mut self, duration_secs: f32) {
@@ -974,6 +980,22 @@ mod tests {
 
         e.update_state(0.3);
         assert_eq!(e.state, EntityState::Standing);
+        assert!(!e.is_move_locked());
+    }
+
+    #[test]
+    fn light_hit_below_threshold_keeps_walking() {
+        let mut e = make_entity();
+        let path = vec![
+            make_path_node(101, 100, false),
+            make_path_node(102, 100, false),
+        ];
+        e.movement.start_move(path, 0.0);
+
+        e.enter_hurt(0.2);
+        e.update_state(0.016);
+        assert_eq!(e.state, EntityState::Moving);
+        assert!(e.movement.is_moving());
         assert!(!e.is_move_locked());
     }
 

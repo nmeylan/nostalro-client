@@ -60,7 +60,7 @@ use ragnarok_network::{
     build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet,
     build_use_skill_packet, build_req_itemidentify_packet, build_req_makingarrow_packet,
     build_req_makingitem_packet, build_req_weaponrefine_packet, build_req_itemrepair_packet,
-    build_select_autospell_packet, build_req_openstore2_packet,
+    build_select_autospell_packet, build_req_openstore2_packet, build_req_cancel_openstore_packet,
     build_req_buy_frommc_packet, build_purchase_frommc2_packet, ip_u32_to_string, network_loop,
     build_companion_move_packet, build_companion_attack_packet,
     build_companion_move_to_owner_packet, build_homun_menu_packet,
@@ -1134,6 +1134,10 @@ impl App {
                         self.config.packetver,
                     ));
                     self.game.pending_shop_name = Some(shop_name);
+                }
+                GameEvent::RequestCancelVendingSetup => {
+                    self.channel
+                        .send_packet(build_req_cancel_openstore_packet(self.config.packetver));
                 }
                 GameEvent::RequestCloseStore => {
                     self.close_own_shop();

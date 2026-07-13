@@ -315,7 +315,7 @@ impl App {
                                 entity.direction = dir;
                             }
                         }
-                        entity.enter_hurt(hit.attacked_mt_secs.max(0.288));
+                        entity.enter_hurt(hit.attacked_mt_secs);
 
                         if is_sonic_or_chain {
                             entity.direction = ((entity.direction as i32 + 2) % 8) as u8;

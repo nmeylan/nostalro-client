@@ -1898,6 +1898,21 @@ mod tests {
     }
 
     #[test]
+    fn vending_cancel_builder_clears_result_with_empty_list() {
+        let packetver = 20120307;
+        let raw = crate::sender::build_req_cancel_openstore_packet(packetver);
+        let len = u16::from_le_bytes([raw[2], raw[3]]);
+        assert_eq!(len, 85);
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        let p = parsed
+            .as_any()
+            .downcast_ref::<PacketCzReqOpenstore2>()
+            .unwrap();
+        assert!(!p.result);
+        assert!(p.store_list.is_empty());
+    }
+
+    #[test]
     fn dispatch_notify_time_returns_server_tick() {
         let packetver = 20120307;
         let mut pkt = PacketZcNotifyTime::new(packetver);
