@@ -379,6 +379,34 @@ mod tests {
     }
 
     #[test]
+    fn server_confirm_reconciles_drift_then_walks_from_authoritative_cell() {
+        let mut movement = MovementState::new(100, 100);
+        movement.start_move(vec![make_path_node(105, 100, false)], 0.0);
+        movement.update(0.3);
+        let drifted = movement.position().0;
+        assert!(drifted > 100.0 && drifted < 105.0);
+
+        // server confirms a move that actually starts at cell 102
+        movement.correct_to_cell(102.0, 100.0);
+        movement.start_move(vec![make_path_node(103, 100, false)], 0.0);
+
+        assert_eq!(movement.cell_position(), (102, 100));
+        assert!(
+            (movement.position().0 - drifted).abs() < 0.01,
+            "rendered eases from the drifted spot, got {}",
+            movement.position().0
+        );
+
+        movement.decay_correction(CORRECTION_BLEND);
+        movement.update(0.075);
+        assert!(
+            (movement.position().0 - 102.5).abs() < 0.05,
+            "should walk from the authoritative cell, got {}",
+            movement.position().0
+        );
+    }
+
+    #[test]
     fn direction_from_positions_all_eight_directions() {
         assert_eq!(direction_from_positions(5, 5, 5, 8), Some(0));
         assert_eq!(direction_from_positions(5, 5, 3, 8), Some(1));
