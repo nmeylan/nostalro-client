@@ -124,11 +124,6 @@ impl EntityCollection {
 
     pub fn apply_entity_name_received(&mut self, gid: u32, name: String) {
         let key = self.resolve_key(gid);
-        let found = self.entities.contains_key(&key);
-        tracing::info!(
-            "apply_entity_name_received gid={gid} resolved_key={key} found={found} name={name:?} known_keys={:?}",
-            self.entities.keys().collect::<Vec<_>>()
-        );
         if let Some(entity) = self.entities.get_mut(&key) {
             entity.name = Some(name);
         }
@@ -153,11 +148,6 @@ impl EntityCollection {
         position_name: String,
     ) {
         let key = self.resolve_key(gid);
-        let found = self.entities.contains_key(&key);
-        tracing::info!(
-            "apply_entity_names_received gid={gid} resolved_key={key} found={found} name={name:?} guild={guild_name:?} known_keys={:?}",
-            self.entities.keys().collect::<Vec<_>>()
-        );
         if let Some(entity) = self.entities.get_mut(&key) {
             entity.name = Some(name);
             entity.guild_name = (!guild_name.is_empty()).then_some(guild_name);

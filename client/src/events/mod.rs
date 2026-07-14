@@ -147,6 +147,8 @@ impl App {
                     base_level,
                     is_boss,
                     posture,
+                    guild_id,
+                    guild_emblem_version,
                 } => {
                     self.handle_entity_spawned(
                         gid,
@@ -170,6 +172,8 @@ impl App {
                         base_level,
                         is_boss,
                         posture,
+                        guild_id,
+                        guild_emblem_version,
                     );
                 }
                 GameEvent::EntityMoved {
@@ -943,6 +947,7 @@ impl App {
                     self.game
                         .entities
                         .apply_entity_guild_changed(aid, gdid, emblem_version);
+                    self.request_entity_guild_emblem(gdid, emblem_version);
                 }
                 GameEvent::GuildDisbandResult { reason } => {
                     self.handle_guild_disband_result(reason);

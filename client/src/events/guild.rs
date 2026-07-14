@@ -163,40 +163,56 @@ impl App {
         self.guild_mut().relations = relations;
     }
 
-    pub(super) fn handle_guild_emblem(&mut self, gdid: u32, version: i32, bmp: Vec<u8>) {
-        let guild = self.game.guild.get_or_insert_with(Guild::default);
-        if guild.gdid != gdid {
+    /// Fetch another entity's guild emblem so it can be drawn over their head /
+    /// beside their name. No-op when there is no emblem or it is already cached.
+    pub(super) fn request_entity_guild_emblem(&mut self, gdid: u32, version: i32) {
+        if gdid == 0 || version == 0 {
             return;
         }
-        guild.emblem_version = version;
-        guild.emblem_bmp = Some(bmp);
-
         let key = ragnarok_game::guild::emblem_texture_key(gdid, version);
-        let Some(renderer) = self.renderer.as_mut() else {
-            return;
-        };
-        if renderer.texture_cache.texture_size(&key).is_some() {
+        let cached = self
+            .renderer
+            .as_ref()
+            .is_some_and(|r| r.texture_cache.texture_size(&key).is_some());
+        if cached || !self.game.requested_guild_emblems.insert((gdid, version)) {
             return;
         }
-        let blob = guild.emblem_bmp.as_ref().unwrap();
-        let Some(rgba) = ragnarok_renderer::texture::decode_emblem(blob) else {
-            tracing::warn!("Failed to decode guild emblem for guild {gdid}");
-            return;
-        };
-        let (w, h) = (rgba.width(), rgba.height());
-        let bg = ragnarok_renderer::texture::create_texture_bind_group_from_rgba(
-            &renderer.device.device,
-            &renderer.device.queue,
-            rgba.as_raw(),
-            w,
-            h,
-            &renderer.texture_cache.bind_group_layout,
-            &key,
-            ragnarok_renderer::wgpu::FilterMode::Nearest,
-            ragnarok_renderer::wgpu::TextureFormat::Rgba8Unorm,
-            ragnarok_renderer::wgpu::AddressMode::ClampToEdge,
-        );
-        renderer.texture_cache.insert(&key, bg, w, h);
+        self.channel.send_packet(ragnarok_network::build_req_guild_emblem_img(
+            gdid,
+            self.config.packetver,
+        ));
+    }
+
+    pub(super) fn handle_guild_emblem(&mut self, gdid: u32, version: i32, bmp: Vec<u8>) {
+        let key = ragnarok_game::guild::emblem_texture_key(gdid, version);
+        if let Some(renderer) = self.renderer.as_mut()
+            && renderer.texture_cache.texture_size(&key).is_none()
+        {
+            match ragnarok_renderer::texture::decode_emblem(&bmp) {
+                Some(rgba) => {
+                    let (w, h) = (rgba.width(), rgba.height());
+                    let bg = ragnarok_renderer::texture::create_texture_bind_group_from_rgba(
+                        &renderer.device.device,
+                        &renderer.device.queue,
+                        rgba.as_raw(),
+                        w,
+                        h,
+                        &renderer.texture_cache.bind_group_layout,
+                        &key,
+                        ragnarok_renderer::wgpu::FilterMode::Nearest,
+                        ragnarok_renderer::wgpu::TextureFormat::Rgba8Unorm,
+                        ragnarok_renderer::wgpu::AddressMode::ClampToEdge,
+                    );
+                    renderer.texture_cache.insert(&key, bg, w, h);
+                }
+                None => tracing::warn!("Failed to decode guild emblem for guild {gdid}"),
+            }
+        }
+
+        if let Some(guild) = self.game.guild.as_mut().filter(|g| g.gdid == gdid) {
+            guild.emblem_version = version;
+            guild.emblem_bmp = Some(bmp);
+        }
     }
 
     pub(super) fn handle_guild_identity_updated(

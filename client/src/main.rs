@@ -2435,15 +2435,12 @@ impl ApplicationHandler for App {
                     &self.game.entities,
                     &render_list,
                 );
-                if let Some(entity_id) = hovered_entity_id
+                let hovered_named_id = hovered_entity_id.or(self.game.hovered_player_id);
+                if let Some(entity_id) = hovered_named_id
                     && let Some(entity) = self.game.entities.get_mut(entity_id)
                     && !entity.name_requested
                 {
                     entity.name_requested = true;
-                    tracing::info!(
-                        "hover reqname: entity_id={entity_id} type={:?}",
-                        entity.entity_type
-                    );
                     self.channel
                         .send_packet(build_reqname_packet(entity_id, self.config.packetver));
                 }
@@ -2478,7 +2475,7 @@ impl ApplicationHandler for App {
                 let world_overlay_calls = self.build_world_overlays(
                     &render_list,
                     &floor_item_render_list,
-                    hovered_entity_id,
+                    hovered_named_id,
                     hovered_floor_item_id,
                 );
                 let skill_level_calls = self.build_skill_overlay();

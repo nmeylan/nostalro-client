@@ -172,6 +172,8 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             base_level: p.clevel,
             is_boss: p.is_boss,
             posture: p.state,
+            guild_id: p.guid,
+            guild_emblem_version: p.gemblem_ver as i32,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyNewentry7>() {
@@ -198,6 +200,8 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             base_level: p.clevel,
             is_boss: p.is_boss,
             posture: 0,
+            guild_id: p.guid,
+            guild_emblem_version: p.gemblem_ver as i32,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyStandentry>() {
@@ -224,6 +228,8 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             base_level: p.clevel,
             is_boss: false,
             posture: p.state,
+            guild_id: p.guid,
+            guild_emblem_version: p.gemblem_ver as i32,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyNewentry>() {
@@ -250,6 +256,8 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             base_level: p.clevel,
             is_boss: false,
             posture: 0,
+            guild_id: p.guid,
+            guild_emblem_version: p.gemblem_ver as i32,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMoveentry8>() {
@@ -276,6 +284,8 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             base_level: p.clevel,
             is_boss: p.is_boss,
             posture: 0,
+            guild_id: p.guid,
+            guild_emblem_version: p.gemblem_ver as i32,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMoveentry9>() {
@@ -305,6 +315,8 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
                 base_level: p.clevel,
                 is_boss: p.is_boss,
                 posture: 0,
+                guild_id: p.guid,
+                guild_emblem_version: p.gemblem_ver as i32,
             },
             GameEvent::EntityMoved {
                 gid: p.gid,
@@ -412,10 +424,6 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         let name: String = p.cname.iter().take_while(|c| **c != '\0').collect();
         let guild_name: String = p.gname.iter().take_while(|c| **c != '\0').collect();
         let position_name: String = p.rname.iter().take_while(|c| **c != '\0').collect();
-        tracing::info!(
-            "recv ZcAckReqnameall aid={} name={name:?} guild={guild_name:?} pos={position_name:?}",
-            p.aid
-        );
         return vec![GameEvent::EntityNamesReceived {
             gid: p.aid,
             name,

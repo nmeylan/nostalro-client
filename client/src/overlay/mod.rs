@@ -20,6 +20,8 @@ const HP_BAR_WIDTH: f32 = 60.0;
 pub(crate) const HP_BAR_HEIGHT: f32 = 5.0;
 const SP_BAR_COLOR: [f32; 4] = [0.063, 0.094, 0.61, 1.0];
 const GUILD_NAME_COLOR: [f32; 4] = [0.8, 1.0, 0.753, 1.0];
+const EMBLEM_HOVER_SIZE: f32 = 24.0;
+const EMBLEM_HEAD_SIZE: f32 = 24.0;
 
 impl App {
     pub(crate) fn build_world_overlays(
@@ -32,6 +34,7 @@ impl App {
         let mut calls = Vec::new();
 
         self.build_hovered_entity_overlay(hovered_entity_id, render_list, &mut calls);
+        self.build_guild_emblems(render_list, &mut calls);
         self.build_player_bars(hovered_entity_id, render_list, &mut calls);
         self.build_persistent_bars(hovered_entity_id, render_list, &mut calls);
         self.build_cast_bars(render_list, &mut calls);
@@ -78,7 +81,8 @@ impl App {
         {
             let text_width = renderer.font_atlas.measure_text(name);
             let text_x = entry.screen_anchor[0] - text_width / 2.0;
-            let mut text_y = bar_y + HP_BAR_HEIGHT + 13.0;
+            let name_y = bar_y + HP_BAR_HEIGHT + 13.0;
+            let mut text_y = name_y;
             build_outlined_text(
                 name,
                 text_x,
@@ -88,10 +92,12 @@ impl App {
                 calls,
             );
 
+            let mut leftmost_x = text_x;
             if let Some(guild_name) = &entity.guild_name {
                 let guild_text = format!("<{guild_name}>");
                 let guild_width = renderer.font_atlas.measure_text(&guild_text);
                 let guild_x = entry.screen_anchor[0] - guild_width / 2.0;
+                leftmost_x = leftmost_x.min(guild_x);
                 text_y += renderer.font_atlas.line_height;
                 build_outlined_text(
                     &guild_text,
@@ -102,6 +108,54 @@ impl App {
                     calls,
                 );
             }
+
+            if entity.guild_id != 0 && entity.guild_emblem_version != 0 {
+                let block_center_y = (name_y + text_y) / 2.0;
+                let emblem_x = leftmost_x - EMBLEM_HOVER_SIZE - 3.0;
+                let emblem_y = block_center_y - EMBLEM_HOVER_SIZE / 2.0;
+                push_emblem(
+                    entity.guild_id,
+                    entity.guild_emblem_version,
+                    emblem_x,
+                    emblem_y,
+                    EMBLEM_HOVER_SIZE,
+                    renderer,
+                    calls,
+                );
+            }
+        }
+    }
+
+    /// Guild emblems above every guild member's head, shown only on WoE/siege maps.
+    fn build_guild_emblems(&self, render_list: &[RenderEntry], calls: &mut Vec<UiDrawCall>) {
+        if !self.game.map_properties.is_siege() {
+            return;
+        }
+        let Some(renderer) = &self.renderer else {
+            return;
+        };
+        for entry in render_list {
+            let Some(entity) = self.game.entities.get(entry.id) else {
+                continue;
+            };
+            if entity.entity_type != EntityType::Player
+                || entity.guild_id == 0
+                || entity.guild_emblem_version == 0
+            {
+                continue;
+            }
+            let head_top = entry.screen_anchor[1] - entry.head_offset;
+            let emblem_x = entry.screen_anchor[0] - EMBLEM_HEAD_SIZE / 2.0;
+            let emblem_y = head_top - EMBLEM_HEAD_SIZE - 4.0;
+            push_emblem(
+                entity.guild_id,
+                entity.guild_emblem_version,
+                emblem_x,
+                emblem_y,
+                EMBLEM_HEAD_SIZE,
+                renderer,
+                calls,
+            );
         }
     }
 
@@ -524,6 +578,27 @@ impl App {
 
         calls
     }
+}
+
+fn push_emblem(
+    guild_id: u32,
+    version: i32,
+    x: f32,
+    y: f32,
+    size: f32,
+    renderer: &ragnarok_renderer::Renderer,
+    calls: &mut Vec<UiDrawCall>,
+) {
+    let key = ragnarok_game::guild::emblem_texture_key(guild_id, version);
+    if renderer.texture_cache.texture_size(&key).is_none() {
+        return;
+    }
+    let (verts, indices) = ragnarok_ui::draw::quad_vertices(x, y, size, size, [1.0; 4]);
+    calls.push(UiDrawCall {
+        vertices: verts.to_vec(),
+        indices: indices.to_vec(),
+        texture: UiTextureRef::Named(key),
+    });
 }
 
 fn entity_name_color(entity: &Entity) -> [f32; 4] {

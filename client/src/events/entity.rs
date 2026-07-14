@@ -54,6 +54,8 @@ impl App {
         base_level: i16,
         is_boss: bool,
         posture: u8,
+        guild_id: u32,
+        guild_emblem_version: i32,
     ) {
         if self.game.entities.player_id() == Some(gid) {
             if effect_state != 0 {
@@ -110,6 +112,8 @@ impl App {
         entity.health_state = health_state;
         entity.base_level = base_level;
         entity.is_boss = is_boss;
+        entity.guild_id = guild_id;
+        entity.guild_emblem_version = guild_emblem_version;
         match posture {
             1 => entity.state = EntityState::Dead,
             2 => entity.state = EntityState::Sitting,
@@ -117,6 +121,7 @@ impl App {
         }
         self.game.entities.insert(entity);
         self.game.entities.register_account_id(aid, gid);
+        self.request_entity_guild_emblem(guild_id, guild_emblem_version);
         let sprite_job = visual_job(job, effect_state);
         self.load_entity_sprite(
             gid,

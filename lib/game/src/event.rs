@@ -138,6 +138,8 @@ pub enum GameEvent {
         base_level: i16,
         is_boss: bool,
         posture: u8,
+        guild_id: u32,
+        guild_emblem_version: i32,
     },
     EntityMoved {
         gid: u32,
