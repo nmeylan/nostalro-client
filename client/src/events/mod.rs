@@ -1,6 +1,7 @@
 mod character;
 mod chat;
 mod companion;
+mod config;
 mod connection;
 mod entity;
 mod friends;
@@ -581,6 +582,13 @@ impl App {
                 GameEvent::OwnChatMessage { message } => {
                     self.handle_own_chat_message(message);
                 }
+                GameEvent::BroadcastMessage {
+                    message,
+                    color,
+                    banner,
+                } => {
+                    self.handle_broadcast_message(message, color, banner);
+                }
 
                 GameEvent::ParameterChanged { var_id, value } => {
                     self.handle_parameter_changed(var_id, value);
@@ -815,6 +823,9 @@ impl App {
                 GameEvent::PartyExpOptionChanged { exp_option } => {
                     self.handle_party_exp_option_changed(exp_option);
                 }
+                GameEvent::SelfConfigChanged { kind, enabled } => {
+                    self.handle_self_config_changed(kind, enabled);
+                }
                 GameEvent::PartyInviteReceived {
                     party_grid,
                     party_name,
@@ -902,6 +913,11 @@ impl App {
                 }
                 GameEvent::GuildMemberPositionsChanged { entries } => {
                     self.handle_guild_member_positions_changed(entries);
+                }
+                GameEvent::GuildMemberPosition { aid, x, y } => {
+                    if let Some(guild) = &mut self.game.guild {
+                        guild.set_position(aid, x, y);
+                    }
                 }
                 GameEvent::GuildSkills { point, skills } => {
                     self.handle_guild_skills(point, skills);

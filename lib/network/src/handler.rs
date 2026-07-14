@@ -5,9 +5,10 @@ use models::enums::skill_enums::SkillEnum;
 use models::enums::status::StatusTypes;
 use models::enums::vanish::VanishType;
 use packets::packets::*;
+use ragnarok_game::banner::BannerKind;
 use ragnarok_game::event::{
     CharacterInfo, FriendData, GameEvent, HomunculusProperty, MercenaryInfo, PartyMemberData,
-    ServerInfo, SkillInfo,
+    SelfConfigKind, ServerInfo, SkillInfo,
 };
 use ragnarok_game::guild::{
     GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild,
@@ -414,6 +415,24 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         let message: String = p.msg.chars().take_while(|c| *c != '\0').collect();
         return vec![GameEvent::OwnChatMessage { message }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcBroadcast>() {
+        let raw: String = p.msg.chars().take_while(|c| *c != '\0').collect();
+        let (message, color) = parse_broadcast(&raw);
+        let (message, banner) = classify_banner(message);
+        return vec![GameEvent::BroadcastMessage {
+            message,
+            color,
+            banner,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcBroadcast2>() {
+        let message: String = p.msg.chars().take_while(|c| *c != '\0').collect();
+        return vec![GameEvent::BroadcastMessage {
+            message,
+            color: rgb_u32_to_rgba(p.font_color),
+            banner: BannerKind::None,
+        }];
+    }
 
     if let Some(p) = any.downcast_ref::<PacketZcAckReqname>() {
         let name: String = p.cname.iter().take_while(|c| **c != '\0').collect();
@@ -740,6 +759,13 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             y: p.y_pos as u16,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyPositionToGuildm>() {
+        return vec![GameEvent::GuildMemberPosition {
+            aid: p.aid,
+            x: p.x_pos as u16,
+            y: p.y_pos as u16,
+        }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcAckMakeGroup>() {
         return vec![GameEvent::PartyCreateResult { result: p.result }];
     }
@@ -802,6 +828,34 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             aid: p.aid,
             name,
             result: p.result,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcPartyConfig>() {
+        return vec![GameEvent::SelfConfigChanged {
+            kind: SelfConfigKind::RefusePartyInvite,
+            enabled: p.b_refuse_join_msg,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcConfigNotify>() {
+        return vec![GameEvent::SelfConfigChanged {
+            kind: SelfConfigKind::OpenEquipmentWindow,
+            enabled: p.b_open_equipment_win,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcConfig>() {
+        let kind = match p.config {
+            0 => SelfConfigKind::OpenEquipmentWindow,
+            1 => SelfConfigKind::Call,
+            2 => SelfConfigKind::PetAutofeed,
+            3 => SelfConfigKind::HomunculusAutofeed,
+            other => {
+                debug!("unknown ZC_CONFIG type: {other}");
+                return vec![];
+            }
+        };
+        return vec![GameEvent::SelfConfigChanged {
+            kind,
+            enabled: p.value != 0,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcPartyJoinReq>() {
@@ -914,6 +968,9 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
                 note: cstr(&m.memo),
                 cur_map: String::new(),
                 last_offline: 0,
+                x: 0,
+                y: 0,
+                has_live_position: false,
             })
             .collect();
         return vec![GameEvent::GuildMembers { members }];
@@ -1982,6 +2039,49 @@ fn cstr(chars: &[char]) -> String {
     chars.iter().take_while(|c| **c != '\0').collect()
 }
 
+fn rgb_u32_to_rgba(rgb: u32) -> [f32; 4] {
+    [
+        ((rgb >> 16) & 0xff) as f32 / 255.0,
+        ((rgb >> 8) & 0xff) as f32 / 255.0,
+        (rgb & 0xff) as f32 / 255.0,
+        1.0,
+    ]
+}
+
+const BROADCAST_YELLOW: [f32; 4] = [1.0, 1.0, 0.0, 1.0];
+const BROADCAST_BLUE: [f32; 4] = [0.0, 1.0, 1.0, 1.0];
+
+fn parse_broadcast(msg: &str) -> (String, [f32; 4]) {
+    if let Some(rest) = msg.strip_prefix("tool")
+        && rest.len() >= 6
+        && let Ok(rgb) = u32::from_str_radix(&rest[..6], 16)
+    {
+        return (rest[6..].to_string(), rgb_u32_to_rgba(rgb));
+    }
+    if let Some(rest) = msg.strip_prefix("blue") {
+        return (rest.to_string(), BROADCAST_BLUE);
+    }
+    if let Some(rest) = msg.strip_prefix("ssss") {
+        return (rest.to_string(), BROADCAST_YELLOW);
+    }
+    (msg.to_string(), BROADCAST_YELLOW)
+}
+
+fn classify_banner(msg: String) -> (String, BannerKind) {
+    if let Some(rest) = msg.strip_prefix('@') {
+        return (rest.to_string(), BannerKind::Once);
+    }
+    if let Some(rest) = msg.strip_prefix("$$")
+        && let Some((count, tail)) = rest.split_once('$')
+        && let Ok(count) = count.parse::<u16>()
+    {
+        let text = tail.strip_prefix('$').unwrap_or(tail);
+        let text = text.split_once('$').map_or(text, |(_, m)| m);
+        return (text.to_string(), BannerKind::Repeat(count));
+    }
+    (msg, BannerKind::None)
+}
+
 fn raw_cstr(bytes: &[u8]) -> String {
     let end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
     String::from_utf8_lossy(&bytes[..end]).into_owned()
@@ -2052,6 +2152,101 @@ mod tests {
         pkt.fill_raw();
         let result = dispatch_packet(&pkt, packetver);
         assert!(result.is_empty());
+    }
+
+    #[test]
+    fn dispatch_self_config_packets_map_to_kinds() {
+        let packetver = 20120307;
+
+        let mut party = PacketZcPartyConfig::new(packetver);
+        party.set_b_refuse_join_msg(true);
+        party.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&party, packetver).as_slice(),
+            [GameEvent::SelfConfigChanged {
+                kind: SelfConfigKind::RefusePartyInvite,
+                enabled: true
+            }]
+        ));
+
+        let mut notify = PacketZcConfigNotify::new(packetver);
+        notify.set_b_open_equipment_win(true);
+        notify.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&notify, packetver).as_slice(),
+            [GameEvent::SelfConfigChanged {
+                kind: SelfConfigKind::OpenEquipmentWindow,
+                enabled: true
+            }]
+        ));
+
+        let mut homun = PacketZcConfig::new(packetver);
+        homun.set_config(3);
+        homun.set_value(1);
+        homun.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&homun, packetver).as_slice(),
+            [GameEvent::SelfConfigChanged {
+                kind: SelfConfigKind::HomunculusAutofeed,
+                enabled: true
+            }]
+        ));
+
+        let mut unknown = PacketZcConfig::new(packetver);
+        unknown.set_config(99);
+        unknown.fill_raw();
+        assert!(dispatch_packet(&unknown, packetver).is_empty());
+    }
+
+    #[test]
+    fn dispatch_broadcast_packets_carry_message_and_color() {
+        let packetver = 20120307;
+
+        let mut styled = PacketZcBroadcast2::new(packetver);
+        styled.set_font_color(0x00ff00);
+        styled.set_msg("Server restart soon".to_string());
+        styled.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&styled, packetver).as_slice(),
+            [GameEvent::BroadcastMessage { message, color, banner: BannerKind::None }]
+                if message == "Server restart soon" && *color == [0.0, 1.0, 0.0, 1.0]
+        ));
+
+        let mut plain = PacketZcBroadcast::new(packetver);
+        plain.set_msg("Welcome".to_string());
+        plain.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&plain, packetver).as_slice(),
+            [GameEvent::BroadcastMessage { message, color, banner: BannerKind::None }]
+                if message == "Welcome" && *color == BROADCAST_YELLOW
+        ));
+
+        let mut blue = PacketZcBroadcast::new(packetver);
+        blue.set_msg("blueGvG starts".to_string());
+        blue.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&blue, packetver).as_slice(),
+            [GameEvent::BroadcastMessage { message, color, banner: BannerKind::None }]
+                if message == "GvG starts" && *color == BROADCAST_BLUE
+        ));
+
+        let mut tool = PacketZcBroadcast::new(packetver);
+        tool.set_msg("toolff0000red alert".to_string());
+        tool.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&tool, packetver).as_slice(),
+            [GameEvent::BroadcastMessage { message, color, banner: BannerKind::None }]
+                if message == "red alert" && *color == [1.0, 0.0, 0.0, 1.0]
+        ));
+
+        let mut banner = PacketZcBroadcast::new(packetver);
+        banner.set_msg("@Server maintenance".to_string());
+        banner.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&banner, packetver).as_slice(),
+            [GameEvent::BroadcastMessage { message, banner: BannerKind::Once, .. }]
+                if message == "Server maintenance"
+        ));
     }
 
     #[test]

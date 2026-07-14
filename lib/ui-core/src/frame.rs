@@ -32,6 +32,7 @@ pub struct UiFrame<'a> {
     hovered_window: Option<WidgetId>,
     z_order_snapshot: Vec<WidgetId>,
     modal_layers: Vec<WidgetId>,
+    in_popup_layer: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -91,6 +92,7 @@ const DRAG_STATE_ID: WidgetId = WidgetId(u32::MAX);
 pub const Z_ORDER_STATE_ID: WidgetId = WidgetId(u32::MAX - 1);
 const WINDOW_RECTS_STATE_ID: WidgetId = WidgetId(u32::MAX - 2);
 const FOCUS_STATE_ID: WidgetId = WidgetId(u32::MAX - 3);
+const POPUP_BLOCKER_STATE_ID: WidgetId = WidgetId(u32::MAX - 4);
 const DRAG_THRESHOLD: f32 = 5.0;
 
 #[derive(Default, Clone, Copy)]
@@ -161,6 +163,12 @@ struct WindowRects {
     current_rects: HashMap<WidgetId, Rect>,
     non_interactable: HashSet<WidgetId>,
     prev_non_interactable: HashSet<WidgetId>,
+}
+
+#[derive(Default)]
+struct PopupBlockers {
+    prev: Vec<Rect>,
+    current: Vec<Rect>,
 }
 
 impl Default for DragState {
@@ -235,6 +243,7 @@ impl<'a> UiFrame<'a> {
             hovered_window: None,
             z_order_snapshot: Vec::new(),
             modal_layers: Vec::new(),
+            in_popup_layer: false,
         }
     }
 
@@ -276,6 +285,11 @@ impl<'a> UiFrame<'a> {
 
     pub fn compute_hovered_window(&mut self, z_order: &[WidgetId]) {
         self.z_order_snapshot = z_order.to_vec();
+
+        let pb = self
+            .state
+            .get_or_default::<PopupBlockers>(POPUP_BLOCKER_STATE_ID);
+        pb.prev = std::mem::take(&mut pb.current);
 
         let wr = self
             .state
@@ -334,6 +348,35 @@ impl<'a> UiFrame<'a> {
     pub fn is_current_window_occluded(&self) -> bool {
         match self.current_window {
             Some(cw) => self.is_window_occluded(cw),
+            None => false,
+        }
+    }
+
+    /// Begin a top-most popup layer (context menu, dropdown list). Widgets drawn
+    /// while a layer is active are exempt from window occlusion and from being
+    /// blocked by any popup; every other widget under `rect` is blocked from the
+    /// next frame on (occlusion works off the previous frame's snapshot).
+    pub fn begin_popup_layer(&mut self, rect: Rect) {
+        self.in_popup_layer = true;
+        self.state
+            .get_or_default::<PopupBlockers>(POPUP_BLOCKER_STATE_ID)
+            .current
+            .push(rect);
+    }
+
+    pub fn end_popup_layer(&mut self) {
+        self.in_popup_layer = false;
+    }
+
+    fn pointer_blocked_by_popup(&self) -> bool {
+        if self.in_popup_layer {
+            return false;
+        }
+        match self.state.get::<PopupBlockers>(POPUP_BLOCKER_STATE_ID) {
+            Some(pb) => pb
+                .prev
+                .iter()
+                .any(|r| r.contains(self.ctx.mouse_x, self.ctx.mouse_y)),
             None => false,
         }
     }
@@ -451,7 +494,9 @@ impl<'a> UiFrame<'a> {
 
     pub fn interact(&mut self, id: WidgetId, rect: Rect) -> Response {
         let in_rect = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y);
-        let hovered = in_rect && !self.is_current_window_occluded();
+        let hovered = in_rect
+            && (self.in_popup_layer || !self.is_current_window_occluded())
+            && !self.pointer_blocked_by_popup();
         if hovered {
             self.any_hovered = true;
         }
@@ -713,8 +758,9 @@ impl<'a> UiFrame<'a> {
     }
 
     pub fn drag_handle(&mut self, id: WidgetId, rect: Rect, enabled: bool) -> DragResponse {
-        let hovered =
-            rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) && !self.is_current_window_occluded();
+        let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y)
+            && (self.in_popup_layer || !self.is_current_window_occluded())
+            && !self.pointer_blocked_by_popup();
         if hovered {
             self.any_hovered = true;
             self.any_interactive_hovered = true;
@@ -872,8 +918,9 @@ impl<'a> UiFrame<'a> {
     }
 
     pub fn drop_zone(&mut self, rect: Rect) -> Option<(WidgetId, usize)> {
-        let hovered =
-            rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) && !self.is_current_window_occluded();
+        let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y)
+            && (self.in_popup_layer || !self.is_current_window_occluded())
+            && !self.pointer_blocked_by_popup();
         let drag = self.state.get_or_default::<DragState>(DRAG_STATE_ID);
         if drag.active && !self.ctx.mouse_down && hovered {
             let result = (drag.source_id, drag.item_index);
@@ -1638,6 +1685,36 @@ mod tests {
             r.clicked(),
             "widget in Foreground window should be clickable"
         );
+    }
+
+    #[test]
+    fn popup_layer_blocks_widgets_behind_but_not_its_own() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let positions = HashMap::new();
+        let popup = Rect::new(100.0, 100.0, 80.0, 60.0);
+
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.compute_hovered_window(&[]);
+        ui.begin_popup_layer(popup);
+        ui.end_popup_layer();
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 120.0;
+        ctx.mouse_y = 120.0;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.compute_hovered_window(&[]);
+
+        let behind = ui.interact(WidgetId(1), popup);
+        assert!(!behind.clicked(), "widget behind popup must not be clicked");
+        assert!(!behind.hovered(), "widget behind popup must not be hovered");
+
+        ui.begin_popup_layer(popup);
+        let own = ui.interact(WidgetId(2), popup);
+        ui.end_popup_layer();
+        assert!(own.clicked(), "popup's own widget must be clickable");
     }
 
     #[test]

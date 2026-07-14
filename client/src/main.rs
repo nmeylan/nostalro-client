@@ -72,7 +72,7 @@ use ragnarok_network::{
     build_req_buy_frommc_packet, build_purchase_frommc2_packet, ip_u32_to_string, network_loop,
     build_companion_move_packet, build_companion_attack_packet,
     build_companion_move_to_owner_packet, build_homun_menu_packet,
-    build_mercenary_command_packet, build_rename_homun_packet,
+    build_mercenary_command_packet, build_rename_homun_packet, build_config_packet,
 };
 use ragnarok_audio::SoundManager;
 use ragnarok_renderer::effect::EffectHolder;
@@ -86,6 +86,7 @@ use ragnarok_ui::state::StateCache;
 use ragnarok_formats::act::SpriteAnimationState;
 use ragnarok_ui_component::Window as _;
 use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
+use ragnarok_ui_component::game::guild_expel_dialog::GuildExpelDialog;
 use ragnarok_ui_component::game::party_helper_window::MODE_CREATE;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::{LoginFocus, LoginWindow};
@@ -864,6 +865,13 @@ impl App {
                         self.config.packetver,
                     ));
                 }
+                GameEvent::RequestSetConfig { kind, enabled } => {
+                    self.channel.send_packet(build_config_packet(
+                        kind.config_id(),
+                        enabled as i32,
+                        self.config.packetver,
+                    ));
+                }
                 GameEvent::RequestHomunMenu { command } => {
                     self.channel
                         .send_packet(build_homun_menu_packet(command as i8, self.config.packetver));
@@ -1356,6 +1364,10 @@ impl App {
                         self.channel.send_packet(build_req_guild_menu(atype, pv));
                     }
                 }
+                GameEvent::RequestGuildMenu { atype } => {
+                    self.channel
+                        .send_packet(build_req_guild_menu(atype, self.config.packetver));
+                }
                 GameEvent::ShowGuildMemberMenu { aid, gid, name, x, y } => {
                     use ragnarok_ui_component::game::context_menu::{
                         ContextMenuAction, ContextMenuItem,
@@ -1432,15 +1444,7 @@ impl App {
                     );
                 }
                 GameEvent::RequestGuildExpel { aid, gid, name } => {
-                    self.game.guild_confirm_result.set(None);
-                    self.game.pending_guild_confirm =
-                        Some(PendingGuildConfirm::Expel { aid, gid, name: name.clone() });
-                    self.game.confirm_dialog.show_with_out(
-                        &format!("Expel {name} from the guild?"),
-                        true,
-                        self.game.guild_confirm_result.clone(),
-                        |_| {},
-                    );
+                    self.game.guild_expel_dialog = Some(GuildExpelDialog::new(aid, gid, name));
                 }
                 GameEvent::ConfirmedGuildLeave => {
                     if let Some(g) = &self.game.guild {
@@ -1459,13 +1463,13 @@ impl App {
                         ));
                     }
                 }
-                GameEvent::ConfirmedGuildExpel { aid, gid, name } => {
+                GameEvent::ConfirmedGuildExpel { aid, gid, name: _, reason } => {
                     if let Some(gdid) = self.game.guild.as_ref().map(|g| g.gdid) {
                         self.channel.send_packet(build_req_ban_guild(
                             gdid,
                             aid as i32,
                             gid as i32,
-                            &name,
+                            &reason,
                             self.config.packetver,
                         ));
                     }

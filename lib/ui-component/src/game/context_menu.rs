@@ -71,6 +71,7 @@ impl ContextMenu {
         let menu_h = self.items.len() as f32 * ITEM_H;
         let panel = Rect::new(self.x, self.y, ITEM_W, menu_h);
 
+        ui.begin_popup_layer(panel);
         crate::helper::fallback::panel(ui, panel.x, panel.y, panel.w, panel.h);
 
         let mut clicked_item = None;
@@ -151,6 +152,7 @@ impl ContextMenu {
             self.close();
         }
 
+        ui.end_popup_layer();
         events
     }
 }

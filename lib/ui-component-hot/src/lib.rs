@@ -2234,7 +2234,7 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             win.build(ui, Some(merc), &DataTable::new());
         }
         State::Homun { win, homun } => {
-            win.build(ui, Some(homun));
+            win.build(ui, Some(homun), false);
         }
         State::CompanionAiConfig { win, config } => {
             win.build(ui, config);

@@ -10,6 +10,7 @@ pub mod context_menu;
 pub mod drop_quantity_dialog;
 pub mod emblem_picker_window;
 pub mod equipment_window;
+pub mod guild_expel_dialog;
 pub mod guild_window;
 pub mod homun_skill_window;
 pub mod companion_ai_config_window;

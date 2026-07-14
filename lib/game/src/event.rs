@@ -1,3 +1,4 @@
+use crate::banner::BannerKind;
 use crate::guild::{GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild};
 use crate::inventory::{EquipmentItemData, NormalItemData};
 use crate::item::Item;
@@ -335,6 +336,11 @@ pub enum GameEvent {
     },
     OwnChatMessage {
         message: String,
+    },
+    BroadcastMessage {
+        message: String,
+        color: [f32; 4],
+        banner: BannerKind,
     },
     RequestSendChat {
         message: String,
@@ -697,6 +703,14 @@ pub enum GameEvent {
     PartyExpOptionChanged {
         exp_option: u32,
     },
+    SelfConfigChanged {
+        kind: SelfConfigKind,
+        enabled: bool,
+    },
+    RequestSetConfig {
+        kind: SelfConfigKind,
+        enabled: bool,
+    },
     PartyChatMessage {
         aid: u32,
         message: String,
@@ -809,6 +823,11 @@ pub enum GameEvent {
     GuildMemberPositionsChanged {
         entries: Vec<(u32, u32, i32)>,
     },
+    GuildMemberPosition {
+        aid: u32,
+        x: u16,
+        y: u16,
+    },
     GuildSkills {
         point: i16,
         skills: Vec<GuildSkill>,
@@ -893,6 +912,9 @@ pub enum GameEvent {
     },
     /// UI → client: window opened, fetch all guild tab data.
     RequestGuildInfoBurst,
+    RequestGuildMenu {
+        atype: i32,
+    },
     /// UI → client: right-clicked a guild member row; open the player menu here.
     ShowGuildMemberMenu {
         aid: u32,
@@ -939,6 +961,7 @@ pub enum GameEvent {
         aid: u32,
         gid: u32,
         name: String,
+        reason: String,
     },
     ConfirmedGuildLeave,
     ConfirmedDeleteGuildRelation {
@@ -1144,6 +1167,28 @@ pub enum GameEvent {
     ResetCompanionAiConfig,
 
     Acknowledged,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelfConfigKind {
+    RefusePartyInvite,
+    OpenEquipmentWindow,
+    Call,
+    PetAutofeed,
+    HomunculusAutofeed,
+}
+
+impl SelfConfigKind {
+    /// Value carried by the `config` field of CZ_CONFIG / ZC_CONFIG.
+    pub fn config_id(self) -> i32 {
+        match self {
+            SelfConfigKind::OpenEquipmentWindow => 0,
+            SelfConfigKind::Call => 1,
+            SelfConfigKind::PetAutofeed => 2,
+            SelfConfigKind::HomunculusAutofeed => 3,
+            SelfConfigKind::RefusePartyInvite => -1,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

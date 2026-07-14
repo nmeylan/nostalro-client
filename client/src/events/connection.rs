@@ -106,6 +106,7 @@ impl App {
         self.game.chat_rooms.clear();
         self.game.waiting_item_throw_ack = false;
         self.game.drop_quantity_dialog = None;
+        self.game.guild_expel_dialog = None;
         self.game.card_insert_dialog = None;
         self.game.pending_card_composition_index = None;
         self.game.pending_pickup_item_id = None;
@@ -360,6 +361,9 @@ impl App {
             self.game.failed_sprite_loads.clear();
             self.game.floor_items.clear();
             self.game.floor_item_sprites.clear();
+            if let Some(guild) = &mut self.game.guild {
+                guild.clear_live_positions();
+            }
             if let (Some(pid), Some(sprite)) = (self.game.entities.player_id(), player_sprite) {
                 self.game.sprites.insert(pid, sprite);
             }

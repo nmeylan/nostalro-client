@@ -86,8 +86,6 @@ const CONTENT_H: f32 = 244.0;
 const FOOTER_H: f32 = 27.0;
 const CLOSE_BTN_SIZE: f32 = 11.0;
 const TAB_COUNT: usize = 6;
-const TAB_W: f32 = 64.0;
-const TAB_GAP: f32 = 2.0;
 
 const MEMBER_ROW_H: f32 = 35.0;
 const POS_ROW_H: f32 = 20.0;
@@ -138,6 +136,19 @@ impl GuildTab {
             4 => Self::Expel,
             5 => Self::Notice,
             _ => Self::Info,
+        }
+    }
+
+    /// `type` field for a `CZ_REQ_GUILD_MENU` (0x14f) refresh of this tab's data,
+    /// or `None` for tabs the server doesn't answer through that request.
+    fn request_type(self) -> Option<i32> {
+        match self {
+            Self::Info => Some(0),
+            Self::Members => Some(1),
+            Self::Position => Some(2),
+            Self::Skill => Some(3),
+            Self::Expel => Some(4),
+            Self::Notice => None,
         }
     }
 }
@@ -444,7 +455,11 @@ impl InGameWindow for GuildWindow {
         }
 
         let tab_y = y + TITLE_H;
-        self.build_tab_strip(ui, x, tab_y);
+        if let Some(tab) = self.build_tab_strip(ui, x, tab_y) {
+            if let Some(atype) = tab.request_type() {
+                events.push(GameEvent::RequestGuildMenu { atype });
+            }
+        }
 
         let content_y = tab_y + TAB_H;
         Self::fill(ui, x, content_y, WIN_W, CONTENT_H, TAB_ACTIVE);
@@ -474,9 +489,9 @@ impl InGameWindow for GuildWindow {
 const TAB_WIDTH: [f32; 6] = [60.0, 100.0, 75.0, 90.0, 80.0, 95.0];
 const TAB_PAD: [f32; 6] = [0.0, 10.0, 15.0, 15.0, 5.0, 10.0];
 impl GuildWindow {
-    fn build_tab_strip(&mut self, ui: &mut UiFrame, x: f32, tab_y: f32) {
+    fn build_tab_strip(&mut self, ui: &mut UiFrame, x: f32, tab_y: f32) -> Option<GuildTab> {
         Self::fill(ui, x, tab_y, WIN_W, TAB_H, TAB_BAR_BG);
-        let strip_w = TAB_COUNT as f32 * (TAB_W + TAB_GAP);
+        let mut clicked_tab = None;
         let mut start_x = x;
         for (i, label) in TAB_LABELS.iter().enumerate() {
             let tx = start_x;
@@ -498,10 +513,12 @@ impl GuildWindow {
                 self.tab = GuildTab::from_index(i);
                 self.pos_dirty = false;
                 self.open_member_dropdown = None;
+                clicked_tab = Some(self.tab);
             }
             ui.text(tx + 4.0 + TAB_PAD[i], tab_y + TAB_H - 7.0, label, TEXT);
             start_x = start_x + TAB_WIDTH[i];
         }
+        clicked_tab
     }
 
     fn build_footer(&mut self, ui: &mut UiFrame, x: f32, footer_y: f32) -> Vec<GameEvent> {
@@ -832,6 +849,7 @@ impl GuildWindow {
         let Some((aid, gid, list_rect, positions)) = self.member_pos_overlay.take() else {
             return events;
         };
+        ui.begin_popup_layer(list_rect);
         Self::fill(ui, list_rect.x, list_rect.y, list_rect.w, list_rect.h, [1.0; 4]);
         Self::draw_border(ui, list_rect);
         for (i, (pid, pname)) in positions.iter().enumerate() {

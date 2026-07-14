@@ -83,6 +83,9 @@ pub struct GuildMember {
     pub note: String,
     pub cur_map: String,
     pub last_offline: i32,
+    pub x: u16,
+    pub y: u16,
+    pub has_live_position: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -186,6 +189,22 @@ impl Guild {
             .unwrap_or(self.am_i_master)
     }
 
+    /// The server only sends a member's coordinates while it shares the local
+    /// player's map, so a received position marks the member as on-screen.
+    pub fn set_position(&mut self, aid: u32, x: u16, y: u16) {
+        if let Some(m) = self.members.iter_mut().find(|m| m.aid == aid) {
+            m.x = x;
+            m.y = y;
+            m.has_live_position = true;
+        }
+    }
+
+    pub fn clear_live_positions(&mut self) {
+        for m in &mut self.members {
+            m.has_live_position = false;
+        }
+    }
+
     pub fn disband_remaining(&self, now: Instant) -> Option<Duration> {
         self.disband_deadline
             .map(|deadline| deadline.saturating_duration_since(now))
@@ -243,6 +262,17 @@ mod tests {
         assert!(officer.can_invite && !officer.can_expel && !officer.can_storage);
         let master = guild.my_rights(11);
         assert!(master.can_invite && master.can_expel && master.can_storage);
+    }
+
+    #[test]
+    fn live_position_sets_then_clears() {
+        let mut guild = Guild::default();
+        guild.members = vec![member(11, 0, true)];
+        guild.set_position(11, 150, 160);
+        let m = guild.member_by_gid(11).unwrap();
+        assert_eq!((m.x, m.y, m.has_live_position), (150, 160, true));
+        guild.clear_live_positions();
+        assert!(!guild.member_by_gid(11).unwrap().has_live_position);
     }
 
     #[test]

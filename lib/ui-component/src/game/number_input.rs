@@ -117,7 +117,12 @@ impl NumberInputDialog {
         }
 
         let dw = DIALOG_W;
-        let dh = DIALOG_H;
+        let label_h = if self.label.is_some() {
+            ui.atlas.line_height + PADDING
+        } else {
+            0.0
+        };
+        let dh = DIALOG_H + label_h;
         let title_bar_h = PADDING * 2.0 + ui.atlas.line_height;
         let win = ui.window(self.win_id(), dw, dh, title_bar_h);
         let dx = win.x;
@@ -131,9 +136,8 @@ impl NumberInputDialog {
 
         let mut content_y = dy + PADDING + ui.atlas.line_height;
         if let Some(label) = &self.label {
-            let label_x = dx + PADDING_X;
-            ui.text(label_x, content_y, label, text_color);
-            content_y += PADDING;
+            ui.text(dx + PADDING_X, content_y, label, text_color);
+            content_y += label_h;
         }
 
         let (btn_w, btn_h) = self.btn_size;

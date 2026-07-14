@@ -793,6 +793,14 @@ pub fn build_companion_move_to_owner_packet(gid: u32, packetver: u32) -> Vec<u8>
     pkt.raw
 }
 
+pub fn build_config_packet(config: i32, value: i32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzConfig::new(packetver);
+    pkt.set_config(config);
+    pkt.set_value(value);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_homun_menu_packet(command: i8, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzCommandMer::new(packetver);
     pkt.set_atype(0);

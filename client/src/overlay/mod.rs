@@ -94,7 +94,10 @@ impl App {
 
             let mut leftmost_x = text_x;
             if let Some(guild_name) = &entity.guild_name {
-                let guild_text = format!("<{guild_name}>");
+                let guild_text = match &entity.position_name {
+                    Some(pos) if !pos.is_empty() => format!("<{guild_name}> [{pos}]"),
+                    _ => format!("<{guild_name}>"),
+                };
                 let guild_width = renderer.font_atlas.measure_text(&guild_text);
                 let guild_x = entry.screen_anchor[0] - guild_width / 2.0;
                 leftmost_x = leftmost_x.min(guild_x);

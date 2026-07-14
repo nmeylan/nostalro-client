@@ -1,7 +1,34 @@
 use crate::App;
+use ragnarok_game::banner::BannerKind;
 use ragnarok_game::entity::ChatBubbleState;
+use ragnarok_ui_component::game::chat_window::ChatChannel;
 
 impl App {
+    pub(super) fn handle_broadcast_message(
+        &mut self,
+        message: String,
+        color: [f32; 4],
+        banner: BannerKind,
+    ) {
+        match banner {
+            BannerKind::Once => {
+                self.game.banner.enqueue(message, 1);
+            }
+            BannerKind::Repeat(times) => {
+                self.game.banner.enqueue(message.clone(), times);
+                self.game
+                    .chat_window
+                    .add_message(message, color, ChatChannel::System);
+            }
+            BannerKind::None => {
+                self.game.poptip.push(message.clone());
+                self.game
+                    .chat_window
+                    .add_message(message, color, ChatChannel::System);
+            }
+        }
+    }
+
     pub(super) fn handle_chat_message(&mut self, gid: u32, message: String) {
         if let Some(bubble_text) = message.split(" : ").nth(1)
             && let Some(entity) = self.game.entities.get_mut(gid)

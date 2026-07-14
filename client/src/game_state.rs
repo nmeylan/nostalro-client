@@ -7,6 +7,8 @@ use ragnarok_formats::gat::GatFile;
 use ragnarok_game::ailment::AilmentOverlay;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::arrow::ArrowProjectile;
+use ragnarok_game::banner::BannerState;
+use ragnarok_game::poptip::PoptipStack;
 use ragnarok_game::character::Character;
 use ragnarok_game::chat_room::ChatRoomRegistry;
 use ragnarok_game::cursor::{
@@ -39,6 +41,7 @@ use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
 use ragnarok_ui_component::game::confirm_dialog::{ConfirmDialog, ConfirmResult};
 use ragnarok_ui_component::game::context_menu::ContextMenu;
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
+use ragnarok_ui_component::game::guild_expel_dialog::GuildExpelDialog;
 use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
 use ragnarok_ui_component::game::homun_skill_window::{HOMUN_SKILL_WINDOW_ID, HomunSkillWindow};
 use ragnarok_ui_component::game::companion_ai_config_window::{
@@ -90,9 +93,17 @@ pub struct FreezeShatter {
 }
 
 pub enum PendingGuildConfirm {
-    Expel { aid: u32, gid: u32, name: String },
     Leave,
     DeleteRelation { gdid: u32, relation: i32 },
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct SelfConfig {
+    pub refuse_party_invite: bool,
+    pub open_equipment_window: bool,
+    pub call_enabled: bool,
+    pub pet_autofeed: bool,
+    pub homun_autofeed: bool,
 }
 
 pub struct GameState {
@@ -128,6 +139,9 @@ pub struct GameState {
     pub status_overlay_sprites: HashMap<AilmentOverlay, (SpriteTextures, ActFile)>,
     pub freeze_shatters: Vec<FreezeShatter>,
     pub chat_window: ChatWindow,
+    pub banner: BannerState,
+    pub poptip: PoptipStack,
+    pub broadcast_last_elapsed: Option<f32>,
     pub equipment_window: EquipmentWindow,
     pub inventory_window: InventoryWindow,
     pub cart_window: CartWindow,
@@ -157,6 +171,7 @@ pub struct GameState {
     pub waiting_item_throw_ack: bool,
     pub drop_dialog_has_grf_textures: bool,
     pub drop_quantity_dialog: Option<DropQuantityDialog>,
+    pub guild_expel_dialog: Option<GuildExpelDialog>,
     pub card_insert_dialog: Option<CardInsertDialog>,
     pub card_insert_dialog_has_grf_textures: bool,
     pub pending_skill_target: Option<PendingSkillTarget>,
@@ -246,6 +261,7 @@ pub struct GameState {
     pub ruwach_aura_keys: HashMap<u32, u32>,
     pub disconnect_dialog_shown: bool,
     pub pending_disconnect_exit: bool,
+    pub self_config: SelfConfig,
 }
 
 pub const COMPANION_AI_CONFIG_PATH: &str = "companion_ai.json";
@@ -356,6 +372,23 @@ impl GameState {
                     x: member.x as f32,
                     y: member.y as f32,
                     marker_type: MarkerType::PartyMember,
+                });
+            }
+        }
+        if let Some(guild) = &self.guild {
+            let local_aid = self
+                .login_session
+                .as_ref()
+                .map(|s| s.account_id)
+                .unwrap_or(0);
+            for member in &guild.members {
+                if member.aid == local_aid || !member.has_live_position {
+                    continue;
+                }
+                self.minimap_window.entity_markers.push(MinimapMarker {
+                    x: member.x as f32,
+                    y: member.y as f32,
+                    marker_type: MarkerType::GuildMember,
                 });
             }
         }
@@ -480,9 +513,6 @@ impl GameState {
             let pending = self.pending_guild_confirm.take().unwrap();
             if result == ConfirmResult::Ok {
                 match pending {
-                    PendingGuildConfirm::Expel { aid, gid, name } => {
-                        events.push(GameEvent::ConfirmedGuildExpel { aid, gid, name });
-                    }
                     PendingGuildConfirm::Leave => {
                         events.push(GameEvent::ConfirmedGuildLeave);
                     }
@@ -585,6 +615,28 @@ impl GameState {
             );
         }
 
+        if let Some(dialog) = &mut self.guild_expel_dialog {
+            dialog.has_grf_textures = self.drop_dialog_has_grf_textures;
+            if dialog.has_grf_textures {
+                dialog.set_texture_sizes(texture_size_fn);
+            }
+            let dialog_events =
+                InGameWindow::build(dialog, ui, &mut self.character, &self.data_table);
+            if dialog_events.iter().any(|e| {
+                matches!(
+                    e,
+                    GameEvent::DialogClosed | GameEvent::ConfirmedGuildExpel { .. }
+                )
+            }) {
+                self.guild_expel_dialog = None;
+            }
+            events.extend(
+                dialog_events
+                    .into_iter()
+                    .filter(|e| !matches!(e, GameEvent::DialogClosed)),
+            );
+        }
+
         if let Some(dialog) = &mut self.card_insert_dialog {
             let dialog_events =
                 InGameWindow::build(dialog, ui, &mut self.character, &self.data_table);
@@ -604,7 +656,88 @@ impl GameState {
             );
         }
 
+        self.update_broadcast_overlays(ui);
+
         events
+    }
+
+    fn update_broadcast_overlays(&mut self, ui: &mut UiFrame) {
+        let now = ui.elapsed_secs;
+        let dt = self
+            .broadcast_last_elapsed
+            .map_or(0.0, |last| (now - last).clamp(0.0, 0.1));
+        self.broadcast_last_elapsed = Some(now);
+
+        self.poptip.tick(dt);
+        self.draw_broadcast_poptip(ui);
+        self.update_broadcast_banner(ui, dt);
+    }
+
+    fn draw_broadcast_poptip(&mut self, ui: &mut UiFrame) {
+        const BASE_Y: f32 = 90.0;
+        if self.poptip.is_empty() {
+            return;
+        }
+        let center_x = ui.ctx.screen_width * 0.5;
+        let line_h = ui.atlas.line_height + 4.0;
+        for (index, (text, alpha)) in self.poptip.iter().enumerate() {
+            let width = ui.atlas.measure_text(text);
+            let x = center_x - width * 0.5;
+            let y = BASE_Y - index as f32 * line_h;
+            ui.text(x, y, text, [1.0, 1.0, 1.0, alpha]);
+        }
+    }
+
+    fn update_broadcast_banner(&mut self, ui: &mut UiFrame, dt: f32) {
+        const BAR_Y: f32 = 40.0;
+        const BAR_H: f32 = 24.0;
+        const BG_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.7];
+        const TEXT_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+
+        if !self.banner.visible() {
+            return;
+        }
+        self.banner.tick(dt);
+
+        let Some(render) = self.banner.render() else {
+            return;
+        };
+        let text_width = ui.atlas.measure_text(render.text);
+        if self.banner.current_scrolled_off(text_width) {
+            self.banner.advance();
+            return;
+        }
+
+        let center_x = ui.ctx.screen_width * 0.5;
+        let bar_left = center_x - render.half_width;
+        let bar_right = center_x + render.half_width;
+
+        let (bg_v, bg_i) =
+            ragnarok_ui::draw::quad_vertices(bar_left, BAR_Y, render.half_width * 2.0, BAR_H, BG_COLOR);
+        ui.draw_calls.push(ragnarok_ui::draw::DrawCall {
+            vertices: bg_v.to_vec(),
+            indices: bg_i.to_vec(),
+            texture: ragnarok_ui::draw::TextureRef::White,
+        });
+
+        let text_x = bar_left + render.text_offset_x;
+        let baseline_y = BAR_Y + (BAR_H + ui.atlas.ascent) * 0.5;
+        let (tv, ti) = ragnarok_ui::draw::text_vertices_clipped(
+            render.text,
+            text_x,
+            baseline_y,
+            TEXT_COLOR,
+            ui.atlas,
+            bar_left,
+            bar_right,
+        );
+        if !tv.is_empty() {
+            ui.draw_calls.push(ragnarok_ui::draw::DrawCall {
+                vertices: tv,
+                indices: ti,
+                texture: ragnarok_ui::draw::TextureRef::FontAtlas,
+            });
+        }
     }
 
     fn build_window(&mut self, win_id: WidgetId, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
@@ -747,7 +880,11 @@ impl GameState {
                 );
             }
             HOMUN_WINDOW_ID => {
-                events.extend(self.homunculus_window.build(ui, self.homunculus.as_ref()));
+                events.extend(self.homunculus_window.build(
+                    ui,
+                    self.homunculus.as_ref(),
+                    self.self_config.homun_autofeed,
+                ));
             }
             MERCENARY_WINDOW_ID => {
                 events.extend(self.mercenary_window.build(ui, self.mercenary.as_ref()));
@@ -834,6 +971,9 @@ impl GameState {
             status_overlay_sprites: HashMap::new(),
             freeze_shatters: Vec::new(),
             chat_window: ChatWindow::new(),
+            banner: BannerState::new(),
+            poptip: PoptipStack::new(),
+            broadcast_last_elapsed: None,
             equipment_window: EquipmentWindow::new(),
             inventory_window: InventoryWindow::new(),
             cart_window: CartWindow::new(),
@@ -863,6 +1003,7 @@ impl GameState {
             waiting_item_throw_ack: false,
             drop_dialog_has_grf_textures: false,
             drop_quantity_dialog: None,
+            guild_expel_dialog: None,
             card_insert_dialog: None,
             card_insert_dialog_has_grf_textures: false,
             pending_skill_target: None,
@@ -927,6 +1068,7 @@ impl GameState {
             pending_invite_aid: None,
             disconnect_dialog_shown: false,
             pending_disconnect_exit: false,
+            self_config: SelfConfig::default(),
             damage_numbers: DamageNumberManager::new(),
             damage_number_textures: None,
             damage_number_act: None,

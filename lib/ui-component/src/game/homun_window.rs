@@ -4,7 +4,7 @@ use crate::helper::window_chrome::{
     draw_sys_button, draw_titlebar, gauge_texture_paths, label_color, text_color,
 };
 use ragnarok_game::companion::HomunculusState;
-use ragnarok_game::event::GameEvent;
+use ragnarok_game::event::{GameEvent, SelfConfigKind};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -64,7 +64,6 @@ pub struct HomunWindow {
     pub has_grf_textures: bool,
     visible: bool,
     rename_input: TextInput,
-    self_feeding: bool,
     bar_cap_w: f32,
     del_size: (f32, f32),
     skill_size: (f32, f32),
@@ -83,7 +82,6 @@ impl HomunWindow {
             has_grf_textures: false,
             visible: false,
             rename_input: TextInput::new(23, false),
-            self_feeding: false,
             bar_cap_w: 4.0,
             del_size: (42.0, 20.0),
             skill_size: (42.0, 20.0),
@@ -101,7 +99,12 @@ impl HomunWindow {
         self.visible = value;
     }
 
-    pub fn build(&mut self, ui: &mut UiFrame, homun: Option<&HomunculusState>) -> Vec<GameEvent> {
+    pub fn build(
+        &mut self,
+        ui: &mut UiFrame,
+        homun: Option<&HomunculusState>,
+        autofeed: bool,
+    ) -> Vec<GameEvent> {
         if !self.visible {
             return Vec::new();
         }
@@ -249,7 +252,10 @@ impl HomunWindow {
             ui.any_interactive_hovered = true;
         }
         if cb_resp.clicked() {
-            self.self_feeding = !self.self_feeding;
+            events.push(GameEvent::RequestSetConfig {
+                kind: SelfConfigKind::HomunculusAutofeed,
+                enabled: !autofeed,
+            });
         }
         let (v, i) = draw::quad_vertices(cb_x, ry, cb_size, cb_size, [0.9, 0.9, 0.9, 1.0]);
         ui.draw_calls.push(DrawCall {
@@ -257,7 +263,7 @@ impl HomunWindow {
             indices: i.to_vec(),
             texture: TextureRef::White,
         });
-        if self.self_feeding {
+        if autofeed {
             let (v, i) = draw::quad_vertices(cb_x + 3.0, ry + 3.0, cb_size - 6.0, cb_size - 6.0, crate::helper::colors::GREEN);
             ui.draw_calls.push(DrawCall {
                 vertices: v.to_vec(),
