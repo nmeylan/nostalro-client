@@ -17,6 +17,9 @@ use ragnarok_game::data_table::skill_tree_table::{SkillTreeEntry, SkillTreeTable
 use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo, VendorItem};
 use ragnarok_game::item::Item;
 use ragnarok_game::npc_shop::{NpcShopMode, ShopBuyItem, ShopSellItem};
+use ragnarok_game::guild::{
+    Guild, GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill,
+};
 use ragnarok_game::party::{Party, PartyMember};
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -48,6 +51,7 @@ use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotificatio
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::number_input::{NumberInputConfig, NumberInputDialog};
+use ragnarok_ui_component::game::guild_window::{GUILD_WINDOW_ID, GuildWindow};
 use ragnarok_ui_component::game::party_friends_window::{
     PARTY_FRIENDS_WINDOW_ID, PartyFriendsWindow,
 };
@@ -88,6 +92,7 @@ const GAME_COMPONENTS: &[&str] = &[
     "basic_info",
     "status",
     "party",
+    "guild",
 ];
 const ACCOUNT_COMPONENTS: &[&str] =
     &["login", "server_list", "char_select", "char_create"];
@@ -207,6 +212,13 @@ enum State {
         win: PartyFriendsWindow,
         party: Party,
         local_aid: u32,
+        character: Character,
+        data: DataTable,
+    },
+    GuildDemo {
+        win: GuildWindow,
+        guild: Guild,
+        local_gid: u32,
         character: Character,
         data: DataTable,
     },
@@ -1303,6 +1315,75 @@ fn create_single(name: &str) -> State {
                 data: DataTable::new(),
             }
         }
+        "guild" => {
+            let local_gid = 2000001;
+            let mut guild = Guild {
+                gdid: 42,
+                name: "Prontera Knights".to_string(),
+                level: 12,
+                exp: 45_000,
+                max_exp: 100_000,
+                member_num: 3,
+                max_member_num: 36,
+                avg_level: 74,
+                point: 320,
+                master_name: "Walkiry".to_string(),
+                manage_land: "prontera".to_string(),
+                notice_subject: "Woe this Saturday".to_string(),
+                notice_body: "Meet at the guild dungeon at 20:00. Bring supplies and \
+                              be ready for the emperium break."
+                    .to_string(),
+                ..Default::default()
+            };
+            guild.positions = vec![
+                GuildPosition { id: 0, name: "Master".to_string(), right: 0x111, ranking: 0, pay_rate: 50 },
+                GuildPosition { id: 1, name: "Officer".to_string(), right: 0x001, ranking: 1, pay_rate: 10 },
+                GuildPosition { id: 2, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 0 },
+            ];
+            let gmember = |gid: u32, name: &str, level: i16, position_id: i32, pos_name: &str,
+                           online: bool, map: &str, contrib: i32| GuildMember {
+                aid: gid,
+                gid,
+                name: name.to_string(),
+                level,
+                position_id,
+                position_name: pos_name.to_string(),
+                online,
+                cur_map: map.to_string(),
+                contribution_exp: contrib,
+                ..Default::default()
+            };
+            guild.members = vec![
+                gmember(local_gid, "Walkiry", 99, 0, "Master", true, "prontera.gat", 1500),
+                gmember(2000002, "Lidia", 88, 1, "Officer", true, "payon.gat", 900),
+                gmember(2000003, "Garm", 71, 2, "Member", false, "", 300),
+                gmember(2000004, "Sohee", 65, 2, "Member", true, "geffen.gat", 250),
+                gmember(2000005, "Poring", 42, 2, "Member", false, "", 60),
+            ];
+            guild.relations = vec![
+                GuildRelation { gdid: 7, name: "Geffen Mages".to_string(), relation: 0 },
+                GuildRelation { gdid: 9, name: "Payon Archers".to_string(), relation: 1 },
+            ];
+            guild.skill_point = 2;
+            guild.skills = vec![
+                GuildSkill { skid: 10000, name: "GD_APPROVAL".to_string(), level: 1, upgradable: false, passive: true, ..Default::default() },
+                GuildSkill { skid: 10014, name: "GD_GUARDUP".to_string(), level: 0, upgradable: true, passive: false, ..Default::default() },
+                GuildSkill { skid: 10005, name: "GD_EXTENSION".to_string(), level: 2, upgradable: true, passive: true, ..Default::default() },
+            ];
+            guild.ban_list = vec![
+                GuildBanEntry { char_name: "Traitor".to_string(), reason: "Left mid-WoE".to_string(), ..Default::default() },
+                GuildBanEntry { char_name: "Spy".to_string(), reason: "Enemy alt".to_string(), ..Default::default() },
+            ];
+            let mut win = GuildWindow::new();
+            win.toggle();
+            State::GuildDemo {
+                win,
+                guild,
+                local_gid,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
         "mercenary" => {
             let mut win = MercenaryWindow::new();
             win.set_visible(true);
@@ -1564,6 +1645,10 @@ fn grf_init_single(
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
+        State::GuildDemo { win, .. } => {
+            win.has_grf_textures = true;
+            win.set_texture_sizes(size_fn);
+        }
         State::Mercenary { win, .. } => {
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
@@ -1620,6 +1705,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Book { .. } => Some(BOOK_WINDOW_ID),
         State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
         State::PartyDemo { .. } => Some(PARTY_FRIENDS_WINDOW_ID),
+        State::GuildDemo { .. } => Some(GUILD_WINDOW_ID),
         State::Mercenary { .. } => Some(MERCENARY_WINDOW_ID),
         State::MercenarySkill { .. } => Some(MERCENARY_SKILL_WINDOW_ID),
         State::Homun { .. } => Some(HOMUN_WINDOW_ID),
@@ -1640,6 +1726,7 @@ fn gallery_window(state: &State) -> Option<(WidgetId, (f32, f32))> {
         State::BasicInfoDemo { win, .. } => (BASIC_INFO_WINDOW_ID, win),
         State::SkillTree { win, .. } => (SKILL_WINDOW_ID, win),
         State::PartyDemo { win, .. } => (PARTY_FRIENDS_WINDOW_ID, win),
+        State::GuildDemo { win, .. } => (GUILD_WINDOW_ID, win),
         State::ItemInfo { win, .. } => (ITEM_INFO_WINDOW_ID, win),
         State::Book { win, .. } => (BOOK_WINDOW_ID, win),
         State::Cart { win, .. } => (CART_WINDOW_ID, win),
@@ -1656,33 +1743,223 @@ fn gallery_window(state: &State) -> Option<(WidgetId, (f32, f32))> {
     Some((id, win.window_size()))
 }
 
-/// Pack draggable windows into rows ("shelves") sized to the actual window
-/// dimensions, wrapping to a new shelf when the next window would run past the
-/// screen edge. This adapts to variable widths and avoids the overlap that a
-/// fixed-column grid produces once `window_at` clamps oversized rows back
-/// on-screen.
-fn seed_gallery_layout(components: &[State], ui: &mut UiFrame) {
-    const GAP: f32 = 12.0;
-    const MARGIN: f32 = 8.0;
+const GALLERY_GAP: f32 = 12.0;
+const GALLERY_MARGIN: f32 = 8.0;
 
-    let avail_w = (ui.ctx.screen_width - MARGIN).max(1.0);
+type FreeRect = (f32, f32, f32, f32);
 
-    let mut cursor_x = MARGIN;
-    let mut cursor_y = MARGIN;
-    let mut shelf_h = 0.0f32;
+fn rects_intersect(a: FreeRect, b: FreeRect) -> bool {
+    a.0 < b.0 + b.2 && a.0 + a.2 > b.0 && a.1 < b.1 + b.3 && a.1 + a.3 > b.1
+}
 
-    for comp in components {
-        let Some((id, (w, h))) = gallery_window(comp) else {
-            continue;
-        };
-        if cursor_x > MARGIN && cursor_x + w > avail_w {
-            cursor_x = MARGIN;
-            cursor_y += shelf_h + GAP;
-            shelf_h = 0.0;
+/// True when `outer` fully contains `inner`.
+fn rect_contains(outer: FreeRect, inner: FreeRect) -> bool {
+    inner.0 >= outer.0
+        && inner.1 >= outer.1
+        && inner.0 + inner.2 <= outer.0 + outer.2
+        && inner.1 + inner.3 <= outer.1 + outer.3
+}
+
+/// Subtract `used` from free rectangle `f`, yielding the maximal sub-rectangles
+/// that remain. When they do not intersect, `f` is returned unchanged.
+fn split_free(f: FreeRect, used: FreeRect) -> Vec<FreeRect> {
+    if !rects_intersect(f, used) {
+        return vec![f];
+    }
+    let (fx, fy, fw, fh) = f;
+    let (ux, uy, uw, uh) = used;
+    let mut out = Vec::new();
+    if ux > fx {
+        out.push((fx, fy, ux - fx, fh));
+    }
+    if ux + uw < fx + fw {
+        out.push((ux + uw, fy, fx + fw - (ux + uw), fh));
+    }
+    if uy > fy {
+        out.push((fx, fy, fw, uy - fy));
+    }
+    if uy + uh < fy + fh {
+        out.push((fx, uy + uh, fw, fy + fh - (uy + uh)));
+    }
+    out
+}
+
+fn prune_contained(free: &mut Vec<FreeRect>) {
+    let mut i = 0;
+    while i < free.len() {
+        let mut j = i + 1;
+        let mut removed = false;
+        while j < free.len() {
+            if rect_contains(free[j], free[i]) {
+                free.swap_remove(i);
+                removed = true;
+                break;
+            }
+            if rect_contains(free[i], free[j]) {
+                free.swap_remove(j);
+            } else {
+                j += 1;
+            }
         }
-        ui.seed_window_position(id, cursor_x, cursor_y);
-        cursor_x += w + GAP;
-        shelf_h = shelf_h.max(h);
+        if !removed {
+            i += 1;
+        }
+    }
+}
+
+/// MaxRects bin packing (best-short-side-fit). The largest windows are placed
+/// first; each goes into the free rectangle that leaves the smallest leftover
+/// edge, then every free rectangle overlapping it is split into its maximal
+/// remaining pieces. Placed windows never overlap as long as they fit on
+/// screen — no fixed columns, no windows clamped on top of each other. Returns
+/// each window's `(id, x, y)`.
+fn pack_gallery(
+    mut items: Vec<(WidgetId, f32, f32)>,
+    avail_w: f32,
+    avail_h: f32,
+    reserved: &[FreeRect],
+) -> Vec<(WidgetId, f32, f32)> {
+    items.sort_by(|a, b| (b.1 * b.2).total_cmp(&(a.1 * a.2)));
+
+    let mut free: Vec<FreeRect> = vec![(
+        GALLERY_MARGIN,
+        GALLERY_MARGIN,
+        (avail_w - GALLERY_MARGIN).max(1.0),
+        (avail_h - GALLERY_MARGIN).max(1.0),
+    )];
+    // Carve out the regions occupied by self-positioning windows first, so
+    // packed windows are routed around them.
+    for &zone in reserved {
+        free = free.drain(..).flat_map(|f| split_free(f, zone)).collect();
+        prune_contained(&mut free);
+    }
+    let mut placed = Vec::with_capacity(items.len());
+
+    for (id, w, h) in items {
+        let (rw, rh) = (w + GALLERY_GAP, h + GALLERY_GAP);
+
+        let mut best: Option<(f32, f32, f32, f32)> = None; // (short_leftover, long_leftover, x, y)
+        for &(fx, fy, fw, fh) in &free {
+            if rw <= fw && rh <= fh {
+                let (short, long) = {
+                    let (a, b) = (fw - rw, fh - rh);
+                    (a.min(b), a.max(b))
+                };
+                if best.is_none_or(|(bs, bl, ..)| short < bs || (short == bs && long < bl)) {
+                    best = Some((short, long, fx, fy));
+                }
+            }
+        }
+
+        let (bx, by) = match best {
+            Some((_, _, x, y)) => (x, y),
+            None => free
+                .iter()
+                .max_by(|a, b| (a.2 * a.3).total_cmp(&(b.2 * b.3)))
+                .map(|&(x, y, ..)| (x, y))
+                .unwrap_or((GALLERY_MARGIN, GALLERY_MARGIN)),
+        };
+        placed.push((id, bx, by));
+
+        let used = (bx, by, rw, rh);
+        free = free.drain(..).flat_map(|f| split_free(f, used)).collect();
+        prune_contained(&mut free);
+    }
+    placed
+}
+
+/// Regions occupied by the self-positioning windows the packer can't move:
+/// the top-centre hotkey bar, the centred modal dialogs, and the bottom-left
+/// chat box. Packed windows are routed around these.
+fn fixed_ui_zones(sw: f32, sh: f32) -> Vec<FreeRect> {
+    let hotkey = ((sw * 0.25).max(0.0), 0.0, (sw * 0.5).min(sw), 92.0f32.min(sh));
+    let modal = (
+        (sw - 360.0).max(0.0) / 2.0,
+        (sh - 460.0).max(0.0) / 2.0,
+        360.0f32.min(sw),
+        460.0f32.min(sh),
+    );
+    let chat = (0.0, (sh - 200.0).max(0.0), 360.0f32.min(sw), 200.0f32.min(sh));
+    vec![hotkey, modal, chat]
+}
+
+fn seed_gallery_layout(components: &[State], ui: &mut UiFrame) {
+    let items: Vec<(WidgetId, f32, f32)> = components
+        .iter()
+        .filter_map(|comp| gallery_window(comp).map(|(id, (w, h))| (id, w, h)))
+        .collect();
+    if items.is_empty() {
+        return;
+    }
+    let (sw, sh) = (ui.ctx.screen_width.max(1.0), ui.ctx.screen_height.max(1.0));
+    for (id, x, y) in pack_gallery(items, sw, sh, &fixed_ui_zones(sw, sh)) {
+        ui.seed_window_position(id, x, y);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn packed_windows_never_overlap_and_stay_on_screen() {
+        let sizes = [
+            (WidgetId(1), 555.0, 455.0),
+            (WidgetId(2), 280.0, 130.0),
+            (WidgetId(3), 240.0, 178.0),
+            (WidgetId(4), 384.0, 340.0),
+            (WidgetId(5), 170.0, 240.0),
+            (WidgetId(6), 288.0, 224.0),
+            (WidgetId(7), 270.0, 195.0),
+        ];
+        let (screen_w, screen_h) = (1280.0, 900.0);
+        let placed = pack_gallery(sizes.to_vec(), screen_w, screen_h, &[]);
+
+        let rect = |id: WidgetId| {
+            let (_, w, h) = sizes.iter().find(|s| s.0 == id).copied().unwrap();
+            let (_, x, y) = placed.iter().find(|p| p.0 == id).copied().unwrap();
+            (x, y, w, h)
+        };
+        for i in 0..sizes.len() {
+            let (ax, ay, aw, ah) = rect(sizes[i].0);
+            assert!(ax >= 0.0 && ay >= 0.0);
+            assert!(ax + aw <= screen_w && ay + ah <= screen_h);
+            for j in (i + 1)..sizes.len() {
+                let (bx, by, bw, bh) = rect(sizes[j].0);
+                let disjoint =
+                    ax + aw <= bx || bx + bw <= ax || ay + ah <= by || by + bh <= ay;
+                assert!(disjoint, "windows {i} and {j} overlap");
+            }
+        }
+    }
+
+    #[test]
+    fn game_category_windows_avoid_fixed_ui_zones() {
+        let comps: Vec<State> = GAME_COMPONENTS.iter().map(|n| create_single(n)).collect();
+        let items: Vec<(WidgetId, f32, f32)> = comps
+            .iter()
+            .filter_map(|c| gallery_window(c).map(|(id, (w, h))| (id, w, h)))
+            .collect();
+
+        let (sw, sh) = (1600.0, 1000.0);
+        let zones = fixed_ui_zones(sw, sh);
+        let placed = pack_gallery(items.clone(), sw, sh, &zones);
+        let rect = |id: WidgetId| {
+            let (_, w, h) = items.iter().find(|s| s.0 == id).copied().unwrap();
+            let (_, x, y) = placed.iter().find(|p| p.0 == id).copied().unwrap();
+            (x, y, w, h)
+        };
+
+        for i in 0..items.len() {
+            let a = rect(items[i].0);
+            assert!(a.0 + a.2 <= sw && a.1 + a.3 <= sh, "window {i} off-screen");
+            for zone in &zones {
+                assert!(!rects_intersect(a, *zone), "window {i} overlaps a fixed zone");
+            }
+            for j in (i + 1)..items.len() {
+                assert!(!rects_intersect(a, rect(items[j].0)), "windows {i}/{j} overlap");
+            }
+        }
     }
 }
 
@@ -1923,6 +2200,16 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             data,
         } => {
             win.sync(Some(party), &[], *local_aid);
+            win.build(ui, character, data);
+        }
+        State::GuildDemo {
+            win,
+            guild,
+            local_gid,
+            character,
+            data,
+        } => {
+            win.sync(Some(guild), *local_gid, "Walkiry");
             win.build(ui, character, data);
         }
         State::Mercenary { win, merc } => {

@@ -250,9 +250,9 @@ fn main() {
     let example_name_for_closure = example_name.clone();
     let is_category = matches!(
         example_name.as_str(),
-        "game" | "account" | "shop" | "companion"
+        "game" | "account" | "shop" | "companion" | "guild"
     );
-    let (win_w, win_h) = if is_category { (1280, 900) } else { (800, 600) };
+    let (win_w, win_h) = if is_category { (1600, 1000) } else { (800, 600) };
 
     shared::UiExampleApp::new("Hot Reload", win_w, win_h, move |ctx| {
         // Poll for dylib changes (mtime check is cheap)

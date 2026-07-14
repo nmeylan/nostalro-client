@@ -96,13 +96,14 @@ impl Connection {
 
         while offset < self.recv_buffer.len() {
             let remaining = self.recv_buffer[offset..].to_vec();
-            let parse_buf = if remaining.len() >= 2
-                && packets_parser::is_variable_length([remaining[0], remaining[1]], packetver)
-            {
+            let is_variable = remaining.len() >= 2
+                && packets_parser::is_variable_length([remaining[0], remaining[1]], packetver);
+            let parse_buf = if is_variable {
                 Self::slice_to_packet_len(&remaining)
             } else {
                 &remaining
             };
+            let declared_len = parse_buf.len();
             let result = panic::catch_unwind(|| packets_parser::parse(parse_buf, packetver));
             match result {
                 Ok(packet) => {
@@ -121,7 +122,13 @@ impl Connection {
                         offset += skip;
                         continue;
                     }
-                    let consumed = packet.raw().len();
+                    // Variable-length packets advance by their declared length; a
+                    // struct that under-reads its body would otherwise desync the stream.
+                    let consumed = if is_variable {
+                        declared_len
+                    } else {
+                        packet.raw().len()
+                    };
                     if self.trace_packets_recv {
                         tracing::info!(
                             "recv {} ({consumed} bytes, remaining={})",

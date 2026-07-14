@@ -9,6 +9,7 @@
   "bgm_enabled": true,
   "sfx_enabled": true,
   "bgm_path": "BGM",
+  "emblem_path": "Emblem",
   "free_camera": false,
   "dpi_scale": 150.0,
   "grf_paths": [
@@ -20,12 +21,28 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
-    "900": {
+    "1200": {
       "position": [
-        15.785156,
-        278.55078
+        699.7044,
+        90.59766
       ],
       "open": true,
+      "collapsed": false
+    },
+    "1400": {
+      "position": [
+        0.0,
+        0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "3400": {
+      "position": [
+        429.08203,
+        404.75
+      ],
+      "open": false,
       "collapsed": false
     },
     "1300": {
@@ -38,32 +55,8 @@
     },
     "210": {
       "position": [
-        342.0,
-        346.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "3300": {
-      "position": [
-        320.0,
-        60.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "1400": {
-      "position": [
-        0.0,
-        0.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "10": {
-      "position": [
-        344.0,
-        344.66666
+        665.1133,
+        372.4453
       ],
       "open": false,
       "collapsed": false
@@ -76,10 +69,10 @@
       "open": false,
       "collapsed": false
     },
-    "2000": {
+    "10": {
       "position": [
-        544.03516,
-        179.03516
+        344.0,
+        344.66666
       ],
       "open": false,
       "collapsed": false
@@ -88,6 +81,14 @@
       "position": [
         0.0,
         152.72656
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "900": {
+      "position": [
+        0.0,
+        469.32422
       ],
       "open": true,
       "collapsed": false
@@ -104,6 +105,6 @@
     "hide_name_npc": false,
     "show_level_aura": true
   },
-  "last_char_slot": 1,
+  "last_char_slot": 0,
   "map_recovery_command": "@go prontera"
 }

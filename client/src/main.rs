@@ -55,6 +55,11 @@ use ragnarok_network::{
     build_join_party_reply_packet, build_leave_party_packet, build_make_party_packet,
     build_make_party2_packet, build_change_party_leader_packet, build_party_invite_by_name_packet,
     build_add_friend_packet, build_ack_add_friend_packet, build_delete_friend_packet,
+    build_req_guild_menu, build_req_guild_menuinterface, build_guild_notice,
+    build_req_leave_guild, build_req_ban_guild, build_req_change_memberpos,
+    build_reg_change_guild_positioninfo, build_make_guild, build_req_disorganize_guild,
+    build_register_guild_emblem, build_req_join_guild,
+    build_req_ally_guild, build_req_hostile_guild, build_req_delete_related_guild,
     build_party_chat_packet, build_remove_option_packet, build_req_enter_room_packet,
     build_req_disconnect_packet, build_req_join_party_packet, build_reqname_packet,
     build_restart_packet, build_select_char_packet, build_select_warppoint_packet,
@@ -1335,6 +1340,142 @@ impl App {
                     self.channel
                         .send_packet(build_change_party_leader_packet(aid, self.config.packetver));
                 }
+                GameEvent::RequestGuildInfoBurst => {
+                    let pv = self.config.packetver;
+                    self.channel.send_packet(build_req_guild_menuinterface(pv));
+                    for atype in 0..=4 {
+                        self.channel.send_packet(build_req_guild_menu(atype, pv));
+                    }
+                }
+                GameEvent::ShowGuildMemberMenu { aid, gid, name, x, y } => {
+                    use ragnarok_ui_component::game::context_menu::{
+                        ContextMenuAction, ContextMenuItem,
+                    };
+                    let local_gid = self
+                        .game
+                        .login_session
+                        .as_ref()
+                        .map(|s| s.account_id)
+                        .unwrap_or(0);
+                    let mut items = Vec::new();
+                    if gid != local_gid {
+                        items.push(ContextMenuItem {
+                            label: "Whisper".to_string(),
+                            action: ContextMenuAction::Whisper { name: name.clone() },
+                        });
+                    }
+                    if let Some(g) = &self.game.guild {
+                        let target_master = g
+                            .member_by_gid(gid)
+                            .map(|m| m.position_id == 0)
+                            .unwrap_or(false);
+                        if g.is_master(local_gid) && !target_master {
+                            for p in &g.positions {
+                                items.push(ContextMenuItem {
+                                    label: format!("Set: {}", p.name),
+                                    action: ContextMenuAction::ChangeGuildPosition {
+                                        aid,
+                                        gid,
+                                        position_id: p.id,
+                                    },
+                                });
+                            }
+                            items.push(ContextMenuItem {
+                                label: "Expel".to_string(),
+                                action: ContextMenuAction::ExpelFromGuild { aid, gid, name },
+                            });
+                        }
+                    }
+                    self.game.context_menu.open_at(x, y, items);
+                }
+                GameEvent::RequestSetGuildNotice { subject, body } => {
+                    if let Some(gdid) = self.game.guild.as_ref().map(|g| g.gdid) {
+                        self.channel.send_packet(build_guild_notice(
+                            gdid,
+                            &subject,
+                            &body,
+                            self.config.packetver,
+                        ));
+                    }
+                }
+                GameEvent::RequestGuildLeave => {
+                    if let Some(g) = &self.game.guild {
+                        let aid = self
+                            .game
+                            .login_session
+                            .as_ref()
+                            .map(|s| s.account_id)
+                            .unwrap_or(0) as i32;
+                        self.channel.send_packet(build_req_leave_guild(
+                            g.gdid,
+                            aid,
+                            aid,
+                            "",
+                            self.config.packetver,
+                        ));
+                    }
+                }
+                GameEvent::RequestGuildExpel { aid, gid, name } => {
+                    if let Some(gdid) = self.game.guild.as_ref().map(|g| g.gdid) {
+                        self.channel.send_packet(build_req_ban_guild(
+                            gdid,
+                            aid as i32,
+                            gid as i32,
+                            &name,
+                            self.config.packetver,
+                        ));
+                    }
+                }
+                GameEvent::RequestChangeMemberPosition { aid, gid, position_id } => {
+                    self.channel.send_packet(build_req_change_memberpos(
+                        aid as i32,
+                        gid as i32,
+                        position_id,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestChangePositionInfo { positions } => {
+                    self.channel.send_packet(build_reg_change_guild_positioninfo(
+                        &positions,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestUpgradeGuildSkill { skid } => {
+                    self.channel
+                        .send_packet(build_upgrade_skill_packet(skid, self.config.packetver));
+                }
+                GameEvent::RequestGuildInvite { target_aid } => {
+                    let (my_aid, my_gid) = self.local_aid_gid();
+                    self.channel.send_packet(build_req_join_guild(
+                        target_aid,
+                        my_aid,
+                        my_gid,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestGuildAlly { target_aid } => {
+                    let (my_aid, my_gid) = self.local_aid_gid();
+                    self.channel.send_packet(build_req_ally_guild(
+                        target_aid,
+                        my_aid,
+                        my_gid,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestGuildHostile { target_aid } => {
+                    self.channel
+                        .send_packet(build_req_hostile_guild(target_aid, self.config.packetver));
+                }
+                GameEvent::RequestDeleteGuildRelation { gdid, relation } => {
+                    self.channel.send_packet(build_req_delete_related_guild(
+                        gdid,
+                        relation,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestSelectEmblem => {
+                    self.upload_guild_emblem();
+                }
                 GameEvent::RequestAddFriend { name } => {
                     self.channel
                         .send_packet(build_add_friend_packet(&name, self.config.packetver));
@@ -1382,6 +1523,38 @@ impl App {
             }));
         self.game.app_state = AppState::CharacterSelect;
         true
+    }
+
+    fn local_aid_gid(&self) -> (u32, u32) {
+        let aid = self
+            .game
+            .login_session
+            .as_ref()
+            .map(|s| s.account_id)
+            .unwrap_or(0);
+        (aid, aid)
+    }
+
+    fn upload_guild_emblem(&mut self) {
+        let dir = &self.config.emblem_path;
+        let resolved = std::path::Path::new(dir);
+        let entry = std::fs::read_dir(resolved).ok().and_then(|rd| {
+            rd.filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .find(|p| p.extension().is_some_and(|x| x.eq_ignore_ascii_case("bmp")))
+        });
+        match entry.and_then(|p| std::fs::read(p).ok()) {
+            Some(bmp) => {
+                self.channel
+                    .send_packet(build_register_guild_emblem(bmp, self.config.packetver));
+            }
+            None => {
+                self.game.chat_window.add_system(format!(
+                    "No emblem .bmp found in '{}'.",
+                    resolved.display()
+                ));
+            }
+        }
     }
 
     fn handle_slash_command(&mut self, command: &str) {
@@ -1464,6 +1637,54 @@ impl App {
                 } else {
                     self.channel
                         .send_packet(build_make_party_packet(name, self.config.packetver));
+                }
+            }
+            "/guild" => {
+                const EMPERIUM_ITEM_ID: u16 = 714;
+                let name = command["/guild".len()..].trim();
+                let has_emperium = self
+                    .game
+                    .character
+                    .inventory
+                    .all_items()
+                    .iter()
+                    .any(|i| i.item_id == EMPERIUM_ITEM_ID);
+                let gid = self
+                    .game
+                    .login_session
+                    .as_ref()
+                    .map(|s| s.account_id)
+                    .unwrap_or(0);
+                if name.is_empty() {
+                    self.game
+                        .chat_window
+                        .add_system("Usage: /guild <guild name>".to_string());
+                } else if self.game.guild.is_some() {
+                    self.game
+                        .chat_window
+                        .add_system("You are already in a guild.".to_string());
+                } else if !has_emperium {
+                    self.game
+                        .chat_window
+                        .add_system("You need an Emperium to create a guild.".to_string());
+                } else {
+                    self.channel
+                        .send_packet(build_make_guild(gid, name, self.config.packetver));
+                }
+            }
+            "/breakguild" => {
+                let name = command["/breakguild".len()..].trim();
+                if name.is_empty() {
+                    self.game
+                        .chat_window
+                        .add_system("Usage: /breakguild <guild name>".to_string());
+                } else if self.game.guild.is_none() {
+                    self.game
+                        .chat_window
+                        .add_system("You are not in a guild.".to_string());
+                } else {
+                    self.channel
+                        .send_packet(build_req_disorganize_guild(name, self.config.packetver));
                 }
             }
             _ => {

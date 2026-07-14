@@ -43,9 +43,9 @@ TODO:
 - ~~NPC dialog box (text, menu choices, number input)~~
 - ~~NPC shop (buy/sell)~~
 ~~- Vending (player shop setup + buying)~~
-- Party window
+- ~~Party window~~
 - Guild window (members, positions, skills, emblem, notices)
-- Friend/messenger list
+- ~~Friend/messenger list~~
 - Game menu: graphic/audio options
 - Emotion selector
 - ~~Char delete~~
@@ -95,9 +95,9 @@ TODO:
 - Storage/warehouse
 
 # Social
-- Party (create, join, leave, exp/item share settings)
+- ~~Party (create, join, leave, exp/item share settings)~~
 - Guild (create, manage, skills, emblem, war of emperium)
-- Friend list + whisper
+- ~~Friend list + whisper~~
 - Chat rooms
 - Trade
 ~~- Vending/merchant shop~~

@@ -4,6 +4,7 @@ mod companion;
 mod connection;
 mod entity;
 mod friends;
+mod guild;
 mod inventory;
 mod login;
 mod npc;
@@ -833,6 +834,90 @@ impl App {
                     name,
                 } => {
                     self.handle_friend_request_received(req_aid, req_gid, name);
+                }
+
+                GameEvent::GuildMenuFlag { flag } => {
+                    self.handle_guild_menu_flag(flag);
+                }
+                GameEvent::GuildInfo {
+                    gdid,
+                    name,
+                    level,
+                    exp,
+                    max_exp,
+                    member_num,
+                    max_member_num,
+                    avg_level,
+                    point,
+                    master_name,
+                    manage_land,
+                    emblem_version,
+                } => {
+                    self.handle_guild_info(
+                        gdid,
+                        name,
+                        level,
+                        exp,
+                        max_exp,
+                        member_num,
+                        max_member_num,
+                        avg_level,
+                        point,
+                        master_name,
+                        manage_land,
+                        emblem_version,
+                    );
+                }
+                GameEvent::GuildMembers { members } => {
+                    self.handle_guild_members(members);
+                }
+                GameEvent::GuildPositions { positions } => {
+                    self.handle_guild_positions(positions);
+                }
+                GameEvent::GuildPositionNames { names } => {
+                    self.handle_guild_position_names(names);
+                }
+                GameEvent::GuildSkills { point, skills } => {
+                    self.handle_guild_skills(point, skills);
+                }
+                GameEvent::GuildBanList { entries } => {
+                    self.handle_guild_ban_list(entries);
+                }
+                GameEvent::GuildNotice { subject, body } => {
+                    self.handle_guild_notice(subject, body);
+                }
+                GameEvent::GuildOtherList { guilds } => {
+                    self.handle_guild_other_list(guilds);
+                }
+                GameEvent::GuildRelations { relations } => {
+                    self.handle_guild_relations(relations);
+                }
+                GameEvent::GuildEmblem { gdid, version, bmp } => {
+                    self.handle_guild_emblem(gdid, version, bmp);
+                }
+                GameEvent::GuildIdentityUpdated {
+                    gdid,
+                    emblem_version,
+                    right,
+                    is_master,
+                    name,
+                } => {
+                    self.handle_guild_identity_updated(gdid, emblem_version, right, is_master, name);
+                }
+                GameEvent::GuildCreateResult { result } => {
+                    self.handle_guild_create_result(result);
+                }
+                GameEvent::GuildMemberLeft { name, reason } => {
+                    self.handle_guild_member_left(name, reason);
+                }
+                GameEvent::GuildDisbandResult { reason } => {
+                    self.handle_guild_disband_result(reason);
+                }
+                GameEvent::GuildInviteReceived { gdid, name } => {
+                    self.handle_guild_invite_received(gdid, name);
+                }
+                GameEvent::GuildAllyRequestReceived { aid, name } => {
+                    self.handle_guild_ally_request_received(aid, name);
                 }
 
                 GameEvent::AutoCastSkill { skill_id, level } => {

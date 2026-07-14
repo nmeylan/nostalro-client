@@ -9,6 +9,9 @@ use ragnarok_game::event::{
     CharacterInfo, FriendData, GameEvent, HomunculusProperty, MercenaryInfo, PartyMemberData,
     ServerInfo, SkillInfo,
 };
+use ragnarok_game::guild::{
+    GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild,
+};
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
 use ragnarok_game::targeting::{MapKind, MapProperties};
 use tracing::debug;
@@ -817,6 +820,190 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::PartyChatMessage {
             aid: p.aid,
             message,
+        }];
+    }
+
+    if let Some(p) = any.downcast_ref::<PacketZcAckGuildMenuinterface>() {
+        return vec![GameEvent::GuildMenuFlag {
+            flag: p.guild_memu_flag,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcGuildInfo2>() {
+        return vec![GameEvent::GuildInfo {
+            gdid: p.gdid as u32,
+            name: cstr(&p.guildname),
+            level: p.level,
+            exp: p.exp,
+            max_exp: p.max_exp,
+            member_num: p.user_num,
+            max_member_num: p.max_user_num,
+            avg_level: p.user_average_level,
+            point: p.point,
+            master_name: cstr(&p.master_name),
+            manage_land: cstr(&p.manage_land),
+            emblem_version: p.emblem_version,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcGuildInfo>() {
+        return vec![GameEvent::GuildInfo {
+            gdid: p.gdid as u32,
+            name: cstr(&p.guildname),
+            level: p.level,
+            exp: p.exp,
+            max_exp: p.max_exp,
+            member_num: p.user_num,
+            max_member_num: p.max_user_num,
+            avg_level: p.user_average_level,
+            point: p.point,
+            master_name: cstr(&p.master_name),
+            manage_land: cstr(&p.manage_land),
+            emblem_version: p.emblem_version,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMembermgrInfo>() {
+        let members = p
+            .member_info
+            .iter()
+            .map(|m| GuildMember {
+                aid: m.aid,
+                gid: m.gid,
+                name: cstr(&m.char_name),
+                job: m.job,
+                level: m.level,
+                head: m.head_type,
+                head_palette: m.head_palette,
+                sex: m.sex,
+                position_id: m.gposition_id,
+                position_name: String::new(),
+                contribution_exp: m.member_exp,
+                online: m.current_state != 0,
+                note: cstr(&m.memo),
+                cur_map: String::new(),
+                last_offline: 0,
+            })
+            .collect();
+        return vec![GameEvent::GuildMembers { members }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcPositionInfo>() {
+        let positions = p
+            .member_info
+            .iter()
+            .map(|pos| GuildPosition {
+                id: pos.position_id,
+                name: String::new(),
+                right: pos.right,
+                ranking: pos.ranking,
+                pay_rate: pos.pay_rate,
+            })
+            .collect();
+        return vec![GameEvent::GuildPositions { positions }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcPositionIdNameInfo>() {
+        let names = p
+            .member_list
+            .iter()
+            .map(|pos| (pos.position_id, cstr(&pos.pos_name)))
+            .collect();
+        return vec![GameEvent::GuildPositionNames { names }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcGuildSkillinfo>() {
+        let skills = parse_skill_info_list(&p.skill_list)
+            .into_iter()
+            .map(|s| GuildSkill {
+                skid: s.id,
+                name: s.name,
+                level: s.level,
+                sp_cost: s.sp_cost,
+                attack_range: s.attack_range,
+                upgradable: s.upgradable,
+                passive: matches!(s.skill_target_type, SkillTargetType::Passive),
+            })
+            .collect();
+        return vec![GameEvent::GuildSkills {
+            point: p.skill_point,
+            skills,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcBanList>() {
+        return vec![GameEvent::GuildBanList {
+            entries: parse_ban_list(&p.raw),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcGuildNotice>() {
+        return vec![GameEvent::GuildNotice {
+            subject: cstr(&p.subject),
+            body: cstr(&p.notice),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcOtherGuildList>() {
+        let guilds = p
+            .guild_list
+            .iter()
+            .map(|g| OtherGuild {
+                name: cstr(&g.guildname),
+                level: g.guild_level,
+                member_size: g.guild_member_size,
+                ranking: g.guild_ranking,
+            })
+            .collect();
+        return vec![GameEvent::GuildOtherList { guilds }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMyguildBasicInfo>() {
+        let relations = p
+            .related_guild_list
+            .iter()
+            .map(|r| GuildRelation {
+                gdid: r.gdid,
+                name: cstr(&r.guild_name),
+                relation: r.relation,
+            })
+            .collect();
+        return vec![GameEvent::GuildRelations { relations }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcGuildEmblemImg>() {
+        return vec![GameEvent::GuildEmblem {
+            gdid: p.gdid as u32,
+            version: p.emblem_version,
+            bmp: p.img_raw.clone(),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcUpdateGdid>() {
+        return vec![GameEvent::GuildIdentityUpdated {
+            gdid: p.gdid,
+            emblem_version: p.emblem_version,
+            right: p.right,
+            is_master: p.is_master,
+            name: cstr(&p.gname),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcResultMakeGuild>() {
+        return vec![GameEvent::GuildCreateResult { result: p.result }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckLeaveGuild>() {
+        return vec![GameEvent::GuildMemberLeft {
+            name: cstr(&p.char_name),
+            reason: cstr(&p.reason_desc),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckBanGuild>() {
+        return vec![GameEvent::GuildMemberLeft {
+            name: cstr(&p.char_name),
+            reason: cstr(&p.reason_desc),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckDisorganizeGuildResult>() {
+        return vec![GameEvent::GuildDisbandResult { reason: p.reason }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcReqJoinGuild>() {
+        return vec![GameEvent::GuildInviteReceived {
+            gdid: p.gdid,
+            name: cstr(&p.guild_name),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcReqAllyGuild>() {
+        return vec![GameEvent::GuildAllyRequestReceived {
+            aid: p.other_aid,
+            name: cstr(&p.guild_name),
         }];
     }
 
@@ -1689,6 +1876,38 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
 
     debug!("unhandled packet: {}", packet.name());
     vec![]
+}
+
+fn cstr(chars: &[char]) -> String {
+    chars.iter().take_while(|c| **c != '\0').collect()
+}
+
+fn raw_cstr(bytes: &[u8]) -> String {
+    let end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
+    String::from_utf8_lossy(&bytes[..end]).into_owned()
+}
+
+/// ZC_BAN_LIST (0x0163) elements for this packetver are `char_name[24] +
+/// message[40]`; the generated struct carries an extra account field, so parse
+/// the wire bytes directly.
+fn parse_ban_list(raw: &[u8]) -> Vec<GuildBanEntry> {
+    const ELEM: usize = 64;
+    let mut entries = Vec::new();
+    if raw.len() < 4 {
+        return entries;
+    }
+    let len = u16::from_le_bytes([raw[2], raw[3]]) as usize;
+    let end = len.min(raw.len());
+    let mut off = 4;
+    while off + ELEM <= end {
+        entries.push(GuildBanEntry {
+            char_name: raw_cstr(&raw[off..off + 24]),
+            account: String::new(),
+            reason: raw_cstr(&raw[off + 24..off + 64]),
+        });
+        off += ELEM;
+    }
+    entries
 }
 
 fn parse_skill_info_list(list: &[packets::packets::SKILLINFO]) -> Vec<SkillInfo> {
@@ -2868,6 +3087,110 @@ mod tests {
                 assert_eq!(title, "Arena Entrance");
             }
             other => panic!("expected ChatRoomUpsert, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn guild_membermgr_decodes_online_and_offline_members() {
+        let packetver = 20120307;
+
+        let member = |aid: u32, gid: u32, name: &str, job: i16, level: i16, position: i32,
+                      state: i32| {
+            let mut buf = Vec::with_capacity(110);
+            buf.extend_from_slice(&aid.to_le_bytes());
+            buf.extend_from_slice(&gid.to_le_bytes());
+            buf.extend_from_slice(&0i16.to_le_bytes()); // head
+            buf.extend_from_slice(&0i16.to_le_bytes()); // head palette
+            buf.extend_from_slice(&0i16.to_le_bytes()); // sex
+            buf.extend_from_slice(&job.to_le_bytes());
+            buf.extend_from_slice(&level.to_le_bytes());
+            buf.extend_from_slice(&500i32.to_le_bytes()); // contribution exp
+            buf.extend_from_slice(&state.to_le_bytes());
+            buf.extend_from_slice(&position.to_le_bytes());
+            buf.extend_from_slice(&[0u8; 50]); // memo
+            let mut nb = [0u8; 24];
+            nb[..name.len()].copy_from_slice(name.as_bytes());
+            buf.extend_from_slice(&nb);
+            buf
+        };
+        let m0 = member(101, 201, "Master", 4008, 99, 0, 1);
+        let m1 = member(102, 202, "Grunt", 1, 40, 2, 0);
+
+        let mut raw = Vec::new();
+        raw.extend_from_slice(&[0x54, 0x01]);
+        let len = (4 + m0.len() + m1.len()) as i16;
+        raw.extend_from_slice(&len.to_le_bytes());
+        raw.extend_from_slice(&m0);
+        raw.extend_from_slice(&m1);
+
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        match &dispatch_packet(parsed.as_ref(), packetver)[..] {
+            [GameEvent::GuildMembers { members }] => {
+                assert_eq!(members.len(), 2);
+                assert_eq!((members[0].gid, members[0].name.as_str()), (201, "Master"));
+                assert!(members[0].online && members[0].position_id == 0);
+                assert_eq!((members[1].gid, members[1].name.as_str()), (202, "Grunt"));
+                assert!(!members[1].online && members[1].position_id == 2);
+            }
+            other => panic!("expected GuildMembers, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn guild_ban_list_decodes_charname_and_reason() {
+        let entry = |name: &str, reason: &str| {
+            let mut buf = vec![0u8; 64];
+            buf[..name.len()].copy_from_slice(name.as_bytes());
+            buf[24..24 + reason.len()].copy_from_slice(reason.as_bytes());
+            buf
+        };
+        let e0 = entry("Traitor", "Left mid-WoE");
+        let e1 = entry("Spy", "Enemy alt");
+        let mut raw = vec![0x63, 0x01];
+        let len = (4 + e0.len() + e1.len()) as u16;
+        raw.extend_from_slice(&len.to_le_bytes());
+        raw.extend_from_slice(&e0);
+        raw.extend_from_slice(&e1);
+
+        let entries = parse_ban_list(&raw);
+        assert_eq!(entries.len(), 2);
+        assert_eq!((entries[0].char_name.as_str(), entries[0].reason.as_str()), ("Traitor", "Left mid-WoE"));
+        assert_eq!((entries[1].char_name.as_str(), entries[1].reason.as_str()), ("Spy", "Enemy alt"));
+    }
+
+    #[test]
+    fn guild_positioninfo_decodes_rights_bits() {
+        let packetver = 20120307;
+
+        let position = |id: i32, right: i32, ranking: i32, pay: i32| {
+            let mut buf = Vec::with_capacity(16);
+            buf.extend_from_slice(&id.to_le_bytes());
+            buf.extend_from_slice(&right.to_le_bytes());
+            buf.extend_from_slice(&ranking.to_le_bytes());
+            buf.extend_from_slice(&pay.to_le_bytes());
+            buf
+        };
+        // Master rank: invite (0x1) + expel (0x10) + storage (0x100); grunt rank: none.
+        let p0 = position(0, 0x111, 0, 50);
+        let p1 = position(1, 0x000, 1, 0);
+
+        let mut raw = Vec::new();
+        raw.extend_from_slice(&[0x60, 0x01]);
+        let len = (4 + p0.len() + p1.len()) as i16;
+        raw.extend_from_slice(&len.to_le_bytes());
+        raw.extend_from_slice(&p0);
+        raw.extend_from_slice(&p1);
+
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        match &dispatch_packet(parsed.as_ref(), packetver)[..] {
+            [GameEvent::GuildPositions { positions }] => {
+                assert_eq!(positions.len(), 2);
+                assert_eq!(positions[0].id, 0);
+                assert_eq!(positions[0].right, 0x111);
+                assert_eq!(positions[0].pay_rate, 50);
+                assert_eq!(positions[1].right, 0);
+            }
+            other => panic!("expected GuildPositions, got {other:?}"),
         }
     }
 }

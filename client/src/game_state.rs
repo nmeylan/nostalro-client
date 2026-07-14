@@ -58,6 +58,7 @@ use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotificatio
 use ragnarok_ui_component::game::minimap_window::{MarkerType, MinimapMarker, MinimapWindow};
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
+use ragnarok_ui_component::game::guild_window::{GUILD_WINDOW_ID, GuildWindow};
 use ragnarok_ui_component::game::party_friends_window::{PARTY_FRIENDS_WINDOW_ID, PartyFriendsWindow};
 use ragnarok_ui_component::game::party_helper_window::{PARTY_HELPER_WINDOW_ID, PartyHelperWindow};
 use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
@@ -182,6 +183,9 @@ pub struct GameState {
     pub status_icon_bar: StatusIconBarWindow,
     pub levelup_notification: LevelUpNotificationWindow,
     pub party: Option<Party>,
+    pub guild: Option<ragnarok_game::guild::Guild>,
+    pub guild_menu_flag: i32,
+    pub guild_window: GuildWindow,
     pub friends: ragnarok_game::friends::FriendList,
     pub party_friends_window: PartyFriendsWindow,
     pub party_helper_window: PartyHelperWindow,
@@ -243,6 +247,7 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     SKILL_WINDOW_ID,
     STATUS_WINDOW_ID,
     PARTY_FRIENDS_WINDOW_ID,
+    GUILD_WINDOW_ID,
     PARTY_HELPER_WINDOW_ID,
     HOMUN_WINDOW_ID,
     MERCENARY_WINDOW_ID,
@@ -656,6 +661,20 @@ impl GameState {
                     &self.data_table,
                 ));
             }
+            GUILD_WINDOW_ID => {
+                let local_gid = self
+                    .login_session
+                    .as_ref()
+                    .map(|s| s.account_id)
+                    .unwrap_or(0);
+                self.guild_window
+                    .sync(self.guild.as_ref(), local_gid, &self.character.name);
+                events.extend(self.guild_window.build(
+                    ui,
+                    &mut self.character,
+                    &self.data_table,
+                ));
+            }
             COMPANION_AI_CONFIG_WINDOW_ID => {
                 events.extend(
                     self.companion_ai_config_window
@@ -807,6 +826,9 @@ impl GameState {
             status_icon_bar: StatusIconBarWindow::new(),
             levelup_notification: LevelUpNotificationWindow::new(),
             party: None,
+            guild: None,
+            guild_menu_flag: 0,
+            guild_window: GuildWindow::new(),
             friends: ragnarok_game::friends::FriendList::default(),
             party_friends_window: PartyFriendsWindow::new(),
             party_helper_window: PartyHelperWindow::new(),

@@ -109,3 +109,4 @@ Various gameplay/effect/ui rendering
 - https://www.youtube.com/@lordknightnecri1603 <- effects
 - https://www.youtube.com/watch?v=-XCxB3hem-A&list=PLbEyWK1BqG7oYWWnTg9ENpIB_XESvml8P&index=28 <- effects
 - https://www.youtube.com/watch?v=P__GwtWu6pQ <- marionette dolls
+- http://guidesragnarok.free.fr/guides/guildes.php <- guild

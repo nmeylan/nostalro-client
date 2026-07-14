@@ -1,3 +1,4 @@
+use crate::guild::{GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild};
 use crate::inventory::{EquipmentItemData, NormalItemData};
 use crate::item::Item;
 use crate::targeting::MapProperties;
@@ -766,6 +767,127 @@ pub enum GameEvent {
     RequestWhisper {
         name: String,
     },
+
+    // --- Guild ---
+    GuildMenuFlag {
+        flag: i32,
+    },
+    GuildInfo {
+        gdid: u32,
+        name: String,
+        level: i32,
+        exp: i32,
+        max_exp: i32,
+        member_num: i32,
+        max_member_num: i32,
+        avg_level: i32,
+        point: i32,
+        master_name: String,
+        manage_land: String,
+        emblem_version: i32,
+    },
+    GuildMembers {
+        members: Vec<GuildMember>,
+    },
+    GuildPositions {
+        positions: Vec<GuildPosition>,
+    },
+    GuildPositionNames {
+        names: Vec<(i32, String)>,
+    },
+    GuildSkills {
+        point: i16,
+        skills: Vec<GuildSkill>,
+    },
+    GuildBanList {
+        entries: Vec<GuildBanEntry>,
+    },
+    GuildNotice {
+        subject: String,
+        body: String,
+    },
+    GuildOtherList {
+        guilds: Vec<OtherGuild>,
+    },
+    GuildRelations {
+        relations: Vec<GuildRelation>,
+    },
+    GuildEmblem {
+        gdid: u32,
+        version: i32,
+        bmp: Vec<u8>,
+    },
+    GuildIdentityUpdated {
+        gdid: u32,
+        emblem_version: i32,
+        right: i32,
+        is_master: bool,
+        name: String,
+    },
+    GuildCreateResult {
+        result: u8,
+    },
+    GuildMemberLeft {
+        name: String,
+        reason: String,
+    },
+    GuildDisbandResult {
+        reason: i32,
+    },
+    GuildInviteReceived {
+        gdid: u32,
+        name: String,
+    },
+    GuildAllyRequestReceived {
+        aid: u32,
+        name: String,
+    },
+    /// UI → client: window opened, fetch all guild tab data.
+    RequestGuildInfoBurst,
+    /// UI → client: right-clicked a guild member row; open the player menu here.
+    ShowGuildMemberMenu {
+        aid: u32,
+        gid: u32,
+        name: String,
+        x: f32,
+        y: f32,
+    },
+    RequestSetGuildNotice {
+        subject: String,
+        body: String,
+    },
+    RequestGuildLeave,
+    RequestGuildExpel {
+        aid: u32,
+        gid: u32,
+        name: String,
+    },
+    RequestChangeMemberPosition {
+        aid: u32,
+        gid: u32,
+        position_id: i32,
+    },
+    RequestChangePositionInfo {
+        positions: Vec<GuildPosition>,
+    },
+    RequestUpgradeGuildSkill {
+        skid: u16,
+    },
+    RequestGuildInvite {
+        target_aid: u32,
+    },
+    RequestGuildAlly {
+        target_aid: u32,
+    },
+    RequestGuildHostile {
+        target_aid: u32,
+    },
+    RequestDeleteGuildRelation {
+        gdid: u32,
+        relation: i32,
+    },
+    /// UI → client: upload the first valid emblem BMP from the configured folder.
+    RequestSelectEmblem,
 
     // --- Skill-triggered production / selection windows ---
     ItemIdentifyList {

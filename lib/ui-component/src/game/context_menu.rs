@@ -8,9 +8,15 @@ const MENU_BASE_ID: u32 = 2100;
 const ITEM_W: f32 = 120.0;
 const ITEM_H: f32 = 18.0;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum ContextMenuAction {
     InviteToParty { target_aid: u32 },
+    Whisper { name: String },
+    ChangeGuildPosition { aid: u32, gid: u32, position_id: i32 },
+    ExpelFromGuild { aid: u32, gid: u32, name: String },
+    GuildInvite { target_aid: u32 },
+    GuildAlly { target_aid: u32 },
+    GuildHostile { target_aid: u32 },
     CompanionShowInfo { is_mercenary: bool },
     CompanionFeed,
     CompanionStandby { is_mercenary: bool },
@@ -84,7 +90,7 @@ impl ContextMenu {
             }
             ui.text(rect.x + 6.0, rect.y + 13.0, &item.label, tc);
             if resp.clicked() {
-                clicked_item = Some(item.action);
+                clicked_item = Some(item.action.clone());
             }
         }
 
@@ -92,6 +98,32 @@ impl ContextMenu {
             match action {
                 ContextMenuAction::InviteToParty { target_aid } => {
                     events.push(GameEvent::RequestPartyInvite { target_aid });
+                }
+                ContextMenuAction::Whisper { name } => {
+                    events.push(GameEvent::RequestWhisper { name });
+                }
+                ContextMenuAction::ChangeGuildPosition {
+                    aid,
+                    gid,
+                    position_id,
+                } => {
+                    events.push(GameEvent::RequestChangeMemberPosition {
+                        aid,
+                        gid,
+                        position_id,
+                    });
+                }
+                ContextMenuAction::ExpelFromGuild { aid, gid, name } => {
+                    events.push(GameEvent::RequestGuildExpel { aid, gid, name });
+                }
+                ContextMenuAction::GuildInvite { target_aid } => {
+                    events.push(GameEvent::RequestGuildInvite { target_aid });
+                }
+                ContextMenuAction::GuildAlly { target_aid } => {
+                    events.push(GameEvent::RequestGuildAlly { target_aid });
+                }
+                ContextMenuAction::GuildHostile { target_aid } => {
+                    events.push(GameEvent::RequestGuildHostile { target_aid });
                 }
                 ContextMenuAction::CompanionShowInfo { is_mercenary } => {
                     events.push(if is_mercenary {

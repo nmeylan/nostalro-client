@@ -814,3 +814,170 @@ pub fn build_rename_homun_packet(name: &str, packetver: u32) -> Vec<u8> {
     pkt.fill_raw();
     pkt.raw
 }
+
+pub fn build_req_guild_menuinterface(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqGuildMenuinterface::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_guild_menu(atype: i32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqGuildMenu::new(packetver);
+    pkt.set_atype(atype);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+fn to_char_array<const N: usize>(s: &str) -> [char; N] {
+    let mut buf = [0 as char; N];
+    for (i, c) in s.chars().take(N - 1).enumerate() {
+        buf[i] = c;
+    }
+    buf
+}
+
+pub fn build_guild_notice(gdid: u32, subject: &str, notice: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzGuildNotice::new(packetver);
+    pkt.set_gdid(gdid);
+    pkt.set_subject(to_char_array::<60>(subject));
+    pkt.set_notice(to_char_array::<120>(notice));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_leave_guild(
+    gdid: u32,
+    aid: i32,
+    gid: i32,
+    reason: &str,
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzReqLeaveGuild::new(packetver);
+    pkt.set_gdid(gdid);
+    pkt.set_aid(aid);
+    pkt.set_gid(gid);
+    pkt.set_reason_desc(to_char_array::<40>(reason));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_ban_guild(
+    gdid: u32,
+    aid: i32,
+    gid: i32,
+    reason: &str,
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzReqBanGuild::new(packetver);
+    pkt.set_gdid(gdid);
+    pkt.set_aid(aid);
+    pkt.set_gid(gid);
+    pkt.set_reason_desc(to_char_array::<40>(reason));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_change_memberpos(
+    aid: i32,
+    gid: i32,
+    position_id: i32,
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzReqChangeMemberpos::new(packetver);
+    let mut row = MemberPositionInfo::new(packetver);
+    row.set_aid(aid);
+    row.set_gid(gid);
+    row.set_position_id(position_id);
+    row.fill_raw();
+    pkt.set_packet_length((4 + 12) as i16);
+    pkt.set_member_info(vec![row]);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_reg_change_guild_positioninfo(
+    rows: &[ragnarok_game::guild::GuildPosition],
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzRegChangeGuildPositioninfo::new(packetver);
+    let list: Vec<GuildRegPositionInfo> = rows
+        .iter()
+        .map(|p| {
+            let mut r = GuildRegPositionInfo::new(packetver);
+            r.set_position_id(p.id);
+            r.set_right(p.right);
+            r.set_ranking(p.ranking);
+            r.set_pay_rate(p.pay_rate);
+            r.set_pos_name(to_char_array::<24>(&p.name));
+            r.fill_raw();
+            r
+        })
+        .collect();
+    pkt.set_packet_length((4 + rows.len() * 40) as i16);
+    pkt.set_member_list(list);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_make_guild(gid: u32, name: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqMakeGuild::new(packetver);
+    pkt.set_gid(gid);
+    pkt.set_gname(name_to_char24(name));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_disorganize_guild(key: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqDisorganizeGuild::new(packetver);
+    pkt.set_key(to_char_array::<40>(key));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_guild_emblem_img(gdid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqGuildEmblemImg::new(packetver);
+    pkt.set_gdid(gdid as i32);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_register_guild_emblem(bmp: Vec<u8>, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzRegisterGuildEmblemImg::new(packetver);
+    pkt.set_packet_length((4 + bmp.len()) as i16);
+    pkt.set_img_raw(bmp);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_join_guild(target_aid: u32, my_aid: u32, my_gid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqJoinGuild::new(packetver);
+    pkt.set_aid(target_aid);
+    pkt.set_my_aid(my_aid);
+    pkt.set_my_gid(my_gid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_ally_guild(target_aid: u32, my_aid: u32, my_gid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqAllyGuild::new(packetver);
+    pkt.set_aid(target_aid);
+    pkt.set_my_aid(my_aid);
+    pkt.set_my_gid(my_gid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_hostile_guild(target_aid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqHostileGuild::new(packetver);
+    pkt.set_aid(target_aid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_delete_related_guild(opponent_gdid: u32, relation: i32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqDeleteRelatedGuild::new(packetver);
+    pkt.set_opponent_gdid(opponent_gdid);
+    pkt.set_relation(relation);
+    pkt.fill_raw();
+    pkt.raw
+}

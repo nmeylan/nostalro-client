@@ -170,13 +170,44 @@ impl App {
             return;
         }
         let (mx, my) = self.input.mouse_position;
-        // For players the on-screen unit id equals the account id, which is the party invite key.
-        let items = vec![ContextMenuItem {
+        // For players the on-screen unit id equals the account id, which is the invite key.
+        let mut items = vec![ContextMenuItem {
             label: "Invite to Party".to_string(),
             action: ContextMenuAction::InviteToParty {
                 target_aid: entity_id,
             },
         }];
+        if let Some(g) = &self.game.guild {
+            let local_gid = self
+                .game
+                .login_session
+                .as_ref()
+                .map(|s| s.account_id)
+                .unwrap_or(0);
+            let rights = g.my_rights(local_gid);
+            if rights.can_invite {
+                items.push(ContextMenuItem {
+                    label: "Invite to Guild".to_string(),
+                    action: ContextMenuAction::GuildInvite {
+                        target_aid: entity_id,
+                    },
+                });
+            }
+            if g.is_master(local_gid) {
+                items.push(ContextMenuItem {
+                    label: "Request Alliance".to_string(),
+                    action: ContextMenuAction::GuildAlly {
+                        target_aid: entity_id,
+                    },
+                });
+                items.push(ContextMenuItem {
+                    label: "Declare Hostility".to_string(),
+                    action: ContextMenuAction::GuildHostile {
+                        target_aid: entity_id,
+                    },
+                });
+            }
+        }
         self.game
             .context_menu
             .open_at(mx as f32, my as f32, items);
@@ -279,6 +310,15 @@ impl App {
                         .is_some_and(|p| p.cart_type.is_some());
                     if has_cart {
                         self.game.character.cart.toggle();
+                    }
+                }
+                PhysicalKey::Code(KeyCode::KeyG) if self.input.alt_pressed => {
+                    if self.game.guild.is_some() {
+                        self.game.guild_window.toggle();
+                    } else {
+                        self.game
+                            .chat_window
+                            .add_system("You are not in a guild.".to_string());
                     }
                 }
                 PhysicalKey::Code(KeyCode::KeyH) if self.input.alt_pressed => {

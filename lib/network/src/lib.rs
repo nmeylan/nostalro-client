@@ -41,6 +41,12 @@ pub use sender::{
     build_companion_move_packet, build_companion_attack_packet,
     build_companion_move_to_owner_packet, build_homun_menu_packet,
     build_mercenary_command_packet, build_rename_homun_packet,
+    build_req_guild_menuinterface, build_req_guild_menu,
+    build_guild_notice, build_req_leave_guild, build_req_ban_guild,
+    build_req_change_memberpos, build_reg_change_guild_positioninfo,
+    build_make_guild, build_req_disorganize_guild, build_req_guild_emblem_img,
+    build_register_guild_emblem, build_req_join_guild, build_req_ally_guild,
+    build_req_hostile_guild, build_req_delete_related_guild,
 };
 use session::{Session, SessionState};
 use std::collections::VecDeque;
