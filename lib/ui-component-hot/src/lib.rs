@@ -1339,6 +1339,16 @@ fn create_single(name: &str) -> State {
                 GuildPosition { id: 0, name: "Master".to_string(), right: 0x111, ranking: 0, pay_rate: 50 },
                 GuildPosition { id: 1, name: "Officer".to_string(), right: 0x001, ranking: 1, pay_rate: 10 },
                 GuildPosition { id: 2, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 0 },
+                GuildPosition { id: 3, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 10 },
+                GuildPosition { id: 4, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 10 },
+                GuildPosition { id: 5, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 10 },
+                GuildPosition { id: 6, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 10 },
+                GuildPosition { id: 7, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 10 },
+                GuildPosition { id: 8, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 20 },
+                GuildPosition { id: 9, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 10 },
+                GuildPosition { id: 10, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 10 },
+                GuildPosition { id: 11, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 20 },
+                GuildPosition { id: 12, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 30 },
             ];
             #[allow(clippy::too_many_arguments)]
             let gmember = |gid: u32, name: &str, job: i16, level: i16, position_id: i32,
@@ -1360,6 +1370,9 @@ fn create_single(name: &str) -> State {
                 gmember(2000002, "Lidia", 4, 88, 1, "Officer", true, "2nd", 900),
                 gmember(2000003, "Garm", 12, 71, 2, "Member", false, "", 300),
                 gmember(2000004, "Sohee", 8, 65, 2, "Member", true, "alt", 250),
+                gmember(2000005, "Poring", 1, 42, 2, "Member", false, "", 60),
+                gmember(2000005, "Poring", 1, 42, 2, "Member", false, "", 60),
+                gmember(2000005, "Poring", 1, 42, 2, "Member", false, "", 60),
                 gmember(2000005, "Poring", 1, 42, 2, "Member", false, "", 60),
             ];
             guild.relations = vec![

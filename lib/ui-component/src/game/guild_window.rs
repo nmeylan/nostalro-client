@@ -79,7 +79,7 @@ const SKILL_UP_BTN: ButtonTextures = ButtonTextures {
     pressed: "data/texture/유저인터페이스/basic_interface/skill_up_c.bmp",
 };
 
-const WIN_W: f32 = 400.0;
+const WIN_W: f32 = 500.0;
 const TITLE_H: f32 = 17.0;
 const TAB_H: f32 = 23.0;
 const CONTENT_H: f32 = 244.0;
@@ -471,14 +471,16 @@ impl InGameWindow for GuildWindow {
     }
 }
 
+const TAB_WIDTH: [f32; 6] = [60.0, 100.0, 75.0, 90.0, 80.0, 95.0];
+const TAB_PAD: [f32; 6] = [0.0, 10.0, 15.0, 15.0, 5.0, 10.0];
 impl GuildWindow {
     fn build_tab_strip(&mut self, ui: &mut UiFrame, x: f32, tab_y: f32) {
         Self::fill(ui, x, tab_y, WIN_W, TAB_H, TAB_BAR_BG);
         let strip_w = TAB_COUNT as f32 * (TAB_W + TAB_GAP);
-        let start_x = x + ((WIN_W - strip_w) / 2.0).max(0.0);
+        let mut start_x = x;
         for (i, label) in TAB_LABELS.iter().enumerate() {
-            let tx = start_x + i as f32 * (TAB_W + TAB_GAP);
-            let rect = Rect::new(tx, tab_y + 1.0, TAB_W, TAB_H - 2.0);
+            let tx = start_x;
+            let rect = Rect::new(tx, tab_y + 1.0, TAB_WIDTH[i], TAB_H - 2.0);
             let selected = self.tab as usize == i;
             Self::fill(
                 ui,
@@ -497,7 +499,8 @@ impl GuildWindow {
                 self.pos_dirty = false;
                 self.open_member_dropdown = None;
             }
-            ui.text(tx + 4.0, tab_y + TAB_H - 7.0, label, TEXT);
+            ui.text(tx + 4.0 + TAB_PAD[i], tab_y + TAB_H - 7.0, label, TEXT);
+            start_x = start_x + TAB_WIDTH[i];
         }
     }
 
@@ -546,42 +549,42 @@ impl GuildWindow {
         let lx = x + 9.0;
         let online = g.members.iter().filter(|m| m.online).count();
 
-        ui.text(lx, cy + 63.0, &format!("Guild Name : {}", g.name), TEXT);
-        ui.text(lx, cy + 78.0, &format!("Guild lvl : {}", g.level), TEXT);
-        ui.text(lx, cy + 94.0, &format!("Guild Master : {}", g.master_name), TEXT);
+        ui.text(lx, cy + 20.0, &format!("Guild Name : {}", g.name), TEXT);
+        ui.text(lx, cy + 36.0, &format!("Guild lvl : {}", g.level), TEXT);
+        ui.text(lx, cy + 52.0, &format!("Guild Master : {}", g.master_name), TEXT);
         let members_text = format!("Members : {} / {}", g.member_num, g.max_member_num);
-        ui.text(lx, cy + 110.0, &members_text, TEXT);
+        ui.text(lx, cy + 68.0, &members_text, TEXT);
         let online_icon_x = lx + ui.atlas.measure_text(&members_text) + 6.0;
         if grf {
-            let (v, i) = draw::quad_vertices(online_icon_x, cy + 101.0, 15.0, 15.0, [1.0; 4]);
+            let (v, i) = draw::quad_vertices(online_icon_x, cy + 57.0, 15.0, 15.0, [1.0; 4]);
             ui.draw_calls.push(DrawCall {
                 vertices: v.to_vec(),
                 indices: i.to_vec(),
                 texture: TextureRef::Named(GRP_ONLINE_TEX.to_string()),
             });
         }
-        ui.text(online_icon_x + 18.0, cy + 110.0, &online.to_string(), TEXT);
+        ui.text(online_icon_x + 18.0, cy + 68.0, &online.to_string(), TEXT);
         ui.text(
             lx,
-            cy + 126.0,
+            cy + 84.0,
             &format!("Avg.lvl of Members : {}", g.avg_level),
             TEXT,
         );
         let land = if g.manage_land.is_empty() { "-" } else { &g.manage_land };
-        ui.text(lx, cy + 142.0, &format!("Territory : {land}"), TEXT);
+        ui.text(lx, cy + 100.0, &format!("Territory : {land}"), TEXT);
 
-        ui.text(lx, cy + 157.0, "Tendency :", TEXT);
-        Self::draw_tendency(ui, lx + 5.0, cy + 162.0);
+        ui.text(lx, cy + 137.0, "Tendency :", TEXT);
+        Self::draw_tendency(ui, lx + 5.0, cy + 150.0);
 
         // Right column.
-        let rx = x + 201.0;
-        ui.text(rx, cy + 63.0, &format!("EXP : {} / {}", g.exp, g.max_exp), TEXT);
+        let rx = x + 301.0;
+        ui.text(rx, cy + 20.0, &format!("EXP : {} / {}", g.exp, g.max_exp), TEXT);
 
-        ui.text(rx, cy + 87.0, "emblem", TEXT);
-        Self::fill(ui, x + 300.0, cy + 70.0, 24.0, 24.0, EMBLEM_BG);
+        ui.text(rx, cy + 52.0, "emblem", TEXT);
+        Self::fill(ui, x + 400.0, cy + 32.0, 24.0, 24.0, EMBLEM_BG);
         if g.emblem_bmp.is_some() {
             let key = ragnarok_game::guild::emblem_texture_key(g.gdid, g.emblem_version);
-            let (v, i) = draw::quad_vertices(x + 300.0, cy + 70.0, 24.0, 24.0, [1.0; 4]);
+            let (v, i) = draw::quad_vertices(x + 400.0, cy + 32.0, 24.0, 24.0, [1.0; 4]);
             ui.draw_calls.push(DrawCall {
                 vertices: v.to_vec(),
                 indices: i.to_vec(),
@@ -589,7 +592,7 @@ impl GuildWindow {
             });
         }
         if is_master {
-            let edit_rect = Rect::new(x + 344.0, cy + 74.0, 42.0, 20.0);
+            let edit_rect = Rect::new(x + 444.0, cy + 36.0, 42.0, 20.0);
             let resp = ui.button(EMBLEM_EDIT_BTN, edit_rect, &EDIT_BTN, "Edit");
             if resp.hovered() {
                 ui.any_interactive_hovered = true;
@@ -599,25 +602,25 @@ impl GuildWindow {
             }
         }
 
-        ui.text(rx, cy + 111.0, &format!("Tax Point : {}", g.point), TEXT);
+        ui.text(rx, cy + 68.0, &format!("Tax Point : {}", g.point), TEXT);
 
-        events.extend(self.build_relation_box(ui, rx, cy + 128.0, "Alliance", 0, is_master));
-        events.extend(self.build_relation_box(ui, rx, cy + 188.0, "Antagonist", 1, is_master));
+        events.extend(self.build_relation_box(ui, rx, cy + 98.0, "Alliance", 0, is_master));
+        events.extend(self.build_relation_box(ui, rx, cy + 178.0, "Antagonist", 1, is_master));
         events
     }
 
     fn draw_tendency(ui: &mut UiFrame, gx: f32, gy: f32) {
-        let size = 64.0;
+        let size = 90.0;
         Self::fill(ui, gx, gy, size, size, TENDENCY_BORDER);
         Self::fill(ui, gx + 1.0, gy + 1.0, size - 2.0, size - 2.0, SELECTION_COLOR);
         Self::fill(ui, gx + size / 2.0 - 1.0, gy + 1.0, 2.0, size - 2.0, TENDENCY_AXIS);
         Self::fill(ui, gx + 1.0, gy + size / 2.0 - 1.0, size - 2.0, 2.0, TENDENCY_AXIS);
         Self::fill(ui, gx + size / 2.0 - 1.0, gy + size / 2.0 - 1.0, 2.0, 2.0, [1.0; 4]);
-        let white = [1.0; 4];
-        ui.text(gx + size / 2.0 - 3.0, gy + 10.0, "R", white);
-        ui.text(gx + size / 2.0 - 3.0, gy + size - 3.0, "W", white);
-        ui.text(gx + 3.0, gy + size / 2.0 + 3.0, "V", white);
-        ui.text(gx + size - 9.0, gy + size / 2.0 + 3.0, "F", white);
+        let black = [0.0, 0.0, 0.0, 1.0];
+        ui.text(gx + size / 2.0 - 3.0, gy - 3.0, "R", black);
+        ui.text(gx + size / 2.0 - 3.0, gy + size + 6.0, "W", black);
+        ui.text(gx - 9.0, gy + size / 2.0 + 3.0, "V", black);
+        ui.text(gx + size + 3.0, gy + size / 2.0 + 3.0, "F", black);
     }
 
     fn build_relation_box(
@@ -636,7 +639,7 @@ impl GuildWindow {
         ui.text(rx, top - 4.0, label, TEXT);
         let box_y = top;
         let box_w = 168.0;
-        let box_h = 44.0;
+        let box_h = 54.0;
         Self::fill(ui, rx, box_y, box_w, box_h, LISTBOX_BG);
         let want_ally = relation == 0;
         let rows: Vec<(u32, &str)> = g
@@ -676,9 +679,9 @@ impl GuildWindow {
         let name_x = x + 34.0;
         let pos_x = x + 92.0;
         let job_x = x + 158.0;
-        let lv_x = x + 202.0;
-        let note_x = x + 230.0;
-        let dev_x = x + 274.0;
+        let lv_x = x + 232.0;
+        let note_x = x + 260.0;
+        let dev_x = x + WIN_W - SCROLLBAR_W - 96.0;
         let tax_x = x + WIN_W - SCROLLBAR_W - 6.0;
 
         ui.text(name_x, cy + 12.0, "Name", TEXT);
@@ -862,7 +865,7 @@ impl GuildWindow {
         let title_x = x + 58.0;
         let inv_x = x + 226.0;
         let pun_x = x + 294.0;
-        let tax_x = x + 356.0;
+        let tax_x = x + WIN_W - SCROLLBAR_W - 60.0;
         ui.text(id_x, cy + 12.0, "Rank", TEXT);
         ui.text(title_x, cy + 12.0, "Position Title", TEXT);
         ui.text(inv_x, cy + 12.0, "Invite", TEXT);
@@ -903,7 +906,7 @@ impl GuildWindow {
             let is_rank0 = pos_id == 0;
 
             if is_rank0 {
-                Self::fill(ui, x + 2.0, row_y, WIN_W - 4.0, POS_ROW_H - 1.0, SELECTION_COLOR);
+                Self::fill(ui, x + 2.0, row_y, WIN_W - 2.0 - SCROLLBAR_W, POS_ROW_H - 1.0, SELECTION_COLOR);
             }
             Self::fill(ui, x + 2.0, row_y + POS_ROW_H - 1.0, WIN_W - 4.0, 1.0, BORDER);
             ui.text(id_x, baseline, &pos_id.to_string(), TEXT);
@@ -1054,14 +1057,7 @@ impl GuildWindow {
             ui.text(x + 45.0, row_y + 25.0, &format!("Lv : {shown_level}"), name_color);
 
             if is_master && !s.passive && s.upgradable {
-                let down_rect = Rect::new(x + WIN_W - 96.0, row_y + 4.0, 16.0, 16.0);
-                let down = ui.text_button(WidgetId(SKILL_DOWN_BASE + row as u32), down_rect, "-");
-                if down.hovered() {
-                    ui.any_interactive_hovered = true;
-                }
-                if down.clicked() && pending > 0 {
-                    self.adjust_pending(s.skid, -1);
-                }
+
                 let up_rect = Rect::new(x + WIN_W - 76.0, row_y + 4.0, 18.0, 18.0);
                 let up = ui.button(WidgetId(SKILL_UP_BASE + row as u32), up_rect, &SKILL_UP_BTN, "+");
                 if up.hovered() {
@@ -1143,10 +1139,10 @@ impl GuildWindow {
             ui.text(x + 10.0, cy + 20.0, "Not in a guild.", OFFLINE_COLOR);
             return;
         }
-        ui.text(x + 9.0, cy + 63.0, "Title", TEXT);
-        let subj_rect = Rect::new(x + 50.0, cy + 52.0, WIN_W - 60.0, 16.0);
-        ui.text(x + 9.0, cy + 86.0, "Contents", TEXT);
-        let body_rect = Rect::new(x + 9.0, cy + 90.0, WIN_W - 18.0, CONTENT_H - 98.0);
+        ui.text(x + 9.0, cy + 23.0, "Title", TEXT);
+        let subj_rect = Rect::new(x + 50.0, cy + 13.0, WIN_W - 60.0, 16.0);
+        ui.text(x + 9.0, cy + 46.0, "Contents", TEXT);
+        let body_rect = Rect::new(x + 9.0, cy + 52.0, WIN_W - 18.0, CONTENT_H - 68.0);
 
         if self.is_master() {
             ui.text_input(NOTICE_SUBJECT_INPUT, subj_rect, &mut self.notice_subject_input, TextInputBg::Gray);
