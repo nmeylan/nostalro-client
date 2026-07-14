@@ -6,8 +6,8 @@ use models::enums::status::StatusTypes;
 use models::enums::vanish::VanishType;
 use packets::packets::*;
 use ragnarok_game::event::{
-    CharacterInfo, GameEvent, HomunculusProperty, MercenaryInfo, PartyMemberData, ServerInfo,
-    SkillInfo,
+    CharacterInfo, FriendData, GameEvent, HomunculusProperty, MercenaryInfo, PartyMemberData,
+    ServerInfo, SkillInfo,
 };
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
 use ragnarok_game::targeting::{MapKind, MapProperties};
@@ -1289,8 +1289,48 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if any.downcast_ref::<PacketPincodeLoginstate>().is_some() {
         return vec![GameEvent::Acknowledged];
     }
-    if any.downcast_ref::<PacketZcFriendsList>().is_some() {
-        return vec![GameEvent::Acknowledged];
+    if let Some(p) = any.downcast_ref::<PacketZcFriendsList>() {
+        let friends = p
+            .friend_list
+            .iter()
+            .map(|f| FriendData {
+                aid: f.aid,
+                gid: f.gid,
+                name: f.name.iter().take_while(|c| **c != '\0').collect(),
+                online: true,
+            })
+            .collect();
+        return vec![GameEvent::FriendListReceived { friends }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcFriendsState>() {
+        return vec![GameEvent::FriendStateChanged {
+            aid: p.aid,
+            gid: p.gid,
+            online: !p.state,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAddFriendsList>() {
+        let name: String = p.name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::FriendAddResult {
+            result: p.result as u8,
+            aid: p.aid,
+            gid: p.gid,
+            name,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcReqAddFriends>() {
+        let name: String = p.name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::FriendRequestReceived {
+            req_aid: p.req_aid,
+            req_gid: p.req_gid,
+            name,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcDeleteFriends>() {
+        return vec![GameEvent::FriendRemoved {
+            aid: p.aid,
+            gid: p.gid,
+        }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcSkillinfoList>() {
         let skills = p

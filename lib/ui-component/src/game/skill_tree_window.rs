@@ -106,6 +106,10 @@ impl Window for SkillTreeWindow {
         self.tooltip_container.set_texture_sizes(size_fn);
     }
 
+    fn window_size(&self) -> (f32, f32) {
+        (WIN_W, TITLE_H + VISIBLE_ROWS as f32 * ROW_H + FOOTER_H)
+    }
+
     fn grf_texture_paths() -> Vec<&'static str>
     where
         Self: Sized,

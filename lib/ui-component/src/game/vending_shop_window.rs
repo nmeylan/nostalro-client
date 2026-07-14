@@ -441,6 +441,11 @@ impl Window for VendingShopWindow {
         }
         self.container.set_texture_sizes(size_fn);
     }
+    fn window_size(&self) -> (f32, f32) {
+        let list_h = self.list_rows as f32 * ROW_H;
+        (WIN_W, TITLE_H + PAD + list_h + PAD + FOOTER_H)
+    }
+
     fn grf_texture_paths() -> Vec<&'static str> {
         let mut paths = vec![
             TITLEBAR_TEX,

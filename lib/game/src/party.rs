@@ -3,8 +3,8 @@ pub struct Party {
     pub name: String,
     pub members: Vec<PartyMember>,
     pub exp_share: bool,
-    pub item_share_pickup: bool,
-    pub item_share_loot: bool,
+    pub item_pickup_rule: u8,
+    pub item_division_rule: u8,
 }
 
 #[derive(Debug, Clone)]

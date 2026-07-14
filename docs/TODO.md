@@ -1,8 +1,8 @@
 TODO:
 
 # Companion
-- homonculus
-- mercenary
+- ~~homonculus~~
+- ~~mercenary~~
 - pet
 
 # Sprite rendering
@@ -42,7 +42,6 @@ TODO:
 - ~~basic info window~~
 - ~~NPC dialog box (text, menu choices, number input)~~
 - ~~NPC shop (buy/sell)~~
-- Auto Trade window (player-to-player)
 ~~- Vending (player shop setup + buying)~~
 - Party window
 - Guild window (members, positions, skills, emblem, notices)
@@ -71,15 +70,15 @@ TODO:
 - ~~Ground items (dropped items with pickup)~~
 - ~~Skill ground units (AoE, bottom song)~~
 - Pet companion rendering
-- Homunculus rendering
-- Mercenary rendering
+- ~~Homunculus rendering~~
+- ~~Mercenary rendering~~
 
 # Combat
 - ~~Attack action + animation~~
 - ~~Skill casting (cast bar, cast animation)~~
 ~~- Skill execution + effects~~
 - ~~Damage/heal numbers~~
-- ~~ Status effects (buff/debuff icons + visuals: poison, freeze, stun, etc.)~~
+- ~~Status effects (buff/debuff icons + visuals: poison, freeze, stun, etc.)~~
 - ~~HP/SP bars~~
 - ~~Death~~ + respawn
 - ~~Sit/stand actions~~ 
@@ -120,9 +119,9 @@ TODO:
 ~~- Effect wiring~~
 
 # Audio
-- BGM playback (map-specific music)
-- SFX (skill sounds, weapon hit sounds, UI sounds, ambient)
-- Positional audio (3D sound based on entity distance)
+- ~~BGM playback (map-specific music)~~
+- ~~SFX (skill sounds, weapon hit sounds, UI sounds, ambient)~~
+- ~~Positional audio (3D sound based on entity distance)~~
 
 # World
 - ~~Portal/warp transitions~~ (done — MapChanged event with full map reload)

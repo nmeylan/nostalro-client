@@ -187,6 +187,7 @@ pub struct ChatWindow {
     history_index: Option<usize>,
     draft: String,
     initial_size_index: Option<usize>,
+    pending_focus: bool,
 }
 
 impl Default for ChatWindow {
@@ -209,7 +210,15 @@ impl ChatWindow {
             history_index: None,
             draft: String::new(),
             initial_size_index: None,
+            pending_focus: false,
         }
+    }
+
+    pub fn start_whisper(&mut self, name: String) {
+        self.whisper_target.text = name;
+        self.whisper_target.cursor_pos = self.whisper_target.text.chars().count();
+        self.active = true;
+        self.pending_focus = true;
     }
 
     pub fn set_initial_size_index(&mut self, index: usize) {
@@ -1041,6 +1050,11 @@ impl InGameWindow for ChatWindow {
         }
 
         if self.active {
+            if self.pending_focus {
+                self.pending_focus = false;
+                self.focused_input = INPUT_ID;
+                ui.set_focus(INPUT_ID);
+            }
             if ui.ctx.key_tab {
                 if self.focused_input == INPUT_ID {
                     self.focused_input = WHISPER_INPUT_ID;

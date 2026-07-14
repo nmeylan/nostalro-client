@@ -11,8 +11,8 @@ impl App {
         let mut party = Party::new(name);
         if let Some(old) = &old {
             party.exp_share = old.exp_share;
-            party.item_share_pickup = old.item_share_pickup;
-            party.item_share_loot = old.item_share_loot;
+            party.item_pickup_rule = old.item_pickup_rule;
+            party.item_division_rule = old.item_division_rule;
         }
         for m in members {
             let (hp, max_hp, x, y) = old
@@ -72,7 +72,7 @@ impl App {
             .unwrap_or(0);
         if aid == own_aid {
             self.game.party = None;
-            self.game.party_window.open = false;
+            self.game.party_friends_window.open = false;
             return;
         }
         if let Some(party) = &mut self.game.party {
@@ -124,7 +124,7 @@ impl App {
 
     pub(super) fn handle_party_create_result(&mut self, result: u8) {
         if result == 0 {
-            self.game.party_window.open = true;
+            self.game.party_friends_window.open = true;
             // The party now exists server-side; send any invite that was deferred
             // while waiting for this ack.
             if let Some(aid) = self.game.pending_invite_aid.take() {

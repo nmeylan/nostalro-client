@@ -266,7 +266,8 @@ impl App {
             preload_window(&mut self.game.minimap_window, renderer, grf);
             preload_window(&mut self.game.status_window, renderer, grf);
             preload_window(&mut self.game.levelup_notification, renderer, grf);
-            preload_window(&mut self.game.party_window, renderer, grf);
+            preload_window(&mut self.game.party_friends_window, renderer, grf);
+            preload_window(&mut self.game.party_helper_window, renderer, grf);
             preload_window(&mut self.game.homunculus_window, renderer, grf);
             preload_window(&mut self.game.mercenary_window, renderer, grf);
             preload_window(&mut self.game.mercenary_skill_window, renderer, grf);

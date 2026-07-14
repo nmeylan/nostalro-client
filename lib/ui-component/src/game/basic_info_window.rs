@@ -600,6 +600,10 @@ impl Window for BasicInfoWindow {
         }
     }
 
+    fn window_size(&self) -> (f32, f32) {
+        (WIN_W, WIN_H_LARGE)
+    }
+
     fn grf_texture_paths() -> Vec<&'static str> {
         vec![
             BG_TEX,

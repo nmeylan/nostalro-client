@@ -340,6 +340,20 @@ impl Window for ItemInfoWindow {
         self.card_section_container.set_texture_sizes(size_fn);
     }
 
+    fn window_size(&self) -> (f32, f32) {
+        let (w, h) = if self.has_grf_textures && self.bg_size.0 > 0.0 {
+            self.bg_size
+        } else {
+            (FALLBACK_WIN_W, FALLBACK_WIN_H)
+        };
+        let extra = match &self.item {
+            Some(item) if item.is_equipment => CARD_SECTION_H,
+            Some(item) if item.is_card => VIEW_SECTION_H,
+            _ => 0.0,
+        };
+        (w, h + extra)
+    }
+
     fn grf_texture_paths() -> Vec<&'static str> {
         let mut paths = vec![
             COLLECTION_BG_TEX,

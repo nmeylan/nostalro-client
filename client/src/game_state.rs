@@ -58,7 +58,8 @@ use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotificatio
 use ragnarok_ui_component::game::minimap_window::{MarkerType, MinimapMarker, MinimapWindow};
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
-use ragnarok_ui_component::game::party_window::{PARTY_WINDOW_ID, PartyWindow};
+use ragnarok_ui_component::game::party_friends_window::{PARTY_FRIENDS_WINDOW_ID, PartyFriendsWindow};
+use ragnarok_ui_component::game::party_helper_window::{PARTY_HELPER_WINDOW_ID, PartyHelperWindow};
 use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
 use ragnarok_ui_component::game::levelup_notification_window::{
     LevelUpClick, LevelUpNotificationWindow,
@@ -181,7 +182,11 @@ pub struct GameState {
     pub status_icon_bar: StatusIconBarWindow,
     pub levelup_notification: LevelUpNotificationWindow,
     pub party: Option<Party>,
-    pub party_window: PartyWindow,
+    pub friends: ragnarok_game::friends::FriendList,
+    pub party_friends_window: PartyFriendsWindow,
+    pub party_helper_window: PartyHelperWindow,
+    pub pending_friend_request: Option<(u32, u32)>,
+    pub friend_request_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
     pub homunculus: Option<HomunculusState>,
     pub mercenary: Option<MercenaryState>,
     pub companion_ai: ragnarok_ai::config::CompanionAiConfig,
@@ -237,7 +242,8 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     EQ_WINDOW_ID,
     SKILL_WINDOW_ID,
     STATUS_WINDOW_ID,
-    PARTY_WINDOW_ID,
+    PARTY_FRIENDS_WINDOW_ID,
+    PARTY_HELPER_WINDOW_ID,
     HOMUN_WINDOW_ID,
     MERCENARY_WINDOW_ID,
     MERCENARY_SKILL_WINDOW_ID,
@@ -424,6 +430,17 @@ impl GameState {
             self.pending_party_invite = None;
         }
 
+        if let Some((req_aid, req_gid)) = self.pending_friend_request
+            && let Some(result) = self.friend_request_result.take()
+        {
+            events.push(GameEvent::RespondFriendRequest {
+                req_aid,
+                req_gid,
+                accept: result == ConfirmResult::Ok,
+            });
+            self.pending_friend_request = None;
+        }
+
         if self.homun_delete_pending
             && let Some(result) = self.homun_delete_result.take()
         {
@@ -599,7 +616,7 @@ impl GameState {
                         .build(ui, &mut self.character, &self.data_table),
                 );
             }
-            PARTY_WINDOW_ID => {
+            PARTY_FRIENDS_WINDOW_ID => {
                 let local_aid = self
                     .login_session
                     .as_ref()
@@ -624,8 +641,16 @@ impl GameState {
                         }
                     }
                 }
-                self.party_window.sync_party(self.party.as_ref(), local_aid);
-                events.extend(self.party_window.build(
+                self.party_friends_window
+                    .sync(self.party.as_ref(), &self.friends.friends, local_aid);
+                events.extend(self.party_friends_window.build(
+                    ui,
+                    &mut self.character,
+                    &self.data_table,
+                ));
+            }
+            PARTY_HELPER_WINDOW_ID => {
+                events.extend(self.party_helper_window.build(
                     ui,
                     &mut self.character,
                     &self.data_table,
@@ -782,7 +807,11 @@ impl GameState {
             status_icon_bar: StatusIconBarWindow::new(),
             levelup_notification: LevelUpNotificationWindow::new(),
             party: None,
-            party_window: PartyWindow::new(),
+            friends: ragnarok_game::friends::FriendList::default(),
+            party_friends_window: PartyFriendsWindow::new(),
+            party_helper_window: PartyHelperWindow::new(),
+            pending_friend_request: None,
+            friend_request_result: std::rc::Rc::new(std::cell::Cell::new(None)),
             homunculus: None,
             mercenary: None,
             companion_attack_target: [None; 2],

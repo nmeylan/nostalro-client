@@ -25,6 +25,12 @@ const AI_BTN_ID: WidgetId = WidgetId(2909);
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
 
+
+const RENAME_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/btn_rewrite.bmp",
+    hover: "data/texture/유저인터페이스/btn_rewrite_a.bmp",
+    pressed: "data/texture/유저인터페이스/btn_rewrite_b.bmp",
+};
 const DEL_BTN: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/btn_del.bmp",
     hover: "data/texture/유저인터페이스/btn_del_a.bmp",
@@ -182,7 +188,7 @@ impl HomunWindow {
             };
             ui.text_input(RENAME_INPUT_ID, input_rect, &mut self.rename_input, bg);
             let btn_rect = Rect::new(rx + input_w + 4.0, ry, 40.0, 14.0);
-            if ui.button(RENAME_BTN_ID, btn_rect, &DEL_BTN, "Name").clicked() {
+            if ui.button(RENAME_BTN_ID, btn_rect, &RENAME_BTN, "Name").clicked() {
                 let name = self.rename_input.text.trim().to_string();
                 if !name.is_empty() {
                     events.push(GameEvent::RequestRenameHomun { name });
@@ -311,6 +317,10 @@ impl Window for HomunWindow {
             self.feed_size = (w as f32, h as f32);
         }
     }
+    fn window_size(&self) -> (f32, f32) {
+        (WIN_W, WIN_H)
+    }
+
     fn grf_texture_paths() -> Vec<&'static str> {
         let mut paths = vec![
             TITLEBAR_TEX,

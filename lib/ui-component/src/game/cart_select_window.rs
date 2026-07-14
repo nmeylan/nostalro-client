@@ -79,6 +79,10 @@ impl Window for CartSelectWindow {
         self.has_grf_textures = value;
     }
 
+    fn window_size(&self) -> (f32, f32) {
+        (WIN_W, TITLE_H + PAD + CART_MODELS.len() as f32 * ROW_H + PAD)
+    }
+
     fn grf_texture_paths() -> Vec<&'static str> {
         vec![
             TITLEBAR_TEX,

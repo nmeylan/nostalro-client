@@ -193,6 +193,15 @@ impl Window for EquipmentWindow {
         }
     }
 
+    fn window_size(&self) -> (f32, f32) {
+        let content_h = if self.bg_size.1 > 0.0 {
+            self.bg_size.1
+        } else {
+            CONTENT_H
+        };
+        (WIN_W, TITLE_H + content_h)
+    }
+
     fn grf_texture_paths() -> Vec<&'static str> {
         vec![
             TITLEBAR_TEX,

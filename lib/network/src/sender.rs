@@ -547,6 +547,63 @@ pub fn build_change_party_exp_option_packet(exp_option: u32, packetver: u32) -> 
     pkt.raw
 }
 
+pub fn build_make_party2_packet(
+    name: &str,
+    item_pickup_rule: u8,
+    item_division_rule: u8,
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzMakeGroup2::new(packetver);
+    pkt.set_group_name(name_to_char24(name));
+    pkt.set_item_pickup_rule(item_pickup_rule);
+    pkt.set_item_division_rule(item_division_rule);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_party_invite_by_name_packet(name: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzPartyJoinReq::new(packetver);
+    pkt.set_character_name(name_to_char24(name));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_change_party_leader_packet(aid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzChangeGroupMaster::new(packetver);
+    pkt.set_aid(aid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_add_friend_packet(name: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzAddFriends::new(packetver);
+    pkt.set_name(name_to_char24(name));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_ack_add_friend_packet(
+    req_aid: u32,
+    req_gid: u32,
+    accept: bool,
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzAckReqAddFriends::new(packetver);
+    pkt.set_req_aid(req_aid);
+    pkt.set_req_gid(req_gid);
+    pkt.set_result(if accept { 1 } else { 0 });
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_delete_friend_packet(aid: u32, gid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzDeleteFriends::new(packetver);
+    pkt.set_aid(aid);
+    pkt.set_gid(gid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_party_chat_packet(msg: &str, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzRequestChatParty::new(packetver);
     let msg_null = format!("{msg}\0");

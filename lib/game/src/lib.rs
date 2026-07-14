@@ -20,6 +20,7 @@ pub mod entity;
 pub mod entity_collection;
 pub mod event;
 pub mod floor_item;
+pub mod friends;
 pub mod hotkey;
 pub mod job_class;
 pub mod level_aura;

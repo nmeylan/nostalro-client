@@ -48,7 +48,9 @@ use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotificatio
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::number_input::{NumberInputConfig, NumberInputDialog};
-use ragnarok_ui_component::game::party_window::{PARTY_WINDOW_ID, PartyWindow};
+use ragnarok_ui_component::game::party_friends_window::{
+    PARTY_FRIENDS_WINDOW_ID, PartyFriendsWindow,
+};
 use ragnarok_ui_component::game::companion_ai_config_window::{
     COMPANION_AI_CONFIG_WINDOW_ID, CompanionAiConfigWindow,
 };
@@ -202,7 +204,7 @@ enum State {
         data: DataTable,
     },
     PartyDemo {
-        win: PartyWindow,
+        win: PartyFriendsWindow,
         party: Party,
         local_aid: u32,
         character: Character,
@@ -1291,8 +1293,8 @@ fn create_single(name: &str) -> State {
                 member(2000003, "Garm", "payon_dun01.gat", false, true, 120, 1800),
                 member(2000004, "Sohee", "geffen.gat", false, false, 0, 1500),
             ];
-            let mut win = PartyWindow::new();
-            win.open = true;
+            let mut win = PartyFriendsWindow::new();
+            win.open_party_tab();
             State::PartyDemo {
                 win,
                 party,
@@ -1617,7 +1619,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::SkillTree { .. } => Some(SKILL_WINDOW_ID),
         State::Book { .. } => Some(BOOK_WINDOW_ID),
         State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
-        State::PartyDemo { .. } => Some(PARTY_WINDOW_ID),
+        State::PartyDemo { .. } => Some(PARTY_FRIENDS_WINDOW_ID),
         State::Mercenary { .. } => Some(MERCENARY_WINDOW_ID),
         State::MercenarySkill { .. } => Some(MERCENARY_SKILL_WINDOW_ID),
         State::Homun { .. } => Some(HOMUN_WINDOW_ID),
@@ -1626,45 +1628,61 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
     }
 }
 
-/// Window id for a draggable, `window_at`-based component so the gallery can
-/// spread them into a grid. Returns `None` for fixed bars, full-screen account
-/// screens, and centered modal dialogs, which position themselves.
-fn gallery_window_id(state: &State) -> Option<WidgetId> {
-    match state {
-        State::Inventory { .. } => Some(INV_WINDOW_ID),
-        State::Equipment { .. } => Some(EQ_WINDOW_ID),
-        State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
-        State::BasicInfoDemo { .. } => Some(BASIC_INFO_WINDOW_ID),
-        State::SkillTree { .. } => Some(SKILL_WINDOW_ID),
-        State::PartyDemo { .. } => Some(PARTY_WINDOW_ID),
-        State::ItemInfo { .. } => Some(ITEM_INFO_WINDOW_ID),
-        State::Book { .. } => Some(BOOK_WINDOW_ID),
-        State::Cart { .. } => Some(CART_WINDOW_ID),
-        State::CartSelect { .. } => Some(CART_SELECT_WINDOW_ID),
-        State::VendingSetup { .. } => Some(VENDING_SETUP_WINDOW_ID),
-        State::MyShop { .. } => Some(MY_SHOP_WINDOW_ID),
-        State::VendingBuy { .. } => Some(VENDING_SHOP_WINDOW_ID),
-        State::Mercenary { .. } => Some(MERCENARY_WINDOW_ID),
-        State::MercenarySkill { .. } => Some(MERCENARY_SKILL_WINDOW_ID),
-        State::Homun { .. } => Some(HOMUN_WINDOW_ID),
-        State::CompanionAiConfig { .. } => Some(COMPANION_AI_CONFIG_WINDOW_ID),
-        _ => None,
-    }
+/// Window id and nominal size for a draggable, `window_at`-based component so
+/// the gallery can spread them into a grid. Returns `None` for fixed bars,
+/// full-screen account screens, and centered modal dialogs, which position
+/// themselves.
+fn gallery_window(state: &State) -> Option<(WidgetId, (f32, f32))> {
+    let (id, win): (WidgetId, &dyn Window) = match state {
+        State::Inventory { inv, .. } => (INV_WINDOW_ID, inv),
+        State::Equipment { equip, .. } => (EQ_WINDOW_ID, equip),
+        State::StatusDemo { win, .. } => (STATUS_WINDOW_ID, win),
+        State::BasicInfoDemo { win, .. } => (BASIC_INFO_WINDOW_ID, win),
+        State::SkillTree { win, .. } => (SKILL_WINDOW_ID, win),
+        State::PartyDemo { win, .. } => (PARTY_FRIENDS_WINDOW_ID, win),
+        State::ItemInfo { win, .. } => (ITEM_INFO_WINDOW_ID, win),
+        State::Book { win, .. } => (BOOK_WINDOW_ID, win),
+        State::Cart { win, .. } => (CART_WINDOW_ID, win),
+        State::CartSelect { win, .. } => (CART_SELECT_WINDOW_ID, win),
+        State::VendingSetup { win, .. } => (VENDING_SETUP_WINDOW_ID, win),
+        State::MyShop { win, .. } => (MY_SHOP_WINDOW_ID, win),
+        State::VendingBuy { win, .. } => (VENDING_SHOP_WINDOW_ID, win),
+        State::Mercenary { win, .. } => (MERCENARY_WINDOW_ID, win),
+        State::MercenarySkill { win, .. } => (MERCENARY_SKILL_WINDOW_ID, win),
+        State::Homun { win, .. } => (HOMUN_WINDOW_ID, win),
+        State::CompanionAiConfig { win, .. } => (COMPANION_AI_CONFIG_WINDOW_ID, win),
+        _ => return None,
+    };
+    Some((id, win.window_size()))
 }
 
+/// Pack draggable windows into rows ("shelves") sized to the actual window
+/// dimensions, wrapping to a new shelf when the next window would run past the
+/// screen edge. This adapts to variable widths and avoids the overlap that a
+/// fixed-column grid produces once `window_at` clamps oversized rows back
+/// on-screen.
 fn seed_gallery_layout(components: &[State], ui: &mut UiFrame) {
-    const COLS: usize = 3;
-    const STEP_X: f32 = 420.0;
-    const STEP_Y: f32 = 290.0;
+    const GAP: f32 = 12.0;
     const MARGIN: f32 = 8.0;
-    let mut slot = 0;
+
+    let avail_w = (ui.ctx.screen_width - MARGIN).max(1.0);
+
+    let mut cursor_x = MARGIN;
+    let mut cursor_y = MARGIN;
+    let mut shelf_h = 0.0f32;
+
     for comp in components {
-        if let Some(id) = gallery_window_id(comp) {
-            let x = (slot % COLS) as f32 * STEP_X + MARGIN;
-            let y = (slot / COLS) as f32 * STEP_Y + MARGIN;
-            ui.seed_window_position(id, x, y);
-            slot += 1;
+        let Some((id, (w, h))) = gallery_window(comp) else {
+            continue;
+        };
+        if cursor_x > MARGIN && cursor_x + w > avail_w {
+            cursor_x = MARGIN;
+            cursor_y += shelf_h + GAP;
+            shelf_h = 0.0;
         }
+        ui.seed_window_position(id, cursor_x, cursor_y);
+        cursor_x += w + GAP;
+        shelf_h = shelf_h.max(h);
     }
 }
 
@@ -1904,7 +1922,7 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             character,
             data,
         } => {
-            win.sync_party(Some(party), *local_aid);
+            win.sync(Some(party), &[], *local_aid);
             win.build(ui, character, data);
         }
         State::Mercenary { win, merc } => {

@@ -117,6 +117,11 @@ impl Window for InventoryWindow {
         }
     }
 
+    fn window_size(&self) -> (f32, f32) {
+        let (w, h, _) = self.compute_dimensions();
+        (w, h)
+    }
+
     fn grf_texture_paths() -> Vec<&'static str> {
         let mut paths = vec![
             TITLEBAR_TEX,

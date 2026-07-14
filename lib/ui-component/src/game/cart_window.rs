@@ -76,6 +76,10 @@ impl Window for CartWindow {
         self.has_grf_textures = value;
     }
 
+    fn window_size(&self) -> (f32, f32) {
+        self.dimensions()
+    }
+
     fn grf_texture_paths() -> Vec<&'static str> {
         let mut paths = vec![
             TITLEBAR_TEX,

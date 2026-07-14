@@ -3,6 +3,7 @@ mod chat;
 mod companion;
 mod connection;
 mod entity;
+mod friends;
 mod inventory;
 mod login;
 mod npc;
@@ -808,6 +809,30 @@ impl App {
                 }
                 GameEvent::PartyChatMessage { aid, message } => {
                     self.handle_party_chat_message(aid, message);
+                }
+                GameEvent::FriendListReceived { friends } => {
+                    self.handle_friend_list_received(friends);
+                }
+                GameEvent::FriendStateChanged { aid, gid, online } => {
+                    self.handle_friend_state_changed(aid, gid, online);
+                }
+                GameEvent::FriendAddResult {
+                    result,
+                    aid,
+                    gid,
+                    name,
+                } => {
+                    self.handle_friend_add_result(result, aid, gid, name);
+                }
+                GameEvent::FriendRemoved { aid, gid } => {
+                    self.handle_friend_removed(aid, gid);
+                }
+                GameEvent::FriendRequestReceived {
+                    req_aid,
+                    req_gid,
+                    name,
+                } => {
+                    self.handle_friend_request_received(req_aid, req_gid, name);
                 }
 
                 GameEvent::AutoCastSkill { skill_id, level } => {

@@ -88,6 +88,10 @@ impl Window for BookWindow {
     fn set_has_grf_textures(&mut self, value: bool) {
         self.has_grf_textures = value;
     }
+    fn window_size(&self) -> (f32, f32) {
+        (WIN_W, WIN_H)
+    }
+
     fn grf_texture_paths() -> Vec<&'static str> {
         vec![
             TITLEBAR_TEX,

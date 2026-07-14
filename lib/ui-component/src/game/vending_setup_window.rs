@@ -332,6 +332,11 @@ impl Window for VendingSetupWindow {
             self.reset_size = (w as f32, h as f32);
         }
     }
+    fn window_size(&self) -> (f32, f32) {
+        let list_h = VISIBLE_ROWS as f32 * ROW_H;
+        (WIN_W, TITLE_H + PAD + NAME_ROW_H + PAD + list_h + PAD + FOOTER_H)
+    }
+
     fn grf_texture_paths() -> Vec<&'static str> {
         let mut paths = vec![
             TITLEBAR_TEX,

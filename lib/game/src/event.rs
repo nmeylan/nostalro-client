@@ -710,6 +710,62 @@ pub enum GameEvent {
     SendPartyChat {
         message: String,
     },
+    RequestPartyCreate {
+        name: String,
+        item_pickup_rule: u8,
+        item_division_rule: u8,
+    },
+    RequestChangePartyLeader {
+        aid: u32,
+    },
+    RequestPartyInviteByName {
+        name: String,
+    },
+    /// Open the party helper child window. mode: 0=create, 1=invite, 2=setup.
+    ShowPartyHelper {
+        mode: u8,
+    },
+
+    // --- Friends ---
+    FriendListReceived {
+        friends: Vec<FriendData>,
+    },
+    FriendStateChanged {
+        aid: u32,
+        gid: u32,
+        online: bool,
+    },
+    FriendAddResult {
+        result: u8,
+        aid: u32,
+        gid: u32,
+        name: String,
+    },
+    FriendRemoved {
+        aid: u32,
+        gid: u32,
+    },
+    FriendRequestReceived {
+        req_aid: u32,
+        req_gid: u32,
+        name: String,
+    },
+    ToggleFriendWindow,
+    RequestAddFriend {
+        name: String,
+    },
+    RespondFriendRequest {
+        req_aid: u32,
+        req_gid: u32,
+        accept: bool,
+    },
+    RequestDeleteFriend {
+        aid: u32,
+        gid: u32,
+    },
+    RequestWhisper {
+        name: String,
+    },
 
     // --- Skill-triggered production / selection windows ---
     ItemIdentifyList {
@@ -982,6 +1038,14 @@ pub struct PartyMemberData {
     pub name: String,
     pub map: String,
     pub leader: bool,
+    pub online: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct FriendData {
+    pub aid: u32,
+    pub gid: u32,
+    pub name: String,
     pub online: bool,
 }
 

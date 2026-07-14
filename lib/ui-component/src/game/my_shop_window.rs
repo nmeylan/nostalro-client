@@ -102,6 +102,12 @@ impl Window for MyShopWindow {
             self.btn_size = (w as f32, h as f32);
         }
     }
+    fn window_size(&self) -> (f32, f32) {
+        let visible_rows = self.rows.len().min(VISIBLE_ROWS).max(1);
+        let list_h = visible_rows as f32 * ROW_H;
+        (WIN_W, TITLE_H + PAD + list_h + PAD + FOOTER_H)
+    }
+
     fn grf_texture_paths() -> Vec<&'static str> {
         let mut paths = vec![
             TITLEBAR_TEX,

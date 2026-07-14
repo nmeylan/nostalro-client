@@ -143,6 +143,10 @@ impl Window for StatusWindow {
         }
     }
 
+    fn window_size(&self) -> (f32, f32) {
+        (WIN_W, WIN_H)
+    }
+
     fn grf_texture_paths() -> Vec<&'static str> {
         vec![
             BG_TEX,

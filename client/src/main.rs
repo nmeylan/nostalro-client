@@ -53,6 +53,8 @@ use ragnarok_network::{
     build_npc_next_packet, build_pickup_item_packet, build_purchase_item_list_packet,
     build_change_party_exp_option_packet, build_expel_party_member_packet,
     build_join_party_reply_packet, build_leave_party_packet, build_make_party_packet,
+    build_make_party2_packet, build_change_party_leader_packet, build_party_invite_by_name_packet,
+    build_add_friend_packet, build_ack_add_friend_packet, build_delete_friend_packet,
     build_party_chat_packet, build_remove_option_packet, build_req_enter_room_packet,
     build_req_disconnect_packet, build_req_join_party_packet, build_reqname_packet,
     build_restart_packet, build_select_char_packet, build_select_warppoint_packet,
@@ -78,6 +80,7 @@ use ragnarok_ui::state::StateCache;
 use ragnarok_formats::act::SpriteAnimationState;
 use ragnarok_ui_component::Window as _;
 use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
+use ragnarok_ui_component::game::party_helper_window::MODE_CREATE;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::{LoginFocus, LoginWindow};
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
@@ -1232,7 +1235,10 @@ impl App {
                     }
                 }
                 GameEvent::TogglePartyWindow => {
-                    self.game.party_window.toggle();
+                    self.game.party_friends_window.open_party_tab();
+                }
+                GameEvent::ToggleFriendWindow => {
+                    self.game.party_friends_window.open_friend_tab();
                 }
                 GameEvent::RequestPartyInvite { target_aid } => {
                     let pv = self.config.packetver;
@@ -1281,6 +1287,76 @@ impl App {
                 GameEvent::SendPartyChat { message } => {
                     self.channel
                         .send_packet(build_party_chat_packet(&message, self.config.packetver));
+                }
+                GameEvent::ShowPartyHelper { mode } => {
+                    let local_aid = self
+                        .game
+                        .login_session
+                        .as_ref()
+                        .map(|s| s.account_id)
+                        .unwrap_or(0);
+                    let is_leader = self
+                        .game
+                        .party
+                        .as_ref()
+                        .and_then(|p| p.leader_aid())
+                        .map(|aid| aid == local_aid)
+                        .unwrap_or(false);
+                    let (exp, pickup, division) = self
+                        .game
+                        .party
+                        .as_ref()
+                        .map(|p| (p.exp_share, p.item_pickup_rule, p.item_division_rule))
+                        .unwrap_or((false, 0, 0));
+                    let editable = mode == MODE_CREATE || is_leader;
+                    self.game
+                        .party_helper_window
+                        .open(mode, exp, pickup, division, editable);
+                }
+                GameEvent::RequestPartyCreate {
+                    name,
+                    item_pickup_rule,
+                    item_division_rule,
+                } => {
+                    self.channel.send_packet(build_make_party2_packet(
+                        &name,
+                        item_pickup_rule,
+                        item_division_rule,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestPartyInviteByName { name } => {
+                    self.channel.send_packet(build_party_invite_by_name_packet(
+                        &name,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestChangePartyLeader { aid } => {
+                    self.channel
+                        .send_packet(build_change_party_leader_packet(aid, self.config.packetver));
+                }
+                GameEvent::RequestAddFriend { name } => {
+                    self.channel
+                        .send_packet(build_add_friend_packet(&name, self.config.packetver));
+                }
+                GameEvent::RequestDeleteFriend { aid, gid } => {
+                    self.channel
+                        .send_packet(build_delete_friend_packet(aid, gid, self.config.packetver));
+                }
+                GameEvent::RespondFriendRequest {
+                    req_aid,
+                    req_gid,
+                    accept,
+                } => {
+                    self.channel.send_packet(build_ack_add_friend_packet(
+                        req_aid,
+                        req_gid,
+                        accept,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestWhisper { name } => {
+                    self.game.chat_window.start_whisper(name);
                 }
                 _ => {}
             }
@@ -1499,18 +1575,13 @@ impl App {
             AppState::InGame => {
                 let render_list = self.compute_render_list();
                 if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
-                    let initial_focus = if self.game.chat_window.is_active() {
-                        Some(self.game.chat_window.focused_input)
-                    } else {
-                        None
-                    };
                     let mut ui = UiFrame::new(
                         ui_ctx,
                         &renderer.font_atlas,
                         &mut self.ui_state_cache,
                         elapsed,
                         self.game.system_menu.has_grf_textures,
-                        initial_focus,
+                        None,
                         &self.saved_window_positions,
                     );
                     let events = self.game.build_in_game_ui(
